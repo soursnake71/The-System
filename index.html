@@ -359,9 +359,13 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     </div>
     <div class="card">
       <h2>Export</h2>
-      <div class="row"><span class="label">Repeat loop</span><select id="expLoops"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option></select><span class="grow"></span></div>
-      <div class="row"><button id="export" class="grow">Export WAV</button><button id="share" class="grow" disabled>Share</button></div>
-      <div class="status" id="expStatus">Renders the drums and audio tracks through the mixer as a 44.1 kHz, 16-bit WAV.</div>
+      <div class="ctl"><label class="label" for="expWhat">What</label><select id="expWhat"><option value="mix">Full mix</option><option value="tracks">Every track (ZIP)</option><option value="midi">MIDI file</option></select><span></span></div>
+      <div class="ctl" id="expFmtRow"><label class="label" for="expFmt">Format</label><select id="expFmt"><option value="wav16">WAV 16-bit</option><option value="wav24">WAV 24-bit</option><option value="mp3-320">MP3 320 kbps</option><option value="mp3-192">MP3 192 kbps</option></select><span></span></div>
+      <div class="ctl" id="expSrRow"><label class="label" for="expSr">Rate</label><select id="expSr"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select><span></span></div>
+      <div class="ctl" id="expLoopsRow"><label class="label" for="expLoops">Repeat</label><select id="expLoops"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option><option value="16">16×</option></select><span></span></div>
+      <p class="hint" id="expHint"></p>
+      <div class="row"><button id="export" class="grow">Export mix</button><button id="share" class="grow" disabled>Share</button></div>
+      <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
       <h2>Project</h2>
@@ -1493,52 +1497,175 @@ async function setPadBuffer(pi, buf, name){
 }
 
 /* ================= export ================= */
-let lastExport = null;
-function encodeWav(buf){
-  const n = buf.length, ch = 2, bytes = 44 + n * ch * 2, ab = new ArrayBuffer(bytes), v = new DataView(ab);
+function encodeWav(buf, bits = 16){
+  const n = buf.length, ch = 2, by = bits / 8, bytes = 44 + n * ch * by, ab = new ArrayBuffer(bytes), v = new DataView(ab);
   const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
   w(0, 'RIFF'); v.setUint32(4, bytes - 8, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
-  v.setUint16(22, ch, true); v.setUint32(24, buf.sampleRate, true); v.setUint32(28, buf.sampleRate * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
-  w(36, 'data'); v.setUint32(40, n * ch * 2, true);
+  v.setUint16(22, ch, true); v.setUint32(24, buf.sampleRate, true); v.setUint32(28, buf.sampleRate * ch * by, true); v.setUint16(32, ch * by, true); v.setUint16(34, bits, true);
+  w(36, 'data'); v.setUint32(40, n * ch * by, true);
   const L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
-  let o = 44; for (let i = 0; i < n; i++){ for (const d of [L, R]){ const s = clamp(d[i], -1, 1); v.setInt16(o, s < 0 ? s * 32768 : s * 32767, true); o += 2; } }
+  let o = 44;
+  for (let i = 0; i < n; i++) for (const d of [L, R]){
+    const s = clamp(d[i], -1, 1);
+    if (bits === 16){ v.setInt16(o, s < 0 ? s * 32768 : s * 32767, true); o += 2; }
+    else { const x = Math.round(s < 0 ? s * 8388608 : s * 8388607); v.setUint8(o, x & 255); v.setUint8(o + 1, (x >> 8) & 255); v.setUint8(o + 2, (x >> 16) & 255); o += 3; }
+  }
   return new Blob([ab], {type:'audio/wav'});
 }
-async function exportMix(){
-  const btn = $('#export'); btn.disabled = true; $('#expStatus').textContent = 'Rendering…';
+let lameP = null;
+function loadLame(){
+  return lameP || (lameP = new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js';
+    sc.onload = () => res(window.lamejs); sc.onerror = () => { lameP = null; sc.remove(); rej(new Error('the MP3 encoder could not load. MP3 needs an internet connection the first time.')); };
+    document.head.appendChild(sc);
+  }));
+}
+async function encodeMp3(buf, kbps, onProgress){
+  const lame = await loadLame(), enc = new lame.Mp3Encoder(2, buf.sampleRate, kbps);
+  const i16 = d => { const o = new Int16Array(d.length); for (let i = 0; i < d.length; i++){ const x = clamp(d[i], -1, 1); o[i] = x < 0 ? x * 32768 : x * 32767; } return o; };
+  const L = i16(buf.getChannelData(0)), R = i16(buf.numberOfChannels > 1 ? buf.getChannelData(1) : buf.getChannelData(0)), parts = [];
+  for (let i = 0; i < L.length; i += 1152){
+    const m = enc.encodeBuffer(L.subarray(i, i + 1152), R.subarray(i, i + 1152)); if (m.length) parts.push(new Uint8Array(m));
+    if (i % (1152 * 300) === 0){ onProgress && onProgress(i / L.length); await new Promise(r => setTimeout(r)); }
+  }
+  const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
+  return new Blob(parts, {type:'audio/mpeg'});
+}
+async function encodeAudio(buf, fmt, onProgress){
+  if (fmt === 'wav16') return {blob:encodeWav(buf, 16), ext:'wav'};
+  if (fmt === 'wav24') return {blob:encodeWav(buf, 24), ext:'wav'};
+  return {blob:await encodeMp3(buf, fmt === 'mp3-320' ? 320 : 192, onProgress), ext:'mp3'};
+}
+// ZIP with stored (uncompressed) entries
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function makeZip(files){
+  const enc = new TextEncoder(), chunks = [], central = []; let off = 0;
+  for (const f of files){
+    const data = new Uint8Array(await f.blob.arrayBuffer()), name = enc.encode(f.name), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+    chunks.push(new Uint8Array(h.buffer), name, data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true);
+    cd.setUint32(16, crc, true); cd.setUint32(20, data.length, true); cd.setUint32(24, data.length, true); cd.setUint16(28, name.length, true); cd.setUint32(42, off, true);
+    central.push(new Uint8Array(cd.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((a, c) => a + c.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+  return new Blob([...chunks, ...central, new Uint8Array(e.buffer)], {type:'application/zip'});
+}
+// what to export: the whole song in song mode, otherwise the current scene looped
+function exportPlan(){
+  storeScene();
+  const loops = +$('#expLoops').value, song = S.songMode && S.song.length;
+  const parts = song ? S.song.map(e => ({s:e.s, steps:e.n * S.scenes[e.s].bars * 16}))
+    : [{s:S.cur, steps:Math.max(S.bars * 16, ...S.audio.filter(t => t.clip).map(t => t.clipSteps)) * loops}];
+  return {parts, total:parts.reduce((a, p) => a + p.steps, 0), song};
+}
+async function renderAudio(sr, solo, fixedLen){
+  const sd = stepDur(), {parts, total} = exportPlan(), len = fixedLen || Math.ceil((total * sd + 2.5) * sr);
+  const saved = allTracks().map(t => [t, t.solo]);
+  if (solo) allTracks().forEach(t => t.solo = t.id === solo);
   try {
-    const loops = +$('#expLoops').value, sd = stepDur(), sr = 44100, song = S.songMode && S.song.length;
-    storeScene();
-    const parts = song ? S.song.map(e => ({s:e.s, steps:e.n * S.scenes[e.s].bars * 16}))
-      : [{s:S.cur, steps:Math.max(S.bars * 16, ...S.audio.filter(t => t.clip).map(t => t.clipSteps)) * loops}];
-    const total = parts.reduce((a, p) => a + p.steps, 0), dur = total * sd + 2.5;
-    const oc = new OfflineAudioContext(2, Math.ceil(dur * sr), sr);
+    const oc = new OfflineAudioContext(2, len, sr);
     try { await oc.audioWorklet.addModule(workletUrl()); oc._reduxOK = true; } catch(e){}
-    const rig = makeRig(oc);
-    const keepCur = S.cur, keepOrg = org;
+    const rig = makeRig(oc), keepCur = S.cur, keepOrg = org;
     let i0 = 0;
-    try {
-      for (const part of parts){
-        loadScene(part.s); org = i0;
-        for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd);
-        i0 += part.steps;
-      }
-    } finally { loadScene(keepCur); org = keepOrg; }
+    try { for (const part of parts){ loadScene(part.s); org = i0; for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd); i0 += part.steps; } }
+    finally { loadScene(keepCur); org = keepOrg; }
     spFinish(rig);
     const out = await oc.startRendering();
-    // trim the reverb tail where it falls silent
+    if (fixedLen) return out;
     let end = out.length; const L = out.getChannelData(0), R = out.getChannelData(1), keep = Math.ceil((total * sd + .02) * sr);
     while (end > keep && Math.abs(L[end - 1]) < 1e-4 && Math.abs(R[end - 1]) < 1e-4) end--;
-    const trimmed = new AudioBuffer({length:end, numberOfChannels:2, sampleRate:sr});
-    trimmed.copyToChannel(L.subarray(0, end), 0); trimmed.copyToChannel(R.subarray(0, end), 1);
-    const blob = encodeWav(trimmed), name = `pocket-rack-${S.bpm}bpm-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.wav`;
-    lastExport = new File([blob], name, {type:'audio/wav'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-    $('#expStatus').textContent = `Saved ${name} (${(end / sr).toFixed(1)} s, ${(blob.size / 1048576).toFixed(1)} MB). Check your Downloads folder.`;
-    $('#share').disabled = !(navigator.canShare && navigator.canShare({files:[lastExport]}));
-  } catch (e){ console.warn(e); $('#expStatus').textContent = 'Export failed: ' + e.message; }
+    const tr = new AudioBuffer({length:end, numberOfChannels:2, sampleRate:sr});
+    tr.copyToChannel(L.subarray(0, end), 0); tr.copyToChannel(R.subarray(0, end), 1);
+    return tr;
+  } finally { saved.forEach(([t, v]) => t.solo = v); }
+}
+// Standard MIDI File (type 1, 96 ticks per quarter = this app's tick grid)
+function buildMidi(){
+  const {parts} = exportPlan(), sw = S.swing / 100 * TPS * .66, keepCur = S.cur;
+  const tracks = [{name:'Drums', ch:9, ev:[]}, ...S.synths.map((t, k) => ({name:t.name, ch:k, ev:[], id:t.id}))];
+  let base = 0;
+  try {
+    for (const part of parts){
+      loadScene(part.s);
+      const L = S.bars * TPB, loops = Math.round(part.steps * TPS / L);
+      for (let r = 0; r < loops; r++){
+        const o = base + r * L, swing = t => t % 48 === 24 ? Math.round(sw) : 0;
+        for (const n of S.drum.notes) if (n.t < L){ const at = o + n.t + swing(n.t); tracks[0].ev.push([at, 0x90, clamp(S.midiBase + n.p, 0, 127), Math.max(1, Math.round(n.v * 127))], [at + 12, 0x80, clamp(S.midiBase + n.p, 0, 127), 0]); }
+        S.synths.forEach((t, k) => { for (const n of t.notes) if (n.t < L){ const at = o + n.t + swing(n.t); tracks[k + 1].ev.push([at, 0x90, n.n, Math.max(1, Math.round(n.v * 127))], [at + Math.max(6, n.d), 0x80, n.n, 0]); } });
+      }
+      base += part.steps * TPS;
+    }
+  } finally { loadScene(keepCur); }
+  const bytes = [], u16 = v => [v >> 8 & 255, v & 255], u32 = v => [v >>> 24 & 255, v >> 16 & 255, v >> 8 & 255, v & 255];
+  const vlq = v => { const o = [v & 127]; while (v >>= 7) o.unshift((v & 127) | 128); return o; };
+  const text = (type, str) => { const b = [...new TextEncoder().encode(str)]; return [0xFF, type, ...vlq(b.length), ...b]; };
+  const chunk = data => [...[0x4D, 0x54, 0x72, 0x6B], ...u32(data.length), ...data];
+  bytes.push(0x4D, 0x54, 0x68, 0x64, ...u32(6), ...u16(1), ...u16(tracks.length + 1), ...u16(96));
+  const us = Math.round(60e6 / S.bpm);
+  bytes.push(...chunk([0, ...text(3, 'Pocket Rack'), 0, 0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0]));
+  for (const t of tracks){
+    t.ev.sort((a, b) => a[0] - b[0] || (a[1] === 0x80 ? -1 : 1));
+    const d = [0, ...text(3, t.name)]; let last = 0;
+    for (const [at, st, n, v] of t.ev){ d.push(...vlq(Math.max(0, at - last)), st | t.ch, n, v); last = at; }
+    d.push(0, 0xFF, 0x2F, 0); bytes.push(...chunk(d));
+  }
+  return new Blob([new Uint8Array(bytes)], {type:'audio/midi'});
+}
+let lastExport = null;
+function saveFile(blob, name){
+  lastExport = new File([blob], name, {type:blob.type});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  $('#share').disabled = !(navigator.canShare && navigator.canShare({files:[lastExport]}));
+}
+const fileSafe = s => s.replace(/[^\w\- ]+/g, '').trim() || 'track';
+async function exportMix(){
+  const btn = $('#export'), st = $('#expStatus'), what = $('#expWhat').value, fmt = $('#expFmt').value, sr = +$('#expSr').value;
+  const stamp = `${fileSafe(S.scenes[S.cur].name)}-${S.bpm}bpm-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
+  btn.disabled = true;
+  try {
+    if (what === 'midi'){
+      const blob = buildMidi(), name = `pocket-rack-${stamp}.mid`;
+      saveFile(blob, name); st.textContent = `Saved ${name}: drums on channel 10 (A01 = ${noteName(S.midiBase)}), each synth on its own channel. Check your Downloads folder.`;
+    } else if (what === 'mix'){
+      st.textContent = 'Rendering the mix…';
+      const buf = await renderAudio(sr);
+      st.textContent = 'Encoding…';
+      const {blob, ext} = await encodeAudio(buf, fmt, f => st.textContent = 'Encoding MP3… ' + Math.round(f * 100) + '%');
+      const name = `pocket-rack-${stamp}.${ext}`;
+      saveFile(blob, name); st.textContent = `Saved ${name} (${buf.duration.toFixed(1)} s, ${(blob.size / 1048576).toFixed(1)} MB). Check your Downloads folder.`;
+    } else {
+      const sd = stepDur(), {total} = exportPlan(), len = Math.ceil((total * sd + 2.5) * sr), files = [];
+      const list = allTracks().filter(t => !t.mute);
+      st.textContent = 'Rendering the mix…';
+      const mix = await renderAudio(sr, null, len);
+      files.push({name:'00 Mix.' + (fmt.startsWith('mp3') ? 'mp3' : 'wav'), blob:(await encodeAudio(mix, fmt)).blob});
+      for (let k = 0; k < list.length; k++){
+        st.textContent = `Rendering track ${k + 1} of ${list.length}: ${list[k].name}…`;
+        const buf = await renderAudio(sr, list[k].id, len), {blob, ext} = await encodeAudio(buf, fmt);
+        files.push({name:`${String(k + 1).padStart(2, '0')} ${fileSafe(list[k].name)}.${ext}`, blob});
+      }
+      st.textContent = 'Packing the ZIP…';
+      const zip = await makeZip(files), name = `pocket-rack-${stamp}-tracks.zip`;
+      saveFile(zip, name);
+      st.textContent = `Saved ${name}: the full mix plus ${list.length} tracks, all the same length so they line up from bar 1 in any DAW. ${(zip.size / 1048576).toFixed(1)} MB.`;
+    }
+  } catch (e){ console.warn(e); st.textContent = 'Export failed: ' + e.message; }
   btn.disabled = false;
+}
+function renderExport(){
+  const what = $('#expWhat').value, song = S.songMode && S.song.length;
+  $('#expFmtRow').hidden = what === 'midi'; $('#expSrRow').hidden = what === 'midi'; $('#expLoopsRow').hidden = !!song;
+  $('#export').textContent = what === 'midi' ? 'Export MIDI' : what === 'mix' ? 'Export mix' : 'Export tracks';
+  $('#expHint').textContent = (song ? 'Song mode is on, so this exports the whole song. ' : 'Exports the current scene, looped. Turn Song on (Song tab) to export the arrangement. ')
+    + (what === 'tracks' ? 'Each track is rendered on its own through its effects and sends; muted tracks are skipped.' : what === 'midi' ? 'Drum hits and synth notes only, with swing applied.' : '');
 }
 
 /* ================= UI ================= */
@@ -1811,7 +1938,7 @@ function setView(v){
   if (v === 'drums') seqDirty = true;
   if (v === 'audio') renderTracks();
   if (v === 'mixer') renderMixer();
-  if (v === 'setup'){ renderInput(); renderMidi(); }
+  if (v === 'setup'){ renderInput(); renderMidi(); if (S.exp){ $('#expWhat').value = S.exp.what; $('#expFmt').value = S.exp.fmt; $('#expSr').value = S.exp.sr; } renderExport(); }
   if (v === 'chop') renderChop();
   if (v === 'song') renderSong();
   if (v === 'synth') renderSynth();
@@ -2824,6 +2951,7 @@ $('#addTrack').addEventListener('click', () => {
   save(); renderTracks();
 });
 $('#export').addEventListener('click', exportMix);
+['#expWhat', '#expFmt', '#expSr'].forEach(id => $(id).addEventListener('change', () => { S.exp = {what:$('#expWhat').value, fmt:$('#expFmt').value, sr:$('#expSr').value}; save(); renderExport(); }));
 let importTarget = null;
 $('#trackFile').addEventListener('change', async e => {
   const f = e.target.files[0], tr = importTarget; e.target.value = ''; if (!f || !tr) return;
