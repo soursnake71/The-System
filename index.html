@@ -401,6 +401,10 @@ html.retro .ssl-knobs select.kval{color:#ffe2a0}
 .fxrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .fxrow button{padding:12px 0}
 html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);color:#fff}
+.liblist{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+.librow{display:grid;grid-template-columns:minmax(0,1fr) 44px 34px 34px 34px 34px;gap:4px;align-items:center;font-size:13px}
+.libname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.librow button{padding:8px 0}
 </style>
 
 </head>
@@ -525,6 +529,17 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="ttTpr">Steps / turn</label><input id="ttTpr" type="range" min="8" max="4096" step="1"><span class="v mono"></span></div>
         <div class="status" id="ttExtStatus">Put the DN-S3700 in MIDI mode, connect it by USB, Connect MIDI in Setup, then tap Learn platter.</div>
       </div>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow">Sampler</h2><button id="smpLoad" class="nolearn">LOAD MODE</button></div>
+      <div class="ppads" id="smpPads"></div>
+      <div class="ctl"><label class="label" for="smpVol">Level</label><input id="smpVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
+      <input type="file" id="smpFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow">Library</h2><button id="libAdd" class="nolearn">ADD TRACKS</button></div>
+      <div id="libList" class="liblist"></div>
+      <input type="file" id="libFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
     </div>
     <div class="card mixdj">
       <h2>Mixer</h2>
@@ -4627,7 +4642,7 @@ function renderDeck(){
   const pi = $('#ttPitch'); pi.min = -D.range; pi.max = D.range; pi.step = D.range > 16 ? .5 : D.range > 8 ? .1 : .05; pi.value = D.pitch;
   restepify(pi, pitchFmt);
   $('#ttRange').value = String(D.range); $('#ttVol').value = D.vol;
-  renderPPads(); renderPlat(); renderMixDJ(); renderDeckMatch();
+  renderPPads(); renderPlat(); renderMixDJ(); renderDeckMatch(); renderSampler(); renderLib();
 }
 /* record the mix: everything coming out of the master (decks, sampler, the rest of the app) into a WAV */
 const mixRec = {node:null, chunks:[], t0:0, on:false};
@@ -4648,6 +4663,60 @@ async function toggleRecMix(){
   const st = new Date(), stamp = `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}-${String(st.getHours()).padStart(2, '0')}${String(st.getMinutes()).padStart(2, '0')}`;
   saveFile(new Blob([encodeWav(buf, 16)], {type:'audio/wav'}), `snake-device-mix-${stamp}.wav`);
   toast(`Saved your mix (${(n / ctx.sampleRate / 60).toFixed(1)} min). Check your Downloads folder.`);
+}
+/* sampler: 8 slots, tap to fire (a new tap restarts it), into the master; LOAD MODE then a slot picks its file */
+const smp = {bufs:[], src:[], gain:null, loadMode:false, slot:0};
+function smpState(){ const d = {vol:.9, slots:[]}; S.sampler = S.sampler || {}; for (const k in d) if (S.sampler[k] === undefined) S.sampler[k] = d[k]; return S.sampler; }
+async function smpBuf(k){ if (smp.bufs[k]) return smp.bufs[k]; const a = await DB.get('audio', 'smp:' + k); if (a && a.ch){ smp.bufs[k] = makeBuffer(a.ch, a.sr); } return smp.bufs[k]; }
+async function smpFire(k){
+  ensureAudio(); const b = await smpBuf(k); if (!b) return;
+  if (!smp.gain){ smp.gain = ctx.createGain(); smp.gain.connect(live.master.bus); }
+  smp.gain.gain.value = smpState().vol;
+  if (smp.src[k]) try { smp.src[k].stop(); } catch(e){}
+  const s = ctx.createBufferSource(); s.buffer = b; s.connect(smp.gain); s.start(); smp.src[k] = s;
+}
+function renderSampler(){
+  const S2 = smpState(), box = $('#smpPads'); if (!box) return;
+  if (!box.children.length) for (let k = 0; k < 8; k++){
+    const b = document.createElement('button'); b.className = 'ppad'; b.id = 'smp' + k; b.dataset.momentary = '1';
+    b._down = () => { if (smp.loadMode){ smp.slot = k; $('#smpFile').click(); return; } b.classList.add('act'); smpFire(k); }; b._up = () => b.classList.remove('act');
+    b.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); b._down(); }); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => b._up()));
+    box.appendChild(b);
+  }
+  [...box.children].forEach((b, k) => { const nm = S2.slots[k]; b.textContent = nm ? nm.slice(0, 12) : 'EMPTY ' + (k + 1); b.style.background = nm ? `linear-gradient(180deg,${CUE_COL[k]},${CUE_COL[k]}bb)` : ''; b.classList.toggle('set', !!nm); });
+  $('#smpLoad').classList.toggle('on', smp.loadMode); $('#smpVol').value = S2.vol;
+}
+/* library: tracks kept on the phone (as their original files) with BPM, key and length; load to either deck */
+function libState(){ return S.lib = S.lib || []; }
+async function libAddFile(f){
+  ensureAudio(); const ab = await f.arrayBuffer(), buf = await ctx.decodeAudioData(ab.slice(0));
+  const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), tmp = {i:9, buf}, name = f.name.replace(/\.[^.]+$/, '');
+  const save9 = S.decks[9]; S.decks[9] = {}; trackAnalyse(tmp); const D = S.decks[9]; S.decks.length = 2; if (save9) S.decks[9] = save9;
+  await DB.put('audio', 'lib:' + id, {file:new Blob([ab], {type:f.type || 'audio/mpeg'})});
+  libState().push({id, name, bpm:D.bpm, off:D.off, key:D.key, cam:D.cam, dur:buf.duration});
+  return {id, buf};
+}
+async function libLoad(id, i){
+  const e = libState().find(x => x.id === id); if (!e) return;
+  ensureAudio(); await workletReady;
+  const a = await DB.get('audio', 'lib:' + id); if (!a || !a.file){ toast('That track is missing.'); return; }
+  const buf = await ctx.decodeAudioData(await a.file.arrayBuffer()), d = decks[i];
+  d.buf = buf; await storeAudio(recKey(i), buf);
+  const D = deckState(i); Object.assign(D, {name:e.name, cue:0, on:false, cues:[], loop:null, lastLoop:null, sync:false, bpm:e.bpm, off:e.off, key:e.key, cam:e.cam, bpmLocked:true});
+  trackAnalyse(d); D.bpmLocked = false; deckEnsure(d); deckSend(buf, d); deckSet(d); save(); renderDeck();
+  toast(`${e.name} on deck ${i + 1}.`);
+}
+function renderLib(){
+  const box = $('#libList'); if (!box) return; const L = libState();
+  box.innerHTML = L.length ? '' : '<p class="hint" style="display:block">No tracks yet. Tap Add tracks.</p>';
+  L.forEach(e => {
+    const r = document.createElement('div'); r.className = 'librow';
+    r.innerHTML = `<div class="libname"></div><span class="mono">${e.bpm ? e.bpm.toFixed(1) : '—'}</span><span class="mono">${e.cam || '—'}</span><button data-d="0" class="nolearn">1</button><button data-d="1" class="nolearn">2</button><button data-x="1" class="nolearn" aria-label="Remove">✕</button>`;
+    r.querySelector('.libname').textContent = e.name;
+    r.querySelectorAll('button[data-d]').forEach(b => b.addEventListener('click', () => libLoad(e.id, +b.dataset.d)));
+    r.querySelector('button[data-x]').addEventListener('click', async () => { if (!confirm('Remove ' + e.name + ' from the library?')) return; S.lib = libState().filter(x => x !== e); try { await DB.del('audio', 'lib:' + e.id); } catch(_){} save(); renderLib(); });
+    box.appendChild(r);
+  });
 }
 function renderMixDJ(){
   const M = mixState();
@@ -4788,6 +4857,16 @@ function renderPlat(){
   $('#lpDbl').addEventListener('click', () => { const L = deckState().loop; if (L) setLoop(curDeck, L.a, L.a + (L.b - L.a) * 2); });
   // mixer
   $('#recMix').addEventListener('click', toggleRecMix);
+  $('#smpLoad').addEventListener('click', () => { smp.loadMode = !smp.loadMode; renderSampler(); if (smp.loadMode) toast('Tap a sampler slot to load a sound into it.'); });
+  $('#smpFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; ensureAudio();
+    try { const b = await ctx.decodeAudioData(await f.arrayBuffer()); if (b.duration > 60){ toast('Samples up to 60 seconds.'); return; } smp.bufs[smp.slot] = b; await storeAudio('smp:' + smp.slot, b); smpState().slots[smp.slot] = f.name.replace(/\.[^.]+$/, ''); smp.loadMode = false; save(); renderSampler(); }
+    catch(err){ toast('Could not read that file.'); } });
+  $('#smpVol').addEventListener('input', e => { smpState().vol = +e.target.value; if (smp.gain) smp.gain.gain.value = smpState().vol; save(); });
+  stepify($('#smpVol'), v => Math.round(v * 100) + '%');
+  $('#libAdd').addEventListener('click', () => $('#libFile').click());
+  $('#libFile').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; let n = 0;
+    for (const f of fs){ try { toast(`Analysing ${f.name}…`); await libAddFile(f); n++; renderLib(); } catch(err){ console.warn(err); toast('Could not read ' + f.name); } }
+    save(); if (n) toast(`Added ${n} track${n > 1 ? 's' : ''} to the library.`); });
   $('#xf').addEventListener('input', e => { mixState().xf = +e.target.value; applyMix(); save(); });
   $('#xfCurve').addEventListener('change', e => { mixState().curve = e.target.value; applyMix(); save(); });
   $('#xfRev').addEventListener('click', () => { const M = mixState(); M.rev = !M.rev; applyMix(); save(); renderMixDJ(); });
