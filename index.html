@@ -193,6 +193,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint">Press Overdub or the record button and play the pads. Every pass layers on top. Timing correct snaps hits to the grid as you play. With it off, they stay exactly as played. Note repeat retriggers a held pad in time. Erase removes a held pad's hits as the loop passes over them.</p>
     </div>
     <div class="card">
+      <div class="row"><span class="grow">SP-1200 mode: 12-bit, 26 kHz, drop-sample pitch, output filters</span><button id="spMode">Off</button></div>
       <div class="row"><h2 class="grow" id="padTitle">A01 Kick</h2><span class="badge" id="sampleBadge">Built-in</span><button id="clearPad">Clear hits</button></div>
       <div class="row">
         <button id="loadSample" class="grow">Load file</button>
@@ -581,7 +582,10 @@ function applyStrip(c, s, t){
   const sat = t.sat || 0;
   if (s._sat !== sat){ s.sat.curve = satCurve(sat); s._sat = sat; }
   sp(c, s.satOut.gain, 1 / (1 + sat * .9));
-  if (s.rdx){ const k = t.crush || 0; sp(c, s.rdx.parameters.get('factor'), 1 + Math.round(k * k * 30)); sp(c, s.rdx.parameters.get('bits'), k ? 16 - k * 13 : 16); }
+  if (s.rdx){
+    if (t.sp12){ sp(c, s.rdx.parameters.get('factor'), c.sampleRate / SP_SR); sp(c, s.rdx.parameters.get('bits'), 12); }
+    else { const k = t.crush || 0; sp(c, s.rdx.parameters.get('factor'), 1 + Math.round(k * k * 30)); sp(c, s.rdx.parameters.get('bits'), k ? 16 - k * 13 : 16); }
+  }
   const ch = t.chorus || 0;
   sp(c, s.chWet.gain, ch * .8); s.chDepth.forEach(g => sp(c, g.gain, ch * .004));
   sp(c, s.apDepth.gain, t.apan || 0); sp(c, s.apOsc.frequency, S.bpm / 60 / (t.apanRate || 1));
@@ -658,15 +662,108 @@ function click(t, accent){
   o.connect(g).connect(live.click); o.start(t); o.stop(t + .06);
 }
 
+/* ================= SP-1200 mode =================
+   Audio path after libmd12 (MIT, github.com/Mudb0y/libmd12): 26,041.67 Hz (20 MHz / 768),
+   truncating 12-bit converter, drop/repeat pitch with a 7-bit fraction counter and E-mu's
+   semitone table, 7th-order input anti-alias filter, outputs 1-2 through an SSM2044 4-pole
+   dynamic filter, 3-6 through fixed filters, 7-8 unfiltered. Poles and zeros are in rad/s. */
+const SP_SR = 20e6 / 768;
+const SP_TUNE = [50,53,56,59,63,67,71,75,80,84,90,95,101,107,113,120,127,135,143,151,160,170,180,191,202,214,227,241,255,255,255,255];
+const SP_PROTO = {
+  input:{poles:[[-3.1645569620e4,0],[-2.3809523810e4,4.6628955649e4],[-1.1574074074e4,7.4291800562e4],[-3.0864197531e3,8.2586975770e4],[-1.9405594406e5,0]],
+         zeros:[[1.4005991967e1,1.0385249071e5],[2.2080491445e1,1.2148212766e5],[-7.1836348348e1,1.4125368878e5]]},
+  3:{poles:[[-4.6549557989e4,0],[-1.6129032258e4,4.8387096774e4],[-4.2413850609e4,3.0520415770e4]], zeros:[]},
+  4:{poles:[[-5.5372960884e4,0],[-1.9607843137e4,5.8823529412e4],[-5.1403645657e4,3.7527098089e4]], zeros:[]},
+  5:{poles:[[-7.3190092409e4,0],[-2.3255813953e4,6.9767441860e4],[-6.1051842833e4,4.2379116726e4]], zeros:[]},
+  6:{poles:[[-6.0667642111e4,4.8266457976e4],[-2.5641025641e4,7.6923076923e4],[-9.5952540933e4,0]], zeros:[]}
+};
+// analog poles/zeros -> digital biquad/first-order sections (bilinear, pre-warped, unity gain at DC)
+function sDesign(proto, fs){
+  const K = 2 * fs, warp = ([re, im]) => { const w = Math.hypot(re, im); if (w > .9 * Math.PI * fs) return [re, im]; const k = K * Math.tan(w / K) / w; return [re * k, im * k]; };
+  const quad = (c1, c0) => [K * K + c1 * K + c0, 2 * c0 - 2 * K * K, K * K - c1 * K + c0];
+  const zs = proto.zeros.map(warp).sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
+  const secs = [];
+  proto.poles.map(warp).sort((a, b) => Math.hypot(...a) - Math.hypot(...b)).forEach(([re, im]) => {
+    let b, a;
+    if (im > 0){
+      a = quad(-2 * re, re * re + im * im);
+      const z = zs.shift();
+      b = z ? quad(-2 * z[0], z[0] * z[0] + z[1] * z[1]) : [1, 2, 1];
+    } else { a = [K - re, -re - K]; b = [1, 1]; }
+    const dc = b.reduce((x, y) => x + y, 0) / a.reduce((x, y) => x + y, 0);
+    secs.push({b:b.map(x => x / dc / a[0]), a:a.map(x => x / a[0])});
+  });
+  return secs;
+}
+function runSections(d, secs){
+  for (const {b, a} of secs){
+    let z1 = 0, z2 = 0;
+    for (let i = 0; i < d.length; i++){
+      const x = d[i], y = b[0] * x + z1;
+      z1 = (b[1] || 0) * x - a[1] * y + z2; z2 = (b[2] || 0) * x - (a[2] || 0) * y; d[i] = y;
+    }
+  }
+  return d;
+}
+const spBases = new Map(), spVoices = new Map();
+// sample the source the way the SP-1200 would: anti-alias filter, sample-and-hold at 26.04 kHz, truncate to 12 bits
+function spBase(key){
+  if (spBases.has(key)) return spBases.get(key);
+  const buf = buffers.get(key) || buffers.get('kit:kick'), sr = buf.sampleRate;
+  const m = new Float32Array(buf.length);
+  for (let c = 0; c < buf.numberOfChannels; c++){ const d = buf.getChannelData(c); for (let i = 0; i < m.length; i++) m[i] += d[i] / buf.numberOfChannels; }
+  runSections(m, sDesign(SP_PROTO.input, sr));
+  let pk = 1e-6; for (const v of m) pk = Math.max(pk, Math.abs(v));
+  const n = Math.min(65536, Math.floor(m.length * SP_SR / sr)), out = new Float32Array(n);
+  for (let k = 0; k < n; k++){
+    const x = k * sr / SP_SR, i = Math.floor(x), f = x - i, v = ((m[i] || 0) * (1 - f) + (m[i + 1] || 0) * f) / pk * .98;
+    out[k] = clamp(Math.floor(v * 2048), -2048, 2047) / 2048;
+  }
+  spBases.set(key, out); return out;
+}
+// drop/repeat playback at a pitch, held between SP frames (no interpolation), at the host rate
+function spVoice(key, semis, fs){
+  const st = clamp(Math.round(semis), -16, 15), id = key + '|' + st + '|' + fs;
+  if (spVoices.has(id)) return spVoices.get(id);
+  const base = spBase(key), inc = SP_TUNE[st + 16] + 1, frames = Math.floor(base.length * 128 / inc);
+  const n = Math.max(1, Math.floor(frames * fs / SP_SR)), d = new Float32Array(n);
+  for (let i = 0; i < n; i++) d[i] = base[(Math.floor(i * SP_SR / fs) * inc) >> 7] || 0;
+  const b = makeBuffer([d], fs);
+  if (spVoices.size > 160) spVoices.clear();
+  spVoices.set(id, b); return b;
+}
+function spFixed(rig, ch){
+  rig.spFix = rig.spFix || {};
+  if (rig.spFix[ch]) return rig.spFix[ch];
+  const c = rig.c, head = c.createGain(); let node = head;
+  if (SP_PROTO[ch]) sDesign(SP_PROTO[ch], c.sampleRate).forEach(({b, a}) => { const f = c.createIIRFilter(b, a); node.connect(f); node = f; });
+  node.connect(rig.strips.get('drums').input);
+  return rig.spFix[ch] = head;
+}
+// outputs 1-2: SSM2044 4-pole low-pass that opens on each note and closes over about a quarter second
+function spDynamic(rig, t){
+  const c = rig.c, f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter();
+  [[f1, -5.34], [f2, 2.33]].forEach(([f, qdb]) => {
+    f.type = 'lowpass'; f.Q.value = qdb;
+    f.frequency.setValueAtTime(13000, t); f.frequency.setValueAtTime(13000, t + .009);
+    f.frequency.setTargetAtTime(1700, t + .009, .075);
+  });
+  f1.connect(f2).connect(rig.strips.get('drums').input);
+  return f1;
+}
+function spInvalidate(key){ spBases.delete(key); for (const k of spVoices.keys()) if (k.startsWith(key + '|')) spVoices.delete(k); }
+
 function playPad(rig, pad, t, vel){
-  const c = rig.c, buf = buffers.get(pad.sample) || buffers.get('kit:kick');
-  const rate = Math.pow(2, pad.pitch / 12), full = buf.duration / rate, L = full * pad.decay;
+  const c = rig.c, sp = S.sp;
+  const buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
+  const rate = sp ? 1 : Math.pow(2, pad.pitch / 12), full = buf.duration / rate, L = full * pad.decay;
   const src = c.createBufferSource(), g = c.createGain(), p = c.createStereoPanner();
   src.buffer = buf; src.playbackRate.value = rate; p.pan.value = pad.pan;
   const v = vel * pad.vol * pad.vol * 1.2;
   g.gain.setValueAtTime(v, t);
   if (pad.decay < 1){ g.gain.setValueAtTime(v, t + L * .6); g.gain.linearRampToValueAtTime(0, t + L); }
-  src.connect(g).connect(p).connect(rig.strips.get('drums').input);
+  const ch = pad.spOut || 3;
+  src.connect(g).connect(p).connect(!sp ? rig.strips.get('drums').input : ch <= 2 ? spDynamic(rig, t) : spFixed(rig, ch));
   if (pad.choke){
     rig.voices = rig.voices.filter(vo => vo.end > t);
     rig.voices.forEach(vo => { if (vo.choke === pad.choke && vo.t < t){ vo.g.gain.cancelScheduledValues(t); vo.g.gain.setTargetAtTime(0, t, .008); try { vo.src.stop(t + .06); } catch(e){} } });
@@ -1249,6 +1346,13 @@ function renderPadEditor(){
   ctl(box, 'Tune', p, 'pitch', -24, 24, 1, v => (v > 0 ? '+' : '') + v + ' st');
   ctl(box, 'Pan', p, 'pan', -1, 1, .05, v => v === 0 ? 'C' : (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 50));
   ctl(box, 'Decay', p, 'decay', .05, 1, .01, v => v >= 1 ? 'Full' : Math.round(v * 100) + '%');
+  if (S.sp){
+    const r = document.createElement('div'); r.className = 'ctl';
+    r.innerHTML = '<label class="label" for="spOut">SP output</label><select id="spOut"><option value="1">1 · dynamic filter</option><option value="2">2 · dynamic filter</option><option value="3">3 · fixed filter</option><option value="4">4 · fixed filter</option><option value="5">5 · fixed filter</option><option value="6">6 · fixed filter</option><option value="7">7 · unfiltered</option><option value="8">8 · unfiltered</option></select><span></span>';
+    const so = r.querySelector('select'); so.value = p.spOut || 3; so.addEventListener('change', () => { p.spOut = +so.value; save(); auditionPad(selPad); });
+    box.appendChild(r);
+  }
+  $('#spMode').textContent = S.sp ? 'On' : 'Off'; $('#spMode').classList.toggle('on', !!S.sp);
   const row = document.createElement('div'); row.className = 'ctl';
   row.innerHTML = `<label class="label" for="choke">Mute grp</label><select id="choke"><option value="0">None</option>${[1, 2, 3, 4].map(g => `<option value="${g}">Group ${g}</option>`).join('')}</select><span></span>`;
   const sel = row.querySelector('select'); sel.value = p.choke; sel.addEventListener('change', () => { p.choke = +sel.value; save(); });
@@ -1388,6 +1492,10 @@ function renderFx(){
   ctl(g, 'Reso', t, 'res', .5, 18, .1, v => v.toFixed(1), after);
   add('<span class="label">Character</span>'); g = grid();
   ctl(g, 'Saturator', t, 'sat', 0, 1, .01, pct, after); ctl(g, 'Redux', t, 'crush', 0, 1, .01, pct, after); ctl(g, 'Chorus', t, 'chorus', 0, 1, .01, pct, after);
+  const s12 = document.createElement('div'); s12.className = 'ctl';
+  s12.innerHTML = '<span class="label">12-bit 26k</span><button id="sp12">Off</button><span></span>';
+  const sb = s12.querySelector('button'); sb.textContent = t.sp12 ? 'On (SP-1200)' : 'Off'; sb.classList.toggle('on', !!t.sp12);
+  sb.addEventListener('click', () => { t.sp12 = !t.sp12; applyAll(); save(); renderFx(); }); g.appendChild(s12);
   ctl(g, 'Auto Pan', t, 'apan', 0, 1, .01, pct, after);
   const apr = document.createElement('div'); apr.className = 'ctl';
   apr.innerHTML = '<label class="label" for="apanRate">Pan rate</label><select id="apanRate"><option value="0.25">1/16</option><option value="0.5">1/8</option><option value="1">1/4</option><option value="2">1/2</option><option value="4">1 bar</option><option value="8">2 bars</option></select><span></span>';
@@ -2265,6 +2373,7 @@ $('#fileIn').addEventListener('change', async e => {
   catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#sampleIn').addEventListener('click', toggleSampling);
+$('#spMode').addEventListener('click', () => { S.sp = !S.sp; save(); renderPadEditor(); auditionPad(selPad); toast(S.sp ? 'SP-1200 mode on. Pitch is limited to −16…+15 semitones, like the original.' : 'SP-1200 mode off.'); });
 $('#resetSample').addEventListener('click', () => { const p = S.drum.pads[selPad]; dropAudio(p.sample); p.sample = 'kit:' + KIT[selPad][1]; p.name = KIT[selPad][0]; save(); renderPads(); renderPadEditor(); auditionPad(selPad); });
 
 $('#enableIn').addEventListener('click', enableInput);
