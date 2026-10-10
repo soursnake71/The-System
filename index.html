@@ -50,6 +50,7 @@ input[type=range]{accent-color:var(--accent);width:100%;margin:0;height:28px}
 .trow2{display:flex;gap:8px;width:100%;align-items:center}
 .trow2 select{padding:7px}
 .trow2 .grow{flex:1}
+@media (max-width:380px){.trow2 > .label{display:none}}
 
 main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 24px;-webkit-overflow-scrolling:touch}
 .view{display:flex;flex-direction:column;gap:14px;max-width:640px;margin:0 auto}
@@ -125,6 +126,20 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 .eq11 input{writing-mode:vertical-lr;direction:rtl;height:120px;width:24px}
 .eq11 span{font:500 9px var(--f-mono);color:var(--dim);white-space:nowrap}
 #vocHold.on{background:var(--rec);border-color:var(--rec);color:#fff}
+.help details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 14px}
+.help summary{font:700 17px/1.2 var(--f-display);letter-spacing:.04em;text-transform:uppercase;padding:14px 0;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:8px}
+.help summary::after{content:"+";color:var(--accent)}
+.help details[open] summary::after{content:"−"}
+.help details[open]{padding-bottom:12px}
+.help p,.help li,.help dd{color:#c9cdd8;line-height:1.55;max-width:65ch}
+.help h3{font:700 14px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:12px 0 4px}
+.help ul,.help ol{padding-left:20px;margin:6px 0}
+.help li{margin:4px 0}
+.help dt{font-weight:600;margin-top:10px}
+.help dd{margin:2px 0 0}
+.help a{color:var(--audio)}
+.help b{color:var(--fg)}
+#helpSearch{font:500 16px var(--f-body);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;width:100%}
 .slist{display:flex;flex-direction:column;gap:8px}
 .srow{display:flex;gap:6px;align-items:center}
 .srow input{flex:1;min-width:0;font:600 16px var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 8px}
@@ -168,6 +183,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     <button id="tap">Tap</button>
     <span class="grow"></span>
     <span class="badge" id="inBadge">No input</span>
+    <button id="helpBtn" aria-label="Help" style="padding:8px 12px">?</button>
   </div>
 </header>
 
@@ -320,6 +336,229 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     </div>
   </section>
 
+  <!-- HELP -->
+  <section class="view help" id="v-help" hidden>
+    <div class="row"><button id="helpBack">← Back</button><h2 class="grow">Help</h2></div>
+    <input id="helpSearch" type="search" placeholder="Search help (e.g. latency, vocoder, MP3)" aria-label="Search help">
+    <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
+
+    <details id="h-start" open><summary>Getting started</summary>
+      <p>Pocket Rack is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, scenes for song parts, and export to WAV, MP3, stems and MIDI.</p>
+      <h3>Install it like an app</h3>
+      <ol><li>Open the app in Chrome.</li><li>Tap Chrome's ⋮ menu, then <b>Add to Home screen</b>.</li><li>Open it from the home screen icon. It runs full-screen and works offline after the first visit (MP3 export needs internet the first time).</li></ol>
+      <h3>Your first beat in a minute</h3>
+      <ol><li>On <b>Drums</b>, tap pads to hear the built-in kit.</li><li>Tap <b>Overdub</b> (or the round record button at the top). You get a one-bar count-in, then the loop plays.</li><li>Play pads in time. Each pass layers on top. Tap ■ to stop.</li><li>Made a mistake? <b>Undo</b> removes the last pass.</li></ol>
+      <p>Everything saves automatically on this phone. Nothing is uploaded anywhere.</p>
+    </details>
+
+    <details id="h-transport"><summary>Transport, tempo and the record button</summary>
+      <ul>
+        <li><b>▶ / ■</b> starts and stops. The space bar does the same on a keyboard.</li>
+        <li><b>● Record</b> depends on the tab: on <b>Audio</b> it records the armed audio track; everywhere else it toggles drum and synth <b>Overdub</b>.</li>
+        <li><b>Position</b> shows bar.beat.sixteenth. During a count-in it shows “In 1… In 4”.</li>
+        <li><b>BPM</b>: type a value, use − / +, or tap <b>Tap</b> three or more times in tempo. Range 40–240.</li>
+        <li><b>Loop</b>: 1, 2, 4 or 8 bars for the current scene.</li>
+        <li><b>Click</b> turns the metronome on during playback. The count-in always clicks.</li>
+        <li><b>Count-in</b> can be turned off in Setup → Recording.</li>
+      </ul>
+      <p>When the clock is set to <b>Follow MPC</b> (Setup → MIDI), the tempo controls lock and play/stop come from your MPC.</p>
+    </details>
+
+    <details id="h-drums"><summary>Drums: real-time recording</summary>
+      <ul>
+        <li><b>Pads</b> are laid out like an MPC: A01 bottom-left, A16 top-right. A dot means the pad has hits in this loop.</li>
+        <li><b>Overdub</b>: play pads while the loop runs and they are recorded. Each pass layers on top.</li>
+        <li><b>Timing</b> (timing correct): <i>Off</i> keeps hits exactly as played; 1/8, 1/16, 1/32 and triplets snap hits as you play. <b>Apply</b> snaps hits you already recorded.</li>
+        <li><b>Swing</b> delays every second 1/16 (0–60%). It applies to hits that sit on the 1/16 grid.</li>
+        <li><b>Note repeat</b>: turn it on, then hold a pad. It retriggers at the Repeat rate in time with the loop; with Overdub on, the repeats are recorded.</li>
+        <li><b>Erase</b>: turn it on, then hold a pad while the loop plays. Its hits disappear as the playhead passes them.</li>
+        <li><b>Velocity</b>: <i>Full level</i> plays every hit at full volume. <i>By touch height</i> makes hits louder the higher you strike the pad. Phones can't sense pressure.</li>
+        <li><b>Timeline</b>: shows every pad's hits across the loop. Tap a hit to delete it, or tap a row to select that pad.</li>
+        <li><b>Undo</b> steps back through recording passes and edits. <b>Double loop</b> doubles the loop length and copies the hits so you can add variations. <b>Clear all</b> (tap twice) empties the scene's drum hits.</li>
+      </ul>
+      <p>If recorded hits land a little late, raise <b>Setup → Recording → Pad timing</b>. It compensates for touchscreen delay.</p>
+    </details>
+
+    <details id="h-pads"><summary>Pads and samples</summary>
+      <ul>
+        <li><b>Load file</b> puts a WAV, AIFF, MP3, FLAC or OGG file on the selected pad. The file name becomes the pad name.</li>
+        <li><b>Sample input</b> records from your USB-C interface onto the pad: tap to start, tap again to stop. Silence at the start is trimmed and the level is normalized.</li>
+        <li><b>Built-in</b> puts the original kit sound back.</li>
+        <li><b>Chop</b> opens the selected pad's sample in the Chop tab.</li>
+        <li><b>Level, Tune</b> (±24 semitones), <b>Pan</b> and <b>Decay</b> (shortens the sound) work per pad.</li>
+        <li><b>Mute grp</b>: pads in the same group cut each other off, like closed and open hi-hats.</li>
+        <li><b>Clear hits</b> (tap twice) removes only the selected pad's hits.</li>
+      </ul>
+    </details>
+
+    <details id="h-sp"><summary>SP-1200 mode</summary>
+      <p>Turn on <b>SP-1200 mode</b> in the pad card and the whole drum rack runs through a model of the E-mu SP-1200's audio path:</p>
+      <ul>
+        <li>Samples are converted like the original: a 7th-order anti-alias filter, sample-and-hold at <b>26,041.67 Hz</b> (20 MHz ÷ 768) and a truncating <b>12-bit</b> converter, up to 65,536 samples (about 2.5 s) per sound.</li>
+        <li>Pitch uses <b>drop-sample</b> playback with E-mu's semitone table and a 7-bit fraction counter, including its slight detuning. Range is −16 to +15 semitones, and +12 and up all play at double speed, like the hardware.</li>
+        <li>An 8-bit level DAC sets each hit's volume, and each of the 8 output channels is <b>mono</b>: a new hit on a channel cuts the one before.</li>
+        <li><b>SP output</b> (per pad): <b>1–2</b> go through an SSM2044-style 4-pole transistor-ladder filter that opens on each hit and closes over about a quarter second; <b>3–6</b> each have their own fixed low-pass (3 is darkest, 6 is brightest); <b>7–8</b> are unfiltered.</li>
+        <li><b>Dyn cutoff</b> and <b>Dyn reso</b> set where the outputs 1–2 filter settles and how much it resonates, like the sliders on the Rossum reissue.</li>
+      </ul>
+      <p>Tips: put kicks and bass sounds on 1–2 for that filtered thump, snares on 3–4, hats on 7–8. Tune samples down and play them back for the classic gritty sound.</p>
+      <p>Any track can also get the 12-bit, 26 kHz grit without the rest: Mixer → FX → <b>12-bit 26k</b>.</p>
+      <p>The filter data comes from libmd12 (see Credits), which was checked against circuit simulation and a real SP-12. Above about 12 kHz this app's filters cut a few dB more than the analog originals.</p>
+    </details>
+
+    <details id="h-chop"><summary>Chop: slice samples across pads</summary>
+      <ol>
+        <li><b>Get a sample</b>: Load file, Record (from the input), From pad (the selected pad), or From track (any audio track's clip, including stems).</li>
+        <li><b>Slice it</b>: <i>Equal</i> cuts 2–16 even slices; <i>Transients</i> cuts at hits, use Sensitivity for more or fewer; <i>Manual</i> lets you Split the selected slice or Remove its marker.</li>
+        <li><b>Adjust</b>: drag a marker by its triangle, or nudge the selected slice's start by ±1 or ±10 ms. Tap a slice or its number to hear it. Slice points snap to zero crossings so they don't click.</li>
+        <li><b>Send to pads</b>: pick the first pad; slices fill the following pads (up to 16). This replaces those pads' samples.</li>
+      </ol>
+      <p><b>Make a pattern</b> writes hits that play the slices back in their original timing, so a chopped break plays as the full loop. Set how many bars the sample is and tap <b>Set BPM</b> to match the tempo to it.</p>
+    </details>
+
+    <details id="h-audio"><summary>Audio tracks and recording</summary>
+      <h3>Set up your interface</h3>
+      <ol><li>Plug your USB-C interface into the phone.</li><li>Tap <b>Enable input</b> (Audio tab or Setup) and allow the microphone when Chrome asks.</li><li>If it doesn't pick the interface, choose it under Setup → Audio input → Device.</li><li>Choose <b>Channels</b>: input 1, input 2, or both as stereo.</li></ol>
+      <h3>Record</h3>
+      <ul>
+        <li><b>Arm</b> the track to record (only one at a time) and choose its <b>Record</b> length (1–8 bars).</li>
+        <li>Press <b>●</b>. From stop you get a one-bar count-in; while playing, recording starts at the next loop.</li>
+        <li><b>Monitor</b> plays the input through the armed track's effects. Use headphones to avoid feedback.</li>
+        <li>Recordings are shifted automatically to allow for the phone's audio delay (latency). If takes land late, turn Setup → Recording → Auto off and raise <b>Offset</b>; if they land early, lower it. Record claps along with the click to check.</li>
+      </ul>
+      <h3>Import, warp and clips</h3>
+      <ul>
+        <li><b>Import</b> loads an audio file into the track and guesses its bar length from the tempo. Fix it with <b>Clip</b> if the guess is wrong.</li>
+        <li>Clips remember their tempo and follow the project BPM with <b>Warp</b>: <i>Complex</i> stretches without changing pitch (best for vocals and instruments); <i>Beats</i> retriggers each 1/16 (best for drum loops); <i>Re-Pitch</i> speeds up and slows down like a record; <i>Off</i> plays as is.</li>
+        <li><b>Stems</b> splits the clip into four tracks (see Stem separation).</li>
+        <li>Up to 10 audio tracks. Clips belong to the current scene.</li>
+      </ul>
+    </details>
+
+    <details id="h-stems"><summary>Stem separation</summary>
+      <p>Tap <b>Stems</b> on an audio track with a clip. It splits the clip into <b>Drums, Bass, Vocals and Other</b> as four new tracks that stay in time with the song, and mutes the original. The four stems add up exactly to the original, so nothing is lost.</p>
+      <p>How it works: the sound is analysed in short slices; steady tones are separated from hits by median filtering, the low steady part becomes Bass, and the steady part in the middle of the stereo image (150 Hz–7 kHz) becomes Vocals.</p>
+      <ul><li>Works best on full stereo mixes with the vocal in the centre. On a mono file, everything steady in the vocal range ends up in Vocals.</li><li>Expect rougher results than AI tools such as Ableton 12.3's stem separation, which use large neural networks that don't fit in a phone browser.</li><li>Clips up to 2 minutes. It runs in the background so the app stays responsive.</li><li>Load the Drums stem into Chop (From track) to chop a break out of a song.</li></ul>
+    </details>
+
+    <details id="h-synth"><summary>Synth tracks and the note grid</summary>
+      <ul>
+        <li>Up to 4 synth tracks. Tap <b>+</b> at the top of the Synth tab to add one.</li>
+        <li><b>Presets</b>: Bass, Sub 808, Lead, Pad, Keys, Pluck, Organ. Changing any control switches the preset to Custom.</li>
+        <li><b>Sound</b>: two oscillators (Osc 2 can be an octave apart, detuned and mixed), a sub oscillator, a resonant low-pass filter with its own envelope, and Attack/Decay/Sustain/Release for volume.</li>
+        <li><b>The grid</b> only plays notes in the chosen key and scale. Each row is a fourth higher than the one below, like Ableton Push. Orange pads are the root note. Use <b>Oct − / +</b> to move up and down. Choose <i>Chromatic</i> for every note.</li>
+        <li><b>Overdub</b> records what you play, with the same Timing (timing correct) as the drums.</li>
+        <li><b>Piano roll</b> shows the notes in this scene. Tap a note to delete it, or tap an empty spot to hear that pitch. <b>Undo</b> and <b>Clear</b> work as on the drums.</li>
+        <li>A MIDI keyboard or your MPC can play a synth: set Setup → MIDI → <b>Notes play</b> to that synth.</li>
+      </ul>
+    </details>
+
+    <details id="h-vocoder"><summary>Vocoder (SVC-350 model)</summary>
+      <p>The vocoder makes a synth “talk”: your voice shapes the synth's sound. It is modeled on the Roland SVC-350's circuit from its 1979 service notes.</p>
+      <ol><li>On the Synth tab, turn <b>Vocoder</b> on. That synth becomes the instrument.</li><li><b>Voice</b>: <i>Live input</i> uses your USB-C mic; or pick an audio track with a recorded vocal (mute that track in the mixer if you only want the vocoder).</li><li>Hold chords on the grid (or your keyboard/MPC) and talk or sing.</li></ol>
+      <ul>
+        <li><b>11 sliders</b>: the original frequency section, 10 bands (about 160 Hz to 5 kHz) plus <b>HF</b>, the high consonant filter that lets “s” and “t” through.</li>
+        <li><b>Balance</b>: from vocoder only to dry voice.</li>
+        <li><b>Harmonics</b>: brightness of the instrument going in. Brighter, buzzier synths (saw waves) are more understandable.</li>
+        <li><b>Ensemble</b>: the original stereo chorus.</li>
+        <li><b>Hold</b>: press and hold to freeze the last vowel, like the footswitch.</li>
+      </ul>
+      <p>The vocoder is silent when no instrument is playing. The original's sound detector does the same, so breathing and room noise don't leak through.</p>
+    </details>
+
+    <details id="h-mixer"><summary>Mixer and effects</summary>
+      <ul>
+        <li>Each strip has <b>pan</b>, a <b>fader</b> with meter (double-tap to reset), <b>M</b>ute and <b>S</b>olo. <b>FX</b> opens the track's effects below.</li>
+        <li>Effects run in this order: Vocoder (synths) → Saturator → Redux → EQ Three → Auto Filter → Chorus → Compressor → Sidechain duck → Pan/Auto Pan → Fader → Sends.</li>
+        <li><b>EQ Three</b>: low, mid and high, ±15 dB. <b>Auto Filter</b>: low-, high- or band-pass with cutoff and resonance.</li>
+        <li><b>Saturator</b> adds warm drive. <b>Redux</b> crushes bits and sample rate. <b>12-bit 26k</b> sets Redux to the SP-1200's exact rate and depth.</li>
+        <li><b>Chorus</b> widens. <b>Auto Pan</b> moves the sound left and right at a tempo-synced rate.</li>
+        <li><b>Sidechain duck</b>: the track dips each time the chosen pad hits (usually the kick). Release sets how fast it comes back.</li>
+        <li><b>Compressor</b> evens out the level. At 0% it is fully bypassed.</li>
+        <li><b>Sends</b> go to the shared Reverb and Delay. Set their size, time and feedback on the <b>Master</b> strip.</li>
+        <li><b>Master</b>: Glue compression (adds 6 ms of latency while on, so leave it off while recording live) and a soft clipper that stops harsh overs.</li>
+      </ul>
+    </details>
+
+    <details id="h-auto"><summary>Automation</summary>
+      <ol><li>On the Mixer tab, turn on <b>Automate</b> (it turns red).</li><li>Press play and move any fader, pan, EQ, filter cutoff/resonance or send. The moves are recorded into the loop.</li><li>Turn Automate off. The moves play back every pass.</li></ol>
+      <ul><li>Touching an automated control while not recording takes it over by hand. <b>Re-enable automation</b> hands it back.</li><li>Each track's FX panel lists its automation with a small graph and <b>Clear</b>.</li><li>Automation belongs to the scene, so each scene can have its own sweeps. It is included in exports.</li></ul>
+    </details>
+
+    <details id="h-song"><summary>Scenes and Song mode</summary>
+      <ul>
+        <li>A <b>scene</b> holds its own drum hits, synth notes, audio clips, automation and loop length. Pads, samples, synth sounds and the mixer are shared.</li>
+        <li>Scene buttons sit above the drum pads. <b>+</b> copies the current scene so you can make a variation.</li>
+        <li>Tap a scene while playing and it starts at the next bar, or at the end of the loop if you set Launch that way (Song tab).</li>
+        <li>On the Song tab you can rename scenes, change their length and delete them.</li>
+        <li><b>Song</b>: add parts (scene × repeats), reorder with ↑, then turn Song on and press play. It plays the parts in order and stops at the end. Export renders the whole song.</li>
+      </ul>
+    </details>
+
+    <details id="h-midi"><summary>MIDI and syncing with your MPC</summary>
+      <ol><li>Connect the MPC to the phone with a USB-C cable, or through a USB MIDI interface.</li><li>Setup → MIDI sync → <b>Connect MIDI</b>, and allow it when Chrome asks. The app picks the MPC under From and To; choose it if not.</li></ol>
+      <ul>
+        <li><b>Follow MPC</b>: press play on the MPC and this app starts with it, at its tempo, and stops with it. On the MPC, turn on <i>sending</i> MIDI clock (and start/stop) in its MIDI or sync settings.</li>
+        <li><b>Lead MPC</b>: this app sends tempo, start and stop. On the MPC, turn on <i>receiving</i> MIDI clock.</li>
+        <li><b>Offset</b>: if the two sound out of step, move it until the kicks line up. Positive delays this app.</li>
+        <li><b>Play these pads from the MPC's pads</b>: MPC pads trigger the app's pads, with velocity, and are recorded with Overdub. Note repeat and erase work too.</li>
+        <li><b>A01 note</b> / <b>Learn</b>: select A01 on the Drums tab, tap Learn, then hit the MPC pad that should play it. The rest follow in order.</li>
+        <li><b>Notes play</b>: send incoming notes to the drum pads or to a synth (for a MIDI keyboard). <b>Channel</b> filters which MIDI channel is listened to.</li>
+      </ul>
+    </details>
+
+    <details id="h-export"><summary>Exporting: WAV, MP3, stems and MIDI</summary>
+      <ul>
+        <li><b>Full mix</b>: everything you hear, as one file.</li>
+        <li><b>Every track (ZIP)</b>: the mix plus each track rendered on its own through its effects and sends (muted tracks are skipped). All files are the same length so they line up from bar 1 in any DAW or on the MPC.</li>
+        <li><b>MIDI file</b>: drum hits on channel 10 (A01 = the A01 note set in MIDI settings, C1 by default) and each synth on its own channel, at the project tempo with swing applied.</li>
+        <li><b>Format</b>: WAV 16-bit, WAV 24-bit (best for further mixing), MP3 320 or 192 kbps. <b>Rate</b>: 44.1 or 48 kHz.</li>
+        <li><b>Repeat</b>: how many times to loop the current scene. With Song mode on, the whole song is exported instead.</li>
+        <li>Files go to your Downloads folder. <b>Share</b> sends the last export straight to another app (Drive, WhatsApp, a DAW…).</li>
+      </ul>
+    </details>
+
+    <details id="h-save"><summary>Saving, updates and storage</summary>
+      <ul>
+        <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
+        <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
+        <li><b>New project</b> (Setup, tap twice) erases everything and starts fresh.</li>
+        <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
+      </ul>
+    </details>
+
+    <details id="h-trouble"><summary>Troubleshooting</summary>
+      <dl>
+        <dt>No sound</dt><dd>Tap any pad once: phones only start audio after a touch. Check the phone isn't on silent and the Master fader is up. If a track is soloed (S lit), only soloed tracks play.</dd>
+        <dt>The interface or mic isn't found</dt><dd>Unplug and replug it, then tap Enable input again. Check Chrome has microphone permission (lock icon in the address bar → Permissions). Some interfaces need to be plugged in before the app opens.</dd>
+        <dt>Recordings or pads are out of time (latency)</dt><dd>For audio takes, adjust Setup → Recording → Offset. For pad hits, raise Pad timing. Turn off master Glue while recording to save 6 ms.</dd>
+        <dt>MIDI device doesn't show up</dt><dd>Tap Refresh MIDI devices. Make sure the MPC's USB mode allows MIDI and the cable carries data (some charge-only cables don't).</dd>
+        <dt>The MPC and app drift apart</dt><dd>Only one device should send clock. Use Follow MPC or Lead MPC, not both, and make sure the MPC isn't also receiving clock from somewhere else.</dd>
+        <dt>Crackles or dropouts</dt><dd>Close other apps, turn off battery saver, and avoid very long Complex-warped clips at odd tempos. Fewer effects on many tracks also helps.</dd>
+        <dt>MP3 export fails</dt><dd>The MP3 encoder downloads the first time you use it. Connect to the internet once, or export WAV.</dd>
+        <dt>“Could not read that file”</dt><dd>Use WAV, AIFF, MP3, FLAC or OGG. Some phone voice-recorder formats aren't supported.</dd>
+      </dl>
+    </details>
+
+    <details id="h-tips"><summary>Workflow tips</summary>
+      <ul>
+        <li>Build a beat in Scene 1, tap + to copy it, then strip it down for a verse or add hats for the hook.</li>
+        <li>Record with Timing Off for feel, then Apply 1/16 to individual takes if they need tightening.</li>
+        <li>Chop a stem: Stems → Chop → From track → Transients → Send to pads with Make a pattern on, then replay it your own way.</li>
+        <li>Duck pads and bass from the kick (Sidechain duck, 40–60%) for a pumping mix.</li>
+        <li>Export Every track as WAV 24-bit to finish a song in another DAW or load parts into your MPC.</li>
+      </ul>
+    </details>
+
+    <details id="h-credits"><summary>Credits</summary>
+      <ul>
+        <li>SP-1200 audio path data (filter prototypes, pitch table, converter behaviour): <a href="https://github.com/Mudb0y/libmd12" target="_blank" rel="noopener">libmd12</a> (MIT licence). Not affiliated with E-mu or Rossum Electro-Music.</li>
+        <li>SVC-350 vocoder: modeled from the Roland SVC-350 service notes (Dec. 8, 1979), <a href="https://archive.org/details/roland_SVC-350_SERVICE_NOTES" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Roland.</li>
+        <li>MP3 encoding: <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener">lamejs</a> (LGPL), loaded on demand.</li>
+        <li>MPC, SP-1200, SVC-350, Push and Ableton Live are trademarks of their owners and are mentioned only to describe features.</li>
+      </ul>
+    </details>
+  </section>
+
   <!-- SETUP -->
   <section class="view" id="v-setup" hidden>
     <div class="card">
@@ -371,6 +610,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <h2>Project</h2>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
+      <button id="helpOpen">Open help</button>
     </div>
   </section>
 </main>
@@ -2981,6 +3221,29 @@ document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click'
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|SELECT/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
 window.addEventListener('resize', () => { seqDirty = true; rollDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
+
+
+/* help */
+let helpFrom = 'drums';
+function openHelp(section){
+  if (view !== 'help') helpFrom = view;
+  view = 'help';
+  document.querySelectorAll('.view[id^="v-"]').forEach(x => x.hidden = x.id !== 'v-help');
+  document.querySelectorAll('#nav button').forEach(b => b.classList.remove('cur'));
+  if (section){ const d = $('#h-' + section); if (d){ d.open = true; setTimeout(() => d.scrollIntoView(), 50); } }
+  else $('main').scrollTop = 0;
+}
+$('#helpBtn').addEventListener('click', () => view === 'help' ? setView(helpFrom) : openHelp());
+$('#helpOpen').addEventListener('click', () => openHelp());
+$('#helpBack').addEventListener('click', () => setView(helpFrom));
+$('#helpSearch').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase(); let any = false;
+  document.querySelectorAll('#v-help details').forEach(d => {
+    const hit = !q || d.textContent.toLowerCase().includes(q);
+    d.hidden = !hit; if (q && hit) d.open = true; any = any || hit;
+  });
+  $('#helpNone').hidden = any;
+});
 
 /* ================= boot ================= */
 (async function boot(){
