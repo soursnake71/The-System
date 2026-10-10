@@ -379,7 +379,8 @@ const KIT = [
 ];
 const $ = (s, r = document) => r.querySelector(s);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const mixDefaults = () => ({vol:.8, pan:0, mute:false, solo:false, low:0, mid:0, high:0, ftype:'off', cut:.5, res:1, comp:0, sendA:0, sendB:0});
+const FX_DEFAULTS = {sat:0, crush:0, chorus:0, apan:0, apanRate:1, duck:0, duckPad:0, duckRel:.18};
+const mixDefaults = () => Object.assign({vol:.8, pan:0, mute:false, solo:false, low:0, mid:0, high:0, ftype:'off', cut:.5, res:1, comp:0, sendA:0, sendB:0}, FX_DEFAULTS);
 
 function defaultState(){
   const pads = KIT.map(([name, kind]) => ({name, sample:'kit:' + kind, vol:.85, pitch:0, pan:0, decay:1, choke:(kind==='chh'||kind==='ohh') ? 1 : 0}));
@@ -522,9 +523,36 @@ function applyMaster(c, m){
   sp(c, m.dly.delayTime, M.dlyDiv * 60 / S.bpm); sp(c, m.fb.gain, M.dlyFb);
 }
 
+const satCurves = new Map();
+function satCurve(amt){
+  const k = Math.round(amt * 50); if (!k) return null;
+  if (satCurves.has(k)) return satCurves.get(k);
+  const drive = 1 + k / 50 * 14, n = 2048, curve = new Float32Array(n), norm = Math.tanh(drive);
+  for (let i = 0; i < n; i++){ const x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(x * drive) / norm; }
+  satCurves.set(k, curve); return curve;
+}
+function insertRedux(c, s){
+  if (s.rdx || !c._reduxOK) return;
+  s.rdx = new AudioWorkletNode(c, 'redux', {outputChannelCount:[2]});
+  s.rdxIn.disconnect(); s.rdxIn.connect(s.rdx).connect(s.rdxOut);
+}
 function makeStrip(c, m){
   const s = {};
   s.input = c.createGain();
+  // character: saturator -> redux, then chorus after the filter
+  s.sat = c.createWaveShaper(); s.sat.oversample = '2x'; s.satOut = c.createGain();
+  s.rdxIn = c.createGain(); s.rdxOut = c.createGain();
+  s.chIn = c.createGain(); s.chOut = c.createGain(); s.chWet = c.createGain(); s.chWet.gain.value = 0;
+  const lfoDelay = (base, rate, side) => {
+    const d = c.createDelay(.05), o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner();
+    d.delayTime.value = base; o.frequency.value = rate; g.gain.value = 0; p.pan.value = side;
+    o.connect(g).connect(d.delayTime); o.start(0);
+    s.chIn.connect(d).connect(p).connect(s.chWet); return g;
+  };
+  s.chDepth = [lfoDelay(.012, .57, -.7), lfoDelay(.019, .83, .7)];
+  s.chIn.connect(s.chOut); s.chWet.connect(s.chOut);
+  s.duck = c.createGain();
+  s.apOsc = c.createOscillator(); s.apDepth = c.createGain(); s.apDepth.gain.value = 0; s.apOsc.start(0);
   s.low = c.createBiquadFilter(); s.low.type = 'lowshelf'; s.low.frequency.value = 160;
   s.mid = c.createBiquadFilter(); s.mid.type = 'peaking'; s.mid.frequency.value = 1100; s.mid.Q.value = .8;
   s.high = c.createBiquadFilter(); s.high.type = 'highshelf'; s.high.frequency.value = 6500;
@@ -533,7 +561,11 @@ function makeStrip(c, m){
   s.mk = c.createGain(); s.pan = c.createStereoPanner(); s.fader = c.createGain(); s.mute = c.createGain();
   s.an = c.createAnalyser(); s.an.fftSize = 512;
   s.sa = c.createGain(); s.sb = c.createGain();
-  s.input.connect(s.low).connect(s.mid).connect(s.high).connect(s.filt).connect(s.comp).connect(s.mk).connect(s.pan).connect(s.fader).connect(s.mute);
+  s.input.connect(s.sat).connect(s.satOut).connect(s.rdxIn).connect(s.rdxOut);
+  s.rdxOut.connect(s.low).connect(s.mid).connect(s.high).connect(s.filt).connect(s.chIn);
+  s.chOut.connect(s.comp).connect(s.mk).connect(s.duck).connect(s.pan).connect(s.fader).connect(s.mute);
+  s.apOsc.connect(s.apDepth).connect(s.pan.pan);
+  insertRedux(c, s);
   s.mute.connect(m.bus); s.mute.connect(s.an); s.mute.connect(s.sa).connect(m.revIn); s.mute.connect(s.sb).connect(m.dlyIn);
   return s;
 }
@@ -546,6 +578,24 @@ function applyStrip(c, s, t){
   sp(c, s.pan.pan, t.pan); sp(c, s.fader.gain, t.vol * t.vol * 1.4);
   const on = !t.mute && (!anySolo() || t.solo);
   sp(c, s.mute.gain, on ? 1 : 0); sp(c, s.sa.gain, t.sendA); sp(c, s.sb.gain, t.sendB);
+  const sat = t.sat || 0;
+  if (s._sat !== sat){ s.sat.curve = satCurve(sat); s._sat = sat; }
+  sp(c, s.satOut.gain, 1 / (1 + sat * .9));
+  if (s.rdx){ const k = t.crush || 0; sp(c, s.rdx.parameters.get('factor'), 1 + Math.round(k * k * 30)); sp(c, s.rdx.parameters.get('bits'), k ? 16 - k * 13 : 16); }
+  const ch = t.chorus || 0;
+  sp(c, s.chWet.gain, ch * .8); s.chDepth.forEach(g => sp(c, g.gain, ch * .004));
+  sp(c, s.apDepth.gain, t.apan || 0); sp(c, s.apOsc.frequency, S.bpm / 60 / (t.apanRate || 1));
+}
+// sidechain-style duck: dip every track listening to this pad when it hits
+function duckAt(rig, pi, at){
+  for (const tr of allTracks()){
+    if (!tr.duck || tr.duckPad !== pi) continue;
+    const st = rig.strips.get(tr.id); if (!st) continue;
+    const g = st.duck.gain;
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(at); else g.cancelScheduledValues(at);
+    g.linearRampToValueAtTime(1 - tr.duck * .92, at + .004);
+    g.setTargetAtTime(1, at + .02, Math.max(.01, tr.duckRel / 3));
+  }
 }
 const allTracks = () => [S.drum, ...S.audio, ...(S.synths || [])];
 function trackById(id){ return allTracks().find(t => t.id === id); }
@@ -566,7 +616,18 @@ const CAP_CODE = `class Cap extends AudioWorkletProcessor{
   process(inputs){const inp=inputs[0];
     if(this.on&&inp&&inp.length){if(!this.n)this.f0=currentFrame;this.bl.push(inp[0].slice());this.br.push((inp[1]||inp[0]).slice());this.n+=inp[0].length;if(this.n>=4096)this.flush();}
     return true;}}
-registerProcessor('cap',Cap);`;
+registerProcessor('cap',Cap);
+class Redux extends AudioWorkletProcessor{
+  static get parameterDescriptors(){return [{name:'factor',defaultValue:1,minValue:1,maxValue:64},{name:'bits',defaultValue:16,minValue:1,maxValue:16}];}
+  constructor(){super();this.h=[0,0];this.c=0;}
+  process(ins,outs,p){const i=ins[0],o=outs[0];if(!i||!i.length)return true;
+    const f=p.factor[0],b=p.bits[0],q=Math.pow(2,b-1);let end=this.c;
+    for(let ch=0;ch<o.length;ch++){const x=i[ch]||i[0],y=o[ch];let c=this.c;
+      for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
+    this.c=end;return true;}}
+registerProcessor('redux',Redux);`;
+let WORKLET_URL = null;
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -577,8 +638,9 @@ function ensureAudio(){
   inAn = ctx.createAnalyser(); inAn.fftSize = 512;
   monGain = ctx.createGain(); monGain.gain.value = 0;
   routeMonitor();
-  const url = URL.createObjectURL(new Blob([CAP_CODE], {type:'application/javascript'}));
-  workletReady = ctx.audioWorklet.addModule(url).then(() => {
+  workletReady = ctx.audioWorklet.addModule(workletUrl()).then(() => {
+    ctx._reduxOK = true;
+    live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
     capNode = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
     capNode.port.onmessage = e => capChunks.push(e.data);
     capNode.connect(silent);
@@ -700,6 +762,7 @@ function scheduleNotes(rig, i, t){
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
     playPad(rig, S.drum.pads[n.p], at, n.v);
     if (rig === live) flashPad(n.p, at);
+    duckAt(rig, n.p, at);
   }
   for (const tr of S.synths) for (const n of tr.notes){
     if (n.t < lo || n.t >= hi) continue;
@@ -797,7 +860,7 @@ function padDown(i, ev, v){
     return;
   }
   if (playing && S.repeat){ repeatFill(i, v); return; }
-  playPad(live, S.drum.pads[i], ctx.currentTime + .003, v); flashPad(i, ctx.currentTime);
+  playPad(live, S.drum.pads[i], ctx.currentTime + .003, v); flashPad(i, ctx.currentTime); duckAt(live, i, ctx.currentTime + .003);
   if (playing && drumRec){
     const tk = tapTick(ev);
     if (tk != null && tk > -TPS / 2) addNote(i, Math.max(0, tk), v, true);
@@ -1068,7 +1131,9 @@ async function exportMix(){
     const parts = song ? S.song.map(e => ({s:e.s, steps:e.n * S.scenes[e.s].bars * 16}))
       : [{s:S.cur, steps:Math.max(S.bars * 16, ...S.audio.filter(t => t.clip).map(t => t.clipSteps)) * loops}];
     const total = parts.reduce((a, p) => a + p.steps, 0), dur = total * sd + 2.5;
-    const oc = new OfflineAudioContext(2, Math.ceil(dur * sr), sr), rig = makeRig(oc);
+    const oc = new OfflineAudioContext(2, Math.ceil(dur * sr), sr);
+    try { await oc.audioWorklet.addModule(workletUrl()); oc._reduxOK = true; } catch(e){}
+    const rig = makeRig(oc);
     const keepCur = S.cur, keepOrg = org;
     let i0 = 0;
     try {
@@ -1321,6 +1386,18 @@ function renderFx(){
   g.appendChild(row);
   ctl(g, 'Cutoff', t, 'cut', 0, 1, .002, v => { const h = cutHz(v); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }, after);
   ctl(g, 'Reso', t, 'res', .5, 18, .1, v => v.toFixed(1), after);
+  add('<span class="label">Character</span>'); g = grid();
+  ctl(g, 'Saturator', t, 'sat', 0, 1, .01, pct, after); ctl(g, 'Redux', t, 'crush', 0, 1, .01, pct, after); ctl(g, 'Chorus', t, 'chorus', 0, 1, .01, pct, after);
+  ctl(g, 'Auto Pan', t, 'apan', 0, 1, .01, pct, after);
+  const apr = document.createElement('div'); apr.className = 'ctl';
+  apr.innerHTML = '<label class="label" for="apanRate">Pan rate</label><select id="apanRate"><option value="0.25">1/16</option><option value="0.5">1/8</option><option value="1">1/4</option><option value="2">1/2</option><option value="4">1 bar</option><option value="8">2 bars</option></select><span></span>';
+  const aps = apr.querySelector('select'); aps.value = String(t.apanRate || 1); aps.addEventListener('change', () => { t.apanRate = +aps.value; applyAll(); save(); }); g.appendChild(apr);
+  add('<span class="label">Sidechain duck</span>'); g = grid();
+  ctl(g, 'Amount', t, 'duck', 0, 1, .01, pct, after);
+  const dp = document.createElement('div'); dp.className = 'ctl';
+  dp.innerHTML = `<label class="label" for="duckPad">Ducked by</label><select id="duckPad">${S.drum.pads.map((pd, k) => `<option value="${k}">${padLabel(k)} ${pd.name.replace(/</g, '&lt;')}</option>`).join('')}</select><span></span>`;
+  const dps = dp.querySelector('select'); dps.value = t.duckPad || 0; dps.addEventListener('change', () => { t.duckPad = +dps.value; save(); }); g.appendChild(dp);
+  ctl(g, 'Release', t, 'duckRel', .03, .8, .01, v => Math.round(v * 1000) + ' ms', after);
   add('<span class="label">Compressor</span>'); g = grid();
   ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
   add('<span class="label">Sends</span>'); g = grid();
@@ -2260,6 +2337,7 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
+  allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
   S.cur = clamp(S.cur || 0, 0, S.scenes.length - 1); S.song = S.song || []; S.launchQ = S.launchQ || 'bar'; S.songMode = !!S.songMode;
   loadScene(S.cur);

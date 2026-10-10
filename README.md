@@ -1,6 +1,6 @@
 # Pocket Rack
 
-A small phone DAW: 16-pad drum rack with MPC-style real-time recording (overdub, timing correct, note repeat, erase), audio tracks recorded from a USB-C interface, a mixer with EQ, filter, compressor, reverb and delay, and WAV export.
+A small phone DAW: 16-pad drum rack with MPC-style real-time recording, sample chopping, synth tracks with an in-key grid, warped audio tracks from a USB-C interface, scenes and song mode, MIDI clock sync with an MPC, automation, effects (EQ, filter, compressor, saturator, redux, chorus, auto pan, sidechain duck, reverb, delay) and WAV export.
 
 ## Put it online with GitHub Pages
 1. Create a GitHub repo and upload these files to it (or push them).
