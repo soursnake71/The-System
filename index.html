@@ -141,6 +141,9 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 .help b{color:var(--fg)}
 #helpSearch{font:500 16px var(--f-body);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;width:100%}
 .solreg button{flex:1;min-width:70px}
+.p5sec{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+.p5sw{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.p5sw button{flex:1;min-width:64px;padding:9px 4px;font-size:13px}
 .slist{display:flex;flex-direction:column;gap:8px}
 .srow{display:flex;gap:6px;align-items:center}
 .srow input{flex:1;min-width:0;font:600 16px var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 8px}
@@ -308,8 +311,14 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option><option value="prophet">Prophet-5</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
+      <div id="p5Panel" hidden>
+        <div class="ctl"><label class="label" for="p5Preset">Program</label><select id="p5Preset"></select><span></span></div>
+        <div class="ctl"><label class="label" for="p5Wheel">Mod wheel</label><input id="p5Wheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="p5WheelV"></span></div>
+        <div id="p5Body"></div>
+        <p class="hint">Modeled on the Rev 3 Prophet-5: two CEM3340 oscillators, CEM3320 four-pole filter, two CEM3310 envelopes per voice, five voices. Knobs step in 128 increments like the original (pitch and cutoff move in semitones). Vintage sets how much the five voices differ and drift.</p>
+      </div>
       <div id="solPanel" hidden>
         <div class="label">Bass section</div>
         <div class="row solreg"><button data-k="contra">Contrabass</button><button data-k="cello">Cello</button></div>
@@ -477,6 +486,21 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p>Try it through the Vocoder for the late-70s string-vocoder sound.</p>
     </details>
 
+    <details id="h-prophet"><summary>Prophet-5</summary>
+      <p>Any synth track can be a Prophet-5: on the Synth tab, change <b>Synth</b> to <b>Prophet-5</b>. It is modeled on the Rev 3 instrument from Sequential's service and owner's manuals, with five voices.</p>
+      <ul>
+        <li><b>Oscillator A</b>: saw and/or pulse (width 1–99%), and <b>Sync</b> to Oscillator B. <b>Frequency</b> steps in semitones over four octaves.</li>
+        <li><b>Oscillator B</b>: saw, triangle and/or pulse, <b>Fine</b> (up to a semitone up), <b>Lo freq</b> turns it into an LFO (0.4–30 Hz), and <b>Kbd</b> off makes it a drone.</li>
+        <li><b>Mixer</b>: levels of A, B and white noise into the filter. Turn them up for a hotter, more saturated filter.</li>
+        <li><b>Filter</b>: the CEM3320 four-pole low-pass. Resonance self-oscillates above about 7. <b>Keyboard</b> makes the cutoff follow the notes, so a self-oscillating filter can be played in tune.</li>
+        <li><b>Envelopes</b>: filter and amplifier ADSR, about 1 ms to 30 s; the knob is exponential (5 is about half a second). <b>Release</b> off gives a short click-free release.</li>
+        <li><b>Poly-Mod</b>: the filter envelope and Oscillator B modulate Oscillator A's pitch, pulse width and/or the filter, separately in every voice. Oscillator B into Freq A gives clangy FM bells; the filter envelope into Freq A with Sync on gives the classic sync sweep.</li>
+        <li><b>LFO and Wheel-Mod</b>: the LFO (0.04–20 Hz, saw/triangle/square) and pink noise, mixed by Source mix, reach the destinations you switch on, with depth set by the <b>Mod wheel</b>. A MIDI keyboard's mod wheel and pitch bend work when Setup → MIDI → Notes play is set to this track.</li>
+        <li><b>Unison</b> stacks all five voices on the lowest note held, with <b>Glide</b>. <b>Vintage</b> sets how much the five voices differ and drift, like real component tolerances; 0 is perfectly matched.</li>
+      </ul>
+      <p>Like the original, most knobs move in 128 steps, so cutoff and pitch change in semitone steps. Programs give you starting points: Brass, Poly strings, Sync lead, Unison bass, Poly-mod bell, Pad, Pluck and Resonant sweep.</p>
+    </details>
+
     <details id="h-vocoder"><summary>Vocoder (SVC-350 model)</summary>
       <p>The vocoder makes a synth “talk”: your voice shapes the synth's sound. It is modeled on the Roland SVC-350's circuit from its 1979 service notes.</p>
       <ol><li>On the Synth tab, turn <b>Vocoder</b> on. That synth becomes the instrument.</li><li><b>Voice</b>: <i>Live input</i> uses your USB-C mic; or pick an audio track with a recorded vocal (mute that track in the mixer if you only want the vocoder).</li><li>Hold chords on the grid (or your keyboard/MPC) and talk or sing.</li></ol>
@@ -579,6 +603,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li>SP-1200 audio path data (filter prototypes, pitch table, converter behaviour): <a href="https://github.com/Mudb0y/libmd12" target="_blank" rel="noopener">libmd12</a> (MIT licence). Not affiliated with E-mu or Rossum Electro-Music.</li>
         <li>SVC-350 vocoder: modeled from the Roland SVC-350 service notes (Dec. 8, 1979), <a href="https://archive.org/details/roland_SVC-350_SERVICE_NOTES" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Roland.</li>
         <li>Solina String Ensemble: modeled from the Eminent/ARP Solina schematic set (sheets 015.0212 and 015.0214), <a href="https://archive.org/details/ARP_Solina_Schematics" target="_blank" rel="noopener">archive.org</a>. Not affiliated with ARP or Eminent.</li>
+        <li>Prophet-5: modeled from the Sequential Circuits Prophet-5 Rev 3 service and owner's manuals, <a href="https://archive.org/details/synthmanual-sequential-circuits-prophet-5-service-manual" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Sequential.</li>
         <li>MP3 encoding: <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener">lamejs</a> (LGPL), loaded on demand.</li>
         <li>MPC, SP-1200, SVC-350, Push and Ableton Live are trademarks of their owners and are mentioned only to describe features.</li>
       </ul>
@@ -952,6 +977,146 @@ class Redux extends AudioWorkletProcessor{
       for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
     this.c=end;return true;}}
 registerProcessor('redux',Redux);`;
+const P5_CODE = String.raw`
+/* Prophet-5 (Rev 3) voice model, from the Sequential Circuits service and owner's manuals:
+   per voice 2 x CEM3340 VCO (saw, pulse 1-99%, B triangle, hard sync, B low-freq 0.4-30 Hz), mixer with white noise,
+   CEM3320 4-pole OTA low-pass (self-oscillates above ~7), 2 x CEM3310 ADSR (1 ms - 30 s, 5 = ~0.5 s), CA3280 final VCA.
+   Poly-Mod: filter env and OSC B to FREQ A / PW A / FILTER. Wheel-Mod: LFO (0.04-20 Hz, saw/tri/square) and pink noise.
+   Most knob CVs are 7-bit (128 steps; semitone steps for pitch and cutoff). Five voices, round robin; Unison = all five on
+   the lowest note with glide. Per-voice component spread and drift follow the VINTAGE amount. */
+class Prophet5 extends AudioWorkletProcessor{
+  constructor(o){
+    super();
+    const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
+    this.c = Object.assign({}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.wheel = this.c.wheel || 0; this.bend = 0;
+    let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 * 2 - 1;
+    this.v = [];
+    for (let i = 0; i < 5; i++) this.v.push({note:-1, gate:false, age:0, pa:Math.random(), pb:Math.random(), cvA:0, cvB:0, cvF:0, glide:null,
+      fe:0, fst:0, ae:0, ast:0, lad:[0, 0, 0, 0], last:0,
+      offA:rnd(), offB:rnd(), offF:rnd(), offT:rnd(), offPW:rnd(), driftA:0, driftB:0});
+    this.rnd = rnd; this.rr = 0; this.held = [];
+    this.lfoP = 0; this.pink = [0, 0, 0, 0, 0, 0, 0]; this.pinkOut = 0;
+    this.port.onmessage = e => { const d = e.data;
+      if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); }
+      else if (d.type === 'cfg') Object.assign(this.c, d.cfg);
+      else if (d.type === 'wheel') this.wheel = d.v;
+      else if (d.type === 'bend') this.bend = d.v; };
+  }
+  q7(x){ return Math.round(Math.max(0, Math.min(1, x || 0)) * 127) / 127; }
+  envT(k){ return .001 * Math.pow(30000, Math.pow(this.q7(k), .728)); }        // 1 ms .. 30 s, knob 5 = ~0.5 s
+  noteOn(n){
+    const C = this.c;
+    this.held = this.held.filter(x => x !== n); this.held.push(n);
+    if (C.uni){ const low = Math.min(...this.held); for (const v of this.v){ const fresh = !v.gate; v.note = low; v.gate = true; if (fresh) this.trig(v); } return; }
+    let v = this.v.find(x => x.note === n) || null;
+    if (!v){ for (let k = 0; k < 5 && !v; k++){ const c = this.v[(this.rr + k) % 5]; if (!c.gate && c.ast === 0) v = c; } }
+    if (!v) v = this.v.filter(x => !x.gate).sort((a, b) => a.age - b.age)[0] || this.v.slice().sort((a, b) => a.age - b.age)[0];
+    this.rr = (this.v.indexOf(v) + 1) % 5;
+    v.note = n; v.gate = true; v.age = currentFrame; v.glide = null; this.trig(v);
+  }
+  noteOff(n){
+    this.held = this.held.filter(x => x !== n);
+    if (this.c.uni){ if (this.held.length){ const low = Math.min(...this.held); for (const v of this.v) v.note = low; } else for (const v of this.v) v.gate = false; return; }
+    for (const v of this.v) if (v.note === n && v.gate) v.gate = false;
+  }
+  trig(v){ v.fst = 1; v.ast = 1; }
+  // CEM3310: attack charges toward 1.3 and ends at 1.0; decay/release are exponential
+  env(v, pre, a, d, s, r){
+    const st = pre + 'st', key = pre + 'e', fs = this.fs, spread = 1 + .06 * this.c.vint * v.offT;
+    let e = v[key], state = v[st];
+    if (!v.gate && state && state < 4) state = 4;
+    if (state === 1){ const tau = a * spread / 1.466; e = 1.3 - (1.3 - e) * Math.exp(-1 / (tau * fs)); if (e >= 1){ e = 1; state = 2; } }
+    else if (state === 2 || state === 3){ const tau = d * spread / 3; e = s + (e - s) * Math.exp(-1 / (tau * fs)); state = 3; }
+    else if (state === 4){ const tau = r * spread / 3; e *= Math.exp(-1 / (tau * fs)); if (e < 1e-5){ e = 0; state = 0; } }
+    v[key] = e; v[st] = state; return e;
+  }
+  blep(t, dt){ if (t < dt){ const x = t / dt; return x + x - x * x - 1; } if (t > 1 - dt){ const x = (t - 1) / dt; return x * x + x + x + 1; } return 0; }
+  tanh(x){ if (x > 3) return 1; if (x < -3) return -1; const x2 = x * x; return x * (27 + x2) / (27 + 9 * x2); }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.c, q7 = x => this.q7(x);
+    const fos = fs * 2;
+    // knob CVs (7-bit), computed once per block
+    const stA = Math.round(q7(C.oAf) * 48) - 24, stB = Math.round(q7(C.oBf) * 48) - 24 + q7(C.oBfine);
+    const pwA = .01 + .98 * q7(C.oApw), pwB = .01 + .98 * q7(C.oBpw);
+    const cutSt = Math.round(q7(C.cut) * 127), res = q7(C.res), k = res <= .7 ? 3.9 * res / .7 : 3.9 + (res - .7) * 2.2;
+    const fa = this.envT(C.fa), fd = this.envT(C.fd), fsus = q7(C.fs), fr = C.rel ? this.envT(C.fr) : .004;
+    const aa = this.envT(C.aa), ad = this.envT(C.ad), asus = q7(C.as), ar = C.rel ? this.envT(C.ar) : .004;
+    const lfoHz = .04 * Math.pow(500, q7(C.lfoF)), loHz = .4 * Math.pow(75, q7(C.oBf));
+    const glideTau = C.uni && C.glide > 0 ? .0005 * Math.pow(3000, q7(C.glide)) : 0, gl = glideTau ? 1 - Math.exp(-1 / (glideTau * fs)) : 1;
+    const vint = C.vint || 0;
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on); else this.noteOff(ev.off); }
+      // LFO (CEM3340 as LFO: saw, triangle, 50% square, summed) and pink noise -> WHEEL-MOD
+      this.lfoP = (this.lfoP + lfoHz / fs) % 1;
+      let lfo = 0, nsh = 0; if (C.lfoSaw){ lfo += 2 * this.lfoP - 1; nsh++; } if (C.lfoTri){ lfo += 1 - 4 * Math.abs(this.lfoP - .5); nsh++; } if (C.lfoSq){ lfo += this.lfoP < .5 ? 1 : -1; nsh++; }
+      if (nsh > 1) lfo /= nsh;
+      const w = Math.random() * 2 - 1, pk = this.pink;
+      pk[0] = .99886 * pk[0] + w * .0555179; pk[1] = .99332 * pk[1] + w * .0750759; pk[2] = .969 * pk[2] + w * .153852; pk[3] = .8665 * pk[3] + w * .3104856;
+      pk[4] = .55 * pk[4] + w * .5329522; pk[5] = -.7616 * pk[5] - w * .016898; const pinkN = (pk[0] + pk[1] + pk[2] + pk[3] + pk[4] + pk[5] + pk[6] + w * .5362) * .11; pk[6] = w * .115926;
+      const mix = q7(C.wmMix), wm = ((1 - mix) * lfo + mix * pinkN * 3) * this.wheel;
+      let out = 0;
+      for (const v of this.v){
+        if (v.note < 0 || (!v.gate && v.ast === 0)) continue;
+        // keyboard CV with glide (unison), vintage drift
+        const target = v.note + this.bend;
+        v.glide = v.glide == null || !glideTau ? target : v.glide + (target - v.glide) * gl;
+        v.driftA += (this.rnd() * .02 - v.driftA * .0005) / fs * 40; v.driftB += (this.rnd() * .02 - v.driftB * .0005) / fs * 40;
+        const fe = this.env(v, 'f', fa, fd, fsus, fr), ae = this.env(v, 'a', aa, ad, asus, ar);
+        // OSC B first (it feeds POLY-MOD and sync)
+        const kb = (v.glide - 60) / 12;
+        let fB = C.oBlo ? loHz * Math.pow(2, C.oBkbd ? kb : 0) : 261.63 * Math.pow(2, (C.oBkbd ? kb : 0) + stB / 12);
+        fB *= Math.pow(2, (vint * (v.offB * 3 + v.driftB * 4)) / 1200 + (C.wmFB ? wm * .5 : 0));
+        const dB = Math.min(.45, fB / fs);
+        const pbW = Math.max(.01, Math.min(.99, pwB + (C.wmPWB ? wm * .45 : 0) + vint * .01 * v.offPW));
+        let pB = v.pb + dB, wrapped = false; if (pB >= 1){ pB -= 1; wrapped = true; } v.pb = pB;
+        let oscB = 0, nb = 0;
+        if (C.oBsaw){ oscB += 2 * pB - 1 - this.blep(pB, dB); nb++; }
+        if (C.oBtri){ oscB += 1 - 4 * Math.abs(pB - .5); nb++; }
+        if (C.oBpul){ oscB += (pB < pbW ? 1 : -1) + this.blep(pB, dB) - this.blep((pB - pbW + 1) % 1, dB); nb++; }
+        // POLY-MOD sum
+        const pm = q7(C.pmEnv) * fe + q7(C.pmB) * oscB;
+        // OSC A
+        let fA = 261.63 * Math.pow(2, kb + stA / 12 + (vint * (v.offA * 3 + v.driftA * 4)) / 1200 + (C.pmFA ? pm * 4 : 0) + (C.wmFA ? wm * .5 : 0));
+        const dA = Math.min(.45, fA / fs);
+        const paW = Math.max(.01, Math.min(.99, pwA + (C.pmPW ? pm * .5 : 0) + (C.wmPWA ? wm * .45 : 0) + vint * .01 * v.offPW));
+        let pA = v.pa + dA, jump = 0, tj = 0;
+        if (C.sync && wrapped && !C.oBlo){
+          const frac = pB / dB, before = (pA - frac * dA) % 1, after = frac * dA;
+          if (C.oAsaw) jump += (2 * after - 1) - (2 * before - 1);
+          if (C.oApul) jump += (after < paW ? 1 : -1) - (before < paW ? 1 : -1);
+          pA = after; tj = frac;
+        } else if (pA >= 1) pA -= 1;
+        v.pa = pA;
+        let oscA = 0;
+        if (C.oAsaw) oscA += 2 * pA - 1 - (jump ? 0 : this.blep(pA, dA));
+        if (C.oApul) oscA += (pA < paW ? 1 : -1) + (jump ? 0 : this.blep(pA, dA)) - this.blep((pA - paW + 1) % 1, dA);
+        if (jump){ const d = Math.min(1, tj); oscA -= jump * (1 - d) * (1 - d) * .5; }
+        // MIXER -> CEM3320
+        const x = (q7(C.mA) * oscA + q7(C.mB) * oscB + q7(C.mN) * w * .8) * .55 + w * 2e-5;   // the chip's own noise floor
+        const fOct = cutSt / 12 + q7(C.fenv) * fe * 9 + (C.fkbd ? kb : 0) + (C.pmF ? pm * 5 : 0) + (C.wmF ? wm * 3 : 0) + vint * .05 * v.offF;
+        const fc = Math.min(.42 * fos, 16.35 * Math.pow(2, fOct)), g = 1 - Math.exp(-2 * Math.PI * fc * 1.073 / fos), l = v.lad;   // trimmed so self-oscillation lands on the cutoff note
+        let y = 0;
+        for (let o = 0; o < 2; o++){
+          const u = this.tanh(x - k * l[3]);
+          const t0 = this.tanh(l[0]), t1 = this.tanh(l[1]), t2 = this.tanh(l[2]);
+          l[0] += g * (u - t0); l[1] += g * (t0 - t1); l[2] += g * (t1 - t2); l[3] += g * (t2 - this.tanh(l[3]));
+          y += l[3];
+        }
+        y *= .5 * (1 + k * .45);
+        // CA3280 final VCA, gently saturating
+        out += this.tanh(y * ae * 1.4);
+      }
+      const o = out * .32 * (C.vol == null ? .8 : C.vol);
+      L[i] = o; R[i] = o;
+    }
+    return true;
+  }
+}
+registerProcessor('prophet5', Prophet5);
+`;
 const SOL_CODE = String.raw`
 /* Solina String Ensemble, modeled from the Eminent/ARP schematic set (sheets 015.0212 and 015.0214).
    Tone: top-octave generator + SAJ110 dividers (octaves phase-locked), each square wave shaped by C + diode + 22k/5k6
@@ -1262,7 +1427,7 @@ class SVC350 extends AudioWorkletProcessor{
 registerProcessor('svc350', SVC350);
 `;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE], {type:'application/javascript'})));
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -2571,14 +2736,32 @@ const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,
   'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
 let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
 const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
-function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT()}, mixDefaults()); }
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT(), p5:P5_DEFAULT()}, mixDefaults()); }
+const P5_INIT = {oAf:.5, oAsaw:1, oApul:0, oApw:.5, sync:0, oBf:.5, oBfine:0, oBsaw:1, oBtri:0, oBpul:0, oBpw:.5, oBlo:0, oBkbd:1,
+  mA:.8, mB:0, mN:0, cut:.6, res:.1, fenv:.4, fkbd:1, fa:0, fd:.45, fs:.4, fr:.4, aa:0, ad:.4, as:.9, ar:.4,
+  pmEnv:0, pmB:0, pmFA:0, pmPW:0, pmF:0, lfoF:.6, lfoSaw:0, lfoTri:1, lfoSq:0, wmMix:0, wmFA:1, wmFB:1, wmPWA:0, wmPWB:0, wmF:0,
+  wheel:0, uni:0, glide:0, rel:1, vint:.35, vol:.8};
+const P5_PRESETS = {
+  'Init':{},
+  'Brass':{oBfine:.08, mA:.8, mB:.7, cut:.35, res:.15, fenv:.55, fa:.35, fd:.5, fs:.6, fr:.4, aa:.2, ad:.4, as:1, ar:.4},
+  'Poly strings':{oAsaw:0, oApul:1, oApw:.33, oBfine:.12, mA:.7, mB:.7, cut:.55, res:.1, fenv:.15, fa:.5, aa:.55, ad:.5, as:1, ar:.62, lfoF:.5, wmPWA:1, wmPWB:1, wmFA:0, wmFB:0, wheel:.35},
+  'Sync lead':{sync:1, oAf:.62, oBsaw:1, mA:1, mB:0, pmEnv:.5, pmFA:1, cut:.7, res:.2, fenv:.2, fd:.55, fs:.2, aa:0, ad:.5, as:.8, ar:.3},
+  'Unison bass':{uni:1, glide:.25, oAf:.25, oBf:.25, oBsaw:0, oBpul:1, oBpw:.4, oBfine:.05, mA:.9, mB:.8, cut:.3, res:.35, fenv:.6, fa:0, fd:.38, fs:.1, fr:.3, aa:0, ad:.5, as:1, ar:.2},
+  'Poly-mod bell':{oAsaw:0, oApul:1, oApw:.5, oBsaw:0, oBtri:1, oBf:.66, pmB:.45, pmFA:1, mA:.8, mB:0, cut:.85, res:0, fenv:0, aa:0, ad:.64, as:0, ar:.62},
+  'Pad':{oBfine:.1, mA:.7, mB:.7, cut:.45, res:.2, fenv:.3, fa:.6, fd:.6, fs:.5, fr:.7, aa:.6, ad:.6, as:.9, ar:.7, lfoF:.35, wmF:1, wmFA:0, wmFB:0, wheel:.15},
+  'Pluck':{oAsaw:0, oApul:1, oApw:.2, cut:.42, res:.3, fenv:.6, fa:0, fd:.3, fs:0, fr:.25, aa:0, ad:.35, as:0, ar:.25},
+  'Resonant sweep':{oBfine:.06, mA:.8, mB:.6, cut:.25, res:.62, fenv:.7, fa:.55, fd:.6, fs:.3, fr:.6, aa:.1, ad:.5, as:1, ar:.5}
+};
+const P5_DEFAULT = (name = 'Brass') => Object.assign({}, P5_INIT, P5_PRESETS[name], {preset:name});
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
+const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}};
 function solNode(rig, tr){
   rig.sol = rig.sol || {};
-  if (rig.sol[tr.id] || rig !== live || !rig.c._reduxOK) return rig.sol[tr.id] || null;
-  const n = new AudioWorkletNode(rig.c, 'solina', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:tr.sol}});
+  const key = tr.id + ':' + tr.inst;
+  if (rig.sol[key] || rig !== live || !rig.c._reduxOK) return rig.sol[key] || null;
+  const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:I.cfg(tr)}});
   n.connect(rig.strips.get(tr.id).input);
-  return rig.sol[tr.id] = n;
+  return rig.sol[key] = n;
 }
 function solSend(rig, tr, ev){
   if (rig === live){ const n = solNode(live, tr); if (n) n.port.postMessage({type:'ev', ev}); return; }
@@ -2586,13 +2769,13 @@ function solSend(rig, tr, ev){
 }
 function solFinish(rig){
   for (const id in rig.solEv || {}){
-    const tr = trackById(id); if (!tr) continue;
-    const n = new AudioWorkletNode(rig.c, 'solina', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:tr.sol, events:rig.solEv[id]}});
+    const tr = trackById(id); if (!tr || !INST[tr.inst]) continue;
+    const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:I.cfg(tr), events:rig.solEv[id]}});
     n.connect(rig.strips.get(id).input);
   }
 }
 function synthVoice(rig, tr, note, t, vel, dur){
-  if (tr.inst === 'solina'){
+  if (INST[tr.inst]){
     const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel});
     let done = false;
     const release = at => { if (done) return; done = true; solSend(rig, tr, {f:Math.round(Math.max(at, t + .005) * fs), off:note}); };
@@ -2732,8 +2915,10 @@ function renderSynth(){
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'synth';
   const isSol = tr.inst === 'solina';
-  $('#preset').hidden = isSol; $('#patchCtls').hidden = isSol; $('#solPanel').hidden = !isSol;
+  const isP5 = tr.inst === 'prophet';
+  $('#preset').hidden = isSol || isP5; $('#patchCtls').hidden = isSol || isP5; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5;
   if (isSol) renderSolina(tr);
+  if (isP5) renderP5(tr);
   const box = $('#patchCtls'); box.innerHTML = '';
   const P = tr.patch, custom = () => { tr.preset = ''; $('#preset').value = ''; };
   const sel = (label, key, opts) => {
@@ -2754,7 +2939,43 @@ function renderSynth(){
   c2('Level', 'gain', 0, 1.5, .01, pct);
   rollDirty = true; renderKeys(); renderVocoder();
 }
-function solCfg(tr){ if (live && live.sol && live.sol[tr.id]) live.sol[tr.id].port.postMessage({type:'cfg', cfg:tr.sol}); }
+function solCfg(tr){ const n = live && live.sol && live.sol[tr.id + ':' + tr.inst]; if (n) n.port.postMessage({type:'cfg', cfg:INST[tr.inst].cfg(tr)}); }
+
+const P5_LAYOUT = [
+  ['Oscillator A', [['oAf', 'Frequency', v => { const st = Math.round(Math.round(v * 127) / 127 * 48) - 24; return (st > 0 ? '+' : '') + st + ' st'; }], ['oApw', 'Pulse width', v => Math.round(1 + 98 * v) + '%']], [['oAsaw', 'Saw'], ['oApul', 'Pulse'], ['sync', 'Sync']]],
+  ['Oscillator B', [['oBf', 'Frequency', (v, P) => P.oBlo ? (.4 * Math.pow(75, v)).toFixed(2) + ' Hz' : ((st => (st > 0 ? '+' : '') + st + ' st')(Math.round(Math.round(v * 127) / 127 * 48) - 24))], ['oBfine', 'Fine', v => '+' + Math.round(v * 100) + ' ct'], ['oBpw', 'Pulse width', v => Math.round(1 + 98 * v) + '%']], [['oBsaw', 'Saw'], ['oBtri', 'Tri'], ['oBpul', 'Pulse'], ['oBlo', 'Lo freq'], ['oBkbd', 'Kbd']]],
+  ['Mixer', [['mA', 'Osc A'], ['mB', 'Osc B'], ['mN', 'Noise']], []],
+  ['Filter', [['cut', 'Cutoff', v => { const f = 16.35 * Math.pow(2, Math.round(v * 127) / 12); return f >= 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f) + ''; }], ['res', 'Resonance', v => (v * 10).toFixed(1)], ['fenv', 'Env amount'], ['fa', 'Attack', 'T'], ['fd', 'Decay', 'T'], ['fs', 'Sustain'], ['fr', 'Release', 'T']], [['fkbd', 'Keyboard']]],
+  ['Amplifier', [['aa', 'Attack', 'T'], ['ad', 'Decay', 'T'], ['as', 'Sustain'], ['ar', 'Release', 'T']], [['rel', 'Release']]],
+  ['Poly-Mod', [['pmEnv', 'Filter env'], ['pmB', 'Osc B']], [['pmFA', 'Freq A'], ['pmPW', 'PW A'], ['pmF', 'Filter']]],
+  ['LFO and Wheel-Mod', [['lfoF', 'LFO freq', v => (.04 * Math.pow(500, v)).toFixed(2) + ' Hz'], ['wmMix', 'Source mix', v => v < .02 ? 'LFO' : v > .98 ? 'Noise' : Math.round(v * 100) + '% noise']], [['lfoSaw', 'Saw'], ['lfoTri', 'Tri'], ['lfoSq', 'Square'], ['wmFA', 'Freq A'], ['wmFB', 'Freq B'], ['wmPWA', 'PW A'], ['wmPWB', 'PW B'], ['wmF', 'Filter']]],
+  ['Performance', [['glide', 'Glide'], ['vint', 'Vintage'], ['vol', 'Volume']], [['uni', 'Unison']]]
+];
+const p5Time = v => { const t = .001 * Math.pow(30000, Math.pow(Math.round(v * 127) / 127, .728)); return t < 1 ? Math.round(t * 1000) + ' ms' : t.toFixed(1) + ' s'; };
+function renderP5(tr){
+  const P = tr.p5, ps = $('#p5Preset');
+  ps.innerHTML = Object.keys(P5_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  ps.value = P.preset || '';
+  $('#p5Wheel').value = P.wheel; $('#p5WheelV').textContent = Math.round(P.wheel * 100) + '%';
+  const body = $('#p5Body'); body.innerHTML = '';
+  const up = () => { P.preset = ''; $('#p5Preset').value = ''; solCfg(tr); };
+  P5_LAYOUT.forEach(([title, knobs, sws], si) => {
+    const sec = document.createElement('div'); sec.className = 'p5sec'; sec.id = 'p5s' + si;
+    sec.innerHTML = `<div class="label">${title}</div>`;
+    if (sws.length){
+      const row = document.createElement('div'); row.className = 'p5sw';
+      sws.forEach(([k, lb]) => { const b = document.createElement('button'); b.textContent = lb; b.classList.toggle('on', !!P[k]);
+        b.addEventListener('click', () => { P[k] = P[k] ? 0 : 1; b.classList.toggle('on', !!P[k]); up(); save(); if (k === 'oBlo') renderP5(tr); }); row.appendChild(b); });
+      sec.appendChild(row);
+    }
+    const g = document.createElement('div'); g.className = 'ctls'; g.id = 'p5g' + si; sec.appendChild(g);
+    knobs.forEach(([k, lb, f]) => ctl(g, lb, P, k, 0, 1, .005, f === 'T' ? p5Time : typeof f === 'function' ? v => f(v, P) : v => (Math.round(v * 127) / 12.7).toFixed(1), up));
+    body.appendChild(sec);
+  });
+}
+$('#p5Preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = tr.p5.wheel; tr.p5 = P5_DEFAULT(e.target.value); solCfg(tr); save(); renderP5(tr); });
+$('#p5Wheel').addEventListener('input', e => { const tr = curSynth(); tr.p5.wheel = +e.target.value; $('#p5WheelV').textContent = Math.round(tr.p5.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':prophet']; if (n) n.port.postMessage({type:'wheel', v:tr.p5.wheel}); save(); });
+
 function renderSolina(tr){
   const C = tr.sol;
   document.querySelectorAll('.solreg button').forEach(b => { b.classList.toggle('on', !!C[b.dataset.k]); });
@@ -2769,7 +2990,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; if (tr.inst === 'solina' && !tr.name.startsWith('Solina')){ tr.name = 'Solina ' + tr.id.slice(1); } save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', synth:'Synth '}[tr.inst]; if (/^(Synth|Solina|Prophet) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
@@ -3101,6 +3322,12 @@ function onMidi(e){
     if (st === 0xF2){ ext.spp = d[1] | (d[2] << 7); return; }
   }
   const type = st & 0xF0, ch = (st & 0x0F) + 1;
+  if ((type === 0xB0 && d[1] === 1) || type === 0xE0){
+    const syn = S.synths.find(t => t.id === S.midiTarget && t.inst === 'prophet'), n = syn && live && live.sol && live.sol[syn.id + ':prophet'];
+    if (syn && type === 0xB0){ syn.p5.wheel = d[2] / 127; if (n) n.port.postMessage({type:'wheel', v:syn.p5.wheel}); }
+    if (syn && type === 0xE0 && n) n.port.postMessage({type:'bend', v:(((d[2] << 7) | d[1]) - 8192) / 8192 * 2});
+    return;
+  }
   if (type !== 0x90 && type !== 0x80) return;
   if (S.midiCh && ch !== S.midiCh) return;
   const note = d[1], vel = d[2];
@@ -3445,7 +3672,7 @@ $('#helpSearch').addEventListener('input', e => {
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
