@@ -296,7 +296,7 @@ body.mlearn .stp{outline:2px dashed var(--accent);outline-offset:2px}
 body.mlearn .stp.mmapped{outline:2px solid #4cd07d}
 body.mlearn .stp.marmed{outline:3px solid #fff}
 /* keep the playing screens clean: explanations live in Help (?) and Setup */
-#v-drums .hint,#v-audio .hint,#v-mixer .hint,#v-chop .hint,#v-synth .hint,#v-song .hint{display:none}
+#v-drums .hint,#v-audio .hint,#v-mixer .hint,#v-chop .hint,#v-synth .hint,#v-song .hint,#v-deck .hint{display:none}
 
 /* ===== Star Screamer 350: the SVC-350 rack front. Black panel, red and white lettering, sections boxed in white,
    black knobs with a red stripe, white voice-character knobs, black push buttons ===== */
@@ -341,6 +341,18 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
 .clipled,html.retro .clipled{font:700 9px/1 var(--f-display);letter-spacing:.12em;padding:4px 0;width:100%;background:#2a0a08;color:#6b2a24;border:1px solid #000;border-radius:2px;box-shadow:none}
 .clipled.on,html.retro .clipled.on{background:#ff2a1a;color:#fff;box-shadow:0 0 8px #ff2a1a}
 .clipbadge,html.retro .clipbadge{background:#ff2a1a;color:#fff;border:1px solid #000;font:700 11px var(--f-display);letter-spacing:.1em;padding:6px 8px;animation:blink .5s steps(2) infinite}
+.tt{gap:12px}
+.tt-head{display:flex;flex-direction:column;gap:2px}
+.tt-head b{font:400 15px/1 "Michroma",sans-serif;letter-spacing:.12em;color:#fff}
+.tt-head span{font:400 8px "Michroma",sans-serif;letter-spacing:.18em;color:#c9c4b7}
+#ttCv{width:100%;aspect-ratio:1.12;display:block;touch-action:none;border-radius:6px}
+.tt-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px}
+.tt-row button{padding:14px 0}
+html.retro .tt-row button{background:linear-gradient(180deg,#8d9196 0%,#f4f6f7 22%,#c6cacf 48%,#ffffff 62%,#9ea2a7 100%);color:#26282b;border:1px solid #3a3c40;border-radius:3px;box-shadow:0 3px 0 #1d1e20,inset 0 1px 0 #fff,inset 0 -2px 3px #0004;font:400 10px "Michroma",sans-serif;letter-spacing:.1em}
+html.retro .tt-row button:active{transform:translateY(2px);box-shadow:0 1px 0 #1d1e20,inset 0 1px 0 #fff}
+html.retro .tt-row button.on{background:linear-gradient(180deg,#8d9196 0%,#f4f6f7 22%,#c6cacf 48%,#ffffff 62%,#9ea2a7 100%);color:#c4262a;text-shadow:0 0 4px #ff3b1f88}
+html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6px;margin:6px auto 0;border-radius:50%;background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
+#ttCut.on,html.retro #ttCut.on{background:linear-gradient(180deg,#f2683a,#d9461c);color:#fff}
 </style>
 
 </head>
@@ -432,6 +444,22 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard"></div>
     <div class="card rack" id="rackCard"></div>
+  </section>
+
+  <!-- WHEEL OF STEEL -->
+  <section class="view" id="v-deck" hidden>
+    <div class="card tt">
+      <div class="tt-head"><b>THE WHEEL OF STEEL</b><span>QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
+      <canvas id="ttCv" aria-label="Turntable. Touch the record and move it to scratch."></canvas>
+      <input id="ttScr" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Scratch (map a knob with MIDI learn)">
+      <div class="tt-row"><button id="ttStart" class="tt-start">START · STOP</button><button id="tt33">33</button><button id="tt45">45</button></div>
+      <div class="ctl"><label class="label" for="ttPitch">Pitch</label><input id="ttPitch" type="range" min="-8" max="8" step="0.1"><span class="v mono"></span></div>
+      <div class="ctl"><label class="label" for="ttVol">Level</label><input id="ttVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
+      <div class="row"><button id="ttCut" class="grow" data-momentary="1">CUT (HOLD)</button><button id="ttCue" class="grow">TO CUE</button><button id="ttSetCue" class="grow">SET CUE</button></div>
+      <div class="row"><button id="ttLoad" class="grow">LOAD RECORD</button><span class="badge" id="ttName">No record</span></div>
+      <input type="file" id="ttFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <p class="hint">Load a file onto the record, press Start, then put your finger on the record and push it back and forth to scratch. Hold Cut to chop the sound. To scratch from your MPC: Setup → MIDI learn, tap the platter, then turn a knob.</p>
+    </div>
   </section>
 
   <!-- CHOP -->
@@ -594,7 +622,7 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
         <li><b>BPM</b>: type a value, use − / +, or tap <b>Tap</b> three or more times in tempo. Range 40–240.</li>
         <li><b>Loop</b>: 1, 2, 4 or 8 bars for the current scene.</li>
         <li><b>Click</b> turns the metronome on during playback. The count-in always clicks.</li>
-        <li><b>Count-in</b> can be turned off in Setup → Recording.</li>
+        <li><b>Count-in</b> can be turned off in Setup → Recording. <b>Click level</b> there goes up to 400 %: past 100 % the click drives a clipper, so it gets much louder and harder, for loud rooms and headphones.</li>
       </ul>
       <p>When the clock is set to <b>Follow MPC</b> (Setup → MIDI), the tempo controls lock and play/stop come from your MPC.</p>
     </details>
@@ -755,7 +783,7 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
       <p>Tip: the Taurus preset with Decay on and the foot filter around half way is the classic huge pedal tone. Play it from the low octave of the grid or route your MPC or a keyboard to it.</p>
     </details>
 
-    <details id="h-vocoder"><summary>Vocoder (SVC-350 model)</summary>
+    <details id="h-vocoder"><summary>Star Screamer 350 vocoder</summary>
       <p>The vocoder makes a synth “talk”: your voice shapes the synth's sound. It is modeled on the Roland SVC-350's circuit from its 1979 service notes.</p>
       <ol><li>On the Synth tab, turn <b>Vocoder</b> on. That synth becomes the instrument.</li><li><b>Voice</b>: <i>Live input</i> uses your USB-C mic; or pick an audio track with a recorded vocal (mute that track in the mixer if you only want the vocoder).</li><li>Hold chords on the grid (or your keyboard/MPC) and talk or sing.</li></ol>
       <ul>
@@ -778,6 +806,13 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
         <li><b>Voice</b>: Robot (monotone), Deep, Normal or High. <b>Pitch</b> and <b>Speed</b> fine-tune it. <b>Timing</b>: each line starts on its own bar, or lines run back to back.</li>
         <li>It's a formant synthesizer with English pronunciation rules, like the early-80s talking chips. Spell a word your own way if it comes out wrong, or type phonemes between slashes: <i>/F R EH SH/</i>. Repeating a vowel stretches it ("Ahhhh", "freeesh").</li>
       </ul>
+      <h3>The Star Screamer 350 panel</h3>
+      <ul>
+        <li>The panel follows the Roland SVC-350's front: black rack panel, red and white lettering, and boxed sections. <b>INPUT</b> has MIC (the voice), INSTRUMENT (the carrier synth) and the INST LEVEL switch (−30, −15, 0 dB). <b>FREQUENCY</b> has the 11 band sliders, BALANCE and MASTER VOLUME. <b>VOICE CHARACTER</b> has HARMONICS, GROWL and S/T NOISE. <b>REMOTE</b> has VOCODER/DIRECT, HOLD and ENSEMBLE.</li>
+        <li>Knobs: drag up or down to turn them, or tap the red value under a knob to pick a setting from the menu.</li>
+        <li><b>S/T NOISE</b>: when the voice is mostly hiss (S, T, SH, F), white noise replaces the carrier, so consonants stay crisp instead of turning into notes.</li>
+        <li><b>PROGRAM</b> presets: Jonzun Crew, Newcleus, Egyptian Lover, Starscream, Mr. Roboto, Cylon Warrior, Fresh (Change the Beat), Herbie Hancock, and Clean SVC. Each one sets the panel, switches the carrier to a Prophet-5 on its "Vocoder carrier" program (bright saw and pulse, filter open), writes a speech line and holds a carrier note. These are in the style of those records, not copies of them.</li>
+      </ul>
 </details>
 
     <details id="h-mixer"><summary>Mixer and effects</summary>
@@ -793,6 +828,7 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
         <li><b>Sends to the FX rack</b> feed the five rack units below the mixer (see FX rack).</li>
         <li><b>Master EQ</b> (Master strip → FX): low cut, plus ±12 dB at 80 Hz, 200 Hz, 500 Hz, 1.2 kHz, 3 kHz, 6 kHz and 12 kHz. It's switched out when flat.</li>
         <li><b>EQ match</b>: tap <b>Load reference</b> and pick a song whose tone you like, then <b>Match my mix</b>. The app renders your song, compares the two average spectra in 31 bands (1/3 octave) and sets a matching EQ, up to ±9 dB. <b>Amount</b> sets how much of it to use; the graph shows the reference (blue), your mix (white) and the correction (orange). Match again after big changes.</li>
+        <li><b>CLIP lights</b>: each mixer channel has a CLIP light that turns red when the channel goes over full scale (the master checks before its limiter). A flashing CLIP badge in the top bar shows it on any page; tap it to go to the mixer. Tap a CLIP light to clear it.</li>
         <li><b>Master</b>: Glue compression (adds 6 ms of latency while on, so leave it off while recording live) and a soft clipper that stops harsh overs.</li>
       </ul>
     </details>
@@ -805,6 +841,17 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
         <li><b>Eventide H910</b> Harmonizer: one side is pitched up and the other down by <b>Detune</b> cents, each with its own delay up to 112.5 ms. ±9 cents at 15/25 ms is the classic doubled-vocal wall. <b>Raw</b> splicing keeps the H910's audible splice clicks and compander pumping; <b>Smooth</b> is the later de-glitched sound. Feedback goes past 100% like the original.</li>
         <li><b>MXR 113</b>: a 10-bit digital delay inside a compander. <b>Bandwidth</b> trades tone for time (20 kHz up to 160 ms … 2.5 kHz up to 1.28 s), so long repeats get darker and grainier. Regen at 100% holds the repeats.</li>
         <li><b>Lexicon 224 / AMS RMX16</b>: 224 programs (Vocal Plate, Percussion Plate, Concert Hall, Room, Chamber) run at the 224's narrow ~8 kHz bandwidth with its 12-bit grain. The RMX16 programs are full-bandwidth: Plate A1, Hall C1, Ambience, <b>Nonlin 2</b> (the gated snare: holds, then stops dead) and <b>Reverse 1</b> (builds up, then stops). <b>Size</b> sets the decay time or gate length, and <b>Treble</b> sets how fast the highs die.</li>
+      </ul>
+    </details>
+
+    <details id="h-wheel"><summary>The Wheel of Steel (turntable)</summary>
+      <p>The <b>Wheel</b> tab is a direct-drive turntable in the style of the Technics SL-1200 MK2.</p>
+      <ul>
+        <li><b>Load record</b> puts any WAV, AIFF, MP3, FLAC or OGG file (up to 10 minutes) on the platter. It's kept for next time.</li>
+        <li><b>Start · Stop</b>: the motor gets to speed in about 0.7 s and brakes in about half that, like the real thing. <b>33</b> and <b>45</b> set the speed; <b>Pitch</b> is ±8 %.</li>
+        <li><b>Scratch</b>: put your finger on the record and push it back and forth. Let go and the motor pulls it back to speed. <b>Cut</b> mutes the sound while you hold it, for chops and transforms. <b>Set cue</b> marks a spot and <b>To cue</b> jumps back to it.</li>
+        <li><b>From your MPC</b>: Setup → MIDI learn, tap the platter, then turn a knob. That knob now scratches: turning it moves the record (full travel is two turns), and when it stops the motor takes over again. Map a pad to <b>Cut</b> and it works as a hold switch: pad down cuts, pad up opens. Start, 33/45 and Pitch can be mapped too.</li>
+        <li>The deck plays into the master, so the master EQ and limiter apply.</li>
       </ul>
     </details>
 
@@ -979,6 +1026,7 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
   <button data-v="mixer">Mixer</button>
   <button data-v="chop">Chop</button>
   <button data-v="synth">Synth</button>
+  <button data-v="deck">Wheel</button>
   <button data-v="song">Song</button>
   <button data-v="setup">Setup</button>
 </nav>
@@ -2707,6 +2755,42 @@ class MXR113 extends RackUnit{
   }
 }
 registerProcessor('mxr113', MXR113);
+
+/* The Wheel of Steel: an SL-1200 MK2-style direct-drive deck. Motor reaches 33 1/3 in about 0.7 s and brakes in about
+   half that; quartz pitch +/-8 %. Touching the record hands control to your finger (the record follows it through a
+   few-ms of slip), and letting go lets the motor pull it back to speed. */
+class Deck extends AudioWorkletProcessor{
+  constructor(){
+    super(); this.ch = null; this.sr = 44100; this.len = 0; this.pos = 0; this.rate = 0;
+    this.motor = false; this.pitch = 1; this.speed = 1; this.cut = 1; this.cutG = 1; this.vol = .9;
+    this.hand = false; this.tgt = 0; this.t1 = 0; this.rep = 0;
+    this.port.onmessage = e => { const d = e.data;
+      if (d.type === 'load'){ this.ch = d.ch; this.sr = d.sr; this.len = d.ch[0].length; this.pos = this.tgt = this.t1 = 0; this.rate = 0; }
+      else if (d.type === 'set') Object.assign(this, d.v);
+      else if (d.type === 'hand'){ this.hand = d.on; if (d.on) this.tgt = this.t1 = this.pos; }
+      else if (d.type === 'move') this.tgt = Math.max(0, Math.min(this.len - 2, this.tgt + d.d * this.sr));
+      else if (d.type === 'seek'){ this.pos = this.tgt = this.t1 = Math.max(0, Math.min(this.len - 2, d.s * this.sr)); } };
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length;
+    if (!this.ch){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const k = this.sr / sampleRate, want = this.motor ? this.speed * this.pitch * k : 0;
+    const acc = 1 - Math.exp(-1 / (.17 * sampleRate)), brk = 1 - Math.exp(-1 / (.09 * sampleRate)), fol = 1 - Math.exp(-1 / (.006 * sampleRate));
+    const a = this.ch[0], b = this.ch[1] || a, n = this.len;
+    for (let i = 0; i < N; i++){
+      if (this.hand){ this.t1 += (this.tgt - this.t1) * fol; const np = this.pos + (this.t1 - this.pos) * fol; this.rate = np - this.pos; this.pos = np; }
+      else { this.rate += (want - this.rate) * (Math.abs(want) >= Math.abs(this.rate) ? acc : brk); this.pos += this.rate; }
+      if (this.pos < 0){ this.pos = 0; this.rate = 0; } else if (this.pos > n - 2){ this.pos = n - 2; this.rate = 0; }
+      const i0 = this.pos | 0, f = this.pos - i0;
+      this.cutG += (this.cut - this.cutG) * .03;
+      const g = this.cutG * this.vol;
+      L[i] = (a[i0] + (a[i0 + 1] - a[i0]) * f) * g; R[i] = (b[i0] + (b[i0 + 1] - b[i0]) * f) * g;
+    }
+    if (++this.rep % 4 === 0) this.port.postMessage({pos:this.pos / this.sr, rate:this.rate / k, end:this.pos >= n - 2});
+    return true;
+  }
+}
+registerProcessor('deck', Deck);
 `;
 
 const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
@@ -3923,6 +4007,154 @@ async function matchMix(){
     void keep;
   } catch (e){ console.warn(e); if (E.match && !E.match.gains) E.match.gains = keep; $('#matchStatus').textContent = 'Could not analyse the mix.'; }
 }
+/* ================= the Wheel of Steel ================= */
+const deck = {node:null, gain:null, buf:null, pos:0, rate:0, at:0, hand:false, ang0:0, midiV:null, midiT:0, cue:0, loading:false};
+function deckState(){ return S.deck = Object.assign({name:'', pitch:0, speed:33, vol:.9, cue:0, on:false}, S.deck); }
+function deckEnsure(){
+  ensureAudio(); if (deck.node || !ctx._reduxOK) return deck.node;
+  deck.node = new AudioWorkletNode(ctx, 'deck', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
+  deck.gain = ctx.createGain(); deck.node.connect(deck.gain).connect(live.master.bus);
+  deck.node.port.onmessage = e => { deck.pos = e.data.pos; deck.rate = e.data.rate; deck.at = performance.now(); };
+  deckSet(); if (deck.buf) deckSend(deck.buf);
+  return deck.node;
+}
+function deckSet(){ const D = deckState(); if (!deck.node) return;
+  deck.node.port.postMessage({type:'set', v:{motor:!!D.on, pitch:1 + D.pitch / 100, speed:D.speed === 45 ? 1.35 : 1, vol:D.vol}}); }
+function deckSend(buf){ const ch = [...Array(Math.min(2, buf.numberOfChannels))].map((_, k) => buf.getChannelData(k).slice()); deck.node.port.postMessage({type:'load', ch, sr:buf.sampleRate}); }
+async function deckLoadSaved(){
+  const D = deckState(); if (deck.buf || deck.loading || !D.name) return; deck.loading = true;
+  try { const a = await DB.get('audio', 'deck:rec'); if (a){ deck.buf = makeBuffer(a.ch, a.sr); if (deck.node) deckSend(deck.buf); } } catch(e){}
+  deck.loading = false; renderDeck();
+}
+const revSec = () => 60 / (deckState().speed === 45 ? 45 : 33.333);
+function deckAngle(){ const el = (performance.now() - deck.at) / 1000; return (deck.pos + (deck.hand ? 0 : deck.rate * el)) / revSec() * 2 * Math.PI; }
+function drawDeck(){
+  const cv = $('#ttCv'); if (!cv || view !== 'deck') return;
+  const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w) return;
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d'), D = deckState(), cx = w * .43, cy = h * .5, R = Math.min(w * .4, h * .45);
+  // plinth
+  let gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#6d7074'); gr.addColorStop(.5, '#4a4d51'); gr.addColorStop(1, '#3a3c3f');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ffffff10'; for (let y = 0; y < h; y += 3 * dpr) g.fillRect(0, y, w, dpr * .6);
+  // platter rim with strobe dots
+  gr = g.createRadialGradient(cx, cy, R * .9, cx, cy, R * 1.04); gr.addColorStop(0, '#9a9da1'); gr.addColorStop(.5, '#e9ebec'); gr.addColorStop(1, '#7b7e82');
+  g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R * 1.04, 0, 7); g.fill();
+  const ang = deckAngle();
+  g.save(); g.translate(cx, cy); g.rotate(ang);
+  for (let row = 0; row < 4; row++){ const n = [180, 183, 186, 189][row], rr = R * (1.0 - row * .022); g.fillStyle = '#2b2d30';
+    for (let k = 0; k < n; k += 2){ const a = k / n * 2 * Math.PI; g.fillRect(Math.cos(a) * rr - dpr * .6, Math.sin(a) * rr - dpr * .6, dpr * 1.2, dpr * 1.2); } }
+  // slipmat and record
+  g.fillStyle = '#111'; g.beginPath(); g.arc(0, 0, R * .93, 0, 7); g.fill();
+  g.fillStyle = '#060606'; g.beginPath(); g.arc(0, 0, R * .9, 0, 7); g.fill();
+  g.strokeStyle = '#ffffff12'; g.lineWidth = dpr * .7; for (let r = R * .38; r < R * .88; r += R * .018){ g.beginPath(); g.arc(0, 0, r, 0, 7); g.stroke(); }
+  g.strokeStyle = '#ffffff22'; g.lineWidth = dpr * 2; g.beginPath(); g.arc(0, 0, R * .62, -.6, .2); g.stroke(); g.beginPath(); g.arc(0, 0, R * .75, 2.5, 3.4); g.stroke();
+  // label, printed like a pressing: logo arched over the top, title in the middle, small print round the bottom
+  const LR = R * .37;
+  let lg = g.createRadialGradient(-LR * .3, -LR * .3, LR * .1, 0, 0, LR); lg.addColorStop(0, '#d6322f'); lg.addColorStop(1, '#a51d22');
+  g.fillStyle = lg; g.beginPath(); g.arc(0, 0, LR, 0, 7); g.fill();
+  g.strokeStyle = '#f3d9b8'; g.lineWidth = dpr * .8; g.beginPath(); g.arc(0, 0, LR * .93, 0, 7); g.stroke(); g.beginPath(); g.arc(0, 0, LR * .2, 0, 7); g.stroke();
+  const arcText = (txt, rad, mid, size, font, inside) => {
+    g.font = `${size}px ${font}`; const chars = [...txt], widths = chars.map(ch => g.measureText(ch).width + size * .08), total = widths.reduce((a, b) => a + b, 0);
+    let a = mid - (inside ? -1 : 1) * total / rad / 2;
+    for (let k = 0; k < chars.length; k++){ const step = widths[k] / rad, c = a + (inside ? -1 : 1) * step / 2;
+      g.save(); g.rotate(c); g.translate(0, inside ? rad : -rad); if (inside) g.rotate(Math.PI); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(chars[k], 0, 0); g.restore();
+      a += (inside ? -1 : 1) * step; }
+  };
+  g.fillStyle = '#f7e7cf';
+  arcText('THE WHEEL OF STEEL', LR * .8, 0, Math.round(LR * .13), 'Michroma, sans-serif', false);
+  arcText('THE SNAKE DEVICE · STAR SCREAMER RECORDS · STEREO', LR * .82, Math.PI, Math.max(6, Math.round(LR * .065)), 'Barlow, sans-serif', true);
+  // title in the middle, wrapped to two lines
+  const title = (D.name || 'No record').toUpperCase().replace(/[_-]+/g, ' ');
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  let fs = Math.round(LR * .15); g.font = `700 ${fs}px Barlow Condensed, sans-serif`;
+  const words = title.split(/\s+/), lines = ['']; for (const wd of words){ const tr = (lines[lines.length - 1] + ' ' + wd).trim(); if (g.measureText(tr).width > LR * 1.25 && lines[lines.length - 1]) lines.push(wd); else lines[lines.length - 1] = tr; }
+  const show = lines.slice(0, 2); if (lines.length > 2) show[1] = show[1].slice(0, 14) + '…';
+  show.forEach((ln, k) => { while (g.measureText(ln).width > LR * 1.35 && fs > 6){ fs--; g.font = `700 ${fs}px Barlow Condensed, sans-serif`; } g.fillText(ln, 0, -LR * .33 + k * fs * 1.05); });
+  g.font = `${Math.round(LR * .085)}px Michroma, sans-serif`;
+  g.fillText('SIDE A', -LR * .55, LR * .02); g.fillText(D.speed === 45 ? '45 RPM' : '33⅓ RPM', LR * .55, LR * .02);
+  g.font = `${Math.round(LR * .075)}px Barlow, sans-serif`; g.fillText('SNAKE-1200', 0, LR * .42);
+  g.restore();
+  g.fillStyle = '#d9dbdd'; g.beginPath(); g.arc(cx, cy, R * .03, 0, 7); g.fill();
+  // tonearm: pivot top right, stylus walks in as the record plays
+  const prog = deck.buf ? clamp(deck.pos / deck.buf.duration, 0, 1) : 0, px = w * .9, py = h * .16;
+  const sr = R * (.86 - prog * .45), sa = -.35 - prog * .25, sx = cx + Math.cos(sa) * sr, sy = cy + Math.sin(sa) * sr;
+  // chrome tonearm: base ring, S-shaped arm drawn in layers (dark edge, body, bright highlight), headshell, counterweight
+  const chrome = (x0, y0, x1, y1) => { const cg = g.createLinearGradient(x0, y0, x1, y1); cg.addColorStop(0, '#6d7176'); cg.addColorStop(.35, '#f7f9fa'); cg.addColorStop(.5, '#b8bdc2'); cg.addColorStop(.7, '#ffffff'); cg.addColorStop(1, '#7d8186'); return cg; };
+  g.fillStyle = '#1d1e20'; g.beginPath(); g.arc(px, py, R * .14, 0, 7); g.fill();
+  g.fillStyle = chrome(px - R * .1, py - R * .1, px + R * .1, py + R * .1); g.beginPath(); g.arc(px, py, R * .1, 0, 7); g.fill();
+  g.fillStyle = '#2a2b2e'; g.beginPath(); g.arc(px, py, R * .04, 0, 7); g.fill();
+  const arm = () => { g.beginPath(); g.moveTo(px, py - R * .02); g.bezierCurveTo(px - R * .02, py + R * .25, sx + R * .2, sy - R * .3, sx + R * .05, sy - R * .08); };
+  g.lineCap = 'round';
+  g.strokeStyle = '#3a3c40'; g.lineWidth = R * .045; arm(); g.stroke();
+  g.strokeStyle = chrome(px - R * .3, py, px, py + R * .3); g.lineWidth = R * .034; arm(); g.stroke();
+  g.strokeStyle = '#ffffffcc'; g.lineWidth = R * .008; g.save(); g.translate(-R * .006, -R * .006); arm(); g.stroke(); g.restore();
+  g.save(); g.translate(sx, sy); g.rotate(-.5);
+  g.fillStyle = chrome(-R * .05, 0, R * .05, 0); g.fillRect(-R * .04, -R * .11, R * .08, R * .1);
+  g.fillStyle = '#18181a'; g.fillRect(-R * .03, -R * .02, R * .06, R * .035); g.fillStyle = '#f5f5f5'; g.fillRect(-R * .055, -R * .1, R * .02, R * .05);
+  g.restore();
+  g.fillStyle = chrome(px - R * .07, py - R * .27, px + R * .1, py - R * .13); g.beginPath(); g.arc(px + R * .02, py - R * .2, R * .075, 0, 7); g.fill();
+  g.strokeStyle = '#4a4d51'; g.lineWidth = dpr; for (let k = -2; k <= 2; k++){ g.beginPath(); g.moveTo(px + R * .02 + k * R * .025, py - R * .26); g.lineTo(px + R * .02 + k * R * .025, py - R * .14); g.stroke(); }
+  // strobe light and power LED
+  g.fillStyle = D.on ? '#ff3b1f' : '#5a1410'; g.beginPath(); g.arc(w * .06, h * .93, R * .035, 0, 7); g.fill();
+  if (D.on){ g.fillStyle = '#ff6a3a33'; g.beginPath(); g.arc(w * .06, h * .93, R * .09, 0, 7); g.fill(); }
+  g.fillStyle = '#ffffffaa'; g.font = `${Math.round(9 * dpr)}px Michroma, sans-serif`; g.textAlign = 'left';
+  g.fillText((D.pitch >= 0 ? '+' : '') + D.pitch.toFixed(1) + '%', w * .1, h * .95);
+}
+function renderDeck(){
+  const D = deckState(); deckLoadSaved();
+  $('#ttName').textContent = D.name ? D.name.slice(0, 24) : 'No record';
+  $('#tt33').classList.toggle('on', D.speed !== 45); $('#tt45').classList.toggle('on', D.speed === 45); $('#ttStart').classList.toggle('on', !!D.on);
+  $('#ttPitch').value = D.pitch; $('#ttVol').value = D.vol;
+}
+function deckHand(on){ if (!deckEnsure()) return; deck.hand = on; deck.node.port.postMessage({type:'hand', on}); }
+(() => {
+  const cv = $('#ttCv'); let last = null;
+  const angAt = e => { const r = cv.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height * .5), e.clientX - (r.left + r.width * .43)); };
+  cv.addEventListener('pointerdown', e => {
+    if (mlearn) return;
+    const r = cv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width * .43), dy = e.clientY - (r.top + r.height * .5), Rr = Math.min(r.width * .4, r.height * .45);
+    if (Math.hypot(dx, dy) > Rr * 1.04) return;
+    e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    if (!deck.buf){ toast('Load a record first.'); return; }
+    deckHand(true); last = angAt(e);
+  });
+  cv.addEventListener('pointermove', e => { if (last == null) return; const a = angAt(e); let d = a - last; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; last = a;
+    deck.pos = Math.max(0, deck.pos + d / (2 * Math.PI) * revSec()); deck.node && deck.node.port.postMessage({type:'move', d:d / (2 * Math.PI) * revSec()}); });
+  const up = () => { if (last == null) return; last = null; deckHand(false); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  // MIDI-mapped knob: turning it moves the record (full knob travel = two turns), letting go hands back to the motor
+  $('#ttScr').addEventListener('input', e => {
+    if (!deck.buf) return; const v = +e.target.value;
+    if (deck.midiV == null || !deck.hand){ deck.midiV = v; deckHand(true); return; }
+    const d = (v - deck.midiV) * 2 * revSec(); deck.midiV = v; deck.pos = Math.max(0, deck.pos + d); deck.node.port.postMessage({type:'move', d});
+    clearTimeout(deck.midiT); deck.midiT = setTimeout(() => { deck.midiV = null; deckHand(false); }, 160);
+  });
+  $('#ttStart').addEventListener('click', () => { if (!deckEnsure()) return; const D = deckState(); if (!deck.buf){ toast('Load a record first.'); return; } D.on = !D.on; deckSet(); save(); renderDeck(); });
+  $('#tt33').addEventListener('click', () => { deckState().speed = 33; deckSet(); save(); renderDeck(); });
+  $('#tt45').addEventListener('click', () => { deckState().speed = 45; deckSet(); save(); renderDeck(); });
+  $('#ttPitch').addEventListener('input', e => { deckState().pitch = +e.target.value; deckSet(); save(); });
+  $('#ttVol').addEventListener('input', e => { deckState().vol = +e.target.value; deckSet(); save(); });
+  const cut = on => { if (!deckEnsure()) return; $('#ttCut').classList.toggle('on', on); deck.node.port.postMessage({type:'set', v:{cut:on ? 0 : 1}}); };
+  const cb = $('#ttCut'); cb._down = () => cut(true); cb._up = () => cut(false);
+  cb.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); cut(true); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => cb.addEventListener(t, () => { if (cb.classList.contains('on')) cut(false); }));
+  $('#ttSetCue').addEventListener('click', () => { deckState().cue = deck.pos; save(); toast('Cue set at ' + deck.pos.toFixed(2) + ' s.'); });
+  $('#ttCue').addEventListener('click', () => { if (!deckEnsure()) return; deck.pos = deckState().cue || 0; deck.node.port.postMessage({type:'seek', s:deck.pos}); });
+  $('#ttLoad').addEventListener('click', () => $('#ttFile').click());
+  $('#ttFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    ensureAudio(); await workletReady;
+    try {
+      const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+      if (buf.duration > 600){ toast('Records up to 10 minutes.'); return; }
+      deck.buf = buf; await storeAudio('deck:rec', buf);
+      const D = deckState(); D.name = f.name.replace(/\.[^.]+$/, ''); D.cue = 0; D.on = false;
+      deckEnsure(); deckSend(buf); deckSet(); save(); renderDeck(); toast('Record loaded. Press Start.');
+    } catch(err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
+  });
+  stepify($('#ttPitch'), v => (v > 0 ? '+' : '') + (+v).toFixed(1) + '%'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
+})();
 function setView(v){
   view = v;
   document.querySelectorAll('.view[id^="v-"]').forEach(s => s.hidden = s.id !== 'v-' + v);
@@ -3934,6 +4166,7 @@ function setView(v){
   if (v === 'chop') renderChop();
   if (v === 'song') renderSong();
   if (v === 'synth') renderSynth();
+  if (v === 'deck') renderDeck();
   if (v === 'setup') renderMaps();
   if (mlearn) markMapped();
   try { localStorage.setItem('pr-view', v); } catch(e){}
@@ -3948,6 +4181,7 @@ let stpTick = 0; const clipAt = new Map();
 function frame(){
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
+  if (view === 'deck') drawDeck();
   const h = playing ? heardStep() : null;
   if (h){
     if (h.i < 0) $('#pos').textContent = 'In ' + (Math.floor((h.i + 16) / 4) + 1);
@@ -5258,9 +5492,10 @@ function renderMaps(){
 const learnable = el => el && !el.closest('nav, #learnBar, .nolearn') && !el.classList.contains('nolearn') && !el.classList.contains('pad');
 document.addEventListener('pointerdown', e => {
   if (!mlearn) return;
-  let el = e.target.closest('input[type=range], input[type=number], select, button, .knob');
+  let el = e.target.closest('input[type=range], input[type=number], select, button, .knob, #ttCv');
   if (el && el.closest('.stp')) el = el.closest('.stp')._inp;
   const kn = e.target.closest('.knob'); if (kn) el = kn._inp;
+  if (e.target.closest('#ttCv')) el = $('#ttScr');
   if (!learnable(el)) return;
   e.preventDefault(); e.stopPropagation();
   const tg = learnTarget(el);
@@ -5313,6 +5548,10 @@ function learnMidi(type, ch, d){
   const maps = (S.midiMap || []).filter(m => m.type === (cc ? 'cc' : 'note') && m.num === d[1] && (!m.ch || m.ch === ch));
   if (!maps.length) return false;
   for (const m of maps){
+    const mom = m.sel && document.querySelector(m.sel);
+    if (mom && mom.dataset.momentary){                       // hold-type buttons (Cut): down on press, up on release
+      const down = cc ? d[2] >= 64 : on; if (down) mom._down && mom._down(); else mom._up && mom._up(); continue;
+    }
     if (cc){
       const key = ch + ':' + d[1], prev = mLast.get(key) || 0; mLast.set(key, d[2]);
       if (m.kind === 'button' || m.kind === 'toggle'){ if (d[2] >= 64 && prev < 64) learnApply(m, null, true); }
