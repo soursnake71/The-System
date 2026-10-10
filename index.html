@@ -251,6 +251,22 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <div class="status" id="inStatus">Input is off.</div>
     </div>
     <div class="card">
+      <div class="row"><h2 class="grow">MIDI sync</h2><span class="badge" id="midiBadge">Off</span></div>
+      <button id="midiOn">Connect MIDI</button>
+      <div class="ctl"><label class="label" for="midiIn">From</label><select id="midiIn"><option value="">None</option></select><span></span></div>
+      <div class="ctl"><label class="label" for="midiOut">To</label><select id="midiOut"><option value="">None</option></select><span></span></div>
+      <span class="label">Clock</span>
+      <div class="seg" id="clockSeg" role="group" aria-label="MIDI clock">
+        <button data-c="off">Off</button><button data-c="in">Follow MPC</button><button data-c="out">Lead MPC</button>
+      </div>
+      <div class="ctl"><label class="label" for="midiOff">Offset</label><input id="midiOff" type="range" min="-80" max="120" step="1"><span class="v mono" id="midiOffV">0 ms</span></div>
+      <div class="row"><span class="grow">Play these pads from the MPC's pads</span><button id="midiNotes">Off</button></div>
+      <div class="ctl"><label class="label" for="midiBase">A01 note</label><select id="midiBase"></select><button id="midiLearn">Learn</button></div>
+      <div class="ctl"><label class="label" for="midiCh">Channel</label><select id="midiCh"><option value="0">All</option></select><span></span></div>
+      <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
+      <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
+    </div>
+    <div class="card">
       <h2>Recording</h2>
       <div class="row"><span class="grow">Count-in bar when starting from stop</span><button id="countIn">On</button></div>
       <div class="row"><span class="grow">Latency compensation</span><button id="autoLat">Auto</button></div>
@@ -305,6 +321,7 @@ function defaultState(){
     v:2, bpm:92, bars:1, swing:18, metro:false, countIn:true, autoLat:true, latMs:40,
     inCh:'L', device:'', monitor:false,
     quant:24, repRate:24, fullLevel:true, tapMs:20, repeat:false, erase:false,
+    midiInName:'', midiOutName:'', midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
     master:{vol:.9, glue:.2, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16}, mixDefaults())]
@@ -581,7 +598,7 @@ function tapTick(ev){
   let T = (ts && ts.contextTime > 0 && ts.performanceTime > 0)
     ? ts.contextTime + (ev.timeStamp - ts.performanceTime) / 1000
     : ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0) - (performance.now() - ev.timeStamp) / 1000;
-  T -= S.tapMs / 1000;
+  if (!ev.midi) T -= S.tapMs / 1000;
   let q = stepQ[0]; for (const e of stepQ) if (e.t <= T) q = e;
   if (!q) return null;
   return q.i * TPS + (T - q.t) / (stepDur() / TPS);
@@ -635,7 +652,7 @@ function padUp(i){ held.delete(i); if (!held.size) eraseUndo = false; }
 function toggleDrumRec(){
   if (drumRec){ drumRec = false; renderTransport(); return; }
   ensureAudio(); drumRec = true; undoPass = null;
-  if (!playing) start(S.countIn ? -16 : 0);
+  if (!playing){ if (S.midiClock === 'in') toast('Recording arms when the MPC starts.'); start(S.countIn ? -16 : 0); }
   renderTransport();
 }
 
@@ -679,15 +696,18 @@ function frameSeq(){
   seqGeo.g.fillRect(Math.round(seqGeo.X(tick)), 0, 2 * dpr, seqGeo.h);
 }
 
-function start(from = 0){
+function start(from = 0, external = false){
   ensureAudio();
+  if (S.midiClock === 'in' && !external){ if (!drumRec && !rec) toast('Following the MPC. Press play on the MPC to start.'); renderTransport(); return; }
   playing = true; stepI = from; nextT = ctx.currentTime + .1; stepQ = [];
-  timer = setInterval(tick, 20); tick();
+  if (S.midiClock === 'out') midiOutStart = true;
+  timer = setInterval(tick, external ? 8 : 20); tick();
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w).catch(() => {}); } catch(e){}
   renderTransport();
 }
 function stop(){
-  playing = false; clearInterval(timer);
+  if (playing && S.midiClock === 'out') midiSend([0xFC]);
+  playing = false; clearInterval(timer); ext.running = false;
   if (live){
     const t = ctx.currentTime;
     live.srcs.forEach(s => { try { s.stop(t + .02); } catch(e){} }); live.srcs = [];
@@ -701,8 +721,20 @@ function stop(){
 }
 function tick(){
   const sd = stepDur();
-  while (nextT < ctx.currentTime + .12){
-    const i = stepI, t = nextT;
+  while (true){
+    let t = nextT;
+    if (ext.running){
+      // following the MPC: place each 16th where its clock ticks are predicted to land
+      const P = extPerfTime(stepI); if (P == null) break;
+      t = ctxFromPerf(P + S.midiOffMs);
+      if (t >= ctx.currentTime + .1) break;
+      if (t < ctx.currentTime + .002){
+        if (t > ctx.currentTime - .08) t = ctx.currentTime + .004;   // only just late (e.g. the first downbeat): play it now
+        else { stepQ.push({i:stepI, t}); if (stepQ.length > 64) stepQ.shift(); stepI++; continue; }
+      }
+    } else if (t >= ctx.currentTime + .12) break;
+    const i = stepI;
+    if (S.midiClock === 'out') sendClock(i, t, sd);
     if (i < 0){ if ((i + 16) % 4 === 0) click(t, (i + 16) % 16 === 0); }
     else {
       const s = i % (S.bars * 16);
@@ -803,7 +835,7 @@ async function toggleRec(){
   if (!capNode) return;
   rec = {id:tr.id, from:0, startT:null, endT:null};
   capOn();
-  if (!playing) start(S.countIn ? -16 : 0); else rec.from = stepI;
+  if (!playing){ if (S.midiClock !== 'in') start(S.countIn ? -16 : 0); else toast('Armed. Recording starts on the first loop after the MPC starts.'); } else rec.from = stepI;
   renderTransport();
 }
 function finishRec(){
@@ -1120,7 +1152,7 @@ function setView(v){
   if (v === 'drums') seqDirty = true;
   if (v === 'audio') renderTracks();
   if (v === 'mixer') renderMixer();
-  if (v === 'setup') renderInput();
+  if (v === 'setup'){ renderInput(); renderMidi(); }
   if (v === 'chop') renderChop();
   try { localStorage.setItem('pr-view', v); } catch(e){}
 }
@@ -1241,7 +1273,7 @@ function renderChop(){
   const has = !!chop.buf;
   $('#chopInfo').textContent = has ? `${chop.name} · ${chop.buf.duration.toFixed(2)} s` : 'No sample';
   $('#chopInfo').className = 'badge' + (has ? ' ok' : '');
-  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.m === chop.mode));
+  document.querySelectorAll('#v-chop .seg button').forEach(b => b.classList.toggle('on', b.dataset.m === chop.mode));
   $('#chopEqualRow').hidden = chop.mode !== 'equal'; $('#chopSensRow').hidden = chop.mode !== 'hits'; $('#chopManualRow').hidden = chop.mode !== 'manual';
   $('#chopN').value = chop.n; $('#chopSens').value = chop.sens; $('#chopSensV').textContent = chop.sens + '%';
   const box = $('#slices'); box.innerHTML = '';
@@ -1320,7 +1352,7 @@ $('#chopFile').addEventListener('change', async e => {
 $('#chopRec').addEventListener('click', toggleChopRec);
 $('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
 $('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
-document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
+document.querySelectorAll('#v-chop .seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
 $('#chopN').addEventListener('change', e => { chop.n = +e.target.value; remark(); saveChop(); renderChop(); });
 let sensT = 0;
 $('#chopSens').addEventListener('input', e => { chop.sens = +e.target.value; $('#chopSensV').textContent = chop.sens + '%'; clearTimeout(sensT); sensT = setTimeout(() => { remark(); saveChop(); renderChop(); }, 120); });
@@ -1360,6 +1392,142 @@ cw.addEventListener('pointermove', e => {
 const endDrag = () => { if (chop.drag == null) return; const i = chop.drag; chop.drag = null; chop.markers[i] = toZero(monoAt(chop.buf), chop.markers[i]); saveChop(); renderChop(); auditionSlice(i); };
 cw.addEventListener('pointerup', endDrag); cw.addEventListener('pointercancel', endDrag);
 window.addEventListener('resize', () => { chop.peaks = null; if (view === 'chop') drawChop(); });
+
+/* ================= MIDI: clock sync and pads ================= */
+let midi = null, midiIn = null, midiOut = null, midiOutStart = false, learning = false;
+const ext = {running:false, period:0, iv:[], lastP:0, lastC:0, count:0, pos0:0, spp:0, bpmT:0};
+const NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const noteName = n => NOTE[n % 12] + (Math.floor(n / 12) - 2);   // Ableton/MPC style: 60 = C3
+// map a performance.now() time to the audio context time that will be *heard* then
+function ctxFromPerf(P){
+  const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (P - ts.performanceTime) / 1000;
+  return ctx.currentTime + (P - performance.now()) / 1000 - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+}
+function perfFromCtx(t){
+  const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.performanceTime + (t - ts.contextTime) * 1000;
+  return performance.now() + (t - ctx.currentTime + (ctx.outputLatency || 0)) * 1000;
+}
+function extPerfTime(i){
+  if (!ext.period || !ext.lastP) return null;
+  const c = (i - ext.pos0) * 6;    // clock count where this 16th falls
+  return ext.lastP + (c - ext.lastC) * ext.period;
+}
+function midiSend(data, P){ if (midiOut){ try { midiOut.send(data, P); } catch(e){} } }
+function sendClock(i, t, sd){
+  const P = perfFromCtx(t) - S.midiOffMs;
+  if (midiOutStart && i >= 0){ midiSend([0xF2, 0, 0], P - 2); midiSend([0xFA], P - 1); midiOutStart = false; }
+  for (let k = 0; k < 6; k++) midiSend([0xF8], P + k * sd / 6 * 1000);
+}
+function onClock(ts){
+  if (ext.prevTs){
+    const d = ts - ext.prevTs;
+    if (d > 5 && d < 130){ ext.iv.push(d); if (ext.iv.length > 48) ext.iv.shift(); }
+    const sorted = [...ext.iv].sort((a, b) => a - b), mid = sorted.slice(Math.floor(sorted.length * .2), Math.ceil(sorted.length * .8));
+    if (mid.length) ext.period = mid.reduce((a, b) => a + b, 0) / mid.length;
+  }
+  ext.prevTs = ts;
+  if (ext.running){
+    // keep the phase anchor smooth: blend the measured tick time with the predicted one
+    const pred = ext.lastP ? ext.lastP + (ext.count - ext.lastC) * ext.period : ts;
+    ext.lastP = ext.count < 4 ? ts : pred + (ts - pred) * .15; ext.lastC = ext.count;
+  }
+  ext.count++;
+  if (S.midiClock === 'in' && ext.period && ts - ext.bpmT > 400){
+    ext.bpmT = ts;
+    const bpm = Math.round(60000 / (ext.period * 24) * 10) / 10;
+    if (Math.abs(bpm - S.bpm) >= .2 && bpm >= 30 && bpm <= 300){ S.bpm = bpm; applyAll(); renderTransport(); }
+    renderMidi();
+  }
+}
+function extStart(pos16){
+  if (playing) stop();
+  ensureAudio();
+  ext.running = true; ext.pos0 = pos16; ext.count = 0; ext.lastP = 0; ext.lastC = 0;
+  start(pos16, true);
+}
+function onMidi(e){
+  const d = e.data, st = d[0];
+  if (st === 0xF8){ if (S.midiClock === 'in') onClock(e.timeStamp); return; }
+  if (S.midiClock === 'in'){
+    if (st === 0xFA){ extStart(0); return; }
+    if (st === 0xFB){ extStart(ext.spp); return; }
+    if (st === 0xFC){ if (playing) stop(); ext.running = false; return; }
+    if (st === 0xF2){ ext.spp = d[1] | (d[2] << 7); return; }
+  }
+  const type = st & 0xF0, ch = (st & 0x0F) + 1;
+  if (type !== 0x90 && type !== 0x80) return;
+  if (S.midiCh && ch !== S.midiCh) return;
+  const note = d[1], vel = d[2];
+  if (learning && type === 0x90 && vel){ S.midiBase = clamp(note - selPad, 0, 112); learning = false; save(); renderMidi(); toast(`${noteName(note)} now plays ${padLabel(selPad)}.`); return; }
+  if (!S.midiNotes) return;
+  const pi = note - S.midiBase; if (pi < 0 || pi > 15) return;
+  const ev = {timeStamp:e.timeStamp, midi:true};
+  if (type === 0x90 && vel) padDown(pi, ev, S.fullLevel ? 1 : .2 + .8 * vel / 127);
+  else padUp(pi);
+}
+function pickPorts(){
+  if (!midi) return;
+  const ins = [...midi.inputs.values()], outs = [...midi.outputs.values()];
+  const fill = (sel, list, name) => {
+    sel.innerHTML = '<option value="">None</option>' + list.map(p => `<option value="${p.id}">${(p.name || 'MIDI').replace(/</g, '&lt;')}</option>`).join('');
+    const hit = list.find(p => p.name === name) || (list.length === 1 && !name ? list[0] : null) || list.find(p => /mpc|akai/i.test(p.name) && !name);
+    sel.value = hit ? hit.id : '';
+    return hit || null;
+  };
+  if (midiIn) midiIn.onmidimessage = null;
+  midiIn = fill($('#midiIn'), ins, S.midiInName);
+  if (midiIn){ midiIn.onmidimessage = onMidi; S.midiInName = midiIn.name; }
+  midiOut = fill($('#midiOut'), outs, S.midiOutName);
+  if (midiOut) S.midiOutName = midiOut.name;
+  renderMidi();
+}
+async function connectMidi(){
+  if (!navigator.requestMIDIAccess){ toast('This browser has no MIDI support. Use Chrome.'); return; }
+  try {
+    midi = await navigator.requestMIDIAccess({sysex:false});
+    midi.onstatechange = () => pickPorts();
+    pickPorts();
+    if (!midi.inputs.size && !midi.outputs.size) toast('No MIDI devices found. Plug in the MPC and check it is in a MIDI-capable USB mode.');
+  } catch (e){ toast('MIDI permission was denied. Allow it in Chrome site settings, then try again.'); }
+  renderMidi();
+}
+function renderMidi(){
+  const on = !!midi, b = $('#midiBadge');
+  b.textContent = !on ? 'Off' : S.midiClock === 'in' ? (ext.period ? Math.round(60000 / (ext.period * 24)) + ' BPM in' : 'No clock') : S.midiClock === 'out' ? 'Leading' : 'Connected';
+  b.className = 'badge' + (on ? ' ok' : '');
+  $('#midiOn').textContent = on ? 'Refresh MIDI devices' : 'Connect MIDI';
+  document.querySelectorAll('#clockSeg button').forEach(x => x.classList.toggle('on', x.dataset.c === S.midiClock));
+  $('#midiOff').value = S.midiOffMs; $('#midiOffV').textContent = (S.midiOffMs > 0 ? '+' : '') + S.midiOffMs + ' ms';
+  $('#midiNotes').textContent = S.midiNotes ? 'On' : 'Off'; $('#midiNotes').classList.toggle('on', S.midiNotes);
+  const base = $('#midiBase');
+  if (!base.children.length) base.innerHTML = Array.from({length:113}, (_, n) => `<option value="${n}">${noteName(n)} (${n})</option>`).join('');
+  base.value = S.midiBase;
+  const ch = $('#midiCh');
+  if (ch.children.length < 2) ch.innerHTML = '<option value="0">All</option>' + Array.from({length:16}, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
+  ch.value = S.midiCh;
+  $('#midiLearn').textContent = learning ? 'Hit a pad…' : 'Learn'; $('#midiLearn').classList.toggle('on', learning);
+  const follow = S.midiClock === 'in';
+  $('#bpm').disabled = follow; $('#bpmDown').disabled = follow; $('#bpmUp').disabled = follow; $('#tap').disabled = follow;
+  $('#midiStatus').textContent = !on ? 'Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.'
+    : `In: ${midiIn ? midiIn.name : 'none'} · Out: ${midiOut ? midiOut.name : 'none'}` + (follow ? (ext.period ? ` · clock ${(60000 / (ext.period * 24)).toFixed(1)} BPM` : ' · waiting for clock') : '');
+}
+$('#midiOn').addEventListener('click', connectMidi);
+$('#midiIn').addEventListener('change', e => { const p = midi && midi.inputs.get(e.target.value); S.midiInName = p ? p.name : ''; if (!p) S.midiInName = '-'; save(); pickPorts(); });
+$('#midiOut').addEventListener('change', e => { const p = midi && midi.outputs.get(e.target.value); S.midiOutName = p ? p.name : '-'; save(); pickPorts(); });
+document.querySelectorAll('#clockSeg button').forEach(b => b.addEventListener('click', () => {
+  if (playing) stop();
+  S.midiClock = b.dataset.c; ext.iv = []; ext.period = 0; ext.prevTs = 0; save(); renderMidi(); renderTransport();
+  if (S.midiClock !== 'off' && !midi) connectMidi();
+  if (S.midiClock === 'in') toast('Set the MPC to send MIDI clock, then press play on the MPC.');
+  if (S.midiClock === 'out') toast('Set the MPC to receive MIDI clock. Play here starts the MPC too.');
+}));
+$('#midiOff').addEventListener('input', e => { S.midiOffMs = +e.target.value; $('#midiOffV').textContent = (S.midiOffMs > 0 ? '+' : '') + S.midiOffMs + ' ms'; save(); });
+$('#midiNotes').addEventListener('click', () => { S.midiNotes = !S.midiNotes; save(); renderMidi(); });
+$('#midiBase').addEventListener('change', e => { S.midiBase = +e.target.value; save(); });
+$('#midiCh').addEventListener('change', e => { S.midiCh = +e.target.value; save(); });
+$('#midiLearn').addEventListener('click', () => { learning = !learning; if (learning && !midi) connectMidi(); renderMidi(); if (learning) toast(`Hit the MPC pad that should play ${padLabel(selPad)}.`); });
 
 /* ================= wiring ================= */
 $('#play').addEventListener('click', () => playing ? stop() : start(0));
@@ -1491,7 +1659,10 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
   }
   $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%';
   renderSeqCtl();
-  renderTransport(); renderPads(); renderPadEditor(); renderInput();
+  renderTransport(); renderPads(); renderPadEditor(); renderInput(); renderMidi();
+  if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
+    navigator.permissions.query({name:'midi'}).then(r => { if (r.state === 'granted') connectMidi(); }).catch(() => {});
+  }
   let v = 'drums'; try { v = localStorage.getItem('pr-view') || 'drums'; } catch(e){}
   setView(v);
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
