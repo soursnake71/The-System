@@ -398,6 +398,9 @@ html.retro .ssl-head button.on{background:linear-gradient(180deg,#ff4a3a,#c21f14
 .grbar i{display:block;height:100%;width:0;background:linear-gradient(270deg,#ffd54a,#ff6a2a)}
 .ssl-knobs .klab{color:#fff}
 html.retro .ssl-knobs select.kval{color:#ffe2a0}
+.fxrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.fxrow button{padding:12px 0}
+html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);color:#fff}
 </style>
 
 </head>
@@ -507,6 +510,9 @@ html.retro .ssl-knobs select.kval{color:#ffe2a0}
       <div class="tt-row3"><select id="ttRange" aria-label="Pitch range"><option value="8">±8 %</option><option value="16">±16 %</option><option value="50">±50 %</option></select><button id="ttNudgeDn" data-momentary="1">◀ NUDGE</button><button id="ttNudgeUp" data-momentary="1">NUDGE ▶</button></div>
       <div class="row"><button id="ttKeylock" class="grow">KEY LOCK</button><span class="badge" id="ttKey">Key —</span></div>
       <div class="ctl"><label class="label" for="ttVol">Level</label><input id="ttVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
+      <div class="fxrow"><button id="fxEcho">ECHO</button><button id="fxFlang">FLANGER</button><button id="fxVerb">REVERB</button></div>
+      <div class="ctl"><label class="label" for="fxBeats">FX beats</label><select id="fxBeats" aria-label="FX beats"><option value="0.25">1/4 beat</option><option value="0.5">1/2 beat</option><option value="0.75">3/4 beat</option><option value="1">1 beat</option><option value="2">2 beats</option><option value="4">4 beats</option></select><span></span></div>
+      <div class="ctl"><label class="label" for="fxDepth">FX depth</label><input id="fxDepth" type="range" min="0" max="1" step="0.05"><span class="v mono"></span></div>
       <div class="seg" id="padMode"><button data-m="cue">HOT CUES</button><button data-m="loop">AUTO LOOP</button><button data-m="roll">ROLL</button></div>
       <div class="ppads" id="ppads"></div>
       <div class="lrow"><button id="lpIn">IN</button><button id="lpOut">OUT</button><button id="lpExit">RELOOP</button><button id="lpHalf">½</button><button id="lpDbl">×2</button></div>
@@ -525,6 +531,7 @@ html.retro .ssl-knobs select.kval{color:#ffe2a0}
       <div class="mx"><div class="mxch" id="mxch0"></div><div class="mxch" id="mxch1"></div></div>
       <div class="xfrow"><b>1</b><input id="xf" class="xfader" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Crossfader"><b>2</b></div>
       <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev" class="nolearn">REV (HAMSTER)</button></div>
+      <div class="row"><button id="recMix" class="grow nolearn">● RECORD MIX</button><span class="badge" id="recMixT">Ready</span></div>
       <span class="label">EQ match (decks)</span>
       <div id="deckMatch" class="mpanel"></div>
       <p class="hint">Map a knob to the crossfader with MIDI learn (tap the crossfader while learning). On the Scratch curve the sound is fully on just past the edge, for cuts and transforms.</p>
@@ -4283,9 +4290,36 @@ function deckChain(d){
   ch.lo = c.createBiquadFilter(); ch.lo.type = 'lowshelf'; ch.lo.frequency.value = 250;
   ch.flt = c.createBiquadFilter(); ch.flt.type = 'allpass';
   ch.fad = c.createGain(); ch.xf = c.createGain(); ch.an = c.createAnalyser(); ch.an.fftSize = 512;
-  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi); ch.flt.connect(ch.fad).connect(ch.xf).connect(live.master.bus); ch.wired = null;
+  ch.fxIn = c.createGain();
+  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi); ch.flt.connect(ch.fxIn).connect(ch.fad).connect(ch.xf).connect(live.master.bus); ch.wired = null;
   ch.xf.connect(ch.an);
-  d.ch = ch; applyMix();
+  d.ch = ch; applyMix(); applyDeckFx(d.i);
+}
+/* Serato-style FX per deck, synced to the deck's beat: ECHO (tape-like, darkening repeats), FLANGER (sweep over a set
+   number of beats) and REVERB. Built the first time they're used; Beats sets the echo time and flanger sweep; Depth the amount. */
+function fxState(i){ const D = deckState(i), d = {echo:false, flang:false, verb:false, beats:.75, depth:.5}; D.fx = D.fx || {}; for (const k in d) if (D.fx[k] === undefined) D.fx[k] = d[k]; return D.fx; }
+function deckFx(d){
+  const ch = d.ch, c = ctx; if (!ch || ch.fx) return ch && ch.fx;
+  const f = ch.fx = {};
+  f.eSend = c.createGain(); f.eDel = c.createDelay(4); f.eTone = c.createBiquadFilter(); f.eTone.type = 'lowpass'; f.eTone.frequency.value = 3500; f.eFb = c.createGain(); f.eWet = c.createGain();
+  f.eSend.connect(f.eDel).connect(f.eTone); f.eTone.connect(f.eFb).connect(f.eDel); f.eTone.connect(f.eWet).connect(ch.fad);
+  f.flSend = c.createGain(); f.flDel = c.createDelay(.05); f.flDel.delayTime.value = .004; f.flFb = c.createGain(); f.flFb.gain.value = .55; f.flWet = c.createGain();
+  f.lfo = c.createOscillator(); f.lfoAmt = c.createGain(); f.lfoAmt.gain.value = .0032; f.lfo.connect(f.lfoAmt).connect(f.flDel.delayTime); f.lfo.start();
+  f.flSend.connect(f.flDel); f.flDel.connect(f.flFb).connect(f.flDel); f.flDel.connect(f.flWet).connect(ch.fad);
+  f.rvSend = c.createGain(); f.rv = c.createConvolver(); f.rv.buffer = makeIR(c, 2.6); f.rvWet = c.createGain(); f.rvSend.connect(f.rv).connect(f.rvWet).connect(ch.fad);
+  f.on = {};
+  return f;
+}
+function applyDeckFx(i){
+  const d = decks[i], F = fxState(i); if (!d.ch) return;
+  const any = F.echo || F.flang || F.verb; if (!any && !d.ch.fx) return;
+  const f = deckFx(d), now = ctx.currentTime, beat = 60 / (bpmNow(i) || 120), dep = F.depth;
+  for (const [k, send] of [['echo', f.eSend], ['flang', f.flSend], ['verb', f.rvSend]]){
+    if (F[k] && !f.on[k]){ d.ch.fxIn.connect(send); f.on[k] = true; } else if (!F[k] && f.on[k]){ d.ch.fxIn.disconnect(send); f.on[k] = false; }
+  }
+  f.eDel.delayTime.setTargetAtTime(Math.min(3.9, F.beats * beat), now, .02); f.eFb.gain.setTargetAtTime(.25 + dep * .55, now, .02); f.eWet.gain.setTargetAtTime(F.echo ? .3 + dep * .5 : 0, now, .01);
+  f.lfo.frequency.setTargetAtTime(1 / Math.max(.05, F.beats * 4 * beat), now, .05); f.flWet.gain.setTargetAtTime(F.flang ? .4 + dep * .5 : 0, now, .01); f.flFb.gain.value = .3 + dep * .5;
+  f.rvWet.gain.setTargetAtTime(F.verb ? .2 + dep * .8 : 0, now, .01);
 }
 function xfGains(x, curve){
   const t = (x + 1) / 2;                                  // 0 = full deck 1, 1 = full deck 2
@@ -4564,6 +4598,8 @@ function renderPPads(){
   $('#ppDel').classList.toggle('on', padDel); $('#ppDel').hidden = padMode !== 'cue';
   $('#lpExit').classList.toggle('on', !!D.loop); $('#lpExit').textContent = D.loop ? 'EXIT' : 'RELOOP';
   $('#ttSlip').classList.toggle('on', !!D.slip); $('#ttSync').classList.toggle('on', !!D.sync);
+  const F = fxState(curDeck); $('#fxEcho').classList.toggle('on', F.echo); $('#fxFlang').classList.toggle('on', F.flang); $('#fxVerb').classList.toggle('on', F.verb);
+  $('#fxBeats').value = String(F.beats); $('#fxDepth').value = F.depth;
   $('#ttKeylock').classList.toggle('on', !!D.keylock); $('#ttKey').textContent = D.key ? 'Key ' + D.key + ' · ' + D.cam : 'Key —';
 }
 function doSync(i){
@@ -4592,6 +4628,26 @@ function renderDeck(){
   restepify(pi, pitchFmt);
   $('#ttRange').value = String(D.range); $('#ttVol').value = D.vol;
   renderPPads(); renderPlat(); renderMixDJ(); renderDeckMatch();
+}
+/* record the mix: everything coming out of the master (decks, sampler, the rest of the app) into a WAV */
+const mixRec = {node:null, chunks:[], t0:0, on:false};
+async function toggleRecMix(){
+  ensureAudio(); await workletReady;
+  if (!mixRec.on){
+    if (!mixRec.node){ mixRec.node = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
+      mixRec.node.port.onmessage = e => { if (mixRec.on || mixRec.flushing) mixRec.chunks.push(e.data); }; live.master.out.connect(mixRec.node); mixRec.node.connect(silent); }
+    mixRec.chunks = []; mixRec.on = true; mixRec.t0 = performance.now(); mixRec.node.port.postMessage(true);
+    $('#recMix').classList.add('on'); $('#recMix').textContent = '■ STOP RECORDING'; return;
+  }
+  mixRec.on = false; mixRec.flushing = true; mixRec.node.port.postMessage(false); await new Promise(r => setTimeout(r, 300)); mixRec.flushing = false;
+  const n = mixRec.chunks.reduce((s, c) => s + c.l.length, 0);
+  $('#recMix').classList.remove('on'); $('#recMix').textContent = '● RECORD MIX'; $('#recMixT').textContent = 'Ready';
+  if (!n){ toast('Nothing was recorded.'); return; }
+  const buf = new AudioBuffer({length:n, numberOfChannels:2, sampleRate:ctx.sampleRate}), L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let o = 0; for (const c of mixRec.chunks){ L.set(c.l, o); R.set(c.r, o); o += c.l.length; }
+  const st = new Date(), stamp = `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}-${String(st.getHours()).padStart(2, '0')}${String(st.getMinutes()).padStart(2, '0')}`;
+  saveFile(new Blob([encodeWav(buf, 16)], {type:'audio/wav'}), `snake-device-mix-${stamp}.wav`);
+  toast(`Saved your mix (${(n / ctx.sampleRate / 60).toFixed(1)} min). Check your Downloads folder.`);
 }
 function renderMixDJ(){
   const M = mixState();
@@ -4688,10 +4744,15 @@ function renderPlat(){
   $('#ttPitch').addEventListener('input', e => {
     const D = deckState(); D.pitch = +e.target.value; D.sync = false; deckSet(); save(); renderPPads();
     const o = 1 - curDeck; if (deckState(o).sync) doSync(o);           // the synced deck follows the tempo change
+    applyDeckFx(curDeck); applyDeckFx(o);
   });
   $('#ttRange').addEventListener('change', e => { const D = deckState(); D.range = +e.target.value; D.pitch = clamp(D.pitch, -D.range, D.range); deckSet(); save(); renderDeck(); });
   $('#ttVol').addEventListener('input', e => { deckState().vol = +e.target.value; deckSet(); save(); });
   $('#ttSync').addEventListener('click', () => { const D = deckState(); if (D.sync){ D.sync = false; save(); renderPPads(); return; } if (doSync(curDeck)) renderDeck(); });
+  for (const [id, k] of [['#fxEcho', 'echo'], ['#fxFlang', 'flang'], ['#fxVerb', 'verb']]) $(id).addEventListener('click', () => { if (!deckEnsure()) return; const F = fxState(curDeck); F[k] = !F[k]; applyDeckFx(curDeck); save(); renderPPads(); });
+  $('#fxBeats').addEventListener('change', e => { fxState(curDeck).beats = +e.target.value; applyDeckFx(curDeck); save(); });
+  $('#fxDepth').addEventListener('input', e => { fxState(curDeck).depth = +e.target.value; applyDeckFx(curDeck); save(); });
+  stepify($('#fxDepth'), v => Math.round(v * 100) + '%');
   $('#ttKeylock').addEventListener('click', () => { const D = deckState(); D.keylock = !D.keylock; deckSet(); save(); renderPPads(); });
   $('#ttSlip').addEventListener('click', () => { const D = deckState(); D.slip = !D.slip; deckSet(); save(); renderPPads(); });
   $('#ttCueBtn').addEventListener('click', () => {
@@ -4726,6 +4787,7 @@ function renderPlat(){
   $('#lpHalf').addEventListener('click', () => { const L = deckState().loop; if (L) setLoop(curDeck, L.a, L.a + (L.b - L.a) / 2); });
   $('#lpDbl').addEventListener('click', () => { const L = deckState().loop; if (L) setLoop(curDeck, L.a, L.a + (L.b - L.a) * 2); });
   // mixer
+  $('#recMix').addEventListener('click', toggleRecMix);
   $('#xf').addEventListener('input', e => { mixState().xf = +e.target.value; applyMix(); save(); });
   $('#xfCurve').addEventListener('change', e => { mixState().curve = e.target.value; applyMix(); save(); });
   $('#xfRev').addEventListener('click', () => { const M = mixState(); M.rev = !M.rev; applyMix(); save(); renderMixDJ(); });
@@ -4789,7 +4851,7 @@ let stpTick = 0; const clipAt = new Map();
 function frame(){
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
-  if (view === 'deck'){ drawDeck(); drawWaves(); }
+  if (view === 'deck'){ drawDeck(); drawWaves(); if (mixRec.on && stpTick % 15 === 0){ const t = (performance.now() - mixRec.t0) / 1000; $('#recMixT').textContent = 'REC ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); } }
   if (view === 'mixer' && live && $('#sslGr')){ const gr = live.master.ssl && sslState().on ? live.master.sslGr || 0 : 0; $('#sslGr').style.width = Math.min(100, gr / 20 * 100) + '%'; $('#sslGrV').textContent = gr.toFixed(1) + ' dB'; }
   const h = playing ? heardStep() : null;
   if (h){
