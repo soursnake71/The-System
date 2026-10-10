@@ -244,13 +244,20 @@ html.retro #rec{color:var(--rec)}
 html.retro #rec.live{background:linear-gradient(180deg,#f04030,#c41d14);color:#fff}
 html.retro .badge{background:#23251f;color:#c9c4b7;border-radius:2px}
 html.retro .badge.ok{background:var(--lcd2);color:#fff}
-/* MPC60 pads: dark rubber in a recessed black well */
-html.retro .pads{background:#141516;padding:10px;border-radius:6px;box-shadow:inset 0 3px 8px #000;gap:10px}
-html.retro .pad{background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#46484b 60%,#3b3d40);border:1px solid #000;border-radius:5px;box-shadow:0 3px 0 #000,inset 0 1px 0 #ffffff26;color:#e9e5da}
-html.retro .pad .num{color:#c9c4b7}
-html.retro .pad.sel{box-shadow:0 3px 0 #000,inset 0 0 0 2px var(--accent)}
-html.retro .pad.hit{background:radial-gradient(120% 90% at 50% 20%,#8a8c8f,#6a6c6f);transform:translateY(2px);box-shadow:0 1px 0 #000,inset 0 0 0 2px var(--accent);color:#fff}
-html.retro .pad.has::after{background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
+/* MPC60 pads: grey matte rubber squares set into the light case, with the name silkscreened above each pad */
+html.retro .pads{background:linear-gradient(180deg,var(--case),var(--case2));padding:10px 10px 12px;border-radius:6px;border:2px solid #1b1c1e;box-shadow:inset 0 1px 0 #fff8,0 2px 6px #0008;gap:8px 10px;grid-template-columns:repeat(4,minmax(0,1fr))}
+html.retro .pad{background:none;border:0;border-radius:0;box-shadow:none;padding:0;color:#2a2823;flex-direction:row;flex-wrap:nowrap;justify-content:flex-start;align-items:flex-start;gap:4px;overflow:visible;aspect-ratio:.86;min-width:0}
+html.retro .pad::before{content:"";position:absolute;left:3%;right:3%;top:20%;bottom:2%;border-radius:5px;
+  background:radial-gradient(130% 100% at 50% 0%,#a9a7a1,#97958f 55%,#8b8984),repeating-linear-gradient(45deg,#0000 0 2px,#00000006 2px 3px);
+  background-blend-mode:multiply;border:1px solid #5e5c57;box-shadow:0 0 0 2px #00000022,0 3px 0 #4a4843,inset 0 1px 0 #ffffff55,inset 0 -2px 3px #00000022}
+html.retro .pad .num{position:absolute;right:9%;bottom:7%;font:600 10px/1 var(--f-mono);color:#55534e;z-index:1;pointer-events:none}
+html.retro .pad .nm{font:700 11px/1.2 var(--f-display);letter-spacing:.06em;color:#26241f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+html.retro .pad.user .nm{color:#1f4f9a}
+html.retro .pad.sel::before{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 3px 0 #4a4843,inset 0 1px 0 #ffffff55}
+html.retro .pad.hit{background:none;color:#26241f;transform:none}
+html.retro .pad.hit .num{color:#45433e;transform:translateY(2px)}
+html.retro .pad.hit::before{background:radial-gradient(130% 100% at 50% 0%,#8e8c86,#7c7a75);transform:translateY(2px);box-shadow:0 0 0 2px #00000022,0 1px 0 #4a4843,inset 0 2px 5px #00000055}
+html.retro .pad.has::after{top:2px;right:2px;background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
 html.retro .key{background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#46484b);color:#d9d4c7;border-color:#000}
 html.retro .key.root{background:radial-gradient(120% 90% at 50% 20%,#7a5a40,#5a3f2a);color:#ffd2b8}
 html.retro .key.down{background:var(--accent);color:#fff}
