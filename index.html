@@ -311,8 +311,17 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option><option value="prophet">Prophet-5</option><option value="tb303">TB-303</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option><option value="prophet">Prophet-5</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
+      <div id="tauPanel" hidden>
+        <div class="label">Presets</div>
+        <div class="p5sw" id="tauPresets"><button data-p="tuba">Tuba</button><button data-p="taurus">Taurus</button><button data-p="bass">Bass</button><button data-p="variable">Variable</button></div>
+        <div class="label">Foot switches</div>
+        <div class="p5sw"><button id="tauOct">Octave (8')</button><button id="tauGlide">Glide</button><button id="tauDecay">Decay</button></div>
+        <div class="ctls" id="tauFoot"></div>
+        <div id="tauVar"><div class="label" style="margin-top:8px">Variables box</div><div class="p5sw" id="tauVoct"><button data-o="0">Lo</button><button data-o="1">Med</button><button data-o="2">Hi</button></div><div class="ctls" id="tauVarCtls"></div></div>
+        <p class="hint">Modeled from the Taurus Model 205A schematic: the fixed presets use the original resistor values for the contours, filter offset and oscillator mix. Variable unlocks the Variables box. The foot sliders open the filter and set the level, like the pedals.</p>
+      </div>
       <div id="tbPanel" hidden>
         <div class="p5sw"><button id="tbSaw">Saw</button><button id="tbSq">Square</button></div>
         <div class="ctls" id="tbCtls"></div>
@@ -519,6 +528,17 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       </ul>
     </details>
 
+    <details id="h-taurus"><summary>Moog Taurus</summary>
+      <p>Any synth track can be a Moog Taurus bass pedal: on the Synth tab, change <b>Synth</b> to <b>Moog Taurus</b>. It is modeled from the Taurus I (Model 205A) owner's &amp; service manual and schematic. It is monophonic and plays the lowest note held, like the pedals.</p>
+      <ul>
+        <li><b>Presets</b>: <b>Taurus</b> (both oscillators in unison, slow swell, big filter sweep and long decay), <b>Tuba</b> (second oscillator an octave up, gentle filter), <b>Bass</b> (punchy, steady filter) and <b>Variable</b>, which opens the Variables box. The fixed presets use the original resistor values for their envelopes, filter offset and oscillator mix.</li>
+        <li><b>Foot switches</b>: <b>Octave</b> moves from 16' up to 8'; <b>Glide</b> slides between notes (time set by the Glide slider, up to 0.5 s); <b>Decay</b> lets notes ring out after release, otherwise they stop quickly.</li>
+        <li><b>Foot filter</b> opens the filter up to 3 octaves and <b>Foot volume</b> sets the level, like the two foot sliders. <b>Beat</b> detunes the second oscillator up to 2% for the classic chorusing; <b>Tune</b> covers ±8%.</li>
+        <li><b>Variables box</b> (Variable preset): octave Lo/Med/Hi, Osc B frequency (198–484 Hz), B-mix-A, Cut-off (7 octaves from 40 Hz), Emphasis (self-oscillates from about 8), Contour amount (up to 7 octaves), filter attack 5–56 ms and decay 50 ms–2.8 s, loudness attack 5–560 ms, decay 50 ms–2.8 s and sustain.</li>
+      </ul>
+      <p>Tip: the Taurus preset with Decay on and the foot filter around half way is the classic huge pedal tone. Play it from the low octave of the grid or route your MPC or a keyboard to it.</p>
+    </details>
+
     <details id="h-vocoder"><summary>Vocoder (SVC-350 model)</summary>
       <p>The vocoder makes a synth “talk”: your voice shapes the synth's sound. It is modeled on the Roland SVC-350's circuit from its 1979 service notes.</p>
       <ol><li>On the Synth tab, turn <b>Vocoder</b> on. That synth becomes the instrument.</li><li><b>Voice</b>: <i>Live input</i> uses your USB-C mic; or pick an audio track with a recorded vocal (mute that track in the mixer if you only want the vocoder).</li><li>Hold chords on the grid (or your keyboard/MPC) and talk or sing.</li></ol>
@@ -623,6 +643,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li>Solina String Ensemble: modeled from the Eminent/ARP Solina schematic set (sheets 015.0212 and 015.0214), <a href="https://archive.org/details/ARP_Solina_Schematics" target="_blank" rel="noopener">archive.org</a>. Not affiliated with ARP or Eminent.</li>
         <li>Prophet-5: modeled from the Sequential Circuits Prophet-5 Rev 3 service and owner's manuals, <a href="https://archive.org/details/synthmanual-sequential-circuits-prophet-5-service-manual" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Sequential.</li>
         <li>TB-303: behaviour of the stock circuit from Robin Whittle's <a href="https://www.firstpr.com.au/rwi/dfish/" target="_blank" rel="noopener">Devil Fish documentation</a>; diode-ladder filter tuned by measurement in this app. Not affiliated with Roland.</li>
+        <li>Moog Taurus: modeled from the Taurus Model 205A owner's &amp; service manual and schematic, <a href="https://archive.org/details/Moog_Taurus_Model_205A_Owner_s_Service_Manual" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Moog Music.</li>
         <li>MP3 encoding: <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener">lamejs</a> (LGPL), loaded on demand.</li>
         <li>MPC, SP-1200, SVC-350, Push and Ableton Live are trademarks of their owners and are mentioned only to describe features.</li>
       </ul>
@@ -996,6 +1017,85 @@ class Redux extends AudioWorkletProcessor{
       for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
     this.c=end;return true;}}
 registerProcessor('redux',Redux);`;
+const TAU_CODE = String.raw`
+/* Moog Taurus I (Model 205A), from the owner's & service manual and schematic 993-042109-001.
+   Two sawtooth VCOs (B: unison for TAURUS/BASS, +1 octave for TUBA, 198-484 Hz range in VARIABLE, BEAT +-2%),
+   24 dB/oct transistor-ladder VCF from 40 Hz (EMPHASIS 8 = threshold of oscillation), FILTER and LOUDNESS contours
+   that charge 5.6 uF capacitors: tau = R x 5.6uF. Fixed presets switch resistor sets with CD4016s:
+     loudness attack 22k / 47R / 47R, decay 300k / 15k / 43k (TAURUS / TUBA / BASS);
+     filter contour 1.2k:15k / 20k:18k / 47R, decay 360k / 110k / 47R; cutoff offsets via 5.1M / 1.8M / 3.9M;
+     A:B mix 4.7k:5.1k / 100R:9.1k / 4.7k:9.1k. VARIABLE: loudness attack 1k+100k, decay 500k, filter attack 10k, decay 500k
+   (5-560 ms, 50 ms-2.8 s, 5-56 ms per the spec sheet). DECAY off = release through 10k. Glide 0-0.5 s. Mono, low-note priority. */
+const TAU_C = 5.6e-6;
+const TAU_FIXED = {
+  taurus:{la:22e3, ld:300e3, ls:.9, fa:1.2e3 * 15e3 / 16.2e3, fpk:15 / 16.2, fd:360e3, cut:100 / 5100 * 15 / 2.62, mixB:4.7 / 9.8, bRatio:1, emph:.35},
+  tuba:  {la:47, ld:15e3, ls:.85, fa:20e3 * 18e3 / 38e3, fpk:18 / 38, fd:110e3, cut:100 / 1800 * 15 / 2.62, mixB:.1 / 9.2, bRatio:2, emph:.2},
+  bass:  {la:47, ld:43e3, ls:.7, fa:47, fpk:.6, fd:47, cut:100 / 3900 * 15 / 2.62, mixB:4.7 / 13.8, bRatio:1, emph:.3}
+};
+class Taurus extends AudioWorkletProcessor{
+  constructor(o){
+    super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
+    this.c = Object.assign({}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.held = []; this.cv = null; this.target = null; this.gate = false;
+    this.pa = 0; this.pb = .37; this.le = 0; this.lst = 0; this.fe = 0; this.fst = 0; this.l = [0, 0, 0, 0]; this.dc = 0; this.dcx = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.c, d.cfg); };
+  }
+  on(n){ this.held = this.held.filter(x => x !== n); this.held.push(n); const low = Math.min(...this.held);
+    if (this.cv == null) this.cv = low; if (low !== this.target || !this.gate){ this.target = low; this.lst = 1; this.fst = 1; } this.gate = true; }
+  off(n){ this.held = this.held.filter(x => x !== n); if (this.held.length){ this.target = Math.min(...this.held); return; } this.gate = false; this.lst = 3; this.fst = 3; }
+  tn(x){ if (x > 3) return 1; if (x < -3) return -1; const x2 = x * x; return x * (27 + x2) / (27 + 9 * x2); }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.c, fos = fs * 2;
+    const V = C.preset === 'variable', P = TAU_FIXED[C.preset] || TAU_FIXED.taurus;
+    // per-preset values: fixed resistor sets, or the VARIABLES box sliders
+    const la = V ? 1e3 + 100e3 * C.vla : P.la, ld = V ? 8.93e3 * Math.pow(500e3 / 8.93e3, C.vld) : P.ld, ls = V ? C.vls : P.ls;
+    const fa = V ? 1e3 + 9e3 * C.vfa : P.fa, fd = V ? 8.93e3 * Math.pow(500e3 / 8.93e3, C.vfd) : P.fd, fpk = V ? C.vfamt : P.fpk;
+    const emph = V ? C.vemph : P.emph, cutOct = V ? C.vcut * 7 : P.cut, mixB = V ? C.vmix : P.mixB;
+    const bRatio = V ? (198 / 241.6) * Math.pow(484 / 198, C.vbf) * 2 : P.bRatio;     // B range 198-484 Hz against A
+    const oct = (V ? [0, 1, 2][C.voct | 0] : 0) + (C.octave ? 1 : 0);
+    const tauLa = Math.max(5e-3, la * TAU_C), tauLd = Math.max(5e-3, ld * TAU_C), tauFa = Math.max(5e-3, fa * TAU_C), tauFd = Math.max(1e-3, fd * TAU_C);
+    const tauRel = C.decayOn ? tauLd : 10e3 * TAU_C, tauFrel = C.decayOn ? tauFd : 10e3 * TAU_C;
+    const gl = C.glideOn && C.glide > 0 ? 1 - Math.exp(-1 / (C.glide * .5 * fs)) : 1;
+    const k = 3.93 * emph / .8;          // EMPHASIS 8 = threshold of oscillation (service manual trim, R524)
+    const beat = Math.pow(2, (C.beat - .5) * 2 * Math.log2(1.02)), tune = Math.pow(2, (C.tune - .5) * 2 * Math.log2(1.08));
+    const a = x => 1 - Math.exp(-1 / (x * fs));
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.on(ev.on); else this.off(ev.off); }
+      if (this.cv == null){ L[i] = R[i] = 0; continue; }
+      this.cv += (this.target - this.cv) * gl;
+      // contours: attack charges toward the peak, decay toward the sustain level, release per the DECAY switch
+      if (this.lst === 1){ this.le += (1.0 - this.le) * a(tauLa); if (this.le > .98) this.lst = 2; }
+      else if (this.lst === 2) this.le += (ls - this.le) * a(tauLd);
+      else this.le *= 1 - a(tauRel);
+      if (this.fst === 1){ this.fe += (fpk - this.fe) * a(tauFa); if (this.fe > fpk * .98) this.fst = 2; }
+      else if (this.fst === 2) this.fe *= 1 - a(tauFd);
+      else this.fe *= 1 - a(tauFrel);
+      // VCOs: sawtooth, B on its own ratio and BEAT
+      const fA = 440 * Math.pow(2, (this.cv - 69) / 12 + oct) * tune, fB = fA * bRatio * beat;
+      const dA = fA / fs, dB = Math.min(.45, fB / fs);
+      this.pa += dA; if (this.pa >= 1) this.pa -= 1; this.pb += dB; if (this.pb >= 1) this.pb -= 1;
+      const saw = (p, d) => { let y = 1 - 2 * p; if (p < d){ const x = p / d; y += x + x - x * x - 1; } else if (p > 1 - d){ const x = (p - 1) / d; y += x * x + x + x + 1; } return y; };
+      const x = (C.probe ? 0 : (saw(this.pa, dA) * (1 - mixB) + saw(this.pb, dB) * mixB) * .6) + (Math.random() - .5) * 4e-5;
+      // ladder: 40 Hz floor + cutoff + foot FILTER (3 octaves) + contour (up to 7 octaves)
+      const fc = Math.min(.42 * fos, 40 * Math.pow(2, cutOct + C.foot * 3 + this.fe * 7)), g = 1 - Math.exp(-2 * Math.PI * fc * 1.073 / fos), l = this.l;
+      let y = 0;
+      for (let o = 0; o < 2; o++){
+        const u = this.tn(x - k * l[3]), t0 = this.tn(l[0]), t1 = this.tn(l[1]), t2 = this.tn(l[2]);
+        l[0] += g * (u - t0); l[1] += g * (t0 - t1); l[2] += g * (t1 - t2); l[3] += g * (t2 - this.tn(l[3])); y += l[3];
+      }
+      y *= .5 * (1 + k * .4);
+      // 3080 VCA, foot LOUDNESS, output coupling
+      let out = this.tn(y * this.le * 1.3) * C.footVol * .9;
+      const dc = (this.dc + out - this.dcx) * (1 / (1 + 2 * Math.PI * 12 / fs)); this.dc = dc; this.dcx = out;
+      L[i] = dc; R[i] = dc;
+    }
+    return true;
+  }
+}
+registerProcessor('taurus', Taurus);
+`;
 const TB_CODE = String.raw`
 /* Roland TB-303, following Robin Whittle's Devil Fish documentation of the stock circuit and published diode-ladder analysis:
    saw VCO (square derived from the saw by a transistor shaper), 4-pole diode-ladder low-pass whose stages load each other,
@@ -1543,7 +1643,7 @@ class SVC350 extends AudioWorkletProcessor{
 registerProcessor('svc350', SVC350);
 `;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE], {type:'application/javascript'})));
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -2852,7 +2952,7 @@ const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,
   'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
 let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
 const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
-function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), tb:TB_DEFAULT()}, mixDefaults()); }
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), tb:TB_DEFAULT(), tau:TAU_DEFAULT()}, mixDefaults()); }
 const P5_INIT = {oAf:.5, oAsaw:1, oApul:0, oApw:.5, sync:0, oBf:.5, oBfine:0, oBsaw:1, oBtri:0, oBpul:0, oBpw:.5, oBlo:0, oBkbd:1,
   mA:.8, mB:0, mN:0, cut:.6, res:.1, fenv:.4, fkbd:1, fa:0, fd:.45, fs:.4, fr:.4, aa:0, ad:.4, as:.9, ar:.4,
   pmEnv:0, pmB:0, pmFA:0, pmPW:0, pmF:0, lfoF:.6, lfoSaw:0, lfoTri:1, lfoSq:0, wmMix:0, wmFA:1, wmFB:1, wmPWA:0, wmPWB:0, wmF:0,
@@ -2870,7 +2970,9 @@ const P5_PRESETS = {
 };
 const P5_DEFAULT = (name = 'Brass') => Object.assign({}, P5_INIT, P5_PRESETS[name], {preset:name});
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, tb303:{proc:'tb303', cfg:tr => tr.tb}};
+const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
+  voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
 function solNode(rig, tr){
   rig.sol = rig.sol || {};
@@ -3035,8 +3137,9 @@ function renderSynth(){
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'synth';
   const isSol = tr.inst === 'solina';
-  const isP5 = tr.inst === 'prophet', isTB = tr.inst === 'tb303';
-  $('#preset').hidden = isSol || isP5 || isTB; $('#patchCtls').hidden = isSol || isP5 || isTB; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  const isP5 = tr.inst === 'prophet', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
+  $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
+  $('#preset').hidden = isSol || isP5 || isTB || isTau; $('#patchCtls').hidden = isSol || isP5 || isTB || isTau; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -3097,6 +3200,37 @@ function renderP5(tr){
 $('#p5Preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = tr.p5.wheel; tr.p5 = P5_DEFAULT(e.target.value); solCfg(tr); save(); renderP5(tr); });
 $('#p5Wheel').addEventListener('input', e => { const tr = curSynth(); tr.p5.wheel = +e.target.value; $('#p5WheelV').textContent = Math.round(tr.p5.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':prophet']; if (n) n.port.postMessage({type:'wheel', v:tr.p5.wheel}); save(); });
 
+function renderTau(tr){
+  const T = tr.tau, up = () => solCfg(tr);
+  document.querySelectorAll('#tauPresets button').forEach(b => b.classList.toggle('on', b.dataset.p === T.preset));
+  $('#tauOct').classList.toggle('on', !!T.octave); $('#tauGlide').classList.toggle('on', !!T.glideOn); $('#tauDecay').classList.toggle('on', !!T.decayOn);
+  const k10 = v => (v * 10).toFixed(1), ms = s => s < 1 ? Math.round(s * 1000) + ' ms' : s.toFixed(2) + ' s';
+  const foot = $('#tauFoot'); foot.innerHTML = '';
+  ctl(foot, 'Foot filter', T, 'foot', 0, 1, .005, v => '+' + (v * 3).toFixed(1) + ' oct', up);
+  ctl(foot, 'Foot volume', T, 'footVol', 0, 1, .005, k10, up);
+  ctl(foot, 'Tune', T, 'tune', 0, 1, .005, v => { const c = Math.round((v - .5) * 2 * 133); return (c > 0 ? '+' : '') + c + ' ct'; }, up);
+  ctl(foot, 'Beat', T, 'beat', 0, 1, .005, v => { const c = Math.round((v - .5) * 2 * 34); return (c > 0 ? '+' : '') + c + ' ct'; }, up);
+  ctl(foot, 'Glide', T, 'glide', 0, 1, .005, v => ms(v * .5), up);
+  $('#tauVar').hidden = T.preset !== 'variable';
+  document.querySelectorAll('#tauVoct button').forEach(b => b.classList.toggle('on', +b.dataset.o === (T.voct | 0)));
+  const box = $('#tauVarCtls'); box.innerHTML = '';
+  ctl(box, 'Osc B freq', T, 'vbf', 0, 1, .005, v => Math.round(198 * Math.pow(484 / 198, v)) + ' Hz', up);
+  ctl(box, 'B-mix-A', T, 'vmix', 0, 1, .005, v => Math.round((1 - v) * 100) + '% A', up);
+  ctl(box, 'Cut-off', T, 'vcut', 0, 1, .005, v => Math.round(40 * Math.pow(2, v * 7)) + ' Hz', up);
+  ctl(box, 'Emphasis', T, 'vemph', 0, 1, .005, k10, up);
+  ctl(box, 'Contour amt', T, 'vfamt', 0, 1, .005, v => (v * 7).toFixed(1) + ' oct', up);
+  ctl(box, 'Filter attack', T, 'vfa', 0, 1, .005, v => ms((1e3 + 9e3 * v) * 5.6e-6), up);
+  ctl(box, 'Filter decay', T, 'vfd', 0, 1, .005, v => ms(8.93e3 * Math.pow(500e3 / 8.93e3, v) * 5.6e-6), up);
+  ctl(box, 'Loud attack', T, 'vla', 0, 1, .005, v => ms((1e3 + 100e3 * v) * 5.6e-6), up);
+  ctl(box, 'Loud decay', T, 'vld', 0, 1, .005, v => ms(8.93e3 * Math.pow(500e3 / 8.93e3, v) * 5.6e-6), up);
+  ctl(box, 'Sustain', T, 'vls', 0, 1, .005, k10, up);
+}
+const tauSet = (k, v) => { const tr = curSynth(); tr.tau[k] = v; solCfg(tr); save(); renderTau(tr); };
+document.querySelectorAll('#tauPresets button').forEach(b => b.addEventListener('click', () => tauSet('preset', b.dataset.p)));
+document.querySelectorAll('#tauVoct button').forEach(b => b.addEventListener('click', () => tauSet('voct', +b.dataset.o)));
+$('#tauOct').addEventListener('click', () => tauSet('octave', curSynth().tau.octave ? 0 : 1));
+$('#tauGlide').addEventListener('click', () => tauSet('glideOn', curSynth().tau.glideOn ? 0 : 1));
+$('#tauDecay').addEventListener('click', () => tauSet('decayOn', curSynth().tau.decayOn ? 0 : 1));
 function renderTB(tr){
   const T = tr.tb, up = () => solCfg(tr);
   $('#tbSaw').classList.toggle('on', !T.wave); $('#tbSq').classList.toggle('on', !!T.wave);
@@ -3130,7 +3264,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', synth:'Synth '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', taurus:'Taurus ', synth:'Synth '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
@@ -3812,7 +3946,7 @@ $('#helpSearch').addEventListener('input', e => {
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.tb = Object.assign(TB_DEFAULT(), t.tb); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
