@@ -214,6 +214,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     </div>
     <div id="tracks" class="view" style="margin:0;max-width:none"></div>
     <button id="addTrack">Add audio track</button>
+    <input type="file" id="trackFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
   </section>
 
   <!-- MIXER -->
@@ -388,7 +389,7 @@ function defaultState(){
     midiInName:'', midiOutName:'', midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
     master:{vol:.9, glue:.2, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
-    audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16}, mixDefaults())],
+    audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
     synths:[]
   };
 }
@@ -608,14 +609,79 @@ function playPad(rig, pad, t, vel){
   return src;
 }
 
+/* ---- warping: keep clips in time when the tempo changes ---- */
+const stretchCache = new Map();   // "key@bpm" -> AudioBuffer
+function wsola(chs, alpha){
+  // time-stretch without changing pitch (waveform-similarity overlap-add)
+  const N = 1024, Hs = 512, Ha = Hs / alpha, tol = 256, inLen = chs[0].length, outLen = Math.max(1, Math.round(inLen * alpha));
+  const win = new Float32Array(N); for (let i = 0; i < N; i++) win[i] = .5 - .5 * Math.cos(2 * Math.PI * i / N);
+  const mono = new Float32Array(inLen); chs.forEach(d => { for (let i = 0; i < inLen; i++) mono[i] += d[i] / chs.length; });
+  const out = chs.map(() => new Float32Array(outLen + N)), norm = new Float32Array(outLen + N);
+  let prev = 0;
+  for (let k = 0; k * Hs < outLen; k++){
+    const nominal = Math.round(k * Ha); let best = nominal;
+    if (k > 0){
+      const target = prev + Hs; let bc = -Infinity;
+      for (let d = -tol; d <= tol; d += 4){
+        const p = nominal + d; if (p < 0 || p + N > inLen || target + N > inLen) continue;
+        let c = 0; for (let i = 0; i < N; i += 8) c += mono[target + i] * mono[p + i];
+        if (c > bc){ bc = c; best = p; }
+      }
+    }
+    const o = k * Hs;
+    for (let i = 0; i < N; i++){
+      const src = best + i; norm[o + i] += win[i];
+      if (src >= 0 && src < inLen) for (let c = 0; c < chs.length; c++) out[c][o + i] += chs[c][src] * win[i];
+    }
+    prev = best;
+  }
+  return out.map(d => { const r = new Float32Array(outLen); for (let i = 0; i < outLen; i++) r[i] = norm[i] > 1e-3 ? d[i] / norm[i] : 0; return r; });
+}
+function stretched(key, fromBpm, toBpm){
+  const id = key + '@' + toBpm;
+  if (stretchCache.has(id)) return stretchCache.get(id);
+  const buf = buffers.get(key); if (!buf) return null;
+  const chs = Array.from({length:buf.numberOfChannels}, (_, c) => buf.getChannelData(c));
+  const b = makeBuffer(wsola(chs, fromBpm / toBpm), buf.sampleRate);
+  for (const k of stretchCache.keys()) if (k.startsWith(key + '@')) stretchCache.delete(k);
+  stretchCache.set(id, b); return b;
+}
+const pendingStretch = new Set();
 function startClip(rig, tr, t, offset = 0){
   const buf = buffers.get(tr.clip); if (!buf) return;
-  const src = rig.c.createBufferSource(); src.buffer = buf;
-  src.connect(rig.strips.get(tr.id).input);
-  const dur = tr.clipSteps * stepDur();
-  src.start(t, offset); src.stop(t + Math.max(.01, dur - offset));
-  src.onended = () => src._done = true;
-  rig.srcs.push(src); if (rig === live){ rt(tr.id).t = t - offset; rt(tr.id).dur = dur; }
+  const dur = tr.clipSteps * stepDur(), from = tr.clipBpm || S.bpm, ratio = S.bpm / from;
+  const out = rig.strips.get(tr.id).input, srcs = [];
+  const one = (b, at, off, len, rate = 1) => {
+    const src = rig.c.createBufferSource(); src.buffer = b; src.playbackRate.value = rate; src.connect(out);
+    src.start(at, off); src.stop(at + Math.max(.01, len)); src.onended = () => src._done = true; srcs.push(src);
+  };
+  let mode = tr.warp || 'complex';
+  if (Math.abs(ratio - 1) < .003) mode = 'off';
+  if (mode === 'complex'){
+    const id = tr.clip + '@' + S.bpm;
+    if (stretchCache.has(id) || rig !== live) one(stretched(tr.clip, from, S.bpm), t, offset, dur - offset);
+    else {
+      // work it out in the background and use Beats for this pass
+      if (!pendingStretch.has(id)){ pendingStretch.add(id); const k = tr.clip, bpm = S.bpm; setTimeout(() => { stretched(k, from, bpm); pendingStretch.delete(id); }, 0); }
+      mode = 'beats';
+    }
+  }
+  if (mode === 'off') one(buf, t, offset, dur - offset);
+  else if (mode === 'repitch') one(buf, t, offset * ratio, dur - offset, ratio);
+  else if (mode === 'beats'){
+    // retrigger each 1/16 of the original at its new grid position
+    const segIn = 60 / from / 4, segOut = stepDur(), first = Math.floor(offset / segOut);
+    for (let k = first; k < tr.clipSteps; k++){
+      const at = t - offset + k * segOut, len = Math.min(segIn, segOut);
+      if (at + len < t) continue;
+      const src = rig.c.createBufferSource(), g = rig.c.createGain(); src.buffer = buf;
+      g.gain.setValueAtTime(1, at); g.gain.setValueAtTime(1, at + len - .004); g.gain.linearRampToValueAtTime(0, at + len);
+      src.connect(g).connect(out); src.start(Math.max(at, t), k * segIn + Math.max(0, t - at)); src.stop(at + len + .01);
+      src.onended = () => src._done = true; srcs.push(src);
+    }
+  }
+  rig.srcs.push(...srcs);
+  if (rig === live){ rt(tr.id).t = t - offset; rt(tr.id).dur = dur; }
 }
 
 /* notes common to live playback and export */
@@ -932,7 +998,7 @@ function finishRec(){
   const buf = makeBuffer(chs, sr), key = 'rec:' + tr.id + ':' + Date.now();
   dropAudio(tr.clip);
   buffers.set(key, buf); storeAudio(key, buf);
-  tr.clip = key; tr.clipSteps = rec.steps;
+  tr.clip = key; tr.clipSteps = rec.steps; tr.clipBpm = S.bpm;
   const endT = rec.endT;
   rec = null; capOff(); capChunks = [];
   // the scheduler already passed the loop point, so start this pass mid-way
@@ -1125,12 +1191,23 @@ function renderTracks(){
       <button class="arm${tr.armed ? ' on' : ''}">Arm</button></div>
       <canvas></canvas>
       <div class="row"><span class="label">Record</span><select class="rb" aria-label="Recording length">${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select>
-      <span class="grow mono" style="font-size:12px;color:var(--dim)">${tr.clip ? 'Clip: ' + tr.clipSteps / 16 + ' bar' + (tr.clipSteps > 16 ? 's' : '') : 'Empty'}</span>
-      <button class="clr"${tr.clip ? '' : ' disabled'}>Clear</button>${S.audio.length > 1 ? '<button class="del">Delete</button>' : ''}</div>`;
+      <span class="grow"></span><button class="imp">Import</button></div>
+      <div class="row"><span class="label">Warp</span><select class="wm" aria-label="Warp mode"><option value="complex">Complex</option><option value="beats">Beats</option><option value="repitch">Re-Pitch</option><option value="off">Off</option></select>
+      <span class="label">Clip</span><select class="cb" aria-label="Clip length"${tr.clip ? '' : ' disabled'}>${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select>
+      <span class="grow mono" style="font-size:12px;color:var(--dim)">${tr.clip ? Math.round((tr.clipBpm || S.bpm) * 10) / 10 + ' BPM' : 'Empty'}</span></div>
+      <div class="row"><button class="clr grow"${tr.clip ? '' : ' disabled'}>Clear</button>${S.audio.length > 1 ? '<button class="del grow">Delete</button>' : ''}</div>`;
     const nm = c.querySelector('input'); nm.value = tr.name;
     nm.addEventListener('change', () => { tr.name = nm.value.trim().slice(0, 16) || tr.name; save(); renderMixer(); });
     c.querySelector('.arm').addEventListener('click', () => { S.audio.forEach(t => t.armed = t === tr ? !t.armed : false); routeMonitor(); save(); renderTracks(); });
     const rb = c.querySelector('.rb'); rb.value = tr.recBars; rb.addEventListener('change', () => { tr.recBars = +rb.value; save(); });
+    const wm = c.querySelector('.wm'); wm.value = tr.warp || 'complex'; wm.addEventListener('change', () => { tr.warp = wm.value; save(); });
+    const cb = c.querySelector('.cb'); cb.value = Math.max(1, tr.clipSteps / 16);
+    cb.addEventListener('change', () => {
+      const buf = buffers.get(tr.clip); if (!buf) return;
+      const bars = +cb.value; tr.clipSteps = bars * 16; tr.clipBpm = Math.round(bars * 240 / buf.duration * 100) / 100;
+      save(); renderTracks(); toast(`The clip now counts as ${bars} bar${bars > 1 ? 's' : ''} at ${Math.round(tr.clipBpm * 10) / 10} BPM.`);
+    });
+    c.querySelector('.imp').addEventListener('click', () => { importTarget = tr; $('#trackFile').click(); });
     c.querySelector('.clr').addEventListener('click', e => {
       if (!e.target.dataset.sure){ e.target.dataset.sure = 1; e.target.textContent = 'Sure?'; setTimeout(() => { e.target.dataset.sure = ''; e.target.textContent = 'Clear'; }, 2500); return; }
       dropAudio(tr.clip); tr.clip = null; save(); renderTracks();
@@ -1683,12 +1760,12 @@ let pending = null, loopCount = 0, songPos = 0, songDone = false;
 function storeScene(){
   if (!S.scenes) return;
   const old = S.scenes[S.cur] || {name:'Scene ' + (S.cur + 1)};
-  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps} : null])), synth:Object.fromEntries((S.synths || []).map(t => [t.id, t.notes]))};
+  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps, bpm:t.clipBpm} : null])), synth:Object.fromEntries((S.synths || []).map(t => [t.id, t.notes]))};
 }
 function loadScene(k){
   const sc = S.scenes[k]; S.cur = k;
   S.bars = sc.bars; S.drum.notes = sc.notes;
-  S.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c && buffers.has(c.key) ? c.key : null; t.clipSteps = c ? c.steps : 16; });
+  S.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c && buffers.has(c.key) ? c.key : null; t.clipSteps = c ? c.steps : 16; t.clipBpm = (c && c.bpm) || S.bpm; });
   (S.synths || []).forEach(t => { t.notes = (sc.synth || {})[t.id] || []; });
   rollDirty = true;
 }
@@ -2030,12 +2107,29 @@ $('#autoLat').addEventListener('click', () => { if (S.autoLat) S.latMs = Math.ro
 $('#latMs').addEventListener('input', e => { S.latMs = +e.target.value; $('#latV').textContent = S.latMs + ' ms'; save(); });
 $('#addTrack').addEventListener('click', () => {
   let n = 1; while (S.audio.some(t => t.id === 'a' + n)) n++;
-  const tr = Object.assign({id:'a' + n, name:'Audio ' + n, armed:false, recBars:S.bars, clip:null, clipSteps:16}, mixDefaults());
+  const tr = Object.assign({id:'a' + n, name:'Audio ' + n, armed:false, recBars:S.bars, clip:null, clipSteps:16, warp:'complex'}, mixDefaults());
   S.audio.push(tr);
   if (live){ const s = makeStrip(ctx, live.master); live.strips.set(tr.id, s); applyStrip(ctx, s, tr); }
   save(); renderTracks();
 });
 $('#export').addEventListener('click', exportMix);
+let importTarget = null;
+$('#trackFile').addEventListener('change', async e => {
+  const f = e.target.files[0], tr = importTarget; e.target.value = ''; if (!f || !tr) return;
+  ensureAudio();
+  try {
+    const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+    // guess the bar count whose tempo lands closest to the project tempo
+    let bars = 1, best = Infinity;
+    for (const b of [1, 2, 4, 8]){ const bpm = b * 240 / buf.duration, d = Math.abs(Math.log2(bpm / S.bpm)); if (d < best){ best = d; bars = b; } }
+    const key = 'imp:' + tr.id + ':' + Date.now();
+    dropAudio(tr.clip); buffers.set(key, buf); await storeAudio(key, buf);
+    tr.clip = key; tr.clipSteps = bars * 16; tr.clipBpm = Math.round(bars * 240 / buf.duration * 100) / 100;
+    if (S.bars < bars){ S.bars = bars; renderTransport(); }
+    save(); renderTracks();
+    toast(`Imported ${f.name} as ${bars} bar${bars > 1 ? 's' : ''} at ${Math.round(tr.clipBpm * 10) / 10} BPM. It follows the project tempo. Change Clip if the length is wrong.`);
+  } catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
+});
 $('#share').addEventListener('click', async () => { try { await navigator.share({files:[lastExport], title:lastExport.name}); } catch(e){} });
 $('#wipe').addEventListener('click', async e => {
   const b = e.target;
@@ -2069,6 +2163,7 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
     S.audio.forEach(t => { if (t.clip && !buffers.has(t.clip)) t.clip = null; });
     S.drum.pads.forEach((p, i) => { if (!buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
+  S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
