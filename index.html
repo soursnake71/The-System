@@ -311,7 +311,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option><option value="prophet">Prophet-5</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -474,15 +474,14 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <ul><li>Works best on full stereo mixes with the vocal in the centre. On a mono file, everything steady in the vocal range ends up in Vocals.</li><li>Expect rougher results than AI tools such as Ableton 12.3's stem separation, which use large neural networks that don't fit in a phone browser.</li><li>Clips up to 2 minutes. It runs in the background so the app stays responsive.</li><li>Load the Drums stem into Chop (From track) to chop a break out of a song.</li></ul>
     </details>
 
-    <details id="h-synth"><summary>Synth tracks and the note grid</summary>
+    <details id="h-synth"><summary>Instrument tracks and the note grid</summary>
       <ul>
-        <li>Up to 4 synth tracks. Tap <b>+</b> at the top of the Synth tab to add one.</li>
-        <li><b>Presets</b>: Bass, Sub 808, Lead, Pad, Keys, Pluck, Organ. Changing any control switches the preset to Custom.</li>
-        <li><b>Sound</b>: two oscillators (Osc 2 can be an octave apart, detuned and mixed), a sub oscillator, a resonant low-pass filter with its own envelope, and Attack/Decay/Sustain/Release for volume.</li>
+        <li>Up to 4 instrument tracks. Tap <b>+</b> at the top of the Synth tab to add one; new tracks start as a Prophet-5.</li>
+        <li>Each track can be a <b>Prophet-5</b>, <b>Solina strings</b>, <b>TB-303</b> or <b>Moog Taurus</b>: pick it from the menu next to the track name. Each has its own section in this help.</li>
         <li><b>The grid</b> only plays notes in the chosen key and scale. Each row is a fourth higher than the one below, like Ableton Push. Orange pads are the root note. Use <b>Oct − / +</b> to move up and down. Choose <i>Chromatic</i> for every note.</li>
         <li><b>Overdub</b> records what you play, with the same Timing (timing correct) as the drums.</li>
         <li><b>Piano roll</b> shows the notes in this scene. Tap a note to delete it, or tap an empty spot to hear that pitch. <b>Undo</b> and <b>Clear</b> work as on the drums.</li>
-        <li>A MIDI keyboard or your MPC can play a synth: set Setup → MIDI → <b>Notes play</b> to that synth.</li>
+        <li>A MIDI keyboard or your MPC can play a track: set Setup → MIDI → <b>Notes play</b> to it.</li>
       </ul>
     </details>
 
@@ -2952,7 +2951,7 @@ const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,
   'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
 let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
 const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
-function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), tb:TB_DEFAULT(), tau:TAU_DEFAULT()}, mixDefaults()); }
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Prophet ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'prophet', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), tb:TB_DEFAULT(), tau:TAU_DEFAULT()}, mixDefaults()); }
 const P5_INIT = {oAf:.5, oAsaw:1, oApul:0, oApw:.5, sync:0, oBf:.5, oBfine:0, oBsaw:1, oBtri:0, oBpul:0, oBpw:.5, oBlo:0, oBkbd:1,
   mA:.8, mB:0, mN:0, cut:.6, res:.1, fenv:.4, fkbd:1, fa:0, fd:.45, fs:.4, fr:.4, aa:0, ad:.4, as:.9, ar:.4,
   pmEnv:0, pmB:0, pmFA:0, pmPW:0, pmF:0, lfoF:.6, lfoSaw:0, lfoTri:1, lfoSq:0, wmMix:0, wmFA:1, wmFB:1, wmPWA:0, wmPWB:0, wmF:0,
@@ -3135,7 +3134,7 @@ function renderSynth(){
   rs.value = S.root;
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
-  $('#inst').value = tr.inst || 'synth';
+  $('#inst').value = tr.inst || 'prophet';
   const isSol = tr.inst === 'solina';
   const isP5 = tr.inst === 'prophet', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
@@ -3264,7 +3263,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', taurus:'Taurus ', synth:'Synth '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', taurus:'Taurus '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
@@ -3946,7 +3945,7 @@ $('#helpSearch').addEventListener('input', e => {
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); if (!t.inst || t.inst === 'synth'){ t.inst = 'prophet'; if (/^Synth \d+$/.test(t.name)) t.name = 'Prophet ' + t.id.slice(1); } t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
