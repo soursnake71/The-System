@@ -62,6 +62,22 @@ h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:upperc
 .hint{color:var(--dim);font-size:14px;margin:0}
 
 /* Pads: MPC layout, pad 1 bottom-left */
+.rack .unit{border-radius:8px;padding:10px 12px;border:1px solid #0006;box-shadow:inset 0 1px 0 #fff2;display:flex;flex-direction:column;gap:6px}
+.rack .uhead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.rack .uhead b{font-family:var(--f-head,inherit);letter-spacing:.04em;text-transform:uppercase;font-size:14px}
+.rack .uhead span{font-size:12px;opacity:.8}
+.rack .unit .label,.rack .unit .v{color:inherit}
+.rack .ctl{grid-template-columns:74px minmax(0,1fr) 62px}
+.rack .ctl>*{min-width:0}
+.rack .ctl select{width:100%;grid-column:2 / 4}
+.rack .ctl .v{font-size:12px;text-align:right;white-space:nowrap}
+.u-pt{background:#1b1b1f;color:#f1e6d0}
+.u-ef{background:#1f4fb8;color:#fff}
+.u-h9{background:#202430;color:#bcd4ff}
+.u-mx{background:#d9dadc;color:#16171a}
+.u-lx{background:#3a2a1f;color:#f3e3cf}
+.u-mx select,.u-mx input{color-scheme:light}
+.kitrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px}
 .pads{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pad{aspect-ratio:1;max-width:100%;border-radius:10px;background:linear-gradient(180deg,#2b303c,#20242d);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:7px;text-align:left;text-transform:none;letter-spacing:0;position:relative;overflow:hidden;touch-action:none}
 .pad .num{font:600 11px var(--f-mono);color:var(--dim)}
@@ -195,6 +211,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   <!-- DRUMS -->
   <section class="view" id="v-drums">
     <div class="scenebar" id="sceneBar" role="group" aria-label="Scenes"></div>
+    <div class="kitrow"><label class="label" for="kitSel">Kit</label><select id="kitSel"></select></div>
     <div class="pads" id="pads"></div>
     <div class="card">
       <div class="row perf">
@@ -252,6 +269,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     <div class="row"><button id="autoArm" class="grow">Automate</button><button id="autoBack" class="grow" disabled>Re-enable automation</button></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard"></div>
+    <div class="card rack" id="rackCard"></div>
   </section>
 
   <!-- CHOP -->
@@ -417,12 +435,25 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <ul>
         <li><b>Load file</b> puts a WAV, AIFF, MP3, FLAC or OGG file on the selected pad. The file name becomes the pad name.</li>
         <li><b>Sample input</b> records from your USB-C interface onto the pad: tap to start, tap again to stop. Silence at the start is trimmed and the level is normalized.</li>
-        <li><b>Built-in</b> puts the original kit sound back.</li>
+        <li><b>Built-in</b> puts the current kit's sound back on the pad.</li>
         <li><b>Chop</b> opens the selected pad's sample in the Chop tab.</li>
         <li><b>Level, Tune</b> (±24 semitones), <b>Pan</b> and <b>Decay</b> (shortens the sound) work per pad.</li>
         <li><b>Mute grp</b>: pads in the same group cut each other off, like closed and open hi-hats.</li>
         <li><b>Clear hits</b> (tap twice) removes only the selected pad's hits.</li>
       </ul>
+    </details>
+
+    <details id="h-kits"><summary>Drum machine kits</summary>
+      <p>Pick a machine from the <b>Kit</b> menu above the pads. All 16 pads change to that machine's sounds; your recorded hits stay. If some pads hold your own samples, you're asked whether to replace them too.</p>
+      <ul>
+        <li><b>Roland TR-909</b>: analog kick (the pitch sweep falls to a fixed ~52 Hz, with an attack click), two-oscillator snare with the snappy noise that holds about 24 ms, analog toms, rim and clap. The hats, ride and crash run through a <b>6-bit, ~30 kHz</b> sample stage and then an analog decay, like the real machine. Extra pads: long kick, accent kick, snappy and tight snares, accent clap.</li>
+        <li><b>Roland TR-505</b>: the 16 sounds of the 505, played through an <b>8-bit, 25 kHz</b> linear sample stage. Includes congas, timbale and two cowbells.</li>
+        <li><b>LinnDrum LM-2</b>: <b>8-bit companded</b> (AM6070-style) samples at about 30 kHz. The kick, toms and congas go through the LinnDrum's swept 4-pole filter, which opens on each hit and closes over about 100 ms. Every voice has the 15.9 kHz output filter, and the hats have the 5.6 ms hold before they decay.</li>
+        <li><b>Oberheim DMX</b>: 8-bit companded samples. Kick, toms, clap and shaker run on the "low" voice cards (6-pole filter at 10 kHz); snare, hats and cymbals run on the "high" cards (16 kHz). Includes the accent hat.</li>
+        <li><b>Boss DR-110</b>: all analog. The hats and cymbal use the DR-110's metal source: four square waves at 305, 444, 794 and 1136 Hz plus noise, through its 3.45 kHz and 7.12 kHz band-pass filters. The clap is noise through a 910 Hz filter with the 700 ms tail. Accent pads drive the shared VCA into its slight distortion.</li>
+        <li><b>Simmons SDS-V</b>: each voice is a triangle oscillator with a falling pitch bend that lasts as long as the decay, plus filtered noise and a click. You get five toms from high to floor, a big bend tom, a bend-up tom and a noisy tom.</li>
+      </ul>
+      <p>The sample-based machines (909 cymbals, TR-505, LinnDrum, DMX) don't contain the original factory recordings. Their sounds are modeled studio drums, put through each machine's own converter, bit depth, clock rate and filters, which is where most of each machine's character comes from. Pad Tune, Decay and SP-1200 mode all work on top of any kit.</p>
     </details>
 
     <details id="h-sp"><summary>SP-1200 mode</summary>
@@ -561,7 +592,19 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li><b>Sidechain duck</b>: the track dips each time the chosen pad hits (usually the kick). Release sets how fast it comes back.</li>
         <li><b>Compressor</b> evens out the level. At 0% it is fully bypassed.</li>
         <li><b>Sends</b> go to the shared Reverb and Delay. Set their size, time and feedback on the <b>Master</b> strip.</li>
+        <li><b>Sends to the FX rack</b> feed the five rack units below the mixer (see FX rack).</li>
         <li><b>Master</b>: Glue compression (adds 6 ms of latency while on, so leave it off while recording live) and a soft clipper that stops harsh overs.</li>
+      </ul>
+    </details>
+
+    <details id="h-rack"><summary>FX rack</summary>
+      <p>Below the mixer is a rack of five classic studio units. Each one is a shared send effect: turn up a track's <b>Sends to the FX rack</b> slider (Mixer → FX on that strip) to feed it. Every unit has a <b>Presets</b> menu, its own menus, and knobs. A unit nothing is sent to uses no CPU.</p>
+      <ul>
+        <li><b>Lexicon PrimeTime</b> (Model 93): two delays, A on the left and B on the right, each up to 128 ms × <b>Multiply</b>. As on the original, a bigger multiplier gives longer delays but less bandwidth (×1 12 kHz, ×2 6 kHz, ×4 3 kHz, ×8 1.5 kHz). <b>A time</b>/<b>B time</b> can follow the tempo (dotted 1/8 for that "Sucker MC's" exit), and Multiply rises automatically if a synced time needs it. <b>Recirc</b> feeds back through the <b>High cut</b> filter, normal or inverted. The <b>VCO</b> sweeps the delay over 2:1 for flanging and chorus.</li>
+        <li><b>Deltalab Effectron</b> (ADM 1024): a 1-bit adaptive delta-modulation delay. Pick a <b>Range</b> (flange, double, short or long echo). The longer the delay inside a range, the slower the coder runs and the grittier it gets. <b>ADM grit</b> adds more. <b>Pan</b> puts the copy in the centre, to one side (<b>Haas</b>: about 22 ms on the right makes a vocal wide without an echo), or as the wide stereo-simulation pair. <b>Regen</b> can be negative (inverted phase).</li>
+        <li><b>Eventide H910</b> Harmonizer: one side is pitched up and the other down by <b>Detune</b> cents, each with its own delay up to 112.5 ms. ±9 cents at 15/25 ms is the classic doubled-vocal wall. <b>Raw</b> splicing keeps the H910's audible splice clicks and compander pumping; <b>Smooth</b> is the later de-glitched sound. Feedback goes past 100% like the original.</li>
+        <li><b>MXR 113</b>: a 10-bit digital delay inside a compander. <b>Bandwidth</b> trades tone for time (20 kHz up to 160 ms … 2.5 kHz up to 1.28 s), so long repeats get darker and grainier. Regen at 100% holds the repeats.</li>
+        <li><b>Lexicon 224 / AMS RMX16</b>: 224 programs (Vocal Plate, Percussion Plate, Concert Hall, Room, Chamber) run at the 224's narrow ~8 kHz bandwidth with its 12-bit grain. The RMX16 programs are full-bandwidth: Plate A1, Hall C1, Ambience, <b>Nonlin 2</b> (the gated snare: holds, then stops dead) and <b>Reverse 1</b> (builds up, then stops). <b>Size</b> sets the decay time or gate length, and <b>Treble</b> sets how fast the highs die.</li>
       </ul>
     </details>
 
@@ -643,6 +686,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li>Prophet-5: modeled from the Sequential Circuits Prophet-5 Rev 3 service and owner's manuals, <a href="https://archive.org/details/synthmanual-sequential-circuits-prophet-5-service-manual" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Sequential.</li>
         <li>TB-303: behaviour of the stock circuit from Robin Whittle's <a href="https://www.firstpr.com.au/rwi/dfish/" target="_blank" rel="noopener">Devil Fish documentation</a>; diode-ladder filter tuned by measurement in this app. Not affiliated with Roland.</li>
         <li>Moog Taurus: modeled from the Taurus Model 205A owner's &amp; service manual and schematic, <a href="https://archive.org/details/Moog_Taurus_Model_205A_Owner_s_Service_Manual" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Moog Music.</li>
+        <li>Drum kits and FX rack: modeled from published circuit analyses and service documentation (Electric Druid, Sound On Sound, MAME's LinnDrum and DMX drivers, the Lexicon PrimeTime, Effectron II, H910, MXR 113, AMS RMX16 manuals, and Dattorro's 1997 paper on Lexicon-style reverbs). No factory samples are included. Not affiliated with Roland, Boss, Linn, Oberheim, Simmons, Lexicon, Deltalab, Eventide, MXR or AMS Neve.</li>
         <li>MP3 encoding: <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener">lamejs</a> (LGPL), loaded on demand.</li>
         <li>MPC, SP-1200, SVC-350, Push and Ableton Live are trademarks of their owners and are mentioned only to describe features.</li>
       </ul>
@@ -838,6 +882,330 @@ function synth(kind, sr){
   return d;
 }
 KIT.forEach(([, kind]) => buffers.set('kit:' + kind, makeBuffer([synth(kind, 44100)], 44100)));
+/* ---- kit building blocks (offline, 44.1 kHz) ---- */
+const KSR = 44100;
+function kbuf(T){ return new Float32Array(Math.max(1, Math.floor(T * KSR))); }
+function knorm(d, pk = .9){ let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i])); const g = m ? pk / m : 1, f = Math.min(220, d.length); for (let i = 0; i < d.length; i++) d[i] *= g * (i > d.length - f ? (d.length - i) / f : 1); return d; }
+let kseed = 1;
+const krnd = () => ((kseed = (kseed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+// bridged-T style resonator: a decaying 2-pole ring whose frequency can move (pitch sweeps), struck by an impulse
+function ring(d, f0, fEnd, sweepTau, decay, amp = 1, startT = 0){
+  let y1 = 0, y2 = 0; const n0 = Math.floor(startT * KSR);
+  for (let i = n0; i < d.length; i++){
+    const t = (i - n0) / KSR, f = fEnd + (f0 - fEnd) * Math.exp(-t / sweepTau), w = 2 * Math.PI * f / KSR, r = Math.exp(-1 / (decay * KSR));
+    const x = i === n0 ? amp * Math.sin(w) * 1.5 : 0, y = 2 * r * Math.cos(w) * y1 - r * r * y2 + x;
+    y2 = y1; y1 = y; d[i] += y;
+  }
+}
+// oscillator with pitch envelope (VCO-style), wave 'sin' | 'tri' | 'sq'
+function vco(d, f0, fEnd, sweepTau, decay, amp = 1, wave = 'sin', attack = 0){
+  let ph = 0;
+  for (let i = 0; i < d.length; i++){
+    const t = i / KSR, f = fEnd + (f0 - fEnd) * Math.exp(-t / sweepTau); ph += f / KSR;
+    const p = ph % 1, v = wave === 'tri' ? 1 - 4 * Math.abs(p - .5) : wave === 'sq' ? (p < .5 ? 1 : -1) : Math.sin(2 * Math.PI * p);
+    d[i] += v * amp * Math.exp(-t / decay) * (attack ? Math.min(1, t / attack) : 1);
+  }
+}
+// filtered noise with an envelope function
+function noise(d, envFn, lpHz, hpHz, amp = 1, bpQ = 0){
+  let lp = 0, lp2 = 0, hp = 0, xp = 0, b1 = 0, b2 = 0;
+  const al = 1 - Math.exp(-2 * Math.PI * lpHz / KSR), ah = Math.exp(-2 * Math.PI * hpHz / KSR);
+  const w = 2 * Math.PI * lpHz / KSR, rq = bpQ ? Math.exp(-w / (2 * bpQ)) : 0;
+  for (let i = 0; i < d.length; i++){
+    let x = krnd();
+    if (bpQ){ const y = (1 - rq) * x + 2 * rq * Math.cos(w) * b1 - rq * rq * b2; b2 = b1; b1 = y; x = y * 2; }
+    else { lp += al * (x - lp); lp2 += al * (lp - lp2); x = lp2; }
+    if (hpHz){ const h = ah * (hp + x - xp); xp = x; hp = h; x = h; }
+    d[i] += x * amp * envFn(i / KSR);
+  }
+}
+// metallic source: six detuned square waves (Schmitt-trigger oscillators) through a band filter
+function metal(d, freqs, envFn, hpHz, amp = 1, nz = 0){
+  const ph = freqs.map(() => Math.random()); let hp1 = 0, x1 = 0, hp2 = 0, x2 = 0; const a = Math.exp(-2 * Math.PI * hpHz / KSR);
+  for (let i = 0; i < d.length; i++){
+    let s = 0; for (let k = 0; k < freqs.length; k++){ ph[k] += freqs[k] / KSR; s += (ph[k] % 1) < .5 ? 1 : -1; }
+    s = s / freqs.length + nz * krnd();
+    const h1 = a * (hp1 + s - x1); x1 = s; hp1 = h1; const h2 = a * (hp2 + h1 - x2); x2 = h1; hp2 = h2;
+    d[i] += h2 * amp * envFn(i / KSR);
+  }
+}
+// modal body (acoustic drums and percussion for the sample-based machines)
+function modes(d, list, drop = 0, dropTau = .02, amp = 1){
+  for (const [f, a, dec] of list){ const ph0 = Math.random() * .2; let ph = ph0;
+    for (let i = 0; i < d.length; i++){ const t = i / KSR; ph += f * (1 + drop * Math.exp(-t / dropTau)) / KSR; d[i] += Math.sin(2 * Math.PI * ph) * a * amp * Math.exp(-t / dec); } }
+}
+function sweepLP(d, rest, peak, hold, tau){
+  const z = [0, 0, 0, 0];
+  for (let i = 0; i < d.length; i++){ const t = i / KSR, f = t < hold ? peak : rest + (peak - rest) * Math.exp(-(t - hold) / tau), a = 1 - Math.exp(-2 * Math.PI * Math.min(f, 20000) / KSR);
+    let x = d[i]; for (let k = 0; k < 4; k++){ z[k] += a * (x - z[k]); x = z[k]; } d[i] = x; }
+  return d;
+}
+const expE = tau => t => Math.exp(-t / tau);
+const lpf1 = (d, hz) => { const a = 1 - Math.exp(-2 * Math.PI * hz / KSR); let y = 0; for (let i = 0; i < d.length; i++){ y += a * (d[i] - y); d[i] = y; } return d; };
+const hpf1 = (d, hz) => { const a = Math.exp(-2 * Math.PI * hz / KSR); let y = 0, xp = 0; for (let i = 0; i < d.length; i++){ y = a * (y + d[i] - xp); xp = d[i]; d[i] = y; } return d; };
+const shape = (d, k) => { const n = Math.tanh(k); for (let i = 0; i < d.length; i++) d[i] = Math.tanh(d[i] * k) / n; return d; };
+// sample-playback converter chain: sample-and-hold at the machine's clock, quantizer, analog output filter
+const MU = (x, mu) => Math.sign(x) * Math.log1p(mu * Math.abs(x)) / Math.log1p(mu), IMU = (y, mu) => Math.sign(y) * (Math.pow(1 + mu, Math.abs(y)) - 1) / mu;
+function dac(d, {rate, bits, mu = 0, lp = 0, poles = 2}){
+  const q = Math.pow(2, bits - 1); let held = 0, ph = 1;
+  const out = new Float32Array(d.length);
+  for (let i = 0; i < d.length; i++){
+    ph += rate / KSR;
+    if (ph >= 1){ ph -= 1; let x = Math.max(-1, Math.min(1, d[i])); held = mu ? IMU(Math.round(MU(x, mu) * q) / q, mu) : Math.round(x * q) / q; }
+    out[i] = held;
+  }
+  if (lp) for (let k = 0; k < poles; k++) lpf1(out, lp);
+  return out;
+}
+
+/* ---- TR-909 ---- */
+function tr909(v){
+  kseed = 909 + v.length * 31 + v.charCodeAt(0);
+  const acc = /A$/.test(v) ? 1.25 : 1, base = v.replace(/A$/, '');
+  let d;
+  switch (base){
+    case 'bd': case 'bdl': case 'bdh': {
+      // VCO (triangle shaped toward sine) with a fast pitch drop; attack = pulse + noise click; decay from the DECAY pot
+      const dec = base === 'bdl' ? .55 : .28; d = kbuf(base === 'bdl' ? 1.4 : .8);
+      vco(d, 260, 52, base === 'bdl' ? .07 : .045, dec, 1, 'tri'); shape(d, 1.8);
+      const click = kbuf(.01); noise(click, expE(.0015), 9000, 0, .6); vco(click, 1100, 1100, 1, .0012, base === 'bdh' ? 1.2 : .6, 'sq');
+      for (let i = 0; i < click.length; i++) d[i] += click[i] * acc;
+      hpf1(d, 18); break; }
+    case 'sd': case 'sds': case 'sdt': {
+      // two triangle VCOs with a pitch dip, plus noise through the SNAPPY low-pass/high-pass
+      const tn = base === 'sdt' ? 1.15 : 1, sn = base === 'sds' ? 1.6 : 1; d = kbuf(.45);
+      vco(d, 238 * tn, 180 * tn, .012, .07, .7, 'tri'); vco(d, 420 * tn, 330 * tn, .01, .05, .45, 'tri');
+      noise(d, t => (t < .024 ? 1 : Math.exp(-(t - .024) / (.045 * sn))) * (t < .002 ? t / .002 : 1), 7600, 900, .55 * sn);
+      shape(d, 1.3); break; }
+    case 'lt': case 'mt': case 'ht': {
+      const f = {lt:92, mt:128, ht:170}[base]; d = kbuf(.9);
+      vco(d, f * 1.55, f, .05, .24, 1, 'tri'); vco(d, f * 1.5 * 1.55, f * 1.5, .05, .18, .25, 'tri');
+      noise(d, expE(.012), 2400, 0, .25); shape(d, 1.4); break; }
+    case 'rs': d = kbuf(.08); ring(d, 1700, 1700, 1, .009, .9); ring(d, 480, 480, 1, .014, .7); ring(d, 220, 220, 1, .02, .3); noise(d, expE(.002), 6000, 2000, .25); break;
+    case 'hc': {
+      // noise through a 1 kHz band-pass: three fast sawtooth retriggers, then the longer "reverb" tail
+      d = kbuf(.5); const e = t => (t < .033 ? Math.exp(-((t % .011)) / .0035) : 0) + (t > .03 ? .55 * Math.exp(-(t - .03) / .085) : 0);
+      noise(d, e, 1050, 0, acc, 2.2); hpf1(d, 400); break; }
+    case 'ch': case 'oh': case 'ride': case 'crash': {
+      // 6-bit PCM (the 909 cymbals and hats are samples), played through an analog VCA decay
+      const T = {ch:.12, oh:.9, ride:1.6, crash:2}[base]; d = kbuf(T);
+      if (base === 'ride') { metal(d, [347, 522, 715, 1040, 1355, 2080].map(f => f * 1.9), expE(.7), 2500, .7, .25); modes(d, [[3530, .12, .9], [5120, .08, .7]]); }
+      else if (base === 'crash') { metal(d, [263, 400, 421, 504, 588, 845].map(f => f * 3.1), expE(.8), 3500, .8, .6); noise(d, expE(.5), 12000, 4000, .4); }
+      else metal(d, [205.3, 304.4, 369.6, 522.7, 540, 800].map(f => f * 2.6), expE(base === 'ch' ? .4 : .5), 6500, .8, .45);
+      d = dac(knorm(d, 1), {rate:30000, bits:6, lp:12000});
+      const dec = {ch:.035, oh:.32, ride:.9, crash:1.1}[base];
+      for (let i = 0; i < d.length; i++) d[i] *= Math.exp(-i / KSR / dec);
+      hpf1(d, 3000); break; }
+  }
+  return {d:knorm(d, .9 * (acc > 1 ? 1 : .85)), sr:KSR};
+}
+
+/* ---- acoustic sources for the sample-playback machines (LinnDrum, DMX, TR-505) ----
+   These are not the original ROM recordings; they are modal/noise models of the same kinds of studio drums,
+   then played through each machine's own converter and filter chain. o = per-machine character */
+function acoustic(kind, o = {}){
+  const tune = o.tune || 1, room = o.room || 0; let d;
+  switch (kind){
+    case 'kick': d = kbuf(.6); modes(d, [[58 * tune, 1, .16], [97 * tune, .35, .07], [151 * tune, .15, .04]], .9, .012);
+      noise(d, expE(.004), 3500, 300, .45 * (o.beater || 1)); vco(d, 1800, 1800, 1, .0015, .3); shape(d, 1.2); break;
+    case 'snare': d = kbuf(.5); modes(d, [[185 * tune, .8, .05], [330 * tune, .45, .035], [470 * tune, .25, .025]], .25, .006);
+      noise(d, t => Math.exp(-t / (.11 + room * .1)), 9000, 1200, .8); break;
+    case 'snare2': d = kbuf(.4); modes(d, [[215 * tune, .7, .04], [390 * tune, .4, .03]], .3, .005); noise(d, expE(.07), 7000, 1800, .9); shape(d, 1.6); break;
+    case 'side': d = kbuf(.15); modes(d, [[420 * tune, .8, .025], [1250 * tune, .5, .012], [2300, .25, .008]]); noise(d, expE(.003), 8000, 1500, .3); break;
+    case 'chh': case 'ohh': { d = kbuf(kind === 'chh' ? .14 : .8); const dec = kind === 'chh' ? .035 : .35;
+      const parts = [3150, 3920, 4710, 5480, 6330, 7120, 8270, 9450, 10900].map((f, k) => [f * (1 + .013 * k), .3, dec * (1 - k * .05)]);
+      modes(d, parts); noise(d, expE(dec * .8), 13000, 6000, 1.1); break; }
+    case 'ride': d = kbuf(2); modes(d, [[365, .18, 1.2], [2970, .35, .9], [4120, .3, .8], [5460, .22, .6], [6810, .16, .5]]); noise(d, expE(.6), 12000, 5000, .35); noise(d, expE(.01), 9000, 3000, .6); break;
+    case 'crash': d = kbuf(2.4); modes(d, [[440, .15, .8], [1210, .2, .9], [2650, .25, 1], [3980, .25, .9], [5310, .2, .8]]); noise(d, t => Math.exp(-t / .75) * Math.min(1, t / .004), 14000, 2800, 1.3); break;
+    case 'tom': { d = kbuf(.9); const f = (o.f || 120) * tune; modes(d, [[f, 1, .28], [f * 1.59, .35, .14], [f * 2.14, .15, .08]], .18, .03); noise(d, expE(.006), 4000, 200, .3); break; }
+    case 'conga': { d = kbuf(.45); const f = (o.f || 330) * tune; modes(d, [[f, 1, .14], [f * 1.5, .3, .06], [f * 2.3, .15, .03]], .08, .01); noise(d, expE(.002), 6000, 1000, .3); break; }
+    case 'timbale': { d = kbuf(.6); const f = (o.f || 420) * tune; modes(d, [[f, 1, .2], [f * 1.53, .5, .14], [f * 2.4, .3, .1], [f * 3.6, .15, .07]]); noise(d, expE(.004), 9000, 2000, .4); break; }
+    case 'cowbell': { d = kbuf(.4); const f = (o.f || 560) * tune; modes(d, [[f, .9, .09], [f * 1.505, .7, .07], [f * 2.52, .25, .04]]); noise(d, expE(.003), 5000, 1500, .2); break; }
+    case 'clap': d = kbuf(.4); noise(d, t => (t < .03 ? Math.exp(-(t % .0095) / .003) : 0) + (t > .028 ? .7 * Math.exp(-(t - .028) / (.06 + room * .1)) : 0), 1200, 300, 1, 1.4); noise(d, t => t > .028 ? .25 * Math.exp(-(t - .028) / .05) : 0, 6000, 2000, 1); break;
+    case 'tamb': d = kbuf(.45); for (let k = 0; k < 3; k++) modes(d, [[6200 + k * 700, .15, .09], [8700 + k * 450, .12, .07]]); noise(d, t => Math.exp(-t / .1) * (1 + .6 * Math.sin(t * 2 * Math.PI * 24)), 14000, 5500, .9); break;
+    case 'cabasa': d = kbuf(.3); noise(d, t => Math.min(1, t / .015) * Math.exp(-t / .06), 12000, 4500, 1); break;
+    case 'shaker': d = kbuf(.25); noise(d, t => Math.min(1, t / .02) * Math.exp(-t / .05), 10000, 3500, 1); break;
+    case 'claves': d = kbuf(.2); modes(d, [[2480 * tune, 1, .05], [6600, .1, .01]]); break;
+  }
+  return d;
+}
+// LinnDrum LM-2: 8-bit samples through a companding (mu-law style) DAC, voice clock ~ 28 kHz, per-voice output filters
+function lm2(v){
+  kseed = 2000 + v.charCodeAt(0) * 7 + v.length;
+  const map = {bd:['kick', {tune:1.05, beater:1.3}], sd:['snare', {tune:1.05, room:.3}], ss:['side', {}], chh:['chh', {}], ohh:['ohh', {}], ride:['ride', {}], crash:['crash', {}],
+    t1:['tom', {f:96}], t2:['tom', {f:128}], t3:['tom', {f:170}], cg1:['conga', {f:250}], cg2:['conga', {f:340}], cab:['cabasa', {}], tamb:['tamb', {}], cb:['cowbell', {f:590}], clap:['clap', {room:.4}]};
+  const [k, o] = map[v]; let d = knorm(acoustic(k, o), 1);
+  const rate = /^(t|cg)/.test(v) ? 26000 : v === 'sd' || v === 'ss' ? 32000 : 30000;
+  d = dac(d, {rate, bits:8, mu:255, lp:15900, poles:1});
+  if (v === 'bd') sweepLP(d, 1400, 20000, .0056, .1);
+  if (/^(t|cg)/.test(v)) sweepLP(d, 650, 20000, .0056, .1);
+  if (v === 'chh' || v === 'ohh'){ const tau = v === 'chh' ? .05 : 1; for (let i = 0; i < d.length; i++){ const t = i / KSR; if (t > .0056) d[i] *= Math.exp(-(t - .0056) / tau); } }
+  return {d:knorm(d), sr:KSR};
+}
+// Oberheim DMX: 8-bit companded samples, ~ 25 kHz clock, fixed filters; punchier, shorter recordings
+function dmx(v){
+  kseed = 3000 + v.charCodeAt(0) * 11 + v.length;
+  const map = {bd:['kick', {tune:.95, beater:1.6}], sd:['snare2', {tune:1}], sd2:['snare', {tune:1.1, room:.6}], rim:['side', {tune:1.1}], chh:['chh', {}], ohh:['ohh', {}], hha:['chh', {}],
+    cym:['crash', {}], t1:['tom', {f:85}], t2:['tom', {f:110}], t3:['tom', {f:145}], t4:['tom', {f:190}], clap:['clap', {room:.2}], tamb:['tamb', {}], shk:['shaker', {}], ride:['ride', {}]};
+  const [k, o] = map[v]; let d = knorm(acoustic(k, o), 1);
+  if (v === 'hha') for (let i = 0; i < d.length; i++) d[i] *= 1.4;
+  const low = /^(bd|t\d|clap|shk)$/.test(v);
+  d = dac(d, {rate:low ? 30000 : 45000, bits:8, mu:255, lp:low ? 10000 : 16000, poles:6});
+  return {d:knorm(d), sr:KSR};
+}
+// TR-505: compact PCM (low bit depth, linear), fixed rate, bright band-limited sound
+function tr505(v){
+  kseed = 4000 + v.charCodeAt(0) * 13 + v.length;
+  const map = {bd:['kick', {tune:1.1, beater:1.4}], sd:['snare2', {tune:1.08}], lt:['tom', {f:115}], mt:['tom', {f:155}], ht:['tom', {f:205}], rim:['side', {tune:1.2}],
+    clap:['clap', {}], chh:['chh', {}], ohh:['ohh', {}], crash:['crash', {}], ride:['ride', {}], tl:['timbale', {f:400}], cgh:['conga', {f:420}], cbl:['cowbell', {f:480}], cbh:['cowbell', {f:680}], cgl:['conga', {f:300}]};
+  const [k, o] = map[v]; let d = knorm(acoustic(k, o), 1);
+  d = dac(d, {rate:25000, bits:8, lp:11000, poles:2});
+  return {d:knorm(d), sr:KSR};
+}
+
+// Boss DR-110 Dr. Rhythm Graphic: all analog; bridged-T bass and snare, noise-based hats/cymbal and clap
+function dr110(v){
+  kseed = 5000 + v.charCodeAt(0) * 17 + v.length;
+  const acc = /A$/.test(v) ? 1.3 : 1, b = v.replace(/A$/, ''); let d;
+  switch (b){
+    case 'bd': d = kbuf(.5); ring(d, 95, 62, .01, .13 * acc, 1); noise(d, expE(.0015), 3000, 0, .15 * acc); shape(d, 1.1 + .4 * (acc - 1)); break;
+    case 'sd': d = kbuf(.4); ring(d, 260, 230, .005, .03, .9); ring(d, 440, 440, 1, .02, .4); noise(d, expE(.1), 6500, 700, .9 * acc); break;
+    case 'chh': case 'ohh': case 'cym': {
+      // metal: square waves 305/444/794/1136 Hz + noise at 1/3, into the Low (3.45 kHz) and High (7.12 kHz) band-passes, Q ~6
+      const T = {chh:.3, ohh:1.8, cym:3}[b]; d = kbuf(T);
+      const lo = new Float32Array(d.length), hi = new Float32Array(d.length);
+      metal(lo, [305, 444, 794, 1136], () => 1, 0, 1, .33); hi.set(lo);
+      const bp = (x, f, q) => { const w = 2 * Math.PI * f / KSR, al = Math.sin(w) / (2 * q), a0 = 1 + al; let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        for (let i = 0; i < x.length; i++){ const y = (al * x[i] - al * x2 + 2 * Math.cos(w) * y1 - (1 - al) * y2) / a0; x2 = x1; x1 = x[i]; y2 = y1; y1 = y; x[i] = y; } };
+      bp(lo, 3450, 6.05); bp(hi, 7120, 6.05);
+      for (let i = 0; i < d.length; i++){ const t = i / KSR;
+        if (b === 'cym') d[i] = hi[i] * (Math.exp(-t / .06) * .6 + Math.exp(-t / .9) * .5) + lo[i] * Math.exp(-t / 1.4) * .5;
+        else d[i] = (hi[i] + lo[i] * .5) * Math.exp(-t / (b === 'chh' ? .08 : .7) * 2.3); }
+      hpf1(d, 2000); lpf1(lpf1(d, 12000), 12000); break; }
+    case 'clap': d = kbuf(1); noise(d, t => (t < .03 ? Math.exp(-(t % .01) / .003) : 0) + (t >= .03 && t < .17 ? Math.exp(-(t - .03) / .14) : 0) + (t > .03 ? .35 * Math.exp(-(t - .03) / .7) : 0), 910, 400, acc, 3); break;
+  }
+  if (acc > 1) shape(d, 1.8);          // the accent VCA drives into audible distortion
+  return {d:knorm(d, .9 * (acc > 1 ? 1 : .8)), sr:KSR};
+}
+// Simmons SDS-V: per channel a VCO with a falling pitch sweep (BEND), filtered noise, a CLICK pulse, and a VCF/VCA decay
+function simmons(v){
+  kseed = 6000 + v.charCodeAt(0) * 19 + v.length;
+  let d;
+  const tom = (f, bend, dec, nz = .15, click = .5) => { d = kbuf(dec * 4); vco(d, f * bend, f, dec * .9, dec, 1, 'tri'); shape(d, 1.6);
+    noise(d, expE(dec * .5), 3000, 150, nz); vco(d, 2200, 2200, 1, .0012, click, 'sq'); lpf1(d, 5000); };
+  switch (v){
+    case 'bd': d = kbuf(.7); vco(d, 140, 48, .04, .22, 1, 'sin'); vco(d, 2500, 2500, 1, .0015, .8, 'sq'); noise(d, expE(.005), 3000, 0, .2); shape(d, 1.6); break;
+    case 'bd2': d = kbuf(.9); vco(d, 90, 40, .08, .35, 1, 'tri'); vco(d, 1600, 1600, 1, .002, 1, 'sq'); shape(d, 2.2); break;
+    case 'sd': d = kbuf(.5); vco(d, 380, 210, .02, .07, .7, 'tri'); noise(d, expE(.12), 5000, 400, 1.1); vco(d, 3000, 3000, 1, .001, .6, 'sq'); break;
+    case 'sd2': d = kbuf(.6); vco(d, 300, 190, .03, .09, .5, 'tri'); noise(d, expE(.2), 3200, 300, 1.4); shape(d, 1.5); break;
+    case 't1': tom(260, 1.9, .28); break;
+    case 't2': tom(190, 1.9, .32); break;
+    case 't3': tom(140, 2, .38); break;
+    case 't4': tom(100, 2.1, .45); break;
+    case 't5': tom(72, 2.2, .55); break;
+    case 'tb': tom(120, 3.2, .7, .05, .8); break;                         // big bend
+    case 'tu': d = kbuf(.8); vco(d, 110, 240, .15, .3, 1, 'tri'); vco(d, 2000, 2000, 1, .001, .4, 'sq'); break;   // bend up
+    case 'tn': tom(150, 1.6, .35, .7); break;                              // noisy tom
+    case 'rim': d = kbuf(.12); vco(d, 900, 650, .006, .02, 1, 'tri'); vco(d, 3000, 3000, 1, .0015, .7, 'sq'); noise(d, expE(.01), 6000, 1500, .4); break;
+    case 'clap': d = kbuf(.35); noise(d, t => (t < .03 ? Math.exp(-(t % .01) / .003) : 0) + (t > .028 ? .5 * Math.exp(-(t - .028) / .08) : 0), 1500, 400, 1, 1.5); break;
+    case 'hh': d = kbuf(.15); noise(d, expE(.03), 12000, 6000, 1); break;
+    case 'cym': d = kbuf(1.4); noise(d, expE(.45), 10000, 3500, 1); break;
+  }
+  return {d:knorm(d), sr:KSR};
+}
+const KITS = {
+  pocket:{name:'Pocket Rack (original)'},
+  tr909:{name:'Roland TR-909', make:tr909, voices:[['Kick','bd'],['Snare','sd'],['Clap','hc'],['Rim','rs'],['C Hat','ch',1],['O Hat','oh',1],['Ride','ride'],['Crash','crash'],
+    ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Kick Long','bdl'],['Kick Accent','bdhA'],['Snare Snappy','sds'],['Snare Tight','sdt'],['Clap Accent','hcA']]},
+  tr505:{name:'Roland TR-505', make:tr505, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rim','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Ride','ride'],['Crash','crash'],
+    ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Lo Conga','cgl'],['Hi Conga','cgh'],['Timbale','tl'],['Lo Cowbell','cbl'],['Hi Cowbell','cbh']]},
+  lm2:{name:'LinnDrum LM-2', make:lm2, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Sidestick','ss'],['C Hat','chh',1],['O Hat','ohh',1],['Ride','ride'],['Crash','crash'],
+    ['Lo Tom','t1'],['Mid Tom','t2'],['Hi Tom','t3'],['Cowbell','cb'],['Lo Conga','cg1'],['Hi Conga','cg2'],['Cabasa','cab'],['Tambourine','tamb']]},
+  dmx:{name:'Oberheim DMX', make:dmx, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rimshot','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Hat Accent','hha',1],['Cymbal','cym'],
+    ['Tom 1','t4'],['Tom 2','t3'],['Tom 3','t2'],['Tom 4','t1'],['Snare 2','sd2'],['Tambourine','tamb'],['Shaker','shk'],['Ride','ride']]},
+  dr110:{name:'Boss DR-110', make:dr110, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Kick Accent','bdA'],['C Hat','chh',1],['O Hat','ohh',1],['Cymbal','cym'],['Snare Accent','sdA'],
+    ['Clap Accent','clapA'],['C Hat Acc','chhA',1],['O Hat Acc','ohhA',1],['Cymbal Acc','cymA'],['Kick 2','bd'],['Snare 2','sd'],['C Hat 2','chh',1],['Cymbal 2','cym']]},
+  sdsv:{name:'Simmons SDS-V', make:simmons, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rim','rim'],['Hat','hh'],['Snare 2','sd2'],['Cymbal','cym'],['Kick 2','bd2'],
+    ['Tom 1','t1'],['Tom 2','t2'],['Tom 3','t3'],['Tom 4','t4'],['Floor Tom','t5'],['Bend Tom','tb'],['Up Tom','tu'],['Noise Tom','tn']]}
+};
+
+/* ================= FX rack definitions ================= */
+const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx'];
+const msF = v => v >= 1000 ? (v / 1000).toFixed(2) + ' s' : (v < 10 ? v.toFixed(1) : Math.round(v)) + ' ms', pctF = v => Math.round(v * 100) + '%', hzF = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + ' Hz';
+const SYNC = [['free', 'Free (ms)'], ['0.25', '1/16'], ['0.5', '1/8'], ['0.75', 'Dotted 1/8'], ['1', '1/4'], ['1.5', 'Dotted 1/4'], ['2', '1/2'], ['0.333', '1/8 triplet']];
+const syncMs = s => s === 'free' ? 0 : +s * 60000 / S.bpm;
+const RACK = {
+  pt:{name:'Lexicon PrimeTime', sub:'Model 93 dual digital delay', short:'PrimeTime', proc:'primetime',
+    def:() => ({sync:'free', syncB:'free', mult:2, dA:180, dB:240, fbA:.3, fbB:0, hcut:6000, inv:0, vcoRate:.5, vcoDepth:0, mixA:1, mixB:.8, ret:.8}),
+    menus:[['A time', 'sync', SYNC], ['B time', 'syncB', SYNC], ['Multiply', 'mult', [[1, 'x1 (12 kHz)'], [2, 'x2 (6 kHz)'], [4, 'x4 (3 kHz)'], [8, 'x8 (1.5 kHz)']]], ['Recirc phase', 'inv', [[0, 'Normal'], [1, 'Inverted']]]],
+    knobs:[['Delay A', 'dA', 1, 1024, 1, msF, P => P.sync === 'free'], ['Delay B', 'dB', 1, 1024, 1, msF, P => P.syncB === 'free'], ['Recirc A', 'fbA', 0, .95, .01, pctF], ['Recirc B', 'fbB', 0, .95, .01, pctF],
+      ['High cut', 'hcut', 800, 15000, 50, hzF], ['VCO rate', 'vcoRate', .1, 20, .1, v => v.toFixed(1) + ' Hz'], ['VCO depth', 'vcoDepth', 0, 1, .01, pctF], ['Mix A', 'mixA', 0, 1, .01, pctF], ['Mix B', 'mixB', 0, 1, .01, pctF], ['Return', 'ret', 0, 1, .01, pctF]],
+    presets:{'Slapback':{dA:110, dB:125, fbA:.1, mult:1}, 'Sucker MC exit (dotted 1/8)':{sync:'0.75', syncB:'1.5', fbA:.55, fbB:.3, mult:4, hcut:3500}, 'Ping 1/8 + 1/4':{sync:'0.5', syncB:'1', fbA:.35, fbB:.35, mult:4},
+      'Flanger':{mult:1, dA:6, dB:8, fbA:.7, vcoRate:.25, vcoDepth:.8, mixB:0}, 'Chorus double':{mult:1, dA:22, dB:30, fbA:0, vcoRate:1.2, vcoDepth:.25}, 'Dub 1/4 wash':{sync:'1', syncB:'1.5', fbA:.75, fbB:.5, mult:8, hcut:1800}}},
+  ef:{name:'Deltalab Effectron', sub:'ADM 1024 slapback, Haas and flange', short:'Effectron', proc:'effectron',
+    def:() => ({range:'dbl', delay:22, regen:0, lfoRate:.5, width:0, grit:.4, pan:'haasR', ret:.8}),
+    menus:[['Range', 'range', [['fhi', 'Flange high (0.25-1 ms)'], ['fmid', 'Flange mid (1-4 ms)'], ['flo', 'Flange low (4-16 ms)'], ['dbl', 'Double (16-64 ms)'], ['short', 'Short echo (64-256 ms)'], ['long', 'Long echo (256-1024 ms)']]],
+      ['Pan', 'pan', [['center', 'Centre'], ['haasL', 'Haas Left'], ['haasR', 'Haas Right'], ['wide', 'Stereo sim (wide)']]]],
+    knobs:[['Delay', 'delay', .25, 1024, .25, msF], ['Regen', 'regen', -.95, .95, .01, v => (v < 0 ? '-' : '') + pctF(Math.abs(v))], ['LFO rate', 'lfoRate', .1, 10, .1, v => v.toFixed(1) + ' Hz'], ['Width', 'width', 0, 1, .01, pctF], ['ADM grit', 'grit', 0, 1, .01, pctF], ['Level', 'ret', 0, 1, .01, pctF]],
+    presets:{'Haas Right 22 ms':{range:'dbl', delay:22, pan:'haasR'}, 'Haas Left 15 ms':{range:'dbl', delay:15, pan:'haasL'}, 'Rock box split':{range:'dbl', delay:16, pan:'wide'},
+      'Slapback 110 ms':{range:'short', delay:110, pan:'center', regen:.15}, 'Jet flange':{range:'fmid', delay:3, width:.8, lfoRate:.2, regen:.75, pan:'center'}, 'Long gritty echo':{range:'long', delay:620, regen:.45, grit:.8, pan:'center'}}},
+  h9:{name:'Eventide H910', sub:'Harmonizer micro-pitch wings', short:'H910', proc:'h910',
+    def:() => ({cents:9, dL:15, dR:25, spread:.8, fb:0, wings:.7, splice:'raw', ret:.8}),
+    menus:[['Splice', 'splice', [['raw', 'Raw (H910 glitch)'], ['smooth', 'Smooth (H949 de-glitch)']]]],
+    knobs:[['Wings', 'wings', 0, 1, .01, pctF], ['Detune', 'cents', 0, 50, .5, v => '±' + v.toFixed(1) + ' c'], ['L delay', 'dL', 0, 112.5, .5, msF], ['R delay', 'dR', 0, 112.5, .5, msF], ['Spread', 'spread', 0, 1, .01, pctF], ['Feedback', 'fb', 0, 1.1, .01, pctF], ['Return', 'ret', 0, 1, .01, pctF]],
+    presets:{'Def Jam wall (+9/-9, 15/25 ms)':{cents:9, dL:15, dR:25, spread:.85}, 'Rock box lead wings':{cents:12, dL:11, dR:19, spread:.5}, 'Wide doubler':{cents:6, dL:30, dR:45, spread:1, splice:'smooth'},
+      'Thick octave-free chorus':{cents:17, dL:7.5, dR:7.5, spread:1}, 'Feedback spiral':{cents:30, dL:60, dR:90, fb:.75}}},
+  mx:{name:'MXR 113', sub:'Digital delay, ghost repeats', short:'MXR 113', proc:'mxr113',
+    def:() => ({bw:10000, sync:'free', delay:180, regen:.35, lfoRate:.3, lfoDepth:0, inv:0, ret:.8}),
+    menus:[['Bandwidth', 'bw', [[20000, '20 kHz (to 160 ms)'], [10000, '10 kHz (to 320 ms)'], [5000, '5 kHz (to 640 ms)'], [2500, '2.5 kHz (to 1.28 s)']]], ['Time', 'sync', SYNC], ['Mix phase', 'inv', [[0, 'Normal'], [1, 'Inverted']]]],
+    knobs:[['Delay', 'delay', 1, 1280, 1, msF, P => P.sync === 'free'], ['Regen', 'regen', 0, 1.02, .01, pctF], ['Sweep rate', 'lfoRate', .05, 10, .05, v => v.toFixed(2) + ' Hz'], ['Sweep depth', 'lfoDepth', 0, 1, .01, pctF], ['Level', 'ret', 0, 1, .01, pctF]],
+    presets:{'Ghost repeats':{bw:5000, sync:'0.5', regen:.45}, 'Clean slap':{bw:20000, delay:95, regen:.1}, 'Dark tape-like 1/4':{bw:2500, sync:'1', regen:.6}, 'Hold and spin':{bw:5000, delay:400, regen:1, lfoDepth:.15, lfoRate:.2}}},
+  lx:{name:'Lexicon 224 / AMS RMX16', sub:'Plate or non-lin', short:'224 / RMX16', proc:'verb224',
+    def:() => ({prog:'vplate', size:.45, pre:20, treble:.6, ret:.8}),
+    menus:[['Program', 'prog', [['vplate', 'Lexicon 224 Vocal Plate'], ['pplate', 'Lexicon 224 Percussion Plate'], ['hall', 'Lexicon 224 Concert Hall'], ['room', 'Lexicon 224 Room'], ['chamber', 'Lexicon 224 Chamber'],
+      ['rplate', 'AMS RMX16 Plate A1'], ['rhall', 'AMS RMX16 Hall C1'], ['ambience', 'AMS RMX16 Ambience'], ['nonlin', 'AMS RMX16 Nonlin 2'], ['reverse', 'AMS RMX16 Reverse 1']]]],
+    knobs:[['Size', 'size', 0, 1, .01, pctF], ['Pre-delay', 'pre', 0, 250, 1, msF], ['Treble', 'treble', 0, 1, .01, pctF], ['Return', 'ret', 0, 1, .01, pctF]],
+    presets:{'Vocal plate':{prog:'vplate', size:.45, pre:25}, 'Snare plate':{prog:'pplate', size:.35, pre:5}, 'Gated snare (Nonlin 2)':{prog:'nonlin', size:.4, pre:0}, 'Reverse build':{prog:'reverse', size:.6, pre:0},
+      'Big hall':{prog:'hall', size:.7, pre:40, treble:.5}, 'Tight ambience':{prog:'ambience', size:.3, pre:0, treble:.8}}}
+};
+// what each worklet receives: tempo-synced times resolved to ms
+function rackState(k){ S.rack = S.rack || {}; const P = S.rack[k] || (S.rack[k] = {}), d = RACK[k].def(); for (const x in d) if (P[x] == null) P[x] = d[x]; return P; }
+function rackCfg(k){
+  const P = Object.assign({}, rackState(k));
+  if (k === 'pt'){
+    if (P.sync !== 'free') P.dA = syncMs(P.sync); if (P.syncB !== 'free') P.dB = syncMs(P.syncB);
+    const need = Math.max(P.dA, P.dB); if (need > 128 * P.mult) P.mult = [1, 2, 4, 8].find(m => 128 * m >= need) || 8;
+    P.dA = Math.min(P.dA, 128 * P.mult); P.dB = Math.min(P.dB, 128 * P.mult);
+  }
+  if (k === 'mx'){ if (P.sync !== 'free') P.delay = syncMs(P.sync); P.delay = Math.min(P.delay, 160 * 20000 / P.bw); }
+  if (k === 'ef'){ const r = {fhi:[.25, 1], fmid:[1, 4], flo:[4, 16], dbl:[16, 64], short:[64, 256], long:[256, 1024]}[P.range]; P.delay = S.rack.ef.delay = clamp(P.delay, r[0], r[1]); }
+  return P;
+}
+
+
+/* ================= drum machine kits ================= */
+// sample keys: 'kit:<kind>' for the original kit, 'kit:<machine>:<voice>' for the machines (built on first use)
+function kitVoices(id){
+  if (!id || id === 'pocket' || !KITS[id]) return KIT.map(([name, kind]) => ({name, key:'kit:' + kind, choke:(kind === 'chh' || kind === 'ohh') ? 1 : 0}));
+  return KITS[id].voices.map(([name, v, choke]) => ({name, key:'kit:' + id + ':' + v, choke:choke || 0}));
+}
+function ensureKitBuf(key){
+  if (!key || buffers.has(key) || !key.startsWith('kit:')) return;
+  const [, id, v] = key.split(':'); if (!v || !KITS[id]) return;
+  const out = KITS[id].make(v);
+  if (out) buffers.set(key, makeBuffer([out.d], out.sr));
+}
+function loadKit(id){
+  const vs = kitVoices(id), pads = S.drum.pads;
+  const own = pads.some(p => !p.sample.startsWith('kit:'));
+  const keepOwn = own && !confirm('Some pads have your own samples. Replace those with the kit too?\n\nOK replaces them. Cancel keeps them.');
+  pads.forEach((p, i) => {
+    if (keepOwn && !p.sample.startsWith('kit:')) return;
+    dropAudio(p.sample); p.sample = vs[i].key; p.name = vs[i].name; p.choke = vs[i].choke; ensureKitBuf(vs[i].key);
+  });
+  S.drum.kit = id;
+  save(); renderPads(); renderPadEditor(); toast(KITS[id] ? KITS[id].name + ' loaded' : 'Kit loaded');
+}
 
 /* ================= audio engine ================= */
 let ctx = null, live = null, capNode = null, inSrc = null, inStream = null, inAn = null, monGain = null, monSplit = null;
@@ -876,14 +1244,33 @@ function makeMaster(c){
   m.revIn.connect(m.conv).connect(m.revRet).connect(m.bus);
   m.dlyIn = c.createGain(); m.dly = c.createDelay(5); m.fb = c.createGain(); m.tone = c.createBiquadFilter(); m.tone.type = 'lowpass'; m.tone.frequency.value = 3800;
   m.dlyIn.connect(m.dly); m.dly.connect(m.tone); m.tone.connect(m.fb).connect(m.dly); m.tone.connect(m.bus);
+  m.rk = {}; for (const k of RACK_KEYS){ m.rk[k] = {in:c.createGain(), ret:c.createGain(), node:null, wired:false}; m.rk[k].ret.connect(m.bus); }
+  rackNodes(c, m);
   m.bus.connect(m.glue).connect(m.glueMk).connect(m.glueWet).connect(m.lim);
   m.bus.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out);
   m.out.connect(m.an); m.out.connect(c.destination);
   applyMaster(c, m);
   return m;
 }
+// FX rack: one send-return per unit; each unit's worklet idles when nothing is sent to it
+function rackNodes(c, m){
+  if (!c._reduxOK) return;
+  for (const k of RACK_KEYS){
+    const u = m.rk[k]; if (u.node) continue;
+    u.node = new AudioWorkletNode(c, RACK[k].proc, {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:rackCfg(k)}});
+    u.in.connect(u.node).connect(u.ret); u.sent = null;
+  }
+}
+function applyRack(c, m){
+  for (const k of RACK_KEYS){
+    const u = m.rk[k], cfg = rackCfg(k);
+    sp(c, u.ret.gain, 1);
+    if (u.node){ const j = JSON.stringify(cfg); if (u.sent !== j){ u.node.port.postMessage({type:'cfg', cfg}); u.sent = j; } }
+  }
+}
 function applyMaster(c, m){
   const M = S.master;
+  applyRack(c, m);
   sp(c, m.glue.threshold, -30 * M.glue); sp(c, m.glue.ratio, 1 + 5 * M.glue); sp(c, m.glueMk.gain, Math.pow(10, M.glue * 8 / 20));
   sp(c, m.glueWet.gain, M.glue > 0 ? 1 : 0); sp(c, m.glueDry.gain, M.glue > 0 ? 0 : 1);
   sp(c, m.out.gain, M.vol * M.vol * 1.2);
@@ -946,6 +1333,7 @@ function makeStrip(c, m){
   s.mk = c.createGain(); s.compDry = c.createGain(); s.pan = c.createStereoPanner(); s.fader = c.createGain(); s.mute = c.createGain();
   s.an = c.createAnalyser(); s.an.fftSize = 512;
   s.sa = c.createGain(); s.sb = c.createGain();
+  s.rs = {}; s.rsOn = {}; for (const k of RACK_KEYS){ s.rs[k] = c.createGain(); s.rs[k].gain.value = 0; s.rs[k].connect(m.rk[k].in); }
   s.vocIn = c.createGain(); s.vocOut = c.createGain(); s.vocIn.connect(s.vocOut);
   s.input.connect(s.vocIn); s.sat.connect(s.satOut);
   s.low.connect(s.mid).connect(s.high);
@@ -967,6 +1355,11 @@ function applyStrip(c, s, t){
   sp(c, s.pan.pan, t.pan); sp(c, s.fader.gain, t.vol * t.vol * 1.4);
   const on = !t.mute && (!anySolo() || t.solo);
   sp(c, s.mute.gain, on ? 1 : 0); sp(c, s.sa.gain, t.sendA); sp(c, s.sb.gain, t.sendB);
+  for (const k of RACK_KEYS){
+    const v = (t.rack && t.rack[k]) || 0;
+    if (v > 0 && !s.rsOn[k]){ s.mute.connect(s.rs[k]); s.rsOn[k] = true; } else if (!v && s.rsOn[k]){ s.mute.disconnect(s.rs[k]); s.rsOn[k] = false; }
+    sp(c, s.rs[k].gain, v);
+  }
   const sat = t.sat || 0;
   if (s._sat !== sat){ s.sat.curve = satCurve(sat); s._sat = sat; }
   sp(c, s.satOut.gain, 1 / (1 + sat * .9));
@@ -1719,7 +2112,288 @@ class SVC350 extends AudioWorkletProcessor{
 registerProcessor('svc350', SVC350);
 `;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE], {type:'application/javascript'})));
+const RACK_CODE = String.raw`
+/* FX rack. Every unit: mono input (like the hardware), stereo output, and it stops processing once its input
+   has been silent for longer than its own tail. */
+class RackUnit extends AudioWorkletProcessor{
+  constructor(o){
+    super(); this.fs = sampleRate; this.c = Object.assign({}, (o && o.processorOptions && o.processorOptions.cfg) || {});
+    this.quiet = 1e12; this.asleep = true;
+    this.port.onmessage = e => { if (e.data.type === 'cfg'){ Object.assign(this.c, e.data.cfg); this.update(); } };
+  }
+  update(){}
+  tail(){ return 5; }
+  reset(){}
+  process(ins, outs){
+    const inp = ins[0], L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length;
+    const a = inp && inp.length ? inp[0] : null, b = inp && inp.length > 1 ? inp[1] : a;
+    let has = false; if (a) for (let i = 0; i < N; i++) if (a[i] !== 0 || b[i] !== 0){ has = true; break; }
+    if (has){ this.quiet = 0; if (this.asleep){ this.asleep = false; this.update(); } } else this.quiet += N;
+    if (this.quiet > this.tail() * this.fs){
+      if (!this.asleep){ this.asleep = true; this.reset(); }
+      L.fill(0); if (R !== L) R.fill(0); return true;
+    }
+    this.run(a, b, L, R, N);
+    return true;
+  }
+}
+// shared parts
+class DLine{
+  constructor(n){ let m = 1; while (m < n + 4) m <<= 1; this.b = new Float32Array(m); this.m = m - 1; this.w = 0; }
+  push(x){ this.b[this.w = (this.w + 1) & this.m] = x; }
+  at(d){ return this.b[(this.w - d) & this.m]; }                     // integer delay, d >= 0
+  lerp(d){ const i = Math.floor(d), f = d - i, a = this.b[(this.w - i) & this.m], b = this.b[(this.w - i - 1) & this.m]; return a + (b - a) * f; }
+  clear(){ this.b.fill(0); }
+}
+const bq = {
+  lp(fs, f, q){ const w = 2 * Math.PI * Math.min(f, fs * .45) / fs, al = Math.sin(w) / (2 * q), cw = Math.cos(w), a0 = 1 + al; return {b0:(1 - cw) / 2 / a0, b1:(1 - cw) / a0, b2:(1 - cw) / 2 / a0, a1:-2 * cw / a0, a2:(1 - al) / a0, z1:0, z2:0}; },
+  hp(fs, f, q){ const w = 2 * Math.PI * Math.min(f, fs * .45) / fs, al = Math.sin(w) / (2 * q), cw = Math.cos(w), a0 = 1 + al; return {b0:(1 + cw) / 2 / a0, b1:-(1 + cw) / a0, b2:(1 + cw) / 2 / a0, a1:-2 * cw / a0, a2:(1 - al) / a0, z1:0, z2:0}; },
+  run(q, x){ const y = q.b0 * x + q.z1; q.z1 = q.b1 * x - q.a1 * y + q.z2; q.z2 = q.b2 * x - q.a2 * y; return y; }
+};
+const sat = x => x > 3 ? 1 : x < -3 ? -1 : x * (27 + x * x) / (27 + 9 * x * x);
+
+/* Lexicon 224 / AMS RMX16.
+   224 plate/hall/room: the Griesinger-style figure-eight tank (input diffusers, two cross-coupled halves with a modulated
+   all-pass, damping and a second all-pass each, stereo taps all along both halves), as published by Dattorro (1997) from
+   Lexicon practice. Original rate 29.8 kHz, delays scaled to ours; band-limited and quantized like the 224's converters.
+   RMX16 Non-Lin 2 / Reverse / Ambience: diffused input into a dense multi-tap line whose envelope is set by the program
+   (flat then cut off, rising then cut off, or a fast exponential), like the RMX16's tap-gain programs. */
+class Verb224 extends RackUnit{
+  constructor(o){
+    super(o); const fs = this.fs, sc = fs / 29761; this.sc = sc;
+    const D = n => new DLine(Math.ceil(n * sc * 1.6) + 64);
+    this.pre = new DLine(Math.ceil(fs * .26));
+    this.ind = [142, 107, 379, 277].map(n => ({d:D(n), n}));
+    this.t = {apL:D(672 + 40), dL1:D(4453), apL2:D(1800), dL2:D(3720), apR:D(908 + 40), dR1:D(4217), apR2:D(2656), dR2:D(3163)};
+    this.bw = 0; this.dmL = 0; this.dmR = 0; this.lfo = 0; this.fbL = 0; this.fbR = 0;
+    this.taps = new DLine(Math.ceil(fs * 1.3)); this.tapSet = null;
+    this.inLp = bq.lp(fs, 8000, .54); this.inLp2 = bq.lp(fs, 8000, 1.3); this.outL = bq.lp(fs, 8000, .7); this.outR = bq.lp(fs, 8000, .7);
+    this.update();
+  }
+  reset(){ this.pre.clear(); this.ind.forEach(a => a.d.clear()); Object.values(this.t).forEach(d => d.clear()); this.taps.clear(); this.fbL = this.fbR = this.bw = this.dmL = this.dmR = 0; }
+  tail(){ const C = this.c; return (this.tapSet ? 1.4 : 1 + 2 * this.rt) + (C.pre || 0) / 1000; }
+  update(){
+    const C = this.c, fs = this.fs, P = C.prog || 'vplate', size = C.size == null ? .5 : C.size;
+    // 224 programs run at 20 kHz / 12 bit with ~8 kHz bandwidth; the RMX16 is 16 bit with 18 kHz bandwidth
+    const cfg = {vplate:{scale:1, rt:.6 + size * 5, dd1:.7, lex:1}, pplate:{scale:.8, rt:.4 + size * 3, dd1:.75, lex:1},
+      hall:{scale:1.35, rt:1 + size * 7, dd1:.6, lex:1}, room:{scale:.55, rt:.25 + size * 1.6, dd1:.6, lex:1}, chamber:{scale:.8, rt:.5 + size * 3, dd1:.65, lex:1},
+      rplate:{scale:.9, rt:.5 + size * 4.5, dd1:.7, lex:0}, rhall:{scale:1.3, rt:1 + size * 6, dd1:.62, lex:0}}[P] || null;
+    const bw = cfg && !cfg.lex || ['nonlin', 'reverse', 'ambience'].includes(P) ? 16000 : 8000;
+    for (const f of [this.inLp, this.inLp2, this.outL, this.outR]) Object.assign(f, bq.lp(fs, bw, .7), {z1:f.z1, z2:f.z2});
+    this.lex = cfg ? cfg.lex : 0;
+    // TREBLE DECAY: high-frequency damping inside the tank (1 = bright)
+    this.damp = .05 + (1 - (C.treble == null ? .6 : C.treble)) * .6;
+    if (cfg){
+      this.scale = cfg.scale; this.rt = cfg.rt;
+      const half = (672 + 4453 + 1800 + 3720) / 29761 * cfg.scale;
+      this.decay = Math.pow(10, -3 * half / cfg.rt); this.dd1 = cfg.dd1; this.dd2 = Math.max(.25, Math.min(.5, this.decay + .15));
+      this.tapSet = null;
+    } else {
+      // RMX16 tap programs: length from SIZE (Non-Lin 2 runs 100..600 ms)
+      const len = (P === 'ambience' ? .04 + size * .25 : .1 + size * .5) * fs, n = 96, taps = [];
+      let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < n; i++){
+        const x = (i + rnd() * .9) / n, d = Math.max(1, Math.floor(x * len));
+        const env = P === 'nonlin' ? (1 - .1 * x) * Math.min(1, (1 - x) * len / fs / .02) : P === 'reverse' ? x * x : Math.exp(-x * 5);
+        taps.push({d, gL:env * (rnd() - .5) * 2, gR:env * (rnd() - .5) * 2});
+      }
+      const norm = 1.4 / Math.sqrt(taps.reduce((s, t) => s + t.gL * t.gL, 0));
+      taps.forEach(t => { t.gL *= norm; t.gR *= norm; }); this.tapSet = taps; this.rt = len / fs;
+    }
+  }
+  ap(dl, n, g, x){ const v = dl.at(n); const w = x + g * v; dl.push(w); return v - g * w; }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, sc = this.sc * (this.scale || 1), preN = Math.max(0, Math.min(this.pre.m - 2, Math.round((C.pre || 0) / 1000 * fs)));
+    const ret = C.ret == null ? .8 : C.ret, t = this.t, taps = this.tapSet;
+    const n1 = 142 * this.sc, n2 = 107 * this.sc, n3 = 379 * this.sc, n4 = 277 * this.sc;
+    const dl1 = 4453 * sc, al2 = 1800 * sc, dl2 = 3720 * sc, dr1 = 4217 * sc, ar2 = 2656 * sc, dr2 = 3163 * sc, exc = 16 * this.sc;
+    const k = s => Math.round(s * sc);
+    for (let i = 0; i < N; i++){
+      let x = a ? (a[i] + b[i]) * .5 : 0;
+      // converters: 9.5 kHz anti-alias filter, 12-bit-ish quantizing
+      x = bq.run(this.inLp2, bq.run(this.inLp, x)); if (this.lex) x = Math.round(x * 2048) / 2048;
+      this.pre.push(x); x = this.pre.at(preN);
+      let yl = 0, yr = 0;
+      if (taps){
+        this.taps.push(this.ap(this.ind[1].d, n2, .75, this.ap(this.ind[0].d, n1, .75, x)));
+        for (let j = 0; j < taps.length; j++){ const v = this.taps.at(taps[j].d); yl += v * taps[j].gL; yr += v * taps[j].gR; }
+      } else {
+        this.bw += .7 * (x - this.bw);
+        let d = this.ap(this.ind[0].d, Math.round(n1), .75, this.bw); d = this.ap(this.ind[1].d, Math.round(n2), .75, d);
+        d = this.ap(this.ind[2].d, Math.round(n3), .625, d); d = this.ap(this.ind[3].d, Math.round(n4), .625, d);
+        this.lfo += 2 * Math.PI * 1 / fs; if (this.lfo > 6.2832) this.lfo -= 6.2832;
+        const mL = 672 * sc + exc * Math.sin(this.lfo), mR = 908 * sc + exc * Math.cos(this.lfo);
+        // left half
+        let u = d + this.fbR, v = t.apL.lerp(mL); let w = u + this.dd1 * v; t.apL.push(w); u = v - this.dd1 * w;
+        t.dL1.push(u); u = t.dL1.at(Math.round(dl1));
+        this.dmL += (1 - this.damp) * (u - this.dmL); u = this.dmL * this.decay;
+        u = this.ap(t.apL2, Math.round(al2), -this.dd2, u); t.dL2.push(u); const outL = t.dL2.at(Math.round(dl2)) * this.decay;
+        // right half
+        let r = d + this.fbL; v = t.apR.lerp(mR); w = r + this.dd1 * v; t.apR.push(w); r = v - this.dd1 * w;
+        t.dR1.push(r); r = t.dR1.at(Math.round(dr1));
+        this.dmR += (1 - this.damp) * (r - this.dmR); r = this.dmR * this.decay;
+        r = this.ap(t.apR2, Math.round(ar2), -this.dd2, r); t.dR2.push(r); const outR = t.dR2.at(Math.round(dr2)) * this.decay;
+        this.fbL = outL; this.fbR = outR;
+        yl = .6 * (t.dR1.at(k(266)) + t.dR1.at(k(2974)) - t.apR2.at(k(1913)) + t.dR2.at(k(1996)) - t.dL1.at(k(1990)) - t.apL2.at(k(187)) - t.dL2.at(k(1066)));
+        yr = .6 * (t.dL1.at(k(353)) + t.dL1.at(k(3627)) - t.apL2.at(k(1228)) + t.dL2.at(k(2673)) - t.dR1.at(k(2111)) - t.apR2.at(k(335)) - t.dR2.at(k(121)));
+      }
+      L[i] = bq.run(this.outL, yl) * ret; R[i] = bq.run(this.outR, yr) * ret;
+    }
+  }
+}
+registerProcessor('verb224', Verb224);
+// low-pass of n poles (pairs of biquads + an optional single pole), used as anti-alias and reconstruction filters
+class LPN{
+  constructor(fs, f, n, qs){ this.fs = fs; this.n = n; this.qs = qs; this.set(f); }
+  set(f){ if (f === this.f) return; this.f = f; const qs = this.qs || [.54, .65, 1.3]; this.b = []; for (let k = 0; k < Math.floor(this.n / 2); k++) this.b.push(bq.lp(this.fs, f, qs[k] || .707)); this.a = this.n % 2 ? 1 - Math.exp(-2 * Math.PI * Math.min(f, this.fs * .45) / this.fs) : 0; this.y = this.y || 0; }
+  run(x){ for (const q of this.b) x = bq.run(q, x); if (this.a){ this.y += this.a * (x - this.y); x = this.y; } return x; }
+}
+// sample-and-hold at the unit's own clock (it runs slower than ours on the long ranges)
+class Hold{ constructor(){ this.ph = 1; this.v = 0; } run(x, ratio){ this.ph += ratio; if (this.ph >= 1){ this.ph -= Math.floor(this.ph); this.v = x; } return this.v; } }
+const tailOf = (ms, fb) => Math.min(20, ms / 1000 * (fb > .01 ? Math.log(1e-4) / Math.log(Math.min(.98, Math.abs(fb))) : 1) + .3);
+
+/* Lexicon PrimeTime Model 93: two taps (A left, B right), each up to 128 ms x DELAY MULTIPLY (1, 2, 4, 8), and the
+   multiplier also sets the converter bandwidth (12 / 6 / 3 / 1.5 kHz, 30 dB/oct). VCO sweeps the clock over 2:1
+   (triangle, 0.1-20 Hz); recirculation through a 6 dB/oct low-pass (800 Hz-15 kHz), optionally inverted. */
+class PrimeTime extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.dl = new DLine(Math.ceil(fs * 2.1)); this.aa = new LPN(fs, 12000, 5); this.rc = new LPN(fs, 12000, 5); this.h = new Hold(); this.lfo = 0; this.fl = 0; this.yA = 0; this.yB = 0; this.update(); }
+  reset(){ this.dl.clear(); this.fl = this.yA = this.yB = 0; }
+  tail(){ const C = this.c; return tailOf(Math.max(C.dA || 0, C.dB || 0), Math.max(C.fbA || 0, C.fbB || 0)); }
+  update(){ const C = this.c, bw = 12000 / (C.mult || 1); this.aa.set(bw); this.rc.set(bw); }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, bw = 12000 / (C.mult || 1), clk = bw * 2.6 / fs, q = 2048;
+    const fa = 1 - Math.exp(-2 * Math.PI * (C.hcut || 6000) / fs), inv = C.inv ? -1 : 1, ret = C.ret == null ? .8 : C.ret;
+    for (let i = 0; i < N; i++){
+      // VCO: triangle on the clock, 2:1 range -> delay scales between 1 and 0.5
+      this.lfo += (C.vcoRate || .5) / fs; if (this.lfo >= 1) this.lfo -= 1;
+      const tri = 1 - 2 * Math.abs(2 * this.lfo - 1), k = 1 - .5 * (C.vcoDepth || 0) * (tri * .5 + .5);
+      const x = (a ? (a[i] + b[i]) * .5 : 0) + this.fl * inv;
+      let w = this.aa.run(x); w = this.h.run(w, clk); w = Math.round(sat(w) * q) / q;
+      this.dl.push(w);
+      this.yA = this.rc.run(this.dl.lerp(Math.max(1, (C.dA || 0) / 1000 * fs * k)));
+      const yB = this.dl.lerp(Math.max(1, (C.dB || 0) / 1000 * fs * k)); this.yB += (yB - this.yB) * .5;
+      this.fl += fa * (this.yA * (C.fbA || 0) + this.yB * (C.fbB || 0) - this.fl);
+      L[i] = this.yA * (C.mixA == null ? 1 : C.mixA) * ret; R[i] = this.yB * (C.mixB == null ? 1 : C.mixB) * ret;
+    }
+  }
+}
+registerProcessor('primetime', PrimeTime);
+
+/* Deltalab Effectron ADM 1024: 1-bit adaptive delta modulation with pre/de-emphasis. The bit clock (250 kHz-1 MHz,
+   swept by the LFO up to 5:1) sets the delay for each range's memory, so long delays run the coder slowly and get
+   gritty. Feedback (+ or - phase) through a 12 kHz low-pass. Output can sit centre, to one side (Haas) or as the
+   phase-shifted "stereo simulation" pair. */
+const EF_BITS = {fhi:256, fmid:1024, flo:4096, dbl:16384, short:65536, long:262144};
+class Effectron extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.dl = new DLine(Math.ceil(fs * 4.2)); this.est = 0; this.step = .001; this.hist = 0; this.acc = 0; this.lfo = 0; this.fb = 0;
+    this.pre = {x:0}; this.de = 0; this.rec = new LPN(fs, 15000, 4); this.fbl = 0; this.update(); }
+  reset(){ this.dl.clear(); this.est = this.fb = this.fbl = this.de = 0; this.step = .001; }
+  tail(){ const C = this.c; return tailOf(C.delay || 0, C.regen || 0) * 5; }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, bits = EF_BITS[C.range] || EF_BITS.dbl, ret = C.ret == null ? .8 : C.ret;
+    const fbA = 1 - Math.exp(-2 * Math.PI * 12000 / fs), grit = C.grit == null ? .5 : C.grit;
+    for (let i = 0; i < N; i++){
+      this.lfo += (C.lfoRate || .5) / fs; if (this.lfo >= 1) this.lfo -= 1;
+      const sweep = Math.pow(5, -(C.width || 0) * (.5 + .5 * Math.sin(2 * Math.PI * this.lfo)));
+      const dMs = Math.max(.25, (C.delay || 30) * sweep), clock = Math.min(1e6, bits / (dMs / 1000));
+      // pre-emphasis (+~10 dB above 3 kHz) into the delta coder
+      let x = (a ? (a[i] + b[i]) * .5 : 0) + this.fbl;
+      const pe = x + 2.2 * (x - this.pre.x); this.pre.x = x;
+      // ADM: one bit per clock tick, step grows on runs of 3 equal bits and shrinks otherwise; grit = slower syllabic recovery
+      this.acc += clock / fs; let sum = 0, n = 0;
+      const up = 1.35 + grit * .4, down = .9 - grit * .06, smin = 2e-4 * (1 + grit * 6);
+      while (this.acc >= 1){ this.acc -= 1;
+        const bit = pe >= this.est ? 1 : 0; this.hist = ((this.hist << 1) | bit) & 7;
+        this.step = (this.hist === 7 || this.hist === 0) ? Math.min(.3, this.step * up) : Math.max(smin, this.step * down);
+        this.est = this.est * .9998 + (bit ? this.step : -this.step); sum += this.est; n++; }
+      const dec = n ? sum / n : this.est;
+      // de-emphasis and the 15 kHz output filter, then the delay itself
+      this.de += (dec - this.de) * .31; this.dl.push(this.de);
+      const y = this.rec.run(this.dl.lerp(Math.max(1, dMs / 1000 * fs)));
+      this.fbl += fbA * (y * (C.regen || 0) - this.fbl);
+      const v = y * ret, m = C.pan || 'center';
+      if (m === 'haasL'){ L[i] = v; R[i] = 0; } else if (m === 'haasR'){ L[i] = 0; R[i] = v; } else if (m === 'wide'){ L[i] = v; R[i] = -v; } else { L[i] = v * .7; R[i] = v * .7; }
+    }
+  }
+}
+registerProcessor('effectron', Effectron);
+
+/* Eventide H910 Harmonizer: 11-bit delay memory between a 2:1 compressor and expander (it pumps), read at a different
+   rate than it is written; the read point sweeps a ~30 ms window and jumps back at the edge with no de-glitch (the
+   splice click). Two channels here, one shifted up and one down, for the classic doubled "wings". Up to 112.5 ms
+   delay each side; feedback goes past unity. SMOOTH splicing models the later de-glitched H949. */
+class H910 extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.dl = [new DLine(Math.ceil(fs * .2)), new DLine(Math.ceil(fs * .2))]; this.p = [0, 0]; this.fb = [0, 0]; this.env = 1e-3; this.envO = [1e-3, 1e-3]; this.lp = [new LPN(fs, 9000, 4), new LPN(fs, 9000, 4)]; this.update(); }
+  reset(){ this.dl.forEach(d => d.clear()); this.fb = [0, 0]; this.p = [0, 0]; }
+  tail(){ const C = this.c; return tailOf(Math.max(C.dL || 0, C.dR || 0) + 30, C.fb || 0); }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, W = .03 * fs, cents = C.cents == null ? 9 : C.cents, smooth = C.splice === 'smooth';
+    const ratio = [Math.pow(2, cents / 1200), Math.pow(2, -cents / 1200)], del = [(C.dL || 0) / 1000 * fs, (C.dR || 0) / 1000 * fs];
+    const sp = C.spread == null ? 1 : C.spread, ret = C.ret == null ? .8 : C.ret, q = 1024;
+    const atk = 1 - Math.exp(-1 / (.004 * fs)), rel = 1 - Math.exp(-1 / (.08 * fs));
+    const out = [0, 0];
+    for (let i = 0; i < N; i++){
+      const x0 = a ? (a[i] + b[i]) * .5 : 0;
+      for (let c = 0; c < 2; c++){
+        const x = x0 + this.fb[c] * (C.fb || 0);
+        // compressor (2:1) ahead of the converter
+        const ax = Math.abs(x); this.env += (ax > this.env ? atk : rel) * (ax - this.env);
+        const g = 1 / Math.sqrt(Math.max(this.env, 1e-4)) * .1;
+        this.dl[c].push(Math.round(sat(x * g) * q) / q);
+        // read point moves at (1 - ratio) per sample inside the window
+        this.p[c] += 1 - ratio[c]; if (this.p[c] < 0) this.p[c] += W; else if (this.p[c] >= W) this.p[c] -= W;
+        let y;
+        if (smooth){ const p2 = (this.p[c] + W / 2) % W, w1 = 1 - Math.abs(2 * this.p[c] / W - 1), w2 = 1 - w1;
+          y = this.dl[c].lerp(del[c] + this.p[c] + 2) * w1 + this.dl[c].lerp(del[c] + p2 + 2) * w2; }
+        else y = this.dl[c].lerp(del[c] + this.p[c] + 2);
+        y = this.lp[c].run(y);
+        // expander after the D/A (its own detector, slower: the pumping)
+        const ay = Math.abs(y); this.envO[c] += (ay > this.envO[c] ? atk * .5 : rel * .5) * (ay - this.envO[c]);
+        y *= Math.min(600, this.envO[c] * 141);
+        this.fb[c] = y; out[c] = y;
+      }
+      const l = out[0] * (.5 + .5 * sp) + out[1] * (.5 - .5 * sp), r = out[1] * (.5 + .5 * sp) + out[0] * (.5 - .5 * sp);
+      const wg = (C.wings == null ? .7 : C.wings) * ret; L[i] = l * wg; R[i] = r * wg;
+    }
+  }
+}
+registerProcessor('h910', H910);
+
+/* MXR Model 113: 10-bit subranging converter inside an NE571 2:1 compander with pre/de-emphasis and a limiter;
+   6-pole anti-alias and 4-pole reconstruction filters switched with the bandwidth range (20/10/5/2.5 kHz), which
+   also sets the maximum delay (160/320/640/1280 ms with four memory boards). LFO sweeps the clock 4:1. */
+class MXR113 extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.dl = new DLine(Math.ceil(fs * 1.35)); this.aa = new LPN(fs, 20000, 6, [.52, .71, 1.93]); this.rc = new LPN(fs, 20000, 4, [.54, 1.31]); this.h = new Hold();
+    this.env = 1e-3; this.envO = 1e-3; this.pe = 0; this.de = 0; this.fb = 0; this.lfo = 0; this.update(); }
+  reset(){ this.dl.clear(); this.fb = this.de = this.pe = 0; }
+  tail(){ const C = this.c; return tailOf(C.delay || 0, C.regen || 0); }
+  update(){ const bw = this.c.bw || 10000; this.aa.set(Math.min(bw, this.fs * .45)); this.rc.set(Math.min(bw, this.fs * .45)); }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, bw = C.bw || 10000, ret = C.ret == null ? .8 : C.ret, q = 512;
+    const atk = 1 - Math.exp(-1 / (.005 * fs)), rel = 1 - Math.exp(-1 / (.05 * fs)), clk = Math.min(1, bw * 2.5 / fs);
+    for (let i = 0; i < N; i++){
+      this.lfo += (C.lfoRate || .3) / fs; if (this.lfo >= 1) this.lfo -= 1;
+      const k = Math.pow(4, -(C.lfoDepth || 0) * (.5 + .5 * Math.sin(2 * Math.PI * this.lfo)));
+      let x = (a ? (a[i] + b[i]) * .5 : 0) + this.fb;
+      const p = x + 1.5 * (x - this.pe); this.pe = x; x = p;                      // pre-emphasis
+      const ax = Math.abs(x); this.env += (ax > this.env ? atk : rel) * (ax - this.env);
+      x = x / Math.sqrt(Math.max(this.env, 1e-4)) * .12;                          // NE571 compressor
+      x = Math.max(-.9, Math.min(.9, x));                                         // brick-wall limiter
+      x = this.aa.run(x); x = this.h.run(x, clk / k); x = Math.round(x * q) / q;   // 10-bit converter at the clock
+      this.dl.push(x);
+      let y = this.rc.run(this.dl.lerp(Math.max(1, (C.delay || 100) / 1000 * fs * k)));
+      const ay = Math.abs(y); this.envO += (ay > this.envO ? atk : rel) * (ay - this.envO);
+      y *= Math.min(300, this.envO * 70);                                          // expander
+      this.de += (y - this.de) * .4; y = this.de;                                 // de-emphasis
+      this.fb = y * (C.regen || 0);
+      const v = y * ret * (C.inv ? -1 : 1); L[i] = v; R[i] = v;
+    }
+  }
+}
+registerProcessor('mxr113', MXR113);
+`;
+
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
 
 // audio buffer size is a per-phone setting, kept outside the project
 function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'balanced'; }
@@ -1735,6 +2409,7 @@ function ensureAudio(){
   workletReady = ctx.audioWorklet.addModule(workletUrl()).then(() => {
     ctx._reduxOK = true;
     live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
+    rackNodes(ctx, live.master); applyRack(ctx, live.master);
     applyVocoders(live);
     capNode = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
     capNode.port.onmessage = e => capChunks.push(e.data);
@@ -2550,6 +3225,12 @@ function renderPads(){
       box.appendChild(b);
     });
   }
+  const ks = $('#kitSel');
+  if (!ks.options.length){
+    ks.innerHTML = Object.entries(KITS).map(([id, k]) => `<option value="${id}">${k.name}</option>`).join('');
+    ks.addEventListener('change', () => loadKit(ks.value));
+  }
+  ks.value = S.drum.kit || 'pocket';
   box.querySelectorAll('.pad').forEach(b => {
     const p = S.drum.pads[b.dataset.i];
     b.querySelector('.nm').textContent = p.name;
@@ -2758,17 +3439,39 @@ function renderFx(){
   ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
   add('<span class="label">Sends</span>'); g = grid();
   ctl(g, 'Reverb', t, 'sendA', 0, 1, .01, pct, after); ctl(g, 'Delay', t, 'sendB', 0, 1, .01, pct, after);
+  add('<span class="label">Sends to the FX rack</span>'); g = grid();
+  t.rack = t.rack || {};
+  for (const k of RACK_KEYS){ if (t.rack[k] == null) t.rack[k] = 0; ctl(g, RACK[k].short, t.rack, k, 0, 1, .01, pct, after); }
   renderLanes(box, t);
   $('#autoBack').disabled = !S.autoOff.length;
 }
 
+// FX rack faceplates: each unit has a presets menu, its own menus and knobs
+function renderRack(){
+  const box = $('#rackCard'); if (!box) return; box.innerHTML = '<h2>FX rack</h2><p class="hint">Send any track to these units with its Sends to the FX rack sliders (tap FX on a mixer strip). Each unit returns into the master.</p>';
+  for (const k of RACK_KEYS){
+    const R = RACK[k], P = rackState(k), u = document.createElement('div');
+    u.className = 'unit u-' + k;
+    u.innerHTML = `<div class="uhead"><b>${R.name}</b><span>${R.sub}</span></div>`;
+    const g = document.createElement('div'); g.className = 'ctls'; g.id = 'rk-' + k;
+    const sel = (label, key, opts, fn) => {
+      const row = document.createElement('div'); row.className = 'ctl'; const id = 'rk-' + k + '-' + key;
+      row.innerHTML = `<label class="label" for="${id}">${label}</label><select id="${id}">${opts.map(([v, txt]) => `<option value="${v}">${txt}</option>`).join('')}</select>`;
+      const se = row.querySelector('select'); se.value = key ? String(P[key]) : ''; se.addEventListener('change', () => fn(se.value)); g.appendChild(row);
+    };
+    sel('Presets', '', [['', 'Choose…'], ...Object.keys(R.presets).map(n => [n, n])], v => { if (!v) return; Object.assign(P, R.def(), R.presets[v]); applyAll(); save(); renderRack(); });
+    for (const [label, key, opts] of R.menus || []) sel(label, key, opts, v => { P[key] = isNaN(+v) ? v : +v; applyAll(); save(); renderRack(); });
+    for (const [label, key, mn, mx, st, fmt, show] of R.knobs) if (!show || show(P)) ctl(g, label, P, key, mn, mx, st, fmt, () => applyAll());
+    u.appendChild(g); box.appendChild(u);
+  }
+}
 function setView(v){
   view = v;
   document.querySelectorAll('.view[id^="v-"]').forEach(s => s.hidden = s.id !== 'v-' + v);
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('cur', b.dataset.v === v));
   if (v === 'drums') seqDirty = true;
   if (v === 'audio') renderTracks();
-  if (v === 'mixer') renderMixer();
+  if (v === 'mixer'){ renderMixer(); renderRack(); }
   if (v === 'setup'){ renderInput(); renderMidi(); if (S.exp){ $('#expWhat').value = S.exp.what; $('#expFmt').value = S.exp.fmt; $('#expSr').value = S.exp.sr; } renderExport(); }
   if (v === 'chop') renderChop();
   if (v === 'song') renderSong();
@@ -3930,7 +4633,7 @@ $('#fileIn').addEventListener('change', async e => {
 });
 $('#sampleIn').addEventListener('click', toggleSampling);
 $('#spMode').addEventListener('click', () => { S.sp = !S.sp; save(); renderPadEditor(); auditionPad(selPad); toast(S.sp ? 'SP-1200 mode on. Pitch is limited to −16…+15 semitones, like the original.' : 'SP-1200 mode off.'); });
-$('#resetSample').addEventListener('click', () => { const p = S.drum.pads[selPad]; dropAudio(p.sample); p.sample = 'kit:' + KIT[selPad][1]; p.name = KIT[selPad][0]; save(); renderPads(); renderPadEditor(); auditionPad(selPad); });
+$('#resetSample').addEventListener('click', () => { const p = S.drum.pads[selPad]; dropAudio(p.sample); const v = kitVoices(S.drum.kit)[selPad]; p.sample = v.key; p.name = v.name; ensureKitBuf(v.key); save(); renderPads(); renderPadEditor(); auditionPad(selPad); });
 
 $('#enableIn').addEventListener('click', enableInput);
 $('#enableIn2').addEventListener('click', enableInput);
@@ -4028,6 +4731,7 @@ $('#helpSearch').addEventListener('input', e => {
       if (a) buffers.set(k, makeBuffer(a.ch, a.sr));
     }
     S.audio.forEach(t => { if (t.clip && !buffers.has(t.clip)) t.clip = null; });
+    S.drum.pads.forEach(p => ensureKitBuf(p.sample));
     S.drum.pads.forEach((p, i) => { if (!buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
