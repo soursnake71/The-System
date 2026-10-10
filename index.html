@@ -94,7 +94,7 @@ body.mlearn .marmed{outline:3px solid #fff !important}
 .piano .b.out{background:#121315}
 .piano .pk.root::before{content:"";position:absolute;bottom:22px;width:8px;height:8px;border-radius:50%;background:var(--accent,#ff9a3c)}
 .piano .pk.down{background:var(--accent,#ff9a3c) !important;color:#111}
-.kitrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px}
+.kitrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:10px}
 .pads{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pad{aspect-ratio:1;max-width:100%;border-radius:10px;background:linear-gradient(180deg,#2b303c,#20242d);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:7px;text-align:left;text-transform:none;letter-spacing:0;position:relative;overflow:hidden;touch-action:none}
 .pad .num{font:600 11px var(--f-mono);color:var(--dim)}
@@ -436,7 +436,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- DRUMS -->
   <section class="view" id="v-drums">
     <div class="scenebar" id="sceneBar" role="group" aria-label="Scenes"></div>
-    <div class="kitrow"><label class="label" for="kitSel">Kit</label><select id="kitSel"></select></div>
+    <div class="kitrow"><label class="label" for="kitSel">Kit</label><select id="kitSel"></select><button id="kitFiles">Load kit files</button></div>
+    <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
     <div class="pads" id="pads"></div>
     <div class="card">
       <div class="row perf">
@@ -756,6 +757,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Simmons SDS-V</b>: each voice is a triangle oscillator with a falling pitch bend that lasts as long as the decay, plus filtered noise and a click. You get five toms from high to floor, a big bend tom, a bend-up tom and a noisy tom.</li>
       </ul>
       <p>The sample-based machines (909 cymbals, TR-505, LinnDrum, DMX) don't contain the original factory recordings. Their sounds are modeled studio drums, put through each machine's own converter, bit depth, clock rate and filters, which is where most of each machine's character comes from. Pad Tune, Decay and SP-1200 mode all work on top of any kit.</p>
+      <p><b>Load kit files</b> (next to the Kit menu): to get the exact original sounds, pick a whole set of one-shots at once, for example your own TR-909, LinnDrum or DMX sample pack. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on, with "accent" files going to the accent pads). Files that match nothing fill the empty pads in order. Pick a kit from the menu first so the pad names line up.</p>
     </details>
 
     <details id="h-sp"><summary>SP-1200 mode</summary>
@@ -3637,6 +3639,53 @@ async function setPadBuffer(pi, buf, name){
   buffers.set(key, buf); await storeAudio(key, buf);
   p.sample = key; if (name) p.name = name.slice(0, 14);
   save(); renderPads(); renderPadEditor(); auditionPad(pi);
+}
+
+// load a whole folder of one-shots (e.g. your own TR-909 / LinnDrum / DMX sample pack): files are matched to pads by name
+const KIT_WORDS = [
+  [/accent|acc\b/i, null],
+  [/kick|bd|bass ?drum|bassdrum/i, 'Kick'], [/snare|sd\b|sn\b/i, 'Snare'], [/clap|hc\b|cp\b/i, 'Clap'],
+  [/side ?stick|sidestick|\bss\b/i, 'Sidestick'], [/rim/i, 'Rim'],
+  [/closed|c ?hat|chh|\bch\b|hh ?c|hihat ?cl|hat ?cl/i, 'C Hat'], [/open|o ?hat|ohh|\boh\b|hh ?o/i, 'O Hat'],
+  [/ride|rd\b/i, 'Ride'], [/crash|cym|cy\b/i, 'Crash'],
+  [/lo(w)? ?tom|lt\b|tom ?(1|lo)|floor/i, 'Lo Tom'], [/mid ?tom|mt\b|tom ?(2|mid)/i, 'Mid Tom'], [/hi(gh)? ?tom|ht\b|tom ?(3|hi)/i, 'Hi Tom'],
+  [/conga|cg/i, 'Conga'], [/cowbell|cb\b|bell/i, 'Cowbell'], [/tamb/i, 'Tamb'], [/cabasa|cab\b/i, 'Cabasa'], [/shak/i, 'Shaker'],
+  [/timbal/i, 'Timbale'], [/clave/i, 'Claves'], [/tom/i, 'Tom'], [/hat|hh/i, 'C Hat']
+];
+function kitSlotFor(fname, names, used){
+  const n = fname.replace(/\.[^.]+$/, '').replace(/[_\-.]+/g, ' ');
+  const acc = /accent|\bacc\b|\bhard\b/i.test(n);
+  for (const [re, label] of KIT_WORDS){
+    if (!label || !re.test(n)) continue;
+    const want = label.toLowerCase().split(' ').pop();
+    let best = -1;
+    names.forEach((nm, i) => { if (used.has(i)) return; const l = nm.toLowerCase();
+      if (!l.includes(want)) return;
+      if (label === 'C Hat' && !/c hat|chh|hat$/.test(l)) return;
+      if (label === 'O Hat' && !/o hat|open/.test(l)) return;
+      if (/^(lo|mid|hi) tom$/i.test(label) && !l.startsWith(label.toLowerCase().split(' ')[0])) return;
+      const isAcc = /accent/.test(l);
+      if (best < 0 || (isAcc === acc && /accent/.test(names[best].toLowerCase()) !== acc)) best = i; });
+    if (best >= 0) return best;
+  }
+  return -1;
+}
+async function loadKitFiles(files){
+  ensureAudio();
+  const list = [...files].filter(f => /\.(wav|aiff?|mp3|flac|ogg)$/i.test(f.name) || /^audio/.test(f.type)).sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+  if (!list.length){ toast('No audio files picked.'); return; }
+  const pads = S.drum.pads, names = pads.map(p => p.name), used = new Set(), plan = [], rest = [];
+  for (const f of list){ const i = kitSlotFor(f.name, names, used); if (i >= 0){ used.add(i); plan.push([i, f]); } else rest.push(f); }
+  for (const f of rest){ let i = 0; while (i < pads.length && used.has(i)) i++; if (i >= pads.length) break; used.add(i); plan.push([i, f]); }
+  let ok = 0;
+  for (const [i, f] of plan){
+    try { const buf = await ctx.decodeAudioData(await f.arrayBuffer()), p = pads[i], key = 'usr:' + i + ':' + Date.now() + ':' + ok;
+      dropAudio(p.sample); buffers.set(key, buf); await storeAudio(key, buf);
+      p.sample = key; p.name = f.name.replace(/\.[^.]+$/, '').slice(0, 14); p.choke = /open|close|hat|hh|chh|ohh/i.test(f.name) ? 1 : 0; ok++; }
+    catch (err){}
+  }
+  save(); renderPads(); renderPadEditor();
+  toast(ok + ' of ' + list.length + ' files loaded onto pads' + (list.length > pads.length ? ' (16 pads max)' : '') + '.');
 }
 
 /* ================= export ================= */
@@ -6574,6 +6623,8 @@ function renderSeqCtl(){
 $('#tapMs').addEventListener('input', e => { S.tapMs = +e.target.value; $('#tapV').textContent = S.tapMs + ' ms'; save(); });
 $('#swing').addEventListener('input', e => { S.swing = +e.target.value; $('#swingV').textContent = S.swing + '%'; save(); });
 $('#loadSample').addEventListener('click', () => $('#fileIn').click());
+$('#kitFiles').addEventListener('click', () => $('#kitFileIn').click());
+$('#kitFileIn').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) await loadKitFiles(fs); });
 $('#fileIn').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   ensureAudio();
