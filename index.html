@@ -353,6 +353,7 @@ html.retro .tt-row button:active{transform:translateY(2px);box-shadow:0 1px 0 #1
 html.retro .tt-row button.on{background:linear-gradient(180deg,#8d9196 0%,#f4f6f7 22%,#c6cacf 48%,#ffffff 62%,#9ea2a7 100%);color:#c4262a;text-shadow:0 0 4px #ff3b1f88}
 html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6px;margin:6px auto 0;border-radius:50%;background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
 #ttCut.on,html.retro #ttCut.on{background:linear-gradient(180deg,#f2683a,#d9461c);color:#fff}
+.tt-midi{border-top:1px solid #ffffff22;padding-top:10px;display:flex;flex-direction:column;gap:8px}
 </style>
 
 </head>
@@ -458,6 +459,12 @@ html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6p
       <div class="row"><button id="ttCut" class="grow" data-momentary="1">CUT (HOLD)</button><button id="ttCue" class="grow">TO CUE</button><button id="ttSetCue" class="grow">SET CUE</button></div>
       <div class="row"><button id="ttLoad" class="grow">LOAD RECORD</button><span class="badge" id="ttName">No record</span></div>
       <input type="file" id="ttFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <div class="tt-midi">
+        <div class="row"><span class="label grow">MIDI platter (Denon DN-S3700 or any jog wheel)</span><span class="badge" id="ttExtBadge">Off</span></div>
+        <div class="row"><button id="ttLearnPl" class="grow nolearn">LEARN PLATTER</button><button id="ttExtOn" class="grow nolearn">PLATTER CONTROL</button><button id="ttExtRev" class="nolearn">REV</button></div>
+        <div class="ctl"><label class="label" for="ttTpr">Steps / turn</label><input id="ttTpr" type="range" min="8" max="4096" step="1"><span class="v mono"></span></div>
+        <div class="status" id="ttExtStatus">Put the DN-S3700 in MIDI mode, connect it by USB, Connect MIDI in Setup, then tap Learn platter.</div>
+      </div>
       <p class="hint">Load a file onto the record, press Start, then put your finger on the record and push it back and forth to scratch. Hold Cut to chop the sound. To scratch from your MPC: Setup → MIDI learn, tap the platter, then turn a knob.</p>
     </div>
   </section>
@@ -851,6 +858,7 @@ html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6p
         <li><b>Start · Stop</b>: the motor gets to speed in about 0.7 s and brakes in about half that, like the real thing. <b>33</b> and <b>45</b> set the speed; <b>Pitch</b> is ±8 %.</li>
         <li><b>Scratch</b>: put your finger on the record and push it back and forth. Let go and the motor pulls it back to speed. <b>Cut</b> mutes the sound while you hold it, for chops and transforms. <b>Set cue</b> marks a spot and <b>To cue</b> jumps back to it.</li>
         <li><b>From your MPC</b>: Setup → MIDI learn, tap the platter, then turn a knob. That knob now scratches: turning it moves the record (full travel is two turns), and when it stops the motor takes over again. Map a pad to <b>Cut</b> and it works as a hold switch: pad down cuts, pad up opens. Start, 33/45 and Pitch can be mapped too.</li>
+        <li><b>MIDI platter</b> (Denon DN-S3700 or any jog wheel): put the DN-S3700 in MIDI mode, connect it by USB and choose it in Setup → MIDI. On the Wheel tab tap <b>Learn platter</b>, start the DN-S3700's platter (motor on, 33 RPM) and let it spin for 3 seconds. The app works out which message the platter sends and how many steps make one turn, then turns on <b>Platter control</b>: the record now follows your platter exactly, one real turn is one turn on screen, it stops when you stop it and scratches when you scratch it. <b>REV</b> flips the direction; <b>Steps / turn</b> fine-tunes the speed. Map the DN-S3700's Play, Cue and pitch with MIDI learn as usual.</li>
         <li>The deck plays into the master, so the master EQ and limiter apply.</li>
       </ul>
     </details>
@@ -2775,7 +2783,7 @@ class Deck extends AudioWorkletProcessor{
     const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length;
     if (!this.ch){ L.fill(0); if (R !== L) R.fill(0); return true; }
     const k = this.sr / sampleRate, want = this.motor ? this.speed * this.pitch * k : 0;
-    const acc = 1 - Math.exp(-1 / (.17 * sampleRate)), brk = 1 - Math.exp(-1 / (.09 * sampleRate)), fol = 1 - Math.exp(-1 / (.006 * sampleRate));
+    const acc = 1 - Math.exp(-1 / (.17 * sampleRate)), brk = 1 - Math.exp(-1 / (.09 * sampleRate)), fol = 1 - Math.exp(-1 / ((this.smooth || .006) * sampleRate));
     const a = this.ch[0], b = this.ch[1] || a, n = this.len;
     for (let i = 0; i < N; i++){
       if (this.hand){ this.t1 += (this.tgt - this.t1) * fol; const np = this.pos + (this.t1 - this.pos) * fol; this.rate = np - this.pos; this.pos = np; }
@@ -4019,7 +4027,7 @@ function deckEnsure(){
   return deck.node;
 }
 function deckSet(){ const D = deckState(); if (!deck.node) return;
-  deck.node.port.postMessage({type:'set', v:{motor:!!D.on, pitch:1 + D.pitch / 100, speed:D.speed === 45 ? 1.35 : 1, vol:D.vol}}); }
+  deck.node.port.postMessage({type:'set', v:{motor:!!D.on, pitch:1 + D.pitch / 100, speed:D.speed === 45 ? 1.35 : 1, vol:D.vol, smooth:D.ext && D.ext.on ? .014 : .006}}); }
 function deckSend(buf){ const ch = [...Array(Math.min(2, buf.numberOfChannels))].map((_, k) => buf.getChannelData(k).slice()); deck.node.port.postMessage({type:'load', ch, sr:buf.sampleRate}); }
 async function deckLoadSaved(){
   const D = deckState(); if (deck.buf || deck.loading || !D.name) return; deck.loading = true;
@@ -4106,6 +4114,58 @@ function renderDeck(){
   $('#ttName').textContent = D.name ? D.name.slice(0, 24) : 'No record';
   $('#tt33').classList.toggle('on', D.speed !== 45); $('#tt45').classList.toggle('on', D.speed === 45); $('#ttStart').classList.toggle('on', !!D.on);
   $('#ttPitch').value = D.pitch; $('#ttVol').value = D.vol;
+  renderPlat();
+}
+/* MIDI platter: the hardware platter drives the record. Learn listens for a few seconds while the platter spins with its
+   motor on at 33 1/3, finds the message (CC, note or pitch bend) and its encoding (relative around 64, two's complement,
+   or absolute position that wraps), and how many steps make one turn, so one real turn is one turn on screen. */
+const plat = {cap:null, last:null, timer:0};
+function platState(){ const D = deckState(); return D.ext = Object.assign({on:false, status:null, num:null, mode:'rel64', tpr:256, dir:1}, D.ext); }
+function platDecode(E, st, d){
+  const v = d[2];
+  if (E.mode === 'pb'){ const x = (d[2] << 7) | d[1]; if (E.pbRel) return x - 8192; const l = plat.last; plat.last = x; if (l == null) return 0; let dd = x - l; if (dd > 8192) dd -= 16384; if (dd < -8192) dd += 16384; return dd; }
+  if (E.mode === 'rel64') return v - 64;
+  if (E.mode === 'rel2c') return v < 64 ? v : v - 128;
+  const l = plat.last; plat.last = v; if (l == null) return 0; let dd = v - l; if (dd > 64) dd -= 128; if (dd < -64) dd += 128; return dd;   // abs7
+}
+function platMidi(st, d){
+  const type = st & 0xF0;
+  if (plat.cap){ if (type === 0xB0 || type === 0xE0 || type === 0x90) plat.cap.push([st, d[1], d[2], performance.now()]); return type === 0xB0 || type === 0xE0; }
+  const E = platState(); if (!E.on || E.status == null) return false;
+  if (st !== E.status || (type !== 0xE0 && d[1] !== E.num)) return false;
+  const ticks = platDecode(E, st, d); if (!ticks || !deck.buf) return true;
+  if (!deck.hand){ deckHand(true); deckState().on = false; deckSet(); renderDeck(); }
+  const sec = ticks / E.tpr * E.dir * revSec(); deck.pos = Math.max(0, deck.pos + sec); deck.node.port.postMessage({type:'move', d:sec});
+  return true;
+}
+function platAnalyse(cap, secs){
+  const groups = new Map();
+  for (const [st, n, v] of cap){ const k = (st & 0xF0) === 0xE0 ? st + ':pb' : st + ':' + n; if (!groups.has(k)) groups.set(k, []); groups.get(k).push([st, n, v]); }
+  let best = null; for (const [k, a] of groups) if (!best || a.length > best[1].length) best = [k, a];
+  if (!best || best[1].length < 20) return null;
+  const [st, n] = best[1][0], type = st & 0xF0, vals = best[1].map(x => x[2]);
+  let mode;
+  if (type === 0xE0){ const xs = best[1].map(x => (x[2] << 7) | x[1]), near = xs.filter(x => Math.abs(x - 8192) < 2048).length / xs.length; mode = 'pb'; var pbRel = near > .8; }
+  else {
+    const med = vals.slice().sort((a, b) => a - b)[vals.length >> 1], spread = Math.max(...vals) - Math.min(...vals);
+    if (med >= 44 && med <= 84 && spread < 40) mode = 'rel64';
+    else if ((med < 24 || med > 104) && vals.every(v => v < 32 || v > 96)) mode = 'rel2c';
+    else mode = 'abs7';
+  }
+  // ticks per second while the motor spins at 33 1/3 -> ticks per turn (1.8 s)
+  const E = {status:st, num:type === 0xE0 ? null : n, mode, pbRel:!!pbRel};
+  plat.last = null; let tot = 0; for (const [s2, n2, v2] of best[1]) tot += platDecode(E, s2, [s2, n2, v2]);
+  if (!tot) return null;
+  const tpr = Math.round(Math.abs(tot) / secs * 1.8);
+  return Object.assign(E, {tpr:Math.max(8, tpr), dir:tot > 0 ? 1 : -1, count:best[1].length});
+}
+function renderPlat(){
+  const E = platState();
+  $('#ttExtOn').classList.toggle('on', E.on); $('#ttExtRev').classList.toggle('on', E.dir < 0);
+  $('#ttExtBadge').textContent = E.on ? 'Following platter' : E.status == null ? 'Not learned' : 'Learned';
+  $('#ttExtBadge').className = 'badge' + (E.on ? ' ok' : '');
+  $('#ttTpr').value = E.tpr;
+  if (E.status != null && !plat.cap) $('#ttExtStatus').textContent = `Platter: ${((E.status & 0xF0) === 0xE0 ? 'pitch bend' : ((E.status & 0xF0) === 0x90 ? 'note ' : 'CC ') + E.num)} on channel ${(E.status & 15) + 1}, ${{rel64:'relative (64 = still)', rel2c:'relative (two\'s complement)', abs7:'absolute position', pb:'pitch bend'}[E.mode]}, ${E.tpr} steps per turn.`;
 }
 function deckHand(on){ if (!deckEnsure()) return; deck.hand = on; deck.node.port.postMessage({type:'hand', on}); }
 (() => {
@@ -4153,6 +4213,25 @@ function deckHand(on){ if (!deckEnsure()) return; deck.hand = on; deck.node.port
       deckEnsure(); deckSend(buf); deckSet(); save(); renderDeck(); toast('Record loaded. Press Start.');
     } catch(err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
   });
+  $('#ttLearnPl').addEventListener('click', async () => {
+    if (!midi) await connectMidi(); if (!midi){ return; }
+    if (!deck.buf){ toast('Load a record first.'); return; }
+    plat.cap = []; $('#ttExtStatus').textContent = 'Listening… start the DN-S3700 platter (motor on, 33 RPM) and let it spin for 3 seconds.';
+    $('#ttLearnPl').disabled = true;
+    // wait for the first platter message, then measure for 3 s
+    const t0 = performance.now(); while (!plat.cap.length && performance.now() - t0 < 15000) await new Promise(r => setTimeout(r, 50));
+    if (!plat.cap.length){ plat.cap = null; $('#ttLearnPl').disabled = false; $('#ttExtStatus').textContent = 'Nothing came in. Check the DN-S3700 is in MIDI mode and chosen under Setup → MIDI → From.'; return; }
+    const start = performance.now(); await new Promise(r => setTimeout(r, 3000));
+    const cap = plat.cap.filter(x => x[3] >= start); plat.cap = null; $('#ttLearnPl').disabled = false;
+    const r = platAnalyse(cap, 3);
+    if (!r){ $('#ttExtStatus').textContent = 'Could not make sense of the platter messages. Make sure it keeps spinning the whole time, then try again.'; return; }
+    Object.assign(platState(), r, {on:true}); plat.last = null; deckSet(); save(); renderPlat();
+    toast('Platter learned: ' + r.tpr + ' steps per turn. The record now follows your platter.');
+  });
+  $('#ttExtOn').addEventListener('click', () => { const E = platState(); if (E.status == null){ toast('Tap Learn platter first.'); return; } E.on = !E.on; plat.last = null; if (!E.on && deck.hand) deckHand(false); deckSet(); save(); renderPlat(); });
+  $('#ttExtRev').addEventListener('click', () => { const E = platState(); E.dir = -E.dir; save(); renderPlat(); });
+  $('#ttTpr').addEventListener('input', e => { platState().tpr = +e.target.value; save(); });
+  stepify($('#ttTpr'), v => v + ' steps');
   stepify($('#ttPitch'), v => (v > 0 ? '+' : '') + (+v).toFixed(1) + '%'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
 })();
 function setView(v){
@@ -5570,6 +5649,7 @@ function onMidi(e){
     if (st === 0xF2){ ext.spp = d[1] | (d[2] << 7); return; }
   }
   const type = st & 0xF0, ch = (st & 0x0F) + 1;
+  if ((plat.cap || (S.deck && S.deck.ext && S.deck.ext.on)) && platMidi(st, d)) return;
   if (!learning && learnMidi(type, ch, d)) return;
   if ((type === 0xB0 && d[1] === 1) || type === 0xE0){
     const syn = S.synths.find(t => t.id === S.midiTarget && t.inst === 'prophet'), n = syn && live && live.sol && live.sol[syn.id + ':prophet'];
