@@ -338,6 +338,9 @@ html.retro .knob select.kval{font:400 11px "Michroma",sans-serif;color:var(--svc
 body.mlearn .knob .kcap{outline:2px dashed var(--accent);outline-offset:3px}
 body.mlearn .knob.mmapped .kcap{outline:2px solid #4cd07d}
 body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
+.clipled,html.retro .clipled{font:700 9px/1 var(--f-display);letter-spacing:.12em;padding:4px 0;width:100%;background:#2a0a08;color:#6b2a24;border:1px solid #000;border-radius:2px;box-shadow:none}
+.clipled.on,html.retro .clipled.on{background:#ff2a1a;color:#fff;box-shadow:0 0 8px #ff2a1a}
+.clipbadge,html.retro .clipbadge{background:#ff2a1a;color:#fff;border:1px solid #000;font:700 11px var(--f-display);letter-spacing:.1em;padding:6px 8px;animation:blink .5s steps(2) infinite}
 </style>
 
 </head>
@@ -358,6 +361,7 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
     <button id="metro">Click</button>
     <button id="tap">Tap</button>
     <span class="grow"></span>
+    <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
     <span class="badge" id="inBadge">No input</span>
     <button id="helpBtn" aria-label="Help" style="padding:8px 12px">?</button>
   </div>
@@ -943,6 +947,7 @@ body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
     <div class="card">
       <h2>Recording</h2>
       <div class="row"><span class="grow">Count-in bar when starting from stop</span><button id="countIn">On</button></div>
+      <div class="ctl"><label class="label" for="clickVol">Click level</label><input id="clickVol" type="range" min="0" max="4" step="0.1"><span class="v mono" id="clickVolV"></span></div>
       <div class="row"><span class="grow">Latency compensation</span><button id="autoLat">Auto</button></div>
       <div class="ctl"><span class="label">Offset</span><input id="latMs" type="range" min="0" max="400" step="1"><span class="v mono" id="latV">0 ms</span></div>
       <div class="ctl"><label class="label" for="tapMs">Pad timing</label><input id="tapMs" type="range" min="0" max="120" step="1"><span class="v mono" id="tapV">0 ms</span></div>
@@ -1504,7 +1509,7 @@ function makeMaster(c){
   m.glueWet = c.createGain(); m.glueDry = c.createGain();
   m.lim = c.createWaveShaper(); m.lim.curve = softClip();
   m.out = c.createGain();
-  m.an = c.createAnalyser(); m.an.fftSize = 512;
+  m.an = c.createAnalyser(); m.an.fftSize = 512; m.preAn = c.createAnalyser(); m.preAn.fftSize = 512;
   m.revIn = c.createGain(); m.conv = c.createConvolver(); m.conv.buffer = makeIR(c, S.master.rev); m.revRet = c.createGain(); m.revRet.gain.value = .9;
   m.revIn.connect(m.conv).connect(m.revRet).connect(m.bus);
   m.dlyIn = c.createGain(); m.dly = c.createDelay(5); m.fb = c.createGain(); m.tone = c.createBiquadFilter(); m.tone.type = 'lowpass'; m.tone.frequency.value = 3800;
@@ -1518,7 +1523,7 @@ function makeMaster(c){
   m.mt = MATCH_F.map(f => { const b = c.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = f; b.Q.value = 4.32; b.gain.value = 0; return b; });
   for (let k = 0; k < m.mt.length - 1; k++) m.mt[k].connect(m.mt[k + 1]);
   m.pre.connect(m.glue).connect(m.glueMk).connect(m.glueWet).connect(m.lim);
-  m.pre.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out);
+  m.pre.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out); m.pre.connect(m.preAn);
   m.out.connect(m.an); m.out.connect(c.destination);
   applyMaster(c, m);
   return m;
@@ -2713,7 +2718,9 @@ function ensureAudio(){
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:audioBuf()});
   if (outPref()) applyOutput();
   live = makeRig(ctx);
-  live.click = ctx.createGain(); live.click.gain.value = .5; live.click.connect(ctx.destination);
+  // click: level up to 400%; past 100% it drives a clipper, so it gets much louder and harder without wrapping
+  live.click = ctx.createGain(); live.clickSh = ctx.createWaveShaper(); live.clickSh.curve = softClip(); live.clickOut = ctx.createGain();
+  live.click.connect(live.clickSh).connect(live.clickOut).connect(ctx.destination); applyClick();
   silent = ctx.createGain(); silent.gain.value = 0; silent.connect(ctx.destination);
   inAn = ctx.createAnalyser(); inAn.fftSize = 512;
   monGain = ctx.createGain(); monGain.gain.value = 0;
@@ -2734,10 +2741,12 @@ function ensureAudio(){
 // touch pointerdown doesn't count as a user gesture on Android, so also try on the events that do
 ['pointerdown', 'pointerup', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, () => ensureAudio(), {capture:true, passive:true}));
 
+function applyClick(){ if (!live || !live.click) return; const v = S.clickVol == null ? 1 : S.clickVol; live.click.gain.value = .5 * v; live.clickOut.gain.value = v > 1 ? 1.1 : 1; }
 function click(t, accent){
   const o = ctx.createOscillator(), g = ctx.createGain();
-  o.frequency.value = accent ? 1760 : 1175; g.gain.setValueAtTime(accent ? .9 : .55, t); g.gain.exponentialRampToValueAtTime(.001, t + .05);
-  o.connect(g).connect(live.click); o.start(t); o.stop(t + .06);
+  o.frequency.value = accent ? 1760 : 1175; g.gain.setValueAtTime(accent ? .9 : .55, t); const len = .05 + Math.max(0, (S.clickVol || 1) - 1) * .02;   // louder settings also ring a little longer
+  g.gain.exponentialRampToValueAtTime(.001, t + len);
+  o.connect(g).connect(live.click); o.start(t); o.stop(t + len + .01);
 }
 
 /* ================= SP-1200 mode =================
@@ -3765,6 +3774,7 @@ function renderMixer(){
       <input class="pan" type="range" min="-1" max="1" step="0.02" aria-label="Pan"${isMaster ? ' style="visibility:hidden" tabindex="-1"' : ''}>
       <div class="fz"><input class="fader" type="range" min="0" max="1" step="0.005" aria-label="Volume"><div class="vmeter"><i></i></div></div>
       <div class="db"></div>
+      <button class="clipled nolearn" aria-label="Clip light, tap to reset">CLIP</button>
       <div class="ms"${isMaster ? ' style="visibility:hidden"' : ''}><button class="mute"${isMaster ? ' tabindex="-1"' : ''}>M</button><button class="solo"${isMaster ? ' tabindex="-1"' : ''}>S</button></div>
       <button class="fx${selStrip === t.id ? ' on' : ''}">FX</button>`;
     if (!isMaster) el.querySelector('.nm').textContent = t.name;
@@ -3783,7 +3793,8 @@ function renderMixer(){
       s.addEventListener('click', () => { t.solo = !t.solo; s.classList.toggle('on', t.solo); applyAll(); save(); });
     }
     el.querySelector('.fx').addEventListener('click', () => { selStrip = t.id; renderMixer(); });
-    el._meter = el.querySelector('.vmeter i'); el._id = t.id;
+    el._meter = el.querySelector('.vmeter i'); el._id = t.id; el._clip = el.querySelector('.clipled');
+    el._clip.addEventListener('click', () => { clipAt.delete(t.id); el._clip.classList.remove('on'); });
     box.appendChild(el);
   };
   allTracks().forEach(t => mk(t, false));
@@ -3933,7 +3944,7 @@ const tmp = new Float32Array(512);
 function peak(an){ an.getFloatTimeDomainData(tmp); let p = 0; for (let i = 0; i < tmp.length; i++){ const a = Math.abs(tmp[i]); if (a > p) p = a; } return p; }
 const meterH = p => clamp((20 * Math.log10(p + 1e-6) + 60) / 60, 0, 1) * 100;
 let lastPh = -1;
-let stpTick = 0;
+let stpTick = 0; const clipAt = new Map();
 function frame(){
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
@@ -3944,10 +3955,20 @@ function frame(){
   } else if (!playing) $('#pos').textContent = '1.1.1';
   if (view === 'drums') frameSeq();
   if (view === 'synth') frameRoll();
+  // clip watch on every channel (and the master before its limiter), on any page
+  if (live && stpTick % 3 === 0){
+    const now = performance.now();
+    for (const [id, st] of live.strips) if (peak(st.an) >= .999) clipAt.set(id, now);
+    if (peak(live.master.preAn) >= .999) clipAt.set('master', now);
+    let hot = null; for (const [id, t] of clipAt) if (now - t < 2500){ hot = id; break; }
+    const cb = $('#clipBadge'); cb.hidden = !hot; if (hot) cb.textContent = 'CLIP ' + (hot === 'master' ? 'MASTER' : ((trackById(hot) || {}).name || '').toUpperCase());
+  }
   if (view === 'mixer' && live){
+    const now = performance.now();
     document.querySelectorAll('.strip').forEach(el => {
       const an = el._id === 'master' ? live.master.an : (live.strips.get(el._id) || {}).an;
       if (an) el._meter.style.height = meterH(peak(an)) + '%';
+      if (el._clip) el._clip.classList.toggle('on', now - (clipAt.get(el._id) || -1e9) < 2500);
     });
   }
   if (view === 'audio'){
@@ -5513,6 +5534,7 @@ $('#tap').addEventListener('click', () => {
   if (taps.length >= 3){ const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); setBpm(60000 / iv); }
 });
 $('#bars').addEventListener('change', e => { S.bars = +e.target.value; changed(); });
+$('#clipBadge').addEventListener('click', () => { clipAt.clear(); $('#clipBadge').hidden = true; setView('mixer'); });
 $('#metro').addEventListener('click', () => { S.metro = !S.metro; save(); renderTransport(); });
 const twoTap = (b, label, fn) => b.addEventListener('click', () => {
   if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Sure?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = label; }, 2500); return; }
@@ -5703,6 +5725,9 @@ $('#helpSearch').addEventListener('input', e => {
     else chop.markers = [0];
   }
   $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%';
+$('#clickVol').value = S.clickVol == null ? 1 : S.clickVol;
+$('#clickVol').addEventListener('input', e => { S.clickVol = +e.target.value; applyClick(); save(); });
+stepify($('#clickVol'), v => Math.round(v * 100) + '%' + (v > 2.5 ? ' LOUD' : ''));
 stepify($('#swing'), v => v + '%'); stepify($('#chopSens'), v => v + '%'); stepify($('#p5Wheel'), v => Math.round(v * 100) + '%');
 stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs'), v => v + ' ms'); stepify($('#tapMs'), v => v + ' ms');
   renderSeqCtl(); renderScenes();
