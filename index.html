@@ -107,7 +107,12 @@ h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:upperc
 .strip input.pan{height:22px}
 
 nav{display:flex;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:var(--dim);font-size:15px;letter-spacing:.04em}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:var(--dim);font-size:14px;letter-spacing:.03em;min-width:0}
+#roll{width:100%;height:200px;background:#0c0e12;border-radius:8px;display:block;touch-action:manipulation}
+.keys{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;touch-action:none}
+.key{aspect-ratio:1;max-width:100%;padding:0;border-radius:8px;font:600 11px var(--f-mono);color:var(--dim);display:flex;align-items:flex-end;justify-content:flex-start;padding:5px;touch-action:none}
+.key.root{background:#3a2c1f;border-color:#6b4a2a;color:var(--accent)}
+.key.down{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .scenebar{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
 .scenebar button{flex:0 0 auto;min-width:52px;padding:10px 12px;text-transform:none;letter-spacing:.02em;font-size:15px}
 .scenebar button.pend{border-color:var(--accent);color:var(--accent);animation:blink .5s steps(2) infinite}
@@ -253,6 +258,31 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     </div>
   </section>
 
+  <!-- SYNTH -->
+  <section class="view" id="v-synth" hidden>
+    <div class="scenebar" id="synthBar" role="group" aria-label="Synth tracks"></div>
+    <div class="card">
+      <div class="row">
+        <button id="sOdub" class="grow">Overdub</button>
+        <button id="sUndo" class="grow" disabled>Undo</button>
+        <button id="sClear" class="grow">Clear</button>
+      </div>
+      <canvas id="roll" aria-label="Piano roll of this synth's notes in the current scene. Tap a note to delete it."></canvas>
+      <div class="row">
+        <select id="scaleRoot" aria-label="Key"></select>
+        <select id="scaleType" class="grow" aria-label="Scale"></select>
+        <button id="octDown" aria-label="Octave down">Oct −</button>
+        <button id="octUp" aria-label="Octave up">Oct +</button>
+      </div>
+      <div class="keys" id="keys"></div>
+      <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="preset" aria-label="Preset"></select></div>
+      <div class="ctls" id="patchCtls"></div>
+    </div>
+  </section>
+
   <!-- SONG -->
   <section class="view" id="v-song" hidden>
     <div class="card">
@@ -292,6 +322,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <div class="ctl"><label class="label" for="midiOff">Offset</label><input id="midiOff" type="range" min="-80" max="120" step="1"><span class="v mono" id="midiOffV">0 ms</span></div>
       <div class="row"><span class="grow">Play these pads from the MPC's pads</span><button id="midiNotes">Off</button></div>
       <div class="ctl"><label class="label" for="midiBase">A01 note</label><select id="midiBase"></select><button id="midiLearn">Learn</button></div>
+      <div class="ctl"><label class="label" for="midiTarget">Notes play</label><select id="midiTarget"></select><span></span></div>
       <div class="ctl"><label class="label" for="midiCh">Channel</label><select id="midiCh"><option value="0">All</option></select><span></span></div>
       <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
       <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
@@ -324,6 +355,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   <button data-v="audio">Audio</button>
   <button data-v="mixer">Mixer</button>
   <button data-v="chop">Chop</button>
+  <button data-v="synth">Synth</button>
   <button data-v="song">Song</button>
   <button data-v="setup">Setup</button>
 </nav>
@@ -352,10 +384,12 @@ function defaultState(){
     v:2, bpm:92, bars:1, swing:18, metro:false, countIn:true, autoLat:true, latMs:40,
     inCh:'L', device:'', monitor:false,
     quant:24, repRate:24, fullLevel:true, tapMs:20, repeat:false, erase:false,
+    root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
     master:{vol:.9, glue:.2, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
-    audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16}, mixDefaults())]
+    audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16}, mixDefaults())],
+    synths:[]
   };
 }
 let S = defaultState();
@@ -497,7 +531,7 @@ function makeStrip(c, m){
   s.mute.connect(m.bus); s.mute.connect(s.an); s.mute.connect(s.sa).connect(m.revIn); s.mute.connect(s.sb).connect(m.dlyIn);
   return s;
 }
-function anySolo(){ return S.drum.solo || S.audio.some(t => t.solo); }
+function anySolo(){ return allTracks().some(t => t.solo); }
 function applyStrip(c, s, t){
   sp(c, s.low.gain, t.low); sp(c, s.mid.gain, t.mid); sp(c, s.high.gain, t.high);
   if (t.ftype === 'off'){ s.filt.type = 'allpass'; sp(c, s.filt.frequency, 20000); sp(c, s.filt.Q, .0001); }
@@ -507,7 +541,7 @@ function applyStrip(c, s, t){
   const on = !t.mute && (!anySolo() || t.solo);
   sp(c, s.mute.gain, on ? 1 : 0); sp(c, s.sa.gain, t.sendA); sp(c, s.sb.gain, t.sendB);
 }
-const allTracks = () => [S.drum, ...S.audio];
+const allTracks = () => [S.drum, ...S.audio, ...(S.synths || [])];
 function trackById(id){ return allTracks().find(t => t.id === id); }
 
 function makeRig(c){
@@ -595,6 +629,12 @@ function scheduleNotes(rig, i, t){
     playPad(rig, S.drum.pads[n.p], at, n.v);
     if (rig === live) flashPad(n.p, at);
   }
+  for (const tr of S.synths) for (const n of tr.notes){
+    if (n.t < lo || n.t >= hi) continue;
+    if (rig === live && n.skip){ delete n.skip; continue; }
+    const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
+    synthVoice(rig, tr, n.n, at, n.v, Math.max(6, n.d) * td);
+  }
   S.audio.forEach(tr => {
     const recording = rig === live && rec && rec.id === tr.id && rec.startT != null;
     if (tr.clip && !recording && (i - org) % tr.clipSteps === 0) startClip(rig, tr, t);
@@ -612,9 +652,15 @@ let drumRec = false, undoStack = [], undoPass = null, eraseUndo = false, seqDirt
 const held = new Map();   // pad index -> velocity, while a finger is on it
 const loopTicks = () => S.bars * TPB;
 function pushUndo(){
-  undoStack.push(JSON.stringify(S.drum.notes.map(({p, t, v}) => ({p, t, v}))));
+  undoStack.push(JSON.stringify({d:S.drum.notes.map(({p, t, v}) => ({p, t, v})), s:Object.fromEntries(S.synths.map(tr => [tr.id, tr.notes.map(({n, t, d, v}) => ({n, t, d, v}))]))}));
   if (undoStack.length > 40) undoStack.shift();
-  $('#undo').disabled = false;
+  $('#undo').disabled = false; $('#sUndo').disabled = false;
+}
+function popUndo(){
+  if (!undoStack.length) return;
+  const u = JSON.parse(undoStack.pop()); undoPass = null;
+  if (Array.isArray(u)) S.drum.notes = u; else { S.drum.notes = u.d; S.synths.forEach(tr => { if (u.s[tr.id]) tr.notes = u.s[tr.id]; }); }
+  $('#undo').disabled = $('#sUndo').disabled = !undoStack.length; changed(); rollDirty = true;
 }
 function changed(){ seqDirty = true; save(); renderPads(); }
 // absTick counts from the start of playback, so it also tells us which pass we're in
@@ -755,6 +801,7 @@ function stop(){
   }
   if (rec){ rec = null; capOff(); toast('Recording cancelled.'); }
   drumRec = false; held.clear(); S.drum.notes.forEach(n => delete n.skip); seqDirty = true;
+  S.synths.forEach(tr => tr.notes.forEach(n => delete n.skip)); keysUpAll();
   if (wake){ wake.release().catch(() => {}); wake = null; }
   renderTransport(); renderTracks();
 }
@@ -983,7 +1030,7 @@ function renderTransport(){
   $('#playIcon').setAttribute('d', playing ? 'M6 6h12v12H6z' : 'M7 4l13 8-13 8z');
   $('#play').classList.toggle('on', playing); $('#play').setAttribute('aria-label', playing ? 'Stop' : 'Play');
   const r = $('#rec'); r.classList.toggle('live', !!(rec && rec.startT != null) || drumRec); r.classList.toggle('armed', !!(rec && rec.startT == null));
-  $('#odub').classList.toggle('on', drumRec);
+  $('#odub').classList.toggle('on', drumRec); $('#sOdub').classList.toggle('on', drumRec);
   $('#bpm').value = S.bpm; $('#bars').value = S.bars; $('#metro').classList.toggle('on', S.metro);
 }
 function renderInput(){
@@ -1205,6 +1252,7 @@ function setView(v){
   if (v === 'setup'){ renderInput(); renderMidi(); }
   if (v === 'chop') renderChop();
   if (v === 'song') renderSong();
+  if (v === 'synth') renderSynth();
   try { localStorage.setItem('pr-view', v); } catch(e){}
 }
 
@@ -1221,6 +1269,7 @@ function frame(){
     else { const L = S.bars * 16, s = (((h.i - org) % L) + L) % L; $('#pos').textContent = `${Math.floor(s / 16) + 1}.${Math.floor(s % 16 / 4) + 1}.${s % 4 + 1}`; }
   } else if (!playing) $('#pos').textContent = '1.1.1';
   if (view === 'drums') frameSeq();
+  if (view === 'synth') frameRoll();
   if (view === 'mixer' && live){
     document.querySelectorAll('.strip').forEach(el => {
       const an = el._id === 'master' ? live.master.an : (live.strips.get(el._id) || {}).an;
@@ -1444,20 +1493,207 @@ const endDrag = () => { if (chop.drag == null) return; const i = chop.drag; chop
 cw.addEventListener('pointerup', endDrag); cw.addEventListener('pointercancel', endDrag);
 window.addEventListener('resize', () => { chop.peaks = null; if (view === 'chop') drawChop(); });
 
+/* ================= synth tracks ================= */
+const PRESETS = {
+  'Bass':   {wave:'sawtooth', wave2:'square', oct2:-1, det:0, mix2:.5, sub:.6, cut:.36, res:4, fenv:.45, fdec:.22, a:.003, d:.25, s:.45, r:.08, gain:.9},
+  'Sub 808':{wave:'sine', wave2:'sine', oct2:0, det:0, mix2:0, sub:0, cut:1, res:.7, fenv:0, fdec:.2, a:.002, d:1.4, s:0, r:.25, gain:1.2},
+  'Lead':   {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:14, mix2:.7, sub:0, cut:.62, res:2, fenv:.3, fdec:.3, a:.01, d:.3, s:.7, r:.2, gain:.7},
+  'Pad':    {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:17, mix2:.8, sub:.2, cut:.45, res:1, fenv:.2, fdec:1, a:.6, d:1, s:.8, r:1.2, gain:.6},
+  'Keys':   {wave:'triangle', wave2:'sine', oct2:1, det:0, mix2:.3, sub:0, cut:.7, res:1, fenv:.2, fdec:.5, a:.005, d:.8, s:.3, r:.4, gain:.9},
+  'Pluck':  {wave:'square', wave2:'sawtooth', oct2:1, det:5, mix2:.3, sub:0, cut:.3, res:6, fenv:.8, fdec:.16, a:.002, d:.18, s:0, r:.15, gain:.8},
+  'Organ':  {wave:'sine', wave2:'sine', oct2:1, det:0, mix2:.6, sub:.5, cut:.8, res:.7, fenv:0, fdec:.2, a:.01, d:.1, s:1, r:.08, gain:.6}
+};
+const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,2,3,5,7,9,10], 'Phrygian':[0,1,3,5,7,8,10], 'Mixolydian':[0,2,4,5,7,9,10],
+  'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
+let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
+const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[]}, mixDefaults()); }
+function synthVoice(rig, tr, note, t, vel, dur){
+  const c = rig.c, P = tr.patch, f = 440 * Math.pow(2, (note - 69) / 12);
+  const out = c.createGain(), filt = c.createBiquadFilter();
+  filt.type = 'lowpass'; filt.Q.value = P.res;
+  const oscs = [];
+  const osc = (type, freq, det, g) => { if (g <= 0) return; const o = c.createOscillator(), gg = c.createGain(); o.type = type; o.frequency.value = freq; o.detune.value = det; gg.gain.value = g; o.connect(gg).connect(filt); oscs.push(o); };
+  osc(P.wave, f, 0, 1); osc(P.wave2, f * Math.pow(2, P.oct2), P.det, P.mix2); osc('sine', f / 2, 0, P.sub);
+  if (!rig.strips.has(tr.id)){ const st = makeStrip(c, rig.master); applyStrip(c, st, tr); rig.strips.set(tr.id, st); }
+  filt.connect(out).connect(rig.strips.get(tr.id).input);
+  const base = cutHz(P.cut), peak = Math.min(20000, base * Math.pow(2, P.fenv * 7)), lvl = vel * .28 * P.gain;
+  filt.frequency.setValueAtTime(base, t);
+  if (P.fenv > 0){ filt.frequency.linearRampToValueAtTime(peak, t + Math.max(.002, P.a * .5)); filt.frequency.setTargetAtTime(base, t + P.a * .5, P.fdec / 3); }
+  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(lvl, t + Math.max(.002, P.a));
+  out.gain.setTargetAtTime(lvl * P.s, t + Math.max(.002, P.a), Math.max(.005, P.d / 3));
+  oscs.forEach(o => o.start(t));
+  let done = false;
+  const release = at => {
+    if (done) return; done = true;
+    at = Math.max(at, t + .005);
+    if (out.gain.cancelAndHoldAtTime) out.gain.cancelAndHoldAtTime(at); else out.gain.cancelScheduledValues(at);
+    out.gain.setTargetAtTime(0, at, Math.max(.005, P.r / 4));
+    oscs.forEach(o => { try { o.stop(at + P.r * 1.6 + .05); } catch(e){} });
+  };
+  if (dur != null) release(t + dur);
+  return {release};
+}
+function addSynthNote(tr, note, absTick, d, v){
+  const L = loopTicks(), g = S.quant, q = Math.round(absTick / g) * g;
+  const rq = q - org * TPS, pass = Math.floor(rq / L);
+  if (pass !== undoPass){ pushUndo(); undoPass = pass; }
+  const t = ((rq % L) + L) % L, skip = q >= stepI * TPS;
+  tr.notes = tr.notes.filter(n => !(n.n === note && Math.abs(n.t - t) < Math.max(3, g / 2)));
+  const n = {n:note, t, d:Math.max(6, Math.round(d)), v}; if (skip) n.skip = 1;
+  tr.notes.push(n); rollDirty = true; save();
+}
+function keyDown(tr, note, ev, v, id){
+  ensureAudio();
+  if (keysOn.has(id)) keyUp(id, ev);
+  const voice = synthVoice(live, tr, note, ctx.currentTime + .003, v, null);
+  keysOn.set(id, {voice, tr, note, v, start:(playing && drumRec) ? tapTick(ev) : null});
+}
+function keyUp(id, ev){
+  const k = keysOn.get(id); if (!k) return;
+  keysOn.delete(id); k.voice.release(ctx.currentTime);
+  if (k.start != null && playing && drumRec){
+    const end = tapTick(ev);
+    if (end != null && k.start > -TPS / 2) addSynthNote(k.tr, k.note, Math.max(0, k.start), end - k.start, k.v);
+  }
+}
+function keysUpAll(){ for (const [id] of keysOn) { const k = keysOn.get(id); k.voice.release(ctx ? ctx.currentTime : 0); } keysOn.clear(); document.querySelectorAll('.key.down').forEach(b => b.classList.remove('down')); }
+function curSynth(){ return S.synths[clamp(selSynth, 0, S.synths.length - 1)]; }
+function gridNote(r, c){
+  const sc = SCALES[S.scale] || SCALES.Major, n = sc.length, step = S.scale === 'Chromatic' ? 5 : 3;
+  const deg = c + r * step;
+  return 12 * (S.oct + 2) + S.root + Math.floor(deg / n) * 12 + sc[deg % n];
+}
+function renderKeys(){
+  const box = $('#keys'); box.innerHTML = '';
+  const sc = SCALES[S.scale] || SCALES.Major;
+  for (let r = 4; r >= 0; r--) for (let c = 0; c < 8; c++){
+    const note = gridNote(r, c), b = document.createElement('button');
+    b.className = 'key' + (((note - S.root) % 12 + 12) % 12 === 0 ? ' root' : '');
+    b.textContent = noteName(note); b.setAttribute('aria-label', 'Play ' + noteName(note));
+    const id = 'k' + r + '-' + c;
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch(_){}
+      const rr = b.getBoundingClientRect();
+      const v = S.fullLevel ? 1 : clamp(1.05 - (e.clientY - rr.top) / rr.height * .8, .25, 1);
+      b.classList.add('down'); keyDown(curSynth(), note, e, v, id);
+    });
+    const up = e => { b.classList.remove('down'); keyUp(id, e); };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+    box.appendChild(b);
+  }
+}
+function drawRoll(){
+  const cv = $('#roll'), dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+  if (!w || !h) return null;
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d'), css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
+  const tr = curSynth(), L = loopTicks(), notes = tr.notes.filter(n => n.t < L);
+  let lo = 12 * (S.oct + 2) + S.root, hi = lo + 24;
+  if (notes.length){ lo = Math.min(...notes.map(n => n.n)) - 2; hi = Math.max(...notes.map(n => n.n)) + 2; if (hi - lo < 16){ const m = (hi + lo) / 2; lo = Math.round(m - 8); hi = lo + 16; } }
+  const rows = hi - lo + 1, rh = h / rows, gut = 30 * dpr, X = t => gut + t / L * (w - gut), Y = n => (hi - n) * rh;
+  g.clearRect(0, 0, w, h);
+  const sc = SCALES[S.scale] || SCALES.Major;
+  for (let n = lo; n <= hi; n++){
+    const pc = ((n - S.root) % 12 + 12) % 12;
+    if (pc === 0){ g.fillStyle = col('--panel2'); g.fillRect(gut, Y(n), w - gut, rh); }
+    else if (!sc.includes(pc)){ g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(gut, Y(n), w - gut, rh); }
+  }
+  for (let b = 0; b < S.bars * 4; b++){ g.fillStyle = b % 4 === 0 ? col('--dim') : col('--line'); g.globalAlpha = b % 4 === 0 ? .55 : .8; g.fillRect(Math.round(X(b * 96)), 0, Math.max(1, dpr), h); }
+  g.globalAlpha = 1; g.font = `${9 * dpr}px "JetBrains Mono", monospace`; g.textBaseline = 'middle';
+  for (let n = lo; n <= hi; n++) if (((n - S.root) % 12 + 12) % 12 === 0 && rh * 1.2 > 8 * dpr){ g.fillStyle = col('--accent'); g.fillText(noteName(n), 3 * dpr, Y(n) + rh / 2); }
+  g.fillStyle = col('--accent');
+  for (const n of notes){ g.globalAlpha = .4 + .6 * n.v; g.fillRect(X(n.t), Y(n.n) + 1, Math.max(3 * dpr, (n.d / L) * (w - gut) - dpr), Math.max(2, rh - 2)); }
+  g.globalAlpha = 1;
+  rollImg = g.getImageData(0, 0, w, h); rollDirty = false;
+  return {g, w, h, X, Y, L, rh, lo, hi};
+}
+function frameRoll(){
+  if (rollDirty || !rollImg){ rollGeo = drawRoll(); if (!rollGeo) return; }
+  else if (!playing) return;
+  else rollGeo.g.putImageData(rollImg, 0, 0);
+  if (!playing || !ctx) return;
+  const T = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  let q = null; for (const e of stepQ) if (e.t <= T) q = e;
+  if (!q || q.i < 0) return;
+  const L = rollGeo.L, tick = ((((q.i - org) * TPS + (T - q.t) / (stepDur() / TPS)) % L) + L) % L;
+  rollGeo.g.fillStyle = drumRec ? '#ff4d5e' : getComputedStyle(document.documentElement).getPropertyValue('--fg');
+  rollGeo.g.fillRect(Math.round(rollGeo.X(tick)), 0, 2 * (devicePixelRatio || 1), rollGeo.h);
+}
+function renderSynth(){
+  const bar = $('#synthBar'); bar.innerHTML = '';
+  S.synths.forEach((t, k) => { const b = document.createElement('button'); b.textContent = t.name; b.classList.toggle('on', k === selSynth); b.addEventListener('click', () => { selSynth = k; renderSynth(); }); bar.appendChild(b); });
+  const add = document.createElement('button'); add.textContent = '+'; add.setAttribute('aria-label', 'Add synth track'); add.disabled = S.synths.length >= 4;
+  add.addEventListener('click', () => {
+    let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
+    const tr = newSynth(n); S.synths.push(tr);
+    if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); }
+    selSynth = S.synths.length - 1; save(); renderSynth();
+  });
+  bar.appendChild(add);
+  const tr = curSynth();
+  $('#synthTitle').textContent = tr.name;
+  $('#sOdub').classList.toggle('on', drumRec);
+  const ps = $('#preset'); if (!ps.children.length) ps.innerHTML = Object.keys(PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  ps.value = tr.preset || '';
+  const rs = $('#scaleRoot'); if (!rs.children.length) rs.innerHTML = NOTE.map((n, i) => `<option value="${i}">${n}</option>`).join('');
+  rs.value = S.root;
+  const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
+  ty.value = S.scale;
+  const box = $('#patchCtls'); box.innerHTML = '';
+  const P = tr.patch, custom = () => { tr.preset = ''; $('#preset').value = ''; };
+  const sel = (label, key, opts) => {
+    const row = document.createElement('div'); row.className = 'ctl'; const id = 'p-' + key;
+    row.innerHTML = `<label class="label" for="${id}">${label}</label><select id="${id}">${opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select><span></span>`;
+    const s2 = row.querySelector('select'); s2.value = String(P[key]);
+    s2.addEventListener('change', () => { P[key] = isNaN(+s2.value) ? s2.value : +s2.value; custom(); save(); }); box.appendChild(row);
+  };
+  const waves = [['sawtooth', 'Saw'], ['square', 'Square'], ['triangle', 'Triangle'], ['sine', 'Sine']];
+  const pct = v => Math.round(v * 100) + '%', sec = v => v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s';
+  const c2 = (label, key, a, b, st, f) => { const i = ctl(box, label, P, key, a, b, st, f); i.addEventListener('input', custom); };
+  sel('Osc 1', 'wave', waves); sel('Osc 2', 'wave2', waves);
+  sel('Osc 2 oct', 'oct2', [[-1, '−1'], [0, '0'], [1, '+1'], [2, '+2']]);
+  c2('Osc 2 mix', 'mix2', 0, 1, .01, pct); c2('Detune', 'det', 0, 50, 1, v => v + ' ct'); c2('Sub', 'sub', 0, 1, .01, pct);
+  c2('Cutoff', 'cut', 0, 1, .002, v => { const hz = cutHz(v); return hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz) + ''; });
+  c2('Reso', 'res', .5, 18, .1, v => v.toFixed(1)); c2('Filter env', 'fenv', 0, 1, .01, pct); c2('Env decay', 'fdec', .02, 2, .01, sec);
+  c2('Attack', 'a', .001, 2, .001, sec); c2('Decay', 'd', .02, 3, .01, sec); c2('Sustain', 's', 0, 1, .01, pct); c2('Release', 'r', .01, 3, .01, sec);
+  c2('Level', 'gain', 0, 1.5, .01, pct);
+  rollDirty = true; renderKeys();
+}
+$('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
+$('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
+$('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
+$('#octDown').addEventListener('click', () => { S.oct = Math.max(-1, S.oct - 1); save(); renderKeys(); });
+$('#octUp').addEventListener('click', () => { S.oct = Math.min(5, S.oct + 1); save(); renderKeys(); });
+$('#sOdub').addEventListener('click', () => { toggleDrumRec(); $('#sOdub').classList.toggle('on', drumRec); });
+$('#sUndo').addEventListener('click', popUndo);
+$('#sClear').addEventListener('click', () => { const tr = curSynth(); if (!tr.notes.length) return; pushUndo(); undoPass = null; tr.notes = []; rollDirty = true; save(); toast('Cleared ' + tr.name + ' in this scene. Undo brings it back.'); });
+$('#roll').addEventListener('pointerdown', e => {
+  if (!rollGeo) return;
+  const cv = e.currentTarget, r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  const x = (e.clientX - r.left) * dpr, y = (e.clientY - r.top) * dpr, note = rollGeo.hi - Math.floor(y / rollGeo.rh), tr = curSynth();
+  const hit = tr.notes.find(n => n.n === note && n.t < rollGeo.L && x >= rollGeo.X(n.t) - 6 * dpr && x <= rollGeo.X(n.t + n.d) + 6 * dpr);
+  if (hit){ pushUndo(); undoPass = null; tr.notes = tr.notes.filter(n => n !== hit); rollDirty = true; save(); }
+  else { ensureAudio(); synthVoice(live, tr, note, ctx.currentTime + .003, .8, .25); }
+});
+$('#midiTarget').addEventListener('change', e => { S.midiTarget = e.target.value; save(); });
+
 /* ================= scenes & song ================= */
 let pending = null, loopCount = 0, songPos = 0, songDone = false;
 function storeScene(){
   if (!S.scenes) return;
   const old = S.scenes[S.cur] || {name:'Scene ' + (S.cur + 1)};
-  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps} : null]))};
+  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps} : null])), synth:Object.fromEntries((S.synths || []).map(t => [t.id, t.notes]))};
 }
 function loadScene(k){
   const sc = S.scenes[k]; S.cur = k;
   S.bars = sc.bars; S.drum.notes = sc.notes;
   S.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c && buffers.has(c.key) ? c.key : null; t.clipSteps = c ? c.steps : 16; });
+  (S.synths || []).forEach(t => { t.notes = (sc.synth || {})[t.id] || []; });
+  rollDirty = true;
 }
 function sceneChanged(){
-  undoStack = []; undoPass = null; $('#undo').disabled = true;
+  undoStack = []; undoPass = null; $('#undo').disabled = true; $('#sUndo').disabled = true; rollDirty = true;
   seqDirty = true; renderTransport(); renderPads(); renderScenes();
   if (view === 'audio') renderTracks(); if (view === 'song') renderSong();
   save();
@@ -1510,7 +1746,7 @@ function dupScene(){
   if (S.scenes.length >= 16){ toast('16 scenes is the limit.'); return; }
   storeScene();
   const src = S.scenes[S.cur];
-  S.scenes.push({name:nextName(), bars:src.bars, notes:src.notes.map(n => ({p:n.p, t:n.t, v:n.v})), clips:JSON.parse(JSON.stringify(src.clips))});
+  S.scenes.push({name:nextName(), bars:src.bars, notes:src.notes.map(n => ({p:n.p, t:n.t, v:n.v})), clips:JSON.parse(JSON.stringify(src.clips)), synth:JSON.parse(JSON.stringify(src.synth || {}))});
   launchScene(S.scenes.length - 1); if (!playing) toast('Made ' + S.scenes[S.scenes.length - 1].name + ' as a copy. Change it without touching the original.');
   renderScenes();
 }
@@ -1642,8 +1878,10 @@ function onMidi(e){
   const note = d[1], vel = d[2];
   if (learning && type === 0x90 && vel){ S.midiBase = clamp(note - selPad, 0, 112); learning = false; save(); renderMidi(); toast(`${noteName(note)} now plays ${padLabel(selPad)}.`); return; }
   if (!S.midiNotes) return;
-  const pi = note - S.midiBase; if (pi < 0 || pi > 15) return;
   const ev = {timeStamp:e.timeStamp, midi:true};
+  const syn = S.midiTarget !== 'drums' && S.synths.find(t => t.id === S.midiTarget);
+  if (syn){ if (type === 0x90 && vel) keyDown(syn, note, ev, S.fullLevel ? 1 : .2 + .8 * vel / 127, 'm' + note); else keyUp('m' + note, ev); return; }
+  const pi = note - S.midiBase; if (pi < 0 || pi > 15) return;
   if (type === 0x90 && vel) padDown(pi, ev, S.fullLevel ? 1 : .2 + .8 * vel / 127);
   else padUp(pi);
 }
@@ -1687,6 +1925,9 @@ function renderMidi(){
   const ch = $('#midiCh');
   if (ch.children.length < 2) ch.innerHTML = '<option value="0">All</option>' + Array.from({length:16}, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
   ch.value = S.midiCh;
+  const tg = $('#midiTarget');
+  tg.innerHTML = '<option value="drums">Drum pads</option>' + S.synths.map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join('');
+  tg.value = S.synths.some(t => t.id === S.midiTarget) ? S.midiTarget : 'drums';
   $('#midiLearn').textContent = learning ? 'Hit a pad…' : 'Learn'; $('#midiLearn').classList.toggle('on', learning);
   const follow = S.midiClock === 'in';
   $('#bpm').disabled = follow; $('#bpmDown').disabled = follow; $('#bpmUp').disabled = follow; $('#tap').disabled = follow;
@@ -1729,18 +1970,14 @@ const twoTap = (b, label, fn) => b.addEventListener('click', () => {
 });
 twoTap($('#clearPad'), 'Clear hits', () => { pushUndo(); undoPass = null; S.drum.notes = S.drum.notes.filter(n => n.p !== selPad); changed(); });
 twoTap($('#clearAll'), 'Clear all', () => { pushUndo(); undoPass = null; S.drum.notes = []; changed(); });
-$('#undo').addEventListener('click', () => {
-  if (!undoStack.length) return;
-  S.drum.notes = JSON.parse(undoStack.pop()); undoPass = null;
-  if (playing) S.drum.notes.forEach(n => { if (n.t < loopTicks()) n.skip = 0; });
-  $('#undo').disabled = !undoStack.length; changed();
-});
+$('#undo').addEventListener('click', popUndo);
 $('#dbl').addEventListener('click', () => {
   if (S.bars >= 8){ toast('The loop is already 8 bars, the longest it can be.'); return; }
   pushUndo(); undoPass = null;
   const L = loopTicks();
   S.drum.notes = S.drum.notes.filter(n => n.t < L);
   S.drum.notes.push(...S.drum.notes.map(n => ({p:n.p, t:n.t + L, v:n.v})));
+  S.synths.forEach(tr => { tr.notes = tr.notes.filter(n => n.t < L); tr.notes.push(...tr.notes.map(n => ({n:n.n, t:n.t + L, d:n.d, v:n.v}))); });
   S.bars *= 2; renderTransport(); changed(); toast('Loop is now ' + S.bars + ' bars.');
 });
 $('#odub').addEventListener('click', toggleDrumRec);
@@ -1809,7 +2046,7 @@ $('#wipe').addEventListener('click', async e => {
 });
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.v)));
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|SELECT/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
-window.addEventListener('resize', () => { seqDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
+window.addEventListener('resize', () => { seqDirty = true; rollDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
 
 /* ================= boot ================= */
@@ -1832,6 +2069,8 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
     S.audio.forEach(t => { if (t.clip && !buffers.has(t.clip)) t.clip = null; });
     S.drum.pads.forEach((p, i) => { if (!buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
+  if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
   S.cur = clamp(S.cur || 0, 0, S.scenes.length - 1); S.song = S.song || []; S.launchQ = S.launchQ || 'bar'; S.songMode = !!S.songMode;
   loadScene(S.cur);
