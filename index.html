@@ -140,6 +140,7 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 .help a{color:var(--audio)}
 .help b{color:var(--fg)}
 #helpSearch{font:500 16px var(--f-body);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;width:100%}
+.solreg button{flex:1;min-width:70px}
 .slist{display:flex;flex-direction:column;gap:8px}
 .srow{display:flex;gap:6px;align-items:center}
 .srow input{flex:1;min-width:0;font:600 16px var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 8px}
@@ -307,8 +308,17 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
+      <div id="solPanel" hidden>
+        <div class="label">Bass section</div>
+        <div class="row solreg"><button data-k="contra">Contrabass</button><button data-k="cello">Cello</button></div>
+        <div class="label">Strings and brass</div>
+        <div class="row solreg"><button data-k="viola">Viola</button><button data-k="violin">Violin</button><button data-k="trumpet">Trumpet</button><button data-k="horn">Horn</button></div>
+        <div class="row solreg"><button data-k="sus">Sustain</button><button data-k="ens">Ensemble</button><button data-k="wide">Wide</button></div>
+        <div class="ctls" id="solCtls"></div>
+        <p class="hint">Modeled from the Solina schematics: divide-down tone with the original sawtooth shaping, per-key sustain, one shared crescendo, and the three-line ensemble driven by its chorus and tremolo oscillators. Notes below C3 also play the mono bass section. Viola is the 8' rank and Violin the 4' rank.</p>
+      </div>
     </div>
     <div class="card">
       <div class="row"><h2 class="grow">Vocoder</h2><span class="badge">SVC-350 model</span><button id="vocOn">Off</button></div>
@@ -452,6 +462,21 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       </ul>
     </details>
 
+    <details id="h-solina"><summary>Solina strings</summary>
+      <p>Any synth track can be a Solina String Ensemble: on the Synth tab, change <b>Synth</b> to <b>Solina strings</b>. It is modeled from the original Solina schematics.</p>
+      <ul>
+        <li><b>Tone</b>: all notes come from one divide-down tone generator, so octaves are phase-locked and each note has the tiny detune of a real top-octave generator chip. Each square wave is shaped by the original capacitor-diode circuit into the slightly hollow Solina sawtooth.</li>
+        <li><b>Viola</b> plays the 8' rank (as written), <b>Violin</b> the 4' rank (an octave up). Use both for the classic sound.</li>
+        <li><b>Trumpet</b> and <b>Horn</b> send the tone through the formant circuit for brassy colours.</li>
+        <li><b>Cello</b> (8') and <b>Contrabass</b> (16') are the mono bass section: the lowest note you hold below C3 plays it, through its own low-pass.</li>
+        <li><b>Crescendo</b> is one shared swell: the sound fades in when you start playing from silence, and legato notes join without restarting it, like the original's single VCA.</li>
+        <li><b>Sustain</b> lets each key ring on after release; the slider sets how long (the value shown is the circuit's time constant).</li>
+        <li><b>Ensemble</b> is the famous three-line chorus: three delay lines around 2.8 ms, swept 120° apart by the slow chorus oscillator (about 0.75 Hz) plus the faster tremolo (about 6.3 Hz). Turn it off to hear the raw organ-like tone. <b>Wide</b> spreads the three lines left, centre and right instead of the original mono.</li>
+        <li><b>Chorus Hz</b> and <b>Tremolo Hz</b> are the trimmers inside the original; <b>Ens depth</b> and <b>Tremolo</b> set how strong each sweep is.</li>
+      </ul>
+      <p>Try it through the Vocoder for the late-70s string-vocoder sound.</p>
+    </details>
+
     <details id="h-vocoder"><summary>Vocoder (SVC-350 model)</summary>
       <p>The vocoder makes a synth “talk”: your voice shapes the synth's sound. It is modeled on the Roland SVC-350's circuit from its 1979 service notes.</p>
       <ol><li>On the Synth tab, turn <b>Vocoder</b> on. That synth becomes the instrument.</li><li><b>Voice</b>: <i>Live input</i> uses your USB-C mic; or pick an audio track with a recorded vocal (mute that track in the mixer if you only want the vocoder).</li><li>Hold chords on the grid (or your keyboard/MPC) and talk or sing.</li></ol>
@@ -553,6 +578,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <ul>
         <li>SP-1200 audio path data (filter prototypes, pitch table, converter behaviour): <a href="https://github.com/Mudb0y/libmd12" target="_blank" rel="noopener">libmd12</a> (MIT licence). Not affiliated with E-mu or Rossum Electro-Music.</li>
         <li>SVC-350 vocoder: modeled from the Roland SVC-350 service notes (Dec. 8, 1979), <a href="https://archive.org/details/roland_SVC-350_SERVICE_NOTES" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Roland.</li>
+        <li>Solina String Ensemble: modeled from the Eminent/ARP Solina schematic set (sheets 015.0212 and 015.0214), <a href="https://archive.org/details/ARP_Solina_Schematics" target="_blank" rel="noopener">archive.org</a>. Not affiliated with ARP or Eminent.</li>
         <li>MP3 encoding: <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener">lamejs</a> (LGPL), loaded on demand.</li>
         <li>MPC, SP-1200, SVC-350, Push and Ableton Live are trademarks of their owners and are mentioned only to describe features.</li>
       </ul>
@@ -926,6 +952,112 @@ class Redux extends AudioWorkletProcessor{
       for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
     this.c=end;return true;}}
 registerProcessor('redux',Redux);`;
+const SOL_CODE = String.raw`
+/* Solina String Ensemble, modeled from the Eminent/ARP schematic set (sheets 015.0212 and 015.0214).
+   Tone: top-octave generator + SAJ110 dividers (octaves phase-locked), each square wave shaped by C + diode + 22k/5k6
+   into an exponential ramp (time constant ~0.35 of a cycle, scaled per octave by 8n2...150n).
+   Keys: 15uF charged through 820R, released through 5k6 + 10k SUSTAIN LENGTH. Crescendo: shared VCA, 22uF via 5k6 + 25k log.
+   Ensemble: three TCA350Y lines (185 stages) clocked by astables near 33 kHz; clocks swept by C1/C2/C3 from the control circuit:
+   chorus relaxation osc (1M8+1M trim, 680n) and tremolo osc (2M2+1M trim, 68n), RC-filtered, phase-shifted and inverted. */
+const TOS = [478, 451, 426, 402, 379, 358, 338, 319, 301, 284, 268, 253];   // top-octave generator divisors C..B
+class Solina extends AudioWorkletProcessor{
+  constructor(o){
+    super();
+    const opt = (o && o.processorOptions) || {}, fs = sampleRate; this.fs = fs;
+    this.cfg = Object.assign({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    // tuning: each pitch class gets the top-octave generator's slight detune, octaves are exact divisions
+    this.detune = TOS.map((d, pc) => (TOS[9] / d) / Math.pow(2, (pc - 9) / 12));
+    this.cyc = new Float64Array(12);            // cycle counters of the top octave (octave 8) per pitch class
+    this.fTop = TOS.map((d, pc) => 440 * Math.pow(2, (pc - 9) / 12 + 4) * this.detune[pc]);
+    this.keys = new Map();                       // midi note -> {g, down, v}
+    this.cresc = 0; this.active = false;
+    this.formLp = [0, 0]; this.bpS = [0, 0, 0, 0]; this.bassLp = [0, 0, 0, 0]; this.bassG = 0; this.bassNote = -1;
+    this.buf = new Float32Array(4096); this.w = 0;
+    this.ph = {c:0, t:0, cs:1, ts:1}; this.lf = new Float64Array(8); this.lines = [0, 0, 0].map(() => ({z1:0, z2:0, pre:0}));
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); else if (d.type === 'panic') this.keys.forEach(k => k.down = false); };
+    const lp2 = (f, Q) => { const w0 = 2 * Math.PI * f, K = w0 / Math.tan(w0 / (2 * fs)), d = K * K + w0 / Q * K + w0 * w0;
+      return {b0:w0 * w0 / d, b1:2 * w0 * w0 / d, b2:w0 * w0 / d, a1:(2 * w0 * w0 - 2 * K * K) / d, a2:(K * K - w0 / Q * K + w0 * w0) / d}; };
+    this.post = lp2(7500, .7);
+    const bp = (f, Q) => { const w0 = 2 * Math.PI * f / fs, al = Math.sin(w0) / (2 * Q), a0 = 1 + al; return {b0:al / a0, b1:0, b2:-al / a0, a1:-2 * Math.cos(w0) / a0, a2:(1 - al) / a0}; };
+    this.fTr = bp(1350, 1.3); this.fHo = bp(680, 1.1); this.sTr = [0, 0]; this.sHo = [0, 0];
+    this.bassF = lp2(650, .6); this.bassZ = [0, 0];
+  }
+  bq(q, s, x){ const y = q.b0 * x + s[0]; s[0] = q.b1 * x - q.a1 * y + s[1]; s[1] = q.b2 * x - q.a2 * y; return y; }
+  blep(t, dt){ if (t < dt){ const x = t / dt; return x + x - x * x - 1; } if (t > 1 - dt){ const x = (t - 1) / dt; return x * x + x + x + 1; } return 0; }
+  // the divider + diode/RC shaper: exponential ramp for the first half cycle, nothing for the second
+  wave(pc, oct){
+    const k = 8 - oct, div = Math.pow(2, k), ph = (this.cyc[pc] / div) % 1, dt = this.fTop[pc] / div / this.fs;
+    if (dt >= .5) return 0;
+    const r = .35 * Math.pow(2, (pc - 6) / 12), a = Math.exp(-.5 / r);
+    let y = ph < .5 ? Math.exp(-ph / r) : 0;
+    y += .5 * this.blep(ph, dt); y -= .5 * a * this.blep((ph + .5) % 1, dt);
+    return y - .3;
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.cfg;
+    const atk = 1 - Math.exp(-1 / (820 * 15e-6 * fs));
+    const rel = C.sus ? Math.exp(-1 / (15e-6 * (5600 + C.susLen * 10000) * fs)) : Math.exp(-1 / (.012 * fs));
+    const tauC = (5600 + 25000 * (Math.pow(10, 2 * C.cresc) - 1) / 99) * 22e-6, cr = 1 - Math.exp(-1 / (tauC * fs));
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame){
+        const ev = this.q.shift();
+        if (ev.on != null){ const k = this.keys.get(ev.on) || {g:0}; k.down = true; k.v = ev.v; this.keys.set(ev.on, k); }
+        else { const k = this.keys.get(ev.off); if (k) k.down = false; }
+      }
+      for (let pc = 0; pc < 12; pc++) this.cyc[pc] += this.fTop[pc] / fs;
+      // keyed voices
+      let strings = 0, brass = 0, any = false, low = 999;
+      for (const [n, k] of this.keys){
+        k.g = k.down ? k.g + (1 - k.g) * atk : k.g * rel;
+        if (k.g < 1e-4 && !k.down){ this.keys.delete(n); continue; }
+        if (k.g > .01) any = true;
+        if (k.down && n < 48 && n < low) low = n;
+        const pc = n % 12, oct = Math.floor(n / 12) - 1, w8 = this.wave(pc, oct), w4 = oct < 8 ? this.wave(pc, oct + 1) : 0, g = k.g * (.6 + .4 * k.v);
+        strings += g * (C.viola * w8 + C.violin * w4);
+        brass += g * (w8 + w4) * .5;
+      }
+      // bass section: lowest held key below C3, cello 8' / contrabass 16', own low-pass
+      if (low < 999) this.bassNote = low;
+      this.bassG = low < 999 ? this.bassG + (1 - this.bassG) * atk : this.bassG * rel;
+      let bass = 0;
+      if (this.bassNote >= 0 && this.bassG > 1e-4 && (C.cello || C.contra)){
+        const pc = this.bassNote % 12, oct = Math.floor(this.bassNote / 12) - 1;
+        bass = this.bq(this.bassF, this.bassZ, (C.cello ? this.wave(pc, oct) : 0) + (C.contra && oct > 0 ? this.wave(pc, oct - 1) : 0)) * this.bassG * C.bassVol * 1.6;
+        if (this.bassG > .01) any = true;
+      }
+      const form = C.trumpet ? this.bq(this.fTr, this.sTr, brass) * 2.2 : 0, form2 = C.horn ? this.bq(this.fHo, this.sHo, brass) * 2.4 : 0;
+      // crescendo: the shared VCA ramps up from silence, and re-arms once everything has died away
+      if (any) this.cresc += (1 - this.cresc) * cr; else this.cresc *= .999;
+      let x = (strings * .5 + form + form2 + bass) * this.cresc * .45;
+      // control circuit: square relaxation oscillators -> RC filters -> phase shift -> inverter (C1, C2, C3)
+      const lf = this.lf, op = (k, f, v) => { lf[k] += (v - lf[k]) * (1 - Math.exp(-2 * Math.PI * f / fs)); return lf[k]; };
+      this.ph.c += C.chorusHz / fs; if (this.ph.c >= .5){ this.ph.c -= .5; this.ph.cs = -this.ph.cs; }
+      this.ph.t += C.tremHz / fs; if (this.ph.t >= .5){ this.ph.t -= .5; this.ph.ts = -this.ph.ts; }
+      const ch = op(2, 2.84, op(1, .234, op(0, 1.33, this.ph.cs * .453))) * 3.4;
+      const tr = op(5, 41.8, op(4, 1.30, op(3, 4.18, this.ph.ts * .548))) * 8.8 * C.trem;
+      const c1 = ch + tr, c2 = -1.83 * op(6, .482, c1), c3 = -(c1 + c2);
+      if (C.probe){ L[i] = c1; R[i] = C.probe === 2 ? c3 : c2; this.w++; continue; }
+      // three BBD lines: clock follows the control voltage, delay = 185 stages / (2 f_clk)
+      this.buf[this.w & 4095] = x; let sum = 0, sL = 0, sR = 0;
+      if (C.ens){
+        [c1, c2, c3].forEach((cv, j) => {
+          const fclk = 33000 * (1 + C.depth * Math.max(-.9, Math.min(.9, cv))), d = 185 / (2 * fclk) * fs;
+          const r = this.w - d, i0 = Math.floor(r), f = r - i0, a = this.buf[i0 & 4095], b = this.buf[(i0 + 1) & 4095];
+          const ln = this.lines[j];
+          let v = a + (b - a) * f; const yy = this.post.b0 * v + ln.z1; ln.z1 = this.post.b1 * v - this.post.a1 * yy + ln.z2; ln.z2 = this.post.b2 * v - this.post.a2 * yy;
+          sum += yy; if (j === 0) sL += yy; else if (j === 2) sR += yy; else { sL += yy * .5; sR += yy * .5; }
+        });
+        if (C.wide){ L[i] = sL * .8; R[i] = sR * .8; } else { L[i] = sum * .5; R[i] = sum * .5; }
+      } else { L[i] = x; R[i] = x; }
+      this.w++;
+    }
+    return true;
+  }
+}
+registerProcessor('solina', Solina);
+`;
 const SPW_CODE = String.raw`
 /* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
    drop/repeat playback with a 7-bit fraction counter, 8-bit level DAC, band-limited steps (polyBLEP),
@@ -1130,7 +1262,7 @@ class SVC350 extends AudioWorkletProcessor{
 registerProcessor('svc350', SVC350);
 `;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE], {type:'application/javascript'})));
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -1816,7 +1948,7 @@ async function renderAudio(sr, solo, fixedLen){
     let i0 = 0;
     try { for (const part of parts){ loadScene(part.s); org = i0; for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd); i0 += part.steps; } }
     finally { loadScene(keepCur); org = keepOrg; }
-    spFinish(rig);
+    spFinish(rig); solFinish(rig);
     const out = await oc.startRendering();
     if (fixedLen) return out;
     let end = out.length; const L = out.getChannelData(0), R = out.getChannelData(1), keep = Math.ceil((total * sd + .02) * sr);
@@ -2439,8 +2571,34 @@ const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,
   'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
 let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
 const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
-function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[]}, mixDefaults()); }
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT()}, mixDefaults()); }
+const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
+function solNode(rig, tr){
+  rig.sol = rig.sol || {};
+  if (rig.sol[tr.id] || rig !== live || !rig.c._reduxOK) return rig.sol[tr.id] || null;
+  const n = new AudioWorkletNode(rig.c, 'solina', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:tr.sol}});
+  n.connect(rig.strips.get(tr.id).input);
+  return rig.sol[tr.id] = n;
+}
+function solSend(rig, tr, ev){
+  if (rig === live){ const n = solNode(live, tr); if (n) n.port.postMessage({type:'ev', ev}); return; }
+  ((rig.solEv ||= {})[tr.id] ||= []).push(ev);
+}
+function solFinish(rig){
+  for (const id in rig.solEv || {}){
+    const tr = trackById(id); if (!tr) continue;
+    const n = new AudioWorkletNode(rig.c, 'solina', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:tr.sol, events:rig.solEv[id]}});
+    n.connect(rig.strips.get(id).input);
+  }
+}
 function synthVoice(rig, tr, note, t, vel, dur){
+  if (tr.inst === 'solina'){
+    const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel});
+    let done = false;
+    const release = at => { if (done) return; done = true; solSend(rig, tr, {f:Math.round(Math.max(at, t + .005) * fs), off:note}); };
+    if (dur != null) release(t + dur);
+    return {release};
+  }
   const c = rig.c, P = tr.patch, f = 440 * Math.pow(2, (note - 69) / 12);
   const out = c.createGain(), filt = c.createBiquadFilter();
   filt.type = 'lowpass'; filt.Q.value = P.res;
@@ -2572,6 +2730,10 @@ function renderSynth(){
   rs.value = S.root;
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
+  $('#inst').value = tr.inst || 'synth';
+  const isSol = tr.inst === 'solina';
+  $('#preset').hidden = isSol; $('#patchCtls').hidden = isSol; $('#solPanel').hidden = !isSol;
+  if (isSol) renderSolina(tr);
   const box = $('#patchCtls'); box.innerHTML = '';
   const P = tr.patch, custom = () => { tr.preset = ''; $('#preset').value = ''; };
   const sel = (label, key, opts) => {
@@ -2592,6 +2754,22 @@ function renderSynth(){
   c2('Level', 'gain', 0, 1.5, .01, pct);
   rollDirty = true; renderKeys(); renderVocoder();
 }
+function solCfg(tr){ if (live && live.sol && live.sol[tr.id]) live.sol[tr.id].port.postMessage({type:'cfg', cfg:tr.sol}); }
+function renderSolina(tr){
+  const C = tr.sol;
+  document.querySelectorAll('.solreg button').forEach(b => { b.classList.toggle('on', !!C[b.dataset.k]); });
+  const box = $('#solCtls'); box.innerHTML = '';
+  const up = () => { solCfg(tr); };
+  ctl(box, 'Crescendo', C, 'cresc', 0, 1, .01, v => { const tau = (5600 + 25000 * (Math.pow(10, 2 * v) - 1) / 99) * 22e-6; return Math.round(tau * 1000) + ' ms'; }, up);
+  ctl(box, 'Sustain', C, 'susLen', 0, 1, .01, v => Math.round(15e-6 * (5600 + v * 10000) * 1000) + ' ms', up);
+  ctl(box, 'Bass level', C, 'bassVol', 0, 1, .01, v => Math.round(v * 100) + '%', up);
+  ctl(box, 'Ens depth', C, 'depth', 0, .6, .01, v => Math.round(v / .35 * 100) + '%', up);
+  ctl(box, 'Chorus Hz', C, 'chorusHz', .4, 1.2, .01, v => v.toFixed(2), up);
+  ctl(box, 'Tremolo Hz', C, 'tremHz', 4, 9, .05, v => v.toFixed(1), up);
+  ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
+}
+document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; if (tr.inst === 'solina' && !tr.name.startsWith('Solina')){ tr.name = 'Solina ' + tr.id.slice(1); } save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
@@ -3267,7 +3445,7 @@ $('#helpSearch').addEventListener('input', e => {
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
