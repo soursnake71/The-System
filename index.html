@@ -619,7 +619,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <dt>Recordings or pads are out of time (latency)</dt><dd>For audio takes, adjust Setup → Recording → Offset. For pad hits, raise Pad timing. Turn off master Glue while recording to save 6 ms.</dd>
         <dt>MIDI device doesn't show up</dt><dd>Tap Refresh MIDI devices. Make sure the MPC's USB mode allows MIDI and the cable carries data (some charge-only cables don't).</dd>
         <dt>The MPC and app drift apart</dt><dd>Only one device should send clock. Use Follow MPC or Lead MPC, not both, and make sure the MPC isn't also receiving clock from somewhere else.</dd>
-        <dt>Crackles or dropouts</dt><dd>Close other apps, turn off battery saver, and avoid very long Complex-warped clips at odd tempos. Fewer effects on many tracks also helps.</dd>
+        <dt>Crackles or dropouts</dt><dd>Go to Setup → Performance → Audio buffer and choose Medium or Large. This is the biggest fix. Also close other apps and turn off battery saver. The Prophet-5 and Solina use the most power when many notes are held, and very long Complex-warped clips at odd tempos add load too. An effect set to zero is switched off completely, so it costs nothing.</dd>
         <dt>MP3 export fails</dt><dd>The MP3 encoder downloads the first time you use it. Connect to the internet once, or export WAV.</dd>
         <dt>“Could not read that file”</dt><dd>Use WAV, AIFF, MP3, FLAC or OGG. Some phone voice-recorder formats aren't supported.</dd>
       </dl>
@@ -676,6 +676,12 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <div class="ctl"><label class="label" for="midiCh">Channel</label><select id="midiCh"><option value="0">All</option></select><span></span></div>
       <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
       <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
+    </div>
+    <div class="card">
+      <h2>Performance</h2>
+      <label class="label" for="audioBuf">Audio buffer</label>
+      <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
+      <p class="hint">If the sound crackles or drops out when a lot is playing, choose a bigger buffer. A bigger buffer adds a little delay between tapping a pad and hearing it. The app reopens to apply the change, and your project is kept.</p>
     </div>
     <div class="card">
       <h2>Recording</h2>
@@ -895,23 +901,41 @@ function satCurve(amt){
 function insertRedux(c, s){
   if (s.rdx || !c._reduxOK) return;
   s.rdx = new AudioWorkletNode(c, 'redux', {outputChannelCount:[2]});
-  s.rdxIn.disconnect(); s.rdxIn.connect(s.rdx).connect(s.rdxOut);
+  s._wire = null;
+}
+// connect only the stages a track is using; an effect at zero is taken out of the chain so it costs no CPU
+function wireStrip(s, t){
+  const use = {sat:(t.sat || 0) > 0, rdx:!!s.rdx && (!!t.sp12 || (t.crush || 0) > 0), eq:!!(t.low || t.mid || t.high), filt:t.ftype !== 'off',
+    ch:(t.chorus || 0) > 0, comp:t.comp > 0, ap:(t.apan || 0) > 0};
+  const key = Object.values(use).map(Number).join('');
+  if (s._wire === key) return; s._wire = key;
+  for (const n of [s.vocOut, s.satOut, s.high, s.filt, s.chIn, s.chOut, s.apDepth]) n.disconnect();
+  if (s.rdx) s.rdx.disconnect();
+  let at = s.vocOut;
+  const to = n => { at.connect(n); at = n; };
+  if (use.sat){ at.connect(s.sat); at = s.satOut; }
+  if (use.rdx){ to(s.rdx); }
+  if (use.eq){ at.connect(s.low); at = s.high; }
+  if (use.filt) to(s.filt);
+  to(s.chIn); s.chIn.connect(s.chOut);
+  if (use.ch) s.chIn.connect(s.chSend);
+  if (use.comp) s.chOut.connect(s.comp); else s.chOut.connect(s.compDry);
+  if (use.ap) s.apDepth.connect(s.pan.pan);
 }
 function makeStrip(c, m){
   const s = {};
   s.input = c.createGain();
   // character: saturator -> redux, then chorus after the filter
   s.sat = c.createWaveShaper(); s.sat.oversample = '2x'; s.satOut = c.createGain();
-  s.rdxIn = c.createGain(); s.rdxOut = c.createGain();
-  s.chIn = c.createGain(); s.chOut = c.createGain(); s.chWet = c.createGain(); s.chWet.gain.value = 0;
+  s.chIn = c.createGain(); s.chSend = c.createGain(); s.chOut = c.createGain(); s.chWet = c.createGain(); s.chWet.gain.value = 0;
   const lfoDelay = (base, rate, side) => {
     const d = c.createDelay(.05), o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner();
     d.delayTime.value = base; o.frequency.value = rate; g.gain.value = 0; p.pan.value = side;
     o.connect(g).connect(d.delayTime); o.start(0);
-    s.chIn.connect(d).connect(p).connect(s.chWet); return g;
+    s.chSend.connect(d).connect(p).connect(s.chWet); return g;
   };
   s.chDepth = [lfoDelay(.012, .57, -.7), lfoDelay(.019, .83, .7)];
-  s.chIn.connect(s.chOut); s.chWet.connect(s.chOut);
+  s.chWet.connect(s.chOut);
   s.duck = c.createGain();
   s.apOsc = c.createOscillator(); s.apDepth = c.createGain(); s.apDepth.gain.value = 0; s.apOsc.start(0);
   s.low = c.createBiquadFilter(); s.low.type = 'lowshelf'; s.low.frequency.value = 160;
@@ -923,17 +947,18 @@ function makeStrip(c, m){
   s.an = c.createAnalyser(); s.an.fftSize = 512;
   s.sa = c.createGain(); s.sb = c.createGain();
   s.vocIn = c.createGain(); s.vocOut = c.createGain(); s.vocIn.connect(s.vocOut);
-  s.input.connect(s.vocIn); s.vocOut.connect(s.sat).connect(s.satOut).connect(s.rdxIn).connect(s.rdxOut);
-  s.rdxOut.connect(s.low).connect(s.mid).connect(s.high).connect(s.filt).connect(s.chIn);
-  s.chOut.connect(s.comp).connect(s.mk).connect(s.duck); s.chOut.connect(s.compDry).connect(s.duck);
+  s.input.connect(s.vocIn); s.sat.connect(s.satOut);
+  s.low.connect(s.mid).connect(s.high);
+  s.comp.connect(s.mk).connect(s.duck); s.compDry.connect(s.duck);
   s.duck.connect(s.pan).connect(s.fader).connect(s.mute);
-  s.apOsc.connect(s.apDepth).connect(s.pan.pan);
+  s.apOsc.connect(s.apDepth);
   insertRedux(c, s);
   s.mute.connect(m.bus); s.mute.connect(s.an); s.mute.connect(s.sa).connect(m.revIn); s.mute.connect(s.sb).connect(m.dlyIn);
   return s;
 }
 function anySolo(){ return allTracks().some(t => t.solo); }
 function applyStrip(c, s, t){
+  wireStrip(s, t);
   sp(c, s.low.gain, t.low); sp(c, s.mid.gain, t.mid); sp(c, s.high.gain, t.high);
   if (t.ftype === 'off'){ s.filt.type = 'allpass'; sp(c, s.filt.frequency, 20000); sp(c, s.filt.Q, .0001); }
   else { s.filt.type = t.ftype; sp(c, s.filt.frequency, cutHz(t.cut)); sp(c, s.filt.Q, t.res); }
@@ -1044,6 +1069,7 @@ class Taurus extends AudioWorkletProcessor{
     if (this.cv == null) this.cv = low; if (low !== this.target || !this.gate){ this.target = low; this.lst = 1; this.fst = 1; } this.gate = true; }
   off(n){ this.held = this.held.filter(x => x !== n); if (this.held.length){ this.target = Math.min(...this.held); return; } this.gate = false; this.lst = 3; this.fst = 3; }
   tn(x){ if (x > 3) return 1; if (x < -3) return -1; const x2 = x * x; return x * (27 + x2) / (27 + 9 * x2); }
+  saw(p, d){ let y = 1 - 2 * p; if (p < d){ const x = p / d; y += x + x - x * x - 1; } else if (p > 1 - d){ const x = (p - 1) / d; y += x * x + x + x + 1; } return y; }
   process(ins, outs){
     const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.c, fos = fs * 2;
     const V = C.preset === 'variable', P = TAU_FIXED[C.preset] || TAU_FIXED.taurus;
@@ -1059,26 +1085,34 @@ class Taurus extends AudioWorkletProcessor{
     const k = 3.93 * emph / .8;          // EMPHASIS 8 = threshold of oscillation (service manual trim, R524)
     const beat = Math.pow(2, (C.beat - .5) * 2 * Math.log2(1.02)), tune = Math.pow(2, (C.tune - .5) * 2 * Math.log2(1.08));
     const a = x => 1 - Math.exp(-1 / (x * fs));
+    // released and faded out, nothing due in this block: skip
+    if ((!this.q.length || this.q[0].f >= currentFrame + N) && (this.cv == null || (!this.gate && this.le < 1e-6))){ L.fill(0); if (R !== L) R.fill(0); this.dc = this.dcx = 0; return true; }
+    const aLa = a(tauLa), aLd = a(tauLd), aRel = a(tauRel), aFa = a(tauFa), aFd = a(tauFd), aFrel = a(tauFrel), LN2 = Math.LN2;
     for (let i = 0; i < N; i++){
       const frame = currentFrame + i;
-      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.on(ev.on); else this.off(ev.off); }
+      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.on(ev.on); else this.off(ev.off); this.ok = false; }
       if (this.cv == null){ L[i] = R[i] = 0; continue; }
       this.cv += (this.target - this.cv) * gl;
       // contours: attack charges toward the peak, decay toward the sustain level, release per the DECAY switch
-      if (this.lst === 1){ this.le += (1.0 - this.le) * a(tauLa); if (this.le > .98) this.lst = 2; }
-      else if (this.lst === 2) this.le += (ls - this.le) * a(tauLd);
-      else this.le *= 1 - a(tauRel);
-      if (this.fst === 1){ this.fe += (fpk - this.fe) * a(tauFa); if (this.fe > fpk * .98) this.fst = 2; }
-      else if (this.fst === 2) this.fe *= 1 - a(tauFd);
-      else this.fe *= 1 - a(tauFrel);
+      if (this.lst === 1){ this.le += (1.0 - this.le) * aLa; if (this.le > .98) this.lst = 2; }
+      else if (this.lst === 2) this.le += (ls - this.le) * aLd;
+      else this.le *= 1 - aRel;
+      if (this.fst === 1){ this.fe += (fpk - this.fe) * aFa; if (this.fe > fpk * .98) this.fst = 2; }
+      else if (this.fst === 2) this.fe *= 1 - aFd;
+      else this.fe *= 1 - aFrel;
+      // pitch and cutoff update every 8 samples
+      if ((i & 7) === 0 || !this.ok){
+        this.ok = true;
+        const fA = 440 * Math.exp(((this.cv - 69) / 12 + oct) * LN2) * tune;
+        this.dA = fA / fs; this.dB = Math.min(.45, fA * bRatio * beat / fs);
+        // ladder: 40 Hz floor + cutoff + foot FILTER (3 octaves) + contour (up to 7 octaves)
+        this.g = 1 - Math.exp(-2 * Math.PI * Math.min(.42 * fos, 40 * Math.exp((cutOct + C.foot * 3 + this.fe * 7) * LN2)) * 1.073 / fos);
+      }
       // VCOs: sawtooth, B on its own ratio and BEAT
-      const fA = 440 * Math.pow(2, (this.cv - 69) / 12 + oct) * tune, fB = fA * bRatio * beat;
-      const dA = fA / fs, dB = Math.min(.45, fB / fs);
+      const dA = this.dA, dB = this.dB;
       this.pa += dA; if (this.pa >= 1) this.pa -= 1; this.pb += dB; if (this.pb >= 1) this.pb -= 1;
-      const saw = (p, d) => { let y = 1 - 2 * p; if (p < d){ const x = p / d; y += x + x - x * x - 1; } else if (p > 1 - d){ const x = (p - 1) / d; y += x * x + x + x + 1; } return y; };
-      const x = (C.probe ? 0 : (saw(this.pa, dA) * (1 - mixB) + saw(this.pb, dB) * mixB) * .6) + (Math.random() - .5) * 4e-5;
-      // ladder: 40 Hz floor + cutoff + foot FILTER (3 octaves) + contour (up to 7 octaves)
-      const fc = Math.min(.42 * fos, 40 * Math.pow(2, cutOct + C.foot * 3 + this.fe * 7)), g = 1 - Math.exp(-2 * Math.PI * fc * 1.073 / fos), l = this.l;
+      const x = (C.probe ? 0 : (this.saw(this.pa, dA) * (1 - mixB) + this.saw(this.pb, dB) * mixB) * .6) + (Math.random() - .5) * 4e-5;
+      const g = this.g, l = this.l;
       let y = 0;
       for (let o = 0; o < 2; o++){
         const u = this.tn(x - k * l[3]), t0 = this.tn(l[0]), t1 = this.tn(l[1]), t2 = this.tn(l[2]);
@@ -1144,9 +1178,11 @@ class TB303 extends AudioWorkletProcessor{
     const lag = .02 + C.res * .09;                               // C13 lag grows with RESONANCE (ganged pot)
     const c13up = 1 - Math.exp(-1 / (lag * fs)), c13dn = Math.exp(-1 / ((lag * 6) * fs));
     const hpA = 1 / (1 + 2 * Math.PI * 150 / fo), dcA = 1 / (1 + 2 * Math.PI * 25 / fs);
+    // silent between notes and no note due in this block: skip the ladder
+    if ((!this.q.length || this.q[0].f >= currentFrame + N) && (this.cv == null || (this.vegState === 0 && this.veg === 0 && this.c13 < 1e-4))){ L.fill(0); if (R !== L) R.fill(0); this.dc = this.dcx = 0; return true; }
     for (let i = 0; i < N; i++){
       const frame = currentFrame + i;
-      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.on(ev); else this.off(ev); }
+      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.on(ev); else this.off(ev); this.ok = false; }
       if (this.cv == null){ L[i] = R[i] = 0; continue; }
       this.cv += (this.cvT - this.cv) * slide;
       // VEG: 4 ms delay, 3 ms attack, long decay; release = 8 ms hold then 8 ms linear
@@ -1160,18 +1196,24 @@ class TB303 extends AudioWorkletProcessor{
       this.c13 = a > this.c13 ? this.c13 + (a - this.c13) * c13up : this.c13 * c13dn;
       const sweep = (1 - C.res) * a + C.res * this.c13 * 1.6;
       // oscillator: saw, or the transistor-shaped square
-      const f = 440 * Math.pow(2, (this.cv - 69) / 12 + (C.tune - .5)), dt = f / fs;
+      if ((i & 7) === 0 || !this.ok){ this.ok = true; this.dt = 440 * Math.pow(2, (this.cv - 69) / 12 + (C.tune - .5)) / fs; }
+      const dt = this.dt;
       this.ph += dt; if (this.ph >= 1) this.ph -= 1;
       let saw = 1 - 2 * this.ph;
       if (this.ph < dt){ const x = this.ph / dt; saw += x + x - x * x - 1; } else if (this.ph > 1 - dt){ const x = (this.ph - 1) / dt; saw += x * x + x + x + 1; }
       const osc = C.probe === 2 ? (Math.random() * 2 - 1) * 1e-4 : C.probe ? Math.random() * 2 - 1 : C.wave ? this.t(6 * (saw + .1)) * .9 + saw * .1 : saw;
       // cutoff: knob ~250 Hz-2.5 kHz, env mod, accent sweep; no keyboard tracking
       const oct = Math.log2(250) + C.cut * 3.3 + this.meg * (.6 + C.env * 2.6) * (this.acc ? 1.15 : 1) + sweep * 1.8;
-      const fc = C.fcFix || Math.min(6500, Math.pow(2, oct)), w = 2 * Math.PI * fc * 1.32 / fo, s = this.s;   // the loaded ladder peaks ~25% low; trimmed so the peak sits on the cutoff
-      // full resonance stays at 88% of the measured self-oscillation threshold for this cutoff: a stock 303 rings but never sings
-      let thr = THR[THR.length - 1][1];
-      for (let j = 1; j < THR.length; j++) if (fc <= THR[j][0]){ const [f0, k0] = THR[j - 1], [f1, k1] = THR[j], x = Math.max(0, Math.log2(fc / f0) / Math.log2(f1 / f0)); thr = k0 + (k1 - k0) * x; break; }
-      const resK = C.kFix != null ? C.kFix : .95 * thr * resAmt;
+      // cutoff and resonance gain update every 8 samples
+      if ((i & 7) === 0 || this.w == null){
+        const fc = C.fcFix || Math.min(6500, Math.pow(2, oct));
+        this.w = 2 * Math.PI * fc * 1.32 / fo;   // the loaded ladder peaks ~25% low; trimmed so the peak sits on the cutoff
+        // full resonance stays at 88% of the measured self-oscillation threshold for this cutoff: a stock 303 rings but never sings
+        let thr = THR[THR.length - 1][1];
+        for (let j = 1; j < THR.length; j++) if (fc <= THR[j][0]){ const [f0, k0] = THR[j - 1], [f1, k1] = THR[j], x = Math.max(0, Math.log2(fc / f0) / Math.log2(f1 / f0)); thr = k0 + (k1 - k0) * x; break; }
+        this.resK = C.kFix != null ? C.kFix : .95 * thr * resAmt;
+      }
+      const w = this.w, resK = this.resK, s = this.s;
       let y = 0;
       for (let k = 0; k < OS; k++){
         // resonance feedback through a 150 Hz high-pass, then the diode ladder: each stage's diodes see the next capacitor
@@ -1236,22 +1278,27 @@ class Prophet5 extends AudioWorkletProcessor{
     if (this.c.uni){ if (this.held.length){ const low = Math.min(...this.held); for (const v of this.v) v.note = low; } else for (const v of this.v) v.gate = false; return; }
     for (const v of this.v) if (v.note === n && v.gate) v.gate = false;
   }
-  trig(v){ v.fst = 1; v.ast = 1; }
-  // CEM3310: attack charges toward 1.3 and ends at 1.0; decay/release are exponential
-  env(v, pre, a, d, s, r){
-    const st = pre + 'st', key = pre + 'e', fs = this.fs, spread = 1 + .06 * this.c.vint * v.offT;
-    let e = v[key], state = v[st];
-    if (!v.gate && state && state < 4) state = 4;
-    if (state === 1){ const tau = a * spread / 1.466; e = 1.3 - (1.3 - e) * Math.exp(-1 / (tau * fs)); if (e >= 1){ e = 1; state = 2; } }
-    else if (state === 2 || state === 3){ const tau = d * spread / 3; e = s + (e - s) * Math.exp(-1 / (tau * fs)); state = 3; }
-    else if (state === 4){ const tau = r * spread / 3; e *= Math.exp(-1 / (tau * fs)); if (e < 1e-5){ e = 0; state = 0; } }
-    v[key] = e; v[st] = state; return e;
-  }
+  trig(v){ v.fst = 1; v.ast = 1; v.ok = false; }
+  // CEM3310: attack charges toward 1.3 and ends at 1.0; decay/release are exponential (coefficients per block)
+  envF(v, s){ let e = v.fe, st = v.fst;
+    if (!v.gate && st && st < 4) st = 4;
+    if (st === 1){ e = 1.3 - (1.3 - e) * v.kFa; if (e >= 1){ e = 1; st = 2; } }
+    else if (st === 2 || st === 3){ e = s + (e - s) * v.kFd; st = 3; }
+    else if (st === 4){ e *= v.kFr; if (e < 1e-5){ e = 0; st = 0; } }
+    v.fe = e; v.fst = st; return e; }
+  envA(v, s){ let e = v.ae, st = v.ast;
+    if (!v.gate && st && st < 4) st = 4;
+    if (st === 1){ e = 1.3 - (1.3 - e) * v.kAa; if (e >= 1){ e = 1; st = 2; } }
+    else if (st === 2 || st === 3){ e = s + (e - s) * v.kAd; st = 3; }
+    else if (st === 4){ e *= v.kAr; if (e < 1e-5){ e = 0; st = 0; } }
+    v.ae = e; v.ast = st; return e; }
   blep(t, dt){ if (t < dt){ const x = t / dt; return x + x - x * x - 1; } if (t > 1 - dt){ const x = (t - 1) / dt; return x * x + x + x + 1; } return 0; }
   tanh(x){ if (x > 3) return 1; if (x < -3) return -1; const x2 = x * x; return x * (27 + x2) / (27 + 9 * x2); }
   process(ins, outs){
     const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.c, q7 = x => this.q7(x);
-    const fos = fs * 2;
+    // nothing sounding and no note due in this block: output silence without running the voices
+    if ((!this.q.length || this.q[0].f >= currentFrame + N) && !this.v.some(v => v.note >= 0 && (v.gate || v.ast !== 0))){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const fos = fs * 2, LN2 = Math.LN2;
     // knob CVs (7-bit), computed once per block
     const stA = Math.round(q7(C.oAf) * 48) - 24, stB = Math.round(q7(C.oBf) * 48) - 24 + q7(C.oBfine);
     const pwA = .01 + .98 * q7(C.oApw), pwB = .01 + .98 * q7(C.oBpw);
@@ -1260,7 +1307,14 @@ class Prophet5 extends AudioWorkletProcessor{
     const aa = this.envT(C.aa), ad = this.envT(C.ad), asus = q7(C.as), ar = C.rel ? this.envT(C.ar) : .004;
     const lfoHz = .04 * Math.pow(500, q7(C.lfoF)), loHz = .4 * Math.pow(75, q7(C.oBf));
     const glideTau = C.uni && C.glide > 0 ? .0005 * Math.pow(3000, q7(C.glide)) : 0, gl = glideTau ? 1 - Math.exp(-1 / (glideTau * fs)) : 1;
-    const vint = C.vint || 0;
+    const vint = C.vint || 0, mA = q7(C.mA) * .55, mB = q7(C.mB) * .55, mN = q7(C.mN) * .44, pmE = q7(C.pmEnv), pmBq = q7(C.pmB), fenv = q7(C.fenv) * 9, wmMix = q7(C.wmMix);
+    // OSC B at audio rate into FREQ A or FILTER needs per-sample pitch/cutoff; everything else updates every 8 samples
+    const audioPM = pmBq > 0 && (C.pmFA || C.pmF), gk = -2 * Math.PI * 1.073 / fos, lgB = Math.log2(261.63), lgLo = Math.log2(loHz);
+    for (const v of this.v){
+      const sp = 1 + .06 * vint * v.offT;
+      v.kFa = Math.exp(-1.466 / (fa * sp * fs)); v.kFd = Math.exp(-3 / (fd * sp * fs)); v.kFr = Math.exp(-3 / (fr * sp * fs));
+      v.kAa = Math.exp(-1.466 / (aa * sp * fs)); v.kAd = Math.exp(-3 / (ad * sp * fs)); v.kAr = Math.exp(-3 / (ar * sp * fs));
+    }
     for (let i = 0; i < N; i++){
       const frame = currentFrame + i;
       while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on); else this.noteOff(ev.off); }
@@ -1271,7 +1325,7 @@ class Prophet5 extends AudioWorkletProcessor{
       const w = Math.random() * 2 - 1, pk = this.pink;
       pk[0] = .99886 * pk[0] + w * .0555179; pk[1] = .99332 * pk[1] + w * .0750759; pk[2] = .969 * pk[2] + w * .153852; pk[3] = .8665 * pk[3] + w * .3104856;
       pk[4] = .55 * pk[4] + w * .5329522; pk[5] = -.7616 * pk[5] - w * .016898; const pinkN = (pk[0] + pk[1] + pk[2] + pk[3] + pk[4] + pk[5] + pk[6] + w * .5362) * .11; pk[6] = w * .115926;
-      const mix = q7(C.wmMix), wm = ((1 - mix) * lfo + mix * pinkN * 3) * this.wheel;
+      const wm = ((1 - wmMix) * lfo + wmMix * pinkN * 3) * this.wheel, ctl = (i & 7) === 0;
       let out = 0;
       for (const v of this.v){
         if (v.note < 0 || (!v.gate && v.ast === 0)) continue;
@@ -1279,24 +1333,38 @@ class Prophet5 extends AudioWorkletProcessor{
         const target = v.note + this.bend;
         v.glide = v.glide == null || !glideTau ? target : v.glide + (target - v.glide) * gl;
         v.driftA += (this.rnd() * .02 - v.driftA * .0005) / fs * 40; v.driftB += (this.rnd() * .02 - v.driftB * .0005) / fs * 40;
-        const fe = this.env(v, 'f', fa, fd, fsus, fr), ae = this.env(v, 'a', aa, ad, asus, ar);
+        const fe = this.envF(v, fsus), ae = this.envA(v, asus);
+        if (ctl || !v.ok){
+          v.ok = true;
+          const kb = (v.glide - 60) / 12;
+          const eB = (C.oBlo ? lgLo : lgB + stB / 12) + (C.oBkbd ? kb : 0) + (vint * (v.offB * 3 + v.driftB * 4)) / 1200 + (C.wmFB ? wm * .5 : 0);
+          v.dB = Math.min(.45, Math.exp(eB * LN2) / fs);
+          v.pbW = Math.max(.01, Math.min(.99, pwB + (C.wmPWB ? wm * .45 : 0) + vint * .01 * v.offPW));
+          v.eA = lgB + kb + stA / 12 + (vint * (v.offA * 3 + v.driftA * 4)) / 1200 + (C.wmFA ? wm * .5 : 0);
+          v.paW0 = pwA + (C.wmPWA ? wm * .45 : 0) + vint * .01 * v.offPW;
+          v.fO = cutSt / 12 + (C.fkbd ? kb : 0) + (C.wmF ? wm * 3 : 0) + vint * .05 * v.offF;
+          if (!audioPM){
+            const pm = pmE * fe;
+            v.dA = Math.min(.45, Math.exp((v.eA + (C.pmFA ? pm * 4 : 0)) * LN2) / fs);
+            v.g = 1 - Math.exp(gk * Math.min(.42 * fos, 16.35 * Math.exp((v.fO + fenv * fe + (C.pmF ? pm * 5 : 0)) * LN2)));
+          }
+        }
         // OSC B first (it feeds POLY-MOD and sync)
-        const kb = (v.glide - 60) / 12;
-        let fB = C.oBlo ? loHz * Math.pow(2, C.oBkbd ? kb : 0) : 261.63 * Math.pow(2, (C.oBkbd ? kb : 0) + stB / 12);
-        fB *= Math.pow(2, (vint * (v.offB * 3 + v.driftB * 4)) / 1200 + (C.wmFB ? wm * .5 : 0));
-        const dB = Math.min(.45, fB / fs);
-        const pbW = Math.max(.01, Math.min(.99, pwB + (C.wmPWB ? wm * .45 : 0) + vint * .01 * v.offPW));
+        const dB = v.dB, pbW = v.pbW;
         let pB = v.pb + dB, wrapped = false; if (pB >= 1){ pB -= 1; wrapped = true; } v.pb = pB;
-        let oscB = 0, nb = 0;
-        if (C.oBsaw){ oscB += 2 * pB - 1 - this.blep(pB, dB); nb++; }
-        if (C.oBtri){ oscB += 1 - 4 * Math.abs(pB - .5); nb++; }
-        if (C.oBpul){ oscB += (pB < pbW ? 1 : -1) + this.blep(pB, dB) - this.blep((pB - pbW + 1) % 1, dB); nb++; }
+        let oscB = 0;
+        if (C.oBsaw) oscB += 2 * pB - 1 - this.blep(pB, dB);
+        if (C.oBtri) oscB += 1 - 4 * Math.abs(pB - .5);
+        if (C.oBpul) oscB += (pB < pbW ? 1 : -1) + this.blep(pB, dB) - this.blep((pB - pbW + 1) % 1, dB);
         // POLY-MOD sum
-        const pm = q7(C.pmEnv) * fe + q7(C.pmB) * oscB;
+        const pm = pmE * fe + pmBq * oscB;
         // OSC A
-        let fA = 261.63 * Math.pow(2, kb + stA / 12 + (vint * (v.offA * 3 + v.driftA * 4)) / 1200 + (C.pmFA ? pm * 4 : 0) + (C.wmFA ? wm * .5 : 0));
-        const dA = Math.min(.45, fA / fs);
-        const paW = Math.max(.01, Math.min(.99, pwA + (C.pmPW ? pm * .5 : 0) + (C.wmPWA ? wm * .45 : 0) + vint * .01 * v.offPW));
+        let dA = v.dA, g = v.g;
+        if (audioPM){
+          dA = Math.min(.45, Math.exp((v.eA + (C.pmFA ? pm * 4 : 0)) * LN2) / fs);
+          g = 1 - Math.exp(gk * Math.min(.42 * fos, 16.35 * Math.exp((v.fO + fenv * fe + (C.pmF ? pm * 5 : 0)) * LN2)));
+        }
+        const paW = Math.max(.01, Math.min(.99, v.paW0 + (C.pmPW ? pm * .5 : 0)));
         let pA = v.pa + dA, jump = 0, tj = 0;
         if (C.sync && wrapped && !C.oBlo){
           const frac = pB / dB, before = (pA - frac * dA) % 1, after = frac * dA;
@@ -1309,10 +1377,9 @@ class Prophet5 extends AudioWorkletProcessor{
         if (C.oAsaw) oscA += 2 * pA - 1 - (jump ? 0 : this.blep(pA, dA));
         if (C.oApul) oscA += (pA < paW ? 1 : -1) + (jump ? 0 : this.blep(pA, dA)) - this.blep((pA - paW + 1) % 1, dA);
         if (jump){ const d = Math.min(1, tj); oscA -= jump * (1 - d) * (1 - d) * .5; }
-        // MIXER -> CEM3320
-        const x = (q7(C.mA) * oscA + q7(C.mB) * oscB + q7(C.mN) * w * .8) * .55 + w * 2e-5;   // the chip's own noise floor
-        const fOct = cutSt / 12 + q7(C.fenv) * fe * 9 + (C.fkbd ? kb : 0) + (C.pmF ? pm * 5 : 0) + (C.wmF ? wm * 3 : 0) + vint * .05 * v.offF;
-        const fc = Math.min(.42 * fos, 16.35 * Math.pow(2, fOct)), g = 1 - Math.exp(-2 * Math.PI * fc * 1.073 / fos), l = v.lad;   // trimmed so self-oscillation lands on the cutoff note
+        // MIXER -> CEM3320 (cutoff trimmed x1.073 so self-oscillation lands on the cutoff note)
+        const x = mA * oscA + mB * oscB + mN * w + w * 2e-5;   // the chip's own noise floor
+        const l = v.lad;
         let y = 0;
         for (let o = 0; o < 2; o++){
           const u = this.tanh(x - k * l[3]);
@@ -1350,6 +1417,7 @@ class Solina extends AudioWorkletProcessor{
     this.detune = TOS.map((d, pc) => (TOS[9] / d) / Math.pow(2, (pc - 9) / 12));
     this.cyc = new Float64Array(12);            // cycle counters of the top octave (octave 8) per pitch class
     this.fTop = TOS.map((d, pc) => 440 * Math.pow(2, (pc - 9) / 12 + 4) * this.detune[pc]);
+    this.shR = TOS.map((d, pc) => .35 * Math.pow(2, (pc - 6) / 12)); this.shA = this.shR.map(r => Math.exp(-.5 / r)); this.idle = 0;
     this.keys = new Map();                       // midi note -> {g, down, v}
     this.cresc = 0; this.active = false;
     this.formLp = [0, 0]; this.bpS = [0, 0, 0, 0]; this.bassLp = [0, 0, 0, 0]; this.bassG = 0; this.bassNote = -1;
@@ -1367,9 +1435,9 @@ class Solina extends AudioWorkletProcessor{
   blep(t, dt){ if (t < dt){ const x = t / dt; return x + x - x * x - 1; } if (t > 1 - dt){ const x = (t - 1) / dt; return x * x + x + x + 1; } return 0; }
   // the divider + diode/RC shaper: exponential ramp for the first half cycle, nothing for the second
   wave(pc, oct){
-    const k = 8 - oct, div = Math.pow(2, k), ph = (this.cyc[pc] / div) % 1, dt = this.fTop[pc] / div / this.fs;
+    const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = (this.cyc[pc] / div) % 1, dt = this.fTop[pc] / div / this.fs;
     if (dt >= .5) return 0;
-    const r = .35 * Math.pow(2, (pc - 6) / 12), a = Math.exp(-.5 / r);
+    const r = this.shR[pc], a = this.shA[pc];
     let y = ph < .5 ? Math.exp(-ph / r) : 0;
     y += .5 * this.blep(ph, dt); y -= .5 * a * this.blep((ph + .5) % 1, dt);
     return y - .3;
@@ -1379,6 +1447,13 @@ class Solina extends AudioWorkletProcessor{
     const atk = 1 - Math.exp(-1 / (820 * 15e-6 * fs));
     const rel = C.sus ? Math.exp(-1 / (15e-6 * (5600 + C.susLen * 10000) * fs)) : Math.exp(-1 / (.012 * fs));
     const tauC = (5600 + 25000 * (Math.pow(10, 2 * C.cresc) - 1) / 99) * 22e-6, cr = 1 - Math.exp(-1 / (tauC * fs));
+    // all keys died away and the ensemble lines have emptied: output silence
+    if (this.keys.size || this.bassG > 1e-4 || C.probe || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    else if ((this.idle += N) > 8192){ L.fill(0); if (R !== L) R.fill(0); this.cresc = 0; return true; }
+    const cs = this.cst || (this.cst = {});
+    if (cs.ch !== C.chorusHz || cs.tr !== C.tremHz){ cs.ch = C.chorusHz; cs.tr = C.tremHz;
+      cs.k = [1.33, .234, 2.84, 4.18, 1.30, 41.8, .482].map(f => 1 - Math.exp(-2 * Math.PI * f / fs)); }
+    const kc = cs.k, cv3 = [0, 0, 0];
     for (let i = 0; i < N; i++){
       const frame = currentFrame + i;
       while (this.q.length && this.q[0].f <= frame){
@@ -1412,23 +1487,25 @@ class Solina extends AudioWorkletProcessor{
       if (any) this.cresc += (1 - this.cresc) * cr; else this.cresc *= .999;
       let x = (strings * .5 + form + form2 + bass) * this.cresc * .45;
       // control circuit: square relaxation oscillators -> RC filters -> phase shift -> inverter (C1, C2, C3)
-      const lf = this.lf, op = (k, f, v) => { lf[k] += (v - lf[k]) * (1 - Math.exp(-2 * Math.PI * f / fs)); return lf[k]; };
+      const lf = this.lf;
       this.ph.c += C.chorusHz / fs; if (this.ph.c >= .5){ this.ph.c -= .5; this.ph.cs = -this.ph.cs; }
       this.ph.t += C.tremHz / fs; if (this.ph.t >= .5){ this.ph.t -= .5; this.ph.ts = -this.ph.ts; }
-      const ch = op(2, 2.84, op(1, .234, op(0, 1.33, this.ph.cs * .453))) * 3.4;
-      const tr = op(5, 41.8, op(4, 1.30, op(3, 4.18, this.ph.ts * .548))) * 8.8 * C.trem;
-      const c1 = ch + tr, c2 = -1.83 * op(6, .482, c1), c3 = -(c1 + c2);
+      lf[0] += (this.ph.cs * .453 - lf[0]) * kc[0]; lf[1] += (lf[0] - lf[1]) * kc[1]; lf[2] += (lf[1] - lf[2]) * kc[2];
+      lf[3] += (this.ph.ts * .548 - lf[3]) * kc[3]; lf[4] += (lf[3] - lf[4]) * kc[4]; lf[5] += (lf[4] - lf[5]) * kc[5];
+      const ch = lf[2] * 3.4, tr = lf[5] * 8.8 * C.trem;
+      const c1 = ch + tr; lf[6] += (c1 - lf[6]) * kc[6]; const c2 = -1.83 * lf[6], c3 = -(c1 + c2);
       if (C.probe){ L[i] = c1; R[i] = C.probe === 2 ? c3 : c2; this.w++; continue; }
       // three BBD lines: clock follows the control voltage, delay = 185 stages / (2 f_clk)
       this.buf[this.w & 4095] = x; let sum = 0, sL = 0, sR = 0;
       if (C.ens){
-        [c1, c2, c3].forEach((cv, j) => {
-          const fclk = 33000 * (1 + C.depth * Math.max(-.9, Math.min(.9, cv))), d = 185 / (2 * fclk) * fs;
+        cv3[0] = c1; cv3[1] = c2; cv3[2] = c3;
+        for (let j = 0; j < 3; j++){
+          const cv = cv3[j], fclk = 33000 * (1 + C.depth * Math.max(-.9, Math.min(.9, cv))), d = 185 / (2 * fclk) * fs;
           const r = this.w - d, i0 = Math.floor(r), f = r - i0, a = this.buf[i0 & 4095], b = this.buf[(i0 + 1) & 4095];
           const ln = this.lines[j];
           let v = a + (b - a) * f; const yy = this.post.b0 * v + ln.z1; ln.z1 = this.post.b1 * v - this.post.a1 * yy + ln.z2; ln.z2 = this.post.b2 * v - this.post.a2 * yy;
           sum += yy; if (j === 0) sL += yy; else if (j === 2) sR += yy; else { sL += yy * .5; sR += yy * .5; }
-        });
+        }
         if (C.wide){ L[i] = sL * .8; R[i] = sR * .8; } else { L[i] = sum * .5; R[i] = sum * .5; }
       } else { L[i] = x; R[i] = x; }
       this.w++;
@@ -1644,9 +1721,11 @@ registerProcessor('svc350', SVC350);
 let WORKLET_URL = null;
 const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE], {type:'application/javascript'})));
 
+// audio buffer size is a per-phone setting, kept outside the project
+function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'balanced'; }
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
-  ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
+  ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:audioBuf()});
   live = makeRig(ctx);
   live.click = ctx.createGain(); live.click.gain.value = .5; live.click.connect(ctx.destination);
   silent = ctx.createGain(); silent.gain.value = 0; silent.connect(ctx.destination);
@@ -3858,6 +3937,14 @@ $('#enableIn2').addEventListener('click', enableInput);
 $('#device').addEventListener('change', e => { S.device = e.target.value; save(); enableInput(); });
 $('#inCh').addEventListener('change', e => { S.inCh = e.target.value; save(); routeMonitor(); });
 $('#monitor').addEventListener('click', () => { S.monitor = !S.monitor; if (S.monitor) toast('Monitoring on. Use headphones to avoid feedback.'); save(); routeMonitor(); renderInput(); });
+$('#audioBuf').value = audioBuf();
+$('#audioBuf').addEventListener('change', async e => {
+  try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
+  if (!ctx){ toast('Audio buffer set.'); return; }
+  if (playing) stop();
+  clearTimeout(saveT); storeScene(); try { await DB.put('kv', 'project', S); } catch(err){}
+  location.reload();
+});
 $('#countIn').addEventListener('click', () => { S.countIn = !S.countIn; save(); renderInput(); });
 $('#autoLat').addEventListener('click', () => { if (S.autoLat) S.latMs = Math.round(latSec() * 1000); S.autoLat = !S.autoLat; save(); renderInput(); });
 $('#latMs').addEventListener('input', e => { S.latMs = +e.target.value; $('#latV').textContent = S.latMs + ' ms'; save(); });
