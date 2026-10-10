@@ -188,7 +188,8 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 .srow button.sm{padding:9px 9px}
 
 .mlegend{display:flex;gap:14px;font:600 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:#ece8dd}
-#matchCv{width:100%;height:120px;background:#101411;border-radius:6px;display:block}
+.matchCv{width:100%;height:120px;background:#101411;border-radius:6px;display:block}
+.mpanel{display:flex;flex-direction:column;gap:8px}
 #ttsText{font:400 22px/1.2 var(--f-lcd);color:#fff;background:linear-gradient(180deg,var(--lcd,#3a6fe0),var(--lcd2,#2550bd));border:2px solid #23251f;border-radius:3px;padding:8px;width:100%;resize:vertical;-webkit-user-select:text;user-select:text}
 #chopWave{width:100%;height:170px;background:#0c0e12;border-radius:8px;display:block;touch-action:none}
 .slices{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
@@ -385,6 +386,17 @@ html.retro .mxch input.chfader::-webkit-slider-thumb{width:28px;height:16px;marg
 html.retro input.xfader{height:44px}
 html.retro input.xfader::-webkit-slider-runnable-track{height:10px}
 html.retro input.xfader::-webkit-slider-thumb{width:22px;height:40px;margin-top:-15px}
+.sslp{background:linear-gradient(180deg,#5a6068,#474c53);border:1px solid #1d1f22;border-radius:4px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:inset 0 1px 0 #ffffff30}
+.ssl-head{display:flex;align-items:center;gap:8px}
+.ssl-head b{font:400 12px "Michroma",sans-serif;letter-spacing:.12em;color:#fff}
+.ssl-head span{flex:1;font:400 7.5px "Michroma",sans-serif;letter-spacing:.14em;color:#d6dbe0}
+html.retro .ssl-head button{padding:8px 14px;font:400 10px "Michroma",sans-serif}
+html.retro .ssl-head button.on{background:linear-gradient(180deg,#ff4a3a,#c21f14);color:#fff}
+.ssl-gr{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font:400 9px "Michroma",sans-serif;color:#fff}
+.grbar{height:10px;background:#111;border-radius:2px;overflow:hidden;box-shadow:inset 0 1px 2px #000;direction:rtl}
+.grbar i{display:block;height:100%;width:0;background:linear-gradient(270deg,#ffd54a,#ff6a2a)}
+.ssl-knobs .klab{color:#fff}
+html.retro .ssl-knobs select.kval{color:#ffe2a0}
 </style>
 
 </head>
@@ -511,6 +523,8 @@ html.retro input.xfader::-webkit-slider-thumb{width:22px;height:40px;margin-top:
       <div class="mx"><div class="mxch" id="mxch0"></div><div class="mxch" id="mxch1"></div></div>
       <div class="xfrow"><b>1</b><input id="xf" class="xfader" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Crossfader"><b>2</b></div>
       <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev" class="nolearn">REV (HAMSTER)</button></div>
+      <span class="label">EQ match (decks)</span>
+      <div id="deckMatch" class="mpanel"></div>
       <p class="hint">Map a knob to the crossfader with MIDI learn (tap the crossfader while learning). On the Scratch curve the sound is fully on just past the edge, for cuts and transforms.</p>
     </div>
   </section>
@@ -880,7 +894,8 @@ html.retro input.xfader::-webkit-slider-thumb{width:22px;height:40px;margin-top:
         <li><b>Sends</b> go to the shared Reverb and Delay. Set their size, time and feedback on the <b>Master</b> strip.</li>
         <li><b>Sends to the FX rack</b> feed the five rack units below the mixer (see FX rack).</li>
         <li><b>Master EQ</b> (Master strip → FX): low cut, plus ±12 dB at 80 Hz, 200 Hz, 500 Hz, 1.2 kHz, 3 kHz, 6 kHz and 12 kHz. It's switched out when flat.</li>
-        <li><b>EQ match</b>: tap <b>Load reference</b> and pick a song whose tone you like, then <b>Match my mix</b>. The app renders your song, compares the two average spectra in 31 bands (1/3 octave) and sets a matching EQ, up to ±9 dB. <b>Amount</b> sets how much of it to use; the graph shows the reference (blue), your mix (white) and the correction (orange). Match again after big changes.</li>
+        <li><b>EQ match works on anything</b>: the master (Master strip → FX), every track (its FX page) and both turntable decks (Wheel tab, under the mixer). Pick a <b>Reference</b>: a song file on your phone, the master mix, any track, or a deck. Then tap <b>Match</b>: the app compares the two average spectra in 31 bands (1/3 octave) and sets a matching EQ, up to ±9 dB. <b>Amount</b> sets how much to use; the graph shows the reference (blue), this sound (white) and the correction (orange). Match again after big changes. A matched track only uses CPU for its EQ while a match is on.</li>
+        <li><b>Bus compressor</b> (Master strip → FX), in the style of the SSL G-series quad bus compressor: THRESHOLD, RATIO 2:1 / 4:1 / 10:1, ATTACK 0.1–30 ms, RELEASE 0.1–1.2 s or AUTO (fast after short peaks, slower when squeezing hard), MAKE-UP, a sidechain high-pass so the kick doesn't pump the mix, and MIX for parallel compression. The GR meter shows gain reduction. Presets cover mix-bus glue, hip-hop bus, drum smash, punch, pumping and more.</li>
         <li><b>CLIP lights</b>: each mixer channel has a CLIP light that turns red when the channel goes over full scale (the master checks before its limiter). A flashing CLIP badge in the top bar shows it on any page; tap it to go to the mixer. Tap a CLIP light to clear it.</li>
         <li><b>Master</b>: Glue compression (adds 6 ms of latency while on, so leave it off while recording live) and a soft clipper that stops harsh overs.</li>
       </ul>
@@ -1668,9 +1683,27 @@ function applyRack(c, m){
     if (u.node){ const j = JSON.stringify(cfg); if (u.sent !== j){ u.node.port.postMessage({type:'cfg', cfg}); u.sent = j; } }
   }
 }
+function sslState(){ const M = S.master, d = {on:false, thr:-12, ratio:4, atk:3, rel:4, makeup:0, hp:0, mix:1}; M.ssl = M.ssl || {}; for (const k in d) if (M.ssl[k] === undefined) M.ssl[k] = d[k]; return M.ssl; }
+const SSL_ATK_L = ['0.1', '0.3', '1', '3', '10', '30'], SSL_REL_L = ['0.1', '0.3', '0.6', '1.2'];
+const SSL_PRESETS = {
+  'Mix bus glue (4:1, 10 ms, Auto)':{thr:-14, ratio:4, atk:4, rel:4, makeup:2, hp:0, mix:1},
+  'Gentle glue (2:1, 30 ms, Auto)':{thr:-10, ratio:2, atk:5, rel:4, makeup:1, hp:0, mix:1},
+  'Hip-hop bus (4:1, 30 ms, 0.1 s)':{thr:-16, ratio:4, atk:5, rel:0, makeup:3, hp:60, mix:1},
+  'Drum smash (10:1, 1 ms, 0.1 s)':{thr:-24, ratio:10, atk:2, rel:0, makeup:8, hp:0, mix:.5},
+  'Punch (4:1, 30 ms, 0.3 s)':{thr:-18, ratio:4, atk:5, rel:1, makeup:4, hp:90, mix:1},
+  'Master safety (2:1, 3 ms, Auto)':{thr:-6, ratio:2, atk:3, rel:4, makeup:0, hp:0, mix:1},
+  'Pumping (10:1, 0.1 ms, 0.6 s)':{thr:-22, ratio:10, atk:0, rel:2, makeup:7, hp:0, mix:1},
+  'Electro bus (4:1, 3 ms, 0.3 s)':{thr:-15, ratio:4, atk:3, rel:1, makeup:3, hp:60, mix:1}
+};
 function wireMasterEq(c, m){
   const E = masterEq(), eqOn = E.lowcut > 0 || MEQ_BANDS.some(b => b.key && E[b.key]), mt = E.match && E.match.gains && E.amount > 0;
-  const key = (eqOn ? 1 : 0) + ':' + (mt ? 1 : 0);
+  const SS = sslState();
+  if (SS.on && !m.ssl && c._reduxOK){
+    m.ssl = new AudioWorkletNode(c, 'sslbus', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:SS}});
+    m.ssl.port.onmessage = e => { m.sslGr = e.data.gr; };
+  }
+  if (m.ssl) m.ssl.port.postMessage({type:'cfg', cfg:SS});
+  const key = (eqOn ? 1 : 0) + ':' + (mt ? 1 : 0) + ':' + (m.ssl ? 1 : 0);
   m.eq[0].frequency.value = E.lowcut || 10; m.eq[0].type = E.lowcut ? 'highpass' : 'allpass';
   MEQ_BANDS.forEach((b, k) => { if (b.key) sp(c, m.eq[k].gain, E[b.key] || 0); });
   m.mt.forEach((f, k) => sp(c, f.gain, mt ? E.match.gains[k] * E.amount : 0));
@@ -1679,6 +1712,7 @@ function wireMasterEq(c, m){
   let at = m.bus;
   if (eqOn){ at.connect(m.eq[0]); at = m.eq[m.eq.length - 1]; }
   if (mt){ at.connect(m.mt[0]); at = m.mt[m.mt.length - 1]; }
+  if (m.ssl){ m.ssl.disconnect(); at.connect(m.ssl); at = m.ssl; }
   at.connect(m.pre);
 }
 function applyMaster(c, m){
@@ -1706,22 +1740,33 @@ function insertRedux(c, s){
 // connect only the stages a track is using; an effect at zero is taken out of the chain so it costs no CPU
 function wireStrip(s, t){
   const use = {sat:(t.sat || 0) > 0, rdx:!!s.rdx && (!!t.sp12 || (t.crush || 0) > 0), eq:!!(t.low || t.mid || t.high), filt:t.ftype !== 'off',
-    ch:(t.chorus || 0) > 0, comp:t.comp > 0, ap:(t.apan || 0) > 0};
+    ch:(t.chorus || 0) > 0, comp:t.comp > 0, ap:(t.apan || 0) > 0, mt:!!(t.match && t.match.gains && t.match.amount > 0)};
   const key = Object.values(use).map(Number).join('');
   if (s._wire === key) return; s._wire = key;
   for (const n of [s.vocOut, s.satOut, s.high, s.filt, s.chIn, s.chOut, s.apDepth]) n.disconnect();
+  if (s.mtOut) s.mtOut.disconnect();
   if (s.rdx) s.rdx.disconnect();
   let at = s.vocOut;
   const to = n => { at.connect(n); at = n; };
   if (use.sat){ at.connect(s.sat); at = s.satOut; }
   if (use.rdx){ to(s.rdx); }
   if (use.eq){ at.connect(s.low); at = s.high; }
+  if (use.mt){ const mt = matchChain(s.input.context, s); s.mtOut.disconnect(); at.connect(mt[0]); at = s.mtOut; }
   if (use.filt) to(s.filt);
   to(s.chIn); s.chIn.connect(s.chOut);
   if (use.ch) s.chIn.connect(s.chSend);
   if (use.comp) s.chOut.connect(s.comp); else s.chOut.connect(s.compDry);
   if (use.ap) s.apDepth.connect(s.pan.pan);
 }
+// the 31 one-third-octave peaking filters of an EQ match, built only when something uses them
+function matchChain(c, holder){
+  if (holder.mt) return holder.mt;
+  holder.mt = MATCH_F.map(f => { const b = c.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = Math.min(f, c.sampleRate * .45); b.Q.value = 4.32; b.gain.value = 0; return b; });
+  for (let k = 0; k < holder.mt.length - 1; k++) holder.mt[k].connect(holder.mt[k + 1]);
+  holder.mtOut = holder.mt[holder.mt.length - 1];
+  return holder.mt;
+}
+function setMatchGains(c, chain, M){ if (!chain) return; const on = M && M.gains && M.amount > 0; chain.forEach((f, k) => sp(c, f.gain, on ? M.gains[k] * M.amount : 0)); }
 function makeStrip(c, m){
   const s = {};
   s.input = c.createGain();
@@ -1768,6 +1813,7 @@ function applyStrip(c, s, t){
   sp(c, s.pan.pan, t.pan); sp(c, s.fader.gain, t.vol * t.vol * 1.4);
   const on = !t.mute && (!anySolo() || t.solo);
   sp(c, s.mute.gain, on ? 1 : 0); sp(c, s.sa.gain, t.sendA); sp(c, s.sb.gain, t.sendB);
+  setMatchGains(c, s.mt, t.match);
   for (const k of RACK_KEYS){
     const v = (t.rack && t.rack[k]) || 0;
     if (v > 0 && !s.rsOn[k]){ s.mute.connect(s.rs[k]); s.rsOn[k] = true; } else if (!v && s.rsOn[k]){ s.mute.disconnect(s.rs[k]); s.rsOn[k] = false; }
@@ -2835,6 +2881,43 @@ registerProcessor('mxr113', MXR113);
 /* The Wheel of Steel: an SL-1200 MK2-style direct-drive deck. Motor reaches 33 1/3 in about 0.7 s and brakes in about
    half that; quartz pitch +/-8 %. Touching the record hands control to your finger (the record follows it through a
    few-ms of slip), and letting go lets the motor pull it back to speed. */
+/* Mastering bus compressor in the style of the SSL G-series quad bus compressor: a feed-forward VCA compressor, stereo
+   linked, with stepped attack (0.1-30 ms), release (0.1-1.2 s or Auto, program dependent), ratio 2:1 / 4:1 / 10:1,
+   make-up gain, a sidechain high-pass so the kick doesn't pump the whole mix, and a mix knob for parallel compression. */
+const SSL_ATK = [.1, .3, 1, 3, 10, 30], SSL_REL = [.1, .3, .6, 1.2, 0];
+class SSLBus extends AudioWorkletProcessor{
+  constructor(o){ super(); this.fs = sampleRate; this.c = Object.assign({on:0, thr:-12, ratio:4, atk:3, rel:4, makeup:0, hp:0, mix:1}, (o && o.processorOptions && o.processorOptions.cfg) || {});
+    this.gr = 0; this.slow = 0; this.hx = [0, 0]; this.hy = [0, 0]; this.n = 0; this.port.onmessage = e => { if (e.data.type === 'cfg') Object.assign(this.c, e.data.cfg); }; }
+  process(ins, outs){
+    const inp = ins[0], L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.c, fs = this.fs;
+    const a = inp && inp.length ? inp[0] : null, b = inp && inp.length > 1 ? inp[1] : a;
+    if (!a){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    if (!C.on){ L.set(a); if (R !== L) R.set(b); this.gr = 0; return true; }
+    const aA = 1 - Math.exp(-1 / (SSL_ATK[C.atk] / 1000 * fs)), auto = !SSL_REL[C.rel];
+    const hpA = C.hp ? Math.exp(-2 * Math.PI * C.hp / fs) : 0, slope = 1 - 1 / C.ratio, mk = Math.pow(10, C.makeup / 20), mix = C.mix;
+    const sA = 1 - Math.exp(-1 / (2 * fs));
+    for (let i = 0; i < N; i++){
+      let l = a[i], r = b[i];
+      // sidechain high-pass (one pole) before the detector
+      if (hpA){ const yl = hpA * (this.hy[0] + l - this.hx[0]); this.hx[0] = l; this.hy[0] = yl; const yr = hpA * (this.hy[1] + r - this.hx[1]); this.hx[1] = r; this.hy[1] = yr; l = yl; r = yr; }
+      const pk = Math.max(Math.abs(l), Math.abs(r)), db = 20 * Math.log10(pk + 1e-9);
+      // soft knee of about 4 dB around the threshold
+      const over = db - C.thr, want = over <= -2 ? 0 : over >= 2 ? over * slope : slope * (over + 2) * (over + 2) / 8;
+      if (want > this.gr) this.gr += (want - this.gr) * aA;
+      else {
+        // Auto: fast recovery from short peaks, slow from sustained squeeze
+        this.slow += (this.gr - this.slow) * sA;
+        const rt = auto ? .1 + Math.min(1.1, this.slow * .25) : SSL_REL[C.rel];
+        this.gr += (want - this.gr) * (1 - Math.exp(-1 / (rt * fs)));
+      }
+      const g = Math.pow(10, -this.gr / 20) * mk;
+      L[i] = a[i] * (1 - mix + mix * g); R[i] = b[i] * (1 - mix + mix * g);
+    }
+    if ((this.n += N) >= 1024){ this.n = 0; this.port.postMessage({gr:this.gr}); }
+    return true;
+  }
+}
+registerProcessor('sslbus', SSLBus);
 class Deck extends AudioWorkletProcessor{
   constructor(){
     super(); this.ch = null; this.sr = 44100; this.len = 0; this.pos = 0; this.rate = 0;
@@ -2897,7 +2980,7 @@ function ensureAudio(){
   workletReady = ctx.audioWorklet.addModule(workletUrl()).then(() => {
     ctx._reduxOK = true;
     live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
-    rackNodes(ctx, live.master); applyRack(ctx, live.master);
+    rackNodes(ctx, live.master); applyRack(ctx, live.master); live.master._eqw = null; applyMaster(ctx, live.master);
     applyVocoders(live);
     capNode = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
     capNode.port.onmessage = e => capChunks.push(e.data);
@@ -3982,6 +4065,23 @@ function renderFx(){
     add('<h2>Master</h2>');
     let g = grid();
     ctl(g, 'Glue', M, 'glue', 0, 1, .01, v => v ? pct(v) + ' (+6 ms)' : 'Off', after);
+    // SSL-style bus compressor panel
+    const SS = sslState(), sb = document.createElement('div'); sb.className = 'sslp';
+    sb.innerHTML = `<div class="ssl-head"><b>BUS COMPRESSOR</b><span>G-SERIES STYLE · MASTER</span><button id="sslOn" class="${SS.on ? 'on' : ''}">IN</button></div>
+      <select id="sslPreset" aria-label="Bus compressor presets"><option value="">Presets…</option>${Object.keys(SSL_PRESETS).map(n => `<option>${n}</option>`).join('')}</select>
+      <div class="ssl-gr"><span>GR</span><div class="grbar"><i id="sslGr"></i></div><span id="sslGrV">0 dB</span></div>
+      <div class="svc-knobs ssl-knobs"></div>`;
+    box.appendChild(sb);
+    const kb = sb.querySelector('.ssl-knobs'), up = () => { if (live) applyMaster(ctx, live.master); };
+    knob(kb, 'THRESHOLD', SS, 'thr', -30, 0, .5, v => v + ' dB', up, 'black');
+    knob(kb, 'RATIO', SS, 'ratio', 2, 10, 1, v => v + ':1', () => { SS.ratio = SS.ratio < 3 ? 2 : SS.ratio < 7 ? 4 : 10; up(); }, 'white');
+    knob(kb, 'ATTACK', SS, 'atk', 0, 5, 1, v => SSL_ATK_L[v] + ' ms', up, 'white');
+    knob(kb, 'RELEASE', SS, 'rel', 0, 4, 1, v => v === 4 ? 'AUTO' : SSL_REL_L[v] + ' s', up, 'white');
+    knob(kb, 'MAKE-UP', SS, 'makeup', 0, 15, .5, v => '+' + v + ' dB', up, 'black');
+    knob(kb, 'S/C HPF', SS, 'hp', 0, 150, 30, v => v ? v + ' Hz' : 'OFF', up, 'white');
+    knob(kb, 'MIX', SS, 'mix', 0, 1, .05, v => Math.round(v * 100) + '%', up, 'white');
+    sb.querySelector('#sslOn').addEventListener('click', () => { SS.on = !SS.on; ensureAudio(); if (live){ live.master._eqw = null; up(); } save(); renderFx(); });
+    sb.querySelector('#sslPreset').addEventListener('change', e => { const P = SSL_PRESETS[e.target.value]; if (!P) return; Object.assign(SS, P, {on:true}); ensureAudio(); if (live){ live.master._eqw = null; up(); } save(); renderFx(); });
     const E = masterEq();
     add('<span class="label">Master EQ</span>'); g = grid();
     const lc = document.createElement('div'); lc.className = 'ctl';
@@ -3989,16 +4089,7 @@ function renderFx(){
     const lcs = lc.querySelector('select'); lcs.value = String(E.lowcut); lcs.addEventListener('change', () => { E.lowcut = +lcs.value; applyAll(); save(); }); g.appendChild(lc);
     for (const [lb, k] of [['80 Hz', 'g80'], ['200 Hz', 'g200'], ['500 Hz', 'g500'], ['1.2 kHz', 'g1k'], ['3 kHz', 'g3k'], ['6 kHz', 'g6k'], ['12 kHz', 'g12k']]) ctl(g, lb, E, k, -12, 12, .5, dB, after);
     add('<span class="label">EQ match</span>');
-    add(`<div class="row"><button id="matchRef" class="grow">Load reference</button><button id="matchGo" class="grow"${E.match && E.match.ref ? '' : ' disabled'}>Match my mix</button></div>`);
-    add(`<div class="status" id="matchStatus">${E.match && E.match.gains ? 'Matching ' + (E.match.name || 'the reference').replace(/</g, '&lt;') + '.' : E.match && E.match.ref ? 'Reference: ' + (E.match.name || '').replace(/</g, '&lt;') + '. Tap Match my mix.' : 'Load a song whose tone you like, then tap Match my mix.'}</div>`);
-    add('<canvas id="matchCv" aria-label="EQ match curves"></canvas>');
-    add('<div class="mlegend"><span style="color:#7cc4d6">■ Reference</span><span>■ Your mix</span><span style="color:#ef5a2a">■ Correction</span></div>');
-    g = grid(); ctl(g, 'Amount', E, 'amount', 0, 1, .05, pct, after);
-    if (E.match && E.match.gains) add('<button id="matchClear">Clear match</button>');
-    $('#matchRef').addEventListener('click', () => $('#refFile').click());
-    $('#matchGo').addEventListener('click', matchMix);
-    if ($('#matchClear')) $('#matchClear').addEventListener('click', () => { E.match = E.match && E.match.ref ? {ref:E.match.ref, name:E.match.name} : null; applyAll(); save(); renderFx(); });
-    drawMatch();
+    matchPanel(box, 'master');
     add('<span class="label">Reverb return</span>'); g = grid();
     ctl(g, 'Size', M, 'rev', .4, 6, .1, v => v.toFixed(1) + ' s', () => { if (live) live.master.conv.buffer = makeIR(ctx, M.rev); });
     add('<span class="label">Delay return</span>'); g = grid();
@@ -4013,6 +4104,7 @@ function renderFx(){
   add(`<h2>${t.name.replace(/</g, '&lt;')} effects</h2>`);
   add('<span class="label">EQ Three</span>'); let g = grid();
   ctl(g, 'Low', t, 'low', -15, 15, .5, dB, after); ctl(g, 'Mid', t, 'mid', -15, 15, .5, dB, after); ctl(g, 'High', t, 'high', -15, 15, .5, dB, after);
+  add('<span class="label">EQ match</span>'); matchPanel(box, 't:' + t.id);
   add('<span class="label">Auto Filter</span>'); g = grid();
   const row = document.createElement('div'); row.className = 'ctl';
   row.innerHTML = '<label class="label" for="ftype">Type</label><select id="ftype"><option value="off">Off</option><option value="lowpass">Low-pass</option><option value="highpass">High-pass</option><option value="bandpass">Band-pass</option></select><span></span>';
@@ -4068,29 +4160,90 @@ function renderRack(){
   }
   if (mlearn) markMapped();
 }
-function drawMatch(){
-  const cv = $('#matchCv'); if (!cv) return;
-  const E = masterEq(), dpr = devicePixelRatio || 1, w = cv.width = Math.round(cv.clientWidth * dpr), h = cv.height = Math.round(cv.clientHeight * dpr), g = cv.getContext('2d');
+function drawMatch(key = 'master'){
+  const cv = $('#matchCv-' + key.replace(/\W/g, '')); if (!cv) return;
+  const M = matchOf(key), amt = key === 'master' ? masterEq().amount : M && M.amount, dpr = devicePixelRatio || 1, w = cv.width = Math.round(cv.clientWidth * dpr), h = cv.height = Math.round(cv.clientHeight * dpr), g = cv.getContext('2d');
   g.clearRect(0, 0, w, h); if (!w) return;
   const X = k => (k + .5) / MATCH_F.length * w, Y = db => h / 2 - db / 15 * (h / 2 - 6 * dpr);
   g.strokeStyle = '#ffffff22'; g.lineWidth = dpr; for (const db of [-12, -6, 0, 6, 12]){ g.beginPath(); g.moveTo(0, Y(db)); g.lineTo(w, Y(db)); g.stroke(); }
   g.fillStyle = '#ffffff66'; g.font = `${9 * dpr}px "JetBrains Mono", monospace`; ['100', '1k', '10k'].forEach((t, i) => g.fillText(t, X([7, 17, 27][i]) - 8 * dpr, h - 3 * dpr));
   const line = (vals, col, off) => { if (!vals) return; const ok = vals.filter(v => v != null); if (!ok.length) return; const m = off ? ok.reduce((a, b) => a + b, 0) / ok.length : 0;
     g.strokeStyle = col; g.lineWidth = 2 * dpr; g.beginPath(); let st = false; vals.forEach((v, k) => { if (v == null) return; const y = Y(off ? (v - m) / 2 : v); if (!st){ g.moveTo(X(k), y); st = true; } else g.lineTo(X(k), y); }); g.stroke(); };
-  if (E.match){ line(E.match.ref, '#7cc4d6', true); line(E.match.mix, '#ece8dd', true); line(E.match.curve && E.match.curve.map(x => x * E.amount), '#ef5a2a', false); }
+  if (M){ line(M.ref, '#7cc4d6', true); line(M.mix, '#ece8dd', true); line(M.curve && M.curve.map(x => x * (amt == null ? .7 : amt)), '#ef5a2a', false); }
 }
-async function matchMix(){
-  const E = masterEq(); if (!E.match || !E.match.ref) return;
-  $('#matchStatus').textContent = 'Listening to your mix…';
+/* EQ match for anything: the master, any track, either deck. The reference can be a file or any other sound in the app.
+   key: 'master' | 't:<track id>' | 'd:<deck>' */
+function matchOf(key){
+  if (key === 'master'){ const E = masterEq(); if (E.match) E.match.amount = E.amount; return E.match; }
+  if (key.startsWith('t:')){ const t = trackById(key.slice(2)); return t && t.match; }
+  return deckState(+key.slice(2)).match;
+}
+function setMatchOf(key, M){
+  if (key === 'master'){ const E = masterEq(); E.match = M; if (M && M.amount != null) E.amount = M.amount; return; }
+  if (key.startsWith('t:')){ const t = trackById(key.slice(2)); if (t) t.match = M; return; }
+  deckState(+key.slice(2)).match = M;
+}
+const matchName = key => key === 'master' ? 'the master' : key.startsWith('t:') ? ((trackById(key.slice(2)) || {}).name || 'track') : 'deck ' + (+key.slice(2) + 1);
+async function soundOf(key){
+  if (key === 'master') return renderAudio(44100);
+  if (key.startsWith('t:')) return renderAudio(44100, key.slice(2));
+  const d = decks[+key.slice(2)]; if (!d.buf) await deckLoadSaved(d); return d.buf;
+}
+async function matchSetRef(key, src, file){
+  const st = $('#matchStatus-' + key.replace(/\W/g, ''));
   try {
-    var keep = E.match.gains; E.match.gains = null;             // analyse the mix without the current match
-    const buf = await renderAudio(44100);
-    const mix = await bandSpectrum(buf), curve = matchCurve(E.match.ref, mix);
-    Object.assign(E.match, {mix, curve, gains:matchGains(curve)});
-    applyAll(); save(); renderFx();
-    toast('EQ matched to ' + (E.match.name || 'the reference') + '. Use Amount to taste.');
-    void keep;
-  } catch (e){ console.warn(e); if (E.match && !E.match.gains) E.match.gains = keep; $('#matchStatus').textContent = 'Could not analyse the mix.'; }
+    if (st) st.textContent = 'Listening to the reference…';
+    let buf, name;
+    if (file){ ensureAudio(); buf = await ctx.decodeAudioData(await file.arrayBuffer()); name = file.name.replace(/\.[^.]+$/, '').slice(0, 40); }
+    else { buf = await soundOf(src); name = matchName(src); if (!buf) throw new Error('empty'); }
+    const old = matchOf(key) || {};
+    setMatchOf(key, {ref:await bandSpectrum(buf), name, amount:old.amount == null ? .7 : old.amount});
+    save(); rerenderMatch(key); toast(`Reference: ${name}. Now tap Match.`);
+  } catch (e){ console.warn(e); if (st) st.textContent = 'Could not read that sound.'; }
+}
+async function matchRun(key){
+  const M = matchOf(key); if (!M || !M.ref) return;
+  const st = $('#matchStatus-' + key.replace(/\W/g, '')); if (st) st.textContent = 'Listening to ' + matchName(key) + '…';
+  const keep = M.gains; M.gains = null; applyAll();                 // analyse without its own match
+  try {
+    const buf = await soundOf(key); if (!buf) throw new Error('nothing to analyse');
+    const mix = await bandSpectrum(buf), curve = matchCurve(M.ref, mix);
+    Object.assign(M, {mix, curve, gains:matchGains(curve)}); setMatchOf(key, M);
+    applyAll(); applyMix && applyMix(); save(); rerenderMatch(key);
+    toast(`EQ matched ${matchName(key)} to ${M.name}. Use Amount to taste.`);
+  } catch (e){ console.warn(e); M.gains = keep; if (st) st.textContent = 'Could not analyse ' + matchName(key) + '. Is anything playing on it?'; }
+}
+function rerenderMatch(key){ if (key.startsWith('d:')) renderDeckMatch(); else renderFx(); }
+// the EQ match panel, used on the master, every track's FX page and the decks
+function matchPanel(box, key){
+  const id = key.replace(/\W/g, ''), M = matchOf(key);
+  const opts = ['<option value="">Reference…</option>', '<option value="file">A file on this phone</option>'];
+  if (key !== 'master') opts.push('<option value="master">The master mix</option>');
+  for (const t of allTracks()) if ('t:' + t.id !== key) opts.push(`<option value="t:${t.id}">${t.name.replace(/</g, '&lt;')}</option>`);
+  decks.forEach((d, i) => { if ('d:' + i !== key && deckState(i).name) opts.push(`<option value="d:${i}">Deck ${i + 1}: ${deckState(i).name.replace(/</g, '&lt;').slice(0, 24)}</option>`); });
+  const w = document.createElement('div'); w.className = 'mpanel';
+  w.innerHTML = `<div class="row"><select class="grow" id="matchSrc-${id}" aria-label="Reference">${opts.join('')}</select><button id="matchGo-${id}"${M && M.ref ? '' : ' disabled'}>MATCH</button></div>
+    <div class="status" id="matchStatus-${id}">${M && M.gains ? 'Matching ' + (M.name || 'the reference').replace(/</g, '&lt;') + '.' : M && M.ref ? 'Reference: ' + (M.name || '').replace(/</g, '&lt;') + '. Tap Match.' : 'Pick a reference: a song you like, or another sound in the app.'}</div>
+    <canvas class="matchCv" id="matchCv-${id}" aria-label="EQ match curves"></canvas>
+    <div class="mlegend"><span style="color:#7cc4d6">■ Reference</span><span>■ This</span><span style="color:#ef5a2a">■ Correction</span></div>
+    <div class="ctls" id="matchAmt-${id}"></div>`;
+  box.appendChild(w);
+  const sel = w.querySelector('select');
+  sel.addEventListener('change', () => { const v = sel.value; sel.value = ''; if (!v) return; if (v === 'file'){ matchFileKey = key; $('#refFile').click(); } else matchSetRef(key, v); });
+  w.querySelector('button').addEventListener('click', () => matchRun(key));
+  if (M && M.ref){
+    if (M.amount == null) M.amount = .7;
+    ctl(w.querySelector('#matchAmt-' + id), 'Amount', key === 'master' ? masterEq() : M, 'amount', 0, 1, .05, v => Math.round(v * 100) + '%', () => { applyAll(); applyMix(); drawMatch(key); });
+    const cl = document.createElement('button'); cl.textContent = 'CLEAR MATCH'; cl.addEventListener('click', () => { setMatchOf(key, null); applyAll(); applyMix(); save(); rerenderMatch(key); }); w.appendChild(cl);
+  }
+  requestAnimationFrame(() => drawMatch(key));
+}
+let matchFileKey = 'master';
+function renderDeckMatch(){
+  const box = $('#deckMatch'); if (!box) return; box.innerHTML = '';
+  const sel = document.createElement('div'); sel.className = 'seg'; sel.innerHTML = '<button data-i="0">DECK 1</button><button data-i="1">DECK 2</button>';
+  const cur = box._i || 0; sel.querySelectorAll('button').forEach(b => { b.classList.toggle('on', +b.dataset.i === cur); b.addEventListener('click', () => { box._i = +b.dataset.i; renderDeckMatch(); }); });
+  box.appendChild(sel); matchPanel(box, 'd:' + cur);
 }
 /* ================= the Wheel of Steel: two decks, Serato-style ================= */
 const mkDeck = i => ({i, node:null, buf:null, pos:0, rate:0, sp:0, at:0, hand:false, midiV:null, midiT:0, loading:false, wave:null, ovImg:null, platLast:null, ch:null});
@@ -4112,7 +4265,7 @@ function deckChain(d){
   ch.lo = c.createBiquadFilter(); ch.lo.type = 'lowshelf'; ch.lo.frequency.value = 250;
   ch.flt = c.createBiquadFilter(); ch.flt.type = 'allpass';
   ch.fad = c.createGain(); ch.xf = c.createGain(); ch.an = c.createAnalyser(); ch.an.fftSize = 512;
-  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi).connect(ch.flt).connect(ch.fad).connect(ch.xf).connect(live.master.bus);
+  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi); ch.flt.connect(ch.fad).connect(ch.xf).connect(live.master.bus); ch.wired = null;
   ch.xf.connect(ch.an);
   d.ch = ch; applyMix();
 }
@@ -4127,7 +4280,11 @@ function applyMix(){
   const M = mixState(); if (!ctx) return;
   let [ga, gb] = xfGains(M.xf, M.curve); if (M.rev) [ga, gb] = [gb, ga];
   const now = ctx.currentTime;
-  decks.forEach((d, i) => { const ch = d.ch; if (!ch) return; const C = M.ch[i];
+  decks.forEach((d, i) => { const ch = d.ch; if (!ch) return; const C = M.ch[i], DM = deckState(i).match;
+    const useMt = !!(DM && DM.gains && DM.amount > 0);
+    if (ch.wired !== useMt){ ch.hi.disconnect(); if (ch.mtOut) ch.mtOut.disconnect();
+      if (useMt){ const mt = matchChain(ctx, ch); ch.hi.connect(mt[0]); ch.mtOut.connect(ch.flt); } else ch.hi.connect(ch.flt); ch.wired = useMt; }
+    setMatchGains(ctx, ch.mt, DM);
     ch.xf.gain.setTargetAtTime(i ? gb : ga, now, .0015);          // fast enough for cuts
     ch.fad.gain.setTargetAtTime(C.vol * C.vol * 1.25, now, .004);
     ch.hi.gain.setTargetAtTime(C.hi, now, .01); ch.mid.gain.setTargetAtTime(C.mid, now, .01); ch.lo.gain.setTargetAtTime(C.lo, now, .01);
@@ -4392,7 +4549,7 @@ function renderDeck(){
   const pi = $('#ttPitch'); pi.min = -D.range; pi.max = D.range; pi.step = D.range > 16 ? .5 : D.range > 8 ? .1 : .05; pi.value = D.pitch;
   restepify(pi, pitchFmt);
   $('#ttRange').value = String(D.range); $('#ttVol').value = D.vol;
-  renderPPads(); renderPlat(); renderMixDJ();
+  renderPPads(); renderPlat(); renderMixDJ(); renderDeckMatch();
 }
 function renderMixDJ(){
   const M = mixState();
@@ -4590,6 +4747,7 @@ function frame(){
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
   if (view === 'deck'){ drawDeck(); drawWaves(); }
+  if (view === 'mixer' && live && $('#sslGr')){ const gr = live.master.ssl && sslState().on ? live.master.sslGr || 0 : 0; $('#sslGr').style.width = Math.min(100, gr / 20 * 100) + '%'; $('#sslGrV').textContent = gr.toFixed(1) + ' dB'; }
   const h = playing ? heardStep() : null;
   if (h){
     if (h.i < 0) $('#pos').textContent = 'In ' + (Math.floor((h.i + 16) / 4) + 1);
@@ -6274,16 +6432,7 @@ $('#addTrack').addEventListener('click', () => {
 $('#export').addEventListener('click', exportMix);
 ['#expWhat', '#expFmt', '#expSr'].forEach(id => $(id).addEventListener('change', () => { S.exp = {what:$('#expWhat').value, fmt:$('#expFmt').value, sr:$('#expSr').value}; save(); renderExport(); }));
 let importTarget = null;
-$('#refFile').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  ensureAudio(); const st = $('#matchStatus'); if (st) st.textContent = 'Reading ' + f.name + '…';
-  try {
-    const buf = await ctx.decodeAudioData(await f.arrayBuffer());
-    const ref = await bandSpectrum(buf), E = masterEq();
-    E.match = {ref, name:f.name.replace(/\.[^.]+$/, '').slice(0, 40)};
-    save(); renderFx(); toast('Reference loaded. Now tap Match my mix.');
-  } catch (err){ if (st) st.textContent = 'Could not read that file.'; toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
-});
+$('#refFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) matchSetRef(matchFileKey, null, f); });
 $('#trackFile').addEventListener('change', async e => {
   const f = e.target.files[0], tr = importTarget; e.target.value = ''; if (!f || !tr) return;
   ensureAudio();
