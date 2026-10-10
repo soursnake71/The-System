@@ -1,6 +1,6 @@
 {
-  "name": "Pocket Rack",
-  "short_name": "Pocket Rack",
+  "name": "The Snake Device",
+  "short_name": "Snake Device",
   "description": "Drum rack, step sequencer, audio recording and mixer for your phone.",
   "start_url": "./",
   "scope": "./",

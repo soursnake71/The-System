@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111318">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Pocket Rack</title>
+<title>The Snake Device</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -235,7 +235,7 @@ html.retro input.fader::-webkit-slider-runnable-track,html.retro .eq11 input::-w
 html.retro input.fader::-webkit-slider-thumb,html.retro .eq11 input::-webkit-slider-thumb{width:28px;height:16px;margin-top:0;margin-left:-11px;background:linear-gradient(180deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e)}
 /* MPC60 case on top: grey body, green LCD */
 html.retro .transport{--fg:#26241f;--dim:#55514a;background:linear-gradient(180deg,var(--case),var(--case2));border-bottom:3px solid #1b1c1e;box-shadow:0 2px 8px #0008;position:relative;padding-top:calc(env(safe-area-inset-top,0px) + 22px)}
-html.retro .transport::before{content:"POCKET RACK  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.retro .transport::before{content:"THE SNAKE DEVICE  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 html.retro .transport .label{color:#4a463e}
 html.retro .transport select{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;box-shadow:0 2px 0 #00000080}
 html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 12px #0a1f6ab0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:0 0 6px #ffffff70}
@@ -496,7 +496,7 @@ html.retro .piano{background:#000}
     <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
 
     <details id="h-start" open><summary>Getting started</summary>
-      <p>Pocket Rack is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, scenes for song parts, and export to WAV, MP3, stems and MIDI.</p>
+      <p>The Snake Device is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, scenes for song parts, and export to WAV, MP3, stems and MIDI.</p>
       <h3>Install it like an app</h3>
       <ol><li>Open the app in Chrome.</li><li>Tap Chrome's ⋮ menu, then <b>Add to Home screen</b>.</li><li>Open it from the home screen icon. It runs full-screen and works offline after the first visit (MP3 export needs internet the first time).</li></ol>
       <h3>Your first beat in a minute</h3>
@@ -1240,7 +1240,7 @@ function simmons(v){
   return {d:knorm(d), sr:KSR};
 }
 const KITS = {
-  pocket:{name:'Pocket Rack (original)'},
+  pocket:{name:'The Snake Device (original)'},
   tr909:{name:'Roland TR-909', make:tr909, voices:[['Kick','bd'],['Snare','sd'],['Clap','hc'],['Rim','rs'],['C Hat','ch',1],['O Hat','oh',1],['Ride','ride'],['Crash','crash'],
     ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Kick Long','bdl'],['Kick Accent','bdhA'],['Snare Snappy','sds'],['Snare Tight','sdt'],['Clap Accent','hcA']]},
   tr505:{name:'Roland TR-505', make:tr505, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rim','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Ride','ride'],['Crash','crash'],
@@ -3266,7 +3266,7 @@ function buildMidi(){
   const chunk = data => [...[0x4D, 0x54, 0x72, 0x6B], ...u32(data.length), ...data];
   bytes.push(0x4D, 0x54, 0x68, 0x64, ...u32(6), ...u16(1), ...u16(tracks.length + 1), ...u16(96));
   const us = Math.round(60e6 / S.bpm);
-  bytes.push(...chunk([0, ...text(3, 'Pocket Rack'), 0, 0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0]));
+  bytes.push(...chunk([0, ...text(3, 'The Snake Device'), 0, 0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0]));
   for (const t of tracks){
     t.ev.sort((a, b) => a[0] - b[0] || (a[1] === 0x80 ? -1 : 1));
     const d = [0, ...text(3, t.name)]; let last = 0;
@@ -3289,14 +3289,14 @@ async function exportMix(){
   btn.disabled = true;
   try {
     if (what === 'midi'){
-      const blob = buildMidi(), name = `pocket-rack-${stamp}.mid`;
+      const blob = buildMidi(), name = `snake-device-${stamp}.mid`;
       saveFile(blob, name); st.textContent = `Saved ${name}: drums on channel 10 (A01 = ${noteName(S.midiBase)}), each synth on its own channel. Check your Downloads folder.`;
     } else if (what === 'mix'){
       st.textContent = 'Rendering the mix…';
       const buf = await renderAudio(sr);
       st.textContent = 'Encoding…';
       const {blob, ext} = await encodeAudio(buf, fmt, f => st.textContent = 'Encoding MP3… ' + Math.round(f * 100) + '%');
-      const name = `pocket-rack-${stamp}.${ext}`;
+      const name = `snake-device-${stamp}.${ext}`;
       saveFile(blob, name); st.textContent = `Saved ${name} (${buf.duration.toFixed(1)} s, ${(blob.size / 1048576).toFixed(1)} MB). Check your Downloads folder.`;
     } else {
       const sd = stepDur(), {total} = exportPlan(), len = Math.ceil((total * sd + 2.5) * sr), files = [];
@@ -3310,7 +3310,7 @@ async function exportMix(){
         files.push({name:`${String(k + 1).padStart(2, '0')} ${fileSafe(list[k].name)}.${ext}`, blob});
       }
       st.textContent = 'Packing the ZIP…';
-      const zip = await makeZip(files), name = `pocket-rack-${stamp}-tracks.zip`;
+      const zip = await makeZip(files), name = `snake-device-${stamp}-tracks.zip`;
       saveFile(zip, name);
       st.textContent = `Saved ${name}: the full mix plus ${list.length} tracks, all the same length so they line up from bar 1 in any DAW. ${(zip.size / 1048576).toFixed(1)} MB.`;
     }
