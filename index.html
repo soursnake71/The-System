@@ -207,7 +207,7 @@ html.retro{
   --bg:#26282b; --panel:#36383b; --panel2:#2b2d30; --line:#1a1b1d; --fg:#ece8dd; --dim:#aaa598;
   --accent:#ef5a2a; --accent-ink:#fff; --audio:#7cc4d6; --rec:#e0281f; --ok:#9fd36a;
   --cap:#d8d3c6; --cap2:#c2bcae; --cap-ink:#26241f; --case:#c9c4b7; --case2:#b5afa1;
-  --lcd:#a9c23f; --lcd2:#8fa832; --lcd-ink:#1c2410;
+  --lcd:#3a6fe0; --lcd2:#2550bd; --lcd-ink:#ffffff;
   --f-lcd:"VT323","JetBrains Mono",ui-monospace,monospace;
   color-scheme:dark;
 }
@@ -238,12 +238,12 @@ html.retro .transport{--fg:#26241f;--dim:#55514a;background:linear-gradient(180d
 html.retro .transport::before{content:"POCKET RACK  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 html.retro .transport .label{color:#4a463e}
 html.retro .transport select{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;box-shadow:0 2px 0 #00000080}
-html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 10px #4d5e10a0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:1px 1px 0 #0000001f}
+html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 12px #0a1f6ab0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:0 0 6px #ffffff70}
 html.retro .bpm input{font-size:28px;width:72px;padding:4px 2px}
 html.retro #rec{color:var(--rec)}
 html.retro #rec.live{background:linear-gradient(180deg,#f04030,#c41d14);color:#fff}
 html.retro .badge{background:#23251f;color:#c9c4b7;border-radius:2px}
-html.retro .badge.ok{background:#23251f;color:var(--lcd)}
+html.retro .badge.ok{background:var(--lcd2);color:#fff}
 /* MPC60 pads: dark rubber in a recessed black well */
 html.retro .pads{background:#141516;padding:10px;border-radius:6px;box-shadow:inset 0 3px 8px #000;gap:10px}
 html.retro .pad{background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#46484b 60%,#3b3d40);border:1px solid #000;border-radius:5px;box-shadow:0 3px 0 #000,inset 0 1px 0 #ffffff26;color:#e9e5da}
@@ -270,7 +270,7 @@ html.retro nav button.cur::before{background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
 html.retro .help details{background:#36383b;border:1px solid #111;border-radius:6px}
 html.retro .help p,html.retro .help li,html.retro .help dd{color:#d6d1c4}
 html.retro #helpSearch{background:#1d1e20;border-color:#000;color:var(--fg)}
-html.retro .toast{background:#23251f;color:var(--lcd);font-family:var(--f-lcd);font-size:20px;border:2px solid #000}
+html.retro .toast{background:linear-gradient(180deg,var(--lcd),var(--lcd2));color:#fff;text-shadow:0 0 6px #ffffff70;font-family:var(--f-lcd);font-size:20px;border:2px solid #000}
 html.retro .scenebar button.on{background:linear-gradient(180deg,#f2683a,#d9461c)}
 html.retro .piano{background:#000}
 </style>
@@ -752,7 +752,7 @@ html.retro .piano{background:#000}
     </details>
 
     <details id="h-look"><summary>Look</summary>
-      <p>The app is styled after the Akai MPC60 (warm-grey case, green backlit display, dark rubber pads, mode keys with red LEDs) and the E-mu SP-1200 (charcoal panel, white silkscreen, slider faders). To switch back to the plain dark style, go to Setup → Look → <b>Modern dark</b>. The choice is saved on this phone.</p>
+      <p>The app is styled after the Akai MPC60 (warm-grey case, blue backlit display with white lettering, dark rubber pads, mode keys with red LEDs) and the E-mu SP-1200 (charcoal panel, white silkscreen, slider faders). To switch back to the plain dark style, go to Setup → Look → <b>Modern dark</b>. The choice is saved on this phone.</p>
     </details>
 
     <details id="h-save"><summary>Saving, updates and storage</summary>
