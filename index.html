@@ -10,7 +10,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=VT323&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=VT323&family=Michroma&display=swap">
 <style>
 /* Layout: transport bar pinned on top, one scrolling view, tab bar at the bottom. Thumb-first, single column. */
 :root{
@@ -297,6 +297,47 @@ body.mlearn .stp.mmapped{outline:2px solid #4cd07d}
 body.mlearn .stp.marmed{outline:3px solid #fff}
 /* keep the playing screens clean: explanations live in Help (?) and Setup */
 #v-drums .hint,#v-audio .hint,#v-mixer .hint,#v-chop .hint,#v-synth .hint,#v-song .hint{display:none}
+
+/* ===== Star Screamer 350: the SVC-350 rack front. Black panel, red and white lettering, sections boxed in white,
+   black knobs with a red stripe, white voice-character knobs, black push buttons ===== */
+html.retro .card.svc,.svc{--svc-red:#e2382b;background:linear-gradient(180deg,#19191b,#0b0b0c 30%,#101012);border:2px solid #000;border-radius:3px;padding:14px 26px;position:relative;font-family:"Michroma",var(--f-display);box-shadow:inset 0 1px 0 #ffffff1a,0 3px 8px #000a}
+.svc::before,.svc::after{content:"";position:absolute;top:10px;bottom:10px;width:14px;background:radial-gradient(circle at 50% 18px,#000 0 4px,#3a3a3c 5px,transparent 6px),radial-gradient(circle at 50% calc(100% - 18px),#000 0 4px,#3a3a3c 5px,transparent 6px)}
+.svc::before{left:4px}.svc::after{right:4px}
+.svc-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;border-bottom:2px solid var(--svc-red);padding-bottom:6px}
+.svc-name b{font:400 15px/1 "Michroma",sans-serif;letter-spacing:.14em;color:#fff}
+.svc-name i{font:400 15px/1 "Michroma",sans-serif;font-style:normal;color:var(--svc-red);margin-left:8px;letter-spacing:.08em}
+.svc-type{font:400 9px "Michroma",sans-serif;letter-spacing:.3em;color:var(--svc-red)}
+.svc-sec{border:1px solid #ffffff55;border-radius:2px;padding:16px 8px 8px;position:relative;display:flex;flex-direction:column;gap:6px}
+.svc-lab{position:absolute;top:-7px;left:10px;background:#0f0f10;padding:0 6px;font:400 8.5px/14px "Michroma",sans-serif;letter-spacing:.2em;color:var(--svc-red)}
+.svc .label,html.retro .svc .label{font:400 8.5px/1.2 "Michroma",sans-serif;letter-spacing:.12em;color:#fff}
+html.retro .svc h2{border:0}
+html.retro .svc select{background:#000;color:#fff;border:1px solid #3a3a3c;font:400 12px "Michroma",sans-serif;box-shadow:none}
+html.retro .svc button{background:linear-gradient(180deg,#2b2b2d,#111);color:#fff;border:1px solid #000;border-radius:2px;box-shadow:0 2px 0 #000,inset 0 1px 0 #ffffff22;font:400 9.5px/1 "Michroma",sans-serif;letter-spacing:.1em}
+html.retro .svc button.on{background:linear-gradient(180deg,#2b2b2d,#111);color:var(--svc-red);text-shadow:0 0 6px #e2382b}
+.svc .ctl,html.retro .svc .ctl{display:flex;flex-direction:column;align-items:stretch;gap:4px}
+.svc .ctl > span:empty{display:none}
+.svc .ctl select{width:100%}
+.svc-sw{display:flex;gap:4px}.svc-sw button{flex:1;padding:8px 0}
+.svc-remote{display:flex;gap:6px}.svc-remote button{flex:1;padding:12px 0;position:relative}
+.svc-remote button::before{content:"";display:block;width:6px;height:6px;border-radius:50%;margin:0 auto 6px;background:#3a0b08}
+.svc-remote button.on::before{background:var(--svc-red);box-shadow:0 0 6px var(--svc-red)}
+html.retro .svc .eq11 input::-webkit-slider-runnable-track{background:#000;box-shadow:inset 0 0 0 1px #3a3a3c}
+html.retro .svc .eq11 input::-webkit-slider-thumb{background:linear-gradient(180deg,#0c0c0c,#2c2c2c 44%,#fff 46%,#fff 54%,#2c2c2c 56%,#0c0c0c);border-color:#000}
+.svc .eq11 span{font:400 7.5px "Michroma",sans-serif;color:#fff;letter-spacing:0}
+.svc-knobs{display:flex;justify-content:space-around;gap:6px;flex-wrap:wrap;padding-top:4px}
+.knob{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:70px}
+.kcap{width:50px;height:50px;border-radius:50%;position:relative;touch-action:none;cursor:ns-resize;box-shadow:0 3px 4px #000c,0 0 0 4px #0008}
+.kcap i{position:absolute;left:50%;top:4px;width:3px;height:15px;margin-left:-1.5px;border-radius:1px}
+.knob.black .kcap{background:radial-gradient(circle at 40% 30%,#3c3c3e,#121213 60%,#000)}
+.knob.black .kcap i{background:var(--svc-red,#e2382b)}
+.knob.white .kcap{background:radial-gradient(circle at 40% 30%,#ffffff,#dcdad4 55%,#a9a69e)}
+.knob.white .kcap i{background:#111}
+.klab{font:400 8px/1.2 "Michroma",sans-serif;letter-spacing:.1em;color:#fff;text-align:center}
+html.retro .knob select.kval{font:400 11px "Michroma",sans-serif;color:var(--svc-red,#e2382b);background:transparent;border:0;box-shadow:none;padding:0 2px;text-align:center;text-align-last:center;-webkit-appearance:none;appearance:none}
+.knob select option{background:#111;color:#fff}
+body.mlearn .knob .kcap{outline:2px dashed var(--accent);outline-offset:3px}
+body.mlearn .knob.mmapped .kcap{outline:2px solid #4cd07d}
+body.mlearn .knob.marmed .kcap{outline:3px solid #fff}
 </style>
 
 </head>
@@ -481,14 +522,22 @@ body.mlearn .stp.marmed{outline:3px solid #fff}
         <p class="hint">Modeled from the Solina schematics: divide-down tone with the original sawtooth shaping, per-key sustain, one shared crescendo, and the three-line ensemble driven by its chorus and tremolo oscillators. Notes below C3 also play the mono bass section. Viola is the 8' rank and Violin the 4' rank.</p>
       </div>
     </div>
-    <div class="card">
-      <div class="row"><h2 class="grow">Vocoder</h2><span class="badge">SVC-350 model</span><button id="vocOn">Off</button></div>
-      <div class="ctl"><label class="label" for="vocPreset">Presets</label><select id="vocPreset"></select><span></span></div>
-      <div class="ctl"><label class="label" for="vocSrc">Voice</label><select id="vocSrc"></select><span></span></div>
-      <div class="ctl"><label class="label" for="vocCar">Carrier</label><select id="vocCar"></select><span></span></div>
-      <div class="eq11" id="vocBands"></div>
-      <div class="ctls" id="vocCtls"></div>
-      <div class="row"><button id="vocEns" class="grow">Ensemble</button><button id="vocHold" class="grow">Hold</button></div>
+    <div class="card svc" id="vocCard">
+      <div class="svc-head"><div class="svc-name"><b>STAR SCREAMER</b><i>350</i></div><span class="svc-type">VOCODER</span></div>
+      <div class="svc-sec"><span class="svc-lab">PROGRAM</span><select id="vocPreset" aria-label="Vocoder presets"></select></div>
+      <div class="svc-sec"><span class="svc-lab">INPUT</span>
+        <div class="ctl"><label class="label" for="vocSrc">MIC</label><select id="vocSrc"></select><span></span></div>
+        <div class="ctl"><label class="label" for="vocCar">INSTRUMENT</label><select id="vocCar"></select><span></span></div>
+        <div class="ctl"><span class="label">INST LEVEL</span><div class="svc-sw" id="vocClev"><button data-v="-30">−30</button><button data-v="-15">−15</button><button data-v="0">0 dB</button></div><span></span></div>
+      </div>
+      <div class="svc-sec"><span class="svc-lab">FREQUENCY</span>
+        <div class="eq11" id="vocBands"></div>
+        <div class="svc-knobs" id="vocFreqKnobs"></div>
+      </div>
+      <div class="svc-sec"><span class="svc-lab">VOICE CHARACTER</span><div class="svc-knobs" id="vocChar"></div></div>
+      <div class="svc-sec"><span class="svc-lab">REMOTE</span>
+        <div class="svc-remote"><button id="vocOn">DIRECT</button><button id="vocHold">HOLD</button><button id="vocEns">ENSEMBLE</button></div>
+      </div>
       <p class="hint">This synth is the instrument. Sing or talk into your USB-C interface (Voice: Live input), or pick an audio track with a recorded vocal. The 11 sliders are the original frequency section: 10 bands plus the high consonant filter. Hold freezes the last vowel while you hold it, like the footswitch.</p>
     </div>
     <div class="card" id="ttsCard">
@@ -1627,7 +1676,7 @@ function makeRig(c){
   return rig;
 }
 function applyAll(){ if (!live) return; allTracks().forEach(t => { const s = live.strips.get(t.id); if (s) applyStrip(ctx, s, t); }); applyMaster(ctx, live.master); applyVocoders(live); }
-const VOC_DEFAULT = () => ({on:false, src:'input', car:'self', bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], cons:.8, bal:0, harm:.5, ens:false, growl:0});
+const VOC_DEFAULT = () => ({on:false, src:'input', car:'self', bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], cons:.8, bal:0, harm:.5, ens:false, growl:0, sib:.7, vol:1, clev:0});
 let vocHold = false;
 // wire each synth track's vocoder: its own sound is the carrier, the chosen input or audio track is the voice
 function applyVocoders(rig){
@@ -1636,7 +1685,7 @@ function applyVocoders(rig){
     const st = rig.strips.get(tr.id); if (!st) continue;
     const V = tr.voc || (tr.voc = VOC_DEFAULT());
     const want = V.on && c._reduxOK;
-    const msg = {on:1, bands:V.bands, cons:V.cons, bal:V.bal, harm:V.harm, ens:V.ens ? 1 : 0, hold:vocHold ? 1 : 0, growl:V.growl || 0};
+    const msg = {on:1, bands:V.bands, cons:V.cons, bal:V.bal, harm:V.harm, ens:V.ens ? 1 : 0, hold:vocHold ? 1 : 0, growl:V.growl || 0, sib:V.sib == null ? .7 : V.sib, vol:V.vol == null ? 1 : V.vol, clev:V.clev || 0};
     if (want && !st.voc){
       st.voc = new AudioWorkletNode(c, 'svc350', {numberOfInputs:2, numberOfOutputs:1, outputChannelCount:[2], processorOptions:msg});
       st.vocIn.disconnect(); st.voc.connect(st.vocOut); st.vocCar = null;
@@ -2263,7 +2312,10 @@ const VOC_CODE = String.raw`
 class SVC350 extends AudioWorkletProcessor{
   constructor(o){
     super(); const fs = sampleRate; this.fs = fs;
-    this.p = Object.assign({on:1, bands:[1,1,1,1,1,1,1,1,1,1], cons:.8, bal:0, harm:.5, ens:0, hold:0, growl:0}, (o && o.processorOptions) || {});
+    this.p = Object.assign({on:1, bands:[1,1,1,1,1,1,1,1,1,1], cons:.8, bal:0, harm:.5, ens:0, hold:0, growl:0, sib:.7, vol:1, clev:0}, (o && o.processorOptions) || {});
+    // unvoiced detector: when the voice is mostly hiss (S, T, SH, F), white noise replaces the carrier, so consonants stay crisp
+    this.sLp = 0; this.sLpA = 1 - Math.exp(-2 * Math.PI * 2500 / fs); this.lLp = 0; this.lLpA = 1 - Math.exp(-2 * Math.PI * 800 / fs);
+    this.hE = 0; this.lE = 0; this.eA = 1 - Math.exp(-1 / (.008 * fs)); this.uv = 0;
     // growl: octave-down flip-flop on the carrier plus overdrive (the electro-funk carrier treatment)
     this.gLp = 0; this.gA = 1 - Math.exp(-2 * Math.PI * 600 / fs); this.gFF = 1; this.gPos = 0; this.gSub = 0; this.gPk = 0; this.gRel = Math.exp(-1 / (.05 * fs));
     this.port.onmessage = e => Object.assign(this.p, e.data);
@@ -2310,7 +2362,7 @@ class SVC350 extends AudioWorkletProcessor{
     const cIn = car && car.length ? car : null, mIn = mod && mod.length ? mod : null;
     const rel = P.hold ? this.relH : this.relN, ref = .3;
     for (let i = 0; i < N; i++){
-      let c = cIn ? (cIn.length > 1 ? (cIn[0][i] + cIn[1][i]) * .5 : cIn[0][i]) : 0;
+      let c = (cIn ? (cIn.length > 1 ? (cIn[0][i] + cIn[1][i]) * .5 : cIn[0][i]) : 0) * (P.clev ? Math.pow(10, P.clev / 20) : 1);
       if (P.growl > 0){
         this.gLp += (c - this.gLp) * this.gA;
         if (this.gLp > 0){ if (!this.gPos){ this.gPos = 1; this.gFF = -this.gFF; } } else this.gPos = 0;
@@ -2329,7 +2381,14 @@ class SVC350 extends AudioWorkletProcessor{
       this.det += (Math.abs(c) - this.det) * this.detA;
       this.gate += ((this.det > .002 ? 1 : 0) - this.gate) * this.gateA;
       // harmonics: tilt the instrument's brightness before the synthesizer filters
-      this.hLp += (c - this.hLp) * this.hA; const cc = this.hLp + (c - this.hLp) * P.harm * 2;
+      this.hLp += (c - this.hLp) * this.hA; let cc = this.hLp + (c - this.hLp) * P.harm * 2;
+      if (P.sib > 0){
+        this.sLp += (mc - this.sLp) * this.sLpA; this.lLp += (mc - this.lLp) * this.lLpA;
+        const hf = mc - this.sLp; this.hE += (Math.abs(hf) - this.hE) * this.eA; this.lE += (Math.abs(this.lLp) - this.lE) * this.eA;
+        const u = Math.min(1, Math.max(0, (this.hE / (this.lE + 1e-4) - .55) * 1.6)) * P.sib;
+        this.uv += (u - this.uv) * .02;
+        if (this.uv > .001) cc = cc * (1 - this.uv) + (Math.random() * 2 - 1) * Math.max(this.det * 2.2, .02) * this.uv;
+      }
       let sum = 0;
       for (let k = 0; k < 10; k++){
         const a = this.bq(this.A2[k], this.bq(this.A1[k], mc)) * this.nA[k];
@@ -2347,7 +2406,7 @@ class SVC350 extends AudioWorkletProcessor{
       this.consY += (x * Math.min(1, this.det * 40) - this.consY) * this.consLp;
       const exp = Math.min(2.5, this.cPk / ref) * this.gate;
       const voc = (sum * 4 + this.consY * 12 * P.cons) * exp;
-      const o = voc * (1 - P.bal) + m * P.bal;
+      const o = (voc * (1 - P.bal) + m * P.bal) * (P.vol == null ? 1 : P.vol);
       if (P.ens){
         this.buf[this.w % this.buf.length] = o;
         this.ph1 = (this.ph1 + .25 / this.fs) % 1; this.ph2 = (this.ph2 + 4.5 / this.fs) % 1;
@@ -3573,6 +3632,29 @@ function stepify(inp, fmt){
   inp.addEventListener('stp-sync', fill);
   fill(); steppers.push(box);
 }
+/* rotary knob: drag up/down to turn, the value underneath is a menu. Like the steppers it keeps a hidden range input as
+   the model, so MIDI learn and automation work the same way. */
+function knob(box, label, obj, key, min, max, step, fmt, after, kind = 'black'){
+  const w = document.createElement('div'); w.className = 'knob ' + kind;
+  w.innerHTML = `<div class="kcap" role="slider" aria-label="${label}"><i></i></div><span class="klab">${label}</span><select class="kval" aria-label="${label} value"></select>`;
+  const inp = document.createElement('input'); inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step; inp.hidden = true; inp.value = obj[key]; w.appendChild(inp);
+  const lp = learnPath(obj); if (lp) inp.dataset.lp = lp + '|' + key;
+  const cap = w.querySelector('.kcap'), sel = w.querySelector('.kval'), snap = x => clamp(Math.round((x - min) / step) * step + min, min, max);
+  const K = Math.min(40, Math.round((max - min) / step)), opts = Array.from({length:K + 1}, (_, i) => snap(min + (max - min) * i / K));
+  const draw = () => {
+    const v = +inp.value; cap.style.transform = `rotate(${-135 + (v - min) / (max - min) * 270}deg)`; cap.setAttribute('aria-valuetext', fmt(v));
+    const list = opts.includes(v) ? opts : [...opts, v].sort((a, b) => a - b);
+    sel.innerHTML = list.map(x => `<option value="${x}">${fmt(x)}</option>`).join(''); sel.value = String(v);
+  };
+  inp.addEventListener('input', () => { obj[key] = +inp.value; draw(); after && after(); save(); });
+  inp.addEventListener('stp-sync', draw);
+  sel.addEventListener('change', () => { inp.value = sel.value; inp.dispatchEvent(new Event('input')); });
+  let y0 = null, v0 = 0;
+  cap.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); try { cap.setPointerCapture(e.pointerId); } catch(_){} y0 = e.clientY; v0 = +inp.value; });
+  cap.addEventListener('pointermove', e => { if (y0 == null) return; const v = snap(v0 + (y0 - e.clientY) / 150 * (max - min)); if (v !== +inp.value){ inp.value = v; inp.dispatchEvent(new Event('input')); } });
+  const end = () => { y0 = null; }; cap.addEventListener('pointerup', end); cap.addEventListener('pointercancel', end);
+  w._inp = inp; inp._knob = w; box.appendChild(w); draw(); return inp;
+}
 // keep the menus in step when code changes a value directly
 function syncSteppers(){
   for (let i = steppers.length - 1; i >= 0; i--){
@@ -4116,6 +4198,7 @@ const P5_PRESETS = {
   'Poly-mod bell':{oAsaw:0, oApul:1, oApw:.5, oBsaw:0, oBtri:1, oBf:.66, pmB:.45, pmFA:1, mA:.8, mB:0, cut:.85, res:0, fenv:0, aa:0, ad:.64, as:0, ar:.62},
   'Pad':{oBfine:.1, mA:.7, mB:.7, cut:.45, res:.2, fenv:.3, fa:.6, fd:.6, fs:.5, fr:.7, aa:.6, ad:.6, as:.9, ar:.7, lfoF:.35, wmF:1, wmFA:0, wmFB:0, wheel:.15},
   'Pluck':{oAsaw:0, oApul:1, oApw:.2, cut:.42, res:.3, fenv:.6, fa:0, fd:.3, fs:0, fr:.25, aa:0, ad:.35, as:0, ar:.25},
+  'Vocoder carrier':{oAsaw:1, oApul:1, oApw:.3, oBsaw:1, oBfine:.07, mA:.9, mB:.8, mN:.03, cut:.95, res:.05, fenv:0, fkbd:1, fa:0, fd:.4, fs:1, fr:.2, aa:0, ad:.4, as:1, ar:.18, vint:.45},
   'Resonant sweep':{oBfine:.06, mA:.8, mB:.6, cut:.25, res:.62, fenv:.7, fa:.55, fd:.6, fs:.3, fr:.6, aa:.1, ad:.5, as:1, ar:.5}
 };
 const P5_DEFAULT = (name = 'Brass') => Object.assign({}, P5_INIT, P5_PRESETS[name], {preset:name});
@@ -4479,7 +4562,8 @@ const VOC_LABELS = ['160', '230', '330', '500', '730', '1.1k', '1.6k', '2.3k', '
 function renderVocoder(){
   const tr = curSynth(); if (!tr) return;
   const V = tr.voc || (tr.voc = VOC_DEFAULT());
-  $('#vocOn').textContent = V.on ? 'On' : 'Off'; $('#vocOn').classList.toggle('on', V.on);
+  $('#vocOn').textContent = V.on ? 'VOCODER' : 'DIRECT'; $('#vocOn').classList.toggle('on', V.on);
+  document.querySelectorAll('#vocClev button').forEach(b => b.classList.toggle('on', +b.dataset.v === (V.clev || 0)));
   const src = $('#vocSrc');
   src.innerHTML = '<option value="input">Live input (USB-C mic)</option>' + S.audio.map(a => `<option value="${a.id}">${a.name.replace(/</g, '&lt;')}</option>`).join('');
   src.value = V.src === 'input' || S.audio.some(a => a.id === V.src) ? V.src : 'input';
@@ -4491,12 +4575,15 @@ function renderVocoder(){
     inp.addEventListener('input', () => { if (k < 10) V.bands[k] = +inp.value; else V.cons = +inp.value; applyVocoders(live || {strips:new Map(), c:{}}); save(); });
     eq.appendChild(col);
   });
-  const box = $('#vocCtls'); box.innerHTML = '';
   const upd = () => { if (live) applyVocoders(live); };
-  ctl(box, 'Balance', V, 'bal', 0, 1, .01, v => v ? Math.round(v * 100) + '% voice' : 'Vocoder', upd);
-  ctl(box, 'Harmonics', V, 'harm', 0, 1, .01, v => Math.round(v * 100) + '%', upd);
-  if (V.growl == null) V.growl = 0;
-  ctl(box, 'Growl', V, 'growl', 0, 1, .01, v => v ? Math.round(v * 100) + '%' : 'Off', upd);
+  for (const [k, d] of [['growl', 0], ['sib', .7], ['vol', 1], ['clev', 0]]) if (V[k] == null) V[k] = d;
+  const fk = $('#vocFreqKnobs'); fk.innerHTML = '';
+  knob(fk, 'BALANCE', V, 'bal', 0, 1, .02, v => v ? Math.round(v * 100) + '% MIC' : 'VOCODER', upd, 'black');
+  knob(fk, 'MASTER VOLUME', V, 'vol', 0, 1.5, .02, v => Math.round(v * 100) + '%', upd, 'black');
+  const ch = $('#vocChar'); ch.innerHTML = '';
+  knob(ch, 'HARMONICS', V, 'harm', 0, 1, .02, v => Math.round(v * 100) + '%', upd, 'white');
+  knob(ch, 'GROWL', V, 'growl', 0, 1, .02, v => v ? Math.round(v * 100) + '%' : 'OFF', upd, 'white');
+  knob(ch, 'S/T NOISE', V, 'sib', 0, 1, .02, v => v ? Math.round(v * 100) + '%' : 'OFF', upd, 'white');
   $('#vocEns').classList.toggle('on', V.ens);
   const ps = $('#vocPreset'); ps.innerHTML = '<option value="">Choose…</option>' + Object.keys(VOC_PRESETS).map(n => `<option>${n}</option>`).join(''); ps.value = '';
   const car = $('#vocCar');
@@ -4509,17 +4596,26 @@ function renderVocoder(){
   ctl(tb, 'Pitch', T, 'semi', -12, 12, 1, v => (v > 0 ? '+' : '') + v + ' st', null);
   ctl(tb, 'Speed', T, 'speed', .5, 1.5, .05, v => Math.round(v * 100) + '%', null);
 }
-/* electro vocoder setups. Growl = octave-down flip-flop + overdrive on the carrier, the buzzy low end of early-80s
-   electro vocals; Harmonics brightens the carrier; bands tilt the frequency section. */
+/* vocoder setups in the style of classic records: frequency-section tilt, growl, harmonics, S/T noise, ensemble,
+   and a speech line for the talking machine. Each one plays from a Prophet-5 "Vocoder carrier" tone. */
 const VOC_PRESETS = {
-  'SVC-350 clean':{growl:0, harm:.5, cons:.8, ens:false, bal:0, bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
-  'Electro growl':{growl:.75, harm:.85, cons:1, ens:false, bal:0, bands:[1.3, 1.3, 1.2, 1.1, 1, 1, 1, 1.1, 1.2, 1.2]},
-  'Space robot':{growl:.35, harm:.9, cons:.9, ens:true, bal:0, bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
-  'Egypt robot':{growl:.6, harm:.7, cons:1.1, ens:false, bal:0, bands:[1.4, 1.3, 1.2, 1, 1, .9, .9, 1, 1.1, 1.2]},
-  'Jet robot (bright)':{growl:.25, harm:1, cons:1.2, ens:true, bal:0, bands:[.6, .7, .8, 1, 1.1, 1.2, 1.3, 1.3, 1.4, 1.4]},
-  'Metal monster':{growl:1, harm:.6, cons:.7, ens:false, bal:0, bands:[1.5, 1.5, 1.3, 1.1, 1, .9, .8, .8, .8, .8]},
-  "Change the Beat ('fresh')":{growl:.45, harm:.75, cons:1, ens:true, bal:0, bands:[1.3, 1.2, 1.1, 1, 1, 1, 1, 1.1, 1.1, 1.2],
-    tts:{text:'Ahhhh, this stuff is really fresh.', voice:'deep', semi:-2, speed:.75, timing:'bar'}}
+  'Clean SVC':{growl:0, harm:.5, cons:.8, sib:.7, ens:false, bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
+  'Jonzun Crew (Space Is the Place)':{growl:.35, harm:.85, cons:1, sib:.85, ens:true, bands:[1.1, 1.1, 1, 1, 1, 1, 1.05, 1.15, 1.2, 1.25],
+    tts:{text:'Space is the place.', voice:'robot', semi:-3, speed:.8, timing:'bar'}, note:-12},
+  'Newcleus (Jam On It)':{growl:.7, harm:.8, cons:1, sib:.9, ens:false, bands:[1.35, 1.3, 1.2, 1.1, 1, 1, 1, 1.1, 1.15, 1.2],
+    tts:{text:'Jam on it.', voice:'robot', semi:0, speed:1, timing:'bar'}, note:-12},
+  'Egyptian Lover':{growl:.6, harm:.7, cons:1.1, sib:.85, ens:false, bands:[1.4, 1.3, 1.2, 1, 1, .9, .9, 1, 1.1, 1.2],
+    tts:{text:'Egypt, Egypt.', voice:'robot', semi:-2, speed:.9, timing:'bar'}, note:-12},
+  'Starscream':{growl:.25, harm:1, cons:1.2, sib:1, ens:true, bands:[.6, .7, .8, 1, 1.1, 1.2, 1.3, 1.3, 1.4, 1.4],
+    tts:{text:'I am Starscream.', voice:'high', semi:0, speed:1.1, timing:'bar'}, note:7},
+  'Mr. Roboto':{growl:.1, harm:.6, cons:.9, sib:.7, ens:false, bands:[1, 1, 1, 1.05, 1.1, 1.1, 1.05, 1, 1, 1],
+    tts:{text:'I am a robot.', voice:'robot', semi:0, speed:.9, timing:'bar'}, note:-5},
+  'Cylon Warrior':{growl:.9, harm:.5, cons:.6, sib:.5, ens:true, bands:[1.5, 1.5, 1.35, 1.15, 1, .9, .8, .8, .75, .7],
+    tts:{text:'By your command.', voice:'deep', semi:-5, speed:.7, timing:'bar'}, note:-17},
+  "Fresh (Change the Beat)":{growl:.45, harm:.75, cons:1, sib:.85, ens:true, bands:[1.3, 1.2, 1.1, 1, 1, 1, 1, 1.1, 1.1, 1.2],
+    tts:{text:'Ahhhh, this stuff is really fresh.', voice:'deep', semi:-2, speed:.75, timing:'bar'}, note:-10},
+  'Herbie Hancock (Rockit)':{growl:.2, harm:.95, cons:1.1, sib:.9, ens:false, bands:[.85, .9, 1, 1.1, 1.2, 1.2, 1.15, 1.1, 1.1, 1.15],
+    tts:{text:'Rock it.', voice:'normal', semi:2, speed:1, timing:'bar'}, note:-7}
 };
 /* ================= speech (text to speech for the vocoder) =================
    English letter-to-sound rules in the style of the 1976 NRL report (Elovitz et al.), then a cascade/parallel formant
@@ -4737,7 +4833,7 @@ function ttsPreview(){
   if (ttsSrc) try { ttsSrc.stop(); } catch(e){}
   ttsSrc = ctx.createBufferSource(); ttsSrc.buffer = b; ttsSrc.connect(live.master.bus); ttsSrc.start();
 }
-async function ttsMake(){
+async function ttsMake(noteOff){
   ensureAudio(); await workletReady;
   const T = ttsState(), lines = T.text.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length){ toast('Type a line first.'); return; }
   const sr = 22050, bar = 240 / S.bpm, opts = ttsOpts(T), parts = lines.map(l => ttsRender(l, opts)), starts = [];
@@ -4763,7 +4859,7 @@ async function ttsMake(){
   // the carrier needs notes: if it has none in this scene, hold one low note under the speech
   const carTr = V.car && V.car !== 'self' ? trackById(V.car) || syn : syn;
   let added = false;
-  if (!carTr.notes.length){ carTr.notes = [{n:12 * (S.oct + 1) + S.root + 12, t:0, d:bars * TPB - 12, v:.9}]; rollDirty = true; added = true; }
+  if (!carTr.notes.length){ carTr.notes = [{n:clamp((typeof noteOff === 'number' ? 48 : 12 * (S.oct + 2)) + S.root + (typeof noteOff === 'number' ? noteOff : 0), 28, 84), t:0, d:bars * TPB - 12, v:.9}]; rollDirty = true; added = true; }
   storeScene(); applyAll(); if (live) applyVocoders(live); save(); renderVocoder(); renderTracks();
   toast(`Speech is on the "${tr.name}" track (muted, it only feeds the vocoder).` + (added ? ` A held note was added to ${carTr.name} as the carrier.` : '') + ' Press play.');
 }
@@ -4777,10 +4873,16 @@ $('#vocCar').addEventListener('change', e => { const V = curSynth().voc; V.car =
 $('#vocPreset').addEventListener('change', async e => {
   const P = VOC_PRESETS[e.target.value]; if (!P) return;
   const tr = curSynth(), V = tr.voc || (tr.voc = VOC_DEFAULT());
-  Object.assign(V, {growl:P.growl, harm:P.harm, cons:P.cons, ens:P.ens, bal:P.bal, bands:P.bands.slice()});
-  if (live) applyVocoders(live); save();
-  if (P.tts){ Object.assign(ttsState(), P.tts); renderVocoder(); await ttsMake(); }
-  else renderVocoder();
+  Object.assign(V, {growl:P.growl, harm:P.harm, cons:P.cons, sib:P.sib, ens:P.ens, bal:0, bands:P.bands.slice()});
+  // the carrier: a Prophet-5 on its "Vocoder carrier" program
+  const car = V.car && V.car !== 'self' ? trackById(V.car) || tr : tr;
+  if (car.inst !== 'prophet' || car.p5.preset !== 'Vocoder carrier'){ car.inst = 'prophet'; car.p5 = P5_DEFAULT('Vocoder carrier'); if (/^(Synth|Solina|Prophet|TB-303|Taurus) \d+$/.test(car.name)) car.name = 'Prophet ' + car.id.slice(1); }
+  if (P.tts){
+    Object.assign(ttsState(), P.tts);
+    if (P.note != null) car.notes = [];                    // the preset's pitch replaces the old carrier notes in this scene
+    renderSynth(); await ttsMake(P.note);
+  } else { if (live) applyVocoders(live); save(); renderSynth(); }
+  e.target.value = '';
 });
 $('#vocOn').addEventListener('click', async () => {
   const tr = curSynth(), V = tr.voc || (tr.voc = VOC_DEFAULT());
@@ -4790,6 +4892,7 @@ $('#vocOn').addEventListener('click', async () => {
   if (V.on) toast(V.src === 'input' ? 'Vocoder on. Play this synth and talk or sing into your mic.' : 'Vocoder on. The chosen audio track is the voice; mute it in the mixer if you only want the vocoder.');
 });
 $('#vocSrc').addEventListener('change', async e => { const V = curSynth().voc; V.src = e.target.value; if (V.on && V.src === 'input' && !inSrc) await enableInput(); if (live) applyVocoders(live); save(); });
+document.querySelectorAll('#vocClev button').forEach(b => b.addEventListener('click', () => { const V = curSynth().voc; V.clev = +b.dataset.v; if (live) applyVocoders(live); save(); renderVocoder(); }));
 $('#vocEns').addEventListener('click', () => { const V = curSynth().voc; V.ens = !V.ens; if (live) applyVocoders(live); save(); renderVocoder(); });
 const holdOn = on => { vocHold = on; $('#vocHold').classList.toggle('on', on); if (live) applyVocoders(live); };
 $('#vocHold').addEventListener('pointerdown', e => { e.preventDefault(); holdOn(true); });
@@ -5105,7 +5208,7 @@ function learnLabel(el, tg){
 }
 const mName = m => (m.type === 'cc' ? 'CC ' + m.num : 'Note ' + noteName(m.num)) + (m.ch ? ' ch' + m.ch : '');
 function setLearn(on){
-  mlearn = on; if (!on && mArmed){ (mArmed._stp || mArmed).classList.remove('marmed'); mArmed = null; }
+  mlearn = on; if (!on && mArmed){ (mArmed._stp || mArmed._knob || mArmed).classList.remove('marmed'); mArmed = null; }
   document.body.classList.toggle('mlearn', on); $('#learnBar').hidden = !on;
   $('#learnMsg').textContent = 'MIDI learn: tap a knob, menu or button, then move a knob or hit a pad on the MPC.';
   if (on && !midi) connectMidi();
@@ -5114,7 +5217,7 @@ function setLearn(on){
 function markMapped(){
   document.querySelectorAll('.mmapped').forEach(e => e.classList.remove('mmapped'));
   if (!mlearn) return;
-  for (const m of S.midiMap || []){ const els = m.lp ? document.querySelectorAll(`[data-lp="${m.lp}"]`) : document.querySelectorAll(m.sel); els.forEach(e => (e._stp || e).classList.add('mmapped')); }
+  for (const m of S.midiMap || []){ const els = m.lp ? document.querySelectorAll(`[data-lp="${m.lp}"]`) : document.querySelectorAll(m.sel); els.forEach(e => (e._stp || e._knob || e).classList.add('mmapped')); }
 }
 function renderMaps(){
   const box = $('#mapList'); if (!box) return;
@@ -5134,14 +5237,15 @@ function renderMaps(){
 const learnable = el => el && !el.closest('nav, #learnBar, .nolearn') && !el.classList.contains('nolearn') && !el.classList.contains('pad');
 document.addEventListener('pointerdown', e => {
   if (!mlearn) return;
-  let el = e.target.closest('input[type=range], input[type=number], select, button');
+  let el = e.target.closest('input[type=range], input[type=number], select, button, .knob');
   if (el && el.closest('.stp')) el = el.closest('.stp')._inp;
+  const kn = e.target.closest('.knob'); if (kn) el = kn._inp;
   if (!learnable(el)) return;
   e.preventDefault(); e.stopPropagation();
   const tg = learnTarget(el);
   if (!tg){ toast("That control can't be mapped."); return; }
-  if (mArmed) (mArmed._stp || mArmed).classList.remove('marmed');
-  mArmed = el; (el._stp || el).classList.add('marmed');
+  if (mArmed) (mArmed._stp || mArmed._knob || mArmed).classList.remove('marmed');
+  mArmed = el; (el._stp || el._knob || el).classList.add('marmed');
   $('#learnMsg').textContent = 'Now move a knob or hit a pad on the MPC for: ' + learnLabel(el, tg);
 }, true);
 document.addEventListener('click', e => { if (!mlearn) return; const el = e.target.closest('input, select, button'); if (learnable(el)){ e.preventDefault(); e.stopPropagation(); } }, true);
@@ -5151,7 +5255,7 @@ function learnBind(type, ch, num){
   S.midiMap = (S.midiMap || []).filter(m => !(m.type === type && m.num === num && (!m.ch || !ch || m.ch === ch)) && !(tg.lp ? m.lp === tg.lp : m.sel === tg.sel));
   const m = Object.assign({type, ch, num, label:learnLabel(el, tg)}, tg);
   S.midiMap.push(m); save();
-  (el._stp || el).classList.remove('marmed'); mArmed = null;
+  (el._stp || el._knob || el).classList.remove('marmed'); mArmed = null;
   $('#learnMsg').textContent = `${mName(m)} → ${m.label}. Tap another control, or Done.`;
   markMapped(); renderMaps();
 }
