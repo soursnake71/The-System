@@ -121,6 +121,10 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 #autoBack:not(:disabled){border-color:var(--accent);color:var(--accent)}
 .lane{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center}
 .lane canvas{width:100%;height:30px;background:#0c0e12;border-radius:6px;display:block}
+.eq11{display:grid;grid-template-columns:repeat(11,1fr);gap:2px;align-items:end;justify-items:center}
+.eq11 input{writing-mode:vertical-lr;direction:rtl;height:120px;width:24px}
+.eq11 span{font:500 9px var(--f-mono);color:var(--dim);white-space:nowrap}
+#vocHold.on{background:var(--rec);border-color:var(--rec);color:#fff}
 .slist{display:flex;flex-direction:column;gap:8px}
 .srow{display:flex;gap:6px;align-items:center}
 .srow input{flex:1;min-width:0;font:600 16px var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 8px}
@@ -287,6 +291,14 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     <div class="card">
       <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow">Vocoder</h2><span class="badge">SVC-350 model</span><button id="vocOn">Off</button></div>
+      <div class="ctl"><label class="label" for="vocSrc">Voice</label><select id="vocSrc"></select><span></span></div>
+      <div class="eq11" id="vocBands"></div>
+      <div class="ctls" id="vocCtls"></div>
+      <div class="row"><button id="vocEns" class="grow">Ensemble</button><button id="vocHold" class="grow">Hold</button></div>
+      <p class="hint">This synth is the instrument. Sing or talk into your USB-C interface (Voice: Live input), or pick an audio track with a recorded vocal. The 11 sliders are the original frequency section: 10 bands plus the high consonant filter. Hold freezes the last vowel while you hold it, like the footswitch.</p>
     </div>
   </section>
 
@@ -562,7 +574,8 @@ function makeStrip(c, m){
   s.mk = c.createGain(); s.pan = c.createStereoPanner(); s.fader = c.createGain(); s.mute = c.createGain();
   s.an = c.createAnalyser(); s.an.fftSize = 512;
   s.sa = c.createGain(); s.sb = c.createGain();
-  s.input.connect(s.sat).connect(s.satOut).connect(s.rdxIn).connect(s.rdxOut);
+  s.vocIn = c.createGain(); s.vocOut = c.createGain(); s.vocIn.connect(s.vocOut);
+  s.input.connect(s.vocIn); s.vocOut.connect(s.sat).connect(s.satOut).connect(s.rdxIn).connect(s.rdxOut);
   s.rdxOut.connect(s.low).connect(s.mid).connect(s.high).connect(s.filt).connect(s.chIn);
   s.chOut.connect(s.comp).connect(s.mk).connect(s.duck).connect(s.pan).connect(s.fader).connect(s.mute);
   s.apOsc.connect(s.apDepth).connect(s.pan.pan);
@@ -607,9 +620,32 @@ function trackById(id){ return allTracks().find(t => t.id === id); }
 function makeRig(c){
   const rig = {c, master:makeMaster(c), strips:new Map(), voices:[], srcs:[]};
   allTracks().forEach(t => { const s = makeStrip(c, rig.master); applyStrip(c, s, t); rig.strips.set(t.id, s); });
+  applyVocoders(rig);
   return rig;
 }
-function applyAll(){ if (!live) return; allTracks().forEach(t => { const s = live.strips.get(t.id); if (s) applyStrip(ctx, s, t); }); applyMaster(ctx, live.master); }
+function applyAll(){ if (!live) return; allTracks().forEach(t => { const s = live.strips.get(t.id); if (s) applyStrip(ctx, s, t); }); applyMaster(ctx, live.master); applyVocoders(live); }
+const VOC_DEFAULT = () => ({on:false, src:'input', bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], cons:.8, bal:0, harm:.5, ens:false});
+let vocHold = false;
+// wire each synth track's vocoder: its own sound is the carrier, the chosen input or audio track is the voice
+function applyVocoders(rig){
+  const c = rig.c;
+  for (const tr of S.synths || []){
+    const st = rig.strips.get(tr.id); if (!st) continue;
+    const V = tr.voc || (tr.voc = VOC_DEFAULT());
+    const want = V.on && c._reduxOK;
+    const msg = {on:1, bands:V.bands, cons:V.cons, bal:V.bal, harm:V.harm, ens:V.ens ? 1 : 0, hold:vocHold ? 1 : 0};
+    if (want && !st.voc){
+      st.voc = new AudioWorkletNode(c, 'svc350', {numberOfInputs:2, numberOfOutputs:1, outputChannelCount:[2], processorOptions:msg});
+      st.vocIn.disconnect(); st.vocIn.connect(st.voc, 0, 0); st.voc.connect(st.vocOut);
+    } else if (!want && st.voc){
+      st.vocIn.disconnect(); try { st.voc.disconnect(); } catch(e){} st.voc = null; st.vocMod = null; st.vocIn.connect(st.vocOut);
+    }
+    if (!st.voc) continue;
+    st.voc.port.postMessage(msg);
+    const src = V.src === 'input' ? (rig === live ? inSrc : null) : (rig.strips.get(V.src) || {}).input;
+    if (st.vocMod !== src){ if (st.vocMod){ try { st.vocMod.disconnect(st.voc); } catch(e){} } if (src) src.connect(st.voc, 0, 1); st.vocMod = src || null; }
+  }
+}
 
 const CAP_CODE = `class Cap extends AudioWorkletProcessor{
   constructor(){super();this.on=false;this.bl=[];this.br=[];this.n=0;this.f0=0;
@@ -630,8 +666,106 @@ class Redux extends AudioWorkletProcessor{
       for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
     this.c=end;return true;}}
 registerProcessor('redux',Redux);`;
+const VOC_CODE = String.raw`
+/* Roland SVC-350 vocoder, modeled from the service notes (Dec. 8, 1979) circuit diagram.
+   Analyzer: 10 bands, each two staggered MFB band-pass stages (33k/1.2k/220k then 27k/1k/180k).
+   Synthesizer: identical topology with its own values (180k/1.2k/220k, VCA, then 22k/1k/180k), tuned ~20% higher.
+   Envelopes: diode peak detector, 470k x 0.022uF release, 2-pole 100k/0.033u/0.022u smoothing. */
+class SVC350 extends AudioWorkletProcessor{
+  constructor(o){
+    super(); const fs = sampleRate; this.fs = fs;
+    this.p = Object.assign({on:1, bands:[1,1,1,1,1,1,1,1,1,1], cons:.8, bal:0, harm:.5, ens:0, hold:0}, (o && o.processorOptions) || {});
+    this.port.onmessage = e => Object.assign(this.p, e.data);
+    const mfb = (R1, R2, R3, C) => {
+      const c1 = 2 / (R3 * C), c0 = (R1 + R2) / (R1 * R2 * R3 * C * C), g = -1 / (R1 * C), w0 = Math.sqrt(c0), K = w0 / Math.tan(w0 / (2 * fs)), d = K * K + c1 * K + c0;
+      return {b0:g * K / d, b1:0, b2:-g * K / d, a1:(2 * c0 - 2 * K * K) / d, a2:(K * K - c1 * K + c0) / d, z1:0, z2:0, f:w0 / (2 * Math.PI)};
+    };
+    const lp2 = (f, Q) => { const w0 = 2 * Math.PI * f, K = w0 / Math.tan(w0 / (2 * fs)), d = K * K + w0 / Q * K + w0 * w0;
+      return {b0:w0 * w0 / d, b1:2 * w0 * w0 / d, b2:w0 * w0 / d, a1:(2 * w0 * w0 - 2 * K * K) / d, a2:(K * K - w0 / Q * K + w0 * w0) / d, z1:0, z2:0}; };
+    const hp2 = (f, Q) => { const w0 = 2 * Math.PI * f, K = w0 / Math.tan(w0 / (2 * fs)), d = K * K + w0 / Q * K + w0 * w0;
+      return {b0:K * K / d, b1:-2 * K * K / d, b2:K * K / d, a1:(2 * w0 * w0 - 2 * K * K) / d, a2:(K * K - w0 / Q * K + w0 * w0) / d, z1:0, z2:0}; };
+    const mag = (q, f) => { const w = 2 * Math.PI * f / fs, cr = Math.cos(w), ci = -Math.sin(w), c2r = Math.cos(2 * w), c2i = -Math.sin(2 * w);
+      const nr = q.b0 + q.b1 * cr + q.b2 * c2r, ni = q.b1 * ci + q.b2 * c2i, dr = 1 + q.a1 * cr + q.a2 * c2r, di = q.a1 * ci + q.a2 * c2i;
+      return Math.hypot(nr, ni) / Math.hypot(dr, di); };
+    const CA = [.068, .047, .033, .022, .015, .01, .0068, .0047, .0033, .0022].map(x => x * 1e-6);
+    const CS = [.056, .039, .027, .018, .012, .0082, .0056, .0039, .0027, .0018].map(x => x * 1e-6);
+    this.A1 = []; this.A2 = []; this.S1 = []; this.S2 = []; this.SK = []; this.nA = []; this.nS = []; this.pk = new Float64Array(10);
+    for (let k = 0; k < 10; k++){
+      const a1 = mfb(33e3, 1.2e3, 220e3, CA[k]), a2 = mfb(27e3, 1e3, 180e3, CA[k]);
+      const s1 = mfb(180e3, 1.2e3, 220e3, CS[k]), s2 = mfb(22e3, 1e3, 180e3, CS[k]);
+      const fa = Math.sqrt(a1.f * a2.f), fsy = Math.sqrt(s1.f * s2.f);
+      this.A1.push(a1); this.A2.push(a2); this.S1.push(s1); this.S2.push(s2);
+      this.nA.push(1 / (mag(a1, fa) * mag(a2, fa))); this.nS.push(1 / (mag(s1, fsy) * mag(s2, fsy)));
+      this.SK.push(lp2(1 / (2 * Math.PI * 1e5 * Math.sqrt(.033e-6 * .022e-6)), Math.sqrt(.033e-6 * .022e-6) / (2 * .022e-6)));
+    }
+    this.relN = Math.exp(-1 / (470e3 * .022e-6 * fs)); this.relH = Math.exp(-1 / (8 * fs));
+    // high consonant filter: 3 RC sections (4.7k/12k/10k with 2.2nF), two Sallen-Key high-passes, 10nF/10k, then 33k/2.2nF after the gate
+    const rc = R => { const RC = R * 2.2e-9; return RC / (RC + 1 / fs); };
+    this.hpA = [rc(4.7e3), rc(12e3), rc(10e3), (1e4 * 1e-8) / (1e4 * 1e-8 + 1 / fs)]; this.hpS = new Float64Array(8);
+    this.hk1 = hp2(1 / (2 * Math.PI * 2.2e-9 * Math.sqrt(12e3 * 22e3)), .5 * Math.sqrt(22e3 / 12e3));
+    this.hk2 = hp2(1 / (2 * Math.PI * 2.2e-9 * Math.sqrt(6.8e3 * 47e3)), .5 * Math.sqrt(47e3 / 6.8e3));
+    this.consLp = 1 - Math.exp(-1 / (33e3 * 2.2e-9 * fs)); this.consY = 0;
+    // compander, sound detector (150k x 0.1uF), harmonics tone
+    this.cPk = 0; this.cAtk = 1 - Math.exp(-1 / (.001 * fs)); this.cRel = Math.exp(-1 / (.2 * fs)); this.gC = 1;
+    this.det = 0; this.detA = 1 - Math.exp(-1 / (150e3 * .1e-6 * fs)); this.gate = 0; this.gateA = 1 - Math.exp(-1 / (.004 * fs));
+    this.hLp = 0; this.hA = 1 - Math.exp(-2 * Math.PI * 1500 / fs);
+    // ensemble: BBD delay swept by LFO-1 (0.25 Hz triangle) and LFO-2 (4.5 Hz)
+    this.buf = new Float32Array(4096); this.w = 0; this.ph1 = 0; this.ph2 = 0; this.eL = 0; this.eR = 0; this.eA = 1 - Math.exp(-2 * Math.PI * 7000 / fs);
+  }
+  bq(q, x){ const y = q.b0 * x + q.z1; q.z1 = q.b1 * x - q.a1 * y + q.z2; q.z2 = q.b2 * x - q.a2 * y; return y; }
+  tap(d){ const r = this.w - d * this.fs, i = Math.floor(r), f = r - i, n = this.buf.length; return this.buf[(i % n + n) % n] * (1 - f) + this.buf[((i + 1) % n + n) % n] * f; }
+  process(ins, outs){
+    const car = ins[0], mod = ins[1], out = outs[0], L = out[0], R = out[1] || out[0], N = L.length, P = this.p;
+    const cIn = car && car.length ? car : null, mIn = mod && mod.length ? mod : null;
+    const rel = P.hold ? this.relH : this.relN, ref = .3;
+    for (let i = 0; i < N; i++){
+      const c = cIn ? (cIn.length > 1 ? (cIn[0][i] + cIn[1][i]) * .5 : cIn[0][i]) : 0;
+      const m = mIn ? (mIn.length > 1 ? (mIn[0][i] + mIn[1][i]) * .5 : mIn[0][i]) : 0;
+      if (!P.on){ L[i] = c; R[i] = c; continue; }
+      // mic compressor (peak detector driving the BA662 gain cell); hold freezes it
+      const am = Math.abs(m);
+      if (!P.hold){ if (am > this.cPk) this.cPk += (am - this.cPk) * this.cAtk; else this.cPk *= this.cRel; this.gC = Math.min(10, ref / Math.max(this.cPk, 1e-4)); }
+      const mc = m * this.gC;
+      // sound detector on the instrument
+      this.det += (Math.abs(c) - this.det) * this.detA;
+      this.gate += ((this.det > .002 ? 1 : 0) - this.gate) * this.gateA;
+      // harmonics: tilt the instrument's brightness before the synthesizer filters
+      this.hLp += (c - this.hLp) * this.hA; const cc = this.hLp + (c - this.hLp) * P.harm * 2;
+      let sum = 0;
+      for (let k = 0; k < 10; k++){
+        const a = this.bq(this.A2[k], this.bq(this.A1[k], mc)) * this.nA[k];
+        const r = a > 0 ? a : 0;
+        if (r > this.pk[k]) this.pk[k] = r; else this.pk[k] *= rel;
+        const e = this.bq(this.SK[k], this.pk[k]);
+        const vca = Math.min(1, Math.max(0, e * 5 - .003)) * P.bands[k];
+        sum += this.bq(this.S2[k], this.bq(this.S1[k], cc) * vca) * this.nS[k];
+      }
+      // high consonant bypass: mic -> 7th-order high-pass -> gate (opened by the instrument level) -> 33k/2.2nF
+      let x = m, h = this.hpS;
+      for (let s = 0; s < 3; s++){ const y = this.hpA[s] * (h[s * 2] + x - h[s * 2 + 1]); h[s * 2 + 1] = x; h[s * 2] = y; x = y; }
+      x = this.bq(this.hk2, this.bq(this.hk1, x));
+      { const y = this.hpA[3] * (h[6] + x - h[7]); h[7] = x; h[6] = y; x = y; }
+      this.consY += (x * Math.min(1, this.det * 40) - this.consY) * this.consLp;
+      const exp = Math.min(2.5, this.cPk / ref) * this.gate;
+      const voc = (sum * 4 + this.consY * 12 * P.cons) * exp;
+      const o = voc * (1 - P.bal) + m * P.bal;
+      if (P.ens){
+        this.buf[this.w % this.buf.length] = o;
+        this.ph1 = (this.ph1 + .25 / this.fs) % 1; this.ph2 = (this.ph2 + 4.5 / this.fs) % 1;
+        const tri = 1 - 4 * Math.abs(this.ph1 - .5), sn = Math.sin(2 * Math.PI * this.ph2);
+        const dl = .0045 + .0018 * tri + .00035 * sn, dr = .0045 - .0018 * tri - .00035 * sn;
+        this.eL += (this.tap(dl) - this.eL) * this.eA; this.eR += (this.tap(dr) - this.eR) * this.eA;
+        this.w++;
+        L[i] = o * .7 + this.eL * .7; R[i] = o * .7 + this.eR * .7;
+      } else { L[i] = o; R[i] = o; }
+    }
+    return true;
+  }
+}
+registerProcessor('svc350', SVC350);
+`;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE], {type:'application/javascript'})));
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -645,6 +779,7 @@ function ensureAudio(){
   workletReady = ctx.audioWorklet.addModule(workletUrl()).then(() => {
     ctx._reduxOK = true;
     live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
+    applyVocoders(live);
     capNode = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
     capNode.port.onmessage = e => capChunks.push(e.data);
     capNode.connect(silent);
@@ -1101,7 +1236,7 @@ async function enableInput(){
     routeMonitor();
     inStream.getAudioTracks()[0].addEventListener('ended', () => { inStream = null; inSrc = null; renderInput(); toast('Audio input disconnected.'); });
     await listDevices();
-    renderInput();
+    renderInput(); applyVocoders(live);
     return true;
   } catch (e){
     console.warn(e);
@@ -1930,7 +2065,7 @@ function renderSynth(){
   c2('Reso', 'res', .5, 18, .1, v => v.toFixed(1)); c2('Filter env', 'fenv', 0, 1, .01, pct); c2('Env decay', 'fdec', .02, 2, .01, sec);
   c2('Attack', 'a', .001, 2, .001, sec); c2('Decay', 'd', .02, 3, .01, sec); c2('Sustain', 's', 0, 1, .01, pct); c2('Release', 'r', .01, 3, .01, sec);
   c2('Level', 'gain', 0, 1.5, .01, pct);
-  rollDirty = true; renderKeys();
+  rollDirty = true; renderKeys(); renderVocoder();
 }
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
@@ -1949,6 +2084,41 @@ $('#roll').addEventListener('pointerdown', e => {
   else { ensureAudio(); synthVoice(live, tr, note, ctx.currentTime + .003, .8, .25); }
 });
 $('#midiTarget').addEventListener('change', e => { S.midiTarget = e.target.value; save(); });
+const VOC_LABELS = ['160', '230', '330', '500', '730', '1.1k', '1.6k', '2.3k', '3.3k', '5k', 'HF'];
+function renderVocoder(){
+  const tr = curSynth(); if (!tr) return;
+  const V = tr.voc || (tr.voc = VOC_DEFAULT());
+  $('#vocOn').textContent = V.on ? 'On' : 'Off'; $('#vocOn').classList.toggle('on', V.on);
+  const src = $('#vocSrc');
+  src.innerHTML = '<option value="input">Live input (USB-C mic)</option>' + S.audio.map(a => `<option value="${a.id}">${a.name.replace(/</g, '&lt;')}</option>`).join('');
+  src.value = V.src === 'input' || S.audio.some(a => a.id === V.src) ? V.src : 'input';
+  const eq = $('#vocBands'); eq.innerHTML = '';
+  VOC_LABELS.forEach((lb, k) => {
+    const col = document.createElement('div'); col.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px';
+    col.innerHTML = `<input type="range" min="0" max="1.5" step="0.01" aria-label="${lb} band level" id="vb${k}"><span>${lb}</span>`;
+    const inp = col.querySelector('input'); inp.value = k < 10 ? V.bands[k] : V.cons;
+    inp.addEventListener('input', () => { if (k < 10) V.bands[k] = +inp.value; else V.cons = +inp.value; applyVocoders(live || {strips:new Map(), c:{}}); save(); });
+    eq.appendChild(col);
+  });
+  const box = $('#vocCtls'); box.innerHTML = '';
+  const upd = () => { if (live) applyVocoders(live); };
+  ctl(box, 'Balance', V, 'bal', 0, 1, .01, v => v ? Math.round(v * 100) + '% voice' : 'Vocoder', upd);
+  ctl(box, 'Harmonics', V, 'harm', 0, 1, .01, v => Math.round(v * 100) + '%', upd);
+  $('#vocEns').classList.toggle('on', V.ens);
+}
+$('#vocOn').addEventListener('click', async () => {
+  const tr = curSynth(), V = tr.voc || (tr.voc = VOC_DEFAULT());
+  V.on = !V.on; ensureAudio(); await workletReady;
+  if (V.on && V.src === 'input' && !inSrc) await enableInput();
+  applyVocoders(live); save(); renderVocoder();
+  if (V.on) toast(V.src === 'input' ? 'Vocoder on. Play this synth and talk or sing into your mic.' : 'Vocoder on. The chosen audio track is the voice; mute it in the mixer if you only want the vocoder.');
+});
+$('#vocSrc').addEventListener('change', async e => { const V = curSynth().voc; V.src = e.target.value; if (V.on && V.src === 'input' && !inSrc) await enableInput(); if (live) applyVocoders(live); save(); });
+$('#vocEns').addEventListener('click', () => { const V = curSynth().voc; V.ens = !V.ens; if (live) applyVocoders(live); save(); renderVocoder(); });
+const holdOn = on => { vocHold = on; $('#vocHold').classList.toggle('on', on); if (live) applyVocoders(live); };
+$('#vocHold').addEventListener('pointerdown', e => { e.preventDefault(); holdOn(true); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('#vocHold').addEventListener(ev, () => { if (vocHold) holdOn(false); }));
+
 
 /* ================= automation ================= */
 const AUTO_KEYS = {vol:'Volume', pan:'Pan', low:'EQ low', mid:'EQ mid', high:'EQ high', cut:'Cutoff', res:'Reso', sendA:'Reverb send', sendB:'Delay send'};
@@ -2444,7 +2614,7 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
