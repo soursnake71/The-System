@@ -405,10 +405,10 @@ function defaultState(){
   return {
     v:2, bpm:92, bars:1, swing:18, metro:false, countIn:true, autoLat:true, latMs:40,
     inCh:'L', device:'', monitor:false,
-    quant:24, repRate:24, fullLevel:true, tapMs:20, repeat:false, erase:false,
+    quant:24, repRate:24, fullLevel:true, tapMs:20, repeat:false, erase:false, spRest:1200, spRes:.15,
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
-    master:{vol:.9, glue:.2, rev:2.2, dlyDiv:.75, dlyFb:.35},
+    master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
     synths:[], auto:{}, autoOff:[]
@@ -514,19 +514,30 @@ function makeIR(c, secs){
   return b;
 }
 
+let clipCurve = null;
+function softClip(){
+  if (clipCurve) return clipCurve;
+  const n = 4096; clipCurve = new Float32Array(n);
+  for (let i = 0; i < n; i++){ const x = (i / (n - 1) * 2 - 1) * 2, a = Math.abs(x); clipCurve[i] = Math.sign(x) * (a < .8 ? a : .8 + .19 * Math.tanh((a - .8) / .19)); }
+  return clipCurve;
+}
 function makeMaster(c){
   const m = {};
   m.bus = c.createGain();
   m.glue = c.createDynamicsCompressor(); m.glue.knee.value = 8; m.glue.attack.value = .01; m.glue.release.value = .2;
   m.glueMk = c.createGain();
-  m.lim = c.createDynamicsCompressor(); m.lim.threshold.value = -1.5; m.lim.knee.value = 0; m.lim.ratio.value = 20; m.lim.attack.value = .002; m.lim.release.value = .08;
+  // Chrome's compressor adds ~6 ms of look-ahead, so it is switched out of the path when not in use,
+  // and the final limiter is a zero-latency soft clipper instead
+  m.glueWet = c.createGain(); m.glueDry = c.createGain();
+  m.lim = c.createWaveShaper(); m.lim.curve = softClip();
   m.out = c.createGain();
   m.an = c.createAnalyser(); m.an.fftSize = 512;
   m.revIn = c.createGain(); m.conv = c.createConvolver(); m.conv.buffer = makeIR(c, S.master.rev); m.revRet = c.createGain(); m.revRet.gain.value = .9;
   m.revIn.connect(m.conv).connect(m.revRet).connect(m.bus);
   m.dlyIn = c.createGain(); m.dly = c.createDelay(5); m.fb = c.createGain(); m.tone = c.createBiquadFilter(); m.tone.type = 'lowpass'; m.tone.frequency.value = 3800;
   m.dlyIn.connect(m.dly); m.dly.connect(m.tone); m.tone.connect(m.fb).connect(m.dly); m.tone.connect(m.bus);
-  m.bus.connect(m.glue).connect(m.glueMk).connect(m.lim).connect(m.out);
+  m.bus.connect(m.glue).connect(m.glueMk).connect(m.glueWet).connect(m.lim);
+  m.bus.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out);
   m.out.connect(m.an); m.out.connect(c.destination);
   applyMaster(c, m);
   return m;
@@ -534,6 +545,7 @@ function makeMaster(c){
 function applyMaster(c, m){
   const M = S.master;
   sp(c, m.glue.threshold, -30 * M.glue); sp(c, m.glue.ratio, 1 + 5 * M.glue); sp(c, m.glueMk.gain, Math.pow(10, M.glue * 8 / 20));
+  sp(c, m.glueWet.gain, M.glue > 0 ? 1 : 0); sp(c, m.glueDry.gain, M.glue > 0 ? 0 : 1);
   sp(c, m.out.gain, M.vol * M.vol * 1.2);
   sp(c, m.dly.delayTime, M.dlyDiv * 60 / S.bpm); sp(c, m.fb.gain, M.dlyFb);
 }
@@ -573,13 +585,14 @@ function makeStrip(c, m){
   s.high = c.createBiquadFilter(); s.high.type = 'highshelf'; s.high.frequency.value = 6500;
   s.filt = c.createBiquadFilter();
   s.comp = c.createDynamicsCompressor(); s.comp.attack.value = .006; s.comp.release.value = .14; s.comp.knee.value = 6;
-  s.mk = c.createGain(); s.pan = c.createStereoPanner(); s.fader = c.createGain(); s.mute = c.createGain();
+  s.mk = c.createGain(); s.compDry = c.createGain(); s.pan = c.createStereoPanner(); s.fader = c.createGain(); s.mute = c.createGain();
   s.an = c.createAnalyser(); s.an.fftSize = 512;
   s.sa = c.createGain(); s.sb = c.createGain();
   s.vocIn = c.createGain(); s.vocOut = c.createGain(); s.vocIn.connect(s.vocOut);
   s.input.connect(s.vocIn); s.vocOut.connect(s.sat).connect(s.satOut).connect(s.rdxIn).connect(s.rdxOut);
   s.rdxOut.connect(s.low).connect(s.mid).connect(s.high).connect(s.filt).connect(s.chIn);
-  s.chOut.connect(s.comp).connect(s.mk).connect(s.duck).connect(s.pan).connect(s.fader).connect(s.mute);
+  s.chOut.connect(s.comp).connect(s.mk).connect(s.duck); s.chOut.connect(s.compDry).connect(s.duck);
+  s.duck.connect(s.pan).connect(s.fader).connect(s.mute);
   s.apOsc.connect(s.apDepth).connect(s.pan.pan);
   insertRedux(c, s);
   s.mute.connect(m.bus); s.mute.connect(s.an); s.mute.connect(s.sa).connect(m.revIn); s.mute.connect(s.sb).connect(m.dlyIn);
@@ -590,7 +603,8 @@ function applyStrip(c, s, t){
   sp(c, s.low.gain, t.low); sp(c, s.mid.gain, t.mid); sp(c, s.high.gain, t.high);
   if (t.ftype === 'off'){ s.filt.type = 'allpass'; sp(c, s.filt.frequency, 20000); sp(c, s.filt.Q, .0001); }
   else { s.filt.type = t.ftype; sp(c, s.filt.frequency, cutHz(t.cut)); sp(c, s.filt.Q, t.res); }
-  sp(c, s.comp.threshold, -42 * t.comp); sp(c, s.comp.ratio, 1 + 7 * t.comp); sp(c, s.mk.gain, Math.pow(10, t.comp * 14 / 20));
+  sp(c, s.comp.threshold, -42 * t.comp); sp(c, s.comp.ratio, 1 + 7 * t.comp);
+  sp(c, s.mk.gain, t.comp > 0 ? Math.pow(10, t.comp * 14 / 20) : 0); sp(c, s.compDry.gain, t.comp > 0 ? 0 : 1);
   sp(c, s.pan.pan, t.pan); sp(c, s.fader.gain, t.vol * t.vol * 1.4);
   const on = !t.mute && (!anySolo() || t.solo);
   sp(c, s.mute.gain, on ? 1 : 0); sp(c, s.sa.gain, t.sendA); sp(c, s.sb.gain, t.sendB);
@@ -668,6 +682,111 @@ class Redux extends AudioWorkletProcessor{
       for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
     this.c=end;return true;}}
 registerProcessor('redux',Redux);`;
+const SPW_CODE = String.raw`
+/* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
+   drop/repeat playback with a 7-bit fraction counter, 8-bit level DAC, band-limited steps (polyBLEP),
+   outputs 1-2 through an SSM2044-style nonlinear 4-pole transistor ladder swept by the trigger,
+   3-6 through fixed filters (libmd12 prototypes) at 2x oversampling, 7-8 unfiltered. */
+const SPR = 20e6 / 768;
+const SPF = {
+  3:[[-4.6549557989e4,0],[-1.6129032258e4,4.8387096774e4],[-4.2413850609e4,3.0520415770e4]],
+  4:[[-5.5372960884e4,0],[-1.9607843137e4,5.8823529412e4],[-5.1403645657e4,3.7527098089e4]],
+  5:[[-7.3190092409e4,0],[-2.3255813953e4,6.9767441860e4],[-6.1051842833e4,4.2379116726e4]],
+  6:[[-6.0667642111e4,4.8266457976e4],[-2.5641025641e4,7.6923076923e4],[-9.5952540933e4,0]]
+};
+function spSecs(poles, fs){
+  const K = 2 * fs, out = [];
+  for (const p of poles){
+    const w = Math.hypot(p[0], p[1]), k = w < .9 * Math.PI * fs ? K * Math.tan(w / K) / w : 1, re = p[0] * k, im = p[1] * k;
+    let a, b;
+    if (im > 0){ const c1 = -2 * re, c0 = re * re + im * im; a = [K * K + c1 * K + c0, 2 * c0 - 2 * K * K, K * K - c1 * K + c0]; b = [1, 2, 1]; }
+    else { a = [K - re, -re - K, 0]; b = [1, 1, 0]; }
+    const dc = (b[0] + b[1] + b[2]) / (a[0] + a[1] + a[2]);
+    out.push({b0:b[0] / dc / a[0], b1:b[1] / dc / a[0], b2:b[2] / dc / a[0], a1:a[1] / a[0], a2:a[2] / a[0]});
+  }
+  return out;
+}
+class SP1200 extends AudioWorkletProcessor{
+  constructor(o){
+    super();
+    const opt = (o && o.processorOptions) || {};
+    this.fs = sampleRate; this.fo = sampleRate * 2;
+    this.samples = new Map(Object.entries(opt.samples || {}));
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.rest = opt.rest || 1200; this.res = opt.res == null ? .15 : opt.res;
+    this.fx = {}; for (const c of [3, 4, 5, 6]) this.fx[c] = spSecs(SPF[c], this.fo);
+    this.ch = [];
+    for (let i = 0; i < 8; i++) this.ch.push({n:i + 1, data:null, k0:0, inc:128, val:0, lvl:0, pl:.707, pr:.707, f0:0, fa:-1, fb:0, choke:0, prev:0, cut:0,
+      lad:[0, 0, 0, 0], tr:0, st:(this.fx[i + 1] || []).map(() => [0, 0])});
+    this.tau = Math.exp(-1 / (.06 * this.fs)); this.open = 13000;
+    this.port.onmessage = e => {
+      const d = e.data;
+      if (d.type === 'sample') this.samples.set(d.key, d.data);
+      else if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); }
+      else if (d.type === 'cfg'){ this.rest = d.rest; this.res = d.res; }
+    };
+  }
+  trig(ev, frame){
+    const c = this.ch[ev.ch - 1], data = this.samples.get(ev.key); if (!data) return;
+    if (ev.choke) for (const o of this.ch) if (o !== c && o.choke === ev.choke && o.data) o.cut = 1;
+    c.data = data; c.inc = ev.inc; c.k0 = Math.ceil(frame * SPR / this.fs + 1e-9);
+    c.lvl = Math.round(Math.min(1, ev.lvl / 1.5) * 255) / 255 * 1.5;   // 8-bit level DAC
+    const a = (ev.pan + 1) * Math.PI / 4; c.pl = Math.cos(a); c.pr = Math.sin(a);
+    c.f0 = frame; c.fa = ev.fa; c.fb = ev.fb; c.choke = ev.choke; c.cut = 0; c.tr = 0;
+  }
+  ladder(c, x, fc){
+    const g = 1 - Math.exp(-2 * Math.PI * Math.min(fc, .45 * this.fo) / this.fo), l = c.lad, r = this.res;
+    for (let o = 0; o < 2; o++){
+      const u = Math.tanh(x * .7 - 4 * r * l[3]);
+      const t0 = Math.tanh(l[0]), t1 = Math.tanh(l[1]), t2 = Math.tanh(l[2]);
+      l[0] += g * (u - t0); l[1] += g * (t0 - t1); l[2] += g * (t1 - t2); l[3] += g * (t2 - Math.tanh(l[3]));
+    }
+    return l[3] / .7 * (1 + 2 * r);
+  }
+  fixed(c, x){
+    const secs = this.fx[c.n]; let y = 0;
+    for (let o = 0; o < 2; o++){
+      let v = x;
+      for (let k = 0; k < secs.length; k++){ const q = secs[k], s = c.st[k], out = q.b0 * v + s[0]; s[0] = q.b1 * v - q.a1 * out + s[1]; s[1] = q.b2 * v - q.a2 * out; v = out; }
+      y += v;
+    }
+    return y * .5;
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, ratio = SPR / fs;
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame) this.trig(this.q.shift(), frame);
+      let l = 0, r = 0;
+      for (const c of this.ch){
+        if (!c.data){ continue; }
+        // which SP frame is on the DAC now (each channel sits in its own 4.8 us slot)
+        const slot = (c.n - 1) * 4.8e-6 * SPR, sp = frame * ratio - slot, k = Math.floor(sp);
+        let v = 0;
+        if (k >= c.k0){ const idx = ((k - c.k0) * c.inc) >> 7; if (idx >= c.data.length){ c.data = null; } else v = c.data[idx]; }
+        // band-limit the step: share it between this sample and the one before
+        let cur = v, prevAdd = 0;
+        if (v !== c.val){ const h = v - c.val, d = sp - k; const dd = Math.min(.999, d / ratio); prevAdd = h * dd * dd * .5; cur = v - h * (1 - dd) * (1 - dd) * .5; c.val = v; }
+        const raw = c.prev + prevAdd; c.prev = cur;
+        // amplitude: level DAC, decay fade, choke cut
+        const age = frame - c.f0; let g = c.lvl;
+        if (c.fa >= 0 && age > c.fa) g *= Math.max(0, 1 - (age - c.fa) / Math.max(1, c.fb - c.fa));
+        if (c.cut){ c.cut *= .995; g *= c.cut; if (c.cut < 1e-3) c.data = null; }
+        let y = raw * g;
+        if (c.n <= 2){
+          // SSM2044: wide open for the ~9.4 ms trigger, then closing back down
+          const trigLen = .0094 * fs, open = age < trigLen ? 1 : Math.pow(this.tau, age - trigLen);
+          y = this.ladder(c, y, this.rest + (this.open - this.rest) * open);
+        } else if (c.n <= 6) y = this.fixed(c, y);
+        l += y * c.pl; r += y * c.pr;
+      }
+      L[i] = l; R[i] = r;
+    }
+    return true;
+  }
+}
+registerProcessor('sp1200', SP1200);
+`;
 const VOC_CODE = String.raw`
 /* Roland SVC-350 vocoder, modeled from the service notes (Dec. 8, 1979) circuit diagram.
    Analyzer: 10 bands, each two staggered MFB band-pass stages (33k/1.2k/220k then 27k/1k/180k).
@@ -767,7 +886,7 @@ class SVC350 extends AudioWorkletProcessor{
 registerProcessor('svc350', SVC350);
 `;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE], {type:'application/javascript'})));
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -890,7 +1009,35 @@ function spDynamic(rig, t){
 }
 function spInvalidate(key){ spBases.delete(key); for (const k of spVoices.keys()) if (k.startsWith(key + '|')) spVoices.delete(k); }
 
+// send a hit to the SP-1200 engine (live: straight away; export: collected and handed over before rendering)
+function spEngine(rig){
+  if (rig.spNode || !rig.c._reduxOK) return rig.spNode || null;
+  if (rig !== live) return null;
+  rig.spNode = new AudioWorkletNode(rig.c, 'sp1200', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{rest:S.spRest, res:S.spRes}});
+  rig.spNode.connect(rig.strips.get('drums').input); rig.spSent = new Set();
+  return rig.spNode;
+}
+function spTrigger(rig, pad, t, vel){
+  const st = clamp(Math.round(pad.pitch), -16, 15), inc = SP_TUNE[st + 16] + 1, base = spBase(pad.sample), fs = rig.c.sampleRate;
+  const L = base.length * 128 / inc / SP_SR * pad.decay;
+  const ev = {f:Math.round(t * fs), ch:pad.spOut || 3, key:pad.sample, inc, lvl:clamp(vel * pad.vol * pad.vol * 1.2, 0, 1.5), pan:pad.pan,
+    fa:pad.decay < 1 ? Math.round(L * .6 * fs) : -1, fb:Math.round(L * fs), choke:pad.choke || 0};
+  if (rig === live){
+    const n = spEngine(live); if (!n) return false;
+    if (!live.spSent.has(ev.key)){ n.port.postMessage({type:'sample', key:ev.key, data:base}); live.spSent.add(ev.key); }
+    n.port.postMessage({type:'ev', ev}); return true;
+  }
+  if (!rig.c._reduxOK) return false;
+  (rig.spEvents ||= []).push(ev); (rig.spKeys ||= new Set()).add(ev.key); return true;
+}
+function spFinish(rig){
+  if (!rig.spEvents || !rig.spEvents.length) return;
+  const samples = {}; rig.spKeys.forEach(k => samples[k] = spBase(k));
+  const n = new AudioWorkletNode(rig.c, 'sp1200', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{samples, events:rig.spEvents, rest:S.spRest, res:S.spRes}});
+  n.connect(rig.strips.get('drums').input);
+}
 function playPad(rig, pad, t, vel){
+  if (S.sp && spTrigger(rig, pad, t, vel)) return null;
   const c = rig.c, sp = S.sp;
   const buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
   const rate = sp ? 1 : Math.pow(2, pad.pitch / 12), full = buf.duration / rate, L = full * pad.decay;
@@ -1377,6 +1524,7 @@ async function exportMix(){
         i0 += part.steps;
       }
     } finally { loadScene(keepCur); org = keepOrg; }
+    spFinish(rig);
     const out = await oc.startRendering();
     // trim the reverb tail where it falls silent
     let end = out.length; const L = out.getChannelData(0), R = out.getChannelData(1), keep = Math.ceil((total * sd + .02) * sr);
@@ -1488,6 +1636,9 @@ function renderPadEditor(){
     r.innerHTML = '<label class="label" for="spOut">SP output</label><select id="spOut"><option value="1">1 · dynamic filter</option><option value="2">2 · dynamic filter</option><option value="3">3 · fixed filter</option><option value="4">4 · fixed filter</option><option value="5">5 · fixed filter</option><option value="6">6 · fixed filter</option><option value="7">7 · unfiltered</option><option value="8">8 · unfiltered</option></select><span></span>';
     const so = r.querySelector('select'); so.value = p.spOut || 3; so.addEventListener('change', () => { p.spOut = +so.value; save(); auditionPad(selPad); });
     box.appendChild(r);
+    const cfg = () => { if (live && live.spNode) live.spNode.port.postMessage({type:'cfg', rest:S.spRest, res:S.spRes}); };
+    ctl(box, 'Dyn cutoff', S, 'spRest', 300, 6000, 10, v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) + ' Hz', cfg);
+    ctl(box, 'Dyn reso', S, 'spRes', 0, .9, .01, v => Math.round(v * 100) + '%', cfg);
   }
   $('#spMode').textContent = S.sp ? 'On' : 'Off'; $('#spMode').classList.toggle('on', !!S.sp);
   const row = document.createElement('div'); row.className = 'ctl';
@@ -1606,7 +1757,7 @@ function renderFx(){
     const M = S.master;
     add('<h2>Master</h2>');
     let g = grid();
-    ctl(g, 'Glue', M, 'glue', 0, 1, .01, pct, after);
+    ctl(g, 'Glue', M, 'glue', 0, 1, .01, v => v ? pct(v) + ' (+6 ms)' : 'Off', after);
     add('<span class="label">Reverb return</span>'); g = grid();
     ctl(g, 'Size', M, 'rev', .4, 6, .1, v => v.toFixed(1) + ' s', () => { if (live) live.master.conv.buffer = makeIR(ctx, M.rev); });
     add('<span class="label">Delay return</span>'); g = grid();
@@ -2727,6 +2878,7 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
+  if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
   S.cur = clamp(S.cur || 0, 0, S.scenes.length - 1); S.song = S.song || []; S.launchQ = S.launchQ || 'bar'; S.songMode = !!S.songMode;
