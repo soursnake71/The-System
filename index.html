@@ -117,6 +117,10 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 .scenebar button{flex:0 0 auto;min-width:52px;padding:10px 12px;text-transform:none;letter-spacing:.02em;font-size:15px}
 .scenebar button.pend{border-color:var(--accent);color:var(--accent);animation:blink .5s steps(2) infinite}
 @media (prefers-reduced-motion:reduce){.scenebar button.pend{animation:none}}
+#autoArm.on{background:var(--rec);border-color:var(--rec);color:#fff}
+#autoBack:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.lane{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center}
+.lane canvas{width:100%;height:30px;background:#0c0e12;border-radius:6px;display:block}
 .slist{display:flex;flex-direction:column;gap:8px}
 .srow{display:flex;gap:6px;align-items:center}
 .srow input{flex:1;min-width:0;font:600 16px var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 8px}
@@ -219,6 +223,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 
   <!-- MIXER -->
   <section class="view" id="v-mixer" hidden>
+    <div class="row"><button id="autoArm" class="grow">Automate</button><button id="autoBack" class="grow" disabled>Re-enable automation</button></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard"></div>
   </section>
@@ -390,7 +395,7 @@ function defaultState(){
     master:{vol:.9, glue:.2, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
-    synths:[]
+    synths:[], auto:{}, autoOff:[]
   };
 }
 let S = defaultState();
@@ -688,6 +693,7 @@ function startClip(rig, tr, t, offset = 0){
 function scheduleNotes(rig, i, t){
   const sd = stepDur(), td = sd / TPS, lo = ((i - org) % (S.bars * 16)) * TPS, hi = lo + TPS;
   const swing = (S.swing / 100) * sd * .66;
+  playAuto(rig, lo, t, sd);
   for (const n of S.drum.notes){
     if (n.t < lo || n.t >= hi) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }   // already heard when it was played in
@@ -869,6 +875,8 @@ function stop(){
   drumRec = false; held.clear(); S.drum.notes.forEach(n => delete n.skip); seqDirty = true;
   S.synths.forEach(tr => tr.notes.forEach(n => delete n.skip)); keysUpAll();
   if (wake){ wake.release().catch(() => {}); wake = null; }
+  if (live) live.strips.forEach(st => [st.fader.gain, st.pan.pan, st.low.gain, st.mid.gain, st.high.gain, st.filt.frequency, st.filt.Q, st.sa.gain, st.sb.gain].forEach(prm => prm.cancelScheduledValues(0)));
+  applyAll();
   renderTransport(); renderTracks();
 }
 function tick(){
@@ -1161,7 +1169,7 @@ function ctl(box, label, obj, key, min, max, step, fmt, after){
   row.innerHTML = `<label class="label" for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}"><span class="v mono"></span>`;
   const inp = row.querySelector('input'), v = row.querySelector('.v');
   inp.value = obj[key]; v.textContent = fmt(obj[key]);
-  inp.addEventListener('input', () => { obj[key] = +inp.value; v.textContent = fmt(obj[key]); after && after(); save(); });
+  inp.addEventListener('input', () => { obj[key] = +inp.value; v.textContent = fmt(obj[key]); after && after(); if (obj.id && trackById(obj.id)) autoTouch(obj, key); save(); });
   inp.addEventListener('dblclick', () => {});
   box.appendChild(row); return inp;
 }
@@ -1262,11 +1270,11 @@ function renderMixer(){
     const f = el.querySelector('.fader'), db = el.querySelector('.db');
     const gain = () => isMaster ? obj.vol * obj.vol * 1.2 : obj.vol * obj.vol * 1.4;
     f.value = obj.vol; db.textContent = fmtDb(gain());
-    f.addEventListener('input', () => { obj.vol = +f.value; db.textContent = fmtDb(gain()); applyAll(); save(); });
+    f.addEventListener('input', () => { obj.vol = +f.value; db.textContent = fmtDb(gain()); applyAll(); if (!isMaster) autoTouch(t, 'vol'); save(); });
     f.addEventListener('dblclick', () => { obj.vol = isMaster ? .91 : .845; f.value = obj.vol; db.textContent = fmtDb(gain()); applyAll(); save(); });
     if (!isMaster){
       const p = el.querySelector('.pan'); p.value = t.pan;
-      p.addEventListener('input', () => { t.pan = Math.abs(+p.value) < .04 ? 0 : +p.value; applyAll(); save(); });
+      p.addEventListener('input', () => { t.pan = Math.abs(+p.value) < .04 ? 0 : +p.value; applyAll(); autoTouch(t, 'pan'); save(); });
       const m = el.querySelector('.mute'), s = el.querySelector('.solo');
       m.classList.toggle('on', t.mute); s.classList.toggle('on', t.solo);
       m.addEventListener('click', () => { t.mute = !t.mute; m.classList.toggle('on', t.mute); applyAll(); save(); });
@@ -1317,6 +1325,8 @@ function renderFx(){
   ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
   add('<span class="label">Sends</span>'); g = grid();
   ctl(g, 'Reverb', t, 'sendA', 0, 1, .01, pct, after); ctl(g, 'Delay', t, 'sendB', 0, 1, .01, pct, after);
+  renderLanes(box, t);
+  $('#autoBack').disabled = !S.autoOff.length;
 }
 
 function setView(v){
@@ -1755,18 +1765,101 @@ $('#roll').addEventListener('pointerdown', e => {
 });
 $('#midiTarget').addEventListener('change', e => { S.midiTarget = e.target.value; save(); });
 
+/* ================= automation ================= */
+const AUTO_KEYS = {vol:'Volume', pan:'Pan', low:'EQ low', mid:'EQ mid', high:'EQ high', cut:'Cutoff', res:'Reso', sendA:'Reverb send', sendB:'Delay send'};
+const touching = new Map();   // lane id -> time of the last write, so playback doesn't fight your finger
+let autoArm = false;
+function laneVal(pts, tick, L){
+  const n = pts.length; if (!n) return null; if (n === 1) return pts[0].v;
+  const k = pts.findIndex(p => p.t > tick);
+  let a, b, ta, tb;
+  if (k === -1){ a = pts[n - 1]; b = pts[0]; ta = a.t; tb = b.t + L; }        // past the last point: head back to the first
+  else if (k === 0){ a = pts[n - 1]; b = pts[0]; ta = a.t - L; tb = b.t; }
+  else { a = pts[k - 1]; b = pts[k]; ta = a.t; tb = b.t; }
+  const f = tb > ta ? (tick - ta) / (tb - ta) : 0;
+  return a.v + (b.v - a.v) * clamp(f, 0, 1);
+}
+function paramsFor(s, tr, key, v){
+  switch (key){
+    case 'vol': return [[s.fader.gain, v * v * 1.4]];
+    case 'pan': return [[s.pan.pan, v]];
+    case 'low': case 'mid': case 'high': return [[s[key].gain, v]];
+    case 'cut': return tr.ftype === 'off' ? [] : [[s.filt.frequency, cutHz(v)]];
+    case 'res': return tr.ftype === 'off' ? [] : [[s.filt.Q, v]];
+    case 'sendA': return [[s.sa.gain, v]];
+    case 'sendB': return [[s.sb.gain, v]];
+  }
+  return [];
+}
+function playAuto(rig, lo, t, sd){
+  const A = S.auto; if (!A) return;
+  const L = loopTicks(), now = rig.c.currentTime;
+  for (const id in A){
+    const pts = A[id]; if (!pts || !pts.length) continue;
+    if (rig === live && (S.autoOff.includes(id) || now - (touching.get(id) || -9) < .3)) continue;
+    const [tid, key] = id.split('.'), tr = trackById(tid), st = rig.strips.get(tid);
+    if (!tr || !st) continue;
+    const v0 = laneVal(pts, lo, L), v1 = laneVal(pts, lo + TPS, L);
+    const a = paramsFor(st, tr, key, v0), b = paramsFor(st, tr, key, v1);
+    a.forEach(([prm, x], k) => { prm.setValueAtTime(x, t); prm.linearRampToValueAtTime(b[k][1], t + sd); });
+  }
+}
+// called whenever a mixer or effect control moves
+function autoTouch(tr, key){
+  if (!(key in AUTO_KEYS)) return;
+  const id = tr.id + '.' + key;
+  if (!(playing && autoArm)){
+    if (S.auto[id] && S.auto[id].length && !S.autoOff.includes(id)){ S.autoOff.push(id); $('#autoBack').disabled = false; toast(`${AUTO_KEYS[key]} on ${tr.name} now follows your hand. Re-enable automation to hand it back.`); }
+    return;
+  }
+  const h = heardStep(); if (!h || h.i < org) return;
+  const L = loopTicks(), T = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  const tick = Math.round(((((h.i - org) * TPS + (T - h.t) / (stepDur() / TPS)) % L) + L) % L);
+  const pts = S.auto[id] || (S.auto[id] = []);
+  const last = touching.has(id) && ctx.currentTime - touching.get(id) < .3 ? touching.lastTick?.[id] : null;
+  // overwrite whatever was there between the previous write and this one
+  const inRange = x => last == null ? Math.abs(x - tick) < 6 : (last <= tick ? x > last && x <= tick : x > last || x <= tick);
+  S.auto[id] = pts.filter(p => !inRange(p.t)).concat({t:tick, v:tr[key]}).sort((a, b) => a.t - b.t);
+  touching.set(id, ctx.currentTime); (touching.lastTick ||= {})[id] = tick;
+  S.autoOff = S.autoOff.filter(x => x !== id);
+  save();
+}
+function renderLanes(box, tr){
+  const ids = Object.keys(S.auto).filter(id => id.startsWith(tr.id + '.') && S.auto[id].length);
+  const head = document.createElement('span'); head.className = 'label'; head.textContent = 'Automation in this scene'; box.appendChild(head);
+  if (!ids.length){ const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'None yet. Arm Automate above, press play and move any control.'; box.appendChild(p); return; }
+  ids.forEach(id => {
+    const key = id.split('.')[1], row = document.createElement('div'); row.className = 'lane';
+    row.innerHTML = `<span class="label">${AUTO_KEYS[key]}</span><canvas></canvas><button>Clear</button>`;
+    box.appendChild(row);
+    const cv = row.querySelector('canvas'), dpr = devicePixelRatio || 1;
+    requestAnimationFrame(() => {
+      cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+      const g = cv.getContext('2d'), L = loopTicks(), pts = S.auto[id];
+      const [mn, mx] = {vol:[0, 1], pan:[-1, 1], low:[-15, 15], mid:[-15, 15], high:[-15, 15], cut:[0, 1], res:[.5, 18], sendA:[0, 1], sendB:[0, 1]}[key];
+      g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--rec').trim(); g.lineWidth = 1.5 * dpr; g.beginPath();
+      for (let x = 0; x <= cv.width; x += 2){ const v = laneVal(pts, x / cv.width * L, L), y = cv.height - (v - mn) / (mx - mn) * (cv.height - 4 * dpr) - 2 * dpr; x ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke();
+    });
+    row.querySelector('button').addEventListener('click', () => { delete S.auto[id]; S.autoOff = S.autoOff.filter(x => x !== id); applyAll(); save(); renderFx(); });
+  });
+}
+$('#autoArm').addEventListener('click', () => { autoArm = !autoArm; $('#autoArm').classList.toggle('on', autoArm); if (autoArm) toast(playing ? 'Automation armed. Move a control to record it.' : 'Automation armed. Press play, then move a control to record it.'); });
+$('#autoBack').addEventListener('click', () => { S.autoOff = []; $('#autoBack').disabled = true; save(); toast('Automation is back in control.'); });
+
 /* ================= scenes & song ================= */
 let pending = null, loopCount = 0, songPos = 0, songDone = false;
 function storeScene(){
   if (!S.scenes) return;
   const old = S.scenes[S.cur] || {name:'Scene ' + (S.cur + 1)};
-  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps, bpm:t.clipBpm} : null])), synth:Object.fromEntries((S.synths || []).map(t => [t.id, t.notes]))};
+  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps, bpm:t.clipBpm} : null])), synth:Object.fromEntries((S.synths || []).map(t => [t.id, t.notes])), auto:S.auto || {}};
 }
 function loadScene(k){
   const sc = S.scenes[k]; S.cur = k;
   S.bars = sc.bars; S.drum.notes = sc.notes;
   S.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c && buffers.has(c.key) ? c.key : null; t.clipSteps = c ? c.steps : 16; t.clipBpm = (c && c.bpm) || S.bpm; });
   (S.synths || []).forEach(t => { t.notes = (sc.synth || {})[t.id] || []; });
+  S.auto = sc.auto || {}; S.autoOff = [];
   rollDirty = true;
 }
 function sceneChanged(){
@@ -1823,14 +1916,14 @@ function dupScene(){
   if (S.scenes.length >= 16){ toast('16 scenes is the limit.'); return; }
   storeScene();
   const src = S.scenes[S.cur];
-  S.scenes.push({name:nextName(), bars:src.bars, notes:src.notes.map(n => ({p:n.p, t:n.t, v:n.v})), clips:JSON.parse(JSON.stringify(src.clips)), synth:JSON.parse(JSON.stringify(src.synth || {}))});
+  S.scenes.push({name:nextName(), bars:src.bars, notes:src.notes.map(n => ({p:n.p, t:n.t, v:n.v})), clips:JSON.parse(JSON.stringify(src.clips)), synth:JSON.parse(JSON.stringify(src.synth || {})), auto:JSON.parse(JSON.stringify(src.auto || {}))});
   launchScene(S.scenes.length - 1); if (!playing) toast('Made ' + S.scenes[S.scenes.length - 1].name + ' as a copy. Change it without touching the original.');
   renderScenes();
 }
 function newScene(){
   if (S.scenes.length >= 16){ toast('16 scenes is the limit.'); return; }
   storeScene();
-  S.scenes.push({name:nextName(), bars:S.bars, notes:[], clips:{}});
+  S.scenes.push({name:nextName(), bars:S.bars, notes:[], clips:{}, auto:{}});
   launchScene(S.scenes.length - 1); renderScenes();
 }
 function deleteScene(k){
@@ -2166,6 +2259,7 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); });
+  S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
   S.cur = clamp(S.cur || 0, 0, S.scenes.length - 1); S.song = S.song || []; S.launchQ = S.launchQ || 'bar'; S.songMode = !!S.songMode;
   loadScene(S.cur);
