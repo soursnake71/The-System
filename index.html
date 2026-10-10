@@ -311,8 +311,14 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option><option value="prophet">Prophet-5</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Synth 1</h2><select id="inst" aria-label="Instrument"><option value="synth">Synth</option><option value="solina">Solina strings</option><option value="prophet">Prophet-5</option><option value="tb303">TB-303</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
+      <div id="tbPanel" hidden>
+        <div class="p5sw"><button id="tbSaw">Saw</button><button id="tbSq">Square</button></div>
+        <div class="ctls" id="tbCtls"></div>
+        <div class="p5sw"><button id="tbAcc">Accent</button><button id="tbSlide">Slide</button></div>
+        <p class="hint">Accent and Slide latch on and apply to the notes you play and record. Notes played hard (top of the pad, or high MPC/keyboard velocity) are accented too, and a note that starts while the previous one is still held slides into it, like a tie on the 303. Repeated accents with high resonance build up the squeal, as on the original.</p>
+      </div>
       <div id="p5Panel" hidden>
         <div class="ctl"><label class="label" for="p5Preset">Program</label><select id="p5Preset"></select><span></span></div>
         <div class="ctl"><label class="label" for="p5Wheel">Mod wheel</label><input id="p5Wheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="p5WheelV"></span></div>
@@ -501,6 +507,18 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p>Like the original, most knobs move in 128 steps, so cutoff and pitch change in semitone steps. Programs give you starting points: Brass, Poly strings, Sync lead, Unison bass, Poly-mod bell, Pad, Pluck and Resonant sweep.</p>
     </details>
 
+    <details id="h-tb303"><summary>TB-303</summary>
+      <p>Any synth track can be a TB-303 bass line: on the Synth tab, change <b>Synth</b> to <b>TB-303</b>. It follows the stock 303 as documented by Robin Whittle (Devil Fish) and published analyses of its diode-ladder filter.</p>
+      <ul>
+        <li><b>Saw / Square</b>: the square is made from the saw by a transistor shaper, as on the original, so it is not a perfect square.</li>
+        <li><b>Cutoff</b>, <b>Resonance</b>, <b>Env mod</b>, <b>Decay</b> (200 ms–2 s filter envelope) and <b>Accent</b> work like the 303's knobs. The filter does not follow the keyboard and rings hard at high resonance but never self-oscillates, like a stock unit.</li>
+        <li><b>Accent</b>: notes played hard (top of the pad, or high velocity from the MPC or a keyboard), or any note while the <b>Accent</b> latch is on, are accented: louder, brighter, with the envelope forced to 200 ms. With resonance up, a run of accents builds up the squeal, because the accent circuit's capacitor keeps some charge between notes.</li>
+        <li><b>Slide</b>: a note that starts while the previous one is still held glides into it over the 303's 60 ms without restarting the envelopes. The <b>Slide</b> latch makes every note you play or record slide.</li>
+        <li>Notes keep their accent and slide when recorded with Overdub, so patterns play back with the same squelch.</li>
+        <li>For a classic acid line: Saw, Cutoff around 400–600 Hz, Resonance 7–9, Env mod 5–7, Decay low, Accent high, then add the Mixer's Saturator.</li>
+      </ul>
+    </details>
+
     <details id="h-vocoder"><summary>Vocoder (SVC-350 model)</summary>
       <p>The vocoder makes a synth “talk”: your voice shapes the synth's sound. It is modeled on the Roland SVC-350's circuit from its 1979 service notes.</p>
       <ol><li>On the Synth tab, turn <b>Vocoder</b> on. That synth becomes the instrument.</li><li><b>Voice</b>: <i>Live input</i> uses your USB-C mic; or pick an audio track with a recorded vocal (mute that track in the mixer if you only want the vocoder).</li><li>Hold chords on the grid (or your keyboard/MPC) and talk or sing.</li></ol>
@@ -604,6 +622,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li>SVC-350 vocoder: modeled from the Roland SVC-350 service notes (Dec. 8, 1979), <a href="https://archive.org/details/roland_SVC-350_SERVICE_NOTES" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Roland.</li>
         <li>Solina String Ensemble: modeled from the Eminent/ARP Solina schematic set (sheets 015.0212 and 015.0214), <a href="https://archive.org/details/ARP_Solina_Schematics" target="_blank" rel="noopener">archive.org</a>. Not affiliated with ARP or Eminent.</li>
         <li>Prophet-5: modeled from the Sequential Circuits Prophet-5 Rev 3 service and owner's manuals, <a href="https://archive.org/details/synthmanual-sequential-circuits-prophet-5-service-manual" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Sequential.</li>
+        <li>TB-303: behaviour of the stock circuit from Robin Whittle's <a href="https://www.firstpr.com.au/rwi/dfish/" target="_blank" rel="noopener">Devil Fish documentation</a>; diode-ladder filter tuned by measurement in this app. Not affiliated with Roland.</li>
         <li>MP3 encoding: <a href="https://github.com/zhuker/lamejs" target="_blank" rel="noopener">lamejs</a> (LGPL), loaded on demand.</li>
         <li>MPC, SP-1200, SVC-350, Push and Ableton Live are trademarks of their owners and are mentioned only to describe features.</li>
       </ul>
@@ -977,6 +996,103 @@ class Redux extends AudioWorkletProcessor{
       for(let n=0;n<y.length;n++){if(c<=0){this.h[ch]=b>=16?x[n]:Math.round(x[n]*q)/q;c+=f;}c--;y[n]=this.h[ch];}end=c;}
     this.c=end;return true;}}
 registerProcessor('redux',Redux);`;
+const TB_CODE = String.raw`
+/* Roland TB-303, following Robin Whittle's Devil Fish documentation of the stock circuit and published diode-ladder analysis:
+   saw VCO (square derived from the saw by a transistor shaper), 4-pole diode-ladder low-pass whose stages load each other,
+   with a high-pass inside the resonance loop (so it rings but does not self-oscillate), no keyboard tracking,
+   MEG (filter env) decay 200 ms - 2 s, fixed 200 ms on accents; VEG (amp env) 4 ms delay, 3 ms attack, ~3.5 s decay,
+   8 ms hold + 8 ms linear fade at note end; slide = 60 ms RC on the pitch CV with no retrigger;
+   accent = MEG through the ACCENT pot into the accent sweep circuit, whose lag (C13) is ganged to RESONANCE and keeps charge
+   between accents, adding to both cutoff and volume. Mono, last-note priority. */
+// measured self-oscillation threshold of this ladder (feedback gain) at each cutoff in Hz
+const THR = [[150, 59.9], [300, 42.13], [600, 30.51], [1200, 24.65], [2400, 21.04], [4800, 17.71], [6500, 16.15]];
+class TB303 extends AudioWorkletProcessor{
+  constructor(o){
+    super();
+    const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
+    this.c = Object.assign({tune:.5, wave:0, cut:.35, res:.75, env:.55, dec:.45, acc:.7, vol:.8}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.held = []; this.note = -1; this.cv = null; this.cvT = null; this.gate = false; this.acc = false;
+    this.ph = 0; this.meg = 0; this.megTau = .2; this.veg = 0; this.vegState = 0; this.vegT = 0; this.c13 = 0; this.accPulse = 0;
+    this.s = [0, 0, 0, 0]; this.hp = 0; this.hpx = 0; this.dc = 0; this.dcx = 0; this.offT = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.c, d.cfg); };
+  }
+  on(ev){
+    const legato = this.gate || ev.sl;          // a tie or an overlapping note slides instead of retriggering
+    this.held = this.held.filter(n => n !== ev.on); this.held.push(ev.on);
+    this.note = ev.on; this.cvT = ev.on;
+    this.acc = (ev.v || 0) >= .85;
+    if (!legato || this.cv == null){
+      this.cv = ev.on;
+      this.meg = 1; this.megTau = this.acc ? .2 : .2 * Math.pow(10, this.c.dec);   // 200 ms .. 2 s, accent fixed at 200 ms
+      this.vegState = 1; this.vegT = 0;
+      if (this.acc) this.accPulse = 1;
+    } else if (this.acc){ this.meg = 1; this.megTau = .2; this.accPulse = 1; }
+    this.gate = true;
+  }
+  off(ev){
+    this.held = this.held.filter(n => n !== ev.off);
+    if (this.held.length){ this.note = this.cvT = this.held[this.held.length - 1]; return; }
+    if (ev.off === this.note || !this.held.length){ this.gate = false; this.vegState = 3; this.vegT = 0; }
+  }
+  t(x){ if (x > 3) return 1; if (x < -3) return -1; const x2 = x * x; return x * (27 + x2) / (27 + 9 * x2); }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.c, OS = 4, fo = fs * OS;
+    const slide = 1 - Math.exp(-1 / (.026 * fs));               // 60 ms slide
+    const megD = Math.exp(-1 / (this.megTau / 3 * fs));
+    const vegA = 1 - Math.exp(-1 / (.001 * fs)), vegD = Math.exp(-1 / (3.5 / 3 * fs));
+    const resAmt = Math.pow(C.res, .5);
+    const lag = .02 + C.res * .09;                               // C13 lag grows with RESONANCE (ganged pot)
+    const c13up = 1 - Math.exp(-1 / (lag * fs)), c13dn = Math.exp(-1 / ((lag * 6) * fs));
+    const hpA = 1 / (1 + 2 * Math.PI * 150 / fo), dcA = 1 / (1 + 2 * Math.PI * 25 / fs);
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.on(ev); else this.off(ev); }
+      if (this.cv == null){ L[i] = R[i] = 0; continue; }
+      this.cv += (this.cvT - this.cv) * slide;
+      // VEG: 4 ms delay, 3 ms attack, long decay; release = 8 ms hold then 8 ms linear
+      this.vegT += 1 / fs;
+      if (this.vegState === 1){ if (this.vegT > .004){ this.veg += (1.05 - this.veg) * vegA; if (this.veg >= 1){ this.veg = 1; this.vegState = 2; } } }
+      else if (this.vegState === 2) this.veg *= vegD;
+      else if (this.vegState === 3){ if (this.vegT > .008){ this.veg -= 1 / (.008 * fs); if (this.veg <= 0){ this.veg = 0; this.vegState = 0; } } }
+      this.meg *= megD;
+      // accent sweep circuit: MEG x ACCENT, direct at low resonance, through C13 lag (keeping charge) at high resonance
+      const a = this.accPulse ? this.meg * C.acc : 0; if (this.meg < .01) this.accPulse = 0;
+      this.c13 = a > this.c13 ? this.c13 + (a - this.c13) * c13up : this.c13 * c13dn;
+      const sweep = (1 - C.res) * a + C.res * this.c13 * 1.6;
+      // oscillator: saw, or the transistor-shaped square
+      const f = 440 * Math.pow(2, (this.cv - 69) / 12 + (C.tune - .5)), dt = f / fs;
+      this.ph += dt; if (this.ph >= 1) this.ph -= 1;
+      let saw = 1 - 2 * this.ph;
+      if (this.ph < dt){ const x = this.ph / dt; saw += x + x - x * x - 1; } else if (this.ph > 1 - dt){ const x = (this.ph - 1) / dt; saw += x * x + x + x + 1; }
+      const osc = C.probe === 2 ? (Math.random() * 2 - 1) * 1e-4 : C.probe ? Math.random() * 2 - 1 : C.wave ? this.t(6 * (saw + .1)) * .9 + saw * .1 : saw;
+      // cutoff: knob ~250 Hz-2.5 kHz, env mod, accent sweep; no keyboard tracking
+      const oct = Math.log2(250) + C.cut * 3.3 + this.meg * (.6 + C.env * 2.6) * (this.acc ? 1.15 : 1) + sweep * 1.8;
+      const fc = C.fcFix || Math.min(6500, Math.pow(2, oct)), w = 2 * Math.PI * fc * 1.32 / fo, s = this.s;   // the loaded ladder peaks ~25% low; trimmed so the peak sits on the cutoff
+      // full resonance stays at 88% of the measured self-oscillation threshold for this cutoff: a stock 303 rings but never sings
+      let thr = THR[THR.length - 1][1];
+      for (let j = 1; j < THR.length; j++) if (fc <= THR[j][0]){ const [f0, k0] = THR[j - 1], [f1, k1] = THR[j], x = Math.max(0, Math.log2(fc / f0) / Math.log2(f1 / f0)); thr = k0 + (k1 - k0) * x; break; }
+      const resK = C.kFix != null ? C.kFix : .95 * thr * resAmt;
+      let y = 0;
+      for (let k = 0; k < OS; k++){
+        // resonance feedback through a 150 Hz high-pass, then the diode ladder: each stage's diodes see the next capacitor
+        const fbIn = s[3], hp = hpA * (this.hp + fbIn - this.hpx); this.hp = hp; this.hpx = fbIn;
+        const u = osc * .9 - resK * hp;
+        const d0 = this.t(u - s[0]), d1 = this.t(s[0] - s[1]), d2 = this.t(s[1] - s[2]), d3 = this.t(s[2] - s[3]);
+        s[0] += w * (d0 - d1); s[1] += w * .5 * (d1 - d2); s[2] += w * .5 * (d2 - d3); s[3] += w * .5 * d3;
+        y += s[3];
+      }
+      y = y / OS * (1 + resK * .06) * 2.2;
+      // VCA: VEG plus the accent sweep; output coupling rolls off the deep bass (32 Hz about -5 dB)
+      let o = y * this.veg * (.55 + sweep * .9 + (this.acc ? .25 : 0)) * C.vol;
+      const dc = dcA * (this.dc + o - this.dcx); this.dc = dc; this.dcx = o; o = this.t(dc * 1.2) * .8;
+      L[i] = o; R[i] = o;
+    }
+    return true;
+  }
+}
+registerProcessor('tb303', TB303);
+`;
 const P5_CODE = String.raw`
 /* Prophet-5 (Rev 3) voice model, from the Sequential Circuits service and owner's manuals:
    per voice 2 x CEM3340 VCO (saw, pulse 1-99%, B triangle, hard sync, B low-freq 0.4-30 Hz), mixer with white noise,
@@ -1427,7 +1543,7 @@ class SVC350 extends AudioWorkletProcessor{
 registerProcessor('svc350', SVC350);
 `;
 let WORKLET_URL = null;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE], {type:'application/javascript'})));
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE], {type:'application/javascript'})));
 
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -1690,7 +1806,7 @@ function scheduleNotes(rig, i, t){
     if (n.t < lo || n.t >= hi) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
-    synthVoice(rig, tr, n.n, at, n.v, Math.max(6, n.d) * td);
+    synthVoice(rig, tr, n.n, at, n.v, Math.max(6, n.d) * td, n);
   }
   S.audio.forEach(tr => {
     const recording = rig === live && rec && rec.id === tr.id && rec.startT != null;
@@ -2736,7 +2852,7 @@ const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,
   'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
 let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
 const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
-function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT(), p5:P5_DEFAULT()}, mixDefaults()); }
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Synth ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'synth', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), tb:TB_DEFAULT()}, mixDefaults()); }
 const P5_INIT = {oAf:.5, oAsaw:1, oApul:0, oApw:.5, sync:0, oBf:.5, oBfine:0, oBsaw:1, oBtri:0, oBpul:0, oBpw:.5, oBlo:0, oBkbd:1,
   mA:.8, mB:0, mN:0, cut:.6, res:.1, fenv:.4, fkbd:1, fa:0, fd:.45, fs:.4, fr:.4, aa:0, ad:.4, as:.9, ar:.4,
   pmEnv:0, pmB:0, pmFA:0, pmPW:0, pmF:0, lfoF:.6, lfoSaw:0, lfoTri:1, lfoSq:0, wmMix:0, wmFA:1, wmFB:1, wmPWA:0, wmPWB:0, wmF:0,
@@ -2754,7 +2870,8 @@ const P5_PRESETS = {
 };
 const P5_DEFAULT = (name = 'Brass') => Object.assign({}, P5_INIT, P5_PRESETS[name], {preset:name});
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}};
+const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, tb303:{proc:'tb303', cfg:tr => tr.tb}};
+const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
 function solNode(rig, tr){
   rig.sol = rig.sol || {};
   const key = tr.id + ':' + tr.inst;
@@ -2774,9 +2891,9 @@ function solFinish(rig){
     n.connect(rig.strips.get(id).input);
   }
 }
-function synthVoice(rig, tr, note, t, vel, dur){
+function synthVoice(rig, tr, note, t, vel, dur, extra){
   if (INST[tr.inst]){
-    const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel});
+    const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel, sl:extra && extra.sl ? 1 : 0});
     let done = false;
     const release = at => { if (done) return; done = true; solSend(rig, tr, {f:Math.round(Math.max(at, t + .005) * fs), off:note}); };
     if (dur != null) release(t + dur);
@@ -2807,27 +2924,30 @@ function synthVoice(rig, tr, note, t, vel, dur){
   if (dur != null) release(t + dur);
   return {release};
 }
-function addSynthNote(tr, note, absTick, d, v){
+function addSynthNote(tr, note, absTick, d, v, sl){
   const L = loopTicks(), g = S.quant, q = Math.round(absTick / g) * g;
   const rq = q - org * TPS, pass = Math.floor(rq / L);
   if (pass !== undoPass){ pushUndo(); undoPass = pass; }
   const t = ((rq % L) + L) % L, skip = q >= stepI * TPS;
   tr.notes = tr.notes.filter(n => !(n.n === note && Math.abs(n.t - t) < Math.max(3, g / 2)));
-  const n = {n:note, t, d:Math.max(6, Math.round(d)), v}; if (skip) n.skip = 1;
+  const n = {n:note, t, d:Math.max(6, Math.round(d)), v}; if (skip) n.skip = 1; if (sl) n.sl = 1;
   tr.notes.push(n); rollDirty = true; save();
 }
 function keyDown(tr, note, ev, v, id){
   ensureAudio();
   if (keysOn.has(id)) keyUp(id, ev);
-  const voice = synthVoice(live, tr, note, ctx.currentTime + .003, v, null);
-  keysOn.set(id, {voice, tr, note, v, start:(playing && drumRec) ? tapTick(ev) : null});
+  const tbx = tr.inst === 'tb303' ? tr.tb : null;
+  if (tbx && tbx.accLatch) v = 1;
+  const sl = tbx && tbx.slideLatch ? 1 : 0;
+  const voice = synthVoice(live, tr, note, ctx.currentTime + .003, v, null, {sl});
+  keysOn.set(id, {voice, tr, note, v, sl, start:(playing && drumRec) ? tapTick(ev) : null});
 }
 function keyUp(id, ev){
   const k = keysOn.get(id); if (!k) return;
   keysOn.delete(id); k.voice.release(ctx.currentTime);
   if (k.start != null && playing && drumRec){
     const end = tapTick(ev);
-    if (end != null && k.start > -TPS / 2) addSynthNote(k.tr, k.note, Math.max(0, k.start), end - k.start, k.v);
+    if (end != null && k.start > -TPS / 2) addSynthNote(k.tr, k.note, Math.max(0, k.start), end - k.start, k.v, k.sl);
   }
 }
 function keysUpAll(){ for (const [id] of keysOn) { const k = keysOn.get(id); k.voice.release(ctx ? ctx.currentTime : 0); } keysOn.clear(); document.querySelectorAll('.key.down').forEach(b => b.classList.remove('down')); }
@@ -2915,8 +3035,9 @@ function renderSynth(){
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'synth';
   const isSol = tr.inst === 'solina';
-  const isP5 = tr.inst === 'prophet';
-  $('#preset').hidden = isSol || isP5; $('#patchCtls').hidden = isSol || isP5; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5;
+  const isP5 = tr.inst === 'prophet', isTB = tr.inst === 'tb303';
+  $('#preset').hidden = isSol || isP5 || isTB; $('#patchCtls').hidden = isSol || isP5 || isTB; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
   const box = $('#patchCtls'); box.innerHTML = '';
@@ -2976,6 +3097,25 @@ function renderP5(tr){
 $('#p5Preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = tr.p5.wheel; tr.p5 = P5_DEFAULT(e.target.value); solCfg(tr); save(); renderP5(tr); });
 $('#p5Wheel').addEventListener('input', e => { const tr = curSynth(); tr.p5.wheel = +e.target.value; $('#p5WheelV').textContent = Math.round(tr.p5.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':prophet']; if (n) n.port.postMessage({type:'wheel', v:tr.p5.wheel}); save(); });
 
+function renderTB(tr){
+  const T = tr.tb, up = () => solCfg(tr);
+  $('#tbSaw').classList.toggle('on', !T.wave); $('#tbSq').classList.toggle('on', !!T.wave);
+  $('#tbAcc').classList.toggle('on', !!T.accLatch); $('#tbSlide').classList.toggle('on', !!T.slideLatch);
+  const box = $('#tbCtls'); box.innerHTML = '';
+  const k10 = v => (v * 10).toFixed(1);
+  ctl(box, 'Tuning', T, 'tune', 0, 1, .005, v => { const c = Math.round((v - .5) * 1200); return (c > 0 ? '+' : '') + c + ' ct'; }, up);
+  ctl(box, 'Cutoff', T, 'cut', 0, 1, .005, v => Math.round(250 * Math.pow(2, v * 3.3)) + ' Hz', up);
+  ctl(box, 'Resonance', T, 'res', 0, 1, .005, k10, up);
+  ctl(box, 'Env mod', T, 'env', 0, 1, .005, k10, up);
+  ctl(box, 'Decay', T, 'dec', 0, 1, .005, v => { const t = .2 * Math.pow(10, v); return t < 1 ? Math.round(t * 1000) + ' ms' : t.toFixed(1) + ' s'; }, up);
+  ctl(box, 'Accent', T, 'acc', 0, 1, .005, k10, up);
+  ctl(box, 'Volume', T, 'vol', 0, 1, .005, k10, up);
+}
+const tbSet = (k, v) => { const tr = curSynth(); tr.tb[k] = v; solCfg(tr); save(); renderTB(tr); };
+$('#tbSaw').addEventListener('click', () => tbSet('wave', 0));
+$('#tbSq').addEventListener('click', () => tbSet('wave', 1));
+$('#tbAcc').addEventListener('click', () => tbSet('accLatch', curSynth().tb.accLatch ? 0 : 1));
+$('#tbSlide').addEventListener('click', () => tbSet('slideLatch', curSynth().tb.slideLatch ? 0 : 1));
 function renderSolina(tr){
   const C = tr.sol;
   document.querySelectorAll('.solreg button').forEach(b => { b.classList.toggle('on', !!C[b.dataset.k]); });
@@ -2990,7 +3130,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', synth:'Synth '}[tr.inst]; if (/^(Synth|Solina|Prophet) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', synth:'Synth '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
@@ -3672,7 +3812,7 @@ $('#helpSearch').addEventListener('input', e => {
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); t.inst = t.inst || 'synth'; t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.tb = Object.assign(TB_DEFAULT(), t.tb); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
