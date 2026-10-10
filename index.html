@@ -22,6 +22,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font:15px/1.4 var(--f-body);display:flex;flex-direction:column;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
 button{font:600 14px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;touch-action:manipulation}
@@ -106,7 +107,13 @@ h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:upperc
 .strip input.pan{height:22px}
 
 nav{display:flex;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:var(--dim);font-size:15px}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:var(--dim);font-size:15px;letter-spacing:.04em}
+#chopWave{width:100%;height:170px;background:#0c0e12;border-radius:8px;display:block;touch-action:none}
+.slices{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.slices button{padding:12px 0;font:600 13px var(--f-mono)}
+.slices button.sel{background:var(--audio);border-color:var(--audio);color:#062026}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;padding:9px 0}
 nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 
 .toast{position:fixed;left:16px;right:16px;bottom:calc(70px + env(safe-area-inset-bottom,0px));background:#2c3140;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-weight:500;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:560px;margin:0 auto;z-index:5}
@@ -168,6 +175,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <button id="loadSample" class="grow">Load file</button>
         <button id="sampleIn" class="grow">Sample input</button>
         <button id="resetSample" class="grow">Built-in</button>
+        <button id="chopPad" class="grow">Chop</button>
       </div>
       <input type="file" id="fileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
       <div class="ctls" id="padCtls"></div>
@@ -193,6 +201,42 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   <section class="view" id="v-mixer" hidden>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard"></div>
+  </section>
+
+  <!-- CHOP -->
+  <section class="view" id="v-chop" hidden>
+    <div class="card">
+      <div class="row"><h2 class="grow">Chop</h2><span class="badge" id="chopInfo">No sample</span></div>
+      <div class="row">
+        <button id="chopLoad" class="grow">Load file</button>
+        <button id="chopRec" class="grow">Record</button>
+        <button id="chopFromPad" class="grow">From pad</button>
+      </div>
+      <input type="file" id="chopFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <canvas id="chopWave" aria-label="Sample waveform with slice markers. Tap a slice to hear it. Drag a marker to move it."></canvas>
+      <div class="seg" role="group" aria-label="Slice mode">
+        <button data-m="equal">Equal</button><button data-m="hits">Transients</button><button data-m="manual">Manual</button>
+      </div>
+      <div class="ctl" id="chopEqualRow"><label class="label" for="chopN">Slices</label><select id="chopN"><option>2</option><option>4</option><option>8</option><option>12</option><option>16</option></select><span></span></div>
+      <div class="ctl" id="chopSensRow"><label class="label" for="chopSens">Sensitivity</label><input id="chopSens" type="range" min="0" max="100" step="1"><span class="v mono" id="chopSensV"></span></div>
+      <div class="row" id="chopManualRow">
+        <button id="chopSplit" class="grow">Split slice</button>
+        <button id="chopMerge" class="grow">Remove marker</button>
+      </div>
+      <div class="slices" id="slices"></div>
+      <div class="row" id="chopNudge">
+        <span class="label grow" id="chopSelInfo">Slice 1</span>
+        <button data-n="-10">−10ms</button><button data-n="-1">−1</button><button data-n="1">+1</button><button data-n="10">+10ms</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Send to pads</h2>
+      <div class="ctl"><label class="label" for="chopStart">First pad</label><select id="chopStart"></select><span></span></div>
+      <div class="row"><span class="grow">Make a pattern that plays the slices in their original timing</span><button id="chopPat">Off</button></div>
+      <div class="ctl" id="chopBarsRow"><label class="label" for="chopBars">Sample is</label><select id="chopBars"><option value="1">1 bar</option><option value="2">2 bars</option><option value="4">4 bars</option><option value="8">8 bars</option></select><button id="chopFit">Set BPM</button></div>
+      <button id="chopAssign">Send slices to pads</button>
+      <p class="hint" id="chopHint">Slices replace the samples on those pads.</p>
+    </div>
   </section>
 
   <!-- SETUP -->
@@ -233,6 +277,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   <button data-v="drums" class="cur">Drums</button>
   <button data-v="audio">Audio</button>
   <button data-v="mixer">Mixer</button>
+  <button data-v="chop">Chop</button>
   <button data-v="setup">Setup</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
@@ -1076,6 +1121,7 @@ function setView(v){
   if (v === 'audio') renderTracks();
   if (v === 'mixer') renderMixer();
   if (v === 'setup') renderInput();
+  if (v === 'chop') renderChop();
   try { localStorage.setItem('pr-view', v); } catch(e){}
 }
 
@@ -1115,6 +1161,205 @@ function frame(){
     }
   }
 }
+
+/* ================= chop ================= */
+const chop = {buf:null, name:'', markers:[0], sel:0, mode:'equal', n:8, sens:55, start:0, pattern:false, bars:1, rec:null, src:null, peaks:null, drag:null};
+const slices = () => { const L = chop.buf ? chop.buf.length : 0; return chop.markers.map((m, i) => [m, chop.markers[i + 1] ?? L]); };
+const monoCache = new WeakMap();
+function monoAt(buf){
+  if (monoCache.has(buf)) return monoCache.get(buf);
+  const L = buf.length, out = new Float32Array(L);
+  for (let c = 0; c < buf.numberOfChannels; c++){ const d = buf.getChannelData(c); for (let i = 0; i < L; i++) out[i] += d[i] / buf.numberOfChannels; }
+  monoCache.set(buf, out); return out;
+}
+// move a point back to the nearest zero crossing so slices start without a click
+function toZero(d, f){ for (let k = 0; k < 400 && f - k > 0; k++){ const i = f - k; if ((d[i - 1] <= 0 && d[i] > 0) || (d[i - 1] >= 0 && d[i] < 0)) return i; } return f; }
+function detectHits(buf, sens){
+  const d = monoAt(buf), sr = buf.sampleRate, hop = 256, n = Math.floor(d.length / hop), e = new Float32Array(n);
+  for (let k = 0; k < n; k++){ let a = 0; for (let i = 0; i < hop; i++){ const v = d[k * hop + i]; a += v * v; } e[k] = Math.sqrt(a / hop); }
+  let pk = 0; for (const v of e) pk = Math.max(pk, v);
+  const floor = pk * (0.25 - sens / 100 * 0.22), ratio = 2.6 - sens / 100 * 1.5, gap = Math.round(.07 * sr / hop);
+  const hits = []; let last = -gap;
+  for (let k = 2; k < n; k++){
+    const prev = Math.max(e[k - 1], e[k - 2], 1e-5);
+    if (e[k] > floor && e[k] / prev > ratio && k - last >= gap){ hits.push({k, s:e[k] / prev}); last = k; }
+  }
+  const keep = hits.sort((a, b) => b.s - a.s).slice(0, 16).sort((a, b) => a.k - b.k);
+  const m = keep.map(h => toZero(d, Math.max(0, h.k * hop - Math.round(sr * .004))));
+  if (!m.length || m[0] > sr * .03) m.unshift(0); else m[0] = 0;
+  return [...new Set(m)].slice(0, 16);
+}
+function remark(){
+  if (!chop.buf) return;
+  if (chop.mode === 'equal'){
+    const d = monoAt(chop.buf), L = chop.buf.length;
+    chop.markers = Array.from({length:chop.n}, (_, i) => i ? toZero(d, Math.round(i * L / chop.n)) : 0);
+  } else if (chop.mode === 'hits') chop.markers = detectHits(chop.buf, chop.sens);
+  chop.sel = Math.min(chop.sel, chop.markers.length - 1);
+}
+function setChopSource(buf, name){
+  chop.buf = buf; chop.name = (name || 'Chop').slice(0, 10); chop.sel = 0; chop.peaks = null;
+  if (chop.mode === 'manual') chop.markers = [0];
+  remark(); renderChop();
+  DB.put('audio', 'chop:src', {sr:buf.sampleRate, ch:Array.from({length:buf.numberOfChannels}, (_, c) => buf.getChannelData(c).slice())});
+  saveChop();
+}
+function saveChop(){ S.chop = {name:chop.name, markers:chop.markers, mode:chop.mode, n:chop.n, sens:chop.sens, start:chop.start, pattern:chop.pattern, bars:chop.bars}; save(); }
+function auditionSlice(i){
+  if (!chop.buf) return;
+  ensureAudio();
+  const [a, b] = slices()[i], sr = chop.buf.sampleRate;
+  if (chop.src){ try { chop.src.stop(); } catch(e){} }
+  const src = ctx.createBufferSource(); src.buffer = chop.buf; src.connect(live.strips.get('drums').input);
+  src.start(ctx.currentTime + .003, a / sr, (b - a) / sr); chop.src = src;
+}
+function drawChop(){
+  const cv = $('#chopWave'), dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+  if (!w) return;
+  cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'), css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
+  g.clearRect(0, 0, w, h);
+  if (!chop.buf){ g.fillStyle = col('--dim'); g.font = `${13 * dpr}px Barlow, sans-serif`; g.fillText('Load a file, record from the input, or take a pad’s sample', 12 * dpr, h / 2); return; }
+  const L = chop.buf.length, X = f => f / L * w;
+  const [sa, sb] = slices()[chop.sel];
+  g.fillStyle = col('--panel2'); g.fillRect(X(sa), 0, X(sb) - X(sa), h);
+  if (!chop.peaks || chop.peaks.length !== w * 2){
+    const d = monoAt(chop.buf), per = Math.max(1, Math.floor(L / w)); chop.peaks = new Float32Array(w * 2);
+    for (let x = 0; x < w; x++){ let mn = 0, mx = 0; const o = Math.floor(x * L / w); for (let i = 0; i < per; i += 2){ const v = d[o + i] || 0; if (v < mn) mn = v; if (v > mx) mx = v; } chop.peaks[x * 2] = mn; chop.peaks[x * 2 + 1] = mx; }
+  }
+  let pk = .001; for (const v of chop.peaks) pk = Math.max(pk, Math.abs(v));
+  g.fillStyle = col('--audio');
+  for (let x = 0; x < w; x++){ const mn = chop.peaks[x * 2] / pk, mx = chop.peaks[x * 2 + 1] / pk; g.fillRect(x, h / 2 - mx * h * .42, 1, Math.max(1, (mx - mn) * h * .42)); }
+  g.font = `600 ${11 * dpr}px "JetBrains Mono", monospace`; g.textBaseline = 'top';
+  chop.markers.forEach((m, i) => {
+    g.fillStyle = col('--accent'); g.fillRect(Math.round(X(m)), 0, Math.max(1, 1.5 * dpr), h);
+    if (i){ g.beginPath(); g.moveTo(X(m) - 7 * dpr, h); g.lineTo(X(m) + 7 * dpr, h); g.lineTo(X(m), h - 10 * dpr); g.fill(); }
+    g.fillText(String(i + 1), X(m) + 4 * dpr, 4 * dpr);
+  });
+}
+function renderChop(){
+  const has = !!chop.buf;
+  $('#chopInfo').textContent = has ? `${chop.name} · ${chop.buf.duration.toFixed(2)} s` : 'No sample';
+  $('#chopInfo').className = 'badge' + (has ? ' ok' : '');
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.m === chop.mode));
+  $('#chopEqualRow').hidden = chop.mode !== 'equal'; $('#chopSensRow').hidden = chop.mode !== 'hits'; $('#chopManualRow').hidden = chop.mode !== 'manual';
+  $('#chopN').value = chop.n; $('#chopSens').value = chop.sens; $('#chopSensV').textContent = chop.sens + '%';
+  const box = $('#slices'); box.innerHTML = '';
+  slices().forEach((_, i) => {
+    const b = document.createElement('button'); b.textContent = i + 1; b.classList.toggle('sel', i === chop.sel);
+    b.setAttribute('aria-label', 'Play slice ' + (i + 1));
+    b.addEventListener('pointerdown', e => { e.preventDefault(); chop.sel = i; auditionSlice(i); renderChop(); });
+    box.appendChild(b);
+  });
+  if (has){ const [a, b] = slices()[chop.sel], sr = chop.buf.sampleRate; $('#chopSelInfo').textContent = `Slice ${chop.sel + 1}: ${(a / sr).toFixed(3)}–${(b / sr).toFixed(3)} s`; }
+  $('#chopNudge').hidden = !has; $('#chopSplit').disabled = !has || chop.markers.length >= 16; $('#chopMerge').disabled = !has || chop.sel === 0;
+  const st = $('#chopStart');
+  if (!st.children.length) st.innerHTML = Array.from({length:16}, (_, i) => `<option value="${i}">${padLabel(i)}</option>`).join('');
+  st.value = chop.start;
+  const n = Math.min(slices().length, 16 - chop.start);
+  $('#chopPat').textContent = chop.pattern ? 'On' : 'Off'; $('#chopPat').classList.toggle('on', chop.pattern);
+  $('#chopBars').value = chop.bars; $('#chopBarsRow').hidden = !chop.pattern;
+  $('#chopAssign').disabled = !has;
+  $('#chopHint').textContent = has
+    ? `Replaces the samples on ${padLabel(chop.start)}–${padLabel(chop.start + n - 1)}` + (n < slices().length ? `. Only ${n} of ${slices().length} slices fit from this pad.` : '.') + (chop.pattern ? ' The pattern replaces those pads’ hits.' : '')
+    : 'Slices replace the samples on those pads.';
+  drawChop();
+}
+async function assignChop(){
+  if (!chop.buf) return;
+  const sr = chop.buf.sampleRate, sl = slices(), n = Math.min(sl.length, 16 - chop.start), chs = chop.buf.numberOfChannels;
+  for (let k = 0; k < n; k++){
+    const [a, b] = sl[k], pi = chop.start + k;
+    const data = Array.from({length:chs}, (_, c) => chop.buf.getChannelData(c).slice(a, b));
+    fade(data, 48);
+    const buf = makeBuffer(data, sr), p = S.drum.pads[pi], key = 'usr:' + pi + ':' + Date.now() + ':' + k;
+    dropAudio(p.sample); buffers.set(key, buf); await storeAudio(key, buf);
+    Object.assign(p, {sample:key, name:`${chop.name} ${k + 1}`.slice(0, 14), pitch:0, decay:1});
+  }
+  if (chop.pattern){
+    pushUndo(); undoPass = null;
+    S.bars = Math.max(S.bars, chop.bars);
+    const pads = new Set(Array.from({length:n}, (_, k) => chop.start + k)), L = chop.buf.length;
+    S.drum.notes = S.drum.notes.filter(x => !pads.has(x.p));
+    for (let k = 0; k < n; k++) S.drum.notes.push({p:chop.start + k, t:Math.round(sl[k][0] / L * chop.bars * TPB), v:1});
+    renderTransport();
+  }
+  changed(); renderPadEditor();
+  toast(`Sent ${n} slices to ${padLabel(chop.start)}–${padLabel(chop.start + n - 1)}.` + (chop.pattern ? ' Press play to hear the pattern.' : ''));
+}
+function fitTempo(){
+  if (!chop.buf) return;
+  let bpm = chop.bars * 4 * 60 / chop.buf.duration;
+  if (bpm < 40 || bpm > 240){ toast(`At ${chop.bars} bar${chop.bars > 1 ? 's' : ''} that would be ${Math.round(bpm)} BPM. Pick a different length.`); return; }
+  setBpm(bpm); toast(`Tempo set to ${S.bpm} BPM so ${chop.bars} bar${chop.bars > 1 ? 's' : ''} matches the sample.`);
+}
+async function toggleChopRec(){
+  const btn = $('#chopRec');
+  if (chop.rec){
+    const sr = ctx.sampleRate, a = Math.round(chop.rec.t * sr), n = Math.round((ctx.currentTime - chop.rec.t) * sr);
+    chop.rec = null; capOff(); btn.classList.remove('on'); btn.textContent = 'Record';
+    const chs = extract(a, n); capChunks = [];
+    let pk = 0; chs.forEach(d => { for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i])); });
+    if (pk < .01){ toast('Nothing came in. Check the input level and the channel setting.'); return; }
+    chs.forEach(d => { for (let i = 0; i < d.length; i++) d[i] *= .9 / pk; });
+    setChopSource(makeBuffer(chs, sr), 'Rec'); return;
+  }
+  if (rec || sampling){ toast('Finish the other recording first.'); return; }
+  ensureAudio();
+  if (!inSrc && !(await enableInput())) return;
+  await workletReady; if (!capNode) return;
+  capOn(); chop.rec = {t:ctx.currentTime}; btn.classList.add('on'); btn.textContent = 'Stop';
+}
+$('#chopLoad').addEventListener('click', () => $('#chopFile').click());
+$('#chopFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  ensureAudio();
+  try { setChopSource(await ctx.decodeAudioData(await f.arrayBuffer()), f.name.replace(/\.[^.]+$/, '')); }
+  catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
+});
+$('#chopRec').addEventListener('click', toggleChopRec);
+$('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
+$('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
+$('#chopN').addEventListener('change', e => { chop.n = +e.target.value; remark(); saveChop(); renderChop(); });
+let sensT = 0;
+$('#chopSens').addEventListener('input', e => { chop.sens = +e.target.value; $('#chopSensV').textContent = chop.sens + '%'; clearTimeout(sensT); sensT = setTimeout(() => { remark(); saveChop(); renderChop(); }, 120); });
+$('#chopSplit').addEventListener('click', () => {
+  const [a, b] = slices()[chop.sel]; if (b - a < 2000) return;
+  chop.mode = 'manual'; chop.markers.splice(chop.sel + 1, 0, toZero(monoAt(chop.buf), Math.round((a + b) / 2))); saveChop(); renderChop();
+});
+$('#chopMerge').addEventListener('click', () => { if (chop.sel === 0) return; chop.mode = 'manual'; chop.markers.splice(chop.sel, 1); chop.sel--; saveChop(); renderChop(); });
+document.querySelectorAll('#chopNudge button').forEach(b => b.addEventListener('click', () => {
+  if (!chop.buf || chop.sel === 0){ if (chop.sel === 0) toast('Slice 1 always starts at the beginning. Pick another slice to move its start.'); return; }
+  const i = chop.sel, sr = chop.buf.sampleRate, lo = chop.markers[i - 1] + 64, hi = (chop.markers[i + 1] ?? chop.buf.length) - 64;
+  chop.mode = 'manual'; chop.markers[i] = clamp(chop.markers[i] + Math.round(+b.dataset.n / 1000 * sr), lo, hi);
+  saveChop(); renderChop(); auditionSlice(i);
+}));
+$('#chopStart').addEventListener('change', e => { chop.start = +e.target.value; saveChop(); renderChop(); });
+$('#chopPat').addEventListener('click', () => { chop.pattern = !chop.pattern; saveChop(); renderChop(); });
+$('#chopBars').addEventListener('change', e => { chop.bars = +e.target.value; saveChop(); renderChop(); });
+$('#chopFit').addEventListener('click', fitTempo);
+$('#chopAssign').addEventListener('click', assignChop);
+const cw = $('#chopWave');
+cw.addEventListener('pointerdown', e => {
+  if (!chop.buf) return;
+  e.preventDefault();
+  const r = cw.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, f = Math.round(x * chop.buf.length);
+  const near = chop.markers.findIndex((m, i) => i > 0 && Math.abs(m / chop.buf.length - x) * r.width < 16);
+  if (near > 0){ chop.drag = near; chop.sel = near; try { cw.setPointerCapture(e.pointerId); } catch(_){} renderChop(); return; }
+  const i = slices().findIndex(([a, b]) => f >= a && f < b);
+  if (i >= 0){ chop.sel = i; auditionSlice(i); renderChop(); }
+});
+cw.addEventListener('pointermove', e => {
+  if (chop.drag == null) return;
+  const r = cw.getBoundingClientRect(), i = chop.drag, L = chop.buf.length;
+  const lo = chop.markers[i - 1] + 256, hi = (chop.markers[i + 1] ?? L) - 256;
+  chop.markers[i] = clamp(Math.round((e.clientX - r.left) / r.width * L), lo, hi); chop.mode = 'manual';
+  drawChop();
+});
+const endDrag = () => { if (chop.drag == null) return; const i = chop.drag; chop.drag = null; chop.markers[i] = toZero(monoAt(chop.buf), chop.markers[i]); saveChop(); renderChop(); auditionSlice(i); };
+cw.addEventListener('pointerup', endDrag); cw.addEventListener('pointercancel', endDrag);
+window.addEventListener('resize', () => { chop.peaks = null; if (view === 'chop') drawChop(); });
 
 /* ================= wiring ================= */
 $('#play').addEventListener('click', () => playing ? stop() : start(0));
@@ -1237,6 +1482,12 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
     }
     S.audio.forEach(t => { if (t.clip && !buffers.has(t.clip)) t.clip = null; });
     S.drum.pads.forEach((p, i) => { if (!buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
+  }
+  if (S.chop){
+    Object.assign(chop, S.chop);
+    const a = await DB.get('audio', 'chop:src');
+    if (a){ chop.buf = makeBuffer(a.ch, a.sr); if (!chop.markers.length || chop.markers[chop.markers.length - 1] >= chop.buf.length) remark(); }
+    else chop.markers = [0];
   }
   $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%';
   renderSeqCtl();
