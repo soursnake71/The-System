@@ -108,6 +108,19 @@ h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:upperc
 
 nav{display:flex;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:var(--dim);font-size:15px;letter-spacing:.04em}
+.scenebar{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.scenebar button{flex:0 0 auto;min-width:52px;padding:10px 12px;text-transform:none;letter-spacing:.02em;font-size:15px}
+.scenebar button.pend{border-color:var(--accent);color:var(--accent);animation:blink .5s steps(2) infinite}
+@media (prefers-reduced-motion:reduce){.scenebar button.pend{animation:none}}
+.slist{display:flex;flex-direction:column;gap:8px}
+.srow{display:flex;gap:6px;align-items:center}
+.srow input{flex:1;min-width:0;font:600 16px var(--f-display);text-transform:uppercase;letter-spacing:.04em;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 8px}
+.srow .go{width:44px;padding:10px 0}
+.srow .go.on{background:var(--accent)}
+.srow .go.pend{border-color:var(--accent);color:var(--accent)}
+.srow select{padding:8px 4px}
+.srow .n{font:600 13px var(--f-mono);color:var(--dim);width:20px;text-align:right}
+.srow button.sm{padding:9px 9px}
 #chopWave{width:100%;height:170px;background:#0c0e12;border-radius:8px;display:block;touch-action:none}
 .slices{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .slices button{padding:12px 0;font:600 13px var(--f-mono)}
@@ -148,6 +161,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 <main>
   <!-- DRUMS -->
   <section class="view" id="v-drums">
+    <div class="scenebar" id="sceneBar" role="group" aria-label="Scenes"></div>
     <div class="pads" id="pads"></div>
     <div class="card">
       <div class="row perf">
@@ -239,6 +253,22 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     </div>
   </section>
 
+  <!-- SONG -->
+  <section class="view" id="v-song" hidden>
+    <div class="card">
+      <div class="row"><h2 class="grow">Scenes</h2><span class="label">Launch</span><select id="launchQ" aria-label="When a launched scene starts"><option value="bar">Next bar</option><option value="loop">End of loop</option></select></div>
+      <div class="slist" id="sceneList"></div>
+      <div class="row"><button id="sceneDup" class="grow">Duplicate current</button><button id="sceneNew" class="grow">New empty scene</button></div>
+      <p class="hint">Each scene keeps its own drum hits, loop length and audio clips. Pads, samples and the mixer are shared by every scene. Launch a scene while playing and it starts at the next bar.</p>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow">Song</h2><button id="songMode">Off</button></div>
+      <div class="slist" id="songList"></div>
+      <button id="songAdd">Add a part</button>
+      <p class="hint" id="songHint">Turn Song on and press play to run through the parts in order, then stop. Export also renders the whole song.</p>
+    </div>
+  </section>
+
   <!-- SETUP -->
   <section class="view" id="v-setup" hidden>
     <div class="card">
@@ -294,6 +324,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   <button data-v="audio">Audio</button>
   <button data-v="mixer">Mixer</button>
   <button data-v="chop">Chop</button>
+  <button data-v="song">Song</button>
   <button data-v="setup">Setup</button>
 </nav>
 <div class="toast" id="toast" role="status"></div>
@@ -359,12 +390,17 @@ const DB = {
   del(s, k){ return this.op(s, 'readwrite', st => st.delete(k)); }
 };
 let saveT = 0;
-function save(){ clearTimeout(saveT); saveT = setTimeout(() => DB.put('kv', 'project', S), 400); }
+function save(){ clearTimeout(saveT); saveT = setTimeout(() => { storeScene(); DB.put('kv', 'project', S); }, 400); }
 function storeAudio(key, buf){
   const ch = []; for (let c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c).slice());
   return DB.put('audio', key, {sr:buf.sampleRate, ch});
 }
-function dropAudio(key){ if (key && !key.startsWith('kit:')) { buffers.delete(key); DB.del('audio', key); } }
+function audioInUse(key){
+  return S.drum.pads.some(p => p.sample === key) || S.audio.some(t => t.clip === key)
+    || (S.scenes || []).some((sc, k) => k !== S.cur && Object.values(sc.clips || {}).some(c => c && c.key === key));
+}
+// scenes can share a clip, so only delete audio nothing points at any more (checked after the caller has swapped it out)
+function dropAudio(key){ if (!key || key.startsWith('kit:')) return; setTimeout(() => { if (!audioInUse(key)){ buffers.delete(key); DB.del('audio', key); } }, 0); }
 function makeBuffer(chs, sr){
   const b = new AudioBuffer({length:Math.max(1, chs[0].length), numberOfChannels:chs.length, sampleRate:sr});
   chs.forEach((d, i) => b.copyToChannel(d, i));
@@ -550,7 +586,7 @@ function startClip(rig, tr, t, offset = 0){
 
 /* notes common to live playback and export */
 function scheduleNotes(rig, i, t){
-  const sd = stepDur(), td = sd / TPS, lo = (i % (S.bars * 16)) * TPS, hi = lo + TPS;
+  const sd = stepDur(), td = sd / TPS, lo = ((i - org) % (S.bars * 16)) * TPS, hi = lo + TPS;
   const swing = (S.swing / 100) * sd * .66;
   for (const n of S.drum.notes){
     if (n.t < lo || n.t >= hi) continue;
@@ -561,13 +597,14 @@ function scheduleNotes(rig, i, t){
   }
   S.audio.forEach(tr => {
     const recording = rig === live && rec && rec.id === tr.id && rec.startT != null;
-    if (tr.clip && !recording && i % tr.clipSteps === 0) startClip(rig, tr, t);
+    if (tr.clip && !recording && (i - org) % tr.clipSteps === 0) startClip(rig, tr, t);
   });
 }
 
 /* ================= transport & scheduler ================= */
 const stepDur = () => 60 / S.bpm / 4;
 let playing = false, nextT = 0, stepI = 0, timer = 0, stepQ = [], wake = null;
+let org = 0;   // step where the current scene's loop started
 let rec = null, capChunks = [], sampling = null;
 
 /* ================= real-time pad recording ================= */
@@ -583,9 +620,9 @@ function changed(){ seqDirty = true; save(); renderPads(); }
 // absTick counts from the start of playback, so it also tells us which pass we're in
 function addNote(pi, absTick, v, quantize){
   const L = loopTicks(), g = quantize ? S.quant : 1, q = Math.round(absTick / g) * g;
-  const pass = Math.floor(q / L);
+  const rq = q - org * TPS, pass = Math.floor(rq / L);
   if (pass !== undoPass){ pushUndo(); undoPass = pass; }
-  const tick = ((q % L) + L) % L, notes = S.drum.notes;
+  const tick = ((rq % L) + L) % L, notes = S.drum.notes;
   const skip = q >= stepI * TPS;   // not scheduled yet this pass, and we already heard it
   const near = notes.find(n => n.p === pi && Math.abs(n.t - tick) < (g > 1 ? 1 : 6));
   if (near){ near.v = Math.max(near.v, v); if (skip) near.skip = 1; }
@@ -604,14 +641,14 @@ function tapTick(ev){
   return q.i * TPS + (T - q.t) / (stepDur() / TPS);
 }
 function repeatAt(pi, v, absTick, at){
-  const L = loopTicks(), tick = ((absTick % L) + L) % L;
+  const L = loopTicks(), tick = (((absTick - org * TPS) % L) + L) % L;
   if (S.drum.notes.some(n => n.p === pi && n.t === tick)) return;   // the pattern already plays one here
   playPad(live, S.drum.pads[pi], at, v); flashPad(pi, at);
   if (drumRec) addNote(pi, absTick, v, false);
 }
 function livePerf(i, t){
   if (!held.size) return;
-  const lo = (i % (S.bars * 16)) * TPS, abs0 = i * TPS, td = stepDur() / TPS;
+  const lo = ((i - org) % (S.bars * 16)) * TPS, abs0 = i * TPS, td = stepDur() / TPS;
   for (const [pi, v] of held){
     if (S.erase){
       const before = S.drum.notes.length;
@@ -690,7 +727,7 @@ function frameSeq(){
   const T = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
   let q = null; for (const e of stepQ) if (e.t <= T) q = e;
   if (!q || q.i < 0) return;
-  const L = seqGeo.L, tick = (q.i * TPS + (T - q.t) / (stepDur() / TPS)) % L;
+  const L = seqGeo.L, tick = ((((q.i - org) * TPS + (T - q.t) / (stepDur() / TPS)) % L) + L) % L;
   const dpr = devicePixelRatio || 1;
   seqGeo.g.fillStyle = drumRec ? '#ff4d5e' : getComputedStyle(document.documentElement).getPropertyValue('--fg');
   seqGeo.g.fillRect(Math.round(seqGeo.X(tick)), 0, 2 * dpr, seqGeo.h);
@@ -699,6 +736,8 @@ function frameSeq(){
 function start(from = 0, external = false){
   ensureAudio();
   if (S.midiClock === 'in' && !external){ if (!drumRec && !rec) toast('Following the MPC. Press play on the MPC to start.'); renderTransport(); return; }
+  org = 0; loopCount = 0; songDone = false; pending = null;
+  if (S.songMode && S.song.length){ songPos = 0; if (S.cur !== S.song[0].s){ storeScene(); loadScene(S.song[0].s); } }
   playing = true; stepI = from; nextT = ctx.currentTime + .1; stepQ = [];
   if (S.midiClock === 'out') midiOutStart = true;
   timer = setInterval(tick, external ? 8 : 20); tick();
@@ -707,7 +746,7 @@ function start(from = 0, external = false){
 }
 function stop(){
   if (playing && S.midiClock === 'out') midiSend([0xFC]);
-  playing = false; clearInterval(timer); ext.running = false;
+  playing = false; clearInterval(timer); ext.running = false; pending = null; renderScenes();
   if (live){
     const t = ctx.currentTime;
     live.srcs.forEach(s => { try { s.stop(t + .02); } catch(e){} }); live.srcs = [];
@@ -721,7 +760,7 @@ function stop(){
 }
 function tick(){
   const sd = stepDur();
-  while (true){
+  while (!songDone){
     let t = nextT;
     if (ext.running){
       // following the MPC: place each 16th where its clock ticks are predicted to land
@@ -737,11 +776,12 @@ function tick(){
     if (S.midiClock === 'out') sendClock(i, t, sd);
     if (i < 0){ if ((i + 16) % 4 === 0) click(t, (i + 16) % 16 === 0); }
     else {
-      const s = i % (S.bars * 16);
+      if (sceneBoundary(i, t)) break;
+      const s = (i - org) % (S.bars * 16);
       if (S.metro && s % 4 === 0) click(t, s % 16 === 0);
       if (rec && rec.startT == null && i >= rec.from){
         const tr = trackById(rec.id), len = tr.recBars * 16;
-        if (i % len === 0){ rec.startT = t; rec.endT = t + len * sd; rec.steps = len; renderTransport(); }
+        if ((i - org) % len === 0){ rec.startT = t; rec.endT = t + len * sd; rec.steps = len; renderTransport(); }
       }
       livePerf(i, t);
       scheduleNotes(live, i, t);
@@ -902,11 +942,21 @@ function encodeWav(buf){
 async function exportMix(){
   const btn = $('#export'); btn.disabled = true; $('#expStatus').textContent = 'Rendering…';
   try {
-    const loops = +$('#expLoops').value, sd = stepDur();
-    const loopSteps = Math.max(S.bars * 16, ...S.audio.filter(t => t.clip).map(t => t.clipSteps));
-    const total = loopSteps * loops, sr = 44100, dur = total * sd + 2.5;
+    const loops = +$('#expLoops').value, sd = stepDur(), sr = 44100, song = S.songMode && S.song.length;
+    storeScene();
+    const parts = song ? S.song.map(e => ({s:e.s, steps:e.n * S.scenes[e.s].bars * 16}))
+      : [{s:S.cur, steps:Math.max(S.bars * 16, ...S.audio.filter(t => t.clip).map(t => t.clipSteps)) * loops}];
+    const total = parts.reduce((a, p) => a + p.steps, 0), dur = total * sd + 2.5;
     const oc = new OfflineAudioContext(2, Math.ceil(dur * sr), sr), rig = makeRig(oc);
-    for (let i = 0; i < total; i++) scheduleNotes(rig, i, .02 + i * sd);
+    const keepCur = S.cur, keepOrg = org;
+    let i0 = 0;
+    try {
+      for (const part of parts){
+        loadScene(part.s); org = i0;
+        for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd);
+        i0 += part.steps;
+      }
+    } finally { loadScene(keepCur); org = keepOrg; }
     const out = await oc.startRendering();
     // trim the reverb tail where it falls silent
     let end = out.length; const L = out.getChannelData(0), R = out.getChannelData(1), keep = Math.ceil((total * sd + .02) * sr);
@@ -1154,6 +1204,7 @@ function setView(v){
   if (v === 'mixer') renderMixer();
   if (v === 'setup'){ renderInput(); renderMidi(); }
   if (v === 'chop') renderChop();
+  if (v === 'song') renderSong();
   try { localStorage.setItem('pr-view', v); } catch(e){}
 }
 
@@ -1167,7 +1218,7 @@ function frame(){
   const h = playing ? heardStep() : null;
   if (h){
     if (h.i < 0) $('#pos').textContent = 'In ' + (Math.floor((h.i + 16) / 4) + 1);
-    else { const s = h.i % (S.bars * 16); $('#pos').textContent = `${Math.floor(s / 16) + 1}.${Math.floor(s % 16 / 4) + 1}.${s % 4 + 1}`; }
+    else { const L = S.bars * 16, s = (((h.i - org) % L) + L) % L; $('#pos').textContent = `${Math.floor(s / 16) + 1}.${Math.floor(s % 16 / 4) + 1}.${s % 4 + 1}`; }
   } else if (!playing) $('#pos').textContent = '1.1.1';
   if (view === 'drums') frameSeq();
   if (view === 'mixer' && live){
@@ -1392,6 +1443,135 @@ cw.addEventListener('pointermove', e => {
 const endDrag = () => { if (chop.drag == null) return; const i = chop.drag; chop.drag = null; chop.markers[i] = toZero(monoAt(chop.buf), chop.markers[i]); saveChop(); renderChop(); auditionSlice(i); };
 cw.addEventListener('pointerup', endDrag); cw.addEventListener('pointercancel', endDrag);
 window.addEventListener('resize', () => { chop.peaks = null; if (view === 'chop') drawChop(); });
+
+/* ================= scenes & song ================= */
+let pending = null, loopCount = 0, songPos = 0, songDone = false;
+function storeScene(){
+  if (!S.scenes) return;
+  const old = S.scenes[S.cur] || {name:'Scene ' + (S.cur + 1)};
+  S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps} : null]))};
+}
+function loadScene(k){
+  const sc = S.scenes[k]; S.cur = k;
+  S.bars = sc.bars; S.drum.notes = sc.notes;
+  S.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c && buffers.has(c.key) ? c.key : null; t.clipSteps = c ? c.steps : 16; });
+}
+function sceneChanged(){
+  undoStack = []; undoPass = null; $('#undo').disabled = true;
+  seqDirty = true; renderTransport(); renderPads(); renderScenes();
+  if (view === 'audio') renderTracks(); if (view === 'song') renderSong();
+  save();
+}
+function switchScene(k, i, t){
+  storeScene(); loadScene(k); org = i; loopCount = 0; pending = null;
+  if (live){ live.srcs.forEach(src => { try { src.stop(t); } catch(e){} }); live.srcs = []; S.audio.forEach(tr => rt(tr.id).t = null); }
+  if (rec){ rec = null; capOff(); toast('Audio recording cancelled because the scene changed.'); }
+  setTimeout(sceneChanged, Math.max(0, (t - ctx.currentTime) * 1000));
+}
+// runs at each bar line while playing; returns true when the song has ended
+function sceneBoundary(i, t){
+  if (i <= org || (i - org) % 16) return false;
+  const endLoop = (i - org) % (S.bars * 16) === 0;
+  if (endLoop) loopCount++;
+  if (pending != null && (S.launchQ === 'bar' || endLoop)){
+    const k = pending;
+    if (S.songMode){ const at = S.song.findIndex(e => e.s === k); if (at >= 0) songPos = at; }
+    switchScene(k, i, t); return false;
+  }
+  if (S.songMode && S.song.length && endLoop){
+    const e = S.song[songPos];
+    if (!e || loopCount >= e.n){
+      songPos++;
+      if (songPos >= S.song.length){ songDone = true; setTimeout(() => { if (playing) stop(); toast('End of song.'); }, Math.max(0, (t - ctx.currentTime) * 1000 + 60)); return true; }
+      if (S.song[songPos].s !== S.cur) switchScene(S.song[songPos].s, i, t); else { org = i; loopCount = 0; }
+    }
+  }
+  return false;
+}
+function launchScene(k){
+  if (k === S.cur && !playing) return;
+  if (playing){ pending = k === S.cur ? null : k; renderScenes(); return; }
+  storeScene(); loadScene(k); sceneChanged();
+}
+function renderScenes(){
+  const bar = $('#sceneBar'); bar.innerHTML = '';
+  S.scenes.forEach((sc, k) => {
+    const b = document.createElement('button'); b.textContent = sc.name;
+    b.classList.toggle('on', k === S.cur); b.classList.toggle('pend', k === pending);
+    b.addEventListener('click', () => launchScene(k));
+    bar.appendChild(b);
+  });
+  const add = document.createElement('button'); add.textContent = '+'; add.setAttribute('aria-label', 'Duplicate this scene');
+  add.addEventListener('click', dupScene); bar.appendChild(add);
+  if (view === 'song') renderSong();
+}
+function nextName(){ let n = S.scenes.length + 1; while (S.scenes.some(sc => sc.name === 'Scene ' + n)) n++; return 'Scene ' + n; }
+function dupScene(){
+  if (S.scenes.length >= 16){ toast('16 scenes is the limit.'); return; }
+  storeScene();
+  const src = S.scenes[S.cur];
+  S.scenes.push({name:nextName(), bars:src.bars, notes:src.notes.map(n => ({p:n.p, t:n.t, v:n.v})), clips:JSON.parse(JSON.stringify(src.clips))});
+  launchScene(S.scenes.length - 1); if (!playing) toast('Made ' + S.scenes[S.scenes.length - 1].name + ' as a copy. Change it without touching the original.');
+  renderScenes();
+}
+function newScene(){
+  if (S.scenes.length >= 16){ toast('16 scenes is the limit.'); return; }
+  storeScene();
+  S.scenes.push({name:nextName(), bars:S.bars, notes:[], clips:{}});
+  launchScene(S.scenes.length - 1); renderScenes();
+}
+function deleteScene(k){
+  if (S.scenes.length < 2) return;
+  if (playing && k === S.cur){ toast('Switch to another scene before deleting this one.'); return; }
+  storeScene();
+  const gone = S.scenes.splice(k, 1)[0];
+  S.song = S.song.filter(e => e.s !== k).map(e => ({s:e.s > k ? e.s - 1 : e.s, n:e.n}));
+  if (pending === k) pending = null; else if (pending > k) pending--;
+  const cur = S.cur > k ? S.cur - 1 : S.cur === k ? Math.max(0, k - 1) : S.cur;
+  loadScene(cur);
+  Object.values(gone.clips || {}).forEach(c => c && dropAudio(c.key));
+  sceneChanged();
+}
+function renderSong(){
+  $('#launchQ').value = S.launchQ;
+  const list = $('#sceneList'); list.innerHTML = '';
+  S.scenes.forEach((sc, k) => {
+    const r = document.createElement('div'); r.className = 'srow';
+    r.innerHTML = `<button class="go${k === S.cur ? ' on' : ''}${k === pending ? ' pend' : ''}" aria-label="Launch">▶</button><input aria-label="Scene name" maxlength="12"><select aria-label="Loop length">${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select><button class="sm del">Delete</button>`;
+    const inp = r.querySelector('input'); inp.value = sc.name;
+    inp.addEventListener('change', () => { sc.name = inp.value.trim().slice(0, 12) || sc.name; save(); renderScenes(); });
+    r.querySelector('.go').addEventListener('click', () => launchScene(k));
+    const sel = r.querySelector('select'); sel.value = k === S.cur ? S.bars : sc.bars;
+    sel.addEventListener('change', () => { if (k === S.cur){ S.bars = +sel.value; } else sc.bars = +sel.value; changed(); renderTransport(); });
+    const del = r.querySelector('.del'); del.disabled = S.scenes.length < 2;
+    twoTap(del, 'Delete', () => deleteScene(k));
+    list.appendChild(r);
+  });
+  $('#songMode').textContent = S.songMode ? 'On' : 'Off'; $('#songMode').classList.toggle('on', S.songMode);
+  const sl = $('#songList'); sl.innerHTML = '';
+  S.song.forEach((e, j) => {
+    const r = document.createElement('div'); r.className = 'srow';
+    const active = playing && S.songMode && j === songPos;
+    r.innerHTML = `<span class="n"${active ? ' style="color:var(--accent)"' : ''}>${j + 1}</span><select class="sc" aria-label="Scene">${S.scenes.map((sc, k) => `<option value="${k}">${sc.name.replace(/</g, '&lt;')}</option>`).join('')}</select><select class="rp" aria-label="Times">${Array.from({length:16}, (_, n) => `<option value="${n + 1}">×${n + 1}</option>`).join('')}</select><button class="sm up" aria-label="Move up">↑</button><button class="sm rm" aria-label="Remove part">✕</button>`;
+    const sc = r.querySelector('.sc'), rp = r.querySelector('.rp');
+    sc.value = e.s; rp.value = e.n;
+    sc.addEventListener('change', () => { e.s = +sc.value; save(); });
+    rp.addEventListener('change', () => { e.n = +rp.value; save(); });
+    const up = r.querySelector('.up'); up.disabled = j === 0;
+    up.addEventListener('click', () => { [S.song[j - 1], S.song[j]] = [S.song[j], S.song[j - 1]]; save(); renderSong(); });
+    r.querySelector('.rm').addEventListener('click', () => { S.song.splice(j, 1); save(); renderSong(); });
+    sl.appendChild(r);
+  });
+  const bars = S.song.reduce((a, e) => a + e.n * ((e.s === S.cur ? S.bars : (S.scenes[e.s] || {}).bars) || 0), 0);
+  $('#songHint').textContent = S.song.length
+    ? `${S.song.length} part${S.song.length > 1 ? 's' : ''}, ${bars} bars, about ${Math.round(bars * 4 * 60 / S.bpm)} s at ${S.bpm} BPM. Turn Song on and press play to run through it, then stop. Export renders the whole song.`
+    : 'Add parts to lay out a song from your scenes, like intro, verse, hook.';
+}
+$('#launchQ').addEventListener('change', e => { S.launchQ = e.target.value; save(); });
+$('#sceneDup').addEventListener('click', dupScene);
+$('#sceneNew').addEventListener('click', newScene);
+$('#songMode').addEventListener('click', () => { S.songMode = !S.songMode; if (S.songMode && !S.song.length) S.song.push({s:S.cur, n:2}); if (playing) stop(); save(); renderSong(); });
+$('#songAdd').addEventListener('click', () => { if (S.song.length >= 64) return; S.song.push({s:S.cur, n:2}); save(); renderSong(); });
 
 /* ================= MIDI: clock sync and pads ================= */
 let midi = null, midiIn = null, midiOut = null, midiOutStart = false, learning = false;
@@ -1624,7 +1804,7 @@ $('#wipe').addEventListener('click', async e => {
   const b = e.target;
   if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again to erase everything'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'New project'; }, 3000); return; }
   if (playing) stop();
-  allTracks().forEach(t => t.clip && dropAudio(t.clip)); S.drum.pads.forEach(p => dropAudio(p.sample));
+  await DB.op('audio', 'readwrite', st => st.clear());
   await DB.put('kv', 'project', null); location.reload();
 });
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.v)));
@@ -1643,7 +1823,8 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
     }
     S = Object.assign(defaultState(), saved);
     S.drum.notes.forEach(n => delete n.skip);
-    const keys = [...S.drum.pads.map(p => p.sample), ...S.audio.map(t => t.clip)].filter(k => k && !k.startsWith('kit:'));
+    const sceneKeys = (S.scenes || []).flatMap(sc => Object.values(sc.clips || {}).map(c => c && c.key));
+    const keys = [...new Set([...S.drum.pads.map(p => p.sample), ...S.audio.map(t => t.clip), ...sceneKeys])].filter(k => k && !k.startsWith('kit:'));
     for (const k of keys){
       const a = await DB.get('audio', k);
       if (a) buffers.set(k, makeBuffer(a.ch, a.sr));
@@ -1651,6 +1832,9 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
     S.audio.forEach(t => { if (t.clip && !buffers.has(t.clip)) t.clip = null; });
     S.drum.pads.forEach((p, i) => { if (!buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
+  if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
+  S.cur = clamp(S.cur || 0, 0, S.scenes.length - 1); S.song = S.song || []; S.launchQ = S.launchQ || 'bar'; S.songMode = !!S.songMode;
+  loadScene(S.cur);
   if (S.chop){
     Object.assign(chop, S.chop);
     const a = await DB.get('audio', 'chop:src');
@@ -1658,7 +1842,7 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechang
     else chop.markers = [0];
   }
   $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%';
-  renderSeqCtl();
+  renderSeqCtl(); renderScenes();
   renderTransport(); renderPads(); renderPadEditor(); renderInput(); renderMidi();
   if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
     navigator.permissions.query({name:'midi'}).then(r => { if (r.state === 'granted') connectMidi(); }).catch(() => {});
