@@ -222,6 +222,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <p class="hint" id="audioHint">Plug in your USB-C interface, then tap Enable input. Arm a track and press record. Recording starts on the next loop, after a one-bar count-in if you're stopped.</p>
     </div>
     <div id="tracks" class="view" style="margin:0;max-width:none"></div>
+    <div class="status" id="stemStatus" hidden>Separating…</div>
     <button id="addTrack">Add audio track</button>
     <input type="file" id="trackFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
   </section>
@@ -241,6 +242,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <button id="chopLoad" class="grow">Load file</button>
         <button id="chopRec" class="grow">Record</button>
         <button id="chopFromPad" class="grow">From pad</button>
+        <select id="chopFromTrack" class="grow" aria-label="Chop a track's clip"></select>
       </div>
       <input type="file" id="chopFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
       <canvas id="chopWave" aria-label="Sample waveform with slice markers. Tap a slice to hear it. Drag a marker to move it."></canvas>
@@ -1503,7 +1505,7 @@ function renderTracks(){
       <button class="arm${tr.armed ? ' on' : ''}">Arm</button></div>
       <canvas></canvas>
       <div class="row"><span class="label">Record</span><select class="rb" aria-label="Recording length">${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select>
-      <span class="grow"></span><button class="imp">Import</button></div>
+      <span class="grow"></span><button class="stm"${tr.clip && !stemBusy ? '' : ' disabled'}>Stems</button><button class="imp">Import</button></div>
       <div class="row"><span class="label">Warp</span><select class="wm" aria-label="Warp mode"><option value="complex">Complex</option><option value="beats">Beats</option><option value="repitch">Re-Pitch</option><option value="off">Off</option></select>
       <span class="label">Clip</span><select class="cb" aria-label="Clip length"${tr.clip ? '' : ' disabled'}>${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select>
       <span class="grow mono" style="font-size:12px;color:var(--dim)">${tr.clip ? Math.round((tr.clipBpm || S.bpm) * 10) / 10 + ' BPM' : 'Empty'}</span></div>
@@ -1520,6 +1522,7 @@ function renderTracks(){
       save(); renderTracks(); toast(`The clip now counts as ${bars} bar${bars > 1 ? 's' : ''} at ${Math.round(tr.clipBpm * 10) / 10} BPM.`);
     });
     c.querySelector('.imp').addEventListener('click', () => { importTarget = tr; $('#trackFile').click(); });
+    c.querySelector('.stm').addEventListener('click', () => stemTrack(tr));
     c.querySelector('.clr').addEventListener('click', e => {
       if (!e.target.dataset.sure){ e.target.dataset.sure = 1; e.target.textContent = 'Sure?'; setTimeout(() => { e.target.dataset.sure = ''; e.target.textContent = 'Clear'; }, 2500); return; }
       dropAudio(tr.clip); tr.clip = null; save(); renderTracks();
@@ -1536,7 +1539,8 @@ function renderTracks(){
     box.appendChild(c);
     drawWave(tr);
   });
-  $('#addTrack').disabled = S.audio.length >= 6;
+  $('#addTrack').disabled = S.audio.length >= 10;
+  $('#stemStatus').hidden = !stemBusy;
 }
 function drawWave(tr){
   const cv = rt(tr.id).cv; if (!cv) return;
@@ -1778,6 +1782,7 @@ function drawChop(){
 }
 function renderChop(){
   const has = !!chop.buf;
+  if (!$('#chopFromTrack').children.length) $('#chopFromTrack').innerHTML = '<option value="">From track…</option>';
   $('#chopInfo').textContent = has ? `${chop.name} · ${chop.buf.duration.toFixed(2)} s` : 'No sample';
   $('#chopInfo').className = 'badge' + (has ? ' ok' : '');
   document.querySelectorAll('#v-chop .seg button').forEach(b => b.classList.toggle('on', b.dataset.m === chop.mode));
@@ -1857,6 +1862,8 @@ $('#chopFile').addEventListener('change', async e => {
   catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#chopRec').addEventListener('click', toggleChopRec);
+$('#chopFromTrack').addEventListener('focus', () => { $('#chopFromTrack').innerHTML = '<option value="">From track…</option>' + S.audio.filter(t => t.clip).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join(''); });
+$('#chopFromTrack').addEventListener('change', e => { const t = trackById(e.target.value); if (t && buffers.get(t.clip)){ setChopSource(buffers.get(t.clip), t.name); chop.bars = Math.max(1, t.clipSteps / 16); saveChop(); renderChop(); } e.target.value = ''; });
 $('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
 $('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
 document.querySelectorAll('#v-chop .seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
@@ -2474,6 +2481,110 @@ $('#midiNotes').addEventListener('click', () => { S.midiNotes = !S.midiNotes; sa
 $('#midiBase').addEventListener('change', e => { S.midiBase = +e.target.value; save(); });
 $('#midiCh').addEventListener('change', e => { S.midiCh = +e.target.value; save(); });
 $('#midiLearn').addEventListener('click', () => { learning = !learning; if (learning && !midi) connectMidi(); renderMidi(); if (learning) toast(`Hit the MPC pad that should play ${padLabel(selPad)}.`); });
+
+/* ================= stem separation ================= */
+const STEM_CODE = String.raw`
+// Stem separation: STFT, harmonic/percussive split by median filtering, bass by frequency, vocals by centre-channel similarity.
+// Masks sum to 1 in every bin, so the four stems add back up to the original.
+const N = 2048, HOP = 512, B = N / 2 + 1, MED = 17;
+const win = new Float64Array(N); for (let i = 0; i < N; i++) win[i] = .5 - .5 * Math.cos(2 * Math.PI * i / N);
+const rev = new Uint32Array(N); for (let i = 0, j = 0; i < N; i++){ rev[i] = j; let bit = N >> 1; while (j & bit){ j ^= bit; bit >>= 1; } j |= bit; }
+const cosT = new Float64Array(N / 2), sinT = new Float64Array(N / 2); for (let i = 0; i < N / 2; i++){ cosT[i] = Math.cos(2 * Math.PI * i / N); sinT[i] = -Math.sin(2 * Math.PI * i / N); }
+function fft(re, im, inv){
+  for (let i = 0; i < N; i++){ const j = rev[i]; if (j > i){ let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let size = 2; size <= N; size <<= 1){
+    const half = size >> 1, step = N / size;
+    for (let i = 0; i < N; i += size) for (let j = 0; j < half; j++){
+      const k = j * step, wr = cosT[k], wi = inv ? -sinT[k] : sinT[k], a = i + j, b = a + half;
+      const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+      re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+    }
+  }
+}
+function median(arr, tmp){ const n = arr.length; for (let i = 0; i < n; i++) tmp[i] = arr[i]; tmp.sort(); return tmp[n >> 1]; }
+onmessage = e => {
+  const {chs, sr} = e.data, C = chs.length, len = chs[0].length, F = Math.ceil((len + N) / HOP);
+  const specRe = [], specIm = [];
+  for (let c = 0; c < C; c++){ specRe.push(new Float32Array(F * B)); specIm.push(new Float32Array(F * B)); }
+  const re = new Float64Array(N), im = new Float64Array(N);
+  for (let c = 0; c < C; c++) for (let f = 0; f < F; f++){
+    const o = f * HOP - N / 2;
+    for (let i = 0; i < N; i++){ const k = o + i; re[i] = k >= 0 && k < len ? chs[c][k] * win[i] : 0; im[i] = 0; }
+    fft(re, im, false);
+    specRe[c].set(re.subarray(0, B), f * B); specIm[c].set(im.subarray(0, B), f * B);
+    if (f % 200 === 0) postMessage({progress:.25 * (c * F + f) / (C * F)});
+  }
+  const mag = new Float32Array(F * B);
+  for (let i = 0; i < F * B; i++){ let m = 0; for (let c = 0; c < C; c++) m += Math.hypot(specRe[c][i], specIm[c][i]); mag[i] = m / C; }
+  const H = new Float32Array(F * B), P = new Float32Array(F * B), w = new Float32Array(MED), tmp = new Float32Array(MED), h = MED >> 1;
+  for (let b = 0; b < B; b++){
+    for (let f = 0; f < F; f++){ for (let k = 0; k < MED; k++){ const ff = Math.min(F - 1, Math.max(0, f + k - h)); w[k] = mag[ff * B + b]; } H[f * B + b] = median(w, tmp); }
+    if (b % 100 === 0) postMessage({progress:.25 + .3 * b / B});
+  }
+  for (let f = 0; f < F; f++){
+    for (let b = 0; b < B; b++){ for (let k = 0; k < MED; k++){ const bb = Math.min(B - 1, Math.max(0, b + k - h)); w[k] = mag[f * B + bb]; } P[f * B + b] = median(w, tmp); }
+    if (f % 200 === 0) postMessage({progress:.55 + .2 * f / F});
+  }
+  const hz = b => b * sr / N, bassW = b => { const f = hz(b); return f < 120 ? 1 : f > 250 ? 0 : (250 - f) / 130; };
+  const voxW = b => { const f = hz(b); return f < 150 ? 0 : f < 250 ? (f - 150) / 100 : f < 7000 ? 1 : f < 10000 ? (10000 - f) / 3000 : 0; };
+  const out = [0, 1, 2, 3].map(() => Array.from({length:C}, () => new Float32Array(len + N)));
+  const norm = new Float32Array(len + N);
+  const masks = new Float32Array(4 * B), sr2 = [new Float64Array(N), new Float64Array(N)];
+  for (let f = 0; f < F; f++){
+    for (let b = 0; b < B; b++){
+      const i = f * B + b, h2 = H[i] * H[i], p2 = P[i] * P[i], mH = (h2 + 1e-12) / (h2 + p2 + 2e-12), mP = 1 - mH;
+      let cen = 1;
+      if (C > 1){ const lr = specRe[0][i], li = specIm[0][i], rr = specRe[1][i], ri = specIm[1][i]; const num = 2 * (lr * rr + li * ri), den = lr * lr + li * li + rr * rr + ri * ri + 1e-12; cen = Math.max(0, Math.min(1, (num / den - .5) / .5)); cen *= cen; }
+      const wb = bassW(b), wv = voxW(b) * cen;
+      masks[b] = mP; masks[B + b] = mH * wb; masks[2 * B + b] = mH * (1 - wb) * wv; masks[3 * B + b] = mH * (1 - wb) * (1 - wv);
+    }
+    const o = f * HOP - N / 2;
+    for (let s = 0; s < 4; s++) for (let c = 0; c < C; c++){
+      for (let b = 0; b < B; b++){ const m = masks[s * B + b]; re[b] = specRe[c][f * B + b] * m; im[b] = specIm[c][f * B + b] * m; }
+      for (let b = 1; b < N / 2; b++){ re[N - b] = re[b]; im[N - b] = -im[b]; }
+      fft(re, im, true);
+      const dst = out[s][c];
+      for (let i = 0; i < N; i++){ const k = o + i; if (k >= 0 && k < len) dst[k] += re[i] / N * win[i]; }
+    }
+    for (let i = 0; i < N; i++){ const k = o + i; if (k >= 0 && k < len) norm[k] += win[i] * win[i]; }
+    if (f % 200 === 0) postMessage({progress:.75 + .25 * f / F});
+  }
+  const stems = out.map(st => st.map(d => { const r = new Float32Array(len); for (let i = 0; i < len; i++) r[i] = norm[i] > 1e-6 ? d[i] / norm[i] : 0; return r; }));
+  postMessage({stems}, stems.flat().map(a => a.buffer));
+};
+`;
+const STEM_NAMES = ['Drums', 'Bass', 'Vocals', 'Other'];
+let stemBusy = false;
+function separate(buf, onProgress){
+  return new Promise((res, rej) => {
+    const w = new Worker(URL.createObjectURL(new Blob([STEM_CODE], {type:'application/javascript'})));
+    const chs = Array.from({length:Math.min(2, buf.numberOfChannels)}, (_, c) => buf.getChannelData(c).slice());
+    w.onmessage = e => { if (e.data.progress != null) onProgress(e.data.progress); else { w.terminate(); res(e.data.stems); } };
+    w.onerror = e => { w.terminate(); rej(e); };
+    w.postMessage({chs, sr:buf.sampleRate}, chs.map(c => c.buffer));
+  });
+}
+async function stemTrack(tr){
+  if (stemBusy) return;
+  const buf = buffers.get(tr.clip); if (!buf) return;
+  if (buf.duration > 120){ toast('Stems work on clips up to 2 minutes. Trim the clip or import a shorter section.'); return; }
+  if (S.audio.length + 4 > 10){ toast('Stems need 4 free audio tracks (10 max). Delete some tracks first.'); return; }
+  stemBusy = true; renderTracks();
+  try {
+    const stems = await separate(buf, f => { $('#stemStatus') && ($('#stemStatus').textContent = 'Separating… ' + Math.round(f * 100) + '%'); });
+    for (let k = 0; k < 4; k++){
+      let n = 1; while (S.audio.some(t => t.id === 'a' + n)) n++;
+      const key = 'stem:' + tr.id + ':' + k + ':' + Date.now(), b = makeBuffer(stems[k], buf.sampleRate);
+      buffers.set(key, b); await storeAudio(key, b);
+      const nt = Object.assign({id:'a' + n, name:(tr.name + ' ' + STEM_NAMES[k]).slice(0, 16), armed:false, recBars:tr.recBars, clip:key, clipSteps:tr.clipSteps, clipBpm:tr.clipBpm, warp:k === 0 ? 'beats' : tr.warp || 'complex'}, mixDefaults());
+      S.audio.push(nt);
+      if (live){ const st = makeStrip(ctx, live.master); live.strips.set(nt.id, st); applyStrip(ctx, st, nt); }
+    }
+    tr.mute = true; applyAll(); save();
+    toast(`Split ${tr.name} into Drums, Bass, Vocals and Other. The original is muted.`);
+  } catch (e){ console.warn(e); toast('Stem separation failed: ' + (e.message || 'out of memory?')); }
+  stemBusy = false; renderTracks(); if (view === 'mixer') renderMixer();
+}
 
 /* ================= wiring ================= */
 $('#play').addEventListener('click', () => playing ? stop() : start(0));
