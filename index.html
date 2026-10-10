@@ -1576,6 +1576,16 @@ const MEQ_BANDS = [{type:'highpass', f:10, q:.7}, {type:'lowshelf', f:80, key:'g
   {type:'peaking', f:1200, q:.9, key:'g1k'}, {type:'peaking', f:3000, q:.9, key:'g3k'}, {type:'peaking', f:6000, q:.9, key:'g6k'}, {type:'highshelf', f:12000, key:'g12k'}];
 const MATCH_F = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
 function masterEq(){ const M = S.master, E = M.eq || (M.eq = {}), d = {lowcut:0, g80:0, g200:0, g500:0, g1k:0, g3k:0, g6k:0, g12k:0, amount:.7, match:null}; for (const k in d) if (E[k] === undefined) E[k] = d[k]; return E; }
+function fft(re, im){
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++){ let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j){ [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1){
+    const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += len){ let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++){ const u = i + k, v = u + len / 2, tr = re[v] * cr - im[v] * ci, ti = re[v] * ci + im[v] * cr;
+        re[v] = re[u] - tr; im[v] = im[u] - ti; re[u] += tr; im[u] += ti; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } }
+  }
+}
 // long-term average spectrum in 1/3-octave bands (dB), from the loudest 60 s of a buffer
 async function bandSpectrum(buf){
   const sr = buf.sampleRate, N = 4096, hop = 2048, chs = [...Array(buf.numberOfChannels)].map((_, k) => buf.getChannelData(k));
