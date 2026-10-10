@@ -86,6 +86,14 @@ body.mlearn .marmed{outline:3px solid #fff !important}
 .maplist{display:flex;flex-direction:column;gap:4px}
 .maplist .row{font-size:13px}
 .maplist .mono{opacity:.75;min-width:76px}
+.piano{position:relative;height:180px;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px;overflow:hidden;background:#111}
+.piano .pk{position:absolute;top:0;box-sizing:border-box;display:flex;align-items:flex-end;justify-content:center;font:600 10px var(--f-mono);padding-bottom:6px}
+.piano .w{height:100%;background:#eceae4;border:1px solid #111;border-radius:0 0 6px 6px;color:#555;z-index:1}
+.piano .b{height:60%;background:#1d1e22;border:1px solid #000;border-radius:0 0 5px 5px;color:#aaa;z-index:2;box-shadow:inset 0 -4px 0 #333}
+.piano .w.out{background:#c9c7c1}
+.piano .b.out{background:#121315}
+.piano .pk.root::before{content:"";position:absolute;bottom:22px;width:8px;height:8px;border-radius:50%;background:var(--accent,#ff9a3c)}
+.piano .pk.down{background:var(--accent,#ff9a3c) !important;color:#111}
 .kitrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px}
 .pads{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pad{aspect-ratio:1;max-width:100%;border-radius:10px;background:linear-gradient(180deg,#2b303c,#20242d);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:7px;text-align:left;text-transform:none;letter-spacing:0;position:relative;overflow:hidden;touch-action:none}
@@ -335,8 +343,10 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <button id="octDown" aria-label="Octave down">Oct −</button>
         <button id="octUp" aria-label="Octave up">Oct +</button>
       </div>
+      <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
       <div class="keys" id="keys"></div>
-      <p class="hint">The grid only plays notes in the key. Moving up a row goes up a fourth, like Push. Orange pads are the root note. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
+      <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
+      <p class="hint">Grid: only notes in the key, each row a fourth higher, like Push; orange is the root. Keyboard: a piano, slide along it for a run. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card">
       <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
@@ -493,6 +503,8 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
     <details id="h-audio"><summary>Audio tracks and recording</summary>
       <h3>Set up your interface</h3>
       <ol><li>Plug your USB-C interface into the phone.</li><li>Tap <b>Enable input</b> (Audio tab or Setup) and allow the microphone when Chrome asks.</li><li>If it doesn't pick the interface, choose it under Setup → Audio input → Device.</li><li>Choose <b>Channels</b>: input 1, input 2, or both as stereo.</li></ol>
+      <h3>Play through the MPC (or any USB device)</h3>
+      <p>With the MPC plugged in by USB-C, pick it under Setup → Audio input → <b>Sound out</b>. If it isn't listed, tap Enable input first so the phone lists your USB devices. Android usually switches to a USB audio device by itself; if the sound stays on the phone, swipe down from the top of the screen, tap the media output button and pick the MPC. The MPC's speaker or headphone output then plays everything in the app.</p>
       <h3>Record</h3>
       <ul>
         <li><b>Arm</b> the track to record (only one at a time) and choose its <b>Record</b> length (1–8 bars).</li>
@@ -520,6 +532,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li>Up to 4 instrument tracks. Tap <b>+</b> at the top of the Synth tab to add one; new tracks start as a Prophet-5.</li>
         <li>Each track can be a <b>Prophet-5</b>, <b>Solina strings</b>, <b>TB-303</b> or <b>Moog Taurus</b>: pick it from the menu next to the track name. Each has its own section in this help.</li>
         <li><b>The grid</b> only plays notes in the chosen key and scale. Each row is a fourth higher than the one below, like Ableton Push. Orange pads are the root note. Use <b>Oct − / +</b> to move up and down. Choose <i>Chromatic</i> for every note.</li>
+        <li><b>Keyboard</b> swaps the grid for a piano keyboard of 1, 1½ or 2 octaves starting at C. It plays every note; keys outside the key are shaded and the root notes have an orange dot. Play chords with several fingers, or slide along the keys to play each one in turn. Lower on a key plays louder, unless Full level is on. <b>Oct − / +</b> shifts it.</li>
         <li><b>Overdub</b> records what you play, with the same Timing (timing correct) as the drums.</li>
         <li><b>Piano roll</b> shows the notes in this scene. Tap a note to delete it, or tap an empty spot to hear that pitch. <b>Undo</b> and <b>Clear</b> work as on the drums.</li>
         <li>A MIDI keyboard or your MPC can play a track: set Setup → MIDI → <b>Notes play</b> to it.</li>
@@ -719,6 +732,9 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <select id="device"><option value="">Default input</option></select>
       <label class="label" for="inCh">Channels</label>
       <select id="inCh"><option value="L">Input 1 (mono)</option><option value="R">Input 2 (mono)</option><option value="S">Inputs 1+2 (stereo)</option></select>
+      <label class="label" for="outDev">Sound out</label>
+      <select id="outDev"><option value="">Phone default</option></select>
+      <p class="hint" id="outHint">To hear the app through the MPC's speaker, plug the MPC in by USB-C, then choose it here.</p>
       <button id="enableIn">Enable input</button>
       <div class="status" id="inStatus">Input is off.</div>
     </div>
@@ -2420,6 +2436,7 @@ function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['inter
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:audioBuf()});
+  if (outPref()) applyOutput();
   live = makeRig(ctx);
   live.click = ctx.createGain(); live.click.gain.value = .5; live.click.connect(ctx.destination);
   silent = ctx.createGain(); silent.gain.value = 0; silent.connect(ctx.destination);
@@ -2931,6 +2948,30 @@ async function listDevices(){
     sel.innerHTML = '<option value="">Default input</option>' + devs.map(d => `<option value="${d.deviceId}">${(d.label || 'Input').replace(/</g, '&lt;')}</option>`).join('');
     sel.value = devs.some(d => d.deviceId === S.device) ? S.device : '';
   } catch(e){}
+  listOutputs();
+}
+// sound output: Chrome can send an AudioContext to a chosen device (setSinkId); Android also switches to a USB
+// audio device on its own when one is plugged in, and offers a media-output picker in quick settings
+const canSink = () => typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype;
+function outPref(){ try { return localStorage.getItem('pr.out') || ''; } catch(e){ return ''; } }
+async function listOutputs(){
+  const sel = $('#outDev'); if (!sel) return;
+  let outs = [];
+  try { outs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'default'); } catch(e){}
+  sel.innerHTML = '<option value="">Phone default</option>' + outs.map(d => `<option value="${d.deviceId}">${(d.label || 'Output').replace(/</g, '&lt;')}</option>`).join('');
+  const want = outPref(); sel.value = outs.some(d => d.deviceId === want) ? want : '';
+  const usb = outs.find(d => /mpc|akai|usb/i.test(d.label));
+  $('#outHint').textContent = !canSink() || !outs.length
+    ? 'With the MPC plugged in by USB-C, Android normally plays the app through it automatically. If not: swipe down from the top of the screen, tap the media output (or "Media" / speaker) button and pick the MPC. Enable input first so the phone lists your USB devices here.'
+    : usb && !sel.value ? `Found ${usb.label}: choose it to play the app through it.` : 'Choose where the app plays. Unplugging the device falls back to the phone.';
+}
+async function applyOutput(){
+  if (!ctx || !canSink()) return;
+  let id = outPref();
+  // device ids are only valid once the page has listed devices; re-match by name if the id changed
+  try { const outs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audiooutput');
+    if (id && !outs.some(d => d.deviceId === id)){ let lab = ''; try { lab = localStorage.getItem('pr.outLabel') || ''; } catch(e){} const m = lab && outs.find(d => d.label === lab); id = m ? m.deviceId : ''; if (id) try { localStorage.setItem('pr.out', id); } catch(e){} } } catch(e){}
+  try { await ctx.setSinkId(id); } catch(e){ try { await ctx.setSinkId(''); } catch(_){} if (id) toast('Could not play through that device. Using the phone.'); }
 }
 function routeMonitor(){
   if (!ctx) return;
@@ -3859,7 +3900,7 @@ function keyUp(id, ev){
     if (end != null && k.start > -TPS / 2) addSynthNote(k.tr, k.note, Math.max(0, k.start), end - k.start, k.v, k.sl);
   }
 }
-function keysUpAll(){ for (const [id] of keysOn) { const k = keysOn.get(id); k.voice.release(ctx ? ctx.currentTime : 0); } keysOn.clear(); document.querySelectorAll('.key.down').forEach(b => b.classList.remove('down')); }
+function keysUpAll(){ for (const [id] of keysOn) { const k = keysOn.get(id); k.voice.release(ctx ? ctx.currentTime : 0); } keysOn.clear(); pianoTouch.clear(); document.querySelectorAll('.key.down, .pk.down').forEach(b => b.classList.remove('down')); }
 function curSynth(){ return S.synths[clamp(selSynth, 0, S.synths.length - 1)]; }
 function gridNote(r, c){
   const sc = SCALES[S.scale] || SCALES.Major, n = sc.length, step = S.scale === 'Chromatic' ? 5 : 3;
@@ -3885,6 +3926,49 @@ function renderKeys(){
     box.appendChild(b);
   }
 }
+// piano keyboard: white and black keys from C of the current octave; slide across keys to play them in turn
+function renderPiano(){
+  const box = $('#piano'); box.innerHTML = '';
+  const span = +(S.kbSpan || 2), lo = 12 * (S.oct + 2), whites = [];
+  const nW = Math.round(span * 7) + 1, sc = SCALES[S.scale] || SCALES.Major;
+  for (let n = lo, w = 0; w < nW; n++){ if (![1, 3, 6, 8, 10].includes(n % 12)) { whites.push(n); w++; } }
+  const ww = 100 / whites.length, bw = ww * .62;
+  const mk = (n, cls, left, width) => {
+    const k = document.createElement('div'), pc = ((n - S.root) % 12 + 12) % 12;
+    k.className = 'pk ' + cls + (pc === 0 ? ' root' : '') + (sc.includes(pc) ? '' : ' out');
+    k.style.left = left + '%'; k.style.width = width + '%'; k.dataset.n = n;
+    if (n % 12 === 0) k.textContent = noteName(n);
+    box.appendChild(k);
+  };
+  whites.forEach((n, i) => { mk(n, 'w', i * ww, ww); if ([0, 2, 5, 7, 9].includes(n % 12) && i < whites.length - 1) mk(n + 1, 'b', (i + 1) * ww - bw / 2, bw); });
+}
+const pianoTouch = new Map();
+function pianoAt(x, y){ const el = document.elementFromPoint(x, y); return el && el.closest && el.closest('#piano .pk'); }
+function pianoPress(pid, k, e){
+  const cur = pianoTouch.get(pid);
+  if (cur && cur.k === k) return;
+  if (cur){ cur.k.classList.remove('down'); keyUp('p' + pid, e); }
+  if (!k){ pianoTouch.delete(pid); return; }
+  const r = k.getBoundingClientRect(), v = S.fullLevel ? 1 : clamp(.3 + .75 * (e.clientY - r.top) / r.height, .25, 1);   // further down the key = harder
+  k.classList.add('down'); keyDown(curSynth(), +k.dataset.n, e, v, 'p' + pid); pianoTouch.set(pid, {k});
+}
+(() => {
+  const box = $('#piano');
+  box.addEventListener('pointerdown', e => { e.preventDefault(); try { box.setPointerCapture(e.pointerId); } catch(_){} pianoPress(e.pointerId, pianoAt(e.clientX, e.clientY), e); });
+  box.addEventListener('pointermove', e => { if (pianoTouch.has(e.pointerId)) pianoPress(e.pointerId, pianoAt(e.clientX, e.clientY), e); });
+  const up = e => pianoPress(e.pointerId, null, e);
+  box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up); box.addEventListener('lostpointercapture', up);
+  box.addEventListener('contextmenu', e => e.preventDefault());
+})();
+function renderPlaySurface(){
+  const piano = S.kbMode === 'piano';
+  $('#keys').hidden = piano; $('#piano').hidden = !piano; $('#kbSpan').hidden = !piano;
+  $('#kbSpan').value = String(S.kbSpan || 2);
+  document.querySelectorAll('#kbMode button').forEach(b => b.classList.toggle('on', b.dataset.m === (piano ? 'piano' : 'grid')));
+  if (piano) renderPiano(); else renderKeys();
+}
+document.querySelectorAll('#kbMode button').forEach(b => b.addEventListener('click', () => { S.kbMode = b.dataset.m; save(); renderPlaySurface(); }));
+$('#kbSpan').addEventListener('change', e => { S.kbSpan = +e.target.value; save(); renderPiano(); });
 function drawRoll(){
   const cv = $('#roll'), dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
   if (!w || !h) return null;
@@ -3968,7 +4052,7 @@ function renderSynth(){
   c2('Reso', 'res', .5, 18, .1, v => v.toFixed(1)); c2('Filter env', 'fenv', 0, 1, .01, pct); c2('Env decay', 'fdec', .02, 2, .01, sec);
   c2('Attack', 'a', .001, 2, .001, sec); c2('Decay', 'd', .02, 3, .01, sec); c2('Sustain', 's', 0, 1, .01, pct); c2('Release', 'r', .01, 3, .01, sec);
   c2('Level', 'gain', 0, 1.5, .01, pct);
-  rollDirty = true; renderKeys(); renderVocoder();
+  rollDirty = true; renderPlaySurface(); renderVocoder();
 }
 function solCfg(tr){ const n = live && live.sol && live.sol[tr.id + ':' + tr.inst]; if (n) n.port.postMessage({type:'cfg', cfg:INST[tr.inst].cfg(tr)}); }
 
@@ -4073,10 +4157,10 @@ function renderSolina(tr){
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
 $('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', taurus:'Taurus '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
-$('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderKeys(); rollDirty = true; });
-$('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderKeys(); rollDirty = true; });
-$('#octDown').addEventListener('click', () => { S.oct = Math.max(-1, S.oct - 1); save(); renderKeys(); });
-$('#octUp').addEventListener('click', () => { S.oct = Math.min(5, S.oct + 1); save(); renderKeys(); });
+$('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
+$('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
+$('#octDown').addEventListener('click', () => { S.oct = Math.max(-1, S.oct - 1); save(); renderPlaySurface(); });
+$('#octUp').addEventListener('click', () => { S.oct = Math.min(5, S.oct + 1); save(); renderPlaySurface(); });
 $('#sOdub').addEventListener('click', () => { toggleDrumRec(); $('#sOdub').classList.toggle('on', drumRec); });
 $('#sUndo').addEventListener('click', popUndo);
 $('#sClear').addEventListener('click', () => { const tr = curSynth(); if (!tr.notes.length) return; pushUndo(); undoPass = null; tr.notes = []; rollDirty = true; save(); toast('Cleared ' + tr.name + ' in this scene. Undo brings it back.'); });
@@ -4800,6 +4884,12 @@ $('#enableIn2').addEventListener('click', enableInput);
 $('#device').addEventListener('change', e => { S.device = e.target.value; save(); enableInput(); });
 $('#inCh').addEventListener('change', e => { S.inCh = e.target.value; save(); routeMonitor(); });
 $('#monitor').addEventListener('click', () => { S.monitor = !S.monitor; if (S.monitor) toast('Monitoring on. Use headphones to avoid feedback.'); save(); routeMonitor(); renderInput(); });
+$('#outDev').addEventListener('change', async e => {
+  try { localStorage.setItem('pr.out', e.target.value); localStorage.setItem('pr.outLabel', e.target.value ? e.target.selectedOptions[0].text : ''); } catch(err){}
+  if (!canSink()){ toast('This browser picks the output itself. Use the media output button in quick settings.'); return; }
+  ensureAudio(); await applyOutput();
+  toast(e.target.value ? 'Playing through ' + e.target.selectedOptions[0].text : 'Playing through the phone');
+});
 $('#audioBuf').value = audioBuf();
 $('#audioBuf').addEventListener('change', async e => {
   try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
@@ -4848,7 +4938,7 @@ $('#wipe').addEventListener('click', async e => {
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.v)));
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|SELECT/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
 window.addEventListener('resize', () => { seqDirty = true; rollDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
-if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
+if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (outPref()) applyOutput(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
 
 
 /* help */
