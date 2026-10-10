@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="retro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111318">
+<meta name="theme-color" content="#c9c4b7">
 <meta name="mobile-web-app-capable" content="yes">
 <title>The Snake Device</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -80,7 +80,7 @@ h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:upperc
 .learnbar{display:flex;gap:10px;align-items:center;padding:8px 16px;background:var(--accent,#ff9a3c);color:#111;font-size:14px}
 .learnbar .grow{flex:1}
 .learnbar button{background:#111;color:#fff;border-color:#111}
-body.mlearn :is(input[type=range],input[type=number],select,button):not(.nolearn):not(.pad):not(nav button){outline:2px dashed var(--accent,#ff9a3c);outline-offset:2px}
+body.mlearn :is(input[type=range],input[type=number],select,button):not(.nolearn):not(.pad):not(nav button):not(.stp *){outline:2px dashed var(--accent,#ff9a3c);outline-offset:2px}
 body.mlearn .mmapped{outline:2px solid #4cd07d !important}
 body.mlearn .marmed{outline:3px solid #fff !important}
 .maplist{display:flex;flex-direction:column;gap:4px}
@@ -280,8 +280,20 @@ html.retro #helpSearch{background:#1d1e20;border-color:#000;color:var(--fg)}
 html.retro .toast{background:linear-gradient(180deg,var(--lcd),var(--lcd2));color:#fff;text-shadow:0 0 6px #ffffff70;font-family:var(--f-lcd);font-size:20px;border:2px solid #000}
 html.retro .scenebar button.on{background:linear-gradient(180deg,#f2683a,#d9461c)}
 html.retro .piano{background:#000}
+.ctl.has-stp{grid-template-columns:72px minmax(0,1fr)}
+.rack .ctl.has-stp{grid-template-columns:74px minmax(0,1fr)}
+.stp{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:6px;align-items:center;min-width:0}
+.stp button{padding:8px 0;font-size:18px;line-height:1}
+.stp select{width:100%;min-width:0;text-align:center;text-align-last:center}
+html.retro .stp select{font:400 22px/1 var(--f-lcd);color:#fff;background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:2px solid #23251f;border-radius:3px;box-shadow:inset 0 0 10px #0a1f6ab0;text-shadow:0 0 6px #ffffff60;padding:5px 4px;-webkit-appearance:none;appearance:none}
+html.retro .stp select option{background:#1d2a55;color:#fff;font-family:var(--f-body);font-size:15px}
+body.mlearn .stp{outline:2px dashed var(--accent);outline-offset:2px}
+body.mlearn .stp.mmapped{outline:2px solid #4cd07d}
+body.mlearn .stp.marmed{outline:3px solid #fff}
+/* keep the playing screens clean: explanations live in Help (?) and Setup */
+#v-drums .hint,#v-audio .hint,#v-mixer .hint,#v-chop .hint,#v-synth .hint,#v-song .hint{display:none}
 </style>
-<script>try { if ((localStorage.getItem('pr.look') || 'retro') === 'retro') document.documentElement.classList.add('retro'); } catch(e){ document.documentElement.classList.add('retro'); }</script>
+
 </head>
 <body>
 
@@ -759,7 +771,7 @@ html.retro .piano{background:#000}
     </details>
 
     <details id="h-look"><summary>Look</summary>
-      <p>The app is styled after the Akai MPC60 (warm-grey case, blue backlit display with white lettering, dark rubber pads, mode keys with red LEDs) and the E-mu SP-1200 (charcoal panel, white silkscreen, slider faders). To switch back to the plain dark style, go to Setup → Look → <b>Modern dark</b>. The choice is saved on this phone.</p>
+      <p>The app is styled after the Akai MPC60 (warm-grey case, blue backlit display with white lettering, dark rubber pads, mode keys with red LEDs) and the E-mu SP-1200 (charcoal panel, white silkscreen, slider faders). Settings work like the MPC's: <b>−</b> and <b>+</b> step a value (hold to scroll), and the value itself is a drop-down to jump straight to a setting.</p>
     </details>
 
     <details id="h-save"><summary>Saving, updates and storage</summary>
@@ -841,11 +853,6 @@ html.retro .piano{background:#000}
       <div id="mapList" class="maplist"></div>
       <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
       <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
-    </div>
-    <div class="card">
-      <h2>Look</h2>
-      <label class="label" for="lookSel">Style</label>
-      <select id="lookSel"><option value="retro">MPC60 × SP-1200</option><option value="dark">Modern dark</option></select>
     </div>
     <div class="card">
       <h2>Performance</h2>
@@ -3408,8 +3415,51 @@ function ctl(box, label, obj, key, min, max, step, fmt, after){
   inp.value = obj[key]; v.textContent = fmt(obj[key]);
   const lp = learnPath(obj); if (lp) inp.dataset.lp = lp + '|' + key;
   inp.addEventListener('input', () => { obj[key] = +inp.value; v.textContent = fmt(obj[key]); after && after(); if (obj.id && trackById(obj.id)) autoTouch(obj, key); save(); });
-  inp.addEventListener('dblclick', () => {});
-  box.appendChild(row); return inp;
+  box.appendChild(row); stepify(inp, fmt); return inp;
+}
+/* MPC-style value entry: [-] [value menu] [+]. The range input stays (hidden) as the model, so its listeners, MIDI learn
+   and automation keep working; the buttons and menu just move it. Hold - or + to scroll. */
+const steppers = [];
+function stepify(inp, fmt){
+  if (inp._stp) return;
+  const mn = +inp.min, mx = +inp.max, st = +inp.step || (mx - mn) / 100;
+  const box = document.createElement('div'); box.className = 'stp';
+  box.innerHTML = '<button type="button" aria-label="Down">−</button><select></select><button type="button" aria-label="Up">+</button>';
+  const [dn, sel, up] = box.children;
+  if (inp.id) sel.setAttribute('aria-label', (inp.closest('.ctl')?.querySelector('.label')?.textContent || inp.id));
+  inp.hidden = true; inp.after(box); inp._stp = box; box._inp = inp;
+  const row = inp.closest('.ctl'); if (row){ row.classList.add('has-stp'); const v = row.querySelector('.v'); if (v) v.hidden = true; }
+  const snap = x => Math.min(mx, Math.max(mn, Math.round((x - mn) / st) * st + mn));
+  const label = x => fmt ? fmt(x) : String(+x.toFixed(4));
+  const n = Math.round((mx - mn) / st), K = Math.min(n, 48);
+  const opts = Array.from({length:K + 1}, (_, i) => snap(mn + (mx - mn) * i / K));
+  const fill = () => {
+    const cur = +inp.value, list = opts.includes(cur) ? opts : [...opts, cur].sort((a, b) => a - b);
+    sel.innerHTML = list.map(x => `<option value="${x}">${String(label(x)).replace(/</g, '&lt;')}</option>`).join('');
+    sel.value = String(cur); box._last = inp.value; box._dis = inp.disabled;
+    dn.disabled = sel.disabled = up.disabled = inp.disabled;
+  };
+  const set = x => { const v = snap(x); if (v === +inp.value) return; inp.value = v; inp.dispatchEvent(new Event('input', {bubbles:true})); inp.dispatchEvent(new Event('change', {bubbles:true})); fill(); };
+  const coarse = Math.max(st, (mx - mn) / Math.min(n, 100));
+  let tmr = null, held = 0;
+  const hold = dir => { held = 0; const go = () => { set(+inp.value + dir * coarse * (held > 12 ? 4 : 1)); held++; tmr = setTimeout(go, held === 1 ? 380 : 70); }; go(); };
+  const stop = () => { clearTimeout(tmr); tmr = null; };
+  for (const [b, d] of [[dn, -1], [up, 1]]){
+    b.addEventListener('pointerdown', e => { if (typeof mlearn !== 'undefined' && mlearn) return; e.preventDefault(); hold(d); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => b.addEventListener(t, stop));
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); set(+inp.value + d * coarse); } });
+  }
+  sel.addEventListener('change', () => set(+sel.value));
+  inp.addEventListener('input', () => { if (box._last !== inp.value) fill(); });
+  inp.addEventListener('stp-sync', fill);
+  fill(); steppers.push(box);
+}
+// keep the menus in step when code changes a value directly
+function syncSteppers(){
+  for (let i = steppers.length - 1; i >= 0; i--){
+    const b = steppers[i]; if (!b.isConnected){ if (!b._inp.isConnected) steppers.splice(i, 1); continue; }
+    if (b._last !== b._inp.value || b._dis !== b._inp.disabled){ b._inp.dispatchEvent(new Event('stp-sync')); }
+  }
 }
 function renderPadEditor(){
   const p = S.drum.pads[selPad];
@@ -3641,8 +3691,10 @@ const tmp = new Float32Array(512);
 function peak(an){ an.getFloatTimeDomainData(tmp); let p = 0; for (let i = 0; i < tmp.length; i++){ const a = Math.abs(tmp[i]); if (a > p) p = a; } return p; }
 const meterH = p => clamp((20 * Math.log10(p + 1e-6) + 60) / 60, 0, 1) * 100;
 let lastPh = -1;
+let stpTick = 0;
 function frame(){
   requestAnimationFrame(frame);
+  if (++stpTick % 8 === 0) syncSteppers();
   const h = playing ? heardStep() : null;
   if (h){
     if (h.i < 0) $('#pos').textContent = 'In ' + (Math.floor((h.i + 16) / 4) + 1);
@@ -4608,7 +4660,7 @@ function learnLabel(el, tg){
 }
 const mName = m => (m.type === 'cc' ? 'CC ' + m.num : 'Note ' + noteName(m.num)) + (m.ch ? ' ch' + m.ch : '');
 function setLearn(on){
-  mlearn = on; if (!on && mArmed){ mArmed.classList.remove('marmed'); mArmed = null; }
+  mlearn = on; if (!on && mArmed){ (mArmed._stp || mArmed).classList.remove('marmed'); mArmed = null; }
   document.body.classList.toggle('mlearn', on); $('#learnBar').hidden = !on;
   $('#learnMsg').textContent = 'MIDI learn: tap a knob, menu or button, then move a knob or hit a pad on the MPC.';
   if (on && !midi) connectMidi();
@@ -4617,7 +4669,7 @@ function setLearn(on){
 function markMapped(){
   document.querySelectorAll('.mmapped').forEach(e => e.classList.remove('mmapped'));
   if (!mlearn) return;
-  for (const m of S.midiMap || []){ const els = m.lp ? document.querySelectorAll(`[data-lp="${m.lp}"]`) : document.querySelectorAll(m.sel); els.forEach(e => e.classList.add('mmapped')); }
+  for (const m of S.midiMap || []){ const els = m.lp ? document.querySelectorAll(`[data-lp="${m.lp}"]`) : document.querySelectorAll(m.sel); els.forEach(e => (e._stp || e).classList.add('mmapped')); }
 }
 function renderMaps(){
   const box = $('#mapList'); if (!box) return;
@@ -4637,13 +4689,14 @@ function renderMaps(){
 const learnable = el => el && !el.closest('nav, #learnBar, .nolearn') && !el.classList.contains('nolearn') && !el.classList.contains('pad');
 document.addEventListener('pointerdown', e => {
   if (!mlearn) return;
-  const el = e.target.closest('input[type=range], input[type=number], select, button');
+  let el = e.target.closest('input[type=range], input[type=number], select, button');
+  if (el && el.closest('.stp')) el = el.closest('.stp')._inp;
   if (!learnable(el)) return;
   e.preventDefault(); e.stopPropagation();
   const tg = learnTarget(el);
   if (!tg){ toast("That control can't be mapped."); return; }
-  if (mArmed) mArmed.classList.remove('marmed');
-  mArmed = el; el.classList.add('marmed');
+  if (mArmed) (mArmed._stp || mArmed).classList.remove('marmed');
+  mArmed = el; (el._stp || el).classList.add('marmed');
   $('#learnMsg').textContent = 'Now move a knob or hit a pad on the MPC for: ' + learnLabel(el, tg);
 }, true);
 document.addEventListener('click', e => { if (!mlearn) return; const el = e.target.closest('input, select, button'); if (learnable(el)){ e.preventDefault(); e.stopPropagation(); } }, true);
@@ -4653,7 +4706,7 @@ function learnBind(type, ch, num){
   S.midiMap = (S.midiMap || []).filter(m => !(m.type === type && m.num === num && (!m.ch || !ch || m.ch === ch)) && !(tg.lp ? m.lp === tg.lp : m.sel === tg.sel));
   const m = Object.assign({type, ch, num, label:learnLabel(el, tg)}, tg);
   S.midiMap.push(m); save();
-  el.classList.remove('marmed'); mArmed = null;
+  (el._stp || el).classList.remove('marmed'); mArmed = null;
   $('#learnMsg').textContent = `${mName(m)} → ${m.label}. Tap another control, or Done.`;
   markMapped(); renderMaps();
 }
@@ -4980,14 +5033,6 @@ $('#outDev').addEventListener('change', async e => {
   ensureAudio(); await applyOutput();
   toast(e.target.value ? 'Playing through ' + e.target.selectedOptions[0].text : 'Playing through the phone');
 });
-$('#lookSel').value = document.documentElement.classList.contains('retro') ? 'retro' : 'dark';
-$('#lookSel').addEventListener('change', e => {
-  try { localStorage.setItem('pr.look', e.target.value); } catch(err){}
-  document.documentElement.classList.toggle('retro', e.target.value === 'retro');
-  document.querySelector('meta[name=theme-color]').content = e.target.value === 'retro' ? '#c9c4b7' : '#111318';
-  seqDirty = true; rollDirty = true; renderPads();
-});
-document.querySelector('meta[name=theme-color]').content = document.documentElement.classList.contains('retro') ? '#c9c4b7' : '#111318';
 $('#audioBuf').value = audioBuf();
 $('#audioBuf').addEventListener('change', async e => {
   try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
@@ -5033,7 +5078,8 @@ $('#wipe').addEventListener('click', async e => {
   await DB.op('audio', 'readwrite', st => st.clear());
   await DB.put('kv', 'project', null); location.reload();
 });
-document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.v)));
+let userNav = false;
+document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => { userNav = true; setView(b.dataset.v); }));
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|SELECT/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
 window.addEventListener('resize', () => { seqDirty = true; rollDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (outPref()) applyOutput(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
@@ -5098,13 +5144,15 @@ $('#helpSearch').addEventListener('input', e => {
     else chop.markers = [0];
   }
   $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%';
+stepify($('#swing'), v => v + '%'); stepify($('#chopSens'), v => v + '%'); stepify($('#p5Wheel'), v => Math.round(v * 100) + '%');
+stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs'), v => v + ' ms'); stepify($('#tapMs'), v => v + ' ms');
   renderSeqCtl(); renderScenes();
   renderTransport(); renderPads(); renderPadEditor(); renderInput(); renderMidi();
   if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
     navigator.permissions.query({name:'midi'}).then(r => { if (r.state === 'granted') connectMidi(); }).catch(() => {});
   }
   let v = 'drums'; try { v = localStorage.getItem('pr-view') || 'drums'; } catch(e){}
-  setView(v);
+  setView(userNav ? view : v);        // don't jump away from a tab picked while the project was loading
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
