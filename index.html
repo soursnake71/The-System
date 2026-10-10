@@ -354,6 +354,37 @@ html.retro .tt-row button.on{background:linear-gradient(180deg,#8d9196 0%,#f4f6f
 html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6px;margin:6px auto 0;border-radius:50%;background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
 #ttCut.on,html.retro #ttCut.on{background:linear-gradient(180deg,#f2683a,#d9461c);color:#fff}
 .tt-midi{border-top:1px solid #ffffff22;padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.sdj{gap:8px;padding:8px}
+#wvCv{width:100%;height:200px;display:block;background:#050607;border-radius:4px;touch-action:none}
+.sdj-decks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+html.retro .dk{font:400 10px "Michroma",sans-serif;letter-spacing:.12em;padding:12px 0}
+html.retro #dk0.on{background:linear-gradient(180deg,#ff8a3d,#d9601c);color:#111}
+html.retro #dk1.on{background:linear-gradient(180deg,#46a6ff,#1d6fd0);color:#fff}
+.tt-row4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tt-row4 button,.lrow button{padding:12px 0;font-size:12px}
+.tt-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+html.retro #ttSync.on{background:linear-gradient(180deg,#46a6ff,#1d6fd0);color:#fff}
+html.retro #ttSlip.on,html.retro #ttCensor.on{background:linear-gradient(180deg,#ffd54a,#d9a91c);color:#111}
+.ppads{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+html.retro .ppad{aspect-ratio:1.3;border-radius:5px;background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#3b3d40);color:#d9d4c7;font:600 13px var(--f-display);border:1px solid #000;box-shadow:0 3px 0 #000}
+html.retro .ppad.set{color:#fff;text-shadow:0 1px 2px #000}
+html.retro .ppad.act{transform:translateY(2px);box-shadow:0 1px 0 #000,inset 0 0 0 2px #fff}
+.lrow{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+html.retro .lrow button.on{background:linear-gradient(180deg,#5fe08a,#2fa85a);color:#111}
+.mx{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mxch{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid #ffffff22;border-radius:4px;padding:8px 2px}
+.mxch .knobs{display:grid;grid-template-columns:1fr 1fr;gap:4px 2px}
+.mxch .knob{min-width:0}
+.mxch .kcap{width:38px;height:38px}
+.mxch .klab{font-size:7px}
+.mxch .chlab{font:400 10px "Michroma",sans-serif;letter-spacing:.12em}
+html.retro .mxch input.chfader{writing-mode:vertical-lr;direction:rtl;width:30px;height:140px}
+html.retro .mxch input.chfader::-webkit-slider-runnable-track{width:6px;height:100%;margin:0 auto}
+html.retro .mxch input.chfader::-webkit-slider-thumb{width:28px;height:16px;margin-top:0;margin-left:-11px;background:linear-gradient(180deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e)}
+.xfrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;font:400 12px "Michroma",sans-serif}
+html.retro input.xfader{height:44px}
+html.retro input.xfader::-webkit-slider-runnable-track{height:10px}
+html.retro input.xfader::-webkit-slider-thumb{width:22px;height:40px;margin-top:-15px}
 </style>
 
 </head>
@@ -449,14 +480,23 @@ html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6p
 
   <!-- WHEEL OF STEEL -->
   <section class="view" id="v-deck" hidden>
+    <div class="card sdj">
+      <canvas id="wvCv" aria-label="Waveforms of both decks, with beat grid, cues and loops"></canvas>
+      <div class="sdj-decks"><button id="dk0" class="dk on">DECK 1</button><button id="dk1" class="dk">DECK 2</button></div>
+    </div>
     <div class="card tt">
-      <div class="tt-head"><b>THE WHEEL OF STEEL</b><span>QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
+      <div class="tt-head"><b>THE WHEEL OF STEEL</b><span id="ttSub">DECK 1 · QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
       <canvas id="ttCv" aria-label="Turntable. Touch the record and move it to scratch."></canvas>
       <input id="ttScr" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Scratch (map a knob with MIDI learn)">
       <div class="tt-row"><button id="ttStart" class="tt-start">START · STOP</button><button id="tt33">33</button><button id="tt45">45</button></div>
+      <div class="tt-row4"><button id="ttCueBtn">CUE</button><button id="ttSync">SYNC</button><button id="ttSlip">SLIP</button><button id="ttCensor" data-momentary="1">CENSOR</button></div>
       <div class="ctl"><label class="label" for="ttPitch">Pitch</label><input id="ttPitch" type="range" min="-8" max="8" step="0.1"><span class="v mono"></span></div>
+      <div class="tt-row3"><select id="ttRange" aria-label="Pitch range"><option value="8">±8 %</option><option value="16">±16 %</option><option value="50">±50 %</option></select><button id="ttNudgeDn" data-momentary="1">◀ NUDGE</button><button id="ttNudgeUp" data-momentary="1">NUDGE ▶</button></div>
       <div class="ctl"><label class="label" for="ttVol">Level</label><input id="ttVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
-      <div class="row"><button id="ttCut" class="grow" data-momentary="1">CUT (HOLD)</button><button id="ttCue" class="grow">TO CUE</button><button id="ttSetCue" class="grow">SET CUE</button></div>
+      <div class="seg" id="padMode"><button data-m="cue">HOT CUES</button><button data-m="loop">AUTO LOOP</button><button data-m="roll">ROLL</button></div>
+      <div class="ppads" id="ppads"></div>
+      <div class="lrow"><button id="lpIn">IN</button><button id="lpOut">OUT</button><button id="lpExit">RELOOP</button><button id="lpHalf">½</button><button id="lpDbl">×2</button></div>
+      <div class="row"><button id="ttCut" class="grow" data-momentary="1">CUT (HOLD)</button><button id="ppDel" class="grow">DELETE CUE</button></div>
       <div class="row"><button id="ttLoad" class="grow">LOAD RECORD</button><span class="badge" id="ttName">No record</span></div>
       <input type="file" id="ttFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
       <div class="tt-midi">
@@ -465,7 +505,13 @@ html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6p
         <div class="ctl"><label class="label" for="ttTpr">Steps / turn</label><input id="ttTpr" type="range" min="8" max="4096" step="1"><span class="v mono"></span></div>
         <div class="status" id="ttExtStatus">Put the DN-S3700 in MIDI mode, connect it by USB, Connect MIDI in Setup, then tap Learn platter.</div>
       </div>
-      <p class="hint">Load a file onto the record, press Start, then put your finger on the record and push it back and forth to scratch. Hold Cut to chop the sound. To scratch from your MPC: Setup → MIDI learn, tap the platter, then turn a knob.</p>
+    </div>
+    <div class="card mixdj">
+      <h2>Mixer</h2>
+      <div class="mx"><div class="mxch" id="mxch0"></div><div class="mxch" id="mxch1"></div></div>
+      <div class="xfrow"><b>1</b><input id="xf" class="xfader" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Crossfader"><b>2</b></div>
+      <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev" class="nolearn">REV (HAMSTER)</button></div>
+      <p class="hint">Map a knob to the crossfader with MIDI learn (tap the crossfader while learning). On the Scratch curve the sound is fully on just past the edge, for cuts and transforms.</p>
     </div>
   </section>
 
@@ -851,15 +897,37 @@ html.retro .tt-row button.on::after{content:"";display:block;width:6px;height:6p
       </ul>
     </details>
 
-    <details id="h-wheel"><summary>The Wheel of Steel (turntable)</summary>
-      <p>The <b>Wheel</b> tab is a direct-drive turntable in the style of the Technics SL-1200 MK2.</p>
+    <details id="h-wheel"><summary>The Wheel of Steel (two decks, DJ mixer)</summary>
+      <p>The <b>Wheel</b> tab is a two-deck DJ setup in the style of Serato DJ, with turntables in the style of the Technics SL-1200 MK2. <b>DECK 1 / DECK 2</b> chooses which deck the turntable and buttons below control; both decks always show in the waveforms at the top.</p>
+      <h3>Waveforms</h3>
       <ul>
-        <li><b>Load record</b> puts any WAV, AIFF, MP3, FLAC or OGG file (up to 10 minutes) on the platter. It's kept for next time.</li>
-        <li><b>Start · Stop</b>: the motor gets to speed in about 0.7 s and brakes in about half that, like the real thing. <b>33</b> and <b>45</b> set the speed; <b>Pitch</b> is ±8 %.</li>
-        <li><b>Scratch</b>: put your finger on the record and push it back and forth. Let go and the motor pulls it back to speed. <b>Cut</b> mutes the sound while you hold it, for chops and transforms. <b>Set cue</b> marks a spot and <b>To cue</b> jumps back to it.</li>
-        <li><b>From your MPC</b>: Setup → MIDI learn, tap the platter, then turn a knob. That knob now scratches: turning it moves the record (full travel is two turns), and when it stops the motor takes over again. Map a pad to <b>Cut</b> and it works as a hold switch: pad down cuts, pad up opens. Start, 33/45 and Pitch can be mapped too.</li>
-        <li><b>MIDI platter</b> (Denon DN-S3700 or any jog wheel): put the DN-S3700 in MIDI mode, connect it by USB and choose it in Setup → MIDI. On the Wheel tab tap <b>Learn platter</b>, start the DN-S3700's platter (motor on, 33 RPM) and let it spin for 3 seconds. The app works out which message the platter sends and how many steps make one turn, then turns on <b>Platter control</b>: the record now follows your platter exactly, one real turn is one turn on screen, it stops when you stop it and scratches when you scratch it. <b>REV</b> flips the direction; <b>Steps / turn</b> fine-tunes the speed. Map the DN-S3700's Play, Cue and pitch with MIDI learn as usual.</li>
-        <li>The deck plays into the master, so the master EQ and limiter apply.</li>
+        <li>Each deck has a scrolling waveform (6 seconds around the playhead) coloured like Serato's: red for lows, green for mids, blue for highs, with the beat grid (bright lines on every bar) and hot cues and loops marked. Under it, the whole-track overview shows where you are.</li>
+        <li>BPM and the first beat are detected when you load a track. The readout shows the BPM as played (with pitch) and time remaining.</li>
+      </ul>
+      <h3>Deck controls</h3>
+      <ul>
+        <li><b>Start · Stop</b>, <b>33/45</b>, <b>Pitch</b> with range <b>±8 / ±16 / ±50 %</b>, and <b>Nudge</b> (hold to push the deck 4 % faster or slower for a moment).</li>
+        <li><b>CUE</b>: while stopped, sets the cue point where the record is; while playing, jumps back to it and stops.</li>
+        <li><b>SYNC</b> matches this deck's tempo to the other deck and lines up the beats. While Sync is lit, it follows tempo changes on the other deck. Touch the pitch to drop out of Sync.</li>
+        <li><b>SLIP</b>: scratches, loops and the like play over the top while the track keeps running underneath; when you let go it carries on from where it would have been.</li>
+        <li><b>CENSOR</b> (hold): plays backwards, then drops back in where the track would have been.</li>
+        <li><b>Performance pads</b>: <b>HOT CUES</b> (8 coloured cues: tap an empty pad to set, a lit one to jump; Delete cue then a pad clears it), <b>AUTO LOOP</b> (1/8 to 16 beats, starting on the beat; tap again to exit) and <b>ROLL</b> (1/32 to 4 beats while held; the track picks up where it would have been).</li>
+        <li><b>Loops</b>: IN and OUT set a loop by hand; RELOOP/EXIT, ½ and ×2.</li>
+        <li><b>Cut (hold)</b> mutes the deck while held.</li>
+        <li>Scratch by putting your finger on the record. <b>Load record</b> loads a track (up to 15 minutes) onto the deck on screen; each deck keeps its track.</li>
+      </ul>
+      <h3>Mixer and crossfader</h3>
+      <ul>
+        <li>Each channel has HI, MID and LOW (down to KILL), a FILTER knob (left = low-pass, right = high-pass, middle = off) and a channel fader.</li>
+        <li>The <b>crossfader</b> has three curves: <b>Scratch</b> (sharp cut: fully open a hair past the edge, for cuts and transforms), Smooth (for mixing) and Linear. <b>REV</b> flips it (hamster style). It reacts in about 1–2 ms, fast enough for cuts.</li>
+        <li>To cut from your MPC or another controller: Setup → MIDI learn, tap the crossfader, move a knob or fader on the controller, Done.</li>
+      </ul>
+      <h3>MIDI</h3>
+      <ul>
+        <li>Everything here can be MIDI-learned: the crossfader, channel faders and EQ knobs, Start, CUE, SYNC, SLIP, the 8 pads (they work as hold buttons for rolls), Censor, Nudge and Cut. Buttons act on the deck on screen; map DECK 1 / DECK 2 to switch.</li>
+        <li><b>MIDI platter</b> (Denon DN-S3700 or any jog wheel), per deck: put the DN-S3700 in MIDI mode and choose it in Setup → MIDI. Pick the deck, tap <b>Learn platter</b>, start the DN-S3700's platter (motor on, 33 RPM) and let it spin for 3 seconds. The app works out which message the platter sends and how many steps make one turn, then turns on <b>Platter control</b>: the record follows your platter exactly, one real turn is one turn on screen. <b>REV</b> flips the direction; <b>Steps / turn</b> fine-tunes the speed.</li>
+        <li>A MIDI knob mapped to the platter (tap the platter while learning) also scratches: full knob travel is two turns.</li>
+        <li>Both decks play into the master, so the master EQ, CLIP lights and limiter apply.</li>
       </ul>
     </details>
 
@@ -1508,16 +1576,6 @@ const MEQ_BANDS = [{type:'highpass', f:10, q:.7}, {type:'lowshelf', f:80, key:'g
   {type:'peaking', f:1200, q:.9, key:'g1k'}, {type:'peaking', f:3000, q:.9, key:'g3k'}, {type:'peaking', f:6000, q:.9, key:'g6k'}, {type:'highshelf', f:12000, key:'g12k'}];
 const MATCH_F = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
 function masterEq(){ const M = S.master, E = M.eq || (M.eq = {}), d = {lowcut:0, g80:0, g200:0, g500:0, g1k:0, g3k:0, g6k:0, g12k:0, amount:.7, match:null}; for (const k in d) if (E[k] === undefined) E[k] = d[k]; return E; }
-function fft(re, im){
-  const n = re.length;
-  for (let i = 1, j = 0; i < n; i++){ let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j){ [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
-  for (let len = 2; len <= n; len <<= 1){
-    const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
-    for (let i = 0; i < n; i += len){ let cr = 1, ci = 0;
-      for (let k = 0; k < len / 2; k++){ const u = i + k, v = u + len / 2, tr = re[v] * cr - im[v] * ci, ti = re[v] * ci + im[v] * cr;
-        re[v] = re[u] - tr; im[v] = im[u] - ti; re[u] += tr; im[u] += ti; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } }
-  }
-}
 // long-term average spectrum in 1/3-octave bands (dB), from the loudest 60 s of a buffer
 async function bandSpectrum(buf){
   const sr = buf.sampleRate, N = 4096, hop = 2048, chs = [...Array(buf.numberOfChannels)].map((_, k) => buf.getChannelData(k));
@@ -2770,31 +2828,40 @@ registerProcessor('mxr113', MXR113);
 class Deck extends AudioWorkletProcessor{
   constructor(){
     super(); this.ch = null; this.sr = 44100; this.len = 0; this.pos = 0; this.rate = 0;
-    this.motor = false; this.pitch = 1; this.speed = 1; this.cut = 1; this.cutG = 1; this.vol = .9;
+    this.motor = false; this.pitch = 1; this.speed = 1; this.cut = 1; this.cutG = 1; this.vol = .9; this.nudge = 1;
     this.hand = false; this.tgt = 0; this.t1 = 0; this.rep = 0;
+    // loops, rolls, censor and slip: sp is the "shadow" position that keeps playing underneath
+    this.la = -1; this.lb = -1; this.roll = false; this.censor = false; this.slip = false; this.sp = 0;
     this.port.onmessage = e => { const d = e.data;
-      if (d.type === 'load'){ this.ch = d.ch; this.sr = d.sr; this.len = d.ch[0].length; this.pos = this.tgt = this.t1 = 0; this.rate = 0; }
+      if (d.type === 'load'){ this.ch = d.ch; this.sr = d.sr; this.len = d.ch[0].length; this.pos = this.tgt = this.t1 = this.sp = 0; this.rate = 0; this.la = this.lb = -1; }
       else if (d.type === 'set') Object.assign(this, d.v);
-      else if (d.type === 'hand'){ this.hand = d.on; if (d.on) this.tgt = this.t1 = this.pos; }
+      else if (d.type === 'hand'){ this.hand = d.on; if (d.on) this.tgt = this.t1 = this.pos; else if (this.slip) this.back(); }
       else if (d.type === 'move') this.tgt = Math.max(0, Math.min(this.len - 2, this.tgt + d.d * this.sr));
-      else if (d.type === 'seek'){ this.pos = this.tgt = this.t1 = Math.max(0, Math.min(this.len - 2, d.s * this.sr)); } };
+      else if (d.type === 'seek'){ this.pos = this.tgt = this.t1 = this.sp = Math.max(0, Math.min(this.len - 2, d.s * this.sr)); }
+      else if (d.type === 'loop'){ if (d.off){ const wasSlip = this.slip && this.la >= 0; this.la = this.lb = -1; if (wasSlip) this.back(); } else { this.la = d.a * this.sr; this.lb = d.b * this.sr; if (this.pos > this.lb || this.pos < this.la) this.pos = this.la; } }
+      else if (d.type === 'roll'){ if (d.on){ this.sp = this.pos; this.roll = true; this.la = d.a * this.sr; this.lb = d.b * this.sr; this.pos = this.la; } else { this.roll = false; this.la = this.lb = -1; this.back(); } }
+      else if (d.type === 'censor'){ if (d.on){ this.sp = this.pos; this.censor = true; } else { this.censor = false; this.back(); } } };
   }
+  back(){ this.pos = this.tgt = this.t1 = Math.max(0, Math.min(this.len - 2, this.sp)); }
   process(ins, outs){
     const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length;
     if (!this.ch){ L.fill(0); if (R !== L) R.fill(0); return true; }
-    const k = this.sr / sampleRate, want = this.motor ? this.speed * this.pitch * k : 0;
+    const k = this.sr / sampleRate, want = this.motor ? this.speed * this.pitch * this.nudge * k : 0;
     const acc = 1 - Math.exp(-1 / (.17 * sampleRate)), brk = 1 - Math.exp(-1 / (.09 * sampleRate)), fol = 1 - Math.exp(-1 / ((this.smooth || .006) * sampleRate));
-    const a = this.ch[0], b = this.ch[1] || a, n = this.len;
+    const a = this.ch[0], b = this.ch[1] || a, n = this.len, looping = this.la >= 0;
+    const event = this.hand || this.censor || this.roll || (looping && this.slip), keepShadow = this.censor || this.roll || this.slip;
     for (let i = 0; i < N; i++){
       if (this.hand){ this.t1 += (this.tgt - this.t1) * fol; const np = this.pos + (this.t1 - this.pos) * fol; this.rate = np - this.pos; this.pos = np; }
-      else { this.rate += (want - this.rate) * (Math.abs(want) >= Math.abs(this.rate) ? acc : brk); this.pos += this.rate; }
+      else { const w = this.censor ? -want : want; this.rate += (w - this.rate) * (Math.abs(w) >= Math.abs(this.rate) && Math.sign(w) === Math.sign(this.rate || w) ? acc : brk * 3); this.pos += this.rate; }
+      if (looping && this.rate > 0 && this.pos >= this.lb) this.pos -= (this.lb - this.la);
+      if (event && keepShadow) this.sp += want; else if (!event) this.sp = this.pos;
       if (this.pos < 0){ this.pos = 0; this.rate = 0; } else if (this.pos > n - 2){ this.pos = n - 2; this.rate = 0; }
       const i0 = this.pos | 0, f = this.pos - i0;
       this.cutG += (this.cut - this.cutG) * .03;
       const g = this.cutG * this.vol;
       L[i] = (a[i0] + (a[i0 + 1] - a[i0]) * f) * g; R[i] = (b[i0] + (b[i0 + 1] - b[i0]) * f) * g;
     }
-    if (++this.rep % 4 === 0) this.port.postMessage({pos:this.pos / this.sr, rate:this.rate / k, end:this.pos >= n - 2});
+    if (++this.rep % 4 === 0) this.port.postMessage({pos:this.pos / this.sr, rate:this.rate / k, sp:this.sp / this.sr});
     return true;
   }
 }
@@ -4015,27 +4082,160 @@ async function matchMix(){
     void keep;
   } catch (e){ console.warn(e); if (E.match && !E.match.gains) E.match.gains = keep; $('#matchStatus').textContent = 'Could not analyse the mix.'; }
 }
-/* ================= the Wheel of Steel ================= */
-const deck = {node:null, gain:null, buf:null, pos:0, rate:0, at:0, hand:false, ang0:0, midiV:null, midiT:0, cue:0, loading:false};
-function deckState(){ return S.deck = Object.assign({name:'', pitch:0, speed:33, vol:.9, cue:0, on:false}, S.deck); }
-function deckEnsure(){
-  ensureAudio(); if (deck.node || !ctx._reduxOK) return deck.node;
-  deck.node = new AudioWorkletNode(ctx, 'deck', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
-  deck.gain = ctx.createGain(); deck.node.connect(deck.gain).connect(live.master.bus);
-  deck.node.port.onmessage = e => { deck.pos = e.data.pos; deck.rate = e.data.rate; deck.at = performance.now(); };
-  deckSet(); if (deck.buf) deckSend(deck.buf);
-  return deck.node;
+/* ================= the Wheel of Steel: two decks, Serato-style ================= */
+const mkDeck = i => ({i, node:null, buf:null, pos:0, rate:0, sp:0, at:0, hand:false, midiV:null, midiT:0, loading:false, wave:null, ovImg:null, platLast:null, ch:null});
+const decks = [mkDeck(0), mkDeck(1)];
+let deck = decks[0], curDeck = 0, padMode = 'cue', padDel = false;
+const CUE_COL = ['#e0302a', '#ff8a1e', '#e8d21c', '#3fd36b', '#25c9d6', '#3a7bff', '#a24dff', '#ff4fc0'];
+function deckState(i = curDeck){
+  if (!S.decks){ S.decks = [S.deck || {}, {}]; delete S.deck; }
+  const D = S.decks[i] || (S.decks[i] = {}), d = {name:'', pitch:0, speed:33, vol:.9, cue:0, on:false, range:8, cues:[], bpm:0, off:0, sync:false, slip:false, loop:null};
+  for (const k in d) if (D[k] === undefined) D[k] = d[k];
+  return D;
 }
-function deckSet(){ const D = deckState(); if (!deck.node) return;
-  deck.node.port.postMessage({type:'set', v:{motor:!!D.on, pitch:1 + D.pitch / 100, speed:D.speed === 45 ? 1.35 : 1, vol:D.vol, smooth:D.ext && D.ext.on ? .014 : .006}}); }
-function deckSend(buf){ const ch = [...Array(Math.min(2, buf.numberOfChannels))].map((_, k) => buf.getChannelData(k).slice()); deck.node.port.postMessage({type:'load', ch, sr:buf.sampleRate}); }
-async function deckLoadSaved(){
-  const D = deckState(); if (deck.buf || deck.loading || !D.name) return; deck.loading = true;
-  try { const a = await DB.get('audio', 'deck:rec'); if (a){ deck.buf = makeBuffer(a.ch, a.sr); if (deck.node) deckSend(deck.buf); } } catch(e){}
-  deck.loading = false; renderDeck();
+function mixState(){ const M = S.mix || (S.mix = {}), d = {xf:0, curve:'scratch', rev:false, ch:[{vol:.85, hi:0, mid:0, lo:0, filt:0}, {vol:.85, hi:0, mid:0, lo:0, filt:0}]}; for (const k in d) if (M[k] === undefined) M[k] = d[k]; return M; }
+// channel strip: EQ (kill-style), filter, fader, crossfader side
+function deckChain(d){
+  const c = ctx, ch = {};
+  ch.hi = c.createBiquadFilter(); ch.hi.type = 'highshelf'; ch.hi.frequency.value = 2500;
+  ch.mid = c.createBiquadFilter(); ch.mid.type = 'peaking'; ch.mid.frequency.value = 1000; ch.mid.Q.value = .7;
+  ch.lo = c.createBiquadFilter(); ch.lo.type = 'lowshelf'; ch.lo.frequency.value = 250;
+  ch.flt = c.createBiquadFilter(); ch.flt.type = 'allpass';
+  ch.fad = c.createGain(); ch.xf = c.createGain(); ch.an = c.createAnalyser(); ch.an.fftSize = 512;
+  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi).connect(ch.flt).connect(ch.fad).connect(ch.xf).connect(live.master.bus);
+  ch.xf.connect(ch.an);
+  d.ch = ch; applyMix();
 }
-const revSec = () => 60 / (deckState().speed === 45 ? 45 : 33.333);
-function deckAngle(){ const el = (performance.now() - deck.at) / 1000; return (deck.pos + (deck.hand ? 0 : deck.rate * el)) / revSec() * 2 * Math.PI; }
+function xfGains(x, curve){
+  const t = (x + 1) / 2;                                  // 0 = full deck 1, 1 = full deck 2
+  if (curve === 'smooth') return [Math.cos(t * Math.PI / 2), Math.sin(t * Math.PI / 2)];
+  if (curve === 'linear') return [Math.min(1, 2 * (1 - t)), Math.min(1, 2 * t)];
+  const cut = .04;                                        // scratch: fully open a hair past the edge
+  return [clamp((1 - t) / cut, 0, 1), clamp(t / cut, 0, 1)];
+}
+function applyMix(){
+  const M = mixState(); if (!ctx) return;
+  let [ga, gb] = xfGains(M.xf, M.curve); if (M.rev) [ga, gb] = [gb, ga];
+  const now = ctx.currentTime;
+  decks.forEach((d, i) => { const ch = d.ch; if (!ch) return; const C = M.ch[i];
+    ch.xf.gain.setTargetAtTime(i ? gb : ga, now, .0015);          // fast enough for cuts
+    ch.fad.gain.setTargetAtTime(C.vol * C.vol * 1.25, now, .004);
+    ch.hi.gain.setTargetAtTime(C.hi, now, .01); ch.mid.gain.setTargetAtTime(C.mid, now, .01); ch.lo.gain.setTargetAtTime(C.lo, now, .01);
+    const f = C.filt;
+    if (Math.abs(f) < .03) ch.flt.type = 'allpass';
+    else if (f < 0){ ch.flt.type = 'lowpass'; ch.flt.frequency.setTargetAtTime(20000 * Math.pow(100 / 20000, -f), now, .01); ch.flt.Q.value = 1.2; }
+    else { ch.flt.type = 'highpass'; ch.flt.frequency.setTargetAtTime(20 * Math.pow(8000 / 20, f), now, .01); ch.flt.Q.value = 1.2; }
+  });
+}
+function deckEnsure(d = deck){
+  ensureAudio(); if (d.node || !ctx._reduxOK) return d.node;
+  d.node = new AudioWorkletNode(ctx, 'deck', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
+  d.node.port.onmessage = e => { d.pos = e.data.pos; d.rate = e.data.rate; d.sp = e.data.sp; d.at = performance.now(); };
+  deckChain(d); deckSet(d); if (d.buf) deckSend(d.buf, d);
+  return d.node;
+}
+function deckSet(d = deck){ const D = deckState(d.i); if (!d.node) return;
+  d.node.port.postMessage({type:'set', v:{motor:!!D.on, pitch:1 + D.pitch / 100, speed:D.speed === 45 ? 1.35 : 1, vol:D.vol, slip:!!D.slip, smooth:D.ext && D.ext.on ? .014 : .006}}); }
+function deckSend(buf, d = deck){ const ch = [...Array(Math.min(2, buf.numberOfChannels))].map((_, k) => buf.getChannelData(k).slice()); d.node.port.postMessage({type:'load', ch, sr:buf.sampleRate});
+  const L = deckState(d.i).loop; if (L) d.node.port.postMessage({type:'loop', a:L.a, b:L.b}); }
+const recKey = i => i ? 'deck:rec' + i : 'deck:rec';
+async function deckLoadSaved(d){
+  const D = deckState(d.i); if (d.buf || d.loading || !D.name) return; d.loading = true;
+  try { const a = await DB.get('audio', recKey(d.i)); if (a){ d.buf = makeBuffer(a.ch, a.sr); trackAnalyse(d); if (d.node) deckSend(d.buf, d); } } catch(e){}
+  d.loading = false; renderDeck();
+}
+const revSec = (i = curDeck) => 60 / (deckState(i).speed === 45 ? 45 : 33.333);
+function livePos(d){ const el = (performance.now() - d.at) / 1000; return d.pos + (d.hand ? 0 : d.rate * el); }
+function deckAngle(d = deck){ return livePos(d) / revSec(d.i) * 2 * Math.PI; }
+const bpmNow = i => { const D = deckState(i); return D.bpm ? D.bpm * (1 + D.pitch / 100) * (D.speed === 45 ? 1.35 : 1) : 0; };
+const beatLen = i => 60 / (deckState(i).bpm || 120);
+
+/* track analysis: Serato-style three-band waveform (lows red, mids green, highs blue) and BPM + first beat */
+function trackAnalyse(d){
+  const buf = d.buf, sr = buf.sampleRate, n = buf.length, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
+  const fps = 100, hop = Math.round(sr / fps), F = Math.floor(n / hop), lo = new Float32Array(F), mid = new Float32Array(F), hi = new Float32Array(F), flux = new Float32Array(F);
+  const al = 1 - Math.exp(-2 * Math.PI * 200 / sr), ah = 1 - Math.exp(-2 * Math.PI * 2500 / sr);
+  let l1 = 0, h1 = 0, prevE = 0;
+  for (let f = 0; f < F; f++){
+    let ml = 0, mm = 0, mh = 0, e = 0;
+    for (let i = f * hop, j = i + hop; i < j; i++){
+      const x = (a[i] + b[i]) * .5; l1 += al * (x - l1); h1 += ah * (x - h1);
+      const vl = Math.abs(l1), vh = Math.abs(x - h1), vm = Math.abs(h1 - l1);
+      if (vl > ml) ml = vl; if (vm > mm) mm = vm; if (vh > mh) mh = vh; e += l1 * l1 + (x - h1) * (x - h1) * 4;
+    }
+    lo[f] = ml; mid[f] = mm; hi[f] = mh; const E = Math.log1p(e * 50); flux[f] = Math.max(0, E - prevE); prevE = E;
+  }
+  d.wave = {lo, mid, hi, fps, F}; d.ovImg = null;
+  // tempo: autocorrelation of the onset curve over 70-180 BPM, folded into 85-170
+  const D = deckState(d.i);
+  if (!D.bpmLocked){
+    const N = Math.min(F, fps * 90), s0 = Math.max(0, Math.floor((F - N) / 2)), on = flux.subarray(s0, s0 + N);
+    let mean = 0; for (const v of on) mean += v; mean /= N;
+    const ac = lag => { let s = 0; for (let i = 0; i + lag < N; i++) s += (on[i] - mean) * (on[i + lag] - mean); return s; };
+    let best = 0, bestLag = 50;
+    for (let lag = Math.floor(fps * 60 / 180); lag <= Math.ceil(fps * 60 / 70); lag++){ const v = ac(lag) + .5 * ac(lag * 2); if (v > best){ best = v; bestLag = lag; } }
+    const y0 = ac(bestLag - 1), y1 = ac(bestLag), y2 = ac(bestLag + 1), sh = (y0 - y2) / (2 * (y0 - 2 * y1 + y2) || 1);
+    let bpm = 60 * fps / (bestLag + clamp(sh, -.5, .5));
+    while (bpm < 85) bpm *= 2; while (bpm > 170) bpm /= 2;
+    // fine-tune: the tempo and phase whose grid lands on the most onsets over the first two minutes
+    const G = Math.min(F, fps * 120), score = (bp, o) => { const bl = fps * 60 / bp; let sc = 0; for (let x = o; x < G; x += bl){ const xi = Math.round(x); sc += Math.max(flux[xi] || 0, (flux[xi - 1] || 0) * .5, (flux[xi + 1] || 0) * .5); } return sc; };
+    let bb = bpm, bo = 0, bs = -1;
+    for (let bp = bpm - 1.2; bp <= bpm + 1.2; bp += .05){ const bl = fps * 60 / bp; for (let o = 0; o < bl; o += 1){ const sc = score(bp, o); if (sc > bs){ bs = sc; bb = bp; bo = o; } } }
+    for (let o = Math.max(0, bo - 1); o <= bo + 1; o += .25){ const sc = score(bb, o); if (sc > bs){ bs = sc; bo = o; } }
+    D.bpm = Math.round(bb * 10) / 10; D.off = bo / fps;
+  }
+}
+function drawOverview(d, w, h){
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d'), W = d.wave; if (!W) return cv;
+  g.globalCompositeOperation = 'lighter';
+  for (let x = 0; x < w; x++){
+    const f0 = Math.floor(x / w * W.F), f1 = Math.max(f0 + 1, Math.floor((x + 1) / w * W.F)); let l = 0, m = 0, hh = 0;
+    for (let f = f0; f < f1; f++){ l = Math.max(l, W.lo[f]); m = Math.max(m, W.mid[f]); hh = Math.max(hh, W.hi[f]); }
+    for (const [v, col] of [[l, '#e0302a'], [m, '#2fd36b'], [hh, '#3a8bff']]){ const y = Math.min(1, v * 1.4) * h / 2; g.fillStyle = col; g.fillRect(x, h / 2 - y, 1, y * 2); }
+  }
+  return cv;
+}
+function drawWaves(){
+  const cv = $('#wvCv'); if (!cv || view !== 'deck') return;
+  const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w) return;
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; decks.forEach(d => d.ovImg = null); }
+  const g = cv.getContext('2d'); g.fillStyle = '#050607'; g.fillRect(0, 0, w, h);
+  const laneH = Math.round(h * .36), ovH = Math.round(h * .1), win = 6;
+  decks.forEach((d, i) => {
+    const top = i * (laneH + ovH + Math.round(h * .04)), D = deckState(i), W = d.wave, pos = livePos(d), mid = top + laneH / 2;
+    g.fillStyle = i === curDeck ? '#0d1014' : '#08090b'; g.fillRect(0, top, w, laneH);
+    if (W){
+      const sc = laneH / 2 - 2 * dpr;
+      g.globalCompositeOperation = 'lighter';
+      for (let x = 0; x < w; x += dpr){
+        const t = pos + (x / w - .5) * win, f = Math.floor(t * W.fps); if (f < 0 || f >= W.F) continue;
+        for (const [arr, col] of [[W.lo, '#e0302a'], [W.mid, '#2fd36b'], [W.hi, '#3a8bff']]){ const y = Math.min(1, arr[f] * 1.4) * sc; g.fillStyle = col; g.fillRect(x, mid - y, dpr, y * 2); }
+      }
+      g.globalCompositeOperation = 'source-over';
+      // beat grid
+      if (D.bpm){ const bl = 60 / D.bpm, k0 = Math.ceil((pos - win / 2 - D.off) / bl), k1 = Math.floor((pos + win / 2 - D.off) / bl);
+        for (let k = k0; k <= k1; k++){ const x = ((D.off + k * bl - pos) / win + .5) * w; g.fillStyle = k % 4 === 0 ? '#ffffffaa' : '#ffffff40'; g.fillRect(x, top, k % 4 === 0 ? 2 * dpr : dpr, laneH); } }
+      // loop region
+      if (D.loop){ const x0 = ((D.loop.a - pos) / win + .5) * w, x1 = ((D.loop.b - pos) / win + .5) * w; g.fillStyle = '#2fd36b33'; g.fillRect(x0, top, x1 - x0, laneH); }
+      // hot cues
+      D.cues.forEach((c, k) => { if (c == null) return; const x = ((c - pos) / win + .5) * w; if (x < -10 || x > w + 10) return;
+        g.fillStyle = CUE_COL[k]; g.fillRect(x, top, 2 * dpr, laneH); g.beginPath(); g.moveTo(x, top); g.lineTo(x + 8 * dpr, top); g.lineTo(x, top + 8 * dpr); g.fill(); });
+    }
+    // playhead and readouts
+    g.fillStyle = '#fff'; g.fillRect(w / 2 - dpr, top, 2 * dpr, laneH);
+    g.font = `${10 * dpr}px Michroma, sans-serif`; g.textBaseline = 'top';
+    g.fillStyle = i ? '#46a6ff' : '#ff8a3d'; g.fillText(String(i + 1), 4 * dpr, top + 3 * dpr);
+    g.fillStyle = '#fff'; const bp = bpmNow(i); g.fillText(bp ? bp.toFixed(1) + ' BPM' : '—', 18 * dpr, top + 3 * dpr);
+    if (d.buf){ const rem = Math.max(0, d.buf.duration - pos), mm = Math.floor(rem / 60), ss = (rem % 60).toFixed(1).padStart(4, '0'); g.textAlign = 'right'; g.fillText('-' + mm + ':' + ss, w - 4 * dpr, top + 3 * dpr); g.textAlign = 'left'; }
+    if (D.sync){ g.fillStyle = '#46a6ff'; g.fillText('SYNC', w * .5 + 6 * dpr, top + 3 * dpr); }
+    // overview
+    const oy = top + laneH + 2 * dpr;
+    if (d.wave){ if (!d.ovImg) d.ovImg = drawOverview(d, w, ovH); g.drawImage(d.ovImg, 0, oy); }
+    else { g.fillStyle = '#ffffff22'; g.fillRect(0, oy + ovH / 2, w, dpr); }
+    if (d.buf){ const x = pos / d.buf.duration * w; g.fillStyle = '#ffffff55'; g.fillRect(0, oy, x, ovH); g.fillStyle = '#fff'; g.fillRect(x, oy, 2 * dpr, ovH);
+      D.cues.forEach((c, k) => { if (c == null) return; g.fillStyle = CUE_COL[k]; g.fillRect(c / d.buf.duration * w, oy, 2 * dpr, ovH); }); }
+  });
+}
 function drawDeck(){
   const cv = $('#ttCv'); if (!cv || view !== 'deck') return;
   const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w) return;
@@ -4109,34 +4309,118 @@ function drawDeck(){
   g.fillStyle = '#ffffffaa'; g.font = `${Math.round(9 * dpr)}px Michroma, sans-serif`; g.textAlign = 'left';
   g.fillText((D.pitch >= 0 ? '+' : '') + D.pitch.toFixed(1) + '%', w * .1, h * .95);
 }
+/* ---- controls ---- */
+function deckHand(on, d = deck){ if (!deckEnsure(d)) return; d.hand = on; d.node.port.postMessage({type:'hand', on}); }
+function seekTo(d, t){ if (!deckEnsure(d)) return; d.pos = Math.max(0, t); d.at = performance.now(); d.node.port.postMessage({type:'seek', s:d.pos}); }
+const floorBeat = (i, t, beats = 1) => { const D = deckState(i); if (!D.bpm) return t; const bl = 60 / D.bpm * beats; return D.off + Math.floor((t - D.off) / bl + 1e-6) * bl; };
+function setLoop(i, a, b){
+  const D = deckState(i), d = decks[i];
+  if (D.loop) D.lastLoop = D.loop;
+  D.loop = a != null && b > a ? {a, b} : null;
+  if (deckEnsure(d)) d.node.port.postMessage(D.loop ? {type:'loop', a, b} : {type:'loop', off:true});
+  save(); renderPPads();
+}
+const LOOP_BEATS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8, 16], ROLL_BEATS = [1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 4];
+const beatLabel = b => b < 1 ? '1/' + Math.round(1 / b) : String(b);
+function ppDown(k){
+  const i = curDeck, d = deck, D = deckState(i); if (!d.buf){ toast('Load a record first.'); return; }
+  const pos = livePos(d), bl = beatLen(i);
+  if (padMode === 'cue'){
+    if (padDel){ D.cues[k] = null; padDel = false; }
+    else if (D.cues[k] == null) D.cues[k] = pos;
+    else seekTo(d, D.cues[k]);
+    save(); renderPPads(); return;
+  }
+  if (padMode === 'loop'){
+    const len = LOOP_BEATS[k] * bl;
+    if (D.loop && Math.abs((D.loop.b - D.loop.a) - len) < 1e-3) setLoop(i, null);
+    else { const a = D.bpm ? floorBeat(i, pos, Math.min(1, LOOP_BEATS[k])) : pos; setLoop(i, a, a + len); }
+    return;
+  }
+  // roll: loops while held, the track keeps running underneath and picks up where it would have been
+  const len = ROLL_BEATS[k] * bl, a = D.bpm ? floorBeat(i, pos, ROLL_BEATS[k]) : pos;
+  if (deckEnsure(d)) d.node.port.postMessage({type:'roll', on:true, a, b:a + len});
+  d.rolling = k; renderPPads();
+}
+function ppUp(k){ const d = deck; if (padMode === 'roll' && d.rolling === k){ d.node.port.postMessage({type:'roll', on:false}); d.rolling = null; renderPPads(); } }
+function renderPPads(){
+  const D = deckState(), box = $('#ppads'); if (!box) return;
+  document.querySelectorAll('#padMode button').forEach(b => b.classList.toggle('on', b.dataset.m === padMode));
+  [...box.children].forEach((b, k) => {
+    let txt = '', bg = '';
+    if (padMode === 'cue'){ const c = D.cues[k]; txt = c == null ? String(k + 1) : (k + 1) + ' · ' + Math.floor(c / 60) + ':' + (c % 60).toFixed(1).padStart(4, '0'); if (c != null) bg = CUE_COL[k]; }
+    else if (padMode === 'loop'){ txt = beatLabel(LOOP_BEATS[k]); if (D.loop && Math.abs((D.loop.b - D.loop.a) - LOOP_BEATS[k] * beatLen(curDeck)) < 1e-3) bg = '#2fa85a'; }
+    else { txt = beatLabel(ROLL_BEATS[k]); if (deck.rolling === k) bg = '#a24dff'; }
+    b.textContent = txt; b.style.background = bg ? `linear-gradient(180deg,${bg},${bg}cc)` : ''; b.classList.toggle('set', !!bg);
+  });
+  $('#ppDel').classList.toggle('on', padDel); $('#ppDel').hidden = padMode !== 'cue';
+  $('#lpExit').classList.toggle('on', !!D.loop); $('#lpExit').textContent = D.loop ? 'EXIT' : 'RELOOP';
+  $('#ttSlip').classList.toggle('on', !!D.slip); $('#ttSync').classList.toggle('on', !!D.sync);
+}
+function doSync(i){
+  const o = 1 - i, D = deckState(i), O = deckState(o);
+  if (!D.bpm || !O.bpm || !decks[o].buf){ toast('Load both decks first (each needs a BPM).'); return false; }
+  const sf = D.speed === 45 ? 1.35 : 1, target = bpmNow(o);
+  let p = (target / (D.bpm * sf) - 1) * 100;
+  if (Math.abs(p) > D.range) D.range = Math.abs(p) > 16 ? 50 : 16;
+  D.pitch = Math.round(clamp(p, -D.range, D.range) * 100) / 100;
+  // line up the beats: move this deck by the phase difference
+  const ph = j => { const J = deckState(j), bl = 60 / J.bpm; return ((((livePos(decks[j]) - J.off) / bl) % 1) + 1) % 1; };
+  let dph = ph(o) - ph(i); if (dph > .5) dph -= 1; if (dph < -.5) dph += 1;
+  if (decks[i].buf) seekTo(decks[i], livePos(decks[i]) + dph * 60 / D.bpm);
+  D.sync = true; deckSet(decks[i]); save(); return true;
+}
+function restepify(inp, fmt){ if (inp._stp){ inp._stp.remove(); inp._stp = null; inp.hidden = false; } stepify(inp, fmt); }
+const pitchFmt = v => (v > 0 ? '+' : '') + (+v).toFixed(Math.abs(v) >= 10 ? 1 : 2) + '%';
 function renderDeck(){
-  const D = deckState(); deckLoadSaved();
+  decks.forEach(d => deckLoadSaved(d));
+  const D = deckState(), i = curDeck;
+  $('#dk0').classList.toggle('on', i === 0); $('#dk1').classList.toggle('on', i === 1);
+  $('#ttSub').textContent = `DECK ${i + 1} · QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE`;
   $('#ttName').textContent = D.name ? D.name.slice(0, 24) : 'No record';
   $('#tt33').classList.toggle('on', D.speed !== 45); $('#tt45').classList.toggle('on', D.speed === 45); $('#ttStart').classList.toggle('on', !!D.on);
-  $('#ttPitch').value = D.pitch; $('#ttVol').value = D.vol;
-  renderPlat();
+  const pi = $('#ttPitch'); pi.min = -D.range; pi.max = D.range; pi.step = D.range > 16 ? .5 : D.range > 8 ? .1 : .05; pi.value = D.pitch;
+  restepify(pi, pitchFmt);
+  $('#ttRange').value = String(D.range); $('#ttVol').value = D.vol;
+  renderPPads(); renderPlat(); renderMixDJ();
 }
-/* MIDI platter: the hardware platter drives the record. Learn listens for a few seconds while the platter spins with its
-   motor on at 33 1/3, finds the message (CC, note or pitch bend) and its encoding (relative around 64, two's complement,
-   or absolute position that wraps), and how many steps make one turn, so one real turn is one turn on screen. */
-const plat = {cap:null, last:null, timer:0};
-function platState(){ const D = deckState(); return D.ext = Object.assign({on:false, status:null, num:null, mode:'rel64', tpr:256, dir:1}, D.ext); }
-function platDecode(E, st, d){
+function renderMixDJ(){
+  const M = mixState();
+  $('#xf').value = M.xf; $('#xfCurve').value = M.curve; $('#xfRev').classList.toggle('on', !!M.rev);
+  [0, 1].forEach(i => {
+    const box = $('#mxch' + i); if (box._built) { box.querySelector('.chfader').value = M.ch[i].vol; return; }
+    box._built = true; box.innerHTML = `<span class="chlab" style="color:${i ? '#46a6ff' : '#ff8a3d'}">${i + 1}</span><div class="knobs"></div><input class="chfader" id="chf${i}" type="range" min="0" max="1" step="0.01" aria-label="Channel ${i + 1} fader">`;
+    const kb = box.querySelector('.knobs'), C = M.ch[i], dB = v => (v > 0 ? '+' : '') + Math.round(v) + ' dB';
+    knob(kb, 'HI', C, 'hi', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
+    knob(kb, 'MID', C, 'mid', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
+    knob(kb, 'LOW', C, 'lo', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
+    knob(kb, 'FILTER', C, 'filt', -1, 1, .05, v => Math.abs(v) < .03 ? 'OFF' : v < 0 ? 'LP ' + Math.round(-v * 100) : 'HP ' + Math.round(v * 100), applyMix, 'white');
+    const f = box.querySelector('.chfader'); f.value = C.vol; f.addEventListener('input', () => { C.vol = +f.value; applyMix(); save(); });
+  });
+}
+/* MIDI platter (per deck): the hardware platter drives the record. Learn listens for a few seconds while the platter spins
+   with its motor on at 33 1/3, finds the message and its encoding, and how many steps make one turn. */
+const plat = {cap:null};
+function platState(i = curDeck){ const D = deckState(i), d = {on:false, status:null, num:null, mode:'rel64', tpr:256, dir:1}; D.ext = D.ext || {}; for (const k in d) if (D.ext[k] === undefined) D.ext[k] = d[k]; return D.ext; }
+function platDecode(E, st, d, h){
   const v = d[2];
-  if (E.mode === 'pb'){ const x = (d[2] << 7) | d[1]; if (E.pbRel) return x - 8192; const l = plat.last; plat.last = x; if (l == null) return 0; let dd = x - l; if (dd > 8192) dd -= 16384; if (dd < -8192) dd += 16384; return dd; }
+  if (E.mode === 'pb'){ const x = (d[2] << 7) | d[1]; if (E.pbRel) return x - 8192; const l = h.last; h.last = x; if (l == null) return 0; let dd = x - l; if (dd > 8192) dd -= 16384; if (dd < -8192) dd += 16384; return dd; }
   if (E.mode === 'rel64') return v - 64;
   if (E.mode === 'rel2c') return v < 64 ? v : v - 128;
-  const l = plat.last; plat.last = v; if (l == null) return 0; let dd = v - l; if (dd > 64) dd -= 128; if (dd < -64) dd += 128; return dd;   // abs7
+  const l = h.last; h.last = v; if (l == null) return 0; let dd = v - l; if (dd > 64) dd -= 128; if (dd < -64) dd += 128; return dd;
 }
 function platMidi(st, d){
   const type = st & 0xF0;
   if (plat.cap){ if (type === 0xB0 || type === 0xE0 || type === 0x90) plat.cap.push([st, d[1], d[2], performance.now()]); return type === 0xB0 || type === 0xE0; }
-  const E = platState(); if (!E.on || E.status == null) return false;
-  if (st !== E.status || (type !== 0xE0 && d[1] !== E.num)) return false;
-  const ticks = platDecode(E, st, d); if (!ticks || !deck.buf) return true;
-  if (!deck.hand){ deckHand(true); deckState().on = false; deckSet(); renderDeck(); }
-  const sec = ticks / E.tpr * E.dir * revSec(); deck.pos = Math.max(0, deck.pos + sec); deck.node.port.postMessage({type:'move', d:sec});
-  return true;
+  for (const dk of decks){
+    const E = deckState(dk.i).ext; if (!E || !E.on || E.status == null) continue;
+    if (st !== E.status || (type !== 0xE0 && d[1] !== E.num)) continue;
+    const ticks = platDecode(E, st, d, dk.plat || (dk.plat = {})); if (!ticks || !dk.buf) return true;
+    if (!dk.hand){ deckHand(true, dk); deckState(dk.i).on = false; deckSet(dk); if (dk === deck) renderDeck(); }
+    const sec = ticks / E.tpr * E.dir * revSec(dk.i); dk.pos = Math.max(0, dk.pos + sec); dk.node.port.postMessage({type:'move', d:sec});
+    return true;
+  }
+  return false;
 }
 function platAnalyse(cap, secs){
   const groups = new Map();
@@ -4144,20 +4428,18 @@ function platAnalyse(cap, secs){
   let best = null; for (const [k, a] of groups) if (!best || a.length > best[1].length) best = [k, a];
   if (!best || best[1].length < 20) return null;
   const [st, n] = best[1][0], type = st & 0xF0, vals = best[1].map(x => x[2]);
-  let mode;
-  if (type === 0xE0){ const xs = best[1].map(x => (x[2] << 7) | x[1]), near = xs.filter(x => Math.abs(x - 8192) < 2048).length / xs.length; mode = 'pb'; var pbRel = near > .8; }
+  let mode, pbRel = false;
+  if (type === 0xE0){ const xs = best[1].map(x => (x[2] << 7) | x[1]); mode = 'pb'; pbRel = xs.filter(x => Math.abs(x - 8192) < 2048).length / xs.length > .8; }
   else {
     const med = vals.slice().sort((a, b) => a - b)[vals.length >> 1], spread = Math.max(...vals) - Math.min(...vals);
     if (med >= 44 && med <= 84 && spread < 40) mode = 'rel64';
     else if ((med < 24 || med > 104) && vals.every(v => v < 32 || v > 96)) mode = 'rel2c';
     else mode = 'abs7';
   }
-  // ticks per second while the motor spins at 33 1/3 -> ticks per turn (1.8 s)
-  const E = {status:st, num:type === 0xE0 ? null : n, mode, pbRel:!!pbRel};
-  plat.last = null; let tot = 0; for (const [s2, n2, v2] of best[1]) tot += platDecode(E, s2, [s2, n2, v2]);
+  const E = {status:st, num:type === 0xE0 ? null : n, mode, pbRel}, h = {};
+  let tot = 0; for (const [s2, n2, v2] of best[1]) tot += platDecode(E, s2, [s2, n2, v2], h);
   if (!tot) return null;
-  const tpr = Math.round(Math.abs(tot) / secs * 1.8);
-  return Object.assign(E, {tpr:Math.max(8, tpr), dir:tot > 0 ? 1 : -1, count:best[1].length});
+  return Object.assign(E, {tpr:Math.max(8, Math.round(Math.abs(tot) / secs * 1.8)), dir:tot > 0 ? 1 : -1, count:best[1].length});
 }
 function renderPlat(){
   const E = platState();
@@ -4165,9 +4447,9 @@ function renderPlat(){
   $('#ttExtBadge').textContent = E.on ? 'Following platter' : E.status == null ? 'Not learned' : 'Learned';
   $('#ttExtBadge').className = 'badge' + (E.on ? ' ok' : '');
   $('#ttTpr').value = E.tpr;
-  if (E.status != null && !plat.cap) $('#ttExtStatus').textContent = `Platter: ${((E.status & 0xF0) === 0xE0 ? 'pitch bend' : ((E.status & 0xF0) === 0x90 ? 'note ' : 'CC ') + E.num)} on channel ${(E.status & 15) + 1}, ${{rel64:'relative (64 = still)', rel2c:'relative (two\'s complement)', abs7:'absolute position', pb:'pitch bend'}[E.mode]}, ${E.tpr} steps per turn.`;
+  if (E.status != null && !plat.cap) $('#ttExtStatus').textContent = `Deck ${curDeck + 1} platter: ${((E.status & 0xF0) === 0xE0 ? 'pitch bend' : ((E.status & 0xF0) === 0x90 ? 'note ' : 'CC ') + E.num)} on channel ${(E.status & 15) + 1}, ${{rel64:'relative (64 = still)', rel2c:"relative (two's complement)", abs7:'absolute position', pb:'pitch bend'}[E.mode]}, ${E.tpr} steps per turn.`;
+  else if (E.status == null && !plat.cap) $('#ttExtStatus').textContent = `Deck ${curDeck + 1}: put the DN-S3700 in MIDI mode, connect it by USB, Connect MIDI in Setup, then tap Learn platter.`;
 }
-function deckHand(on){ if (!deckEnsure()) return; deck.hand = on; deck.node.port.postMessage({type:'hand', on}); }
 (() => {
   const cv = $('#ttCv'); let last = null;
   const angAt = e => { const r = cv.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height * .5), e.clientX - (r.left + r.width * .43)); };
@@ -4180,7 +4462,7 @@ function deckHand(on){ if (!deckEnsure()) return; deck.hand = on; deck.node.port
     deckHand(true); last = angAt(e);
   });
   cv.addEventListener('pointermove', e => { if (last == null) return; const a = angAt(e); let d = a - last; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; last = a;
-    deck.pos = Math.max(0, deck.pos + d / (2 * Math.PI) * revSec()); deck.node && deck.node.port.postMessage({type:'move', d:d / (2 * Math.PI) * revSec()}); });
+    const sec = d / (2 * Math.PI) * revSec(); deck.pos = Math.max(0, deck.pos + sec); deck.node && deck.node.port.postMessage({type:'move', d:sec}); });
   const up = () => { if (last == null) return; last = null; deckHand(false); };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   // MIDI-mapped knob: turning it moves the record (full knob travel = two turns), letting go hands back to the motor
@@ -4188,51 +4470,88 @@ function deckHand(on){ if (!deckEnsure()) return; deck.hand = on; deck.node.port
     if (!deck.buf) return; const v = +e.target.value;
     if (deck.midiV == null || !deck.hand){ deck.midiV = v; deckHand(true); return; }
     const d = (v - deck.midiV) * 2 * revSec(); deck.midiV = v; deck.pos = Math.max(0, deck.pos + d); deck.node.port.postMessage({type:'move', d});
-    clearTimeout(deck.midiT); deck.midiT = setTimeout(() => { deck.midiV = null; deckHand(false); }, 160);
+    clearTimeout(deck.midiT); const dk = deck; deck.midiT = setTimeout(() => { dk.midiV = null; deckHand(false, dk); }, 160);
   });
+  [0, 1].forEach(i => $('#dk' + i).addEventListener('click', () => { curDeck = i; deck = decks[i]; renderDeck(); }));
   $('#ttStart').addEventListener('click', () => { if (!deckEnsure()) return; const D = deckState(); if (!deck.buf){ toast('Load a record first.'); return; } D.on = !D.on; deckSet(); save(); renderDeck(); });
   $('#tt33').addEventListener('click', () => { deckState().speed = 33; deckSet(); save(); renderDeck(); });
   $('#tt45').addEventListener('click', () => { deckState().speed = 45; deckSet(); save(); renderDeck(); });
-  $('#ttPitch').addEventListener('input', e => { deckState().pitch = +e.target.value; deckSet(); save(); });
+  $('#ttPitch').addEventListener('input', e => {
+    const D = deckState(); D.pitch = +e.target.value; D.sync = false; deckSet(); save(); renderPPads();
+    const o = 1 - curDeck; if (deckState(o).sync) doSync(o);           // the synced deck follows the tempo change
+  });
+  $('#ttRange').addEventListener('change', e => { const D = deckState(); D.range = +e.target.value; D.pitch = clamp(D.pitch, -D.range, D.range); deckSet(); save(); renderDeck(); });
   $('#ttVol').addEventListener('input', e => { deckState().vol = +e.target.value; deckSet(); save(); });
-  const cut = on => { if (!deckEnsure()) return; $('#ttCut').classList.toggle('on', on); deck.node.port.postMessage({type:'set', v:{cut:on ? 0 : 1}}); };
-  const cb = $('#ttCut'); cb._down = () => cut(true); cb._up = () => cut(false);
-  cb.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); cut(true); });
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => cb.addEventListener(t, () => { if (cb.classList.contains('on')) cut(false); }));
-  $('#ttSetCue').addEventListener('click', () => { deckState().cue = deck.pos; save(); toast('Cue set at ' + deck.pos.toFixed(2) + ' s.'); });
-  $('#ttCue').addEventListener('click', () => { if (!deckEnsure()) return; deck.pos = deckState().cue || 0; deck.node.port.postMessage({type:'seek', s:deck.pos}); });
+  $('#ttSync').addEventListener('click', () => { const D = deckState(); if (D.sync){ D.sync = false; save(); renderPPads(); return; } if (doSync(curDeck)) renderDeck(); });
+  $('#ttSlip').addEventListener('click', () => { const D = deckState(); D.slip = !D.slip; deckSet(); save(); renderPPads(); });
+  $('#ttCueBtn').addEventListener('click', () => {
+    const D = deckState(); if (!deck.buf) return;
+    if (D.on){ D.on = false; deckSet(); seekTo(deck, D.cue || 0); renderDeck(); }        // playing: back to the cue and stop
+    else { D.cue = livePos(deck); toast('Cue set.'); }                                    // stopped: set the cue here
+    save();
+  });
+  // hold-type buttons: work from the screen and from MIDI pads (down on press, up on release)
+  const hold = (id, down, upf) => { const b = $(id); b._down = () => { b.classList.add('on'); down(); }; b._up = () => { b.classList.remove('on'); upf(); };
+    b.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); b._down(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => { if (b.classList.contains('on')) b._up(); })); };
+  hold('#ttCensor', () => { if (deckEnsure()) deck.node.port.postMessage({type:'censor', on:true}); }, () => deck.node && deck.node.port.postMessage({type:'censor', on:false}));
+  hold('#ttNudgeDn', () => { if (deckEnsure()) deck.node.port.postMessage({type:'set', v:{nudge:.96}}); }, () => deck.node && deck.node.port.postMessage({type:'set', v:{nudge:1}}));
+  hold('#ttNudgeUp', () => { if (deckEnsure()) deck.node.port.postMessage({type:'set', v:{nudge:1.04}}); }, () => deck.node && deck.node.port.postMessage({type:'set', v:{nudge:1}}));
+  hold('#ttCut', () => { if (deckEnsure()) deck.node.port.postMessage({type:'set', v:{cut:0}}); }, () => deck.node && deck.node.port.postMessage({type:'set', v:{cut:1}}));
+  // performance pads
+  const pb = $('#ppads');
+  for (let k = 0; k < 8; k++){
+    const b = document.createElement('button'); b.className = 'ppad'; b.id = 'pp' + k; b.dataset.momentary = '1';
+    b._down = () => { b.classList.add('act'); ppDown(k); }; b._up = () => { b.classList.remove('act'); ppUp(k); };
+    b.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch(_){} b._down(); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => b.addEventListener(t, () => { if (b.classList.contains('act')) b._up(); }));
+    pb.appendChild(b);
+  }
+  document.querySelectorAll('#padMode button').forEach(b => b.addEventListener('click', () => { padMode = b.dataset.m; padDel = false; renderPPads(); }));
+  $('#ppDel').addEventListener('click', () => { padDel = !padDel; renderPPads(); if (padDel) toast('Tap a hot cue to delete it.'); });
+  // manual loops
+  $('#lpIn').addEventListener('click', () => { if (!deck.buf) return; deckState().loopIn = livePos(deck); $('#lpIn').classList.add('on'); });
+  $('#lpOut').addEventListener('click', () => { const D = deckState(); if (D.loopIn == null) return; setLoop(curDeck, D.loopIn, livePos(deck)); D.loopIn = null; $('#lpIn').classList.remove('on'); });
+  $('#lpExit').addEventListener('click', () => { const D = deckState(); if (D.loop) setLoop(curDeck, null); else if (D.lastLoop){ setLoop(curDeck, D.lastLoop.a, D.lastLoop.b); seekTo(deck, D.lastLoop.a); } });
+  $('#lpHalf').addEventListener('click', () => { const L = deckState().loop; if (L) setLoop(curDeck, L.a, L.a + (L.b - L.a) / 2); });
+  $('#lpDbl').addEventListener('click', () => { const L = deckState().loop; if (L) setLoop(curDeck, L.a, L.a + (L.b - L.a) * 2); });
+  // mixer
+  $('#xf').addEventListener('input', e => { mixState().xf = +e.target.value; applyMix(); save(); });
+  $('#xfCurve').addEventListener('change', e => { mixState().curve = e.target.value; applyMix(); save(); });
+  $('#xfRev').addEventListener('click', () => { const M = mixState(); M.rev = !M.rev; applyMix(); save(); renderMixDJ(); });
+  // loading
   $('#ttLoad').addEventListener('click', () => $('#ttFile').click());
   $('#ttFile').addEventListener('change', async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    ensureAudio(); await workletReady;
+    ensureAudio(); await workletReady; const d = deck, i = curDeck;
     try {
       const buf = await ctx.decodeAudioData(await f.arrayBuffer());
-      if (buf.duration > 600){ toast('Records up to 10 minutes.'); return; }
-      deck.buf = buf; await storeAudio('deck:rec', buf);
-      const D = deckState(); D.name = f.name.replace(/\.[^.]+$/, ''); D.cue = 0; D.on = false;
-      deckEnsure(); deckSend(buf); deckSet(); save(); renderDeck(); toast('Record loaded. Press Start.');
-    } catch(err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
+      if (buf.duration > 900){ toast('Tracks up to 15 minutes.'); return; }
+      d.buf = buf; await storeAudio(recKey(i), buf);
+      const D = deckState(i); Object.assign(D, {name:f.name.replace(/\.[^.]+$/, ''), cue:0, on:false, cues:[], loop:null, lastLoop:null, bpmLocked:false, sync:false});
+      trackAnalyse(d); deckEnsure(d); deckSend(buf, d); deckSet(d); save(); renderDeck();
+      toast(`Loaded on deck ${i + 1}: ${D.bpm ? D.bpm.toFixed(1) + ' BPM' : 'no clear beat'}. Press Start.`);
+    } catch(err){ console.warn(err); toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
   });
+  // platter learn (for the deck on screen)
   $('#ttLearnPl').addEventListener('click', async () => {
-    if (!midi) await connectMidi(); if (!midi){ return; }
+    if (!midi) await connectMidi(); if (!midi) return;
     if (!deck.buf){ toast('Load a record first.'); return; }
-    plat.cap = []; $('#ttExtStatus').textContent = 'Listening… start the DN-S3700 platter (motor on, 33 RPM) and let it spin for 3 seconds.';
+    const i = curDeck; plat.cap = []; $('#ttExtStatus').textContent = `Listening for deck ${i + 1}… start the DN-S3700 platter (motor on, 33 RPM) and let it spin for 3 seconds.`;
     $('#ttLearnPl').disabled = true;
-    // wait for the first platter message, then measure for 3 s
     const t0 = performance.now(); while (!plat.cap.length && performance.now() - t0 < 15000) await new Promise(r => setTimeout(r, 50));
     if (!plat.cap.length){ plat.cap = null; $('#ttLearnPl').disabled = false; $('#ttExtStatus').textContent = 'Nothing came in. Check the DN-S3700 is in MIDI mode and chosen under Setup → MIDI → From.'; return; }
     const start = performance.now(); await new Promise(r => setTimeout(r, 3000));
     const cap = plat.cap.filter(x => x[3] >= start); plat.cap = null; $('#ttLearnPl').disabled = false;
     const r = platAnalyse(cap, 3);
     if (!r){ $('#ttExtStatus').textContent = 'Could not make sense of the platter messages. Make sure it keeps spinning the whole time, then try again.'; return; }
-    Object.assign(platState(), r, {on:true}); plat.last = null; deckSet(); save(); renderPlat();
-    toast('Platter learned: ' + r.tpr + ' steps per turn. The record now follows your platter.');
+    Object.assign(platState(i), r, {on:true}); decks[i].plat = {}; deckSet(decks[i]); save(); renderPlat();
+    toast(`Deck ${i + 1} platter learned: ${r.tpr} steps per turn. The record now follows your platter.`);
   });
-  $('#ttExtOn').addEventListener('click', () => { const E = platState(); if (E.status == null){ toast('Tap Learn platter first.'); return; } E.on = !E.on; plat.last = null; if (!E.on && deck.hand) deckHand(false); deckSet(); save(); renderPlat(); });
+  $('#ttExtOn').addEventListener('click', () => { const E = platState(); if (E.status == null){ toast('Tap Learn platter first.'); return; } E.on = !E.on; deck.plat = {}; if (!E.on && deck.hand) deckHand(false); deckSet(); save(); renderPlat(); });
   $('#ttExtRev').addEventListener('click', () => { const E = platState(); E.dir = -E.dir; save(); renderPlat(); });
   $('#ttTpr').addEventListener('input', e => { platState().tpr = +e.target.value; save(); });
-  stepify($('#ttTpr'), v => v + ' steps');
-  stepify($('#ttPitch'), v => (v > 0 ? '+' : '') + (+v).toFixed(1) + '%'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
+  stepify($('#ttTpr'), v => v + ' steps'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
 })();
 function setView(v){
   view = v;
@@ -4260,7 +4579,7 @@ let stpTick = 0; const clipAt = new Map();
 function frame(){
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
-  if (view === 'deck') drawDeck();
+  if (view === 'deck'){ drawDeck(); drawWaves(); }
   const h = playing ? heardStep() : null;
   if (h){
     if (h.i < 0) $('#pos').textContent = 'In ' + (Math.floor((h.i + 16) / 4) + 1);
@@ -5510,6 +5829,7 @@ function learnPath(obj){
   if (!obj || typeof obj !== 'object') return null;
   if (obj === S.master) return 'm';
   if (obj === S) return 's';
+  if (S.mix && S.mix.ch){ const ci = S.mix.ch.indexOf(obj); if (ci >= 0) return 'x:' + ci; }
   if (S.rack) for (const k in S.rack) if (S.rack[k] === obj) return 'r:' + k;
   const pi = S.drum.pads.indexOf(obj); if (pi >= 0) return 'p:' + pi;
   for (const t of allTracks()){ if (t === obj) return 't:' + t.id; for (const sub of ['rack', 'p5', 'tb', 'tau', 'sol', 'voc', 'patch']) if (t[sub] === obj) return 't:' + t.id + ':' + sub; }
@@ -5517,7 +5837,7 @@ function learnPath(obj){
 }
 function learnObj(path){
   const [a, b, c] = path.split(':');
-  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'r') return rackState(b); if (a === 'p') return S.drum.pads[+b];
+  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'x') return mixState().ch[+b]; if (a === 'r') return rackState(b); if (a === 'p') return S.drum.pads[+b];
   if (a === 't'){ const t = trackById(b); return t && (c ? t[c] : t); }
   return null;
 }
@@ -5534,7 +5854,7 @@ function learnLabel(el, tg){
   if (el.classList.contains('mute')) name = 'Mute'; if (el.classList.contains('solo')) name = 'Solo';
   if (tg.lp){
     const [path, key] = tg.lp.split('|'), [a, b, c] = path.split(':');
-    const ctx = a === 'm' ? 'Master' : a === 'r' ? RACK[b].short : a === 'p' ? padLabel(+b) + ' ' + S.drum.pads[+b].name : a === 't' ? ((trackById(b) || {}).name || b) + (c === 'rack' ? ' send' : '') : '';
+    const ctx = a === 'x' ? 'Mixer ch ' + (+b + 1) : a === 'm' ? 'Master' : a === 'r' ? RACK[b].short : a === 'p' ? padLabel(+b) + ' ' + S.drum.pads[+b].name : a === 't' ? ((trackById(b) || {}).name || b) + (c === 'rack' ? ' send' : '') : '';
     if (key === 'vol' && !lab) name = 'Volume'; if (key === 'pan') name = 'Pan';
     return (ctx ? ctx + ' · ' : '') + name;
   }
