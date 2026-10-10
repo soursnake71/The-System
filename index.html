@@ -186,6 +186,10 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 .srow select{padding:8px 4px}
 .srow .n{font:600 13px var(--f-mono);color:var(--dim);width:20px;text-align:right}
 .srow button.sm{padding:9px 9px}
+
+.mlegend{display:flex;gap:14px;font:600 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:#ece8dd}
+#matchCv{width:100%;height:120px;background:#101411;border-radius:6px;display:block}
+#ttsText{font:400 22px/1.2 var(--f-lcd);color:#fff;background:linear-gradient(180deg,var(--lcd,#3a6fe0),var(--lcd2,#2550bd));border:2px solid #23251f;border-radius:3px;padding:8px;width:100%;resize:vertical;-webkit-user-select:text;user-select:text}
 #chopWave{width:100%;height:170px;background:#0c0e12;border-radius:8px;display:block;touch-action:none}
 .slices{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .slices button{padding:12px 0;font:600 13px var(--f-mono)}
@@ -230,7 +234,8 @@ html.retro input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width
 html.retro input[type=range]::-moz-range-track{height:6px;background:#0b0b0c;border-radius:3px}
 html.retro input[type=range]::-moz-range-thumb{width:16px;height:28px;border-radius:2px;border:1px solid #000;background:#d8d3c6}
 html.retro .strip input.fader{width:30px;height:150px}
-html.retro .eq11 input[type=range]{width:30px;height:120px}
+html.retro .eq11 input[type=range]{width:100%;max-width:26px;height:120px}
+html.retro .eq11 input::-webkit-slider-thumb{width:22px !important;margin-left:-8px !important}
 html.retro input.fader::-webkit-slider-runnable-track,html.retro .eq11 input::-webkit-slider-runnable-track{width:6px;height:100%;margin:0 auto}
 html.retro input.fader::-webkit-slider-thumb,html.retro .eq11 input::-webkit-slider-thumb{width:28px;height:16px;margin-top:0;margin-left:-11px;background:linear-gradient(180deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e)}
 /* MPC60 case on top: grey body, green LCD */
@@ -372,6 +377,7 @@ body.mlearn .stp.marmed{outline:3px solid #fff}
     <div id="tracks" class="view" style="margin:0;max-width:none"></div>
     <div class="status" id="stemStatus" hidden>Separating…</div>
     <button id="addTrack">Add audio track</button>
+    <input type="file" id="refFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
     <input type="file" id="trackFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
   </section>
 
@@ -477,11 +483,22 @@ body.mlearn .stp.marmed{outline:3px solid #fff}
     </div>
     <div class="card">
       <div class="row"><h2 class="grow">Vocoder</h2><span class="badge">SVC-350 model</span><button id="vocOn">Off</button></div>
+      <div class="ctl"><label class="label" for="vocPreset">Presets</label><select id="vocPreset"></select><span></span></div>
       <div class="ctl"><label class="label" for="vocSrc">Voice</label><select id="vocSrc"></select><span></span></div>
+      <div class="ctl"><label class="label" for="vocCar">Carrier</label><select id="vocCar"></select><span></span></div>
       <div class="eq11" id="vocBands"></div>
       <div class="ctls" id="vocCtls"></div>
       <div class="row"><button id="vocEns" class="grow">Ensemble</button><button id="vocHold" class="grow">Hold</button></div>
       <p class="hint">This synth is the instrument. Sing or talk into your USB-C interface (Voice: Live input), or pick an audio track with a recorded vocal. The 11 sliders are the original frequency section: 10 bands plus the high consonant filter. Hold freezes the last vowel while you hold it, like the footswitch.</p>
+    </div>
+    <div class="card" id="ttsCard">
+      <div class="row"><h2 class="grow">Speech</h2><span class="badge">Talking machine</span></div>
+      <label class="label" for="ttsText">Lines (one per line)</label>
+      <textarea id="ttsText" rows="3" spellcheck="false"></textarea>
+      <div class="ctl"><label class="label" for="ttsVoice">Voice</label><select id="ttsVoice"><option value="robot">Robot (monotone)</option><option value="deep">Deep</option><option value="normal">Normal</option><option value="high">High</option></select><span></span></div>
+      <div class="ctl"><label class="label" for="ttsTiming">Timing</label><select id="ttsTiming"><option value="bar">Each line starts a bar</option><option value="run">Back to back</option></select><span></span></div>
+      <div class="ctls" id="ttsCtls"></div>
+      <div class="row"><button id="ttsPlay" class="grow">Preview</button><button id="ttsMake" class="grow">Send to vocoder</button></div>
     </div>
   </section>
 
@@ -696,7 +713,19 @@ body.mlearn .stp.marmed{outline:3px solid #fff}
         <li><b>Hold</b>: press and hold to freeze the last vowel, like the footswitch.</li>
       </ul>
       <p>The vocoder is silent when no instrument is playing. The original's sound detector does the same, so breathing and room noise don't leak through.</p>
-    </details>
+      <h3>Carrier, growl and presets</h3>
+      <ul>
+        <li><b>Carrier</b>: the vocoder normally plays from this track's own synth. Pick another synth track to use its sound instead (for example a TB-303 or Taurus line), and mute that track in the mixer if you only want the robot.</li>
+        <li><b>Growl</b>: the buzzy, gritty low end of early-80s electro vocals. It adds a square wave one octave below the carrier (a flip-flop divider, like an octave pedal) and overdrives the carrier before the filter bank, keeping the same loudness.</li>
+        <li><b>Presets</b>: SVC-350 clean, Electro growl, Space robot, Egypt robot, Jet robot (bright), Metal monster, and <b>Change the Beat ('fresh')</b>. That last one sets up a deep, slow talking-machine line, "Ahhhh, this stuff is really fresh", feeds it to the vocoder and holds a low note under it.</li>
+      </ul>
+      <h3>Speech (talking machine)</h3>
+      <ul>
+        <li>Type lines in the <b>Speech</b> box, one per line. <b>Preview</b> plays the raw voice. <b>Send to vocoder</b> builds a muted <b>Speech</b> audio track from the lines and sets it as this vocoder's voice. If the carrier synth has no notes, a held low note is added so it talks straight away; play or record your own notes to change the pitch.</li>
+        <li><b>Voice</b>: Robot (monotone), Deep, Normal or High. <b>Pitch</b> and <b>Speed</b> fine-tune it. <b>Timing</b>: each line starts on its own bar, or lines run back to back.</li>
+        <li>It's a formant synthesizer with English pronunciation rules, like the early-80s talking chips. Spell a word your own way if it comes out wrong, or type phonemes between slashes: <i>/F R EH SH/</i>. Repeating a vowel stretches it ("Ahhhh", "freeesh").</li>
+      </ul>
+</details>
 
     <details id="h-mixer"><summary>Mixer and effects</summary>
       <ul>
@@ -709,6 +738,8 @@ body.mlearn .stp.marmed{outline:3px solid #fff}
         <li><b>Compressor</b> evens out the level. At 0% it is fully bypassed.</li>
         <li><b>Sends</b> go to the shared Reverb and Delay. Set their size, time and feedback on the <b>Master</b> strip.</li>
         <li><b>Sends to the FX rack</b> feed the five rack units below the mixer (see FX rack).</li>
+        <li><b>Master EQ</b> (Master strip → FX): low cut, plus ±12 dB at 80 Hz, 200 Hz, 500 Hz, 1.2 kHz, 3 kHz, 6 kHz and 12 kHz. It's switched out when flat.</li>
+        <li><b>EQ match</b>: tap <b>Load reference</b> and pick a song whose tone you like, then <b>Match my mix</b>. The app renders your song, compares the two average spectra in 31 bands (1/3 octave) and sets a matching EQ, up to ±9 dB. <b>Amount</b> sets how much of it to use; the graph shows the reference (blue), your mix (white) and the correction (orange). Match again after big changes.</li>
         <li><b>Master</b>: Glue compression (adds 6 ms of latency while on, so leave it off while recording live) and a soft clipper that stops harsh overs.</li>
       </ul>
     </details>
@@ -1362,6 +1393,58 @@ function softClip(){
   for (let i = 0; i < n; i++){ const x = (i / (n - 1) * 2 - 1) * 2, a = Math.abs(x); clipCurve[i] = Math.sign(x) * (a < .8 ? a : .8 + .19 * Math.tanh((a - .8) / .19)); }
   return clipCurve;
 }
+/* ================= master EQ and EQ match ================= */
+const MEQ_BANDS = [{type:'highpass', f:10, q:.7}, {type:'lowshelf', f:80, key:'g80'}, {type:'peaking', f:200, q:.9, key:'g200'}, {type:'peaking', f:500, q:.9, key:'g500'},
+  {type:'peaking', f:1200, q:.9, key:'g1k'}, {type:'peaking', f:3000, q:.9, key:'g3k'}, {type:'peaking', f:6000, q:.9, key:'g6k'}, {type:'highshelf', f:12000, key:'g12k'}];
+const MATCH_F = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
+function masterEq(){ const M = S.master, E = M.eq || (M.eq = {}), d = {lowcut:0, g80:0, g200:0, g500:0, g1k:0, g3k:0, g6k:0, g12k:0, amount:.7, match:null}; for (const k in d) if (E[k] === undefined) E[k] = d[k]; return E; }
+function fft(re, im){
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++){ let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j){ [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+  for (let len = 2; len <= n; len <<= 1){
+    const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += len){ let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++){ const u = i + k, v = u + len / 2, tr = re[v] * cr - im[v] * ci, ti = re[v] * ci + im[v] * cr;
+        re[v] = re[u] - tr; im[v] = im[u] - ti; re[u] += tr; im[u] += ti; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } }
+  }
+}
+// long-term average spectrum in 1/3-octave bands (dB), from the loudest 60 s of a buffer
+async function bandSpectrum(buf){
+  const sr = buf.sampleRate, N = 4096, hop = 2048, chs = [...Array(buf.numberOfChannels)].map((_, k) => buf.getChannelData(k));
+  const len = buf.length, from = Math.max(0, Math.floor(len / 2 - sr * 30)), to = Math.min(len, from + sr * 60);
+  const pow = new Float64Array(N / 2), win = Float64Array.from({length:N}, (_, i) => .5 - .5 * Math.cos(2 * Math.PI * i / N));
+  const re = new Float64Array(N), im = new Float64Array(N); let frames = 0;
+  for (let s = from; s + N <= to; s += hop){
+    for (let i = 0; i < N; i++){ let x = 0; for (const d of chs) x += d[s + i]; re[i] = x / chs.length * win[i]; im[i] = 0; }
+    fft(re, im); for (let k = 0; k < N / 2; k++) pow[k] += re[k] * re[k] + im[k] * im[k]; frames++;
+    if (frames % 200 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+  return MATCH_F.map(f => { const lo = f / Math.pow(2, 1 / 6), hi = f * Math.pow(2, 1 / 6); let e = 0, n = 0;
+    for (let k = Math.max(1, Math.floor(lo / sr * N)); k <= Math.min(N / 2 - 1, Math.ceil(hi / sr * N)); k++){ e += pow[k]; n++; }
+    return n && f < sr / 2 ? 10 * Math.log10(e / n / Math.max(1, frames) + 1e-12) : null; });
+}
+// gains for the 31 peaking filters so their combined response follows the target curve
+function matchGains(target){
+  const fs = 48000, peak = (f0, g, f) => { const A = Math.pow(10, g / 40), w0 = 2 * Math.PI * f0 / fs, al = Math.sin(w0) / (2 * 4.32), cw = Math.cos(w0);
+    const b0 = 1 + al * A, b1 = -2 * cw, b2 = 1 - al * A, a0 = 1 + al / A, a1 = -2 * cw, a2 = 1 - al / A, w = 2 * Math.PI * f / fs;
+    const nr = b0 + b1 * Math.cos(w) + b2 * Math.cos(2 * w), ni = -b1 * Math.sin(w) - b2 * Math.sin(2 * w), dr = a0 + a1 * Math.cos(w) + a2 * Math.cos(2 * w), di = -a1 * Math.sin(w) - a2 * Math.sin(2 * w);
+    return 20 * Math.log10(Math.hypot(nr, ni) / Math.hypot(dr, di)); };
+  const g = target.slice();
+  for (let it = 0; it < 8; it++){
+    const resp = MATCH_F.map(f => MATCH_F.reduce((s, f0, k) => s + (f0 < fs / 2 ? peak(f0, g[k], f) : 0), 0));
+    for (let k = 0; k < g.length; k++) g[k] = clamp(g[k] + (target[k] - resp[k]) * .6, -12, 12);
+  }
+  return g.map(x => Math.round(x * 10) / 10);
+}
+// correction = reference - mix, level-matched over 40 Hz-16 kHz, smoothed, limited to +/-9 dB
+function matchCurve(ref, mix){
+  const d = MATCH_F.map((f, k) => ref[k] == null || mix[k] == null ? 0 : ref[k] - mix[k]);
+  const use = MATCH_F.map((f, k) => f >= 40 && f <= 16000 && ref[k] != null && mix[k] != null);
+  const mean = d.reduce((s, x, k) => s + (use[k] ? x : 0), 0) / Math.max(1, use.filter(Boolean).length);
+  const c = d.map((x, k) => use[k] || (f => f < 40)(MATCH_F[k]) ? x - mean : 0);
+  const sm = c.map((x, k) => (c[Math.max(0, k - 1)] + 2 * x + c[Math.min(c.length - 1, k + 1)]) / 4);
+  return sm.map(x => clamp(x, -9, 9));
+}
 function makeMaster(c){
   const m = {};
   m.bus = c.createGain();
@@ -1379,8 +1462,14 @@ function makeMaster(c){
   m.dlyIn.connect(m.dly); m.dly.connect(m.tone); m.tone.connect(m.fb).connect(m.dly); m.tone.connect(m.bus);
   m.rk = {}; for (const k of RACK_KEYS){ m.rk[k] = {in:c.createGain(), ret:c.createGain(), node:null, wired:false}; m.rk[k].ret.connect(m.bus); }
   rackNodes(c, m);
-  m.bus.connect(m.glue).connect(m.glueMk).connect(m.glueWet).connect(m.lim);
-  m.bus.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out);
+  // master EQ (low cut, low shelf, five peaks, high shelf) and the 31-band match curve; switched out when flat
+  m.pre = c.createGain();
+  m.eq = MEQ_BANDS.map(b => { const f = c.createBiquadFilter(); f.type = b.type; f.frequency.value = b.f; f.Q.value = b.q || .7; return f; });
+  for (let k = 0; k < m.eq.length - 1; k++) m.eq[k].connect(m.eq[k + 1]);
+  m.mt = MATCH_F.map(f => { const b = c.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = f; b.Q.value = 4.32; b.gain.value = 0; return b; });
+  for (let k = 0; k < m.mt.length - 1; k++) m.mt[k].connect(m.mt[k + 1]);
+  m.pre.connect(m.glue).connect(m.glueMk).connect(m.glueWet).connect(m.lim);
+  m.pre.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out);
   m.out.connect(m.an); m.out.connect(c.destination);
   applyMaster(c, m);
   return m;
@@ -1401,9 +1490,22 @@ function applyRack(c, m){
     if (u.node){ const j = JSON.stringify(cfg); if (u.sent !== j){ u.node.port.postMessage({type:'cfg', cfg}); u.sent = j; } }
   }
 }
+function wireMasterEq(c, m){
+  const E = masterEq(), eqOn = E.lowcut > 0 || MEQ_BANDS.some(b => b.key && E[b.key]), mt = E.match && E.match.gains && E.amount > 0;
+  const key = (eqOn ? 1 : 0) + ':' + (mt ? 1 : 0);
+  m.eq[0].frequency.value = E.lowcut || 10; m.eq[0].type = E.lowcut ? 'highpass' : 'allpass';
+  MEQ_BANDS.forEach((b, k) => { if (b.key) sp(c, m.eq[k].gain, E[b.key] || 0); });
+  m.mt.forEach((f, k) => sp(c, f.gain, mt ? E.match.gains[k] * E.amount : 0));
+  if (m._eqw === key) return; m._eqw = key;
+  m.bus.disconnect(); m.eq[m.eq.length - 1].disconnect(); m.mt[m.mt.length - 1].disconnect();
+  let at = m.bus;
+  if (eqOn){ at.connect(m.eq[0]); at = m.eq[m.eq.length - 1]; }
+  if (mt){ at.connect(m.mt[0]); at = m.mt[m.mt.length - 1]; }
+  at.connect(m.pre);
+}
 function applyMaster(c, m){
   const M = S.master;
-  applyRack(c, m);
+  applyRack(c, m); wireMasterEq(c, m);
   sp(c, m.glue.threshold, -30 * M.glue); sp(c, m.glue.ratio, 1 + 5 * M.glue); sp(c, m.glueMk.gain, Math.pow(10, M.glue * 8 / 20));
   sp(c, m.glueWet.gain, M.glue > 0 ? 1 : 0); sp(c, m.glueDry.gain, M.glue > 0 ? 0 : 1);
   sp(c, m.out.gain, M.vol * M.vol * 1.2);
@@ -1525,7 +1627,7 @@ function makeRig(c){
   return rig;
 }
 function applyAll(){ if (!live) return; allTracks().forEach(t => { const s = live.strips.get(t.id); if (s) applyStrip(ctx, s, t); }); applyMaster(ctx, live.master); applyVocoders(live); }
-const VOC_DEFAULT = () => ({on:false, src:'input', bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], cons:.8, bal:0, harm:.5, ens:false});
+const VOC_DEFAULT = () => ({on:false, src:'input', car:'self', bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], cons:.8, bal:0, harm:.5, ens:false, growl:0});
 let vocHold = false;
 // wire each synth track's vocoder: its own sound is the carrier, the chosen input or audio track is the voice
 function applyVocoders(rig){
@@ -1534,15 +1636,22 @@ function applyVocoders(rig){
     const st = rig.strips.get(tr.id); if (!st) continue;
     const V = tr.voc || (tr.voc = VOC_DEFAULT());
     const want = V.on && c._reduxOK;
-    const msg = {on:1, bands:V.bands, cons:V.cons, bal:V.bal, harm:V.harm, ens:V.ens ? 1 : 0, hold:vocHold ? 1 : 0};
+    const msg = {on:1, bands:V.bands, cons:V.cons, bal:V.bal, harm:V.harm, ens:V.ens ? 1 : 0, hold:vocHold ? 1 : 0, growl:V.growl || 0};
     if (want && !st.voc){
       st.voc = new AudioWorkletNode(c, 'svc350', {numberOfInputs:2, numberOfOutputs:1, outputChannelCount:[2], processorOptions:msg});
-      st.vocIn.disconnect(); st.vocIn.connect(st.voc, 0, 0); st.voc.connect(st.vocOut);
+      st.vocIn.disconnect(); st.voc.connect(st.vocOut); st.vocCar = null;
     } else if (!want && st.voc){
-      st.vocIn.disconnect(); try { st.voc.disconnect(); } catch(e){} st.voc = null; st.vocMod = null; st.vocIn.connect(st.vocOut);
+      st.vocIn.disconnect(); if (st.vocCar && st.vocCar !== st.vocIn){ try { st.vocCar.disconnect(st.voc); } catch(e){} }
+      try { st.voc.disconnect(); } catch(e){} st.voc = null; st.vocMod = null; st.vocCar = null; st.vocIn.connect(st.vocOut);
     }
     if (!st.voc) continue;
     st.voc.port.postMessage(msg);
+    // carrier: this track's own synth, or another synth track (its sound plays the vocoder; mute it to hear only the robot)
+    const carTr = V.car && V.car !== tr.id && rig.strips.get(V.car), car = carTr ? carTr.input : st.vocIn;
+    if (st.vocCar !== car){
+      if (st.vocCar){ try { st.vocCar.disconnect(st.voc); } catch(e){} }
+      car.connect(st.voc, 0, 0); st.vocCar = car;
+    }
     const src = V.src === 'input' ? (rig === live ? inSrc : null) : (rig.strips.get(V.src) || {}).input;
     if (st.vocMod !== src){ if (st.vocMod){ try { st.vocMod.disconnect(st.voc); } catch(e){} } if (src) src.connect(st.voc, 0, 1); st.vocMod = src || null; }
   }
@@ -2154,7 +2263,9 @@ const VOC_CODE = String.raw`
 class SVC350 extends AudioWorkletProcessor{
   constructor(o){
     super(); const fs = sampleRate; this.fs = fs;
-    this.p = Object.assign({on:1, bands:[1,1,1,1,1,1,1,1,1,1], cons:.8, bal:0, harm:.5, ens:0, hold:0}, (o && o.processorOptions) || {});
+    this.p = Object.assign({on:1, bands:[1,1,1,1,1,1,1,1,1,1], cons:.8, bal:0, harm:.5, ens:0, hold:0, growl:0}, (o && o.processorOptions) || {});
+    // growl: octave-down flip-flop on the carrier plus overdrive (the electro-funk carrier treatment)
+    this.gLp = 0; this.gA = 1 - Math.exp(-2 * Math.PI * 600 / fs); this.gFF = 1; this.gPos = 0; this.gSub = 0; this.gPk = 0; this.gRel = Math.exp(-1 / (.05 * fs));
     this.port.onmessage = e => Object.assign(this.p, e.data);
     const mfb = (R1, R2, R3, C) => {
       const c1 = 2 / (R3 * C), c0 = (R1 + R2) / (R1 * R2 * R3 * C * C), g = -1 / (R1 * C), w0 = Math.sqrt(c0), K = w0 / Math.tan(w0 / (2 * fs)), d = K * K + c1 * K + c0;
@@ -2199,7 +2310,15 @@ class SVC350 extends AudioWorkletProcessor{
     const cIn = car && car.length ? car : null, mIn = mod && mod.length ? mod : null;
     const rel = P.hold ? this.relH : this.relN, ref = .3;
     for (let i = 0; i < N; i++){
-      const c = cIn ? (cIn.length > 1 ? (cIn[0][i] + cIn[1][i]) * .5 : cIn[0][i]) : 0;
+      let c = cIn ? (cIn.length > 1 ? (cIn[0][i] + cIn[1][i]) * .5 : cIn[0][i]) : 0;
+      if (P.growl > 0){
+        this.gLp += (c - this.gLp) * this.gA;
+        if (this.gLp > 0){ if (!this.gPos){ this.gPos = 1; this.gFF = -this.gFF; } } else this.gPos = 0;
+        const ac = Math.abs(c); this.gPk = ac > this.gPk ? ac : this.gPk * this.gRel;     // carrier level, so the growl keeps it
+        this.gSub += (this.gFF * this.gPk - this.gSub) * .2;               // square one octave down
+        const G = P.growl, drv = 1 + G * 9, pk = Math.max(this.gPk, 1e-4);
+        c = Math.tanh((c + this.gSub * G) / pk * drv) / Math.tanh(drv) * pk / (1 + G * 1.4);   // same loudness, more buzz
+      }
       const m = mIn ? (mIn.length > 1 ? (mIn[0][i] + mIn[1][i]) * .5 : mIn[0][i]) : 0;
       if (!P.on){ L[i] = c; R[i] = c; continue; }
       // mic compressor (peak detector driving the BA662 gain cell); hold freezes it
@@ -3601,6 +3720,23 @@ function renderFx(){
     add('<h2>Master</h2>');
     let g = grid();
     ctl(g, 'Glue', M, 'glue', 0, 1, .01, v => v ? pct(v) + ' (+6 ms)' : 'Off', after);
+    const E = masterEq();
+    add('<span class="label">Master EQ</span>'); g = grid();
+    const lc = document.createElement('div'); lc.className = 'ctl';
+    lc.innerHTML = '<label class="label" for="meqLow">Low cut</label><select id="meqLow"><option value="0">Off</option><option value="25">25 Hz</option><option value="30">30 Hz</option><option value="40">40 Hz</option><option value="60">60 Hz</option><option value="80">80 Hz</option><option value="100">100 Hz</option></select><span></span>';
+    const lcs = lc.querySelector('select'); lcs.value = String(E.lowcut); lcs.addEventListener('change', () => { E.lowcut = +lcs.value; applyAll(); save(); }); g.appendChild(lc);
+    for (const [lb, k] of [['80 Hz', 'g80'], ['200 Hz', 'g200'], ['500 Hz', 'g500'], ['1.2 kHz', 'g1k'], ['3 kHz', 'g3k'], ['6 kHz', 'g6k'], ['12 kHz', 'g12k']]) ctl(g, lb, E, k, -12, 12, .5, dB, after);
+    add('<span class="label">EQ match</span>');
+    add(`<div class="row"><button id="matchRef" class="grow">Load reference</button><button id="matchGo" class="grow"${E.match && E.match.ref ? '' : ' disabled'}>Match my mix</button></div>`);
+    add(`<div class="status" id="matchStatus">${E.match && E.match.gains ? 'Matching ' + (E.match.name || 'the reference').replace(/</g, '&lt;') + '.' : E.match && E.match.ref ? 'Reference: ' + (E.match.name || '').replace(/</g, '&lt;') + '. Tap Match my mix.' : 'Load a song whose tone you like, then tap Match my mix.'}</div>`);
+    add('<canvas id="matchCv" aria-label="EQ match curves"></canvas>');
+    add('<div class="mlegend"><span style="color:#7cc4d6">■ Reference</span><span>■ Your mix</span><span style="color:#ef5a2a">■ Correction</span></div>');
+    g = grid(); ctl(g, 'Amount', E, 'amount', 0, 1, .05, pct, after);
+    if (E.match && E.match.gains) add('<button id="matchClear">Clear match</button>');
+    $('#matchRef').addEventListener('click', () => $('#refFile').click());
+    $('#matchGo').addEventListener('click', matchMix);
+    if ($('#matchClear')) $('#matchClear').addEventListener('click', () => { E.match = E.match && E.match.ref ? {ref:E.match.ref, name:E.match.name} : null; applyAll(); save(); renderFx(); });
+    drawMatch();
     add('<span class="label">Reverb return</span>'); g = grid();
     ctl(g, 'Size', M, 'rev', .4, 6, .1, v => v.toFixed(1) + ' s', () => { if (live) live.master.conv.buffer = makeIR(ctx, M.rev); });
     add('<span class="label">Delay return</span>'); g = grid();
@@ -3669,6 +3805,30 @@ function renderRack(){
     u.appendChild(g); box.appendChild(u);
   }
   if (mlearn) markMapped();
+}
+function drawMatch(){
+  const cv = $('#matchCv'); if (!cv) return;
+  const E = masterEq(), dpr = devicePixelRatio || 1, w = cv.width = Math.round(cv.clientWidth * dpr), h = cv.height = Math.round(cv.clientHeight * dpr), g = cv.getContext('2d');
+  g.clearRect(0, 0, w, h); if (!w) return;
+  const X = k => (k + .5) / MATCH_F.length * w, Y = db => h / 2 - db / 15 * (h / 2 - 6 * dpr);
+  g.strokeStyle = '#ffffff22'; g.lineWidth = dpr; for (const db of [-12, -6, 0, 6, 12]){ g.beginPath(); g.moveTo(0, Y(db)); g.lineTo(w, Y(db)); g.stroke(); }
+  g.fillStyle = '#ffffff66'; g.font = `${9 * dpr}px "JetBrains Mono", monospace`; ['100', '1k', '10k'].forEach((t, i) => g.fillText(t, X([7, 17, 27][i]) - 8 * dpr, h - 3 * dpr));
+  const line = (vals, col, off) => { if (!vals) return; const ok = vals.filter(v => v != null); if (!ok.length) return; const m = off ? ok.reduce((a, b) => a + b, 0) / ok.length : 0;
+    g.strokeStyle = col; g.lineWidth = 2 * dpr; g.beginPath(); let st = false; vals.forEach((v, k) => { if (v == null) return; const y = Y(off ? (v - m) / 2 : v); if (!st){ g.moveTo(X(k), y); st = true; } else g.lineTo(X(k), y); }); g.stroke(); };
+  if (E.match){ line(E.match.ref, '#7cc4d6', true); line(E.match.mix, '#ece8dd', true); line(E.match.curve && E.match.curve.map(x => x * E.amount), '#ef5a2a', false); }
+}
+async function matchMix(){
+  const E = masterEq(); if (!E.match || !E.match.ref) return;
+  $('#matchStatus').textContent = 'Listening to your mix…';
+  try {
+    var keep = E.match.gains; E.match.gains = null;             // analyse the mix without the current match
+    const buf = await renderAudio(44100);
+    const mix = await bandSpectrum(buf), curve = matchCurve(E.match.ref, mix);
+    Object.assign(E.match, {mix, curve, gains:matchGains(curve)});
+    applyAll(); save(); renderFx();
+    toast('EQ matched to ' + (E.match.name || 'the reference') + '. Use Amount to taste.');
+    void keep;
+  } catch (e){ console.warn(e); if (E.match && !E.match.gains) E.match.gains = keep; $('#matchStatus').textContent = 'Could not analyse the mix.'; }
 }
 function setView(v){
   view = v;
@@ -4335,8 +4495,293 @@ function renderVocoder(){
   const upd = () => { if (live) applyVocoders(live); };
   ctl(box, 'Balance', V, 'bal', 0, 1, .01, v => v ? Math.round(v * 100) + '% voice' : 'Vocoder', upd);
   ctl(box, 'Harmonics', V, 'harm', 0, 1, .01, v => Math.round(v * 100) + '%', upd);
+  if (V.growl == null) V.growl = 0;
+  ctl(box, 'Growl', V, 'growl', 0, 1, .01, v => v ? Math.round(v * 100) + '%' : 'Off', upd);
   $('#vocEns').classList.toggle('on', V.ens);
+  const ps = $('#vocPreset'); ps.innerHTML = '<option value="">Choose…</option>' + Object.keys(VOC_PRESETS).map(n => `<option>${n}</option>`).join(''); ps.value = '';
+  const car = $('#vocCar');
+  car.innerHTML = `<option value="self">This synth (${tr.name.replace(/</g, '&lt;')})</option>` + S.synths.filter(t => t !== tr).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join('');
+  car.value = V.car && S.synths.some(t => t.id === V.car && t !== tr) ? V.car : 'self';
+  const T = ttsState();
+  if (document.activeElement !== $('#ttsText')) $('#ttsText').value = T.text;
+  $('#ttsVoice').value = T.voice; $('#ttsTiming').value = T.timing;
+  const tb = $('#ttsCtls'); tb.innerHTML = '';
+  ctl(tb, 'Pitch', T, 'semi', -12, 12, 1, v => (v > 0 ? '+' : '') + v + ' st', null);
+  ctl(tb, 'Speed', T, 'speed', .5, 1.5, .05, v => Math.round(v * 100) + '%', null);
 }
+/* electro vocoder setups. Growl = octave-down flip-flop + overdrive on the carrier, the buzzy low end of early-80s
+   electro vocals; Harmonics brightens the carrier; bands tilt the frequency section. */
+const VOC_PRESETS = {
+  'SVC-350 clean':{growl:0, harm:.5, cons:.8, ens:false, bal:0, bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
+  'Electro growl':{growl:.75, harm:.85, cons:1, ens:false, bal:0, bands:[1.3, 1.3, 1.2, 1.1, 1, 1, 1, 1.1, 1.2, 1.2]},
+  'Space robot':{growl:.35, harm:.9, cons:.9, ens:true, bal:0, bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
+  'Egypt robot':{growl:.6, harm:.7, cons:1.1, ens:false, bal:0, bands:[1.4, 1.3, 1.2, 1, 1, .9, .9, 1, 1.1, 1.2]},
+  'Jet robot (bright)':{growl:.25, harm:1, cons:1.2, ens:true, bal:0, bands:[.6, .7, .8, 1, 1.1, 1.2, 1.3, 1.3, 1.4, 1.4]},
+  'Metal monster':{growl:1, harm:.6, cons:.7, ens:false, bal:0, bands:[1.5, 1.5, 1.3, 1.1, 1, .9, .8, .8, .8, .8]},
+  "Change the Beat ('fresh')":{growl:.45, harm:.75, cons:1, ens:true, bal:0, bands:[1.3, 1.2, 1.1, 1, 1, 1, 1, 1.1, 1.1, 1.2],
+    tts:{text:'Ahhhh, this stuff is really fresh.', voice:'deep', semi:-2, speed:.75, timing:'bar'}}
+};
+/* ================= speech (text to speech for the vocoder) =================
+   English letter-to-sound rules in the style of the 1976 NRL report (Elovitz et al.), then a cascade/parallel formant
+   synthesizer in the Klatt manner: glottal pulse source, five formant resonators, filtered noise for fricatives and bursts.
+   Type /phonemes/ between slashes (e.g. /F R EH SH/) to spell a word exactly. */
+const TTS_RULES = (() => {
+  const R = {
+    A:['[A] =AX',' [ARE] =AA R',' [AR]O=AX R','[AR]#=EH R',' ^[AS]#=EY S','[A]WA=AX','[AW]=AO',' :[ANY]=EH N IY','[A]^+#=EY','#:[ALLY]=AX L IY',' [AL]#=AX L','[AGAIN]=AX G EH N','#:[AG]E=IH JH','[A]^+:#=AE',' :[A]^+ =EY','[A]^%=EY',' [ARR]=AX R','[ARR]=AE R',' :[AR] =AA R','[AR] =ER','[AR]=AA R','[AIR]=EH R','[AI]=EY','[AY]=EY','[AU]=AO','#:[AL] =AX L','#:[ALS] =AX L Z','[ALK]=AO K','[AL]^=AO L',' :[ABLE]=EY B AX L','[ABLE]=AX B AX L','[ANG]+=EY N JH','[A]=AE'],
+    B:[' [BE]^#=B IH','[BEING]=B IY IH NG',' [BOTH] =B OW TH',' [BUS]#=B IH Z','[BUIL]=B IH L','[B]=B'],
+    C:[' [CH]^=K','^E[CH]=K','[CH]=CH',' S[CI]#=S AY','[CI]A=SH','[CI]O=SH','[CI]EN=SH','[C]+=S','[CK]=K','[COM]%=K AH M','[C]=K'],
+    D:['#:[DED] =D IH D','.E[D] =D','#^:E[D] =T',' [DE]^#=D IH',' [DO] =D UW',' [DOES]=D AH Z',' [DOING]=D UW IH NG',' [DOW]=D AW','[DU]A=JH UW','[D]=D'],
+    E:['#:[E] =',"'^:[E] =",' :[E] =IY','#[ED] =D','#:[E]D =','[EV]ER=EH V','[E]^%=IY','[ERI]#=IY R IY','[ERI]=EH R IH','#:[ER]#=ER','[ER]#=EH R','[ER]=ER',' [EVEN]=IY V EH N','#:[E]W=','@[EW]=UW','[EW]=Y UW','[E]O=IY','#:&[ES] =IH Z','#:[E]S =','#:[ELY] =L IY','#:[EMENT]=M EH N T','[EFUL]=F UH L','[EE]=IY','[EARN]=ER N',' [EAR]^=ER','[EAD]=EH D','#:[EA] =IY AX','[EA]SU=EH','[EA]=IY','[EIGH]=EY','[EI]=IY',' [EYE]=AY','[EY]=IY','[EU]=Y UW','[E]=EH'],
+    F:['[FUL]=F UH L','[F]=F'],
+    G:['[GIV]=G IH V',' [G]I^=G','[GE]T=G EH','SU[GGES]=G JH EH S','[GG]=G',' B#[G]=G','[G]+=JH','[GREAT]=G R EY T','#[GH]=','[G]=G'],
+    H:[' [HAV]=HH AE V',' [HERE]=HH IY R',' [HOUR]=AW ER','[HOW]=HH AW','[H]#=HH','[H]='],
+    I:[' [IN]=IH N',' [I] =AY','[IN]D=AY N','[IER]=IY ER','#:R[IED] =IY D','[IED] =AY D','[IEN]=IY EH N','[IE]T=AY EH',' :[I]%=AY','[I]%=IY','[IE]=IY','[I]^+:#=IH','[IR]#=AY R','[IZ]%=AY Z','[IS]%=AY Z','[I]D%=AY','+^[I]^+=IH','[I]T%=AY','#^:[I]^+=IH','[I]^+=AY','[IR]=ER','[IGH]=AY','[ILD]=AY L D','[IGN] =AY N','[IGN]^=AY N','[IGN]%=AY N','[IQUE]=IY K','[I]=IH'],
+    J:['[J]=JH'], K:[' [K]N=','[K]=K'],
+    L:['[LO]C#=L OW','L[L]=','#^:[L]%=AX L','[LEAD]=L IY D','[L]=L'], M:['[MOV]=M UW V','[M]=M'],
+    N:['E[NG]+=N JH','[NG]R=NG G','[NG]#=NG G','[NGL]%=NG G AX L','[NG]=NG','[NK]=NG K',' [NOW] =N AW','[N]=N'],
+    O:['[OF] =AX V','[OROUGH]=ER OW','#:[OR] =ER','#:[ORS] =ER Z','[OR]=AO R',' [ONE]=W AH N','[OW]=OW',' [OVER]=OW V ER','[OV]=AH V','[O]^%=OW','[O]^EN=OW','[O]^I#=OW','[OL]D=OW L','[OUGHT]=AO T','[OUGH]=AH F',' [OU]=AW','H[OU]S#=AW','[OUS]=AX S','[OUR]=AO R','[OULD]=UH D','^[OU]^L=AH','[OUP]=UW P','[OU]=AW','[OY]=OY','[OING]=OW IH NG','[OI]=OY','[OOR]=AO R','[OOK]=UH K','[OOD]=UH D','[OO]=UW','[O]E=OW','[O] =OW','[OA]=OW',' [ONLY]=OW N L IY',' [ONCE]=W AH N S',"[ON'T]=OW N T",'C[O]N=AA','[O]NG=AO',' :^[O]N=AH','I[ON]=AX N','#:[ON] =AX N','#^[ON]=AX N','[O]ST =OW','[OF]^=AO F','[OTHER]=AH DH ER','[OSS] =AO S','#^:[OM]=AH M','[O]=AA'],
+    P:['[PH]=F','[PEOP]=P IY P','[POW]=P AW','[PUT] =P UH T','[P]=P'], Q:['[QUAR]=K W AO R','[QU]=K W','[Q]=K'], R:[' [RE]^#=R IY','[R]=R'],
+    S:['[SH]=SH','#[SION]=ZH AX N','[SOME]=S AH M','#[SUR]#=ZH ER','[SUR]#=SH ER','#[SU]#=ZH UW','#[SSU]#=SH UW','#[SED] =Z D','#[S]#=Z','[SAID]=S EH D','^[SION]=SH AX N','[S]S=','.[S] =Z','#:.E[S] =Z','#^:##[S] =Z','#^:#[S] =S','U[S] =S',' :#[S] =Z',' [SCH]=S K','[S]C+=','#[SM]=Z M',"#[SN]'=Z AX N",'[S]=S'],
+    T:[' [THE] =DH AX','[TO] =T UW','[THAT] =DH AE T',' [THIS] =DH IH S',' [THEY]=DH EY',' [THERE]=DH EH R','[THER]=DH ER','[THEIR]=DH EH R',' [THAN] =DH AE N',' [THEM] =DH EH M','[THESE] =DH IY Z',' [THEN]=DH EH N','[THROUGH]=TH R UW','[THOSE]=DH OW Z','[THOUGH] =DH OW',' [THUS]=DH AH S','[TH]=TH','#:[TED] =T IH D','S[TI]#N=CH','[TI]O=SH','[TI]A=SH','[TIEN]=SH AX N','[TUR]#=CH ER','[TU]A=CH UW',' [TWO]=T UW','[T]=T'],
+    U:[' [UN]I=Y UW N',' [UN]=AH N',' [UPON]=AX P AO N','@[UR]#=UH R','[UR]#=Y UH R','[UR]^=ER','[U]^ =AH','[U]^^=AH','[UY]=AY',' G[U]#=','G[U]%=','G[U]#=W','#N[U]=Y UW','@[U]=UW','[U]=Y UW'],
+    V:['[VIEW]=V Y UW','[V]=V'],
+    W:[' [WERE]=W ER','[WA]S=W AA','[WA]T=W AA','[WHERE]=W EH R','[WHAT]=W AA T','[WHOL]=HH OW L','[WHO]=HH UW','[WH]=W','[WAR]=W AO R','[WOR]^=W ER','[WR]=R','[W]=W'],
+    X:['[X]=K S'],
+    Y:['[YOUNG]=Y AH NG',' [YOU]=Y UW',' [YES]=Y EH S',' [Y]=Y','#^:[Y] =IY','#^:[Y]I=IY',' :[Y] =AY',' :[Y]#=AY',' :[Y]^+:#=IH',' :[Y]^#=AY','[Y]=IH'],
+    Z:['[Z]=Z']
+  };
+  const out = {};
+  for (const k in R) out[k] = R[k].map(r => { const m = r.match(/^(.*)\[(.*)\](.*)=(.*)$/); return {l:m[1], m:m[2], r:m[3], p:m[4].trim() ? m[4].trim().split(/\s+/) : []}; });
+  return out;
+})();
+const TTS_DICT = {AH:'AA', AHH:'AA AA', AHHH:'AA AA AA', AHHHH:'AA AA AA AA', OH:'OW', OOH:'UW UW', UH:'AH', YEAH:'Y EH AX', OK:'OW K EY', OKAY:'OW K EY', A:'AX', I:'AY', OF:'AX V', THE:'DH AX', TO:'T UW',
+  ARE:'AA R', YOU:'Y UW', YOUR:'Y AO R', WE:'W IY', BE:'B IY', ME:'M IY', HE:'HH IY', SHE:'SH IY', MY:'M AY', BY:'B AY', DO:'D UW', WHO:'HH UW', FRESH:'F R EH SH', ROBOT:'R OW B AA T', ELECTRO:'IH L EH K T R OW',
+  MUSIC:'M Y UW Z IH K', BEAT:'B IY T', BEATS:'B IY T S', BASS:'B EY S', HIP:'HH IH P', HOP:'HH AA P', JAM:'JH AE M', FUNK:'F AH NG K', FUNKY:'F AH NG K IY', DANCE:'D AE N S', PARTY:'P AA R T IY', COMPUTER:'K AX M P Y UW T ER', SNAKE:'S N EY K', DEVICE:'D IH V AY S',
+  REALLY:'R IY L IY', BREAK:'B R EY K', MIRACLE:'M IH R AX K AX L', ELECTRIC:'IH L EH K T R IH K', EGYPTIAN:'IY JH IH P SH AX N', NINETY:'N AY N T IY', PEOPLE:'P IY P AX L', BOOGIE:'B UH G IY', PLANET:'P L AE N AX T', ROCK:'R AA K', ROCKIT:'R AA K IH T', SCRATCH:'S K R AE CH', TURNTABLE:'T ER N T EY B AX L', MIC:'M AY K', WORLD:'W ER L D', LOVE:'L AH V', ONE:'W AH N', DONT:'D OW N T', "DON'T":'D OW N T', WHAT:'W AH T', BABY:'B EY B IY'};
+const TTS_NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TTS_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+function ttsNumber(n){
+  if (n < 20) return TTS_NUM[n];
+  if (n < 100) return TTS_TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + TTS_NUM[n % 10] : '');
+  if (n < 1000) return TTS_NUM[Math.floor(n / 100)] + ' hundred' + (n % 100 ? ' ' + ttsNumber(n % 100) : '');
+  if (n < 1e6) return ttsNumber(Math.floor(n / 1000)) + ' thousand' + (n % 1000 ? ' ' + ttsNumber(n % 1000) : '');
+  return String(n).split('').map(d => TTS_NUM[+d]).join(' ');
+}
+const TTS_VOW = 'AEIOUY', TTS_VOICED = 'BDVGJLMNRWZ';
+function ttsWord(word){
+  if (TTS_DICT[word]) return TTS_DICT[word].split(' ');
+  const w = ' ' + word + ' ', out = [];
+  const isV = c => TTS_VOW.includes(c), isC = c => c >= 'A' && c <= 'Z' && !isV(c);
+  // context matchers; i is the index to test, dir = +1 (right) or -1 (left); return new index or -1
+  const ctx = (pat, i, dir) => {
+    const seq = dir > 0 ? pat.split('') : pat.split('').reverse();
+    for (const p of seq){
+      const c = w[i] || ' ';
+      if (p === '#'){ if (!isV(c)) return null; while (isV(w[i] || ' ')) i += dir; }
+      else if (p === ':'){ while (isC(w[i] || ' ')) i += dir; }
+      else if (p === '^'){ if (!isC(c)) return null; i += dir; }
+      else if (p === '.'){ if (!TTS_VOICED.includes(c)) return null; i += dir; }
+      else if (p === '+'){ if (!'EIY'.includes(c)) return null; i += dir; }
+      else if (p === '@'){ if (!'TSRDLZNJ'.includes(c) && !(dir > 0 ? ['TH', 'CH', 'SH'].includes(w.substr(i, 2)) : false)) return null; i += dir; }
+      else if (p === '&'){ if (!'SCGZXJ'.includes(c)) return null; i += dir; }
+      else if (p === '%'){ if (dir < 0) return null; const sfx = ['ING', 'ELY', 'ER', 'ES', 'ED', 'E'].find(s => w.substr(i, s.length) === s); if (!sfx) return null; i += sfx.length; }
+      else if (p === ' '){ if (c >= 'A' && c <= 'Z') return null; i += dir; }
+      else { if (c !== p) return null; i += dir; }
+    }
+    return i;
+  };
+  let i = 1;
+  while (i < w.length - 1){
+    const ch = w[i], rules = TTS_RULES[ch];
+    if (!rules){ i++; continue; }
+    let done = false;
+    for (const r of rules){
+      if (w.substr(i, r.m.length) !== r.m) continue;
+      if (r.l && ctx(r.l, i - 1, -1) === null) continue;
+      if (r.r && ctx(r.r, i + r.m.length, 1) === null) continue;
+      out.push(...r.p); i += r.m.length; done = true; break;
+    }
+    if (!done) i++;
+  }
+  return out;
+}
+// text -> list of {ph, word} with pauses ('_' short, '__' long) and sentence ends ('.', '?')
+function ttsParse(text){
+  const res = [];
+  const toks = text.replace(/(\d+)/g, (m, d) => ' ' + ttsNumber(+d) + ' ').match(/\/[^/]*\/|[A-Za-z']+|[.!?]+|[,;:]|-|\s+/g) || [];
+  let wi = 0;
+  for (const t of toks){
+    if (/^\s+$/.test(t)) continue;
+    if (t[0] === '/'){ res.push(...t.slice(1, -1).trim().toUpperCase().split(/\s+/).filter(Boolean).map(ph => ({ph, w:wi}))); wi++; continue; }
+    if (/^[.!?]+$/.test(t)){ res.push({ph:t[0] === '?' ? '?' : '.', w:wi}); continue; }
+    if (/^[,;:-]$/.test(t)){ res.push({ph:'_', w:wi}); continue; }
+    const W = t.toUpperCase().replace(/[^A-Z']/g, '');
+    let ph = ttsWord(W);
+    // a vowel letter repeated in the spelling ("freeeesh", "ahhhh") stretches the word's main vowel
+    const stretch = Math.max(0, (W.match(/([AEIOUH])\1+/g) || []).reduce((n, m) => n + m.length - 1, 0));
+    ph = ph.map(p => ({ph:p, w:wi, x:stretch}));
+    res.push(...ph); wi++;
+  }
+  // collapse doubled consonants ("stuff" -> S T AH F)
+  return res.filter((p, k) => !(k && p.ph === res[k - 1].ph && !TTS_PH[p.ph]?.v));
+}
+// phoneme table: formants F1..F3 (Hz), duration (ms), voicing, frication (center, bw, amp), aspiration, nasal, stop type
+const TTS_PH = (() => {
+  const V = (f1, f2, f3, d, f1b, f2b, f3b) => ({v:1, f:[f1, f2, f3], d, f2:f1b ? [f1b, f2b, f3b] : null});
+  return {
+    IY:V(270, 2290, 3010, 130), IH:V(390, 1990, 2550, 90), EH:V(530, 1840, 2480, 110), AE:V(660, 1720, 2410, 150), AA:V(730, 1090, 2440, 150), AO:V(570, 840, 2410, 150),
+    UH:V(440, 1020, 2240, 90), UW:V(300, 870, 2240, 130), AH:V(640, 1190, 2390, 100), ER:V(490, 1350, 1690, 140), AX:V(500, 1500, 2500, 60),
+    EY:V(480, 1900, 2500, 170, 300, 2200, 2900), AY:V(700, 1200, 2500, 200, 320, 2100, 2800), OW:V(560, 900, 2400, 170, 350, 750, 2300), AW:V(720, 1200, 2450, 200, 380, 900, 2300), OY:V(560, 850, 2400, 200, 330, 2100, 2800),
+    L:{v:1, son:1, f:[360, 1100, 2700], d:70}, R:{v:1, son:1, f:[420, 1250, 1600], d:70}, W:{v:1, son:1, f:[300, 650, 2200], d:60}, Y:{v:1, son:1, f:[260, 2070, 3020], d:60},
+    M:{v:1, nas:1, f:[270, 1000, 2200], d:75}, N:{v:1, nas:1, f:[270, 1600, 2600], d:70}, NG:{v:1, nas:1, f:[270, 2000, 2600], d:80},
+    S:{fr:[6200, 2000, 1], f:[320, 1700, 2600], d:110}, Z:{v:.5, fr:[6000, 2000, .6], f:[240, 1700, 2600], d:90}, SH:{fr:[3200, 1800, 1], f:[300, 1840, 2750], d:120}, ZH:{v:.5, fr:[3000, 1800, .6], f:[300, 1840, 2750], d:90},
+    F:{fr:[5000, 5000, .35], f:[340, 1100, 2400], d:100}, V:{v:.6, fr:[5000, 5000, .25], f:[220, 1100, 2400], d:70}, TH:{fr:[5500, 5000, .3], f:[320, 1400, 2700], d:100}, DH:{v:.6, fr:[5500, 5000, .2], f:[270, 1400, 2700], d:60},
+    HH:{asp:1, d:70},
+    P:{stop:'p', f:[300, 900, 2400], burst:[1000, 3000], d:90}, B:{stop:'b', f:[200, 900, 2400], burst:[1000, 3000], d:70},
+    T:{stop:'p', f:[300, 1700, 2600], burst:[4500, 3000], d:90}, D:{stop:'b', f:[200, 1700, 2600], burst:[4000, 3000], d:70},
+    K:{stop:'p', f:[300, 2000, 2700], burst:[2200, 1500], d:90}, G:{stop:'b', f:[200, 2000, 2700], burst:[2000, 1500], d:70},
+    CH:{stop:'p', aff:'SH', f:[300, 1700, 2600], burst:[3500, 2500], d:70}, JH:{stop:'b', aff:'ZH', f:[200, 1700, 2600], burst:[3200, 2500], d:60}
+  };
+})();
+// opts: {pitch (Hz), speed (1 = normal), robot (monotone), sr}
+function ttsRender(text, opts = {}){
+  const sr = opts.sr || 22050, f0 = opts.pitch || 110, sp = 1 / (opts.speed || 1), robot = !!opts.robot;
+  const seq = ttsParse(text);
+  // build frames: one per 5 ms, holding targets; formants glide toward each new target
+  const fr = [];
+  const push = (n, p) => { for (let k = 0; k < n; k++) fr.push(Object.assign({}, p, k ? {acc:false} : null)); };   // the word-stress lift starts once
+  const ms = d => Math.max(1, Math.round(d * sp / 5));
+  let lastF = [500, 1500, 2500], wordStart = -1;
+  const nextVowel = k => { for (let j = k + 1; j < seq.length; j++){ const q = TTS_PH[seq[j].ph]; if (q && q.v === 1 && !q.son && !q.nas) return q; if (!q) break; } return TTS_PH.AX; };
+  const ends = [];
+  seq.forEach((s, k) => {
+    if (s.ph === '_'){ push(ms(140), {av:0, f:lastF}); return; }
+    if (s.ph === '.' || s.ph === '?'){ ends.push({at:fr.length, q:s.ph === '?'}); push(ms(260), {av:0, f:lastF}); return; }
+    const P = TTS_PH[s.ph]; if (!P) return;
+    const acc = s.w !== wordStart; wordStart = s.w;
+    if (P.v === 1 && !P.son && !P.nas){
+      const n = ms(P.d * (1 + (s.x || 0) * .6));
+      if (P.f2){ const h = Math.round(n * .45); push(h, {av:1, f:P.f, acc}); push(n - h, {av:1, f:P.f2}); lastF = P.f2; }
+      else { push(n, {av:1, f:P.f, acc}); lastF = P.f; }
+    } else if (P.son || P.nas){ push(ms(P.d), {av:P.nas ? .55 : .8, f:P.f, nas:P.nas}); lastF = P.f; }
+    else if (P.fr){ push(ms(P.d), {av:(P.v || 0) * .6, f:P.f, af:P.fr[2], fc:P.fr[0], fb:P.fr[1]}); lastF = P.f; }
+    else if (P.asp){ const nv = nextVowel(k); push(ms(P.d), {av:0, ah:.5, f:nv.f}); lastF = nv.f; }
+    else if (P.stop){
+      const vo = P.stop === 'b', nv = nextVowel(k);
+      push(ms(P.d * .6), {av:vo ? .12 : 0, f:[200, P.f[1], P.f[2]], close:1});
+      push(ms(12), {av:vo ? .3 : 0, f:P.f, af:.9, fc:P.burst[0], fb:P.burst[1]});
+      if (P.aff){ const A = TTS_PH[P.aff]; push(ms(60), {av:(A.v || 0) * .5, f:A.f, af:A.fr[2], fc:A.fr[0], fb:A.fr[1]}); }
+      else if (!vo) push(ms(35), {av:0, ah:.4, f:nv.f});
+      lastF = P.f;
+    }
+  });
+  if (!fr.length) return new Float32Array(1);
+  push(ms(80), {av:0, f:lastF});
+  // pitch contour: declination over each sentence, a lift on the first vowel of each word, fall (or rise) at the end
+  let s0 = 0; const endsAll = ends.length ? ends : [{at:fr.length, q:false}];
+  for (const e of endsAll){
+    const len = Math.max(1, e.at - s0);
+    for (let k = s0; k < e.at && k < fr.length; k++){
+      const x = (k - s0) / len; let p = robot ? 1 : 1.08 - .2 * x;
+      if (!robot && x > .82) p *= e.q ? 1 + (x - .82) * 1.6 : 1 - (x - .82) * .6;
+      fr[k].f0 = f0 * p;
+    }
+    s0 = e.at;
+  }
+  for (let k = 0; k < fr.length; k++){ if (fr[k].f0 == null) fr[k].f0 = f0; if (!robot && fr[k].acc){ for (let j = k; j < Math.min(fr.length, k + 14); j++) fr[j].f0b = (fr[j].f0b || 1) * (1 + .1 * Math.sin(Math.PI * (j - k) / 14)); } }
+  // synthesis
+  const hop = Math.round(sr * .005), out = new Float32Array(fr.length * hop);
+  const res = () => ({y1:0, y2:0});
+  const R = [res(), res(), res(), res(), res()], RF = [res(), res()], RN = res();
+  const BW = [70, 90, 150, 250, 300];
+  const coef = (f, bw) => { const r = Math.exp(-Math.PI * bw / sr), C = -r * r, B = 2 * r * Math.cos(2 * Math.PI * f / sr), A = 1 - B - C; return [A, B, C]; };
+  const run = (st, c, x) => { const y = c[0] * x + c[1] * st.y1 + c[2] * st.y2; st.y2 = st.y1; st.y1 = y; return y; };
+  let cur = Object.assign({}, fr[0], {f:fr[0].f.slice()}), ph = 0, prevU = 0, nz = 0;
+  const glide = 1 - Math.exp(-1 / (sr * .018)), amp = 1 - Math.exp(-1 / (sr * .006));
+  let av = 0, af = 0, ah = 0, fc = 4000, fb = 2000, n = 0, lastFc = 0, fcCoef = null, fcNorm = 1;
+  for (let k = 0; k < fr.length; k++){
+    const T = fr[k], tf = T.f, tav = T.av || 0, taf = T.af || 0, tah = T.ah || 0;
+    if (T.fc){ fc = T.fc; fb = T.fb; }
+    const pitch = T.f0 * (T.f0b || 1);
+    for (let s = 0; s < hop; s++, n++){
+      for (let j = 0; j < 3; j++) cur.f[j] += (tf[j] - cur.f[j]) * glide;
+      av += (tav - av) * amp; af += (taf - af) * amp * 2; ah += (tah - ah) * amp;
+      // glottal flow (Rosenberg), its derivative is the source
+      ph += pitch * (1 + (robot ? 0 : (Math.random() - .5) * .01)) / sr; if (ph >= 1) ph -= 1;
+      const u = ph < .4 ? .5 * (1 - Math.cos(Math.PI * ph / .4)) : ph < .56 ? Math.cos(Math.PI * (ph - .4) / .32) : 0;
+      const g = (u - prevU) * 4; prevU = u;
+      const white = Math.random() * 2 - 1; nz = white;
+      let x = g * av + white * ah * .25;
+      if (T.nas) x = run(RN, coef(270, 120), x);
+      for (let j = 0; j < 5; j++){ const F = j < 3 ? cur.f[j] : j === 3 ? 3500 : 4500; x = run(R[j], coef(F, BW[j] * (T.nas && j === 0 ? 2 : 1)), x); }
+      // frication: noise through two resonators at the fricative's centre
+      if (fc !== lastFc){ lastFc = fc; fcCoef = coef(fc, fb); const w = 2 * Math.PI * fc / sr, re = 1 - fcCoef[1] * Math.cos(w) - fcCoef[2] * Math.cos(2 * w), im = fcCoef[1] * Math.sin(w) + fcCoef[2] * Math.sin(2 * w); fcNorm = Math.hypot(re, im) / fcCoef[0]; }
+      const fz = run(RF[1], fcCoef, run(RF[0], fcCoef, white)) * fcNorm * fcNorm * af * .12;
+      out[n] = x * .5 + fz;
+    }
+  }
+  // tidy: remove DC, normalize
+  let m = 0, dc = 0, xp = 0;
+  for (let i = 0; i < out.length; i++){ const y = out[i] - xp + .995 * dc; xp = out[i]; dc = y; out[i] = y; m = Math.max(m, Math.abs(y)); }
+  if (m) for (let i = 0; i < out.length; i++) out[i] *= .9 / m;
+  return out;
+}
+
+const TTS_VOICES = {robot:{pitch:98, robot:true}, deep:{pitch:76}, normal:{pitch:112}, high:{pitch:190}};
+function ttsState(){ return S.tts = Object.assign({text:'Ahhhh, this stuff is really fresh.', voice:'robot', semi:0, speed:1, timing:'bar'}, S.tts); }
+function ttsOpts(T){ const v = TTS_VOICES[T.voice] || TTS_VOICES.robot; return {pitch:v.pitch * Math.pow(2, T.semi / 12), robot:!!v.robot, speed:T.speed, sr:22050}; }
+let ttsSrc = null;
+function ttsPreview(){
+  ensureAudio(); const T = ttsState(), lines = T.text.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length){ toast('Type a line first.'); return; }
+  const a = ttsRender(lines.join('. '), ttsOpts(T)), b = makeBuffer([a], 22050);
+  if (ttsSrc) try { ttsSrc.stop(); } catch(e){}
+  ttsSrc = ctx.createBufferSource(); ttsSrc.buffer = b; ttsSrc.connect(live.master.bus); ttsSrc.start();
+}
+async function ttsMake(){
+  ensureAudio(); await workletReady;
+  const T = ttsState(), lines = T.text.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length){ toast('Type a line first.'); return; }
+  const sr = 22050, bar = 240 / S.bpm, opts = ttsOpts(T), parts = lines.map(l => ttsRender(l, opts)), starts = [];
+  let pos = 0;
+  for (const a of parts){ starts.push(pos); const d = a.length / sr; pos = T.timing === 'bar' ? pos + Math.max(1, Math.ceil((d + .02) / bar)) * bar : pos + d + .15; }
+  let bars = Math.max(1, Math.ceil(pos / bar - 1e-6)); bars = [1, 2, 4, 8].find(b => b >= bars) || 8;
+  const len = Math.round(bars * bar * sr), d = new Float32Array(len);
+  parts.forEach((a, k) => { const o = Math.round(starts[k] * sr); for (let i = 0; i < a.length && o + i < len; i++) d[o + i] = a[i] * .4; });   // about a mic's level
+  let tr = S.audio.find(t => t.id === S.ttsTrack);
+  if (!tr){
+    if (S.audio.length >= 10){ toast('Speech needs a free audio track (10 max). Delete one first.'); return; }
+    let n = 1; while (S.audio.some(t => t.id === 'a' + n)) n++;
+    tr = Object.assign({id:'a' + n, name:'Speech', armed:false, recBars:bars, clip:null, clipSteps:16, warp:'complex'}, mixDefaults());
+    S.audio.push(tr); S.ttsTrack = tr.id;
+    if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); }
+  }
+  const key = 'tts:' + tr.id + ':' + Date.now(), buf = makeBuffer([d], sr);
+  dropAudio(tr.clip); buffers.set(key, buf); await storeAudio(key, buf);
+  tr.clip = key; tr.clipSteps = bars * 16; tr.clipBpm = S.bpm; tr.mute = true; tr.armed = false;
+  if (S.bars < bars){ S.bars = bars; renderTransport(); }
+  const syn = curSynth(), V = syn.voc || (syn.voc = VOC_DEFAULT());
+  V.src = tr.id; V.on = true;
+  // the carrier needs notes: if it has none in this scene, hold one low note under the speech
+  const carTr = V.car && V.car !== 'self' ? trackById(V.car) || syn : syn;
+  let added = false;
+  if (!carTr.notes.length){ carTr.notes = [{n:12 * (S.oct + 1) + S.root + 12, t:0, d:bars * TPB - 12, v:.9}]; rollDirty = true; added = true; }
+  storeScene(); applyAll(); if (live) applyVocoders(live); save(); renderVocoder(); renderTracks();
+  toast(`Speech is on the "${tr.name}" track (muted, it only feeds the vocoder).` + (added ? ` A held note was added to ${carTr.name} as the carrier.` : '') + ' Press play.');
+}
+$('#ttsText').addEventListener('input', e => { ttsState().text = e.target.value; save(); });
+$('#ttsVoice').addEventListener('change', e => { ttsState().voice = e.target.value; save(); });
+$('#ttsTiming').addEventListener('change', e => { ttsState().timing = e.target.value; save(); });
+$('#ttsPlay').addEventListener('click', ttsPreview);
+$('#ttsMake').addEventListener('click', ttsMake);
+$('#vocCar').addEventListener('change', e => { const V = curSynth().voc; V.car = e.target.value; if (live) applyVocoders(live); save();
+  if (V.car !== 'self') toast('The vocoder now plays from ' + trackById(V.car).name + '. Mute that track in the mixer to hear only the vocoder.'); });
+$('#vocPreset').addEventListener('change', async e => {
+  const P = VOC_PRESETS[e.target.value]; if (!P) return;
+  const tr = curSynth(), V = tr.voc || (tr.voc = VOC_DEFAULT());
+  Object.assign(V, {growl:P.growl, harm:P.harm, cons:P.cons, ens:P.ens, bal:P.bal, bands:P.bands.slice()});
+  if (live) applyVocoders(live); save();
+  if (P.tts){ Object.assign(ttsState(), P.tts); renderVocoder(); await ttsMake(); }
+  else renderVocoder();
+});
 $('#vocOn').addEventListener('click', async () => {
   const tr = curSynth(), V = tr.voc || (tr.voc = VOC_DEFAULT());
   V.on = !V.on; ensureAudio(); await workletReady;
@@ -5054,6 +5499,16 @@ $('#addTrack').addEventListener('click', () => {
 $('#export').addEventListener('click', exportMix);
 ['#expWhat', '#expFmt', '#expSr'].forEach(id => $(id).addEventListener('change', () => { S.exp = {what:$('#expWhat').value, fmt:$('#expFmt').value, sr:$('#expSr').value}; save(); renderExport(); }));
 let importTarget = null;
+$('#refFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  ensureAudio(); const st = $('#matchStatus'); if (st) st.textContent = 'Reading ' + f.name + '…';
+  try {
+    const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+    const ref = await bandSpectrum(buf), E = masterEq();
+    E.match = {ref, name:f.name.replace(/\.[^.]+$/, '').slice(0, 40)};
+    save(); renderFx(); toast('Reference loaded. Now tap Match my mix.');
+  } catch (err){ if (st) st.textContent = 'Could not read that file.'; toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
+});
 $('#trackFile').addEventListener('change', async e => {
   const f = e.target.files[0], tr = importTarget; e.target.value = ''; if (!f || !tr) return;
   ensureAudio();
