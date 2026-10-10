@@ -77,6 +77,15 @@ h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:upperc
 .u-mx{background:#d9dadc;color:#16171a}
 .u-lx{background:#3a2a1f;color:#f3e3cf}
 .u-mx select,.u-mx input{color-scheme:light}
+.learnbar{display:flex;gap:10px;align-items:center;padding:8px 16px;background:var(--accent,#ff9a3c);color:#111;font-size:14px}
+.learnbar .grow{flex:1}
+.learnbar button{background:#111;color:#fff;border-color:#111}
+body.mlearn :is(input[type=range],input[type=number],select,button):not(.nolearn):not(.pad):not(nav button){outline:2px dashed var(--accent,#ff9a3c);outline-offset:2px}
+body.mlearn .mmapped{outline:2px solid #4cd07d !important}
+body.mlearn .marmed{outline:3px solid #fff !important}
+.maplist{display:flex;flex-direction:column;gap:4px}
+.maplist .row{font-size:13px}
+.maplist .mono{opacity:.75;min-width:76px}
 .kitrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:10px}
 .pads{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pad{aspect-ratio:1;max-width:100%;border-radius:10px;background:linear-gradient(180deg,#2b303c,#20242d);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:7px;text-align:left;text-transform:none;letter-spacing:0;position:relative;overflow:hidden;touch-action:none}
@@ -207,6 +216,7 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   </div>
 </header>
 
+<div class="learnbar" id="learnBar" hidden><span id="learnMsg" class="grow">MIDI learn: tap a knob, menu or button, then move a knob or hit a pad on the MPC.</span><button id="learnDone" class="nolearn">Done</button></div>
 <main>
   <!-- DRUMS -->
   <section class="view" id="v-drums">
@@ -633,6 +643,14 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
         <li><b>A01 note</b> / <b>Learn</b>: select A01 on the Drums tab, tap Learn, then hit the MPC pad that should play it. The rest follow in order.</li>
         <li><b>Notes play</b>: send incoming notes to the drum pads or to a synth (for a MIDI keyboard). <b>Channel</b> filters which MIDI channel is listened to.</li>
       </ul>
+      <p><b>MIDI learn</b> (map MPC knobs and pads to any control):</p>
+      <ol><li>Setup → MIDI sync → <b>MIDI learn</b>. An orange bar appears, and every control you can map gets a dashed outline.</li><li>Go to any tab and tap a slider, menu, number box or button. It gets a white outline.</li><li>Move a knob on the MPC (or hit a pad). That control now follows it, and turns green.</li><li>Map as many as you like, then tap <b>Done</b>.</li></ol>
+      <ul>
+        <li>Knobs move sliders across their full range, step through menus, and press buttons when turned past halfway. Pads press buttons (Play, Overdub, Mute…), step a menu to its next choice, or flip a slider between its lowest and highest setting.</li>
+        <li>Mapped controls work from any tab, even when that page isn't open. Moving a mapped track control while Automate is on records automation.</li>
+        <li>A note you map to a control no longer plays a pad. Mapping the same knob again moves it to the new control.</li>
+        <li>Your mappings are listed under MIDI learn. Remove one with ✕, or use Clear all mappings. They are saved with the project.</li>
+      </ul>
     </details>
 
     <details id="h-export"><summary>Exporting: WAV, MP3, stems and MIDI</summary>
@@ -718,6 +736,8 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <div class="ctl"><label class="label" for="midiBase">A01 note</label><select id="midiBase"></select><button id="midiLearn">Learn</button></div>
       <div class="ctl"><label class="label" for="midiTarget">Notes play</label><select id="midiTarget"></select><span></span></div>
       <div class="ctl"><label class="label" for="midiCh">Channel</label><select id="midiCh"><option value="0">All</option></select><span></span></div>
+      <div class="row"><span class="grow">Map MPC knobs and pads to any control</span><button id="mlearnOn" class="nolearn">MIDI learn</button></div>
+      <div id="mapList" class="maplist"></div>
       <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
       <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
     </div>
@@ -791,7 +811,7 @@ function defaultState(){
     inCh:'L', device:'', monitor:false,
     quant:24, repRate:24, fullLevel:true, tapMs:20, repeat:false, erase:false, spRest:1200, spRes:.15,
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
-    midiInName:'', midiOutName:'', midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
+    midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
@@ -3255,6 +3275,7 @@ function ctl(box, label, obj, key, min, max, step, fmt, after){
   row.innerHTML = `<label class="label" for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}"><span class="v mono"></span>`;
   const inp = row.querySelector('input'), v = row.querySelector('.v');
   inp.value = obj[key]; v.textContent = fmt(obj[key]);
+  const lp = learnPath(obj); if (lp) inp.dataset.lp = lp + '|' + key;
   inp.addEventListener('input', () => { obj[key] = +inp.value; v.textContent = fmt(obj[key]); after && after(); if (obj.id && trackById(obj.id)) autoTouch(obj, key); save(); });
   inp.addEventListener('dblclick', () => {});
   box.appendChild(row); return inp;
@@ -3367,13 +3388,14 @@ function renderMixer(){
     if (!isMaster) el.querySelector('.nm').textContent = t.name;
     const f = el.querySelector('.fader'), db = el.querySelector('.db');
     const gain = () => isMaster ? obj.vol * obj.vol * 1.2 : obj.vol * obj.vol * 1.4;
-    f.value = obj.vol; db.textContent = fmtDb(gain());
+    f.value = obj.vol; db.textContent = fmtDb(gain()); f.dataset.lp = (isMaster ? 'm' : 't:' + t.id) + '|vol';
     f.addEventListener('input', () => { obj.vol = +f.value; db.textContent = fmtDb(gain()); applyAll(); if (!isMaster) autoTouch(t, 'vol'); save(); });
     f.addEventListener('dblclick', () => { obj.vol = isMaster ? .91 : .845; f.value = obj.vol; db.textContent = fmtDb(gain()); applyAll(); save(); });
     if (!isMaster){
-      const p = el.querySelector('.pan'); p.value = t.pan;
+      const p = el.querySelector('.pan'); p.value = t.pan; p.dataset.lp = 't:' + t.id + '|pan';
       p.addEventListener('input', () => { t.pan = Math.abs(+p.value) < .04 ? 0 : +p.value; applyAll(); autoTouch(t, 'pan'); save(); });
       const m = el.querySelector('.mute'), s = el.querySelector('.solo');
+      m.dataset.lp = 't:' + t.id + '|mute'; s.dataset.lp = 't:' + t.id + '|solo';
       m.classList.toggle('on', t.mute); s.classList.toggle('on', t.solo);
       m.addEventListener('click', () => { t.mute = !t.mute; m.classList.toggle('on', t.mute); applyAll(); save(); });
       s.addEventListener('click', () => { t.solo = !t.solo; s.classList.toggle('on', t.solo); applyAll(); save(); });
@@ -3385,6 +3407,7 @@ function renderMixer(){
   allTracks().forEach(t => mk(t, false));
   mk({id:'master'}, true);
   renderFx();
+  if (mlearn) markMapped();
 }
 function renderFx(){
   const box = $('#fxCard'); box.innerHTML = '';
@@ -3464,6 +3487,7 @@ function renderRack(){
     for (const [label, key, mn, mx, st, fmt, show] of R.knobs) if (!show || show(P)) ctl(g, label, P, key, mn, mx, st, fmt, () => applyAll());
     u.appendChild(g); box.appendChild(u);
   }
+  if (mlearn) markMapped();
 }
 function setView(v){
   view = v;
@@ -3476,6 +3500,8 @@ function setView(v){
   if (v === 'chop') renderChop();
   if (v === 'song') renderSong();
   if (v === 'synth') renderSynth();
+  if (v === 'setup') renderMaps();
+  if (mlearn) markMapped();
   try { localStorage.setItem('pr-view', v); } catch(e){}
 }
 
@@ -4367,6 +4393,137 @@ function extStart(pos16){
   ext.running = true; ext.pos0 = pos16; ext.count = 0; ext.lastP = 0; ext.lastC = 0;
   start(pos16, true);
 }
+/* ================= MIDI learn =================
+   Any slider, menu, number box or button can follow a CC (knob) or a note (pad). Sliders built by ctl() and the mixer
+   strips carry a data path (object|key) so they work even when their page isn't open. */
+let mlearn = false, mArmed = null;
+const mLast = new Map();
+function learnPath(obj){
+  if (!obj || typeof obj !== 'object') return null;
+  if (obj === S.master) return 'm';
+  if (obj === S) return 's';
+  if (S.rack) for (const k in S.rack) if (S.rack[k] === obj) return 'r:' + k;
+  const pi = S.drum.pads.indexOf(obj); if (pi >= 0) return 'p:' + pi;
+  for (const t of allTracks()){ if (t === obj) return 't:' + t.id; for (const sub of ['rack', 'p5', 'tb', 'tau', 'sol', 'voc', 'patch']) if (t[sub] === obj) return 't:' + t.id + ':' + sub; }
+  return null;
+}
+function learnObj(path){
+  const [a, b, c] = path.split(':');
+  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'r') return rackState(b); if (a === 'p') return S.drum.pads[+b];
+  if (a === 't'){ const t = trackById(b); return t && (c ? t[c] : t); }
+  return null;
+}
+function learnTarget(el){
+  if (el.dataset.lp) return {lp:el.dataset.lp, min:+el.min || 0, max:el.max === '' ? 1 : +el.max, step:+el.step || 0, kind:el.tagName === 'BUTTON' ? 'toggle' : 'range'};
+  if (el.id && !el.id.startsWith('c-')) return {sel:'#' + el.id, kind:el.tagName === 'SELECT' ? 'select' : el.tagName === 'BUTTON' ? 'button' : el.type === 'number' ? 'number' : 'range'};
+  return null;
+}
+function learnLabel(el, tg){
+  const row = el.closest('.ctl, .row, .strip'), lab = row && row.querySelector('.label, .nm');
+  const lf = el.id && document.querySelector(`label[for="${el.id}"]`);
+  let name = (el.getAttribute('aria-label') || (lf && lf.textContent) || (lab && lab !== el && lab.textContent) || (el.tagName === 'SELECT' ? '' : el.textContent) || el.id || 'Control').trim();
+  if (el.tagName === 'BUTTON' && el.textContent.trim() && !el.getAttribute('aria-label')) name = el.textContent.trim();
+  if (el.classList.contains('mute')) name = 'Mute'; if (el.classList.contains('solo')) name = 'Solo';
+  if (tg.lp){
+    const [path, key] = tg.lp.split('|'), [a, b, c] = path.split(':');
+    const ctx = a === 'm' ? 'Master' : a === 'r' ? RACK[b].short : a === 'p' ? padLabel(+b) + ' ' + S.drum.pads[+b].name : a === 't' ? ((trackById(b) || {}).name || b) + (c === 'rack' ? ' send' : '') : '';
+    if (key === 'vol' && !lab) name = 'Volume'; if (key === 'pan') name = 'Pan';
+    return (ctx ? ctx + ' · ' : '') + name;
+  }
+  return name;
+}
+const mName = m => (m.type === 'cc' ? 'CC ' + m.num : 'Note ' + noteName(m.num)) + (m.ch ? ' ch' + m.ch : '');
+function setLearn(on){
+  mlearn = on; if (!on && mArmed){ mArmed.classList.remove('marmed'); mArmed = null; }
+  document.body.classList.toggle('mlearn', on); $('#learnBar').hidden = !on;
+  $('#learnMsg').textContent = 'MIDI learn: tap a knob, menu or button, then move a knob or hit a pad on the MPC.';
+  if (on && !midi) connectMidi();
+  markMapped(); renderMaps();
+}
+function markMapped(){
+  document.querySelectorAll('.mmapped').forEach(e => e.classList.remove('mmapped'));
+  if (!mlearn) return;
+  for (const m of S.midiMap || []){ const els = m.lp ? document.querySelectorAll(`[data-lp="${m.lp}"]`) : document.querySelectorAll(m.sel); els.forEach(e => e.classList.add('mmapped')); }
+}
+function renderMaps(){
+  const box = $('#mapList'); if (!box) return;
+  const maps = S.midiMap || [];
+  $('#mlearnOn').textContent = mlearn ? 'Learning…' : 'MIDI learn'; $('#mlearnOn').classList.toggle('on', mlearn);
+  box.innerHTML = maps.length ? '' : '<p class="hint">No controls mapped yet.</p>';
+  maps.forEach((m, i) => {
+    const r = document.createElement('div'); r.className = 'row';
+    r.innerHTML = `<span class="mono"></span><span class="grow"></span><button class="nolearn" aria-label="Remove mapping">✕</button>`;
+    r.children[0].textContent = mName(m); r.children[1].textContent = m.label;
+    r.children[2].addEventListener('click', () => { maps.splice(i, 1); save(); renderMaps(); markMapped(); });
+    box.appendChild(r);
+  });
+  if (maps.length){ const c = document.createElement('button'); c.className = 'nolearn'; c.textContent = 'Clear all mappings';
+    c.addEventListener('click', () => { if (confirm('Remove all MIDI mappings?')){ S.midiMap = []; save(); renderMaps(); markMapped(); } }); box.appendChild(c); }
+}
+const learnable = el => el && !el.closest('nav, #learnBar, .nolearn') && !el.classList.contains('nolearn') && !el.classList.contains('pad');
+document.addEventListener('pointerdown', e => {
+  if (!mlearn) return;
+  const el = e.target.closest('input[type=range], input[type=number], select, button');
+  if (!learnable(el)) return;
+  e.preventDefault(); e.stopPropagation();
+  const tg = learnTarget(el);
+  if (!tg){ toast("That control can't be mapped."); return; }
+  if (mArmed) mArmed.classList.remove('marmed');
+  mArmed = el; el.classList.add('marmed');
+  $('#learnMsg').textContent = 'Now move a knob or hit a pad on the MPC for: ' + learnLabel(el, tg);
+}, true);
+document.addEventListener('click', e => { if (!mlearn) return; const el = e.target.closest('input, select, button'); if (learnable(el)){ e.preventDefault(); e.stopPropagation(); } }, true);
+document.addEventListener('keydown', e => { if (mlearn && e.key === 'Escape') setLearn(false); });
+function learnBind(type, ch, num){
+  const el = mArmed, tg = learnTarget(el); if (!tg) return;
+  S.midiMap = (S.midiMap || []).filter(m => !(m.type === type && m.num === num && (!m.ch || !ch || m.ch === ch)) && !(tg.lp ? m.lp === tg.lp : m.sel === tg.sel));
+  const m = Object.assign({type, ch, num, label:learnLabel(el, tg)}, tg);
+  S.midiMap.push(m); save();
+  el.classList.remove('marmed'); mArmed = null;
+  $('#learnMsg').textContent = `${mName(m)} → ${m.label}. Tap another control, or Done.`;
+  markMapped(); renderMaps();
+}
+// move a mapped control: v01 is 0..1 for knobs; press = true for a pad hit / button press
+function learnApply(m, v01, press){
+  if (m.lp){
+    const [path, key] = m.lp.split('|'), obj = learnObj(path); if (!obj) return;
+    const el = document.querySelector(`[data-lp="${m.lp}"]`);
+    if (m.kind === 'toggle'){ if (!press) return; if (el && el.isConnected){ el.click(); return; } obj[key] = !obj[key]; applyAll(); save(); if (view === 'mixer') renderMixer(); return; }
+    let val = v01 == null ? (press ? (obj[key] >= (m.min + m.max) / 2 ? m.min : m.max) : null) : m.min + v01 * (m.max - m.min);
+    if (val == null) return;
+    if (m.step) val = Math.round((val - m.min) / m.step) * m.step + m.min;
+    if (el){ el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); return; }
+    obj[key] = val; applyAll(); (S.synths || []).forEach(t => solCfg(t)); save(); return;
+  }
+  const el = document.querySelector(m.sel); if (!el) return;
+  if (m.kind === 'button'){ if (press) el.click(); return; }
+  if (m.kind === 'select'){
+    const n = el.options.length; if (!n) return;
+    const i = v01 == null ? (press ? (el.selectedIndex + 1) % n : -1) : Math.min(n - 1, Math.floor(v01 * n));
+    if (i < 0 || i === el.selectedIndex) return;
+    el.selectedIndex = i; el.dispatchEvent(new Event('change', {bubbles:true})); return;
+  }
+  const mn = el.min === '' ? 0 : +el.min, mx = el.max === '' ? 1 : +el.max;
+  let val = v01 == null ? (press ? (+el.value >= (mn + mx) / 2 ? mn : mx) : null) : mn + v01 * (mx - mn); if (val == null) return;
+  const st = +el.step || 0; if (st) val = Math.round((val - mn) / st) * st + mn;
+  el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true}));
+}
+// returns true when the message was used by MIDI learn
+function learnMidi(type, ch, d){
+  const cc = type === 0xB0, on = type === 0x90 && d[2] > 0, off = type === 0x80 || (type === 0x90 && !d[2]);
+  if (!cc && !on && !off) return false;
+  if (mlearn && mArmed && (cc || on)){ learnBind(cc ? 'cc' : 'note', ch, d[1]); return true; }
+  const maps = (S.midiMap || []).filter(m => m.type === (cc ? 'cc' : 'note') && m.num === d[1] && (!m.ch || m.ch === ch));
+  if (!maps.length) return false;
+  for (const m of maps){
+    if (cc){
+      const key = ch + ':' + d[1], prev = mLast.get(key) || 0; mLast.set(key, d[2]);
+      if (m.kind === 'button' || m.kind === 'toggle'){ if (d[2] >= 64 && prev < 64) learnApply(m, null, true); }
+      else learnApply(m, d[2] / 127, false);
+    } else if (on) learnApply(m, null, true);
+  }
+  return true;
+}
 function onMidi(e){
   const d = e.data, st = d[0];
   if (st === 0xF8){ if (S.midiClock === 'in') onClock(e.timeStamp); return; }
@@ -4377,6 +4534,7 @@ function onMidi(e){
     if (st === 0xF2){ ext.spp = d[1] | (d[2] << 7); return; }
   }
   const type = st & 0xF0, ch = (st & 0x0F) + 1;
+  if (!learning && learnMidi(type, ch, d)) return;
   if ((type === 0xB0 && d[1] === 1) || type === 0xE0){
     const syn = S.synths.find(t => t.id === S.midiTarget && t.inst === 'prophet'), n = syn && live && live.sol && live.sol[syn.id + ':prophet'];
     if (syn && type === 0xB0){ syn.p5.wheel = d[2] / 127; if (n) n.port.postMessage({type:'wheel', v:syn.p5.wheel}); }
@@ -4458,6 +4616,8 @@ $('#midiOff').addEventListener('input', e => { S.midiOffMs = +e.target.value; $(
 $('#midiNotes').addEventListener('click', () => { S.midiNotes = !S.midiNotes; save(); renderMidi(); });
 $('#midiBase').addEventListener('change', e => { S.midiBase = +e.target.value; save(); });
 $('#midiCh').addEventListener('change', e => { S.midiCh = +e.target.value; save(); });
+$('#mlearnOn').addEventListener('click', () => setLearn(!mlearn));
+$('#learnDone').addEventListener('click', () => setLearn(false));
 $('#midiLearn').addEventListener('click', () => { learning = !learning; if (learning && !midi) connectMidi(); renderMidi(); if (learning) toast(`Hit the MPC pad that should play ${padLabel(selPad)}.`); });
 
 /* ================= stem separation ================= */
