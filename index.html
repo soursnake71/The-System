@@ -10,7 +10,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=VT323&display=swap">
 <style>
 /* Layout: transport bar pinned on top, one scrolling view, tab bar at the bottom. Thumb-first, single column. */
 :root{
@@ -200,7 +200,81 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 .badge{font:600 11px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:5px;background:var(--panel2);color:var(--dim)}
 .badge.ok{background:#1f3a27;color:var(--ok)}
 .badge.bad{background:#41212a;color:var(--rec)}
+/* ===== Look: MPC60 x SP-1200 =====
+   MPC60: warm-grey case, green backlit LCD, dark rubber pads in a recessed well, light keycaps.
+   SP-1200: charcoal panel with white silkscreen, black fader slots with grey caps, red accents. */
+html.retro{
+  --bg:#26282b; --panel:#36383b; --panel2:#2b2d30; --line:#1a1b1d; --fg:#ece8dd; --dim:#aaa598;
+  --accent:#ef5a2a; --accent-ink:#fff; --audio:#7cc4d6; --rec:#e0281f; --ok:#9fd36a;
+  --cap:#d8d3c6; --cap2:#c2bcae; --cap-ink:#26241f; --case:#c9c4b7; --case2:#b5afa1;
+  --lcd:#a9c23f; --lcd2:#8fa832; --lcd-ink:#1c2410;
+  --f-lcd:"VT323","JetBrains Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+html.retro body{background:var(--bg) repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.012) 3px 4px)}
+/* keycaps */
+html.retro button{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;border-radius:4px;box-shadow:0 2px 0 #00000080,inset 0 1px 0 #ffffff80}
+html.retro button:active{transform:translateY(1px);box-shadow:0 1px 0 #00000080,inset 0 1px 0 #ffffff60;filter:none}
+html.retro button.on{background:linear-gradient(180deg,#f2683a,#d9461c);color:#fff;border-color:#0009}
+html.retro button:disabled{opacity:.45}
+html.retro select,html.retro input[type=number]{background:#1d1e20;color:var(--fg);border:1px solid #000;border-radius:3px;box-shadow:inset 0 2px 3px #0008}
+html.retro .label{color:#d9d4c7;letter-spacing:.16em}
+/* SP-1200 panels with silkscreen rules */
+html.retro .card{background:linear-gradient(180deg,#3a3c3f,#323437);border:1px solid #111;border-radius:6px;box-shadow:inset 0 1px 0 #ffffff14,0 2px 6px #0006}
+html.retro h2{color:#fff;letter-spacing:.1em;border-bottom:1px solid #ffffff38;padding-bottom:6px}
+html.retro .hint{color:#b8b3a6}
+/* faders: black slot, grey cap with a white line */
+html.retro input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:30px}
+html.retro input[type=range]::-webkit-slider-runnable-track{height:6px;background:#0b0b0c;border-radius:3px;box-shadow:inset 0 1px 2px #000,0 1px 0 #ffffff1a}
+html.retro input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:28px;margin-top:-11px;border-radius:2px;border:1px solid #000;background:linear-gradient(90deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e);box-shadow:0 2px 3px #000a}
+html.retro input[type=range]::-moz-range-track{height:6px;background:#0b0b0c;border-radius:3px}
+html.retro input[type=range]::-moz-range-thumb{width:16px;height:28px;border-radius:2px;border:1px solid #000;background:#d8d3c6}
+html.retro .strip input.fader{width:30px;height:150px}
+html.retro .eq11 input[type=range]{width:30px;height:120px}
+html.retro input.fader::-webkit-slider-runnable-track,html.retro .eq11 input::-webkit-slider-runnable-track{width:6px;height:100%;margin:0 auto}
+html.retro input.fader::-webkit-slider-thumb,html.retro .eq11 input::-webkit-slider-thumb{width:28px;height:16px;margin-top:0;margin-left:-11px;background:linear-gradient(180deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e)}
+/* MPC60 case on top: grey body, green LCD */
+html.retro .transport{--fg:#26241f;--dim:#55514a;background:linear-gradient(180deg,var(--case),var(--case2));border-bottom:3px solid #1b1c1e;box-shadow:0 2px 8px #0008;position:relative;padding-top:calc(env(safe-area-inset-top,0px) + 22px)}
+html.retro .transport::before{content:"POCKET RACK  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.retro .transport .label{color:#4a463e}
+html.retro .transport select{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;box-shadow:0 2px 0 #00000080}
+html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 10px #4d5e10a0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:1px 1px 0 #0000001f}
+html.retro .bpm input{font-size:28px;width:72px;padding:4px 2px}
+html.retro #rec{color:var(--rec)}
+html.retro #rec.live{background:linear-gradient(180deg,#f04030,#c41d14);color:#fff}
+html.retro .badge{background:#23251f;color:#c9c4b7;border-radius:2px}
+html.retro .badge.ok{background:#23251f;color:var(--lcd)}
+/* MPC60 pads: dark rubber in a recessed black well */
+html.retro .pads{background:#141516;padding:10px;border-radius:6px;box-shadow:inset 0 3px 8px #000;gap:10px}
+html.retro .pad{background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#46484b 60%,#3b3d40);border:1px solid #000;border-radius:5px;box-shadow:0 3px 0 #000,inset 0 1px 0 #ffffff26;color:#e9e5da}
+html.retro .pad .num{color:#c9c4b7}
+html.retro .pad.sel{box-shadow:0 3px 0 #000,inset 0 0 0 2px var(--accent)}
+html.retro .pad.hit{background:radial-gradient(120% 90% at 50% 20%,#8a8c8f,#6a6c6f);transform:translateY(2px);box-shadow:0 1px 0 #000,inset 0 0 0 2px var(--accent);color:#fff}
+html.retro .pad.has::after{background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
+html.retro .key{background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#46484b);color:#d9d4c7;border-color:#000}
+html.retro .key.root{background:radial-gradient(120% 90% at 50% 20%,#7a5a40,#5a3f2a);color:#ffd2b8}
+html.retro .key.down{background:var(--accent);color:#fff}
+/* screens: LCD-green trace on dark glass */
+html.retro #seq,html.retro #roll,html.retro .trk canvas,html.retro #chopWave,html.retro .lane canvas{background:#101411;box-shadow:inset 0 0 0 2px #000,inset 0 0 14px #000}
+/* mixer strips: SP-1200 channel strips */
+html.retro .strip{background:linear-gradient(180deg,#3a3c3f,#2f3134);border:1px solid #111;border-radius:4px}
+html.retro .strip.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+html.retro .strip .nm{color:#fff}
+html.retro .vmeter{background:#000}
+/* mode keys along the bottom, LED lit on the current one */
+html.retro nav{background:linear-gradient(180deg,var(--case),var(--case2));border-top:3px solid #1b1c1e;gap:4px;padding:6px 6px calc(env(safe-area-inset-bottom,0px) + 6px)}
+html.retro nav button{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0008;border-radius:3px;padding:16px 0 8px;font-size:12px;position:relative}
+html.retro nav button::before{content:"";position:absolute;top:5px;left:50%;width:14px;height:4px;margin-left:-7px;border-radius:1px;background:#5a1410}
+html.retro nav button.cur{color:#000}
+html.retro nav button.cur::before{background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
+html.retro .help details{background:#36383b;border:1px solid #111;border-radius:6px}
+html.retro .help p,html.retro .help li,html.retro .help dd{color:#d6d1c4}
+html.retro #helpSearch{background:#1d1e20;border-color:#000;color:var(--fg)}
+html.retro .toast{background:#23251f;color:var(--lcd);font-family:var(--f-lcd);font-size:20px;border:2px solid #000}
+html.retro .scenebar button.on{background:linear-gradient(180deg,#f2683a,#d9461c)}
+html.retro .piano{background:#000}
 </style>
+<script>try { if ((localStorage.getItem('pr.look') || 'retro') === 'retro') document.documentElement.classList.add('retro'); } catch(e){ document.documentElement.classList.add('retro'); }</script>
 </head>
 <body>
 
@@ -677,6 +751,10 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       </ul>
     </details>
 
+    <details id="h-look"><summary>Look</summary>
+      <p>The app is styled after the Akai MPC60 (warm-grey case, green backlit display, dark rubber pads, mode keys with red LEDs) and the E-mu SP-1200 (charcoal panel, white silkscreen, slider faders). To switch back to the plain dark style, go to Setup → Look → <b>Modern dark</b>. The choice is saved on this phone.</p>
+    </details>
+
     <details id="h-save"><summary>Saving, updates and storage</summary>
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
@@ -756,6 +834,11 @@ nav button.cur{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
       <div id="mapList" class="maplist"></div>
       <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
       <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
+    </div>
+    <div class="card">
+      <h2>Look</h2>
+      <label class="label" for="lookSel">Style</label>
+      <select id="lookSel"><option value="retro">MPC60 × SP-1200</option><option value="dark">Modern dark</option></select>
     </div>
     <div class="card">
       <h2>Performance</h2>
@@ -4890,6 +4973,14 @@ $('#outDev').addEventListener('change', async e => {
   ensureAudio(); await applyOutput();
   toast(e.target.value ? 'Playing through ' + e.target.selectedOptions[0].text : 'Playing through the phone');
 });
+$('#lookSel').value = document.documentElement.classList.contains('retro') ? 'retro' : 'dark';
+$('#lookSel').addEventListener('change', e => {
+  try { localStorage.setItem('pr.look', e.target.value); } catch(err){}
+  document.documentElement.classList.toggle('retro', e.target.value === 'retro');
+  document.querySelector('meta[name=theme-color]').content = e.target.value === 'retro' ? '#c9c4b7' : '#111318';
+  seqDirty = true; rollDirty = true; renderPads();
+});
+document.querySelector('meta[name=theme-color]').content = document.documentElement.classList.contains('retro') ? '#c9c4b7' : '#111318';
 $('#audioBuf').value = audioBuf();
 $('#audioBuf').addEventListener('change', async e => {
   try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
