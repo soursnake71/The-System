@@ -1,0 +1,23 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'com.thesnakedevice.app'
+  compileSdk 35
+  defaultConfig {
+    applicationId 'com.thesnakedevice.app'
+    minSdk 24
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+  }
+  signingConfigs {
+    release {
+      storeFile file(System.getenv('SNAKE_KEYSTORE') ?: 'missing.jks')
+      storePassword System.getenv('SNAKE_KEYPASS') ?: ''
+      keyAlias 'snake'
+      keyPassword System.getenv('SNAKE_KEYPASS') ?: ''
+    }
+  }
+  buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0' }
