@@ -786,6 +786,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
       </ul>
     </details>
+    <details id="h-bt"><summary>Bluetooth headphones</summary>
+      <p>Bluetooth adds about 150–250 ms of delay, and phones often don't report it. In <b>Setup → Performance</b>, turn <b>Bluetooth headphones</b> on and tap <b>Measure</b> with your headphones on. Tap the button on each of the 12 clicks, and the app sets the offset for you, or set the <b>BT offset</b> slider yourself. Recorded pads, keys and audio then land where you heard them. The playhead, pad lights and MIDI clock to the MPC also line up with what you hear. Turn it off when you switch back to wired, USB or the phone speaker.</p>
+    </details>
     <details id="h-fold"><summary>Flip-open sections</summary>
       <p>Every section folds. Tap its title or the ▸ arrow to open or close it. The app remembers which sections you left open.</p>
     </details>
@@ -1137,6 +1140,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
+      <div class="row"><span class="grow">Bluetooth headphones</span><button id="btOn" class="nolearn">Off</button></div>
+      <div class="ctl"><label class="label" for="btMs">BT offset</label><input id="btMs" type="range" min="0" max="500" step="1"><span class="v mono" id="btMsV">0 ms</span></div>
+      <div class="row"><button id="btMeasure" class="grow nolearn">Measure: tap along to 12 clicks</button></div>
+      <p class="hint">Bluetooth adds about 150–250 ms that the phone often doesn't report. Turn this on and set the offset (or tap <b>Measure</b> with your headphones on) so recorded pads, keys and audio, the playhead and MIDI sync line up with what you hear. It doesn't make the sound itself come sooner; wired or USB is still the fastest for playing live.</p>
       <p class="hint">If the sound crackles or drops out when a lot is playing, choose a bigger buffer. A bigger buffer adds a little delay between tapping a pad and hearing it. The app reopens to apply the change, and your project is kept.</p>
     </div>
     <div class="card">
@@ -1216,7 +1223,7 @@ function defaultState(){
   return {
     v:2, bpm:92, bars:1, swing:18, metro:false, countIn:true, autoLat:true, latMs:40,
     inCh:'L', device:'', monitor:false,
-    quant:24, repRate:24, fullLevel:true, tapMs:20, repeat:false, erase:false, spRest:1200, spRes:.15,
+    quant:24, repRate:24, fullLevel:true, tapMs:20, bt:false, btMs:180, repeat:false, erase:false, spRest:1200, spRes:.15,
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
@@ -3050,11 +3057,14 @@ registerProcessor('deck', Deck);
 const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
 
 // audio buffer size is a per-phone setting, kept outside the project
+// Bluetooth headphones add delay the phone often doesn't report; this offset is added everywhere the app works out "what you hear now"
+const btSec = () => S.bt ? (S.btMs || 0) / 1000 : 0;
+const outL = () => ctx ? (ctx.outputLatency || 0) + btSec() : 0;
 function showLatency(){
   const el = $('#latNow'); if (!el) return;
   if (!ctx){ el.textContent = 'tap a pad first'; return; }
-  const ms = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
-  el.textContent = ms ? ms + ' ms' : 'n/a'; el.classList.toggle('ok', ms > 0 && ms < 40);
+  const ms = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000), tot = ms + Math.round(btSec() * 1000);
+  el.textContent = ms ? (btSec() ? ms + ' + ' + Math.round(btSec() * 1000) + ' BT = ' + tot + ' ms' : ms + ' ms') : 'n/a'; el.classList.toggle('ok', ms > 0 && ms < 40);
 }
 function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'interactive'; }
 function ensureAudio(){
@@ -3370,8 +3380,8 @@ function addNote(pi, absTick, v, quantize){
 function tapTick(ev){
   const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
   let T = (ts && ts.contextTime > 0 && ts.performanceTime > 0)
-    ? ts.contextTime + (ev.timeStamp - ts.performanceTime) / 1000
-    : ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0) - (performance.now() - ev.timeStamp) / 1000;
+    ? ts.contextTime + (ev.timeStamp - ts.performanceTime) / 1000 - btSec()
+    : ctx.currentTime - outL() - (ctx.baseLatency || 0) - (performance.now() - ev.timeStamp) / 1000;
   if (!ev.midi) T -= S.tapMs / 1000;
   let q = stepQ[0]; for (const e of stepQ) if (e.t <= T) q = e;
   if (!q) return null;
@@ -3462,7 +3472,7 @@ function frameSeq(){
   else if (!playing) return;
   else seqGeo.g.putImageData(seqImg, 0, 0);
   if (!playing || !ctx) return;
-  const T = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  const T = ctx.currentTime - outL() - (ctx.baseLatency || 0);
   let q = null; for (const e of stepQ) if (e.t <= T) q = e;
   if (!q || q.i < 0) return;
   const L = seqGeo.L, tick = ((((q.i - org) * TPS + (T - q.t) / (stepDur() / TPS)) % L) + L) % L;
@@ -3535,7 +3545,7 @@ function tick(){
 }
 function heardStep(){
   if (!ctx) return null;
-  const now = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  const now = ctx.currentTime - outL() - (ctx.baseLatency || 0);
   let cur = null; for (const q of stepQ) if (q.t <= now) cur = q;
   return cur;
 }
@@ -3544,7 +3554,7 @@ function heardStep(){
 function latSec(){
   if (!S.autoLat) return S.latMs / 1000;
   const inLat = inStream ? (inStream.getAudioTracks()[0].getSettings().latency || .012) : .012;
-  return (ctx ? (ctx.outputLatency || 0) + (ctx.baseLatency || 0) : 0) + inLat;
+  return (ctx ? outL() + (ctx.baseLatency || 0) : 0) + inLat;
 }
 async function enableInput(){
   ensureAudio(); await ctx.resume();
@@ -4064,6 +4074,40 @@ function renderTransport(){
   $('#odub').classList.toggle('on', drumRec); $('#sOdub').classList.toggle('on', drumRec);
   $('#bpm').value = S.bpm; $('#bars').value = S.bars; $('#metro').classList.toggle('on', S.metro);
 }
+function renderBt(){
+  const on = $('#btOn'); if (!on) return;
+  if (S.btMs == null) S.btMs = 180;
+  on.classList.toggle('on', !!S.bt); on.textContent = S.bt ? 'On' : 'Off';
+  $('#btMs').value = S.btMs; $('#btMsV').textContent = S.btMs + ' ms'; showLatency();
+}
+let btTest = null;
+function btMeasure(){
+  ensureAudio();
+  const b = $('#btMeasure');
+  if (btTest){ btTap(); return; }
+  const gap = .6, t0 = ctx.currentTime + .8, clicks = [];
+  for (let k = 0; k < 12; k++){
+    const t = t0 + k * gap, o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = k % 4 ? 1500 : 2200; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.9, t + .001); g.gain.exponentialRampToValueAtTime(.001, t + .05);
+    o.connect(g).connect(live.click || ctx.destination); o.start(t); o.stop(t + .06); clicks.push(t);
+  }
+  btTest = {clicks, taps:[]}; b.textContent = 'TAP HERE ON EVERY CLICK'; b.classList.add('on');
+  setTimeout(() => {
+    const T = btTest; btTest = null; b.textContent = 'Measure: tap along to 12 clicks'; b.classList.remove('on');
+    const d = T.taps.filter(x => x > -.25 && x < .6).sort((a, b) => a - b);
+    if (d.length < 5){ toast('Not enough taps. Tap on every click you hear.'); return; }
+    const med = d[d.length >> 1], ms = clamp(Math.round(med * 1000 - (S.tapMs || 0)), 0, 500);
+    S.btMs = ms; S.bt = ms > 25; save(); renderBt();
+    toast(S.bt ? 'Bluetooth offset set to ' + ms + ' ms.' : 'Only ' + ms + ' ms extra measured. Bluetooth offset left off.');
+  }, (t0 - ctx.currentTime + 12 * gap + .8) * 1000);
+}
+function btTap(ev){
+  if (!btTest) return;
+  const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null, P = performance.now();
+  const T = (ts && ts.contextTime > 0 && ts.performanceTime > 0) ? ts.contextTime + (P - ts.performanceTime) / 1000 : ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  let best = null; for (const c of btTest.clicks) if (best == null || Math.abs(T - c - .15) < Math.abs(T - best - .15)) best = c;
+  btTest.taps.push(T - best);
+}
 function renderInput(){
   const on = !!inSrc, lbl = on ? (inStream.getAudioTracks()[0].label || 'Input on') : 'No input';
   for (const id of ['#inBadge', '#inBadge2']){ const b = $(id); b.textContent = on ? (id === '#inBadge' ? 'Input on' : 'On') : (id === '#inBadge' ? 'No input' : 'Off'); b.className = 'badge ' + (on ? 'ok' : ''); }
@@ -4116,7 +4160,7 @@ function padLoadAt(i){ sbxOpen(i); }
 function auditionPad(i){ ensureAudio(); playPad(live, S.drum.pads[i], ctx.currentTime + .005, .9); flashPad(i, ctx.currentTime); }
 const ptrs = new Map();
 function flashPad(i, t){
-  const delay = Math.max(0, (t - ctx.currentTime + (ctx.outputLatency || 0)) * 1000);
+  const delay = Math.max(0, (t - ctx.currentTime + outL()) * 1000);
   setTimeout(() => {
     const b = $(`.pad[data-i="${i}"]`); if (!b) return;
     b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90);
@@ -5141,7 +5185,7 @@ function renderPlat(){
   stepify($('#ttTpr'), v => v + ' steps'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
 })();
 function setView(v){
-  view = v; if (v === "setup") setTimeout(showLatency, 0);
+  view = v; if (v === "setup") setTimeout(renderBt, 0);
   document.querySelectorAll('.view[id^="v-"]').forEach(s => s.hidden = s.id !== 'v-' + v);
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('cur', b.dataset.v === v));
   if (v === 'drums') seqDirty = true;
@@ -5197,7 +5241,7 @@ function frame(){
       const cv = rt(tr.id).cv; if (!cv || !rt(tr.id).img) return;
       const g = cv.getContext('2d'); g.putImageData(rt(tr.id).img, 0, 0);
       if (playing && rt(tr.id).t != null && ctx){
-        const heard = ctx.currentTime - (ctx.outputLatency || 0), x = ((heard - rt(tr.id).t) % rt(tr.id).dur) / rt(tr.id).dur * cv.width;
+        const heard = ctx.currentTime - outL(), x = ((heard - rt(tr.id).t) % rt(tr.id).dur) / rt(tr.id).dur * cv.width;
         if (x >= 0){ g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--fg'); g.fillRect(x, 0, 2 * devicePixelRatio, cv.height); }
       }
     });
@@ -5625,7 +5669,7 @@ function frameRoll(){
   else if (!playing) return;
   else rollGeo.g.putImageData(rollImg, 0, 0);
   if (!playing || !ctx) return;
-  const T = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  const T = ctx.currentTime - outL() - (ctx.baseLatency || 0);
   let q = null; for (const e of stepQ) if (e.t <= T) q = e;
   if (!q || q.i < 0) return;
   const L = rollGeo.L, tick = ((((q.i - org) * TPS + (T - q.t) / (stepDur() / TPS)) % L) + L) % L;
@@ -6188,7 +6232,7 @@ function autoTouch(tr, key){
     return;
   }
   const h = heardStep(); if (!h || h.i < org) return;
-  const L = loopTicks(), T = ctx.currentTime - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  const L = loopTicks(), T = ctx.currentTime - outL() - (ctx.baseLatency || 0);
   const tick = Math.round(((((h.i - org) * TPS + (T - h.t) / (stepDur() / TPS)) % L) + L) % L);
   const pts = S.auto[id] || (S.auto[id] = []);
   const last = touching.has(id) && ctx.currentTime - touching.get(id) < .3 ? touching.lastTick?.[id] : null;
@@ -6362,13 +6406,13 @@ const noteName = n => NOTE[n % 12] + (Math.floor(n / 12) - 2);   // Ableton/MPC 
 // map a performance.now() time to the audio context time that will be *heard* then
 function ctxFromPerf(P){
   const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
-  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (P - ts.performanceTime) / 1000;
-  return ctx.currentTime + (P - performance.now()) / 1000 - (ctx.outputLatency || 0) - (ctx.baseLatency || 0);
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (P - ts.performanceTime) / 1000 - btSec();
+  return ctx.currentTime + (P - performance.now()) / 1000 - outL() - (ctx.baseLatency || 0);
 }
 function perfFromCtx(t){
   const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
-  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.performanceTime + (t - ts.contextTime) * 1000;
-  return performance.now() + (t - ctx.currentTime + (ctx.outputLatency || 0)) * 1000;
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) return ts.performanceTime + (t - ts.contextTime + btSec()) * 1000;
+  return performance.now() + (t - ctx.currentTime + outL()) * 1000;
 }
 function extPerfTime(i){
   if (!ext.period || !ext.lastP) return null;
@@ -6807,6 +6851,9 @@ function renderSeqCtl(){
   $('#quant').value = S.quant; $('#repRate').value = S.repRate; $('#quantNow').disabled = S.quant <= 1;
   $('#fullLvl').classList.toggle('on', S.fullLevel); $('#fullLvl').textContent = S.fullLevel ? 'Full level' : 'By touch height';
 }
+$('#btOn').addEventListener('click', () => { S.bt = !S.bt; save(); renderBt(); toast(S.bt ? 'Bluetooth offset on: ' + S.btMs + ' ms.' : 'Bluetooth offset off.'); });
+$('#btMs').addEventListener('input', e => { S.btMs = +e.target.value; save(); renderBt(); });
+$('#btMeasure').addEventListener('pointerdown', e => { e.preventDefault(); btMeasure(); });
 $('#tapMs').addEventListener('input', e => { S.tapMs = +e.target.value; $('#tapV').textContent = S.tapMs + ' ms'; save(); });
 $('#swing').addEventListener('input', e => { S.swing = +e.target.value; $('#swingV').textContent = S.swing + '%'; save(); });
 $('#loadSample').addEventListener('click', () => sbxOpen(selPad));
@@ -6954,7 +7001,7 @@ $('#clickVol').value = S.clickVol == null ? 1 : S.clickVol;
 $('#clickVol').addEventListener('input', e => { S.clickVol = +e.target.value; applyClick(); save(); });
 stepify($('#clickVol'), v => Math.round(v * 100) + '%' + (v > 2.5 ? ' LOUD' : ''));
 stepify($('#swing'), v => v + '%'); stepify($('#chopSens'), v => v + '%'); stepify($('#p5Wheel'), v => Math.round(v * 100) + '%');
-stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs'), v => v + ' ms'); stepify($('#tapMs'), v => v + ' ms');
+stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs'), v => v + ' ms'); stepify($('#tapMs'), v => v + ' ms'); stepify($('#btMs'), v => v + ' ms');
   renderSeqCtl(); renderScenes();
   renderTransport(); renderPads(); renderPadEditor(); renderInput(); renderMidi();
   if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
