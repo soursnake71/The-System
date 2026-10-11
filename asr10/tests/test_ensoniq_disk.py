@@ -83,6 +83,17 @@ class DiskTests(unittest.TestCase):
         self.assertEqual((e.start, e.size), (start, 1))
         self.assertEqual(d.problems(), [])
 
+    def test_leaked_chain_is_a_warning_and_count_is_adjusted(self):
+        d = make_image(files=[("OS", 32, b"a" * 1024)])
+        system = ed.FAT_START + d.fat_blocks
+        leak = system + 10                         # a chain no file owns
+        d.fat_set(leak, ed.FAT_EOF)
+        self.assertEqual(d.problems(), [])
+        self.assertEqual(len(d.warnings()), 1)
+        before = d.free_count()
+        d.replace_file(d.find("os"), b"z" * 3 * 512)  # 2 -> 3 blocks
+        self.assertEqual(d.free_count(), before - 1)
+
     def test_find_os_by_type(self):
         d = make_image(files=[("SND", 3, b"b" * 512), ("ASR-10 OS", 32, b"o" * 512)])
         self.assertEqual(d.find("os").name, "ASR-10 OS")

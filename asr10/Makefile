@@ -6,6 +6,8 @@
 #                             build/system.img: a copy of STOCK whose OS file
 #                             is replaced by ours (header and load table
 #                             taken from STOCK's OS, see tools/make_os.py)
+#   make hfe STOCK=...        build/THESYSTEM.hfe, the same disk for a Gotek
+#                             that uses HFE files (STOCK may be .img or .hfe)
 #   make disasm OS=local/os.bin ORG=0x...
 #                             disassemble an extracted OS file
 
@@ -43,9 +45,14 @@ build/system.bin: build/system.elf
 
 disk: build/system.bin
 	@test -n "$(STOCK)" || { echo "set STOCK=<stock OS disk image>"; exit 1; }
-	python3 tools/ensoniq_disk.py extract $(STOCK) os build/stock-os.bin
+	@case "$(STOCK)" in *.hfe|*.HFE) python3 tools/hfe.py to-img $(STOCK) build/stock.img ;; \
+	  *) cp $(STOCK) build/stock.img ;; esac
+	python3 tools/ensoniq_disk.py extract build/stock.img os build/stock-os.bin
 	python3 tools/make_os.py build/stock-os.bin build/system.bin $(LOAD_ADDR) build/system-os.bin
-	python3 tools/ensoniq_disk.py replace $(STOCK) os build/system-os.bin build/system.img
+	python3 tools/ensoniq_disk.py replace build/stock.img os build/system-os.bin build/system.img
+
+hfe: disk
+	python3 tools/hfe.py to-hfe build/system.img build/THESYSTEM.hfe
 
 disasm:
 	@test -n "$(OS)" || { echo "set OS=<extracted OS file>"; exit 1; }
@@ -57,4 +64,4 @@ test: build/system.bin
 clean:
 	rm -rf build
 
-.PHONY: all disk disasm test clean
+.PHONY: all disk hfe disasm test clean

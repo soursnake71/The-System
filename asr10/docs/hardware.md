@@ -83,7 +83,12 @@ of RAM `0x000-0x3FF`:
 | `0x0F600` | `0x009C00` | `0x31` |
 | `0x15800` | `0xFC6000` | `0x01` |
 
-The table covers the file exactly (2 + 171 = 173 blocks). Evidence: 1291 of
+The table covers the file exactly (2 + 171 = 173 blocks).
+
+**OS 3.53** (from the user's own boot disk) uses the same header and the
+same ROM handler addresses. Its load table differs only in the third
+segment: `0x9C00`, `0x102` blocks, so low RAM runs to at least `0x2A000`.
+The file is 382 blocks. Evidence: 1291 of
 1726 short calls into `0xFF8000+` land after a return or branch with this
 layout. So do 121 of 170 long calls into `0x8000-0xFFFF`, and 13 of 13
 calls into `0xFC6000+`.
@@ -95,9 +100,23 @@ segments is a NOP slide into it (`tools/make_os.py`).
 
 ## Floppy format
 
-Checked against the OS 1.61 image: `ensoniq_disk.py info` reports no
-mismatches. HD disk, 3200 blocks, FAT at block 5 (19 blocks), data from
-block 24.
+Checked against OS 1.61 and nine of the user's disks (HD and DD): layout
+matches. HD disk, 3200 blocks, FAT at block 5 (19 blocks), data from
+block 24. DD disk, 1600 blocks.
+
+Disks written by the ASR-10 can leave FAT chains from deleted files that
+no directory entry owns. The free count in block 2 counts those blocks as
+free, so it can be higher than the number of zero FAT entries. The disk
+tool trusts block 2 and adjusts it by the change in size.
+
+## HFE files (the Gotek's format)
+
+From the user's HFE files: HFE v1, MFM, 80 cylinders, 2 sides, sectors
+numbered from 0, gap 3 = 36, index mark at byte 95, first sector ID at
+byte 161, sectors 610 bytes apart. HD: 500 kbit/s, interface mode 1, about
+50,024 bytes per track. DD: 250 kbit/s, interface mode 0, 25,088. Track
+length varies a little between files. `tools/hfe.py` writes this layout;
+Greaseweazle's `ensoniq.1600` decoder reads it back unchanged.
 
 ## Next questions
 

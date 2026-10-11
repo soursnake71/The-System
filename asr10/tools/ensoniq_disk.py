@@ -121,8 +121,16 @@ class Disk:
         id_total = struct.unpack(">I", self.block(1)[0x0E:0x12])[0]
         if id_total != self.blocks:
             out.append(f"block 1 says {id_total} blocks, image has {self.blocks}")
+        return out
+
+    def warnings(self):
+        """Oddities real ASR-10 disks have, which don't stop them working."""
+        out = []
         if self.free_count() != self.count_free():
-            out.append(f"block 2 free count {self.free_count()} != FAT free count {self.count_free()}")
+            # Seen on disks written by the ASR-10: chains left in the FAT by
+            # deleted files, which block 2's count treats as free.
+            out.append(f"block 2 free count {self.free_count()} != FAT free count {self.count_free()}"
+                       " (left over from deleted files; harmless)")
         return out
 
     # FAT
@@ -195,6 +203,7 @@ class Disk:
         """Rewrite entry's data in place, reusing its blocks and growing if needed."""
         need = max(1, -(-len(payload) // BLOCK))
         old = self.chain(entry.start)
+        old_free = self.free_count()
         for n in old:
             self.fat_set(n, FAT_FREE)
         # Prefer one contiguous run from the old start block; the boot ROM may
@@ -210,7 +219,9 @@ class Disk:
         raw[14:18] = struct.pack(">HH", need, need)
         raw[18:22] = struct.pack(">I", run[0])
         self.write_entry(entry.slot, raw)
-        self.set_free_count(self.count_free())
+        # Adjust rather than recount: the disk's own count may include
+        # blocks that look used in the FAT (see warnings()).
+        self.set_free_count(old_free + len(old) - need)
 
     def _find_run(self, need):
         first_data = FAT_START + self.fat_blocks
@@ -237,6 +248,8 @@ def cmd_info(a):
     probs = d.problems()
     for p in probs:
         print("MISMATCH:", p)
+    for w in d.warnings():
+        print("warning:", w)
     print("layout matches the documented Ensoniq format" if not probs else f"{len(probs)} mismatch(es)")
     return 1 if probs else 0
 

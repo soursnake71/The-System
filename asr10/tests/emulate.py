@@ -23,7 +23,7 @@ def run(os_file, entry, count):
     data = open(os_file, "rb").read()
     uc = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
     uc.ctl_set_cpu_model(UC_CPU_M68K_M68000)
-    uc.mem_map(0x000000, 0x10000)   # low RAM
+    uc.mem_map(0x000000, 0x40000)   # low RAM (OS 3.53 loads up to 0x2A000)
     uc.mem_map(0xFC4000, 0x1000)    # DUART page
     uc.mem_map(0xFC6000, 0x1000)    # 68302 internal RAM and registers
     uc.mem_map(0xFF8000, 0x8000)    # high RAM
