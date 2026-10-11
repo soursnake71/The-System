@@ -19,7 +19,7 @@ switch off and boot your stock disk again. No chips are changed.
 | OS file layout (header, load table, memory map) | found in OS 1.61, see `docs/hardware.md` |
 | First boot: our code runs and writes text on the display | **works** (try 3); MIDI note not checked yet |
 | Display commands (clear, cursor) | `D6` and `83` don't clear; still unknown |
-| Panel explorer: shows the code of each button/key press | built, emulator-tested; next to try |
+| Panel explorer: shows the code of each button/key press | **works**: keys and buttons send codes; slider doesn't (analog) |
 | ROM dump over MIDI SysEx (`tools/syx2rom.py`) | built, emulator-tested; needs a MIDI interface to capture |
 | Keyboard calibration message on the stock OS | to study once the ROM is dumped |
 | Buttons, slider, keyboard | — |

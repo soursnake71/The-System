@@ -52,6 +52,16 @@ table, traps and jump tables.
 The disk OS never writes to channel B, so display output is done by the
 ROM. MAME runs the VFX panel link at 62,500 baud, 8N2.
 
+## Panel input (confirmed on hardware)
+
+With the panel explorer running, every keyboard key and the panel buttons
+(arrow buttons included) send codes on DUART channel B, which the
+explorer printed. The data entry slider sends nothing on that link. In
+MAME's Ensoniq drivers the slider, wheels, pedal and battery voltage are
+analog inputs read through the sound chip's ADC port, so the ASR-10
+probably works the same way. Still to do: which code each key and button
+sends.
+
 ## Display commands (guess)
 
 MAME has three Ensoniq display models. All print `0x20`-`0x5F` at the
