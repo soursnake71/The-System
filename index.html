@@ -135,6 +135,8 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 .sbx-list .empty{color:var(--dim);font-size:13px;padding:8px 2px;line-height:1.4}
 #sbxFind{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:500 14px var(--f-mono)}
 .sbx-phone{width:100%}
+.tempo-row{display:flex;flex-direction:column;gap:6px;grid-column:1/-1}
+.tempo-row .badge{text-align:center}
 .arp{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px}
 .arp .row select{min-width:0;flex:1}
 #arpOn.on{background:var(--accent);color:var(--accent-ink)}
@@ -810,6 +812,15 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
       </ul>
     </details>
+    <details id="h-tempo"><summary>Tempo detection</summary>
+      <ul>
+        <li>Every loop or longer sample gets its tempo found automatically. One-shots (under about a second) have none.</li>
+        <li><b>Pads</b> (Pad sound): shows e.g. "97 BPM · 2 bars". <b>Set project</b> changes the project tempo to the sample's. <b>Fit to …</b> speeds or slows the sample to the project tempo; like an MPC or SP-1200, the pitch moves with it. <b>Detect</b> runs it again.</li>
+        <li><b>Sample browser</b>: the tempo shows next to the name while you preview. In <b>Catalog</b>, <b>Tempos</b> finds the tempo of every sound in your folder in the background (tap it again to stop), and you can search by tempo, e.g. "93bpm".</li>
+        <li><b>Audio tracks</b>: imported loops get their length in bars from the detected tempo, then follow the project tempo.</li>
+        <li>Loops trimmed to a whole number of beats give an exact tempo. Untrimmed audio is fine too, just less exact. A "~" means the beat was hard to find.</li>
+      </ul>
+    </details>
     <details id="h-arp"><summary>Arpeggiator</summary>
       <p>On the Synth tab, above the keys. Each synth has its own settings.</p>
       <ul>
@@ -1218,7 +1229,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   </div>
   <div id="sbxCatBar" hidden>
     <div id="sbxCats" class="sbx-cats" role="group" aria-label="Categories"></div>
-    <div class="row"><select id="sbxLen" aria-label="Length"><option value="">All lengths</option><option value="one">One-shots</option><option value="loop">Loops</option></select><span id="sbxCatInfo" class="sbx-path grow"></span><button id="sbxRescan" class="nolearn">Rescan</button></div>
+    <div class="row"><select id="sbxLen" aria-label="Length"><option value="">All lengths</option><option value="one">One-shots</option><option value="loop">Loops</option></select><span id="sbxCatInfo" class="sbx-path grow"></span><button id="sbxTempos" class="nolearn">Tempos</button><button id="sbxRescan" class="nolearn">Rescan</button></div>
   </div>
   <input id="sbxFind" type="search" placeholder="Search" aria-label="Search samples" autocomplete="off">
   <div id="sbxList" class="sbx-list" tabindex="0"></div>
@@ -3269,7 +3280,7 @@ function playPad(rig, pad, t, vel){
   if (S.sp && spTrigger(rig, pad, t, vel)) return null;
   const c = rig.c, sp = S.sp;
   const buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
-  const rate = sp ? 1 : Math.pow(2, pad.pitch / 12), full = buf.duration / rate, L = full * pad.decay;
+  const rate = sp ? 1 : Math.pow(2, pad.pitch / 12) * (pad.fit || 1), full = buf.duration / rate, L = full * pad.decay;
   const src = c.createBufferSource(), g = c.createGain(), p = c.createStereoPanner();
   src.buffer = buf; src.playbackRate.value = rate; p.pan.value = pad.pan;
   const v = vel * pad.vol * pad.vol * 1.2;
@@ -3743,7 +3754,7 @@ async function toggleSampling(){
 async function setPadBuffer(pi, buf, name, quiet){
   const p = S.drum.pads[pi], key = 'usr:' + pi + ':' + Date.now();
   dropAudio(p.sample);
-  buffers.set(key, buf); p.sample = key; if (name) p.name = name.slice(0, 14);
+  buffers.set(key, buf); p.sample = key; if (name) p.name = name.slice(0, 14); delete p.tempo; p.fit = 0;
   renderPads(); renderPadEditor(); if (!quiet) auditionPad(pi);
   await storeAudio(key, buf); save();
 }
@@ -3788,7 +3799,7 @@ async function loadKitFiles(files){
   for (const [i, f] of plan){
     try { const bytes = await f.arrayBuffer(), buf = await ctx.decodeAudioData(bytes.slice(0)), p = pads[i], key = 'usr:' + i + ':' + Date.now() + ':' + ok; binAdd(f.name, bytes);
       dropAudio(p.sample); buffers.set(key, buf); await storeAudio(key, buf);
-      p.sample = key; p.name = f.name.replace(/\.[^.]+$/, '').slice(0, 14); p.choke = /open|close|hat|hh|chh|ohh/i.test(f.name) ? 1 : 0; ok++; }
+      delete p.tempo; p.fit = 0; p.sample = key; p.name = f.name.replace(/\.[^.]+$/, '').slice(0, 14); p.choke = /open|close|hat|hh|chh|ohh/i.test(f.name) ? 1 : 0; ok++; }
     catch (err){}
   }
   save(); renderPads(); renderPadEditor();
@@ -3831,18 +3842,25 @@ async function sbxData(it){
   while (sbxCache.size > 48) sbxCache.delete(sbxCache.keys().next().value);
   return c;
 }
+function sbxTempo(it){
+  const c = sbxCache.get(it.id); if (!c) return;
+  if (c.tempo === undefined) c.tempo = detectTempo(c.buf) || 0;
+  if (sbxItems[sbxSel] === it) $('#sbxNowName').textContent = (it.path ? it.path + ' / ' : '') + (it.file || it.name) + (c.tempo ? '  ·  ' + tempoTxt(c.tempo) : '');
+  if (it.ckey && cat){ const ci = cat.items[it.ckey]; if (ci && (!ci.bpm || ci.bpmAuto) && c.tempo && c.tempo.bpm !== ci.bpm){ ci.bpm = c.tempo.bpm; ci.bpmAuto = 1; catSave(); } }
+}
 function sbxStop(){ if (sbxSrc){ try { sbxSrc.stop(); } catch(e){} sbxSrc = null; } }
 async function sbxHear(it){
   try {
     const {buf} = await sbxData(it); if (sbxItems[sbxSel] !== it) return;   // moved on while it was loading
     sbxStop(); const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .9;
     src.buffer = buf; src.connect(g).connect(ctx.destination); src.start(); sbxSrc = src;
+    setTimeout(() => sbxTempo(it), 30);
   } catch(e){ toast('Could not play ' + it.name + '.'); }
 }
 function sbxPrefetch(){ [1, 2, -1].forEach(d => { const it = sbxItems[sbxSel + d]; if (it && it.kind === 'file' && !sbxCache.has(it.id)) sbxData(it).catch(() => {}); }); }
 async function sbxUse(){
   const it = sbxItems[sbxSel]; if (!it || it.kind !== 'file') { toast('Pick a sound first.'); return; }
-  try { const nm = it.file || it.name; const {bytes, buf} = await sbxData(it); await padFromBytes(sbxPad, nm, bytes, true, buf); toast(padLabel(sbxPad) + ': ' + nm); }
+  try { const nm = it.file || it.name; const c = await sbxData(it); await padFromBytes(sbxPad, nm, c.bytes, true, c.buf); if (c.tempo !== undefined){ S.drum.pads[sbxPad].tempo = c.tempo; save(); renderPadEditor(); } toast(padLabel(sbxPad) + ': ' + nm + (c.tempo ? ' · ' + tempoTxt(c.tempo) : '')); }
   catch(e){ toast('Could not load ' + it.name + '.'); }
 }
 function sbxSelect(k, hear = true){
@@ -4041,7 +4059,7 @@ async function sbxCatRender(){
     b.addEventListener('click', () => { catPick = c; try { localStorage.setItem('pr.catPick', c); } catch(e){} sbxCatRender(); }); bar.appendChild(b); });
   const hit = rows.filter(r => (catPick === 'All' || (catPick === '★' ? r.c.fav : r.c.cat === catPick))
     && (!len || (len === 'loop') === isLoop(r.c))
-    && words.every(w => (r.key + ' ' + (r.c.tags || '')).toLowerCase().includes(w)));
+    && words.every(w => (r.key + ' ' + (r.c.tags || '') + (r.c.bpm ? ' ' + Math.round(r.c.bpm) + 'bpm ' + Math.round(r.c.bpm) : '')).toLowerCase().includes(w)));
   hit.sort((a, b) => (b.c.fav || 0) - (a.c.fav || 0) || a.e.h.name.localeCompare(b.e.h.name, undefined, {numeric:true, sensitivity:'base'}));
   $('#sbxCatInfo').textContent = hit.length + ' sounds' + (cat.t ? '' : '');
   sbxItems = hit.slice(0, 600).map(r => ({id:'f:' + r.key, ckey:r.key, kind:'file', name:(r.c.fav ? '★ ' : '') + r.e.h.name, file:r.e.h.name, path:r.e.path,
@@ -4070,6 +4088,28 @@ $('#sbxSetCat').addEventListener('change', e => {
 $('#sbxTags').addEventListener('change', e => { const c = catCur(); if (!c) return; c.tags = e.target.value.trim().slice(0, 80); catSave(); });
 $('#sbxLen').addEventListener('change', () => sbxCatRender());
 $('#sbxRescan').addEventListener('click', async () => { if (!sbxRoot) return; $('#sbxCatInfo').textContent = 'Rescanning…'; await catBuild(true); sbxCatRender(); toast('Catalog updated: ' + cat.n + ' sounds.'); });
+let catTempoRun = 0;
+$('#sbxTempos').addEventListener('click', async () => {
+  if (catTempoRun){ catTempoRun = 0; return; }
+  if (!sbxRoot || !cat) return;
+  const tree = await sbxBuildTree(), todo = tree.filter(e => { const c = cat.items[catKey(e.path, e.h.name)]; return c && !c.bpm && (c.dur == null || c.dur >= 1.2) && !c.noTempo; });
+  if (!todo.length){ toast('Every loop already has a tempo.'); return; }
+  const run = catTempoRun = Date.now(), btn = $('#sbxTempos'); btn.textContent = 'Stop'; let n = 0, found = 0;
+  ensureAudio();
+  for (const e of todo){
+    if (catTempoRun !== run || !$('#sbx').open) break;
+    const c = cat.items[catKey(e.path, e.h.name)];
+    try { const f = await e.h.getFile(); if (f.size > 60e6) { c.noTempo = 1; continue; }
+      const buf = await ctx.decodeAudioData(await f.arrayBuffer()), t = detectTempo(buf);
+      if (t && t.sure){ c.bpm = t.bpm; c.bpmAuto = 1; found++; } else c.noTempo = 1;
+      if (c.dur == null) c.dur = Math.round(buf.duration * 100) / 100;
+    } catch(err){ c.noTempo = 1; }
+    n++; $('#sbxCatInfo').textContent = 'Tempos: ' + n + ' / ' + todo.length + ' (' + found + ' found)';
+    if (n % 10 === 0) catSave();
+    await new Promise(r => setTimeout(r, 0));
+  }
+  catTempoRun = 0; btn.textContent = 'Tempos'; catSave(); sbxCatRender(); toast('Tempo found for ' + found + ' of ' + n + ' sounds.');
+});
 try { catPick = localStorage.getItem('pr.catPick') || 'All'; } catch(e){}
 document.querySelectorAll('.sbx-tabs button').forEach(b => b.addEventListener('click', () => sbxShowTab(b.dataset.t)));
 $('#sbxDone').addEventListener('click', () => $('#sbx').close());
@@ -4615,6 +4655,20 @@ function renderPadEditor(){
   row.innerHTML = `<label class="label" for="choke">Mute grp</label><select id="choke"><option value="0">None</option>${[1, 2, 3, 4].map(g => `<option value="${g}">Group ${g}</option>`).join('')}</select><span></span>`;
   const sel = row.querySelector('select'); sel.value = p.choke; sel.addEventListener('change', () => { p.choke = +sel.value; save(); });
   box.appendChild(row);
+  if (usr){
+    const buf = buffers.get(p.sample);
+    if (buf && p.tempo === undefined){ p.tempo = detectTempo(buf) || 0; save(); }
+    const tr2 = document.createElement('div'); tr2.className = 'tempo-row';
+    const t = p.tempo;
+    tr2.innerHTML = `<div class="row"><span class="label">Tempo</span><span class="badge${t ? ' ok' : ''} grow">${t ? tempoTxt(t) : 'One-shot, no tempo'}</span><button class="nolearn" data-a="again">Detect</button></div>${t ? '<div class="row"><button class="nolearn grow" data-a="proj">Set project to ' + (Math.round(t.bpm * 10) / 10) + '</button><button class="nolearn grow' + (p.fit ? ' on' : '') + '" data-a="fit">' + (p.fit ? 'Fitted to ' + S.bpm + ' ✓' : 'Fit to ' + S.bpm) + '</button></div>' : ''}`;
+    tr2.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => {
+      const a = bt.dataset.a;
+      if (a === 'again'){ p.tempo = detectTempo(buffers.get(p.sample)) || 0; save(); renderPadEditor(); toast(p.tempo ? 'Tempo: ' + tempoTxt(p.tempo) : 'No steady beat found. It plays as a one-shot.'); return; }
+      if (a === 'proj'){ S.bpm = Math.round(p.tempo.bpm * 10) / 10; p.fit = 0; save(); renderTransport(); renderPadEditor(); toast('Project tempo set to ' + S.bpm + ' BPM.'); return; }
+      if (a === 'fit'){ p.fit = p.fit ? 0 : S.bpm / p.tempo.bpm; save(); renderPadEditor(); auditionPad(selPad); toast(p.fit ? 'Sped/slowed to ' + S.bpm + ' BPM (pitch moves with it, like an MPC or SP).' : 'Back to the original speed.'); }
+    }));
+    box.appendChild(tr2);
+  }
   seqDirty = true;
 }
 
@@ -5047,6 +5101,49 @@ function trackAnalyse(d){
   }
   if (!D.key){ try { const k = detectKey(buf); D.key = k ? k.name : ''; D.cam = k ? k.cam : ''; } catch(e){ D.key = ''; } }
 }
+
+/* tempo of any sample: onset curve, then the beat grid (with its 8ths) that lands on the most onsets.
+   Loops are tested at every whole-beat length of the file, which gives the exact tempo. */
+function detectTempo(buf){
+  if (!buf || buf.duration < 1.2) return null;                    // one-shots have no tempo
+  const sr = buf.sampleRate, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
+  const fps = 100, hop = Math.round(sr / fps), F = Math.min(Math.floor(buf.length / hop), fps * 150), O = new Float32Array(F);
+  const al = 1 - Math.exp(-2 * Math.PI * 200 / sr), ah = 1 - Math.exp(-2 * Math.PI * 2500 / sr);
+  let l1 = 0, h1 = 0, pl = 0, ph = 0;
+  for (let f = 0; f < F; f++){
+    let el = 0, eh = 0;
+    for (let i = f * hop, j = i + hop; i < j; i++){ const x = (a[i] + b[i]) * .5; l1 += al * (x - l1); h1 += ah * (x - h1); el += l1 * l1; eh += (x - h1) * (x - h1); }
+    const L = Math.log1p(el * 80), H = Math.log1p(eh * 200);
+    O[f] = Math.max(0, L - pl) * 1.5 + Math.max(0, H - ph); pl = L; ph = H;
+  }
+  let mean = 0; for (const v of O) mean += v; mean /= F || 1;
+  if (mean <= 0) return null;
+  const at = x => { const i = Math.round(x); return i >= 0 && i < F ? Math.max(O[i], (O[i - 1] || 0) * .6, (O[i + 1] || 0) * .6) : 0; };
+  const score = bpm => {
+    const P = fps * 60 / bpm; let top = 0;
+    for (let ph0 = 0; ph0 < P; ph0 += 1){
+      let s1 = 0, s2 = 0, n = 0;
+      for (let x = ph0; x < F; x += P){ s1 += at(x); s2 += at(x + P / 2); n++; }
+      const v = (s1 + .5 * s2) / (n || 1); if (v > top) top = v;
+    }
+    return top / mean;
+  };
+  // free sweep (works for any audio)
+  let fb = 0, fs = -1;
+  for (let bp = 75; bp < 150; bp += .5){ const sc = score(bp); if (sc > fs){ fs = sc; fb = bp; } }
+  for (let bp = fb - .5; bp <= fb + .5; bp += .05){ const sc = score(bp); if (sc > fs){ fs = sc; fb = bp; } }
+  let bpm = fb, sc = fs, loop = false;
+  // loops: whole number of beats in the file
+  const dur = buf.duration;
+  if (dur <= 40){
+    let lb = 0, ls = -1;
+    for (let n = 1; n <= 160; n++){ const c = n * 60 / dur; if (c < 75 || c >= 150) continue; const v = score(c) * (n % 4 === 0 ? 1.06 : n % 2 === 0 ? 1.02 : 1); if (v > ls){ ls = v; lb = c; } }
+    if (lb && ls >= fs * .94){ bpm = lb; sc = ls; loop = true; }
+  }
+  const beats = Math.round(bpm * dur / 60);
+  return {bpm:Math.round(bpm * 10) / 10, beats, bars:beats / 4, loop, sure:sc > 1.7};
+}
+const tempoTxt = t => !t ? '' : (t.sure ? '' : '~') + (Math.round(t.bpm * 10) / 10).toFixed(1).replace(/\.0$/, '') + ' BPM' + (t.loop && t.beats % 4 === 0 ? ' · ' + t.bars + ' bar' + (t.bars > 1 ? 's' : '') : '');
 /* musical key: average chroma (12 pitch classes, 55 Hz-2 kHz) from FFT frames, matched against the Krumhansl-Kessler
    major and minor profiles; shown as a name and its Camelot code for harmonic mixing */
 const KEY_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -7280,6 +7377,8 @@ $('#trackFile').addEventListener('change', async e => {
     // guess the bar count whose tempo lands closest to the project tempo
     let bars = 1, best = Infinity;
     for (const b of [1, 2, 4, 8]){ const bpm = b * 240 / buf.duration, d = Math.abs(Math.log2(bpm / S.bpm)); if (d < best){ best = d; bars = b; } }
+    const tm = detectTempo(buf);
+    if (tm && tm.loop && [1, 2, 4, 8].includes(tm.bars)){ bars = tm.bars; }
     const key = 'imp:' + tr.id + ':' + Date.now();
     dropAudio(tr.clip); buffers.set(key, buf); await storeAudio(key, buf);
     tr.clip = key; tr.clipSteps = bars * 16; tr.clipBpm = Math.round(bars * 240 / buf.duration * 100) / 100;
