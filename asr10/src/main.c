@@ -64,6 +64,7 @@ int main(void)
     unsigned long addr = ROM_START;
     int pos = 0;
 
+    midi_init();
     panel_puts(" KEYS");
     build_frame(addr);
     for (;;) {

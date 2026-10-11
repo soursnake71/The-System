@@ -23,6 +23,11 @@ static int duart_tx(volatile unsigned char *status, volatile unsigned char *data
     return -1;
 }
 
+void midi_init(void)
+{
+    DUART_CRA = DUART_CR_TX_ON;
+}
+
 int midi_tx(unsigned char byte)
 {
     return duart_tx(&DUART_SRA, &DUART_THRA, byte);

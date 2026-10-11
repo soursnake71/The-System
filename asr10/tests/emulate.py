@@ -16,7 +16,7 @@ import sys
 from unicorn import Uc, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE
 from unicorn.m68k_const import UC_M68K_REG_PC, UC_M68K_REG_SR, UC_CPU_M68K_M68000
 
-THRA, THRB, SRA, SRB = 0xFC4807, 0xFC4817, 0xFC4803, 0xFC4813
+THRA, THRB, SRA, SRB, CRA = 0xFC4807, 0xFC4817, 0xFC4803, 0xFC4813, 0xFC4805
 
 
 def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
@@ -43,12 +43,18 @@ def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
         uc.mem_write(dest & 0xFFFFFF, data[off:off + blocks * 512])
         off += blocks * 512
     out = {"midi": bytearray(), "panel": bytearray(), "replies_read": 0}
+    tx_a = {"on": False}  # like the real board: MIDI transmitter starts disabled
     reply = {"pending": False}
     queue = bytearray(panel_input)
     idle = {"reads": 0}  # SRB reads since the last write to the panel
 
     def on_write(uc, access, addr, size, value, user):
-        if addr == THRA:
+        if addr == CRA:
+            if value & 0x04:
+                tx_a["on"] = True
+            if value & 0x08:
+                tx_a["on"] = False
+        elif addr == THRA:
             out["midi"].append(value & 0xFF)
         elif addr == THRB:
             out["panel"].append(value & 0xFF)
@@ -57,7 +63,7 @@ def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
 
     def on_read(uc, access, addr, size, value, user):
         if addr == SRA:
-            uc.mem_write(addr, b"\x04")  # TxRDY
+            uc.mem_write(addr, b"\x04" if tx_a["on"] else b"\x00")  # TxRDY only when enabled
         elif addr == SRB:
             idle["reads"] += 1
             ready = reply["pending"] or (bool(queue) and idle["reads"] > 25000)
