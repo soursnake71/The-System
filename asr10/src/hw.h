@@ -11,6 +11,8 @@
 #define DUART_THRA  DUART_REG(0x3)  /* transmit, channel A (MIDI out) */
 #define DUART_SRB   DUART_REG(0x9)  /* status, channel B */
 #define DUART_THRB  DUART_REG(0xB)  /* transmit, channel B (panel) */
+#define DUART_RHRB  DUART_REG(0xB)  /* receive, channel B (same address, read) */
+#define DUART_RXRDY 0x01
 #define DUART_TXRDY 0x04
 
 /* MC68302 register block. OS 1.61 puts it at 0xFC6000: internal RAM at

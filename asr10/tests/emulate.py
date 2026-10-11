@@ -19,7 +19,8 @@ from unicorn.m68k_const import UC_M68K_REG_PC, UC_M68K_REG_SR, UC_CPU_M68K_M6800
 THRA, THRB, SRA, SRB = 0xFC4807, 0xFC4817, 0xFC4803, 0xFC4813
 
 
-def run(os_file, entry, count):
+def run(os_file, entry, count, panel_replies=False):
+    """panel_replies: act like an EPS-style panel that answers every byte."""
     data = open(os_file, "rb").read()
     uc = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
     uc.ctl_set_cpu_model(UC_CPU_M68K_M68000)
@@ -35,17 +36,24 @@ def run(os_file, entry, count):
             break
         uc.mem_write(dest & 0xFFFFFF, data[off:off + blocks * 512])
         off += blocks * 512
-    out = {"midi": bytearray(), "panel": bytearray()}
+    out = {"midi": bytearray(), "panel": bytearray(), "replies_read": 0}
+    reply = {"pending": False}
 
     def on_write(uc, access, addr, size, value, user):
         if addr == THRA:
             out["midi"].append(value & 0xFF)
         elif addr == THRB:
             out["panel"].append(value & 0xFF)
+            reply["pending"] = panel_replies
 
     def on_read(uc, access, addr, size, value, user):
-        if addr in (SRA, SRB):
+        if addr == SRA:
             uc.mem_write(addr, b"\x04")  # TxRDY
+        elif addr == SRB:
+            uc.mem_write(addr, b"\x05" if reply["pending"] else b"\x04")  # RxRDY when a reply waits
+        elif addr == THRB and reply["pending"]:  # reading the reply
+            reply["pending"] = False
+            out["replies_read"] += 1
 
     uc.hook_add(UC_HOOK_MEM_WRITE, on_write, begin=0xFC4000, end=0xFC4FFF)
     uc.hook_add(UC_HOOK_MEM_READ, on_read, begin=0xFC4000, end=0xFC4FFF)
@@ -56,7 +64,7 @@ def run(os_file, entry, count):
 
 if __name__ == "__main__":
     entry = int(sys.argv[2], 16) if len(sys.argv) > 2 else 0xE00
-    count = int(sys.argv[3]) if len(sys.argv) > 3 else 3_000_000
+    count = int(sys.argv[3]) if len(sys.argv) > 3 else 20_000_000
     out, pc = run(sys.argv[1], entry, count)
     print(f"entered {entry:#x}, stopped at {pc:#x}")
     print("panel:", bytes(out["panel"]))

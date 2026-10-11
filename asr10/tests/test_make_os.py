@@ -83,9 +83,12 @@ class EmulationTests(unittest.TestCase):
             f.write(make_os.build(fake_stock(), code, 0xE00))
         try:
             for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
-                out, _ = emulate.run(f.name, entry, 3_000_000)
+                out, _ = emulate.run(f.name, entry, 20_000_000)
                 self.assertEqual(bytes(out["panel"]), b"\xd6\x83 THE SYSTEM ", hex(entry))
                 self.assertEqual(bytes(out["midi"][:6]), bytes.fromhex("903c64803c00"), hex(entry))
+            out, _ = emulate.run(f.name, 0xE00, 20_000_000, panel_replies=True)
+            self.assertEqual(bytes(out["panel"]), b"\xd6\x83 THE SYSTEM ")
+            self.assertEqual(out["replies_read"], len(out["panel"]))
         finally:
             os.unlink(f.name)
 
