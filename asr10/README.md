@@ -17,8 +17,8 @@ switch off and boot your stock disk again. No chips are changed.
 | Disk image tool | done, checked against OS 1.61 and your own disks |
 | HFE conversion (for your Gotek) | done, matches your HFE files; checked with Greaseweazle |
 | OS file layout (header, load table, memory map) | found in OS 1.61, see `docs/hardware.md` |
-| First boot test: text on the display, a note on MIDI Out | try 1 hung at "LOADING SYSTEM"; try 2 showed a stray "e" (our code ran, panel dropped bytes); try 3 ready |
-| Display commands (clear, cursor) | two candidate sets, not settled |
+| First boot: our code runs and writes text on the display | **works** (try 3); MIDI note not checked yet |
+| Display commands (clear, cursor) | `D6` and `83` don't clear; still unknown |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
 | Floppy and SCSI drivers, effects | — |

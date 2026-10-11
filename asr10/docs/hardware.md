@@ -72,6 +72,14 @@ every byte the main board sends; if the ASR-10 panel does the same, the
 board has to wait for that reply before sending the next byte. Try 3
 waits for a reply (or a few ms) after each byte.
 
+**Try 3 worked:** the user reported the display reading "the system
+system". Our text arrived, and neither `D6` nor `83` cleared the screen, so
+" THE SYSTEM " overwrote the start of the ROM's "LOADING SYSTEM" and its
+last word stayed. **Confirmed on hardware:** the OS file layout and
+takeover, DUART channel B at `0xFC4800` as the panel link, and plain
+uppercase text printing at the cursor. The ROM prints lowercase on screen,
+or the user typed it that way; to check.
+
 ## The OS file (from OS 1.61)
 
 Directory file type 32. The first two blocks are a header that is an image
