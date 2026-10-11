@@ -168,6 +168,29 @@ html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
 .strip.sendmode .fader{accent-color:#f5b301}
 .strip.sendmode .db{color:#f5b301}
 .strip-add{align-self:center;writing-mode:vertical-rl;padding:12px 6px;font-size:11px}
+/* mixer: every strip on one screen */
+.mixtop{gap:6px}.mixtop button{padding:9px 8px;font-size:12px}.mixtop select{min-width:0}
+#strips{overflow:hidden;gap:3px;flex-wrap:nowrap}
+#strips .strip{flex:1 1 0;min-width:0;padding:6px 2px;gap:4px;border-radius:6px}
+#strips .strip .nm{font-size:10px;letter-spacing:0}
+#strips .strip input.pan{width:100%;height:18px;margin:0}
+#strips .strip .fz{gap:2px;justify-content:center;width:100%}
+#strips .strip input.fader{width:22px}
+#strips .vmeter{width:5px}
+#strips .strip .db{font-size:9px;white-space:nowrap}
+#strips .strip .ms{flex-direction:column;gap:3px;width:100%}
+#strips .strip .ms button{width:100%;padding:6px 0;font-size:11px}
+#strips .strip .fx{padding:6px 0;font-size:10px;letter-spacing:0}
+#strips .clipled{font-size:7px;letter-spacing:0;padding:3px 0}
+#strips .retlbl{display:none}
+#strips .strip-add{flex:0 0 18px;padding:8px 0;font-size:9px;min-width:0}
+#strips.two{flex-wrap:wrap;row-gap:4px}
+#strips.two .strip .ms{flex-direction:row}
+#strips.two .strip .ms button{padding:5px 0;font-size:10px}
+#strips.two .strip .fx{padding:4px 0}
+#strips.two .strip input.pan{height:14px}
+#strips.two .strip{flex:0 0 calc((100% - var(--sc,5) * 3px) / var(--sc,5) - 4px)}
+html.retro #strips .strip input.fader{width:24px}
 .padwave{width:100%;height:64px;border-radius:6px;grid-column:1/-1;display:block}
 .padtg{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px;grid-column:1/-1}
 .padtg button.on{background:var(--accent);color:var(--accent-ink)}
@@ -586,8 +609,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
   <!-- MIXER -->
   <section class="view" id="v-mixer" hidden>
-    <div class="row"><button id="autoArm" class="grow">Automate</button><button id="autoBack" class="grow" disabled>Re-enable automation</button></div>
-    <div class="row"><span class="label">Faders</span><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
+    <div class="row mixtop"><button id="autoArm">Automate</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard"></div>
     <div class="card rack" id="rackCard"></div>
@@ -4567,8 +4589,9 @@ function fitScreen(){
       if (!pn.hidden && pn.offsetHeight) pn.style.height = Math.max(110, pn.offsetHeight - o - 2) + 'px';
     } else k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = '');
   } else if (view === 'mixer'){
-    document.querySelectorAll('#strips .fz').forEach(z => z.style.height = '');
-    const o = over(); if (o > 0) document.querySelectorAll('#strips .fz').forEach(z => z.style.height = Math.max(80, 150 - o - 2) + 'px');
+    const zs = document.querySelectorAll('#strips .fz'), rows = $('#strips').classList.contains('two') ? 2 : 1;
+    zs.forEach(z => z.style.height = ''); zs.forEach(z => z.querySelector('.fader').style.height = '');
+    const o = over(); if (o > 0){ const h = Math.max(44, 150 - Math.ceil(o / rows) - 2); zs.forEach(z => { z.style.height = h + 'px'; z.querySelector('.fader').style.height = h + 'px'; }); }
   }
 }
 
@@ -5187,6 +5210,8 @@ function renderMixer(){
   more.title = S.retAll ? 'Show only the returns in use' : 'Show every FX return';
   more.addEventListener('click', () => { S.retAll = !S.retAll; save(); renderMixer(); }); box.appendChild(more);
   mk({id:'master'}, true);
+  const n = box.querySelectorAll('.strip').length, two = n > 8;
+  box.classList.toggle('two', two); box.style.setProperty('--sc', Math.ceil(n / 2));
   renderFx();
   if (mlearn) markMapped();
 }
