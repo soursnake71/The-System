@@ -135,6 +135,10 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 .sbx-list .empty{color:var(--dim);font-size:13px;padding:8px 2px;line-height:1.4}
 #sbxFind{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:500 14px var(--f-mono)}
 .sbx-phone{width:100%}
+.arp{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px}
+.arp .row select{min-width:0;flex:1}
+#arpOn.on{background:var(--accent);color:var(--accent-ink)}
+#arpLatch.on{background:var(--accent);color:var(--accent-ink)}
 .sbx-now{display:flex;gap:8px;align-items:center}
 .sbx-go{display:grid;grid-template-columns:52px 1fr 52px 1.4fr;gap:6px}
 .sbx-go button{padding:14px 6px}
@@ -654,6 +658,11 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="octDown" aria-label="Octave down">Oct −</button>
         <button id="octUp" aria-label="Octave up">Oct +</button>
       </div>
+      <div class="arp" id="arpBox">
+        <div class="row"><button id="arpOn" class="nolearn">Arp off</button><select id="arpMode" aria-label="Arp pattern"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-down</option><option value="downup">Down-up</option><option value="order">As played</option><option value="random">Random</option><option value="chord">Chord</option></select><select id="arpRate" aria-label="Arp rate"><option value="4">1/4</option><option value="2">1/8</option><option value="1.3333333">1/8T</option><option value="1">1/16</option><option value="0.6666667">1/16T</option><option value="0.5">1/32</option></select></div>
+        <div class="row"><select id="arpOct" aria-label="Arp octaves"><option value="1">1 oct</option><option value="2">2 oct</option><option value="3">3 oct</option><option value="4">4 oct</option></select><button id="arpLatch" class="nolearn grow">Latch</button><button id="arpHold" class="nolearn grow" title="Stop the latched notes">Clear</button></div>
+        <div class="ctls" id="arpCtls"></div>
+      </div>
       <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
       <div class="keys" id="keys"></div>
       <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
@@ -799,6 +808,17 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
+      </ul>
+    </details>
+    <details id="h-arp"><summary>Arpeggiator</summary>
+      <p>On the Synth tab, above the keys. Each synth has its own settings.</p>
+      <ul>
+        <li><b>Arp on</b>: hold notes on the grid, the keyboard or your MIDI keyboard, and the arp plays them one at a time. While the beat plays it locks to the tempo and grid. When stopped it runs on its own at the project tempo.</li>
+        <li><b>Pattern</b>: Up, Down, Up-down, Down-up, As played (the order you pressed), Random, or Chord (all notes together, rhythmically).</li>
+        <li><b>Rate</b>: 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32. <b>Octaves</b>: repeats the pattern 1–4 octaves up.</li>
+        <li><b>Gate</b>: how long each note sounds. <b>Swing</b>: pushes every other note late.</li>
+        <li><b>Latch</b>: the notes keep going after you let go. Play a new chord to replace them; <b>Clear</b> stops them.</li>
+        <li>Press record while the arp plays and its notes are written into the pattern.</li>
       </ul>
     </details>
     <details id="h-bt"><summary>Bluetooth headphones</summary>
@@ -3519,6 +3539,7 @@ function start(from = 0, external = false){
 function stop(){
   if (playing && S.midiClock === 'out') midiSend([0xFC]);
   playing = false; clearInterval(timer); ext.running = false; pending = null; renderScenes();
+  setTimeout(() => (S.synths || []).forEach(tr => { if (tr.arp && tr.arp.on && arpState(tr).held.size) arpClock(tr); }), 0);
   if (live){
     const t = ctx.currentTime;
     live.srcs.forEach(s => { try { s.stop(t + .02); } catch(e){} }); live.srcs = [];
@@ -3560,6 +3581,7 @@ function tick(){
       }
       livePerf(i, t);
       scheduleNotes(live, i, t);
+      arpStep(i, t);
     }
     stepQ.push({i, t}); if (stepQ.length > 64) stepQ.shift();
     nextT += sd; stepI++;
@@ -4074,6 +4096,99 @@ $('#sbxPick').addEventListener('click', async () => {
   catch(e){ if (e && e.name !== 'AbortError') toast('Could not open that folder.'); }
 });
 $('#sbxPhone').addEventListener('click', () => { const inp = $('#padFileIn'); inp.dataset.i = sbxPad; inp.click(); });
+
+/* ================= arpeggiator (per synth; follows the transport when playing, its own clock when stopped) ================= */
+const ARP_DEF = () => ({on:false, mode:'up', rate:1, oct:1, gate:.5, latch:false, swing:0});
+const arpOf = tr => tr.arp || (tr.arp = ARP_DEF());
+const arpSt = new Map();          // track id -> {held: Map(id -> {note, v, order}), down:Set, seq, idx, dir, clockT, clockPos, timer, order}
+function arpState(tr){ let a = arpSt.get(tr.id); if (!a){ a = {held:new Map(), down:new Set(), idx:0, pos:null, timer:0, order:0}; arpSt.set(tr.id, a); } return a; }
+function arpNotes(tr){
+  const A = arpOf(tr), st = arpState(tr), base = [...st.held.values()];
+  if (!base.length) return [];
+  const asPlayed = base.slice().sort((a, b) => a.order - b.order), up = base.slice().sort((a, b) => a.note - b.note);
+  const span = src => { const o = []; for (let k = 0; k < A.oct; k++) src.forEach(h => o.push({note:h.note + 12 * k, v:h.v})); return o; };
+  const U = span(up);
+  switch (A.mode){
+    case 'down': return U.slice().reverse();
+    case 'updown': return U.length < 2 ? U : U.concat(U.slice(1, -1).reverse());
+    case 'downup': { const D = U.slice().reverse(); return D.length < 2 ? D : D.concat(D.slice(1, -1).reverse()); }
+    case 'order': return span(asPlayed);
+    default: return U;
+  }
+}
+function arpFire(tr, t, posSteps, durSec){
+  const A = arpOf(tr), st = arpState(tr), seq = arpNotes(tr);
+  if (!seq.length) return;
+  let hits;
+  if (A.mode === 'chord') hits = seq.slice(0, 8 * A.oct);
+  else if (A.mode === 'random') hits = [seq[Math.floor(Math.random() * seq.length)]];
+  else { hits = [seq[st.idx % seq.length]]; st.idx = (st.idx + 1) % seq.length; }
+  const len = Math.max(.012, durSec * A.gate);
+  hits.forEach(h => {
+    synthVoice(live, tr, h.note, t, h.v, len, {});
+    if (playing && drumRec && posSteps != null && posSteps >= 0) addSynthNote(tr, h.note, posSteps * TPS, Math.max(6, len / (stepDur() / TPS)), h.v, 0);
+  });
+  if (tr === curSynth()) flashArp(t);
+}
+function flashArp(t){ const b = $('#arpOn'); if (!b) return; setTimeout(() => { b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 60); }, Math.max(0, (t - ctx.currentTime + outL()) * 1000)); }
+// transport: called for every 16th the sequencer schedules
+function arpStep(i, t){
+  const sd = stepDur();
+  (S.synths || []).forEach(tr => {
+    const A = tr.arp; if (!A || !A.on) return; const st = arpState(tr); if (!st.held.size) return;
+    const r = +A.rate || 1;
+    // hits whose position (in 16ths) falls inside this step
+    let k = Math.ceil((i - 1e-6) / r);
+    for (; k * r < i + 1 - 1e-6; k++){
+      const pos = k * r, sw = (A.swing && Math.round(k) % 2 === 1) ? A.swing * r * .5 : 0;
+      arpFire(tr, t + (pos - i + sw) * sd, pos, r * sd);
+    }
+  });
+}
+// stopped: free-running clock at the project tempo
+function arpClock(tr){
+  const st = arpState(tr);
+  if (st.timer) return;
+  ensureAudio(); st.next = ctx.currentTime + .01; st.k = 0;
+  st.timer = setInterval(() => {
+    const A = tr.arp;
+    if (playing || !A || !A.on || !st.held.size){ clearInterval(st.timer); st.timer = 0; return; }
+    const step = (+A.rate || 1) * stepDur();
+    while (st.next < ctx.currentTime + .1){
+      const sw = (A.swing && st.k % 2 === 1) ? A.swing * step * .5 : 0;
+      arpFire(tr, st.next + sw, null, step); st.next += step; st.k++;
+    }
+  }, 20);
+}
+function arpKeyDown(tr, note, v, id){
+  const A = arpOf(tr), st = arpState(tr);
+  if (A.latch && !st.down.size) { st.held.clear(); st.idx = 0; }   // new chord after letting go replaces the latched one
+  st.down.add(id); st.held.set(id, {note, v, order:st.order++});
+  if (st.held.size === 1) st.idx = 0;
+  if (!playing) arpClock(tr);
+}
+function arpKeyUp(tr, id){
+  const A = arpOf(tr), st = arpState(tr);
+  st.down.delete(id);
+  if (!A.latch) st.held.delete(id);
+}
+function arpClear(tr){ const st = arpState(tr); st.held.clear(); st.down.clear(); st.idx = 0; }
+function renderArp(){
+  const tr = curSynth(); if (!tr || !$('#arpOn')) return;
+  const A = arpOf(tr);
+  $('#arpOn').textContent = A.on ? 'Arp on' : 'Arp off'; $('#arpOn').classList.toggle('on', A.on);
+  $('#arpMode').value = A.mode; $('#arpRate').value = String(A.rate); if ($('#arpRate').value === '') $('#arpRate').value = '1';
+  $('#arpOct').value = String(A.oct); $('#arpLatch').classList.toggle('on', A.latch);
+  const box = $('#arpCtls'); box.innerHTML = '';
+  ctl(box, 'Gate', A, 'gate', .05, 1, .01, v => Math.round(v * 100) + '%', () => save());
+  ctl(box, 'Swing', A, 'swing', 0, .6, .01, v => Math.round(v * 100) + '%', () => save());
+}
+$('#arpOn').addEventListener('click', () => { const tr = curSynth(), A = arpOf(tr); A.on = !A.on; if (!A.on) arpClear(tr); keysUpAll(); save(); renderArp(); toast(A.on ? 'Arpeggiator on. Hold notes on the keys or your MIDI keyboard.' : 'Arpeggiator off.'); });
+$('#arpMode').addEventListener('change', e => { arpOf(curSynth()).mode = e.target.value; arpState(curSynth()).idx = 0; save(); });
+$('#arpRate').addEventListener('change', e => { arpOf(curSynth()).rate = +e.target.value; save(); });
+$('#arpOct').addEventListener('change', e => { arpOf(curSynth()).oct = +e.target.value; save(); });
+$('#arpLatch').addEventListener('click', () => { const tr = curSynth(), A = arpOf(tr); A.latch = !A.latch; if (!A.latch){ const st = arpState(tr); for (const id of [...st.held.keys()]) if (!st.down.has(id)) st.held.delete(id); } save(); renderArp(); });
+$('#arpHold').addEventListener('click', () => arpClear(curSynth()));
 
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
@@ -5787,6 +5902,7 @@ function addSynthNote(tr, note, absTick, d, v, sl){
 }
 function keyDown(tr, note, ev, v, id){
   ensureAudio();
+  if (tr.arp && tr.arp.on){ arpKeys.set(id, tr); arpKeyDown(tr, note, v, id); return; }
   if (keysOn.has(id)) keyUp(id, ev);
   const tbx = tr.inst === 'tb303' ? tr.tb : null;
   if (tbx && tbx.accLatch) v = 1;
@@ -5794,7 +5910,9 @@ function keyDown(tr, note, ev, v, id){
   const voice = synthVoice(live, tr, note, ctx.currentTime, v, null, {sl});
   keysOn.set(id, {voice, tr, note, v, sl, start:(playing && drumRec) ? tapTick(ev) : null});
 }
+const arpKeys = new Map();
 function keyUp(id, ev){
+  if (arpKeys.has(id)){ arpKeyUp(arpKeys.get(id), id); arpKeys.delete(id); }
   const k = keysOn.get(id); if (!k) return;
   keysOn.delete(id); k.voice.release(ctx.currentTime);
   if (k.start != null && playing && drumRec){
@@ -5909,6 +6027,7 @@ function frameRoll(){
   rollGeo.g.fillRect(Math.round(rollGeo.X(tick)), 0, 2 * (devicePixelRatio || 1), rollGeo.h);
 }
 function renderSynth(){
+  renderArp();
   const bar = $('#synthBar'); bar.innerHTML = '';
   S.synths.forEach((t, k) => { const b = document.createElement('button'); b.textContent = t.name; b.classList.toggle('on', k === selSynth); b.addEventListener('click', () => { selSynth = k; renderSynth(); }); bar.appendChild(b); });
   const add = document.createElement('button'); add.textContent = '+'; add.setAttribute('aria-label', 'Add synth track'); add.disabled = S.synths.length >= 4;
