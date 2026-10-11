@@ -65,6 +65,13 @@ cursor, so plain uppercase text is safe. Their control codes disagree:
 Which one the ASR-10 uses is still open. Watching what the ROM sends would
 settle it.
 
+**On the ASR-10 (try 2):** sending `D6 83 " THE SYSTEM "` back to back,
+polling only TxRDY, left the screen showing `e     loading system`: one
+letter got through and the ROM's text stayed. MAME's EPS panel answers
+every byte the main board sends; if the ASR-10 panel does the same, the
+board has to wait for that reply before sending the next byte. Try 3
+waits for a reply (or a few ms) after each byte.
+
 ## The OS file (from OS 1.61)
 
 Directory file type 32. The first two blocks are a header that is an image
