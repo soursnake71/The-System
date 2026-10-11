@@ -134,6 +134,33 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 .sbx-list button.now{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .sbx-list .empty{color:var(--dim);font-size:13px;padding:8px 2px;line-height:1.4}
 #sbxFind{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:500 14px var(--f-mono)}
+#sheet{position:fixed;left:0;right:0;top:var(--sheetTop,170px);bottom:var(--sheetBot,56px);z-index:40;background:var(--bg);display:none;flex-direction:column;padding:8px 10px 6px;box-shadow:0 -2px 12px #0008}
+#sheet.on{display:flex}
+.sheet-bar{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+#sheetTtl{font:600 16px var(--f-display);letter-spacing:.06em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#sheetPg{font-size:12px;color:var(--dim);min-width:34px;text-align:center}
+.sheet-bar button{padding:9px 12px}
+#sheetBody{flex:1;min-height:0;position:relative;touch-action:pan-y}
+#sheetBody > .card{height:100%;box-sizing:border-box;display:block;column-width:var(--cw,300px);column-gap:24px;column-fill:auto;overflow:hidden}
+#sheetBody > .card > *{margin:0 0 10px}
+#sheetBody .row, #sheetBody .ctl, #sheetBody canvas, #sheetBody .fh, #sheetBody .p5sw, #sheetBody .seg, #sheetBody h2, #sheetBody .stp, #sheetBody .tt-row, #sheetBody .tt-row3, #sheetBody .tt-row4, #sheetBody .svc-sec, #sheetBody .mx, #sheetBody .xfrow, #sheetBody .padtg, #sheetBody .ppads, #sheetBody .hint, #sheetBody .uhead{break-inside:avoid}
+#sheetBody > .card > .fh .fchev{display:none}
+#sheetBody > .card > .fgen{display:none}
+#sheetBody .ctls{display:block}
+#sheetBody .ctls > *{break-inside:avoid;margin-bottom:6px}
+#sheetBody .p5sec > .fh, #sheetBody .unit > .fh, #sheetBody .ctl, #sheetBody .row{break-inside:avoid}
+.view > .card:not(.sheeted) > :not(.chead){display:none !important}
+.view > .card{gap:0;padding:6px 10px}
+.view > .card > .chead{min-height:36px}
+.view > .card > .chead h2{font-size:16px}
+.view{gap:8px}
+.view > .card.sdj > *{display:revert !important}
+#padMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
+#padMenu[open]{display:flex}
+#padMenu::backdrop{background:#000a}
+#padMenu h2{margin:0 0 4px}
+.pad.empty .nm{opacity:.45}
+.transport{padding-left:10px;padding-right:10px;row-gap:6px}
 .sbx-phone{width:100%}
 .strip.ret{background:linear-gradient(180deg,#2a3340,#20262f)}
 html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
@@ -305,7 +332,11 @@ html.retro .transport::before{content:"THE SNAKE DEVICE  ·  MIDI PRODUCTION CEN
 html.retro .transport .label{color:#4a463e}
 html.retro .transport select{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;box-shadow:0 2px 0 #00000080}
 html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 12px #0a1f6ab0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:0 0 6px #ffffff70}
-html.retro .bpm input{font-size:28px;width:72px;padding:4px 2px}
+html.retro .bpm input{font-size:24px;width:62px;padding:4px 2px}
+html.retro .pos{font-size:24px !important;padding:4px 8px !important}
+.tbtn{width:44px !important;height:40px !important}
+.bpm{margin-left:auto}
+.bpm button{padding:8px 9px}
 html.retro #rec{color:var(--rec)}
 html.retro #rec.live{background:linear-gradient(180deg,#f04030,#c41d14);color:#fff}
 html.retro .badge{background:#23251f;color:#c9c4b7;border-radius:2px}
@@ -497,16 +528,15 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- DRUMS -->
   <section class="view" id="v-drums">
     <div class="scenebar" id="sceneBar" role="group" aria-label="Patterns"></div>
-    <div class="kitrow"><span class="label">Pads</span><button id="kitFiles">Load files onto pads</button></div>
-    <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
-    <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
-    <div class="pads" id="pads"></div>
-    <div class="card" data-title="Sequencer" data-open>
-      <div class="row perf">
+    <div class="row perf">
         <button id="odub" class="grow">Overdub</button>
         <button id="repeat" class="grow">Note repeat</button>
         <button id="erase" class="grow">Erase</button>
       </div>
+    <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+    <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
+    <div class="pads" id="pads"></div>
+    <div class="card" data-title="Sequencer">
       <canvas id="seq" aria-label="Recorded hits for every pad across the loop. Tap a hit to delete it, or tap a row to select that pad."></canvas>
       <div class="row">
         <button id="undo" class="grow" disabled>Undo</button>
@@ -522,6 +552,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <p class="hint">Press Overdub or the record button and play the pads. Every pass layers on top. Timing correct snaps hits to the grid as you play. With it off, they stay exactly as played. Note repeat retriggers a held pad in time. Erase removes a held pad's hits as the loop passes over them.</p>
     </div>
     <div class="card" data-title="Pad sound">
+      <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button></div>
       <div class="row"><span class="grow">SP-1200 mode: 12-bit, 26 kHz, drop-sample pitch, output filters</span><button id="spMode">Off</button></div>
       <div class="row"><h2 class="grow" id="padTitle">A01 Kick</h2><span class="badge" id="sampleBadge">Built-in</span><button id="clearPad">Clear hits</button></div>
       <div class="row">
@@ -568,7 +599,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <canvas id="wvCv" aria-label="Waveforms of both decks, with beat grid, cues and loops"></canvas>
       <div class="sdj-decks"><button id="dk0" class="dk on">DECK 1</button><button id="dk1" class="dk">DECK 2</button></div>
     </div>
-    <div data-open class="card tt">
+    <div class="card tt">
       <div class="tt-head"><b>THE WHEEL OF STEEL</b><span id="ttSub">DECK 1 · QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
       <canvas id="ttCv" aria-label="Turntable. Touch the record and move it to scratch."></canvas>
       <input id="ttScr" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Scratch (map a knob with MIDI learn)">
@@ -657,7 +688,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- SYNTH -->
   <section class="view" id="v-synth" hidden>
     <div class="scenebar" id="synthBar" role="group" aria-label="Synth tracks"></div>
-    <div class="card" data-title="Notes" data-open>
+      <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><button id="octDown" aria-label="Octave down">−</button><button id="octUp" aria-label="Octave up">+</button><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
+      <div class="keys" id="keys"></div>
+      <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
+    <div class="card" data-title="Notes">
       <div class="row">
         <button id="sOdub" class="grow">Overdub</button>
         <button id="sUndo" class="grow" disabled>Undo</button>
@@ -667,20 +701,16 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="row">
         <select id="scaleRoot" aria-label="Key"></select>
         <select id="scaleType" class="grow" aria-label="Scale"></select>
-        <button id="octDown" aria-label="Octave down">Oct −</button>
-        <button id="octUp" aria-label="Octave up">Oct +</button>
       </div>
+    </div>
+    <div class="card" data-title="Arpeggiator">
       <div class="arp" id="arpBox">
         <div class="row"><button id="arpOn" class="nolearn">Arp off</button><select id="arpMode" aria-label="Arp pattern"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-down</option><option value="downup">Down-up</option><option value="order">As played</option><option value="random">Random</option><option value="chord">Chord</option></select><select id="arpRate" aria-label="Arp rate"><option value="4">1/4</option><option value="2">1/8</option><option value="1.3333333">1/8T</option><option value="1">1/16</option><option value="0.6666667">1/16T</option><option value="0.5">1/32</option></select></div>
         <div class="row"><select id="arpOct" aria-label="Arp octaves"><option value="1">1 oct</option><option value="2">2 oct</option><option value="3">3 oct</option><option value="4">4 oct</option></select><button id="arpLatch" class="nolearn grow">Latch</button><button id="arpHold" class="nolearn grow" title="Stop the latched notes">Clear</button></div>
         <div class="ctls" id="arpCtls"></div>
       </div>
-      <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
-      <div class="keys" id="keys"></div>
-      <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
-      <p class="hint">Grid: only notes in the key, each row a fourth higher, like Push; orange is the root. Keyboard: a piano, slide along it for a run. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
-    <div class="card" data-open>
+    <div class="card">
       <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
@@ -822,6 +852,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
     <details id="h-kits"><summary>Loading sounds onto pads</summary>
       <ul>
+        <li><b>Press and hold a pad</b> for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>.</li>
         <li><b>LOAD</b> on any pad opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
@@ -872,8 +903,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-bt"><summary>Bluetooth headphones</summary>
       <p>Bluetooth adds about 150–250 ms of delay, and phones often don't report it. In <b>Setup → Performance</b>, turn <b>Bluetooth headphones</b> on and tap <b>Measure</b> with your headphones on. Tap the button on each of the 12 clicks, and the app sets the offset for you, or set the <b>BT offset</b> slider yourself. Recorded pads, keys and audio then land where you heard them. The playhead, pad lights and MIDI clock to the MPC also line up with what you hear. Turn it off when you switch back to wired, USB or the phone speaker.</p>
     </details>
-    <details id="h-fold"><summary>Flip-open sections</summary>
-      <p>Every section folds. Tap its title or the ▸ arrow to open or close it. The app remembers which sections you left open.</p>
+    <details id="h-fold"><summary>Screens without scrolling</summary>
+      <p>Each tab fits on the screen. Tap a section title (▸) and it opens over the screen like an MPC page; if it has more than fits, flip pages with ◀ ▶ at the top or swipe left and right. ✕ closes it. Smaller parts inside a section fold open and shut.</p>
     </details>
 
     <details id="h-sp"><summary>SP-1200 mode</summary>
@@ -1258,6 +1289,17 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   </section>
 </main>
 
+<div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
+  <div class="sheet-bar"><button id="sheetPrev" class="nolearn" aria-label="Previous page">◀</button><span id="sheetTtl" class="grow"></span><span id="sheetPg" class="mono"></span><button id="sheetNext" class="nolearn" aria-label="Next page">▶</button><button id="sheetX" class="nolearn" aria-label="Close">✕</button></div>
+  <div id="sheetBody"></div>
+</div>
+<dialog id="padMenu" aria-labelledby="padMenuT"><h2 id="padMenuT">A01</h2>
+  <button data-a="del" class="nolearn">Delete sound</button>
+  <button data-a="delall" class="nolearn">Delete sound and its hits</button>
+  <button data-a="load" class="nolearn">Load…</button>
+  <button data-a="builtin" class="nolearn">Built-in sound</button>
+  <button data-a="x" class="nolearn">Cancel</button>
+</dialog>
 <dialog id="sbx" aria-labelledby="sbxTitle">
   <div class="sbx-head"><h2 id="sbxTitle" class="grow">Load onto A01</h2><button id="sbxDone" class="nolearn">Done</button></div>
   <div class="seg sbx-tabs"><button data-t="cat" class="nolearn">Catalog</button><button data-t="dir" class="nolearn">Folders</button><button data-t="bin" class="nolearn">Recent</button></div>
@@ -3439,6 +3481,7 @@ const padEnvOn = pad => (pad.att || 0) > 0 || (pad.dec2 || 0) > 0 || (pad.sus !=
 const padGated = pad => !S.sp && (pad.loop || pad.mode === 'gate');
 // dur: how long the note is held (seconds) when known; held: live press, released by padUp
 function playPad(rig, pad, t, vel, dur, pi, held){
+  if (!pad.sample) return null;                                   // deleted: the pad is empty
   if (S.sp && spTrigger(rig, pad, t, vel)) return null;
   const c = rig.c, sp = S.sp;
   let buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
@@ -4456,9 +4499,82 @@ $('#arpOct').addEventListener('change', e => { arpOf(curSynth()).oct = +e.target
 $('#arpLatch').addEventListener('click', () => { const tr = curSynth(), A = arpOf(tr); A.latch = !A.latch; if (!A.latch){ const st = arpState(tr); for (const id of [...st.held.keys()]) if (!st.down.has(id)) st.held.delete(id); } save(); renderArp(); });
 $('#arpHold').addEventListener('click', () => arpClear(curSynth()));
 
+/* ================= sheets: a section opens over the screen and flips sideways in pages, so nothing scrolls ================= */
+let sheetCard = null, sheetPh = null, sheetPage = 0, sheetPages = 1, sheetT = 0;
+function sheetPrep(c, head){
+  c.querySelectorAll(':scope > .chead').forEach(x => x !== head && x.classList.remove('chead'));
+  head.classList.add('fh', 'chead'); head._sheetCard = c;
+  if (!head.querySelector(':scope > .fchev')){ const ch = document.createElement('span'); ch.className = 'fchev nolearn'; ch.setAttribute('aria-hidden', 'true'); head.appendChild(ch); }
+  c.classList.add('shut');
+}
+function sheetTitle(c){ const h = c.querySelector(':scope > .fh, :scope > .row h2, :scope > h2'); return (c.dataset.title || (h && (h.querySelector('h2, b') || h).textContent) || '').trim().split('\n')[0].slice(0, 40); }
+function sheetOpen(c){
+  if (sheetCard === c) return; if (sheetCard) sheetClose();
+  sheetFrame();
+  sheetPh = document.createComment('sheet'); c.before(sheetPh);
+  $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
+  $('#sheetTtl').textContent = sheetTitle(c); $('#sheet').classList.add('on');
+  requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); sheetLayout(); });
+}
+function sheetClose(){
+  if (!sheetCard) return;
+  const c = sheetCard; sheetCard = null; c.classList.add('shut'); c.classList.remove('sheeted'); c.scrollLeft = 0;
+  if (sheetPh){ sheetPh.replaceWith(c); sheetPh = null; }
+  $('#sheet').classList.remove('on'); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+}
+function sheetFrame(){
+  const h = document.querySelector('header.transport'), n = $('#nav'), lb = $('#learnBar');
+  const top = Math.max(h ? h.getBoundingClientRect().bottom : 0, lb && !lb.hidden ? lb.getBoundingClientRect().bottom : 0);
+  document.documentElement.style.setProperty('--sheetTop', Math.round(top) + 'px');
+  document.documentElement.style.setProperty('--sheetBot', Math.round(innerHeight - (n ? n.getBoundingClientRect().top : innerHeight)) + 'px');
+}
+function sheetLayout(){
+  if (!sheetCard) return;
+  sheetFrame();
+  const c = sheetCard, cs = getComputedStyle(c), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+  const cw = Math.floor(c.clientWidth - pl - pr), gap = 24;
+  if (cw > 0 && c._cw !== cw){ c.style.setProperty('--cw', cw + 'px'); c._cw = cw; }
+  sheetPages = Math.max(1, Math.round((c.scrollWidth - pl - pr + gap) / (cw + gap)));
+  sheetPage = clamp(sheetPage, 0, sheetPages - 1);
+  c.scrollLeft = sheetPage * (cw + gap);
+  $('#sheetPg').textContent = sheetPages > 1 ? (sheetPage + 1) + ' / ' + sheetPages : '';
+  $('#sheetPrev').disabled = sheetPage === 0; $('#sheetNext').disabled = sheetPage >= sheetPages - 1;
+  $('#sheetPrev').style.visibility = $('#sheetNext').style.visibility = sheetPages > 1 ? '' : 'hidden';
+}
+function sheetGo(d){ sheetPage = clamp(sheetPage + d, 0, sheetPages - 1); sheetLayout(); }
+$('#sheetPrev').addEventListener('click', () => sheetGo(-1));
+$('#sheetNext').addEventListener('click', () => sheetGo(1));
+$('#sheetX').addEventListener('click', sheetClose);
+new MutationObserver(() => { clearTimeout(sheetT); sheetT = setTimeout(sheetLayout, 40); }).observe($('#sheetBody'), {childList:true, subtree:true, attributes:true, attributeFilter:['class', 'hidden', 'style']});
+window.addEventListener('resize', () => { clearTimeout(sheetT); sheetT = setTimeout(() => { sheetLayout(); fitScreen(); }, 60); });
+// swipe left/right on the sheet to flip pages (not on knobs, faders or buttons)
+{
+  let sx = null, sy = 0;
+  $('#sheetBody').addEventListener('pointerdown', e => { sx = e.target.closest('input, select, button, canvas, textarea, .stp, .knob') ? null : e.clientX; sy = e.clientY; });
+  $('#sheetBody').addEventListener('pointerup', e => { if (sx == null) return; const dx = e.clientX - sx, dy = e.clientY - sy; sx = null; if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) sheetGo(dx < 0 ? 1 : -1); });
+}
+// keep each screen inside the phone: the drum pads shrink to fit what's left
+function fitScreen(){
+  const m = document.querySelector('main'); if (!m) return;
+  const over = () => m.scrollHeight - m.clientHeight;
+  if (view === 'drums'){
+    const pads = $('#pads'); pads.style.maxWidth = '';
+    const o = over(); if (o > 0){ const h = pads.offsetHeight, w = pads.offsetWidth, nh = Math.max(200, h - o - 2); pads.style.maxWidth = Math.floor(w * nh / h) + 'px'; pads.style.margin = '0 auto'; }
+  } else if (view === 'synth'){
+    const k = $('#keys'), pn = $('#piano'); k.style.height = ''; k.style.gridAutoRows = ''; pn.style.height = '';
+    const o = over(); if (o > 0){
+      if (!k.hidden && k.offsetHeight){ const h = Math.max(120, k.offsetHeight - o - 2); k.style.gridAutoRows = Math.floor((h - 4 * 5) / 5) + 'px'; k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = 'auto'); }
+      if (!pn.hidden && pn.offsetHeight) pn.style.height = Math.max(110, pn.offsetHeight - o - 2) + 'px';
+    } else k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = '');
+  } else if (view === 'mixer'){
+    document.querySelectorAll('#strips .fz').forEach(z => z.style.height = '');
+    const o = over(); if (o > 0) document.querySelectorAll('#strips .fz').forEach(z => z.style.height = Math.max(80, 150 - o - 2) + 'px');
+  }
+}
+
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
-const foldKey = (el, head) => { const v = el.closest('.view'); return (v ? v.id : '') + ':' + (el.dataset.title || head.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40); };
+const foldKey = (el, head) => { const v = el.closest('.view'); return (v ? v.id : 'v-' + view) + ':' + (el.dataset.title || head.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40); };
 function foldSet(el, head, shut, remember){
   (el === head ? head : el).classList.toggle('shut', shut);
   if (remember){ foldMem[foldKey(el, head)] = shut ? 1 : 0; try { localStorage.setItem('pr.fold', JSON.stringify(foldMem)); } catch(e){} }
@@ -4475,22 +4591,28 @@ function foldPrep(el, head, defShut){
 }
 function foldify(){
   document.querySelectorAll('.view').forEach(v => {
-    let first = true;
     v.querySelectorAll(':scope > .card:not(.trk)').forEach(c => {
-      const f = c.firstElementChild; if (!f || f.tagName === 'CANVAS') return;
+      const f = c.firstElementChild; if (!c.dataset.title && (!f || f.tagName === 'CANVAS')){ c.classList.add('sdj'); return; }
       let head = f;
       if (c.dataset.title){
         head = c.querySelector(':scope > .fgen');
         if (!head){ head = document.createElement('button'); head.className = 'fgen nolearn'; head.textContent = c.dataset.title; c.insertBefore(head, c.firstChild); }
       }
-      foldPrep(c, head, !(first || c.hasAttribute('data-open'))); first = false;
+      sheetPrep(c, head);
     });
+  });
+  [...document.querySelectorAll('.view'), $('#sheetBody')].forEach(v => {
     v.querySelectorAll('.unit, .p5sec, .tt-midi').forEach(u => { const h = u.querySelector(':scope > .uhead, :scope > .label, :scope > .row:first-child'); if (h) foldPrep(u, h, true); });
     v.querySelectorAll('.card > span.label').forEach(l => { const n = l.nextElementSibling; if (n && !n.matches('.label, input[type=file]')) foldPrep(l, l, true); });
   });
 }
 document.addEventListener('click', e => {
   const head = e.target.closest('.fh'); if (!head) return;
+  if (head._sheetCard){
+    const hit0 = e.target.closest('button, select, input, textarea, a, canvas, .ctl');
+    if (hit0 && hit0 !== head && !hit0.classList.contains('fchev')) return;
+    if (sheetCard === head._sheetCard) sheetClose(); else sheetOpen(head._sheetCard); return;
+  }
   const hit = e.target.closest('button, select, input, textarea, a, canvas, .ctl');
   if (hit && hit !== head && !hit.classList.contains('fchev')) return;
   const el = head._foldEl || head; foldSet(el, head, !(el === head ? head : el).classList.contains('shut'), true);
@@ -4748,12 +4870,16 @@ function renderPads(){
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
         if (e.target.closest('.pload')){ e.stopPropagation(); padLoadAt(i); return; }
+        clearTimeout(padHoldT); const hx = e.clientX, hy = e.clientY;
+        padHoldT = setTimeout(() => { padHoldT = 0; padUp(i); ptrs.delete(e.pointerId); padMenuOpen(i); }, 600);
+        b._hold = {x:hx, y:hy};
         try { b.setPointerCapture(e.pointerId); } catch(_){}
         const r = b.getBoundingClientRect();
         const v = S.fullLevel ? 1 : clamp(1.05 - (e.clientY - r.top) / r.height * .8, .25, 1);   // higher on the pad = harder
         ptrs.set(e.pointerId, i); padDown(i, e, v);
       });
-      const up = e => { if (ptrs.get(e.pointerId) === i){ ptrs.delete(e.pointerId); if (![...ptrs.values()].includes(i)) padUp(i); } };
+      const up = e => { clearTimeout(padHoldT); if (ptrs.get(e.pointerId) === i){ ptrs.delete(e.pointerId); if (![...ptrs.values()].includes(i)) padUp(i); } };
+      b.addEventListener('pointermove', e => { if (b._hold && Math.hypot(e.clientX - b._hold.x, e.clientY - b._hold.y) > 14) clearTimeout(padHoldT); });
       b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
       b.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat){ e.preventDefault(); padDown(i, e, 1); } });
       b.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') padUp(i); });
@@ -4765,11 +4891,32 @@ function renderPads(){
     b.querySelector('.nm').textContent = p.name;
     b.classList.toggle('sel', +b.dataset.i === selPad);
     b.classList.toggle('has', S.drum.notes.some(n => n.p === +b.dataset.i && n.t < loopTicks()));
-    b.classList.toggle('user', !p.sample.startsWith('kit:'));
+    b.classList.toggle('user', !!p.sample && !p.sample.startsWith('kit:')); b.classList.toggle('empty', !p.sample);
     b.setAttribute('aria-label', `${padLabel(+b.dataset.i)} ${p.name}`);
   });
 }
 function padLoadAt(i){ sbxOpen(i); }
+let padHoldT = 0, padMenuI = 0;
+function padMenuOpen(i){
+  padMenuI = i; const p = S.drum.pads[i], d = $('#padMenu');
+  $('#padMenuT').textContent = padLabel(i) + ' ' + (p.sample ? p.name : 'Empty');
+  d.querySelector('[data-a=del]').disabled = !p.sample;
+  d.querySelector('[data-a=builtin]').disabled = !!p.sample && p.sample.startsWith('kit:');
+  if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
+  if (!d.open) d.showModal();
+}
+function padEmpty(i){
+  const p = S.drum.pads[i]; dropAudio(p.sample);
+  p.sample = ''; p.name = 'Empty'; delete p.tempo; p.fit = 0; p.loop = 0; p.rev = 0;
+}
+$('#padMenu').addEventListener('click', e => {
+  const d = $('#padMenu'), b = e.target.closest('button'); if (e.target === d){ d.close(); return; } if (!b) return;
+  const i = padMenuI, p = S.drum.pads[i], a = b.dataset.a; d.close();
+  if (a === 'del'){ padEmpty(i); save(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' is empty. Its hits stay but play nothing.'); }
+  else if (a === 'delall'){ pushUndo(); undoPass = null; padEmpty(i); S.drum.notes = S.drum.notes.filter(n => n.p !== i); seqDirty = true; changed(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' cleared: sound and hits. Undo brings the hits back.'); }
+  else if (a === 'load') sbxOpen(i);
+  else if (a === 'builtin'){ dropAudio(p.sample); const v = kitVoices(S.drum.kit)[i]; p.sample = v.key; p.name = v.name; delete p.tempo; p.fit = 0; ensureKitBuf(v.key); save(); renderPads(); renderPadEditor(); auditionPad(i); }
+});
 function auditionPad(i){ ensureAudio(); const p = S.drum.pads[i]; playPad(live, p, ctx.currentTime + .005, .9, padGated(p) ? Math.min(2, 4 * 60 / S.bpm) : null, i); flashPad(i, ctx.currentTime); }
 const ptrs = new Map();
 function flashPad(i, t){
@@ -4859,9 +5006,9 @@ function syncSteppers(){
 function renderPadEditor(){
   const p = S.drum.pads[selPad];
   $('#padTitle').textContent = `${padLabel(selPad)} ${p.name}`;
-  const usr = !p.sample.startsWith('kit:');
-  $('#sampleBadge').textContent = usr ? 'Your sample' : 'Built-in'; $('#sampleBadge').className = 'badge' + (usr ? ' ok' : '');
-  $('#resetSample').disabled = !usr;
+  const usr = !!p.sample && !p.sample.startsWith('kit:');
+  $('#sampleBadge').textContent = !p.sample ? 'Empty' : usr ? 'Your sample' : 'Built-in'; $('#sampleBadge').className = 'badge' + (usr ? ' ok' : '');
+  $('#resetSample').disabled = !!p.sample && !usr;
   const box = $('#padCtls'); box.innerHTML = '';
   ctl(box, 'Level', p, 'vol', 0, 1, .01, v => fmtDb(v * v * 1.2) + ' dB');
   ctl(box, 'Tune', p, 'pitch', -24, 24, 1, v => (v > 0 ? '+' : '') + v + ' st');
@@ -4988,6 +5135,7 @@ function drawWave(tr){
 }
 
 function renderMixer(){
+  setTimeout(fitScreen, 30);
   const box = $('#strips'); box.innerHTML = '';
   const mk = (t, isMaster) => {
     const el = document.createElement('div'); el.className = 'strip' + (selStrip === t.id ? ' sel' : '');
@@ -5065,8 +5213,8 @@ function mkRet(k){
   m.addEventListener('click', () => { r.mute = !r.mute; m.classList.toggle('on', r.mute); retApply(); save(); });
   so.addEventListener('click', () => { r.solo = !r.solo; so.classList.toggle('on', r.solo); retApply(); save(); });
   el.querySelector('.fx').addEventListener('click', () => {
-    if (k === 'rev' || k === 'dly'){ selStrip = 'master'; renderMixer(); setTimeout(() => { const c = $('#fxCard'); if (c.classList.contains('shut')) c.querySelector('.fh').click(); c.scrollIntoView({block:'start', behavior:'smooth'}); }, 50); }
-    else { const c = $('#rackCard'); if (c.classList.contains('shut')) c.querySelector('.fh').click(); const u = c.querySelector('.u-' + k); if (u){ if (u.classList.contains('shut')) u.querySelector('.fh').click(); u.scrollIntoView({block:'start', behavior:'smooth'}); } }
+    if (k === 'rev' || k === 'dly'){ selStrip = 'master'; renderMixer(); setTimeout(() => sheetOpen($('#fxCard')), 50); }
+    else { sheetOpen($('#rackCard')); setTimeout(() => { const u = $('#rackCard').querySelector('.u-' + k); if (u && u.classList.contains('shut')) u.querySelector('.fh').click(); setTimeout(() => { const c = $('#rackCard'), cw = c._cw + 24; if (u && cw) { sheetPage = Math.floor((u.offsetLeft - (parseFloat(getComputedStyle(c).paddingLeft) || 0) + c.scrollLeft) / cw); sheetLayout(); } }, 80); }, 60); }
   });
   el._meter = el.querySelector('.vmeter i'); el._ret = k;
   box.appendChild(el);
@@ -5925,7 +6073,7 @@ function renderPlat(){
   stepify($('#ttTpr'), v => v + ' steps'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
 })();
 function setView(v){
-  view = v; if (v === "setup") setTimeout(renderBt, 0);
+  view = v; sheetClose(); setTimeout(fitScreen, 60); if (v === "setup") setTimeout(renderBt, 0);
   document.querySelectorAll('.view[id^="v-"]').forEach(s => s.hidden = s.id !== 'v-' + v);
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('cur', b.dataset.v === v));
   if (v === 'drums') seqDirty = true;
@@ -6153,7 +6301,7 @@ $('#chopRec').addEventListener('click', toggleChopRec);
 $('#chopFromTrack').addEventListener('focus', () => { $('#chopFromTrack').innerHTML = '<option value="">From track…</option>' + S.audio.filter(t => t.clip).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join(''); });
 $('#chopFromTrack').addEventListener('change', e => { const t = trackById(e.target.value); if (t && buffers.get(t.clip)){ setChopSource(buffers.get(t.clip), t.name); chop.bars = Math.max(1, t.clipSteps / 16); saveChop(); renderChop(); } e.target.value = ''; });
 $('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
-$('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
+$('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; if (!p.sample){ toast('This pad is empty.'); return; } chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
 document.querySelectorAll('#v-chop .seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
 $('#chopN').addEventListener('change', e => { chop.n = +e.target.value; remark(); saveChop(); renderChop(); });
 let sensT = 0;
@@ -6342,6 +6490,7 @@ function gridNote(r, c){
   return 12 * (S.oct + 2) + S.root + Math.floor(deg / n) * 12 + sc[deg % n];
 }
 function renderKeys(){
+  setTimeout(fitScreen, 30);
   const box = $('#keys'); box.innerHTML = '';
   const sc = SCALES[S.scale] || SCALES.Major;
   for (let r = 4; r >= 0; r--) for (let c = 0; c < 8; c++){
