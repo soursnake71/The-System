@@ -135,6 +135,9 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 .sbx-list .empty{color:var(--dim);font-size:13px;padding:8px 2px;line-height:1.4}
 #sbxFind{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:500 14px var(--f-mono)}
 .sbx-phone{width:100%}
+.padwave{width:100%;height:64px;border-radius:6px;grid-column:1/-1;display:block}
+.padtg{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px;grid-column:1/-1}
+.padtg button.on{background:var(--accent);color:var(--accent-ink)}
 .tempo-row{display:flex;flex-direction:column;gap:6px;grid-column:1/-1}
 .tempo-row .badge{text-align:center}
 .arp{display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px}
@@ -671,7 +674,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <p class="hint">Grid: only notes in the key, each row a fourth higher, like Push; orange is the root. Keyboard: a piano, slide along it for a run. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
     <div class="card" data-open>
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -693,6 +696,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="p5Wheel">Mod wheel</label><input id="p5Wheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="p5WheelV"></span></div>
         <div id="p5Body"></div>
         <p class="hint">Modeled on the Rev 3 Prophet-5: two CEM3340 oscillators, CEM3320 four-pole filter, two CEM3310 envelopes per voice, five voices. Knobs step in 128 increments like the original (pitch and cutoff move in semitones). Vintage sets how much the five voices differ and drift.</p>
+      </div>
+      <div id="obPanel" hidden>
+        <div class="ctl"><label class="label" for="obPreset">Program</label><select id="obPreset"></select><span></span></div>
+        <div class="ctl"><label class="label" for="obWheel">Mod lever</label><input id="obWheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="obWheelV"></span></div>
+        <div id="obBody"></div>
+        <p class="hint">Modeled on the Oberheim OB-Xa: two CEM3340 oscillators with sync, a CEM3320 filter you can switch between the 2-pole response (the open, brassy Oberheim sound) and 4-pole, two ADSRs, an LFO with sample &amp; hold, and eight voices spread across the stereo field like the OB-Xa's pan pots. Programs are in the style of famous OB-Xa and OB-X parts.</p>
       </div>
       <div id="solPanel" hidden>
         <div class="label">Bass section</div>
@@ -811,6 +820,20 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
       </ul>
+    </details>
+    <details id="h-sampler"><summary>Pad sampler: start, end, loop, ADSR, filter</summary>
+      <p>In <b>Pad sound</b> (with SP-1200 mode off). The waveform shows the start and end points and the loop point.</p>
+      <ul>
+        <li><b>Start / End</b> trim the sample. <b>Reverse</b> plays it backwards.</li>
+        <li><b>Loop</b> repeats the part between <b>Loop from</b> and End for as long as the note lasts. Held live, it loops while you hold the pad; in the sequencer it loops for the recorded note length, or until the pad is hit again.</li>
+        <li><b>One shot / Hold</b>: One shot plays the whole sample on each hit. Hold plays only while you hold the pad, then goes into Release, and recorded notes keep the length you held them.</li>
+        <li><b>Attack, Decay, Sustain, Release</b>: a volume envelope for each pad. <b>Length</b> still shortens the sound like before.</li>
+        <li><b>Filter / Reso</b>: a low-pass filter for each pad.</li>
+      </ul>
+    </details>
+    <details id="h-obxa"><summary>Oberheim OB-Xa</summary>
+      <p>Choose <b>Oberheim OB-Xa</b> in the synth's instrument menu. Two oscillators per voice (saw and pulse, sync, osc 2 detune), a filter that switches between 2-pole (the open, brassy Oberheim sound) and 4-pole, filter and loudness ADSRs, an LFO with sine, square and sample &amp; hold, filter envelope to osc 2 for sync sweeps, and eight voices spread across the stereo field. Unison stacks all eight with detune.</p>
+      <p>Programs in the style of famous OB-Xa and OB-X parts: Jump Brass, 1999 Stab, Separate Ways, Purple Pad, Tom Sawyer Growl, Mr. Roboto Brass, Oberheim Strings, plus Sync Sweep, S&amp;H Bubbles, Unison Bass, Brass Swell, Poly Sweep, Bell Keys and Electro Lead. They're starting points modeled on those records, not copies of factory patches.</p>
     </details>
     <details id="h-tempo"><summary>Tempo detection</summary>
       <ul>
@@ -2259,9 +2282,10 @@ class Prophet5 extends AudioWorkletProcessor{
     this.held = this.held.filter(x => x !== n); this.held.push(n);
     if (C.uni){ const low = Math.min(...this.held); for (const v of this.v){ const fresh = !v.gate; v.note = low; v.gate = true; if (fresh) this.trig(v); } return; }
     let v = this.v.find(x => x.note === n) || null;
-    if (!v){ for (let k = 0; k < 5 && !v; k++){ const c = this.v[(this.rr + k) % 5]; if (!c.gate && c.ast === 0) v = c; } }
+    const NV = this.v.length;
+    if (!v){ for (let k = 0; k < NV && !v; k++){ const c = this.v[(this.rr + k) % NV]; if (!c.gate && c.ast === 0) v = c; } }
     if (!v) v = this.v.filter(x => !x.gate).sort((a, b) => a.age - b.age)[0] || this.v.slice().sort((a, b) => a.age - b.age)[0];
-    this.rr = (this.v.indexOf(v) + 1) % 5;
+    this.rr = (this.v.indexOf(v) + 1) % NV;
     v.note = n; v.gate = true; v.age = currentFrame; v.glide = null; this.trig(v);
   }
   noteOff(n){
@@ -3109,7 +3133,108 @@ class Deck extends AudioWorkletProcessor{
 registerProcessor('deck', Deck);
 `;
 
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
+
+const OBX_CODE = String.raw`
+/* Oberheim OB-Xa voice model: per voice two CEM3340 VCOs (saw and pulse, shared pulse width; osc 2 detune and hard sync
+   to osc 1), noise, and a CEM3320 filter switchable between the 2-pole 12 dB response (the classic open, vocal Oberheim
+   sound) and 4-pole 24 dB. Two ADSRs (filter, loudness), one LFO (sine, square, sample & hold) to osc 1/2 pitch, filter
+   and pulse width, filter envelope to osc 2 pitch for sync sweeps. Eight voices, each with its own pan position like the
+   OB-Xa's voice pan pots; unison stacks all eight with spread detune; portamento. */
+class OBXa extends Prophet5{
+  constructor(o){
+    super(o); const rnd = this.rnd; this.v = []; this.sh = 0;
+    for (let i = 0; i < 8; i++) this.v.push({note:-1, gate:false, age:0, pa:Math.random(), pb:Math.random(), glide:null, fe:0, fst:0, ae:0, ast:0,
+      lad:[0, 0, 0, 0], s1:0, s2:0, offA:rnd(), offB:rnd(), offF:rnd(), offT:rnd(), driftA:0, driftB:0, g:0, g2:0, h2:1, d1:0, d2:0, pwv:.5});
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.c, q7 = x => this.q7(x);
+    if ((!this.q.length || this.q[0].f >= currentFrame + N) && !this.v.some(v => v.note >= 0 && (v.gate || v.ast !== 0))){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const LN2 = Math.LN2, fos = fs * 2, NV = this.v.length;
+    const st1 = Math.round(q7(C.o1f) * 48) - 24, st2 = Math.round(q7(C.o2f) * 48) - 24, det2 = q7(C.o2det) * 50;
+    const pw = .05 + .9 * q7(C.pw), cutSt = Math.round(q7(C.cut) * 127), res = q7(C.res), four = !!C.fmode;
+    const k4 = res <= .7 ? 3.9 * res / .7 : 3.9 + (res - .7) * 2.2, R2 = Math.max(.035, 1 - res * .965);
+    const fa = this.envT(C.fa), fd = this.envT(C.fd), fsus = q7(C.fs), fr = this.envT(C.fr);
+    const aa = this.envT(C.aa), ad = this.envT(C.ad), asus = q7(C.as), ar = this.envT(C.ar);
+    const lfoHz = .05 * Math.pow(400, q7(C.lfoF));
+    const glideTau = C.glide > 0 ? .0005 * Math.pow(3000, q7(C.glide)) : 0, gl = glideTau ? 1 - Math.exp(-1 / (glideTau * fs)) : 1;
+    const vint = C.vint || 0, m1 = q7(C.mix1) * .5, m2 = q7(C.mix2) * .5, mN = q7(C.noise) * .4, fenv = q7(C.fenv) * 9, fO2 = q7(C.fenvO2) * 3;
+    const lP = q7(C.lfoPitch) * .5 + this.wheel * .25, lF = q7(C.lfoFilt) * 4, lPW = q7(C.lfoPW) * .45, uniDet = q7(C.det) * 30, spread = C.spread == null ? .5 : C.spread;
+    const gk = -2 * Math.PI * 1.073 / fos, lgB = Math.log2(261.63), wv = C.lfoWave | 0;
+    for (let j = 0; j < NV; j++){
+      const v = this.v[j], sp = 1 + .06 * vint * v.offT;
+      v.kFa = Math.exp(-1.466 / (fa * sp * fs)); v.kFd = Math.exp(-3 / (fd * sp * fs)); v.kFr = Math.exp(-3 / (fr * sp * fs));
+      v.kAa = Math.exp(-1.466 / (aa * sp * fs)); v.kAd = Math.exp(-3 / (ad * sp * fs)); v.kAr = Math.exp(-3 / (ar * sp * fs));
+      const pan = (j % 2 ? 1 : -1) * spread * (.35 + .65 * ((j >> 1) / 3));
+      v.panL = Math.cos((pan + 1) * Math.PI / 4); v.panR = Math.sin((pan + 1) * Math.PI / 4);
+      v.uDet = C.uni ? uniDet * ((j - (NV - 1) / 2) / ((NV - 1) / 2)) : 0;
+    }
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on); else this.noteOff(ev.off); }
+      const pPrev = this.lfoP; this.lfoP = (this.lfoP + lfoHz / fs) % 1; if (this.lfoP < pPrev) this.sh = Math.random() * 2 - 1;
+      const lfo = wv === 1 ? (this.lfoP < .5 ? 1 : -1) : wv === 2 ? this.sh : Math.sin(2 * Math.PI * this.lfoP);
+      const w = Math.random() * 2 - 1, ctl = (i & 7) === 0;
+      let oL = 0, oR = 0;
+      for (const v of this.v){
+        if (v.note < 0 || (!v.gate && v.ast === 0)) continue;
+        const target = v.note + this.bend;
+        v.glide = v.glide == null || !glideTau ? target : v.glide + (target - v.glide) * gl;
+        v.driftA += (this.rnd() * .02 - v.driftA * .0005) / fs * 40; v.driftB += (this.rnd() * .02 - v.driftB * .0005) / fs * 40;
+        const fe = this.envF(v, fsus), ae = this.envA(v, asus);
+        if (ctl || !v.ok){
+          v.ok = true;
+          const kb = (v.glide - 60) / 12, lp = lfo * lP;
+          const e1 = lgB + kb + st1 / 12 + (vint * (v.offA * 3 + v.driftA * 4) + v.uDet) / 1200 + (C.lfoP1 ? lp : 0);
+          const e2 = lgB + kb + st2 / 12 + (det2 + vint * (v.offB * 3 + v.driftB * 4) - v.uDet) / 1200 + (C.lfoP2 ? lp : 0) + fO2 * fe;
+          v.d1 = Math.min(.45, Math.exp(e1 * LN2) / fs); v.d2 = Math.min(.45, Math.exp(e2 * LN2) / fs);
+          v.pwv = Math.max(.03, Math.min(.97, pw + lfo * lPW));
+          const fc = 16.35 * Math.exp((cutSt / 12 + (C.fkbd ? kb : 0) + lfo * lF + fenv * fe + vint * .05 * v.offF) * LN2);
+          v.g = 1 - Math.exp(gk * Math.min(.42 * fos, fc));
+          const g2 = Math.tan(Math.PI * Math.min(.45 * fs, fc) / fs); v.g2 = g2; v.h2 = 1 / (1 + 2 * R2 * g2 + g2 * g2);
+        }
+        const d1 = v.d1, d2 = v.d2, pwv = v.pwv;
+        let p1 = v.pa + d1, wrapped = false; if (p1 >= 1){ p1 -= 1; wrapped = true; } v.pa = p1;
+        let o1 = 0;
+        if (C.o1saw) o1 += 2 * p1 - 1 - this.blep(p1, d1);
+        if (C.o1pul) o1 += (p1 < pwv ? 1 : -1) + this.blep(p1, d1) - this.blep((p1 - pwv + 1) % 1, d1);
+        let p2 = v.pb + d2, jump = 0, tj = 0;
+        if (C.sync && wrapped){
+          const frac = p1 / d1, before = (p2 - frac * d2) % 1, after = frac * d2;
+          if (C.o2saw) jump += (2 * after - 1) - (2 * before - 1);
+          if (C.o2pul) jump += (after < pwv ? 1 : -1) - (before < pwv ? 1 : -1);
+          p2 = after; tj = frac;
+        } else if (p2 >= 1) p2 -= 1;
+        v.pb = p2;
+        let o2 = 0;
+        if (C.o2saw) o2 += 2 * p2 - 1 - (jump ? 0 : this.blep(p2, d2));
+        if (C.o2pul) o2 += (p2 < pwv ? 1 : -1) + (jump ? 0 : this.blep(p2, d2)) - this.blep((p2 - pwv + 1) % 1, d2);
+        if (jump){ const d = Math.min(1, tj); o2 -= jump * (1 - d) * (1 - d) * .5; }
+        const x = m1 * o1 + m2 * o2 + mN * w + w * 2e-5;
+        let y;
+        if (four){
+          const l = v.lad, g = v.g; y = 0;
+          for (let o = 0; o < 2; o++){
+            const u = this.tanh(x - k4 * l[3]);
+            const t0 = this.tanh(l[0]), t1 = this.tanh(l[1]), t2 = this.tanh(l[2]);
+            l[0] += g * (u - t0); l[1] += g * (t0 - t1); l[2] += g * (t1 - t2); l[3] += g * (t2 - this.tanh(l[3]));
+            y += l[3];
+          }
+          y *= .5 * (1 + k4 * .45);
+        } else {
+          // 2-pole state-variable low-pass (OTA 12 dB), the band state saturates gently
+          const g2 = v.g2, hp = (x - (2 * R2 + g2) * v.s1 - v.s2) * v.h2, bp = g2 * hp + v.s1;
+          v.s1 = this.tanh(g2 * hp + bp); const lpo = g2 * bp + v.s2; v.s2 = g2 * bp + lpo;
+          y = lpo * (1 + res * .25);
+        }
+        const a = this.tanh(y * ae * 1.3); oL += a * v.panL; oR += a * v.panR;
+      }
+      const vol = (C.vol == null ? .8 : C.vol) * .3; L[i] = oL * vol; R[i] = oR * vol;
+    }
+    return true;
+  }
+}
+registerProcessor('obxa', OBXa);`;
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, OBX_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
 
 // audio buffer size is a per-phone setting, kept outside the project
 // Bluetooth headphones add delay the phone often doesn't report; this offset is added everywhere the app works out "what you hear now"
@@ -3276,26 +3401,92 @@ function spFinish(rig){
   const n = new AudioWorkletNode(rig.c, 'sp1200', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{samples, events:rig.spEvents, rest:S.spRest, res:S.spRes}});
   n.connect(rig.strips.get('drums').input);
 }
-function playPad(rig, pad, t, vel){
+const revCache = new Map();
+function revBuf(key, buf){
+  let r = revCache.get(key); if (r && r.src === buf) return r.buf;
+  const out = new AudioBuffer({length:buf.length, numberOfChannels:buf.numberOfChannels, sampleRate:buf.sampleRate});
+  for (let c = 0; c < buf.numberOfChannels; c++){ const d = buf.getChannelData(c), o = out.getChannelData(c), n = d.length; for (let i = 0; i < n; i++) o[i] = d[n - 1 - i]; }
+  revCache.set(key, {src:buf, buf:out}); return out;
+}
+const padEnvOn = pad => (pad.att || 0) > 0 || (pad.dec2 || 0) > 0 || (pad.sus != null && pad.sus < 1) || (pad.rel || 0) > 0;
+const padGated = pad => !S.sp && (pad.loop || pad.mode === 'gate');
+// dur: how long the note is held (seconds) when known; held: live press, released by padUp
+function playPad(rig, pad, t, vel, dur, pi, held){
   if (S.sp && spTrigger(rig, pad, t, vel)) return null;
   const c = rig.c, sp = S.sp;
-  const buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
-  const rate = sp ? 1 : Math.pow(2, pad.pitch / 12) * (pad.fit || 1), full = buf.duration / rate, L = full * pad.decay;
+  let buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
+  if (!sp && pad.rev) buf = revBuf(pad.sample, buf);
+  const rate = sp ? 1 : Math.pow(2, pad.pitch / 12) * (pad.fit || 1);
+  const D = buf.duration, s0 = sp ? 0 : clamp(pad.start || 0, 0, .995), e0 = sp ? 1 : clamp(pad.end == null ? 1 : pad.end, s0 + .005, 1);
+  const off = (pad.rev && !sp ? 1 - e0 : s0) * D, segEnd = (pad.rev && !sp ? 1 - s0 : e0) * D, seg = segEnd - off;
+  const full = seg / rate, L = full * pad.decay, loop = !sp && !!pad.loop, gated = padGated(pad);
   const src = c.createBufferSource(), g = c.createGain(), p = c.createStereoPanner();
   src.buffer = buf; src.playbackRate.value = rate; p.pan.value = pad.pan;
+  if (loop){ src.loop = true; src.loopStart = off + clamp(pad.lstart || 0, 0, .98) * seg; src.loopEnd = segEnd; }
   const v = vel * pad.vol * pad.vol * 1.2;
-  g.gain.setValueAtTime(v, t);
-  if (pad.decay < 1){ g.gain.setValueAtTime(v, t + L * .6); g.gain.linearRampToValueAtTime(0, t + L); }
+  // how long the "key" is down
+  let gate = gated ? (dur != null ? dur : held ? Infinity : loop ? 16 * stepDur() : L) : L;
+  if (!loop) gate = Math.min(gate, L);
+  const env = !sp && (padEnvOn(pad) || gated), att = Math.max(.001, pad.att || 0), dec = pad.dec2 || 0, sus = pad.sus == null ? 1 : pad.sus, rel = Math.max(.004, pad.rel || .006);
+  let stopAt = loop ? Infinity : t + full + .02;
+  if (!env){
+    g.gain.setValueAtTime(v, t);
+    if (pad.decay < 1){ g.gain.setValueAtTime(v, t + L * .6); g.gain.linearRampToValueAtTime(0, t + L); }
+    stopAt = Math.min(stopAt, t + L + .02);
+  } else {
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + att);
+    if (dec > 0 && sus < 1) g.gain.setTargetAtTime(v * sus, t + att, dec / 3); else if (sus < 1) g.gain.setValueAtTime(v * sus, t + att);
+    if (isFinite(gate)){
+      const r0 = t + Math.max(gate, att);
+      if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(r0); g.gain.setTargetAtTime(0, r0, rel / 4);
+      stopAt = Math.min(stopAt, r0 + rel * 1.6 + .03);
+    }
+  }
+  let node = src;
+  if (!sp && pad.cut != null && pad.cut < .995){
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 20 * Math.pow(1000, pad.cut); f.Q.value = pad.res || .7; src.connect(f); node = f;
+  }
   const ch = pad.spOut || 3;
-  src.connect(g).connect(p).connect(!sp ? rig.strips.get('drums').input : ch <= 2 ? spDynamic(rig, t) : spFixed(rig, ch));
+  node.connect(g).connect(p).connect(!sp ? rig.strips.get('drums').input : ch <= 2 ? spDynamic(rig, t) : spFixed(rig, ch));
+  const endT = isFinite(stopAt) ? stopAt : t + 3600;
   if (pad.choke){
     rig.voices = rig.voices.filter(vo => vo.end > t);
     rig.voices.forEach(vo => { if (vo.choke === pad.choke && vo.t < t){ vo.g.gain.cancelScheduledValues(t); vo.g.gain.setTargetAtTime(0, t, .008); try { vo.src.stop(t + .06); } catch(e){} } });
-    rig.voices.push({choke:pad.choke, g, src, t, end:t + L});
+    rig.voices.push({choke:pad.choke, g, src, t, end:endT});
   }
-  src.start(t); src.stop(t + Math.min(full, L) + .02);
+  // looped or held pads cut their own previous note, and live presses can be released by padUp
+  if (gated && pi != null){
+    rig.padV = rig.padV || {};
+    const prev = rig.padV[pi]; if (prev && prev.t < t) prev.release(t);
+    let done = false;
+    const voice = {t, release:at => { if (done) return; done = true; at = Math.max(at, t + .002);
+      if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); else g.gain.cancelScheduledValues(at);
+      g.gain.setTargetAtTime(0, at, rel / 4); try { src.stop(at + rel * 1.6 + .03); } catch(e){} }};
+    rig.padV[pi] = voice;
+  }
+  src.start(t, off);
+  if (isFinite(stopAt)) src.stop(stopAt);
   return src;
 }
+function drawPadWave(cv, p){
+  const buf = buffers.get(p.sample); const dpr = devicePixelRatio || 1, w = Math.round((cv.clientWidth || 300) * dpr), h = Math.round((cv.clientHeight || 64) * dpr);
+  if (!w || !h) return; cv.width = w; cv.height = h;
+  const g = cv.getContext('2d'), css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
+  g.fillStyle = '#101411'; g.fillRect(0, 0, w, h); if (!buf) return;
+  const d = buf.getChannelData(0), n = d.length, rev = !!p.rev;
+  g.fillStyle = '#7fd4a0';
+  for (let x = 0; x < w; x++){
+    const i0 = Math.floor(x / w * n), i1 = Math.max(i0 + 1, Math.floor((x + 1) / w * n)); let mx = 0;
+    for (let i = i0; i < i1; i += 4){ const v = Math.abs(d[rev ? n - 1 - i : i]); if (v > mx) mx = v; }
+    const y = mx * h * .48; g.fillRect(x, h / 2 - y, 1, Math.max(1, y * 2));
+  }
+  const s0 = p.start || 0, e0 = p.end == null ? 1 : p.end;
+  g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(0, 0, s0 * w, h); g.fillRect(e0 * w, 0, w - e0 * w, h);
+  const mark = (x, c) => { g.fillStyle = c; g.fillRect(Math.round(x * w) - dpr, 0, 2 * dpr, h); };
+  mark(s0, '#fff'); mark(e0, '#fff');
+  if (p.loop){ const ls = s0 + (p.lstart || 0) * (e0 - s0); mark(ls, col('--accent') || '#f60'); g.fillStyle = col('--accent') || '#f60'; g.font = `${10 * dpr}px monospace`; g.fillText('LOOP', ls * w + 4 * dpr, 12 * dpr); }
+}
+function padRelease(rig, pi, at){ const v = rig && rig.padV && rig.padV[pi]; if (v){ v.release(at); rig.padV[pi] = null; } }
 
 /* ---- warping: keep clips in time when the tempo changes ---- */
 const stretchCache = new Map();   // "key@bpm" -> AudioBuffer
@@ -3381,7 +3572,7 @@ function scheduleNotes(rig, i, t){
     if (n.t < lo || n.t >= hi) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }   // already heard when it was played in
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
-    playPad(rig, S.drum.pads[n.p], at, n.v);
+    playPad(rig, S.drum.pads[n.p], at, n.v, n.d ? n.d * td : null, n.p);
     if (rig === live) flashPad(n.p, at);
     duckAt(rig, n.p, at);
   }
@@ -3427,9 +3618,11 @@ function addNote(pi, absTick, v, quantize){
   const tick = ((rq % L) + L) % L, notes = S.drum.notes;
   const skip = q >= stepI * TPS;   // not scheduled yet this pass, and we already heard it
   const near = notes.find(n => n.p === pi && Math.abs(n.t - tick) < (g > 1 ? 1 : 6));
+  let out = near;
   if (near){ near.v = Math.max(near.v, v); if (skip) near.skip = 1; }
-  else { const n = {p:pi, t:tick, v}; if (skip) n.skip = 1; notes.push(n); }
+  else { const n = {p:pi, t:tick, v}; if (skip) n.skip = 1; notes.push(n); out = n; }
   changed();
+  return out;
 }
 // context time the player was hearing when the finger landed, mapped to a tick
 function tapTick(ev){
@@ -3445,7 +3638,7 @@ function tapTick(ev){
 function repeatAt(pi, v, absTick, at){
   const L = loopTicks(), tick = (((absTick - org * TPS) % L) + L) % L;
   if (S.drum.notes.some(n => n.p === pi && n.t === tick)) return;   // the pattern already plays one here
-  playPad(live, S.drum.pads[pi], at, v); flashPad(pi, at);
+  playPad(live, S.drum.pads[pi], at, v, null, pi); flashPad(pi, at);
   if (drumRec) addNote(pi, absTick, v, false);
 }
 function livePerf(i, t){
@@ -3482,13 +3675,19 @@ function padDown(i, ev, v){
     return;
   }
   if (playing && S.repeat){ repeatFill(i, v); return; }
-  playPad(live, S.drum.pads[i], ctx.currentTime, v); flashPad(i, ctx.currentTime); duckAt(live, i, ctx.currentTime);
+  playPad(live, S.drum.pads[i], ctx.currentTime, v, null, i, true); flashPad(i, ctx.currentTime); duckAt(live, i, ctx.currentTime);
   if (playing && drumRec){
     const tk = tapTick(ev);
-    if (tk != null && tk > -TPS / 2) addNote(i, Math.max(0, tk), v, true);
+    if (tk != null && tk > -TPS / 2){ const n = addNote(i, Math.max(0, tk), v, true); if (n && padGated(S.drum.pads[i])) recHeld.set(i, {n, tk}); }
   }
 }
-function padUp(i){ held.delete(i); if (!held.size) eraseUndo = false; }
+const recHeld = new Map();
+function padUp(i){
+  held.delete(i); if (!held.size) eraseUndo = false;
+  if (ctx && padGated(S.drum.pads[i])) padRelease(live, i, ctx.currentTime);
+  const r = recHeld.get(i);
+  if (r){ recHeld.delete(i); if (playing && ctx){ const end = tapTick({timeStamp:performance.now()}); if (end != null) r.n.d = Math.max(6, Math.round(end - r.tk)); save(); } }
+}
 function toggleDrumRec(){
   if (drumRec){ drumRec = false; renderTransport(); return; }
   ensureAudio(); drumRec = true; undoPass = null;
@@ -4544,7 +4743,7 @@ function renderPads(){
   });
 }
 function padLoadAt(i){ sbxOpen(i); }
-function auditionPad(i){ ensureAudio(); playPad(live, S.drum.pads[i], ctx.currentTime + .005, .9); flashPad(i, ctx.currentTime); }
+function auditionPad(i){ ensureAudio(); const p = S.drum.pads[i]; playPad(live, p, ctx.currentTime + .005, .9, padGated(p) ? Math.min(2, 4 * 60 / S.bpm) : null, i); flashPad(i, ctx.currentTime); }
 const ptrs = new Map();
 function flashPad(i, t){
   const delay = Math.max(0, (t - ctx.currentTime + outL()) * 1000);
@@ -4640,7 +4839,30 @@ function renderPadEditor(){
   ctl(box, 'Level', p, 'vol', 0, 1, .01, v => fmtDb(v * v * 1.2) + ' dB');
   ctl(box, 'Tune', p, 'pitch', -24, 24, 1, v => (v > 0 ? '+' : '') + v + ' st');
   ctl(box, 'Pan', p, 'pan', -1, 1, .05, v => v === 0 ? 'C' : (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 50));
-  ctl(box, 'Decay', p, 'decay', .05, 1, .01, v => v >= 1 ? 'Full' : Math.round(v * 100) + '%');
+  ctl(box, 'Length', p, 'decay', .05, 1, .01, v => v >= 1 ? 'Full' : Math.round(v * 100) + '%');
+  if (!S.sp){
+    for (const [k, d] of [['start', 0], ['end', 1], ['lstart', 0], ['att', 0], ['dec2', 0], ['sus', 1], ['rel', 0], ['cut', 1], ['res', .7]]) if (p[k] == null) p[k] = d;
+    const wv = document.createElement('canvas'); wv.className = 'padwave'; wv.setAttribute('aria-label', 'Sample waveform with start, end and loop points');
+    box.appendChild(wv); const redraw = () => drawPadWave(wv, p); requestAnimationFrame(redraw);
+    const tg = document.createElement('div'); tg.className = 'padtg';
+    const tb = (lb, on, fn) => { const b = document.createElement('button'); b.className = 'nolearn' + (on ? ' on' : ''); b.textContent = lb; b.addEventListener('click', fn); tg.appendChild(b); return b; };
+    tb('Reverse', p.rev, () => { p.rev = p.rev ? 0 : 1; save(); renderPadEditor(); auditionPad(selPad); });
+    tb('Loop', p.loop, () => { p.loop = p.loop ? 0 : 1; save(); renderPadEditor(); auditionPad(selPad); });
+    tb(p.mode === 'gate' ? 'Hold: note on' : 'One shot', p.mode === 'gate', () => { p.mode = p.mode === 'gate' ? 'oneshot' : 'gate'; save(); renderPadEditor();
+      toast(p.mode === 'gate' ? 'Plays while you hold the pad, then releases. Recorded notes keep their length.' : 'Plays the whole sample on each hit.'); });
+    box.appendChild(tg);
+    const pc = v => (Math.round(v * 1000) / 10) + '%';
+    ctl(box, 'Start', p, 'start', 0, .99, .005, pc, redraw);
+    ctl(box, 'End', p, 'end', .01, 1, .005, pc, redraw);
+    if (p.loop) ctl(box, 'Loop from', p, 'lstart', 0, .95, .005, pc, redraw);
+    const sec = v => v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s';
+    ctl(box, 'Attack', p, 'att', 0, 2, .005, sec);
+    ctl(box, 'Decay', p, 'dec2', 0, 3, .01, v => v ? sec(v) : 'Off');
+    ctl(box, 'Sustain', p, 'sus', 0, 1, .01, v => Math.round(v * 100) + '%');
+    ctl(box, 'Release', p, 'rel', 0, 3, .01, v => v ? sec(v) : 'Off');
+    ctl(box, 'Filter', p, 'cut', 0, 1, .005, v => v >= .995 ? 'Open' : (f => f >= 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f) + ' Hz')(20 * Math.pow(1000, v)));
+    ctl(box, 'Reso', p, 'res', .5, 15, .1, v => v.toFixed(1));
+  }
   if (S.sp){
     const r = document.createElement('div'); r.className = 'ctl';
     r.innerHTML = '<label class="label" for="spOut">SP output</label><select id="spOut"><option value="1">1 · dynamic filter</option><option value="2">2 · dynamic filter</option><option value="3">3 · fixed filter</option><option value="4">4 · fixed filter</option><option value="5">5 · fixed filter</option><option value="6">6 · fixed filter</option><option value="7">7 · unfiltered</option><option value="8">8 · unfiltered</option></select><span></span>';
@@ -5913,7 +6135,7 @@ const SCALES = {'Major':[0,2,4,5,7,9,11], 'Minor':[0,2,3,5,7,8,10], 'Dorian':[0,
   'Harmonic minor':[0,2,3,5,7,8,11], 'Minor pentatonic':[0,3,5,7,10], 'Major pentatonic':[0,2,4,7,9], 'Blues':[0,3,5,6,7,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]};
 let selSynth = 0, rollDirty = true, rollImg = null, rollGeo = null;
 const keysOn = new Map();   // key id -> {voice, tr, note, v, start}
-function newSynth(n){ return Object.assign({id:'s' + n, name:'Prophet ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'prophet', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), tb:TB_DEFAULT(), tau:TAU_DEFAULT()}, mixDefaults()); }
+function newSynth(n){ return Object.assign({id:'s' + n, name:'Prophet ' + n, preset:'Bass', patch:{...PRESETS.Bass}, notes:[], inst:'prophet', sol:SOL_DEFAULT(), p5:P5_DEFAULT(), ob:OB_DEFAULT(), tb:TB_DEFAULT(), tau:TAU_DEFAULT()}, mixDefaults()); }
 const P5_INIT = {oAf:.5, oAsaw:1, oApul:0, oApw:.5, sync:0, oBf:.5, oBfine:0, oBsaw:1, oBtri:0, oBpul:0, oBpw:.5, oBlo:0, oBkbd:1,
   mA:.8, mB:0, mN:0, cut:.6, res:.1, fenv:.4, fkbd:1, fa:0, fd:.45, fs:.4, fr:.4, aa:0, ad:.4, as:.9, ar:.4,
   pmEnv:0, pmB:0, pmFA:0, pmPW:0, pmF:0, lfoF:.6, lfoSaw:0, lfoTri:1, lfoSq:0, wmMix:0, wmFA:1, wmFB:1, wmPWA:0, wmPWB:0, wmF:0,
@@ -5931,8 +6153,29 @@ const P5_PRESETS = {
   'Resonant sweep':{oBfine:.06, mA:.8, mB:.6, cut:.25, res:.62, fenv:.7, fa:.55, fd:.6, fs:.3, fr:.6, aa:.1, ad:.5, as:1, ar:.5}
 };
 const P5_DEFAULT = (name = 'Brass') => Object.assign({}, P5_INIT, P5_PRESETS[name], {preset:name});
+const OB_INIT = {o1saw:1, o1pul:0, o2saw:1, o2pul:0, o1f:.5, o2f:.5, o2det:.08, pw:.5, sync:0, mix1:.8, mix2:.8, noise:0,
+  cut:.55, res:.15, fmode:0, fenv:.35, fkbd:1, fa:0, fd:.45, fs:.5, fr:.4, aa:0, ad:.4, as:1, ar:.35,
+  lfoF:.55, lfoWave:0, lfoP1:1, lfoP2:1, lfoPitch:0, lfoFilt:0, lfoPW:0, fenvO2:0, uni:0, det:.3, glide:0, spread:.5, vint:.35, vol:.8, wheel:0};
+const OB_PRESETS = {
+  'Jump Brass':{o2det:.1, cut:.62, res:.08, fenv:.25, fd:.4, fs:.7, aa:.05, ad:.4, as:1, ar:.25, spread:.6},
+  '1999 Stab':{o2det:.14, cut:.38, res:.2, fmode:1, fenv:.55, fd:.32, fs:.25, ad:.35, as:.85, ar:.2, spread:.7},
+  'Separate Ways':{o2det:.06, o2f:.75, mix2:.5, cut:.45, res:.3, fenv:.5, fd:.28, fs:.35, ad:.3, as:.9, ar:.2},
+  'Purple Pad':{o2det:.12, cut:.4, res:.15, fenv:.2, fa:.55, fd:.6, fs:.6, fr:.65, aa:.6, ad:.5, as:1, ar:.7, lfoFilt:.08, lfoF:.3, spread:.95},
+  'Tom Sawyer Growl':{uni:1, det:.25, o2f:.25, cut:.2, res:.55, fmode:1, fenv:.5, fa:.62, fd:.7, fs:.3, aa:.1, as:1, ar:.4, lfoFilt:.12, lfoF:.25, glide:.3, spread:.4},
+  'Mr. Roboto Brass':{o1pul:1, o1saw:0, pw:.35, cut:.42, res:.1, fenv:.45, fa:.25, fd:.5, fs:.55, aa:.15, ad:.4, as:1, ar:.35},
+  'Oberheim Strings':{o1saw:0, o1pul:1, o2saw:0, o2pul:1, pw:.3, lfoPW:.35, lfoF:.45, lfoP1:0, lfoP2:0, o2det:.1, cut:.58, fenv:.1, aa:.5, ad:.5, as:1, ar:.6, mix1:.7, mix2:.7, spread:1},
+  'Sync Sweep':{sync:1, o2f:.66, fenvO2:.6, mix1:0, mix2:1, cut:.7, res:.15, fenv:.15, fd:.5, fs:.3, fr:.35, ar:.3},
+  'S&H Bubbles':{lfoWave:2, lfoFilt:.45, lfoF:.55, lfoP1:0, lfoP2:0, res:.7, cut:.35, fmode:1, fenv:.1, ar:.3},
+  'Unison Bass':{uni:1, det:.15, o1f:.25, o2f:.25, cut:.28, res:.35, fmode:1, fenv:.55, fd:.3, fs:.1, ad:.4, as:1, ar:.15, spread:.2, glide:.15},
+  'Brass Swell':{o2det:.1, cut:.3, res:.1, fenv:.45, fa:.55, fd:.6, fs:.7, aa:.45, ad:.5, as:1, ar:.4},
+  'Poly Sweep':{fmode:1, res:.5, cut:.35, lfoFilt:.3, lfoF:.2, lfoP1:0, lfoP2:0, fenv:.2, aa:.4, ad:.5, as:1, ar:.6, spread:.9},
+  'Bell Keys':{sync:1, o2f:.75, mix1:.6, mix2:1, vol:1, cut:.7, res:.1, fenv:.2, fd:.45, fs:0, aa:0, ad:.55, as:0, ar:.5},
+  'Electro Lead':{o1saw:0, o1pul:1, o2saw:1, pw:.2, o2det:.04, cut:.5, res:.35, fmode:1, fenv:.4, fd:.35, fs:.5, glide:.18, ar:.25},
+  'Init':{}
+};
+const OB_DEFAULT = (name = 'Jump Brass') => Object.assign({}, OB_INIT, OB_PRESETS[name], {preset:name});
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
   voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
@@ -6146,9 +6389,10 @@ function renderSynth(){
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
   const isSol = tr.inst === 'solina';
-  const isP5 = tr.inst === 'prophet', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
+  const isP5 = tr.inst === 'prophet', isOB = tr.inst === 'obxa', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
+  $('#obPanel').hidden = !isOB; if (isOB) renderOB(tr);
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isP5 || isTB || isTau; $('#patchCtls').hidden = isSol || isP5 || isTB || isTau; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -6208,6 +6452,43 @@ function renderP5(tr){
 }
 $('#p5Preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = tr.p5.wheel; tr.p5 = P5_DEFAULT(e.target.value); solCfg(tr); save(); renderP5(tr); });
 $('#p5Wheel').addEventListener('input', e => { const tr = curSynth(); tr.p5.wheel = +e.target.value; $('#p5WheelV').textContent = Math.round(tr.p5.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':prophet']; if (n) n.port.postMessage({type:'wheel', v:tr.p5.wheel}); save(); });
+
+const obSt = v => { const st = Math.round(Math.round(v * 127) / 127 * 48) - 24; return (st > 0 ? '+' : '') + st + ' st'; };
+const OB_LAYOUT = [
+  ['Oscillators', [['o1f', 'Osc 1 freq', obSt], ['o2f', 'Osc 2 freq', obSt], ['o2det', 'Osc 2 detune', v => '+' + Math.round(Math.round(v * 127) / 127 * 50) + ' ct'], ['pw', 'Pulse width', v => Math.round(5 + 90 * v) + '%']],
+    [['o1saw', '1 Saw'], ['o1pul', '1 Pulse'], ['o2saw', '2 Saw'], ['o2pul', '2 Pulse'], ['sync', 'Sync']]],
+  ['Mixer', [['mix1', 'Osc 1'], ['mix2', 'Osc 2'], ['noise', 'Noise']], []],
+  ['Filter', [['cut', 'Cutoff', v => { const f = 16.35 * Math.pow(2, Math.round(v * 127) / 12); return f >= 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f) + ''; }], ['res', 'Resonance'], ['fenv', 'Env amount'], ['fa', 'Attack', 'T'], ['fd', 'Decay', 'T'], ['fs', 'Sustain'], ['fr', 'Release', 'T']],
+    [['fmode', '4-pole'], ['fkbd', 'Keyboard']]],
+  ['Loudness', [['aa', 'Attack', 'T'], ['ad', 'Decay', 'T'], ['as', 'Sustain'], ['ar', 'Release', 'T']], []],
+  ['Modulation', [['lfoF', 'LFO rate', v => (.05 * Math.pow(400, v)).toFixed(2) + ' Hz'], ['lfoPitch', 'LFO → pitch'], ['lfoFilt', 'LFO → filter'], ['lfoPW', 'LFO → PW'], ['fenvO2', 'F-env → osc 2']],
+    [['lfoWave', 'Sine', 0], ['lfoWave', 'Square', 1], ['lfoWave', 'S&H', 2], ['lfoP1', 'Osc 1'], ['lfoP2', 'Osc 2']]],
+  ['Voices', [['glide', 'Portamento'], ['det', 'Unison detune'], ['spread', 'Pan spread', v => Math.round(v * 100) + '%'], ['vint', 'Vintage'], ['vol', 'Volume']], [['uni', 'Unison']]]
+];
+function renderOB(tr){
+  const P = tr.ob || (tr.ob = OB_DEFAULT()), ps = $('#obPreset');
+  ps.innerHTML = Object.keys(OB_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  ps.value = P.preset || '';
+  $('#obWheel').value = P.wheel || 0; $('#obWheelV').textContent = Math.round((P.wheel || 0) * 100) + '%';
+  const body = $('#obBody'); body.innerHTML = '';
+  const up = () => { P.preset = ''; $('#obPreset').value = ''; solCfg(tr); };
+  OB_LAYOUT.forEach(([title, knobs, sws], si) => {
+    const sec = document.createElement('div'); sec.className = 'p5sec'; sec.id = 'obs' + si;
+    sec.innerHTML = `<div class="label">${title}</div>`;
+    if (sws.length){
+      const row = document.createElement('div'); row.className = 'p5sw';
+      const paint = () => row.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.val != null ? P[b.dataset.k] === +b.dataset.val : !!P[b.dataset.k]));
+      sws.forEach(([k, lb, val]) => { const b = document.createElement('button'); b.textContent = lb; b.dataset.k = k; if (val != null) b.dataset.val = val;
+        b.addEventListener('click', () => { P[k] = val != null ? val : (P[k] ? 0 : 1); paint(); up(); save(); }); row.appendChild(b); });
+      paint(); sec.appendChild(row);
+    }
+    const g = document.createElement('div'); g.className = 'ctls'; sec.appendChild(g);
+    knobs.forEach(([k, lb, f]) => ctl(g, lb, P, k, 0, 1, .005, f === 'T' ? p5Time : typeof f === 'function' ? v => f(v, P) : v => (Math.round(v * 127) / 12.7).toFixed(1), up));
+    body.appendChild(sec);
+  });
+}
+$('#obPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = (tr.ob && tr.ob.wheel) || 0; tr.ob = OB_DEFAULT(e.target.value); tr.ob.wheel = w; solCfg(tr); save(); renderOB(tr); });
+$('#obWheel').addEventListener('input', e => { const tr = curSynth(); tr.ob.wheel = +e.target.value; $('#obWheelV').textContent = Math.round(tr.ob.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':obxa']; if (n) n.port.postMessage({type:'wheel', v:tr.ob.wheel}); save(); });
 
 function renderTau(tr){
   const T = tr.tau, up = () => solCfg(tr);
@@ -6273,7 +6554,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', tb303:'TB-303 ', taurus:'Taurus '}[tr.inst]; if (/^(Synth|Solina|Prophet|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
@@ -7066,8 +7347,8 @@ function onMidi(e){
   if ((plat.cap || (S.deck && S.deck.ext && S.deck.ext.on)) && platMidi(st, d)) return;
   if (!learning && learnMidi(type, ch, d)) return;
   if ((type === 0xB0 && d[1] === 1) || type === 0xE0){
-    const syn = S.synths.find(t => t.id === S.midiTarget && t.inst === 'prophet'), n = syn && live && live.sol && live.sol[syn.id + ':prophet'];
-    if (syn && type === 0xB0){ syn.p5.wheel = d[2] / 127; if (n) n.port.postMessage({type:'wheel', v:syn.p5.wheel}); }
+    const syn = S.synths.find(t => t.id === S.midiTarget && (t.inst === 'prophet' || t.inst === 'obxa')), n = syn && live && live.sol && live.sol[syn.id + ':' + syn.inst];
+    if (syn && type === 0xB0){ const P = syn.inst === 'obxa' ? syn.ob : syn.p5; P.wheel = d[2] / 127; if (n) n.port.postMessage({type:'wheel', v:P.wheel}); }
     if (syn && type === 0xE0 && n) n.port.postMessage({type:'bend', v:(((d[2] << 7) | d[1]) - 8192) / 8192 * 2});
     return;
   }
@@ -7447,7 +7728,7 @@ $('#helpSearch').addEventListener('input', e => {
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
-  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); if (!t.inst || t.inst === 'synth'){ t.inst = 'prophet'; if (/^Synth \d+$/.test(t.name)) t.name = 'Prophet ' + t.id.slice(1); } t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
+  S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); if (!t.inst || t.inst === 'synth'){ t.inst = 'prophet'; if (/^Synth \d+$/.test(t.name)) t.name = 'Prophet ' + t.id.slice(1); } t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.ob = Object.assign(OB_DEFAULT(), t.ob); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
