@@ -1,0 +1,5 @@
+build/
+# Stock Ensoniq OS disks, ROM dumps and anything extracted from them stay
+# local: they are Ensoniq's copyright, not ours to publish.
+local/*
+!local/README.md
