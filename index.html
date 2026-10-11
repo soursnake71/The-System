@@ -8008,7 +8008,7 @@ stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs')
   if ('serviceWorker' in navigator && location.protocol === 'https:'){
     navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(r => r.update()).catch(() => {});
     // a newer version took over: reload once so the screen shows it
-    let reloaded = false; navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloaded || playing) return; reloaded = true; location.reload(); });
+    let reloaded = false; const hadSW = !!navigator.serviceWorker.controller; navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadSW || reloaded || playing) return; reloaded = true; location.reload(); });
   }
 })();
 </script>
