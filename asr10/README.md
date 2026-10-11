@@ -35,6 +35,7 @@ tools/ensoniq_disk.py  Ensoniq disk image tool
 tools/make_os.py       wraps our code in an ASR-10 OS file
 tools/hfe.py           converts .img to and from .hfe
 tools/syx2rom.py       rebuilds the boot ROM from the explorer's SysEx dump
+tools/rom-recorder.html  records that dump in Chrome (Web MIDI) and shows progress
 tests/                 tests, and a 68000 emulator harness (emulate.py)
 docs/hardware.md       hardware notes
 local/                 your Ensoniq disk images and ROM dumps (not committed)
