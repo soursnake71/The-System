@@ -54,13 +54,19 @@ ROM. MAME runs the VFX panel link at 62,500 baud, 8N2.
 
 ## Panel input (confirmed on hardware)
 
-With the panel explorer running, every keyboard key and the panel buttons
-(arrow buttons included) send codes on DUART channel B, which the
-explorer printed. The data entry slider sends nothing on that link. In
-MAME's Ensoniq drivers the slider, wheels, pedal and battery voltage are
-analog inputs read through the sound chip's ADC port, so the ASR-10
-probably works the same way. Still to do: which code each key and button
-sends.
+With the panel explorer running, every panel button (arrows and LOAD
+included) sends codes on DUART channel B, which the explorer printed.
+The keyboard sends nothing there, and neither does the data entry slider.
+
+- Keyboard: read by other hardware. The ASR-10 "tunes" its keyboard at
+  power-up, and forum reports describe four LC oscillators under the keybed
+  that measure key position. That measurement is what fails calibration on
+  this unit. Code for it is in the boot ROM.
+- Slider: in MAME's Ensoniq drivers the slider, wheels, pedal and battery
+  voltage are analog inputs read through the sound chip's ADC port; the
+  ASR-10 probably works the same way.
+
+Still to do: which code each button sends.
 
 ## Display commands (guess)
 
