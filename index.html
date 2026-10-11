@@ -135,6 +135,12 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 .sbx-list .empty{color:var(--dim);font-size:13px;padding:8px 2px;line-height:1.4}
 #sbxFind{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:500 14px var(--f-mono)}
 .sbx-phone{width:100%}
+.strip.ret{background:linear-gradient(180deg,#2a3340,#20262f)}
+html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
+.strip .retlbl{font:700 8px/1 var(--f-mono);letter-spacing:.12em;color:var(--dim);text-align:center}
+.strip.sendmode .fader{accent-color:#f5b301}
+.strip.sendmode .db{color:#f5b301}
+.strip-add{align-self:center;writing-mode:vertical-rl;padding:12px 6px;font-size:11px}
 .padwave{width:100%;height:64px;border-radius:6px;grid-column:1/-1;display:block}
 .padtg{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px;grid-column:1/-1}
 .padtg button.on{background:var(--accent);color:var(--accent-ink)}
@@ -550,6 +556,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- MIXER -->
   <section class="view" id="v-mixer" hidden>
     <div class="row"><button id="autoArm" class="grow">Automate</button><button id="autoBack" class="grow" disabled>Re-enable automation</button></div>
+    <div class="row"><span class="label">Faders</span><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard"></div>
     <div class="card rack" id="rackCard"></div>
@@ -819,6 +826,13 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
+      </ul>
+    </details>
+    <details id="h-returns"><summary>FX sends and returns</summary>
+      <ul>
+        <li>Every effect has a <b>return</b> strip on the Mixer, between the tracks and Master: Reverb, Delay, and each FX rack unit you send to. Tap <b>+ Returns</b> to show all of them. Each return has a level fader, pan, mute, solo and meter. <b>EDIT</b> / <b>UNIT</b> jumps to that effect's settings.</li>
+        <li><b>Faders</b> menu (top of the Mixer): choose <b>Send → Reverb</b>, <b>Send → Delay</b> or a rack unit, and the track faders turn amber and set how much of each track goes to that effect. Choose <b>Volume</b> to go back.</li>
+        <li>Send faders and return levels can be MIDI-learned and automated like any fader.</li>
       </ul>
     </details>
     <details id="h-sampler"><summary>Pad sampler: start, end, loop, ADSR, filter</summary>
@@ -1643,6 +1657,11 @@ const KITS = {
 
 /* ================= FX rack definitions ================= */
 const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx'];
+const RET_KEYS = ['rev', 'dly', ...RACK_KEYS];
+// FX returns on the mixer; the old fixed return levels were reverb 0.9 and 1.0 for the rest
+function retState(k){ const M = S.master; M.ret = M.ret || {}; if (!M.ret[k]) M.ret[k] = {vol:k === 'rev' ? .8 : .845, mute:false, solo:false, pan:0}; return M.ret[k]; }
+function retGain(k){ const r = retState(k); if (r.mute) return 0; if (RET_KEYS.some(x => retState(x).solo) && !r.solo) return 0; return r.vol * r.vol * 1.4; }
+const retName = k => k === 'rev' ? 'Reverb' : k === 'dly' ? 'Delay' : (RACK[k] ? RACK[k].short : k);
 const msF = v => v >= 1000 ? (v / 1000).toFixed(2) + ' s' : (v < 10 ? v.toFixed(1) : Math.round(v)) + ' ms', pctF = v => Math.round(v * 100) + '%', hzF = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + ' Hz';
 const SYNC = [['free', 'Free (ms)'], ['0.25', '1/16'], ['0.5', '1/8'], ['0.75', 'Dotted 1/8'], ['1', '1/4'], ['1.5', 'Dotted 1/4'], ['2', '1/2'], ['0.333', '1/8 triplet']];
 const syncMs = s => s === 'free' ? 0 : +s * 60000 / S.bpm;
@@ -1805,10 +1824,16 @@ function makeMaster(c){
   m.out = c.createGain();
   m.an = c.createAnalyser(); m.an.fftSize = 512; m.preAn = c.createAnalyser(); m.preAn.fftSize = 512;
   m.revIn = c.createGain(); m.conv = c.createConvolver(); m.conv.buffer = makeIR(c, S.master.rev); m.revRet = c.createGain(); m.revRet.gain.value = .9;
-  m.revIn.connect(m.conv).connect(m.revRet).connect(m.bus);
+  m.revIn.connect(m.conv).connect(m.revRet);
   m.dlyIn = c.createGain(); m.dly = c.createDelay(5); m.fb = c.createGain(); m.tone = c.createBiquadFilter(); m.tone.type = 'lowpass'; m.tone.frequency.value = 3800;
-  m.dlyIn.connect(m.dly); m.dly.connect(m.tone); m.tone.connect(m.fb).connect(m.dly); m.tone.connect(m.bus);
-  m.rk = {}; for (const k of RACK_KEYS){ m.rk[k] = {in:c.createGain(), ret:c.createGain(), node:null, wired:false}; m.rk[k].ret.connect(m.bus); }
+  m.dlyIn.connect(m.dly); m.dly.connect(m.tone); m.tone.connect(m.fb).connect(m.dly); m.dlyRet = c.createGain(); m.tone.connect(m.dlyRet);
+  m.rk = {}; for (const k of RACK_KEYS){ m.rk[k] = {in:c.createGain(), ret:c.createGain(), node:null, wired:false}; }
+  // return channels: level -> pan -> meter -> master bus (one per effect: reverb, delay and each rack unit)
+  m.rt = {};
+  for (const k of RET_KEYS){
+    const g = k === 'rev' ? m.revRet : k === 'dly' ? m.dlyRet : m.rk[k].ret, pan = c.createStereoPanner(), an = c.createAnalyser(); an.fftSize = 512;
+    g.connect(pan).connect(m.bus); pan.connect(an); m.rt[k] = {g, pan, an};
+  }
   rackNodes(c, m);
   // master EQ (low cut, low shelf, five peaks, high shelf) and the 31-band match curve; switched out when flat
   m.pre = c.createGain();
@@ -1834,7 +1859,7 @@ function rackNodes(c, m){
 function applyRack(c, m){
   for (const k of RACK_KEYS){
     const u = m.rk[k], cfg = rackCfg(k);
-    sp(c, u.ret.gain, 1);
+    sp(c, u.ret.gain, retGain(k)); sp(c, m.rt[k].pan.pan, retState(k).pan || 0);
     if (u.node){ const j = JSON.stringify(cfg); if (u.sent !== j){ u.node.port.postMessage({type:'cfg', cfg}); u.sent = j; } }
   }
 }
@@ -1877,6 +1902,8 @@ function applyMaster(c, m){
   sp(c, m.glueWet.gain, M.glue > 0 ? 1 : 0); sp(c, m.glueDry.gain, M.glue > 0 ? 0 : 1);
   sp(c, m.out.gain, M.vol * M.vol * 1.2);
   sp(c, m.dly.delayTime, M.dlyDiv * 60 / S.bpm); sp(c, m.fb.gain, M.dlyFb);
+  sp(c, m.revRet.gain, retGain('rev')); sp(c, m.dlyRet.gain, retGain('dly'));
+  if (m.rt) for (const k of ['rev', 'dly']) sp(c, m.rt[k].pan.pan, retState(k).pan || 0);
 }
 
 const satCurves = new Map();
@@ -4975,9 +5002,20 @@ function renderMixer(){
     if (!isMaster) el.querySelector('.nm').textContent = t.name;
     const f = el.querySelector('.fader'), db = el.querySelector('.db');
     const gain = () => isMaster ? obj.vol * obj.vol * 1.2 : obj.vol * obj.vol * 1.4;
+    const sm = !isMaster && fadeMode !== 'vol';
+    if (sm){
+      // sends on faders: this fader sets the track's send to the chosen effect
+      const so = fadeMode === 'sendA' || fadeMode === 'sendB' ? t : (t.rack = t.rack || {}), sk = fadeMode === 'sendA' || fadeMode === 'sendB' ? fadeMode : fadeMode.slice(3);
+      if (so[sk] == null) so[sk] = 0;
+      el.classList.add('sendmode'); f.value = so[sk]; db.textContent = Math.round(so[sk] * 100) + '%';
+      f.dataset.lp = learnPath(so) + '|' + sk;
+      f.addEventListener('input', () => { so[sk] = +f.value; db.textContent = Math.round(so[sk] * 100) + '%'; applyAll(); if (so === t) autoTouch(t, sk); save(); });
+      f.addEventListener('change', () => { if (so !== t && !S.retAll && ![...document.querySelectorAll('.strip.ret')].some(e => e._ret === sk)) renderMixer(); });
+    } else {
     f.value = obj.vol; db.textContent = fmtDb(gain()); f.dataset.lp = (isMaster ? 'm' : 't:' + t.id) + '|vol';
     f.addEventListener('input', () => { obj.vol = +f.value; db.textContent = fmtDb(gain()); applyAll(); if (!isMaster) autoTouch(t, 'vol'); save(); });
-    f.addEventListener('dblclick', () => { obj.vol = isMaster ? .91 : .845; f.value = obj.vol; db.textContent = fmtDb(gain()); applyAll(); save(); });
+    }
+    if (!sm) f.addEventListener('dblclick', () => { obj.vol = isMaster ? .91 : .845; f.value = obj.vol; db.textContent = fmtDb(gain()); applyAll(); save(); });
     if (!isMaster){
       const p = el.querySelector('.pan'); p.value = t.pan; p.dataset.lp = 't:' + t.id + '|pan';
       p.addEventListener('input', () => { t.pan = Math.abs(+p.value) < .04 ? 0 : +p.value; applyAll(); autoTouch(t, 'pan'); save(); });
@@ -4992,10 +5030,46 @@ function renderMixer(){
     el._clip.addEventListener('click', () => { clipAt.delete(t.id); el._clip.classList.remove('on'); });
     box.appendChild(el);
   };
+  const fm = $('#fadeMode');
+  fm.innerHTML = '<option value="vol">Volume</option><option value="sendA">Send → Reverb</option><option value="sendB">Send → Delay</option>' + RACK_KEYS.map(k => `<option value="rk:${k}">Send → ${retName(k)}</option>`).join('');
+  fm.value = fadeMode;
   allTracks().forEach(t => mk(t, false));
+  RET_KEYS.filter(k => S.retAll || retUsed(k)).forEach(k => mkRet(k));
+  const more = document.createElement('button'); more.className = 'strip-add nolearn'; more.textContent = S.retAll ? '− Returns' : '+ Returns';
+  more.title = S.retAll ? 'Show only the returns in use' : 'Show every FX return';
+  more.addEventListener('click', () => { S.retAll = !S.retAll; save(); renderMixer(); }); box.appendChild(more);
   mk({id:'master'}, true);
   renderFx();
   if (mlearn) markMapped();
+}
+let fadeMode = 'vol';
+const retUsed = k => k === 'rev' || k === 'dly' || allTracks().some(t => t.rack && t.rack[k] > 0) || retState(k).vol !== .845 || retState(k).mute;
+function mkRet(k){
+  const r = retState(k), box = $('#strips'), el = document.createElement('div'); el.className = 'strip ret';
+  el.innerHTML = `<div class="nm">${retName(k)}</div>
+    <input class="pan" type="range" min="-1" max="1" step="0.02" aria-label="${retName(k)} return pan">
+    <div class="fz"><input class="fader" type="range" min="0" max="1" step="0.005" aria-label="${retName(k)} return level"><div class="vmeter"><i></i></div></div>
+    <div class="db"></div><span class="retlbl">RETURN</span>
+    <div class="ms"><button class="mute">M</button><button class="solo">S</button></div>
+    <button class="fx">${k === 'rev' || k === 'dly' ? 'EDIT' : 'UNIT'}</button>`;
+  const retApply = () => { applyAll(); if (live) applyRack(ctx, live.master); };
+  const f = el.querySelector('.fader'), db = el.querySelector('.db'), pn = el.querySelector('.pan'), lp = 'q:' + k;
+  const show = () => db.textContent = fmtDb(r.vol * r.vol * 1.4);
+  f.value = r.vol; show(); f.dataset.lp = lp + '|vol';
+  f.addEventListener('input', () => { r.vol = +f.value; show(); retApply(); save(); });
+  f.addEventListener('dblclick', () => { r.vol = k === 'rev' ? .8 : .845; f.value = r.vol; show(); retApply(); save(); });
+  pn.value = r.pan; pn.dataset.lp = lp + '|pan';
+  pn.addEventListener('input', () => { r.pan = Math.abs(+pn.value) < .04 ? 0 : +pn.value; retApply(); save(); });
+  const m = el.querySelector('.mute'), so = el.querySelector('.solo');
+  m.dataset.lp = lp + '|mute'; so.dataset.lp = lp + '|solo'; m.classList.toggle('on', r.mute); so.classList.toggle('on', r.solo);
+  m.addEventListener('click', () => { r.mute = !r.mute; m.classList.toggle('on', r.mute); retApply(); save(); });
+  so.addEventListener('click', () => { r.solo = !r.solo; so.classList.toggle('on', r.solo); retApply(); save(); });
+  el.querySelector('.fx').addEventListener('click', () => {
+    if (k === 'rev' || k === 'dly'){ selStrip = 'master'; renderMixer(); setTimeout(() => { const c = $('#fxCard'); if (c.classList.contains('shut')) c.querySelector('.fh').click(); c.scrollIntoView({block:'start', behavior:'smooth'}); }, 50); }
+    else { const c = $('#rackCard'); if (c.classList.contains('shut')) c.querySelector('.fh').click(); const u = c.querySelector('.u-' + k); if (u){ if (u.classList.contains('shut')) u.querySelector('.fh').click(); u.scrollIntoView({block:'start', behavior:'smooth'}); } }
+  });
+  el._meter = el.querySelector('.vmeter i'); el._ret = k;
+  box.appendChild(el);
 }
 function renderFx(){
   const box = $('#fxCard'); box.innerHTML = '';
@@ -5896,7 +5970,7 @@ function frame(){
   if (view === 'mixer' && live){
     const now = performance.now();
     document.querySelectorAll('.strip').forEach(el => {
-      const an = el._id === 'master' ? live.master.an : (live.strips.get(el._id) || {}).an;
+      const an = el._ret ? live.master.rt && live.master.rt[el._ret].an : el._id === 'master' ? live.master.an : (live.strips.get(el._id) || {}).an;
       if (an) el._meter.style.height = meterH(peak(an)) + '%';
       if (el._clip) el._clip.classList.toggle('on', now - (clipAt.get(el._id) || -1e9) < 2500);
     });
@@ -6992,6 +7066,7 @@ function renderLanes(box, tr){
     row.querySelector('button').addEventListener('click', () => { delete S.auto[id]; S.autoOff = S.autoOff.filter(x => x !== id); applyAll(); save(); renderFx(); });
   });
 }
+$('#fadeMode').addEventListener('change', e => { fadeMode = e.target.value; renderMixer(); if (fadeMode !== 'vol') toast('Track faders now set the ' + e.target.selectedOptions[0].text.replace('Send → ', '') + ' send.'); });
 $('#autoArm').addEventListener('click', () => { autoArm = !autoArm; $('#autoArm').classList.toggle('on', autoArm); if (autoArm) toast(playing ? 'Automation armed. Move a control to record it.' : 'Automation armed. Press play, then move a control to record it.'); });
 $('#autoBack').addEventListener('click', () => { S.autoOff = []; $('#autoBack').disabled = true; save(); toast('Automation is back in control.'); });
 
@@ -7206,13 +7281,14 @@ function learnPath(obj){
   if (obj === S) return 's';
   if (S.mix && S.mix.ch){ const ci = S.mix.ch.indexOf(obj); if (ci >= 0) return 'x:' + ci; }
   if (S.rack) for (const k in S.rack) if (S.rack[k] === obj) return 'r:' + k;
+  if (S.master.ret) for (const k in S.master.ret) if (S.master.ret[k] === obj) return 'q:' + k;
   const pi = S.drum.pads.indexOf(obj); if (pi >= 0) return 'p:' + pi;
   for (const t of allTracks()){ if (t === obj) return 't:' + t.id; for (const sub of ['rack', 'p5', 'tb', 'tau', 'sol', 'voc', 'patch']) if (t[sub] === obj) return 't:' + t.id + ':' + sub; }
   return null;
 }
 function learnObj(path){
   const [a, b, c] = path.split(':');
-  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'x') return mixState().ch[+b]; if (a === 'r') return rackState(b); if (a === 'p') return S.drum.pads[+b];
+  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'x') return mixState().ch[+b]; if (a === 'r') return rackState(b); if (a === 'q') return retState(b); if (a === 'p') return S.drum.pads[+b];
   if (a === 't'){ const t = trackById(b); return t && (c ? t[c] : t); }
   return null;
 }
