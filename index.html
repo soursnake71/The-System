@@ -114,7 +114,16 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 #sbx[open]{display:flex}
 #sbx::backdrop{background:#000a}
 .sbx-head{display:flex;gap:8px;align-items:center}
-.sbx-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sbx-tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.sbx-cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.sbx-cats button{flex:0 0 auto;padding:8px 10px;font-size:12px;white-space:nowrap}
+.sbx-cats button.on{background:var(--accent);color:var(--accent-ink)}
+.sbx-cats button small{opacity:.7;margin-left:4px}
+.sbx-edit{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1.2fr);gap:6px}
+.sbx-edit input{min-width:0;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:500 13px var(--f-mono)}
+#sbxFav.on{color:#f5b301}
+#sbxCatBar{display:flex;flex-direction:column;gap:6px}
+#sbxCatBar[hidden]{display:none}
 .sbx-tabs button.on{background:var(--accent);color:var(--accent-ink)}
 .sbx-path{font:600 12px var(--f-mono);color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .sbx-list{display:flex;flex-direction:column;gap:4px;overflow:auto;max-height:44vh;min-height:80px}
@@ -787,6 +796,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-kits"><summary>Loading sounds onto pads</summary>
       <ul>
         <li><b>LOAD</b> on any pad opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
+        <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
       </ul>
@@ -1182,12 +1192,17 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
 <dialog id="sbx" aria-labelledby="sbxTitle">
   <div class="sbx-head"><h2 id="sbxTitle" class="grow">Load onto A01</h2><button id="sbxDone" class="nolearn">Done</button></div>
-  <div class="seg sbx-tabs"><button data-t="dir" class="nolearn">My folder</button><button data-t="bin" class="nolearn">Recent</button></div>
+  <div class="seg sbx-tabs"><button data-t="cat" class="nolearn">Catalog</button><button data-t="dir" class="nolearn">Folders</button><button data-t="bin" class="nolearn">Recent</button></div>
   <div id="sbxDir">
     <div class="row"><span id="sbxDirName" class="grow sbx-path">No folder yet</span><button id="sbxPick" class="nolearn">Choose folder</button></div>
   </div>
+  <div id="sbxCatBar" hidden>
+    <div id="sbxCats" class="sbx-cats" role="group" aria-label="Categories"></div>
+    <div class="row"><select id="sbxLen" aria-label="Length"><option value="">All lengths</option><option value="one">One-shots</option><option value="loop">Loops</option></select><span id="sbxCatInfo" class="sbx-path grow"></span><button id="sbxRescan" class="nolearn">Rescan</button></div>
+  </div>
   <input id="sbxFind" type="search" placeholder="Search" aria-label="Search samples" autocomplete="off">
   <div id="sbxList" class="sbx-list" tabindex="0"></div>
+  <div class="sbx-edit" id="sbxEdit" hidden><button id="sbxFav" class="nolearn" aria-label="Favorite">☆</button><select id="sbxSetCat" aria-label="Category"></select><input id="sbxTags" placeholder="tags: dusty, 90s" aria-label="Tags" autocomplete="off"></div>
   <div class="sbx-now"><span id="sbxNowName" class="sbx-path grow">Tap a sound to hear it</span><button id="sbxMode" class="nolearn" title="What tapping a sound does">Tap: hear</button></div>
   <div class="sbx-go">
     <button id="sbxPrev" class="nolearn" aria-label="Previous sound">◀</button>
@@ -3760,7 +3775,7 @@ async function loadKitFiles(files){
 
 /* ================= sample browser: remembers your sample folder, previews instantly, steps with ◀ ▶ ================= */
 const SBX_EXT = /\.(wav|aiff?|mp3|flac|ogg|m4a)$/i, canDir = 'showDirectoryPicker' in window;
-let sbxPad = 0, sbxTab = (() => { try { return localStorage.getItem('pr.sbxTab') || (canDir ? 'dir' : 'bin'); } catch(e){ return 'bin'; } })();
+let sbxPad = 0, sbxTab = (() => { try { return localStorage.getItem('pr.sbxTab') || (canDir ? 'cat' : 'bin'); } catch(e){ return 'bin'; } })();
 let sbxLoadOnTap = (() => { try { return localStorage.getItem('pr.sbxTap') === 'load'; } catch(e){ return false; } })();
 let sbxRoot = null, sbxStack = [], sbxItems = [], sbxSel = -1, sbxSrc = null, sbxTree = null, sbxTreeBusy = null;
 const sbxCache = new Map();      // item id -> {bytes, buf}, most recent last (decoded once, so stepping back and forth is instant)
@@ -3805,7 +3820,7 @@ async function sbxHear(it){
 function sbxPrefetch(){ [1, 2, -1].forEach(d => { const it = sbxItems[sbxSel + d]; if (it && it.kind === 'file' && !sbxCache.has(it.id)) sbxData(it).catch(() => {}); }); }
 async function sbxUse(){
   const it = sbxItems[sbxSel]; if (!it || it.kind !== 'file') { toast('Pick a sound first.'); return; }
-  try { const {bytes, buf} = await sbxData(it); await padFromBytes(sbxPad, it.name, bytes, true, buf); toast(padLabel(sbxPad) + ': ' + it.name); }
+  try { const nm = it.file || it.name; const {bytes, buf} = await sbxData(it); await padFromBytes(sbxPad, nm, bytes, true, buf); toast(padLabel(sbxPad) + ': ' + nm); }
   catch(e){ toast('Could not load ' + it.name + '.'); }
 }
 function sbxSelect(k, hear = true){
@@ -3815,7 +3830,8 @@ function sbxSelect(k, hear = true){
   const list = $('#sbxList');
   list.querySelectorAll('.sel').forEach(x => x.classList.remove('sel'));
   const row = list.children[k]; if (row){ row.classList.add('sel'); row.scrollIntoView({block:'nearest'}); }
-  const it = sbxItems[k]; $('#sbxNowName').textContent = it ? (it.path ? it.path + ' / ' : '') + it.name : '';
+  const it = sbxItems[k]; $('#sbxNowName').textContent = it ? (it.path ? it.path + ' / ' : '') + (it.file || it.name) : '';
+  catEditShow(it);
   if (hear && it){ if (sbxLoadOnTap) sbxUse(); sbxHear(it); }
   sbxPrefetch();
 }
@@ -3840,10 +3856,11 @@ function sbxDraw(emptyMsg){
 function sbxShowTab(t){
   sbxTab = t; try { localStorage.setItem('pr.sbxTab', t); } catch(e){}
   document.querySelectorAll('.sbx-tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  $('#sbxDir').hidden = t !== 'dir'; $('#sbxFind').placeholder = t === 'dir' ? 'Search this folder and all folders inside' : 'Search recent samples';
+  $('#sbxDir').hidden = t === 'bin'; $('#sbxCatBar').hidden = t !== 'cat'; $('#sbxEdit').hidden = true;
+  $('#sbxFind').placeholder = t === 'dir' ? 'Search this folder and all folders inside' : t === 'cat' ? 'Search names, folders and tags' : 'Search recent samples';
   sbxRefresh();
 }
-function sbxRefresh(){ if (sbxTab === 'dir') sbxDirRender(); else sbxBinRender(); }
+function sbxRefresh(){ if (sbxTab === 'dir') sbxDirRender(); else if (sbxTab === 'cat') sbxCatRender(); else sbxBinRender(); }
 async function sbxOpen(i){
   sbxPad = i; selPad = i; renderPads(); renderPadEditor();
   $('#sbxTitle').textContent = 'Load onto ' + padLabel(i);
@@ -3886,7 +3903,8 @@ async function sbxDirRender(){
   sbxItems = [];
   if (sbxStack.length > 1) sbxItems.push({id:'up', kind:'up', path:sbxStack[sbxStack.length - 2].name, open:() => { sbxStack.pop(); sbxDirRender(); }});
   dirs.forEach(h => sbxItems.push({id:'d:' + here + '/' + h.name, kind:'dir', name:h.name, open:() => { sbxStack.push(h); sbxDirRender(); }}));
-  files.forEach(h => sbxItems.push({id:'f:' + here + '/' + h.name, kind:'file', name:h.name, get:async () => (await h.getFile()).arrayBuffer()}));
+  const rel = sbxStack.slice(1).map(h => h.name).join(' / '); await catLoad();
+  files.forEach(h => sbxItems.push({id:'f:' + here + '/' + h.name, ckey:catKey(rel, h.name), kind:'file', name:h.name, file:h.name, path:'', get:async () => (await h.getFile()).arrayBuffer()}));
   sbxDraw('No audio files in this folder.');
 }
 // whole-folder search: walks your samples folder once (in the background) and keeps the list in memory
@@ -3912,7 +3930,7 @@ async function sbxSearchTree(q){
   if ($('#sbxFind').value.trim().toLowerCase() !== q) return;
   const hits = tree.filter(e => words.every(w => e.low.includes(w))).slice(0, 400);
   $('#sbxDirName').textContent = hits.length + (hits.length === 400 ? '+' : '') + ' found in ' + sbxRoot.name + ' (' + tree.length + ' sounds)';
-  sbxItems = hits.map(e => ({id:'f:' + e.path + '/' + e.h.name, kind:'file', name:e.h.name, path:e.path, get:async () => (await e.h.getFile()).arrayBuffer()}));
+  sbxItems = hits.map(e => ({id:'f:' + e.path + '/' + e.h.name, ckey:catKey(e.path, e.h.name), kind:'file', name:e.h.name, file:e.h.name, path:e.path, get:async () => (await e.h.getFile()).arrayBuffer()}));
   sbxDraw('Nothing matches.');
 }
 async function sbxBinRender(){
@@ -3921,6 +3939,116 @@ async function sbxBinRender(){
     .map(e => ({id:'b:' + e.id, kind:'file', name:e.name, note:Math.max(1, Math.round(e.size / 1024)) + ' KB', get:async () => { const b = await DB.get('kv', 'bin:' + e.id); if (!b) throw 0; return b; }}));
   sbxDraw(idx.length ? 'Nothing matches.' : 'Samples you load show up here, so you can put them on any pad again without looking for the file.');
 }
+
+/* ---- sample catalog: every sound in your folder sorted into categories, with favorites, tags, length, BPM ---- */
+const CATS = ['Kicks', 'Snares', 'Claps', 'Hats', 'Cymbals', 'Toms', 'Percussion', '808 & Bass', 'Vocals', 'FX', 'Synth & Keys', 'Loops', 'Breaks', 'Other'];
+const CAT_RULES = [
+  ['Breaks', /break|\bamen\b|think\b/], ['Loops', /loop|\d{2,3} ?bpm|\bbpm\b/],
+  ['Kicks', /kick|\bbd\b|bassdrum|\bkik|\bkck/], ['Snares', /snare|\bsd\b|\bsnr\b|\bsn\b/], ['Claps', /clap|\bcp\b|snap/],
+  ['Hats', /hat|\bhh\b|\bchh\b|\bohh\b|\bch\b|\boh\b/], ['Cymbals', /cymbal|crash|ride|\bcym|splash|china/], ['Toms', /\btoms?\b|\btom ?\d|floor ?tom/],
+  ['Percussion', /perc|conga|bongo|shaker|tamb|cowbell|clave|rim|timbal|wood ?block|guiro|cabasa|agogo|triangle|maraca/],
+  ['808 & Bass', /808|bass|\bsub\b|reese/], ['Vocals', /vox|vocal|voice|chant|shout|acapella|acappella|adlib|\bsay|spoken|phrase/],
+  ['FX', /\bfx\b|sfx|riser|sweep|impact|noise|scratch|zap|laser|whoosh|reverse|uplift|downlift|siren|vinyl/],
+  ['Synth & Keys', /synth|\bpads?\b|lead|chord|stab|piano|keys|organ|rhodes|pluck|arp|string|horn|brass|bell|guitar/]
+];
+let cat = null, catSaveT = 0, catScan = null, catPick = 'All';
+function catGuess(name, path){
+  const n = name.toLowerCase().replace(/[_\-.]+/g, ' '), pth = (path || '').toLowerCase().replace(/[_\-.]+/g, ' ');
+  for (const [c, re] of CAT_RULES) if (re.test(n)) return c;
+  for (const [c, re] of CAT_RULES) if (re.test(pth)) return c;
+  return 'Other';
+}
+const catBpm = t => { const m = /(?:^|[^\d])(\d{2,3}) ?bpm/i.exec(t) || (/loop|break/i.test(t) && /(?:^|[ _-])(\d{2,3})(?:[ _-]|\.|$)/.exec(t)); const v = m ? +m[1] : 0; return v >= 60 && v <= 200 ? v : 0; };
+async function catLoad(){ if (!cat){ try { cat = await DB.get('kv', 'catalog'); } catch(e){} if (!cat || !cat.items) cat = {items:{}, cats:[], n:0}; } return cat; }
+function catSave(){ clearTimeout(catSaveT); catSaveT = setTimeout(() => { try { DB.put('kv', 'catalog', cat); } catch(e){} }, 400); }
+const catKey = (path, name) => (path ? path + ' / ' : '') + name;
+// WAV header -> length in seconds without decoding the whole file
+async function catDur(file){
+  try {
+    const b = await file.slice(0, 65536).arrayBuffer(), v = new DataView(b);
+    if (b.byteLength < 12) return null;
+    const tag = String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3));
+    if (tag !== 'RIFF') return null;
+    let o = 12, rate = 0, data = 0;
+    while (o + 8 <= b.byteLength){
+      const id = String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3)), sz = v.getUint32(o + 4, true);
+      if (id === 'fmt ') rate = v.getUint32(o + 16, true);
+      if (id === 'data'){ data = sz; break; }
+      o += 8 + sz + (sz & 1);
+    }
+    if (!rate) return null; if (!data || data > file.size) data = file.size - o - 8;
+    return Math.round(data / rate * 100) / 100;
+  } catch(e){ return null; }
+}
+async function catBuild(force){
+  await catLoad();
+  if (catScan) return catScan;
+  catScan = (async () => {
+    if (force) sbxTree = null;
+    const tree = await sbxBuildTree(), seen = new Set();
+    let k = 0;
+    for (const e of tree){
+      const key = catKey(e.path, e.h.name); seen.add(key);
+      let it = cat.items[key];
+      if (!it){ it = cat.items[key] = {cat:catGuess(e.h.name, e.path), auto:1, fav:0, tags:'', bpm:catBpm(e.h.name)}; }
+      else if (it.auto) it.cat = catGuess(e.h.name, e.path);
+      if (it.dur === undefined){ try { it.dur = await catDur(await e.h.getFile()); } catch(err){ it.dur = null; } }
+      if (++k % 200 === 0){ $('#sbxCatInfo').textContent = 'Cataloging… ' + k + ' / ' + tree.length; await new Promise(r => setTimeout(r, 0)); }
+    }
+    for (const key of Object.keys(cat.items)) if (!seen.has(key)) delete cat.items[key];
+    cat.root = sbxRoot && sbxRoot.name; cat.n = tree.length; cat.t = Date.now(); catSave(); catScan = null;
+  })();
+  return catScan;
+}
+const isLoop = it => it.cat === 'Loops' || it.cat === 'Breaks' || (it.dur || 0) > 2.5;
+async function sbxCatRender(){
+  const st = await sbxDirReady();
+  if (st !== 'ok'){ $('#sbxCats').innerHTML = ''; return sbxDirRender(); }
+  if (!sbxStack.length) sbxStack = [sbxRoot];
+  $('#sbxDirName').textContent = sbxRoot.name;
+  await catLoad();
+  if (!cat.n || cat.root !== sbxRoot.name){ $('#sbxCatInfo').textContent = 'Cataloging ' + sbxRoot.name + '…'; sbxItems = []; sbxDraw('Reading your samples and sorting them into categories…'); await catBuild(true); }
+  const tree = await sbxBuildTree(), q = $('#sbxFind').value.trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean), len = $('#sbxLen').value;
+  const rows = tree.map(e => ({e, key:catKey(e.path, e.h.name)})).map(r => Object.assign(r, {c:cat.items[r.key] || {cat:catGuess(r.e.h.name, r.e.path)}}));
+  const counts = {}; rows.forEach(r => { counts[r.c.cat] = (counts[r.c.cat] || 0) + 1; if (r.c.fav) counts['★'] = (counts['★'] || 0) + 1; });
+  const all = ['All', '★', ...CATS, ...(cat.cats || [])].filter((c, i, a) => a.indexOf(c) === i && (c === 'All' || counts[c]));
+  if (!all.includes(catPick)) catPick = 'All';
+  const bar = $('#sbxCats'); bar.innerHTML = '';
+  all.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn' + (c === catPick ? ' on' : '');
+    b.innerHTML = escH(c === '★' ? '★ Favorites' : c) + '<small>' + (c === 'All' ? rows.length : counts[c]) + '</small>';
+    b.addEventListener('click', () => { catPick = c; try { localStorage.setItem('pr.catPick', c); } catch(e){} sbxCatRender(); }); bar.appendChild(b); });
+  const hit = rows.filter(r => (catPick === 'All' || (catPick === '★' ? r.c.fav : r.c.cat === catPick))
+    && (!len || (len === 'loop') === isLoop(r.c))
+    && words.every(w => (r.key + ' ' + (r.c.tags || '')).toLowerCase().includes(w)));
+  hit.sort((a, b) => (b.c.fav || 0) - (a.c.fav || 0) || a.e.h.name.localeCompare(b.e.h.name, undefined, {numeric:true, sensitivity:'base'}));
+  $('#sbxCatInfo').textContent = hit.length + ' sounds' + (cat.t ? '' : '');
+  sbxItems = hit.slice(0, 600).map(r => ({id:'f:' + r.key, ckey:r.key, kind:'file', name:(r.c.fav ? '★ ' : '') + r.e.h.name, file:r.e.h.name, path:r.e.path,
+    note:[r.c.dur ? (r.c.dur < 10 ? r.c.dur.toFixed(2) : Math.round(r.c.dur)) + ' s' : '', r.c.bpm ? r.c.bpm + ' BPM' : '', r.c.tags || ''].filter(Boolean).join(' · ') || r.e.path,
+    get:async () => (await r.e.h.getFile()).arrayBuffer()}));
+  sbxDraw('Nothing in this category' + (q ? ' matches.' : '.'));
+}
+function catEditShow(it){
+  const ed = $('#sbxEdit'); if (!it || !it.ckey || !cat){ ed.hidden = true; return; }
+  const c = cat.items[it.ckey] || (cat.items[it.ckey] = {cat:catGuess(it.file || it.name, it.path), auto:1, fav:0, tags:'', bpm:catBpm(it.file || it.name)});
+  ed.hidden = false;
+  $('#sbxFav').textContent = c.fav ? '★' : '☆'; $('#sbxFav').classList.toggle('on', !!c.fav);
+  const sel = $('#sbxSetCat'), list = [...CATS, ...(cat.cats || [])].filter((x, i, a) => a.indexOf(x) === i);
+  sel.innerHTML = list.map(x => `<option>${escH(x)}</option>`).join('') + '<option value="+">New category…</option>';
+  sel.value = c.cat; $('#sbxTags').value = c.tags || '';
+}
+const catCur = () => { const it = sbxItems[sbxSel]; return it && it.ckey && cat ? cat.items[it.ckey] : null; };
+$('#sbxFav').addEventListener('click', () => { const c = catCur(); if (!c) return; c.fav = c.fav ? 0 : 1; catSave(); catEditShow(sbxItems[sbxSel]);
+  const row = $('#sbxList').children[sbxSel]; if (row){ const sp = row.querySelector('span'); sp.textContent = (c.fav ? '★ ' : '') + (sbxItems[sbxSel].file || sbxItems[sbxSel].name.replace(/^★ /, '')); } });
+$('#sbxSetCat').addEventListener('change', e => {
+  const c = catCur(); if (!c) return;
+  let v = e.target.value;
+  if (v === '+'){ v = (prompt('Name the new category') || '').trim().slice(0, 24); if (!v){ e.target.value = c.cat; return; } cat.cats = cat.cats || []; if (!cat.cats.includes(v) && !CATS.includes(v)) cat.cats.push(v); }
+  c.cat = v; c.auto = 0; catSave(); catEditShow(sbxItems[sbxSel]); toast('Filed under ' + v + '.');
+});
+$('#sbxTags').addEventListener('change', e => { const c = catCur(); if (!c) return; c.tags = e.target.value.trim().slice(0, 80); catSave(); });
+$('#sbxLen').addEventListener('change', () => sbxCatRender());
+$('#sbxRescan').addEventListener('click', async () => { if (!sbxRoot) return; $('#sbxCatInfo').textContent = 'Rescanning…'; await catBuild(true); sbxCatRender(); toast('Catalog updated: ' + cat.n + ' sounds.'); });
+try { catPick = localStorage.getItem('pr.catPick') || 'All'; } catch(e){}
 document.querySelectorAll('.sbx-tabs button').forEach(b => b.addEventListener('click', () => sbxShowTab(b.dataset.t)));
 $('#sbxDone').addEventListener('click', () => $('#sbx').close());
 $('#sbx').addEventListener('close', sbxStop);
@@ -3942,7 +4070,7 @@ $('#sbx').addEventListener('keydown', e => {
   else if (e.key === ' '){ e.preventDefault(); const it = sbxItems[sbxSel]; if (it) sbxHear(it); }
 });
 $('#sbxPick').addEventListener('click', async () => {
-  try { const h = await window.showDirectoryPicker({id:'snake-samples', mode:'read', startIn:sbxRoot || 'music'}); sbxRoot = h; sbxStack = []; sbxTree = null; try { localStorage.removeItem('pr.sbxPath'); } catch(e){} await DB.put('kv', 'sampleDir', h); sbxDirRender(); }
+  try { const h = await window.showDirectoryPicker({id:'snake-samples', mode:'read', startIn:sbxRoot || 'music'}); sbxRoot = h; sbxStack = []; sbxTree = null; if (cat) cat.n = 0; try { localStorage.removeItem('pr.sbxPath'); } catch(e){} await DB.put('kv', 'sampleDir', h); sbxDirRender(); }
   catch(e){ if (e && e.name !== 'AbortError') toast('Could not open that folder.'); }
 });
 $('#sbxPhone').addEventListener('click', () => { const inp = $('#padFileIn'); inp.dataset.i = sbxPad; inp.click(); });
