@@ -94,7 +94,22 @@ body.mlearn .marmed{outline:3px solid #fff !important}
 .piano .b.out{background:#121315}
 .piano .pk.root::before{content:"";position:absolute;bottom:22px;width:8px;height:8px;border-radius:50%;background:var(--accent,#ff9a3c)}
 .piano .pk.down{background:var(--accent,#ff9a3c) !important;color:#111}
-.kitrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:10px}
+.kitrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;margin-bottom:10px}
+.pad .pload{position:absolute;right:5px;bottom:5px;font:700 9px/1 var(--f-mono);letter-spacing:.06em;padding:5px 5px;border-radius:5px;background:rgba(0,0,0,.28);color:var(--dim);border:1px solid var(--line)}
+.pad .num{margin-right:auto}
+.fh{cursor:pointer;user-select:none}
+.fchev{flex:0 0 auto;display:inline-grid;place-items:center;width:28px;height:28px;margin-left:6px;border-radius:6px;border:1px solid var(--line);font:700 13px/1 var(--f-mono);color:var(--dim)}
+.fh .fchev::before{content:"▾";display:inline-block;transition:transform .15s}
+.shut > .fh .fchev::before, .fh.shut .fchev::before{transform:rotate(-90deg)}
+.uhead.fh{position:relative;padding-right:40px}
+.uhead .fchev{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
+.card.shut > :not(.fh){display:none !important}
+.card.shut{gap:0}
+.unit.shut > :not(.fh), .tt-midi.shut > :not(.fh), .p5sec.shut > :not(.fh), .svc-sec.shut > :not(.fh){display:none !important}
+.label.fh.shut + *{display:none !important}
+.label.fh{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
+button.fgen{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:0;font:600 17px var(--f-display);letter-spacing:.04em;text-transform:uppercase;color:var(--ink);min-height:30px}
+.fh:not(.row):not(.fgen):not(.label):not(.tt-head):not(.svc-head):not(.uhead){display:flex;align-items:center;justify-content:space-between}
 .pads{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pad{aspect-ratio:1;max-width:100%;border-radius:10px;background:linear-gradient(180deg,#2b303c,#20242d);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:7px;text-align:left;text-transform:none;letter-spacing:0;position:relative;overflow:hidden;touch-action:none}
 .pad .num{font:600 11px var(--f-mono);color:var(--dim)}
@@ -259,6 +274,7 @@ html.retro .pad::before{content:"";position:absolute;left:3%;right:3%;top:20%;bo
 html.retro .pad .num{position:absolute;right:9%;bottom:7%;font:600 10px/1 var(--f-mono);color:#55534e;z-index:1;pointer-events:none}
 html.retro .pad .nm{font:700 11px/1.2 var(--f-display);letter-spacing:.06em;color:#26241f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 html.retro .pad.user .nm{color:#1f4f9a}
+html.retro .pad .pload{left:9%;right:auto;bottom:7%;z-index:2;padding:4px 5px;background:#0000001c;color:#36342f;border-color:#6a6862;border-radius:3px}
 html.retro .pad.sel::before{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 3px 0 #4a4843,inset 0 1px 0 #ffffff55}
 html.retro .pad.hit{background:none;color:#26241f;transform:none}
 html.retro .pad.hit .num{color:#45433e;transform:translateY(2px)}
@@ -436,10 +452,11 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- DRUMS -->
   <section class="view" id="v-drums">
     <div class="scenebar" id="sceneBar" role="group" aria-label="Scenes"></div>
-    <div class="kitrow"><label class="label" for="kitSel">Kit</label><select id="kitSel"></select><button id="kitFiles">Load kit files</button></div>
+    <div class="kitrow"><span class="label">Pads</span><button id="kitFiles">Load files onto pads</button></div>
+    <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
     <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
     <div class="pads" id="pads"></div>
-    <div class="card">
+    <div class="card" data-title="Sequencer" data-open>
       <div class="row perf">
         <button id="odub" class="grow">Overdub</button>
         <button id="repeat" class="grow">Note repeat</button>
@@ -459,7 +476,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
       <p class="hint">Press Overdub or the record button and play the pads. Every pass layers on top. Timing correct snaps hits to the grid as you play. With it off, they stay exactly as played. Note repeat retriggers a held pad in time. Erase removes a held pad's hits as the loop passes over them.</p>
     </div>
-    <div class="card">
+    <div class="card" data-title="Pad sound">
       <div class="row"><span class="grow">SP-1200 mode: 12-bit, 26 kHz, drop-sample pitch, output filters</span><button id="spMode">Off</button></div>
       <div class="row"><h2 class="grow" id="padTitle">A01 Kick</h2><span class="badge" id="sampleBadge">Built-in</span><button id="clearPad">Clear hits</button></div>
       <div class="row">
@@ -505,7 +522,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <canvas id="wvCv" aria-label="Waveforms of both decks, with beat grid, cues and loops"></canvas>
       <div class="sdj-decks"><button id="dk0" class="dk on">DECK 1</button><button id="dk1" class="dk">DECK 2</button></div>
     </div>
-    <div class="card tt">
+    <div data-open class="card tt">
       <div class="tt-head"><b>THE WHEEL OF STEEL</b><span id="ttSub">DECK 1 · QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
       <canvas id="ttCv" aria-label="Turntable. Touch the record and move it to scratch."></canvas>
       <input id="ttScr" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Scratch (map a knob with MIDI learn)">
@@ -594,7 +611,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- SYNTH -->
   <section class="view" id="v-synth" hidden>
     <div class="scenebar" id="synthBar" role="group" aria-label="Synth tracks"></div>
-    <div class="card">
+    <div class="card" data-title="Notes" data-open>
       <div class="row">
         <button id="sOdub" class="grow">Overdub</button>
         <button id="sUndo" class="grow" disabled>Undo</button>
@@ -612,7 +629,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
       <p class="hint">Grid: only notes in the key, each row a fourth higher, like Push; orange is the root. Keyboard: a piano, slide along it for a run. Press Overdub to record what you play. Timing correct from the Drums tab applies here too.</p>
     </div>
-    <div class="card">
+    <div class="card" data-open>
       <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
@@ -746,18 +763,15 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </ul>
     </details>
 
-    <details id="h-kits"><summary>Drum machine kits</summary>
-      <p>Pick a machine from the <b>Kit</b> menu above the pads. All 16 pads change to that machine's sounds; your recorded hits stay. If some pads hold your own samples, you're asked whether to replace them too.</p>
+    <details id="h-kits"><summary>Loading sounds onto pads</summary>
       <ul>
-        <li><b>Roland TR-909</b>: analog kick (the pitch sweep falls to a fixed ~52 Hz, with an attack click), two-oscillator snare with the snappy noise that holds about 24 ms, analog toms, rim and clap. The hats, ride and crash run through a <b>6-bit, ~30 kHz</b> sample stage and then an analog decay, like the real machine. Extra pads: long kick, accent kick, snappy and tight snares, accent clap.</li>
-        <li><b>Roland TR-505</b>: the 16 sounds of the 505, played through an <b>8-bit, 25 kHz</b> linear sample stage. Includes congas, timbale and two cowbells.</li>
-        <li><b>LinnDrum LM-2</b>: <b>8-bit companded</b> (AM6070-style) samples at about 30 kHz. The kick, toms and congas go through the LinnDrum's swept 4-pole filter, which opens on each hit and closes over about 100 ms. Every voice has the 15.9 kHz output filter, and the hats have the 5.6 ms hold before they decay.</li>
-        <li><b>Oberheim DMX</b>: 8-bit companded samples. Kick, toms, clap and shaker run on the "low" voice cards (6-pole filter at 10 kHz); snare, hats and cymbals run on the "high" cards (16 kHz). Includes the accent hat.</li>
-        <li><b>Boss DR-110</b>: all analog. The hats and cymbal use the DR-110's metal source: four square waves at 305, 444, 794 and 1136 Hz plus noise, through its 3.45 kHz and 7.12 kHz band-pass filters. The clap is noise through a 910 Hz filter with the 700 ms tail. Accent pads drive the shared VCA into its slight distortion.</li>
-        <li><b>Simmons SDS-V</b>: each voice is a triangle oscillator with a falling pitch bend that lasts as long as the decay, plus filtered noise and a click. You get five toms from high to floor, a big bend tom, a bend-up tom and a noisy tom.</li>
+        <li><b>LOAD</b> on any pad: opens your files and puts the sample on that pad. WAV, AIFF, MP3, FLAC and OGG work.</li>
+        <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
+        <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
       </ul>
-      <p>The sample-based machines (909 cymbals, TR-505, LinnDrum, DMX) don't contain the original factory recordings. Their sounds are modeled studio drums, put through each machine's own converter, bit depth, clock rate and filters, which is where most of each machine's character comes from. Pad Tune, Decay and SP-1200 mode all work on top of any kit.</p>
-      <p><b>Load kit files</b> (next to the Kit menu): to get the exact original sounds, pick a whole set of one-shots at once, for example your own TR-909, LinnDrum or DMX sample pack. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on, with "accent" files going to the accent pads). Files that match nothing fill the empty pads in order. Pick a kit from the menu first so the pad names line up.</p>
+    </details>
+    <details id="h-fold"><summary>Flip-open sections</summary>
+      <p>Every section folds. Tap its title or the ▸ arrow to open or close it. The app remembers which sections you left open.</p>
     </details>
 
     <details id="h-sp"><summary>SP-1200 mode</summary>
@@ -3688,6 +3702,52 @@ async function loadKitFiles(files){
   toast(ok + ' of ' + list.length + ' files loaded onto pads' + (list.length > pads.length ? ' (16 pads max)' : '') + '.');
 }
 
+/* ================= flip-open sections (less scrolling) ================= */
+let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
+const foldKey = (el, head) => { const v = el.closest('.view'); return (v ? v.id : '') + ':' + (el.dataset.title || head.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40); };
+function foldSet(el, head, shut, remember){
+  (el === head ? head : el).classList.toggle('shut', shut);
+  if (remember){ foldMem[foldKey(el, head)] = shut ? 1 : 0; try { localStorage.setItem('pr.fold', JSON.stringify(foldMem)); } catch(e){} }
+  if (!shut) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+}
+function foldPrep(el, head, defShut){
+  if (!head) return;
+  head.classList.add('fh'); head._foldEl = el;
+  if (!head.querySelector(':scope > .fchev')){ const c = document.createElement('span'); c.className = 'fchev nolearn'; c.setAttribute('aria-hidden', 'true'); head.appendChild(c); }
+  if (el.dataset.fold) return;
+  el.dataset.fold = 1;
+  const k = foldKey(el, head), shut = k in foldMem ? !!foldMem[k] : defShut;
+  foldSet(el, head, shut, false);
+}
+function foldify(){
+  document.querySelectorAll('.view').forEach(v => {
+    let first = true;
+    v.querySelectorAll(':scope > .card:not(.trk)').forEach(c => {
+      const f = c.firstElementChild; if (!f || f.tagName === 'CANVAS') return;
+      let head = f;
+      if (c.dataset.title){
+        head = c.querySelector(':scope > .fgen');
+        if (!head){ head = document.createElement('button'); head.className = 'fgen nolearn'; head.textContent = c.dataset.title; c.insertBefore(head, c.firstChild); }
+      }
+      foldPrep(c, head, !(first || c.hasAttribute('data-open'))); first = false;
+    });
+    v.querySelectorAll('.unit, .p5sec, .tt-midi').forEach(u => { const h = u.querySelector(':scope > .uhead, :scope > .label, :scope > .row:first-child'); if (h) foldPrep(u, h, true); });
+    v.querySelectorAll('.card > span.label').forEach(l => { const n = l.nextElementSibling; if (n && !n.matches('.label, input[type=file]')) foldPrep(l, l, true); });
+  });
+}
+document.addEventListener('click', e => {
+  const head = e.target.closest('.fh'); if (!head) return;
+  const hit = e.target.closest('button, select, input, textarea, a, canvas, .ctl');
+  if (hit && hit !== head && !hit.classList.contains('fchev')) return;
+  const el = head._foldEl || head; foldSet(el, head, !(el === head ? head : el).classList.contains('shut'), true);
+});
+let foldT = 0;
+new MutationObserver(ms => {
+  if (!ms.some(m => [...m.addedNodes].some(n => n.nodeType === 1))) return;
+  clearTimeout(foldT); foldT = setTimeout(foldify, 60);
+}).observe(document.body, {childList:true, subtree:true});
+setTimeout(foldify, 0);
+
 /* ================= export ================= */
 function encodeWav(buf, bits = 16){
   const n = buf.length, ch = 2, by = bits / 8, bytes = 44 + n * ch * by, ab = new ArrayBuffer(bytes), v = new DataView(ab);
@@ -3896,9 +3956,10 @@ function renderPads(){
     const order = [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3];
     order.forEach(i => {
       const b = document.createElement('button'); b.className = 'pad'; b.dataset.i = i;
-      b.innerHTML = `<span class="num">${padLabel(i)}</span><span class="nm"></span>`;
+      b.innerHTML = `<span class="num">${padLabel(i)}</span><span class="nm"></span><span class="pload nolearn" role="button" aria-label="Load a sample onto this pad">LOAD</span>`;
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
+        if (e.target.closest('.pload')){ e.stopPropagation(); padLoadAt(i); return; }
         try { b.setPointerCapture(e.pointerId); } catch(_){}
         const r = b.getBoundingClientRect();
         const v = S.fullLevel ? 1 : clamp(1.05 - (e.clientY - r.top) / r.height * .8, .25, 1);   // higher on the pad = harder
@@ -3911,12 +3972,6 @@ function renderPads(){
       box.appendChild(b);
     });
   }
-  const ks = $('#kitSel');
-  if (!ks.options.length){
-    ks.innerHTML = Object.entries(KITS).map(([id, k]) => `<option value="${id}">${k.name}</option>`).join('');
-    ks.addEventListener('change', () => loadKit(ks.value));
-  }
-  ks.value = S.drum.kit || 'pocket';
   box.querySelectorAll('.pad').forEach(b => {
     const p = S.drum.pads[b.dataset.i];
     b.querySelector('.nm').textContent = p.name;
@@ -3925,6 +3980,10 @@ function renderPads(){
     b.classList.toggle('user', !p.sample.startsWith('kit:'));
     b.setAttribute('aria-label', `${padLabel(+b.dataset.i)} ${p.name}`);
   });
+}
+function padLoadAt(i){
+  selPad = i; renderPads(); renderPadEditor();
+  const inp = $('#padFileIn'); inp.dataset.i = i; inp.click();
 }
 function auditionPad(i){ ensureAudio(); playPad(live, S.drum.pads[i], ctx.currentTime + .005, .9); flashPad(i, ctx.currentTime); }
 const ptrs = new Map();
@@ -6623,6 +6682,12 @@ function renderSeqCtl(){
 $('#tapMs').addEventListener('input', e => { S.tapMs = +e.target.value; $('#tapV').textContent = S.tapMs + ' ms'; save(); });
 $('#swing').addEventListener('input', e => { S.swing = +e.target.value; $('#swingV').textContent = S.swing + '%'; save(); });
 $('#loadSample').addEventListener('click', () => $('#fileIn').click());
+$('#padFileIn').addEventListener('change', async e => {
+  const f = e.target.files[0], i = +e.target.dataset.i; e.target.value = ''; if (!f || !(i >= 0)) return;
+  ensureAudio();
+  try { const buf = await ctx.decodeAudioData(await f.arrayBuffer()); await setPadBuffer(i, buf, f.name.replace(/\.[^.]+$/, '')); toast(padLabel(i) + ': ' + f.name); }
+  catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
+});
 $('#kitFiles').addEventListener('click', () => $('#kitFileIn').click());
 $('#kitFileIn').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) await loadKitFiles(fs); });
 $('#fileIn').addEventListener('change', async e => {
