@@ -93,6 +93,15 @@ The file is 382 blocks. Evidence: 1291 of
 layout. So do 121 of 170 long calls into `0x8000-0xFFFF`, and 13 of 13
 calls into `0xFC6000+`.
 
+The ROM uses the vectors it finds in the header *while it loads the rest
+of the file*. First test on the ASR-10: pointing every vector at our code
+hung the machine at "LOADING SYSTEM" with the drive selected, almost
+certainly because a disk or timer interrupt jumped into code not yet
+loaded. So only the vectors whose stock handler is in the OS itself are
+safe to take over. In 3.53 those are vectors 4 and 11 (to `0xFC6000`/
+`0xFC6014`), traps 10 and 11, and 68302 interrupts 74, 75, 77 and 81. The
+longs at `0x0C0`-`0x0FF` (vectors 48-63) are settings data, not vectors.
+
 **Still unknown:** where the ROM jumps after loading. The jump table at
 `0xFF801E` is OS services, not a start address. Our OS doesn't need to
 know: every vector points at our code, and every unused byte of the

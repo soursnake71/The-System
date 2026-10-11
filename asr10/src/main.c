@@ -2,8 +2,9 @@
  *
  * Shows the OS is running in two ways that don't depend on anything we
  * haven't confirmed:
- *   - prints plain uppercase text on the display (every Ensoniq display
- *     model in MAME prints 0x20-0x5F at the cursor without commands);
+ *   - clears the display and prints plain uppercase text. 0xD6 is clear on
+ *     MAME's VFX display and 0x83 on its SQ-1 one; on each, the other code
+ *     is ignored or only moves the cursor. Text 0x20-0x5F prints on both;
  *   - plays middle C on MIDI channel 1, once a second, on MIDI Out.
  */
 #include "hw.h"
@@ -23,6 +24,8 @@ static void midi_note(unsigned char on)
 
 int main(void)
 {
+    panel_tx(0xD6);
+    panel_tx(0x83);
     panel_puts(" THE SYSTEM ");
     for (;;) {
         midi_note(1);

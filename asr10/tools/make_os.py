@@ -17,8 +17,12 @@ both 32-bit big-endian, ended by a zero destination. OS 1.61 has:
 
 We keep the stock header and load table byte for byte, so the boot ROM sees
 the layout it expects, and change only:
-  - vectors 2-87 (0x008-0x15F), which all point at our entry point, so the
-    first exception or interrupt after loading starts our code;
+  - the vectors whose stock handler is in the OS being loaded (in 3.53:
+    illegal instruction, line F, traps 10 and 11, and four 68302
+    interrupts). They now point at our entry point. Vectors whose handler
+    is in the ROM stay as they are: the ROM uses them while it loads the
+    OS, and pointing them at code that isn't loaded yet hangs the machine
+    at "LOADING SYSTEM". 0x0C0-0x0FF holds data, not vectors, and is kept;
   - the segment contents: our code at the start of the segment that loads
     at ENTRY, and every other byte a NOP slide ending in a jump to ENTRY,
     in case the ROM jumps into the loaded OS somewhere.
@@ -36,7 +40,7 @@ BLOCK = 512
 HEADER = 0x400
 TABLE = 0x1C0
 TABLE_MAX = 8
-VEC_FIRST, VEC_END = 0x008, 0x160
+VECTOR_RANGES = ((0x008, 0x0C0), (0x100, 0x160))  # 0x0C0-0x0FF is data
 NOP = b"\x4e\x71"
 
 
@@ -79,8 +83,15 @@ def build(stock, code, entry):
     if not home or home[0][0] != entry:
         raise OsError(f"entry {entry:#x} is not the start of a segment: "
                       + ", ".join(f"{d:#x}" for d, _ in segs))
-    for off in range(VEC_FIRST, VEC_END, 4):
-        header[off:off + 4] = struct.pack(">I", entry)
+    hooked = []
+    for start, end in VECTOR_RANGES:
+        for off in range(start, end, 4):
+            target = struct.unpack(">I", header[off:off + 4])[0] & 0xFFFFFF
+            if any(d <= target < d + b * BLOCK for d, b in segs):
+                header[off:off + 4] = struct.pack(">I", entry)
+                hooked.append(off // 4)
+    if not hooked:
+        raise OsError("no vector points into the loaded OS; nothing to take over")
     out = bytearray(header)
     for dest, blocks in segs:
         size = blocks * BLOCK
