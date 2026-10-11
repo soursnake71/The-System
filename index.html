@@ -881,7 +881,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-kits"><summary>Loading sounds onto pads</summary>
       <ul>
         <li><b>Press and hold a pad</b> for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>.</li>
-        <li><b>LOAD</b> on any pad opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
+        <li><b>Load…</b> in a pad's hold menu, or <b>Load file</b> in Pad sound, opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
@@ -1312,7 +1312,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v50</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v51</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4932,10 +4932,9 @@ function renderPads(){
     const order = [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3];
     order.forEach(i => {
       const b = document.createElement('button'); b.className = 'pad'; b.dataset.i = i;
-      b.innerHTML = `<span class="num">${padLabel(i)}</span><span class="nm"></span><span class="pload nolearn" role="button" aria-label="Load a sample onto this pad">LOAD</span>`;
+      b.innerHTML = `<span class="num">${padLabel(i)}</span><span class="nm"></span>`;
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
-        if (e.target.closest('.pload')){ e.stopPropagation(); padLoadAt(i); return; }
         clearTimeout(padHoldT); const hx = e.clientX, hy = e.clientY;
         padHoldT = setTimeout(() => { padHoldT = 0; padUp(i); ptrs.delete(e.pointerId); padMenuOpen(i); }, 600);
         b._hold = {x:hx, y:hy};
