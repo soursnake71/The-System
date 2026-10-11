@@ -1,5 +1,6 @@
 /* Entry point: the first byte of the image. Masks interrupts, sets a stack,
    clears .bss and calls main. */
+    .section .note.GNU-stack, "", @progbits
     .section .text.start, "ax"
     .global _start
 _start:

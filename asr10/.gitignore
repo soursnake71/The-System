@@ -3,3 +3,4 @@ build/
 # local: they are Ensoniq's copyright, not ours to publish.
 local/*
 !local/README.md
+__pycache__/
