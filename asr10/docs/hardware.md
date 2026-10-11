@@ -1,79 +1,110 @@
 # ASR-10 hardware notes
 
-Target unit: ASR-10 keyboard (reported as 49 keys, see note below), SCSI board fitted,
-RAM fully expanded (16 MB of sample RAM), boots OS 3.53 from a Gotek running
+Target unit: ASR-10 keyboard (reported as 49 keys, see note below), SCSI
+board fitted, RAM fully expanded, boots OS 3.53 from a Gotek running
 FlashFloppy.
-
-Each fact has a source and a confidence level. **Confirmed** means checked
-against the stock OS or the real machine. Nothing is confirmed yet.
 
 > The standard ASR-10 keyboard has 61 keys; the ASR-10R is the rack. If your
 > unit really has 49 keys it may be a different model or modified, so check
 > the label on the back panel.
 
+Confidence levels:
+- **from OS 1.61**: read out of the OS 1.61 disk (archive.org,
+  `asr-10-os-v-161`, SHA-1 `c4847578…`) by disassembly. Strong, but not yet
+  seen on real hardware, and not yet checked against 3.53.
+- **MAME**: from MAME's source. Its ASR-10 driver is a skeleton marked
+  "not working", so treat as a lead.
+- **guess**: unverified.
+
 ## Chips
 
-| Part | Chip | Source | Confidence |
-|---|---|---|---|
-| CPU | Motorola MC68302 (68000 core, 3 serial channels, timers, IDMA, chip selects) | MAME `esqasr.cpp` | likely |
-| Sound | Ensoniq ES5506 "OTTO" (32 voices) | MAME `esqasr.cpp` | likely |
-| Effects | Ensoniq ES5510 "ESP" | MAME `esqasr.cpp` | likely |
-| Floppy controller | NEC uPD72069 | MAME `esqasr.cpp` | likely |
-| UART | 2681 DUART | MAME `esqasr.cpp` | likely |
-| SCSI (option) | probably a WD33C93 like the EPS-16+ | guess | unknown |
-| Display | 2 x 40 vacuum fluorescent | MAME, front panel | likely |
+| Part | Chip | Source |
+|---|---|---|
+| CPU | Motorola MC68302 | MAME; OS 1.61 uses 68302 registers |
+| Sound | Ensoniq ES5506 "OTTO" | MAME |
+| Effects | Ensoniq ES5510 "ESP" | MAME |
+| Floppy controller | NEC uPD72069 | MAME |
+| UART | 2681 DUART | MAME; OS 1.61 |
+| Display | 2 x 40 vacuum fluorescent | front panel |
 
-These replace what I said before looking at MAME: the sound chip is the
-ES5506 (OTTO), not the ES5505 (OTIS), and the floppy controller is NEC, not
-Western Digital.
+## Memory map (from OS 1.61)
 
-## Memory map
+| Address | What | Notes |
+|---|---|---|
+| `0x000000-0x00FFFF` | RAM | vector table at 0, OS loads from `0x000E00` |
+| `0xF80000-0xFBFFFF` | boot ROM, 256 KB | the OS calls ~1000 routines here; exception handlers live here |
+| `0xFC2000` | unknown 8-bit device, odd bytes | used a lot near disk code; maybe the floppy controller |
+| `0xFC4800` | 2681 DUART, odd bytes: register *n* at `0xFC4801 + 2n` | |
+| `0xFC6000` | MC68302 internal RAM (`+0x000`) and registers (`+0x800`) | |
+| `0xFF8000-0xFFFFFF` | RAM, 32 KB | separate from `0x8000-0xFFFF`: OS loads different data into each |
 
-MAME's ASR-10 driver is a skeleton marked "not working". It has:
+Most of the operating system (all the screen text, for example) is in the
+boot ROM. The OS file on disk adds code the ROM calls through the vector
+table, traps and jump tables.
 
-```
-0x000000-0x03ffff   boot ROM (2 x 128 KB EPROMs, v1.5 in MAME's set)
-0xfb0000-0xfcffff   OS RAM (MAME comment; its map just puts RAM at 0xf00000-0xffffff)
-```
+## DUART (from OS 1.61)
 
-Everything else (OTTO, ESP, DUART, FDC, SCSI, sample RAM, the 68302's own
-register block) is unmapped there. The 68302 sets its chip selects and
-register base from software, so the real map is whatever the boot ROM
-programs. It has to be read from the boot ROM or the OS.
+| Channel | Use | Evidence |
+|---|---|---|
+| A | MIDI | sends a buffer through `0xFC4807` and checks for SysEx `F0`/`F7` |
+| B | front panel | reads `0xFC4817`; codes `0xC0` and up are handled separately |
 
-## Front panel
+The disk OS never writes to channel B, so display output is done by the
+ROM. MAME runs the VFX panel link at 62,500 baud, 8N2.
 
-MAME uses its `esq2x40_sq1` display model for the ASR-10. In that model:
+## Display commands (guess)
 
-- `0x20`-`0x7f` print a character and move the cursor right
-- `0x83` clears the display
-- `0x87 rc` moves the cursor (row in the high nibble, column in the low)
+MAME has three Ensoniq display models. All print `0x20`-`0x5F` at the
+cursor, so plain uppercase text is safe. Their control codes disagree:
 
-A 4-bit column can't reach all 40 columns, so the cursor command is
-probably incomplete. On other Ensoniq models the panel is a separate
-microcontroller on a serial line that also sends button presses, slider and
-wheel positions. The ASR-10 is probably the same, but which serial channel
-it uses and at what speed is unknown.
+| | SQ-1 (MAME's ASR-10) | VFX / SD-1 |
+|---|---|---|
+| clear | `0x83` | `0xD6` |
+| cursor | `0x87 rc` | `0x80 + position` (0-79) |
 
-## Boot process
+Which one the ASR-10 uses is still open. Watching what the ROM sends would
+settle it.
 
-From the user's manual and how the machine behaves: the ROM starts up,
-looks for a disk, loads the OS file into RAM and runs it. **Unknown:** how
-the ROM finds the OS file (by file type? by directory slot?), where it loads
-it, whether it checks a header or checksum, and where it jumps.
+## The OS file (from OS 1.61)
+
+Directory file type 32. The first two blocks are a header that is an image
+of RAM `0x000-0x3FF`:
+
+- `0x000-0x15F`: 68000 vectors 0-87. Most point at ROM handlers;
+  traps 10 and 11 point into the OS at `0xFF88E8`/`0xFF88E2`.
+- `0x160-0x19F`: settings, including the disk label `DISK000` at `0x184`.
+- `0x1C0`: load table, entries of (destination, block count), each 32-bit
+  big-endian, ended by zero:
+
+| File offset | Loads to | Blocks |
+|---|---|---|
+| `0x00400` | `0x000E00` | `0x39` |
+| `0x07600` | `0xFF8000` | `0x40` |
+| `0x0F600` | `0x009C00` | `0x31` |
+| `0x15800` | `0xFC6000` | `0x01` |
+
+The table covers the file exactly (2 + 171 = 173 blocks). Evidence: 1291 of
+1726 short calls into `0xFF8000+` land after a return or branch with this
+layout. So do 121 of 170 long calls into `0x8000-0xFFFF`, and 13 of 13
+calls into `0xFC6000+`.
+
+**Still unknown:** where the ROM jumps after loading. The jump table at
+`0xFF801E` is OS services, not a start address. Our OS doesn't need to
+know: every vector points at our code, and every unused byte of the
+segments is a NOP slide into it (`tools/make_os.py`).
 
 ## Floppy format
 
-See `tools/ensoniq_disk.py`. Run `info` on the stock 3.53 image to check the
-layout; it reports any mismatch.
+Checked against the OS 1.61 image: `ensoniq_disk.py info` reports no
+mismatches. HD disk, 3200 blocks, FAT at block 5 (19 blocks), data from
+block 24.
 
-## How to fill in the unknowns
+## Next questions
 
-1. `python3 tools/ensoniq_disk.py ls local/asr10-os353.img` to find the OS file.
-2. `python3 tools/ensoniq_disk.py extract local/asr10-os353.img <slot> local/os.bin`
-3. Look at the first blocks of `os.bin` for a header (load address, length, entry).
-4. `make disasm OS=local/os.bin ORG=<load address>` and follow:
-   - writes to the 68302 BAR (0x0F2) and chip-select registers → memory map
-   - the serial channel setup and the bytes it sends at start-up → panel link
-   - accesses to the OTTO and ESP → their addresses
-5. Write each finding here and mark it confirmed.
+1. Does OS 3.53 use the same header and load table? Run `make disk` on your
+   image; `make_os.py` checks the table against the file size.
+2. Does the first test boot? See README.
+3. What does the ROM send to the panel at start-up? That settles the display
+   commands.
+4. What is at `0xFC2000`? Then the OTTO and ESP addresses, from code that
+   plays sounds and loads effects.

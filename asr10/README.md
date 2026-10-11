@@ -14,17 +14,13 @@ switch off and boot the stock 3.53 image again. No chips are changed.
 | Step | State |
 |---|---|
 | Cross-compiler and build | done (`make`) |
-| Disk image tool: inspect, extract, replace the OS file | done, tested on synthetic images |
-| Check disk format against the real 3.53 image | needs your image |
-| Find the load address and memory map in OS 3.53 | needs your image |
-| Panel driver: text on the display | written, but can't send anything until the panel's serial port is known |
-| First boot on the ASR-10 | — |
+| Disk image tool | done, checked against the real OS 1.61 disk |
+| OS file layout (header, load table, memory map) | found in OS 1.61, see `docs/hardware.md` |
+| First boot test: text on the display, a note on MIDI Out | built, passes in a 68000 emulator, **not yet tried on the ASR-10** |
+| Display commands (clear, cursor) | two candidate sets, not settled |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
-| Floppy and SCSI drivers, MIDI, effects | — |
-
-`docs/hardware.md` lists what is known about the hardware, where each fact
-comes from and how sure it is.
+| Floppy and SCSI drivers, effects | — |
 
 ## Layout
 
@@ -32,7 +28,8 @@ comes from and how sure it is.
 Makefile               build, test, make a disk, disassemble
 src/                   the OS (68000 C and assembly)
 tools/ensoniq_disk.py  Ensoniq disk image tool
-tests/                 tests for the disk tool
+tools/make_os.py       wraps our code in an ASR-10 OS file
+tests/                 tests, and a 68000 emulator harness (emulate.py)
 docs/hardware.md       hardware notes
 local/                 your Ensoniq disk images and ROM dumps (not committed)
 ```
@@ -43,24 +40,36 @@ Needs `make`, Python 3 and a 68000 cross-compiler. On Debian or Ubuntu:
 
 ```
 sudo apt install gcc-m68k-linux-gnu binutils-m68k-linux-gnu
+pip install unicorn        # optional, for the emulator test
 ```
 
-## Use
+## Build a test disk
+
+Put your stock OS disk in `local/`, then:
 
 ```
-make                    # build/system.bin
-make test               # disk tool tests
-
-# with your stock disk at local/asr10-os353.img
-python3 tools/ensoniq_disk.py info local/asr10-os353.img
-python3 tools/ensoniq_disk.py ls   local/asr10-os353.img
-make disk STOCK=local/asr10-os353.img OS_ENTRY=<slot>   # build/system.img
+make test
+make disk STOCK=local/asr10-os353.img
 ```
 
-Copy `build/system.img` to the Gotek's USB stick next to the stock image
-and pick it on the Gotek. **Don't do this yet:** `LOAD_ADDR` in the Makefile
-is a placeholder, so this image won't boot until that address is found in
-OS 3.53.
+This makes `build/system.img`: a copy of your stock disk whose OS file is
+replaced by ours. It uses the header and load table from your stock OS file
+and checks that the layout matches what we found in 1.61.
+
+## Try it on the ASR-10
+
+1. Keep your stock 3.53 image on the USB stick as it is. Add
+   `build/system.img` under a new name, such as `THESYSTEM.img`.
+2. Connect MIDI Out to something that makes sound or shows MIDI (a synth on
+   channel 1, or a MIDI monitor on a computer).
+3. Power on, pick `THESYSTEM.img` on the Gotek, and let it boot.
+4. Expected: ` THE SYSTEM ` appears on the display, and middle C plays once
+   a second on MIDI Out. The panel buttons won't do anything.
+5. Turn the power off, pick the stock image, and boot as usual.
+
+Please report what you see, even if it's nothing. "No text, but the note
+plays" or "it shows ' THE SYSTEM ' after the Ensoniq text" both tell us a
+lot.
 
 ## Ensoniq material
 

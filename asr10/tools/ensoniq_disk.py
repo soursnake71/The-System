@@ -33,7 +33,8 @@ Commands:
                                      contents replaced by <data>
   hexdump  <img> <block>             dump one 512-byte block
 
-<entry> is a directory slot number from `ls` or a file name.
+<entry> is a directory slot number from `ls`, a file name, or "os" for the
+disk's one ASR-10 OS file.
 """
 
 import argparse
@@ -59,7 +60,10 @@ FILE_TYPES = {
     7: "sysex",
     8: "parent dir",
     9: "macro",
+    32: "ASR-10 OS",
+    33: "effect",
 }
+OS_TYPE = 32
 
 
 class DiskError(Exception):
@@ -162,6 +166,11 @@ class Disk:
 
     def find(self, key):
         used = [e for e in self.entries() if e.file_type]
+        if key.lower() == "os":
+            found = [e for e in used if e.file_type == OS_TYPE]
+            if len(found) != 1:
+                raise DiskError(f"{len(found)} ASR-10 OS files on this disk")
+            return found[0]
         if key.isdigit():
             for e in used:
                 if e.slot == int(key):

@@ -1,10 +1,11 @@
-/* Entry point: the first byte of the image. Masks interrupts, sets a stack,
-   clears .bss and calls main. */
+/* Entry point. Every exception and interrupt vector points here, so we
+ * arrive in supervisor mode from whatever the ROM was doing. Mask all
+ * interrupts, take a fresh stack, clear .bss and run main. */
     .section .note.GNU-stack, "", @progbits
     .section .text.start, "ax"
     .global _start
 _start:
-    move.w  #0x2700, %sr            /* supervisor, all interrupts masked */
+    move.w  #0x2700, %sr
     lea     STACK_TOP, %sp
     lea     __bss_start, %a0
     lea     __bss_end, %a1

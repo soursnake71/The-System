@@ -58,13 +58,13 @@ class DiskTests(unittest.TestCase):
 
     def test_extract_round_trip(self):
         payload = bytes(range(256)) * 9  # 2304 bytes, 5 blocks
-        d = make_image(files=[("ASR OS", 1, payload)])
+        d = make_image(files=[("ASR OS", 32, payload)])
         e = d.find("ASR OS")
         self.assertEqual(e.size, 5)
         self.assertEqual(d.read_file(e)[:len(payload)], payload)
 
     def test_replace_grows_and_keeps_disk_consistent(self):
-        d = make_image(files=[("OS", 1, b"a" * 1024), ("SND", 3, b"b" * 512)])
+        d = make_image(files=[("OS", 32, b"a" * 1024), ("SND", 3, b"b" * 512)])
         free_before = d.count_free()
         new = b"N" * 5000  # 10 blocks; old run is blocked by SND, so it moves
         d.replace_file(d.find("OS"), new)
@@ -76,15 +76,21 @@ class DiskTests(unittest.TestCase):
         self.assertEqual(d.problems(), [])
 
     def test_replace_shrinks_in_place(self):
-        d = make_image(files=[("OS", 1, b"a" * 4096)])
+        d = make_image(files=[("OS", 32, b"a" * 4096)])
         start = d.find("OS").start
         d.replace_file(d.find("OS"), b"z" * 100)
         e = d.find("OS")
         self.assertEqual((e.start, e.size), (start, 1))
         self.assertEqual(d.problems(), [])
 
+    def test_find_os_by_type(self):
+        d = make_image(files=[("SND", 3, b"b" * 512), ("ASR-10 OS", 32, b"o" * 512)])
+        self.assertEqual(d.find("os").name, "ASR-10 OS")
+        with self.assertRaises(ed.DiskError):
+            make_image(files=[("SND", 3, b"b" * 512)]).find("os")
+
     def test_cli_replace(self):
-        d = make_image(files=[("OS", 1, b"a" * 1024)])
+        d = make_image(files=[("OS", 32, b"a" * 1024)])
         with tempfile.TemporaryDirectory() as tmp:
             src, data, out = (os.path.join(tmp, n) for n in ("in.img", "os.bin", "out.img"))
             d.save(src)

@@ -3,8 +3,9 @@
 #   make                      build/system.bin
 #   make test                 unit tests for the disk tool
 #   make disk STOCK=local/asr10-os353.img
-#                             build/system.img: STOCK with its OS file
-#                             replaced by build/system.bin
+#                             build/system.img: a copy of STOCK whose OS file
+#                             is replaced by ours (header and load table
+#                             taken from STOCK's OS, see tools/make_os.py)
 #   make disasm OS=local/os.bin ORG=0x...
 #                             disassemble an extracted OS file
 
@@ -13,18 +14,18 @@ CC        := $(CROSS)gcc
 OBJCOPY   := $(CROSS)objcopy
 OBJDUMP   := $(CROSS)objdump
 
-# Placeholders until the boot ROM's load address is known. MAME's skeleton lists
-# OS RAM at 0xFB0000-0xFCFFFF; that is a guess there too.
-LOAD_ADDR ?= 0x00FB0000
-STACK_TOP ?= 0x00FD0000
-OS_ENTRY  ?= 0
+# Our code loads at the start of the stock OS's first segment (0x0E00 in
+# OS 1.61). The stack grows down from 0x0A00 into 0x400-0x9FF, RAM the
+# stock OS file doesn't load anything into.
+LOAD_ADDR ?= 0x0E00
+STACK_TOP ?= 0x0A00
 
 CFLAGS  := -m68000 -Os -ffreestanding -fno-builtin -nostdlib -Wall -Wextra -std=c99 \
            -DSTACK_TOP=$(STACK_TOP)
 LDFLAGS := -m68000 -nostdlib -static -Wl,--build-id=none -Wl,--no-warn-rwx-segments -Wl,--defsym=LOAD_ADDR=$(LOAD_ADDR) -Wl,--defsym=STACK_TOP=$(STACK_TOP) \
            -T src/link.ld
 
-SRCS := src/crt0.S src/main.c src/panel.c src/hw.c
+SRCS := src/crt0.S src/main.c src/hw.c
 OBJS := $(patsubst src/%,build/%.o,$(SRCS))
 
 all: build/system.bin
@@ -42,13 +43,15 @@ build/system.bin: build/system.elf
 
 disk: build/system.bin
 	@test -n "$(STOCK)" || { echo "set STOCK=<stock OS disk image>"; exit 1; }
-	python3 tools/ensoniq_disk.py replace $(STOCK) $(OS_ENTRY) build/system.bin build/system.img
+	python3 tools/ensoniq_disk.py extract $(STOCK) os build/stock-os.bin
+	python3 tools/make_os.py build/stock-os.bin build/system.bin $(LOAD_ADDR) build/system-os.bin
+	python3 tools/ensoniq_disk.py replace $(STOCK) os build/system-os.bin build/system.img
 
 disasm:
 	@test -n "$(OS)" || { echo "set OS=<extracted OS file>"; exit 1; }
 	$(OBJDUMP) -D -b binary -m m68k:68000 --adjust-vma=$(or $(ORG),0) $(OS)
 
-test:
+test: build/system.bin
 	python3 -m unittest discover tests
 
 clean:
