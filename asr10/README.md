@@ -19,6 +19,9 @@ switch off and boot your stock disk again. No chips are changed.
 | OS file layout (header, load table, memory map) | found in OS 1.61, see `docs/hardware.md` |
 | First boot: our code runs and writes text on the display | **works** (try 3); MIDI note not checked yet |
 | Display commands (clear, cursor) | `D6` and `83` don't clear; still unknown |
+| Panel explorer: shows the code of each button/key press | built, emulator-tested; next to try |
+| ROM dump over MIDI SysEx (`tools/syx2rom.py`) | built, emulator-tested; needs a MIDI interface to capture |
+| Keyboard calibration message on the stock OS | to study once the ROM is dumped |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
 | Floppy and SCSI drivers, effects | — |
@@ -31,6 +34,7 @@ src/                   the OS (68000 C and assembly)
 tools/ensoniq_disk.py  Ensoniq disk image tool
 tools/make_os.py       wraps our code in an ASR-10 OS file
 tools/hfe.py           converts .img to and from .hfe
+tools/syx2rom.py       rebuilds the boot ROM from the explorer's SysEx dump
 tests/                 tests, and a 68000 emulator harness (emulate.py)
 docs/hardware.md       hardware notes
 local/                 your Ensoniq disk images and ROM dumps (not committed)

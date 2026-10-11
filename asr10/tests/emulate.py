@@ -19,8 +19,11 @@ from unicorn.m68k_const import UC_M68K_REG_PC, UC_M68K_REG_SR, UC_CPU_M68K_M6800
 THRA, THRB, SRA, SRB = 0xFC4807, 0xFC4817, 0xFC4803, 0xFC4813
 
 
-def run(os_file, entry, count, panel_replies=False):
-    """panel_replies: act like an EPS-style panel that answers every byte."""
+def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
+    """panel_replies: act like an EPS-style panel that answers every byte.
+    rom: bytes to place at 0xF80000 (the boot ROM). panel_input: bytes the
+    panel sends, like button presses: each arrives once the panel link has
+    been idle for longer than our code waits for a reply."""
     data = open(os_file, "rb").read()
     uc = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
     uc.ctl_set_cpu_model(UC_CPU_M68K_M68000)
@@ -28,6 +31,9 @@ def run(os_file, entry, count, panel_replies=False):
     uc.mem_map(0xFC4000, 0x1000)    # DUART page
     uc.mem_map(0xFC6000, 0x1000)    # 68302 internal RAM and registers
     uc.mem_map(0xFF8000, 0x8000)    # high RAM
+    uc.mem_map(0xF80000, 0x40000)   # boot ROM
+    if rom:
+        uc.mem_write(0xF80000, rom)
     uc.mem_write(0, data[:0x400])
     off = 0x400
     for i in range(8):
@@ -38,6 +44,8 @@ def run(os_file, entry, count, panel_replies=False):
         off += blocks * 512
     out = {"midi": bytearray(), "panel": bytearray(), "replies_read": 0}
     reply = {"pending": False}
+    queue = bytearray(panel_input)
+    idle = {"reads": 0}  # SRB reads since the last write to the panel
 
     def on_write(uc, access, addr, size, value, user):
         if addr == THRA:
@@ -45,15 +53,21 @@ def run(os_file, entry, count, panel_replies=False):
         elif addr == THRB:
             out["panel"].append(value & 0xFF)
             reply["pending"] = panel_replies
+            idle["reads"] = 0
 
     def on_read(uc, access, addr, size, value, user):
         if addr == SRA:
             uc.mem_write(addr, b"\x04")  # TxRDY
         elif addr == SRB:
-            uc.mem_write(addr, b"\x05" if reply["pending"] else b"\x04")  # RxRDY when a reply waits
-        elif addr == THRB and reply["pending"]:  # reading the reply
-            reply["pending"] = False
-            out["replies_read"] += 1
+            idle["reads"] += 1
+            ready = reply["pending"] or (bool(queue) and idle["reads"] > 25000)
+            uc.mem_write(addr, b"\x05" if ready else b"\x04")  # RxRDY when a byte waits
+        elif addr == THRB:
+            if reply["pending"]:  # reading the reply
+                reply["pending"] = False
+                out["replies_read"] += 1
+            elif queue:
+                uc.mem_write(addr, bytes([queue.pop(0)]))
 
     uc.hook_add(UC_HOOK_MEM_WRITE, on_write, begin=0xFC4000, end=0xFC4FFF)
     uc.hook_add(UC_HOOK_MEM_READ, on_read, begin=0xFC4000, end=0xFC4FFF)

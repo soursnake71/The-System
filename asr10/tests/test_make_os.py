@@ -68,7 +68,9 @@ class MakeOsTests(unittest.TestCase):
 
 
 class EmulationTests(unittest.TestCase):
-    def test_built_os_prints_and_plays_from_any_entry(self):
+    """Runs build/system.bin (the panel explorer and ROM dump) on an emulated 68000."""
+
+    def setUp(self):
         try:
             import emulate
         except ImportError:
@@ -76,21 +78,37 @@ class EmulationTests(unittest.TestCase):
         code_path = os.path.join(HERE, "..", "build", "system.bin")
         if not os.path.exists(code_path):
             self.skipTest("run make first")
+        import random
         import tempfile
         code = open(code_path, "rb").read()
         code += b"\0" * (len(code) % 2)
         with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
             f.write(make_os.build(fake_stock(), code, 0xE00))
-        try:
-            for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
-                out, _ = emulate.run(f.name, entry, 20_000_000)
-                self.assertEqual(bytes(out["panel"]), b"\xd6\x83 THE SYSTEM ", hex(entry))
-                self.assertEqual(bytes(out["midi"][:6]), bytes.fromhex("903c64803c00"), hex(entry))
-            out, _ = emulate.run(f.name, 0xE00, 20_000_000, panel_replies=True)
-            self.assertEqual(bytes(out["panel"]), b"\xd6\x83 THE SYSTEM ")
-            self.assertEqual(out["replies_read"], len(out["panel"]))
-        finally:
-            os.unlink(f.name)
+        self.addCleanup(os.unlink, f.name)
+        self.os_file = f.name
+        self.emulate = emulate
+        self.rom = bytes(random.Random(5).getrandbits(8) for _ in range(0x40000))
+
+    def test_starts_from_any_entry(self):
+        for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
+            out, _ = self.emulate.run(self.os_file, entry, 1_000_000, rom=self.rom)
+            self.assertEqual(bytes(out["panel"]), b" KEYS", hex(entry))
+
+    def test_shows_panel_bytes_and_dumps_rom(self):
+        import syx2rom
+        out, _ = self.emulate.run(self.os_file, 0xE00, 4_000_000, rom=self.rom,
+                                  panel_input=bytes([0xC5]))
+        self.assertEqual(bytes(out["panel"]), b" KEYS C5")
+        good, _ = syx2rom.parse(bytes(out["midi"]))
+        self.assertGreater(len(good), 100)
+        self.assertIn(0xF80000, good)
+        for addr, chunk in good.items():
+            self.assertEqual(chunk, self.rom[addr - 0xF80000:addr - 0xF80000 + 256])
+
+    def test_waits_for_panel_replies(self):
+        out, _ = self.emulate.run(self.os_file, 0xE00, 1_000_000, rom=self.rom, panel_replies=True)
+        self.assertEqual(bytes(out["panel"]), b" KEYS")
+        self.assertEqual(out["replies_read"], 5)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,48 @@
-/* First boot test.
+/* Panel explorer and ROM dump.
  *
- * Shows the OS is running in two ways that don't depend on anything we
- * haven't confirmed:
- *   - clears the display and prints plain uppercase text. 0xD6 is clear on
- *     MAME's VFX display and 0x83 on its SQ-1 one; on each, the other code
- *     is ignored or only moves the cursor. Text 0x20-0x5F prints on both;
- *   - plays middle C on MIDI channel 1, once a second, on MIDI Out.
+ * Read-only towards the panel: it prints plain uppercase text and never
+ * sends control codes, since unknown codes may mean something to the panel
+ * controller.
+ *
+ *   - Display: "KEYS" then, for every byte the panel sends (button presses,
+ *     slider, keys), its value in hex.
+ *   - MIDI Out: the boot ROM, 0xF80000-0xFBFFFF, as a loop of SysEx
+ *     messages (format in tools/syx2rom.py). One pass takes about three
+ *     minutes, then it starts again.
  */
 #include "hw.h"
+
+#define ROM_START 0xF80000UL
+#define ROM_END   0xFC0000UL
+#define CHUNK     256
+#define FRAME     (5 + 4 + 2 * CHUNK + 2)  /* header, address, nibbles, sum, F7 */
+
+static unsigned char frame[FRAME];
+
+static void build_frame(unsigned long addr)
+{
+    const volatile unsigned char *rom = (const volatile unsigned char *)addr;
+    unsigned char sum = 0;
+    int i, n = 0;
+
+    frame[n++] = 0xF0;
+    frame[n++] = 0x7D;  /* non-commercial manufacturer ID */
+    frame[n++] = 'A';
+    frame[n++] = 'S';
+    frame[n++] = 'R';
+    frame[n++] = (addr >> 21) & 0x7F;
+    frame[n++] = (addr >> 14) & 0x7F;
+    frame[n++] = (addr >> 7) & 0x7F;
+    frame[n++] = addr & 0x7F;
+    for (i = 0; i < CHUNK; i++) {
+        unsigned char b = rom[i];
+        frame[n++] = b >> 4;
+        frame[n++] = b & 0x0F;
+        sum += (b >> 4) + (b & 0x0F);
+    }
+    frame[n++] = sum & 0x7F;
+    frame[n++] = 0xF7;
+}
 
 static void panel_puts(const char *s)
 {
@@ -15,22 +50,34 @@ static void panel_puts(const char *s)
         panel_tx((unsigned char)*s);
 }
 
-static void midi_note(unsigned char on)
+static void panel_hex(unsigned char b)
 {
-    midi_tx(on ? 0x90 : 0x80);
-    midi_tx(60);
-    midi_tx(on ? 100 : 0);
+    static const char digits[] = "0123456789ABCDEF";
+
+    panel_tx(' ');
+    panel_tx(digits[b >> 4]);
+    panel_tx(digits[b & 0x0F]);
 }
 
 int main(void)
 {
-    panel_tx(0xD6);
-    panel_tx(0x83);
-    panel_puts(" THE SYSTEM ");
+    unsigned long addr = ROM_START;
+    int pos = 0;
+
+    panel_puts(" KEYS");
+    build_frame(addr);
     for (;;) {
-        midi_note(1);
-        delay(150000);
-        midi_note(0);
-        delay(450000);
+        if (DUART_SRA & DUART_TXRDY) {
+            DUART_THRA = frame[pos++];
+            if (pos == FRAME) {
+                addr += CHUNK;
+                if (addr >= ROM_END)
+                    addr = ROM_START;
+                build_frame(addr);
+                pos = 0;
+            }
+        }
+        if (DUART_SRB & DUART_RXRDY)
+            panel_hex(DUART_RHRB);
     }
 }
