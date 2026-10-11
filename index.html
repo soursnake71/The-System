@@ -191,6 +191,9 @@ html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
 #strips.two .strip input.pan{height:14px}
 #strips.two .strip{flex:0 0 calc((100% - var(--sc,5) * 3px) / var(--sc,5) - 4px)}
 html.retro #strips .strip input.fader{width:24px}
+.allstop{background:linear-gradient(180deg,#d33,#a11) !important;color:#fff !important;border-color:#600 !important;padding:8px 8px;font-weight:700;white-space:nowrap}
+.trow2 #inBadge{white-space:nowrap;font-size:9px;padding:4px 5px}
+.allstop.hit{filter:brightness(1.5)}
 .padwave{width:100%;height:64px;border-radius:6px;grid-column:1/-1;display:block}
 .padtg{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px;grid-column:1/-1}
 .padtg button.on{background:var(--accent);color:var(--accent-ink)}
@@ -540,6 +543,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <select id="bars" aria-label="Loop length"><option value="1">1 bar</option><option value="2">2 bars</option><option value="4">4 bars</option><option value="8">8 bars</option></select>
     <button id="metro">Click</button>
     <button id="tap">Tap</button>
+    <button id="allStop" class="allstop" aria-label="All stop: silence everything" title="All stop">■ ALL</button>
     <span class="grow"></span>
     <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
     <span class="badge" id="inBadge">No input</span>
@@ -923,6 +927,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li>Press record while the arp plays and its notes are written into the pattern.</li>
       </ul>
     </details>
+    <details id="h-allstop"><summary>All stop</summary>
+      <p>The red <b>■ ALL</b> button at the top stops everything at once: the beat, every pad (including looping and held ones), every synth note and the arpeggiator, both turntables, the sampler, sample previews and the reverb/delay/FX tails. It also sends "all notes off" to your MPC or other MIDI gear. It can be MIDI-learned to a pad or button, and Esc on a keyboard does the same.</p>
+    </details>
     <details id="h-bt"><summary>Bluetooth headphones</summary>
       <p>Bluetooth adds about 150–250 ms of delay, and phones often don't report it. In <b>Setup → Performance</b>, turn <b>Bluetooth headphones</b> on and tap <b>Measure</b> with your headphones on. Tap the button on each of the 12 clicks, and the app sets the offset for you, or set the <b>BT offset</b> slider yourself. Recorded pads, keys and audio then land where you heard them. The playhead, pad lights and MIDI clock to the MPC also line up with what you hear. Turn it off when you switch back to wired, USB or the phone speaker.</p>
     </details>
@@ -1304,7 +1311,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v49</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v50</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -3559,6 +3566,7 @@ function playPad(rig, pad, t, vel, dur, pi, held){
   }
   src.start(t, off);
   if (isFinite(stopAt)) src.stop(stopAt);
+  if (rig === live){ const ent = {src, g}; (live.padAll ||= new Set()).add(ent); src.addEventListener('ended', () => live.padAll && live.padAll.delete(ent)); }
   return src;
 }
 function drawPadWave(cv, p){
@@ -4595,6 +4603,39 @@ function fitScreen(){
     const o = over(); if (o > 0){ const h = Math.max(44, 150 - Math.ceil(o / rows) - 2); zs.forEach(z => { z.style.height = h + 'px'; z.querySelector('.fader').style.height = h + 'px'; }); }
   }
 }
+
+/* ================= ALL STOP: transport, every voice, decks, sampler, previews, FX tails, and MIDI notes out ================= */
+function allStop(){
+  const b = $('#allStop'); if (b){ b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 200); }
+  if (playing) stop();
+  if (drumRec){ drumRec = false; renderTransport(); }
+  try { keysUpAll(); } catch(e){}
+  (S.synths || []).forEach(tr => { try { arpClear(tr); } catch(e){} });
+  try { sbxStop(); } catch(e){}
+  if (!ctx || !live) return;
+  const now = ctx.currentTime;
+  // pads (one-shots, loops, held), clips and choke voices
+  if (live.padAll){ live.padAll.forEach(v => { try { v.g.gain.cancelScheduledValues(now); v.g.gain.setTargetAtTime(0, now, .005); v.src.stop(now + .04); } catch(e){} }); live.padAll.clear(); }
+  if (live.padV) for (const k in live.padV) live.padV[k] = null;
+  (live.voices || []).forEach(vo => { try { vo.g.gain.setTargetAtTime(0, now, .005); vo.src.stop(now + .04); } catch(e){} }); live.voices = [];
+  (live.srcs || []).forEach(src => { try { src.stop(now); } catch(e){} }); live.srcs = [];
+  // synth engines: drop the voice processors (a fresh one starts on the next note)
+  if (live.sol) for (const k in live.sol){ try { live.sol[k].disconnect(); live.sol[k].port.postMessage({type:'cfg', cfg:{}}); } catch(e){} delete live.sol[k]; }
+  // turntables and the sampler
+  decks.forEach((d, i) => { const D = deckState(i); if (D.on){ D.on = false; deckSet(d); } });
+  try { if (smp && smp.src) smp.src.forEach((s2, k) => { if (s2){ try { s2.stop(); } catch(e){} smp.src[k] = null; } }); } catch(e){}
+  // FX tails: close the returns and the delay loop for a moment, then put them back
+  const m = live.master;
+  const quiet = [m.revRet && m.revRet.gain, m.dlyRet && m.dlyRet.gain, m.fb && m.fb.gain, ...RACK_KEYS.map(k => m.rk[k] && m.rk[k].ret.gain)].filter(Boolean);
+  quiet.forEach(g => { g.cancelScheduledValues(now); g.setTargetAtTime(0, now, .01); });
+  clearTimeout(allStop._t); allStop._t = setTimeout(() => { applyAll(); applyRack(ctx, m); }, 3500);
+  // MIDI out: all notes off and all sound off on every channel
+  for (let ch = 0; ch < 16; ch++){ midiSend([0xB0 | ch, 123, 0]); midiSend([0xB0 | ch, 120, 0]); }
+  if (view === 'deck') renderDeck();
+  toast('All stop.');
+}
+$('#allStop').addEventListener('click', allStop);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('dialog[open]')) allStop(); });
 
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
