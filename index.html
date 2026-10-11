@@ -1136,6 +1136,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <h2>Performance</h2>
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
+      <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
       <p class="hint">If the sound crackles or drops out when a lot is playing, choose a bigger buffer. A bigger buffer adds a little delay between tapping a pad and hearing it. The app reopens to apply the change, and your project is kept.</p>
     </div>
     <div class="card">
@@ -3049,7 +3050,13 @@ registerProcessor('deck', Deck);
 const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
 
 // audio buffer size is a per-phone setting, kept outside the project
-function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'balanced'; }
+function showLatency(){
+  const el = $('#latNow'); if (!el) return;
+  if (!ctx){ el.textContent = 'tap a pad first'; return; }
+  const ms = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
+  el.textContent = ms ? ms + ' ms' : 'n/a'; el.classList.toggle('ok', ms > 0 && ms < 40);
+}
+function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'interactive'; }
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:audioBuf()});
@@ -3402,14 +3409,15 @@ function repeatFill(pi, v){
 function padDown(i, ev, v){
   ensureAudio();
   held.set(i, v);
-  if (selPad !== i){ selPad = i; renderPads(); renderPadEditor(); seqDirty = true; }
+  // sound first, screen after: redrawing the pad editor before the hit used to delay the sound
+  if (selPad !== i){ selPad = i; seqDirty = true; requestAnimationFrame(() => { renderPads(); renderPadEditor(); }); }
   if (S.erase){
     if (!playing){ toast('Hold a pad while the loop plays to erase its hits.'); return; }
     if (!eraseUndo){ pushUndo(); eraseUndo = true; undoPass = null; }
     return;
   }
   if (playing && S.repeat){ repeatFill(i, v); return; }
-  playPad(live, S.drum.pads[i], ctx.currentTime + .003, v); flashPad(i, ctx.currentTime); duckAt(live, i, ctx.currentTime + .003);
+  playPad(live, S.drum.pads[i], ctx.currentTime, v); flashPad(i, ctx.currentTime); duckAt(live, i, ctx.currentTime);
   if (playing && drumRec){
     const tk = tapTick(ev);
     if (tk != null && tk > -TPS / 2) addNote(i, Math.max(0, tk), v, true);
@@ -5133,7 +5141,7 @@ function renderPlat(){
   stepify($('#ttTpr'), v => v + ' steps'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
 })();
 function setView(v){
-  view = v;
+  view = v; if (v === "setup") setTimeout(showLatency, 0);
   document.querySelectorAll('.view[id^="v-"]').forEach(s => s.hidden = s.id !== 'v-' + v);
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('cur', b.dataset.v === v));
   if (v === 'drums') seqDirty = true;
@@ -5507,7 +5515,7 @@ function keyDown(tr, note, ev, v, id){
   const tbx = tr.inst === 'tb303' ? tr.tb : null;
   if (tbx && tbx.accLatch) v = 1;
   const sl = tbx && tbx.slideLatch ? 1 : 0;
-  const voice = synthVoice(live, tr, note, ctx.currentTime + .003, v, null, {sl});
+  const voice = synthVoice(live, tr, note, ctx.currentTime, v, null, {sl});
   keysOn.set(id, {voice, tr, note, v, sl, start:(playing && drumRec) ? tapTick(ev) : null});
 }
 function keyUp(id, ev){
