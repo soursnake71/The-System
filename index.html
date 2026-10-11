@@ -199,6 +199,7 @@ html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
 html.retro #strips .strip input.fader{width:24px}
 .allstop{background:linear-gradient(180deg,#d33,#a11) !important;color:#fff !important;border-color:#600 !important;padding:8px 8px;font-weight:700;white-space:nowrap}
 .trow2 #inBadge{white-space:nowrap;font-size:9px;padding:4px 5px}
+.row.perf{gap:5px}.row.perf button{padding-left:4px;padding-right:4px;font-size:12px;white-space:nowrap}
 .allstop.hit{filter:brightness(1.5)}
 .padwave{width:100%;height:64px;border-radius:6px;grid-column:1/-1;display:block}
 .padtg{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px;grid-column:1/-1}
@@ -566,6 +567,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="odub" class="grow">Overdub</button>
         <button id="repeat" class="grow">Note repeat</button>
         <button id="erase" class="grow">Erase</button>
+        <button id="padsClr" class="grow nolearn">Clear all</button>
       </div>
     <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
     <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
@@ -885,7 +887,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
     <details id="h-kits"><summary>Loading sounds onto pads</summary>
       <ul>
-        <li><b>Press and hold a pad</b> for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>, or <b>Clear all pads…</b> (also in Pad sound): empty every pad, empty every pad and its hits, or reset all 16 to the built-in sounds.</li>
+        <li><b>Press and hold a pad</b> for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>, or <b>Clear all pads…</b> (also the <b>Clear all</b> button above the pads, and in Pad sound): empty every pad, empty every pad and its hits, or reset all 16 to the built-in sounds.</li>
         <li><b>Load…</b> in a pad's hold menu, or <b>Load file</b> in Pad sound, opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
@@ -1317,7 +1319,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v52</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v53</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4602,8 +4604,8 @@ function fitScreen(){
   const m = document.querySelector('main'); if (!m) return;
   const over = () => m.scrollHeight - m.clientHeight;
   if (view === 'drums'){
-    const pads = $('#pads'); pads.style.maxWidth = '';
-    const o = over(); if (o > 0){ const h = pads.offsetHeight, w = pads.offsetWidth, nh = Math.max(200, h - o - 2); pads.style.maxWidth = Math.floor(w * nh / h) + 'px'; pads.style.margin = '0 auto'; }
+    const pads = $('#pads'); pads.style.maxWidth = ''; pads.style.width = '100%'; pads.style.margin = '';
+    const o = over(); if (o > 0){ const h = pads.offsetHeight, w = pads.offsetWidth, nh = Math.max(200, h - o - 2); pads.style.maxWidth = Math.floor(w * nh / h) + 'px'; pads.style.margin = '0 auto'; pads.style.alignSelf = 'center'; }
   } else if (view === 'synth'){
     const k = $('#keys'), pn = $('#piano'); k.style.height = ''; k.style.gridAutoRows = ''; pn.style.height = '';
     const o = over(); if (o > 0){
@@ -4987,6 +4989,9 @@ function padEmpty(i){
   p.sample = ''; p.name = 'Empty'; delete p.tempo; p.fit = 0; p.loop = 0; p.rev = 0;
 }
 $('#clearPads').addEventListener('click', () => $('#clearMenu').showModal());
+$('#padsClr').addEventListener('click', () => $('#clearMenu').showModal());
+window.addEventListener('load', () => { setTimeout(fitScreen, 300); setTimeout(fitScreen, 1200); });
+if (document.fonts) document.fonts.ready.then(() => setTimeout(fitScreen, 50));
 $('#clearMenu').addEventListener('click', e => {
   const d = $('#clearMenu'), b = e.target.closest('button'); if (e.target === d){ d.close(); return; } if (!b) return;
   const a = b.dataset.a; d.close(); if (a === 'x') return;
