@@ -158,6 +158,11 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 .view > .card.sdj > *{display:revert !important}
 #padMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
 #padMenu[open]{display:flex}
+#clearMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
+#clearMenu[open]{display:flex}
+#clearMenu::backdrop{background:#000a}
+#clearMenu h2{margin:0 0 4px}
+.kitrow{grid-template-columns:auto minmax(0,1fr) auto !important}
 #padMenu::backdrop{background:#000a}
 #padMenu h2{margin:0 0 4px}
 .pad.empty .nm{opacity:.45}
@@ -581,7 +586,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <p class="hint">Press Overdub or the record button and play the pads. Every pass layers on top. Timing correct snaps hits to the grid as you play. With it off, they stay exactly as played. Note repeat retriggers a held pad in time. Erase removes a held pad's hits as the loop passes over them.</p>
     </div>
     <div class="card" data-title="Pad sound">
-      <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button></div>
+      <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
       <div class="row"><span class="grow">SP-1200 mode: 12-bit, 26 kHz, drop-sample pitch, output filters</span><button id="spMode">Off</button></div>
       <div class="row"><h2 class="grow" id="padTitle">A01 Kick</h2><span class="badge" id="sampleBadge">Built-in</span><button id="clearPad">Clear hits</button></div>
       <div class="row">
@@ -880,7 +885,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
     <details id="h-kits"><summary>Loading sounds onto pads</summary>
       <ul>
-        <li><b>Press and hold a pad</b> for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>.</li>
+        <li><b>Press and hold a pad</b> for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>, or <b>Clear all pads…</b> (also in Pad sound): empty every pad, empty every pad and its hits, or reset all 16 to the built-in sounds.</li>
         <li><b>Load…</b> in a pad's hold menu, or <b>Load file</b> in Pad sound, opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
@@ -1312,7 +1317,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v51</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v52</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1329,6 +1334,13 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <button data-a="delall" class="nolearn">Delete sound and its hits</button>
   <button data-a="load" class="nolearn">Load…</button>
   <button data-a="builtin" class="nolearn">Built-in sound</button>
+  <button data-a="all" class="nolearn">Clear all pads…</button>
+  <button data-a="x" class="nolearn">Cancel</button>
+</dialog>
+<dialog id="clearMenu" aria-labelledby="clearMenuT"><h2 id="clearMenuT">Clear all 16 pads</h2>
+  <button data-a="sounds" class="nolearn">Delete all sounds (keep hits)</button>
+  <button data-a="both" class="nolearn">Delete all sounds and hits</button>
+  <button data-a="builtin" class="nolearn">Reset all to built-in sounds</button>
   <button data-a="x" class="nolearn">Cancel</button>
 </dialog>
 <dialog id="sbx" aria-labelledby="sbxTitle">
@@ -4974,12 +4986,26 @@ function padEmpty(i){
   const p = S.drum.pads[i]; dropAudio(p.sample);
   p.sample = ''; p.name = 'Empty'; delete p.tempo; p.fit = 0; p.loop = 0; p.rev = 0;
 }
+$('#clearPads').addEventListener('click', () => $('#clearMenu').showModal());
+$('#clearMenu').addEventListener('click', e => {
+  const d = $('#clearMenu'), b = e.target.closest('button'); if (e.target === d){ d.close(); return; } if (!b) return;
+  const a = b.dataset.a; d.close(); if (a === 'x') return;
+  const pads = S.drum.pads;
+  if (a === 'builtin'){ const vs = kitVoices(S.drum.kit); pads.forEach((p, i) => { dropAudio(p.sample); p.sample = vs[i].key; p.name = vs[i].name; p.choke = vs[i].choke; delete p.tempo; p.fit = 0; p.loop = 0; p.rev = 0; ensureKitBuf(vs[i].key); }); toast('All pads back to the built-in sounds.'); }
+  else {
+    if (a === 'both'){ pushUndo(); undoPass = null; S.drum.notes = []; seqDirty = true; }
+    pads.forEach((p, i) => padEmpty(i));
+    toast(a === 'both' ? 'All pads and hits cleared. Undo brings the hits back.' : 'All pads are empty. Your hits are kept.');
+  }
+  changed(); renderPads(); renderPadEditor();
+});
 $('#padMenu').addEventListener('click', e => {
   const d = $('#padMenu'), b = e.target.closest('button'); if (e.target === d){ d.close(); return; } if (!b) return;
   const i = padMenuI, p = S.drum.pads[i], a = b.dataset.a; d.close();
   if (a === 'del'){ padEmpty(i); save(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' is empty. Its hits stay but play nothing.'); }
   else if (a === 'delall'){ pushUndo(); undoPass = null; padEmpty(i); S.drum.notes = S.drum.notes.filter(n => n.p !== i); seqDirty = true; changed(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' cleared: sound and hits. Undo brings the hits back.'); }
   else if (a === 'load') sbxOpen(i);
+  else if (a === 'all') $('#clearMenu').showModal();
   else if (a === 'builtin'){ dropAudio(p.sample); const v = kitVoices(S.drum.kit)[i]; p.sample = v.key; p.name = v.name; delete p.tempo; p.fit = 0; ensureKitBuf(v.key); save(); renderPads(); renderPadEditor(); auditionPad(i); }
 });
 function auditionPad(i){ ensureAudio(); const p = S.drum.pads[i]; playPad(live, p, ctx.currentTime + .005, .9, padGated(p) ? Math.min(2, 4 * 60 / S.bpm) : null, i); flashPad(i, ctx.currentTime); }
