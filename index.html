@@ -1413,7 +1413,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v74</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v75</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1422,7 +1422,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 </main>
 
 <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
-  <div class="sheet-bar"><button id="sheetPrev" class="nolearn" aria-label="Previous page">◀</button><span id="sheetTtl" class="grow"></span><span id="sheetPg" class="mono"></span><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">▶</button><button id="sheetX" class="nolearn" aria-label="Close">✕</button></div>
+  <div class="sheet-bar"><button id="sheetPrev" class="nolearn" aria-label="Previous page">◀</button><span id="sheetTtl" class="grow"></span><span id="sheetPg" class="mono"></span><button id="sheetRand" class="nolearn" aria-label="Random preset" title="Random preset">🎲</button><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">▶</button><button id="sheetX" class="nolearn" aria-label="Close">✕</button></div>
   <div id="sheetBody"></div>
 </div>
 <dialog id="padMenu" aria-labelledby="padMenuT"><h2 id="padMenuT">A01</h2>
@@ -4769,7 +4769,7 @@ function sheetOpen(c){
   $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
   $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on');
   document.querySelectorAll('.chipbar button').forEach(b => b.classList.toggle('on', b._card === c));
-  hearPaint();
+  hearPaint(); setTimeout(randPaint, 60);
   requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); sheetLayout(); });
 }
 function sheetClose(){
@@ -4967,6 +4967,28 @@ async function importMidi(file){
 $('#midiImp').addEventListener('click', () => $('#midiFile').click());
 $('#midiFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); });
 $('#midiExp').addEventListener('click', () => { $('#expWhat').value = 'midi'; $('#expWhat').dispatchEvent(new Event('change')); $('#export').click(); });
+
+// 🎲: pick a random preset on the open page (synth program, GM sound, vocoder, FX rack unit, bus compressor, vinyl)
+function randPick(){
+  if (!sheetCard) return null;
+  const sels = [...sheetCard.querySelectorAll('select')].filter(sel => sel.offsetParent && (/preset|Preset|gmProg|vinp|vocPreset/.test(sel.id + ' ' + sel.className) || /^rk-\w+-$/.test(sel.id)) && sel.options.length > 2);
+  const btns = sheetCard.querySelector('#tauPresets:not([hidden])');
+  if (!sels.length && !(btns && btns.offsetParent)) return null;
+  return () => {
+    if (btns && btns.offsetParent && !sels.length){ const bs = [...btns.querySelectorAll('button')]; bs[Math.floor(Math.random() * bs.length)].click(); }
+    else {
+      // a random one of the preset menus on this page (the first visible one most of the time)
+      const sel = Math.random() < .7 ? sels[0] : sels[Math.floor(Math.random() * sels.length)];
+      const opts = [...sel.options].filter(o => o.value !== '' && !/Choose|Custom|Presets…|Init/.test(o.textContent) && o.value !== sel.value);
+      if (!opts.length) return;
+      const o = opts[Math.floor(Math.random() * opts.length)]; sel.value = o.value; sel.dispatchEvent(new Event('change', {bubbles:true}));
+      toast('🎲 ' + o.textContent.replace(/^\d+\.\s*/, ''));
+    }
+    setTimeout(() => { const f = hearFor(sheetCard); if (f) try { f(); } catch(e){} }, 120);
+  };
+}
+function randPaint(){ const b = $('#sheetRand'); if (b){ const f = randPick(); b.hidden = !f; } }
+$('#sheetRand').addEventListener('click', () => { const f = randPick(); if (f) f(); setTimeout(randPaint, 200); });
 
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
@@ -6679,6 +6701,7 @@ function remark(){
   chop.sel = Math.min(chop.sel, chop.markers.length - 1);
 }
 function setChopSource(buf, name){
+  if (!buf){ toast('That pad has no sound to chop yet. Load one first.'); return; }
   chop.buf = buf; chop.name = (name || 'Chop').slice(0, 10); chop.sel = 0; chop.peaks = null;
   if (chop.mode === 'manual') chop.markers = [0];
   remark(); renderChop();
@@ -6802,8 +6825,8 @@ $('#chopFile').addEventListener('change', async e => {
 $('#chopRec').addEventListener('click', toggleChopRec);
 $('#chopFromTrack').addEventListener('focus', () => { $('#chopFromTrack').innerHTML = '<option value="">From track…</option>' + S.audio.filter(t => t.clip).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join(''); });
 $('#chopFromTrack').addEventListener('change', e => { const t = trackById(e.target.value); if (t && buffers.get(t.clip)){ setChopSource(buffers.get(t.clip), t.name); chop.bars = Math.max(1, t.clipSteps / 16); saveChop(); renderChop(); } e.target.value = ''; });
-$('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
-$('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; if (!p.sample){ toast('This pad is empty.'); return; } chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
+$('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; if (!p.sample){ toast('This pad is empty.'); return; } ensureKitBuf(p.sample); if (!buffers.get(p.sample)){ toast('That pad has no sound to chop yet.'); return; } setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
+$('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; if (!p.sample){ toast('This pad is empty.'); return; } ensureKitBuf(p.sample); chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
 document.querySelectorAll('#v-chop .seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
 $('#chopN').addEventListener('change', e => { chop.n = +e.target.value; remark(); saveChop(); renderChop(); });
 let sensT = 0;
