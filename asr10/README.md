@@ -22,7 +22,7 @@ switch off and boot your stock disk again. No chips are changed.
 | Panel explorer: shows the code of each button press | **works** for buttons; keyboard and slider use other hardware |
 | MIDI Out from our OS | **works** (port set up from scratch) |
 | ROM dump over MIDI SysEx (`tools/syx2rom.py`) | **done**: ROM 1.5b, verified against MAME's checksums |
-| Keyboard calibration message on the stock OS | found: OS 3.53 asks for tuning on every boot; `make stock-patched` skips it (one byte); cause of the failure still to find |
+| Keyboard calibration message on the stock OS | **gone** with `make stock-patched` (one byte; confirmed: boots and loads banks); cause of the failure still to find |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
 | Floppy and SCSI drivers, effects | — |
