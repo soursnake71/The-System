@@ -966,7 +966,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-start" open><summary>Getting started</summary>
       <p>The Omega System is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, patterns for song parts, and export to WAV, MP3, stems and MIDI.</p>
       <h3>Install it like an app</h3>
-      <ol><li>Open the app in Chrome.</li><li>Tap Chrome's ⋮ menu, then <b>Add to Home screen</b>.</li><li>Open it from the home screen icon. It runs full-screen and works offline after the first visit (MP3 export needs internet the first time).</li></ol>
+      <ol><li>Android: open the app in Chrome, tap Chrome's ⋮ menu, then <b>Add to Home screen</b>. iPhone: open it in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</li><li>Open it from the home screen icon. It runs full-screen and works offline after the first visit (MP3 export needs internet the first time).</li></ol>
       <h3>Your first beat in a minute</h3>
       <ol><li>On <b>Drums</b>, tap pads to hear the built-in kit.</li><li>Tap <b>Overdub</b> (or the round record button at the top). You get a one-bar count-in, then the loop plays.</li><li>Play pads in time. Each pass layers on top. Tap ■ to stop.</li><li>Made a mistake? <b>Undo</b> removes the last pass.</li></ol>
       <p>Everything saves automatically on this phone. Nothing is uploaded anywhere.</p>
@@ -1487,7 +1487,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v86</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v87</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4202,7 +4202,7 @@ function latSec(){
 }
 async function enableInput(){
   ensureAudio(); await ctx.resume();
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('This browser cannot use audio inputs. Open the app over https in Chrome.'); return false; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('This browser cannot use audio inputs. Open the app over https in ' + (IOS ? 'Safari.' : 'Chrome.')); return false; }
   try {
     if (inStream) inStream.getTracks().forEach(t => t.stop());
     if (inSrc) inSrc.disconnect();
@@ -4220,7 +4220,7 @@ async function enableInput(){
   } catch (e){
     console.warn(e);
     if (S.device && e.name === 'OverconstrainedError'){ S.device = ''; save(); return enableInput(); }
-    toast(e.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow it in Chrome site settings, then try again.' : 'Could not open the input: ' + e.message);
+    toast(e.name === 'NotAllowedError' ? (IOS ? 'Microphone permission was denied. Allow it in Settings → Safari → Microphone, then try again.' : 'Microphone permission was denied. Allow it in Chrome site settings, then try again.') : 'Could not open the input: ' + e.message);
     renderInput(); return false;
   }
 }
@@ -5762,6 +5762,7 @@ function renderExport(){
 /* ================= UI ================= */
 let toastT = 0;
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const padLabel = i => 'A' + String(i + 1).padStart(2, '0');
 const fmtDb = g => g <= 0.0001 ? '−∞' : (20 * Math.log10(g)).toFixed(1);
 
@@ -9018,7 +9019,7 @@ function pickPorts(){
   renderMidi();
 }
 async function connectMidi(){
-  if (!navigator.requestMIDIAccess){ toast('This browser has no MIDI support. Use Chrome.'); return; }
+  if (!navigator.requestMIDIAccess){ toast(IOS ? 'iPhone and iPad browsers have no MIDI, so MIDI devices can’t connect. Everything else works.' : 'This browser has no MIDI support. Use Chrome.'); return; }
   try {
     midi = await navigator.requestMIDIAccess({sysex:false});
     midi.onstatechange = () => pickPorts();
