@@ -4,13 +4,12 @@
  * sends control codes, since unknown codes may mean something to the panel
  * controller.
  *
- *   - Display, first a MIDI port report (all hex):
- *       "A" status of channel A before and after switching its transmitter
- *           on (bit 2 = ready to send),
- *       "M" its two mode registers (MR2 bit 4 = transmitter waits for CTS),
- *       "I" the input pins (CTS for channel A is pin 0),
- *       then "TX" once the first ROM message has gone out, or "NOTX" if the
- *       port never became ready.
+ *   - Display, first a short MIDI port report: "A" then channel A's status
+ *     (hex; bit 2 = ready to send) as the ROM left it, after switching the
+ *     transmitter on, and after setting the port up from scratch; then
+ *     "TX" once the first ROM message has gone out, or "NOTX" if the port
+ *     never became ready. Kept short: on the ASR-10 a longer report wrapped
+ *     and overwrote itself.
  *     Then "KEYS" and, for every byte the panel sends (button presses), its
  *     value in hex.
  *   - MIDI Out: the boot ROM, 0xF80000-0xFBFFFF, as a loop of SysEx
@@ -74,20 +73,13 @@ int main(void)
 {
     unsigned long addr = ROM_START, spins = 0;
     int pos = 0, reported = 0;
-    unsigned char mr1, mr2;
 
     panel_puts(" A");
     panel_hex(DUART_SRA);
     midi_init();
     panel_hex(DUART_SRA);
-    DUART_CRA = DUART_CR_MR_PTR;
-    mr1 = DUART_MRA;
-    mr2 = DUART_MRA;
-    panel_puts(" M");
-    panel_hex(mr1);
-    panel_hex(mr2);
-    panel_puts(" I");
-    panel_hex(DUART_IP);
+    midi_setup();
+    panel_hex(DUART_SRA);
     build_frame(addr);
     for (;;) {
         if (!reported && ++spins == FIRST_FRAME_TIMEOUT) {

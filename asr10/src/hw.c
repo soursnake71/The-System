@@ -28,6 +28,23 @@ void midi_init(void)
     DUART_CRA = DUART_CR_TX_ON;
 }
 
+/* Sets channel A up for MIDI from scratch: 8 data bits, no parity, 1 stop
+ * bit, no handshake, and both directions clocked from external pins at 16x
+ * (clock select E). That is how MAME wires Ensoniq's VFX boards, which
+ * feed 500 kHz to those pins: 500 kHz / 16 = 31,250 baud. On the ASR-10,
+ * switching the transmitter on without this left it never ready to send. */
+void midi_setup(void)
+{
+    DUART_CRA = DUART_CR_TX_RST;
+    DUART_CRA = DUART_CR_RX_RST;
+    DUART_CRA = DUART_CR_ERR_RST;
+    DUART_CRA = DUART_CR_MR_PTR;
+    DUART_MRA = 0x13;   /* MR1: no parity, 8 bits */
+    DUART_MRA = 0x07;   /* MR2: normal mode, no CTS/RTS, 1 stop bit */
+    DUART_CSRA = 0xEE;  /* external clock pins, 16x, receive and transmit */
+    DUART_CRA = DUART_CR_TX_ON | 0x01;  /* transmitter and receiver on */
+}
+
 int midi_tx(unsigned char byte)
 {
     return duart_tx(&DUART_SRA, &DUART_THRA, byte);

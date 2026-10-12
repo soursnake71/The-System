@@ -99,7 +99,7 @@ class EmulationTests(unittest.TestCase):
         out, _ = self.emulate.run(self.os_file, 0xE00, 6_000_000, rom=self.rom,
                                   panel_input=bytes([0xC5]))
         # MIDI port report (transmitter off, then on), first message sent, a key
-        self.assertEqual(bytes(out["panel"]), b" A 00 04 M 00 00 I 00 TX KEYS C5")
+        self.assertEqual(bytes(out["panel"]), b" A 00 04 04 TX KEYS C5")
         good, _ = syx2rom.parse(bytes(out["midi"]))
         self.assertGreater(len(good), 100)
         self.assertIn(0xF80000, good)
@@ -108,7 +108,7 @@ class EmulationTests(unittest.TestCase):
 
     def test_waits_for_panel_replies(self):
         out, _ = self.emulate.run(self.os_file, 0xE00, 3_000_000, rom=self.rom, panel_replies=True)
-        self.assertTrue(bytes(out["panel"]).startswith(b" A 00 04 M"))
+        self.assertTrue(bytes(out["panel"]).startswith(b" A 00 04 04"))
         self.assertEqual(out["replies_read"], len(out["panel"]))
 
 
