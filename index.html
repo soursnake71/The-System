@@ -151,6 +151,8 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 #sheetBody .ctls > *{break-inside:avoid;margin-bottom:6px}
 #sheetBody .p5sec > .fh, #sheetBody .unit > .fh, #sheetBody .ctl, #sheetBody .row{break-inside:avoid}
 .view > .card:not(.sdj):not(.trk){display:none !important}
+.kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
+.kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
 .chipbar button{flex:1 1 auto;padding:10px 8px;font-size:12px;white-space:nowrap}
 .chipbar button.on{background:var(--accent);color:var(--accent-ink)}
@@ -728,6 +730,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <section class="view" id="v-synth" hidden>
     <div class="scenebar" id="synthBar" role="group" aria-label="Synth tracks"></div>
       <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><button id="octDown" aria-label="Octave down">−</button><button id="octUp" aria-label="Octave up">+</button><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
+      <div class="kbwhy" id="kbWhy" hidden><span id="kbWhyT" class="grow"></span><button id="kbWhyFix" class="nolearn">Fix</button></div>
       <div class="keys" id="keys"></div>
       <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
     <div class="card" data-title="Notes">
@@ -1323,7 +1326,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v54</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v55</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -2136,10 +2139,10 @@ function applyVocoders(rig){
     const msg = {on:1, bands:V.bands, cons:V.cons, bal:V.bal, harm:V.harm, ens:V.ens ? 1 : 0, hold:vocHold ? 1 : 0, growl:V.growl || 0, sib:V.sib == null ? .7 : V.sib, vol:V.vol == null ? 1 : V.vol, clev:V.clev || 0};
     if (want && !st.voc){
       st.voc = new AudioWorkletNode(c, 'svc350', {numberOfInputs:2, numberOfOutputs:1, outputChannelCount:[2], processorOptions:msg});
-      st.vocIn.disconnect(); st.voc.connect(st.vocOut); st.vocCar = null;
+      st.vocIn.disconnect(); st.voc.connect(st.vocOut); st.vocCar = null; st.vocDry = false;
     } else if (!want && st.voc){
       st.vocIn.disconnect(); if (st.vocCar && st.vocCar !== st.vocIn){ try { st.vocCar.disconnect(st.voc); } catch(e){} }
-      try { st.voc.disconnect(); } catch(e){} st.voc = null; st.vocMod = null; st.vocCar = null; st.vocIn.connect(st.vocOut);
+      try { st.voc.disconnect(); } catch(e){} st.voc = null; st.vocMod = null; st.vocCar = null; st.vocDry = false; st.vocIn.connect(st.vocOut);
     }
     if (!st.voc) continue;
     st.voc.port.postMessage(msg);
@@ -2151,6 +2154,10 @@ function applyVocoders(rig){
     }
     const src = V.src === 'input' ? (rig === live ? inSrc : null) : (rig.strips.get(V.src) || {}).input;
     if (st.vocMod !== src){ if (st.vocMod){ try { st.vocMod.disconnect(st.voc); } catch(e){} } if (src) src.connect(st.voc, 0, 1); st.vocMod = src || null; }
+    // no voice to vocode (input not on, or no source track): let the synth through dry so the keys are never silent
+    const dry = !src && car === st.vocIn;
+    if (dry && !st.vocDry){ st.vocIn.connect(st.vocOut); st.vocDry = true; }
+    else if (!dry && st.vocDry){ try { st.vocIn.disconnect(st.vocOut); } catch(e){} st.vocDry = false; }
   }
 }
 
@@ -3386,7 +3393,7 @@ function ensureAudio(){
     capNode.port.onmessage = e => capChunks.push(e.data);
     capNode.connect(silent);
     if (inSrc) inSrc.connect(capNode);
-  }).catch(e => { console.warn(e); toast('Recording is not supported in this browser.'); });
+  }).catch(e => { console.warn(e); workletFailed = !ctx._reduxOK; lastAudioErr = String(e && e.message || e); toast(workletFailed ? 'The synth engines could not start (' + lastAudioErr.slice(0, 60) + '). Basic synth in use.' : 'Audio setup problem: ' + lastAudioErr.slice(0, 80)); kbWhy(); });
   requestAnimationFrame(frame);
   return ctx;
 }
@@ -6542,7 +6549,8 @@ function solFinish(rig){
   }
 }
 function synthVoice(rig, tr, note, t, vel, dur, extra){
-  if (INST[tr.inst]){
+  // the modeled synths run in an AudioWorklet; if that couldn't start on this phone, fall back to the basic synth so keys still sound
+  if (INST[tr.inst] && rig.c._reduxOK !== false && (rig !== live || rig.c._reduxOK)){
     const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel, sl:extra && extra.sl ? 1 : 0});
     let done = false;
     const release = at => { if (done) return; done = true; solSend(rig, tr, {f:Math.round(Math.max(at, t + .005) * fs), off:note}); };
@@ -6664,7 +6672,22 @@ function pianoPress(pid, k, e){
   box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up); box.addEventListener('lostpointercapture', up);
   box.addEventListener('contextmenu', e => e.preventDefault());
 })();
+let workletFailed = false, lastAudioErr = '';
+function kbWhy(){
+  const el = $('#kbWhy'); if (!el) return; const tr = curSynth(); if (!tr){ el.hidden = true; return; }
+  let msg = '', fix = null;
+  if (ctx && workletFailed){ msg = 'The modeled synths could not start on this phone, so the keys play a basic synth. Try closing and reopening the app.'; fix = null; }
+  else if (tr.mute){ msg = tr.name + ' is muted.'; fix = () => { tr.mute = false; }; }
+  else if (anySolo() && !tr.solo){ msg = 'Another track is soloed, so ' + tr.name + ' is silent.'; fix = () => allTracks().forEach(t => t.solo = false); }
+  else if (tr.vol < .05){ msg = tr.name + "'s fader is all the way down."; fix = () => { tr.vol = .8; }; }
+  else if (tr.voc && tr.voc.on && (tr.voc.src !== 'input' || inSrc)){ msg = 'Vocoder is on: the keys play through it and only sound while the voice plays.'; fix = () => { tr.voc.on = false; }; }
+  else if (tr.arp && tr.arp.on){ msg = 'Arp is on: held keys play as an arpeggio.'; fix = () => { tr.arp.on = false; arpClear(tr); }; }
+  el.hidden = !msg; $('#kbWhyT').textContent = msg; el._fix = fix; $('#kbWhyFix').hidden = !fix;
+  $('#kbWhyFix').textContent = tr.arp && tr.arp.on && msg.startsWith('Arp') ? 'Arp off' : msg.startsWith('Vocoder') ? 'Vocoder off' : 'Fix';
+}
+$('#kbWhyFix').addEventListener('click', () => { const f = $('#kbWhy')._fix; if (f){ f(); applyAll(); save(); renderSynth(); if (view === 'mixer') renderMixer(); kbWhy(); toast('Done. The keys play the synth now.'); } });
 function renderPlaySurface(){
+  setTimeout(kbWhy, 0);
   const piano = S.kbMode === 'piano';
   $('#keys').hidden = piano; $('#piano').hidden = !piano; $('#kbSpan').hidden = !piano;
   $('#kbSpan').value = String(S.kbSpan || 2);
