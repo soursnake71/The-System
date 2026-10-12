@@ -50,14 +50,8 @@ int midi_tx(unsigned char byte)
     return duart_tx(&DUART_SRA, &DUART_THRA, byte);
 }
 
-static void panel_drain(void)
-{
-    while (DUART_SRB & DUART_RXRDY)
-        (void)DUART_RHRB;
-}
-
-/* Sends one byte without waiting for a reply, for commands whose answer
- * the caller wants to read itself (the ROM sends 7F FF FD this way). */
+/* Sends one byte without waiting, for commands whose answer the caller
+ * reads itself (the ROM sends 7F FF FD this way). */
 int panel_tx_raw(unsigned char byte)
 {
     return duart_tx(&DUART_SRB, &DUART_THRB, byte);
@@ -72,18 +66,20 @@ int panel_rx_wait(unsigned long polls)
     return -1;
 }
 
-/* Sends one byte, then waits for the panel's reply (or a short timeout)
- * before the next one can go. */
+/* Sends one byte, then gives the panel time to take it: waits until a
+ * byte comes back (the ROM's handshake reads one) or PANEL_REPLY_TIMEOUT
+ * polls pass. Anything received is handed to panel_rx_push, not dropped:
+ * after keyboard start-up the panel streams data constantly, and an
+ * earlier version that discarded input lost button presses. */
 int panel_tx(unsigned char byte)
 {
     unsigned long n;
 
-    panel_drain();
     if (duart_tx(&DUART_SRB, &DUART_THRB, byte))
         return -1;
     for (n = 0; n < PANEL_REPLY_TIMEOUT; n++) {
         if (DUART_SRB & DUART_RXRDY) {
-            (void)DUART_RHRB;
+            panel_rx_push(DUART_RHRB);
             return 0;
         }
     }

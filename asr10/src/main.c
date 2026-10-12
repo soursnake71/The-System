@@ -8,9 +8,10 @@
  *
  *   Line 1: "THE SYSTEM", the answer to each tuning attempt ("--" = none),
  *           and later a count of bytes received from the panel.
- *   Line 2: "LAST" the last four bytes, and "NEW" the last four bytes that
- *           were not 22, 00 or 79 (on the ASR-10 the panel sends 22 00 and
- *           79 00 continuously after D5), redrawn regularly.
+ *   Line 2: "NEW" the last three bytes that were not 22, 00 or 79 (on the
+ *           ASR-10 the panel sends 22 00 and 79 00 continuously after D5),
+ *           and "BTN" the last byte of 80 or more (a button press).
+ *   Nothing the panel sends is dropped, even while the display is drawn.
  *   MIDI Out: every byte the panel sends, as SysEx F0 7D 'P' hi lo F7
  *   (hi and lo are its two hex digits as numbers 0-15), sent as they
  *   arrive, so a MIDI monitor shows the whole stream.
@@ -34,10 +35,34 @@
 #define LINE2           40
 
 #define RING            256    /* bytes waiting to go out on MIDI */
-#define REDRAW          60000UL /* loop passes between display redraws */
+#define REDRAW          300000UL /* loop passes between display redraws */
 
 static unsigned char ring[RING];
 static unsigned int head, tail;
+
+/* What the display shows, updated as bytes arrive. */
+static unsigned char fresh[3], button;
+static unsigned long count;
+static int dirty;
+
+void panel_rx_push(unsigned char b)
+{
+    int i;
+
+    if ((head + 1) % RING != tail) {
+        ring[head] = b;
+        head = (head + 1) % RING;
+    }
+    if (b != 0x22 && b != 0x00 && b != 0x79) {
+        for (i = 0; i < 2; i++)
+            fresh[i] = fresh[i + 1];
+        fresh[2] = b;
+    }
+    if (b >= 0x80)
+        button = b;
+    count++;
+    dirty = 1;
+}
 
 static void panel_at(unsigned char pos)
 {
@@ -92,9 +117,8 @@ static void midi_pump(void)
 
 int main(void)
 {
-    unsigned char last[4] = { 0, 0, 0, 0 }, fresh[4] = { 0, 0, 0, 0 };
-    unsigned long count = 0, since = 0;
-    int dirty = 0, i;
+    unsigned long since = 0;
+    int i;
 
     midi_setup();
     panel_tx(PANEL_INIT1);
@@ -132,40 +156,22 @@ int main(void)
     panel_puts("PLAY KEYS OR PRESS BUTTONS");
 
     for (;;) {
-        if (DUART_SRB & DUART_RXRDY) {
-            unsigned char b = DUART_RHRB;
-
-            if ((head + 1) % RING != tail) {
-                ring[head] = b;
-                head = (head + 1) % RING;
-            }
-            for (i = 0; i < 3; i++)
-                last[i] = last[i + 1];
-            last[3] = b;
-            if (b != 0x22 && b != 0x00 && b != 0x79) {
-                for (i = 0; i < 3; i++)
-                    fresh[i] = fresh[i + 1];
-                fresh[3] = b;
-            }
-            count++;
-            dirty = 1;
-        }
+        if (DUART_SRB & DUART_RXRDY)
+            panel_rx_push(DUART_RHRB);
         if (dirty && ++since > REDRAW) {
             panel_at(28);
             panel_puts("BYTES ");
             panel_hex((unsigned char)(count >> 8));
             panel_hex((unsigned char)count);
             panel_at(LINE2);
-            panel_puts("LAST ");
-            for (i = 0; i < 4; i++) {
-                panel_hex(last[i]);
-                panel_putc(' ');
-            }
-            panel_puts(" NEW ");
-            for (i = 0; i < 4; i++) {
+            panel_puts("NEW ");
+            for (i = 0; i < 3; i++) {
                 panel_hex(fresh[i]);
                 panel_putc(' ');
             }
+            panel_puts(" BTN ");
+            panel_hex(button);
+            panel_puts("          ");
             dirty = 0;
             since = 0;
         }

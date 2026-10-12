@@ -35,6 +35,10 @@ void midi_init(void);
 void midi_setup(void);
 int midi_tx(unsigned char byte);
 int panel_tx(unsigned char byte);
+
+/* Called with every byte read from the panel while panel_tx waits, so
+ * nothing the panel sends is thrown away. Provided by the program. */
+void panel_rx_push(unsigned char byte);
 int panel_tx_raw(unsigned char byte);
 int panel_rx_wait(unsigned long polls);
 void delay(unsigned long loops);

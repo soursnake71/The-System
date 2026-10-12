@@ -115,8 +115,17 @@ class EmulationTests(unittest.TestCase):
                                   panel_input=bytes([0xC5]))
         self.assertEqual(bytes(out["panel"]),
                          INTRO + b"\x60\x1c" + steady(b"BYTES 0001")
-                         + b"\x60\x28" + steady(b"LAST 00 00 00 C5  NEW 00 00 00 C5 "))
+                         + b"\x60\x28" + steady(b"NEW 00 00 C5  BTN C5" + b" " * 10))
         self.assertEqual(bytes(out["midi"]), bytes.fromhex("f07d500c05f7"))
+
+    def test_button_press_survives_the_stream(self):
+        stream = bytes([0x22, 0x00] * 5 + [0x82, 0x02] + [0x22, 0x00] * 3)
+        out, _ = self.emulate.run(self.os_file, 0xE00, 80_000_000, panel_answers=TUNE_FAILED,
+                                  panel_input=stream)
+        midi = bytes(out["midi"])
+        forwarded = bytes((midi[i + 3] << 4) | midi[i + 4] for i in range(0, len(midi), 6))
+        self.assertEqual(forwarded, stream)
+        self.assertIn(steady(b"BTN 82"), bytes(out["panel"]))
 
 
 if __name__ == "__main__":
