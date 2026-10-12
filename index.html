@@ -171,6 +171,8 @@ html.retro .eq11 input::-webkit-slider-thumb, html.retro .mxch input.chfader::-w
 html.retro .mxch input.chfader{width:44px !important;min-height:180px}
 html.retro input.xfader, input.xfader{height:60px !important}
 html.retro input.xfader::-webkit-slider-thumb{width:34px !important;height:54px !important;margin-top:-22px !important}
+*{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+input[type=text],input[type=search],input:not([type]),textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 .kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
 .kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
@@ -184,6 +186,10 @@ html.retro input.xfader::-webkit-slider-thumb{width:34px !important;height:54px 
 .view > .card.sdj > *{display:revert !important}
 #padMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
 #padMenu[open]{display:flex}
+#synMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
+#synMenu[open]{display:flex}
+#synMenu::backdrop{background:#000a}
+#synMenu h2{margin:0 0 4px}
 #clearMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
 #clearMenu[open]{display:flex}
 #clearMenu::backdrop{background:#000a}
@@ -963,6 +969,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li>Press record while the arp plays and its notes are written into the pattern.</li>
       </ul>
     </details>
+    <details id="h-syntabs"><summary>Synth tracks</summary>
+      <p>The tabs at the top of the Synth screen are your synth tracks (up to 4). <b>+</b> adds one. <b>Press and hold a tab</b> to rename it, duplicate it, or delete it.</p>
+    </details>
     <details id="h-hear"><summary>▶ Hear on every page</summary>
       <p>Each page that makes sound has a green <b>▶ Hear</b> (or <b>▶ Play</b>) button at the top. Pad sound plays the pad. Sound plays a chord on the synth. Arp plays a chord through the arpeggiator. Speech and Vocoder say your line. Effects and FX rack play a short beat through the effects. Sequencer, Notes, Patterns and Song start and stop the beat. Turntable starts and stops the record, and Sampler and Chop play the sound.</p>
     </details>
@@ -1350,7 +1359,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v59</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v60</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1368,6 +1377,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <button data-a="load" class="nolearn">Load…</button>
   <button data-a="builtin" class="nolearn">Built-in sound</button>
   <button data-a="all" class="nolearn">Clear all pads…</button>
+  <button data-a="x" class="nolearn">Cancel</button>
+</dialog>
+<dialog id="synMenu" aria-labelledby="synMenuT"><h2 id="synMenuT">Prophet 1</h2>
+  <button data-a="rename" class="nolearn">Rename</button>
+  <button data-a="dup" class="nolearn">Duplicate</button>
+  <button data-a="del" class="nolearn">Delete this synth</button>
   <button data-a="x" class="nolearn">Cancel</button>
 </dialog>
 <dialog id="clearMenu" aria-labelledby="clearMenuT"><h2 id="clearMenuT">Clear all 16 pads</h2>
@@ -4745,6 +4760,10 @@ function hearPaint(){ const b = $('#sheetHear'); if (!b) return; const f = hearF
   b.textContent = toggles ? (sheetCard.classList.contains('tt') || sheetCard.classList.contains('mixdj') ? (deckState().on ? '■ Stop' : '▶ Play') : (playing ? '■ Stop' : '▶ Play')) : '▶ Hear'; }
 $('#sheetHear').addEventListener('click', () => { const b = $('#sheetHear'); if (b._f){ try { b._f(); } catch(e){ console.warn(e); } } setTimeout(hearPaint, 150); });
 
+// a long press must never pop up the phone's copy / select / share menu
+document.addEventListener('contextmenu', e => { if (!e.target.closest('input[type=text], input[type=search], input:not([type]), textarea')) e.preventDefault(); }, {capture:true});
+document.addEventListener('selectstart', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); }, {capture:true});
+
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
 const foldKey = (el, head) => { const v = el.closest('.view'); return (v ? v.id : 'v-' + view) + ':' + (el.dataset.title || head.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40); };
@@ -6831,10 +6850,41 @@ function frameRoll(){
   rollGeo.g.fillStyle = drumRec ? '#ff4d5e' : getComputedStyle(document.documentElement).getPropertyValue('--fg');
   rollGeo.g.fillRect(Math.round(rollGeo.X(tick)), 0, 2 * (devicePixelRatio || 1), rollGeo.h);
 }
+let synMenuK = 0;
+function synMenuOpen(k){ synMenuK = k; $('#synMenuT').textContent = S.synths[k].name; $('#synMenu').querySelector('[data-a=del]').disabled = S.synths.length < 2; $('#synMenu').querySelector('[data-a=dup]').disabled = S.synths.length >= 4; if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){} $('#synMenu').showModal(); }
+function deleteSynth(k){
+  const tr = S.synths[k]; if (!tr || S.synths.length < 2) return;
+  storeScene(); pushUndo(); undoPass = null;
+  if (live){ const st = live.strips.get(tr.id); if (st){ try { st.mute.disconnect(); } catch(e){} live.strips.delete(tr.id); }
+    if (live.sol) for (const key in live.sol) if (key.startsWith(tr.id + ':')){ try { live.sol[key].disconnect(); } catch(e){} delete live.sol[key]; } }
+  S.synths.splice(k, 1);
+  (S.scenes || []).forEach(sc => { if (sc.synth) delete sc.synth[tr.id]; });
+  S.synths.forEach(t => { if (t.voc && t.voc.car === tr.id) t.voc.car = 'self'; });
+  if (S.midiTarget === tr.id) S.midiTarget = S.synths[0].id;
+  if (selStrip === tr.id) selStrip = 'drums';
+  selSynth = clamp(selSynth >= k ? selSynth - 1 : selSynth, 0, S.synths.length - 1);
+  save(); renderSynth(); toast(tr.name + ' deleted.');
+}
+$('#synMenu').addEventListener('click', e => {
+  const d = $('#synMenu'), b = e.target.closest('button'); if (e.target === d){ d.close(); return; } if (!b) return;
+  const a = b.dataset.a, k = synMenuK, tr = S.synths[k]; d.close(); if (!tr || a === 'x') return;
+  if (a === 'rename'){ const n = (prompt('Name this synth', tr.name) || '').trim().slice(0, 14); if (n){ tr.name = n; save(); renderSynth(); } }
+  else if (a === 'del'){ if (confirm('Delete ' + tr.name + ' and its notes in every pattern?')) deleteSynth(k); }
+  else if (a === 'dup'){
+    if (S.synths.length >= 4) return; let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
+    const cp = JSON.parse(JSON.stringify(tr)); cp.id = 's' + n; cp.name = (tr.name.replace(/ \d+$/, '') + ' ' + n).slice(0, 14); S.synths.push(cp);
+    if (live){ const st = makeStrip(ctx, live.master); live.strips.set(cp.id, st); applyStrip(ctx, st, cp); }
+    selSynth = S.synths.length - 1; save(); renderSynth(); toast('Made ' + cp.name + ' as a copy.');
+  }
+});
 function renderSynth(){
   renderArp();
   const bar = $('#synthBar'); bar.innerHTML = '';
-  S.synths.forEach((t, k) => { const b = document.createElement('button'); b.textContent = t.name; b.classList.toggle('on', k === selSynth); b.addEventListener('click', () => { selSynth = k; renderSynth(); }); bar.appendChild(b); });
+  S.synths.forEach((t, k) => { const b = document.createElement('button'); b.textContent = t.name; b.classList.toggle('on', k === selSynth);
+    let ht = 0, held = false;
+    b.addEventListener('pointerdown', () => { held = false; clearTimeout(ht); ht = setTimeout(() => { held = true; synMenuOpen(k); }, 600); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => clearTimeout(ht)));
+    b.addEventListener('click', () => { if (held){ held = false; return; } selSynth = k; renderSynth(); }); bar.appendChild(b); });
   const add = document.createElement('button'); add.textContent = '+'; add.setAttribute('aria-label', 'Add synth track'); add.disabled = S.synths.length >= 4;
   add.addEventListener('click', () => {
     let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
