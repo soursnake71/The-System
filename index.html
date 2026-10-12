@@ -173,6 +173,10 @@ html.retro input.xfader, input.xfader{height:60px !important}
 html.retro input.xfader::-webkit-slider-thumb{width:34px !important;height:54px !important;margin-top:-22px !important}
 *{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 input[type=text],input[type=search],input:not([type]),textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.pad .smoke{position:absolute;pointer-events:none;border-radius:50%;z-index:3;opacity:0;
+  background:radial-gradient(circle at 45% 45%,rgba(255,255,255,.95),rgba(170,170,170,.55) 40%,rgba(110,110,110,.2) 60%,rgba(110,110,110,0) 72%);
+  filter:blur(1.5px);animation:smoke var(--dur,1s) ease-out forwards;transform:translate(-50%,0) scale(.4)}
+@keyframes smoke{0%{opacity:0;transform:translate(-50%,0) scale(.4)}15%{opacity:.85}100%{opacity:0;transform:translate(calc(-50% + var(--dx,0px)),var(--rise,-60px)) scale(2.1)}}
 .kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
 .kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
@@ -1340,6 +1344,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
+      <div class="row"><span class="grow">Smoke off the pads</span><button id="smokeOn" class="nolearn">On</button></div>
       <div class="row"><span class="grow">Bluetooth headphones</span><button id="btOn" class="nolearn">Off</button></div>
       <div class="ctl"><label class="label" for="btMs">BT offset</label><input id="btMs" type="range" min="0" max="500" step="1"><span class="v mono" id="btMsV">0 ms</span></div>
       <div class="row"><button id="btMeasure" class="grow nolearn">Measure: tap along to 12 clicks</button></div>
@@ -1367,7 +1372,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v64</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v65</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -5013,6 +5018,7 @@ function renderTransport(){
 }
 function renderBt(){
   const on = $('#btOn'); if (!on) return;
+  $('#smokeOn').textContent = S.smoke === false ? 'Off' : 'On'; $('#smokeOn').classList.toggle('on', S.smoke !== false);
   if (S.btMs == null) S.btMs = 180;
   on.classList.toggle('on', !!S.bt); on.textContent = S.bt ? 'On' : 'Off';
   $('#btMs').value = S.btMs; $('#btMsV').textContent = S.btMs + ' ms'; showLatency();
@@ -5145,7 +5151,21 @@ function flashPad(i, t){
   setTimeout(() => {
     const b = $(`.pad[data-i="${i}"]`); if (!b) return;
     b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90);
+    padSmoke(b);
   }, delay);
+}
+// a puff of smoke rises off the pad on every hit (light: a few GPU-animated blobs, capped)
+let smokeLive = 0;
+function padSmoke(b){
+  if (S.smoke === false || smokeLive > 36 || document.hidden) return;
+  const n = 4 + Math.floor(Math.random() * 3);
+  for (let k = 0; k < n; k++){
+    const e = document.createElement('i'); e.className = 'smoke';
+    const x = 20 + Math.random() * 60, dx = (Math.random() - .5) * 40, rise = 40 + Math.random() * 50, sz = 26 + Math.random() * 26, dur = 700 + Math.random() * 600;
+    e.style.cssText = `left:${x}%;bottom:${10 + Math.random() * 30}%;width:${sz}px;height:${sz}px;--dx:${dx}px;--rise:${-rise}px;--dur:${dur}ms;animation-delay:${k * 35}ms`;
+    b.appendChild(e); smokeLive++;
+    setTimeout(() => { e.remove(); smokeLive--; }, dur + k * 35 + 50);
+  }
 }
 function ctl(box, label, obj, key, min, max, step, fmt, after){
   const row = document.createElement('div'); row.className = 'ctl';
@@ -8145,6 +8165,7 @@ function renderSeqCtl(){
   $('#quant').value = S.quant; $('#repRate').value = S.repRate; $('#quantNow').disabled = S.quant <= 1;
   $('#fullLvl').classList.toggle('on', S.fullLevel); $('#fullLvl').textContent = S.fullLevel ? 'Full level' : 'By touch height';
 }
+$('#smokeOn').addEventListener('click', () => { S.smoke = S.smoke === false; save(); $('#smokeOn').textContent = S.smoke === false ? 'Off' : 'On'; $('#smokeOn').classList.toggle('on', S.smoke !== false); });
 $('#btOn').addEventListener('click', () => { S.bt = !S.bt; save(); renderBt(); toast(S.bt ? 'Bluetooth offset on: ' + S.btMs + ' ms.' : 'Bluetooth offset off.'); });
 $('#btMs').addEventListener('input', e => { S.btMs = +e.target.value; save(); renderBt(); });
 $('#btMeasure').addEventListener('pointerdown', e => { e.preventDefault(); btMeasure(); });
