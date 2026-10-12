@@ -24,6 +24,7 @@ switch off and boot your stock disk again. No chips are changed.
 | MIDI Out from our OS | **works** (port set up from scratch) |
 | ROM dump over MIDI SysEx (`tools/syx2rom.py`) | **done**: ROM 1.5b, verified against MAME's checksums |
 | Keyboard calibration message on the stock OS | **gone** with `make stock-patched` (one byte; confirmed: boots and loads banks); cause of the failure still to find |
+| Emulation engine (`emu/asr10.py`) | boots the real ROM to "PLEASE INSERT DISK"; floppy next |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
 | Floppy and SCSI drivers, effects | — |
@@ -40,6 +41,7 @@ tools/patch_os.py      checked one-byte patches to your own copy of Ensoniq's OS
 tools/syx2rom.py       rebuilds the boot ROM from the explorer's SysEx dump
 tools/rom-recorder.html  records that dump in Chrome (Web MIDI) and shows progress
 tests/                 tests, and a 68000 emulator harness (emulate.py)
+emu/                   ASR-10 emulation engine: runs the real ROM (needs local/asr10rom.bin)
 docs/hardware.md       hardware notes
 local/                 your Ensoniq disk images and ROM dumps (not committed)
 ```
