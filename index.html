@@ -293,6 +293,11 @@ html.retro #strips .strip input.fader{width:24px}
 #seq{width:100%;height:240px;background:#0c0e12;border-radius:8px;display:block;touch-action:manipulation}
 #odub.on{background:var(--rec);border-color:var(--rec);color:#fff}
 html #erase.on,html.retro #erase.on{background:#d62b22;border-color:#8e140e;color:#fff;animation:eraseFlash .6s steps(1) infinite}
+#damnSon{position:fixed;left:50%;top:18%;transform:translateX(-50%) rotate(-3deg);z-index:9999;background:#111;border:3px solid #ff3b30;border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 10px 30px #000a;animation:dsPop .35s cubic-bezier(.3,1.6,.5,1)}
+#damnSon b{color:#ffd23f;font:900 15px var(--f-display);letter-spacing:.04em;text-align:center}
+#damnSon iframe{border:0;border-radius:4px}
+#damnSon button{position:absolute;top:-12px;right:-12px;width:30px;height:30px;border-radius:50%;padding:0;background:#ff3b30;color:#fff;border:2px solid #111}
+@keyframes dsPop{from{transform:translateX(-50%) scale(.2) rotate(-20deg);opacity:0}}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -1415,6 +1420,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
       <div class="row"><span class="grow">Smoke and sparks off the pads</span><button id="smokeOn" class="nolearn">On</button></div>
+      <div class="row"><span class="grow">“Damn son, where’d you find this?” now and then when you load a sample</span><button id="dsOn" class="nolearn">On</button></div>
       <div class="row"><span class="grow">Bluetooth headphones</span><button id="btOn" class="nolearn">Off</button></div>
       <div class="ctl"><label class="label" for="btMs">BT offset</label><input id="btMs" type="range" min="0" max="500" step="1"><span class="v mono" id="btMsV">0 ms</span></div>
       <div class="row"><button id="btMeasure" class="grow nolearn">Measure: tap along to 12 clicks</button></div>
@@ -1446,7 +1452,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v80</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v81</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4295,7 +4301,19 @@ async function toggleSampling(){
   capOn(); sampling = {t:ctx.currentTime, pad:selPad};
   btn.classList.add('on'); btn.textContent = 'Stop sampling';
 }
+// every once in a while, loading a sample gets the "Damn son, where'd you find this?" (YouTube embed, needs internet)
+let dsLast = 0;
+function damnSon(force){
+  const now = Date.now();
+  if (!force && (S.damnSon === false || now - dsLast < 90000 || Math.random() > .2 || !navigator.onLine)) return;
+  dsLast = now; document.querySelector('#damnSon') && document.querySelector('#damnSon').remove();
+  const w = document.createElement('div'); w.id = 'damnSon';
+  w.innerHTML = '<b>DAMN SON, WHERE’D YOU FIND THIS?</b><iframe width="200" height="113" src="https://www.youtube-nocookie.com/embed/z8RkR4rd7dM?autoplay=1&playsinline=1&controls=0&rel=0" allow="autoplay; encrypted-media" title="Damn son"></iframe><button aria-label="Close">✕</button>';
+  w.querySelector('button').onclick = () => w.remove();
+  document.body.appendChild(w); setTimeout(() => w.remove(), 9000);
+}
 async function setPadBuffer(pi, buf, name, quiet){
+  setTimeout(() => damnSon(), 300);
   const p = S.drum.pads[pi], key = 'usr:' + pi + ':' + Date.now();
   dropAudio(p.sample);
   buffers.set(key, buf); p.sample = key; if (name) p.name = name.slice(0, 14); delete p.tempo; p.fit = 0;
@@ -5696,6 +5714,7 @@ function renderTransport(){
 function renderBt(){
   const on = $('#btOn'); if (!on) return;
   $('#smokeOn').textContent = S.smoke === false ? 'Off' : 'On'; $('#smokeOn').classList.toggle('on', S.smoke !== false);
+  $('#dsOn').textContent = S.damnSon === false ? 'Off' : 'On'; $('#dsOn').classList.toggle('on', S.damnSon !== false);
   if (S.btMs == null) S.btMs = 180;
   on.classList.toggle('on', !!S.bt); on.textContent = S.bt ? 'On' : 'Off';
   $('#btMs').value = S.btMs; $('#btMsV').textContent = S.btMs + ' ms'; showLatency();
@@ -9023,6 +9042,7 @@ function renderSeqCtl(){
   $('#quant').value = S.quant; $('#repRate').value = S.repRate; $('#quantNow').disabled = S.quant <= 1;
   $('#fullLvl').classList.toggle('on', S.fullLevel); $('#fullLvl').textContent = S.fullLevel ? 'Full level' : 'By touch height';
 }
+$('#dsOn').addEventListener('click', () => { S.damnSon = S.damnSon === false; save(); renderBt(); if (S.damnSon !== false) damnSon(true); });
 $('#smokeOn').addEventListener('click', () => { S.smoke = S.smoke === false; save(); $('#smokeOn').textContent = S.smoke === false ? 'Off' : 'On'; $('#smokeOn').classList.toggle('on', S.smoke !== false); });
 $('#btOn').addEventListener('click', () => { S.bt = !S.bt; save(); renderBt(); toast(S.bt ? 'Bluetooth offset on: ' + S.btMs + ' ms.' : 'Bluetooth offset off.'); });
 $('#btMs').addEventListener('input', e => { S.btMs = +e.target.value; save(); renderBt(); });
