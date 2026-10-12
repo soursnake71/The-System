@@ -292,7 +292,8 @@ html.retro #strips .strip input.fader{width:24px}
 
 #seq{width:100%;height:240px;background:#0c0e12;border-radius:8px;display:block;touch-action:manipulation}
 #odub.on{background:var(--rec);border-color:var(--rec);color:#fff}
-#erase.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+html #erase.on,html.retro #erase.on{background:#d62b22;border-color:#8e140e;color:#fff;animation:eraseFlash .6s steps(1) infinite}
+@keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
 .ctl{display:grid;grid-template-columns:72px 1fr 56px;gap:8px;align-items:center}
@@ -1445,7 +1446,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v79</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v80</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
