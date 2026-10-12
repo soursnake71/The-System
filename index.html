@@ -248,6 +248,8 @@ html.retro #strips .strip input.fader{width:24px}
 @media (max-width:430px){.trow2 #inBadge{display:none !important}}
 #padSet{white-space:nowrap;padding-left:8px !important;padding-right:8px !important}
 #padSet.on{background:var(--accent) !important;color:var(--accent-ink) !important}
+#lvl16.on{background:var(--accent);color:var(--accent-ink)}
+.pad.latched::before{box-shadow:0 0 0 3px #f5b301 !important}
 #padEdit.on{background:var(--accent);color:var(--accent-ink)}
 #pads.editing .pad::before{border-color:var(--accent) !important;border-style:dashed !important}
 #pads.editing{outline:2px dashed var(--accent);outline-offset:2px}
@@ -619,8 +621,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="odub" class="grow">Overdub</button>
         <button id="repeat" class="grow">Repeat</button>
         <button id="erase" class="grow">Erase</button>
+        <button id="lvl16" class="grow nolearn" title="16 Levels: the selected pad's sound pitched across all 16 pads">16 Lvl</button>
         <button id="padEdit" class="grow nolearn" title="Tap a pad to change, load or delete its sound">Edit</button>
-        <button id="padsClr" class="grow nolearn">Clear all</button>
+        <button id="padsClr" class="grow nolearn">Clear</button>
       </div>
     <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
     <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
@@ -800,7 +803,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="padsmp">Pad sample (keys)</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -822,6 +825,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="p5Wheel">Mod wheel</label><input id="p5Wheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="p5WheelV"></span></div>
         <div id="p5Body"></div>
         <p class="hint">Modeled on the Rev 3 Prophet-5: two CEM3340 oscillators, CEM3320 four-pole filter, two CEM3310 envelopes per voice, five voices. Knobs step in 128 increments like the original (pitch and cutoff move in semitones). Vintage sets how much the five voices differ and drift.</p>
+      </div>
+      <div id="psPanel" hidden>
+        <div class="ctl"><label class="label" for="psPad">Pad</label><select id="psPad"></select><span></span></div>
+        <p class="hint">The keys play this pad's sample at every pitch. C3 is its own pitch. Uses the pad's start/end, loop, reverse and level.</p>
       </div>
       <div id="obPanel" hidden>
         <div class="ctl"><label class="label" for="obPreset">Program</label><select id="obPreset"></select><span></span></div>
@@ -995,6 +1002,14 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </details>
     <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
       <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
+    </details>
+    <details id="h-16lvl"><summary>16 Levels, Erase, Repeat</summary>
+      <ul>
+        <li><b>16 Lvl</b>: tap a pad, then 16 Lvl. Every pad now plays that sound at a different pitch (A09 is its own pitch, one semitone per pad, A01 = −8 … A16 = +7). Record it like normal pads. Tap 16 Lvl again to go back.</li>
+        <li><b>Keys</b>: on the Synth tab, Sound → instrument <b>Pad sample (keys)</b> plays any pad's sample across the keyboard (C3 = its own pitch).</li>
+        <li><b>Erase</b>: turn it on, then tap a pad to delete its hits in this pattern. Undo brings them back.</li>
+        <li><b>Repeat</b>: while playing, tap a pad to start repeating it, tap again to stop. No holding needed.</li>
+      </ul>
     </details>
     <details id="h-hear"><summary>▶ Hear on every page</summary>
       <p>Each page that makes sound has a green <b>▶ Hear</b> (or <b>▶ Play</b>) button at the top. Pad sound plays the pad. Sound plays a chord on the synth. Arp plays a chord through the arpeggiator. Speech and Vocoder say your line. Effects and FX rack play a short beat through the effects. Sequencer, Notes, Patterns and Song start and stop the beat. Turntable starts and stops the record, and Sampler and Chop play the sound.</p>
@@ -1384,7 +1399,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v71</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v72</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -3820,7 +3835,7 @@ function scheduleNotes(rig, i, t){
     if (n.t < lo || n.t >= hi) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }   // already heard when it was played in
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
-    playPad(rig, S.drum.pads[n.p], at, n.v, n.d ? n.d * td : null, n.p);
+    playPad(rig, padAt(n.p, n.st || 0), at, n.v, n.d ? n.d * td : null, n.st ? 100 + n.p * 32 + n.st + 8 : n.p);
     if (rig === live) flashPad(n.p, at);
     duckAt(rig, n.p, at);
   }
@@ -3859,16 +3874,16 @@ function popUndo(){
 }
 function changed(){ seqDirty = true; save(); renderPads(); }
 // absTick counts from the start of playback, so it also tells us which pass we're in
-function addNote(pi, absTick, v, quantize){
+function addNote(pi, absTick, v, quantize, st = 0){
   const L = loopTicks(), g = quantize ? S.quant : 1, q = Math.round(absTick / g) * g;
   const rq = q - org * TPS, pass = Math.floor(rq / L);
   if (pass !== undoPass){ pushUndo(); undoPass = pass; }
   const tick = ((rq % L) + L) % L, notes = S.drum.notes;
   const skip = q >= stepI * TPS;   // not scheduled yet this pass, and we already heard it
-  const near = notes.find(n => n.p === pi && Math.abs(n.t - tick) < (g > 1 ? 1 : 6));
+  const near = notes.find(n => n.p === pi && (n.st || 0) === st && Math.abs(n.t - tick) < (g > 1 ? 1 : 6));
   let out = near;
   if (near){ near.v = Math.max(near.v, v); if (skip) near.skip = 1; }
-  else { const n = {p:pi, t:tick, v}; if (skip) n.skip = 1; notes.push(n); out = n; }
+  else { const n = {p:pi, t:tick, v}; if (st) n.st = st; if (skip) n.skip = 1; notes.push(n); out = n; }
   changed();
   return out;
 }
@@ -3883,21 +3898,23 @@ function tapTick(ev){
   if (!q) return null;
   return q.i * TPS + (T - q.t) / (stepDur() / TPS);
 }
-function repeatAt(pi, v, absTick, at){
-  const L = loopTicks(), tick = (((absTick - org * TPS) % L) + L) % L;
-  if (S.drum.notes.some(n => n.p === pi && n.t === tick)) return;   // the pattern already plays one here
-  playPad(live, S.drum.pads[pi], at, v, null, pi); flashPad(pi, at);
-  if (drumRec) addNote(pi, absTick, v, false);
+
+// 16 Levels: every pad plays the chosen pad's sample, A09 at its own pitch, a semitone per pad (A01 = -8 … A16 = +7)
+let lvl16 = {on:false, src:0};
+const lvlMap = i => lvl16.on ? {p:lvl16.src, st:i - 8} : {p:i, st:0};
+const padAt = (p, st) => st ? Object.assign({}, S.drum.pads[p], {pitch:(S.drum.pads[p].pitch || 0) + st}) : S.drum.pads[p];
+const repLatch = new Set();
+function repeatAt(i, v, absTick, at){
+  const {p:pi, st} = lvlMap(i), L = loopTicks(), tick = (((absTick - org * TPS) % L) + L) % L;
+  if (S.drum.notes.some(n => n.p === pi && (n.st || 0) === st && n.t === tick)) return;   // the pattern already plays one here
+  playPad(live, padAt(pi, st), at, v, null, i); flashPad(i, at);
+  if (drumRec) addNote(pi, absTick, v, false, st);
 }
 function livePerf(i, t){
   if (!held.size) return;
   const lo = ((i - org) % (S.bars * 16)) * TPS, abs0 = i * TPS, td = stepDur() / TPS;
   for (const [pi, v] of held){
-    if (S.erase){
-      const before = S.drum.notes.length;
-      S.drum.notes = S.drum.notes.filter(n => !(n.p === pi && n.t >= lo && n.t < lo + TPS));
-      if (S.drum.notes.length !== before) changed();
-    } else if (S.repeat){
+    if (S.repeat){
       const r = S.repRate;
       for (let k = Math.ceil(abs0 / r) * r; k < abs0 + TPS; k += r) repeatAt(pi, v, k, t + (k - abs0) * td);
     }
@@ -3917,20 +3934,29 @@ function padDown(i, ev, v){
   held.set(i, v);
   // sound first, screen after: redrawing the pad editor before the hit used to delay the sound
   if (selPad !== i){ selPad = i; seqDirty = true; requestAnimationFrame(() => { renderPads(); renderPadEditor(); }); }
+  const {p:src, st} = lvlMap(i);
   if (S.erase){
-    if (!playing){ toast('Hold a pad while the loop plays to erase its hits.'); return; }
-    if (!eraseUndo){ pushUndo(); eraseUndo = true; undoPass = null; }
-    return;
+    // tap a pad to erase its hits in this pattern (in 16 Levels: just that pitch)
+    held.delete(i);
+    const before = S.drum.notes.length, keep = S.drum.notes.filter(n => !(n.p === src && (!lvl16.on || (n.st || 0) === st)));
+    if (keep.length === before){ toast(padLabel(i) + ' has no hits to erase.'); return; }
+    pushUndo(); undoPass = null; S.drum.notes = keep; seqDirty = true; changed(); flashPad(i, ctx.currentTime);
+    toast('Erased ' + (before - keep.length) + ' hit' + (before - keep.length > 1 ? 's' : '') + ' on ' + padLabel(i) + '. Undo brings them back.'); return;
   }
-  if (playing && S.repeat){ repeatFill(i, v); return; }
-  playPad(live, S.drum.pads[i], ctx.currentTime, v, null, i, true); flashPad(i, ctx.currentTime); duckAt(live, i, ctx.currentTime);
+  if (playing && S.repeat){
+    // tap to start repeating, tap again to stop: no holding
+    if (repLatch.has(i)){ repLatch.delete(i); held.delete(i); renderPads(); return; }
+    repLatch.add(i); renderPads(); repeatFill(i, v); return;
+  }
+  playPad(live, padAt(src, st), ctx.currentTime, v, null, i, true); flashPad(i, ctx.currentTime); duckAt(live, src, ctx.currentTime);
   if (playing && drumRec){
     const tk = tapTick(ev);
-    if (tk != null && tk > -TPS / 2){ const n = addNote(i, Math.max(0, tk), v, true); if (n && padGated(S.drum.pads[i])) recHeld.set(i, {n, tk}); }
+    if (tk != null && tk > -TPS / 2){ const n = addNote(src, Math.max(0, tk), v, true, st); if (n && padGated(S.drum.pads[src])) recHeld.set(i, {n, tk}); }
   }
 }
 const recHeld = new Map();
 function padUp(i){
+  if (repLatch.has(i)) return;   // latched note repeat keeps going
   held.delete(i); if (!held.size) eraseUndo = false;
   if (ctx && padGated(S.drum.pads[i])) padRelease(live, i, ctx.currentTime);
   const r = recHeld.get(i);
@@ -3996,7 +4022,7 @@ function start(from = 0, external = false){
 }
 function stop(){
   if (playing && S.midiClock === 'out') midiSend([0xFC]);
-  playing = false; clearInterval(timer); ext.running = false; pending = null; renderScenes();
+  playing = false; clearInterval(timer); ext.running = false; pending = null; renderScenes(); repLatch.clear(); held.clear();
   setTimeout(() => (S.synths || []).forEach(tr => { if (tr.arp && tr.arp.on && arpState(tr).held.size) arpClock(tr); }), 0);
   if (live){
     const t = ctx.currentTime;
@@ -5180,7 +5206,9 @@ function renderPads(){
   }
   box.querySelectorAll('.pad').forEach(b => {
     const p = S.drum.pads[b.dataset.i];
-    b.querySelector('.nm').textContent = p.name;
+    const L16 = lvl16.on ? +b.dataset.i - 8 : null;
+    b.querySelector('.nm').textContent = L16 == null ? p.name : (L16 > 0 ? '+' : '') + L16 + ' st';
+    b.classList.toggle('latched', repLatch.has(+b.dataset.i));
     b.classList.toggle('sel', +b.dataset.i === selPad);
     b.classList.toggle('has', S.drum.notes.some(n => n.p === +b.dataset.i && n.t < loopTicks()));
     b.classList.toggle('user', !!p.sample && !p.sample.startsWith('kit:')); b.classList.toggle('empty', !p.sample);
@@ -5207,6 +5235,11 @@ $('#padSet').addEventListener('click', () => { if (view !== 'drums'){ setView('d
 function setPadEdit(on, quiet){ padEditOn = on; $('#padEdit').classList.toggle('on', on); $('#padSet').classList.toggle('on', on); $('#pads').classList.toggle('editing', on);
   if (!quiet) toast(on ? 'Edit: tap a pad.' : 'Edit off.'); }
 $('#padEdit').addEventListener('click', () => setPadEdit(!padEditOn));
+$('#lvl16').addEventListener('click', () => {
+  lvl16.on = !lvl16.on; if (lvl16.on) lvl16.src = selPad;
+  $('#lvl16').classList.toggle('on', lvl16.on); renderPads();
+  toast(lvl16.on ? '16 Levels: ' + padLabel(lvl16.src) + ' ' + S.drum.pads[lvl16.src].name + ' on every pad. A09 is its own pitch, each pad a semitone apart.' : '16 Levels off.');
+});
 window.addEventListener('load', () => { setTimeout(fitScreen, 300); setTimeout(fitScreen, 1200); });
 if (document.fonts) document.fonts.ready.then(() => setTimeout(fitScreen, 50));
 $('#clearMenu').addEventListener('click', e => {
@@ -6810,7 +6843,27 @@ function solFinish(rig){
     n.connect(rig.strips.get(id).input);
   }
 }
+// "Pad sample (keys)": a pad's sample played chromatically from the keyboard (C3 = its own pitch)
+function padSmpVoice(rig, tr, note, t, vel, dur){
+  const nil = {release(){}}, pad = S.drum.pads[tr.smpPad == null ? selPad : tr.smpPad]; if (!pad || !pad.sample) return nil;
+  let buf = buffers.get(pad.sample); if (!buf){ ensureKitBuf(pad.sample); buf = buffers.get(pad.sample); } if (!buf) return nil;
+  if (pad.rev) buf = revBuf(pad.sample, buf);
+  const c = rig.c; if (!rig.strips.has(tr.id)){ const st = makeStrip(c, rig.master); applyStrip(c, st, tr); rig.strips.set(tr.id, st); }
+  const D = buf.duration, s0 = clamp(pad.start || 0, 0, .995), e0 = clamp(pad.end == null ? 1 : pad.end, s0 + .005, 1);
+  const off = (pad.rev ? 1 - e0 : s0) * D, segEnd = (pad.rev ? 1 - s0 : e0) * D, rate = Math.pow(2, (note - 60 + (pad.pitch || 0)) / 12) * (pad.fit || 1);
+  const src = c.createBufferSource(), g = c.createGain(); src.buffer = buf; src.playbackRate.value = rate;
+  if (pad.loop){ src.loop = true; src.loopStart = off + clamp(pad.lstart || 0, 0, .98) * (segEnd - off); src.loopEnd = segEnd; }
+  const lvl = vel * pad.vol * pad.vol * 1.2, att = Math.max(.002, pad.att || 0), rel = Math.max(.03, pad.rel || .06);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(lvl, t + att);
+  src.connect(g).connect(rig.strips.get(tr.id).input); src.start(t, off);
+  if (!pad.loop) src.stop(t + (segEnd - off) / rate + .02);
+  let done = false;
+  const release = at => { if (done) return; done = true; at = Math.max(at, t + .005); if (g.gain.cancelAndHoldAtTime) g.gain.cancelAndHoldAtTime(at); g.gain.setTargetAtTime(0, at, rel / 3); try { src.stop(at + rel * 2 + .05); } catch(e){} };
+  if (dur != null) release(t + dur);
+  return {release};
+}
 function synthVoice(rig, tr, note, t, vel, dur, extra){
+  if (tr.inst === 'padsmp') return padSmpVoice(rig, tr, note, t, vel, dur);
   // the modeled synths run in an AudioWorklet; if that couldn't start on this phone, fall back to the basic synth so keys still sound
   if (INST[tr.inst] && rig.c._reduxOK !== false && (rig !== live || rig.c._reduxOK)){
     const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel, sl:extra && extra.sl ? 1 : 0});
@@ -7051,8 +7104,10 @@ function renderSynth(){
   const isSol = tr.inst === 'solina';
   const isP5 = tr.inst === 'prophet', isOB = tr.inst === 'obxa', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
   $('#obPanel').hidden = !isOB; if (isOB) renderOB(tr);
+  const isPS = tr.inst === 'padsmp'; $('#psPanel').hidden = !isPS;
+  if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp'; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -7147,6 +7202,7 @@ function renderOB(tr){
     body.appendChild(sec);
   });
 }
+$('#psPad').addEventListener('change', e => { const tr = curSynth(); tr.smpPad = +e.target.value; save(); hearChord(tr, [60], .6); });
 $('#obPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = (tr.ob && tr.ob.wheel) || 0; tr.ob = OB_DEFAULT(e.target.value); tr.ob.wheel = w; solCfg(tr); save(); renderOB(tr); });
 $('#obWheel').addEventListener('input', e => { const tr = curSynth(); tr.ob.wheel = +e.target.value; $('#obWheelV').textContent = Math.round(tr.ob.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':obxa']; if (n) n.port.postMessage({type:'wheel', v:tr.ob.wheel}); save(); });
 
@@ -7214,7 +7270,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
@@ -8256,8 +8312,8 @@ $('#dbl').addEventListener('click', () => {
   S.bars *= 2; renderTransport(); changed(); toast('Loop is now ' + S.bars + ' bars.');
 });
 $('#odub').addEventListener('click', toggleDrumRec);
-$('#repeat').addEventListener('click', e => { S.repeat = !S.repeat; if (S.repeat) S.erase = false; renderSeqCtl(); save(); });
-$('#erase').addEventListener('click', e => { S.erase = !S.erase; if (S.erase) S.repeat = false; renderSeqCtl(); save(); });
+$('#repeat').addEventListener('click', e => { S.repeat = !S.repeat; if (S.repeat) S.erase = false; else { repLatch.clear(); held.clear(); } renderSeqCtl(); renderPads(); save(); if (S.repeat) toast('Repeat: while playing, tap a pad to start repeating it, tap again to stop.'); });
+$('#erase').addEventListener('click', e => { S.erase = !S.erase; if (S.erase){ S.repeat = false; repLatch.clear(); held.clear(); } renderSeqCtl(); save(); if (S.erase) toast('Erase: tap a pad to delete its hits in this pattern. Tap Erase again to stop.'); });
 $('#quant').addEventListener('change', e => { S.quant = +e.target.value; renderSeqCtl(); save(); });
 $('#repRate').addEventListener('change', e => { S.repRate = +e.target.value; save(); });
 $('#fullLvl').addEventListener('click', () => { S.fullLevel = !S.fullLevel; renderSeqCtl(); save(); });
