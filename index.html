@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#c9c4b7">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Omega System">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>The Omega System</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -1483,7 +1487,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v85</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v86</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -3594,6 +3598,8 @@ function showLatency(){
 function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'interactive'; }
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
+  // iPhone: play through the ring/silent switch like a music app
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
   ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:audioBuf()});
   if (outPref()) applyOutput();
   live = makeRig(ctx);
@@ -7463,6 +7469,10 @@ $('#cratePaste').addEventListener('click', async () => { try { const t = await n
 $('#crateList').addEventListener('change', e => { S.crateSel = e.target.value; save(); renderCrate(true); });
 $('#crateDel').addEventListener('click', () => { const v = $('#crateList').value; S.crate = (S.crate || []).filter(x => x.embed !== v); S.crateSel = S.crate[0] && S.crate[0].embed; save(); renderCrate(true); });
 $('#crateSample').addEventListener('click', crateSample);
+(() => { const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (!ios || navigator.standalone || matchMedia('(display-mode: standalone)').matches) return;
+  try { if (localStorage.getItem('pr.iosTip')) return; localStorage.setItem('pr.iosTip', 1); } catch(e){}
+  setTimeout(() => toast('On iPhone: tap the Share button, then “Add to Home Screen” to install The Omega System as an app.'), 2500); })();
 renderCrate();
 // log in to the streaming services in the browser, so their players inside the app play full songs instead of previews
 const LOGINS = {spotify:'https://accounts.spotify.com/login?continue=' + encodeURIComponent('https://open.spotify.com/'), ytm:'https://accounts.google.com/ServiceLogin?service=youtube&continue=' + encodeURIComponent('https://music.youtube.com/'), sc:'https://soundcloud.com/signin', apple:'https://music.apple.com/'};
