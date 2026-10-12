@@ -161,6 +161,16 @@ html.retro #strips input.fader::-webkit-slider-thumb{width:40px !important;heigh
 #strips .strip .fz{touch-action:none}
 #strips.two .strip input.fader{max-width:40px}
 html.retro #strips.two input.fader::-webkit-slider-thumb{width:34px !important;height:24px !important;margin-left:-14px !important}
+/* every slider in the app: bigger caps and touch lanes */
+input[type=range]{height:44px}
+html.retro input[type=range]{height:44px}
+html.retro input[type=range]::-webkit-slider-thumb{width:26px !important;height:40px !important;margin-top:-17px !important}
+html.retro input[type=range]::-moz-range-thumb{width:26px;height:40px}
+html.retro .eq11 input[type=range]{max-width:44px !important;height:170px}
+html.retro .eq11 input::-webkit-slider-thumb, html.retro .mxch input.chfader::-webkit-slider-thumb, html.retro input.fader::-webkit-slider-thumb{width:38px !important;height:28px !important;margin-top:0 !important;margin-left:-16px !important}
+html.retro .mxch input.chfader{width:44px !important;min-height:180px}
+html.retro input.xfader, input.xfader{height:60px !important}
+html.retro input.xfader::-webkit-slider-thumb{width:34px !important;height:54px !important;margin-top:-22px !important}
 .kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
 .kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
@@ -195,7 +205,7 @@ html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
 #strips{overflow:hidden;gap:3px;flex-wrap:nowrap}
 #strips .strip{flex:1 1 0;min-width:0;padding:6px 2px;gap:4px;border-radius:6px}
 #strips .strip .nm{font-size:10px;letter-spacing:0}
-#strips .strip input.pan{width:100%;height:18px;margin:0}
+#strips .strip input.pan{width:100%;height:30px;margin:0}
 #strips .strip .fz{gap:2px;justify-content:center;width:100%}
 #strips .strip input.fader{width:22px}
 #strips .vmeter{width:5px}
@@ -1340,7 +1350,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v58</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v59</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -5333,6 +5343,20 @@ function faderDrag(z){
   // double-tap anywhere on the lane resets it (same as double-clicking the fader)
   let lastTap = 0; z.addEventListener('pointerup', () => { const n = performance.now(); if (n - lastTap < 300) f.dispatchEvent(new MouseEvent('dblclick')); lastTap = n; });
 }
+document.addEventListener('pointerdown', e => {
+  const f = e.target.closest('input[type=range]');
+  if (!f || mlearn || f.classList.contains('xfader') || f.closest('#strips .fz') || f.disabled) return;
+  const r = f.getBoundingClientRect(); if (!r.width || !r.height) return;
+  const vert = /^vertical/.test(getComputedStyle(f).writingMode || ''), span = vert ? r.height : r.width;
+  const mn = +f.min || 0, mx = f.max === '' ? 100 : +f.max, v0 = +f.value, x0 = e.clientX, y0 = e.clientY, pid = e.pointerId;
+  e.preventDefault(); try { f.setPointerCapture(pid); } catch(_){}
+  let moved = false;
+  const mv = ev => { if (ev.pointerId !== pid) return; const d = vert ? (y0 - ev.clientY) : (ev.clientX - x0); if (Math.abs(d) > 2) moved = true;
+    const v = clamp(v0 + d / span * (mx - mn), mn, mx); if (Math.abs(v - +f.value) > 1e-6){ f.value = v; f.dispatchEvent(new Event('input', {bubbles:true})); } };
+  const up = ev => { if (ev.pointerId !== pid) return; f.removeEventListener('pointermove', mv); f.removeEventListener('pointerup', up); f.removeEventListener('pointercancel', up);
+    if (moved) f.dispatchEvent(new Event('change', {bubbles:true})); };
+  f.addEventListener('pointermove', mv); f.addEventListener('pointerup', up); f.addEventListener('pointercancel', up);
+}, {capture:true});
 function renderMixer(){
   setTimeout(fitScreen, 30);
   const box = $('#strips'); box.innerHTML = '';
