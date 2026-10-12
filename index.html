@@ -293,8 +293,8 @@ html.retro #strips .strip input.fader{width:24px}
 #seq{width:100%;height:240px;background:#0c0e12;border-radius:8px;display:block;touch-action:manipulation}
 #odub.on{background:var(--rec);border-color:var(--rec);color:#fff}
 html #erase.on,html.retro #erase.on{background:#d62b22;border-color:#8e140e;color:#fff;animation:eraseFlash .6s steps(1) infinite}
-#damnSon{position:fixed;left:50%;top:18%;transform:translateX(-50%) rotate(-3deg);z-index:9999;background:#111;border:3px solid #ff3b30;border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 10px 30px #000a;animation:dsPop .35s cubic-bezier(.3,1.6,.5,1)}
-#damnSon b{color:#ffd23f;font:900 15px var(--f-display);letter-spacing:.04em;text-align:center}
+#damnSon{position:fixed;left:50%;top:18%;padding:16px 20px!important;transform:translateX(-50%) rotate(-3deg);z-index:9999;background:#111;border:3px solid #ff3b30;border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 10px 30px #000a;animation:dsPop .35s cubic-bezier(.3,1.6,.5,1)}
+#damnSon b{color:#ffd23f;font:900 22px var(--f-display);letter-spacing:.04em;text-align:center}
 #damnSon iframe{border:0;border-radius:4px}
 #damnSon button{position:absolute;top:-12px;right:-12px;width:30px;height:30px;border-radius:50%;padding:0;background:#ff3b30;color:#fff;border:2px solid #111}
 @keyframes dsPop{from{transform:translateX(-50%) scale(.2) rotate(-20deg);opacity:0}}
@@ -760,6 +760,14 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
   <!-- CHOP -->
   <section class="view" id="v-chop" hidden>
+    <div class="card" id="crateCard" data-chip="Crate">
+      <div class="row"><h2 class="grow">Crate</h2><span class="badge" id="crateN">0</span></div>
+      <div class="row"><input id="crateUrl" class="grow" type="url" inputmode="url" placeholder="Paste a song or playlist link" aria-label="Song or playlist link"><button id="cratePaste" class="nolearn">Paste</button><button id="crateAdd" class="nolearn">Add</button></div>
+      <div class="row"><select id="crateList" class="grow" aria-label="Your crate"></select><button id="crateDel" class="nolearn" aria-label="Remove from crate">✕</button></div>
+      <div id="cratePlayer"></div>
+      <div class="row"><button id="crateSample" class="grow nolearn">● Sample what's playing</button></div>
+      <p class="hint">Add a song, album or playlist link, or share it straight from the YouTube / Spotify / SoundCloud app to <b>Snake Device</b>. Play it here, tap <b>Sample</b>, and tap again to stop. The take lands in Chop. On a computer, Chrome asks to share this tab: tick <b>Also share tab audio</b>. On the phone it records through the mic, so turn the volume up, or plug a cable from the headphone out into a USB audio input. Spotify plays 30-second previews unless you're logged in to Spotify in this browser.</p>
+    </div>
     <div class="card">
       <div class="row"><h2 class="grow">Chop</h2><span class="badge" id="chopInfo">No sample</span></div>
       <div class="row">
@@ -1452,7 +1460,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v81</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v82</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4301,16 +4309,18 @@ async function toggleSampling(){
   capOn(); sampling = {t:ctx.currentTime, pad:selPad};
   btn.classList.add('on'); btn.textContent = 'Stop sampling';
 }
-// every once in a while, loading a sample gets the "Damn son, where'd you find this?" (YouTube embed, needs internet)
-let dsLast = 0;
-function damnSon(force){
+// every once in a while, loading a sample gets "Damn son, where'd you find this?"
+let dsLast = 0, dsBuf = null;
+async function damnSon(force){
   const now = Date.now();
-  if (!force && (S.damnSon === false || now - dsLast < 90000 || Math.random() > .2 || !navigator.onLine)) return;
-  dsLast = now; document.querySelector('#damnSon') && document.querySelector('#damnSon').remove();
-  const w = document.createElement('div'); w.id = 'damnSon';
-  w.innerHTML = '<b>DAMN SON, WHERE’D YOU FIND THIS?</b><iframe width="200" height="113" src="https://www.youtube-nocookie.com/embed/z8RkR4rd7dM?autoplay=1&playsinline=1&controls=0&rel=0" allow="autoplay; encrypted-media" title="Damn son"></iframe><button aria-label="Close">✕</button>';
-  w.querySelector('button').onclick = () => w.remove();
-  document.body.appendChild(w); setTimeout(() => w.remove(), 9000);
+  if (!force && (S.damnSon === false || now - dsLast < 90000 || Math.random() > .2)) return;
+  dsLast = now; ensureAudio();
+  try { if (!dsBuf) dsBuf = await ctx.decodeAudioData(await (await fetch('damn-son.mp3')).arrayBuffer()); } catch(e){ return; }
+  const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .9; src.buffer = dsBuf; src.connect(g).connect(live.master.bus); src.start(ctx.currentTime + .02);
+  document.querySelector('#damnSon') && document.querySelector('#damnSon').remove();
+  const w = document.createElement('div'); w.id = 'damnSon'; w.innerHTML = '<b>DAMN SON,<br>WHERE’D YOU FIND THIS?</b>';
+  w.onclick = () => { w.remove(); try { src.stop(); } catch(e){} };
+  document.body.appendChild(w); setTimeout(() => w.remove(), Math.max(2500, dsBuf.duration * 1000 + 600));
 }
 async function setPadBuffer(pi, buf, name, quiet){
   setTimeout(() => damnSon(), 300);
@@ -7335,6 +7345,84 @@ $('#chopFile').addEventListener('change', async e => {
   catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#chopRec').addEventListener('click', toggleChopRec);
+
+/* ================= Crate: YouTube / Spotify / SoundCloud / Apple Music links and playlists, play and sample ================= */
+function crateParse(raw){
+  const m = String(raw || '').match(/https?:\/\/[^\s<>"]+/); if (!m) return null;
+  let u; try { u = new URL(m[0]); } catch(e){ return null; }
+  const h = u.hostname.replace(/^(www|m|music)\./, ''), q = k => u.searchParams.get(k);
+  if (h === 'youtube.com' || h === 'youtu.be' || h === 'youtube-nocookie.com'){
+    const v = h === 'youtu.be' ? u.pathname.slice(1) : q('v') || (u.pathname.match(/\/(?:shorts|embed|live)\/([\w-]{6,})/) || [])[1], list = q('list');
+    if (!v && !list) return null;
+    return {kind:'YouTube', url:u.href, embed:'https://www.youtube-nocookie.com/embed/' + (v ? v + (list ? '?list=' + list + '&' : '?') : 'videoseries?list=' + list + '&') + 'playsinline=1&rel=0', list:!!list};
+  }
+  if (h === 'open.spotify.com' || h === 'spotify.link'){
+    const t = u.pathname.match(/(track|album|playlist|episode|show|artist)\/(\w+)/); if (!t) return null;
+    return {kind:'Spotify', url:'https://open.spotify.com/' + t[1] + '/' + t[2], embed:'https://open.spotify.com/embed/' + t[1] + '/' + t[2], list:t[1] !== 'track' && t[1] !== 'episode'};
+  }
+  if (h === 'soundcloud.com' || h === 'on.soundcloud.com') return {kind:'SoundCloud', url:u.href, embed:'https://w.soundcloud.com/player/?url=' + encodeURIComponent(u.href) + '&visual=false&show_comments=false', list:/\/sets\//.test(u.pathname)};
+  if (u.hostname === 'music.apple.com') return {kind:'Apple Music', url:u.href, embed:'https://embed.music.apple.com' + u.pathname + u.search, list:/playlist|album/.test(u.pathname)};
+  return null;
+}
+async function crateTitle(it){
+  const api = it.kind === 'YouTube' ? 'https://www.youtube.com/oembed?format=json&url=' : it.kind === 'Spotify' ? 'https://open.spotify.com/oembed?url=' : it.kind === 'SoundCloud' ? 'https://soundcloud.com/oembed?format=json&url=' : null;
+  if (!api) return null;
+  try { const j = await (await fetch(api + encodeURIComponent(it.url))).json(); return [j.title, j.author_name].filter(Boolean).join(' · ') || null; } catch(e){ return null; }
+}
+async function crateAdd(raw){
+  const it = crateParse(raw); if (!it){ toast('That link isn’t a YouTube, Spotify, SoundCloud or Apple Music song or playlist.'); return false; }
+  S.crate = S.crate || []; let i = S.crate.findIndex(x => x.embed === it.embed);
+  if (i < 0){ it.title = it.kind + (it.list ? ' playlist' : '') + ': ' + it.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 40); S.crate.unshift(it); i = 0; }
+  S.crateSel = S.crate[i].embed; save(); renderCrate(true);
+  const t = await crateTitle(S.crate[i]); if (t){ S.crate[i].title = it.kind + (it.list ? ' playlist' : '') + ': ' + t; save(); renderCrate(); }
+  toast('Added to your crate. Play it, then tap Sample.'); return true;
+}
+function renderCrate(load){
+  const L = S.crate || [], sel = $('#crateList'); if (!sel) return;
+  $('#crateN').textContent = L.length;
+  sel.innerHTML = L.length ? L.map(x => `<option value="${escH(x.embed)}">${escH(x.title || x.url)}</option>`).join('') : '<option value="">Empty: paste or share a link</option>';
+  const cur = L.find(x => x.embed === S.crateSel) || L[0]; if (cur) sel.value = cur.embed;
+  const box = $('#cratePlayer'), f = box.querySelector('iframe');
+  if (!cur){ box.innerHTML = ''; return; }
+  if (load || !f || f.dataset.src !== cur.embed){
+    const hgt = cur.kind === 'Spotify' ? (cur.list ? 352 : 152) : cur.kind === 'SoundCloud' ? (cur.list ? 300 : 166) : cur.kind === 'Apple Music' ? (cur.list ? 450 : 175) : 200;
+    box.innerHTML = `<iframe data-src="${escH(cur.embed)}" src="${escH(cur.embed)}" style="width:100%;height:${hgt}px;border:0;border-radius:8px" allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture" loading="lazy" title="${escH(cur.title || cur.kind)}"></iframe>`;
+  }
+}
+let crateCap = null;
+async function crateSample(){
+  const btn = $('#crateSample');
+  if (crateCap){ const c = crateCap; crateCap = null; btn.classList.remove('on'); btn.textContent = '● Sample what’s playing'; if (c.stop) c.stop(); return; }
+  if (chop.rec){ toggleChopRec(); btn.classList.remove('on'); btn.textContent = '● Sample what’s playing'; return; }
+  ensureAudio();
+  // computer: grab this tab's sound directly; phone (no tab capture): record through the input
+  if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && !/Android|iPhone|iPad/i.test(navigator.userAgent)){
+    let st; try { st = await navigator.mediaDevices.getDisplayMedia({video:true, audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, suppressLocalAudioPlayback:false}, preferCurrentTab:true, selfBrowserSurface:'include', systemAudio:'include'}); }
+    catch(e){ toast('Sharing was cancelled.'); return; }
+    const at = st.getAudioTracks(); if (!at.length){ st.getTracks().forEach(t => t.stop()); toast('No sound was shared. Try again and tick “Also share tab audio”.'); return; }
+    const mr = new MediaRecorder(new MediaStream(at)), parts = [];
+    mr.ondataavailable = e => e.data.size && parts.push(e.data);
+    mr.onstop = async () => { st.getTracks().forEach(t => t.stop());
+      try { const buf = await decodeAny(await new Blob(parts, {type:mr.mimeType}).arrayBuffer()); setChopSource(buf, 'Crate'); toast('Sampled ' + buf.duration.toFixed(1) + ' s into Chop.'); } catch(e){ toast('Could not read the take.'); } };
+    at[0].addEventListener('ended', () => { if (crateCap) crateSample(); });
+    mr.start(250); crateCap = {stop:() => mr.state !== 'inactive' && mr.stop()};
+  } else {
+    await toggleChopRec(); if (!chop.rec) return;
+    toast('Recording through the mic: play it out loud (or use a cable into a USB input).');
+  }
+  btn.classList.add('on'); btn.textContent = '■ Stop sampling';
+}
+$('#crateAdd').addEventListener('click', async () => { if (await crateAdd($('#crateUrl').value)) $('#crateUrl').value = ''; });
+$('#crateUrl').addEventListener('keydown', e => { if (e.key === 'Enter') $('#crateAdd').click(); });
+$('#cratePaste').addEventListener('click', async () => { try { const t = await navigator.clipboard.readText(); $('#crateUrl').value = t; if (await crateAdd(t)) $('#crateUrl').value = ''; } catch(e){ toast('Long-press the box and Paste instead.'); $('#crateUrl').focus(); } });
+$('#crateList').addEventListener('change', e => { S.crateSel = e.target.value; save(); renderCrate(true); });
+$('#crateDel').addEventListener('click', () => { const v = $('#crateList').value; S.crate = (S.crate || []).filter(x => x.embed !== v); S.crateSel = S.crate[0] && S.crate[0].embed; save(); renderCrate(true); });
+$('#crateSample').addEventListener('click', crateSample);
+renderCrate();
+// links shared to the app from YouTube / Spotify / SoundCloud land in the crate
+(() => { const q = new URLSearchParams(location.search), sh = [q.get('su'), q.get('sx'), q.get('st')].filter(Boolean).join(' ');
+  if (!sh) return; history.replaceState(null, '', location.pathname);
+  setTimeout(() => { setView('chop'); crateAdd(sh); const c = $('#crateCard'); if (typeof sheetOpen === 'function' && c) try { sheetOpen(c); } catch(e){} }, 600); })();
 $('#chopFromTrack').addEventListener('focus', () => { $('#chopFromTrack').innerHTML = '<option value="">From track…</option>' + S.audio.filter(t => t.clip).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join(''); });
 $('#chopFromTrack').addEventListener('change', e => { const t = trackById(e.target.value); if (t && buffers.get(t.clip)){ setChopSource(buffers.get(t.clip), t.name); chop.bars = Math.max(1, t.clipSteps / 16); saveChop(); renderChop(); } e.target.value = ''; });
 $('#chopPrev').addEventListener('click', () => chopStep(-1));
