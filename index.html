@@ -1371,7 +1371,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
         <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
-        <li><b>New project</b> (Setup, tap twice) erases everything and starts fresh.</li>
+        <li><b>Projects</b> (Setup): Save keeps the project in your list. Open switches projects. Export makes a .omega file to move it to another device. <b>New project</b> (tap twice) saves the current one first, then starts fresh.</li>
         <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
       </ul>
     </details>
@@ -1487,8 +1487,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v87</span></div>
-      <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v88</span></div>
+      <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
+      <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
+      <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
+      <input type="file" id="projFile" accept=".omega,.zip" hidden>
+      <p class="hint">Everything also saves automatically as you work. <b>Save</b> keeps this project, its sounds and recordings, in your list so you can come back to it. Opening another project or starting a new one saves the current one first, so nothing is lost. Your sample library and SoundFonts are shared by all projects. A project file (.omega) moves a project to another phone, tablet or computer.</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
     </div>
@@ -1594,6 +1598,12 @@ const rt = id => { if (!RT.has(id)) RT.set(id, {}); return RT.get(id); };
 let selPad = 0, page = 0, selStrip = 'drums', view = 'drums';
 
 /* ================= storage ================= */
+// no Web Audio at all (very old or locked-down browsers): say so instead of a blank page
+if (!(window.AudioContext || window.webkitAudioContext)){
+  document.addEventListener('DOMContentLoaded', () => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#111318;color:#e8eaf0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font:16px/1.5 system-ui';
+    d.innerHTML = '<div><b style="font-size:22px">The Omega System</b><br><br>This browser can’t make sound (no Web Audio).<br>Open it in Chrome, Edge, Firefox, Safari or Samsung Internet.</div>'; document.body.appendChild(d); });
+  throw new Error('no Web Audio');
+}
 const DB = {
   db:null,
   open(){
@@ -1630,8 +1640,11 @@ function audioInUse(key){
 }
 // scenes can share a clip, so only delete audio nothing points at any more (checked after the caller has swapped it out)
 function dropAudio(key){ if (!key || key.startsWith('kit:')) return; setTimeout(() => { if (!audioInUse(key)){ buffers.delete(key); DB.del('audio', key); } }, 0); }
+// older Safari has no AudioBuffer constructor: borrow one from an offline context
+let bufMaker = null;
 function makeBuffer(chs, sr){
-  const b = new AudioBuffer({length:Math.max(1, chs[0].length), numberOfChannels:chs.length, sampleRate:sr});
+  const o = {length:Math.max(1, chs[0].length), numberOfChannels:chs.length, sampleRate:sr};
+  let b; try { b = new AudioBuffer(o); } catch(e){ bufMaker = bufMaker || new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, 44100); b = bufMaker.createBuffer(o.numberOfChannels, o.length, sr); }
   chs.forEach((d, i) => b.copyToChannel(d, i));
   return b;
 }
@@ -3610,7 +3623,7 @@ function ensureAudio(){
   inAn = ctx.createAnalyser(); inAn.fftSize = 512;
   monGain = ctx.createGain(); monGain.gain.value = 0;
   routeMonitor();
-  workletReady = ctx.audioWorklet.addModule(workletUrl()).then(() => {
+  workletReady = (ctx.audioWorklet ? ctx.audioWorklet.addModule(workletUrl()) : Promise.reject(new Error('this browser has no AudioWorklet'))).then(() => {
     ctx._reduxOK = true;
     live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
     rackNodes(ctx, live.master); applyRack(ctx, live.master); live.master._eqw = null; applyMaster(ctx, live.master);
@@ -5429,6 +5442,8 @@ function parsePgm(ab){
 }
 async function importAny(fileList){
   let files = [...fileList], done = [];
+  for (const f of files.filter(f => /\.omega$/i.test(f.name))) await projImportFile(f);
+  files = files.filter(f => !/\.omega$/i.test(f.name));
   // unpack ZIPs first
   for (const f of files.filter(f => /\.zip$/i.test(f.name))){ try { const inner = await unzip(f); files = files.concat(inner); done.push(f.name + ' (' + inner.length + ' files)'); } catch(e){ toast('Could not open ' + f.name + ': ' + e.message); } }
   files = files.filter(f => !/\.zip$/i.test(f.name));
@@ -5647,7 +5662,7 @@ async function renderAudio(sr, solo, fixedLen){
   if (solo) allTracks().forEach(t => t.solo = t.id === solo);
   try {
     const oc = new OfflineAudioContext(2, len, sr);
-    try { await oc.audioWorklet.addModule(workletUrl()); oc._reduxOK = true; } catch(e){}
+    try { await oc.audioWorklet.addModule(workletUrl()); oc._reduxOK = true; } catch(e){ oc._reduxOK = false; }
     const rig = makeRig(oc), keepCur = S.cur, keepOrg = org;
     let i0 = 0;
     try { for (const part of parts){ loadScene(part.s); org = i0; for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd); i0 += part.steps; } }
@@ -7709,6 +7724,7 @@ function solSend(rig, tr, ev){
   ((rig.solEv ||= {})[tr.id] ||= []).push(ev);
 }
 function solFinish(rig){
+  if (!rig.c._reduxOK) return;
   for (const id in rig.solEv || {}){
     const tr = trackById(id); if (!tr || !INST[tr.inst]) continue;
     const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:I.cfg(tr), events:rig.solEv[id]}});
@@ -9317,11 +9333,89 @@ $('#trackFile').addEventListener('change', async e => {
   } catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#share').addEventListener('click', async () => { try { await navigator.share({files:[lastExport], title:lastExport.name}); } catch(e){} });
+/* ================= Projects: save, open, export and import whole projects (patterns, settings, every sound) ================= */
+const PDB = Object.assign(Object.create(DB), {db:null, open(){
+  if (this.db) return this.db;
+  this.db = new Promise((res, rej) => { const r = indexedDB.open('omega-projects', 1); r.onupgradeneeded = () => { r.result.createObjectStore('meta'); r.result.createObjectStore('data'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  return this.db; }});
+const SHARED_AUDIO = k => /^(lib|sf):/.test(k);
+async function projAudioKeys(){ return ((await DB.op('audio', 'readonly', st => st.getAllKeys())) || []).filter(k => typeof k === 'string' && !SHARED_AUDIO(k)); }
+const projHasContent = () => S.drum.notes.length || S.synths.some(t => (t.notes || []).length) || S.audio.some(t => t.clip) || S.drum.pads.some(p => p.sample && !String(p.sample).startsWith('kit:'));
+async function projSnapshot(){
+  clearTimeout(saveT); storeScene(); await DB.put('kv', 'project', S);
+  const audio = {}; for (const k of await projAudioKeys()){ const v = await DB.get('audio', k); if (v) audio[k] = v; }
+  return {S:JSON.parse(JSON.stringify(S)), audio};
+}
+async function projSave(asNew, name){
+  name = (name || $('#projName').value || S.projName || 'Beat ' + new Date().toLocaleDateString()).trim().slice(0, 40);
+  if (asNew || !S.projId) S.projId = 'p' + Date.now().toString(36);
+  S.projName = name; const snap = await projSnapshot();
+  let size = 0; Object.values(snap.audio).forEach(a => a.ch.forEach(c => size += c.length * 4));
+  try { await PDB.put('data', S.projId, snap); await PDB.put('meta', S.projId, {id:S.projId, name, date:Date.now(), bpm:S.bpm, size}); }
+  catch(e){ toast('Could not save: the phone may be out of space. ' + e.message); return false; }
+  await renderProjects(); return true;
+}
+async function projList(){ return ((await PDB.op('meta', 'readonly', st => st.getAll())) || []).sort((a, b) => b.date - a.date); }
+async function renderProjects(){
+  const L = await projList(), sel = $('#projList'); if (!sel) return;
+  const mb = n => n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.round(n / 1e3) + ' KB';
+  sel.innerHTML = L.length ? L.map(m => `<option value="${m.id}">${escH(m.name)}${m.id === S.projId ? ' (open)' : ''} · ${new Date(m.date).toLocaleDateString()} · ${mb(m.size || 0)}</option>`).join('') : '<option value="">No saved projects yet</option>';
+  if (S.projId && L.some(m => m.id === S.projId)) sel.value = S.projId;
+  $('#projName').value = S.projName || '';
+}
+// keep the current work before switching: into its own slot, or a dated autosave if it was never saved
+async function projKeepCurrent(){
+  if (S.projId) return projSave(false, S.projName);
+  if (projHasContent()) return projSave(true, 'Autosave ' + new Date().toLocaleString());
+  return true;
+}
+async function projLoad(snap){
+  if (playing) stop();
+  for (const k of await projAudioKeys()) await DB.del('audio', k);
+  for (const [k, v] of Object.entries(snap.audio || {})) await DB.put('audio', k, v);
+  await DB.put('kv', 'project', snap.S); location.reload();
+}
+async function projOpen(id){
+  if (!id) return; const snap = await PDB.get('data', id); if (!snap){ toast('That project is missing.'); return; }
+  if (!(await projKeepCurrent())) return;
+  toast('Opening…'); await projLoad(snap);
+}
+async function projExport(id){
+  const snap = id === S.projId || !id ? await projSnapshot() : await PDB.get('data', id); if (!snap) return;
+  const files = [], man = {app:'The Omega System', v:1, S:snap.S, audio:{}}; let n = 0;
+  for (const [k, v] of Object.entries(snap.audio)){ const f = 'a' + (n++) + '.bin', len = v.ch[0].length, all = new Float32Array(len * v.ch.length); v.ch.forEach((c, i) => all.set(c, i * len));
+    man.audio[k] = {f, sr:v.sr, chs:v.ch.length, len}; files.push({name:f, blob:new Blob([all.buffer])}); }
+  files.unshift({name:'omega-project.json', blob:new Blob([JSON.stringify(man)], {type:'application/json'})});
+  const zip = await makeZip(files); saveFile(zip, fileSafe(snap.S.projName || 'project') + '.omega');
+  toast('Project file saved. Share sends it to another app.');
+}
+async function projImportFile(file){
+  try {
+    const parts = await unzip(new File([file], 'p.zip')), mf = parts.find(f => f.name === 'omega-project.json'); if (!mf) throw new Error('not an Omega System project file');
+    const man = JSON.parse(await mf.text()), audio = {};
+    for (const [k, a] of Object.entries(man.audio || {})){ const f = parts.find(x => x.name === a.f); if (!f) continue; const all = new Float32Array(await f.arrayBuffer()); audio[k] = {sr:a.sr, ch:Array.from({length:a.chs}, (_, i) => all.slice(i * a.len, (i + 1) * a.len))}; }
+    const S2 = Object.assign({}, man.S, {projId:'p' + Date.now().toString(36)});
+    let size = 0; Object.values(audio).forEach(a => a.ch.forEach(c => size += c.length * 4));
+    await PDB.put('data', S2.projId, {S:S2, audio}); await PDB.put('meta', S2.projId, {id:S2.projId, name:S2.projName || file.name.replace(/\.[^.]+$/, ''), date:Date.now(), bpm:S2.bpm, size});
+    await renderProjects(); $('#projList').value = S2.projId; toast('Imported. Tap Open to switch to it.');
+  } catch(e){ toast('Could not import: ' + e.message); }
+}
+$('#projSave').addEventListener('click', async () => { if (await projSave(false)) toast('Saved “' + S.projName + '”.'); });
+$('#projSaveNew').addEventListener('click', async () => { if (await projSave(true)) toast('Saved as a new project: “' + S.projName + '”.'); });
+$('#projOpen').addEventListener('click', () => { const id = $('#projList').value; if (id === S.projId){ toast('That one is already open.'); return; } projOpen(id); });
+$('#projDel').addEventListener('click', async e => { const id = $('#projList').value; if (!id) return; const b = e.currentTarget;
+  if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Sure?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = '✕'; }, 3000); return; }
+  b.dataset.sure = ''; b.textContent = '✕'; await PDB.del('meta', id); await PDB.del('data', id); if (id === S.projId){ S.projId = null; save(); } renderProjects(); toast('Deleted.'); });
+$('#projExport').addEventListener('click', () => projExport($('#projList').value));
+$('#projImport').addEventListener('click', () => $('#projFile').click());
+$('#projFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) projImportFile(f); });
+setTimeout(renderProjects, 500);
 $('#wipe').addEventListener('click', async e => {
   const b = e.target;
-  if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again to erase everything'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'New project'; }, 3000); return; }
+  if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again: this one is saved to Projects first'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'New project'; }, 3000); return; }
   if (playing) stop();
-  await DB.op('audio', 'readwrite', st => st.clear());
+  await projKeepCurrent();
+  for (const k of await projAudioKeys()) await DB.del('audio', k);   // the library and SoundFonts stay
   await DB.put('kv', 'project', null); location.reload();
 });
 let userNav = false;
