@@ -630,6 +630,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="pads" id="pads"></div>
     <div class="card" data-title="Sequencer">
       <canvas id="seq" aria-label="Recorded hits for every pad across the loop. Tap a hit to delete it, or tap a row to select that pad."></canvas>
+      <div class="row"><button class="grow nolearn" onclick="$('#midiFile').click()">Import MIDI</button><button class="grow nolearn" onclick="$('#midiExp').click()">Export MIDI</button></div>
       <div class="row">
         <button id="undo" class="grow" disabled>Undo</button>
         <button id="dbl" class="grow">Double loop</button>
@@ -1001,7 +1002,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <p>The tabs at the top of the Synth screen are your synth tracks (up to 4). <b>+</b> adds one. <b>Press and hold a tab</b> to rename it, duplicate it, or delete it.</p>
     </details>
     <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
-      <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
+      <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. <b>Blend</b> sets how loud the noise sits under the sound. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
+    </details>
+    <details id="h-midifile"><summary>MIDI files</summary>
+      <p><b>Import MIDI</b> (Pads → Sequencer, or Setup → Export) puts a .mid file into the current pattern: drums (channel 10) onto the pads, matched by note (your A01 note setting, or General MIDI drum names), and each other channel onto a synth track (up to 4). The pattern becomes 1, 2, 4 or 8 bars to fit, and the tempo is taken from the file. Undo takes it back. <b>Export MIDI</b> saves the pattern or song as a .mid for the MPC or any DAW.</p>
     </details>
     <details id="h-16lvl"><summary>16 Levels, Erase, Repeat</summary>
       <ul>
@@ -1396,10 +1400,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="ctl" id="expLoopsRow"><label class="label" for="expLoops">Repeat</label><select id="expLoops"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option><option value="16">16×</option></select><span></span></div>
       <p class="hint" id="expHint"></p>
       <div class="row"><button id="export" class="grow">Export mix</button><button id="share" class="grow" disabled>Share</button></div>
+      <div class="row"><button id="midiImp" class="grow nolearn">Import MIDI file</button><button id="midiExp" class="grow nolearn">Export MIDI file</button></div>
+      <input type="file" id="midiFile" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v72</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v73</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -2165,7 +2171,7 @@ function anySolo(){ return allTracks().some(t => t.solo); }
 // vinyl & tape noise: made only when used; it listens to the sound (sidechain) and adds its noise beside it
 const VIN_PRESETS = {'Clean':{hiss:0, crackle:0, pops:0, rumble:0}, 'Dusty 45':{hiss:.25, crackle:.55, pops:.3, rumble:.2}, 'Worn LP':{hiss:.35, crackle:.8, pops:.6, rumble:.45},
   'Thrift-store record':{hiss:.4, crackle:1, pops:1, rumble:.6}, 'Cassette':{hiss:.75, crackle:0, pops:0, rumble:.1}, 'Hiss only':{hiss:.5, crackle:0, pops:0, rumble:0}};
-const vinOn = o => o && ((o.vHiss || 0) + (o.vCrk || 0) + (o.vPop || 0) + (o.vRum || 0)) > 0;
+const vinOn = o => o && ((o.vHiss || 0) + (o.vCrk || 0) + (o.vPop || 0) + (o.vRum || 0)) > 0 && (o.vMix == null || o.vMix > 0);
 function applyVinyl(c, holder, side, dest, o, follow){
   if (!c._reduxOK) return;
   if (!vinOn(o)){ if (holder.vin){ holder.vin.port.postMessage({hiss:0, crackle:0, pops:0, rumble:0}); } return; }
@@ -2173,7 +2179,7 @@ function applyVinyl(c, holder, side, dest, o, follow){
     holder.vin = new AudioWorkletNode(c, 'vinyl', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:1, channelCountMode:'explicit'});
     side.connect(holder.vin); holder.vin.connect(dest);
   }
-  holder.vin.port.postMessage({hiss:o.vHiss || 0, crackle:o.vCrk || 0, pops:o.vPop || 0, rumble:o.vRum || 0, follow:follow ? 1 : 0, level:1});
+  holder.vin.port.postMessage({hiss:o.vHiss || 0, crackle:o.vCrk || 0, pops:o.vPop || 0, rumble:o.vRum || 0, follow:follow ? 1 : 0, level:o.vMix == null ? .6 : o.vMix});
 }
 function applyStrip(c, s, t){
   wireStrip(s, t);
@@ -4891,6 +4897,67 @@ $('#sheetHear').addEventListener('click', () => { const b = $('#sheetHear'); if 
 document.addEventListener('contextmenu', e => { if (!e.target.closest('input[type=text], input[type=search], input:not([type]), textarea')) e.preventDefault(); }, {capture:true});
 document.addEventListener('selectstart', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); }, {capture:true});
 
+/* ================= MIDI file import: drums (channel 10) onto the pads, other channels onto synth tracks ================= */
+const GM_DRUM = {35:'Kick', 36:'Kick', 37:'Rim', 38:'Snare', 40:'Snare', 39:'Clap', 42:'C Hat', 44:'C Hat', 46:'O Hat', 49:'Crash', 57:'Crash', 51:'Crash', 41:'Lo Tom', 43:'Lo Tom', 45:'Lo Tom',
+  47:'Hi Tom', 48:'Hi Tom', 50:'Hi Tom', 56:'Cowbell', 62:'Conga', 63:'Conga', 64:'Conga', 70:'Shaker', 69:'Shaker', 54:'Shaker', 75:'Rim', 76:'Rim'};
+function parseMidi(buf){
+  const d = new DataView(buf); let o = 0;
+  const str = n => { let r = ''; for (let i = 0; i < n; i++) r += String.fromCharCode(d.getUint8(o + i)); o += n; return r; };
+  const u32 = () => { const v = d.getUint32(o); o += 4; return v; }, u16 = () => { const v = d.getUint16(o); o += 2; return v; };
+  if (str(4) !== 'MThd') throw new Error('Not a MIDI file');
+  const hl = u32(), fmt = u16(), ntr = u16(), div = u16(); o = 8 + hl;
+  if (div & 0x8000) throw new Error('SMPTE timing is not supported');
+  const notes = [], tempos = []; let ours = false;
+  for (let tr = 0; tr < ntr && o < d.byteLength; tr++){
+    if (str(4) !== 'MTrk'){ break; }
+    const len = u32(), end = o + len; let t = 0, run = 0; const open = new Map();
+    const vlq = () => { let v = 0, b; do { b = d.getUint8(o++); v = (v << 7) | (b & 127); } while (b & 128); return v; };
+    while (o < end){
+      t += vlq(); let st = d.getUint8(o);
+      if (st & 128) o++; else st = run;
+      if (st === 0xFF){ const type = d.getUint8(o++), l = vlq(); if (type === 0x51 && l === 3) tempos.push({t, us:(d.getUint8(o) << 16) | (d.getUint8(o + 1) << 8) | d.getUint8(o + 2)});
+        if ((type === 1 || type === 3) && l < 64){ let tx = ''; for (let i = 0; i < l; i++) tx += String.fromCharCode(d.getUint8(o + i)); if (/Snake Device/.test(tx)) ours = true; }
+        o += l; continue; }
+      if (st === 0xF0 || st === 0xF7){ o += vlq(); continue; }
+      run = st; const type = st & 0xF0, ch = st & 15;
+      const a = d.getUint8(o++), b = (type === 0xC0 || type === 0xD0) ? 0 : d.getUint8(o++);
+      if (type === 0x90 && b > 0){ const k = ch * 128 + a; if (!open.has(k)) open.set(k, []); open.get(k).push({t, v:b}); }
+      else if (type === 0x80 || (type === 0x90 && b === 0)){ const q = open.get(ch * 128 + a); if (q && q.length){ const s0 = q.shift(); notes.push({ch, n:a, t:s0.t, d:t - s0.t, v:s0.v / 127}); } }
+    }
+    for (const [k, q] of open) q.forEach(s0 => notes.push({ch:k >> 7, n:k & 127, t:s0.t, d:div / 4, v:s0.v / 127}));
+    o = end;
+  }
+  return {fmt, div, notes, tempos, ours};
+}
+async function importMidi(file){
+  let M; try { M = parseMidi(await file.arrayBuffer()); } catch(e){ toast('Could not read that MIDI file: ' + e.message); return; }
+  if (!M.notes.length){ toast('No notes in that MIDI file.'); return; }
+  const k = 96 / M.div;                                   // our ticks: 96 per quarter note
+  const endTick = Math.max(...M.notes.map(n => (n.t + n.d) * k));
+  let bars = [1, 2, 4, 8].find(b => b * TPB >= endTick - 1) || 8;
+  const L = bars * TPB, cut = endTick > L + 1;
+  if (!confirm(`Import "${file.name}" into this pattern? It replaces the pattern's drum hits and the notes of the synths it uses (${bars} bar${bars > 1 ? 's' : ''}${cut ? ', the rest is cut off' : ''}).`)) return;
+  storeScene(); pushUndo(); undoPass = null;
+  if (M.tempos.length){ S.bpm = Math.round(60e6 / M.tempos[0].us * 10) / 10; }
+  S.bars = bars;
+  const names = S.drum.pads.map(p => p.name.toLowerCase());
+  const drumPad = n => { const r = n - S.midiBase; if (M.ours && r >= 0 && r < 16) return r; const g = GM_DRUM[n]; if (g){ const i = names.indexOf(g.toLowerCase()); if (i >= 0) return i; const j = KIT.findIndex(x => x[0] === g); if (j >= 0) return j; } return r >= 0 && r < 16 ? r : ((n % 16) + 16) % 16; };
+  const drums = M.notes.filter(n => n.ch === 9 && n.t * k < L);
+  if (drums.length) S.drum.notes = drums.map(n => ({p:drumPad(n.n), t:Math.round(n.t * k), v:Math.max(.1, n.v)}));
+  // melodic channels: one synth track each (up to 4)
+  const chans = [...new Set(M.notes.filter(n => n.ch !== 9).map(n => n.ch))].sort((a, b) => a - b);
+  chans.slice(0, 4).forEach((ch, idx) => {
+    let tr = S.synths[idx];
+    if (!tr){ let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++; tr = newSynth(n); S.synths.push(tr); if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); } }
+    tr.notes = M.notes.filter(n => n.ch === ch && n.t * k < L).map(n => ({n:n.n, t:Math.round(n.t * k), d:Math.max(6, Math.round(Math.min(n.d * k, L - n.t * k))), v:Math.max(.1, n.v)}));
+  });
+  storeScene(); seqDirty = true; rollDirty = true; changed(); renderTransport(); renderPads(); if (view === 'synth') renderSynth();
+  toast(`Imported: ${drums.length} drum hits` + (chans.length ? `, ${Math.min(4, chans.length)} synth part${chans.length > 1 ? 's' : ''}` : '') + `, ${bars} bar${bars > 1 ? 's' : ''}` + (M.tempos.length ? ` at ${S.bpm} BPM` : '') + (chans.length > 4 ? '. Only the first 4 melodic channels fit.' : '.'));
+}
+$('#midiImp').addEventListener('click', () => $('#midiFile').click());
+$('#midiFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); });
+$('#midiExp').addEventListener('click', () => { $('#expWhat').value = 'midi'; $('#expWhat').dispatchEvent(new Event('change')); $('#export').click(); });
+
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
 const foldKey = (el, head) => { const v = el.closest('.view'); return (v ? v.id : 'v-' + view) + ':' + (el.dataset.title || head.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40); };
@@ -5633,6 +5700,8 @@ function vinylUI(addFn, gridFn, o, after, master){
   pr.querySelector('select').addEventListener('change', e => { const P = VIN_PRESETS[e.target.value]; if (!P) return; o.vHiss = P.hiss; o.vCrk = P.crackle; o.vPop = P.pops; o.vRum = P.rumble; after(); save(); renderFx(); });
   g.appendChild(pr);
   const pct = v => v ? Math.round(v * 100) + '%' : 'Off';
+  if (o.vMix == null) o.vMix = .6;
+  ctl(g, 'Blend', o, 'vMix', 0, 1, .01, v => Math.round(v * 100) + '%', after);
   for (const [k, lb] of [['vCrk', 'Crackle'], ['vHiss', 'Hiss'], ['vPop', 'Pops'], ['vRum', 'Rumble']]){ if (o[k] == null) o[k] = 0; ctl(g, lb, o, k, 0, 1, .01, pct, after); }
   if (master){
     const r = document.createElement('div'); r.className = 'ctl';
