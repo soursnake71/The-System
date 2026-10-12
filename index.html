@@ -804,7 +804,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="padsmp">Pad sample (keys)</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -826,6 +826,11 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="p5Wheel">Mod wheel</label><input id="p5Wheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="p5WheelV"></span></div>
         <div id="p5Body"></div>
         <p class="hint">Modeled on the Rev 3 Prophet-5: two CEM3340 oscillators, CEM3320 four-pole filter, two CEM3310 envelopes per voice, five voices. Knobs step in 128 increments like the original (pitch and cutoff move in semitones). Vintage sets how much the five voices differ and drift.</p>
+      </div>
+      <div id="gmPanel" hidden>
+        <div class="ctl"><label class="label" for="gmProg">Sound</label><select id="gmProg"></select><span></span></div>
+        <div class="row"><button id="gmPrev" class="nolearn">◀</button><span id="gmNum" class="grow mono" style="text-align:center"></span><button id="gmNext" class="nolearn">▶</button></div>
+        <p class="hint">The 128 General MIDI instruments, grouped by family. ◀ ▶ step through them and play each one. MIDI files that pick an instrument (program change) switch this automatically.</p>
       </div>
       <div id="psPanel" hidden>
         <div class="ctl"><label class="label" for="psPad">Pad</label><select id="psPad"></select><span></span></div>
@@ -1003,6 +1008,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </details>
     <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
       <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. <b>Blend</b> sets how loud the noise sits under the sound. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
+    </details>
+    <details id="h-gm"><summary>General MIDI sounds</summary>
+      <p>Synth → <b>Sound</b> → instrument <b>General MIDI (128 sounds)</b>: all 128 GM instruments (pianos, organs, guitars, basses, strings, brass, reeds, flutes, synth leads and pads, ethnic, percussion, effects), grouped by family. ◀ ▶ steps through them. Imported MIDI files that choose instruments switch to them automatically, and a program change from your MPC picks the sound. These are synthesized approximations, built for a light phone app, not sampled GM sounds.</p>
     </details>
     <details id="h-midifile"><summary>MIDI files</summary>
       <p><b>Import MIDI</b> (Pads → Sequencer, or Setup → Export) puts a .mid file into the current pattern: drums (channel 10) onto the pads, matched by note (your A01 note setting, or General MIDI drum names), and each other channel onto a synth track (up to 4). The pattern becomes 1, 2, 4 or 8 bars to fit, and the tempo is taken from the file. Undo takes it back. <b>Export MIDI</b> saves the pattern or song as a .mid for the MPC or any DAW.</p>
@@ -1405,7 +1413,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v73</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v74</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4907,7 +4915,7 @@ function parseMidi(buf){
   if (str(4) !== 'MThd') throw new Error('Not a MIDI file');
   const hl = u32(), fmt = u16(), ntr = u16(), div = u16(); o = 8 + hl;
   if (div & 0x8000) throw new Error('SMPTE timing is not supported');
-  const notes = [], tempos = []; let ours = false;
+  const notes = [], tempos = [], progs = {}; let ours = false;
   for (let tr = 0; tr < ntr && o < d.byteLength; tr++){
     if (str(4) !== 'MTrk'){ break; }
     const len = u32(), end = o + len; let t = 0, run = 0; const open = new Map();
@@ -4921,13 +4929,14 @@ function parseMidi(buf){
       if (st === 0xF0 || st === 0xF7){ o += vlq(); continue; }
       run = st; const type = st & 0xF0, ch = st & 15;
       const a = d.getUint8(o++), b = (type === 0xC0 || type === 0xD0) ? 0 : d.getUint8(o++);
+      if (type === 0xC0 && progs[ch] == null) progs[ch] = a;
       if (type === 0x90 && b > 0){ const k = ch * 128 + a; if (!open.has(k)) open.set(k, []); open.get(k).push({t, v:b}); }
       else if (type === 0x80 || (type === 0x90 && b === 0)){ const q = open.get(ch * 128 + a); if (q && q.length){ const s0 = q.shift(); notes.push({ch, n:a, t:s0.t, d:t - s0.t, v:s0.v / 127}); } }
     }
     for (const [k, q] of open) q.forEach(s0 => notes.push({ch:k >> 7, n:k & 127, t:s0.t, d:div / 4, v:s0.v / 127}));
     o = end;
   }
-  return {fmt, div, notes, tempos, ours};
+  return {fmt, div, notes, tempos, ours, progs};
 }
 async function importMidi(file){
   let M; try { M = parseMidi(await file.arrayBuffer()); } catch(e){ toast('Could not read that MIDI file: ' + e.message); return; }
@@ -4949,6 +4958,7 @@ async function importMidi(file){
   chans.slice(0, 4).forEach((ch, idx) => {
     let tr = S.synths[idx];
     if (!tr){ let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++; tr = newSynth(n); S.synths.push(tr); if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); } }
+    if (M.progs[ch] != null && !M.ours){ tr.inst = 'gm'; tr.gm = M.progs[ch]; tr.name = (GM_NAMES[tr.gm].replace(/ \(.*\)/, '')).slice(0, 14); }
     tr.notes = M.notes.filter(n => n.ch === ch && n.t * k < L).map(n => ({n:n.n, t:Math.round(n.t * k), d:Math.max(6, Math.round(Math.min(n.d * k, L - n.t * k))), v:Math.max(.1, n.v)}));
   });
   storeScene(); seqDirty = true; rollDirty = true; changed(); renderTransport(); renderPads(); if (view === 'synth') renderSynth();
@@ -6888,6 +6898,64 @@ const OB_PRESETS = {
   'Init':{}
 };
 const OB_DEFAULT = (name = 'Jump Brass') => Object.assign({}, OB_INIT, OB_PRESETS[name], {preset:name});
+
+/* ================= General MIDI sound set: all 128 GM programs on a compact two-oscillator voice ================= */
+const GM_NAMES = ['Acoustic Grand Piano','Bright Acoustic Piano','Electric Grand Piano','Honky-tonk Piano','Electric Piano 1','Electric Piano 2','Harpsichord','Clavinet',
+'Celesta','Glockenspiel','Music Box','Vibraphone','Marimba','Xylophone','Tubular Bells','Dulcimer',
+'Drawbar Organ','Percussive Organ','Rock Organ','Church Organ','Reed Organ','Accordion','Harmonica','Tango Accordion',
+'Acoustic Guitar (nylon)','Acoustic Guitar (steel)','Electric Guitar (jazz)','Electric Guitar (clean)','Electric Guitar (muted)','Overdriven Guitar','Distortion Guitar','Guitar Harmonics',
+'Acoustic Bass','Electric Bass (finger)','Electric Bass (pick)','Fretless Bass','Slap Bass 1','Slap Bass 2','Synth Bass 1','Synth Bass 2',
+'Violin','Viola','Cello','Contrabass','Tremolo Strings','Pizzicato Strings','Orchestral Harp','Timpani',
+'String Ensemble 1','String Ensemble 2','Synth Strings 1','Synth Strings 2','Choir Aahs','Voice Oohs','Synth Voice','Orchestra Hit',
+'Trumpet','Trombone','Tuba','Muted Trumpet','French Horn','Brass Section','Synth Brass 1','Synth Brass 2',
+'Soprano Sax','Alto Sax','Tenor Sax','Baritone Sax','Oboe','English Horn','Bassoon','Clarinet',
+'Piccolo','Flute','Recorder','Pan Flute','Blown Bottle','Shakuhachi','Whistle','Ocarina',
+'Lead 1 (square)','Lead 2 (sawtooth)','Lead 3 (calliope)','Lead 4 (chiff)','Lead 5 (charang)','Lead 6 (voice)','Lead 7 (fifths)','Lead 8 (bass + lead)',
+'Pad 1 (new age)','Pad 2 (warm)','Pad 3 (polysynth)','Pad 4 (choir)','Pad 5 (bowed)','Pad 6 (metallic)','Pad 7 (halo)','Pad 8 (sweep)',
+'FX 1 (rain)','FX 2 (soundtrack)','FX 3 (crystal)','FX 4 (atmosphere)','FX 5 (brightness)','FX 6 (goblins)','FX 7 (echoes)','FX 8 (sci-fi)',
+'Sitar','Banjo','Shamisen','Koto','Kalimba','Bagpipe','Fiddle','Shanai',
+'Tinkle Bell','Agogo','Steel Drums','Woodblock','Taiko Drum','Melodic Tom','Synth Drum','Reverse Cymbal',
+'Guitar Fret Noise','Breath Noise','Seashore','Bird Tweet','Telephone Ring','Helicopter','Applause','Gunshot'];
+const GM_FAMILIES = ['Piano','Chromatic percussion','Organ','Guitar','Bass','Strings','Ensemble','Brass','Reed','Pipe','Synth lead','Synth pad','Synth effects','Ethnic','Percussive','Sound effects'];
+// family starting points: {wave, wave2, oct2, det, mix2, sub, cut, res, fenv, fdec, a, d, s, r, gain}
+const GM_BASE = [
+  {wave:'triangle', wave2:'sawtooth', oct2:0, det:4, mix2:.22, sub:.1, cut:.56, res:.8, fenv:.35, fdec:.45, a:.002, d:1.4, s:0, r:.35, gain:.95},
+  {wave:'sine', wave2:'sine', oct2:2, det:0, mix2:.28, sub:0, cut:.9, res:.7, fenv:0, fdec:.2, a:.001, d:.9, s:0, r:.6, gain:1},
+  {wave:'sine', wave2:'sine', oct2:1, det:0, mix2:.6, sub:.5, cut:.8, res:.7, fenv:0, fdec:.2, a:.006, d:.1, s:1, r:.06, gain:.7},
+  {wave:'sawtooth', wave2:'square', oct2:0, det:3, mix2:.25, sub:0, cut:.46, res:1.5, fenv:.45, fdec:.25, a:.002, d:1, s:.08, r:.2, gain:.8},
+  {wave:'sawtooth', wave2:'square', oct2:-1, det:0, mix2:.35, sub:.6, cut:.3, res:1.5, fenv:.45, fdec:.2, a:.003, d:.6, s:.45, r:.08, gain:.95},
+  {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:9, mix2:.75, sub:0, cut:.55, res:.8, fenv:.1, fdec:.5, a:.2, d:.5, s:.9, r:.45, gain:.65},
+  {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:15, mix2:.8, sub:.1, cut:.5, res:.8, fenv:.1, fdec:.6, a:.35, d:.6, s:.9, r:.7, gain:.6},
+  {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:6, mix2:.6, sub:.1, cut:.4, res:1, fenv:.5, fdec:.3, a:.04, d:.3, s:.8, r:.15, gain:.7},
+  {wave:'square', wave2:'sawtooth', oct2:0, det:3, mix2:.3, sub:0, cut:.5, res:1.5, fenv:.2, fdec:.2, a:.03, d:.2, s:.85, r:.12, gain:.6},
+  {wave:'sine', wave2:'triangle', oct2:1, det:0, mix2:.15, sub:0, cut:.7, res:.7, fenv:.1, fdec:.1, a:.05, d:.2, s:.9, r:.15, gain:.9},
+  {wave:'sawtooth', wave2:'square', oct2:0, det:12, mix2:.5, sub:0, cut:.7, res:3, fenv:.3, fdec:.3, a:.005, d:.3, s:.8, r:.15, gain:.6},
+  {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:18, mix2:.8, sub:.2, cut:.45, res:1, fenv:.2, fdec:1, a:.7, d:1, s:.85, r:1.3, gain:.55},
+  {wave:'sine', wave2:'sawtooth', oct2:1, det:20, mix2:.4, sub:0, cut:.5, res:6, fenv:.6, fdec:1.2, a:.3, d:1.5, s:.6, r:1.5, gain:.55},
+  {wave:'sawtooth', wave2:'square', oct2:1, det:5, mix2:.3, sub:0, cut:.55, res:2, fenv:.5, fdec:.3, a:.002, d:.7, s:.1, r:.2, gain:.75},
+  {wave:'sine', wave2:'square', oct2:1, det:30, mix2:.3, sub:0, cut:.7, res:2, fenv:.3, fdec:.1, a:.001, d:.35, s:0, r:.25, gain:.9},
+  {wave:'sawtooth', wave2:'square', oct2:2, det:40, mix2:.5, sub:0, cut:.6, res:8, fenv:.7, fdec:.4, a:.01, d:.6, s:.3, r:.4, gain:.5}];
+const GM_TWEAK = {
+  1:{cut:.68}, 2:{wave:'triangle', wave2:'square', mix2:.2}, 3:{det:22, mix2:.5}, 4:{wave:'sine', wave2:'sine', oct2:1, mix2:.35, cut:.75, fenv:.15, d:1.6}, 5:{wave:'sine', wave2:'triangle', oct2:2, mix2:.3, d:1.3},
+  6:{wave:'sawtooth', wave2:'square', oct2:1, mix2:.4, cut:.7, d:.7, r:.15}, 7:{wave:'square', wave2:'square', oct2:0, det:2, cut:.5, res:4, fenv:.6, fdec:.15, d:.5},
+  11:{d:1.8, r:1}, 12:{wave:'sine', wave2:'sine', oct2:2, mix2:.15, d:.35, r:.2}, 13:{wave:'triangle', oct2:2, mix2:.2, d:.25, r:.15}, 14:{oct2:1, mix2:.45, d:2.5, r:1.5},
+  16:{sub:.6, mix2:.7}, 17:{fenv:.2, fdec:.08, s:.8}, 18:{wave:'square', wave2:'sine', res:2}, 19:{wave:'sawtooth', wave2:'sine', oct2:1, mix2:.5, sub:.8, a:.08, r:.6}, 21:{wave:'sawtooth', wave2:'sawtooth', det:14, mix2:.6, oct2:0}, 22:{wave:'square', wave2:'sawtooth', oct2:0, det:6, cut:.6},
+  24:{wave:'triangle', wave2:'triangle', mix2:.3, cut:.4, res:1}, 26:{wave:'triangle', cut:.38}, 28:{d:.15, s:0, r:.08}, 29:{wave:'square', wave2:'sawtooth', cut:.5, res:5, s:.6, d:.8, gain:.6}, 30:{wave:'sawtooth', wave2:'square', det:15, cut:.6, res:6, s:.7, gain:.55}, 31:{wave:'sine', wave2:'sine', oct2:2, mix2:.4},
+  32:{wave:'triangle', wave2:'sine', cut:.22}, 33:{wave:'triangle'}, 35:{wave:'sine', wave2:'triangle', fenv:.15, a:.02}, 36:{cut:.45, fenv:.7, fdec:.1}, 38:{wave:'sawtooth', wave2:'sawtooth', det:8, res:8, cut:.25, fenv:.7}, 39:{wave:'square', wave2:'sawtooth', res:5, fenv:.6},
+  40:{det:4, a:.08, mix2:.4}, 42:{oct2:0, sub:.3}, 43:{sub:.6}, 44:{a:.05}, 45:{a:.002, d:.3, s:0, r:.2, fenv:.3}, 46:{wave:'triangle', wave2:'sine', oct2:1, a:.002, d:1.4, s:0, r:.6, cut:.6}, 47:{wave:'sine', wave2:'triangle', oct2:-1, a:.002, d:1, s:0, r:.6, cut:.3, sub:.6},
+  52:{wave:'triangle', wave2:'sine', det:10, mix2:.6, cut:.45}, 53:{wave:'sine', wave2:'triangle', det:8, cut:.4}, 55:{a:.002, d:.35, s:0, r:.25, fenv:.6, mix2:1, det:25, cut:.6},
+  56:{wave:'sawtooth', wave2:'square', det:2, mix2:.2, cut:.5}, 57:{cut:.32}, 58:{oct2:-1, cut:.25, sub:.5}, 59:{wave:'square', cut:.35, res:3}, 60:{wave:'sawtooth', wave2:'sine', cut:.3, a:.08}, 62:{res:3, fenv:.6}, 63:{det:14, res:2},
+  64:{cut:.6}, 66:{cut:.42}, 67:{cut:.35, oct2:-1}, 68:{wave:'square', wave2:'triangle', cut:.55, res:3}, 70:{wave:'square', cut:.32, oct2:-1}, 71:{wave:'square', wave2:'square', mix2:.1, cut:.42},
+  72:{oct2:2}, 75:{wave:'sine', wave2:'sine', det:6}, 78:{wave:'sine', wave2:'sine', oct2:0, mix2:0, cut:1},
+  80:{wave:'square', wave2:'square', det:6}, 81:{wave:'sawtooth', wave2:'sawtooth'}, 85:{wave:'sawtooth', wave2:'triangle', cut:.45, a:.05}, 86:{oct2:0, det:702, mix2:.7}, 87:{oct2:-1, sub:.4},
+  88:{wave:'sine', wave2:'sawtooth', oct2:1, mix2:.3}, 89:{cut:.35}, 90:{cut:.55, fenv:.4}, 91:{wave:'triangle', wave2:'sine', det:10}, 92:{wave:'sawtooth', wave2:'triangle', res:3}, 93:{wave:'square', wave2:'sine', oct2:2, res:5}, 94:{wave:'sine', wave2:'triangle', oct2:1, det:12}, 95:{res:8, fenv:.8, fdec:2},
+  104:{res:6, cut:.6, d:1.5}, 105:{wave:'square', d:.4}, 107:{wave:'triangle', d:1.2}, 108:{wave:'sine', wave2:'sine', oct2:2, mix2:.25, d:.5}, 109:{wave:'sawtooth', wave2:'square', a:.05, s:.9, r:.2, cut:.5, res:3},
+  112:{wave:'sine', wave2:'sine', oct2:3, d:.6}, 114:{wave:'sine', wave2:'triangle', oct2:2, mix2:.5, d:.8}, 116:{wave:'sine', oct2:-1, sub:.8, d:.6, cut:.3}, 117:{wave:'sine', wave2:'sine', oct2:-1, d:.5}, 118:{wave:'triangle', wave2:'square', fenv:.8, fdec:.1, d:.4}, 119:{a:1.2, s:0, d:.01, r:.1, wave:'sawtooth'}};
+function gmPatch(prog){
+  prog = clamp(prog | 0, 0, 127);
+  return Object.assign({}, GM_BASE[prog >> 3], GM_TWEAK[prog] || {});
+}
+const GM_TAB = 'GM ';
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
 const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
@@ -6941,7 +7009,7 @@ function synthVoice(rig, tr, note, t, vel, dur, extra){
     if (dur != null) release(t + dur);
     return {release};
   }
-  const c = rig.c, P = tr.patch, f = 440 * Math.pow(2, (note - 69) / 12);
+  const c = rig.c, P = tr.inst === 'gm' ? (tr._gmP && tr._gmP.p === tr.gm ? tr._gmP.v : (tr._gmP = {p:tr.gm, v:gmPatch(tr.gm)}).v) : tr.patch, f = 440 * Math.pow(2, (note - 69) / 12);
   const out = c.createGain(), filt = c.createBiquadFilter();
   filt.type = 'lowpass'; filt.Q.value = P.res;
   const oscs = [];
@@ -7174,9 +7242,12 @@ function renderSynth(){
   const isP5 = tr.inst === 'prophet', isOB = tr.inst === 'obxa', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
   $('#obPanel').hidden = !isOB; if (isOB) renderOB(tr);
   const isPS = tr.inst === 'padsmp'; $('#psPanel').hidden = !isPS;
+  const isGM = tr.inst === 'gm'; $('#gmPanel').hidden = !isGM;
+  if (isGM){ const g = $('#gmProg'); if (!g.options.length) g.innerHTML = GM_FAMILIES.map((f, fi) => `<optgroup label="${f}">` + GM_NAMES.slice(fi * 8, fi * 8 + 8).map((n, k) => `<option value="${fi * 8 + k}">${fi * 8 + k + 1}. ${n}</option>`).join('') + '</optgroup>').join('');
+    if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp'; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -7271,6 +7342,10 @@ function renderOB(tr){
     body.appendChild(sec);
   });
 }
+function gmSet(v){ const tr = curSynth(); tr.gm = (v + 128) % 128; save(); renderSynth(); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .7); }
+$('#gmProg').addEventListener('change', e => gmSet(+e.target.value));
+$('#gmPrev').addEventListener('click', () => gmSet((curSynth().gm | 0) - 1));
+$('#gmNext').addEventListener('click', () => gmSet((curSynth().gm | 0) + 1));
 $('#psPad').addEventListener('change', e => { const tr = curSynth(); tr.smpPad = +e.target.value; save(); hearChord(tr, [60], .6); });
 $('#obPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; const w = (tr.ob && tr.ob.wheel) || 0; tr.ob = OB_DEFAULT(e.target.value); tr.ob.wheel = w; solCfg(tr); save(); renderOB(tr); });
 $('#obWheel').addEventListener('input', e => { const tr = curSynth(); tr.ob.wheel = +e.target.value; $('#obWheelV').textContent = Math.round(tr.ob.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':obxa']; if (n) n.port.postMessage({type:'wheel', v:tr.ob.wheel}); save(); });
@@ -7339,7 +7414,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
@@ -8155,6 +8230,7 @@ function onMidi(e){
   const type = st & 0xF0, ch = (st & 0x0F) + 1;
   if ((plat.cap || (S.deck && S.deck.ext && S.deck.ext.on)) && platMidi(st, d)) return;
   if (!learning && learnMidi(type, ch, d)) return;
+  if (type === 0xC0){ const syn = S.synths.find(t => t.id === S.midiTarget) || curSynth(); if (syn && syn.inst === 'gm'){ syn.gm = d[1] & 127; save(); if (view === 'synth') renderSynth(); toast('GM: ' + GM_NAMES[syn.gm]); } return; }
   if ((type === 0xB0 && d[1] === 1) || type === 0xE0){
     const syn = S.synths.find(t => t.id === S.midiTarget && (t.inst === 'prophet' || t.inst === 'obxa')), n = syn && live && live.sol && live.sol[syn.id + ':' + syn.inst];
     if (syn && type === 0xB0){ const P = syn.inst === 'obxa' ? syn.ob : syn.p5; P.wheel = d[2] / 127; if (n) n.port.postMessage({type:'wheel', v:P.wheel}); }
