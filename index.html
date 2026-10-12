@@ -56,6 +56,8 @@ input[type=range]{accent-color:var(--accent);width:100%;margin:0;height:28px}
 .trow2 select{padding:7px}
 .trow2 .grow{flex:1}
 @media (max-width:430px){.trow2 > .label{display:none}}
+@media (max-width:460px){.trow2{gap:4px}.trow2 > button{padding-left:6px !important;padding-right:6px !important;letter-spacing:.02em}.trow2 select{padding:6px 4px;max-width:74px}.trow2 > .firesw{padding-left:21px !important}.firesw i{left:6px}#padSet{font-size:0 !important}#padSet::before{content:'✎ EDIT';font-size:13px}}
+@media (max-width:370px){#padSet::before{content:'✎'}#tap{display:none}}
 
 main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 24px;-webkit-overflow-scrolling:touch}
 .view{display:flex;flex-direction:column;gap:14px;max-width:640px;margin:0 auto}
@@ -324,6 +326,15 @@ html.land-short #v-drums .row.perf > button{flex:1 1 30%}
 html.nav-on :focus-visible, html.nav-on .gp-focus{outline:4px solid #ffd23f !important;outline-offset:2px;box-shadow:0 0 0 7px #ffd23f55 !important;position:relative;z-index:2}
 #gpBadge{position:fixed;right:10px;bottom:calc(var(--sheetBot,56px) + 10px);z-index:60;background:#111;color:#ffd23f;border:2px solid #ffd23f;border-radius:16px;padding:5px 12px;font:700 13px var(--f-display);letter-spacing:.08em;pointer-events:none;box-shadow:0 3px 10px #0008}
 #gpBadge.play{color:#fff;background:#d62b22;border-color:#ff8a80}
+/* FIRE: a guarded toggle that glows orange when engaged */
+.firesw{flex:none;position:relative;padding:8px 10px 8px 26px !important;font-weight:800;letter-spacing:.08em;white-space:nowrap;background:linear-gradient(180deg,#3a3a37,#1f1f1d) !important;color:#d9a46a !important;border:1px solid #000 !important}
+.firesw i{position:absolute;left:8px;top:50%;width:11px;height:11px;margin-top:-5.5px;border-radius:50%;background:#5a2a10;box-shadow:inset 0 1px 2px #000}
+.firesw.on{color:#fff !important;background:radial-gradient(circle at 50% 120%,#ffcf6b,#ff7a00 45%,#b83200 90%) !important;border-color:#ffb347 !important;animation:fireGlow .9s ease-in-out infinite alternate}
+.firesw.on i{background:#fff6c9;box-shadow:0 0 8px 3px #ffb347}
+@keyframes fireGlow{from{box-shadow:0 0 8px 2px #ff7a00aa,inset 0 0 6px #fff4}to{box-shadow:0 0 22px 7px #ff7a00,inset 0 0 10px #fff8}}
+#fireFx{position:fixed;inset:0;z-index:30;pointer-events:none}
+html.frying main{animation:fryShake .11s steps(2) infinite}
+@keyframes fryShake{0%{transform:translate(0,0)}50%{transform:translate(var(--fx,0px),var(--fy,0px))}}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -653,6 +664,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <button id="tap">Tap</button>
     <button id="padSet" class="nolearn" aria-label="Pad settings" title="Pad edit mode: tap a pad to change, load or delete its sound">✎ EDIT</button>
     <button id="allStop" class="allstop" aria-label="All stop: silence everything" title="All stop">■ ALL</button>
+    <button id="fire" class="firesw nolearn" aria-pressed="false" aria-label="Fire: fry the circuits and resample it" title="FIRE: the machine fries, mangles itself and records it all"><i></i>FIRE</button>
     <span class="grow"></span>
     <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
     <span class="badge" id="inBadge">No input</span>
@@ -694,6 +706,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
     <div class="card" data-title="Pad sound">
       <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
+      <div class="kitrow"><span class="label">Pack</span><button id="packSave" class="nolearn">Save pack</button><button id="packLoad" class="nolearn">Load pack</button></div>
+      <input type="file" id="packFile" accept=".omegapack,.zip" hidden>
       <div class="row"><span class="grow">SP-1200 mode: 12-bit, 26 kHz, drop-sample pitch, output filters</span><button id="spMode">Off</button></div>
       <div class="row"><h2 class="grow" id="padTitle">A01 Kick</h2><span class="badge" id="sampleBadge">Built-in</span><button id="clearPad">Clear hits</button></div>
       <div class="row">
@@ -1382,6 +1396,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
         <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
+        <li><b>FIRE</b> (top bar): the machine fries. Smoke pours out, the sound overdrives, crushes and cuts out, and the settings slowly mangle themselves, more the longer it burns. Everything that comes out is recorded: switch it off and your settings come back, and the fried take is in Chop (ready to slice onto the pads) and your sample bin. Press play first so there is a beat to burn.</li>
+        <li><b>Packs</b> (Pad sound → Save pack / Load pack): a .omegapack file with all 16 pad sounds, every pad setting, and the Chop sample with its slice points.</li>
         <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
         <li><b>Projects</b> (Setup): Save keeps the project in your list. Open switches projects. Export makes a .omega file to move it to another device. <b>New project</b> (tap twice) saves the current one first, then starts fresh.</li>
         <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
@@ -1501,7 +1517,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v89</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v90</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2132,7 +2148,11 @@ function makeMaster(c){
   m.mt = MATCH_F.map(f => { const b = c.createBiquadFilter(); b.type = 'peaking'; b.frequency.value = f; b.Q.value = 4.32; b.gain.value = 0; return b; });
   for (let k = 0; k < m.mt.length - 1; k++) m.mt[k].connect(m.mt[k + 1]);
   m.pre.connect(m.glue).connect(m.glueMk).connect(m.glueWet).connect(m.lim);
-  m.pre.connect(m.glueDry).connect(m.lim); m.lim.connect(m.out); m.pre.connect(m.preAn);
+  m.pre.connect(m.glueDry).connect(m.lim); m.pre.connect(m.preAn);
+  // FIRE stage: dry path plus an overdriven, bit-crushed, resonant 'frying' path that fades in while FIRE is on
+  m.fireDry = c.createGain(); m.fireDrive = c.createGain(); m.fireSh = c.createWaveShaper(); m.fireFilt = c.createBiquadFilter(); m.fireWet = c.createGain();
+  m.fireWet.gain.value = 0; m.fireFilt.type = 'peaking'; m.fireFilt.frequency.value = 1800; m.fireFilt.Q.value = 3; m.fireFilt.gain.value = 0; m.fireSh.oversample = 'none';
+  m.lim.connect(m.fireDry).connect(m.out); m.lim.connect(m.fireDrive).connect(m.fireSh).connect(m.fireFilt).connect(m.fireWet).connect(m.out);
   m.out.connect(m.an); m.out.connect(c.destination);
   applyMaster(c, m);
   return m;
@@ -5458,7 +5478,8 @@ function parsePgm(ab){
 async function importAny(fileList){
   let files = [...fileList], done = [];
   for (const f of files.filter(f => /\.omega$/i.test(f.name))) await projImportFile(f);
-  files = files.filter(f => !/\.omega$/i.test(f.name));
+  for (const f of files.filter(f => /\.omegapack$/i.test(f.name))) await packImport(f);
+  files = files.filter(f => !/\.omega(pack)?$/i.test(f.name));
   // unpack ZIPs first
   for (const f of files.filter(f => /\.zip$/i.test(f.name))){ try { const inner = await unzip(f); files = files.concat(inner); done.push(f.name + ' (' + inner.length + ' files)'); } catch(e){ toast('Could not open ' + f.name + ': ' + e.message); } }
   files = files.filter(f => !/\.zip$/i.test(f.name));
@@ -9348,6 +9369,48 @@ $('#trackFile').addEventListener('change', async e => {
   } catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#share').addEventListener('click', async () => { try { await navigator.share({files:[lastExport], title:lastExport.name}); } catch(e){} });
+/* ================= Packs (.omegapack): the 16 pads' sounds and every pad setting (trim, loop, ADSR, filters, S950, tempo),
+   plus the Chop sample and its slice points, in one file to keep, share or load into any project ================= */
+async function packExport(){
+  const files = [], man = {app:'The Omega System', kind:'pack', v:1, name:S.projName || 'Pack', padMap:S.padMap, pads:[], chop:null, audio:{}}; let n = 0;
+  const addAudio = async (key, data) => { const f = 'a' + (n++) + '.bin', len = data.ch[0].length, all = new Float32Array(len * data.ch.length); data.ch.forEach((c, i) => all.set(c, i * len)); man.audio[key] = {f, sr:data.sr, chs:data.ch.length, len}; files.push({name:f, blob:new Blob([all.buffer])}); };
+  for (const p of S.drum.pads){
+    const pd = JSON.parse(JSON.stringify(p)); man.pads.push(pd);
+    if (!p.sample || String(p.sample).startsWith('kit:') || man.audio[p.sample]) continue;
+    let a = await DB.get('audio', p.sample); const b = buffers.get(p.sample);
+    if (!a && b) a = {sr:b.sampleRate, ch:Array.from({length:b.numberOfChannels}, (_, c) => b.getChannelData(c))};
+    if (a) await addAudio(p.sample, a);
+  }
+  if (chop.buf){ saveChop(); man.chop = S.chop; await addAudio('chop:src', {sr:chop.buf.sampleRate, ch:Array.from({length:chop.buf.numberOfChannels}, (_, c) => chop.buf.getChannelData(c))}); }
+  files.unshift({name:'omega-pack.json', blob:new Blob([JSON.stringify(man)], {type:'application/json'})});
+  saveFile(await makeZip(files), fileSafe(man.name) + '.omegapack');
+  toast('Pack saved: ' + man.pads.filter(p => p.sample).length + ' pad sounds with their settings' + (man.chop ? ', plus the Chop sample and its ' + man.chop.markers.length + ' slices' : '') + '.');
+}
+async function packImport(file){
+  try {
+    const parts = await unzip(new File([file], 'p.zip')), mf = parts.find(f => f.name === 'omega-pack.json'); if (!mf) throw new Error('not an Omega System pack');
+    const man = JSON.parse(await mf.text()), read = async a => { const f = parts.find(x => x.name === a.f); if (!f) return null; const all = new Float32Array(await f.arrayBuffer()); return {sr:a.sr, ch:Array.from({length:a.chs}, (_, i) => all.slice(i * a.len, (i + 1) * a.len))}; };
+    ensureAudio(); const keyMap = {}, ts = Date.now();
+    for (let i = 0; i < 16 && i < man.pads.length; i++){
+      const src = man.pads[i], old = S.drum.pads[i].sample; let key = src.sample || null;
+      if (key && man.audio[key]){
+        if (!keyMap[key]){ const d = await read(man.audio[key]); if (!d){ key = null; } else { keyMap[key] = 'usr:' + i + ':' + ts; await DB.put('audio', keyMap[key], d); buffers.set(keyMap[key], makeBuffer(d.ch, d.sr)); } }
+        if (key) key = keyMap[key];
+      } else if (key && String(key).startsWith('kit:')) ensureKitBuf(key);
+      else if (key) key = null;
+      S.drum.pads[i] = Object.assign({}, src, {sample:key});   // the pad exactly as it was saved
+      if (old && old !== key) dropAudio(old);
+    }
+    if (man.padMap) S.padMap = man.padMap;
+    if (man.chop && man.audio['chop:src']){ const d = await read(man.audio['chop:src']); if (d){ Object.assign(chop, man.chop); setChopSource(makeBuffer(d.ch, d.sr), man.chop.name); chop.markers = man.chop.markers.slice(); chop.mode = man.chop.mode; renderChop(); saveChop(); } }
+    save(); renderPads(); renderPadEditor();
+    toast('Loaded pack “' + (man.name || file.name) + '”: ' + man.pads.filter(p => p.sample).length + ' pads' + (man.chop ? ' and the Chop sample with its slices' : '') + '.');
+  } catch(e){ toast('Could not load the pack: ' + e.message); }
+}
+$('#packSave').addEventListener('click', packExport);
+$('#packLoad').addEventListener('click', () => $('#packFile').click());
+$('#packFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) packImport(f); });
+
 /* ================= Projects: save, open, export and import whole projects (patterns, settings, every sound) ================= */
 const PDB = Object.assign(Object.create(DB), {db:null, open(){
   if (this.db) return this.db;
@@ -9554,6 +9617,125 @@ window.addEventListener('gamepaddisconnected', () => { if (!(navigator.getGamepa
 if (navigator.getGamepads) requestAnimationFrame(gpPoll);
 // TV: start with something focused so the remote works straight away
 setTimeout(() => { if (document.documentElement.classList.contains('dev-tv')){ document.documentElement.classList.add('nav-on'); const p = document.querySelector('.pad'); if (p) p.focus(); } }, 1500);
+
+/* ================= FIRE: the circuits fry. Smoke pours out, the sound overdrives, crushes and cuts out, the settings
+   slowly mangle themselves, and everything that comes out is recorded. Switch it off: settings come back, the fried take lands in Chop ================= */
+const fire = {on:false, t0:0, heat:0, tick:0, snap:null, rec:null, crackle:null, raf:0, parts:[], lastCurve:0};
+function fireCurve(heat){
+  const n = 2048, cur = new Float32Array(n), k = 1 + heat * 14, levels = Math.max(4, Math.round(Math.pow(2, 12 - heat * 9)));
+  for (let i = 0; i < n; i++){ const x = i / (n - 1) * 2 - 1; let y = Math.tanh(k * x) / Math.tanh(k); y = Math.round(y * levels) / levels; cur[i] = y * .8; }
+  return cur;
+}
+function fireSnapshot(){
+  const D = {}; for (const [k, v] of Object.entries(S.drum)) if (k !== 'pads' && k !== 'notes' && (typeof v !== 'object' || v === null)) D[k] = v;
+  return {pads:JSON.parse(JSON.stringify(S.drum.pads)), drum:D, swing:S.swing, bpm:S.bpm, master:JSON.parse(JSON.stringify(S.master)), synths:(S.synths || []).map(t => ({id:t.id, vol:t.vol, cut:t.cut}))};
+}
+function fireRestore(){
+  const N = fire.snap; if (!N) return;
+  S.drum.pads.forEach((p, i) => { const o = N.pads[i]; if (!o) return; const keep = {sample:p.sample, name:p.name, file:p.file}; for (const k of Object.keys(p)) if (!(k in o)) delete p[k]; Object.assign(p, o, keep); });
+  Object.assign(S.drum, N.drum); S.swing = N.swing; setBpm(N.bpm); S.master = N.master;
+  N.synths.forEach(o => { const t = trackById(o.id); if (t){ t.vol = o.vol; t.cut = o.cut; } });
+  $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%';
+  applyAll(); if (live) applyMaster(ctx, live.master); renderPads(); renderPadEditor(); save();
+}
+// one random thing gets mangled; how far depends on the heat
+function fireMangle(h){
+  const R = Math.random, P = S.drum.pads, i = Math.floor(R() * 16), p = P[i], pick = R();
+  if (pick < .22) p.pitch = clamp(Math.round((p.pitch || 0) + (R() - .5) * 2 * (1 + h * 7)), -24, 24);
+  else if (pick < .36) p.s950f = clamp(Math.round((p.s950f == null ? 99 : p.s950f) - R() * 40 * h), 0, 99);
+  else if (pick < .46) p.s950r = S950_RATES[1 + Math.floor(R() * (S950_RATES.length - 1))];
+  else if (pick < .53) p.rev = !p.rev;
+  else if (pick < .63) { p.start = clamp((p.start || 0) + R() * .15 * h, 0, .8); p.end = clamp(p.end == null ? 1 : p.end, p.start + .05, 1); }
+  else if (pick < .70) p.pan = clamp((p.pan || 0) + (R() - .5) * h * 1.5, -1, 1);
+  else if (pick < .76) p.cut = clamp((p.cut == null ? 1 : p.cut) - R() * .3 * h, .2, 1);
+  else if (pick < .82) S.swing = clamp(Math.round(S.swing + (R() - .4) * 12 * h), 0, 60);
+  else if (pick < .88) setBpm(clamp(fire.snap.bpm * (1 + (R() - .5) * .3 * h), 40, 240));
+  else if (pick < .94) { S.drum.vCrk = clamp((S.drum.vCrk || 0) + R() * .25 * h, 0, 1); S.drum.vMix = Math.max(S.drum.vMix || 0, .5); }
+  else { S.drum.sendA = clamp((S.drum.sendA || 0) + R() * .3 * h, 0, 1); S.drum.sendB = clamp((S.drum.sendB || 0) + R() * .3 * h, 0, 1); }
+  const el = document.querySelector('.pad[data-i="' + i + '"]'); if (el){ el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 90); }
+  if (fire.tick % 4 === 0){ applyAll(); renderPadEditor(); }
+}
+function fireStep(){
+  if (!fire.on) return;
+  const now = performance.now(), m = live.master, t = ctx.currentTime; fire.tick++;
+  const h = fire.heat = Math.min(1, (now - fire.t0) / 45000);
+  m.fireWet.gain.setTargetAtTime(.15 + h * .85, t, .3); m.fireDry.gain.setTargetAtTime(1 - h * .75, t, .3); m.fireDrive.gain.setTargetAtTime(1 + h * 10, t, .3);
+  if (now - fire.lastCurve > 1500){ m.fireSh.curve = fireCurve(h); fire.lastCurve = now; }
+  m.fireFilt.gain.setTargetAtTime(4 + h * 14, t, .1); m.fireFilt.frequency.setTargetAtTime(300 + Math.random() * 4500, t, .08 + Math.random() * .3);
+  if (fire.crackle) fire.crackle.g.gain.setTargetAtTime(.04 + h * .35, t, .2);
+  // loose wire: the sound cuts out for a moment
+  if (Math.random() < h * .12){ const d = .02 + Math.random() * .12; m.out.gain.cancelScheduledValues(t); m.out.gain.setValueAtTime(m.out.gain.value, t); m.out.gain.linearRampToValueAtTime(.02, t + .005); m.out.gain.setValueAtTime(.02, t + d); m.out.gain.linearRampToValueAtTime(1, t + d + .01); }
+  if (Math.random() < .12 + h * .55) fireMangle(h);
+  if (fire.tick % 8 === 0 && fire.rec && fire.rec.on){ const sec = (now - fire.rec.t0) / 1000; if (sec > 120) fireRecStop(true); }
+  document.documentElement.style.setProperty('--fx', ((Math.random() - .5) * h * 3).toFixed(1) + 'px'); document.documentElement.style.setProperty('--fy', ((Math.random() - .5) * h * 2).toFixed(1) + 'px');
+  document.documentElement.classList.toggle('frying', h > .35);
+  setTimeout(fireStep, 250);
+}
+// electrical crackle: sparse pops and buzz bursts on a loop
+function fireCrackle(){
+  const sr = ctx.sampleRate, n = sr * 4, b = ctx.createBuffer(2, n, sr);
+  for (let c = 0; c < 2; c++){ const d = b.getChannelData(c); for (let i = 0; i < n; i++){ if (Math.random() < .0009){ const len = 20 + Math.random() * 400, a = (Math.random() - .5) * 1.6; for (let k = 0; k < len && i + k < n; k++) d[i + k] += a * Math.exp(-k / (len / 4)) * (Math.random() * 2 - 1); }
+    if ((i / sr) % 1.3 < .07) d[i] += Math.sign(Math.sin(i / sr * 2 * Math.PI * 120)) * .08 * Math.random(); } }
+  const src = ctx.createBufferSource(), g = ctx.createGain(), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 400; src.buffer = b; src.loop = true; g.gain.value = 0;
+  src.connect(hp).connect(g).connect(live.master.out); src.start(); return {src, g};
+}
+// the auto resampler: every sample that leaves the machine while it burns
+function fireRecStart(){
+  if (!ctx._reduxOK) return null;
+  const node = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'}), r = {node, chunks:[], on:true, t0:performance.now()};
+  node.port.onmessage = e => { if (r.on || r.flushing) r.chunks.push(e.data); }; live.master.out.connect(node); node.connect(silent); node.port.postMessage(true);
+  return r;
+}
+async function fireRecStop(keepBurning){
+  const r = fire.rec; if (!r || !r.on) return; r.on = false; r.flushing = true; r.node.port.postMessage(false);
+  await new Promise(res => setTimeout(res, 300)); r.flushing = false; try { live.master.out.disconnect(r.node); r.node.disconnect(); } catch(e){}
+  let n = r.chunks.reduce((a, c) => a + c.l.length, 0); if (n < ctx.sampleRate * .3){ toast('The fire was too short to record anything.'); return; }
+  const L = new Float32Array(n), Rr = new Float32Array(n); let o = 0; for (const c of r.chunks){ L.set(c.l, o); Rr.set(c.r, o); o += c.l.length; } r.chunks = [];
+  let st = 0; while (st < n - 1 && Math.abs(L[st]) < .002 && Math.abs(Rr[st]) < .002) st++;
+  let en = n; while (en > st + 1 && Math.abs(L[en - 1]) < .002 && Math.abs(Rr[en - 1]) < .002) en--;
+  if (en - st < ctx.sampleRate * .2){ toast('The fire was silent: press play while it burns to resample the beat.'); return; }
+  const buf = makeBuffer([L.slice(st, en), Rr.slice(st, en)], ctx.sampleRate), stamp = new Date().toTimeString().slice(0, 5).replace(':', '');
+  setChopSource(buf, 'Fried'); try { await binAdd('Fried ' + stamp + '.wav', await new Blob([encodeWav(buf, 16)]).arrayBuffer()); } catch(e){}
+  toast('Fried take: ' + buf.duration.toFixed(1) + ' s. It is in Chop to slice onto the pads, and in your sample bin.' + (keepBurning ? ' (2-minute limit reached, still burning.)' : ''));
+}
+// smoke pouring out of the case, orange glow from below, sparks when it gets hot
+function fireDraw(){
+  const cv = $('#fireFx'); if (!cv) return; const g = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight, h = fire.on ? fire.heat : 0;
+  g.clearRect(0, 0, W, H);
+  if (fire.on){ const gl = g.createLinearGradient(0, H, 0, H * (1 - .5 * (.3 + h))); gl.addColorStop(0, `rgba(255,110,0,${.12 + h * .35})`); gl.addColorStop(1, 'rgba(255,90,0,0)'); g.fillStyle = gl; g.fillRect(0, 0, W, H);
+    const rate = 1 + h * 6; for (let k = 0; k < rate; k++){ const fromPad = Math.random() < .5 && document.querySelector('#pads'); let x = Math.random() * W, y = H * (.75 + Math.random() * .3);
+      if (fromPad){ const r = fromPad.getBoundingClientRect(); if (r.width){ x = r.left + Math.random() * r.width; y = r.top + Math.random() * r.height; } }
+      fire.parts.push({x, y, vx:(Math.random() - .5) * .6, vy:-.6 - Math.random() * 1.4, r:8 + Math.random() * 18, a:.18 + h * .3, life:1, spark:false});
+      if (Math.random() < h * .5) fire.parts.push({x, y, vx:(Math.random() - .5) * 6, vy:-2 - Math.random() * 5, r:1.5, a:1, life:1, spark:true}); } }
+  fire.parts = fire.parts.filter(p => p.life > 0);
+  for (const p of fire.parts){
+    if (p.spark){ p.vy += .25; p.x += p.vx; p.y += p.vy; p.life -= .03; g.fillStyle = `rgba(255,${180 + Math.random() * 70 | 0},80,${p.life})`; g.fillRect(p.x, p.y, 2.5, 2.5); continue; }
+    p.x += p.vx + Math.sin(p.y / 40) * .3; p.y += p.vy; p.r += .35; p.life -= .006;
+    const gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r); const c = fire.on && h > .6 ? '40,36,34' : '90,88,86';
+    gr.addColorStop(0, `rgba(${c},${p.a * p.life})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, p.r, 0, 6.283); g.fill(); }
+  if (fire.parts.length > 600) fire.parts.splice(0, fire.parts.length - 600);
+  if (fire.on || fire.parts.length) fire.raf = requestAnimationFrame(fireDraw); else { cv.remove(); fire.raf = 0; }
+}
+async function fireToggle(){
+  ensureAudio(); await ctx.resume();
+  const b = $('#fire');
+  if (!fire.on){
+    fire.on = true; fire.t0 = performance.now(); fire.heat = 0; fire.tick = 0; fire.snap = fireSnapshot(); fire.lastCurve = 0;
+    live.master.fireSh.curve = fireCurve(0); fire.crackle = fireCrackle(); fire.rec = fireRecStart();
+    b.classList.add('on'); b.setAttribute('aria-pressed', 'true');
+    if (!$('#fireFx')){ const cv = document.createElement('canvas'); cv.id = 'fireFx'; document.body.appendChild(cv); }
+    if (!fire.raf) fire.raf = requestAnimationFrame(fireDraw);
+    fireStep(); if (navigator.vibrate) try { navigator.vibrate([30, 40, 60]); } catch(e){}
+    toast('🔥 FIRE: the circuits are frying' + (fire.rec ? ' and everything is being recorded' : '') + '. ' + (playing ? '' : 'Press play to burn the beat. ') + 'Switch it off to get your settings back.');
+    return;
+  }
+  fire.on = false; b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); document.documentElement.classList.remove('frying');
+  const m = live.master, t = ctx.currentTime;
+  m.fireWet.gain.setTargetAtTime(0, t, .05); m.fireDry.gain.setTargetAtTime(1, t, .05); m.out.gain.cancelScheduledValues(t); m.out.gain.setTargetAtTime(1, t, .02);
+  if (fire.crackle){ const c = fire.crackle; c.g.gain.setTargetAtTime(0, t, .05); setTimeout(() => { try { c.src.stop(); c.src.disconnect(); } catch(e){} }, 400); fire.crackle = null; }
+  fireRestore(); await fireRecStop(false);
+}
+$('#fire').addEventListener('click', fireToggle);
 let userNav = false;
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => { userNav = true; setView(b.dataset.v); }));
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.defaultPrevented && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
