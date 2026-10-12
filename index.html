@@ -150,6 +150,10 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 #sheetBody .ctls{display:block}
 #sheetBody .ctls > *{break-inside:avoid;margin-bottom:6px}
 #sheetBody .p5sec > .fh, #sheetBody .unit > .fh, #sheetBody .ctl, #sheetBody .row{break-inside:avoid}
+.view > .card:not(.sdj):not(.trk){display:none !important}
+.chipbar{display:flex;flex-wrap:wrap;gap:5px}
+.chipbar button{flex:1 1 auto;padding:10px 8px;font-size:12px;white-space:nowrap}
+.chipbar button.on{background:var(--accent);color:var(--accent-ink)}
 .view > .card:not(.sheeted) > :not(.chead){display:none !important}
 .view > .card{gap:0;padding:6px 10px}
 .view > .card > .chead{min-height:36px}
@@ -624,8 +628,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <section class="view" id="v-mixer" hidden>
     <div class="row mixtop"><button id="autoArm">Automate</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
     <div class="strips" id="strips"></div>
-    <div class="card" id="fxCard"></div>
-    <div class="card rack" id="rackCard"></div>
+    <div class="card" id="fxCard" data-chip="Effects"></div>
+    <div class="card rack" id="rackCard" data-chip="FX rack"></div>
   </section>
 
   <!-- WHEEL OF STEEL -->
@@ -634,7 +638,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <canvas id="wvCv" aria-label="Waveforms of both decks, with beat grid, cues and loops"></canvas>
       <div class="sdj-decks"><button id="dk0" class="dk on">DECK 1</button><button id="dk1" class="dk">DECK 2</button></div>
     </div>
-    <div class="card tt">
+    <div class="card tt" data-chip="Turntable">
       <div class="tt-head"><b>THE WHEEL OF STEEL</b><span id="ttSub">DECK 1 · QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
       <canvas id="ttCv" aria-label="Turntable. Touch the record and move it to scratch."></canvas>
       <input id="ttScr" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Scratch (map a knob with MIDI learn)">
@@ -671,7 +675,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div id="libList" class="liblist"></div>
       <input type="file" id="libFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
     </div>
-    <div class="card mixdj">
+    <div class="card mixdj" data-chip="DJ mixer">
       <h2>Mixer</h2>
       <div class="mx"><div class="mxch" id="mxch0"></div><div class="mxch" id="mxch1"></div></div>
       <div class="xfrow"><b>1</b><input id="xf" class="xfader" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Crossfader"><b>2</b></div>
@@ -738,14 +742,14 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <select id="scaleType" class="grow" aria-label="Scale"></select>
       </div>
     </div>
-    <div class="card" data-title="Arpeggiator">
+    <div class="card" data-title="Arpeggiator" data-chip="Arp">
       <div class="arp" id="arpBox">
         <div class="row"><button id="arpOn" class="nolearn">Arp off</button><select id="arpMode" aria-label="Arp pattern"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-down</option><option value="downup">Down-up</option><option value="order">As played</option><option value="random">Random</option><option value="chord">Chord</option></select><select id="arpRate" aria-label="Arp rate"><option value="4">1/4</option><option value="2">1/8</option><option value="1.3333333">1/8T</option><option value="1">1/16</option><option value="0.6666667">1/16T</option><option value="0.5">1/32</option></select></div>
         <div class="row"><select id="arpOct" aria-label="Arp octaves"><option value="1">1 oct</option><option value="2">2 oct</option><option value="3">3 oct</option><option value="4">4 oct</option></select><button id="arpLatch" class="nolearn grow">Latch</button><button id="arpHold" class="nolearn grow" title="Stop the latched notes">Clear</button></div>
         <div class="ctls" id="arpCtls"></div>
       </div>
     </div>
-    <div class="card">
+    <div class="card" data-chip="Sound">
       <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
@@ -785,7 +789,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <p class="hint">Modeled from the Solina schematics: divide-down tone with the original sawtooth shaping, per-key sustain, one shared crescendo, and the three-line ensemble driven by its chorus and tremolo oscillators. Notes below C3 also play the mono bass section. Viola is the 8' rank and Violin the 4' rank.</p>
       </div>
     </div>
-    <div class="card svc" id="vocCard">
+    <div class="card svc" id="vocCard" data-chip="Vocoder">
       <div class="svc-head"><div class="svc-name"><b>STAR SCREAMER</b><i>350</i></div><span class="svc-type">VOCODER</span></div>
       <div class="svc-sec"><span class="svc-lab">PROGRAM</span><select id="vocPreset" aria-label="Vocoder presets"></select></div>
       <div class="svc-sec"><span class="svc-lab">INPUT</span>
@@ -803,7 +807,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
       <p class="hint">This synth is the instrument. Sing or talk into your USB-C interface (Voice: Live input), or pick an audio track with a recorded vocal. The 11 sliders are the original frequency section: 10 bands plus the high consonant filter. Hold freezes the last vowel while you hold it, like the footswitch.</p>
     </div>
-    <div class="card" id="ttsCard">
+    <div class="card" id="ttsCard" data-chip="Speech">
       <div class="row"><h2 class="grow">Speech</h2><span class="badge">Talking machine</span></div>
       <label class="label" for="ttsText">Lines (one per line)</label>
       <textarea id="ttsText" rows="3" spellcheck="false"></textarea>
@@ -1319,7 +1323,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v53</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v54</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4547,6 +4551,23 @@ $('#arpHold').addEventListener('click', () => arpClear(curSynth()));
 
 /* ================= sheets: a section opens over the screen and flips sideways in pages, so nothing scrolls ================= */
 let sheetCard = null, sheetPh = null, sheetPage = 0, sheetPages = 1, sheetT = 0;
+// each tab's sections as one row of buttons, so the screen keeps its space for pads, keys and faders
+function chipBar(v){
+  if (!v.classList.contains('view')) return;
+  v._cards = (v._cards || []).filter(c => c.isConnected);
+  v.querySelectorAll(':scope > .card:not(.trk):not(.sdj)').forEach(c => { if (!v._cards.includes(c)) v._cards.push(c); });
+  const cards = v._cards;
+  let bar = v.querySelector(':scope > .chipbar');
+  if (!bar){ bar = document.createElement('div'); bar.className = 'chipbar'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Sections'); }
+  if (v.lastElementChild !== bar) v.appendChild(bar);
+  const key = cards.map(c => c.dataset.chip || sheetTitle(c)).join('|');
+  if (bar._key !== key){
+    bar._key = key; bar.innerHTML = '';
+    cards.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = c.dataset.chip || sheetTitle(c) || 'More'; b._card = c;
+      b.addEventListener('click', () => { if (sheetCard === c) sheetClose(); else sheetOpen(c); }); bar.appendChild(b); });
+  }
+  bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b._card === sheetCard));
+}
 function sheetPrep(c, head){
   c.querySelectorAll(':scope > .chead').forEach(x => x !== head && x.classList.remove('chead'));
   head.classList.add('fh', 'chead'); head._sheetCard = c;
@@ -4559,14 +4580,15 @@ function sheetOpen(c){
   sheetFrame();
   sheetPh = document.createComment('sheet'); c.before(sheetPh);
   $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
-  $('#sheetTtl').textContent = sheetTitle(c); $('#sheet').classList.add('on');
+  $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on');
+  document.querySelectorAll('.chipbar button').forEach(b => b.classList.toggle('on', b._card === c));
   requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); sheetLayout(); });
 }
 function sheetClose(){
   if (!sheetCard) return;
   const c = sheetCard; sheetCard = null; c.classList.add('shut'); c.classList.remove('sheeted'); c.scrollLeft = 0;
   if (sheetPh){ sheetPh.replaceWith(c); sheetPh = null; }
-  $('#sheet').classList.remove('on'); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  $('#sheet').classList.remove('on'); document.querySelectorAll('.chipbar button.on').forEach(b => b.classList.remove('on')); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 function sheetFrame(){
   const h = document.querySelector('header.transport'), n = $('#nav'), lb = $('#learnBar');
@@ -4609,7 +4631,7 @@ function fitScreen(){
   } else if (view === 'synth'){
     const k = $('#keys'), pn = $('#piano'); k.style.height = ''; k.style.gridAutoRows = ''; pn.style.height = '';
     const o = over(); if (o > 0){
-      if (!k.hidden && k.offsetHeight){ const h = Math.max(120, k.offsetHeight - o - 2); k.style.gridAutoRows = Math.floor((h - 4 * 5) / 5) + 'px'; k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = 'auto'); }
+      if (!k.hidden && k.offsetHeight){ const h = Math.max(200, k.offsetHeight - o - 2); k.style.gridAutoRows = Math.floor((h - 4 * 5) / 5) + 'px'; k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = 'auto'); }
       if (!pn.hidden && pn.offsetHeight) pn.style.height = Math.max(110, pn.offsetHeight - o - 2) + 'px';
     } else k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = '');
   } else if (view === 'mixer'){
@@ -4672,7 +4694,7 @@ function foldPrep(el, head, defShut){
 function foldify(){
   document.querySelectorAll('.view').forEach(v => {
     v.querySelectorAll(':scope > .card:not(.trk)').forEach(c => {
-      const f = c.firstElementChild; if (!c.dataset.title && (!f || f.tagName === 'CANVAS')){ c.classList.add('sdj'); return; }
+      const f = c.firstElementChild; if (!f && !c.dataset.title) return; if (!c.dataset.title && f.tagName === 'CANVAS'){ c.classList.add('sdj'); return; }
       let head = f;
       if (c.dataset.title){
         head = c.querySelector(':scope > .fgen');
@@ -4680,6 +4702,7 @@ function foldify(){
       }
       sheetPrep(c, head);
     });
+    chipBar(v);
   });
   [...document.querySelectorAll('.view'), $('#sheetBody')].forEach(v => {
     v.querySelectorAll('.unit, .p5sec, .tt-midi').forEach(u => { const h = u.querySelector(':scope > .uhead, :scope > .label, :scope > .row:first-child'); if (h) foldPrep(u, h, true); });
