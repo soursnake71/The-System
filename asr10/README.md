@@ -17,10 +17,11 @@ switch off and boot your stock disk again. No chips are changed.
 | Disk image tool | done, checked against OS 1.61 and your own disks |
 | HFE conversion (for your Gotek) | done, matches your HFE files; checked with Greaseweazle |
 | OS file layout (header, load table, memory map) | found in OS 1.61, see `docs/hardware.md` |
-| First boot: our code runs and writes text on the display | **works** (try 3); MIDI note not checked yet |
+| First boot: our code runs and writes text on the display | **works** (try 3) |
 | Display commands (clear, cursor) | `D6` and `83` don't clear; still unknown |
 | Panel explorer: shows the code of each button press | **works** for buttons; keyboard and slider use other hardware |
-| ROM dump over MIDI SysEx (`tools/syx2rom.py`) | built, emulator-tested; needs a MIDI interface to capture |
+| MIDI Out from our OS | **works** (port set up from scratch) |
+| ROM dump over MIDI SysEx (`tools/syx2rom.py`) | sending; capture in progress |
 | Keyboard calibration message on the stock OS | to study once the ROM is dumped |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |

@@ -52,6 +52,14 @@ table, traps and jump tables.
 The disk OS never writes to channel B, so display output is done by the
 ROM. MAME runs the VFX panel link at 62,500 baud, 8N2.
 
+**MIDI Out (confirmed on hardware):** when our code takes over, channel A
+is not set up yet: status `00`, and enabling the transmitter (CRA `04`,
+as OS 3.53 does) leaves it at `00`. Setting it up from scratch works and
+the computer receives the data: reset Tx/Rx/errors, MR1 `13` (8 bits, no
+parity), MR2 `07` (1 stop bit, no handshake), CSRA `EE` (both directions
+from the external clock pins at 16x, so those pins carry 500 kHz as on
+MAME's VFX), then CRA `05`. Status then reads `0C` (ready, empty).
+
 ## Panel input (confirmed on hardware)
 
 With the panel explorer running, every panel button (arrows and LOAD
