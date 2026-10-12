@@ -24,12 +24,13 @@ import struct
 import sys
 
 from unicorn import (Uc, UcError, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, UC_HOOK_MEM_UNMAPPED,
-                     UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_PROT_ALL, UC_MEM_FETCH_UNMAPPED)
+                     UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_HOOK_INTR, UC_PROT_ALL,
+                     UC_MEM_FETCH_UNMAPPED)
 from unicorn.m68k_const import UC_M68K_REG_PC, UC_M68K_REG_SR, UC_M68K_REG_A7, UC_CPU_M68K_M68000
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from devices import Duart, M68302, Panel  # noqa: E402
+from devices import Duart, Floppy, M68302, Panel  # noqa: E402
 
 ROM_BASE, ROM_SIZE = 0xF80000, 0x40000
 PAGE = 0x1000
@@ -37,12 +38,13 @@ MIRROR = 0xFF000000   # the 68000 drives 24 address lines; 0xFFxxxxxx = 0x00xxxx
 
 
 class Machine:
-    def __init__(self, rom, log=print):
+    def __init__(self, rom, log=print, disk=None):
         self.log = log
         self.uc = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
         self.uc.ctl_set_cpu_model(UC_CPU_M68K_M68000)
         self.auto_mapped = collections.OrderedDict()
-        self.irq = collections.OrderedDict()   # source -> (level, vector)
+        self.irq = collections.OrderedDict()   # source -> (level, vector, ack)
+        self.after_write = []                  # fix-ups after a hooked store
 
         self.buffers = []
         self.map_ram(0x000000, 0x80000)
@@ -51,7 +53,8 @@ class Machine:
         self.uc.mem_write(ROM_BASE, rom)
 
         self.panel = Panel(log=log)
-        self.duart = Duart(self, self.panel, log=log)
+        self.floppy = Floppy(self, log=log, image=disk)
+        self.duart = Duart(self, self.panel, log=log, floppy=self.floppy)
         self.m68302 = M68302(self, log=log)
         for base in (0xFC4000, 0xFC4000 | MIRROR):
             self.uc.mmio_map(base, PAGE, self.duart.read, None, self.duart.write, None)
@@ -68,13 +71,17 @@ class Machine:
             self.uc.mmio_map(base, PAGE, lambda uc, off, size, ud: (1 << (8 * size)) - 1, None,
                              lambda uc, off, size, value, ud: None, None)
         self.uc.hook_add(UC_HOOK_MEM_UNMAPPED, self._unmapped)
+        self.uc.hook_add(UC_HOOK_INTR, self._exception)
+        self.exceptions = collections.Counter()
+        self.interrupts = collections.Counter()
+        self.uc.hook_add(UC_HOOK_MEM_WRITE, self._flush_after_write)
 
         # Reset: the ROM is at 0 until the chip selects move it; its code
         # at 0x0C is position independent up to the jump into 0xF8xxxx, so
-        # start there directly.
+        # start there directly. SR first: in supervisor mode A7 is the SSP.
         ssp, pc = struct.unpack(">II", rom[:8])
-        self.uc.reg_write(UC_M68K_REG_A7, ssp)
         self.uc.reg_write(UC_M68K_REG_SR, 0x2700)
+        self.uc.reg_write(UC_M68K_REG_A7, ssp)
         self.uc.reg_write(UC_M68K_REG_PC, ROM_BASE + pc)
 
     # memory
@@ -107,10 +114,44 @@ class Machine:
     def r32(self, a):
         return struct.unpack(">I", self.uc.mem_read(a, 4))[0]
 
+    def _flush_after_write(self, uc, access, addr, size, value, user):
+        pass
+
+    def _apply_after_write(self):
+        while self.after_write:
+            self.after_write.pop(0)()
+
+    # exceptions: Unicorn reports them and leaves the 68000 stack frame,
+    # the vector fetch and RTE to us.
+
+    def _push_frame(self, sr, pc):
+        if not sr & 0x2000:
+            # switching to supervisor mode swaps A7 to the SSP
+            self.uc.reg_write(UC_M68K_REG_SR, sr | 0x2000)
+        sp = self.uc.reg_read(UC_M68K_REG_A7) - 6
+        self.uc.mem_write(sp, struct.pack(">HI", sr, pc & 0xFFFFFFFF))
+        self.uc.reg_write(UC_M68K_REG_A7, sp)
+
+    def _exception(self, uc, intno, user):
+        pc = uc.reg_read(UC_M68K_REG_PC)
+        sr = uc.reg_read(UC_M68K_REG_SR)
+        if intno == 0x100:                              # RTE
+            sp = uc.reg_read(UC_M68K_REG_A7)
+            new_sr, new_pc = struct.unpack(">HI", uc.mem_read(sp, 6))
+            uc.reg_write(UC_M68K_REG_A7, sp + 6)
+            uc.reg_write(UC_M68K_REG_SR, new_sr)         # may swap A7 back to USP
+            uc.reg_write(UC_M68K_REG_PC, new_pc)
+            return
+        self.exceptions[intno] += 1
+        stacked = pc + 2 if 32 <= intno <= 47 else pc   # TRAP returns past itself
+        self._push_frame(sr, stacked)
+        uc.reg_write(UC_M68K_REG_SR, (sr | 0x2000) & ~0x8000)
+        uc.reg_write(UC_M68K_REG_PC, self.r32(intno * 4))
+
     # interrupts
 
-    def raise_irq(self, source, level, vector):
-        self.irq[source] = (level, vector)
+    def raise_irq(self, source, level, vector, ack=None):
+        self.irq[source] = (level, vector, ack)
 
     def clear_irq(self, source):
         self.irq.pop(source, None)
@@ -118,20 +159,22 @@ class Machine:
     def _take_interrupt(self):
         if not self.irq:
             return
-        source, (level, vector) = max(self.irq.items(), key=lambda kv: kv[1][0])
+        source, (level, vector, ack) = max(self.irq.items(), key=lambda kv: kv[1][0])
         sr = self.uc.reg_read(UC_M68K_REG_SR)
         if level <= (sr >> 8) & 7 and level != 7:
             return
         pc = self.uc.reg_read(UC_M68K_REG_PC)
-        sp = self.uc.reg_read(UC_M68K_REG_A7) - 6
-        self.uc.mem_write(sp, struct.pack(">HI", sr, pc))
-        self.uc.reg_write(UC_M68K_REG_A7, sp)
+        self._push_frame(sr, pc)
         self.uc.reg_write(UC_M68K_REG_SR, (sr & 0x00FF) | 0x2000 | (level << 8))
+        self.interrupts[vector] += 1
+        if ack:
+            ack()
+            self.irq.pop(source, None)
         self.uc.reg_write(UC_M68K_REG_PC, self.r32(vector * 4))
 
     # running
 
-    def run(self, steps, slice_=2000):
+    def run(self, steps, slice_=500):
         done = 0
         while done < steps:
             pc = self.uc.reg_read(UC_M68K_REG_PC)
@@ -141,6 +184,7 @@ class Machine:
                 self.log(f"[cpu] stopped at {self.uc.reg_read(UC_M68K_REG_PC):#08x}: {err}")
                 return False
             done += slice_
+            self._apply_after_write()
             self.m68302.tick(slice_)
             self.duart.tick(slice_)
             self._take_interrupt()
@@ -151,10 +195,20 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--rom", default=os.path.join(HERE, "..", "local", "asr10rom.bin"))
     p.add_argument("--steps", type=int, default=5_000_000)
+    p.add_argument("--disk", help="Ensoniq .img (or .hfe) in the floppy drive")
     a = p.parse_args(argv)
-    m = Machine(open(a.rom, "rb").read())
+    disk = None
+    if a.disk:
+        data = open(a.disk, "rb").read()
+        if data[:8] == b"HXCPICFE":
+            sys.path.insert(0, os.path.join(HERE, "..", "tools"))
+            import hfe
+            data = hfe.hfe_to_img(data)
+        disk = data
+    m = Machine(open(a.rom, "rb").read(), disk=disk)
     m.run(a.steps)
-    print("pc", hex(m.uc.reg_read(UC_M68K_REG_PC) & 0xFFFFFF))
+    print("pc", hex(m.uc.reg_read(UC_M68K_REG_PC) & 0xFFFFFF), "exceptions", dict(m.exceptions),
+          "interrupts", dict(m.interrupts))
     print("panel received:", bytes(m.panel.received[:200]).hex(" "))
     print("display:")
     print(m.panel.render())
