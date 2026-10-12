@@ -74,7 +74,11 @@ The keyboard sends nothing there, and neither does the data entry slider.
   voltage are analog inputs read through the sound chip's ADC port; the
   ASR-10 probably works the same way.
 
-Still to do: which code each button sends.
+Button codes (confirmed): pressing button n sends `80+n`, releasing it
+sends `n` (button 2: `82`, then `02`), as in MAME's Ensoniq panel model.
+
+With the ROM's start-up commands (`E7`, `71`), then `66` (clear) and
+`60 nn` (cursor), our text appeared where placed, but all of it blinked.
 
 ## Boot ROM (dumped)
 

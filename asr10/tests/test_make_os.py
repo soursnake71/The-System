@@ -70,8 +70,11 @@ class MakeOsTests(unittest.TestCase):
 class EmulationTests(unittest.TestCase):
     """Runs build/system.bin (the panel test) on an emulated 68000."""
 
-    INTRO = (b"\xe7\x71\x66\x60\x00THE SYSTEM   PANEL TEST"
-             b"\x60\x28PRESS BUTTONS OR KEYS")
+    @staticmethod
+    def steady(text):
+        return b"".join(b"\x77" + bytes([c]) for c in text)
+
+    INTRO = None  # set below the class
 
     def setUp(self):
         try:
@@ -92,19 +95,23 @@ class EmulationTests(unittest.TestCase):
 
     def test_starts_from_any_entry(self):
         for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
-            out, _ = self.emulate.run(self.os_file, entry, 9_000_000)
+            out, _ = self.emulate.run(self.os_file, entry, 15_000_000)
             self.assertEqual(bytes(out["panel"]), self.INTRO, hex(entry))
 
     def test_shows_and_forwards_panel_bytes(self):
-        out, _ = self.emulate.run(self.os_file, 0xE00, 20_000_000, panel_input=bytes([0xC5]))
+        out, _ = self.emulate.run(self.os_file, 0xE00, 35_000_000, panel_input=bytes([0xC5]))
         self.assertEqual(bytes(out["panel"]),
-                         self.INTRO + b"\x60\x28LAST 00 00 00 C5           ")
+                         self.INTRO + b"\x60\x28" + self.steady(b"LAST 00 00 00 C5           "))
         self.assertEqual(bytes(out["midi"]), bytes.fromhex("f07d500c05f7"))
 
     def test_waits_for_panel_replies(self):
-        out, _ = self.emulate.run(self.os_file, 0xE00, 3_000_000, panel_replies=True)
+        out, _ = self.emulate.run(self.os_file, 0xE00, 5_000_000, panel_replies=True)
         self.assertEqual(bytes(out["panel"]), self.INTRO)
         self.assertEqual(out["replies_read"], len(self.INTRO))
+
+
+EmulationTests.INTRO = (b"\xe7\x71\x66\x60\x00" + EmulationTests.steady(b"THE SYSTEM")
+                        + b"\x60\x14PLAIN\x60\x28" + EmulationTests.steady(b"PRESS BUTTONS OR KEYS"))
 
 
 if __name__ == "__main__":
