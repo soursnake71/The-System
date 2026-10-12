@@ -625,12 +625,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="padEdit" class="grow nolearn" title="Tap a pad to change, load or delete its sound">Edit</button>
         <button id="padsClr" class="grow nolearn">Clear</button>
       </div>
-    <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
-    <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
+    <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
+    <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
     <div class="pads" id="pads"></div>
     <div class="card" data-title="Sequencer">
       <canvas id="seq" aria-label="Recorded hits for every pad across the loop. Tap a hit to delete it, or tap a row to select that pad."></canvas>
-      <div class="row"><button class="grow nolearn" onclick="$('#midiFile').click()">Import MIDI</button><button class="grow nolearn" onclick="$('#midiExp').click()">Export MIDI</button></div>
+      <div class="row"><button class="grow nolearn" onclick="$('#impAnyFile').click()">Import…</button><button class="grow nolearn" onclick="$('#midiExp').click()">Export MIDI</button></div>
       <div class="row">
         <button id="undo" class="grow" disabled>Undo</button>
         <button id="dbl" class="grow">Double loop</button>
@@ -654,7 +654,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="resetSample" class="grow">Built-in</button>
         <button id="chopPad" class="grow">Chop</button>
       </div>
-      <input type="file" id="fileIn" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <input type="file" id="fileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
       <div class="ctls" id="padCtls"></div>
     </div>
   </section>
@@ -673,8 +673,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div id="tracks" class="view" style="margin:0;max-width:none"></div>
     <div class="status" id="stemStatus" hidden>Separating…</div>
     <button id="addTrack">Add audio track</button>
-    <input type="file" id="refFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
-    <input type="file" id="trackFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+    <input type="file" id="refFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
+    <input type="file" id="trackFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
   </section>
 
   <!-- MIXER -->
@@ -709,7 +709,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="lrow"><button id="lpIn">IN</button><button id="lpOut">OUT</button><button id="lpExit">RELOOP</button><button id="lpHalf">½</button><button id="lpDbl">×2</button></div>
       <div class="row"><button id="ttCut" class="grow" data-momentary="1">CUT (HOLD)</button><button id="ppDel" class="grow">DELETE CUE</button></div>
       <div class="row"><button id="ttLoad" class="grow">LOAD RECORD</button><span class="badge" id="ttName">No record</span></div>
-      <input type="file" id="ttFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <input type="file" id="ttFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
       <div class="tt-midi">
         <div class="row"><span class="label grow">MIDI platter (Denon DN-S3700 or any jog wheel)</span><span class="badge" id="ttExtBadge">Off</span></div>
         <div class="row"><button id="ttLearnPl" class="grow nolearn">LEARN PLATTER</button><button id="ttExtOn" class="grow nolearn">PLATTER CONTROL</button><button id="ttExtRev" class="nolearn">REV</button></div>
@@ -721,12 +721,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="row"><h2 class="grow">Sampler</h2><button id="smpLoad" class="nolearn">LOAD MODE</button></div>
       <div class="ppads" id="smpPads"></div>
       <div class="ctl"><label class="label" for="smpVol">Level</label><input id="smpVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
-      <input type="file" id="smpFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <input type="file" id="smpFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
     </div>
     <div class="card">
       <div class="row"><h2 class="grow">Library</h2><button id="libAdd" class="nolearn">ADD TRACKS</button></div>
       <div id="libList" class="liblist"></div>
-      <input type="file" id="libFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" multiple hidden>
+      <input type="file" id="libFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
     </div>
     <div class="card mixdj" data-chip="DJ mixer">
       <h2>Mixer</h2>
@@ -750,7 +750,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="chopFromPad" class="grow">From pad</button>
         <select id="chopFromTrack" class="grow" aria-label="Chop a track's clip"></select>
       </div>
-      <input type="file" id="chopFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg" hidden>
+      <input type="file" id="chopFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
       <canvas id="chopWave" aria-label="Sample waveform with slice markers. Tap a slice to hear it. Drag a marker to move it."></canvas>
       <div class="seg" role="group" aria-label="Slice mode">
         <button data-m="equal">Equal</button><button data-m="hits">Transients</button><button data-m="manual">Manual</button>
@@ -1008,6 +1008,13 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </details>
     <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
       <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. <b>Blend</b> sets how loud the noise sits under the sound. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
+    </details>
+    <details id="h-mpc"><summary>MPC: line up, import, export</summary>
+      <ul>
+        <li><b>Setup → MIDI → Pad notes → MPC</b>: pads 1–16 (Bank A) on any MPC, including the MPC Sample, Live, One, X, Key, Force, 1000, 2500 and 60, play A01–A16 here, and MIDI files go both ways on the same notes.</li>
+        <li><b>Import files…</b> (Setup → Export, or Pads → Sequencer → Import…): pick an MPC drum program (.xpm) together with its samples and they land on the right pads with their level, pan and tuning. Also MPC1000/2500 .pgm, MPC2000 .snd samples, a project's .xpm/.wav files (and the .xpj for its tempo), ZIP packs, MIDI, and audio in WAV, AIFF, MP3, FLAC, OGG, M4A or Opus. If you set a samples folder, missing samples are found there.</li>
+        <li><b>Export</b>: <b>MPC kit</b> (pad WAVs + .xpm program + MIDI on MPC notes), <b>Every pad, exploded</b> (one file per pad), <b>Every track</b> (stems), the full mix, or MIDI.</li>
+      </ul>
     </details>
     <details id="h-gm"><summary>General MIDI sounds</summary>
       <p>Synth → <b>Sound</b> → instrument <b>General MIDI (128 sounds)</b>: all 128 GM instruments (pianos, organs, guitars, basses, strings, brass, reeds, flutes, synth leads and pads, ethnic, percussion, effects), grouped by family. ◀ ▶ steps through them. Imported MIDI files that choose instruments switch to them automatically, and a program change from your MPC picks the sound. These are synthesized approximations, built for a light phone app, not sampled GM sounds.</p>
@@ -1370,6 +1377,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
       <div class="ctl"><label class="label" for="midiOff">Offset</label><input id="midiOff" type="range" min="-80" max="120" step="1"><span class="v mono" id="midiOffV">0 ms</span></div>
       <div class="row"><span class="grow">Play these pads from the MPC's pads</span><button id="midiNotes">Off</button></div>
+      <div class="ctl"><label class="label" for="padMap">Pad notes</label><select id="padMap"><option value="mpc">MPC (any MPC, incl. MPC Sample)</option><option value="chrom">Chromatic from A01 note</option><option value="gm">General MIDI drums</option></select><span></span></div>
       <div class="ctl"><label class="label" for="midiBase">A01 note</label><select id="midiBase"></select><button id="midiLearn">Learn</button></div>
       <div class="ctl"><label class="label" for="midiTarget">Notes play</label><select id="midiTarget"></select><span></span></div>
       <div class="ctl"><label class="label" for="midiCh">Channel</label><select id="midiCh"><option value="0">All</option></select><span></span></div>
@@ -1402,18 +1410,20 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
     <div class="card">
       <h2>Export</h2>
-      <div class="ctl"><label class="label" for="expWhat">What</label><select id="expWhat"><option value="mix">Full mix</option><option value="tracks">Every track (ZIP)</option><option value="midi">MIDI file</option></select><span></span></div>
+      <div class="ctl"><label class="label" for="expWhat">What</label><select id="expWhat"><option value="mix">Full mix</option><option value="tracks">Every track (ZIP)</option><option value="midi">MIDI file</option><option value="pads">Every pad, exploded (ZIP)</option><option value="mpc">MPC kit: pad WAVs + program + MIDI (ZIP)</option></select><span></span></div>
       <div class="ctl" id="expFmtRow"><label class="label" for="expFmt">Format</label><select id="expFmt"><option value="wav16">WAV 16-bit</option><option value="wav24">WAV 24-bit</option><option value="mp3-320">MP3 320 kbps</option><option value="mp3-192">MP3 192 kbps</option></select><span></span></div>
       <div class="ctl" id="expSrRow"><label class="label" for="expSr">Rate</label><select id="expSr"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select><span></span></div>
       <div class="ctl" id="expLoopsRow"><label class="label" for="expLoops">Repeat</label><select id="expLoops"><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option><option value="16">16×</option></select><span></span></div>
       <p class="hint" id="expHint"></p>
       <div class="row"><button id="export" class="grow">Export mix</button><button id="share" class="grow" disabled>Share</button></div>
-      <div class="row"><button id="midiImp" class="grow nolearn">Import MIDI file</button><button id="midiExp" class="grow nolearn">Export MIDI file</button></div>
+      <div class="row"><button id="impAny" class="grow nolearn">Import files…</button><button id="midiExp" class="grow nolearn">Export MIDI file</button></div>
+      <input type="file" id="impAnyFile" multiple hidden>
+      <p class="hint">Import takes MIDI (.mid), MPC drum programs (.xpm with their WAVs, MPC1000/2500 .pgm), MPC2000 .snd, MPC projects (.xpj: tempo), ZIP packs, and audio: WAV, AIFF, MP3, FLAC, OGG, M4A/AAC, Opus. Pick several at once: a program and its samples, or a whole kit.</p>
       <input type="file" id="midiFile" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v75</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v76</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1506,7 +1516,7 @@ function defaultState(){
     inCh:'L', device:'', monitor:false,
     quant:24, repRate:24, fullLevel:true, tapMs:20, bt:false, btMs:180, repeat:false, erase:false, spRest:1200, spRes:.15,
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
-    midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0,
+    midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0, padMap:'chrom',
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
     drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
@@ -3848,6 +3858,7 @@ function scheduleNotes(rig, i, t){
   for (const n of S.drum.notes){
     if (n.t < lo || n.t >= hi) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }   // already heard when it was played in
+    if (exportPadSolo != null && rig !== live && n.p !== exportPadSolo) continue;
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
     playPad(rig, padAt(n.p, n.st || 0), at, n.v, n.d ? n.d * td : null, n.st ? 100 + n.p * 32 + n.st + 8 : n.p);
     if (rig === live) flashPad(n.p, at);
@@ -4277,14 +4288,14 @@ function kitSlotFor(fname, names, used){
 }
 async function loadKitFiles(files){
   ensureAudio();
-  const list = [...files].filter(f => /\.(wav|aiff?|mp3|flac|ogg)$/i.test(f.name) || /^audio/.test(f.type)).sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+  const list = [...files].filter(f => /\.(wav|aiff?|aifc|mp3|flac|ogg|m4a|aac|opus|webm|snd)$/i.test(f.name) || /^audio/.test(f.type)).sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
   if (!list.length){ toast('No audio files picked.'); return; }
   const pads = S.drum.pads, names = pads.map(p => p.name), used = new Set(), plan = [], rest = [];
   for (const f of list){ const i = kitSlotFor(f.name, names, used); if (i >= 0){ used.add(i); plan.push([i, f]); } else rest.push(f); }
   for (const f of rest){ let i = 0; while (i < pads.length && used.has(i)) i++; if (i >= pads.length) break; used.add(i); plan.push([i, f]); }
   let ok = 0;
   for (const [i, f] of plan){
-    try { const bytes = await f.arrayBuffer(), buf = await ctx.decodeAudioData(bytes.slice(0)), p = pads[i], key = 'usr:' + i + ':' + Date.now() + ':' + ok; binAdd(f.name, bytes);
+    try { const bytes = await f.arrayBuffer(), buf = await decodeAny(bytes.slice(0)), p = pads[i], key = 'usr:' + i + ':' + Date.now() + ':' + ok; binAdd(f.name, bytes);
       dropAudio(p.sample); buffers.set(key, buf); await storeAudio(key, buf);
       delete p.tempo; p.fit = 0; p.sample = key; p.name = f.name.replace(/\.[^.]+$/, '').slice(0, 14); p.choke = /open|close|hat|hh|chh|ohh/i.test(f.name) ? 1 : 0; ok++; }
     catch (err){}
@@ -4294,7 +4305,7 @@ async function loadKitFiles(files){
 }
 
 /* ================= sample browser: remembers your sample folder, previews instantly, steps with ◀ ▶ ================= */
-const SBX_EXT = /\.(wav|aiff?|mp3|flac|ogg|m4a)$/i, canDir = 'showDirectoryPicker' in window;
+const SBX_EXT = /\.(wav|aiff?|aifc|mp3|flac|ogg|m4a|aac|opus|webm|snd)$/i, canDir = 'showDirectoryPicker' in window;
 let sbxPad = 0, sbxTab = (() => { try { return localStorage.getItem('pr.sbxTab') || (canDir ? 'cat' : 'bin'); } catch(e){ return 'bin'; } })();
 let sbxLoadOnTap = (() => { try { return localStorage.getItem('pr.sbxTap2') !== 'hear'; } catch(e){ return true; } })();
 let sbxRoot = null, sbxStack = [], sbxItems = [], sbxSel = -1, sbxSrc = null, sbxTree = null, sbxTreeBusy = null;
@@ -4312,7 +4323,7 @@ async function binAdd(name, bytes){
 }
 async function padFromBytes(i, name, bytes, keep = true, buf = null){
   ensureAudio();
-  buf = buf || await ctx.decodeAudioData(bytes.slice(0));
+  buf = buf || await decodeAny(bytes.slice(0));
   await setPadBuffer(i, buf, name.replace(/\.[^.]+$/, ''), true);
   if (keep) binAdd(name, bytes);
 }
@@ -4324,7 +4335,7 @@ async function sbxData(it){
   let c = sbxCache.get(it.id);
   if (c){ sbxCache.delete(it.id); sbxCache.set(it.id, c); return c; }
   ensureAudio();
-  const bytes = await it.get(), buf = await ctx.decodeAudioData(bytes.slice(0));
+  const bytes = await it.get(), buf = await decodeAny(bytes.slice(0));
   c = {bytes, buf}; sbxCache.set(it.id, c);
   while (sbxCache.size > 48) sbxCache.delete(sbxCache.keys().next().value);
   return c;
@@ -4595,7 +4606,7 @@ $('#sbxTempos').addEventListener('click', async () => {
     if (catTempoRun !== run || !$('#sbx').open) break;
     const c = cat.items[catKey(e.path, e.h.name)];
     try { const f = await e.h.getFile(); if (f.size > 60e6) { c.noTempo = 1; continue; }
-      const buf = await ctx.decodeAudioData(await f.arrayBuffer()), t = detectTempo(buf);
+      const buf = await decodeAny(await f.arrayBuffer()), t = detectTempo(buf);
       if (t && t.sure){ c.bpm = t.bpm; c.bpmAuto = 1; found++; } else c.noTempo = 1;
       if (c.dur == null) c.dur = Math.round(buf.duration * 100) / 100;
     } catch(err){ c.noTempo = 1; }
@@ -4905,6 +4916,54 @@ $('#sheetHear').addEventListener('click', () => { const b = $('#sheetHear'); if 
 document.addEventListener('contextmenu', e => { if (!e.target.closest('input[type=text], input[type=search], input:not([type]), textarea')) e.preventDefault(); }, {capture:true});
 document.addEventListener('selectstart', e => { if (!e.target.closest || !e.target.closest('input, textarea')) e.preventDefault(); }, {capture:true});
 
+/* ---- audio decoding: the browser's formats (WAV, MP3, OGG, FLAC, M4A/AAC, Opus, WebM) plus AIFF/AIFC and MPC2000/XL .SND ---- */
+function aiffDecode(ab){
+  const d = new DataView(ab), tag = o => String.fromCharCode(d.getUint8(o), d.getUint8(o + 1), d.getUint8(o + 2), d.getUint8(o + 3));
+  if (ab.byteLength < 12 || tag(0) !== 'FORM' || !/^AIF[FC]$/.test(tag(8))) return null;
+  let o = 12, ch = 1, frames = 0, bits = 16, sr = 44100, comp = 'NONE', data = -1;
+  while (o + 8 <= ab.byteLength){
+    const id = tag(o), sz = d.getUint32(o + 4);
+    if (id === 'COMM'){ ch = d.getUint16(o + 8); frames = d.getUint32(o + 10); bits = d.getUint16(o + 14);
+      const e = ((d.getUint8(o + 16) & 127) << 8 | d.getUint8(o + 17)) - 16383, hi = d.getUint32(o + 18), lo = d.getUint32(o + 22); sr = hi * Math.pow(2, e - 31) + lo * Math.pow(2, e - 63);
+      if (sz >= 22) comp = tag(o + 26); }
+    if (id === 'SSND') data = o + 16 + d.getUint32(o + 8);
+    o += 8 + sz + (sz & 1);
+  }
+  if (data < 0 || !frames) return null;
+  const le = comp === 'sowt', by = Math.ceil(bits / 8), out = [...Array(ch)].map(() => new Float32Array(frames));
+  for (let i = 0; i < frames; i++) for (let c = 0; c < ch; c++){
+    const q = data + (i * ch + c) * by; if (q + by > ab.byteLength) break; let v;
+    if (comp === 'fl32' || comp === 'FL32') v = d.getFloat32(q, false);
+    else if (by === 1) v = d.getInt8(q) / 128;
+    else if (by === 2) v = d.getInt16(q, le) / 32768;
+    else if (by === 3){ const b0 = d.getUint8(q), b1 = d.getUint8(q + 1), b2 = d.getUint8(q + 2); let x = le ? (b2 << 16 | b1 << 8 | b0) : (b0 << 16 | b1 << 8 | b2); if (x & 0x800000) x -= 0x1000000; v = x / 8388608; }
+    else v = d.getInt32(q, le) / 2147483648;
+    out[c][i] = v;
+  }
+  return makeBuffer(out, Math.round(sr) || 44100);
+}
+// MPC2000 / MPC2000XL .SND: 42-byte header, 16-bit samples, stereo stored as the whole left side then the whole right side
+function sndDecode(ab){
+  const d = new DataView(ab); if (ab.byteLength < 46 || d.getUint8(0) !== 1 || ![1, 2, 3, 4].includes(d.getUint8(1))) return null;
+  const st = d.getUint8(21) === 1, rate = d.getUint16(40, true), sr = rate >= 8000 && rate <= 96000 ? rate : 44100;
+  const n = Math.floor((ab.byteLength - 42) / 2), frames = st ? n >> 1 : n, L = new Float32Array(frames), R = st ? new Float32Array(frames) : null;
+  for (let i = 0; i < frames; i++){ L[i] = d.getInt16(42 + i * 2, true) / 32768; if (R) R[i] = d.getInt16(42 + (frames + i) * 2, true) / 32768; }
+  return makeBuffer(R ? [L, R] : [L], sr);
+}
+async function decodeAny(ab){
+  ensureAudio();
+  try { const a = aiffDecode(ab); if (a) return a; } catch(e){}
+  try { const s2 = sndDecode(ab); if (s2) return s2; } catch(e){}
+  return ctx.decodeAudioData(ab.slice ? ab.slice(0) : ab);
+}
+
+/* ---- pad note templates: how MIDI notes line up with the 16 pads (in, out, and in MIDI files) ---- */
+const MPC_NOTES = [37, 36, 42, 82, 40, 38, 46, 44, 48, 47, 45, 43, 49, 55, 51, 53];   // MPC pad 1..16 (Bank A), the map every MPC uses by default
+const GM_PADS = [36, 38, 39, 37, 42, 46, 70, 49, 45, 50, 63, 56, 35, 40, 54, 52];       // our 16 pad roles as General MIDI drum notes
+const PAD_MAPS = {chrom:'Chromatic (A01 = the note below, up in semitones)', mpc:'MPC: Sample, Live, One, X, Key, Force, 1000, 2500, 60…', gm:'General MIDI drums'};
+function noteForPad(p){ const m = S.padMap || 'chrom'; return m === 'mpc' ? MPC_NOTES[p] : m === 'gm' ? GM_PADS[p] : clamp(S.midiBase + p, 0, 127); }
+function padForNote(n){ const m = S.padMap || 'chrom'; if (m === 'mpc'){ const i = MPC_NOTES.indexOf(n); return i; } if (m === 'gm'){ const i = GM_PADS.indexOf(n); return i; } const r = n - S.midiBase; return r >= 0 && r < 16 ? r : -1; }
+
 /* ================= MIDI file import: drums (channel 10) onto the pads, other channels onto synth tracks ================= */
 const GM_DRUM = {35:'Kick', 36:'Kick', 37:'Rim', 38:'Snare', 40:'Snare', 39:'Clap', 42:'C Hat', 44:'C Hat', 46:'O Hat', 49:'Crash', 57:'Crash', 51:'Crash', 41:'Lo Tom', 43:'Lo Tom', 45:'Lo Tom',
   47:'Hi Tom', 48:'Hi Tom', 50:'Hi Tom', 56:'Cowbell', 62:'Conga', 63:'Conga', 64:'Conga', 70:'Shaker', 69:'Shaker', 54:'Shaker', 75:'Rim', 76:'Rim'};
@@ -4936,7 +4995,8 @@ function parseMidi(buf){
     for (const [k, q] of open) q.forEach(s0 => notes.push({ch:k >> 7, n:k & 127, t:s0.t, d:div / 4, v:s0.v / 127}));
     o = end;
   }
-  return {fmt, div, notes, tempos, ours, progs};
+  const dn = notes.filter(n => n.ch === 9 || true).map(n => n.n); const mpc = dn.length > 0 && dn.every(n => MPC_NOTES.includes(n)) && dn.some(n => [82, 44, 48, 53, 55, 47].includes(n));
+  return {fmt, div, notes, tempos, ours, progs, mpc};
 }
 async function importMidi(file){
   let M; try { M = parseMidi(await file.arrayBuffer()); } catch(e){ toast('Could not read that MIDI file: ' + e.message); return; }
@@ -4950,11 +5010,12 @@ async function importMidi(file){
   if (M.tempos.length){ S.bpm = Math.round(60e6 / M.tempos[0].us * 10) / 10; }
   S.bars = bars;
   const names = S.drum.pads.map(p => p.name.toLowerCase());
-  const drumPad = n => { const r = n - S.midiBase; if (M.ours && r >= 0 && r < 16) return r; const g = GM_DRUM[n]; if (g){ const i = names.indexOf(g.toLowerCase()); if (i >= 0) return i; const j = KIT.findIndex(x => x[0] === g); if (j >= 0) return j; } return r >= 0 && r < 16 ? r : ((n % 16) + 16) % 16; };
-  const drums = M.notes.filter(n => n.ch === 9 && n.t * k < L);
+  const drumPad = n => { const t = padForNote(n); if ((M.ours || S.padMap === 'mpc') && t >= 0) return t; if (S.padMap !== 'mpc' && MPC_NOTES.indexOf(n) >= 0 && M.mpc) return MPC_NOTES.indexOf(n); const r = n - S.midiBase; const g = GM_DRUM[n]; if (g){ const i = names.indexOf(g.toLowerCase()); if (i >= 0) return i; const j = KIT.findIndex(x => x[0] === g); if (j >= 0) return j; } return r >= 0 && r < 16 ? r : ((n % 16) + 16) % 16; };
+  const isDrum = n => n.ch === 9 || (M.mpc && !M.notes.some(x => x.ch === 9));
+  const drums = M.notes.filter(n => isDrum(n) && n.t * k < L);
   if (drums.length) S.drum.notes = drums.map(n => ({p:drumPad(n.n), t:Math.round(n.t * k), v:Math.max(.1, n.v)}));
   // melodic channels: one synth track each (up to 4)
-  const chans = [...new Set(M.notes.filter(n => n.ch !== 9).map(n => n.ch))].sort((a, b) => a - b);
+  const chans = [...new Set(M.notes.filter(n => !isDrum(n)).map(n => n.ch))].sort((a, b) => a - b);
   chans.slice(0, 4).forEach((ch, idx) => {
     let tr = S.synths[idx];
     if (!tr){ let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++; tr = newSynth(n); S.synths.push(tr); if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); } }
@@ -4964,7 +5025,7 @@ async function importMidi(file){
   storeScene(); seqDirty = true; rollDirty = true; changed(); renderTransport(); renderPads(); if (view === 'synth') renderSynth();
   toast(`Imported: ${drums.length} drum hits` + (chans.length ? `, ${Math.min(4, chans.length)} synth part${chans.length > 1 ? 's' : ''}` : '') + `, ${bars} bar${bars > 1 ? 's' : ''}` + (M.tempos.length ? ` at ${S.bpm} BPM` : '') + (chans.length > 4 ? '. Only the first 4 melodic channels fit.' : '.'));
 }
-$('#midiImp').addEventListener('click', () => $('#midiFile').click());
+if ($('#midiImp')) $('#midiImp').addEventListener('click', () => $('#midiFile').click());
 $('#midiFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); });
 $('#midiExp').addEventListener('click', () => { $('#expWhat').value = 'midi'; $('#expWhat').dispatchEvent(new Event('change')); $('#export').click(); });
 
@@ -4989,6 +5050,158 @@ function randPick(){
 }
 function randPaint(){ const b = $('#sheetRand'); if (b){ const f = randPick(); b.hidden = !f; } }
 $('#sheetRand').addEventListener('click', () => { const f = randPick(); if (f) f(); setTimeout(randPaint, 200); });
+
+/* ================= Import anything: ZIP packs, MPC programs/projects, MIDI, audio ================= */
+async function unzip(file){
+  const ab = await file.arrayBuffer(), d = new DataView(ab), out = [];
+  let e = -1; for (let i = ab.byteLength - 22; i >= Math.max(0, ab.byteLength - 70000); i--) if (d.getUint32(i, true) === 0x06054b50){ e = i; break; }
+  if (e < 0) throw new Error('not a ZIP');
+  let o = d.getUint32(e + 16, true); const n = d.getUint16(e + 10, true), td = new TextDecoder();
+  for (let k = 0; k < n && d.getUint32(o, true) === 0x02014b50; k++){
+    const meth = d.getUint16(o + 10, true), csz = d.getUint32(o + 20, true), nl = d.getUint16(o + 28, true), xl = d.getUint16(o + 30, true), cl = d.getUint16(o + 32, true), lo = d.getUint32(o + 42, true);
+    const name = td.decode(new Uint8Array(ab, o + 46, nl)); o += 46 + nl + xl + cl;
+    if (name.endsWith('/') || /(^|\/)(__MACOSX|\.)/.test(name)) continue;
+    const ds = lo + 30 + d.getUint16(lo + 26, true) + d.getUint16(lo + 28, true), raw = new Uint8Array(ab, ds, csz);
+    let bytes;
+    if (meth === 0) bytes = raw.slice();
+    else if (meth === 8) bytes = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    else continue;
+    out.push(new File([bytes], name.split('/').pop()));
+  }
+  return out;
+}
+const baseName = n => n.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '').trim().toLowerCase();
+const AUDIO_RE = /\.(wav|aiff?|aifc|mp3|flac|ogg|m4a|aac|opus|webm|snd)$/i;
+// find a sample by name: the picked files first, then your samples folder
+async function findSample(name, files){
+  const want = baseName(name); let f = files.find(x => AUDIO_RE.test(x.name) && baseName(x.name) === want);
+  if (f) return f;
+  if (sbxRoot){ try { if (await sbxRoot.queryPermission({mode:'read'}) === 'granted'){ const tree = await sbxBuildTree(); const e = tree.find(t => baseName(t.h.name) === want); if (e) return await e.h.getFile(); } } catch(e){} }
+  return null;
+}
+async function padsFromList(list, files){
+  // list: [{pad, sample, vol?, pan?, tune?}]
+  let ok = 0; const miss = [];
+  for (const it of list){
+    if (it.pad < 0 || it.pad > 15 || !it.sample) continue;
+    const f = await findSample(it.sample, files); if (!f){ miss.push(it.sample); continue; }
+    try { const bytes = await f.arrayBuffer(), buf = await decodeAny(bytes); await setPadBuffer(it.pad, buf, it.sample, true); const p = S.drum.pads[it.pad];
+      p.vol = it.vol != null ? clamp(it.vol, 0, 1) : .85; p.pan = it.pan != null ? clamp(it.pan, -1, 1) : 0; p.pitch = it.tune != null ? clamp(Math.round(it.tune), -24, 24) : 0; binAdd(f.name, bytes); ok++; } catch(e){ miss.push(it.sample); }
+  }
+  save(); renderPads(); renderPadEditor();
+  return {ok, miss};
+}
+// MPC drum program (.xpm, MPC software 2/3, Live, One, X, Key, Force, MPC Sample): instrument N = pad N
+function parseXpm(text){
+  const x = new DOMParser().parseFromString(text, 'application/xml'), out = [];
+  const insts = [...x.querySelectorAll('Instrument')], nums = insts.map(i => +i.getAttribute('number')), first = nums.length ? Math.min(...nums) : 1;
+  const name = (x.querySelector('ProgramName') || {}).textContent || 'MPC program';
+  insts.forEach(inst => {
+    const pad = +inst.getAttribute('number') - first; if (pad < 0 || pad > 15) return;
+    const ly = [...inst.querySelectorAll('Layer')].find(l => (l.querySelector('SampleName') || {}).textContent && !/False/i.test((l.querySelector('Active') || {}).textContent || 'True'));
+    if (!ly) return; const g = t => { const e = ly.querySelector(t); return e ? parseFloat(e.textContent) : null; };
+    const vol = g('Volume'), pan = g('Pan'), tc = g('TuneCoarse'), tf = g('TuneFine');
+    out.push({pad, sample:ly.querySelector('SampleName').textContent.trim(), vol:vol != null ? Math.sqrt(clamp(vol, 0, 1.4) / 1.2) : null, pan:pan != null ? (pan - .5) * 2 : null, tune:(tc || 0) + (tf || 0) / 100});
+  });
+  const notes = [...x.querySelectorAll('PadNote')].slice(0, 16).map(pn => +((pn.querySelector('Note') || {}).textContent || 0));
+  return {name, pads:out, mpcMap:notes.length >= 16 && notes.every((n, i) => n === MPC_NOTES[i])};
+}
+// MPC1000 / MPC2500 program (.pgm): 64 pads from 0x18, 0xA4 bytes each, first layer's sample name in the first 16 bytes
+function parsePgm(ab){
+  const u = new Uint8Array(ab), td = new TextDecoder('latin1'), head = td.decode(u.slice(4, 20));
+  if (!/PGM/.test(head)) throw new Error('not an MPC1000/2500 program');
+  const out = [];
+  for (let i = 0; i < 16; i++){ const o = 0x18 + i * 0xA4; if (o + 16 > u.length) break; const nm = td.decode(u.slice(o, o + 16)).replace(/\0.*$/, '').trim(); if (nm && /^[\x20-\x7e]+$/.test(nm)) out.push({pad:i, sample:nm}); }
+  return out;
+}
+async function importAny(fileList){
+  let files = [...fileList], done = [];
+  // unpack ZIPs first
+  for (const f of files.filter(f => /\.zip$/i.test(f.name))){ try { const inner = await unzip(f); files = files.concat(inner); done.push(f.name + ' (' + inner.length + ' files)'); } catch(e){ toast('Could not open ' + f.name + ': ' + e.message); } }
+  files = files.filter(f => !/\.zip$/i.test(f.name));
+  const progs = files.filter(f => /\.(xpm|pgm)$/i.test(f.name)), mids = files.filter(f => /\.midi?$/i.test(f.name)), projs = files.filter(f => /\.xpj$/i.test(f.name)), audio = files.filter(f => AUDIO_RE.test(f.name));
+  for (const f of projs){
+    try { const t = await f.text(), j = JSON.parse(t.slice(t.indexOf('{')));
+      let bpm = null; (function walk(v){ if (!v || typeof v !== 'object' || bpm) return; for (const [k, x] of Object.entries(v)){ if (/^(bpm|tempo|masterTempo)$/i.test(k) && +x > 30 && +x < 300){ bpm = +x; return; } walk(x); } })(j);
+      if (bpm){ S.bpm = Math.round(bpm * 10) / 10; renderTransport(); }
+      done.push(f.name + (bpm ? ' (tempo ' + S.bpm + ')' : ''));
+    } catch(e){ done.push(f.name + ' (read the tempo only from the program/MIDI files)'); }
+  }
+  for (const f of progs){
+    try {
+      let list, nm = f.name;
+      if (/\.xpm$/i.test(f.name)){ const P = parseXpm(await f.text()); list = P.pads; nm = P.name; if (P.mpcMap){ S.padMap = 'mpc'; } }
+      else list = parsePgm(await f.arrayBuffer());
+      const r = await padsFromList(list, audio);
+      done.push(`${nm}: ${r.ok} pads loaded` + (r.miss.length ? `, missing ${r.miss.slice(0, 4).join(', ')}${r.miss.length > 4 ? '…' : ''} (pick the samples too, or set your samples folder)` : ''));
+    } catch(e){ done.push(f.name + ': ' + e.message); }
+  }
+  for (const f of mids) await importMidi(f);
+  if (!progs.length && audio.length){ await loadKitFiles(audio); done.push(audio.length + ' sounds onto the pads'); }
+  if (done.length) toast('Imported: ' + done.join(' · '));
+  else if (!mids.length) toast('Nothing I can import in those files.');
+}
+$('#impAny').addEventListener('click', () => $('#impAnyFile').click());
+$('#impAnyFile').addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importAny(fs); });
+
+/* ================= Export: every pad exploded, and an MPC kit (WAVs + .xpm program + MIDI) ================= */
+let exportPadSolo = null;
+function xpmFor(name, pads){
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]));
+  const inst = pads.map((p, i) => `      <Instrument number="${i + 1}">
+        <Layers>
+          <Layer number="1">
+            <Active>True</Active>
+            <Volume>${(p ? clamp(p.vol * p.vol * 1.2, 0, 1) : 1).toFixed(6)}</Volume>
+            <Pan>${(p ? (p.pan + 1) / 2 : .5).toFixed(6)}</Pan>
+            <Pitch>0.000000</Pitch>
+            <TuneCoarse>${p ? Math.round(p.pitch || 0) : 0}</TuneCoarse>
+            <TuneFine>0</TuneFine>
+            <SampleName>${p ? esc(p.file) : ''}</SampleName>
+            <SampleFile></SampleFile>
+            <SliceIndex>128</SliceIndex>
+            <Direction>${p && p.rev ? 1 : 0}</Direction>
+            <Offset>0</Offset>
+            <SliceStart>0</SliceStart>
+            <SliceEnd>0</SliceEnd>
+            <SliceLoopStart>0</SliceLoopStart>
+            <SliceLoop>0</SliceLoop>
+          </Layer>
+        </Layers>
+      </Instrument>`).join('\n');
+  const map = MPC_NOTES.map((n, i) => `      <PadNote number="${i + 1}">\n        <Note>${n}</Note>\n      </PadNote>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<MPCVObject>
+  <Version>
+    <File_Version>2.1</File_Version>
+    <Application>MPC-V</Application>
+    <Application_Version>2.10.0.0</Application_Version>
+    <Platform>Linux</Platform>
+  </Version>
+  <Program type="Drum">
+    <ProgramName>${esc(name)}</ProgramName>
+    <Instruments>
+${inst}
+    </Instruments>
+    <PadNoteMap>
+${map}
+    </PadNoteMap>
+  </Program>
+</MPCVObject>
+`;
+}
+const stereoOf = b => b.numberOfChannels > 1 ? b : makeBuffer([b.getChannelData(0), b.getChannelData(0)], b.sampleRate);
+async function exportMpcKit(stamp, st){
+  const files = [], pads = [], used = [];
+  S.drum.pads.forEach((p, i) => { if (!p.sample) { pads.push(null); return; } ensureKitBuf(p.sample); const b = buffers.get(p.sample); if (!b){ pads.push(null); return; }
+    const file = `${padLabel(i)} ${fileSafe(p.name)}`.slice(0, 30); files.push({name:file + '.wav', blob:encodeWav(stereoOf(b), 16)}); pads.push(Object.assign({}, p, {file})); used.push(file); });
+  const prog = 'Snake ' + fileSafe(S.scenes[S.cur].name).slice(0, 10);
+  files.push({name:prog + '.xpm', blob:new Blob([xpmFor(prog, pads)], {type:'application/xml'})});
+  const keep = S.padMap; S.padMap = 'mpc'; try { files.push({name:prog + '.mid', blob:buildMidi()}); } finally { S.padMap = keep; }
+  const zip = await makeZip(files), name = `snake-device-${stamp}-mpc-kit.zip`;
+  saveFile(zip, name);
+  st.textContent = `Saved ${name}: ${used.length} pad WAVs, a drum program (${prog}.xpm, pads in MPC order) and the pattern as MIDI on the MPC pad notes. Unzip into one folder on the MPC and load the .xpm; the MIDI lines up with it.`;
+}
 
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
@@ -5144,7 +5357,7 @@ function buildMidi(){
       const L = S.bars * TPB, loops = Math.round(part.steps * TPS / L);
       for (let r = 0; r < loops; r++){
         const o = base + r * L, swing = t => t % 48 === 24 ? Math.round(sw) : 0;
-        for (const n of S.drum.notes) if (n.t < L){ const at = o + n.t + swing(n.t); tracks[0].ev.push([at, 0x90, clamp(S.midiBase + n.p, 0, 127), Math.max(1, Math.round(n.v * 127))], [at + 12, 0x80, clamp(S.midiBase + n.p, 0, 127), 0]); }
+        for (const n of S.drum.notes) if (n.t < L){ const at = o + n.t + swing(n.t); tracks[0].ev.push([at, 0x90, noteForPad(n.p), Math.max(1, Math.round(n.v * 127))], [at + 12, 0x80, noteForPad(n.p), 0]); }
         S.synths.forEach((t, k) => { for (const n of t.notes) if (n.t < L){ const at = o + n.t + swing(n.t); tracks[k + 1].ev.push([at, 0x90, n.n, Math.max(1, Math.round(n.v * 127))], [at + Math.max(6, n.d), 0x80, n.n, 0]); } });
       }
       base += part.steps * TPS;
@@ -5180,7 +5393,21 @@ async function exportMix(){
   try {
     if (what === 'midi'){
       const blob = buildMidi(), name = `snake-device-${stamp}.mid`;
-      saveFile(blob, name); st.textContent = `Saved ${name}: drums on channel 10 (A01 = ${noteName(S.midiBase)}), each synth on its own channel. Check your Downloads folder.`;
+      saveFile(blob, name); st.textContent = `Saved ${name}: drums on channel 10 (${S.padMap === 'mpc' ? 'MPC pad notes' : S.padMap === 'gm' ? 'General MIDI drum notes' : 'A01 = ' + noteName(S.midiBase)}), each synth on its own channel. Check your Downloads folder.`;
+    } else if (what === 'mpc'){
+      await exportMpcKit(stamp, st);
+    } else if (what === 'pads'){
+      const sd = stepDur(), {total} = exportPlan(), len = Math.ceil((total * sd + 2.5) * sr), files = [];
+      const used = [...new Set(S.scenes.flatMap((sc, k) => (k === S.cur ? S.drum.notes : sc.notes || []).map(n => n.p)))].filter(i => S.drum.pads[i].sample).sort((a, b) => a - b);
+      try {
+        for (let k = 0; k < used.length; k++){
+          exportPadSolo = used[k]; st.textContent = `Rendering pad ${k + 1} of ${used.length}: ${padLabel(used[k])} ${S.drum.pads[used[k]].name}…`;
+          const buf = await renderAudio(sr, 'drums', len), {blob, ext} = await encodeAudio(buf, fmt);
+          files.push({name:`${padLabel(used[k])} ${fileSafe(S.drum.pads[used[k]].name)}.${ext}`, blob});
+        }
+      } finally { exportPadSolo = null; }
+      const zip = await makeZip(files), name = `snake-device-${stamp}-pads.zip`;
+      saveFile(zip, name); st.textContent = `Saved ${name}: ${files.length} pads, each on its own, all the same length so they line up from bar 1.`;
     } else if (what === 'mix'){
       st.textContent = 'Rendering the mix…';
       const buf = await renderAudio(sr);
@@ -5210,9 +5437,10 @@ async function exportMix(){
 function renderExport(){
   const what = $('#expWhat').value, song = S.songMode && S.song.length;
   $('#expFmtRow').hidden = what === 'midi'; $('#expSrRow').hidden = what === 'midi'; $('#expLoopsRow').hidden = !!song;
-  $('#export').textContent = what === 'midi' ? 'Export MIDI' : what === 'mix' ? 'Export mix' : 'Export tracks';
+  $('#export').textContent = what === 'midi' ? 'Export MIDI' : what === 'mix' ? 'Export mix' : what === 'pads' ? 'Export pads' : what === 'mpc' ? 'Export MPC kit' : 'Export tracks';
+  if (what === 'mpc'){ $('#expFmtRow').hidden = true; $('#expSrRow').hidden = true; $('#expLoopsRow').hidden = true; }
   $('#expHint').textContent = (song ? 'Song mode is on, so this exports the whole song. ' : 'Exports the current pattern, looped. Turn Song on (Song tab) to export the arrangement. ')
-    + (what === 'tracks' ? 'Each track is rendered on its own through its effects and sends; muted tracks are skipped.' : what === 'midi' ? 'Drum hits and synth notes only, with swing applied.' : '');
+    + (what === 'pads' ? 'Each pad that has hits is rendered on its own through the drum effects.' : what === 'mpc' ? 'The pad sounds as WAVs, an MPC drum program that puts them on the right pads, and the pattern as MIDI using the MPC pad notes.' : what === 'tracks' ? 'Each track is rendered on its own through its effects and sends; muted tracks are skipped.' : what === 'midi' ? 'Drum hits and synth notes only, with swing applied.' : '');
 }
 
 /* ================= UI ================= */
@@ -5883,7 +6111,7 @@ async function matchSetRef(key, src, file){
   try {
     if (st) st.textContent = 'Listening to the reference…';
     let buf, name;
-    if (file){ ensureAudio(); buf = await ctx.decodeAudioData(await file.arrayBuffer()); name = file.name.replace(/\.[^.]+$/, '').slice(0, 40); }
+    if (file){ ensureAudio(); buf = await decodeAny(await file.arrayBuffer()); name = file.name.replace(/\.[^.]+$/, '').slice(0, 40); }
     else { buf = await soundOf(src); name = matchName(src); if (!buf) throw new Error('empty'); }
     const old = matchOf(key) || {};
     setMatchOf(key, {ref:await bandSpectrum(buf), name, amount:old.amount == null ? .7 : old.amount});
@@ -6381,7 +6609,7 @@ function renderSampler(){
 /* library: tracks kept on the phone (as their original files) with BPM, key and length; load to either deck */
 function libState(){ return S.lib = S.lib || []; }
 async function libAddFile(f){
-  ensureAudio(); const ab = await f.arrayBuffer(), buf = await ctx.decodeAudioData(ab.slice(0));
+  ensureAudio(); const ab = await f.arrayBuffer(), buf = await decodeAny(ab.slice(0));
   const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), tmp = {i:9, buf}, name = f.name.replace(/\.[^.]+$/, '');
   const save9 = S.decks[9]; S.decks[9] = {}; trackAnalyse(tmp); const D = S.decks[9]; S.decks.length = 2; if (save9) S.decks[9] = save9;
   await DB.put('audio', 'lib:' + id, {file:new Blob([ab], {type:f.type || 'audio/mpeg'})});
@@ -6392,7 +6620,7 @@ async function libLoad(id, i){
   const e = libState().find(x => x.id === id); if (!e) return;
   ensureAudio(); await workletReady;
   const a = await DB.get('audio', 'lib:' + id); if (!a || !a.file){ toast('That track is missing.'); return; }
-  const buf = await ctx.decodeAudioData(await a.file.arrayBuffer()), d = decks[i];
+  const buf = await decodeAny(await a.file.arrayBuffer()), d = decks[i];
   d.buf = buf; await storeAudio(recKey(i), buf);
   const D = deckState(i); Object.assign(D, {name:e.name, cue:0, on:false, cues:[], loop:null, lastLoop:null, sync:false, bpm:e.bpm, off:e.off, key:e.key, cam:e.cam, bpmLocked:true});
   trackAnalyse(d); D.bpmLocked = false; deckEnsure(d); deckSend(buf, d); deckSet(d); save(); renderDeck();
@@ -6551,7 +6779,7 @@ function renderPlat(){
   $('#recMix').addEventListener('click', toggleRecMix);
   $('#smpLoad').addEventListener('click', () => { smp.loadMode = !smp.loadMode; renderSampler(); if (smp.loadMode) toast('Tap a sampler slot to load a sound into it.'); });
   $('#smpFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; ensureAudio();
-    try { const b = await ctx.decodeAudioData(await f.arrayBuffer()); if (b.duration > 60){ toast('Samples up to 60 seconds.'); return; } smp.bufs[smp.slot] = b; await storeAudio('smp:' + smp.slot, b); smpState().slots[smp.slot] = f.name.replace(/\.[^.]+$/, ''); smp.loadMode = false; save(); renderSampler(); }
+    try { const b = await decodeAny(await f.arrayBuffer()); if (b.duration > 60){ toast('Samples up to 60 seconds.'); return; } smp.bufs[smp.slot] = b; await storeAudio('smp:' + smp.slot, b); smpState().slots[smp.slot] = f.name.replace(/\.[^.]+$/, ''); smp.loadMode = false; save(); renderSampler(); }
     catch(err){ toast('Could not read that file.'); } });
   $('#smpVol').addEventListener('input', e => { smpState().vol = +e.target.value; if (smp.gain) smp.gain.gain.value = smpState().vol; save(); });
   stepify($('#smpVol'), v => Math.round(v * 100) + '%');
@@ -6568,7 +6796,7 @@ function renderPlat(){
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     ensureAudio(); await workletReady; const d = deck, i = curDeck;
     try {
-      const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+      const buf = await decodeAny(await f.arrayBuffer());
       if (buf.duration > 900){ toast('Tracks up to 15 minutes.'); return; }
       d.buf = buf; await storeAudio(recKey(i), buf);
       const D = deckState(i); Object.assign(D, {name:f.name.replace(/\.[^.]+$/, ''), cue:0, on:false, cues:[], loop:null, lastLoop:null, bpmLocked:false, sync:false, key:'', cam:''});
@@ -6819,7 +7047,7 @@ $('#chopLoad').addEventListener('click', () => $('#chopFile').click());
 $('#chopFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   ensureAudio();
-  try { setChopSource(await ctx.decodeAudioData(await f.arrayBuffer()), f.name.replace(/\.[^.]+$/, '')); }
+  try { setChopSource(await decodeAny(await f.arrayBuffer()), f.name.replace(/\.[^.]+$/, '')); }
   catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#chopRec').addEventListener('click', toggleChopRec);
@@ -8263,12 +8491,12 @@ function onMidi(e){
   if (type !== 0x90 && type !== 0x80) return;
   if (S.midiCh && ch !== S.midiCh) return;
   const note = d[1], vel = d[2];
-  if (learning && type === 0x90 && vel){ S.midiBase = clamp(note - selPad, 0, 112); learning = false; save(); renderMidi(); toast(`${noteName(note)} now plays ${padLabel(selPad)}.`); return; }
+  if (learning && type === 0x90 && vel){ S.padMap = 'chrom'; S.midiBase = clamp(note - selPad, 0, 112); learning = false; save(); renderMidi(); toast(`${noteName(note)} now plays ${padLabel(selPad)}.`); return; }
   if (!S.midiNotes) return;
   const ev = {timeStamp:e.timeStamp, midi:true};
   const syn = S.midiTarget !== 'drums' && S.synths.find(t => t.id === S.midiTarget);
   if (syn){ if (type === 0x90 && vel) keyDown(syn, note, ev, S.fullLevel ? 1 : .2 + .8 * vel / 127, 'm' + note); else keyUp('m' + note, ev); return; }
-  const pi = note - S.midiBase; if (pi < 0 || pi > 15) return;
+  const pi = padForNote(note); if (pi < 0 || pi > 15) return;
   if (type === 0x90 && vel) padDown(pi, ev, S.fullLevel ? 1 : .2 + .8 * vel / 127);
   else padUp(pi);
 }
@@ -8308,7 +8536,7 @@ function renderMidi(){
   $('#midiNotes').textContent = S.midiNotes ? 'On' : 'Off'; $('#midiNotes').classList.toggle('on', S.midiNotes);
   const base = $('#midiBase');
   if (!base.children.length) base.innerHTML = Array.from({length:113}, (_, n) => `<option value="${n}">${noteName(n)} (${n})</option>`).join('');
-  base.value = S.midiBase;
+  base.value = S.midiBase; if ($('#padMap')) $('#padMap').value = S.padMap || 'chrom';
   const ch = $('#midiCh');
   if (ch.children.length < 2) ch.innerHTML = '<option value="0">All</option>' + Array.from({length:16}, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
   ch.value = S.midiCh;
@@ -8333,7 +8561,8 @@ document.querySelectorAll('#clockSeg button').forEach(b => b.addEventListener('c
 }));
 $('#midiOff').addEventListener('input', e => { S.midiOffMs = +e.target.value; $('#midiOffV').textContent = (S.midiOffMs > 0 ? '+' : '') + S.midiOffMs + ' ms'; save(); });
 $('#midiNotes').addEventListener('click', () => { S.midiNotes = !S.midiNotes; save(); renderMidi(); });
-$('#midiBase').addEventListener('change', e => { S.midiBase = +e.target.value; save(); });
+$('#midiBase').addEventListener('change', e => { S.midiBase = +e.target.value; S.padMap = 'chrom'; $('#padMap').value = 'chrom'; save(); });
+$('#padMap').addEventListener('change', e => { S.padMap = e.target.value; save(); toast(S.padMap === 'mpc' ? 'MPC template: pad 1–16 on your MPC (Bank A) play A01–A16 here, and MIDI files line up both ways.' : S.padMap === 'gm' ? 'General MIDI drum notes.' : 'Chromatic from the A01 note.'); });
 $('#midiCh').addEventListener('change', e => { S.midiCh = +e.target.value; save(); });
 $('#mlearnOn').addEventListener('click', () => setLearn(!mlearn));
 $('#learnDone').addEventListener('click', () => setLearn(false));
@@ -8524,7 +8753,7 @@ $('#kitFileIn').addEventListener('change', async e => { const fs = [...e.target.
 $('#fileIn').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   ensureAudio();
-  try { const buf = await ctx.decodeAudioData(await f.arrayBuffer()); await setPadBuffer(selPad, buf, f.name.replace(/\.[^.]+$/, '')); toast('Loaded ' + f.name + '.'); }
+  try { const buf = await decodeAny(await f.arrayBuffer()); await setPadBuffer(selPad, buf, f.name.replace(/\.[^.]+$/, '')); toast('Loaded ' + f.name + '.'); }
   catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#sampleIn').addEventListener('click', toggleSampling);
@@ -8568,7 +8797,7 @@ $('#trackFile').addEventListener('change', async e => {
   const f = e.target.files[0], tr = importTarget; e.target.value = ''; if (!f || !tr) return;
   ensureAudio();
   try {
-    const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+    const buf = await decodeAny(await f.arrayBuffer());
     // guess the bar count whose tempo lands closest to the project tempo
     let bars = 1, best = Infinity;
     for (const b of [1, 2, 4, 8]){ const bpm = b * 240 / buf.duration, d = Math.abs(Math.log2(bpm / S.bpm)); if (d < best){ best = d; bars = b; } }
