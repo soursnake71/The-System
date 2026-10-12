@@ -180,6 +180,12 @@ input[type=text],input[type=search],input:not([type]),textarea{-webkit-user-sele
 .pad .spark{position:absolute;pointer-events:none;z-index:4;width:4px;height:4px;border-radius:50%;
   background:#fff6c8;box-shadow:0 0 4px 2px #ffb12a,0 0 9px 3px #ff5a1488;animation:spark var(--dur,.4s) ease-out forwards}
 @keyframes spark{0%{opacity:1;transform:translate(0,0) scale(1.2)}70%{opacity:1}100%{opacity:0;transform:translate(var(--sx,20px),var(--sy,-20px)) scale(.3)}}
+/* strip pan: a small knob on a thin line under the name, so it doesn't look like a second fader */
+#strips .strip .nm{position:relative;z-index:2}
+#strips .strip input.pan{height:22px !important;margin:2px 0 0}
+html.retro #strips .strip input.pan::-webkit-slider-runnable-track{height:3px !important;background:#0b0b0c}
+html.retro #strips .strip input.pan::-webkit-slider-thumb{width:16px !important;height:16px !important;margin-top:-7px !important;border-radius:50% !important;background:radial-gradient(circle at 40% 35%,#fff,#c9c4b7 60%,#8d897e) !important;border:1px solid #000 !important;box-shadow:0 1px 2px #000a !important}
+#strips .strip input.pan::-webkit-slider-thumb{width:16px;height:16px}
 .kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
 .kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
@@ -1375,7 +1381,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v66</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v67</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
