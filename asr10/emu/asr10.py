@@ -26,7 +26,8 @@ import sys
 from unicorn import (Uc, UcError, UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, UC_HOOK_MEM_UNMAPPED,
                      UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_HOOK_INTR, UC_PROT_ALL,
                      UC_MEM_FETCH_UNMAPPED)
-from unicorn.m68k_const import UC_M68K_REG_PC, UC_M68K_REG_SR, UC_M68K_REG_A7, UC_CPU_M68K_M68000
+from unicorn.m68k_const import (UC_M68K_REG_PC, UC_M68K_REG_SR, UC_M68K_REG_A7, UC_M68K_REG_A0,
+                                UC_M68K_REG_D0, UC_CPU_M68K_M68000)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -73,6 +74,7 @@ class Machine:
         self.uc.hook_add(UC_HOOK_MEM_UNMAPPED, self._unmapped)
         self.uc.hook_add(UC_HOOK_INTR, self._exception)
         self.exceptions = collections.Counter()
+        self.movep_count = 0
         self.interrupts = collections.Counter()
         self.uc.hook_add(UC_HOOK_MEM_WRITE, self._flush_after_write)
 
@@ -132,9 +134,38 @@ class Machine:
         self.uc.mem_write(sp, struct.pack(">HI", sr, pc & 0xFFFFFFFF))
         self.uc.reg_write(UC_M68K_REG_A7, sp)
 
+    def _movep(self, uc, pc):
+        """Unicorn doesn't implement MOVEP (0000 ddd 1mm 001 aaa, d16):
+        moves a word or long to/from every other byte. Emulated here."""
+        op = self.r16(pc)
+        if op & 0xF138 != 0x0108:
+            return False
+        dreg = UC_M68K_REG_D0 + ((op >> 9) & 7)
+        areg = UC_M68K_REG_A0 + (op & 7)
+        mode = (op >> 6) & 7                          # 4 w->reg, 5 l->reg, 6 reg->w, 7 reg->l
+        disp = struct.unpack(">h", uc.mem_read(pc + 2, 2))[0]
+        addr = (uc.reg_read(areg) + disp) & 0xFFFFFFFF
+        n = 4 if mode in (5, 7) else 2
+        if mode in (6, 7):
+            v = uc.reg_read(dreg)
+            for i in range(n):
+                uc.mem_write(addr + 2 * i, bytes([(v >> (8 * (n - 1 - i))) & 0xFF]))
+        else:
+            v = 0
+            for i in range(n):
+                v = (v << 8) | uc.mem_read(addr + 2 * i, 1)[0]
+            if n == 2:
+                v = (uc.reg_read(dreg) & 0xFFFF0000) | v
+            uc.reg_write(dreg, v)
+        uc.reg_write(UC_M68K_REG_PC, pc + 4)
+        self.movep_count += 1
+        return True
+
     def _exception(self, uc, intno, user):
         pc = uc.reg_read(UC_M68K_REG_PC)
         sr = uc.reg_read(UC_M68K_REG_SR)
+        if intno in (4, 10, 11) and self._movep(uc, pc):
+            return
         if intno == 0x100:                              # RTE
             sp = uc.reg_read(UC_M68K_REG_A7)
             new_sr, new_pc = struct.unpack(">HI", uc.mem_read(sp, 6))
