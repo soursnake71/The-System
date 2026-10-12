@@ -367,6 +367,7 @@ nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0;color:
 #chopWave{width:100%;height:170px;background:#0c0e12;border-radius:8px;display:block;touch-action:none}
 .slices{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 .slices button{padding:12px 0;font:600 13px var(--f-mono)}
+.slices button.hit{background:#f5b301 !important;color:#000 !important}
 .slices button.sel{background:var(--audio);border-color:var(--audio);color:#062026}
 .seg{display:flex;gap:6px}
 .seg button{flex:1;padding:9px 0}
@@ -762,6 +763,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="chopMerge" class="grow">Remove marker</button>
       </div>
       <div class="slices" id="slices"></div>
+      <div class="row"><button id="chopPrev" class="nolearn">◀</button><button id="chopHearSel" class="grow nolearn hearbtn">▶ Hear slice</button><button id="chopNext" class="nolearn">▶</button><button id="chopAll" class="grow nolearn">▶ Play all</button></div>
       <div class="row" id="chopNudge">
         <span class="label grow" id="chopSelInfo">Slice 1</span>
         <button data-n="-10">−10ms</button><button data-n="-1">−1</button><button data-n="1">+1</button><button data-n="10">+10ms</button>
@@ -1423,7 +1425,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v76</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v77</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -6942,9 +6944,26 @@ function auditionSlice(i){
   ensureAudio();
   const [a, b] = slices()[i], sr = chop.buf.sampleRate;
   if (chop.src){ try { chop.src.stop(); } catch(e){} }
-  const src = ctx.createBufferSource(); src.buffer = chop.buf; src.connect(live.strips.get('drums').input);
+  if (chopSeqT){ clearTimeout(chopSeqT); chopSeqT = 0; }
+  // straight to the master, so a muted or soloed drum track never silences the preview
+  const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .9; src.buffer = chop.buf; src.connect(g).connect(live.master.bus);
   src.start(ctx.currentTime + .003, a / sr, (b - a) / sr); chop.src = src;
+  flashSlice(i);
 }
+let chopSeqT = 0;
+function chopStep(d){ if (!chop.buf){ toast('Pick a sample to chop first.'); return; } const n = slices().length; chop.sel = (chop.sel + d + n) % n; auditionSlice(chop.sel); renderChop(); }
+function flashSlice(i){ const b = $('#slices') && $('#slices').children[i]; if (b){ b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 140); } }
+// play every slice in order, each for its own length, so you hear the chop as a whole
+function chopPlayAll(){
+  if (!chop.buf){ toast('Pick a sample to chop first.'); return; }
+  if (chopSeqT){ clearTimeout(chopSeqT); chopSeqT = 0; if (chop.src) try { chop.src.stop(); } catch(e){} $('#chopAll').textContent = '▶ Play all'; return; }
+  const sl = slices(), sr = chop.buf.sampleRate; let k = 0;
+  $('#chopAll').textContent = '■ Stop';
+  const next = () => { if (k >= sl.length){ chopSeqT = 0; $('#chopAll').textContent = '▶ Play all'; return; }
+    const i = k++, [a, b] = sl[i]; chop.sel = i; auditionSliceKeep(i); renderChop(); chopSeqT = setTimeout(next, Math.max(60, (b - a) / sr * 1000)); };
+  next();
+}
+function auditionSliceKeep(i){ const t = chopSeqT; chopSeqT = 0; auditionSlice(i); chopSeqT = t || 1; }
 function drawChop(){
   const cv = $('#chopWave'), dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
   if (!w) return;
@@ -7053,6 +7072,10 @@ $('#chopFile').addEventListener('change', async e => {
 $('#chopRec').addEventListener('click', toggleChopRec);
 $('#chopFromTrack').addEventListener('focus', () => { $('#chopFromTrack').innerHTML = '<option value="">From track…</option>' + S.audio.filter(t => t.clip).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join(''); });
 $('#chopFromTrack').addEventListener('change', e => { const t = trackById(e.target.value); if (t && buffers.get(t.clip)){ setChopSource(buffers.get(t.clip), t.name); chop.bars = Math.max(1, t.clipSteps / 16); saveChop(); renderChop(); } e.target.value = ''; });
+$('#chopPrev').addEventListener('click', () => chopStep(-1));
+$('#chopNext').addEventListener('click', () => chopStep(1));
+$('#chopHearSel').addEventListener('click', () => { if (chop.buf) auditionSlice(chop.sel || 0); else toast('Pick a sample to chop first.'); });
+$('#chopAll').addEventListener('click', chopPlayAll);
 $('#chopFromPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; if (!p.sample){ toast('This pad is empty.'); return; } ensureKitBuf(p.sample); if (!buffers.get(p.sample)){ toast('That pad has no sound to chop yet.'); return; } setChopSource(buffers.get(p.sample), p.name); toast(`Loaded ${padLabel(selPad)} ${p.name}. Pick a pad on the Drums tab to use a different one.`); });
 $('#chopPad').addEventListener('click', () => { const p = S.drum.pads[selPad]; if (!p.sample){ toast('This pad is empty.'); return; } ensureKitBuf(p.sample); chop.start = selPad; setChopSource(buffers.get(p.sample), p.name); setView('chop'); });
 document.querySelectorAll('#v-chop .seg button').forEach(b => b.addEventListener('click', () => { chop.mode = b.dataset.m; if (chop.mode === 'manual' && chop.markers.length < 2) chop.markers = [0]; else if (chop.mode !== 'manual') remark(); saveChop(); renderChop(); }));
