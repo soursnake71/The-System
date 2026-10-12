@@ -291,17 +291,12 @@ class M68302:
         self.w16(self.IPR, self.r16(self.IPR) & ~(1 << bit))
         self.w16(self.ISR, self.r16(self.ISR) | (1 << bit))
 
-    def on_read(self, uc, access, addr, size, value, user):
-        off = (addr & 0xFFFFFF) - self.BASE
-        if off in (0x828, 0x829):
-            # Port B pin 3 is a periodic clock from elsewhere on the board
-            # (OS start-up fails with ERROR 009 unless it toggles; likely the
-            # sound chip's sample clock). Toggle it on every read.
-            a = self.BASE + 0x829
-            uc.mem_write(a, bytes([uc.mem_read(a, 1)[0] ^ 0x08]))
-        if off not in self.seen and off not in self.MODELLED:
-            self.seen.add(off)
-            self.log(f"[68302] read  +{off:#05x} ({size})")
+    def on_port_b_read(self, uc, access, addr, size, value, user):
+        """Port B pin 3 is a periodic clock from elsewhere on the board (OS
+        start-up stops with ERROR 009 unless it toggles, and stalls if it
+        only toggles occasionally; likely the sound chip's sample clock)."""
+        a = self.BASE + 0x829
+        uc.mem_write(a, bytes([uc.mem_read(a, 1)[0] ^ 0x08]))
 
     def on_write(self, uc, access, addr, size, value, user):
         off = (addr & 0xFFFFFF) - self.BASE

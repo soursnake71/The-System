@@ -24,7 +24,7 @@ switch off and boot your stock disk again. No chips are changed.
 | MIDI Out from our OS | **works** (port set up from scratch) |
 | ROM dump over MIDI SysEx (`tools/syx2rom.py`) | **done**: ROM 1.5b, verified against MAME's checksums |
 | Keyboard calibration message on the stock OS | **gone** with `make stock-patched` (one byte; confirmed: boots and loads banks); cause of the failure still to find |
-| Emulation engine (`emu/asr10.py`) | boots the real ROM to "PLEASE INSERT DISK"; floppy next |
+| Emulation engine (`emu/asr10.py`) | runs the real ROM: boots, loads a disk, runs **our OS** end to end; Ensoniq's OS 3.53 starts but crashes (timing) |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
 | Floppy and SCSI drivers, effects | — |
@@ -82,6 +82,16 @@ table from your stock OS file and checks they add up.
 Please report what you see, even if it's nothing. "No text, but the note
 plays" or "it shows ' THE SYSTEM ' after the Ensoniq text" both tell us a
 lot.
+
+## Run it in the emulator
+
+```
+pip install unicorn
+python3 emu/asr10.py --disk build/system.img --steps 30000000
+```
+
+Boots the ROM from `local/asr10rom.bin`, loads the disk, and prints the
+display. `--disk` takes `.img` or `.hfe`.
 
 ## Ensoniq material
 

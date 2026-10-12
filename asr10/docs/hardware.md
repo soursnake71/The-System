@@ -147,6 +147,25 @@ message screens send:
 - `77+k c` / `7A+k c` per character (`0xF8A7E0`): `77 c` = steady
   character (confirmed); `7A` presumably the blinking form; k (0-2) to check
 
+### Memory and devices (from running the ROM in emu/asr10.py)
+
+- RAM: the ROM sizes it by aliasing (writes 0/1111/2222/3333 at 0x008000,
+  0x408000, 0x808000, 0xC08000). Fully expanded: 15.5 MB at 0x000000-
+  0xF7FFFF, shared between CPU and samples (`0xC62` = 0xF80000).
+- Floppy: uPD72069 at 0xFC4000, MSR at +1, data at +3, uPD765 commands
+  (sense drive status 04, seek 0F, read data 46 with 512-byte sectors
+  numbered from 0, gap 1B, EOT 0x13 for HD). Writes to +1 are the
+  72069's own extra registers.
+- Disk detection on DUART input pins: IP0 = index pulse (a disk is in when
+  IPCR shows IP0 changing), IP2 low = high density.
+- SCSI WD33C93 at 0xFC5000 (aux status at +1).
+- DUART interrupt: IRQ6, vector 86; the ROM handler dispatches RxRDYB,
+  RxRDYA/break, TxRDYA and counter-ready through RAM pointers 0xDE/0xE2/0xE6.
+- 68302: GIMR 0x8040 (vectors 0x40-0x5F); timer 2 is the ROM's tick;
+  OS 3.53 enables SCC1, SCC2, PB9-11 interrupts; port B pin 3 is a
+  periodic clock it waits on (ERROR 009 if it never toggles).
+- OS 3.53 sets MIDI (channel A) to CSR EE, the same as our OS.
+
 ## Display commands (guess)
 
 MAME has three Ensoniq display models. All print `0x20`-`0x5F` at the

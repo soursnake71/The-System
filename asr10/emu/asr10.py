@@ -4,7 +4,8 @@
 Runs the real boot ROM (and the OS it loads) on an emulated 68000, with
 the board's devices modelled as far as they are known:
 
-  0x000000-0x07FFFF  RAM
+  0x000000-0xF7FFFF  RAM, 15.5 MB, shared with the samples (the ROM's
+                     sizing code reports this for a fully expanded unit)
   0xF80000-0xFBFFFF  boot ROM (your dump, local/asr10rom.bin)
   0xFC4800           2681 DUART: channel A = MIDI, channel B = front panel
   0xFC6000           MC68302 internal RAM (+0x000) and registers (+0x800)
@@ -48,7 +49,7 @@ class Machine:
         self.after_write = []                  # fix-ups after a hooked store
 
         self.buffers = []
-        self.map_ram(0x000000, 0x80000)
+        self.map_ram(0x000000, 0xF80000)
         self.map_ram(0xFF0000, 0x10000)
         self.map_ram(ROM_BASE, ROM_SIZE)
         self.uc.mem_write(ROM_BASE, rom)
@@ -63,9 +64,14 @@ class Machine:
         # so it is ordinary memory; hooks model the register half. Unicorn
         # runs a read hook before the read, so values set there are seen.
         self.map_ram(0xFC6000, PAGE)
+        # Only a write hook: in Unicorn any read hook sends every memory
+        # read down a slow path (about 2x slower overall). Register values
+        # the code reads are kept current between slices instead.
         for base in (0xFC6800, 0xFC6800 | MIRROR):
-            self.uc.hook_add(UC_HOOK_MEM_READ, self.m68302.on_read, begin=base, end=base + 0x7FF)
             self.uc.hook_add(UC_HOOK_MEM_WRITE, self.m68302.on_write, begin=base, end=base + 0x7FF)
+            # Port B data: pin 3 is a clock the OS samples; it changes on
+            # every read (a per-slice toggle stalls OS start-up).
+            self.uc.hook_add(UC_HOOK_MEM_READ, self.m68302.on_port_b_read, begin=base + 0x28, end=base + 0x29)
         # SCSI option (WD33C93, at 0xFC5000): not modelled yet, so present an
         # empty bus (reads FF) and the ROM decides no SCSI board is fitted.
         for base in (0xFC5000, 0xFC5000 | MIRROR):
@@ -76,7 +82,7 @@ class Machine:
         self.exceptions = collections.Counter()
         self.movep_count = 0
         self.interrupts = collections.Counter()
-        self.uc.hook_add(UC_HOOK_MEM_WRITE, self._flush_after_write)
+
 
         # Reset: the ROM is at 0 until the chip selects move it; its code
         # at 0x0C is position independent up to the jump into 0xF8xxxx, so
@@ -115,9 +121,6 @@ class Machine:
 
     def r32(self, a):
         return struct.unpack(">I", self.uc.mem_read(a, 4))[0]
-
-    def _flush_after_write(self, uc, access, addr, size, value, user):
-        pass
 
     def _apply_after_write(self):
         while self.after_write:
