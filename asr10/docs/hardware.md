@@ -76,6 +76,38 @@ The keyboard sends nothing there, and neither does the data entry slider.
 
 Still to do: which code each button sends.
 
+## Boot ROM (dumped)
+
+Dumped from the user's ASR-10 over MIDI with the explorer OS
+(`tools/syx2rom.py`), 1024 of 1024 chunks with no damage. Split into even
+and odd bytes it matches MAME's `asr10` set exactly: ROM **1.5b**, hi CRC
+`b37cd3b6`, lo CRC `8e437843`. Kept in `local/asr10rom.bin`, not committed.
+The 68000 reset vectors at its start are SSP `0x300`, PC `0x00000C`, i.e.
+it boots at address 0 and runs from `0xF80000` afterwards.
+
+### Panel protocol (from the ROM)
+
+- Normal display output is interrupt driven: a ring buffer at RAM
+  `0x378-0x3B7` is fed to DUART B one byte per interrupt (`0xF89AA4`).
+- Handshaked command send (`0xF89C46`): write the byte, wait about 8000
+  loop passes, check RxRDY; retry up to 100 times; the reply comes back
+  in d1. Our `panel_tx` does the same thing, which is why it worked.
+- Start-up (`0xF89BD6`, called from the RAM test, boot and error paths):
+  drain 64 bytes from the panel, then send `E7` (up to 15 tries) and `71`
+  (up to 10 tries). MAME's EPS panel model replies to exactly these two.
+- `66` then plain ASCII (`0xF89C94`): used for the boot-loader messages
+  ("FATAL SYSTEM ERROR", "BAD DISK/NOT EPS DISK", "ERROR - REBOOT ?").
+  `66` is ASCII "f", which MAME's EPS display model treats as **clear
+  screen**: the ASR-10 panel speaks the EPS-family protocol, not the VFX
+  one (`D6`/`83` did nothing).
+- `0xF89CF6` sends `7F`, waits, `FF`, waits, `FD`, then waits for a reply;
+  reply `C9` sets carry (the failure path). MAME's model treats `FD` after
+  `FB` as a calibration request answered with `FF` = calibration OK. This
+  is the likely source of the keyboard calibration message. Not called
+  directly anywhere; reached through a table, to trace.
+- `0xF89D46` is a crash handler: shows "ERROR - REBOOT ?" and lets the
+  panel buttons dump registers.
+
 ## Display commands (guess)
 
 MAME has three Ensoniq display models. All print `0x20`-`0x5F` at the
