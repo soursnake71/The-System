@@ -587,7 +587,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <select id="bars" aria-label="Loop length"><option value="1">1 bar</option><option value="2">2 bars</option><option value="4">4 bars</option><option value="8">8 bars</option></select>
     <button id="metro">Click</button>
     <button id="tap">Tap</button>
-    <button id="padSet" class="nolearn" aria-label="Pad settings" title="Pad settings: sound, load, trim, loop, envelope">⚙ PAD</button>
+    <button id="padSet" class="nolearn" aria-label="Pad settings" title="Pad menu for the selected pad: delete, load, built-in, settings, clear all">⚙ PAD</button>
     <button id="allStop" class="allstop" aria-label="All stop: silence everything" title="All stop">■ ALL</button>
     <span class="grow"></span>
     <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
@@ -1366,7 +1366,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v62</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v63</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1383,6 +1383,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <button data-a="delall" class="nolearn">Delete sound and its hits</button>
   <button data-a="load" class="nolearn">Load…</button>
   <button data-a="builtin" class="nolearn">Built-in sound</button>
+  <button data-a="set" class="nolearn">Pad settings (tune, loop, ADSR…)</button>
   <button data-a="all" class="nolearn">Clear all pads…</button>
   <button data-a="x" class="nolearn">Cancel</button>
 </dialog>
@@ -5108,12 +5109,7 @@ function padEmpty(i){
 }
 $('#clearPads').addEventListener('click', () => $('#clearMenu').showModal());
 $('#padsClr').addEventListener('click', () => $('#clearMenu').showModal());
-$('#padSet').addEventListener('click', () => {
-  const c = $('#padCtls').closest('.card');
-  if (sheetCard === c){ sheetClose(); return; }
-  if (view !== 'drums') setView('drums');
-  setTimeout(() => sheetOpen(c), view === 'drums' ? 0 : 80);
-});
+$('#padSet').addEventListener('click', () => { if (view !== 'drums') setView('drums'); padMenuOpen(selPad); });
 $('#padEdit').addEventListener('click', () => { padEditOn = !padEditOn; $('#padEdit').classList.toggle('on', padEditOn); $('#pads').classList.toggle('editing', padEditOn);
   toast(padEditOn ? 'Edit is on: tap a pad to change, load or delete its sound. Tap Edit again to play.' : 'Edit off. Pads play again.'); });
 window.addEventListener('load', () => { setTimeout(fitScreen, 300); setTimeout(fitScreen, 1200); });
@@ -5137,6 +5133,7 @@ $('#padMenu').addEventListener('click', e => {
   else if (a === 'delall'){ pushUndo(); undoPass = null; padEmpty(i); S.drum.notes = S.drum.notes.filter(n => n.p !== i); seqDirty = true; changed(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' cleared: sound and hits. Undo brings the hits back.'); }
   else if (a === 'load') sbxOpen(i);
   else if (a === 'all') $('#clearMenu').showModal();
+  else if (a === 'set'){ selPad = i; renderPads(); renderPadEditor(); sheetOpen($('#padCtls').closest('.card')); }
   else if (a === 'builtin'){ dropAudio(p.sample); const v = kitVoices(S.drum.kit)[i]; p.sample = v.key; p.name = v.name; delete p.tempo; p.fit = 0; ensureKitBuf(v.key); save(); renderPads(); renderPadEditor(); auditionPad(i); }
 });
 function auditionPad(i){ ensureAudio(); const p = S.drum.pads[i]; playPad(live, p, ctx.currentTime + .005, .9, padGated(p) ? Math.min(2, 4 * 60 / S.bpm) : null, i); flashPad(i, ctx.currentTime); }
