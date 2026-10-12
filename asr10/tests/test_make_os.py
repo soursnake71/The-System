@@ -68,7 +68,7 @@ class MakeOsTests(unittest.TestCase):
 
 
 class EmulationTests(unittest.TestCase):
-    """Runs build/system.bin (the panel test) on an emulated 68000."""
+    """Runs build/system.bin (the panel and keyboard test) on an emulated 68000."""
 
     @staticmethod
     def steady(text):
@@ -101,7 +101,8 @@ class EmulationTests(unittest.TestCase):
     def test_shows_and_forwards_panel_bytes(self):
         out, _ = self.emulate.run(self.os_file, 0xE00, 35_000_000, panel_input=bytes([0xC5]))
         self.assertEqual(bytes(out["panel"]),
-                         self.INTRO + b"\x60\x28" + self.steady(b"LAST 00 00 00 C5           "))
+                         self.INTRO + b"\x60\x14" + self.steady(b"BYTES 0001")
+                         + b"\x60\x28" + self.steady(b"LAST 00 00 00 C5 " + b" " * 13))
         self.assertEqual(bytes(out["midi"]), bytes.fromhex("f07d500c05f7"))
 
     def test_waits_for_panel_replies(self):
@@ -111,7 +112,8 @@ class EmulationTests(unittest.TestCase):
 
 
 EmulationTests.INTRO = (b"\xe7\x71\x66\x60\x00" + EmulationTests.steady(b"THE SYSTEM")
-                        + b"\x60\x14PLAIN\x60\x28" + EmulationTests.steady(b"PRESS BUTTONS OR KEYS"))
+                        + b"\x60\x28" + EmulationTests.steady(b"PLAY KEYS OR PRESS BUTTONS")
+                        + b"\xd5")
 
 
 if __name__ == "__main__":
