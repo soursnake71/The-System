@@ -993,6 +993,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-syntabs"><summary>Synth tracks</summary>
       <p>The tabs at the top of the Synth screen are your synth tracks (up to 4). <b>+</b> adds one. <b>Press and hold a tab</b> to rename it, duplicate it, or delete it.</p>
     </details>
+    <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
+      <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
+    </details>
     <details id="h-hear"><summary>▶ Hear on every page</summary>
       <p>Each page that makes sound has a green <b>▶ Hear</b> (or <b>▶ Play</b>) button at the top. Pad sound plays the pad. Sound plays a chord on the synth. Arp plays a chord through the arpeggiator. Speech and Vocoder say your line. Effects and FX rack play a short beat through the effects. Sequencer, Notes, Patterns and Song start and stop the beat. Turntable starts and stops the record, and Sampler and Chop play the sound.</p>
     </details>
@@ -1381,7 +1384,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v70</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v71</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -2060,6 +2063,7 @@ function applyMaster(c, m){
   sp(c, m.out.gain, M.vol * M.vol * 1.2);
   sp(c, m.dly.delayTime, M.dlyDiv * 60 / S.bpm); sp(c, m.fb.gain, M.dlyFb);
   sp(c, m.revRet.gain, retGain('rev')); sp(c, m.dlyRet.gain, retGain('dly'));
+  applyVinyl(c, m, m.bus, m.bus === m.pre ? m.out : m.pre, M, M.vFollow !== false);
   if (m.rt) for (const k of ['rev', 'dly']) sp(c, m.rt[k].pan.pan, retState(k).pan || 0);
 }
 
@@ -2142,8 +2146,23 @@ function makeStrip(c, m){
   return s;
 }
 function anySolo(){ return allTracks().some(t => t.solo); }
+
+// vinyl & tape noise: made only when used; it listens to the sound (sidechain) and adds its noise beside it
+const VIN_PRESETS = {'Clean':{hiss:0, crackle:0, pops:0, rumble:0}, 'Dusty 45':{hiss:.25, crackle:.55, pops:.3, rumble:.2}, 'Worn LP':{hiss:.35, crackle:.8, pops:.6, rumble:.45},
+  'Thrift-store record':{hiss:.4, crackle:1, pops:1, rumble:.6}, 'Cassette':{hiss:.75, crackle:0, pops:0, rumble:.1}, 'Hiss only':{hiss:.5, crackle:0, pops:0, rumble:0}};
+const vinOn = o => o && ((o.vHiss || 0) + (o.vCrk || 0) + (o.vPop || 0) + (o.vRum || 0)) > 0;
+function applyVinyl(c, holder, side, dest, o, follow){
+  if (!c._reduxOK) return;
+  if (!vinOn(o)){ if (holder.vin){ holder.vin.port.postMessage({hiss:0, crackle:0, pops:0, rumble:0}); } return; }
+  if (!holder.vin){
+    holder.vin = new AudioWorkletNode(c, 'vinyl', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:1, channelCountMode:'explicit'});
+    side.connect(holder.vin); holder.vin.connect(dest);
+  }
+  holder.vin.port.postMessage({hiss:o.vHiss || 0, crackle:o.vCrk || 0, pops:o.vPop || 0, rumble:o.vRum || 0, follow:follow ? 1 : 0, level:1});
+}
 function applyStrip(c, s, t){
   wireStrip(s, t);
+  applyVinyl(c, s, s.input, s.duck, t, true);
   sp(c, s.low.gain, t.low); sp(c, s.mid.gain, t.mid); sp(c, s.high.gain, t.high);
   if (t.ftype === 'off'){ s.filt.type = 'allpass'; sp(c, s.filt.frequency, 20000); sp(c, s.filt.Q, .0001); }
   else { s.filt.type = t.ftype; sp(c, s.filt.frequency, cutHz(t.cut)); sp(c, s.filt.Q, t.res); }
@@ -3422,7 +3441,46 @@ class OBXa extends Prophet5{
   }
 }
 registerProcessor('obxa', OBXa);`;
-const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, OBX_CODE, TB_CODE, TAU_CODE, RACK_CODE], {type:'application/javascript'})));
+
+const VIN_CODE = String.raw`
+/* Vinyl & tape: the noise a sample picks up off a record or cassette. Hiss (filtered white noise), crackle (dense tiny
+   ticks), pops (rare big dust hits), rumble (low turntable motor rumble with the 33 1/3 rpm once-per-turn thump).
+   Input is a sidechain only: with "follow" on, the noise rides the level of the sound, so it is baked into the sample. */
+class Vinyl extends AudioWorkletProcessor{
+  constructor(o){ super(); this.p = Object.assign({hiss:0, crackle:0, pops:0, rumble:0, follow:1, level:1}, (o && o.processorOptions) || {});
+    this.env = 0; this.cl = [0, 0]; this.po = [0, 0]; this.h = [[0, 0], [0, 0]]; this.r = 0; this.r2 = 0; this.ph = 0; this.pl = [0, 0];
+    this.port.onmessage = e => Object.assign(this.p, e.data); }
+  process(ins, outs){
+    const P = this.p, out = outs[0], L = out[0], R = out[1] || out[0], N = L.length, fs = sampleRate;
+    if (!(P.hiss || P.crackle || P.pops || P.rumble)){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const inp = ins[0] && ins[0][0], aE = 1 - Math.exp(-1 / (.005 * fs)), rE = 1 - Math.exp(-1 / (.35 * fs));
+    const hp = Math.exp(-2 * Math.PI * 300 / fs), lp = 1 - Math.exp(-2 * Math.PI * 9000 / fs), clDec = Math.exp(-1 / (.00035 * fs)), poDec = Math.exp(-1 / (.0012 * fs));
+    const rL = 1 - Math.exp(-2 * Math.PI * 45 / fs), crRate = P.crackle * P.crackle * 900 / fs, poRate = P.pops * 4 / fs;
+    for (let i = 0; i < N; i++){
+      if (inp){ const a = Math.abs(inp[i]); this.env += (a > this.env ? aE : rE) * (a - this.env); }
+      const g = P.follow ? Math.min(1, this.env * 6) : 1;
+      // rumble: brown-ish noise under 45 Hz plus a soft thump once per record turn
+      this.r += rL * ((Math.random() * 2 - 1) - this.r); this.r2 += rL * (this.r - this.r2);
+      this.ph += .5556 / fs; if (this.ph >= 1) this.ph -= 1;
+      const rum = P.rumble * (this.r2 * 2.2 + .06 * Math.exp(-((this.ph - .5) ** 2) / .002)) * .5;
+      for (let c = 0; c < 2; c++){
+        // hiss
+        const wn = Math.random() * 2 - 1, H = this.h[c]; const hpo = hp * (H[0] + wn - (H[2] || 0)); H[2] = wn; H[0] = hpo; H[1] += lp * (hpo - H[1]);
+        let v = H[1] * P.hiss * .045;
+        // crackle: tiny random ticks, mostly shared between channels like a scratch on the groove
+        if (Math.random() < crRate * (c ? .5 : 1)) this.cl[c] += (Math.random() < .5 ? -1 : 1) * (.02 + Math.random() * .12) * P.crackle;
+        this.cl[c] *= clDec; v += this.cl[c] - this.pl[c] * .6; this.pl[c] = this.cl[c];
+        // pops: rare bigger dust hits
+        if (Math.random() < poRate){ const a = (Math.random() < .5 ? -1 : 1) * (.15 + Math.random() * .35) * P.pops; this.po[0] += a; this.po[1] += a * (.6 + Math.random() * .4); }
+        this.po[c] *= poDec; v += this.po[c];
+        (c ? R : L)[i] = (v + rum) * g * P.level;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('vinyl', Vinyl);`;
+const workletUrl = () => WORKLET_URL || (WORKLET_URL = URL.createObjectURL(new Blob([CAP_CODE, VOC_CODE, SPW_CODE, SOL_CODE, P5_CODE, OBX_CODE, TB_CODE, TAU_CODE, VIN_CODE, RACK_CODE], {type:'application/javascript'})));
 
 // audio buffer size is a per-phone setting, kept outside the project
 // Bluetooth headphones add delay the phone often doesn't report; this offset is added everywhere the app works out "what you hear now"
@@ -5535,6 +5593,20 @@ function mkRet(k){
   el._meter = el.querySelector('.vmeter i'); el._ret = k;
   box.appendChild(el);
 }
+function vinylUI(addFn, gridFn, o, after, master){
+  addFn('<span class="label">Vinyl &amp; tape</span>'); const g = gridFn();
+  const pr = document.createElement('div'); pr.className = 'ctl';
+  pr.innerHTML = '<label class="label">Sound like</label><select class="vinp"><option value="">Choose…</option>' + Object.keys(VIN_PRESETS).map(k => `<option>${k}</option>`).join('') + '</select><span></span>';
+  pr.querySelector('select').addEventListener('change', e => { const P = VIN_PRESETS[e.target.value]; if (!P) return; o.vHiss = P.hiss; o.vCrk = P.crackle; o.vPop = P.pops; o.vRum = P.rumble; after(); save(); renderFx(); });
+  g.appendChild(pr);
+  const pct = v => v ? Math.round(v * 100) + '%' : 'Off';
+  for (const [k, lb] of [['vCrk', 'Crackle'], ['vHiss', 'Hiss'], ['vPop', 'Pops'], ['vRum', 'Rumble']]){ if (o[k] == null) o[k] = 0; ctl(g, lb, o, k, 0, 1, .01, pct, after); }
+  if (master){
+    const r = document.createElement('div'); r.className = 'ctl';
+    r.innerHTML = '<span class="label">Noise plays</span><button class="nolearn">' + (o.vFollow === false ? 'All the time' : 'With the sound') + '</button><span></span>';
+    r.querySelector('button').addEventListener('click', () => { o.vFollow = o.vFollow === false; after(); save(); renderFx(); }); g.appendChild(r);
+  }
+}
 function renderFx(){
   const box = $('#fxCard'); box.innerHTML = '';
   const add = (h) => { const e = document.createElement('div'); e.innerHTML = h; box.appendChild(e.firstElementChild); };
@@ -5569,6 +5641,7 @@ function renderFx(){
     lc.innerHTML = '<label class="label" for="meqLow">Low cut</label><select id="meqLow"><option value="0">Off</option><option value="25">25 Hz</option><option value="30">30 Hz</option><option value="40">40 Hz</option><option value="60">60 Hz</option><option value="80">80 Hz</option><option value="100">100 Hz</option></select><span></span>';
     const lcs = lc.querySelector('select'); lcs.value = String(E.lowcut); lcs.addEventListener('change', () => { E.lowcut = +lcs.value; applyAll(); save(); }); g.appendChild(lc);
     for (const [lb, k] of [['80 Hz', 'g80'], ['200 Hz', 'g200'], ['500 Hz', 'g500'], ['1.2 kHz', 'g1k'], ['3 kHz', 'g3k'], ['6 kHz', 'g6k'], ['12 kHz', 'g12k']]) ctl(g, lb, E, k, -12, 12, .5, dB, after);
+    vinylUI(add, grid, M, () => { if (live) applyMaster(ctx, live.master); }, true);
     add('<span class="label">EQ match</span>');
     matchPanel(box, 'master');
     add('<span class="label">Reverb return</span>'); g = grid();
@@ -5594,6 +5667,7 @@ function renderFx(){
   g.appendChild(row);
   ctl(g, 'Cutoff', t, 'cut', 0, 1, .002, v => { const h = cutHz(v); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }, after);
   ctl(g, 'Reso', t, 'res', .5, 18, .1, v => v.toFixed(1), after);
+  vinylUI(add, grid, t, after, false);
   add('<span class="label">Character</span>'); g = grid();
   ctl(g, 'Saturator', t, 'sat', 0, 1, .01, pct, after); ctl(g, 'Redux', t, 'crush', 0, 1, .01, pct, after); ctl(g, 'Chorus', t, 'chorus', 0, 1, .01, pct, after);
   const s12 = document.createElement('div'); s12.className = 'ctl';
