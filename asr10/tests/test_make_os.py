@@ -115,7 +115,7 @@ class EmulationTests(unittest.TestCase):
                                   panel_input=bytes([0xC5]))
         self.assertEqual(bytes(out["panel"]),
                          INTRO + b"\x60\x1c" + steady(b"BYTES 0001")
-                         + b"\x60\x28" + steady(b"LAST 00 00 00 C5 " + b" " * 13))
+                         + b"\x60\x28" + steady(b"LAST 00 00 00 C5  NEW 00 00 00 C5 "))
         self.assertEqual(bytes(out["midi"]), bytes.fromhex("f07d500c05f7"))
 
 
