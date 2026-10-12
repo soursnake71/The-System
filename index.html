@@ -818,6 +818,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="ctl"><label class="label" for="ttsTiming">Timing</label><select id="ttsTiming"><option value="bar">Each line starts a bar</option><option value="run">Back to back</option></select><span></span></div>
       <div class="ctls" id="ttsCtls"></div>
       <div class="row"><button id="ttsPlay" class="grow">Preview</button><button id="ttsMake" class="grow">Send to vocoder</button></div>
+      <div class="row"><button id="ttsRobot" class="grow">▶ Hear it through the vocoder</button></div>
     </div>
   </section>
 
@@ -1326,7 +1327,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v55</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v56</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -7209,7 +7210,8 @@ function ttsState(){ return S.tts = Object.assign({text:'Ahhhh, this stuff is re
 function ttsOpts(T){ const v = TTS_VOICES[T.voice] || TTS_VOICES.robot; return {pitch:v.pitch * Math.pow(2, T.semi / 12), robot:!!v.robot, speed:T.speed, sr:22050}; }
 let ttsSrc = null;
 function ttsPreview(){
-  ensureAudio(); const T = ttsState(), lines = T.text.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length){ toast('Type a line first.'); return; }
+  ensureAudio();
+  { const tr = S.audio.find(t => t.id === S.ttsTrack), V = curSynth().voc; if (tr && tr.clip && V && V.on && V.src === tr.id && (ttsState().text || '') === (ttsState().sent || '')) return ttsAudition(); } const T = ttsState(), lines = T.text.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length){ toast('Type a line first.'); return; }
   const a = ttsRender(lines.join('. '), ttsOpts(T)), b = makeBuffer([a], 22050);
   if (ttsSrc) try { ttsSrc.stop(); } catch(e){}
   ttsSrc = ctx.createBufferSource(); ttsSrc.buffer = b; ttsSrc.connect(live.master.bus); ttsSrc.start();
@@ -7231,6 +7233,7 @@ async function ttsMake(noteOff){
     S.audio.push(tr); S.ttsTrack = tr.id;
     if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); }
   }
+  T.sent = T.text;
   const key = 'tts:' + tr.id + ':' + Date.now(), buf = makeBuffer([d], sr);
   dropAudio(tr.clip); buffers.set(key, buf); await storeAudio(key, buf);
   tr.clip = key; tr.clipSteps = bars * 16; tr.clipBpm = S.bpm; tr.mute = true; tr.armed = false;
@@ -7242,13 +7245,33 @@ async function ttsMake(noteOff){
   let added = false;
   if (!carTr.notes.length){ carTr.notes = [{n:clamp((typeof noteOff === 'number' ? 48 : 12 * (S.oct + 2)) + S.root + (typeof noteOff === 'number' ? noteOff : 0), 28, 84), t:0, d:bars * TPB - 12, v:.9}]; rollDirty = true; added = true; }
   storeScene(); applyAll(); if (live) applyVocoders(live); save(); renderVocoder(); renderTracks();
-  toast(`Speech is on the "${tr.name}" track (muted, it only feeds the vocoder).` + (added ? ` A held note was added to ${carTr.name} as the carrier.` : '') + ' Press play.');
+  toast(`Sent. You'll hear it through the vocoder now; it's also on the "${tr.name}" track and plays with the beat.` + (added ? ` A held note on ${carTr.name} is the carrier.` : ''));
+  setTimeout(() => ttsAudition(), 150);
+}
+// play the speech through the vocoder right now, with a held carrier note, without starting the beat
+async function ttsAudition(){
+  ensureAudio(); await workletReady;
+  const tr = S.audio.find(t => t.id === S.ttsTrack), syn = curSynth();
+  if (!tr || !tr.clip || !buffers.get(tr.clip)){ return ttsMake(); }
+  const V = syn.voc || (syn.voc = VOC_DEFAULT());
+  if (!V.on || V.src !== tr.id){ V.src = tr.id; V.on = true; applyAll(); applyVocoders(live); renderVocoder(); }
+  const st = live.strips.get(tr.id); if (!st) return;
+  const buf = buffers.get(tr.clip), now = ctx.currentTime + .05;
+  // only the part with speech in it
+  const d = buf.getChannelData(0); let end = d.length - 1; while (end > 0 && Math.abs(d[end]) < 1e-4) end--;
+  const dur = Math.min(buf.duration, end / buf.sampleRate + .25);
+  if (ttsSrc) try { ttsSrc.stop(); } catch(e){}
+  ttsSrc = ctx.createBufferSource(); ttsSrc.buffer = buf; ttsSrc.connect(st.input); ttsSrc.start(now, 0, dur);
+  const carTr = V.car && V.car !== 'self' ? trackById(V.car) || syn : syn;
+  const note = clamp(12 * (S.oct + 2) + S.root, 28, 84);
+  synthVoice(live, carTr, note, now, .9, dur);
 }
 $('#ttsText').addEventListener('input', e => { ttsState().text = e.target.value; save(); });
 $('#ttsVoice').addEventListener('change', e => { ttsState().voice = e.target.value; save(); });
 $('#ttsTiming').addEventListener('change', e => { ttsState().timing = e.target.value; save(); });
 $('#ttsPlay').addEventListener('click', ttsPreview);
 $('#ttsMake').addEventListener('click', ttsMake);
+$('#ttsRobot').addEventListener('click', ttsAudition);
 $('#vocCar').addEventListener('change', e => { const V = curSynth().voc; V.car = e.target.value; if (live) applyVocoders(live); save();
   if (V.car !== 'self') toast('The vocoder now plays from ' + trackById(V.car).name + '. Mute that track in the mixer to hear only the vocoder.'); });
 $('#vocPreset').addEventListener('change', async e => {
