@@ -1381,7 +1381,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v68</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v69</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1419,6 +1419,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <div class="seg sbx-tabs"><button data-t="cat" class="nolearn">Catalog</button><button data-t="dir" class="nolearn">Folders</button><button data-t="bin" class="nolearn">Recent</button></div>
   <div id="sbxDir">
     <div class="row"><span id="sbxDirName" class="grow sbx-path">No folder yet</span><button id="sbxPick" class="nolearn">Choose folder</button></div>
+    <div class="row"><button id="sbxFolderPads" class="grow nolearn">Load this folder onto pads</button></div>
   </div>
   <div id="sbxCatBar" hidden>
     <div id="sbxCats" class="sbx-cats" role="group" aria-label="Categories"></div>
@@ -4290,6 +4291,8 @@ function sbxShowTab(t){
 }
 function sbxRefresh(){ if (sbxTab === 'dir') sbxDirRender(); else if (sbxTab === 'cat') sbxCatRender(); else sbxBinRender(); }
 async function sbxOpen(i){
+  // re-open the remembered folder with this same tap (phones forget the permission between launches, not the folder)
+  if (sbxRoot && sbxRoot.requestPermission){ try { sbxRoot.requestPermission({mode:'read'}).then(r => { if (r === 'granted' && $('#sbx').open) sbxRefresh(); }).catch(() => {}); } catch(e){} }
   sbxPad = i; selPad = i; renderPads(); renderPadEditor();
   $('#sbxTitle').textContent = 'Load onto ' + padLabel(i);
   $('#sbxMode').textContent = sbxLoadOnTap ? 'Tap: load' : 'Tap: hear'; $('#sbxMode').classList.toggle('on', sbxLoadOnTap);
@@ -4306,12 +4309,17 @@ async function sbxDirReady(){
   let perm = 'prompt'; try { perm = await sbxRoot.queryPermission({mode:'read'}); } catch(e){}
   return perm === 'granted' ? 'ok' : 'perm';
 }
+let sbxSeq = 0;
 async function sbxDirRender(){
+  const my = ++sbxSeq;
   const st = await sbxDirReady(), q = $('#sbxFind').value.trim().toLowerCase();
   if (st === 'none'){ sbxItems = []; sbxDraw(canDir ? 'Choose the folder where you keep your samples. The app remembers it and opens there every time.' : 'This browser can\'t keep a folder open. Use <b>From phone…</b> below. Every sample you load is kept under <b>Recent</b>.'); return; }
   if (st === 'perm'){
     $('#sbxDirName').textContent = sbxRoot.name;
-    sbxItems = [{id:'perm', kind:'dir', name:'Open ' + sbxRoot.name + ' (tap to allow)', open: async () => { try { if (await sbxRoot.requestPermission({mode:'read'}) === 'granted') sbxDirRender(); } catch(e){ toast('The phone did not allow access to that folder.'); } }}];
+    sbxItems = [{id:'perm', kind:'dir', name:'Open ' + sbxRoot.name, open: async () => {
+      let ok = false; try { ok = await sbxRoot.requestPermission({mode:'read'}) === 'granted'; } catch(e){}
+      if (!ok){ try { const h = await window.showDirectoryPicker({id:'snake-samples', mode:'read', startIn:sbxRoot}); sbxRoot = h; sbxStack = []; await DB.put('kv', 'sampleDir', h); ok = true; } catch(e){} }
+      if (ok) sbxRefresh(); }}];
     sbxDraw(''); return;
   }
   if (!sbxStack.length){
@@ -4326,6 +4334,7 @@ async function sbxDirRender(){
   const dirs = [], files = [];
   try { for await (const h of cur.values()){ if (h.kind === 'directory') dirs.push(h); else if (SBX_EXT.test(h.name)) files.push(h); } }
   catch(e){ sbxItems = []; sbxDraw('Could not read this folder.'); return; }
+  if (my !== sbxSeq) return;          // a newer refresh is already drawing
   const by = (a, b) => a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:'base'});
   dirs.sort(by); files.sort(by);
   sbxItems = [];
@@ -4519,8 +4528,19 @@ $('#sbx').addEventListener('keydown', e => {
   else if (e.key === 'Enter'){ e.preventDefault(); sbxUse(); }
   else if (e.key === ' '){ e.preventDefault(); const it = sbxItems[sbxSel]; if (it) sbxHear(it); }
 });
+(async () => { try { if (canDir && !sbxRoot) sbxRoot = await DB.get('kv', 'sampleDir'); } catch(e){} })();
+$('#sbxFolderPads').addEventListener('click', async () => {
+  const files = sbxItems.filter(it => it.kind === 'file');
+  if (!files.length){ toast('Open a folder with sounds in it first.'); return; }
+  const list = [];
+  for (const it of files.slice(0, 64)){ try { const bytes = await it.get(); list.push(new File([bytes], it.file || it.name)); } catch(e){} }
+  await loadKitFiles(list);
+  $('#sbx').close();
+});
 $('#sbxPick').addEventListener('click', async () => {
-  try { const h = await window.showDirectoryPicker({id:'snake-samples', mode:'read', startIn:sbxRoot || 'music'}); sbxRoot = h; sbxStack = []; sbxTree = null; if (cat) cat.n = 0; try { localStorage.removeItem('pr.sbxPath'); } catch(e){} await DB.put('kv', 'sampleDir', h); sbxDirRender(); }
+  try { const h = await window.showDirectoryPicker({id:'snake-samples', mode:'read', startIn:sbxRoot || 'music'}); sbxRoot = h; sbxStack = []; sbxTree = null; if (cat) cat.n = 0; try { localStorage.removeItem('pr.sbxPath'); } catch(e){}
+    try { await DB.put('kv', 'sampleDir', h); const back = await DB.get('kv', 'sampleDir'); if (!back) throw 0; toast('Folder saved: ' + h.name + '. It opens here every time.'); } catch(e){ toast('This phone could not save the folder, so it will ask again next time.'); }
+    sbxDirRender(); }
   catch(e){ if (e && e.name !== 'AbortError') toast('Could not open that folder.'); }
 });
 $('#sbxPhone').addEventListener('click', () => { const inp = $('#padFileIn'); inp.dataset.i = sbxPad; inp.click(); });
