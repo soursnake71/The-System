@@ -1011,6 +1011,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
       <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. <b>Blend</b> sets how loud the noise sits under the sound. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
     </details>
+    <details id="h-s950"><summary>Akai S950 voice</summary>
+      <p>Pad sound → <b>S950 rate</b> plays the pad as 12-bit at an S950 sample rate (48, 40, 32, 31.25, 22.05, 15 or 7.5 kHz), with no smoothing between samples, so lower rates get the gritty S950/S900 sound. <b>S950 filter</b> (0–99, like the S950's FILTER value) is a steep 6-pole low-pass with no resonance, modeled on the switched-capacitor filter design in the S900/S950 family. It's built from the published design and specs, not a trace of a real unit.</p>
+    </details>
     <details id="h-mpc"><summary>MPC: line up, import, export</summary>
       <ul>
         <li><b>Setup → MIDI → Pad notes → MPC</b>: pads 1–16 (Bank A) on any MPC, including the MPC Sample, Live, One, X, Key, Force, 1000, 2500 and 60, play A01–A16 here, and MIDI files go both ways on the same notes.</li>
@@ -1425,7 +1428,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v77</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v78</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -3688,6 +3691,27 @@ function spFinish(rig){
   const n = new AudioWorkletNode(rig.c, 'sp1200', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{samples, events:rig.spEvents, rest:S.spRest, res:S.spRes}});
   n.connect(rig.strips.get('drums').input);
 }
+// ---- Akai S950 voice: 12-bit samples at the S950's sample rates (played back by clocking, no interpolation),
+//      then the per-voice low-pass, a 6-pole (36 dB/oct) Butterworth with no resonance like the switched-capacitor
+//      MF6-type filter chips in the S900/S950 family, cutoff set by the FILTER value 0-99
+const S950_RATES = [0, 48000, 40000, 32000, 31250, 22050, 15000, 7500];
+const s950Cache = new Map();
+function s950Buf(key, buf, rate){
+  const id = key + '@' + rate + '#' + buf.length; let r = s950Cache.get(id); if (r) return r;
+  const sr = buf.sampleRate, step = sr / rate, out = [];
+  for (let c = 0; c < buf.numberOfChannels; c++){
+    const d = buf.getChannelData(c), o = new Float32Array(d.length); let held = 0, ph = 1;
+    for (let i = 0; i < d.length; i++){ ph += 1; if (ph >= step){ ph -= step; held = Math.round(clamp(d[i], -1, 1) * 2047) / 2047; } o[i] = held; }
+    out.push(o);
+  }
+  r = makeBuffer(out, sr); if (s950Cache.size > 40) s950Cache.delete(s950Cache.keys().next().value); s950Cache.set(id, r); return r;
+}
+const s950Hz = v => 40 * Math.pow(18000 / 40, clamp(v, 0, 99) / 99);
+function s950Filter(c, src, filt){
+  const f = s950Hz(filt), qs = [.5176, .7071, 1.9319];          // 6th-order Butterworth as three 2-pole sections
+  let n = src; for (const q of qs){ const b = c.createBiquadFilter(); b.type = 'lowpass'; b.frequency.value = Math.min(f, c.sampleRate * .45); b.Q.value = q; n.connect(b); n = b; }
+  return n;
+}
 const revCache = new Map();
 function revBuf(key, buf){
   let r = revCache.get(key); if (r && r.src === buf) return r.buf;
@@ -3703,7 +3727,8 @@ function playPad(rig, pad, t, vel, dur, pi, held){
   if (S.sp && spTrigger(rig, pad, t, vel)) return null;
   const c = rig.c, sp = S.sp;
   let buf = sp ? spVoice(pad.sample, pad.pitch, c.sampleRate) : (buffers.get(pad.sample) || buffers.get('kit:kick'));
-  if (!sp && pad.rev) buf = revBuf(pad.sample, buf);
+  if (!sp && pad.s950r) buf = s950Buf(pad.sample, buf, pad.s950r);
+  if (!sp && pad.rev) buf = revBuf(pad.sample + (pad.s950r ? '@' + pad.s950r : ''), buf);
   const rate = sp ? 1 : Math.pow(2, pad.pitch / 12) * (pad.fit || 1);
   const D = buf.duration, s0 = sp ? 0 : clamp(pad.start || 0, 0, .995), e0 = sp ? 1 : clamp(pad.end == null ? 1 : pad.end, s0 + .005, 1);
   const off = (pad.rev && !sp ? 1 - e0 : s0) * D, segEnd = (pad.rev && !sp ? 1 - s0 : e0) * D, seg = segEnd - off;
@@ -3734,6 +3759,7 @@ function playPad(rig, pad, t, vel, dur, pi, held){
   if (!sp && pad.cut != null && pad.cut < .995){
     const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 20 * Math.pow(1000, pad.cut); f.Q.value = pad.res || .7; src.connect(f); node = f;
   }
+  if (!sp && pad.s950f != null && pad.s950f < 99) node = s950Filter(c, node, pad.s950f);
   const ch = pad.spOut || 3;
   node.connect(g).connect(p).connect(!sp ? rig.strips.get('drums').input : ch <= 2 ? spDynamic(rig, t) : spFixed(rig, ch));
   const endT = isFinite(stopAt) ? stopAt : t + 3600;
@@ -5736,6 +5762,11 @@ function renderPadEditor(){
     ctl(box, 'Release', p, 'rel', 0, 3, .01, v => v ? sec(v) : 'Off');
     ctl(box, 'Filter', p, 'cut', 0, 1, .005, v => v >= .995 ? 'Open' : (f => f >= 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f) + ' Hz')(20 * Math.pow(1000, v)));
     ctl(box, 'Reso', p, 'res', .5, 15, .1, v => v.toFixed(1));
+    const s9 = document.createElement('div'); s9.className = 'ctl';
+    s9.innerHTML = '<label class="label">S950 rate</label><select class="nolearn">' + S950_RATES.map(r => `<option value="${r}">${r ? (r / 1000).toFixed(r % 1000 ? 2 : 1).replace(/\.0$/, '') + ' kHz, 12-bit' : 'Off'}</option>`).join('') + '</select><span></span>';
+    const s9s = s9.querySelector('select'); s9s.value = p.s950r || 0; s9s.addEventListener('change', () => { p.s950r = +s9s.value; save(); auditionPad(selPad); }); box.appendChild(s9);
+    if (p.s950f == null) p.s950f = 99;
+    ctl(box, 'S950 filter', p, 's950f', 0, 99, 1, v => v >= 99 ? 'Open (99)' : v + ' · ' + (h => h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ' Hz')(s950Hz(v)));
   }
   if (S.sp){
     const r = document.createElement('div'); r.className = 'ctl';
