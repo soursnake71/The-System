@@ -254,6 +254,17 @@ html.retro #strips .strip input.fader{width:24px}
 #pads.editing .pad::before{border-color:var(--accent) !important;border-style:dashed !important}
 #pads.editing{outline:2px dashed var(--accent);outline-offset:2px}
 .allstop.hit{filter:brightness(1.5)}
+.s950p{grid-column:1/-1;background:linear-gradient(180deg,#d9d6cc,#c4c0b4);border:1px solid #8c887d;border-radius:4px;padding:8px 10px;display:flex;flex-direction:column;gap:8px;box-shadow:inset 0 1px 0 #fff8}
+.s950-head{display:flex;align-items:baseline;gap:8px;color:#2a2823;font:700 10px var(--f-display);letter-spacing:.14em}
+.s950-head b{font:900 16px Arial,Helvetica,sans-serif;letter-spacing:.02em;color:#1c1b19}
+.s950-lcd{background:linear-gradient(180deg,#b7d06a,#9fbb4d);color:#1d2a08;font:700 13px/1.35 var(--f-mono);padding:6px 8px;border:3px solid #3a3a36;border-radius:3px;box-shadow:inset 0 0 8px #33440f88;letter-spacing:.05em}
+.s950-knobs{display:flex;justify-content:space-around}
+.knob.s950 .klab{color:#2a2823;font:700 10px var(--f-display);letter-spacing:.12em}
+.knob.s950 .kcap{width:60px;height:60px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#2b2b29 0 52%,transparent 53%),repeating-conic-gradient(#0c0c0b 0 6deg,#3a3a37 6deg 12deg);border:2px solid #000;box-shadow:0 0 0 5px #b9b5a9,0 0 0 6px #7d796e,0 4px 6px 4px #0006,inset 0 1px 0 #fff3;position:relative}
+.knob.s950 .kcap::after{content:"";position:absolute;inset:14px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#5a5a57,#1b1b1a 75%);box-shadow:inset 0 1px 1px #fff3}
+.knob.s950 .kcap i{position:absolute;left:50%;top:3px;width:3px;height:19px;margin-left:-1.5px;background:#f2f0ea;border-radius:2px;z-index:1}
+.knob.s950{gap:10px;padding-top:6px}
+.knob.s950 .kval,html.retro .knob.s950 select.kval{font:700 10px var(--f-display);color:#2a2823;max-width:110px}
 .padwave{width:100%;height:64px;border-radius:6px;grid-column:1/-1;display:block}
 .padtg{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px;grid-column:1/-1}
 .padtg button.on{background:var(--accent);color:var(--accent-ink)}
@@ -806,7 +817,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -833,6 +844,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="gmProg">Sound</label><select id="gmProg"></select><span></span></div>
         <div class="row"><button id="gmPrev" class="nolearn">◀</button><span id="gmNum" class="grow mono" style="text-align:center"></span><button id="gmNext" class="nolearn">▶</button></div>
         <p class="hint">The 128 General MIDI instruments, grouped by family. ◀ ▶ step through them and play each one. MIDI files that pick an instrument (program change) switch this automatically.</p>
+      </div>
+      <div id="sfPanel" hidden>
+        <div class="ctl"><label class="label" for="sfFont">SoundFont</label><select id="sfFont"></select><span></span></div>
+        <div class="ctl"><label class="label" for="sfPreset">Preset</label><select id="sfPreset"></select><span></span></div>
+        <div class="row"><button id="sfLoadBtn" class="grow nolearn">Load .sf2…</button><button id="sfPads" class="grow nolearn">Put on pads</button></div>
+        <input type="file" id="sfFile" accept=".sf2" hidden>
       </div>
       <div id="psPanel" hidden>
         <div class="ctl"><label class="label" for="psPad">Pad</label><select id="psPad"></select><span></span></div>
@@ -1428,7 +1445,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v78</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v79</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -5079,6 +5096,194 @@ function randPick(){
 function randPaint(){ const b = $('#sheetRand'); if (b){ const f = randPick(); b.hidden = !f; } }
 $('#sheetRand').addEventListener('click', () => { const f = randPick(); if (f) f(); setTimeout(randPaint, 200); });
 
+/* ================= SoundFont 2 (.sf2): play any preset from the keys, or put it on the pads ================= */
+const sfLib = new Map();   // id -> {name, presets:[{name, bank, prog, zones}], shdr, smpl:Int16Array, bufs:Map}
+function parseSf2(ab){
+  const d = new DataView(ab), tag = o => String.fromCharCode(d.getUint8(o), d.getUint8(o + 1), d.getUint8(o + 2), d.getUint8(o + 3));
+  if (tag(0) !== 'RIFF' || tag(8) !== 'sfbk') throw new Error('not a SoundFont');
+  const ch = {}; let smpl = null;
+  const walk = (o, end) => { while (o + 8 <= end){ const id = tag(o), sz = d.getUint32(o + 4, true);
+    if (id === 'LIST') walk(o + 12, o + 8 + sz); else if (id === 'smpl') smpl = new Int16Array(ab.slice(o + 8, o + 8 + (sz & ~1))); else ch[id] = {o:o + 8, sz};
+    o += 8 + sz + (sz & 1); } };
+  walk(12, ab.byteLength);
+  if (!smpl || !ch.phdr || !ch.shdr) throw new Error('SoundFont is missing its samples or presets');
+  const str = (o, n) => { let r = ''; for (let i = 0; i < n; i++){ const c = d.getUint8(o + i); if (!c) break; r += String.fromCharCode(c); } return r.trim(); };
+  const recs = (id, size, fn) => { const c = ch[id], out = []; for (let o = c.o; o + size <= c.o + c.sz; o += size) out.push(fn(o)); return out; };
+  const phdr = recs('phdr', 38, o => ({name:str(o, 20), prog:d.getUint16(o + 20, true), bank:d.getUint16(o + 22, true), bag:d.getUint16(o + 24, true)}));
+  const bag = id => recs(id, 4, o => d.getUint16(o, true));
+  const gen = id => recs(id, 4, o => ({op:d.getUint16(o, true), lo:d.getUint8(o + 2), hi:d.getUint8(o + 3), s:d.getInt16(o + 2, true), u:d.getUint16(o + 2, true)}));
+  const pbag = bag('pbag'), pgen = gen('pgen'), ibag = bag('ibag'), igen = gen('igen');
+  const inst = recs('inst', 22, o => ({name:str(o, 20), bag:d.getUint16(o + 20, true)}));
+  const shdr = recs('shdr', 46, o => ({name:str(o, 20), start:d.getUint32(o + 20, true), end:d.getUint32(o + 24, true), ls:d.getUint32(o + 28, true), le:d.getUint32(o + 32, true), sr:d.getUint32(o + 36, true), root:d.getUint8(o + 40), corr:d.getInt8(o + 41), type:d.getUint16(o + 44, true)}));
+  const zonesOf = (bags, gens, from, to) => { const zs = []; for (let b = from; b < to; b++){ const g = {}; for (let k = bags[b]; k < bags[b + 1]; k++) g[gens[k].op] = gens[k]; zs.push(g); } return zs; };
+  const presets = [];
+  for (let i = 0; i + 1 < phdr.length; i++){
+    const P = phdr[i], pz = zonesOf(pbag, pgen, P.bag, phdr[i + 1].bag), pglob = pz.find(z => !z[41]) || {}, zones = [];
+    for (const z of pz){ if (!z[41]) continue; const I = inst[z[41].u]; if (!I) continue; const iNext = inst[z[41].u + 1]; if (!iNext) continue;
+      const iz = zonesOf(ibag, igen, I.bag, iNext.bag), iglob = iz.find(x => !x[53]) || {};
+      const pk = z[43] || pglob[43], pr = pk ? [pk.lo, pk.hi] : [0, 127];
+      for (const x of iz){ if (!x[53]) continue; const sh = shdr[x[53].u]; if (!sh || sh.end <= sh.start) continue;
+        const kr = x[43] || iglob[43], k = kr ? [kr.lo, kr.hi] : [0, 127], lo = Math.max(k[0], pr[0]), hi = Math.min(k[1], pr[1]); if (lo > hi) continue;
+        const gv = (op, def) => (x[op] || iglob[op] || {s:def}).s + ((z[op] || pglob[op] || {s:0}).s || 0) * (op === 53 ? 0 : 1);
+        const rootG = x[58] || iglob[58]; const modes = (x[54] || iglob[54] || {u:0}).u;
+        zones.push({lo, hi, sid:x[53].u, root:rootG && rootG.s >= 0 ? rootG.s : sh.root, tune:gv(51, 0) + (gv(52, 0) + sh.corr) / 100, loop:(modes & 1) === 1,
+          pan:clamp(gv(17, 0) / 500, -1, 1), att:Math.max(0, gv(48, 0)) / 10, rel:Math.min(8, Math.pow(2, gv(38, -12000) / 1200))}); }
+    }
+    if (zones.length) presets.push({name:P.name, bank:P.bank, prog:P.prog, zones});
+  }
+  presets.sort((a, b) => a.bank - b.bank || a.prog - b.prog);
+  return {presets, shdr, smpl, bufs:new Map()};
+}
+function sfBuffer(F, sid){
+  let b = F.bufs.get(sid); if (b) return b;
+  const h = F.shdr[sid], n = Math.max(1, h.end - h.start), f = new Float32Array(n); for (let i = 0; i < n; i++) f[i] = F.smpl[h.start + i] / 32768;
+  b = makeBuffer([f], clamp(h.sr || 44100, 3000, 192000)); F.bufs.set(sid, b); return b;
+}
+async function sfLoad(id){
+  if (sfLib.has(id)) return sfLib.get(id);
+  const raw = await DB.get('audio', 'sf:' + id).catch(() => null); if (!raw) return null;
+  const F = Object.assign(parseSf2(raw.ab), {name:raw.name}); sfLib.set(id, F); return F;
+}
+async function sfImport(file){
+  const ab = await file.arrayBuffer(); let F;
+  try { F = parseSf2(ab); } catch(e){ toast('Could not read ' + file.name + ': ' + e.message); return null; }
+  const id = Date.now().toString(36); F.name = file.name.replace(/\.[^.]+$/, ''); sfLib.set(id, F);
+  try { await DB.put('audio', 'sf:' + id, {ab, name:F.name}); } catch(e){}
+  S.sfonts = (S.sfonts || []).concat([{id, name:F.name, n:F.presets.length}]); save();
+  return id;
+}
+function sfVoice(rig, tr, note, t, vel, dur){
+  const nil = {release(){}}, F = tr.sf && sfLib.get(tr.sf.id); if (!F){ if (tr.sf) sfLoad(tr.sf.id); return nil; }
+  const P = F.presets[tr.sf.p | 0]; if (!P) return nil;
+  const c = rig.c; if (!rig.strips.has(tr.id)){ const st = makeStrip(c, rig.master); applyStrip(c, st, tr); rig.strips.set(tr.id, st); }
+  const zs = P.zones.filter(z => note >= z.lo && note <= z.hi); if (!zs.length) return nil;
+  const vs = zs.map(z => {
+    const h = F.shdr[z.sid], buf = sfBuffer(F, z.sid), src = c.createBufferSource(), g = c.createGain(), pn = c.createStereoPanner();
+    src.buffer = buf; src.playbackRate.value = Math.pow(2, (note - z.root + z.tune) / 12);
+    if (z.loop && h.le > h.ls){ src.loop = true; src.loopStart = (h.ls - h.start) / buf.sampleRate; src.loopEnd = (h.le - h.start) / buf.sampleRate; }
+    const lvl = vel * Math.pow(10, -z.att / 20) * .9 / Math.sqrt(zs.length);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(lvl, t + .004);
+    pn.pan.value = h.type === 2 ? .6 : h.type === 4 ? -.6 : z.pan;
+    src.connect(g).connect(pn).connect(rig.strips.get(tr.id).input); src.start(t);
+    if (!src.loop) src.stop(t + buf.duration / src.playbackRate.value + .05);
+    return {src, g, rel:clamp(z.rel, .03, 6)};
+  });
+  let done = false;
+  const release = at => { if (done) return; done = true; at = Math.max(at, t + .005); vs.forEach(v => { if (v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(at); v.g.gain.setTargetAtTime(0, at, v.rel / 4); try { v.src.stop(at + v.rel * 1.5 + .05); } catch(e){} }); };
+  if (dur != null) release(t + dur);
+  return {release};
+}
+// put a preset on the 16 pads: drum kits by their notes (MPC / GM / chromatic pad map), anything else chromatic from C2
+async function sfToPads(id, pi){
+  const F = await sfLoad(id) || sfLib.get(id); if (!F) return;
+  const P = F.presets[pi]; if (!P) return; const drums = P.bank === 128;
+  let ok = 0;
+  for (let i = 0; i < 16; i++){
+    const note = drums ? (S.padMap === 'chrom' ? GM_PADS[i] : noteForPad(i)) : 36 + i;
+    const z = P.zones.find(x => note >= x.lo && note <= x.hi); if (!z) continue;
+    const src = sfBuffer(F, z.sid), rate = Math.pow(2, (note - z.root + z.tune) / 12), len = Math.min(src.length, Math.round(src.sampleRate * 6));
+    const oc = new OfflineAudioContext(1, Math.max(1, Math.ceil(len / rate)), src.sampleRate), b = oc.createBufferSource(); b.buffer = src; b.playbackRate.value = rate; b.connect(oc.destination); b.start();
+    const buf = await oc.startRendering(); await setPadBuffer(i, buf, (drums ? (F.shdr[z.sid].name || P.name) : P.name + ' ' + noteName(note)).slice(0, 14), true); ok++;
+  }
+  save(); renderPads(); renderPadEditor(); toast(`${P.name}: ${ok} pads loaded` + (drums ? ' (drum kit, by note)' : ' (one note per pad, C2 up)'));
+}
+
+/* ================= Akai S900/S950 floppies: .hfe (Gotek / HxC) and raw .img disk images ================= */
+// HFE v1: 512-byte header, a track table, then each track's MFM bitstream interleaved 256 bytes side 0 / 256 bytes side 1, LSB first
+function hfeToImage(ab){
+  const u = new Uint8Array(ab), d = new DataView(ab), sig = String.fromCharCode(...u.slice(0, 8));
+  if (sig === 'HXCHFEV3') throw new Error('HFE v3 file: re-save it as HFE v1 in the HxC tool');
+  if (sig !== 'HXCPICFE') throw new Error('not an HFE floppy image');
+  const nT = u[9], nS = u[10] || 1, lut = d.getUint16(18, true) * 512, secs = new Map(); let maxC = 0, maxH = 0;
+  for (let t = 0; t < nT; t++){
+    const off = d.getUint16(lut + t * 4, true) * 512, len = d.getUint16(lut + t * 4 + 2, true);
+    for (let s = 0; s < nS; s++){
+      const bytes = []; for (let k = 0; k < len; k += 512) for (let i = 0; i < 256 && k / 2 + i < len / 2; i++){ const o = off + k + s * 256 + i; if (o < u.length) bytes.push(u[o]); }
+      mfmSectors(bytes, secs);
+    }
+  }
+  for (const k of secs.keys()){ const [c, h] = k.split(':').map(Number); maxC = Math.max(maxC, c); maxH = Math.max(maxH, h); }
+  if (!secs.size) throw new Error('no MFM sectors found on that disk');
+  const out = [];
+  for (let c = 0; c <= maxC; c++) for (let h = 0; h <= maxH; h++){
+    const rs = [...secs.entries()].filter(([k]) => k.startsWith(c + ':' + h + ':')).map(([k, v]) => [+k.split(':')[2], v]).sort((a, b) => a[0] - b[0]);
+    rs.forEach(r => out.push(r[1]));
+  }
+  const n = out.reduce((a, b) => a + b.length, 0), img = new Uint8Array(n); let o = 0; out.forEach(b => { img.set(b, o); o += b.length; });
+  return {img, sectors:secs.size, size:out[0] ? out[0].length : 0};
+}
+// MFM: find the A1 sync (0x4489), read IDAM (FE: C H R N) then the data mark (FB/F8) that follows it
+function mfmSectors(bytes, secs){
+  const nb = bytes.length * 8, bit = i => (bytes[i >> 3] >> (i & 7)) & 1;
+  const rd = (p, n) => { const r = []; for (let k = 0; k < n; k++){ let v = 0; for (let j = 0; j < 8; j++) v = (v << 1) | bit(p + k * 16 + j * 2 + 1); r.push(v); } return r; };
+  let sh = 0, id = null;
+  for (let i = 0; i < nb; i++){
+    sh = ((sh << 1) | bit(i)) & 0xffff;
+    if (sh !== 0x4489) continue;
+    let p = i + 1; while (p + 16 <= nb){ let w = 0; for (let j = 0; j < 16; j++) w = (w << 1) | bit(p + j); if (w !== 0x4489) break; p += 16; }
+    if (p + 16 * 7 > nb) break;
+    const m = rd(p, 1)[0];
+    if (m === 0xFE){ const h = rd(p + 16, 4); id = {c:h[0], h:h[1], r:h[2], n:h[3] & 3}; i = p + 16 * 7 - 1; }
+    else if ((m === 0xFB || m === 0xF8) && id){ const L = 128 << id.n; if (p + 16 * (L + 1) > nb) break;
+      const k = id.c + ':' + id.h + ':' + id.r; if (!secs.has(k)) secs.set(k, new Uint8Array(rd(p + 16, L))); i = p + 16 * (L + 1) - 1; id = null; }
+  }
+  return [];
+}
+// S900/S950 file system: 64 directory entries x 24 bytes (name 10, type 'S'/'P' at 16, size 3 bytes, start block 2 bytes), block map at 0x600, 1 KB blocks
+function akaiS900Files(img){
+  const d = new DataView(img.buffer, img.byteOffset, img.byteLength), nBlk = Math.floor(img.length / 1024), files = [];
+  for (let e = 0; e < 64; e++){
+    const o = e * 24, nm = String.fromCharCode(...img.slice(o, o + 10)), type = img[o + 16];
+    if (!/^[\x20-\x7e]{10}$/.test(nm) || !nm.trim() || (type !== 0x53 && type !== 0x50)) continue;
+    const size = img[o + 17] | img[o + 18] << 8 | img[o + 19] << 16, start = d.getUint16(o + 20, true);
+    if (!size || start >= nBlk) continue;
+    // follow the block map; if it doesn't lead anywhere sensible, read the blocks in a row
+    const need = Math.ceil(size / 1024), chain = [start]; let b = start;
+    while (chain.length < need){ const nx = 0x600 + b * 2 + 2 <= img.length ? d.getUint16(0x600 + b * 2, true) : 0; if (!nx || nx >= nBlk || chain.includes(nx)) break; chain.push(b = nx); }
+    const blocks = chain.length === need ? chain : Array.from({length:need}, (_, k) => start + k);
+    const data = new Uint8Array(need * 1024); blocks.forEach((bk, k) => { if (bk < nBlk) data.set(img.subarray(bk * 1024, bk * 1024 + 1024), k * 1024); });
+    files.push({name:nm.trim(), type:String.fromCharCode(type), data:data.subarray(0, size)});
+  }
+  return files;
+}
+// 12-bit sample: 60-byte header (length u32 @16, rate u16 @20), then the packed words; try the known packings and keep the smoothest
+function akaiS900Sample(f){
+  const u = f.data, d = new DataView(u.buffer, u.byteOffset, u.byteLength);
+  let n = u.length >= 22 ? d.getUint32(16, true) : 0, sr = u.length >= 22 ? d.getUint16(20, true) : 0;
+  const avail = Math.floor((u.length - 60) * 2 / 3); if (!n || n > avail) n = avail; n &= ~1; if (n < 16) return null;
+  if (!(sr >= 4000 && sr <= 50000)) sr = 32000;
+  const D = u.subarray(60), half = n / 2, sx = v => (v & 0x800) ? v - 4096 : v;
+  const packs = {
+    hiThenLo:i => (D[i] << 4) | ((D[n + (i >> 1)] >> (i & 1 ? 4 : 0)) & 15),
+    hiThenLoSw:i => (D[i] << 4) | ((D[n + (i >> 1)] >> (i & 1 ? 0 : 4)) & 15),
+    loThenHi:i => (D[half + i] << 4) | ((D[i >> 1] >> (i & 1 ? 4 : 0)) & 15),
+    triplet:i => { const o = (i >> 1) * 3; return i & 1 ? (D[o + 2] << 4) | (D[o + 1] >> 4) : (D[o] << 4) | (D[o + 1] & 15); },
+    s900:i => i < half ? (D[i * 2] << 4) | (D[i * 2 + 1] >> 4) : (D[(i - half) * 2 + 1] & 15) << 8 | D[n + i - half]
+  };
+  let best = null;
+  for (const [k, fn] of Object.entries(packs)) for (const signed of [true, false]){
+    const x = new Float32Array(n); let diff = 0, amp = 0;
+    for (let i = 0; i < n; i++){ const v = fn(i) & 4095; x[i] = (signed ? sx(v) : v - 2048) / 2048; if (i) diff += Math.abs(x[i] - x[i - 1]); amp += Math.abs(x[i]); }
+    const score = diff / (amp + 1e-6);
+    if (!best || score < best.score) best = {score, x, k, signed};
+  }
+  return {name:f.name, sr, x:best.x};
+}
+async function importS950Disk(file){
+  const ab = await file.arrayBuffer(); let img, how;
+  if (/\.hfe$/i.test(file.name)){ const r = hfeToImage(ab); img = r.img; how = r.sectors + ' sectors'; }
+  else { img = new Uint8Array(ab); how = Math.round(img.length / 1024) + ' KB'; }
+  const files = akaiS900Files(img), smp = files.filter(f => f.type === 'S').map(akaiS900Sample).filter(Boolean);
+  if (!smp.length) throw new Error('no S900/S950 samples found (' + how + (files.length ? ', ' + files.length + ' files' : '') + '). S1000/S3000 disks aren’t supported yet');
+  let ok = 0;
+  for (const s of smp.slice(0, 16)){
+    const pi = ok, buf = makeBuffer([s.x], s.sr); await setPadBuffer(pi, buf, s.name.slice(0, 14), true);
+    const p = S.drum.pads[pi]; p.s950r = 0; p.s950ri = 0; p.s950f = clamp(Math.round(99 * Math.log(Math.min(18000, s.sr * .45) / 40) / Math.log(450)), 0, 99); ok++;
+  }
+  save(); renderPads(); renderPadEditor();
+  return `${file.name}: ${ok} S950 samples on pads` + (smp.length > 16 ? ` (first 16 of ${smp.length})` : '') + (files.some(f => f.type === 'P') ? ', programs skipped' : '');
+}
+
 /* ================= Import anything: ZIP packs, MPC programs/projects, MIDI, audio ================= */
 async function unzip(file){
   const ab = await file.arrayBuffer(), d = new DataView(ab), out = [];
@@ -5147,6 +5352,9 @@ async function importAny(fileList){
   // unpack ZIPs first
   for (const f of files.filter(f => /\.zip$/i.test(f.name))){ try { const inner = await unzip(f); files = files.concat(inner); done.push(f.name + ' (' + inner.length + ' files)'); } catch(e){ toast('Could not open ' + f.name + ': ' + e.message); } }
   files = files.filter(f => !/\.zip$/i.test(f.name));
+  for (const f of files.filter(f => /\.sf2$/i.test(f.name))){ const id = await sfImport(f); if (id){ const tr = curSynth(); tr.inst = 'sf2'; tr.sf = {id, p:0}; done.push(f.name + ': ' + sfLib.get(id).presets.length + ' presets on ' + tr.name); if (view === 'synth') renderSynth(); } }
+  for (const f of files.filter(f => /\.(hfe|img|ima)$/i.test(f.name))){ try { done.push(await importS950Disk(f)); } catch(e){ done.push(f.name + ': ' + e.message); } }
+  if (files.some(f => /\.(nki|nkm|nkx|nkc|nkr|ncw)$/i.test(f.name))) done.push('Kontakt files (.nki/.nkx/.ncw) are a locked Native Instruments format I can’t open; load the library’s WAV/AIFF samples or a SoundFont/SFZ version instead');
   const progs = files.filter(f => /\.(xpm|pgm)$/i.test(f.name)), mids = files.filter(f => /\.midi?$/i.test(f.name)), projs = files.filter(f => /\.xpj$/i.test(f.name)), audio = files.filter(f => AUDIO_RE.test(f.name));
   for (const f of projs){
     try { const t = await f.text(), j = JSON.parse(t.slice(t.indexOf('{')));
@@ -5762,11 +5970,17 @@ function renderPadEditor(){
     ctl(box, 'Release', p, 'rel', 0, 3, .01, v => v ? sec(v) : 'Off');
     ctl(box, 'Filter', p, 'cut', 0, 1, .005, v => v >= .995 ? 'Open' : (f => f >= 1000 ? (f / 1000).toFixed(1) + 'k' : Math.round(f) + ' Hz')(20 * Math.pow(1000, v)));
     ctl(box, 'Reso', p, 'res', .5, 15, .1, v => v.toFixed(1));
-    const s9 = document.createElement('div'); s9.className = 'ctl';
-    s9.innerHTML = '<label class="label">S950 rate</label><select class="nolearn">' + S950_RATES.map(r => `<option value="${r}">${r ? (r / 1000).toFixed(r % 1000 ? 2 : 1).replace(/\.0$/, '') + ' kHz, 12-bit' : 'Off'}</option>`).join('') + '</select><span></span>';
-    const s9s = s9.querySelector('select'); s9s.value = p.s950r || 0; s9s.addEventListener('change', () => { p.s950r = +s9s.value; save(); auditionPad(selPad); }); box.appendChild(s9);
-    if (p.s950f == null) p.s950f = 99;
-    ctl(box, 'S950 filter', p, 's950f', 0, 99, 1, v => v >= 99 ? 'Open (99)' : v + ' · ' + (h => h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ' Hz')(s950Hz(v)));
+    // S950 front panel: green LCD and two black data knobs (sample rate, filter)
+    if (p.s950f == null) p.s950f = 99; p.s950ri = Math.max(0, S950_RATES.indexOf(p.s950r || 0));
+    const s9 = document.createElement('div'); s9.className = 's950p';
+    s9.innerHTML = '<div class="s950-head"><b>AKAI</b><span>S950 MIDI DIGITAL SAMPLER</span></div><div class="s950-lcd"></div><div class="s950-knobs"></div>';
+    box.appendChild(s9);
+    const lcd = s9.querySelector('.s950-lcd'), kb = s9.querySelector('.s950-knobs');
+    const rateTxt = r => r ? (r / 1000).toFixed(r % 1000 ? 2 : 1).replace(/\.0$/, '') + 'kHz 12BIT' : 'OFF (CLEAN)';
+    const showLcd = () => { lcd.innerHTML = `<div>RATE: ${rateTxt(p.s950r || 0)}</div><div>FILTER: ${String(Math.round(p.s950f)).padStart(2, '0')}  ${p.s950f >= 99 ? 'OPEN' : (h => h >= 1000 ? (h / 1000).toFixed(1) + 'kHz' : Math.round(h) + 'Hz')(s950Hz(p.s950f))}</div>`; };
+    knob(kb, 'RATE', p, 's950ri', 0, S950_RATES.length - 1, 1, v => rateTxt(S950_RATES[v]), () => { p.s950r = S950_RATES[p.s950ri]; showLcd(); }, 's950');
+    knob(kb, 'FILTER', p, 's950f', 0, 99, 1, v => String(v).padStart(2, '0'), showLcd, 's950');
+    showLcd();
   }
   if (S.sp){
     const r = document.createElement('div'); r.className = 'ctl';
@@ -7306,6 +7520,7 @@ function padSmpVoice(rig, tr, note, t, vel, dur){
 }
 function synthVoice(rig, tr, note, t, vel, dur, extra){
   if (tr.inst === 'padsmp') return padSmpVoice(rig, tr, note, t, vel, dur);
+  if (tr.inst === 'sf2') return sfVoice(rig, tr, note, t, vel, dur);
   // the modeled synths run in an AudioWorklet; if that couldn't start on this phone, fall back to the basic synth so keys still sound
   if (INST[tr.inst] && rig.c._reduxOK !== false && (rig !== live || rig.c._reduxOK)){
     const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel, sl:extra && extra.sl ? 1 : 0});
@@ -7547,12 +7762,13 @@ function renderSynth(){
   const isP5 = tr.inst === 'prophet', isOB = tr.inst === 'obxa', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
   $('#obPanel').hidden = !isOB; if (isOB) renderOB(tr);
   const isPS = tr.inst === 'padsmp'; $('#psPanel').hidden = !isPS;
+  const isSF = tr.inst === 'sf2'; $('#sfPanel').hidden = !isSF; if (isSF) renderSf(tr);
   const isGM = tr.inst === 'gm'; $('#gmPanel').hidden = !isGM;
   if (isGM){ const g = $('#gmProg'); if (!g.options.length) g.innerHTML = GM_FAMILIES.map((f, fi) => `<optgroup label="${f}">` + GM_NAMES.slice(fi * 8, fi * 8 + 8).map((n, k) => `<option value="${fi * 8 + k}">${fi * 8 + k + 1}. ${n}</option>`).join('') + '</optgroup>').join('');
     if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -7648,6 +7864,22 @@ function renderOB(tr){
   });
 }
 function gmSet(v){ const tr = curSynth(); tr.gm = (v + 128) % 128; save(); renderSynth(); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .7); }
+
+async function renderSf(tr){
+  const fonts = S.sfonts || [], fs = $('#sfFont'), ps = $('#sfPreset');
+  fs.innerHTML = fonts.length ? fonts.map(f => `<option value="${f.id}">${escH(f.name)}</option>`).join('') : '<option value="">No SoundFonts yet: Load .sf2…</option>';
+  if (!tr.sf && fonts.length) tr.sf = {id:fonts[0].id, p:0};
+  if (!tr.sf){ ps.innerHTML = ''; return; }
+  fs.value = tr.sf.id;
+  const F = await sfLoad(tr.sf.id); if (!F){ ps.innerHTML = '<option>(file missing)</option>'; return; }
+  ps.innerHTML = F.presets.map((P, i) => `<option value="${i}">${P.bank === 128 ? 'Drums' : String(P.bank).padStart(3, '0')}:${String(P.prog).padStart(3, '0')} ${escH(P.name)}</option>`).join('');
+  ps.value = tr.sf.p | 0;
+}
+$('#sfLoadBtn').addEventListener('click', () => $('#sfFile').click());
+$('#sfFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; toast('Reading ' + f.name + '…'); const id = await sfImport(f); if (!id) return; const tr = curSynth(); tr.inst = 'sf2'; tr.sf = {id, p:0}; save(); renderSynth(); toast(f.name + ': ' + sfLib.get(id).presets.length + ' presets.'); });
+$('#sfFont').addEventListener('change', e => { const tr = curSynth(); tr.sf = {id:e.target.value, p:0}; save(); renderSynth(); });
+$('#sfPreset').addEventListener('change', e => { const tr = curSynth(); tr.sf.p = +e.target.value; save(); hearChord(tr, [hearRoot()], .6); });
+$('#sfPads').addEventListener('click', () => { const tr = curSynth(); if (tr.sf) sfToPads(tr.sf.id, tr.sf.p | 0); else toast('Load a SoundFont first.'); });
 $('#gmProg').addEventListener('change', e => gmSet(+e.target.value));
 $('#gmPrev').addEventListener('click', () => gmSet((curSynth().gm | 0) - 1));
 $('#gmNext').addEventListener('click', () => gmSet((curSynth().gm | 0) + 1));
@@ -7719,7 +7951,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
