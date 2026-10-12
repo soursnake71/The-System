@@ -442,8 +442,11 @@ html.retro .eq11 input::-webkit-slider-thumb{width:22px !important;margin-left:-
 html.retro input.fader::-webkit-slider-runnable-track,html.retro .eq11 input::-webkit-slider-runnable-track{width:6px;height:100%;margin:0 auto}
 html.retro input.fader::-webkit-slider-thumb,html.retro .eq11 input::-webkit-slider-thumb{width:28px;height:16px;margin-top:0;margin-left:-11px;background:linear-gradient(180deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e)}
 /* MPC60 case on top: grey body, green LCD */
-html.retro .transport{--fg:#26241f;--dim:#55514a;background:linear-gradient(180deg,var(--case),var(--case2));border-bottom:3px solid #1b1c1e;box-shadow:0 2px 8px #0008;position:relative;padding-top:calc(env(safe-area-inset-top,0px) + 22px)}
-html.retro .transport::before{content:"THE OMEGA SYSTEM  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.retro .transport{--fg:#26241f;--dim:#55514a;background:linear-gradient(180deg,var(--case),var(--case2));border-bottom:3px solid #1b1c1e;box-shadow:0 2px 8px #0008;position:relative;padding-top:calc(env(safe-area-inset-top,0px) + 26px)}
+.brand{display:none}
+html.retro .brand{display:flex;align-items:center;gap:10px;position:absolute;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 5px);height:15px;color:#26241f;overflow:hidden;pointer-events:none}
+html.retro .brand-logo{height:15px;flex:none;fill:currentColor}
+html.retro .brand span{font:700 8px/1 var(--f-display);letter-spacing:.2em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 html.retro .transport .label{color:#4a463e}
 html.retro .transport select{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;box-shadow:0 2px 0 #00000080}
 html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 12px #0a1f6ab0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:0 0 6px #ffffff70}
@@ -619,6 +622,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 <body>
 
 <header class="transport">
+  <div class="brand"><svg class="brand-logo" viewBox="0 0 185.8 14" role="img" aria-label="The Omega System"><path d="M0 0h10v1.5h-10zM4.25 0h1.5v7h-1.5zM2.9 7h4.2v7h-4.2zM12.6 0h1.5v7h-1.5zM12.6 7h4.2v7h-4.2zM21.1 0h1.5v14h-1.5zM12.6 5.5h10v1.5h-10zM25.2 0h1.5v7h-1.5zM25.2 7h4.2v7h-4.2zM25.2 0h10v1.5h-10zM25.2 5.5h8v1.5h-8zM25.2 12.5h10v1.5h-10zM43.8 0h1.5v7h-1.5zM43.8 7h4.2v7h-4.2zM43.8 0h10v1.5h-10zM52.3 0h1.5v14h-1.5zM43.8 12.5h10v1.5h-10zM56.4 0h1.5v7h-1.5zM56.4 7h4.2v7h-4.2zM56.4 0h10v1.5h-10zM64.9 0h1.5v14h-1.5zM60.65 0h1.5v9.5h-1.5zM69 0h1.5v7h-1.5zM69 7h4.2v7h-4.2zM69 0h10v1.5h-10zM69 5.5h8v1.5h-8zM69 12.5h10v1.5h-10zM81.6 0h1.5v7h-1.5zM81.6 7h4.2v7h-4.2zM81.6 0h10v1.5h-10zM81.6 12.5h10v1.5h-10zM90.1 5.5h1.5v8.5h-1.5zM86.6 5.5h5v1.5h-5zM94.2 0h1.5v7h-1.5zM94.2 7h4.2v7h-4.2zM94.2 0h10v1.5h-10zM102.7 0h1.5v14h-1.5zM94.2 5.5h10v1.5h-10zM112.8 0h10v1.5h-10zM112.8 0h1.5v7h-1.5zM112.8 5.5h10v1.5h-10zM118.6 7h4.2v7h-4.2zM112.8 12.5h10v1.5h-10zM125.4 0h1.5v7h-1.5zM133.9 0h1.5v7h-1.5zM125.4 5.5h10v1.5h-10zM128.3 7h4.2v7h-4.2zM138 0h10v1.5h-10zM138 0h1.5v7h-1.5zM138 5.5h10v1.5h-10zM143.8 7h4.2v7h-4.2zM138 12.5h10v1.5h-10zM150.6 0h10v1.5h-10zM154.85 0h1.5v7h-1.5zM153.5 7h4.2v7h-4.2zM163.2 0h1.5v7h-1.5zM163.2 7h4.2v7h-4.2zM163.2 0h10v1.5h-10zM163.2 5.5h8v1.5h-8zM163.2 12.5h10v1.5h-10zM175.8 0h1.5v7h-1.5zM175.8 7h4.2v7h-4.2zM175.8 0h10v1.5h-10zM184.3 0h1.5v14h-1.5zM180.05 0h1.5v9.5h-1.5z"/></svg><span>MIDI PRODUCTION CENTER · SAMPLING PERCUSSION SYSTEM</span></div>
   <button id="play" class="tbtn" aria-label="Play"><svg viewBox="0 0 24 24"><path id="playIcon" d="M7 4l13 8-13 8z"/></svg></button>
   <button id="rec" class="tbtn" aria-label="Record"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></button>
   <div class="pos" id="pos">1.1.1</div>
@@ -1479,7 +1483,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v84</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v85</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
