@@ -298,6 +298,17 @@ html #erase.on,html.retro #erase.on{background:#d62b22;border-color:#8e140e;colo
 #damnSon iframe{border:0;border-radius:4px}
 #damnSon button{position:absolute;top:-12px;right:-12px;width:30px;height:30px;border-radius:50%;padding:0;background:#ff3b30;color:#fff;border:2px solid #111}
 @keyframes dsPop{from{transform:translateX(-50%) scale(.2) rotate(-20deg);opacity:0}}
+html.dev-tablet .view{max-width:920px}
+html.dev-tablet body{font-size:16px}
+html.dev-tablet nav button{min-height:56px}
+html.dev-desktop .view{max-width:1100px}
+html.dev-desktop .pad:hover{filter:brightness(1.08)}
+html.dev-desktop main::-webkit-scrollbar{width:10px}
+html.dev-desktop main::-webkit-scrollbar-thumb{background:#555a66;border-radius:5px}
+/* split screen on wide screens: the open page docks on the right and the pads / keys / mixer stay playable on the left */
+html.wide #sheet{left:auto;width:min(680px,46vw);border-left:3px solid #1b1c1e;box-shadow:-6px 0 18px #0007}
+html.wide.sheet-on main{padding-right:calc(min(680px,46vw) + 16px)}
+html.wide .toast{max-width:480px}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -1424,6 +1435,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
     <div class="card">
       <h2>Performance</h2>
+      <div class="row"><span class="grow">Screen</span><span class="badge" id="devNow">–</span><select id="screenSel" aria-label="Screen layout"><option value="auto">Auto-detect</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Computer</option></select></div>
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
@@ -1460,7 +1472,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v82</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v83</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4852,7 +4864,7 @@ function sheetOpen(c){
   sheetFrame();
   sheetPh = document.createComment('sheet'); c.before(sheetPh);
   $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
-  $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on');
+  $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on'); document.documentElement.classList.add('sheet-on');
   document.querySelectorAll('.chipbar button').forEach(b => b.classList.toggle('on', b._card === c));
   hearPaint(); setTimeout(randPaint, 60);
   requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); sheetLayout(); });
@@ -4861,8 +4873,30 @@ function sheetClose(){
   if (!sheetCard) return;
   const c = sheetCard; sheetCard = null; c.classList.add('shut'); c.classList.remove('sheeted'); c.scrollLeft = 0;
   if (sheetPh){ sheetPh.replaceWith(c); sheetPh = null; }
-  $('#sheet').classList.remove('on'); document.querySelectorAll('.chipbar button.on').forEach(b => b.classList.remove('on')); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  $('#sheet').classList.remove('on'); document.documentElement.classList.remove('sheet-on'); document.querySelectorAll('.chipbar button.on').forEach(b => b.classList.remove('on')); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
+/* ================= Phone, tablet or computer: pick a layout, and redo it when the window or the screen turns ================= */
+function devKind(){
+  const o = S.screen || 'auto'; if (o !== 'auto') return o;
+  const ua = navigator.userAgent, coarse = matchMedia('(pointer:coarse)').matches, fine = matchMedia('(any-pointer:fine)').matches, short = Math.min(screen.width, screen.height);
+  if (/iPad|Tablet|SM-[XTP]\d/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'tablet';
+  if (/Mobi|iPhone|Android/i.test(ua) || (coarse && short < 600)) return 'phone';
+  if (coarse && !fine) return 'tablet';
+  return 'desktop';
+}
+let devNow = '';
+function applyDevice(){
+  const r = document.documentElement, k = devKind(), land = innerWidth > innerHeight;
+  const wide = k !== 'phone' && innerWidth >= 1000 && innerWidth > innerHeight * 1.15;
+  ['dev-phone', 'dev-tablet', 'dev-desktop'].forEach(c => r.classList.toggle(c, c === 'dev-' + k));
+  r.classList.toggle('land', land); r.classList.toggle('wide', wide);
+  const tag = k + (land ? ' landscape' : ' portrait') + (wide ? ', split screen' : '');
+  if (devNow && devNow !== tag) toast('Layout: ' + tag + '.');
+  devNow = tag; const b = $('#devNow'); if (b) b.textContent = tag;
+}
+applyDevice();
+window.addEventListener('resize', () => { clearTimeout(applyDevice._t); applyDevice._t = setTimeout(() => { const was = devNow; applyDevice(); if (was !== devNow){ if (sheetCard) sheetLayout(); fitScreen(); } }, 120); });
+if (screen.orientation) screen.orientation.addEventListener('change', () => setTimeout(applyDevice, 200));
 function sheetFrame(){
   const h = document.querySelector('header.transport'), n = $('#nav'), lb = $('#learnBar');
   const top = Math.max(h ? h.getBoundingClientRect().bottom : 0, lb && !lb.hidden ? lb.getBoundingClientRect().bottom : 0);
@@ -4873,11 +4907,11 @@ function sheetLayout(){
   if (!sheetCard) return;
   sheetFrame();
   const c = sheetCard, cs = getComputedStyle(c), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
-  const cw = Math.floor(c.clientWidth - pl - pr), gap = 24;
-  if (cw > 0 && c._cw !== cw){ c.style.setProperty('--cw', cw + 'px'); c._cw = cw; }
-  sheetPages = Math.max(1, Math.round((c.scrollWidth - pl - pr + gap) / (cw + gap)));
+  const W = Math.floor(c.clientWidth - pl - pr), gap = 24, k = clamp(Math.floor((W + gap) / (340 + gap)), 1, 3), cw = Math.floor((W - gap * (k - 1)) / k);
+  if (cw > 0 && c._cw !== cw){ c.style.setProperty('--cw', cw + 'px'); c.style.columnCount = k; c._cw = cw; }
+  sheetPages = Math.max(1, Math.round((c.scrollWidth - pl - pr + gap) / (W + gap)));
   sheetPage = clamp(sheetPage, 0, sheetPages - 1);
-  c.scrollLeft = sheetPage * (cw + gap);
+  c.scrollLeft = sheetPage * (W + gap);
   $('#sheetPg').textContent = sheetPages > 1 ? (sheetPage + 1) + ' / ' + sheetPages : '';
   $('#sheetPrev').disabled = sheetPage === 0; $('#sheetNext').disabled = sheetPage >= sheetPages - 1;
   $('#sheetPrev').style.visibility = $('#sheetNext').style.visibility = sheetPages > 1 ? '' : 'hidden';
@@ -9130,6 +9164,8 @@ function renderSeqCtl(){
   $('#quant').value = S.quant; $('#repRate').value = S.repRate; $('#quantNow').disabled = S.quant <= 1;
   $('#fullLvl').classList.toggle('on', S.fullLevel); $('#fullLvl').textContent = S.fullLevel ? 'Full level' : 'By touch height';
 }
+$('#screenSel').value = S.screen || 'auto'; $('#devNow').textContent = devNow;
+$('#screenSel').addEventListener('change', e => { S.screen = e.target.value; save(); applyDevice(); if (sheetCard) sheetLayout(); fitScreen(); });
 $('#dsOn').addEventListener('click', () => { S.damnSon = S.damnSon === false; save(); renderBt(); if (S.damnSon !== false) damnSon(true); });
 $('#smokeOn').addEventListener('click', () => { S.smoke = S.smoke === false; save(); $('#smokeOn').textContent = S.smoke === false ? 'Off' : 'On'; $('#smokeOn').classList.toggle('on', S.smoke !== false); });
 $('#btOn').addEventListener('click', () => { S.bt = !S.bt; save(); renderBt(); toast(S.bt ? 'Bluetooth offset on: ' + S.btMs + ' ms.' : 'Bluetooth offset off.'); });
@@ -9253,6 +9289,7 @@ $('#helpSearch').addEventListener('input', e => {
       delete saved.liveRec; saved.v = 2;
     }
     S = Object.assign(defaultState(), saved);
+    try { applyDevice(); $('#screenSel').value = S.screen || 'auto'; } catch(e){}
     S.drum.notes.forEach(n => delete n.skip);
     const sceneKeys = (S.scenes || []).flatMap(sc => Object.values(sc.clips || {}).map(c => c && c.key));
     const keys = [...new Set([...S.drum.pads.map(p => p.sample), ...S.audio.map(t => t.clip), ...sceneKeys])].filter(k => k && !k.startsWith('kit:'));
