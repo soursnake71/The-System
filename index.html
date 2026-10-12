@@ -151,6 +151,7 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 #sheetBody .ctls > *{break-inside:avoid;margin-bottom:6px}
 #sheetBody .p5sec > .fh, #sheetBody .unit > .fh, #sheetBody .ctl, #sheetBody .row{break-inside:avoid}
 .view > .card:not(.sdj):not(.trk){display:none !important}
+.hearbtn{background:linear-gradient(180deg,#2d8a4e,#1d6538) !important;color:#fff !important;border-color:#0e3a1f !important;white-space:nowrap;font-weight:700}
 .kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
 .kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
@@ -943,6 +944,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li>Press record while the arp plays and its notes are written into the pattern.</li>
       </ul>
     </details>
+    <details id="h-hear"><summary>▶ Hear on every page</summary>
+      <p>Each page that makes sound has a green <b>▶ Hear</b> (or <b>▶ Play</b>) button at the top. Pad sound plays the pad. Sound plays a chord on the synth. Arp plays a chord through the arpeggiator. Speech and Vocoder say your line. Effects and FX rack play a short beat through the effects. Sequencer, Notes, Patterns and Song start and stop the beat. Turntable starts and stops the record, and Sampler and Chop play the sound.</p>
+    </details>
     <details id="h-allstop"><summary>All stop</summary>
       <p>The red <b>■ ALL</b> button at the top stops everything at once: the beat, every pad (including looping and held ones), every synth note and the arpeggiator, both turntables, the sampler, sample previews and the reverb/delay/FX tails. It also sends "all notes off" to your MPC or other MIDI gear. It can be MIDI-learned to a pad or button, and Esc on a keyboard does the same.</p>
     </details>
@@ -1327,7 +1331,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v56</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v57</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1336,7 +1340,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 </main>
 
 <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
-  <div class="sheet-bar"><button id="sheetPrev" class="nolearn" aria-label="Previous page">◀</button><span id="sheetTtl" class="grow"></span><span id="sheetPg" class="mono"></span><button id="sheetNext" class="nolearn" aria-label="Next page">▶</button><button id="sheetX" class="nolearn" aria-label="Close">✕</button></div>
+  <div class="sheet-bar"><button id="sheetPrev" class="nolearn" aria-label="Previous page">◀</button><span id="sheetTtl" class="grow"></span><span id="sheetPg" class="mono"></span><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">▶</button><button id="sheetX" class="nolearn" aria-label="Close">✕</button></div>
   <div id="sheetBody"></div>
 </div>
 <dialog id="padMenu" aria-labelledby="padMenuT"><h2 id="padMenuT">A01</h2>
@@ -4590,6 +4594,7 @@ function sheetOpen(c){
   $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
   $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on');
   document.querySelectorAll('.chipbar button').forEach(b => b.classList.toggle('on', b._card === c));
+  hearPaint();
   requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); sheetLayout(); });
 }
 function sheetClose(){
@@ -4681,6 +4686,43 @@ function allStop(){
 }
 $('#allStop').addEventListener('click', allStop);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('dialog[open]')) allStop(); });
+
+/* ================= ▶ Hear: every page has a preview of what it controls ================= */
+let hearStop = null;
+function hearChord(tr, notes, dur = 1.2, gap = 0){
+  ensureAudio(); const t0 = ctx.currentTime + .05;
+  notes.forEach((n, k) => synthVoice(live, tr, n, t0 + k * gap, .85, dur));
+}
+const hearRoot = () => clamp(12 * (S.oct + 2) + S.root, 36, 72);
+function hearFor(c){
+  if (!c) return null;
+  const has = sel => !!c.querySelector(sel), id = c.id;
+  if (has('#padCtls')) return () => auditionPad(selPad);
+  if (has('#seq')) return () => { if (playing) stop(); else start(0); renderTransport(); };
+  if (has('#synthTitle')) return () => { const r = hearRoot(), tr = curSynth(); hearChord(tr, [r, r + 4, r + 7], .9); setTimeout(() => hearChord(tr, [r - 12], .5), 1100); };
+  if (has('#arpBox')) return async () => {
+    const tr = curSynth(), A = arpOf(tr), was = A.on; A.on = true; const r = hearRoot();
+    ['h1', 'h2', 'h3'].forEach((id2, k) => keyDown(tr, [r, r + 3 + (S.scale === 'Major' ? 1 : 0), r + 7][k], {timeStamp:performance.now()}, .85, 'hear' + id2));
+    setTimeout(() => { ['h1', 'h2', 'h3'].forEach(id2 => keyUp('hear' + id2, {})); A.on = was; if (!was) arpClear(tr); renderArp(); }, 2400);
+  };
+  if (has('#roll') || has('#launchQ') || has('#songMode')) return () => { if (playing) stop(); else start(0); renderTransport(); };
+  if (id === 'vocCard') return () => { const tr = S.audio.find(t => t.id === S.ttsTrack); if (tr && tr.clip) ttsAudition(); else toast('Send a line from Speech first (or turn on the input and talk) to hear the vocoder.'); };
+  if (id === 'ttsCard') return () => ttsPreview();
+  if (id === 'fxCard' || id === 'rackCard') return () => {
+    const t = selStrip === 'master' || selStrip === 'drums' ? null : trackById(selStrip);
+    if (t && S.synths.includes(t)){ const r = hearRoot(); hearChord(t, [r, r + 7], .35); setTimeout(() => hearChord(t, [r + 12], .35), 450); }
+    else { ensureAudio(); const now = ctx.currentTime; [[0, 0], [1, .5], [0, .75], [1, 1.25]].forEach(([pi, dt]) => playPad(live, S.drum.pads[pi], now + .05 + dt * 60 / S.bpm, .9, null, pi)); }
+  };
+  if (c.classList.contains('tt')) return () => $('#ttStart').click();
+  if (has('#smpLoad')) return () => { const sl = smpState().slots || [], k = sl.findIndex(Boolean); if (k >= 0) smpFire(k); else toast('Load a sound into the sampler first.'); };
+  if (has('#chopWave')) return () => { if (chop.buf) auditionSlice(chop.sel || 0); else toast('Pick a sample to chop first.'); };
+  if (c.classList.contains('mixdj')) return () => { const D = deckState(); if (deck.buf){ $('#ttStart').click(); } else toast('Load a record on a deck first.'); };
+  return null;
+}
+function hearPaint(){ const b = $('#sheetHear'); if (!b) return; const f = hearFor(sheetCard); b.hidden = !f; b._f = f;
+  const toggles = sheetCard && (sheetCard.querySelector('#seq, #roll, #launchQ, #songMode') || sheetCard.classList.contains('tt') || sheetCard.classList.contains('mixdj'));
+  b.textContent = toggles ? (sheetCard.classList.contains('tt') || sheetCard.classList.contains('mixdj') ? (deckState().on ? '■ Stop' : '▶ Play') : (playing ? '■ Stop' : '▶ Play')) : '▶ Hear'; }
+$('#sheetHear').addEventListener('click', () => { const b = $('#sheetHear'); if (b._f){ try { b._f(); } catch(e){ console.warn(e); } } setTimeout(hearPaint, 150); });
 
 /* ================= flip-open sections (less scrolling) ================= */
 let foldMem = {}; try { foldMem = JSON.parse(localStorage.getItem('pr.fold') || '{}'); } catch(e){}
