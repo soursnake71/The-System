@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#c9c4b7">
 <meta name="mobile-web-app-capable" content="yes">
-<title>The Snake Device</title>
+<title>The Omega System</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -443,7 +443,7 @@ html.retro input.fader::-webkit-slider-runnable-track,html.retro .eq11 input::-w
 html.retro input.fader::-webkit-slider-thumb,html.retro .eq11 input::-webkit-slider-thumb{width:28px;height:16px;margin-top:0;margin-left:-11px;background:linear-gradient(180deg,#9d998e,#e4dfd2 45%,#fff 50%,#e4dfd2 55%,#9d998e)}
 /* MPC60 case on top: grey body, green LCD */
 html.retro .transport{--fg:#26241f;--dim:#55514a;background:linear-gradient(180deg,var(--case),var(--case2));border-bottom:3px solid #1b1c1e;box-shadow:0 2px 8px #0008;position:relative;padding-top:calc(env(safe-area-inset-top,0px) + 22px)}
-html.retro .transport::before{content:"THE SNAKE DEVICE  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.retro .transport::before{content:"THE OMEGA SYSTEM  ·  MIDI PRODUCTION CENTER  ·  SAMPLING PERCUSSION SYSTEM";position:absolute;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 5px);font:700 9px/1 var(--f-display);letter-spacing:.22em;color:#4a463e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 html.retro .transport .label{color:#4a463e}
 html.retro .transport select{background:linear-gradient(180deg,var(--cap),var(--cap2));color:var(--cap-ink);border:1px solid #0009;box-shadow:0 2px 0 #00000080}
 html.retro .pos,html.retro .bpm input{font:400 30px/1 var(--f-lcd);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd),var(--lcd2));border:3px solid #23251f;border-radius:3px;box-shadow:inset 0 0 12px #0a1f6ab0,0 1px 0 #fff6;padding:4px 10px;letter-spacing:.06em;text-shadow:0 0 6px #ffffff70}
@@ -776,8 +776,15 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="row"><input id="crateUrl" class="grow" type="url" inputmode="url" placeholder="Paste a song or playlist link" aria-label="Song or playlist link"><button id="cratePaste" class="nolearn">Paste</button><button id="crateAdd" class="nolearn">Add</button></div>
       <div class="row"><select id="crateList" class="grow" aria-label="Your crate"></select><button id="crateDel" class="nolearn" aria-label="Remove from crate">✕</button></div>
       <div id="cratePlayer"></div>
-      <div class="row"><button id="crateSample" class="grow nolearn">● Sample what's playing</button></div>
-      <p class="hint">Add a song, album or playlist link, or share it straight from the YouTube / Spotify / SoundCloud app to <b>Snake Device</b>. Play it here, tap <b>Sample</b>, and tap again to stop. The take lands in Chop. On a computer, Chrome asks to share this tab: tick <b>Also share tab audio</b>. On the phone it records through the mic, so turn the volume up, or plug a cable from the headphone out into a USB audio input. Spotify plays 30-second previews unless you're logged in to Spotify in this browser.</p>
+      <div class="row"><button id="crateSample" class="grow nolearn">● Sample what's playing</button><button id="crateWho" class="nolearn">WhoSampled</button></div>
+      <span class="label">Log in, so the players play full songs</span>
+      <div class="row crate-login"><button data-login="spotify" class="grow nolearn">Spotify</button><button data-login="ytm" class="grow nolearn">YouTube Music</button><button data-login="sc" class="grow nolearn">SoundCloud</button><button data-login="apple" class="grow nolearn">Apple</button></div>
+      <div class="row"><button id="spImport" class="grow nolearn">Import my Spotify playlists</button></div>
+      <details id="spSetup"><summary>Spotify connection setup (once)</summary>
+        <p class="hint">Spotify only hands your playlist list to apps registered with them. It's free and takes a minute. Go to <b>developer.spotify.com/dashboard</b>, then <b>Create app</b>, tick <b>Web API</b>, and paste this as the Redirect URI: <code id="spRedir"></code>. Then copy the app's <b>Client ID</b> here.</p>
+        <div class="row"><input id="spClient" class="grow" placeholder="Spotify Client ID" aria-label="Spotify Client ID" autocomplete="off"><button id="spSave" class="nolearn">Save</button></div>
+      </details>
+      <p class="hint">Add a song, album or playlist link, or share it straight from the YouTube, YouTube Music, Spotify or SoundCloud app to <b>Omega System</b>. Play it here, tap <b>Sample</b>, and tap again to stop. The take lands in Chop. On a computer, Chrome asks to share this tab: tick <b>Also share tab audio</b>. On the phone it records through the mic, so turn the volume up, or plug a cable from the headphone out into a USB audio input. Spotify plays 30-second previews until you log in below. <b>WhoSampled</b> looks up what the song samples and who sampled it.</p>
     </div>
     <div class="card">
       <div class="row"><h2 class="grow">Chop</h2><span class="badge" id="chopInfo">No sample</span></div>
@@ -949,7 +956,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
 
     <details id="h-start" open><summary>Getting started</summary>
-      <p>The Snake Device is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, patterns for song parts, and export to WAV, MP3, stems and MIDI.</p>
+      <p>The Omega System is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, patterns for song parts, and export to WAV, MP3, stems and MIDI.</p>
       <h3>Install it like an app</h3>
       <ol><li>Open the app in Chrome.</li><li>Tap Chrome's ⋮ menu, then <b>Add to Home screen</b>.</li><li>Open it from the home screen icon. It runs full-screen and works offline after the first visit (MP3 export needs internet the first time).</li></ol>
       <h3>Your first beat in a minute</h3>
@@ -1472,7 +1479,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v83</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v84</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1888,7 +1895,7 @@ function simmons(v){
   return {d:knorm(d), sr:KSR};
 }
 const KITS = {
-  pocket:{name:'The Snake Device (original)'},
+  pocket:{name:'The Omega System (original)'},
   tr909:{name:'Roland TR-909', make:tr909, voices:[['Kick','bd'],['Snare','sd'],['Clap','hc'],['Rim','rs'],['C Hat','ch',1],['O Hat','oh',1],['Ride','ride'],['Crash','crash'],
     ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Kick Long','bdl'],['Kick Accent','bdhA'],['Snare Snappy','sds'],['Snare Tight','sdt'],['Clap Accent','hcA']]},
   tr505:{name:'Roland TR-505', make:tr505, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rim','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Ride','ride'],['Crash','crash'],
@@ -5091,7 +5098,7 @@ function parseMidi(buf){
       t += vlq(); let st = d.getUint8(o);
       if (st & 128) o++; else st = run;
       if (st === 0xFF){ const type = d.getUint8(o++), l = vlq(); if (type === 0x51 && l === 3) tempos.push({t, us:(d.getUint8(o) << 16) | (d.getUint8(o + 1) << 8) | d.getUint8(o + 2)});
-        if ((type === 1 || type === 3) && l < 64){ let tx = ''; for (let i = 0; i < l; i++) tx += String.fromCharCode(d.getUint8(o + i)); if (/Snake Device/.test(tx)) ours = true; }
+        if ((type === 1 || type === 3) && l < 64){ let tx = ''; for (let i = 0; i < l; i++) tx += String.fromCharCode(d.getUint8(o + i)); if (/Snake Device|Omega System/.test(tx)) ours = true; }
         o += l; continue; }
       if (st === 0xF0 || st === 0xF7){ o += vlq(); continue; }
       run = st; const type = st & 0xF0, ch = st & 15;
@@ -5494,10 +5501,10 @@ async function exportMpcKit(stamp, st){
   const files = [], pads = [], used = [];
   S.drum.pads.forEach((p, i) => { if (!p.sample) { pads.push(null); return; } ensureKitBuf(p.sample); const b = buffers.get(p.sample); if (!b){ pads.push(null); return; }
     const file = `${padLabel(i)} ${fileSafe(p.name)}`.slice(0, 30); files.push({name:file + '.wav', blob:encodeWav(stereoOf(b), 16)}); pads.push(Object.assign({}, p, {file})); used.push(file); });
-  const prog = 'Snake ' + fileSafe(S.scenes[S.cur].name).slice(0, 10);
+  const prog = 'Omega ' + fileSafe(S.scenes[S.cur].name).slice(0, 10);
   files.push({name:prog + '.xpm', blob:new Blob([xpmFor(prog, pads)], {type:'application/xml'})});
   const keep = S.padMap; S.padMap = 'mpc'; try { files.push({name:prog + '.mid', blob:buildMidi()}); } finally { S.padMap = keep; }
-  const zip = await makeZip(files), name = `snake-device-${stamp}-mpc-kit.zip`;
+  const zip = await makeZip(files), name = `omega-system-${stamp}-mpc-kit.zip`;
   saveFile(zip, name);
   st.textContent = `Saved ${name}: ${used.length} pad WAVs, a drum program (${prog}.xpm, pads in MPC order) and the pattern as MIDI on the MPC pad notes. Unzip into one folder on the MPC and load the .xpm; the MIDI lines up with it.`;
 }
@@ -5668,7 +5675,7 @@ function buildMidi(){
   const chunk = data => [...[0x4D, 0x54, 0x72, 0x6B], ...u32(data.length), ...data];
   bytes.push(0x4D, 0x54, 0x68, 0x64, ...u32(6), ...u16(1), ...u16(tracks.length + 1), ...u16(96));
   const us = Math.round(60e6 / S.bpm);
-  bytes.push(...chunk([0, ...text(3, 'The Snake Device'), 0, 0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0]));
+  bytes.push(...chunk([0, ...text(3, 'The Omega System'), 0, 0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0]));
   for (const t of tracks){
     t.ev.sort((a, b) => a[0] - b[0] || (a[1] === 0x80 ? -1 : 1));
     const d = [0, ...text(3, t.name)]; let last = 0;
@@ -5691,7 +5698,7 @@ async function exportMix(){
   btn.disabled = true;
   try {
     if (what === 'midi'){
-      const blob = buildMidi(), name = `snake-device-${stamp}.mid`;
+      const blob = buildMidi(), name = `omega-system-${stamp}.mid`;
       saveFile(blob, name); st.textContent = `Saved ${name}: drums on channel 10 (${S.padMap === 'mpc' ? 'MPC pad notes' : S.padMap === 'gm' ? 'General MIDI drum notes' : 'A01 = ' + noteName(S.midiBase)}), each synth on its own channel. Check your Downloads folder.`;
     } else if (what === 'mpc'){
       await exportMpcKit(stamp, st);
@@ -5705,14 +5712,14 @@ async function exportMix(){
           files.push({name:`${padLabel(used[k])} ${fileSafe(S.drum.pads[used[k]].name)}.${ext}`, blob});
         }
       } finally { exportPadSolo = null; }
-      const zip = await makeZip(files), name = `snake-device-${stamp}-pads.zip`;
+      const zip = await makeZip(files), name = `omega-system-${stamp}-pads.zip`;
       saveFile(zip, name); st.textContent = `Saved ${name}: ${files.length} pads, each on its own, all the same length so they line up from bar 1.`;
     } else if (what === 'mix'){
       st.textContent = 'Rendering the mix…';
       const buf = await renderAudio(sr);
       st.textContent = 'Encoding…';
       const {blob, ext} = await encodeAudio(buf, fmt, f => st.textContent = 'Encoding MP3… ' + Math.round(f * 100) + '%');
-      const name = `snake-device-${stamp}.${ext}`;
+      const name = `omega-system-${stamp}.${ext}`;
       saveFile(blob, name); st.textContent = `Saved ${name} (${buf.duration.toFixed(1)} s, ${(blob.size / 1048576).toFixed(1)} MB). Check your Downloads folder.`;
     } else {
       const sd = stepDur(), {total} = exportPlan(), len = Math.ceil((total * sd + 2.5) * sr), files = [];
@@ -5726,7 +5733,7 @@ async function exportMix(){
         files.push({name:`${String(k + 1).padStart(2, '0')} ${fileSafe(list[k].name)}.${ext}`, blob});
       }
       st.textContent = 'Packing the ZIP…';
-      const zip = await makeZip(files), name = `snake-device-${stamp}-tracks.zip`;
+      const zip = await makeZip(files), name = `omega-system-${stamp}-tracks.zip`;
       saveFile(zip, name);
       st.textContent = `Saved ${name}: the full mix plus ${list.length} tracks, all the same length so they line up from bar 1 in any DAW. ${(zip.size / 1048576).toFixed(1)} MB.`;
     }
@@ -6759,7 +6766,7 @@ function drawDeck(){
   };
   g.fillStyle = '#f7e7cf';
   arcText('THE WHEEL OF STEEL', LR * .8, 0, Math.round(LR * .13), 'Michroma, sans-serif', false);
-  arcText('THE SNAKE DEVICE · STAR SCREAMER RECORDS · STEREO', LR * .82, Math.PI, Math.max(6, Math.round(LR * .065)), 'Barlow, sans-serif', true);
+  arcText('THE OMEGA SYSTEM · STAR SCREAMER RECORDS · STEREO', LR * .82, Math.PI, Math.max(6, Math.round(LR * .065)), 'Barlow, sans-serif', true);
   // title in the middle, wrapped to two lines
   const title = (D.name || 'No record').toUpperCase().replace(/[_-]+/g, ' ');
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -6769,7 +6776,7 @@ function drawDeck(){
   show.forEach((ln, k) => { while (g.measureText(ln).width > LR * 1.35 && fs > 6){ fs--; g.font = `700 ${fs}px Barlow Condensed, sans-serif`; } g.fillText(ln, 0, -LR * .33 + k * fs * 1.05); });
   g.font = `${Math.round(LR * .085)}px Michroma, sans-serif`;
   g.fillText('SIDE A', -LR * .55, LR * .02); g.fillText(D.speed === 45 ? '45 RPM' : '33⅓ RPM', LR * .55, LR * .02);
-  g.font = `${Math.round(LR * .075)}px Barlow, sans-serif`; g.fillText('SNAKE-1200', 0, LR * .42);
+  g.font = `${Math.round(LR * .075)}px Barlow, sans-serif`; g.fillText('OMEGA-1200', 0, LR * .42);
   g.restore();
   g.fillStyle = '#d9dbdd'; g.beginPath(); g.arc(cx, cy, R * .03, 0, 7); g.fill();
   // tonearm: pivot top right, stylus walks in as the record plays
@@ -6892,7 +6899,7 @@ async function toggleRecMix(){
   const buf = new AudioBuffer({length:n, numberOfChannels:2, sampleRate:ctx.sampleRate}), L = buf.getChannelData(0), R = buf.getChannelData(1);
   let o = 0; for (const c of mixRec.chunks){ L.set(c.l, o); R.set(c.r, o); o += c.l.length; }
   const st = new Date(), stamp = `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}-${String(st.getHours()).padStart(2, '0')}${String(st.getMinutes()).padStart(2, '0')}`;
-  saveFile(new Blob([encodeWav(buf, 16)], {type:'audio/wav'}), `snake-device-mix-${stamp}.wav`);
+  saveFile(new Blob([encodeWav(buf, 16)], {type:'audio/wav'}), `omega-system-mix-${stamp}.wav`);
   toast(`Saved your mix (${(n / ctx.sampleRate / 60).toFixed(1)} min). Check your Downloads folder.`);
 }
 /* sampler: 8 slots, tap to fire (a new tap restarts it), into the master; LOAD MODE then a slot picks its file */
@@ -7388,7 +7395,7 @@ function crateParse(raw){
   if (h === 'youtube.com' || h === 'youtu.be' || h === 'youtube-nocookie.com'){
     const v = h === 'youtu.be' ? u.pathname.slice(1) : q('v') || (u.pathname.match(/\/(?:shorts|embed|live)\/([\w-]{6,})/) || [])[1], list = q('list');
     if (!v && !list) return null;
-    return {kind:'YouTube', url:u.href, embed:'https://www.youtube-nocookie.com/embed/' + (v ? v + (list ? '?list=' + list + '&' : '?') : 'videoseries?list=' + list + '&') + 'playsinline=1&rel=0', list:!!list};
+    return {kind:u.hostname.startsWith('music.') ? 'YouTube Music' : 'YouTube', url:u.href, embed:'https://www.youtube-nocookie.com/embed/' + (v ? v + (list ? '?list=' + list + '&' : '?') : 'videoseries?list=' + list + '&') + 'playsinline=1&rel=0', list:!!list};
   }
   if (h === 'open.spotify.com' || h === 'spotify.link'){
     const t = u.pathname.match(/(track|album|playlist|episode|show|artist)\/(\w+)/); if (!t) return null;
@@ -7399,7 +7406,7 @@ function crateParse(raw){
   return null;
 }
 async function crateTitle(it){
-  const api = it.kind === 'YouTube' ? 'https://www.youtube.com/oembed?format=json&url=' : it.kind === 'Spotify' ? 'https://open.spotify.com/oembed?url=' : it.kind === 'SoundCloud' ? 'https://soundcloud.com/oembed?format=json&url=' : null;
+  const api = /^YouTube/.test(it.kind) ? 'https://www.youtube.com/oembed?format=json&url=' : it.kind === 'Spotify' ? 'https://open.spotify.com/oembed?url=' : it.kind === 'SoundCloud' ? 'https://soundcloud.com/oembed?format=json&url=' : null;
   if (!api) return null;
   try { const j = await (await fetch(api + encodeURIComponent(it.url))).json(); return [j.title, j.author_name].filter(Boolean).join(' · ') || null; } catch(e){ return null; }
 }
@@ -7453,6 +7460,58 @@ $('#crateList').addEventListener('change', e => { S.crateSel = e.target.value; s
 $('#crateDel').addEventListener('click', () => { const v = $('#crateList').value; S.crate = (S.crate || []).filter(x => x.embed !== v); S.crateSel = S.crate[0] && S.crate[0].embed; save(); renderCrate(true); });
 $('#crateSample').addEventListener('click', crateSample);
 renderCrate();
+// log in to the streaming services in the browser, so their players inside the app play full songs instead of previews
+const LOGINS = {spotify:'https://accounts.spotify.com/login?continue=' + encodeURIComponent('https://open.spotify.com/'), ytm:'https://accounts.google.com/ServiceLogin?service=youtube&continue=' + encodeURIComponent('https://music.youtube.com/'), sc:'https://soundcloud.com/signin', apple:'https://music.apple.com/'};
+document.querySelectorAll('.crate-login button').forEach(b => b.addEventListener('click', () => { window.open(LOGINS[b.dataset.login], '_blank', 'noopener'); toast('Log in there, then come back and tap play in the player.'); }));
+// WhoSampled: look up who sampled this song and what it samples
+$('#crateWho').addEventListener('click', () => {
+  const it = (S.crate || []).find(x => x.embed === $('#crateList').value); if (!it){ toast('Add a song first.'); return; }
+  const q = (it.title || '').replace(/^[^:]*:\s*/, '').replace(/\s*·\s*/g, ' ').replace(/\((official|lyric|audio|video|hd|hq|remaster)[^)]*\)|\[[^\]]*\]/gi, '').trim();
+  window.open('https://www.whosampled.com/search/?q=' + encodeURIComponent(q), '_blank', 'noopener');
+});
+// Spotify account: PKCE sign-in (no secret needed) to pull your playlists into the crate
+const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }, lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch(e){} };
+const SP = {get client(){ return lsGet('sp.client'); }, get tok(){ try { return JSON.parse(lsGet('sp.tok') || 'null'); } catch(e){ return null; } }, set tok(v){ lsSet('sp.tok', v ? JSON.stringify(v) : ''); }};
+const spRedirect = () => location.origin + location.pathname;
+$('#spRedir').textContent = spRedirect();
+$('#spClient').value = SP.client;
+$('#spSave').addEventListener('click', () => { lsSet('sp.client', $('#spClient').value.trim()); SP.tok = null; toast(SP.client ? 'Saved. Tap Import my Spotify playlists.' : 'Cleared.'); });
+const b64u = a => btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function spLogin(){
+  if (!SP.client){ $('#spSetup').open = true; toast('Set up the Spotify connection first (below).'); return; }
+  const ver = b64u(crypto.getRandomValues(new Uint8Array(48))), ch = b64u(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ver)));
+  try { sessionStorage.setItem('sp.ver', ver); localStorage.setItem('sp.ver', ver); } catch(e){}
+  location.href = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({response_type:'code', client_id:SP.client, scope:'playlist-read-private playlist-read-collaborative', redirect_uri:spRedirect(), code_challenge_method:'S256', code_challenge:ch});
+}
+async function spToken(){
+  const T = SP.tok; if (T && T.exp > Date.now() + 60000) return T.at;
+  if (T && T.rt){ try { const r = await (await fetch('https://accounts.spotify.com/api/token', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({grant_type:'refresh_token', refresh_token:T.rt, client_id:SP.client})})).json();
+    if (r.access_token){ SP.tok = {at:r.access_token, rt:r.refresh_token || T.rt, exp:Date.now() + r.expires_in * 1000}; return r.access_token; } } catch(e){} }
+  return null;
+}
+async function spImport(){
+  const at = await spToken(); if (!at) return spLogin();
+  toast('Getting your Spotify playlists…'); let url = 'https://api.spotify.com/v1/me/playlists?limit=50', n = 0;
+  S.crate = S.crate || [];
+  while (url){
+    const r = await fetch(url, {headers:{Authorization:'Bearer ' + at}}); if (!r.ok){ if (r.status === 401){ SP.tok = null; return spLogin(); } toast('Spotify said no (' + r.status + '). In the Spotify dashboard, add your Spotify email under User Management.'); return; }
+    const j = await r.json();
+    for (const pl of j.items || []){ if (!pl) continue; const embed = 'https://open.spotify.com/embed/playlist/' + pl.id;
+      if (!S.crate.some(x => x.embed === embed)){ S.crate.push({kind:'Spotify', url:'https://open.spotify.com/playlist/' + pl.id, embed, list:true, title:'Spotify playlist: ' + pl.name + (pl.tracks ? ' (' + pl.tracks.total + ')' : '')}); n++; } }
+    url = j.next;
+  }
+  save(); renderCrate(true); toast(n ? n + ' Spotify playlists added to your crate.' : 'Your Spotify playlists are already in the crate.');
+}
+$('#spImport').addEventListener('click', spImport);
+// coming back from the Spotify sign-in
+(async () => { const q = new URLSearchParams(location.search), code = q.get('code');
+  if (!code && !q.get('error')) return; history.replaceState(null, '', location.pathname);
+  if (q.get('error')){ toast('Spotify sign-in cancelled.'); return; }
+  let ver = null; try { ver = sessionStorage.getItem('sp.ver') || localStorage.getItem('sp.ver'); } catch(e){}
+  try { const r = await (await fetch('https://accounts.spotify.com/api/token', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({grant_type:'authorization_code', code, redirect_uri:spRedirect(), client_id:SP.client, code_verifier:ver || ''})})).json();
+    if (!r.access_token){ toast('Spotify sign-in failed: ' + (r.error_description || r.error || 'unknown')); return; }
+    SP.tok = {at:r.access_token, rt:r.refresh_token, exp:Date.now() + r.expires_in * 1000}; setTimeout(() => { setView('chop'); spImport(); }, 1500);   // after the saved project has loaded
+  } catch(e){ toast('Spotify sign-in failed: ' + e.message); } })();
 // links shared to the app from YouTube / Spotify / SoundCloud land in the crate
 (() => { const q = new URLSearchParams(location.search), sh = [q.get('su'), q.get('sx'), q.get('st')].filter(Boolean).join(' ');
   if (!sh) return; history.replaceState(null, '', location.pathname);

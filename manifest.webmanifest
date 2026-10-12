@@ -1,6 +1,6 @@
 {
-  "name": "The Snake Device",
-  "short_name": "Snake Device",
+  "name": "The Omega System",
+  "short_name": "Omega System",
   "description": "Drum rack, step sequencer, audio recording and mixer for your phone.",
   "start_url": "./",
   "scope": "./",
