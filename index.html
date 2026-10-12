@@ -1381,7 +1381,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v67</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v68</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4197,7 +4197,7 @@ async function loadKitFiles(files){
 /* ================= sample browser: remembers your sample folder, previews instantly, steps with ◀ ▶ ================= */
 const SBX_EXT = /\.(wav|aiff?|mp3|flac|ogg|m4a)$/i, canDir = 'showDirectoryPicker' in window;
 let sbxPad = 0, sbxTab = (() => { try { return localStorage.getItem('pr.sbxTab') || (canDir ? 'cat' : 'bin'); } catch(e){ return 'bin'; } })();
-let sbxLoadOnTap = (() => { try { return localStorage.getItem('pr.sbxTap') === 'load'; } catch(e){ return false; } })();
+let sbxLoadOnTap = (() => { try { return localStorage.getItem('pr.sbxTap2') !== 'hear'; } catch(e){ return true; } })();
 let sbxRoot = null, sbxStack = [], sbxItems = [], sbxSel = -1, sbxSrc = null, sbxTree = null, sbxTreeBusy = null;
 const sbxCache = new Map();      // item id -> {bytes, buf}, most recent last (decoded once, so stepping back and forth is instant)
 async function binIndex(){ try { return (await DB.get('kv', 'binIndex')) || []; } catch(e){ return []; } }
@@ -4509,7 +4509,7 @@ $('#sbxPrev').addEventListener('click', () => sbxStep(-1));
 $('#sbxNext').addEventListener('click', () => sbxStep(1));
 $('#sbxPlay').addEventListener('click', () => { const it = sbxItems[sbxSel]; if (it) sbxHear(it); else sbxStep(1); });
 $('#sbxUse').addEventListener('click', sbxUse);
-$('#sbxMode').addEventListener('click', () => { sbxLoadOnTap = !sbxLoadOnTap; try { localStorage.setItem('pr.sbxTap', sbxLoadOnTap ? 'load' : 'hear'); } catch(e){}
+$('#sbxMode').addEventListener('click', () => { sbxLoadOnTap = !sbxLoadOnTap; try { localStorage.setItem('pr.sbxTap2', sbxLoadOnTap ? 'load' : 'hear'); } catch(e){}
   $('#sbxMode').textContent = sbxLoadOnTap ? 'Tap: load' : 'Tap: hear'; $('#sbxMode').classList.toggle('on', sbxLoadOnTap);
   toast(sbxLoadOnTap ? 'Tapping a sound puts it straight on the pad.' : 'Tapping a sound plays it. Press Load on pad to keep it.'); });
 $('#sbx').addEventListener('keydown', e => {
@@ -5126,8 +5126,8 @@ function padEmpty(i){
 $('#clearPads').addEventListener('click', () => $('#clearMenu').showModal());
 $('#padsClr').addEventListener('click', () => $('#clearMenu').showModal());
 $('#padSet').addEventListener('click', () => { if (view !== 'drums'){ setView('drums'); if (padEditOn) return; } setPadEdit(!padEditOn); });
-function setPadEdit(on){ padEditOn = on; $('#padEdit').classList.toggle('on', on); $('#padSet').classList.toggle('on', on); $('#pads').classList.toggle('editing', on);
-  toast(on ? 'Edit mode: tap a pad to change, load or delete its sound. Tap EDIT again to play.' : 'Edit off. Pads play again.'); }
+function setPadEdit(on, quiet){ padEditOn = on; $('#padEdit').classList.toggle('on', on); $('#padSet').classList.toggle('on', on); $('#pads').classList.toggle('editing', on);
+  if (!quiet) toast(on ? 'Edit: tap a pad.' : 'Edit off.'); }
 $('#padEdit').addEventListener('click', () => setPadEdit(!padEditOn));
 window.addEventListener('load', () => { setTimeout(fitScreen, 300); setTimeout(fitScreen, 1200); });
 if (document.fonts) document.fonts.ready.then(() => setTimeout(fitScreen, 50));
@@ -5146,6 +5146,7 @@ $('#clearMenu').addEventListener('click', e => {
 $('#padMenu').addEventListener('click', e => {
   const d = $('#padMenu'), b = e.target.closest('button'); if (e.target === d){ d.close(); return; } if (!b) return;
   const i = padMenuI, p = S.drum.pads[i], a = b.dataset.a; d.close();
+  if (padEditOn && a !== 'x') setPadEdit(false, true);
   if (a === 'del'){ padEmpty(i); save(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' is empty. Its hits stay but play nothing.'); }
   else if (a === 'delall'){ pushUndo(); undoPass = null; padEmpty(i); S.drum.notes = S.drum.notes.filter(n => n.p !== i); seqDirty = true; changed(); renderPads(); renderPadEditor(); toast(padLabel(i) + ' cleared: sound and hits. Undo brings the hits back.'); }
   else if (a === 'load') sbxOpen(i);
