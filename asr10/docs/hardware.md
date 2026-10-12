@@ -80,6 +80,11 @@ sends `n` (button 2: `82`, then `02`), as in MAME's Ensoniq panel model.
 With the ROM's start-up commands (`E7`, `71`), then `66` (clear) and
 `60 nn` (cursor), our text appeared where placed, but all of it blinked.
 
+**Confirmed on hardware:** `77 c` writes character c steady at the cursor;
+a bare character blinks. `60 00` is the top-left corner and `60 14` (20)
+the middle of the top line; `60 28` (40) the start of the bottom line,
+so the display is 2 x 40 with positions 0-79.
+
 ## Boot ROM (dumped)
 
 Dumped from the user's ASR-10 over MIDI with the explorer OS
@@ -139,8 +144,8 @@ message screens send:
 - `60 nn` cursor to position nn (`60 00` = top left)
 - `74 n` / `75 n` / `76 n`: button light n off / on / blinking
   (`0xF8938E`, from the light bits at RAM `0x306`/`0x307`)
-- `77+k c` / `7A+k c` per character in some fields (`0xF8A7E0`; meaning
-  to check)
+- `77+k c` / `7A+k c` per character (`0xF8A7E0`): `77 c` = steady
+  character (confirmed); `7A` presumably the blinking form; k (0-2) to check
 
 ## Display commands (guess)
 
