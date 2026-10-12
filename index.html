@@ -234,6 +234,7 @@ html.retro #strips .strip input.fader{width:24px}
 .row.perf{gap:4px}.row.perf button{padding-left:2px;padding-right:2px;font-size:11px;white-space:nowrap;min-width:0}
 @media (max-width:430px){.trow2 #inBadge{display:none !important}}
 #padSet{white-space:nowrap;padding-left:8px !important;padding-right:8px !important}
+#padSet.on{background:var(--accent) !important;color:var(--accent-ink) !important}
 #padEdit.on{background:var(--accent);color:var(--accent-ink)}
 #pads.editing .pad::before{border-color:var(--accent) !important;border-style:dashed !important}
 #pads.editing{outline:2px dashed var(--accent);outline-offset:2px}
@@ -587,7 +588,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <select id="bars" aria-label="Loop length"><option value="1">1 bar</option><option value="2">2 bars</option><option value="4">4 bars</option><option value="8">8 bars</option></select>
     <button id="metro">Click</button>
     <button id="tap">Tap</button>
-    <button id="padSet" class="nolearn" aria-label="Pad settings" title="Pad menu for the selected pad: delete, load, built-in, settings, clear all">⚙ PAD</button>
+    <button id="padSet" class="nolearn" aria-label="Pad settings" title="Pad edit mode: tap a pad to change, load or delete its sound">✎ EDIT</button>
     <button id="allStop" class="allstop" aria-label="All stop: silence everything" title="All stop">■ ALL</button>
     <span class="grow"></span>
     <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
@@ -1366,7 +1367,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v63</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v64</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -5109,9 +5110,10 @@ function padEmpty(i){
 }
 $('#clearPads').addEventListener('click', () => $('#clearMenu').showModal());
 $('#padsClr').addEventListener('click', () => $('#clearMenu').showModal());
-$('#padSet').addEventListener('click', () => { if (view !== 'drums') setView('drums'); padMenuOpen(selPad); });
-$('#padEdit').addEventListener('click', () => { padEditOn = !padEditOn; $('#padEdit').classList.toggle('on', padEditOn); $('#pads').classList.toggle('editing', padEditOn);
-  toast(padEditOn ? 'Edit is on: tap a pad to change, load or delete its sound. Tap Edit again to play.' : 'Edit off. Pads play again.'); });
+$('#padSet').addEventListener('click', () => { if (view !== 'drums'){ setView('drums'); if (padEditOn) return; } setPadEdit(!padEditOn); });
+function setPadEdit(on){ padEditOn = on; $('#padEdit').classList.toggle('on', on); $('#padSet').classList.toggle('on', on); $('#pads').classList.toggle('editing', on);
+  toast(on ? 'Edit mode: tap a pad to change, load or delete its sound. Tap EDIT again to play.' : 'Edit off. Pads play again.'); }
+$('#padEdit').addEventListener('click', () => setPadEdit(!padEditOn));
 window.addEventListener('load', () => { setTimeout(fitScreen, 300); setTimeout(fitScreen, 1200); });
 if (document.fonts) document.fonts.ready.then(() => setTimeout(fitScreen, 50));
 $('#clearMenu').addEventListener('click', e => {
