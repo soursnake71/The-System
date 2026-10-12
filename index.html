@@ -152,6 +152,15 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 #sheetBody .p5sec > .fh, #sheetBody .unit > .fh, #sheetBody .ctl, #sheetBody .row{break-inside:avoid}
 .view > .card:not(.sdj):not(.trk){display:none !important}
 .hearbtn{background:linear-gradient(180deg,#2d8a4e,#1d6538) !important;color:#fff !important;border-color:#0e3a1f !important;white-space:nowrap;font-weight:700}
+/* bigger mixer faders: fat cap, wide touch lane, the fader fills the strip height */
+#strips .strip input.fader{width:calc(100% - 9px) !important;max-width:46px;flex:1 1 auto;min-width:0}
+#strips .vmeter{flex:0 0 5px}
+html.retro #strips input.fader::-webkit-slider-thumb{width:40px !important;height:30px !important;margin-left:-17px !important;border-radius:4px}
+#strips input.fader::-webkit-slider-thumb{width:40px;height:30px}
+#strips input.fader::-moz-range-thumb{width:40px;height:30px}
+#strips .strip .fz{touch-action:none}
+#strips.two .strip input.fader{max-width:40px}
+html.retro #strips.two input.fader::-webkit-slider-thumb{width:34px !important;height:24px !important;margin-left:-14px !important}
 .kbwhy{display:flex;gap:8px;align-items:center;background:#3a1d0a;border:1px solid #f5b301;color:#ffd27a;border-radius:8px;padding:6px 8px;font-size:12px}
 .kbwhy[hidden]{display:none}
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
@@ -1331,7 +1340,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v57</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v58</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -4650,7 +4659,9 @@ function fitScreen(){
   } else if (view === 'mixer'){
     const zs = document.querySelectorAll('#strips .fz'), rows = $('#strips').classList.contains('two') ? 2 : 1;
     zs.forEach(z => z.style.height = ''); zs.forEach(z => z.querySelector('.fader').style.height = '');
-    const o = over(); if (o > 0){ const h = Math.max(44, 150 - Math.ceil(o / rows) - 2); zs.forEach(z => { z.style.height = h + 'px'; z.querySelector('.fader').style.height = h + 'px'; }); }
+    const cs = getComputedStyle(m), room = m.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0) - $('#v-mixer').offsetHeight;
+    const o = over() > 0 ? over() : -room, h = Math.max(44, Math.min(420, 150 - Math.ceil(o / rows) - 4));
+    zs.forEach(z => { z.style.height = h + 'px'; z.querySelector('.fader').style.height = h + 'px'; });
   }
 }
 
@@ -5303,6 +5314,25 @@ function drawWave(tr){
   rt(tr.id).img = g.getImageData(0, 0, w, h);
 }
 
+function faderDrag(z){
+  const f = z.querySelector('.fader'); if (!f || z._drag) return; z._drag = true;
+  let y0 = 0, v0 = 0, pid = null;
+  z.addEventListener('pointerdown', e => {
+    if (mlearn) return;
+    e.preventDefault(); pid = e.pointerId; try { z.setPointerCapture(pid); } catch(_){}
+    y0 = e.clientY; v0 = +f.value;
+  });
+  z.addEventListener('pointermove', e => {
+    if (e.pointerId !== pid) return;
+    const span = f.getBoundingClientRect().height || 150, mn = +f.min, mx = +f.max;
+    const v = clamp(v0 + (y0 - e.clientY) / span * (mx - mn) * (e.shiftKey ? .25 : 1), mn, mx);
+    if (Math.abs(v - +f.value) > 1e-4){ f.value = v; f.dispatchEvent(new Event('input')); }
+  });
+  const up = e => { if (e.pointerId === pid) pid = null; };
+  z.addEventListener('pointerup', up); z.addEventListener('pointercancel', up);
+  // double-tap anywhere on the lane resets it (same as double-clicking the fader)
+  let lastTap = 0; z.addEventListener('pointerup', () => { const n = performance.now(); if (n - lastTap < 300) f.dispatchEvent(new MouseEvent('dblclick')); lastTap = n; });
+}
 function renderMixer(){
   setTimeout(fitScreen, 30);
   const box = $('#strips'); box.innerHTML = '';
@@ -5356,6 +5386,7 @@ function renderMixer(){
   more.title = S.retAll ? 'Show only the returns in use' : 'Show every FX return';
   more.addEventListener('click', () => { S.retAll = !S.retAll; save(); renderMixer(); }); box.appendChild(more);
   mk({id:'master'}, true);
+  box.querySelectorAll('.fz').forEach(faderDrag);
   const n = box.querySelectorAll('.strip').length, two = n > 8;
   box.classList.toggle('two', two); box.style.setProperty('--sc', Math.ceil(n / 2));
   renderFx();
