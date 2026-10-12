@@ -313,6 +313,17 @@ html.dev-desktop main::-webkit-scrollbar-thumb{background:#555a66;border-radius:
 html.wide #sheet{left:auto;width:min(680px,46vw);border-left:3px solid #1b1c1e;box-shadow:-6px 0 18px #0007}
 html.wide.sheet-on main{padding-right:calc(min(680px,46vw) + 16px)}
 html.wide .toast{max-width:480px}
+html.dev-tv .view{max-width:none}
+/* short landscape screens (TV, phone on its side): controls on the left, pads as big as the height allows on the right */
+html.land-short #v-drums{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);column-gap:16px;row-gap:0;align-content:start;align-items:start;max-width:none}
+html.land-short #v-drums > :not(#pads){margin-bottom:12px}
+html.land-short #v-drums > *{grid-column:1;min-width:0}
+html.land-short #v-drums > #pads{grid-column:2;grid-row:1 / span 12;justify-self:center}
+html.land-short #v-drums .row.perf{flex-wrap:wrap}
+html.land-short #v-drums .row.perf > button{flex:1 1 30%}
+html.nav-on :focus-visible, html.nav-on .gp-focus{outline:4px solid #ffd23f !important;outline-offset:2px;box-shadow:0 0 0 7px #ffd23f55 !important;position:relative;z-index:2}
+#gpBadge{position:fixed;right:10px;bottom:calc(var(--sheetBot,56px) + 10px);z-index:60;background:#111;color:#ffd23f;border:2px solid #ffd23f;border-radius:16px;padding:5px 12px;font:700 13px var(--f-display);letter-spacing:.08em;pointer-events:none;box-shadow:0 3px 10px #0008}
+#gpBadge.play{color:#fff;background:#d62b22;border-color:#ff8a80}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -1371,6 +1382,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
         <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
+        <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
         <li><b>Projects</b> (Setup): Save keeps the project in your list. Open switches projects. Export makes a .omega file to move it to another device. <b>New project</b> (tap twice) saves the current one first, then starts fresh.</li>
         <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
       </ul>
@@ -1450,7 +1462,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
     <div class="card">
       <h2>Performance</h2>
-      <div class="row"><span class="grow">Screen</span><span class="badge" id="devNow">–</span><select id="screenSel" aria-label="Screen layout"><option value="auto">Auto-detect</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Computer</option></select></div>
+      <div class="row"><span class="grow">Game controller</span><span class="badge" id="gpNow">None</span></div>
+      <p class="hint" id="gpHelp">Connect any game controller (Bluetooth or USB) and press a button. <b>Select / View / Share</b> switches between <b>MENU</b> mode (D-pad or left stick moves, A presses, B goes back, LB / RB change page) and <b>PLAY</b> mode (16 buttons play the 16 pads, or notes on the Synth page; triggers play harder the further you pull). <b>Start</b> plays and stops in both. On a TV remote, the arrows move and OK presses.</p>
+      <div class="row"><span class="grow">Screen</span><span class="badge" id="devNow">–</span><select id="screenSel" aria-label="Screen layout"><option value="auto">Auto-detect</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Computer</option><option value="tv">TV</option></select></div>
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
@@ -1487,7 +1501,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v88</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v89</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -4908,6 +4922,7 @@ function sheetClose(){
 /* ================= Phone, tablet or computer: pick a layout, and redo it when the window or the screen turns ================= */
 function devKind(){
   const o = S.screen || 'auto'; if (o !== 'auto') return o;
+  if (/\b(Android TV|GoogleTV|Google TV|Chromecast|CrKey|AFT\w+|BRAVIA|SMART-TV|SmartTV|Web0S|Tizen|TV Safari)\b|\bTV\b/i.test(navigator.userAgent)) return 'tv';
   const ua = navigator.userAgent, coarse = matchMedia('(pointer:coarse)').matches, fine = matchMedia('(any-pointer:fine)').matches, short = Math.min(screen.width, screen.height);
   if (/iPad|Tablet|SM-[XTP]\d/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'tablet';
   if (/Mobi|iPhone|Android/i.test(ua) || (coarse && short < 600)) return 'phone';
@@ -4917,9 +4932,9 @@ function devKind(){
 let devNow = '';
 function applyDevice(){
   const r = document.documentElement, k = devKind(), land = innerWidth > innerHeight;
-  const wide = k !== 'phone' && innerWidth >= 1000 && innerWidth > innerHeight * 1.15;
-  ['dev-phone', 'dev-tablet', 'dev-desktop'].forEach(c => r.classList.toggle(c, c === 'dev-' + k));
-  r.classList.toggle('land', land); r.classList.toggle('wide', wide);
+  const wide = k !== 'phone' && (innerWidth >= 1000 || k === 'tv') && innerWidth > innerHeight * 1.15;
+  ['dev-phone', 'dev-tablet', 'dev-desktop', 'dev-tv'].forEach(c => r.classList.toggle(c, c === 'dev-' + k));
+  r.classList.toggle('land', land); r.classList.toggle('wide', wide); r.classList.toggle('land-short', land && innerHeight < 720 && innerWidth > 640);
   const tag = k + (land ? ' landscape' : ' portrait') + (wide ? ', split screen' : '');
   if (devNow && devNow !== tag) toast('Layout: ' + tag + '.');
   devNow = tag; const b = $('#devNow'); if (b) b.textContent = tag;
@@ -5011,7 +5026,7 @@ function allStop(){
   toast('All stop.');
 }
 $('#allStop').addEventListener('click', allStop);
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('dialog[open]')) allStop(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('dialog[open]') && !e.defaultPrevented) allStop(); });
 
 /* ================= ▶ Hear: every page has a preview of what it controls ================= */
 let hearStop = null;
@@ -9418,9 +9433,130 @@ $('#wipe').addEventListener('click', async e => {
   for (const k of await projAudioKeys()) await DB.del('audio', k);   // the library and SoundFonts stay
   await DB.put('kv', 'project', null); location.reload();
 });
+
+/* ================= TV remote and game controllers: move around with arrows / D-pad, play the pads with buttons ================= */
+const navOn = () => document.documentElement.classList.contains('dev-tv') || gp.mode === 'menu' && gp.seen;
+const NAV_SEL = 'button, select, input, textarea, .pad, .key, [tabindex]:not([tabindex="-1"])';
+function navItems(){
+  const top = document.querySelector('dialog[open]') || (sheetCard && $('#sheet')) || null;
+  const roots = top ? [top, document.querySelector('header.transport'), $('#nav')].filter(Boolean) : [document];
+  if (top && top.tagName === 'DIALOG') roots.length = 1;
+  return roots.flatMap(r => [...r.querySelectorAll(NAV_SEL)]).filter(e => { if (e.disabled || e.hidden || e.type === 'hidden' || e.type === 'file') return false; const r = e.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth && getComputedStyle(e).visibility !== 'hidden'; });
+}
+function navMove(dir){
+  const items = navItems(); if (!items.length) return;
+  let cur = document.activeElement; if (!items.includes(cur)){ (items.find(e => e.classList.contains('pad')) || items[0]).focus({preventScroll:false}); return; }
+  const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bd = Infinity;
+  for (const e of items){ if (e === cur) continue; const r = e.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, dx = x - ax, dy = y - ay;
+    const along = dir === 'left' ? -dx : dir === 'right' ? dx : dir === 'up' ? -dy : dy, across = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
+    if (along <= 2) continue; const d = along + across * 2.2; if (d < bd){ bd = d; best = e; } }
+  if (best){ best.focus({preventScroll:true}); best.scrollIntoView({block:'nearest', inline:'nearest'}); }
+  else if (sheetCard && (dir === 'left' || dir === 'right')) sheetGo(dir === 'left' ? -1 : 1);
+}
+// press: pads and keys are played (held while the button is down), everything else is clicked
+const navHeld = new Map();
+function navPress(e, down){
+  if (!e) return;
+  if (e.classList.contains('pad')){ const i = +e.dataset.i; if (down) padDown(i, {timeStamp:performance.now()}, S.fullLevel ? 1 : .9); else padUp(i); return; }
+  if (e.classList.contains('key')){
+    const r = e.getBoundingClientRect(), o = {bubbles:true, cancelable:true, clientX:r.left + r.width / 2, clientY:r.top + r.height * .2, pointerId:77, pointerType:'mouse', isPrimary:true};
+    e.dispatchEvent(new PointerEvent(down ? 'pointerdown' : 'pointerup', o)); return;
+  }
+  if (!down) return;
+  if (e.tagName === 'SELECT'){ try { e.showPicker(); } catch(_){ e.focus(); e.click(); } return; }
+  if (e.tagName === 'INPUT' && e.type === 'range') return;
+  if (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA'){ e.focus(); return; }
+  e.click();
+}
+function navBack(){
+  const d = document.querySelector('dialog[open]'); if (d){ d.close(); return true; }
+  if (sheetCard){ sheetClose(); return true; }
+  if (view !== 'drums'){ setView('drums'); return true; }
+  return false;
+}
+function navTab(d){ const tabs = [...document.querySelectorAll('#nav button')], i = tabs.findIndex(b => b.dataset.v === view); const b = tabs[(i + d + tabs.length) % tabs.length]; if (b) b.click(); }
+function navRange(e, d){ const st = +e.step || (e.max - e.min) / 100; e.value = clamp(+e.value + d * st * (e.max - e.min > 2 ? 1 : 2), +e.min, +e.max); e.dispatchEvent(new Event('input', {bubbles:true})); e.dispatchEvent(new Event('change', {bubbles:true})); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaStop'){ e.preventDefault(); playing || e.key === 'MediaStop' ? stop() : start(0); renderTransport(); return; }
+  if ((e.key === 'Escape' || e.key === 'GoBack' || e.key === 'BrowserBack') && navOn()){ if (navBack()) e.preventDefault(); return; }
+  if (!navOn()) return;
+  const t = e.target, dir = {ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right'}[e.key];
+  if (!dir) return;
+  if (t && t.tagName === 'INPUT' && t.type === 'range' && (dir === 'left' || dir === 'right')) return;   // sliders keep left / right
+  if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type !== 'range')) && (dir === 'left' || dir === 'right')) return;
+  e.preventDefault(); document.documentElement.classList.add('nav-on'); navMove(dir);
+}, true);
+document.addEventListener('pointerdown', e => { if (e.pointerId !== 77 && e.pointerType !== 'mouse') document.documentElement.classList.remove('nav-on'); }, true);
+
+// ---- game controllers (standard mapping: Xbox, PlayStation, Switch Pro, 8BitDo, Stadia, generic Bluetooth / USB pads)
+const gp = {seen:false, mode:'menu', prev:new Map(), rep:new Map(), name:''};
+// PLAY mode: which pad each button plays (A01–A16)
+const GP_PADS = {0:0, 1:1, 2:2, 3:3, 13:4, 14:5, 15:6, 12:7, 4:8, 5:9, 6:10, 7:11, 10:12, 11:13, 'rl':14, 'rr':15};
+function gpBadge(){
+  let b = $('#gpBadge'); if (!gp.seen){ if (b) b.remove(); return; }
+  if (!b){ b = document.createElement('div'); b.id = 'gpBadge'; document.body.appendChild(b); }
+  b.textContent = '🎮 ' + (gp.mode === 'play' ? 'PLAY' : 'MENU'); b.classList.toggle('play', gp.mode === 'play');
+  const n = $('#gpNow'); if (n) n.textContent = (gp.name || 'Controller').replace(/\s*\(.*$/, '').slice(0, 28) + ' · ' + gp.mode.toUpperCase();
+}
+function gpRumble(pad, v){ try { const a = pad.vibrationActuator; if (a && a.playEffect) a.playEffect('dual-rumble', {duration:40, strongMagnitude:.15 + v * .4, weakMagnitude:.3}); } catch(e){} }
+function gpPlay(slot, down, v, pad){
+  const fake = {timeStamp:performance.now()};
+  if (view === 'synth'){
+    const id = 'gp' + slot;
+    if (down){ const note = gridNote(slot < 8 ? 0 : 1, slot % 8); keyDown(curSynth(), note, fake, v, id); } else keyUp(id, fake);
+    return;
+  }
+  const i = GP_PADS[slot]; if (i == null) return;
+  if (down){ padDown(i, fake, v); gpRumble(pad, v); const el = document.querySelector('.pad[data-i="' + i + '"]'); if (el){ el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 120); } }
+  else padUp(i);
+}
+function gpPoll(){
+  const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+  for (const pad of pads){
+    if (!gp.seen){ gp.seen = true; gp.name = pad.id; toast('Controller connected: ' + pad.id.replace(/\s*\(.*$/, '').slice(0, 40) + '. Select switches MENU / PLAY.'); gpBadge(); }
+    const prev = gp.prev.get(pad.index) || {b:[], rs:''}, now = Date.now();
+    const B = pad.buttons.map(b => b && (b.pressed || b.value > .35)), val = i => pad.buttons[i] ? Math.max(.35, pad.buttons[i].value || 1) : 1;
+    const ax = pad.axes || [], lx = ax[0] || 0, ly = ax[1] || 0, rx = ax[2] || 0, ry = ax[3] || 0;
+    const edge = i => B[i] && !prev.b[i], rel = i => !B[i] && prev.b[i];
+    if (edge(8)){ gp.mode = gp.mode === 'menu' ? 'play' : 'menu'; gpBadge(); toast(gp.mode === 'play' ? '🎮 PLAY: buttons play the pads (notes on the Synth page).' : '🎮 MENU: D-pad moves, A presses, B goes back.'); document.documentElement.classList.toggle('nav-on', gp.mode === 'menu'); }
+    if (edge(9)){ playing ? stop() : start(0); renderTransport(); }
+    if (gp.mode === 'play'){
+      for (const k of Object.keys(GP_PADS)){ const i = +k; if (isNaN(i)) continue; if (edge(i)) gpPlay(i, true, (i === 6 || i === 7) ? val(i) : S.fullLevel ? 1 : .9, pad); else if (rel(i)) gpPlay(i, false, 0, pad); }
+      // right stick flicks play the last two pads
+      const rs = rx < -.7 ? 'rl' : rx > .7 ? 'rr' : '';
+      if (rs !== prev.rs){ if (prev.rs) gpPlay(prev.rs, false, 0, pad); if (rs) gpPlay(rs, true, Math.min(1, Math.abs(rx)), pad); }
+      prev.rs = rs;
+    } else {
+      document.documentElement.classList.add('nav-on');
+      // D-pad or left stick: move, with key repeat
+      const dir = B[12] || ly < -.6 ? 'up' : B[13] || ly > .6 ? 'down' : B[14] || lx < -.6 ? 'left' : B[15] || lx > .6 ? 'right' : '';
+      const r = gp.rep.get(pad.index) || {dir:'', t:0};
+      if (dir && (dir !== r.dir || now > r.t)){
+        const el = document.activeElement;
+        if (el && el.tagName === 'INPUT' && el.type === 'range' && (dir === 'left' || dir === 'right')) navRange(el, dir === 'left' ? -1 : 1); else navMove(dir);
+        gp.rep.set(pad.index, {dir, t:now + (dir === r.dir ? 90 : 380)});
+      } else if (!dir) gp.rep.set(pad.index, {dir:'', t:0});
+      if (edge(0)) navPress(document.activeElement, true); if (rel(0)) navPress(document.activeElement, false);
+      if (edge(1)) navBack();
+      if (edge(2)) allStop();
+      if (edge(4)) navTab(-1); if (edge(5)) navTab(1);
+      if (edge(3) && sheetCard) sheetGo(1);
+      // right stick up / down scrolls the page
+      if (Math.abs(ry) > .4){ const m = sheetCard ? null : document.querySelector('main'); if (m) m.scrollTop += ry * 18; }
+    }
+    prev.b = B; gp.prev.set(pad.index, prev);
+  }
+  requestAnimationFrame(gpPoll);
+}
+window.addEventListener('gamepadconnected', e => { gp.name = e.gamepad.id; if (!gp.seen){ gp.seen = true; gpBadge(); toast('Controller connected. Select switches MENU / PLAY.'); } });
+window.addEventListener('gamepaddisconnected', () => { if (!(navigator.getGamepads && [...navigator.getGamepads()].some(Boolean))){ gp.seen = false; gpBadge(); const n = $('#gpNow'); if (n) n.textContent = 'None'; toast('Controller disconnected.'); } });
+if (navigator.getGamepads) requestAnimationFrame(gpPoll);
+// TV: start with something focused so the remote works straight away
+setTimeout(() => { if (document.documentElement.classList.contains('dev-tv')){ document.documentElement.classList.add('nav-on'); const p = document.querySelector('.pad'); if (p) p.focus(); } }, 1500);
 let userNav = false;
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => { userNav = true; setView(b.dataset.v); }));
-document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|SELECT/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
+document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.defaultPrevented && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
 window.addEventListener('resize', () => { seqDirty = true; rollDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (outPref()) applyOutput(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
 
