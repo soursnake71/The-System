@@ -92,13 +92,14 @@ class EmulationTests(unittest.TestCase):
     def test_starts_from_any_entry(self):
         for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
             out, _ = self.emulate.run(self.os_file, entry, 1_000_000, rom=self.rom)
-            self.assertEqual(bytes(out["panel"]), b" KEYS", hex(entry))
+            self.assertTrue(bytes(out["panel"]).startswith(b" A"), hex(entry))
 
     def test_shows_panel_bytes_and_dumps_rom(self):
         import syx2rom
-        out, _ = self.emulate.run(self.os_file, 0xE00, 4_000_000, rom=self.rom,
+        out, _ = self.emulate.run(self.os_file, 0xE00, 6_000_000, rom=self.rom,
                                   panel_input=bytes([0xC5]))
-        self.assertEqual(bytes(out["panel"]), b" KEYS C5")
+        # MIDI port report (transmitter off, then on), first message sent, a key
+        self.assertEqual(bytes(out["panel"]), b" A 00 04 M 00 00 I 00 TX KEYS C5")
         good, _ = syx2rom.parse(bytes(out["midi"]))
         self.assertGreater(len(good), 100)
         self.assertIn(0xF80000, good)
@@ -106,9 +107,9 @@ class EmulationTests(unittest.TestCase):
             self.assertEqual(chunk, self.rom[addr - 0xF80000:addr - 0xF80000 + 256])
 
     def test_waits_for_panel_replies(self):
-        out, _ = self.emulate.run(self.os_file, 0xE00, 1_000_000, rom=self.rom, panel_replies=True)
-        self.assertEqual(bytes(out["panel"]), b" KEYS")
-        self.assertEqual(out["replies_read"], 5)
+        out, _ = self.emulate.run(self.os_file, 0xE00, 3_000_000, rom=self.rom, panel_replies=True)
+        self.assertTrue(bytes(out["panel"]).startswith(b" A 00 04 M"))
+        self.assertEqual(out["replies_read"], len(out["panel"]))
 
 
 if __name__ == "__main__":

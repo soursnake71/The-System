@@ -32,7 +32,7 @@ OBJS := $(patsubst src/%,build/%.o,$(SRCS))
 
 all: build/system.bin
 
-build/%.o: src/%
+build/%.o: src/% $(wildcard src/*.h)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -c $< -o $@
 

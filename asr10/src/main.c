@@ -4,8 +4,15 @@
  * sends control codes, since unknown codes may mean something to the panel
  * controller.
  *
- *   - Display: "KEYS" then, for every byte the panel sends (button presses,
- *     slider, keys), its value in hex.
+ *   - Display, first a MIDI port report (all hex):
+ *       "A" status of channel A before and after switching its transmitter
+ *           on (bit 2 = ready to send),
+ *       "M" its two mode registers (MR2 bit 4 = transmitter waits for CTS),
+ *       "I" the input pins (CTS for channel A is pin 0),
+ *       then "TX" once the first ROM message has gone out, or "NOTX" if the
+ *       port never became ready.
+ *     Then "KEYS" and, for every byte the panel sends (button presses), its
+ *     value in hex.
  *   - MIDI Out: the boot ROM, 0xF80000-0xFBFFFF, as a loop of SysEx
  *     messages (format in tools/syx2rom.py). One pass takes about three
  *     minutes, then it starts again.
@@ -59,18 +66,41 @@ static void panel_hex(unsigned char b)
     panel_tx(digits[b & 0x0F]);
 }
 
+/* How long to wait for the first ROM message to go out before reporting
+ * NOTX, in loop passes: a message takes about 170 ms at MIDI speed. */
+#define FIRST_FRAME_TIMEOUT 2000000UL
+
 int main(void)
 {
-    unsigned long addr = ROM_START;
-    int pos = 0;
+    unsigned long addr = ROM_START, spins = 0;
+    int pos = 0, reported = 0;
+    unsigned char mr1, mr2;
 
+    panel_puts(" A");
+    panel_hex(DUART_SRA);
     midi_init();
-    panel_puts(" KEYS");
+    panel_hex(DUART_SRA);
+    DUART_CRA = DUART_CR_MR_PTR;
+    mr1 = DUART_MRA;
+    mr2 = DUART_MRA;
+    panel_puts(" M");
+    panel_hex(mr1);
+    panel_hex(mr2);
+    panel_puts(" I");
+    panel_hex(DUART_IP);
     build_frame(addr);
     for (;;) {
+        if (!reported && ++spins == FIRST_FRAME_TIMEOUT) {
+            panel_puts(" NOTX KEYS");
+            reported = 1;
+        }
         if (DUART_SRA & DUART_TXRDY) {
             DUART_THRA = frame[pos++];
             if (pos == FRAME) {
+                if (!reported) {
+                    panel_puts(" TX KEYS");
+                    reported = 1;
+                }
                 addr += CHUNK;
                 if (addr >= ROM_END)
                     addr = ROM_START;

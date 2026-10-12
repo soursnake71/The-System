@@ -7,15 +7,18 @@
  * up by the time our code runs. */
 #define DUART_BASE  0xFC4801UL
 #define DUART_REG(n) (*(volatile unsigned char *)(DUART_BASE + 2 * (n)))
+#define DUART_MRA   DUART_REG(0x0)  /* mode 1 then mode 2, channel A (read) */
 #define DUART_SRA   DUART_REG(0x1)  /* status, channel A */
 #define DUART_CRA   DUART_REG(0x2)  /* command, channel A */
 #define DUART_THRA  DUART_REG(0x3)  /* transmit, channel A (MIDI out) */
+#define DUART_IP    DUART_REG(0xD)  /* input port pins (read) */
 #define DUART_SRB   DUART_REG(0x9)  /* status, channel B */
 #define DUART_THRB  DUART_REG(0xB)  /* transmit, channel B (panel) */
 #define DUART_RHRB  DUART_REG(0xB)  /* receive, channel B (same address, read) */
 #define DUART_RXRDY 0x01
 #define DUART_TXRDY 0x04
 #define DUART_CR_TX_ON  0x04       /* command: enable transmitter */
+#define DUART_CR_MR_PTR 0x10       /* command: point at mode register 1 */
 
 /* OS 3.53 turns the MIDI transmitter on (CRA = 04) only while it has data
  * to send and off (08) otherwise; the ROM sets baud rate and format. */
