@@ -1381,7 +1381,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v69</span></div>
+      <div class="row"><h2 class="grow">Project</h2><span class="badge" id="appVer">v70</span></div>
       <p class="hint">The app saves to this phone automatically. To install it, open Chrome's menu and tap "Add to Home screen".</p>
       <button id="wipe">New project</button>
       <button id="helpOpen">Open help</button>
@@ -1438,7 +1438,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <button id="sbxPhone" class="nolearn sbx-phone">From phone…</button>
 </dialog>
 <nav id="nav">
-  <button data-v="drums" class="cur">Drums</button>
+  <button data-v="drums" class="cur">Pads</button>
   <button data-v="audio">Audio</button>
   <button data-v="mixer">Mixer</button>
   <button data-v="chop">Chop</button>
@@ -8368,7 +8368,7 @@ stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs')
   if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
     navigator.permissions.query({name:'midi'}).then(r => { if (r.state === 'granted') connectMidi(); }).catch(() => {});
   }
-  let v = 'drums'; try { v = localStorage.getItem('pr-view') || 'drums'; } catch(e){}
+  let v = 'drums';   // always open on the pads
   setView(userNav ? view : v);        // don't jump away from a tab picked while the project was loading
   if ('serviceWorker' in navigator && location.protocol === 'https:'){
     navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(r => r.update()).catch(() => {});
