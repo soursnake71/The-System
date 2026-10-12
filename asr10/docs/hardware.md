@@ -104,7 +104,23 @@ it boots at address 0 and runs from `0xF80000` afterwards.
   reply `C9` sets carry (the failure path). MAME's model treats `FD` after
   `FB` as a calibration request answered with `FF` = calibration OK. This
   is the likely source of the keyboard calibration message. Not called
-  directly anywhere; reached through a table, to trace.
+  directly by the ROM; OS 3.53 calls it.
+
+### Keyboard tuning at start-up (OS 3.53)
+
+- Start-up code at `0x17136` copies a word from ROM `0xF80086` to RAM
+  `0x3BE` and sets RAM `0x3BD` = 1 ("tune the keyboard") on every boot.
+- `0x13096`: if `0x3BD` is set, show a message, then call the ROM's
+  `7F FF FD` request up to 4 times; a `C9` reply means the tuning failed.
+- After 4 failures, a yes/no prompt: yes retries, no clears `0x3BD`,
+  shows a message, and continues at `0x7228`, the same place the OS goes
+  when the flag was never set.
+- `tools/patch_os.py skip-keyboard-tune` changes that `move.b #1,$3BD`
+  to `#0` (one byte, file offset `0x1CB43`), so the OS skips tuning and
+  the prompt, like answering no. It doesn't fix the failure itself:
+  the panel controller reports `C9`, i.e. the keybed measurement fails,
+  which forum reports put down to hardware (connectors, the coil board,
+  trimmers).
 - `0xF89D46` is a crash handler: shows "ERROR - REBOOT ?" and lets the
   panel buttons dump registers.
 

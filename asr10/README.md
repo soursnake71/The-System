@@ -22,7 +22,7 @@ switch off and boot your stock disk again. No chips are changed.
 | Panel explorer: shows the code of each button press | **works** for buttons; keyboard and slider use other hardware |
 | MIDI Out from our OS | **works** (port set up from scratch) |
 | ROM dump over MIDI SysEx (`tools/syx2rom.py`) | **done**: ROM 1.5b, verified against MAME's checksums |
-| Keyboard calibration message on the stock OS | calibration request found in the ROM (`7F FF FD`, reply `C9` = fail); tracing |
+| Keyboard calibration message on the stock OS | found: OS 3.53 asks for tuning on every boot; `make stock-patched` skips it (one byte); cause of the failure still to find |
 | Buttons, slider, keyboard | — |
 | Play a sample through the OTTO | — |
 | Floppy and SCSI drivers, effects | — |
@@ -35,6 +35,7 @@ src/                   the OS (68000 C and assembly)
 tools/ensoniq_disk.py  Ensoniq disk image tool
 tools/make_os.py       wraps our code in an ASR-10 OS file
 tools/hfe.py           converts .img to and from .hfe
+tools/patch_os.py      checked one-byte patches to your own copy of Ensoniq's OS
 tools/syx2rom.py       rebuilds the boot ROM from the explorer's SysEx dump
 tools/rom-recorder.html  records that dump in Chrome (Web MIDI) and shows progress
 tests/                 tests, and a 68000 emulator harness (emulate.py)

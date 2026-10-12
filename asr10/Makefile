@@ -8,6 +8,9 @@
 #                             taken from STOCK's OS, see tools/make_os.py)
 #   make hfe STOCK=...        build/THESYSTEM.hfe, the same disk for a Gotek
 #                             that uses HFE files (STOCK may be .img or .hfe)
+#   make stock-patched STOCK=... PATCHES=skip-keyboard-tune
+#                             build/STOCK-PATCHED.hfe: STOCK with Ensoniq's
+#                             own OS patched (tools/patch_os.py --list)
 #   make disasm OS=local/os.bin ORG=0x...
 #                             disassemble an extracted OS file
 
@@ -54,6 +57,17 @@ disk: build/system.bin
 hfe: disk
 	python3 tools/hfe.py to-hfe build/system.img build/THESYSTEM.hfe
 
+PATCHES ?= skip-keyboard-tune
+stock-patched:
+	@test -n "$(STOCK)" || { echo "set STOCK=<stock OS disk image>"; exit 1; }
+	@mkdir -p build
+	@case "$(STOCK)" in *.hfe|*.HFE) python3 tools/hfe.py to-img $(STOCK) build/stock.img ;; \
+	  *) cp $(STOCK) build/stock.img ;; esac
+	python3 tools/ensoniq_disk.py extract build/stock.img os build/stock-os.bin
+	python3 tools/patch_os.py build/stock-os.bin build/patched-os.bin $(PATCHES)
+	python3 tools/ensoniq_disk.py replace build/stock.img os build/patched-os.bin build/stock-patched.img
+	python3 tools/hfe.py to-hfe build/stock-patched.img build/STOCK-PATCHED.hfe
+
 disasm:
 	@test -n "$(OS)" || { echo "set OS=<extracted OS file>"; exit 1; }
 	$(OBJDUMP) -D -b binary -m m68k:68000 --adjust-vma=$(or $(ORG),0) $(OS)
@@ -64,4 +78,4 @@ test: build/system.bin
 clean:
 	rm -rf build
 
-.PHONY: all disk hfe disasm test clean
+.PHONY: all disk hfe stock-patched disasm test clean
