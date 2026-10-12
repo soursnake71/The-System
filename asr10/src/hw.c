@@ -56,6 +56,22 @@ static void panel_drain(void)
         (void)DUART_RHRB;
 }
 
+/* Sends one byte without waiting for a reply, for commands whose answer
+ * the caller wants to read itself (the ROM sends 7F FF FD this way). */
+int panel_tx_raw(unsigned char byte)
+{
+    return duart_tx(&DUART_SRB, &DUART_THRB, byte);
+}
+
+/* Returns the next byte from the panel, or -1 after that many polls. */
+int panel_rx_wait(unsigned long polls)
+{
+    while (polls--)
+        if (DUART_SRB & DUART_RXRDY)
+            return DUART_RHRB;
+    return -1;
+}
+
 /* Sends one byte, then waits for the panel's reply (or a short timeout)
  * before the next one can go. */
 int panel_tx(unsigned char byte)

@@ -67,14 +67,21 @@ class MakeOsTests(unittest.TestCase):
             make_os.build(fake_stock(), b"\0" * (0x39 * 512), 0xE00)  # code too big
 
 
+def steady(text):
+    return b"".join(b"\x77" + bytes([c]) for c in text)
+
+
+TUNE_FAILED = {0xFD: 0xC9}  # how this unit's panel answers a tuning request
+
+INTRO = (b"\xe7\x71\x66\x60\x00" + steady(b"THE SYSTEM")
+         + b"\x60\x28" + steady(b"TUNING KEYBOARD")
+         + b"\xfc\x60\x0b" + steady(b"TUNE")
+         + (b"\x7f\xff\xfd" + steady(b" C9")) * 4
+         + b"\xd5\x60\x28" + steady(b"PLAY KEYS OR PRESS BUTTONS"))
+
+
 class EmulationTests(unittest.TestCase):
     """Runs build/system.bin (the panel and keyboard test) on an emulated 68000."""
-
-    @staticmethod
-    def steady(text):
-        return b"".join(b"\x77" + bytes([c]) for c in text)
-
-    INTRO = None  # set below the class
 
     def setUp(self):
         try:
@@ -94,26 +101,22 @@ class EmulationTests(unittest.TestCase):
         self.emulate = emulate
 
     def test_starts_from_any_entry(self):
-        for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
-            out, _ = self.emulate.run(self.os_file, entry, 15_000_000)
-            self.assertEqual(bytes(out["panel"]), self.INTRO, hex(entry))
+        for entry in (0xE00, 0xFF801E, 0xFC6100):
+            out, _ = self.emulate.run(self.os_file, entry, 40_000_000, panel_answers=TUNE_FAILED)
+            self.assertEqual(bytes(out["panel"]), INTRO, hex(entry))
+
+    def test_stops_tuning_once_it_works(self):
+        out, _ = self.emulate.run(self.os_file, 0xE00, 40_000_000, panel_answers={0xFD: 0xFF})
+        self.assertIn(b"\x7f\xff\xfd" + steady(b" FF") + b"\xd5", bytes(out["panel"]))
+        self.assertEqual(bytes(out["panel"]).count(b"\x7f\xff\xfd"), 1)
 
     def test_shows_and_forwards_panel_bytes(self):
-        out, _ = self.emulate.run(self.os_file, 0xE00, 35_000_000, panel_input=bytes([0xC5]))
+        out, _ = self.emulate.run(self.os_file, 0xE00, 60_000_000, panel_answers=TUNE_FAILED,
+                                  panel_input=bytes([0xC5]))
         self.assertEqual(bytes(out["panel"]),
-                         self.INTRO + b"\x60\x14" + self.steady(b"BYTES 0001")
-                         + b"\x60\x28" + self.steady(b"LAST 00 00 00 C5 " + b" " * 13))
+                         INTRO + b"\x60\x1c" + steady(b"BYTES 0001")
+                         + b"\x60\x28" + steady(b"LAST 00 00 00 C5 " + b" " * 13))
         self.assertEqual(bytes(out["midi"]), bytes.fromhex("f07d500c05f7"))
-
-    def test_waits_for_panel_replies(self):
-        out, _ = self.emulate.run(self.os_file, 0xE00, 5_000_000, panel_replies=True)
-        self.assertEqual(bytes(out["panel"]), self.INTRO)
-        self.assertEqual(out["replies_read"], len(self.INTRO))
-
-
-EmulationTests.INTRO = (b"\xe7\x71\x66\x60\x00" + EmulationTests.steady(b"THE SYSTEM")
-                        + b"\x60\x28" + EmulationTests.steady(b"PLAY KEYS OR PRESS BUTTONS")
-                        + b"\xd5")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,8 @@ void midi_init(void);
 void midi_setup(void);
 int midi_tx(unsigned char byte);
 int panel_tx(unsigned char byte);
+int panel_tx_raw(unsigned char byte);
+int panel_rx_wait(unsigned long polls);
 void delay(unsigned long loops);
 
 #endif

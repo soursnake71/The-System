@@ -1,10 +1,13 @@
 /* Panel and keyboard test.
  *
- * Starts the panel the way the ROM does (E7, 71), then sends D5, which OS
- * 3.53 sends after keyboard tuning (D0 + its keyboard setting, 5 on this
- * disk) and which is the likely "keyboard on" command.
+ * Follows OS 3.53's start-up order: panel start-up (E7, 71), FC, the
+ * ROM's keyboard tuning request up to four times (7F, FF, FD, each sent
+ * without waiting; the panel's answer to FD is the result, C9 = failed),
+ * then D5 (D0 + the OS's keyboard setting, 5 on this disk). D5 alone left
+ * the keyboard silent.
  *
- *   Line 1: "THE SYSTEM" and a count of bytes received from the panel.
+ *   Line 1: "THE SYSTEM", the answer to each tuning attempt ("--" = none),
+ *           and later a count of bytes received from the panel.
  *   Line 2: the last four bytes, in hex, redrawn when the panel goes quiet.
  *   MIDI Out: every byte the panel sends, as SysEx F0 7D 'P' hi lo F7
  *   (hi and lo are its two hex digits as numbers 0-15), sent as they
@@ -21,6 +24,11 @@
 #define PANEL_CURSOR    0x60
 #define PANEL_CHAR      0x77
 #define PANEL_KEYBOARD  0xD5   /* D0 + OS 3.53's keyboard setting (5) */
+#define PANEL_PRE_TUNE  0xFC   /* sent by OS 3.53 where it requests tuning */
+#define TUNE_FAILED     0xC9
+#define TUNE_TRIES      4
+#define TUNE_GAP        200000UL   /* polls between 7F, FF and FD */
+#define TUNE_WAIT       20000000UL /* polls to wait for the answer (seconds) */
 #define LINE2           40
 
 #define RING            256    /* bytes waiting to go out on MIDI */
@@ -93,8 +101,33 @@ int main(void)
     panel_at(0);
     panel_puts("THE SYSTEM");
     panel_at(LINE2);
-    panel_puts("PLAY KEYS OR PRESS BUTTONS");
+    panel_puts("TUNING KEYBOARD");
+
+    panel_tx(PANEL_PRE_TUNE);
+    panel_at(11);
+    panel_puts("TUNE");
+    for (i = 0; i < TUNE_TRIES; i++) {
+        int answer;
+
+        panel_tx_raw(0x7F);
+        delay(TUNE_GAP);
+        panel_tx_raw(0xFF);
+        delay(TUNE_GAP);
+        panel_tx_raw(0xFD);
+        answer = panel_rx_wait(TUNE_WAIT);
+        panel_putc(' ');
+        if (answer < 0) {
+            panel_puts("--");
+        } else {
+            panel_hex((unsigned char)answer);
+            if (answer != TUNE_FAILED)
+                break;
+        }
+    }
+
     panel_tx(PANEL_KEYBOARD);
+    panel_at(LINE2);
+    panel_puts("PLAY KEYS OR PRESS BUTTONS");
 
     for (;;) {
         if (DUART_SRB & DUART_RXRDY) {
@@ -111,7 +144,7 @@ int main(void)
             dirty = 1;
             quiet = 0;
         } else if (dirty && ++quiet > QUIET) {
-            panel_at(20);
+            panel_at(28);
             panel_puts("BYTES ");
             panel_hex((unsigned char)(count >> 8));
             panel_hex((unsigned char)count);

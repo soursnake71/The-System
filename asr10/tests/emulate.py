@@ -19,8 +19,11 @@ from unicorn.m68k_const import UC_M68K_REG_PC, UC_M68K_REG_SR, UC_CPU_M68K_M6800
 THRA, THRB, SRA, SRB, CRA = 0xFC4807, 0xFC4817, 0xFC4803, 0xFC4813, 0xFC4805
 
 
-def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
+def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b"",
+        panel_answers=None):
     """panel_replies: act like an EPS-style panel that answers every byte.
+    panel_answers: {byte: answer} for commands the panel answers, such as
+    {0xFD: 0xC9} for a failed keyboard tuning.
     rom: bytes to place at 0xF80000 (the boot ROM). panel_input: bytes the
     panel sends, like button presses: each arrives once the panel link has
     been idle for longer than our code waits for a reply."""
@@ -44,7 +47,8 @@ def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
         off += blocks * 512
     out = {"midi": bytearray(), "panel": bytearray(), "replies_read": 0}
     tx_a = {"on": False}  # like the real board: MIDI transmitter starts disabled
-    reply = {"pending": False}
+    reply = {"pending": False, "value": None}
+    answers = panel_answers or {}
     queue = bytearray(panel_input)
     idle = {"reads": 0}  # SRB reads since the last write to the panel
 
@@ -59,6 +63,9 @@ def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
         elif addr == THRB:
             out["panel"].append(value & 0xFF)
             reply["pending"] = panel_replies
+            if (value & 0xFF) in answers:
+                reply["pending"] = True
+                reply["value"] = answers[value & 0xFF]
             idle["reads"] = 0
 
     def on_read(uc, access, addr, size, value, user):
@@ -72,6 +79,9 @@ def run(os_file, entry, count, panel_replies=False, rom=None, panel_input=b""):
             if reply["pending"]:  # reading the reply
                 reply["pending"] = False
                 out["replies_read"] += 1
+                if reply["value"] is not None:
+                    uc.mem_write(addr, bytes([reply["value"]]))
+                    reply["value"] = None
             elif queue:
                 uc.mem_write(addr, bytes([queue.pop(0)]))
 
