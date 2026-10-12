@@ -124,6 +124,20 @@ it boots at address 0 and runs from `0xF80000` afterwards.
 - `0xF89D46` is a crash handler: shows "ERROR - REBOOT ?" and lets the
   panel buttons dump registers.
 
+### Display commands (from the ROM)
+
+OS 3.53 sends display bytes through ROM routines it installs as traps:
+trap 10 = one byte in d2 (`0xF89A5A`), trap 11 = zero-terminated string
+at a2 (`0xF89A34`; a `16` in a string goes out as `00`). The ROM's own
+message screens send:
+
+- `66` clear screen
+- `60 nn` cursor to position nn (`60 00` = top left)
+- `74 n` / `75 n` / `76 n`: button light n off / on / blinking
+  (`0xF8938E`, from the light bits at RAM `0x306`/`0x307`)
+- `77+k c` / `7A+k c` per character in some fields (`0xF8A7E0`; meaning
+  to check)
+
 ## Display commands (guess)
 
 MAME has three Ensoniq display models. All print `0x20`-`0x5F` at the

@@ -18,7 +18,7 @@ switch off and boot your stock disk again. No chips are changed.
 | HFE conversion (for your Gotek) | done, matches your HFE files; checked with Greaseweazle |
 | OS file layout (header, load table, memory map) | found in OS 1.61, see `docs/hardware.md` |
 | First boot: our code runs and writes text on the display | **works** (try 3) |
-| Display commands (clear, cursor) | `66` = clear (from the ROM); cursor still to find |
+| Display commands (clear, cursor) | from the ROM: `66` clear, `60 nn` cursor, `74`-`76` button lights; panel test ready |
 | Panel explorer: shows the code of each button press | **works** for buttons; keyboard and slider use other hardware |
 | MIDI Out from our OS | **works** (port set up from scratch) |
 | ROM dump over MIDI SysEx (`tools/syx2rom.py`) | **done**: ROM 1.5b, verified against MAME's checksums |

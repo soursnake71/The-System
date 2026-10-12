@@ -1,54 +1,22 @@
-/* Panel explorer and ROM dump.
+/* Panel test.
  *
- * Read-only towards the panel: it prints plain uppercase text and never
- * sends control codes, since unknown codes may mean something to the panel
- * controller.
+ * Starts the panel the way the boot ROM does (E7, then 71), then uses the
+ * display commands found in the ROM: 66 clears the screen and 60 nn moves
+ * the cursor to position nn.
  *
- *   - Display, first a short MIDI port report: "A" then channel A's status
- *     (hex; bit 2 = ready to send) as the ROM left it, after switching the
- *     transmitter on, and after setting the port up from scratch; then
- *     "TX" once the first ROM message has gone out, or "NOTX" if the port
- *     never became ready. Kept short: on the ASR-10 a longer report wrapped
- *     and overwrote itself.
- *     Then "KEYS" and, for every byte the panel sends (button presses), its
- *     value in hex.
- *   - MIDI Out: the boot ROM, 0xF80000-0xFBFFFF, as a loop of SysEx
- *     messages (format in tools/syx2rom.py). One pass takes about three
- *     minutes, then it starts again.
+ *   Line 1: a title.
+ *   Line 2: the last four bytes the panel sent, in hex, updated in place.
+ *   MIDI Out: every byte the panel sends, as SysEx F0 7D 'P' hi lo F7
+ *   (hi and lo are its two hex digits as numbers 0-15), so a MIDI monitor
+ *   shows the whole stream, keyboard included if the panel sends it.
  */
 #include "hw.h"
 
-#define ROM_START 0xF80000UL
-#define ROM_END   0xFC0000UL
-#define CHUNK     256
-#define FRAME     (5 + 4 + 2 * CHUNK + 2)  /* header, address, nibbles, sum, F7 */
-
-static unsigned char frame[FRAME];
-
-static void build_frame(unsigned long addr)
-{
-    const volatile unsigned char *rom = (const volatile unsigned char *)addr;
-    unsigned char sum = 0;
-    int i, n = 0;
-
-    frame[n++] = 0xF0;
-    frame[n++] = 0x7D;  /* non-commercial manufacturer ID */
-    frame[n++] = 'A';
-    frame[n++] = 'S';
-    frame[n++] = 'R';
-    frame[n++] = (addr >> 21) & 0x7F;
-    frame[n++] = (addr >> 14) & 0x7F;
-    frame[n++] = (addr >> 7) & 0x7F;
-    frame[n++] = addr & 0x7F;
-    for (i = 0; i < CHUNK; i++) {
-        unsigned char b = rom[i];
-        frame[n++] = b >> 4;
-        frame[n++] = b & 0x0F;
-        sum += (b >> 4) + (b & 0x0F);
-    }
-    frame[n++] = sum & 0x7F;
-    frame[n++] = 0xF7;
-}
+#define PANEL_INIT1   0xE7
+#define PANEL_INIT2   0x71
+#define PANEL_CLEAR   0x66
+#define PANEL_CURSOR  0x60   /* followed by a position */
+#define LINE2         40     /* assumed: second line starts at position 40 */
 
 static void panel_puts(const char *s)
 {
@@ -56,51 +24,59 @@ static void panel_puts(const char *s)
         panel_tx((unsigned char)*s);
 }
 
+static void panel_at(unsigned char pos)
+{
+    panel_tx(PANEL_CURSOR);
+    panel_tx(pos);
+}
+
 static void panel_hex(unsigned char b)
 {
     static const char digits[] = "0123456789ABCDEF";
 
-    panel_tx(' ');
     panel_tx(digits[b >> 4]);
     panel_tx(digits[b & 0x0F]);
 }
 
-/* How long to wait for the first ROM message to go out before reporting
- * NOTX, in loop passes: a message takes about 170 ms at MIDI speed. */
-#define FIRST_FRAME_TIMEOUT 2000000UL
+static void midi_report(unsigned char b)
+{
+    midi_tx(0xF0);
+    midi_tx(0x7D);
+    midi_tx('P');
+    midi_tx(b >> 4);
+    midi_tx(b & 0x0F);
+    midi_tx(0xF7);
+}
 
 int main(void)
 {
-    unsigned long addr = ROM_START, spins = 0;
-    int pos = 0, reported = 0;
+    unsigned char last[4] = { 0, 0, 0, 0 };
+    int i;
 
-    panel_puts(" A");
-    panel_hex(DUART_SRA);
-    midi_init();
-    panel_hex(DUART_SRA);
     midi_setup();
-    panel_hex(DUART_SRA);
-    build_frame(addr);
+    panel_tx(PANEL_INIT1);
+    panel_tx(PANEL_INIT2);
+    panel_tx(PANEL_CLEAR);
+    panel_at(0);
+    panel_puts("THE SYSTEM   PANEL TEST");
+    panel_at(LINE2);
+    panel_puts("PRESS BUTTONS OR KEYS");
+
     for (;;) {
-        if (!reported && ++spins == FIRST_FRAME_TIMEOUT) {
-            panel_puts(" NOTX KEYS");
-            reported = 1;
-        }
-        if (DUART_SRA & DUART_TXRDY) {
-            DUART_THRA = frame[pos++];
-            if (pos == FRAME) {
-                if (!reported) {
-                    panel_puts(" TX KEYS");
-                    reported = 1;
-                }
-                addr += CHUNK;
-                if (addr >= ROM_END)
-                    addr = ROM_START;
-                build_frame(addr);
-                pos = 0;
+        if (DUART_SRB & DUART_RXRDY) {
+            unsigned char b = DUART_RHRB;
+
+            midi_report(b);
+            for (i = 0; i < 3; i++)
+                last[i] = last[i + 1];
+            last[3] = b;
+            panel_at(LINE2);
+            panel_puts("LAST ");
+            for (i = 0; i < 4; i++) {
+                panel_hex(last[i]);
+                panel_tx(' ');
             }
+            panel_puts("          ");
         }
-        if (DUART_SRB & DUART_RXRDY)
-            panel_hex(DUART_RHRB);
     }
 }

@@ -68,7 +68,10 @@ class MakeOsTests(unittest.TestCase):
 
 
 class EmulationTests(unittest.TestCase):
-    """Runs build/system.bin (the panel explorer and ROM dump) on an emulated 68000."""
+    """Runs build/system.bin (the panel test) on an emulated 68000."""
+
+    INTRO = (b"\xe7\x71\x66\x60\x00THE SYSTEM   PANEL TEST"
+             b"\x60\x28PRESS BUTTONS OR KEYS")
 
     def setUp(self):
         try:
@@ -78,7 +81,6 @@ class EmulationTests(unittest.TestCase):
         code_path = os.path.join(HERE, "..", "build", "system.bin")
         if not os.path.exists(code_path):
             self.skipTest("run make first")
-        import random
         import tempfile
         code = open(code_path, "rb").read()
         code += b"\0" * (len(code) % 2)
@@ -87,29 +89,22 @@ class EmulationTests(unittest.TestCase):
         self.addCleanup(os.unlink, f.name)
         self.os_file = f.name
         self.emulate = emulate
-        self.rom = bytes(random.Random(5).getrandbits(8) for _ in range(0x40000))
 
     def test_starts_from_any_entry(self):
         for entry in (0xE00, 0x4000, 0xFF801E, 0x9C02, 0xFC6100):
-            out, _ = self.emulate.run(self.os_file, entry, 1_000_000, rom=self.rom)
-            self.assertTrue(bytes(out["panel"]).startswith(b" A"), hex(entry))
+            out, _ = self.emulate.run(self.os_file, entry, 9_000_000)
+            self.assertEqual(bytes(out["panel"]), self.INTRO, hex(entry))
 
-    def test_shows_panel_bytes_and_dumps_rom(self):
-        import syx2rom
-        out, _ = self.emulate.run(self.os_file, 0xE00, 6_000_000, rom=self.rom,
-                                  panel_input=bytes([0xC5]))
-        # MIDI port report (transmitter off, then on), first message sent, a key
-        self.assertEqual(bytes(out["panel"]), b" A 00 04 04 TX KEYS C5")
-        good, _ = syx2rom.parse(bytes(out["midi"]))
-        self.assertGreater(len(good), 100)
-        self.assertIn(0xF80000, good)
-        for addr, chunk in good.items():
-            self.assertEqual(chunk, self.rom[addr - 0xF80000:addr - 0xF80000 + 256])
+    def test_shows_and_forwards_panel_bytes(self):
+        out, _ = self.emulate.run(self.os_file, 0xE00, 20_000_000, panel_input=bytes([0xC5]))
+        self.assertEqual(bytes(out["panel"]),
+                         self.INTRO + b"\x60\x28LAST 00 00 00 C5           ")
+        self.assertEqual(bytes(out["midi"]), bytes.fromhex("f07d500c05f7"))
 
     def test_waits_for_panel_replies(self):
-        out, _ = self.emulate.run(self.os_file, 0xE00, 3_000_000, rom=self.rom, panel_replies=True)
-        self.assertTrue(bytes(out["panel"]).startswith(b" A 00 04 04"))
-        self.assertEqual(out["replies_read"], len(out["panel"]))
+        out, _ = self.emulate.run(self.os_file, 0xE00, 3_000_000, panel_replies=True)
+        self.assertEqual(bytes(out["panel"]), self.INTRO)
+        self.assertEqual(out["replies_read"], len(self.INTRO))
 
 
 if __name__ == "__main__":
