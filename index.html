@@ -860,6 +860,25 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+.rkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.rktile{display:flex !important;flex-direction:column;align-items:stretch;gap:3px;padding:6px !important;text-align:left;background:#1b1d20 !important;border:1px solid #00000088 !important;border-radius:6px !important;color:#ece8dd !important}
+.rktile.on{outline:2px solid #ef5a2a}
+.rkface{width:100%;aspect-ratio:4.2;display:block;border-radius:2px}
+.rktile b{font:700 12px "Barlow Condensed",sans-serif;letter-spacing:.04em}.rktile small{font-size:10px;color:#9aa3ad;line-height:1.2}
+.unitdlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;padding:0;border:0;background:#141517;color:#ece8dd}
+.unitdlg[open]{display:flex;flex-direction:column}
+.unitbar{display:flex;gap:6px;align-items:center;padding:8px;background:#0c0d0e;border-bottom:1px solid #000}
+.unitbar span{font:700 15px "Barlow Condensed",sans-serif;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unitbar button{padding:8px 10px !important;min-width:40px}
+#unitBody{--ks:1;flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:10px 12px;box-sizing:border-box}
+.rkface.big{aspect-ratio:auto;height:calc(96px * var(--ks));flex:none}
+.unitsel{display:flex;flex-wrap:wrap;gap:6px}.usel{display:flex;flex-direction:column;gap:2px;flex:1 1 140px;font:400 9px "Michroma",sans-serif;letter-spacing:.08em;color:#c9c4b7}.usel select{width:100%}
+.unitknobs{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(84px * var(--ks)),1fr));gap:calc(8px * var(--ks)) 4px;align-content:start}
+.unitknobs .knob{min-width:0}.unitknobs .kcap{width:calc(52px * var(--ks));height:calc(52px * var(--ks))}
+.hbtn{flex:0 0 auto !important;min-width:40px}
+#sheetBack{white-space:nowrap;flex:none;padding:6px 10px !important;font-size:12px !important;display:flex !important;align-items:center;gap:4px}
+.sheet-bar .hundo,.sheet-bar .hredo{flex:none;padding:6px 9px !important}
+.hundo:disabled,.hredo:disabled{opacity:.35}
 .djcrate .librow.sel{background:#2b3a4a;outline:1px solid #46a6ff;border-radius:3px}
 #libUp,#libDn{padding:8px 12px !important}
 .librow select{padding:6px 0;font-size:14px;min-width:0;width:100%;text-align:center}
@@ -1718,6 +1737,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Casio SK-1</b> and <b>E-mu Emax</b>: samplers at the machines' rates and bit depths (8-bit 9.4 kHz / 12-bit 27.8 kHz). Play a built-in tone, a pad's sound, or load a file. The Emax adds its 4-pole filter and envelopes.</li>
         <li><b>DR-110, DMX, Synsonics</b> (Pads): step grids like the machines. Load their sounds onto the pads, tap the grid to program, Accent for loud hits.</li>
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
+        <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
+        <li><b>Undo / redo</b>: ↶ and ↷ are on every screen (the section buttons along the bottom, every opened section and every rack unit) and Ctrl+Z / Ctrl+Shift+Z on a keyboard. They step back and forward through every change you make, up to 80 steps.</li>
+        <li><b>UREI 1176LN</b> (FX rack, and on any track: FX → Compressor → Type): the FET limiter, circuit-modelled: input transformer, FET gain cell whose distortion grows with gain reduction, feedback side chain with the 1176's attack (20–800 µs) and program-dependent release, ratios 4 / 8 / 12 / 20 and all buttons in, class-A output stage. Input sets how hard it works (the threshold is fixed, like the real one); the needle shows gain reduction.</li>
+        <li><b>Phil Collins Simulator</b> (FX rack): the 1979–80 Townhouse drum sound: a big stone room, crushed by the SSL 4000's listen-mic compressor so the room comes up as loud as the hit, then the SSL channel gate keyed by the dry drum lets it swell and snaps it shut. Send the drums (or just the snare and toms) to it.</li>
         <li><b>A/DA Flanger</b> (FX rack): the 1977 flanger's bucket-brigade line, compander and 40:1 sweep (0.25–10 ms). Manual sets the delay, Range how far the sweep goes, Speed the LFO, Enhance the regeneration (Even / Odd sets its phase), Threshold a noise gate in front. Long delays get the BBD's grainy, darker sound.</li>
         <li><b>Microverb</b> (FX rack): the Alesis Microverb's 16 programs (halls, rooms, plates, gated, reverse).</li>
         <li><b>Resonance tamer + clipper</b> (FX → Master): finds harsh peaks and turns them down as they happen; the clipper adds drive and holds a ceiling.</li>
@@ -1849,7 +1872,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v105</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v106</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -1862,9 +1885,13 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 </main>
 
 <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
-  <div class="sheet-bar"><button id="sheetPrev" class="nolearn" aria-label="Previous page">◀</button><span id="sheetTtl" class="grow"></span><span id="sheetPg" class="mono"></span><button id="sheetRand" class="nolearn" aria-label="Random preset" title="Random preset">🎲</button><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">▶</button><button id="sheetX" class="nolearn" aria-label="Close">✕</button></div>
+  <div class="sheet-bar"><button id="sheetBack" class="nolearn" aria-label="Back">◀ Back</button><button id="sheetPrev" class="nolearn" aria-label="Previous page">‹</button><span id="sheetTtl" class="grow"></span><button class="hundo nolearn" aria-label="Undo">↶</button><button class="hredo nolearn" aria-label="Redo">↷</button><span id="sheetPg" class="mono"></span><button id="sheetRand" class="nolearn" aria-label="Random preset" title="Random preset">🎲</button><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">›</button><button id="sheetX" class="nolearn" aria-label="Close" hidden>✕</button></div>
   <div id="sheetBody"></div>
 </div>
+<dialog id="unitDlg" class="unitdlg" aria-labelledby="unitT">
+  <div class="unitbar"><button id="unitBack" class="nolearn">◀ Back</button><span id="unitT" class="grow"></span><button id="unitHear" class="nolearn hearbtn">▶ Hear</button><button class="hundo nolearn" aria-label="Undo">↶</button><button class="hredo nolearn" aria-label="Redo">↷</button></div>
+  <div id="unitBody"></div>
+</dialog>
 <dialog id="padMenu" aria-labelledby="padMenuT"><h2 id="padMenuT">A01</h2>
   <button data-a="del" class="nolearn">Delete sound</button>
   <button data-a="delall" class="nolearn">Delete sound and its hits</button>
@@ -1998,7 +2025,7 @@ const DB = {
   del(s, k){ return this.op(s, 'readwrite', st => st.delete(k)); }
 };
 let saveT = 0;
-function save(){ clearTimeout(saveT); saveT = setTimeout(() => { storeScene(); DB.put('kv', 'project', S); }, 400); }
+function save(){ clearTimeout(saveT); saveT = setTimeout(() => { storeScene(); DB.put('kv', 'project', S); if (typeof histPush === 'function') histPush(); }, 400); }
 function storeAudio(key, buf){
   const ch = []; for (let c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c).slice());
   return DB.put('audio', key, {sr:buf.sampleRate, ch});
@@ -2301,7 +2328,7 @@ const KITS = {
 };
 
 /* ================= FX rack definitions ================= */
-const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp', 'mv', 'ad'];
+const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp', 'mv', 'ad', 'u7', 'pc'];
 const RET_KEYS = ['rev', 'dly', ...RACK_KEYS];
 // FX returns on the mixer; the old fixed return levels were reverb 0.9 and 1.0 for the rest
 function retState(k){ const M = S.master; M.ret = M.ret || {}; if (!M.ret[k]) M.ret[k] = {vol:k === 'rev' ? .8 : .845, mute:false, solo:false, pan:0}; return M.ret[k]; }
@@ -2318,8 +2345,24 @@ const dpXf = a => a === 'pitch' ? v => { const s = Math.round((v - .5) * 24); re
 function dpKnobs(){ const out = []; for (let k = 1; k <= 4; k++){ out.push([k + ' Mix', 'm' + k, 0, 1, .01, pctF, P => P['a' + k] !== 'off']);
   for (const [a] of DP_ALGS.slice(1)){ out.push([k + ' ' + DP_X[a], 'x' + k, 0, 1, .01, dpXf(a), P => P['a' + k] === a]); out.push([k + ' ' + DP_Y[a], 'y' + k, 0, 1, .01, pctF, P => P['a' + k] === a]); } }
   out.push(['Return', 'ret', 0, 1, .01, pctF]); return out; }
+const U76_RATIOS = [[4, '4:1'], [8, '8:1'], [12, '12:1'], [20, '20:1'], ['all', 'All buttons in']];
+const U76_KNOBS = [['Input', 'input', 0, 1, .01, v => (v * 50 - 20 >= 0 ? '+' : '') + Math.round(v * 50 - 20) + ' dB'], ['Output', 'output', 0, 1, .01, v => (v * 40 - 30 >= 0 ? '+' : '') + Math.round(v * 40 - 30) + ' dB'],
+  ['Attack', 'attack', 1, 7, .1, v => v.toFixed(1)], ['Release', 'release', 1, 7, .1, v => v.toFixed(1)], ['Mix', 'mix', 0, 1, .01, v => Math.round(v * 100) + '%']];
 const MV_PROGS = ['1 Small room', '2 Medium room', '3 Large room', '4 Small hall', '5 Medium hall', '6 Large hall', '7 Bright plate', '8 Warm plate', '9 Big hall', '10 Huge hall', '11 Gated 1', '12 Gated 2', '13 Reverse 1', '14 Reverse 2', '15 Ambience', '16 Dark hall'];
 const RACK = {
+  pc:{name:'Phil Collins Simulator', sub:'SSL listen-mic crush into a gated stone room', short:'Phil Collins', proc:'gatedroom',
+    def:() => ({size:.75, decay:2.4, crush:.85, thresh:-30, hold:280, snap:8, range:60, tone:.6, direct:0, ret:.8}),
+    knobs:[['Room size', 'size', 0, 1, .01, pctF], ['Room decay', 'decay', .3, 5, .05, v => v.toFixed(1) + ' s'], ['Listen-mic crush', 'crush', 0, 1, .01, pctF], ['Gate threshold', 'thresh', -60, 0, 1, v => v + ' dB'],
+      ['Gate hold', 'hold', 20, 800, 5, v => Math.round(v) + ' ms'], ['Gate snap', 'snap', 1, 200, 1, v => Math.round(v) + ' ms'], ['Gate range', 'range', 0, 80, 1, v => '−' + Math.round(v) + ' dB'], ['Room tone', 'tone', 0, 1, .01, pctF], ['Direct', 'direct', 0, 1, .01, pctF], ['Level', 'ret', 0, 1, .01, pctF]],
+    presets:{'In the Air Tonight (the fill)':{size:.85, decay:2.8, crush:.9, thresh:-32, hold:300, snap:7}, 'Intruder (1980)':{size:.65, decay:2, crush:1, thresh:-30, hold:230, snap:4}, 'Big 80s snare':{size:.7, decay:2.2, crush:.75, thresh:-26, hold:360, snap:22},
+      'Tom fill thunder':{size:.95, decay:3.5, crush:.85, thresh:-34, hold:480, snap:14}, 'Tight gate':{size:.55, decay:1.4, crush:.8, thresh:-24, hold:120, snap:3}, 'Talkback mic only':{size:.3, decay:.6, crush:1, thresh:-60, hold:800, snap:120, range:0},
+      'Natural room (no gate)':{size:.7, decay:1.6, crush:.35, thresh:-60, hold:800, snap:200, range:0}, 'Reverse-ish swell':{size:.9, decay:4, crush:1, thresh:-28, hold:600, snap:2}}},
+  u7:{name:'UREI 1176LN', sub:'FET limiting amplifier', short:'1176', proc:'urei1176',
+    def:() => ({input:.55, output:.62, attack:5, release:4, ratio:4, mix:1, ret:.8}),
+    menus:[['Ratio', 'ratio', U76_RATIOS]],
+    knobs:U76_KNOBS.concat([['Level', 'ret', 0, 1, .01, pctF]]),
+    presets:{'Vocal 4:1':{input:.55, output:.55, attack:5, release:5, ratio:4}, 'Drum smash (all buttons)':{input:.75, output:.45, attack:6, release:7, ratio:'all', mix:.6}, 'New York parallel':{input:.8, output:.5, attack:6, release:6, ratio:20, mix:1},
+      'Bass even-out 8:1':{input:.6, output:.55, attack:3, release:3, ratio:8}, 'Peak limiter 20:1':{input:.5, output:.6, attack:7, release:5, ratio:20}, 'Room crush':{input:.85, output:.4, attack:7, release:7, ratio:'all'}, 'Slow attack punch':{input:.65, output:.55, attack:1, release:6, ratio:8}}},
   ad:{name:'A/DA Flanger', sub:'SAD1024 bucket brigade, 40:1 sweep', short:'A/DA', proc:'adaflanger',
     def:() => ({manual:.45, range:.7, speed:.3, enh:.5, odd:0, thresh:0, mix:.5, stereo:0, ret:.8}),
     menus:[['Enhance phase', 'odd', [[0, 'Even (+)'], [1, 'Odd (−)']]], ['Output', 'stereo', [[0, 'Mono'], [1, 'Stereo (wet inverted right)']]]],
@@ -2527,7 +2570,7 @@ function rackNodes(c, m){
   for (const k of RACK_KEYS){
     const u = m.rk[k]; if (u.node) continue;
     u.node = new AudioWorkletNode(c, RACK[k].proc, {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:rackCfg(k)}});
-    u.in.connect(u.node).connect(u.ret); u.sent = null;
+    u.in.connect(u.node).connect(u.ret); u.sent = null; u.node.port.onmessage = e => { if (e.data && e.data.gr != null) u.gr = e.data.gr; };
   }
 }
 function applyRack(c, m){
@@ -2604,7 +2647,7 @@ function insertRedux(c, s){
 // connect only the stages a track is using; an effect at zero is taken out of the chain so it costs no CPU
 function wireStrip(s, t){
   const use = {sat:(t.sat || 0) > 0, rdx:!!s.rdx && (!!t.sp12 || (t.crush || 0) > 0), eq:!!(t.low || t.mid || t.high), filt:t.ftype !== 'off',
-    ch:(t.chorus || 0) > 0, comp:t.comp > 0, ap:(t.apan || 0) > 0, mt:!!(t.match && t.match.gains && t.match.amount > 0)};
+    ch:(t.chorus || 0) > 0, comp:t.compType === '1176' ? !!s.u76 : t.comp > 0, u76:t.compType === '1176' && !!s.u76, ap:(t.apan || 0) > 0, mt:!!(t.match && t.match.gains && t.match.amount > 0)};
   const key = Object.values(use).map(Number).join('');
   if (s._wire === key) return; s._wire = key;
   for (const n of [s.vocOut, s.satOut, s.high, s.filt, s.chIn, s.chOut, s.apDepth]) n.disconnect();
@@ -2619,7 +2662,7 @@ function wireStrip(s, t){
   if (use.filt) to(s.filt);
   to(s.chIn); s.chIn.connect(s.chOut);
   if (use.ch) s.chIn.connect(s.chSend);
-  if (use.comp) s.chOut.connect(s.comp); else s.chOut.connect(s.compDry);
+  if (use.u76) s.chOut.connect(s.u76); else if (use.comp) s.chOut.connect(s.comp); else s.chOut.connect(s.compDry);
   if (use.ap) s.apDepth.connect(s.pan.pan);
 }
 // the 31 one-third-octave peaking filters of an EQ match, built only when something uses them
@@ -2666,6 +2709,7 @@ function makeStrip(c, m){
   s.mute.connect(m.bus); s.mute.connect(s.an); s.mute.connect(s.sa).connect(m.revIn); s.mute.connect(s.sb).connect(m.dlyIn);
   return s;
 }
+function c76State(t){ const d = {input:.55, output:.62, attack:5, release:4, ratio:4, mix:1}; t.c76 = t.c76 || {}; for (const k in d) if (t.c76[k] == null) t.c76[k] = d[k]; return t.c76; }
 function anySolo(){ return allTracks().some(t => t.solo); }
 
 // vinyl & tape noise: made only when used; it listens to the sound (sidechain) and adds its noise beside it
@@ -2682,6 +2726,9 @@ function applyVinyl(c, holder, side, dest, o, follow){
   holder.vin.port.postMessage({hiss:o.vHiss || 0, crackle:o.vCrk || 0, pops:o.vPop || 0, rumble:o.vRum || 0, follow:follow ? 1 : 0, level:o.vMix == null ? .6 : o.vMix});
 }
 function applyStrip(c, s, t){
+  if (t.compType === '1176' && !s.u76 && c._reduxOK){ s.u76 = new AudioWorkletNode(c, 'urei1176', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{insert:true, cfg:c76State(t)}});
+    s.u76.port.onmessage = e => { s.gr76 = e.data.gr; }; s.u76.connect(s.duck); s._wire = null; }
+  if (s.u76) s.u76.port.postMessage({type:'cfg', cfg:c76State(t)});
   wireStrip(s, t);
   applyVinyl(c, s, s.input, s.duck, t, true);
   sp(c, s.low.gain, t.low); sp(c, s.mid.gain, t.mid); sp(c, s.high.gain, t.high);
@@ -4780,6 +4827,89 @@ class ADAFlanger extends RackUnit{
   }
 }
 registerProcessor('adaflanger', ADAFlanger);
+/* UREI 1176LN (rev D/E), circuit-level: input transformer (low-end bloom and gentle saturation) -> the FET gain cell, a
+   2N5457 used as a voltage-controlled resistor in a shunt attenuator, so its distortion (mostly 2nd harmonic) grows with
+   the gain reduction -> class-A line amp and output transformer (asymmetric soft clip). It is a FEEDBACK design: the side
+   chain listens after the gain cell, through the ratio divider (4, 8, 12, 20; all buttons in biases it into a ~20:1 snarl
+   with overshoot and extra distortion). Attack 20-800 us, release 50 ms-1.1 s with the program-dependent second time
+   constant; knobs run 1-7 like the hardware (7 = fastest). The threshold is fixed, so INPUT sets how hard it works. */
+class UREI1176 extends RackUnit{
+  constructor(o){ super(o); this.gr = 0; this.slow = 0; this.yp = 0; this.hpL = 0; this.hpR = 0; this.dcL = 0; this.dcR = 0; this.ins = !!(o && o.processorOptions && o.processorOptions.insert); this.meter = 0; }
+  reset(){ this.gr = this.slow = this.yp = 0; }
+  tail(){ return this.ins ? 1e9 : 2; }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, inG = Math.pow(10, ((C.input == null ? .5 : C.input) * 50 - 20) / 20), outG = Math.pow(10, ((C.output == null ? .5 : C.output) * 40 - 30) / 20);
+    const all = C.ratio === 'all', ratio = all ? 20 : +(C.ratio || 4), thr = .126;                      // fixed threshold about -18 dBFS
+    const atk = (20 + (7 - (C.attack == null ? 4 : C.attack)) / 6 * 780) * 1e-6 * (all ? 1.6 : 1), rel = (.05 + (7 - (C.release == null ? 4 : C.release)) / 6 * 1.05);
+    const aA = 1 - Math.exp(-1 / (fs * atk)), aR = 1 - Math.exp(-1 / (fs * rel)), aS = 1 - Math.exp(-1 / (fs * rel * 5)), hpA = 1 - Math.exp(-2 * Math.PI * 18 / fs);
+    const mix = C.mix == null ? 1 : C.mix, slope = 1 - 1 / ratio;
+    for (let i = 0; i < N; i++){
+      let l = a ? a[i] : 0, r = b ? b[i] : l; const dl = l, dr = r;
+      // input transformer: coupling high-pass and core saturation on big low end
+      this.hpL += hpA * (l - this.hpL); this.hpR += hpA * (r - this.hpR); l -= this.hpL * .9; r -= this.hpR * .9;
+      l = tnh(l * .5) / .5 * inG; r = tnh(r * .5) / .5 * inG;                                             // transformer sees line level; INPUT pot after it
+      // side chain: the rectified audio (no RMS smoothing, so fast settings ripple on bass like the real one). The loop is a
+      // feedback loop, which settles at over x (1 - 1/ratio) and moves ratio times faster than its RC network alone
+      const lv = Math.max(Math.abs(l), Math.abs(r), 1e-6), over = 20 * Math.log10(lv / thr);
+      const tgt = over > 0 ? Math.min(40, over * slope * (all ? 1.25 : 1) + (all ? 2 : 0)) : 0;
+      if (tgt > this.gr) this.gr += Math.min(.9, aA * ratio * .3) * (tgt - this.gr); else { this.slow += aS * (this.gr - this.slow); this.gr += aR * (Math.max(tgt, this.slow * .6) - this.gr); }
+      // FET cell: gain from the side-chain voltage, 2nd-harmonic distortion rising with the reduction
+      const g = Math.pow(10, -this.gr / 20), d2 = Math.min(.25, this.gr * .006) * (all ? 2.2 : 1);
+      let yl = l * g, yr = r * g; yl += d2 * yl * yl; yr += d2 * yr * yr;
+      // line amp and output transformer: asymmetric soft clip, DC blocked
+      yl = tnh(yl * 1.2 + .1 * yl * yl) / 1.2 * outG * 2.7; yr = tnh(yr * 1.2 + .1 * yr * yr) / 1.2 * outG * 2.7;
+      this.dcL += (yl - this.dcL) * .0004; this.dcR += (yr - this.dcR) * .0004; yl -= this.dcL; yr -= this.dcR;
+      const ret = this.ins ? 1 : (C.ret == null ? .8 : C.ret);
+      L[i] = (yl * mix + dl * (1 - mix)) * ret; R[i] = (yr * mix + dr * (1 - mix)) * ret;
+    }
+    this.meter = this.gr; if ((currentFrame & 4095) < N) this.port.postMessage({gr:this.gr});
+  }
+}
+registerProcessor('urei1176', UREI1176);
+/* Phil Collins Simulator: the 1979-80 Townhouse sound (Hugh Padgham, Peter Gabriel's third album, then "In the Air
+   Tonight"). The drums excite a live stone room: room mics (early reflections off the walls, size-scaled) and the room's
+   tail (a four-line feedback delay network, damped like a hard room). That room signal goes through the SSL 4000's
+   talkback / listen-mic compressor, a brutal fast-attack, near-infinite-ratio crusher that pulls the room's decay up
+   to the level of the hit. Then the SSL channel gate, keyed by the dry drum (not the room), lets the huge room swell and
+   snaps it shut when the hit falls below the threshold: hold, then a very fast release, down by the gate's range. */
+class PCSim extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.er = new DLine(Math.ceil(fs * .25)); this.fd = [0, 1, 2, 3].map(() => new DLine(Math.ceil(fs * .25))); this.lp = [0, 0, 0, 0];
+    this.ce = 0; this.ke = 0; this.hold = 0; this.gg = 0; this.hp = [0, 0]; this.tl = [0, 0]; }
+  reset(){ this.er.clear(); this.fd.forEach(d => d.clear()); this.lp.fill(0); this.ce = this.ke = this.gg = this.hold = 0; }
+  tail(){ return 1 + (this.c.decay || 2); }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, size = .35 + (C.size == null ? .7 : C.size) * .9, rt = C.decay || 2, crush = C.crush == null ? .8 : C.crush;
+    const ER = [7.1, 11.3, 13.9, 17.2, 19.7, 23.1, 29.3, 31.7, 37.1, 41.9], EG = [.9, .8, .75, .7, .62, .55, .5, .44, .4, .35];
+    const FL = [29.7, 37.1, 41.1, 43.7].map(ms => Math.round(ms * size * fs / 1000)), FG = FL.map(n => Math.pow(10, -3 * n / fs / rt));
+    const dampA = .25 + (C.tone == null ? .6 : C.tone) * .7, hpA = 1 - Math.exp(-2 * Math.PI * 110 / fs);
+    const cA = 1 - Math.exp(-1 / (fs * .0002)), cR = 1 - Math.exp(-1 / (fs * (.04 + (1 - crush) * .25))), cthr = Math.pow(10, (-18 - crush * 24) / 20), cmk = Math.pow(10, crush * 26 / 20);
+    const thr = Math.pow(10, (C.thresh == null ? -30 : C.thresh) / 20), holdN = (C.hold == null ? 280 : C.hold) / 1000 * fs, rel = 1 - Math.exp(-1 / (fs * Math.max(.001, (C.snap == null ? 8 : C.snap) / 1000)));
+    const kA = 1 - Math.exp(-1 / (fs * .0005)), kR = 1 - Math.exp(-1 / (fs * .02)), range = Math.pow(10, -(C.range == null ? 60 : C.range) / 20), ret = C.ret == null ? .8 : C.ret, dir = C.direct || 0;
+    for (let i = 0; i < N; i++){
+      const x = a ? (a[i] + b[i]) * .5 : 0;
+      // room mics: early reflections, alternating sides
+      this.er.push(x); let el = 0, eR = 0;
+      for (let k = 0; k < 10; k++){ const v = this.er.at(Math.round(ER[k] * size * fs / 1000)) * EG[k]; if (k & 1) eR += v; else el += v; }
+      // the room's tail: 4-line FDN, Hadamard feedback, damped
+      const o = this.fd.map((d, k) => d.at(FL[k]));
+      for (let k = 0; k < 4; k++){ this.lp[k] += dampA * (o[k] - this.lp[k]); }
+      const p = this.lp, h = [p[0] + p[1] + p[2] + p[3], p[0] - p[1] + p[2] - p[3], p[0] + p[1] - p[2] - p[3], p[0] - p[1] - p[2] + p[3]];
+      const inj = (el + eR) * .25 + x * .3;
+      for (let k = 0; k < 4; k++) this.fd[k].push(inj + h[k] * .5 * FG[k]);
+      let wl = el * .5 + o[0] + o[2] * .6, wr = eR * .5 + o[1] + o[3] * .6;
+      // SSL desk low cut on the room mics
+      this.hp[0] += hpA * (wl - this.hp[0]); wl -= this.hp[0]; this.hp[1] += hpA * (wr - this.hp[1]); wr -= this.hp[1];
+      // talkback / listen-mic compressor: crushes the room so its decay comes up to the hit
+      const lv = Math.max(Math.abs(wl), Math.abs(wr)); this.ce += (lv > this.ce ? cA : cR) * (lv - this.ce);
+      const cg = this.ce > cthr ? Math.pow(cthr / this.ce, .95) : 1; wl = tnh(wl * cg * cmk); wr = tnh(wr * cg * cmk);
+      // SSL channel gate, keyed by the dry drum: open fast, hold, then snap shut
+      const kl = Math.abs(x); this.ke += (kl > this.ke ? kA : kR) * (kl - this.ke);
+      if (this.ke > thr){ this.hold = holdN; this.gg += (1 - this.gg) * .5; } else if (this.hold > 0) this.hold--; else this.gg += (range - this.gg) * rel;
+      L[i] = (wl * this.gg * .5 + x * dir) * ret; R[i] = (wr * this.gg * .5 + x * dir) * ret;
+    }
+  }
+}
+registerProcessor('gatedroom', PCSim);
 /* Resonance tamer + clipper for the master (in the spirit of soothe2 and a mastering clipper): 18 log-spaced bands track
    the spectrum; a band poking out above its neighbours by more than the threshold gets a matching dynamic cut, eased in
    and out. Then an oversampled clipper (soft-to-hard knee) with a ceiling. */
@@ -6434,6 +6564,7 @@ function chipBar(v){
     bar._key = key; bar.innerHTML = '';
     cards.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = c.dataset.chip || sheetTitle(c) || 'More'; b._card = c;
       b.addEventListener('click', () => { if (sheetCard === c) sheetClose(); else sheetOpen(c); }); bar.appendChild(b); });
+    bar.insertAdjacentHTML('beforeend', '<button class="hundo nolearn hbtn" aria-label="Undo">↶</button><button class="hredo nolearn hbtn" aria-label="Redo">↷</button>'); histPaint();
   }
   bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b._card === sheetCard));
 }
@@ -6604,6 +6735,7 @@ function hearFor(c){
 function hearPaint(){ const b = $('#sheetHear'); if (!b) return; const f = hearFor(sheetCard); b.hidden = !f; b._f = f;
   const toggles = sheetCard && (sheetCard.querySelector('#seq, #roll, #launchQ, #songMode') || sheetCard.classList.contains('tt') || sheetCard.classList.contains('mixdj'));
   b.textContent = toggles ? (sheetCard.classList.contains('tt') || sheetCard.classList.contains('mixdj') ? (deckState().on ? '■ Stop' : '▶ Play') : (playing ? '■ Stop' : '▶ Play')) : '▶ Hear'; }
+$('#sheetBack').addEventListener('click', () => sheetClose());
 $('#sheetHear').addEventListener('click', () => { const b = $('#sheetHear'); if (b._f){ try { b._f(); } catch(e){ console.warn(e); } } setTimeout(hearPaint, 150); });
 
 // a long press must never pop up the phone's copy / select / share menu
@@ -7961,7 +8093,13 @@ function renderFx(){
   const dps = dp.querySelector('select'); dps.value = t.duckSrc ? 't:' + t.duckSrc : String(t.duckPad || 0); dps.addEventListener('change', () => { if (dps.value.startsWith('t:')){ t.duckSrc = dps.value.slice(2); } else { t.duckSrc = ''; t.duckPad = +dps.value; } save(); applyAll(); toast(t.duckSrc ? t.name + ' now ducks whenever ' + (trackById(t.duckSrc) || {}).name + ' plays (raise Amount).' : 'Ducked by the pad.'); }); g.appendChild(dp);
   ctl(g, 'Release', t, 'duckRel', .03, .8, .01, v => Math.round(v * 1000) + ' ms', after);
   add('<span class="label">Compressor</span>'); g = grid();
-  ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
+  { const r = document.createElement('div'); r.className = 'ctl'; r.innerHTML = '<label class="label" for="compType">Type</label><select id="compType"><option value="">Clean (VCA)</option><option value="1176">UREI 1176LN (FET)</option></select>';
+    const se = r.querySelector('select'); se.value = t.compType || ''; se.addEventListener('change', () => { t.compType = se.value; applyAll(); save(); renderFx(); }); g.appendChild(r); }
+  if (t.compType === '1176'){ const C7 = c76State(t);
+    const r = document.createElement('div'); r.className = 'ctl'; r.innerHTML = '<label class="label" for="c76Ratio">Ratio</label><select id="c76Ratio">' + U76_RATIOS.map(([v, x]) => `<option value="${v}">${x}</option>`).join('') + '</select>';
+    const se = r.querySelector('select'); se.value = String(C7.ratio); se.addEventListener('change', () => { C7.ratio = isNaN(+se.value) ? se.value : +se.value; applyAll(); save(); }); g.appendChild(r);
+    for (const [lb, k, mn, mx, st, fm] of U76_KNOBS) ctl(g, lb, C7, k, mn, mx, st, fm, after); }
+  else ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
   add('<span class="label">Sends</span>'); g = grid();
   ctl(g, 'Reverb', t, 'sendA', 0, 1, .01, pct, after); ctl(g, 'Delay', t, 'sendB', 0, 1, .01, pct, after);
   add('<span class="label">Sends to the FX rack</span>'); g = grid();
@@ -7972,25 +8110,130 @@ function renderFx(){
 }
 
 // FX rack faceplates: each unit has a presets menu, its own menus and knobs
-function renderRack(){
-  const box = $('#rackCard'); if (!box) return; box.innerHTML = '<h2>FX rack</h2><p class="hint">Send any track to these units with its Sends to the FX rack sliders (tap FX on a mixer strip). Each unit returns into the master.</p>';
-  for (const k of RACK_KEYS){
-    const R = RACK[k], P = rackState(k), u = document.createElement('div');
-    u.className = 'unit u-' + k;
-    u.innerHTML = `<div class="uhead"><b>${R.name}</b><span>${R.sub}</span></div>`;
-    const g = document.createElement('div'); g.className = 'ctls'; g.id = 'rk-' + k;
-    const sel = (label, key, opts, fn) => {
-      const row = document.createElement('div'); row.className = 'ctl'; const id = 'rk-' + k + '-' + key;
-      row.innerHTML = `<label class="label" for="${id}">${label}</label><select id="${id}">${opts.map(([v, txt]) => `<option value="${v}">${txt}</option>`).join('')}</select>`;
-      const se = row.querySelector('select'); se.value = key ? String(P[key]) : ''; se.addEventListener('change', () => fn(se.value)); g.appendChild(row);
-    };
-    sel('Presets', '', [['', 'Choose…'], ...Object.keys(R.presets).map(n => [n, n])], v => { if (!v) return; Object.assign(P, R.def(), R.presets[v]); applyAll(); save(); renderRack(); });
-    for (const [label, key, opts] of R.menus || []) sel(label, key, opts, v => { P[key] = isNaN(+v) ? v : +v; applyAll(); save(); renderRack(); });
-    for (const [label, key, mn, mx, st, fmt, show] of R.knobs) if (!show || show(P)) ctl(g, label, P, key, mn, mx, st, fmt, () => applyAll());
-    u.appendChild(g); box.appendChild(u);
+/* ================= FX rack: a picture of every unit; tap one and all of its controls open on one screen ================= */
+const FACE = {
+  pt:{bg:'#c4c7cb', fg:'#202124', acc:'#e0302a', brand:'LEXICON', model:'PrimeTime 93', disp:'led'},
+  ef:{bg:'#1c1e21', fg:'#e9e6dc', acc:'#3fa9ff', brand:'DELTALAB', model:'EFFECTRON ADM 1024', disp:'leds'},
+  h9:{bg:'#26282b', fg:'#a9c7e8', acc:'#e0302a', brand:'EVENTIDE', model:'H910 HARMONIZER', disp:'led'},
+  mx:{bg:'#121314', fg:'#e8e8e8', acc:'#e0302a', brand:'MXR', model:'113 DIGITAL DELAY', disp:'leds'},
+  lx:{bg:'#ddd6c3', fg:'#2a2620', acc:'#e0302a', brand:'LEXICON · AMS', model:'224 / RMX16', disp:'led'},
+  dp:{bg:'#18191b', fg:'#c9c9c9', acc:'#8ef07a', brand:'ENSONIQ', model:'DP/4', disp:'lcd'},
+  mv:{bg:'#202022', fg:'#efefef', acc:'#e0302a', brand:'ALESIS', model:'MICROVERB', disp:'led'},
+  ad:{bg:'#2e5f8f', fg:'#ffffff', acc:'#ff4a3a', brand:'A/DA', model:'FLANGER', disp:'leds'},
+  u7:{bg:'#151515', fg:'#e9e9e9', acc:'#f2c14e', brand:'UREI', model:'1176LN PEAK LIMITER', disp:'vu'},
+  pc:{bg:'#868c92', fg:'#ffffff', acc:'#e0302a', brand:'SSL 4000 · TOWNHOUSE', model:'PHIL COLLINS SIMULATOR', disp:'gate'},
+};
+function drawFace(cv, k, big){
+  const F = FACE[k] || {bg:'#333', fg:'#eee', acc:'#e33', brand:'', model:RACK[k].name, disp:'leds'}, R = RACK[k], P = rackState(k);
+  const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w || !h) return;
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d'), ear = h * .38;
+  // rack ears with screw slots, the faceplate, a brushed sheen
+  g.fillStyle = '#8d9196'; g.fillRect(0, 0, w, h);
+  g.fillStyle = F.bg; g.fillRect(ear, 0, w - ear * 2, h);
+  const sh = g.createLinearGradient(0, 0, 0, h); sh.addColorStop(0, '#ffffff22'); sh.addColorStop(.5, '#ffffff05'); sh.addColorStop(1, '#00000033'); g.fillStyle = sh; g.fillRect(ear, 0, w - ear * 2, h);
+  for (const x of [ear * .5, w - ear * .5]) for (const y of [h * .22, h * .78]){ g.fillStyle = '#2a2b2e'; g.beginPath(); g.ellipse(x, y, ear * .22, ear * .13, 0, 0, 7); g.fill(); }
+  // brand and model
+  const fs = Math.max(6 * dpr, h * .16);
+  g.fillStyle = F.fg; g.textBaseline = 'top'; g.textAlign = 'left'; g.font = `700 ${fs}px Michroma, sans-serif`; g.fillText(F.brand, ear + h * .12, h * .12);
+  g.font = `400 ${fs * .72}px Michroma, sans-serif`; g.globalAlpha = .85; g.fillText(F.model, ear + h * .12, h * .12 + fs * 1.25); g.globalAlpha = 1;
+  // the display
+  const dx = ear + h * .12, dy = h * .58, dw = Math.min(w * .28, h * 1.3), dh = h * .3, used = retUsed(k);
+  if (F.disp === 'led' || F.disp === 'lcd'){
+    g.fillStyle = F.disp === 'lcd' ? '#1f2a14' : '#140404'; g.fillRect(dx, dy, dw, dh);
+    const kn = R.knobs[0], txt = kn ? String(kn[5] ? kn[5](P[kn[1]]) : P[kn[1]]).replace(/[^\w.:%\- ]/g, '').slice(0, 8) : '';
+    g.fillStyle = F.disp === 'lcd' ? '#8ef07a' : '#ff3b1f'; g.font = `700 ${dh * .7}px "JetBrains Mono", monospace`; g.textBaseline = 'middle'; g.fillText(txt, dx + dh * .2, dy + dh * .52);
+  } else if (F.disp === 'vu'){
+    const vw = Math.min(w * .3, h * 1.5), vx = dx, vy = h * .48, vh = h * .44; g.fillStyle = '#f3e7c4'; g.fillRect(vx, vy, vw, vh);
+    g.strokeStyle = '#222'; g.lineWidth = dpr; g.beginPath(); g.arc(vx + vw / 2, vy + vh * 1.35, vh * 1.1, -2.2, -.94); g.stroke();
+    const gr = (live && live.master && live.master.rk.u7 && live.master.rk.u7.gr) || 0, a = -.94 - Math.min(1, gr / 20) * 1.26;
+    g.strokeStyle = '#111'; g.beginPath(); g.moveTo(vx + vw / 2, vy + vh * 1.35); g.lineTo(vx + vw / 2 + Math.cos(a) * vh * 1.2, vy + vh * 1.35 + Math.sin(a) * vh * 1.2); g.stroke();
+    g.fillStyle = '#222'; g.font = `${vh * .22}px Barlow, sans-serif`; g.textBaseline = 'top'; g.fillText('GAIN REDUCTION', vx + vh * .1, vy + vh * .05);
+  } else {
+    const n = F.disp === 'gate' ? 6 : 8; for (let i = 0; i < n; i++){ const on = used && (F.disp === 'gate' ? i < 2 : i % 3 === 0); g.fillStyle = on ? F.acc : '#00000088'; g.beginPath(); g.arc(dx + dh * .4 + i * dh * .8, dy + dh * .5, dh * .22, 0, 7); g.fill(); }
   }
-  if (mlearn) markMapped();
+  // knobs: one per control (as many as fit), pointers set from the real values
+  const ks = R.knobs.slice(0, 6), x0 = dx + Math.max(dw, Math.min(w * .3, h * 1.5)) + h * .3, room = w - ear - h * .15 - x0, kr = Math.min(h * .2, room / ks.length / 2.6);
+  ks.forEach(([lb, key, mn, mx], i) => { const cx = x0 + (i + .5) * room / ks.length, cy = h * .55, v = (P[key] - mn) / (mx - mn || 1), an = -2.36 + clamp(v, 0, 1) * 4.71;
+    g.fillStyle = '#0d0d0e'; g.beginPath(); g.arc(cx, cy, kr * 1.08, 0, 7); g.fill();
+    const kg = g.createRadialGradient(cx - kr * .3, cy - kr * .3, kr * .1, cx, cy, kr); kg.addColorStop(0, '#d9dcdf'); kg.addColorStop(1, '#6d7175'); g.fillStyle = k === 'u7' || k === 'pc' ? kg : '#2b2c2f'; g.beginPath(); g.arc(cx, cy, kr, 0, 7); g.fill();
+    g.strokeStyle = k === 'u7' || k === 'pc' ? '#111' : '#f1f1f1'; g.lineWidth = Math.max(1, kr * .18); g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.sin(an) * kr * .85, cy - Math.cos(an) * kr * .85); g.stroke();
+    if (big){ g.fillStyle = F.fg; g.font = `${Math.max(6 * dpr, kr * .5)}px Barlow, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText(lb.toUpperCase().slice(0, 10), cx, cy + kr * 1.2); g.textAlign = 'left'; } });
+  // power LED
+  g.fillStyle = used ? F.acc : '#3a0d0b'; g.beginPath(); g.arc(w - ear - h * .14, h * .2, h * .05, 0, 7); g.fill();
 }
+function renderRack(){
+  const box = $('#rackCard'); if (!box) return;
+  box.innerHTML = '<h2>FX rack</h2><p class="hint">Tap a unit to open it. Send tracks to it with each track’s FX rack sends (FX on a mixer strip).</p><div class="rkgrid"></div>';
+  const grid = box.querySelector('.rkgrid');
+  for (const k of RACK_KEYS){
+    const R = RACK[k], b = document.createElement('button'); b.className = 'rktile nolearn' + (retUsed(k) ? ' on' : ''); b.dataset.k = k;
+    b.innerHTML = `<canvas class="rkface" aria-hidden="true"></canvas><b>${R.name}</b><small>${R.sub}</small>`;
+    b.addEventListener('click', () => unitOpen(k)); grid.appendChild(b);
+  }
+  requestAnimationFrame(() => grid.querySelectorAll('.rktile').forEach(t => drawFace(t.querySelector('canvas'), t.dataset.k)));
+  if (unitK) unitRender();
+}
+let unitK = null;
+function unitOpen(k){ unitK = k; const d = $('#unitDlg'); if (!d.open) d.showModal(); ensureAudio(); unitRender(); }
+function unitClose(){ unitK = null; const d = $('#unitDlg'); if (d.open) d.close(); renderRack(); }
+function unitRender(){
+  const k = unitK; if (!k) return; const R = RACK[k], P = rackState(k), body = $('#unitBody');
+  $('#unitT').textContent = R.name;
+  body.innerHTML = `<canvas class="rkface big" id="unitFace" aria-hidden="true"></canvas><div class="unitsel"></div><div class="unitknobs"></div>`;
+  const sels = body.querySelector('.unitsel'), kb = body.querySelector('.unitknobs');
+  const sel = (label, key, opts, fn) => { const id = 'uk-' + k + '-' + (key || 'preset'), w = document.createElement('label'); w.className = 'usel';
+    w.innerHTML = `<span>${label}</span><select id="${id}">${opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;
+    const se = w.querySelector('select'); se.value = key ? String(P[key]) : ''; se.addEventListener('change', () => fn(se.value)); sels.appendChild(w); };
+  sel('Preset', '', [['', 'Choose…'], ...Object.keys(R.presets).map(n => [n, n])], v => { if (!v) return; Object.assign(P, R.def(), R.presets[v]); applyAll(); applyRack(ctx, live.master); save(); unitRender(); });
+  for (const [label, key, opts] of R.menus || []) sel(label, key, opts, v => { P[key] = isNaN(+v) ? v : +v; applyAll(); applyRack(ctx, live.master); save(); unitRender(); });
+  for (const [label, key, mn, mx, st, fmt, show] of R.knobs) if (!show || show(P)) knob(kb, label, P, key, mn, mx, st, fmt, () => { applyAll(); if (live) applyRack(ctx, live.master); drawFace($('#unitFace'), k, true); }, 'black');
+  // fit everything on one screen: shrink the knobs until nothing scrolls
+  requestAnimationFrame(() => { let s = 1; body.style.setProperty('--ks', s); drawFace($('#unitFace'), k, true);
+    while (body.scrollHeight > body.clientHeight + 2 && s > .55){ s -= .05; body.style.setProperty('--ks', s.toFixed(2)); }
+    if (s >= 1){ while (s < 1.45){ body.style.setProperty('--ks', (s + .05).toFixed(2)); if (body.scrollHeight > body.clientHeight + 2){ body.style.setProperty('--ks', s.toFixed(2)); break; } s += .05; } }
+    drawFace($('#unitFace'), k, true); });
+  if (mlearn) markMapped(); histPaint();
+}
+// play a few drum hits straight into the open unit (and dry), so it can be heard without setting up a send
+function unitHear(){
+  const k = unitK; if (!k) return; ensureAudio(); if (!live || !live.master.rk[k]) return; applyRack(ctx, live.master);
+  const now = ctx.currentTime + .05, step = 60 / S.bpm / 2, g = ctx.createGain(); g.gain.value = .9; g.connect(live.master.rk[k].in);
+  const hit = live.master.rk[k].in; if (live.master.rk[k].node) live.master.rk[k].wired = true;
+  [[0, 0], [1, 2], [0, 3], [0, 4], [1, 6]].forEach(([pi, n]) => { const p = S.drum.pads[pi], b = p && buffers.get(p.sample); if (!b) return; const s = ctx.createBufferSource(); s.buffer = b; s.connect(g); s.connect(live.master.bus); s.start(now + n * step); });
+  setTimeout(() => g.disconnect(), 6000);
+}
+$('#unitBack').addEventListener('click', unitClose);
+$('#unitDlg').addEventListener('cancel', e => { e.preventDefault(); unitClose(); });
+$('#unitHear').addEventListener('click', unitHear);
+setInterval(() => { if (unitK === 'u7' && $('#unitDlg').open) drawFace($('#unitFace'), 'u7', true); }, 100);
+
+/* ================= undo / redo for everything: a snapshot of the project after each change (up to 80 steps) ================= */
+const HIST = {st:[], i:-1};
+const histSnap = () => JSON.stringify(S, (k, v) => (k && k[0] === '_') || ArrayBuffer.isView(v) ? undefined : v);
+function histPush(){ let j; try { j = histSnap(); } catch(e){ return; } if (j === HIST.st[HIST.i]) return; HIST.st.length = HIST.i + 1; HIST.st.push(j); if (HIST.st.length > 80) HIST.st.shift(); HIST.i = HIST.st.length - 1; histPaint(); }
+// copy a snapshot back into the live project, keeping the same objects (tracks by id) so nothing loses its link
+function deepRestore(t, s){
+  if (Array.isArray(t)){ const out = s.map((v, i) => { if (v && typeof v === 'object' && !Array.isArray(v)){ const ex = v.id != null ? t.find(x => x && x.id === v.id) : t[i]; if (ex && typeof ex === 'object' && !Array.isArray(ex)){ deepRestore(ex, v); return ex; } } return v; }); t.length = 0; out.forEach(v => t.push(v)); return; }
+  for (const k of Object.keys(t)) if (!(k in s) && k[0] !== '_' && !ArrayBuffer.isView(t[k])) delete t[k];
+  for (const k in s){ const v = s[k], c = t[k]; if (v && typeof v === 'object' && c && typeof c === 'object' && Array.isArray(v) === Array.isArray(c) && !ArrayBuffer.isView(c)) deepRestore(c, v); else t[k] = v; }
+}
+function histGo(d){
+  const n = HIST.i + d; if (n < 0 || n >= HIST.st.length) return; HIST.i = n;
+  deepRestore(S, JSON.parse(HIST.st[n]));
+  try { applyAll(); if (live){ applyMaster(ctx, live.master); applyRack(ctx, live.master); } } catch(e){}
+  (S.synths || []).forEach(t => { try { solCfg(t); } catch(e){} });
+  seqDirty = true; rollDirty = true;
+  try { renderPads(); renderTransport();
+    if (view === 'drums') renderPadEditor(); if (view === 'audio') renderTracks(); if (view === 'mixer'){ renderMixer(); renderRack(); } if (view === 'chop') renderChop();
+    if (view === 'song') renderSong(); if (view === 'synth') renderSynth(); if (view === 'deck') renderDeck(); if (view === 'setup'){ renderInput(); renderMidi(); }
+    if ($('#fxDlg').open) fxShow(fxTarget); if (unitK) unitRender(); } catch(e){ console.warn(e); }
+  save(); histPaint(); toast(d < 0 ? 'Undone.' : 'Redone.');
+}
+function histPaint(){ document.querySelectorAll('.hundo').forEach(b => b.disabled = HIST.i <= 0); document.querySelectorAll('.hredo').forEach(b => b.disabled = HIST.i >= HIST.st.length - 1); }
+document.addEventListener('click', e => { const b = e.target.closest('.hundo, .hredo'); if (!b || mlearn) return; histGo(b.classList.contains('hundo') ? -1 : 1); });
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA/.test(e.target.tagName)){ e.preventDefault(); histGo(e.shiftKey ? 1 : -1); } });
+setTimeout(histPush, 1500);
 function drawMatch(key = 'master'){
   const cv = $('#matchCv-' + key.replace(/\W/g, '')); if (!cv) return;
   const M = matchOf(key), amt = key === 'master' ? masterEq().amount : M && M.amount, dpr = devicePixelRatio || 1, w = cv.width = Math.round(cv.clientWidth * dpr), h = cv.height = Math.round(cv.clientHeight * dpr), g = cv.getContext('2d');
@@ -10550,6 +10793,7 @@ Object.assign(ANA_PRESETS.juno60, {
   'Lead · Saw Lead':{m1:1, m2:0, sub:.3, cut:.65, res:.25, fenv:.2, s:.9, r:.2, lfoPitch:.06, lfoDelay:.5, chorus:1}, 'Lead · Chip Square':{m1:0, m2:1, pw:.5, cut:.85, res:0, s:1, r:.1, ampGate:1, chorus:0},
   'Arp · Sequence Pluck':{m1:1, m2:0, cut:.25, res:.45, fenv:.6, d:.22, s:0, r:.18, chorus:1}, 'FX · Siren':{m1:1, m2:0, cut:.6, res:.3, lfoPitch:.6, lfoRate:.35, s:1, r:.3, chorus:0}});
 Object.assign(ANA_PRESETS.sh101, {
+  'Seq · Major Tom (Coming Home)':{m1:.7, w1:1, pw:.4, m2:1, sub:.55, subType:0, cut:.3, res:.5, fenv:.6, kf:.7, a:0, d:.2, s:.12, r:.1, velCut:.3}, 'Lead · Major Tom Lead':{m1:.9, w1:1, pw:.3, m2:.6, sub:.2, cut:.55, res:.3, fenv:.3, a:.02, d:.5, s:.75, r:.3, glide:.15, lfoPitch:.07, lfoDelay:.45},
   'Bass · Square Bass':{m1:0, m2:1, w1:4, sub:.6, cut:.28, res:.2, fenv:.4, d:.3, s:.4, r:.1}, 'Bass · Pulse Bass':{m1:.9, m2:0, pw:.25, sub:.5, cut:.25, res:.35, fenv:.5, d:.25, s:.2, r:.1},
   'Bass · Electro Bass':{m1:0, m2:1, sub:.7, subType:1, cut:.18, res:.5, fenv:.6, d:.2, s:0, r:.08}, 'Bass · Glide Bass':{m1:0, m2:1, sub:.6, cut:.25, res:.4, fenv:.45, d:.35, s:.3, r:.1, glide:.4},
   'Bass · Rave Hoover Bass':{m1:.9, m2:1, pwm:.6, lfoRate:.4, sub:.5, cut:.4, res:.2, fenv:.3, s:.8, r:.15}, 'Bass · Thick Sub':{m1:0, m2:.5, sub:1, cut:.2, res:.1, fenv:.25, d:.4, s:.6, r:.12},
