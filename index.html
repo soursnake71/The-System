@@ -860,6 +860,14 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+.gsbox{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.gssteps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}.gsst{padding:9px 0 !important;font:400 9px "JetBrains Mono",monospace !important;background:#1d1f22 !important;color:#888 !important}
+.gsst.beat{border-bottom:2px solid #c8a23a !important}.gsst.on{background:#ef5a2a !important;color:#111 !important}.gsst.acc{background:#7a3a22 !important;color:#eee !important}
+#gsOn.on{background:#ef5a2a !important;color:#111 !important}
+.choirp,.discop{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:6px;border:1px solid #3a2a2a}
+.choirp{background:linear-gradient(180deg,#1a0d0d,#070404)}.discop{background:linear-gradient(180deg,#2a1530,#0e0610);border-color:#6a4a2a}
+.choir-head,.disco-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.choir-head b{font:400 18px "Michroma",sans-serif;letter-spacing:.3em;color:#c94a3a}.disco-head b{font:700 18px "Barlow Condensed",sans-serif;letter-spacing:.14em;color:#f2c14e;text-shadow:0 0 8px #f2c14e88}
+.choir-head i,.disco-head i{font:400 8px "Michroma",sans-serif;letter-spacing:.18em;color:#a89a8c;font-style:normal}
 .pianop{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:6px;background:linear-gradient(180deg,#1a1715,#0b0a09);border:1px solid #3a3128}
 .piano-head{display:flex;align-items:baseline;gap:10px}.piano-head b{font:400 16px "Michroma",sans-serif;letter-spacing:.18em;color:#e9dcc0}.piano-head i{font:400 8px "Michroma",sans-serif;letter-spacing:.2em;color:#a89a7c;font-style:normal}
 #pianoPedal{white-space:nowrap;font:400 9px "Michroma",sans-serif !important;letter-spacing:.08em}#pianoPedal.on{background:#c8a23a !important;color:#111 !important}
@@ -1158,7 +1166,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="piano">Grand Piano</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="piano">Grand Piano</option><option value="choir">Choir</option><option value="disco">Disco Strings</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -1215,6 +1223,18 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="row"><select id="pianoPreset" class="grow" aria-label="Piano presets"></select><button id="pianoPedal" data-momentary="1" aria-label="Sustain pedal">SUSTAIN PEDAL</button></div>
         <div id="pianoCtls"></div>
         <p class="hint">Hold Sustain pedal (or the pedal on your MIDI keyboard, CC 64) and the notes ring on with the strings resonating together. Samples: Salamander Grand Piano by Alexander Holm (CC-BY 3.0).</p>
+      </div>
+      <div id="choirPanel" class="choirp" hidden>
+        <div class="choir-head"><b>CHOIR</b><i>FORMANT VOICES · SATB · CATHEDRAL</i></div>
+        <select id="choirPreset" aria-label="Choir presets"></select>
+        <div id="choirCtls"></div>
+        <p class="hint">Every note is sung by the sections you turn up, each in its own range, several singers per section with their own pitch, drift and vibrato, through the formants of real vowels. Hold chords; slow attacks and the cathedral make it dark.</p>
+      </div>
+      <div id="discoPanel" class="discop" hidden>
+        <div class="disco-head"><b>DISCO STRINGS</b><i>VIOLINS · VIOLAS · CELLOS · STUDIO HALL</i></div>
+        <select id="discoPreset" aria-label="Disco strings presets"></select>
+        <div id="discoCtls"></div>
+        <p class="hint">A full string section the way disco arrangers used it: octave lines, stabs on the off-beats, falls off the end of a phrase, rip-ups into the hit, and swells.</p>
       </div>
       <div id="czPanel" class="czp" hidden>
         <div class="cz-head"><b>CASIO</b><span>CZ-101</span><i>PHASE DISTORTION</i></div>
@@ -1741,6 +1761,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Commodore 128</b> (Synth → Instruments): the SID chip, three voices with triangle / saw / pulse / noise, ring mod, sync, the chip's envelopes and gritty 6581 filter; Poly, Mono (stacked) and 60 Hz Arpeggio. Presets include the C128 BASIC 7.0 instruments.</li>
         <li><b>Roland D-50</b>: LA synthesis with 7 structures of PCM attack and synth partials, Upper / Lower tones (whole, dual, split), chorus and reverb.</li>
         <li><b>PPG Wave 2.2</b>: 8-bit wavetables (30 tables, 64 waves each) swept by envelope 3, the LFO and wheel, through a 24 dB filter. The display shows the table.</li>
+        <li><b>Choir</b> (Synth → instrument): a formant-synthesis choir: bass, tenor, alto and soprano sections (each sings in its own range), several singers per section with their own pitch drift and vibrato, real vowel formants (oo, oh, ah, eh, ee, plus a closed-mouth hum), breath, darkness and a cathedral. Dark presets (Hellraiser Cathedral, Sister Mary Requiem, Monks, Doom, Ghost Whispers) and classic ones.</li>
+        <li><b>Disco Strings</b> (Synth → instrument): a studio string section the way disco records used it: octave doubling, cellos underneath, and articulations: sustain, stabs, falls, rip-ups and swells, through violin-family body resonances, bow noise and a studio hall.</li>
+        <li><b>Gate stepper</b> (any track: FX → Gate stepper): a 16-step volume gate locked to the tempo, for the chopped synth and guitar parts of 80s pop and dance (patterns include the synth-pop 8ths of "Don't You Want Me" and the gated guitar of "Pure Energy"). Tap a step: full → accent → off. Step size, length, depth, attack, release, swing and mix.</li>
         <li><b>Grand Piano</b> (Synth → instrument): a real sampled concert grand (Yamaha C5) with the piano modelled around it: velocity changes both loudness and brightness, hammer knock on hard notes, dampers (none in the top octaves, like a real piano) and their thump, the sustain pedal (button, or CC 64 from your keyboard's pedal) with the strings resonating together, stretch tuning, lid open / half / closed, and player or audience mics. 12 presets.</li>
         <li><b>Juno-60, SH-101, JX-3P, Minimoog, Six-Trak, CS-80</b> (Synth → instrument): circuit-modelled at twice the sample rate. DCO synths (Juno, JX-3P, Six-Trak) stay exactly in tune; VCO synths (SH-101, Minimoog, CS-80) drift a few cents as they warm. Each has its own filter circuit: Roland IR3109 OTA ladder (bass thins as resonance rises), Moog transistor ladder (its mixer overdrives when the sources are loud), Curtis CEM3394, and the CS-80's high-pass into low-pass per layer. Every voice has its own part tolerances, RC envelopes and a saturating VCA; the Juno/JX chorus is a modelled bucket-brigade line with its hiss.</li>
         <li><b>Casio CZ-101</b>: phase distortion, 8 waves, two lines (1, 2, 1+1′, 1+2′) with DCW and DCA envelopes, ring and noise mod.</li>
@@ -1883,7 +1906,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v107</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v108</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2720,6 +2743,19 @@ function makeStrip(c, m){
   s.mute.connect(m.bus); s.mute.connect(s.an); s.mute.connect(s.sa).connect(m.revIn); s.mute.connect(s.sb).connect(m.dlyIn);
   return s;
 }
+const GS_PRESETS = {
+  "Synth-pop 8ths (Don't You Want Me)":{steps:[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], rate:16, duty:.75, atk:.002, rel:.025, swing:0},
+  'Pure Energy gated guitar':{steps:[1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, .6, 1, 0], rate:16, duty:.55, atk:.001, rel:.012, swing:0},
+  'Straight 16ths chop':{steps:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rate:16, duty:.5, atk:.001, rel:.01},
+  'Trance gate':{steps:[1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1], rate:16, duty:.65, atk:.002, rel:.02},
+  'Off-beat pump':{steps:[0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0], rate:16, duty:.95, atk:.01, rel:.06},
+  'Accented 16ths':{steps:[1, .4, .6, .4, 1, .4, .6, .4, 1, .4, .6, .4, 1, .4, .6, 1], rate:16, duty:.6, atk:.001, rel:.015},
+  'Triplet chop':{steps:[1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1], rate:24, duty:.6, atk:.001, rel:.012},
+  'Stutter 32nds':{steps:[1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0], rate:32, duty:.5, atk:.001, rel:.006},
+  'Swing 16ths':{steps:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], rate:16, duty:.55, atk:.002, rel:.015, swing:.5}};
+function gsState(t){ const d = {on:0, steps:GS_PRESETS["Synth-pop 8ths (Don't You Want Me)"].steps.slice(), rate:16, duty:.75, depth:1, atk:.002, rel:.025, swing:0, mix:1}; t.gs = t.gs || {}; for (const k in d) if (t.gs[k] == null) t.gs[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; return t.gs; }
+let gateT0 = 0;
+function gsCfg(c, t){ return Object.assign({}, gsState(t), {bpm:S.bpm, t0:c === ctx ? gateT0 : .02}); }
 function c76State(t){ const d = {input:.55, output:.62, attack:5, release:4, ratio:4, mix:1}; t.c76 = t.c76 || {}; for (const k in d) if (t.c76[k] == null) t.c76[k] = d[k]; return t.c76; }
 function anySolo(){ return allTracks().some(t => t.solo); }
 
@@ -2740,6 +2776,9 @@ function applyStrip(c, s, t){
   if (t.compType === '1176' && !s.u76 && c._reduxOK){ s.u76 = new AudioWorkletNode(c, 'urei1176', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{insert:true, cfg:c76State(t)}});
     s.u76.port.onmessage = e => { s.gr76 = e.data.gr; }; s.u76.connect(s.duck); s._wire = null; }
   if (s.u76) s.u76.port.postMessage({type:'cfg', cfg:c76State(t)});
+  if (t.gs && t.gs.on && !s.gsN && c._reduxOK){ s.gsN = new AudioWorkletNode(c, 'gatestep', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:gsCfg(c, t)}});
+    s.duck.disconnect(s.pan); s.duck.connect(s.gsN).connect(s.pan); }
+  if (s.gsN) s.gsN.port.postMessage({type:'cfg', cfg:gsCfg(c, t)});
   wireStrip(s, t);
   applyVinyl(c, s, s.input, s.duck, t, true);
   sp(c, s.low.gain, t.low); sp(c, s.mid.gain, t.mid); sp(c, s.high.gain, t.high);
@@ -4256,6 +4295,158 @@ class SMPX extends AudioWorkletProcessor{
   }
 }
 registerProcessor('smpx', SMPX);
+/* shared: a stereo hall (8-line feedback delay network, Householder mix, damped), for the choir and the strings */
+class HallFDN{
+  constructor(fs){ this.fs = fs; this.L = [37.1, 41.3, 47.9, 53.3, 59.7, 67.1, 73.3, 79.9].map(ms => Math.round(ms * fs / 1000)); this.b = this.L.map(n => new Float32Array(Math.round(n * 1.6) + 4)); this.w = this.L.map(() => 0); this.lp = new Float32Array(8); this.pre = new Float32Array(Math.round(fs * .1)); this.pw = 0; this.o = new Float32Array(8); }
+  run(x, size, decay, damp, preMs){
+    const fs = this.fs, P = this.pre, pd = Math.min(P.length - 1, Math.round(preMs * fs / 1000)); P[this.pw] = x; const xin = P[(this.pw - pd + P.length) % P.length]; this.pw = (this.pw + 1) % P.length;
+    const o = this.o; let sum = 0;
+    for (let k = 0; k < 8; k++){ const n = Math.max(8, Math.round(this.L[k] * size)), B = this.b[k], r = (this.w[k] - n + B.length) % B.length; this.lp[k] += damp * (B[r] - this.lp[k]); o[k] = this.lp[k] * Math.pow(10, -3 * n / fs / decay); sum += o[k]; }
+    const h = sum * .25; let l = 0, rr = 0;
+    for (let k = 0; k < 8; k++){ const B = this.b[k]; B[this.w[k]] = xin * .35 + (o[k] - h); this.w[k] = (this.w[k] + 1) % B.length; if (k & 1) rr += o[k]; else l += o[k]; }
+    return [l * .5, rr * .5];
+  }
+}
+/* Choir: formant synthesis, built like a real choir. Each sung note is given to the enabled sections (bass, tenor, alto,
+   soprano), each moved into its own vocal range; every section has several singers, each a glottal pulse source
+   (band-limited, with spectral tilt and breath) with its own detune, pitch drift and vibrato that starts a moment after
+   the note. A section's singers share one throat: five formant resonators set from measured vowel formants for that
+   voice type (Peterson-Barney style table: a, e, i, o, u), morphable, with a closed-mouth hum. Then a dark low-pass and a
+   cathedral. */
+const CH_F = {  // freq, amp dB, bandwidth: [a, e, i, o, u]
+  b:[[[600, 1040, 2250, 2450, 2750], [0, -7, -9, -9, -20], [60, 70, 110, 120, 130]], [[400, 1620, 2400, 2800, 3100], [0, -12, -9, -12, -18], [40, 80, 100, 120, 120]], [[250, 1750, 2600, 3050, 3340], [0, -30, -16, -22, -28], [60, 90, 100, 120, 120]], [[400, 750, 2400, 2600, 2900], [0, -11, -21, -20, -40], [40, 80, 100, 120, 120]], [[350, 600, 2400, 2675, 2950], [0, -20, -32, -28, -36], [40, 80, 100, 120, 120]]],
+  t:[[[650, 1080, 2650, 2900, 3250], [0, -6, -7, -8, -22], [80, 90, 120, 130, 140]], [[400, 1700, 2600, 3200, 3580], [0, -14, -12, -14, -20], [70, 80, 100, 120, 120]], [[290, 1870, 2800, 3250, 3540], [0, -15, -18, -20, -30], [40, 90, 100, 120, 120]], [[400, 800, 2600, 2800, 3000], [0, -10, -12, -12, -26], [40, 80, 100, 120, 120]], [[350, 600, 2700, 2900, 3300], [0, -20, -17, -14, -26], [40, 60, 100, 120, 120]]],
+  a:[[[800, 1150, 2800, 3500, 4950], [0, -4, -20, -36, -60], [80, 90, 120, 130, 140]], [[400, 1600, 2700, 3300, 4950], [0, -24, -30, -35, -60], [60, 80, 120, 150, 200]], [[350, 1700, 2700, 3700, 4950], [0, -20, -30, -36, -60], [50, 100, 120, 150, 200]], [[450, 800, 2830, 3500, 4950], [0, -9, -16, -28, -55], [70, 80, 100, 130, 135]], [[325, 700, 2530, 3500, 4950], [0, -12, -30, -40, -64], [50, 60, 170, 180, 200]]],
+  s:[[[800, 1150, 2900, 3900, 4950], [0, -6, -32, -20, -50], [80, 90, 120, 130, 140]], [[350, 2000, 2800, 3600, 4950], [0, -20, -15, -40, -56], [60, 100, 120, 150, 200]], [[270, 2140, 2950, 3900, 4950], [0, -12, -26, -26, -44], [60, 90, 100, 120, 120]], [[450, 800, 2830, 3800, 4950], [0, -11, -22, -22, -50], [40, 80, 100, 120, 120]], [[325, 700, 2700, 3800, 4950], [0, -16, -35, -40, -60], [50, 60, 170, 180, 200]]]};
+const CH_RANGE = {b:[40, 62], t:[48, 69], a:[53, 74], s:[60, 81]};
+const CH_ORDER = [4, 3, 0, 1, 2];   // vowel slider runs u - o - a - e - i
+class Choir extends AudioWorkletProcessor{
+  constructor(o){ super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate; this.cfg = Object.assign({}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f); this.vs = []; this.idle = 0; this.hall = new HallFDN(this.fs); this.dk = [0, 0]; this.vl = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); }; }
+  vowel(sec, x){ const T = CH_F[sec], p = Math.max(0, Math.min(4, x)), i = Math.min(3, Math.floor(p)), f = p - i, A = T[CH_ORDER[i]], B = T[CH_ORDER[i + 1]], r = [];
+    for (let k = 0; k < 5; k++) r.push([A[0][k] + (B[0][k] - A[0][k]) * f, Math.pow(10, (A[1][k] + (B[1][k] - A[1][k]) * f) / 20), A[2][k] + (B[2][k] - A[2][k]) * f]); return r; }
+  noteOn(n, v){
+    const C = this.cfg, secs = []; if (this.vs.length >= 6) this.vs.shift();
+    for (const s of ['b', 't', 'a', 's']){ const lv = C['lv' + s] == null ? (s === 'b' || s === 't' ? 1 : 0) : C['lv' + s]; if (lv <= 0) continue;
+      let m = n; const [lo, hi] = CH_RANGE[s]; while (m < lo) m += 12; while (m > hi) m -= 12;
+      const N = Math.max(1, Math.round(C.singers || 5)), sing = [];
+      for (let k = 0; k < N; k++) sing.push({ph:Math.random(), det:(Math.random() - .5) * 2 * (C.spread == null ? 12 : C.spread * 24), vr:4.6 + Math.random() * 1.6, vp:Math.random() * 6.28, dr:0, amp:.8 + Math.random() * .4, on:Math.random() * .08, tl:0});
+      secs.push({s, m, lv, sing, z:[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]});
+      if (s === 'b' && C.sub) secs.push({s:'b', m:m - 12, lv:lv * C.sub, sing:sing.map(x => Object.assign({}, x, {ph:Math.random()})), z:[[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]});
+    }
+    this.vs.push({n, v, down:true, e:0, age:0, secs});
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs;
+    if (this.vs.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0; else if ((this.idle += N) > fs * 8){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const at = .02 + (C.a == null ? .35 : C.a) * 3, rt = .05 + (C.r == null ? .5 : C.r) * 4, breath = C.breath == null ? .15 : C.breath, vib = (C.vib == null ? .4 : C.vib) * 40, tilt = 1 - Math.exp(-2 * Math.PI * (300 + (1 - (C.dark == null ? .5 : C.dark)) * 7000) / fs);
+    const hum = C.hum || 0, dkA = 1 - Math.exp(-2 * Math.PI * (900 + (1 - (C.dark == null ? .5 : C.dark)) * 9000) / fs), space = C.space == null ? .45 : C.space;
+    // the vowel can drift slowly on its own, like singers shaping the word
+    this.vl += dt * .07; const vow = (C.vowel == null ? 2 : C.vowel) + (C.drift || 0) * Math.sin(this.vl * 6.28) * .6;
+    const forms = {}; if (!(currentFrame & 127) || !this.fc) this.fc = {}; for (const s of ['b', 't', 'a', 's']) forms[s] = this.fc[s] || (this.fc[s] = this.vowel(s, vow));
+    // resonator coefficients per section (two-pole band-pass, constant peak gain)
+    const coef = {}; for (const s in forms) coef[s] = forms[s].map(([f, a, bw]) => { const rr = Math.exp(-Math.PI * bw * 1.2 / fs); return [2 * rr * Math.cos(2 * Math.PI * f / fs), -rr * rr, a * (1 - rr)]; });
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else for (const V of this.vs) if (V.n === ev.off) V.down = false; }
+      let mix = 0;
+      for (let vi = this.vs.length - 1; vi >= 0; vi--){
+        const V = this.vs[vi]; V.age += dt;
+        V.e = V.down ? V.e + (1.05 - V.e) * (dt / at * 2.5) : V.e * Math.exp(-dt / rt * 3); if (V.e > 1) V.e = 1;
+        if (!V.down && V.e < 1e-4){ this.vs.splice(vi, 1); continue; }
+        let vsum = 0;
+        for (const S2 of V.secs){
+          let src = 0; const kr = (fr & 15) === 0, base = kr ? 440 * Math.pow(2, (S2.m - 69) / 12) : 0, br = (Math.random() * 2 - 1) * breath * .6;
+          for (const g of S2.sing){
+            if (V.age < g.on) continue;
+            if (kr || !g.d){ g.dr = Math.max(-8, Math.min(8, g.dr + (Math.random() - .5) * .2));                      // pitch moves at the control rate
+              const vibA = vib * Math.min(1, Math.max(0, (V.age - .35) / .6)), cents = g.det + g.dr + vibA * Math.sin(g.vp + V.age * g.vr * 6.2832);
+              g.d = (base || 440 * Math.pow(2, (S2.m - 69) / 12)) * Math.pow(2, cents / 1200) / fs; }
+            const d = g.d; g.ph += d; if (g.ph >= 1) g.ph -= 1;
+            // glottal pulse: a band-limited ramp (polyBLEP) through the spectral-tilt low-pass, plus breath
+            let p = 2 * g.ph - 1; const t = g.ph; if (t < d){ const x = t / d; p -= x + x - x * x - 1; } else if (t > 1 - d){ const x = (t - 1) / d; p -= x * x + x + x + 1; }
+            g.tl += tilt * (p - g.tl); src += (g.tl + br) * g.amp;
+          }
+          src /= Math.sqrt(S2.sing.length);
+          const cf = coef[S2.s]; let y = 0;
+          for (let k = 0; k < 5; k++){ const z = S2.z[k], c = cf[k], o = c[2] * src + c[0] * z[0] + c[1] * z[1]; z[1] = z[0]; z[0] = o; y += o; }
+          if (hum){ S2.hz = (S2.hz || 0) + .02 * (src - (S2.hz || 0)); y = y * (1 - hum) + S2.hz * hum * 3; }
+          vsum += y * S2.lv;
+        }
+        mix += vsum * V.e * (.45 + .55 * V.v);
+      }
+      // dark low-pass, then the cathedral
+      this.dk[0] += dkA * (mix - this.dk[0]); this.dk[1] += dkA * (this.dk[0] - this.dk[1]); let d = this.dk[1] * .06 * (C.vol == null ? .8 : C.vol);
+      if (!(Math.abs(d) < 1e3)){ d = 0; this.dk = [0, 0]; for (const V of this.vs) for (const S2 of V.secs) S2.z.forEach(z => { z[0] = z[1] = 0; }); }
+      const [hl, hr] = space > 0 ? this.hall.run(d, .7 + space * .8, 1.5 + space * 5, .35, 25 + space * 40) : [0, 0];
+      L[i] = d * (1 - space * .5) + hl * space; R[i] = d * (1 - space * .5) + hr * space;
+    }
+    return true;
+  }
+}
+registerProcessor('choir', Choir);
+/* Disco strings: a studio string section (violins I and II, violas, cellos) played the way disco arrangers wrote it.
+   Every section has several players, each a bowed-string sawtooth with its own tuning, vibrato and bow-pressure wander,
+   through a violin-family body (air resonance ~275 Hz, main wood ~460 Hz and ~1.1 kHz, bridge hill ~2.8 kHz) with
+   bow noise riding the level. Articulations: sustain, stab, falls (the line drops off after the note), rip-ups (a fast
+   slide into the note), swells; octave doubling (the Philly/Salsoul sound) and a cello line underneath; a big studio hall. */
+const DS_BODY = [[275, 9, .9], [460, 6, .8], [1100, 5, .6], [2800, 2.2, .7], [4700, 3, .25]];
+class Disco extends AudioWorkletProcessor{
+  constructor(o){ super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate; this.cfg = Object.assign({}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f); this.vs = []; this.idle = 0; this.hall = new HallFDN(this.fs);
+    const fs = this.fs; this.bc = DS_BODY.map(([f, q, g]) => { const w = 2 * Math.PI * f / fs, al = Math.sin(w) / (2 * q), a0 = 1 + al; return [al / a0 * g, -al / a0 * g, -2 * Math.cos(w) / a0, (1 - al) / a0]; });
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); }; }
+  noteOn(n, v){
+    const C = this.cfg; if (this.vs.length >= 10) this.vs.shift();
+    const lines = [[n, 1]]; if (C.oct) lines.push([n + 12, .8 * C.oct]); if (C.low) lines.push([n - 12, .7 * C.low]);
+    const P = Math.max(1, Math.round(C.players || 5));
+    const secs = lines.map(([m, g]) => ({m, g, pl:Array.from({length:P}, () => ({ph:Math.random(), det:(Math.random() - .5) * 2 * (C.spread == null ? 9 : C.spread * 20), vr:5 + Math.random() * 1.5, vp:Math.random() * 6.28, bw:0, on:Math.random() * .03})), z:DS_BODY.map(() => [0, 0]), lp:0}));
+    this.vs.push({n, v, down:true, e:0, age:0, secs, rel:0});
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs;
+    if (this.vs.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0; else if ((this.idle += N) > fs * 6){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const mode = C.mode || 'sustain', at = mode === 'swell' ? .4 + (C.a || .5) * 2.5 : mode === 'stab' || mode === 'rip' ? .006 : .03 + (C.a == null ? .15 : C.a) * 1.2;
+    const rt = mode === 'stab' ? .09 : .08 + (C.r == null ? .35 : C.r) * 1.6, vib = (C.vib == null ? .5 : C.vib) * 22, bright = C.bright == null ? .6 : C.bright, bow = C.bow == null ? .3 : C.bow, hall = C.hall == null ? .45 : C.hall;
+    const lpA = 1 - Math.exp(-2 * Math.PI * (1800 + bright * 9000) / fs), fallT = .12 + (C.fall == null ? .4 : C.fall) * .6, stabLen = .07 + (C.stab == null ? .3 : C.stab) * .25;
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else for (const V of this.vs) if (V.n === ev.off && V.down){ V.down = false; V.rel = V.age; } }
+      let mix = 0;
+      for (let vi = this.vs.length - 1; vi >= 0; vi--){
+        const V = this.vs[vi]; V.age += dt;
+        const gate = mode === 'stab' || mode === 'rip' ? V.age < stabLen && V.down : V.down;
+        if (mode === 'swell'){ V.e = gate ? Math.min(1, V.e + dt / at) : V.e * Math.exp(-dt / rt * 3); }
+        else V.e = gate ? V.e + (1.1 - V.e) * Math.min(1, dt / at * 3) : V.e * Math.exp(-dt / rt * 3); if (V.e > 1) V.e = 1;
+        // falls: after the note is let go, the pitch drops away (an octave and more) as it fades; rips slide up into the note
+        let bend = 0; if (mode === 'fall' && !V.down) bend = -Math.pow(Math.min(1, (V.age - V.rel) / fallT), 1.6) * 14;
+        if (mode === 'rip') bend = -12 * Math.max(0, 1 - V.age / .07);
+        const fallG = mode === 'fall' && !V.down ? Math.max(0, 1 - (V.age - V.rel) / (fallT * 1.3)) : 1;
+        if ((!V.down || !gate) && V.e < 1e-4){ this.vs.splice(vi, 1); continue; }
+        let vs = 0;
+        for (const S2 of V.secs){
+          let src = 0; const kr = (fr & 15) === 0 || bend, base = kr ? 440 * Math.pow(2, (S2.m - 69 + bend) / 12) : 0;
+          for (const p of S2.pl){ if (V.age < p.on) continue;
+            if (kr || !p.d){ p.bw += (Math.random() - .5) * .08; p.bw *= .985;                                           // bow pressure and pitch at the control rate
+              const vA = vib * Math.min(1, Math.max(0, (V.age - .18) / .4)); p.d = (base || 440 * Math.pow(2, (S2.m - 69 + bend) / 12)) * Math.pow(2, (p.det + vA * Math.sin(p.vp + V.age * p.vr * 6.2832)) / 1200) / fs; }
+            const d = p.d; p.ph += d; if (p.ph >= 1) p.ph -= 1; let s = 2 * p.ph - 1; const t = p.ph; if (t < d){ const x = t / d; s -= x + x - x * x - 1; } else if (t > 1 - d){ const x = (t - 1) / d; s -= x * x + x + x + 1; }
+            src += s * (1 + p.bw);
+          }
+          src = src / Math.sqrt(S2.pl.length) + (Math.random() * 2 - 1) * bow * .25 * V.e;
+          S2.lp += lpA * (src - S2.lp);
+          let y = S2.lp * .35; const x2 = S2.x2 || 0; for (let k = 0; k < this.bc.length; k++){ const z = S2.z[k], c = this.bc[k], yy = c[0] * src + c[1] * x2 - c[2] * z[0] - c[3] * z[1]; y += yy; z[1] = z[0]; z[0] = yy; } S2.x2 = S2.x1 || 0; S2.x1 = src;
+          vs += y * S2.g;
+        }
+        mix += vs * V.e * fallG * (.4 + .6 * V.v);
+      }
+      let d = mix * .22 * (C.vol == null ? .8 : C.vol);
+      if (!(Math.abs(d) < 1e3)){ d = 0; for (const V of this.vs) for (const S2 of V.secs) S2.z.forEach(z => { z[0] = z[1] = 0; }); }
+      const [hl, hr] = hall > 0 ? this.hall.run(d, .8 + hall * .5, 1.2 + hall * 2.6, .45, 18) : [0, 0];
+      L[i] = d * (1 - hall * .4) + hl * hall; R[i] = d * (1 - hall * .4) + hr * hall;
+    }
+    return true;
+  }
+}
+registerProcessor('disco', Disco);
 `;
 const SPW_CODE = String.raw`
 /* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
@@ -4921,6 +5112,29 @@ class PCSim extends RackUnit{
   }
 }
 registerProcessor('gatedroom', PCSim);
+/* Gate stepper: a tempo-locked 16-step volume gate (the chopped, pulsing synth and guitar parts of early-80s synth-pop
+   and late-80s dance records). The step clock comes from the song's tempo and the bar start, so it lands on the beat;
+   each step is off, accent or full, opens for its duty length with a short attack and release, with swing. */
+class GateStep extends AudioWorkletProcessor{
+  constructor(o){ super(); this.c = Object.assign({on:0, steps:[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], rate:16, duty:.6, depth:1, atk:.002, rel:.02, swing:0, mix:1, bpm:120, t0:0}, (o && o.processorOptions && o.processorOptions.cfg) || {}); this.g = 1;
+    this.port.onmessage = e => { if (e.data.type === 'cfg') Object.assign(this.c, e.data.cfg); }; }
+  process(ins, outs){
+    const inp = ins[0], L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.c;
+    const a = inp && inp[0] ? inp[0] : null, b = inp && inp[1] ? inp[1] : a; if (!a){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    if (!C.on){ L.set(a); if (R !== L) R.set(b); this.g = 1; return true; }
+    const fs = sampleRate, spb = (C.rate || 16) / 4, st = C.steps, n = st.length || 16, bound = 1 + (C.swing || 0) * .66, duty = C.duty == null ? .6 : C.duty;
+    const aA = 1 - Math.exp(-1 / (fs * Math.max(.0005, C.atk || .002))), aR = 1 - Math.exp(-1 / (fs * Math.max(.001, C.rel || .02))), dep = C.depth == null ? 1 : C.depth, mix = C.mix == null ? 1 : C.mix;
+    for (let i = 0; i < N; i++){
+      const t = currentTime + i / fs - (C.t0 || 0), pos = t * (C.bpm || 120) / 60 * spb, pair = Math.floor(pos / 2), ph = pos - pair * 2;
+      let k, f; if (ph < bound){ k = pair * 2; f = ph / bound; } else { k = pair * 2 + 1; f = (ph - bound) / (2 - bound); }
+      const v = st[((k % n) + n) % n] || 0, open = f < duty ? v : 0, tgt = 1 - dep * (1 - open);
+      this.g += (tgt > this.g ? aA : aR) * (tgt - this.g);
+      const gg = 1 - mix + mix * this.g; L[i] = a[i] * gg; R[i] = b[i] * gg;
+    }
+    return true;
+  }
+}
+registerProcessor('gatestep', GateStep);
 /* Resonance tamer + clipper for the master (in the spirit of soothe2 and a mastering clipper): 18 log-spaced bands track
    the spectrum; a band poking out above its neighbours by more than the threshold gets a matching dynamic cut, eased in
    and out. Then an oversampled clipper (soft-to-hard knee) with a ceiling. */
@@ -5838,6 +6052,7 @@ function start(from = 0, external = false){
   org = 0; loopCount = 0; songDone = false; pending = null;
   if (S.songMode && S.song.length){ songPos = 0; if (S.cur !== S.song[0].s){ storeScene(); loadScene(S.song[0].s); } }
   playing = true; stepI = from; nextT = ctx.currentTime + .1; stepQ = [];
+  gateT0 = nextT - from * stepDur(); if (live) live.strips.forEach(st => { if (st.gsN) st.gsN.port.postMessage({type:'cfg', cfg:{t0:gateT0, bpm:S.bpm}}); });
   if (S.midiClock === 'out') midiOutStart = true;
   timer = setInterval(tick, external ? 8 : 20); tick();
   try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w).catch(() => {}); } catch(e){}
@@ -8112,6 +8327,18 @@ function renderFx(){
     const se = r.querySelector('select'); se.value = String(C7.ratio); se.addEventListener('change', () => { C7.ratio = isNaN(+se.value) ? se.value : +se.value; applyAll(); save(); }); g.appendChild(r);
     for (const [lb, k, mn, mx, st, fm] of U76_KNOBS) ctl(g, lb, C7, k, mn, mx, st, fm, after); }
   else ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
+  add('<span class="label">Gate stepper</span>'); g = grid();
+  { const G = gsState(t), r = document.createElement('div'); r.className = 'gsbox';
+    r.innerHTML = `<div class="row"><button id="gsOn" class="${G.on ? 'on' : ''}">${G.on ? 'GATE ON' : 'GATE OFF'}</button><select id="gsPreset" class="grow" aria-label="Gate patterns"><option value="">Patterns…</option>${Object.keys(GS_PRESETS).map(n => `<option>${n.replace(/</g, '&lt;')}</option>`).join('')}</select></div>
+      <div class="gssteps" id="gsSteps">${G.steps.map((v, k) => `<button class="gsst${v >= .99 ? ' on' : v > 0 ? ' acc' : ''}${k % 4 === 0 ? ' beat' : ''}" data-k="${k}" aria-label="Step ${k + 1}">${k + 1}</button>`).join('')}</div>
+      <div class="row"><label class="label grow" for="gsRate">Step</label><select id="gsRate"><option value="8">1/8</option><option value="16">1/16</option><option value="24">1/16 triplet</option><option value="32">1/32</option></select></div>`;
+    g.appendChild(r);
+    const on = r.querySelector('#gsOn'); on.addEventListener('click', () => { G.on = G.on ? 0 : 1; applyAll(); save(); renderFx(); });
+    const ps = r.querySelector('#gsPreset'); ps.addEventListener('change', () => { const P = GS_PRESETS[ps.value]; if (!P) return; Object.assign(G, P, {steps:P.steps.slice(), on:1}); applyAll(); save(); renderFx(); toast(ps.value); });
+    r.querySelectorAll('.gsst').forEach(b => b.addEventListener('click', () => { const k = +b.dataset.k, v = G.steps[k]; G.steps[k] = v >= .99 ? .5 : v > 0 ? 0 : 1; applyAll(); save(); renderFx(); }));
+    const rs = r.querySelector('#gsRate'); rs.value = String(G.rate); rs.addEventListener('change', () => { G.rate = +rs.value; applyAll(); save(); });
+    ctl(g, 'Length', G, 'duty', .1, 1, .01, pct, after); ctl(g, 'Depth', G, 'depth', 0, 1, .01, pct, after); ctl(g, 'Attack', G, 'atk', .0005, .05, .0005, v => (v * 1000).toFixed(1) + ' ms', after);
+    ctl(g, 'Release', G, 'rel', .001, .2, .001, v => Math.round(v * 1000) + ' ms', after); ctl(g, 'Swing', G, 'swing', 0, .75, .01, pct, after); ctl(g, 'Mix', G, 'mix', 0, 1, .01, pct, after); }
   add('<span class="label">Sends</span>'); g = grid();
   ctl(g, 'Reverb', t, 'sendA', 0, 1, .01, pct, after); ctl(g, 'Delay', t, 'sendB', 0, 1, .01, pct, after);
   add('<span class="label">Sends to the FX rack</span>'); g = grid();
@@ -9201,6 +9428,7 @@ const meterH = p => clamp((20 * Math.log10(p + 1e-6) + 60) / 60, 0, 1) * 100;
 let lastPh = -1;
 let stpTick = 0; const clipAt = new Map();
 function frame(){
+  if (live && S.bpm !== frame._gb){ frame._gb = S.bpm; live.strips.forEach(st => { if (st.gsN) st.gsN.port.postMessage({type:'cfg', cfg:{bpm:S.bpm}}); }); }
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
   if (view === 'deck'){ drawDeck(); drawDeck($('#ttCv0'), 0); drawDeck($('#ttCv1'), 1); drawWaves(); djTick(); if (mixRec.on && stpTick % 15 === 0){ const t = (performance.now() - mixRec.t0) / 1000; $('#recMixT').textContent = 'REC ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); } }
@@ -9716,7 +9944,7 @@ function gmPatch(prog){
 }
 const GM_TAB = 'GM ';
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {juno60:{proc:'ana', cfg:tr => anaCfg(tr, 'juno60')}, sh101:{proc:'ana', cfg:tr => anaCfg(tr, 'sh101')}, jx3p:{proc:'ana', cfg:tr => anaCfg(tr, 'jx3p')}, minimoog:{proc:'ana', cfg:tr => anaCfg(tr, 'minimoog')}, sixtrak:{proc:'ana', cfg:tr => anaCfg(tr, 'sixtrak')}, cs80:{proc:'ana', cfg:tr => anaCfg(tr, 'cs80')}, cz:{proc:'cz', cfg:tr => tr.cz || (tr.cz = CZ_DEFAULT())}, sk1:{proc:'smpx', cfg:tr => Object.assign({model:'sk1'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('sk1'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, emax:{proc:'smpx', cfg:tr => Object.assign({model:'emax'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('emax'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const INST = {choir:{proc:'choir', cfg:tr => tr.choir || (tr.choir = CHOIR_DEFAULT())}, disco:{proc:'disco', cfg:tr => tr.disco || (tr.disco = DISCO_DEFAULT())}, juno60:{proc:'ana', cfg:tr => anaCfg(tr, 'juno60')}, sh101:{proc:'ana', cfg:tr => anaCfg(tr, 'sh101')}, jx3p:{proc:'ana', cfg:tr => anaCfg(tr, 'jx3p')}, minimoog:{proc:'ana', cfg:tr => anaCfg(tr, 'minimoog')}, sixtrak:{proc:'ana', cfg:tr => anaCfg(tr, 'sixtrak')}, cs80:{proc:'ana', cfg:tr => anaCfg(tr, 'cs80')}, cz:{proc:'cz', cfg:tr => tr.cz || (tr.cz = CZ_DEFAULT())}, sk1:{proc:'smpx', cfg:tr => Object.assign({model:'sk1'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('sk1'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, emax:{proc:'smpx', cfg:tr => Object.assign({model:'emax'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('emax'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
   voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
@@ -9978,7 +10206,7 @@ $('#synMenu').addEventListener('click', e => {
 
 
 /* ================= preset browser: one tap from the Synth page, searchable, for whichever instrument is on the track ================= */
-const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', piano:'#pianoPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
+const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', piano:'#pianoPreset', choir:'#choirPreset', disco:'#discoPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
 let preGroup = '';
 async function preItems(){
   const tr = curSynth();
@@ -10028,6 +10256,8 @@ const INSTRUMENTS = [
   {v:'minimoog', name:'Minimoog', sub:'Moog · 1970', desc:'Three VCOs into the ladder filter. Fat mono.', bg:'linear-gradient(160deg,#8a5a32,#3a2414 50%,#111)'},
   {v:'sixtrak', name:'Six-Trak', sub:'Sequential · 1984', desc:'Six-voice CEM poly: tight bass, pads, stacks.', bg:'linear-gradient(160deg,#4a4a4f,#1e1e22 55%,#5a3a1a)'},
   {v:'cs80', name:'CS-80', sub:'Yamaha · 1977', desc:'Touch-sensitive brass and pads, HPF + LPF.', bg:'linear-gradient(160deg,#5a2a24,#2a1512 50%,#0e0908)'},
+  {v:'choir', name:'Choir', sub:'Dark cathedral voices', desc:'Formant choir: SATB sections, vowels, breath. Hellraiser-dark or angelic.', bg:'linear-gradient(160deg,#2a1414,#0a0606 55%,#3a2a4a)'},
+  {v:'disco', name:'Disco Strings', sub:'Philly / Salsoul section', desc:'String section with octaves, stabs, falls, rip-ups and swells.', bg:'linear-gradient(160deg,#c9a23a,#5a2a6a 55%,#14081a)'},
   {v:'piano', name:'Grand Piano', sub:'Concert grand · 88 keys', desc:'A real sampled grand with pedal, resonance, lid and mics.', bg:'linear-gradient(160deg,#2a2622,#0d0c0b 55%,#6a5a3a)'},
   {v:'cz', name:'CZ-101', sub:'Casio · 1984', desc:'Phase distortion: bright digital basses and keys.', bg:'linear-gradient(160deg,#4a4d55,#22242a 55%,#1f4a7a)'},
   {v:'sk1', name:'SK-1', sub:'Casio · 1985', desc:'8-bit toy sampler: crunchy, lo-fi, 4 voices.', bg:'linear-gradient(160deg,#3a3a40,#16161a 55%,#c84a1a)'},
@@ -10086,6 +10316,7 @@ function renderSynth(){
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
   const isPiano = tr.inst === 'piano'; $('#pianoPanel').hidden = !isPiano; if (isPiano) renderPiano(tr);
+  const isChoir = tr.inst === 'choir', isDisco = tr.inst === 'disco'; $('#choirPanel').hidden = !isChoir; if (isChoir) renderChoir(tr); $('#discoPanel').hidden = !isDisco; if (isDisco) renderDisco(tr);
   const isAna = !!ANA_MODELS[tr.inst], isCz = tr.inst === 'cz', isSmpx = tr.inst === 'sk1' || tr.inst === 'emax';
   $('#anaPanel').hidden = !isAna; if (isAna) renderAna(tr); $('#czPanel').hidden = !isCz; if (isCz) renderCz(tr); $('#smpxPanel').hidden = !isSmpx; if (isSmpx){ renderSmpx(tr); if (!tr._smpxCache) smpxSend(tr); }
   const isSol = tr.inst === 'solina', isOmni = tr.inst === 'omni2', isDx = tr.inst === 'dx1', isSid = tr.inst === 'sid', isD50 = tr.inst === 'd50', isPpg = tr.inst === 'ppg';
@@ -10101,7 +10332,7 @@ function renderSynth(){
     if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isPiano || isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isPiano || isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isPiano || isChoir || isDisco || isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isPiano || isChoir || isDisco || isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -11027,6 +11258,48 @@ function renderPiano(tr){
   pb.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); pb._down(); }); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => pb.addEventListener(t, () => { if (curSynth()._ped && !pb._latch) pb._up(); }));
   $('#pianoPreset').addEventListener('change', e => { const tr = curSynth(); if (!PIANO_PRESETS[e.target.value]) return; tr.piano = pianoPreset(e.target.value); if (live) pianoApply(live, tr); save(); renderPiano(tr); const r = hearRoot(); hearChord(tr, [r - 12, r, r + 4, r + 7], .9); });
 })();
+/* ================= Choir and Disco Strings: presets and panels ================= */
+const CHOIR_DEFAULT = () => ({preset:'Dark · Hellraiser Cathedral', lvb:1, lvt:.8, lva:0, lvs:.25, singers:6, spread:.5, vib:.25, a:.55, r:.7, breath:.2, vowel:.6, drift:.4, hum:0, dark:.75, sub:.5, space:.85, vol:.8});
+const CHOIR_PRESETS = {
+  'Dark · Hellraiser Cathedral':{},
+  'Dark · Sister Mary Requiem':{lvb:.7, lvt:1, lva:.8, lvs:.5, vowel:2, drift:.3, dark:.6, sub:0, space:.7, a:.45, r:.6, vib:.4},
+  'Dark · Monks Chant':{lvb:1, lvt:.7, lva:0, lvs:0, hum:.7, vowel:1, dark:.7, sub:.2, space:.6, vib:.1, singers:5, a:.3},
+  'Dark · Doom Choir':{lvb:1, lvt:.5, lva:0, lvs:0, sub:1, vowel:1, dark:.85, space:.9, a:.8, r:.9, vib:.2},
+  'Dark · Ghost Whispers':{lvb:.6, lvt:.6, lva:.6, lvs:.4, breath:.9, vowel:3, dark:.5, space:.8, vib:.1, sub:0},
+  'Dark · Possessed Cluster':{lvb:1, lvt:1, lva:.6, lvs:0, spread:1, vib:.7, vowel:.5, drift:1, dark:.8, sub:.6, space:.85},
+  'Choir · Mixed SATB Aah':{lvb:1, lvt:1, lva:1, lvs:1, vowel:2, dark:.35, sub:0, space:.55, a:.3, r:.5, vib:.35, drift:.1},
+  'Choir · Angels Ooh':{lvb:0, lvt:0, lva:.8, lvs:1, vowel:.3, dark:.3, sub:0, space:.7, vib:.3},
+  'Choir · Boys Choir':{lvb:0, lvt:0, lva:1, lvs:1, singers:4, vowel:.8, vib:.15, dark:.2, sub:0, space:.65},
+  'Choir · Male Ooh Pad':{lvb:1, lvt:1, lva:0, lvs:0, vowel:0, a:.6, dark:.5, sub:0, space:.6},
+  'Choir · Gregorian Mm':{lvb:1, lvt:1, lva:0, lvs:0, hum:1, vib:.05, dark:.55, sub:0, space:.75}};
+const choirPreset = n => Object.assign(CHOIR_DEFAULT(), CHOIR_PRESETS[n] || {}, {preset:n});
+const DISCO_DEFAULT = () => ({preset:'Disco · Philly Octaves', mode:'sustain', oct:1, low:0, players:5, spread:.45, vib:.5, a:.15, r:.35, bright:.7, bow:.3, hall:.5, fall:.4, stab:.3, vol:.8});
+const DISCO_PRESETS = {
+  'Disco · Philly Octaves':{}, 'Disco · Salsoul Stabs':{mode:'stab', stab:.3, bright:.8, hall:.45}, 'Disco · Chic Rhythm Stabs':{mode:'stab', oct:.5, stab:.15, hall:.3, bright:.75},
+  'Disco · Falls':{mode:'fall', fall:.45, hall:.5}, 'Disco · Rip-Ups':{mode:'rip', stab:.5, hall:.45}, 'Disco · Love Theme Swell':{mode:'swell', low:.6, a:.5, r:.7, hall:.7},
+  'Disco · Lush Ballad':{oct:.6, low:.8, vib:.55, a:.35, r:.8, hall:.75, bright:.5}, 'Disco · Studio 54 Unison':{oct:1, low:.5, players:8, spread:.6, hall:.55},
+  'Disco · Short Spiccato':{mode:'stab', stab:.03, bow:.1, bright:.6, hall:.4, oct:.7}, 'Disco · Dark Cello Line':{oct:0, low:1, bright:.35, vib:.45, hall:.5, a:.25}};
+const discoPreset = n => Object.assign(DISCO_DEFAULT(), DISCO_PRESETS[n] || {}, {preset:n});
+function renderChoir(tr){
+  const C = tr.choir || (tr.choir = CHOIR_DEFAULT()); fillPresetSel('#choirPreset', CHOIR_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#choirPreset').value = ''; solCfg(tr); save(); if (re) renderChoir(tr); };
+  const vw = v => ['U (oo)', 'O (oh)', 'A (ah)', 'E (eh)', 'I (ee)'][Math.round(v)] || '';
+  synPanel($('#choirCtls'), C, [
+    {t:'SECTIONS', knobs:[['BASS', 'lvb', 0, 1, .01, pct], ['TENOR', 'lvt', 0, 1, .01, pct], ['ALTO', 'lva', 0, 1, .01, pct], ['SOPRANO', 'lvs', 0, 1, .01, pct], ['SUB BASS', 'sub', 0, 1, .01, pct], ['SINGERS', 'singers', 1, 8, 1, v => v + ' each']]},
+    {t:'VOICE', knobs:[['VOWEL', 'vowel', 0, 4, .05, vw], ['VOWEL DRIFT', 'drift', 0, 1, .01, pct], ['HUM (MM)', 'hum', 0, 1, .01, pct], ['BREATH', 'breath', 0, 1, .01, pct], ['VIBRATO', 'vib', 0, 1, .01, pct], ['SPREAD', 'spread', 0, 1, .01, pct]]},
+    {t:'MOOD', knobs:[['DARKNESS', 'dark', 0, 1, .01, pct], ['ATTACK', 'a', 0, 1, .01, secT], ['RELEASE', 'r', 0, 1, .01, secT], ['CATHEDRAL', 'space', 0, 1, .01, pct], ['VOLUME', 'vol', 0, 1, .01, pct]]}], up);
+}
+function renderDisco(tr){
+  const C = tr.disco || (tr.disco = DISCO_DEFAULT()); fillPresetSel('#discoPreset', DISCO_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#discoPreset').value = ''; solCfg(tr); save(); if (re) renderDisco(tr); };
+  synPanel($('#discoCtls'), C, [
+    {t:'PLAYING', menus:[['Articulation', 'mode', [['sustain', 'Sustain (legato)'], ['stab', 'Stabs'], ['fall', 'Falls'], ['rip', 'Rip-ups'], ['swell', 'Swells']]]],
+      knobs:[['OCTAVE UP', 'oct', 0, 1, .01, pct], ['CELLOS BELOW', 'low', 0, 1, .01, pct], ['STAB LENGTH', 'stab', 0, 1, .01, v => Math.round((.07 + v * .25) * 1000) + ' ms'], ['FALL', 'fall', 0, 1, .01, pct]]},
+    {t:'SECTION', knobs:[['PLAYERS', 'players', 1, 8, 1, v => v + ' per line'], ['SPREAD', 'spread', 0, 1, .01, pct], ['VIBRATO', 'vib', 0, 1, .01, pct], ['BOW NOISE', 'bow', 0, 1, .01, pct], ['BRIGHTNESS', 'bright', 0, 1, .01, pct]]},
+    {t:'ROOM', knobs:[['ATTACK', 'a', 0, 1, .01, secT], ['RELEASE', 'r', 0, 1, .01, secT], ['HALL', 'hall', 0, 1, .01, pct], ['VOLUME', 'vol', 0, 1, .01, pct]]}], up);
+}
+$('#choirPreset').addEventListener('change', e => { const tr = curSynth(); if (!CHOIR_PRESETS[e.target.value]) return; tr.choir = choirPreset(e.target.value); solCfg(tr); save(); renderChoir(tr); const r = hearRoot(); hearChord(tr, [r - 12, r - 5, r, r + 3], 1.6); });
+$('#discoPreset').addEventListener('change', e => { const tr = curSynth(); if (!DISCO_PRESETS[e.target.value]) return; tr.disco = discoPreset(e.target.value); solCfg(tr); save(); renderDisco(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .9); });
 /* ================= ARP Omni-2 ================= */
 const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:1, viola:1, cello:0, sbass:0, atk:.25, rel:.45, syn4:0, syn8:0, single:0, freq:.55, res:.15, adsr:.5, lfoAmt:0, lfoHz:.35, a:.1, d:.4, s:.6, r:.35, bass8:0, bass16:0, stacc:0, master:.8, bassVol:.7, mix:.85, hollow:0, chorus:0, wide:1, split:56});
 const OMNI_PRESETS = {
@@ -11092,7 +11365,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', piano:'Piano ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|Piano|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', piano:'Piano ', choir:'Choir ', disco:'Strings ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|Piano|Choir|Strings|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
