@@ -1130,6 +1130,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
       <div id="smpxPanel" class="smpx" hidden>
         <div class="smpx-head" id="smpxHead"></div>
+        <select id="smpxPreset" aria-label="Sampler presets"></select>
         <div id="smpxCtls"></div>
         <input type="file" id="smpxFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.m4a" hidden>
         <p class="hint">Plays one sound up and down the keys at the machine's own quality: the SK-1 squashes it to 8-bit at 9.38 kHz with no smoothing (the crunchy toy sound); the Emax to 12-bit at 27.7 kHz through its analog filter. Use a built-in tone, any pad's sound or a file.</p>
@@ -1779,7 +1780,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v101</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v102</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -9355,7 +9356,7 @@ $('#synMenu').addEventListener('click', e => {
 
 
 /* ================= preset browser: one tap from the Synth page, searchable, for whichever instrument is on the track ================= */
-const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
+const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
 let preGroup = '';
 async function preItems(){
   const tr = curSynth();
@@ -10127,7 +10128,8 @@ async function smpxSend(tr){ const s = await smpxSample(tr); const n = live && l
 function renderSmpx(tr){
   const model = tr.inst, C = tr.smpx || (tr.smpx = SMPX_DEFAULT(model)), sk = model === 'sk1';
   $('#smpxPanel').className = sk ? 'smpx m-sk1' : 'smpx m-emax'; $('#smpxHead').innerHTML = sk ? '<b>CASIO</b><span>SK-1</span><i>SAMPLING KEYBOARD · 8-BIT · 9.38 kHz · 4 VOICES</i>' : '<b>E-mu</b><span>Emax</span><i>DIGITAL SAMPLING KEYBOARD · 12-BIT · 27.7 kHz · 8 VOICES · ANALOG FILTERS</i>';
-  const up = re => { solCfg(tr); save(); if (re) renderSmpx(tr); };
+  { const ps = $('#smpxPreset'); ps.innerHTML = presetOptions(SMPX_PRESETS[model], 'Presets…'); ps.value = C.preset && C.preset in SMPX_PRESETS[model] ? C.preset : ''; }
+  const up = re => { C.preset = ''; $('#smpxPreset').value = ''; solCfg(tr); save(); if (re) renderSmpx(tr); };
   const srcUp = () => { save(); smpxSend(tr); renderSmpx(tr); setTimeout(() => { const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .8); }, 150); };
   const secs = [{t:'SOUND', menus:[['Source', 'src', [['tone', sk ? 'SK-1 built-in tones' : 'Built-in tones'], ['pad', 'A pad’s sound'], ['file', 'Loaded file']]]].concat(C.src === 'pad' ? [['Pad', 'pad', S.drum.pads.map((p, i) => [i, padLabel(i) + ' ' + (p.name || '')])]] : C.src === 'tone' ? [['Tone', 'tone', SK1_TONES.map((n, i) => [i, n])]] : []),
     btns:[['LOAD FILE…', () => false, () => $('#smpxFile').click()], ['LOOP', () => !!C.loop, () => { C.loop = C.loop ? 0 : 1; }]], knobs:[['TUNE', 'tune', -24, 24, 1, v => (v > 0 ? '+' : '') + v], ['VOLUME', 'vol', 0, 1, .01, pct]]}];
@@ -10171,6 +10173,111 @@ const DRUM_MACHINES = {
       ['SHK', 'shaker', 'Shaker'], ['SH>', 'shaker-accent', 'Shaker Accent'], ['TMB', 'tambourine', 'Tambourine'], ['TM>', 'tambourine-accent', 'Tamb Accent'], ['RDE', 'ride', 'Ride'], ['RD>', 'ride-accent', 'Ride Accent'], ['CRS', 'crash', 'Crash'], ['T1', 'tom-1', 'Tom 1'], ['T4', 'tom-4', 'Tom 4']]}, choke:['HHT', 'HHM', 'HHO']},
 };
 const dmState = {dr110:{sel:0, acc:true, set:'Kit'}, dmx:{sel:0, acc:true, set:'Kit'}};
+// more presets for the analog models, the CZ-101, the samplers and the drum machines
+Object.assign(ANA_PRESETS.juno60, {
+  'Bass · Deep House Bass':{m1:0, m2:1, pw:.5, sub:.7, cut:.28, res:.2, fenv:.35, d:.3, s:.4, r:.12, chorus:0}, 'Bass · Juno Reese':{m1:1, m2:1, pwm:.5, lfoRate:.12, sub:.5, cut:.35, res:.1, fenv:.2, s:.8, r:.15, chorus:3},
+  'Bass · Squelch':{m1:1, m2:0, sub:.4, cut:.15, res:.75, fenv:.65, d:.25, s:.1, r:.1, chorus:0}, 'Bass · Synthwave Bass':{m1:1, m2:0, sub:.6, cut:.32, res:.15, fenv:.4, d:.22, s:.35, r:.1, chorus:1},
+  'Pad · Warm Analog':{m1:1, m2:.6, pwm:.35, sub:.3, cut:.45, res:.1, fenv:.1, a:.55, d:.6, s:.85, r:.7, chorus:2}, 'Pad · Dream Pad':{m1:1, m2:1, pwm:.5, lfoRate:.18, cut:.5, res:.2, a:.7, s:.9, r:.8, chorus:3, hpf:2},
+  'Pad · Slow Sweep':{m1:1, m2:0, cut:.25, res:.4, fenv:.6, a:.8, d:.9, s:.6, r:.75, lfoCut:.25, lfoRate:.1, chorus:2}, 'Pad · Choir Ahh':{m1:0, m2:1, pw:.4, pwm:.3, cut:.42, res:.3, a:.5, s:.85, r:.6, chorus:2, hpf:1},
+  'Keys · Poly Stab':{m1:1, m2:0, sub:.2, cut:.4, res:.2, fenv:.5, d:.3, s:.15, r:.2, chorus:2}, 'Keys · House Organ':{m1:0, m2:1, pw:.25, sub:.5, cut:.65, res:0, fenv:.1, s:1, r:.08, ampGate:1, chorus:1},
+  'Keys · Funky Clav':{m1:0, m2:1, pw:.15, cut:.45, res:.35, fenv:.5, d:.2, s:0, r:.12, chorus:0, hpf:2}, 'Keys · Glass Piano':{m1:1, m2:0, cut:.5, res:.25, fenv:.45, d:.7, s:0, r:.55, chorus:1, hpf:1},
+  'Lead · Saw Lead':{m1:1, m2:0, sub:.3, cut:.65, res:.25, fenv:.2, s:.9, r:.2, lfoPitch:.06, lfoDelay:.5, chorus:1}, 'Lead · Chip Square':{m1:0, m2:1, pw:.5, cut:.85, res:0, s:1, r:.1, ampGate:1, chorus:0},
+  'Arp · Sequence Pluck':{m1:1, m2:0, cut:.25, res:.45, fenv:.6, d:.22, s:0, r:.18, chorus:1}, 'FX · Siren':{m1:1, m2:0, cut:.6, res:.3, lfoPitch:.6, lfoRate:.35, s:1, r:.3, chorus:0}});
+Object.assign(ANA_PRESETS.sh101, {
+  'Bass · Square Bass':{m1:0, m2:1, w1:4, sub:.6, cut:.28, res:.2, fenv:.4, d:.3, s:.4, r:.1}, 'Bass · Pulse Bass':{m1:.9, m2:0, pw:.25, sub:.5, cut:.25, res:.35, fenv:.5, d:.25, s:.2, r:.1},
+  'Bass · Electro Bass':{m1:0, m2:1, sub:.7, subType:1, cut:.18, res:.5, fenv:.6, d:.2, s:0, r:.08}, 'Bass · Glide Bass':{m1:0, m2:1, sub:.6, cut:.25, res:.4, fenv:.45, d:.35, s:.3, r:.1, glide:.4},
+  'Bass · Rave Hoover Bass':{m1:.9, m2:1, pwm:.6, lfoRate:.4, sub:.5, cut:.4, res:.2, fenv:.3, s:.8, r:.15}, 'Bass · Thick Sub':{m1:0, m2:.5, sub:1, cut:.2, res:.1, fenv:.25, d:.4, s:.6, r:.12},
+  'Lead · Mono Saw Lead':{m1:0, m2:1, sub:.3, cut:.6, res:.3, fenv:.25, s:.9, glide:.15, lfoPitch:.07, lfoDelay:.45}, 'Lead · Square Whistle':{m1:.8, m2:0, pw:.5, cut:.75, res:.55, s:.9, glide:.25, lfoPitch:.08, lfoDelay:.35},
+  'Lead · Acid Lead':{m1:0, m2:1, cut:.3, res:.8, fenv:.55, d:.3, s:.2, r:.1, glide:.3}, 'Lead · Chirp':{m1:.8, m2:0, pw:.2, cut:.3, res:.7, fenv:.8, d:.12, s:.3, r:.1},
+  'Pluck · Bleep':{m1:.8, m2:0, pw:.5, cut:.35, res:.4, fenv:.8, d:.1, s:0, r:.1}, 'Pluck · Rubber Pluck':{m1:0, m2:1, sub:.4, cut:.2, res:.65, fenv:.75, d:.18, s:0, r:.12},
+  'FX · Wobble':{m1:0, m2:1, sub:.5, cut:.3, res:.5, lfoCut:.7, lfoRate:.3, s:1, r:.1}, 'FX · Vibrato Drone':{m1:.7, m2:.7, cut:.5, res:.3, lfoPitch:.25, lfoRate:.45, a:.3, s:1, r:.5},
+  'FX · Random Bloops':{m1:.8, m2:0, cut:.45, res:.6, lfoCut:.8, lfoRate:.55, lfoWave:4, s:1, r:.1}, 'Perc · Tom':{m1:0, m2:0, sub:1, subType:2, cut:.35, res:.4, fenv:.6, d:.25, s:0, r:.2, env2Pitch:.3}});
+Object.assign(ANA_PRESETS.jx3p, {
+  'Pad · Warm Strings':{m1:1, m2:.9, d2t:6, cut:.45, fenv:.1, a:.6, s:.9, r:.7, chorus:2}, 'Pad · Soft Brass Pad':{m1:1, m2:.7, d2t:10, cut:.35, fenv:.35, a:.35, d:.6, s:.8, r:.6, chorus:2},
+  'Pad · Cross-mod Wash':{w2:2, m2:.7, xmod:.3, i2:7, cut:.55, res:.15, a:.7, s:.9, r:.8, chorus:2}, 'Pad · Eighties Glass':{w1:1, w2:1, m2:.8, i2:12, pw:.35, cut:.6, fenv:.2, a:.4, d:.8, s:.6, r:.7, chorus:2},
+  'Keys · Poly Keys':{m1:1, m2:.6, d2t:5, cut:.4, fenv:.5, d:.45, s:.3, r:.3, chorus:2}, 'Keys · Electric Piano':{w1:3, w2:2, m2:.6, i2:12, cut:.6, d:.7, s:0, r:.45, chorus:2},
+  'Keys · Harpsi':{w1:1, w2:1, m2:.8, pw:.15, i2:12, cut:.65, res:.1, fenv:.4, d:.4, s:0, r:.3, chorus:0}, 'Keys · Sync Stab':{w2:0, m2:1, m1:.4, sync:1, i2:12, env2Pitch:.5, cut:.55, fenv:.4, d:.25, s:0, r:.2, chorus:2},
+  'Brass · Stab Brass':{m1:1, m2:1, d2t:7, cut:.3, res:.1, fenv:.65, a:.05, d:.3, s:.5, r:.25, chorus:2}, 'Brass · Synth Horns':{m1:1, m2:.9, i2:7, cut:.38, fenv:.45, a:.12, d:.5, s:.7, r:.35, chorus:2},
+  'Bass · Sync Bass':{w2:0, m2:1, m1:0, sync:1, i2:5, env2Pitch:.3, cut:.3, res:.2, fenv:.4, d:.25, s:.2, r:.1, chorus:0}, 'Bass · Octave Bass':{m1:1, m2:.8, i2:12, cut:.28, res:.25, fenv:.45, d:.3, s:.3, r:.12, chorus:0},
+  'Lead · Fifth Lead':{m1:1, m2:.8, i2:7, cut:.6, res:.25, s:.9, lfoPitch:.06, lfoDelay:.4, chorus:2}, 'Lead · Xmod Scream':{w2:0, m2:1, m1:0, xmod:.8, i2:7, cut:.7, res:.3, s:.9, chorus:0},
+  'Bell · Metal Bell':{w1:3, w2:2, m2:.8, xmod:.9, i2:31, cut:.85, d:.8, s:0, r:.7, chorus:2}, 'FX · Sync Sweep':{w2:0, m2:1, m1:0, sync:1, i2:19, env2Pitch:-.8, a:.2, d:.9, s:.4, r:.5, cut:.65, chorus:2}});
+Object.assign(ANA_PRESETS.minimoog, {
+  'Bass · Taurus-ish':{w1:2, w2:0, d2t:5, m3:.9, i3:-12, cut:.18, res:.2, fenv:.4, d:.6, s:.6, r:.25}, 'Bass · Pluck Bass':{m1:1, m2:.7, m3:0, cut:.12, res:.4, fenv:.8, d:.18, s:.05, r:.1},
+  'Bass · Square Bass':{w1:4, w2:4, d2t:3, m3:.7, w3:4, i3:-12, cut:.25, res:.25, fenv:.45, d:.35, s:.4, r:.12}, 'Bass · G-Funk Sine':{w1:2, m1:1, w2:2, m2:.6, i2:12, m3:0, cut:.3, res:.1, fenv:.1, s:.9, r:.15, glide:.35},
+  'Bass · Thump':{m1:1, m2:.6, m3:.8, w3:2, i3:-12, cut:.1, res:.15, fenv:.6, d:.25, s:.3, r:.1}, 'Bass · Detroit':{m1:1, m2:1, d2t:12, m3:0, cut:.2, res:.6, fenv:.6, d:.25, s:.15, r:.1},
+  'Lead · Fat Saw Lead':{m1:1, m2:1, d2t:9, m3:.8, w3:0, i3:0, d3t:-7, cut:.55, res:.25, fenv:.3, s:.9, glide:.2}, 'Lead · Prog Lead':{w1:0, w2:1, pw:.3, m3:.6, i3:7, cut:.6, res:.45, fenv:.35, s:.85, glide:.3, lfoPitch:.08, lfoDelay:.5},
+  'Lead · Whistle Sine':{w1:2, w2:2, m2:0, m3:0, cut:.75, res:.2, s:1, glide:.3, lfoPitch:.07, lfoDelay:.3}, 'Lead · Fifths':{m1:1, m2:.8, i2:7, m3:.6, i3:-12, cut:.5, res:.3, fenv:.3, s:.85, glide:.15},
+  'Lead · Funk Lead':{w1:1, w2:0, m2:.6, pw:.3, m3:0, cut:.4, res:.55, fenv:.55, d:.25, s:.5, r:.12, glide:.1}, 'Brass · Solo Brass':{m1:1, m2:.9, d2t:6, m3:.5, cut:.35, res:.15, fenv:.55, a:.15, d:.5, s:.75, r:.25},
+  'Pluck · Moog Pluck':{m1:1, m2:.6, m3:0, cut:.2, res:.35, fenv:.75, d:.25, s:0, r:.2}, 'Perc · Kick Drum':{w1:3, m1:1, m2:0, m3:0, cut:.25, res:.95, fenv:.9, d:.2, s:0, r:.15, kf:1},
+  'FX · Siren':{m1:1, m2:0, m3:0, cut:.6, res:.4, lfoPitch:.5, lfoRate:.3, s:1, r:.2}, 'FX · Resonant Whistle':{m1:0, m2:0, m3:0, noise:.8, cut:.5, res:.93, kf:1, s:1, r:.3}});
+Object.assign(ANA_PRESETS.sixtrak, {
+  'Pad · Warm Six':{m1:1, m2:.4, cut:.42, res:.1, fenv:.15, a:.55, d:.6, s:.85, r:.7}, 'Pad · PWM Strings':{m1:.4, m2:1, pwm:.6, lfoRate:.2, cut:.5, a:.5, s:.9, r:.65},
+  'Pad · Sync Pad':{m1:.6, m2:.8, w2:0, sync:1, i2:7, env2Pitch:.2, cut:.5, a:.45, s:.8, r:.6}, 'Pad · Choir':{m1:0, m2:1, pw:.4, pwm:.35, cut:.4, res:.35, a:.55, s:.85, r:.65},
+  'Bass · Punch Bass':{m1:1, m2:.6, cut:.2, res:.3, fenv:.6, d:.22, s:.25, r:.1}, 'Bass · Sync Bass':{m1:.5, m2:1, w2:0, sync:1, i2:7, env2Pitch:.35, cut:.3, fenv:.4, d:.3, s:.3, r:.1},
+  'Bass · Square Bass':{m1:0, m2:1, pw:.5, cut:.28, res:.2, fenv:.4, d:.3, s:.4, r:.1}, 'Brass · Poly Brass':{m1:1, m2:.6, cut:.32, res:.1, fenv:.55, a:.12, d:.45, s:.7, r:.3},
+  'Keys · Clav':{m1:0, m2:1, pw:.15, cut:.45, res:.35, fenv:.55, d:.2, s:0, r:.12}, 'Keys · Electric Piano':{m1:.4, m2:.7, w1:2, pw:.4, cut:.4, fenv:.45, d:.65, s:0, r:.45},
+  'Keys · Organ':{m1:0, m2:1, pw:.5, cut:.7, s:1, r:.08}, 'Lead · Sync Lead':{m1:0, m2:1, w2:0, sync:1, i2:12, env2Pitch:.55, cut:.65, res:.2, s:.9},
+  'Lead · Square Lead':{m1:0, m2:1, pw:.5, cut:.6, res:.3, s:.9, lfoPitch:.06, lfoDelay:.4}, 'Pluck · Harp':{m1:.6, m2:.6, w2:1, pw:.3, cut:.3, res:.2, fenv:.6, d:.5, s:0, r:.5},
+  'FX · Sync Zap':{m1:0, m2:1, w2:0, sync:1, i2:24, env2Pitch:1, cut:.6, d:.25, s:0, r:.2}, 'FX · Noise Wash':{m1:0, m2:0, noise:1, cut:.3, res:.7, lfoCut:.5, lfoRate:.12, a:.6, s:.8, r:.8}});
+Object.assign(ANA_PRESETS.cs80, {
+  'Brass · Bright Brass':{m1:1, m2:.8, w2:0, d2t:6, cut:.42, res:.15, fenv:.55, a:.15, d:.5, s:.7, r:.45, velCut:.7, chorus:4}, 'Brass · Fanfare':{m1:1, m2:1, w2:0, i2:7, cut:.38, fenv:.6, a:.12, d:.5, s:.75, r:.4, velCut:.6, chorus:4},
+  'Brass · Soft Horns':{m1:1, m2:.6, w2:1, pw:.4, cut:.3, fenv:.4, a:.3, d:.6, s:.8, r:.5, velCut:.4, chorus:4}, 'Pad · Love Theme':{m1:1, m2:.9, w2:0, d2t:12, cut:.38, res:.25, fenv:.3, a:.7, d:.8, s:.8, r:.9, lfoPitch:.04, lfoDelay:.8, chorus:4},
+  'Pad · Tears in Rain':{m1:.8, m2:.9, w2:1, pwm:.5, lfoRate:.15, cut:.33, res:.3, fenv:.2, a:.9, s:.9, r:1, chorus:4}, 'Pad · Glass Strings':{m1:1, m2:.7, w2:3, i2:12, cut:.55, res:.1, a:.6, s:.85, r:.8, hpCut:.2, chorus:4},
+  'Pad · Dark Swell':{m1:1, m2:.8, cut:.2, res:.45, fenv:.6, a:.9, d:1, s:.6, r:.9, velCut:.3, chorus:4}, 'Strings · Cello Section':{m1:1, m2:.7, d2t:8, cut:.35, res:.1, fenv:.15, a:.35, s:.85, r:.5, lfoPitch:.06, lfoDelay:.5, chorus:4},
+  'Keys · CS Piano':{m1:1, m2:.5, w2:3, i2:12, cut:.45, res:.1, fenv:.5, d:.7, s:0, r:.5, velCut:.8, chorus:0}, 'Keys · Clavinet':{w1:1, pw:.15, m1:1, m2:0, cut:.4, res:.35, fenv:.6, d:.25, s:0, r:.15, velCut:.8, hpCut:.3},
+  'Keys · Organ':{w1:3, m1:1, w2:3, m2:.8, i2:12, cut:.8, s:1, r:.1, chorus:4}, 'Bells · Chimes':{w1:3, w2:3, m2:.9, ring:1, i2:24, d2t:30, cut:.9, d:.8, s:0, r:.9, chorus:4},
+  'Lead · Sine Lead':{w1:3, m1:1, m2:0, cut:.8, s:.95, glide:.3, lfoPitch:.08, lfoDelay:.4, chorus:4}, 'Lead · Brass Lead':{m1:1, m2:.7, w2:0, d2t:5, cut:.45, res:.3, fenv:.4, a:.08, s:.8, glide:.2, chorus:4},
+  'Bass · Deep Bass':{m1:1, m2:.8, w2:3, i2:-12, cut:.18, res:.2, fenv:.35, d:.4, s:.6, r:.2}, 'FX · Ring Mod Drone':{w1:0, w2:3, m2:.8, ring:1, i2:7, d2t:20, cut:.5, res:.3, a:.5, s:.9, r:.8, lfoCut:.3, lfoRate:.1, chorus:4}});
+Object.assign(CZ_PRESETS, {
+  'Bass · Fat Bass':{line:2, wave1:0, wave2:0, dcw1:.75, dcw2:.6, wd1:.3, ws1:.2, wd2:.35, ws2:.15, ad1:.5, as1:.8, ar1:.15, ad2:.5, as2:.8, ar2:.15, det:8, oct:-1}, 'Bass · Sub Sine':{line:0, wave1:0, dcw1:.05, ad1:.5, as1:.9, ar1:.15, oct:-1},
+  'Bass · Pulse Bass':{line:0, wave1:2, dcw1:.65, wd1:.3, ws1:.2, ad1:.4, as1:.7, ar1:.12, oct:-1}, 'Bass · Slap':{line:2, wave1:0, wave2:5, dcw1:.6, dcw2:.85, wd1:.2, ws1:.1, wd2:.15, ws2:0, ad1:.4, as1:.5, ar1:.15, ad2:.2, as2:0, ar2:.1, oct:-1},
+  'Bass · Reso Pluck':{line:0, wave1:6, dcw1:.9, wd1:.25, ws1:0, ad1:.35, as1:.2, ar1:.15, oct:-1}, 'Bass · House Organ Bass':{line:2, wave1:1, wave2:3, dcw1:.5, dcw2:.3, ws1:1, ws2:1, as1:1, as2:1, ar1:.1, ar2:.1, oct:-1},
+  'Keys · Bright Piano':{line:2, wave1:0, wave2:3, dcw1:.55, dcw2:.4, wd1:.45, ws1:0, wd2:.5, ws2:0, ad1:.65, as1:0, ar1:.45, ad2:.6, as2:0, ar2:.4, det:4}, 'Keys · Clav':{line:0, wave1:2, dcw1:.85, wd1:.25, ws1:.1, ad1:.35, as1:0, ar1:.15},
+  'Keys · Harpsichord':{line:2, wave1:2, wave2:2, dcw1:.8, dcw2:.7, wd1:.35, ws1:0, wd2:.3, ws2:0, ad1:.5, as1:0, ar1:.3, ad2:.45, as2:0, ar2:.3, oct2:1, det:3}, 'Keys · Vibes':{line:2, wave1:3, wave2:0, dcw1:.2, dcw2:.1, wd1:.5, ws1:0, ad1:.7, as1:0, ar1:.6, ad2:.6, as2:0, ar2:.5, oct2:1},
+  'Keys · Jazz Organ':{line:3, wave1:1, wave2:0, dcw1:.35, dcw2:.15, ws1:1, ws2:1, as1:1, as2:1, ar1:.1, ar2:.1, oct2:1}, 'Keys · Toy Piano':{line:3, wave1:3, wave2:3, dcw1:.5, dcw2:.6, wd1:.35, ws1:0, wd2:.3, ws2:0, ad1:.45, as1:0, ar1:.35, ad2:.4, as2:0, ar2:.3, oct:1, oct2:1},
+  'Brass · Synth Brass':{line:2, wave1:0, wave2:0, dcw1:.7, dcw2:.65, wa1:.25, wa2:.3, wd1:.5, wd2:.5, ws1:.6, ws2:.55, aa1:.12, aa2:.15, as1:.85, as2:.85, ar1:.3, ar2:.3, det:7}, 'Brass · Stab':{line:0, wave1:0, dcw1:.85, wd1:.3, ws1:.3, ad1:.35, as1:.4, ar1:.2},
+  'Strings · Slow Strings':{line:2, wave1:0, wave2:4, dcw1:.45, dcw2:.4, wa1:.7, wa2:.75, ws1:.6, ws2:.6, aa1:.65, aa2:.7, as1:.9, as2:.9, ar1:.7, ar2:.75, det:11}, 'Strings · Pizzicato':{line:2, wave1:0, wave2:0, dcw1:.55, dcw2:.5, wd1:.3, ws1:0, wd2:.3, ws2:0, ad1:.35, as1:0, ar1:.25, ad2:.35, as2:0, ar2:.25, det:6},
+  'Pad · Choir':{line:2, wave1:7, wave2:5, dcw1:.45, dcw2:.4, wa1:.5, wa2:.55, ws1:.5, ws2:.5, aa1:.5, aa2:.5, as1:.9, as2:.9, ar1:.7, ar2:.7, det:9}, 'Pad · Reso Sweep':{line:0, wave1:6, dcw1:.95, wa1:.9, wd1:1, ws1:.3, aa1:.5, as1:.9, ar1:.8},
+  'Pad · Digital Air':{line:3, wave1:3, wave2:7, dcw1:.3, dcw2:.6, wa1:.6, wa2:.8, ws1:.4, ws2:.5, aa1:.6, aa2:.7, as1:.85, as2:.8, ar1:.75, ar2:.8, oct2:1, det:5}, 'Lead · Saw Lead':{line:2, wave1:0, wave2:0, dcw1:.8, dcw2:.75, ws1:.7, ws2:.7, as1:.9, as2:.9, ar1:.2, ar2:.2, det:10},
+  'Lead · Sync-like':{line:0, wave1:5, dcw1:.85, wd1:.6, ws1:.4, as1:.9, ar1:.2}, 'Lead · Pulse Lead':{line:0, wave1:2, dcw1:.7, ws1:.7, as1:.9, ar1:.2},
+  'Bells · Glock':{line:3, wave1:3, wave2:3, dcw1:.4, dcw2:.7, wd1:.6, ws1:0, wd2:.5, ws2:0, ad1:.7, as1:0, ar1:.6, ad2:.6, as2:0, ar2:.5, oct:1, oct2:2}, 'Bells · Tubular':{line:2, wave1:0, wave2:3, ring:1, dcw1:.3, dcw2:.5, wd1:.8, ws1:0, wd2:.8, ws2:0, ad1:.85, as1:0, ar1:.8, ad2:.85, as2:0, ar2:.8, det:55},
+  'Perc · Wood Block':{line:0, wave1:3, dcw1:.7, wd1:.1, ws1:0, ad1:.15, as1:0, ar1:.1, oct:1}, 'Perc · Metal Hit':{line:2, wave1:2, wave2:4, ring:1, dcw1:.9, dcw2:.9, wd1:.2, ws1:0, wd2:.2, ws2:0, ad1:.3, as1:0, ar1:.3, ad2:.3, as2:0, ar2:.3, det:60},
+  'FX · Laser':{line:0, wave1:6, dcw1:1, wd1:.35, ws1:0, ad1:.4, as1:0, ar1:.3, oct:1}, 'FX · Noise Wind':{line:1, wave2:7, noise:1, dcw2:.6, wa2:.6, ws2:.5, aa2:.6, as2:.8, ar2:.8}});
+// SK-1 / Emax presets: a built-in tone plus the machine's settings
+const SMPX_PRESETS = {
+  sk1:{'Keys · SK Piano':{tone:0, tune:0, loop:0}, 'Keys · Pipe Organ':{tone:5, loop:1}, 'Keys · Jazz Organ':{tone:6, loop:1}, 'Keys · Low Organ':{tone:6, tune:-12, loop:1},
+    'Brass · Trumpet':{tone:1, loop:1}, 'Brass · Brass Section':{tone:7, loop:1}, 'Brass · Tuba Crunch':{tone:7, tune:-24, loop:1}, 'Wind · Flute':{tone:2, loop:1}, 'Wind · Piccolo':{tone:2, tune:12, loop:1},
+    'Voice · Ahh':{tone:3, loop:1}, 'Voice · Chipmunk':{tone:3, tune:12, loop:0}, 'Voice · Monster':{tone:3, tune:-19, loop:0}, 'Drums · Synth Drums':{tone:4, loop:0}, 'Drums · Low Boom':{tone:4, tune:-12, loop:0},
+    'Lo-fi · Toy Piano':{tone:0, tune:12, loop:0}, 'Lo-fi · Broken Organ':{tone:5, tune:-5, loop:0, vol:.9}},
+  emax:{'Keys · Emax Piano':{tone:0, cut:.75, res:.05, fenv:.2, fd:.5, a:0, d:.6, s:.4, r:.45, loop:0}, 'Keys · Dark EP':{tone:0, cut:.4, res:.15, fenv:.35, fd:.45, d:.7, s:.3, r:.5, loop:0},
+    'Keys · Organ':{tone:6, cut:.8, s:1, r:.12, loop:1}, 'Keys · Cathedral':{tone:5, cut:.7, a:.2, s:1, r:.8, loop:1},
+    'Brass · Stabs':{tone:7, cut:.45, res:.2, fenv:.6, fd:.3, d:.4, s:.5, r:.2, loop:1}, 'Brass · Filter Brass':{tone:1, cut:.3, res:.25, fenv:.65, fa:.15, fd:.6, a:.1, s:.8, r:.3, loop:1},
+    'Pad · Choir Pad':{tone:3, cut:.55, res:.1, a:.5, s:.9, r:.8, loop:1}, 'Pad · Swept Strings':{tone:7, cut:.25, res:.35, fenv:.6, fa:.7, fd:.9, a:.6, s:.9, r:.8, loop:1},
+    'Pad · Dark Flute Pad':{tone:2, cut:.35, res:.2, a:.55, s:.9, r:.9, loop:1}, 'Bass · Filter Bass':{tone:4, tune:-12, cut:.25, res:.5, fenv:.6, fd:.25, d:.3, s:.3, r:.15, loop:1},
+    'Bass · Sub Organ':{tone:6, tune:-24, cut:.3, res:.1, s:1, r:.12, loop:1}, 'Lead · Reso Flute':{tone:2, cut:.45, res:.7, fenv:.4, fd:.4, s:.9, r:.3, loop:1},
+    'Voice · Vox Stab':{tone:3, cut:.6, res:.3, fenv:.4, fd:.3, d:.35, s:.2, r:.25, loop:0}, 'Drums · Crunch Drums':{tone:4, cut:.9, res:0, d:.5, s:1, r:.3, loop:0},
+    'FX · Reso Sweep':{tone:3, cut:.1, res:.85, fenv:1, fa:.6, fd:.9, a:.4, s:.9, r:.8, loop:1}, 'FX · Low Drone':{tone:5, tune:-24, cut:.35, res:.5, a:.6, s:1, r:1, loop:1}}};
+// drum machine patterns: one string per voice, 16 steps, x = hit, X = accent
+const DM_PATTERNS = {
+  dr110:{'Rock':{BD:'X.....x.X.......', SD:'....X.......X...', CH:'x.x.x.x.x.x.x.x.'}, 'Disco':{BD:'X...X...X...X...', SD:'....X.......X...', CH:'x.x.x.x.x.x.x.x.', OH:'..X...X...X...X.'},
+    'Electro':{BD:'X.....X...X.....', SD:'....X.......X...', CP:'....X.......X..x', CH:'x.xxx.xxx.xxx.xx'}, 'Hip Hop':{BD:'X......x..X.....', SD:'....X.......X...', CH:'x.x.x.x.x.x.x.xx'},
+    'Shuffle':{BD:'X.....X.X.....x.', S2:'....X.......X...', CH:'x..x..x..x..x.x.'}, 'Bossa':{BD:'X..x..X.X..x..X.', RS:'X..x..x...x..x..', CH:'xxxxxxxxxxxxxxxx'},
+    'Reggae':{BD:'........X.......', RS:'........X.......', CH:'..x...x...x...x.', SH:'x.x.x.x.x.x.x.x.'}, 'House':{BD:'X...X...X...X...', CP:'....X.......X...', OH:'..x...x...x...x.', SH:'xxxxxxxxxxxxxxxx'},
+    'Funk':{BD:'X..x..x...X..x..', SD:'....X..x.x..X...', CH:'xxxxxxxxxxxxxxxx'}, 'Waltz-ish':{BD:'X.....X.....X...', S3:'....x.x...x.x...', CY:'X...............'}},
+  dmx:{'Boom Bap':{BD:'X......x..X.....', SD:'....X.......X...', HHT:'x.x.x.x.x.x.x.x.'}, 'Run It':{BD:'X.....X.X.....X.', SD:'....X.......X...', HHT:'xxxxxxxxxxxxxxxx', CLP:'....X.......X...'},
+    'Electro Funk':{BD:'X.....X...X..x..', SD:'....X.......X...', HHM:'x.xxx.xxx.xxx.xx', HHO:'......X.......X.'}, 'New Wave':{BD:'X...X...X...X...', SD:'....X.......X...', HHT:'xxxxxxxxxxxxxxxx', TMB:'....X.......X...'},
+    'Freestyle':{BD:'X..X..X...X..X..', SD:'....X.......X...', CLP:'....X.......X...', HHT:'x.x.x.x.x.x.x.x.', HHO:'..x...x...x...x.'}, 'Slow Jam':{BD:'X.......X.x.....', SD:'....X.......X...', RIM:'..x.....x.....x.', HHT:'x.x.x.x.x.x.x.x.'},
+    'Go-Go':{BD:'X..x..X...X..x..', SD:'...x..X....x..X.', HHM:'x.xxx.xxx.xxx.xx', T1:'..x.......x.....'}, 'Fills':{BD:'X.......X.......', SD:'....X.......X...', T1:'............xx..', T2:'..............xx', T4:'..............x.', CRS:'X...............'},
+    'Ride Groove':{BD:'X.....x...X.....', SD:'....X.......X...', RDE:'x.x.x.x.x.x.x.x.'}, 'Rimshot Dub':{BD:'X.........X.....', RIM:'....X.......X...', HHT:'..x...x...x...x.'}}};
+function dmPattern(id, name){
+  const M = DRUM_MACHINES[id], st = dmState[id], P = (DM_PATTERNS[id] || {})[name]; if (!P) return;
+  let list = M.sets[st.set]; const need = Object.keys(P);
+  if (!need.every(ab => list.some(r => r[0] === ab))){ const k = Object.keys(M.sets).find(k => need.every(ab => M.sets[k].some(r => r[0] === ab))); if (k){ st.set = k; list = M.sets[k]; } }
+  const L = S.bars * TPB, stepT = L / 16; pushUndo();
+  S.drum.notes = S.drum.notes.filter(n => n.p >= list.length);
+  for (const ab in P){ const pi = list.findIndex(r => r[0] === ab); if (pi < 0) continue; [...P[ab]].forEach((c, s) => { if (c !== '.') S.drum.notes.push({p:pi, t:Math.round(s * stepT), v:c === 'X' ? 1 : .7}); }); }
+  changed();
+}
 async function dmLoad(id){
   const M = DRUM_MACHINES[id], st = dmState[id], list = M.sets[st.set]; ensureAudio(); toast('Loading the ' + M.model + '…');
   for (let i = 0; i < list.length && i < 16; i++){ try { const ab = await (await fetch('kits/' + M.dir + '/' + list[i][1] + '.wav')).arrayBuffer(); const buf = await decodeAny(ab);
@@ -10182,12 +10289,14 @@ function renderDrumMachine(id){
   const steps = 16, L = S.bars * TPB, stepT = L / steps, has = (pi, s) => S.drum.notes.find(n => n.p === pi && n.t < L && Math.round(n.t / stepT) === s);
   const loaded = (S.drum.pads[0].name || '').startsWith(id === 'dmx' ? 'DMX ' : 'DR ');
   box.innerHTML = `<div class="dm-head"><b>${M.brand}</b><span>${M.model}</span><i>${M.sub}</i></div>
+    <select class="dm-pat nolearn" aria-label="Patterns">${presetOptions(DM_PATTERNS[id] || {}, 'Patterns…')}</select>
     ${Object.keys(M.sets).length > 1 ? `<div class="dm-sets">${Object.keys(M.sets).map(k => `<button class="nolearn${k === st.set ? ' on' : ''}" data-set="${k}">${k.toUpperCase()}</button>`).join('')}</div>` : ''}
     <div class="dm-lcd">${list.map(([ab], pi) => `<div class="dm-row${pi === st.sel ? ' sel' : ''}" data-p="${pi}"><span>${ab}</span>${Array.from({length:steps}, (_, s) => { const n = has(pi, s); return `<i data-s="${s}" class="${n ? (n.v >= .95 ? 'on acc' : 'on') : ''}${s % 4 === 0 ? ' beat' : ''}"></i>`; }).join('')}</div>`).join('')}</div>
     <div class="dm-btns">${list.map(([ab], i) => `<button class="nolearn${i === st.sel ? ' on' : ''}" data-i="${i}">${ab}</button>`).join('')}<button class="nolearn acc${st.acc ? ' on' : ''}" data-a="acc">ACCENT</button></div>
     <div class="row"><button class="grow nolearn" data-a="load">${loaded ? 'Reload' : 'Load'} the ${M.model} sounds onto the pads</button><button class="nolearn" data-a="clr">Clear ${list[st.sel][0]}</button></div>`;
   const q = s2 => box.querySelector(s2);
   q('[data-a="load"]').addEventListener('click', async () => { await dmLoad(id); renderDrumMachine(id); });
+  q('.dm-pat').addEventListener('change', async e => { const n = e.target.value; if (!n) return; if (!(S.drum.pads[0].name || '').startsWith(id === 'dmx' ? 'DMX ' : 'DR ')){ const need = Object.keys(DM_PATTERNS[id][n]), k = Object.keys(M.sets).find(k => need.every(ab => M.sets[k].some(r => r[0] === ab))); if (k) st.set = k; await dmLoad(id); } dmPattern(id, n); renderDrumMachine(id); toast(n + ' pattern'); });
   q('[data-a="clr"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p !== st.sel); changed(); renderDrumMachine(id); });
   q('[data-a="acc"]').addEventListener('click', () => { st.acc = !st.acc; renderDrumMachine(id); });
   box.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { st.set = b.dataset.set; st.sel = 0; renderDrumMachine(id); }));
@@ -10198,6 +10307,7 @@ function renderDrumMachine(id){
 
 $('#anaPreset').addEventListener('change', e => { const tr = curSynth(), model = tr.inst, P = (ANA_PRESETS[model] || {})[e.target.value]; if (!P) return; tr['ana_' + model] = Object.assign({}, ANA_COMMON, ANA_MODELS[model].base, P, {preset:e.target.value}); solCfg(tr); save(); renderAna(tr); const r = hearRoot(); hearChord(tr, ANA_MODELS[model].base.mono ? [r - 12] : [r, r + 4, r + 7], .9); });
 $('#czPreset').addEventListener('change', e => { const tr = curSynth(); if (!CZ_PRESETS[e.target.value]) return; tr.cz = czPreset(e.target.value); solCfg(tr); save(); renderCz(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .9); });
+$('#smpxPreset').addEventListener('change', async e => { const tr = curSynth(), model = tr.inst, P = (SMPX_PRESETS[model] || {})[e.target.value]; if (!P) return; tr.smpx = Object.assign(SMPX_DEFAULT(model), {src:'tone'}, P, {preset:e.target.value}); ['src', 'pad', 'tone'].forEach(k => tr.smpx['_' + k] = tr.smpx[k]); solCfg(tr); save(); await smpxSend(tr); renderSmpx(tr); setTimeout(() => { const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .9); }, 150); });
 $('#smpxFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const tr = curSynth(); try { const b = await decodeAny(await f.arrayBuffer()); const key = 'smpx:' + tr.id;
   await DB.put('audio', key, {sr:b.sampleRate, ch:[b.getChannelData(0).slice(0, Math.min(b.length, b.sampleRate * 20))]}); tr.smpx.src = 'file'; tr.smpx.fileKey = key; tr.smpx._src = 'file'; save(); await smpxSend(tr); renderSmpx(tr); toast(f.name + ' loaded into the ' + (tr.inst === 'sk1' ? 'SK-1' : 'Emax') + '.'); const r = hearRoot(); hearChord(tr, [r], .8); } catch(err){ toast('Could not read that file.'); } });
 
