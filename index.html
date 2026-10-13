@@ -1812,7 +1812,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
         <li><b>New project</b> (Setup, tap twice): saves the current one to Projects, then starts from factory defaults: tempo, patterns, pads, every synth, effect, rack unit, master, mixer and turntable setting. Only your setup stays: MIDI mappings and settings, the DJ library and crates, SoundFonts.</li>
-        <li><b>Templates</b> (Setup, the menu next to New project): start a whole song already laid out. Each one sets the tempo, key, drum kit, three instruments with presets, sends, rack and sidechain, a set of patterns (Intro, Verse, Hook, Break and so on) and the song order, with Song mode on. Press play and it runs start to finish, and exports as a full song. <b>Vocoder robot</b> has a Speech track (muted) already feeding the vocoder on the Robot Voice synth, so the chords talk; change the words on the vocoder's speech box and press Send. <b>80s synth-pop</b> has gated room drums (Phil Collins Simulator). <b>House</b> pumps: the kick ducks the bass, pad, stab and reverb. Then change anything.</li>
+        <li><b>Templates</b> (Setup, the menu next to New project): start a whole song already laid out. Each one sets the tempo, key, drum kit, three instruments with presets, sends, rack and sidechain, a set of patterns (Intro, Verse, Hook, Break and so on) and the song order, with Song mode on. Press play and it runs start to finish, and exports as a full song. <b>Vocoder robot</b> has a Speech track (muted) already feeding the vocoder on the Robot Voice synth, so the chords talk; change the words on the vocoder's speech box and press Send. <b>80s synth-pop</b> has gated room drums (Phil Collins Simulator). <b>House</b> pumps: the kick ducks the bass, pad, stab and reverb. <b>Computer Age</b> is 1984 Newcleus-style electro: Oberheim DMX, a mono bass, zaps, a vocoder saying "push the button" and sped-up chipmunk voices on their own track. Then change anything.</li>
         <li><b>Sidechain</b> (Mixer → Sidechain card): anything ducks anything. Each route is <i>key → target</i>. The key can be a pad hit, any track's sound, any FX return, a turntable or the mic input; the target can be any track, any FX return or a turntable. Amount is how far it dips, Release how fast it comes back. Several keys can duck one target. Each route has its own on/off and can be MIDI-learned. Routes play in exports too (turntables and the mic are live only). The older "Ducked by" on each track's FX still works alongside.</li>
         <li><b>Output level</b> (Setup → Output level, saved on this device): Phone (−6 dB, the default) leaves headroom so a phone's speaker and headphone output don't distort; Quiet is −12 dB; Studio is full level for an interface. The final limiter tops out at −1 dBFS. Exports are always full level.</li>
         <li><b>Master meter</b> (under the top bar, on every screen): left and right output level from −48 to 0 dBFS, with a peak-hold line and the loudest recent peak in dB; it turns red when the output clips. Tap it for the master effects.</li>
@@ -1955,7 +1955,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v115</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v116</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -13139,7 +13139,8 @@ const TEMPLATES = {
   synthpop:{name:'80s synth-pop', bpm:118, kit:'lm2', root:2, scale:'Minor'},
   house:{name:'House (sidechain pump)', bpm:124, kit:'tr909', root:5, scale:'Minor'},
   hiphop:{name:'Boom bap', bpm:90, kit:'pocket', root:0, scale:'Minor'},
-  disco:{name:'Disco strings', bpm:116, kit:'lm2', root:7, scale:'Minor'}
+  disco:{name:'Disco strings', bpm:116, kit:'lm2', root:7, scale:'Minor'},
+  newcleus:{name:'Computer Age (Newcleus-style electro)', bpm:112, kit:'dmx', root:4, scale:'Minor'}
 };
 // steps: 'x' hit (accent), 'o' soft hit, '.' rest; the string repeats to fill the bars
 function tplDrums(bars, rows){ const out = []; for (const p in rows){ const r = rows[p]; for (let i = 0; i < bars * 16; i++){ const ch = r[i % r.length]; if (ch === 'x' || ch === 'o') out.push({p:+p, t:i * TPS, v:ch === 'x' ? 1 : .62}); } } return out.sort((a, b) => a.t - b.t); }
@@ -13154,8 +13155,8 @@ function tplSynth(id, name, inst, preset){
   else if (inst === 'disco') tr.disco = DISCO_DEFAULT(); else if (inst === 'choir') tr.choir = CHOIR_DEFAULT();
   return tr;
 }
-async function tplSpeech(fresh, id, lines, bars){
-  const sr = 22050, bar = 240 / fresh.bpm, opts = Object.assign(ttsOpts({voice:'robot', semi:0, speed:1}), {sr}), len = Math.round(bars * bar * sr), d = new Float32Array(len);
+async function tplSpeech(fresh, id, lines, bars, voice){
+  const sr = 22050, bar = 240 / fresh.bpm, opts = Object.assign(ttsOpts(voice || {voice:'robot', semi:0, speed:1}), {sr}), len = Math.round(bars * bar * sr), d = new Float32Array(len);
   lines.forEach((l, k) => { if (!l) return; const a = ttsRender(l, opts), o = Math.round(k * bar * sr); for (let i = 0; i < a.length && o + i < len; i++) d[o + i] = a[i] * .4; });
   const key = 'tts:' + id + ':' + Date.now() + ':' + Math.random().toString(36).slice(2, 6), buf = makeBuffer([d], sr);
   await storeAudio(key, buf); return {key, steps:bars * 16, bpm:fresh.bpm};
@@ -13239,6 +13240,31 @@ async function tplBuild(name, S0){
     const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {2:'....x.......x...'})), {s1:riff, s2:bl, s3:tplChords(4, prog, .6)});
     F.song = [{s:intro, n:1}, {s:groove, n:2}, {s:hook, n:2}, {s:groove, n:1}, {s:hook, n:2}];
     route('pad:0', 't:s1', .3, .2);
+  } else if (name === 'newcleus'){
+    // 1984 Brooklyn electro: Oberheim DMX, a Pro One-style mono bass, zaps, a vocoder that talks and sped-up "chipmunk" voices
+    const voc = tplSynth(1, 'Vocoder', 'juno60', ''), bass = tplSynth(2, 'Bass', 'sh101', 'Bass · 101 Bass'), zap = tplSynth(3, 'Zaps', 'sh101', 'Pluck · Zap');
+    voc.inst = 'prophet'; voc.p5 = P5_DEFAULT('Vocoder carrier'); delete voc.ana_juno60;
+    voc.vol = .9; voc.sendB = .15; bass.vol = .85; zap.vol = .5; zap.sendB = .35; F.synths = [voc, bass, zap];
+    const sp = Object.assign({id:'a1', name:'Speech', armed:false, recBars:4, clip:null, clipSteps:64, warp:'complex', mute:true}, mixDefaults());
+    const ch = Object.assign({id:'a2', name:'Chipmunks', armed:false, recBars:4, clip:null, clipSteps:64, warp:'complex'}, mixDefaults(), {vol:.45, sendB:.2});
+    F.audio = [sp, ch]; F.ttsTrack = 'a1';
+    const P = VOC_PRESETS['Newcleus (Jam On It)'];
+    voc.voc = Object.assign(VOC_DEFAULT(), {on:true, src:'a1', car:'self', growl:P.growl, harm:P.harm, cons:P.cons, sib:P.sib, ens:P.ens, bands:P.bands.slice()});
+    F.tts = {text:'push the button\ncomputer age\nthis is the\ncomputer age', voice:'robot', semi:0, speed:1, timing:'bar'};
+    const s1 = await tplSpeech(F, 'a1', ['push the button', 'computer age', 'this is the', 'computer age'], 4);
+    const s2 = await tplSpeech(F, 'a1', ['push the button', '', 'push the button', ''], 4);
+    const chip = {voice:'high', semi:7, speed:1.35}, c1 = await tplSpeech(F, 'a2', ['wikki wikki wikki', '', 'push it push it', ''], 4, chip);
+    const beat = {0:'x.....x...x.....', 2:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 6:'..o...o...o...o.'};
+    const prog = [[[m(-12), m(-5), m(0)], 2], [[m(-16), m(-9), m(-4)], 1], [[m(-14), m(-7), m(-2)], 1]];
+    const bl = tplLine(4, [[m(-24), 2], [null, 1], [m(-24), 1], [m(-12), 2], [m(-24), 2], [null, 2], [m(-21), 2], [m(-19), 2], [m(-17), 2],
+      [m(-24), 2], [null, 1], [m(-24), 1], [m(-12), 2], [m(-24), 2], [m(-26), 4], [m(-22), 4]]);
+    const zp = tplLine(4, [[null, 4], [m(12), 1], [null, 3], [null, 4], [m(19), 1], [null, 3], [null, 12], [m(24), 1], [null, 3]], .7);
+    const intro = scene('Intro', 4, tplDrums(4, {4:'x.x.x.x.x.x.x.x.', 2:'............x...'}), {s1:tplChords(4, prog, .75), s2:[], s3:zp}, {a1:s2});
+    const verse = scene('Verse', 4, tplDrums(4, beat), {s1:tplChords(4, prog), s2:bl, s3:[]}, {a1:s1});
+    const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {5:'..............x.', 7:'x...............'})), {s1:tplChords(4, prog), s2:bl, s3:zp}, {a1:s2, a2:c1});
+    const brk = scene('Break', 2, tplDrums(2, {0:'x.....x...x.....', 8:'x.x.............', 9:'....x.x.........', 10:'........x.x.....', 11:'............x.x.'}), {s1:[], s2:[], s3:zp}, {a2:c1});
+    F.song = [{s:intro, n:1}, {s:verse, n:2}, {s:hook, n:2}, {s:brk, n:1}, {s:verse, n:1}, {s:hook, n:2}];
+    route('pad:0', 't:s2', .35, .1);
   }
   // the first pattern is what you see; its notes are the working copy
   const sc = F.scenes[F.song[0].s]; F.cur = F.song[0].s; F.bars = sc.bars; F.drum.notes = sc.notes; F.synths.forEach(t => t.notes = sc.synth[t.id] || []);
