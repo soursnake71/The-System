@@ -197,12 +197,12 @@ html.retro #strips .strip input.pan::-webkit-slider-thumb{width:16px !important;
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
 .chipbar button{flex:1 1 auto;padding:10px 8px;font-size:12px;white-space:nowrap}
 .chipbar button.on{background:var(--accent);color:var(--accent-ink)}
-.view > .card:not(.sheeted) > :not(.chead){display:none !important}
+.view > .card:not(.sheeted):not(.sdj) > :not(.chead){display:none !important}
 .view > .card{gap:0;padding:6px 10px}
 .view > .card > .chead{min-height:36px}
 .view > .card > .chead h2{font-size:16px}
 .view{gap:8px}
-.view > .card.sdj > *{display:revert !important}
+.view > .card.sdj > [hidden]{display:none !important}
 #padMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
 #padMenu[open]{display:flex}
 #synMenu{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--fg);padding:12px;width:min(320px,90vw);display:none;flex-direction:column;gap:8px}
@@ -823,6 +823,44 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow{display:grid;grid-template-columns:minmax(0,1fr) 44px 34px 34px 34px 34px;gap:4px;align-items:center;font-size:13px}
 .libname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow button{padding:8px 0}
+/* Wheel: Serato-style screen with two turntables, mixer, crossfader and library always on screen */
+.djinfo{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.dji{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 6px;padding:4px 6px;border-radius:3px;background:#0b0d10;border-left:3px solid #ff8a3d;font-size:11px;line-height:1.3;cursor:pointer}
+#dji1{border-left-color:#46a6ff}
+.dji.on{background:#141920}
+.dji b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;font-weight:700}
+.dji i{font-style:normal;color:#9aa3ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dji .t{font:700 13px "Barlow Condensed",monospace;color:#fff;text-align:right}
+.dji .bk{color:#e8d21c;text-align:right;font-family:monospace}
+.view > .card.djtop #wvCv{height:150px}
+.djrig{display:grid !important;grid-template-columns:1fr 1fr;grid-template-areas:"d0 d1" "mx mx";gap:8px;padding:8px}
+#djd0{grid-area:d0}#djd1{grid-area:d1}.djmixer{grid-area:mx}
+@media (min-width:760px){.djrig{grid-template-columns:minmax(0,1fr) 300px minmax(0,1fr);grid-template-areas:"d0 mx d1"}}
+.djdeck{min-width:0;display:flex !important;flex-direction:column;gap:6px;padding:6px;border-radius:5px;background:linear-gradient(180deg,#5d6064,#3d4044);border:1px solid #00000066;box-shadow:inset 0 1px 0 #ffffff22}
+.djdeck.on{outline:2px solid #ff8a3d;outline-offset:1px}#djd1.on{outline-color:#46a6ff}
+.djdh{display:flex;gap:6px;align-items:center;min-width:0;font:400 9px "Michroma",sans-serif;letter-spacing:.08em;color:#e9e6dc}
+.djdh b{font-size:12px;color:#ff8a3d}#djd1 .djdh b{color:#46a6ff}
+.djnm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ttmini{width:100%;aspect-ratio:1.12;display:block;touch-action:none;border-radius:4px}
+.djbtns{display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px}.djbtns4{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.djbtns button,.djbtns4 button{padding:9px 0 !important;font:400 8px "Michroma",sans-serif !important;letter-spacing:.06em;min-width:0}
+.djbtns button.on,.djbtns4 button.on{background:linear-gradient(180deg,#8d9196 0%,#f4f6f7 22%,#c6cacf 48%,#ffffff 62%,#9ea2a7 100%) !important;color:#d02a20 !important;text-shadow:0 0 5px #ff3b1f88;box-shadow:inset 0 -3px 0 #ff3b1f,0 2px 0 #1d1e20 !important}
+.djp{display:grid;grid-template-columns:auto minmax(0,1fr) 40px;gap:4px;align-items:center;font:400 7px "Michroma",sans-serif;color:#d8d4c8}
+.djp input{width:100%;min-width:0;margin:0}.djpv{font-size:10px;text-align:right;color:#fff}
+.djmixer{display:flex !important;flex-direction:column;gap:6px;padding:6px;border-radius:5px;background:#1b1d20;border:1px solid #00000088}
+.djmxh{font:400 9px "Michroma",sans-serif;letter-spacing:.2em;color:#c9c4b7;text-align:center}
+.djmixer .mx{grid-template-columns:1fr 18px 1fr;gap:6px}
+#djVu{width:18px;height:100%;min-height:160px;display:block;background:#050607;border-radius:2px}
+.djcrate .crbar{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.crbar button{flex:0 0 auto;padding:7px 10px !important;font-size:12px !important;white-space:nowrap}
+.crbar button.on{background:#c8a23a !important;color:#111 !important}
+#libSearch{width:100%;box-sizing:border-box}
+.djcrate .liblist{max-height:420px}
+.djcrate .librow{grid-template-columns:minmax(0,1fr) 40px 32px 38px 30px 30px 30px}
+.librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
+.librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.librow.miss{opacity:.45}
+.librow select{padding:6px 0;font-size:14px;min-width:0;width:100%;text-align:center}
 </style>
 
 </head>
@@ -935,15 +973,48 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
   <!-- WHEEL OF STEEL -->
   <section class="view" id="v-deck" hidden>
-    <div class="card sdj">
+    <div class="card sdj djtop">
+      <div class="djinfo"><div class="dji" id="dji0"></div><div class="dji" id="dji1"></div></div>
       <canvas id="wvCv" aria-label="Waveforms of both decks, with beat grid, cues and loops"></canvas>
-      <div class="sdj-decks"><button id="dk0" class="dk on">DECK 1</button><button id="dk1" class="dk">DECK 2</button></div>
+      <div class="sdj-decks" hidden><button id="dk0" class="dk on">DECK 1</button><button id="dk1" class="dk">DECK 2</button></div>
     </div>
-    <div class="card tt" data-chip="Turntable">
+    <div class="card sdj djrig">
+    <div class="djdeck" id="djd0" data-d="0">
+      <div class="djdh"><b>1</b><span class="djnm" id="djNm0">No record</span></div>
+      <canvas class="ttmini" id="ttCv0" aria-label="Deck 1 turntable. Touch the record and move it to scratch."></canvas>
+      <div class="djbtns"><button id="dj0start" class="djstart" data-a="start">START · STOP</button><button id="dj033" data-a="33">33</button><button id="dj045" data-a="45">45</button></div>
+      <div class="djp"><span>PITCH</span><input type="range" class="djpitch" id="djPitch0" min="-8" max="8" step="0.05" value="0" aria-label="Deck 1 pitch"><span class="mono djpv" id="djPv0">0.0%</span></div>
+      <div class="djbtns4"><button id="dj0cue" data-a="cue">CUE</button><button id="dj0sync" data-a="sync">SYNC</button><button id="dj0load" class="nolearn" data-a="load">LOAD</button></div>
+      <input id="ttScr0" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Deck 1 scratch (map a knob with MIDI learn)">
+    </div>
+    <div class="djmixer">
+        <div class="djmxh">MIXER</div>
+        <div class="mx"><div class="mxch" id="mxch0"></div><canvas id="djVu" aria-label="Level meters"></canvas><div class="mxch" id="mxch1"></div></div>
+        <div class="xfrow"><b>1</b><input id="xf" class="xfader" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Crossfader"><b>2</b></div>
+      </div>
+    <div class="djdeck" id="djd1" data-d="1">
+      <div class="djdh"><b>2</b><span class="djnm" id="djNm1">No record</span></div>
+      <canvas class="ttmini" id="ttCv1" aria-label="Deck 2 turntable. Touch the record and move it to scratch."></canvas>
+      <div class="djbtns"><button id="dj1start" class="djstart" data-a="start">START · STOP</button><button id="dj133" data-a="33">33</button><button id="dj145" data-a="45">45</button></div>
+      <div class="djp"><span>PITCH</span><input type="range" class="djpitch" id="djPitch1" min="-8" max="8" step="0.05" value="0" aria-label="Deck 2 pitch"><span class="mono djpv" id="djPv1">0.0%</span></div>
+      <div class="djbtns4"><button id="dj1cue" data-a="cue">CUE</button><button id="dj1sync" data-a="sync">SYNC</button><button id="dj1load" class="nolearn" data-a="load">LOAD</button></div>
+      <input id="ttScr1" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Deck 2 scratch (map a knob with MIDI learn)">
+    </div>
+    </div>
+    <div class="card sdj djcrate">
+      <div class="row"><h2 class="grow">Library</h2><button id="libAdd" class="nolearn">+ TRACKS</button><button id="crImp" class="nolearn">SERATO CRATE</button></div>
+      <div class="crbar" id="crBar"></div>
+      <input id="libSearch" type="search" placeholder="Search title, artist, key or BPM" aria-label="Search the library">
+      <div class="librow libhead"><span>SONG</span><span>BPM</span><span>KEY</span><span>TIME</span><span></span><span></span><span></span></div>
+      <div id="libList" class="liblist"></div>
+      <input type="file" id="libFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
+      <input type="file" id="crFile" accept=".crate,application/octet-stream" multiple hidden>
+    </div>
+    <div class="card tt" data-chip="Deck controls">
       <div class="tt-head"><b>THE WHEEL OF STEEL</b><span id="ttSub">DECK 1 · QUARTZ DIRECT DRIVE · SL-1200 MK2 STYLE</span></div>
-      <canvas id="ttCv" aria-label="Turntable. Touch the record and move it to scratch."></canvas>
+      <canvas id="ttCv" hidden aria-label="Turntable. Touch the record and move it to scratch."></canvas>
       <input id="ttScr" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Scratch (map a knob with MIDI learn)">
-      <div class="tt-row"><button id="ttStart" class="tt-start">START · STOP</button><button id="tt33">33</button><button id="tt45">45</button></div>
+      <div class="tt-row" hidden><button id="ttStart" class="tt-start">START · STOP</button><button id="tt33">33</button><button id="tt45">45</button></div>
       <div class="tt-row4"><button id="ttCueBtn">CUE</button><button id="ttSync">SYNC</button><button id="ttSlip">SLIP</button><button id="ttCensor" data-momentary="1">CENSOR</button></div>
       <div class="ctl"><label class="label" for="ttPitch">Pitch</label><input id="ttPitch" type="range" min="-8" max="8" step="0.1"><span class="v mono"></span></div>
       <div class="tt-row3"><select id="ttRange" aria-label="Pitch range"><option value="8">±8 %</option><option value="16">±16 %</option><option value="50">±50 %</option></select><button id="ttNudgeDn" data-momentary="1">◀ NUDGE</button><button id="ttNudgeUp" data-momentary="1">NUDGE ▶</button></div>
@@ -971,15 +1042,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="ctl"><label class="label" for="smpVol">Level</label><input id="smpVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
       <input type="file" id="smpFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
     </div>
-    <div class="card">
-      <div class="row"><h2 class="grow">Library</h2><button id="libAdd" class="nolearn">ADD TRACKS</button></div>
-      <div id="libList" class="liblist"></div>
-      <input type="file" id="libFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
-    </div>
-    <div class="card mixdj" data-chip="DJ mixer">
-      <h2>Mixer</h2>
-      <div class="mx"><div class="mxch" id="mxch0"></div><div class="mxch" id="mxch1"></div></div>
-      <div class="xfrow"><b>1</b><input id="xf" class="xfader" type="range" min="-1" max="1" step="0.01" value="0" aria-label="Crossfader"><b>2</b></div>
+    <div class="card mixdj" data-chip="Mixer setup">
+      <h2>Mixer setup</h2>
       <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev" class="nolearn">REV (HAMSTER)</button></div>
       <div class="row"><button id="recMix" class="grow nolearn">● RECORD MIX</button><span class="badge" id="recMixT">Ready</span></div>
       <span class="label">EQ match (decks)</span>
@@ -1555,7 +1619,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </details>
 
     <details id="h-wheel"><summary>The Wheel of Steel (two decks, DJ mixer)</summary>
-      <p>The <b>Wheel</b> tab is a two-deck DJ setup in the style of Serato DJ, with turntables in the style of the Technics SL-1200 MK2. <b>DECK 1 / DECK 2</b> chooses which deck the turntable and buttons below control; both decks always show in the waveforms at the top.</p>
+      <p>The <b>Wheel</b> tab is a two-deck DJ setup in the style of Serato DJ: the waveforms of both decks on top (title, artist, time left, BPM and key over each), two turntables in the style of the Technics SL-1200 MK2 with the mixer between them (HI / MID / LOW, filter, channel faders, level meters and the crossfader), and the library with crates underneath. Touch a record to scratch it. Each turntable has Start · Stop, 33 / 45, pitch (double-tap to zero), Cue, Sync and Load. Tap a deck to make it the one <b>Deck controls</b> works on (hot cues, loops, rolls, FX, key lock, nudge, censor, MIDI platter).</p>
+      <p><b>Serato compatible</b>: tracks keep what Serato DJ saved in them: hot cues (with their colours), saved loops, the beatgrid, BPM, key, title and artist, from MP3, AIFF, WAV and FLAC (◆ marks a track with Serato data). <b>Serato crate</b> imports .crate files from your Serato folder (Music/_Serato_/Subcrates); tracks already in the library join the crate, and the rest join when you add their files. Make your own crates with + Crate and the ⋮ menu on each track.</p>
       <h3>Waveforms</h3>
       <ul>
         <li>Each deck has a scrolling waveform (6 seconds around the playhead) coloured like Serato's: red for lows, green for mids, blue for highs, with the beat grid (bright lines on every bar) and hot cues and loops marked. Under it, the whole-track overview shows where you are.</li>
@@ -1780,7 +1845,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v102</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v103</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -6932,6 +6997,7 @@ function foldPrep(el, head, defShut){
 function foldify(){
   document.querySelectorAll('.view').forEach(v => {
     v.querySelectorAll(':scope > .card:not(.trk)').forEach(c => {
+      if (c.classList.contains('djtop') || c.classList.contains('djrig') || c.classList.contains('djcrate')) return;
       const f = c.firstElementChild; if (!f && !c.dataset.title) return; if (!c.dataset.title && f.tagName === 'CANVAS'){ c.classList.add('sdj'); return; }
       let head = f;
       if (c.dataset.title){
@@ -7979,7 +8045,7 @@ function deckEnsure(d = deck){
 }
 function deckSet(d = deck){ const D = deckState(d.i); if (!d.node) return;
   d.node.port.postMessage({type:'set', v:{motor:!!D.on, pitch:1 + D.pitch / 100, speed:D.speed === 45 ? 1.35 : 1, vol:D.vol, slip:!!D.slip, keylock:!!D.keylock, smooth:D.ext && D.ext.on ? .014 : .006}}); }
-function deckSend(buf, d = deck){ const ch = [...Array(Math.min(2, buf.numberOfChannels))].map((_, k) => buf.getChannelData(k).slice()); d.node.port.postMessage({type:'load', ch, sr:buf.sampleRate});
+function deckSend(buf, d = deck){ if (!d.node) return; const ch = [...Array(Math.min(2, buf.numberOfChannels))].map((_, k) => buf.getChannelData(k).slice()); d.node.port.postMessage({type:'load', ch, sr:buf.sampleRate});
   const L = deckState(d.i).loop; if (L) d.node.port.postMessage({type:'loop', a:L.a, b:L.b}); }
 const recKey = i => i ? 'deck:rec' + i : 'deck:rec';
 async function deckLoadSaved(d){
@@ -8128,7 +8194,7 @@ function drawWaves(){
       if (D.loop){ const x0 = ((D.loop.a - pos) / win + .5) * w, x1 = ((D.loop.b - pos) / win + .5) * w; g.fillStyle = '#2fd36b33'; g.fillRect(x0, top, x1 - x0, laneH); }
       // hot cues
       D.cues.forEach((c, k) => { if (c == null) return; const x = ((c - pos) / win + .5) * w; if (x < -10 || x > w + 10) return;
-        g.fillStyle = CUE_COL[k]; g.fillRect(x, top, 2 * dpr, laneH); g.beginPath(); g.moveTo(x, top); g.lineTo(x + 8 * dpr, top); g.lineTo(x, top + 8 * dpr); g.fill(); });
+        g.fillStyle = (D.cueCol && D.cueCol[k]) || CUE_COL[k]; g.fillRect(x, top, 2 * dpr, laneH); g.beginPath(); g.moveTo(x, top); g.lineTo(x + 8 * dpr, top); g.lineTo(x, top + 8 * dpr); g.fill(); });
     }
     // playhead and readouts
     g.fillStyle = '#fff'; g.fillRect(w / 2 - dpr, top, 2 * dpr, laneH);
@@ -8142,14 +8208,14 @@ function drawWaves(){
     if (d.wave){ if (!d.ovImg) d.ovImg = drawOverview(d, w, ovH); g.drawImage(d.ovImg, 0, oy); }
     else { g.fillStyle = '#ffffff22'; g.fillRect(0, oy + ovH / 2, w, dpr); }
     if (d.buf){ const x = pos / d.buf.duration * w; g.fillStyle = '#ffffff55'; g.fillRect(0, oy, x, ovH); g.fillStyle = '#fff'; g.fillRect(x, oy, 2 * dpr, ovH);
-      D.cues.forEach((c, k) => { if (c == null) return; g.fillStyle = CUE_COL[k]; g.fillRect(c / d.buf.duration * w, oy, 2 * dpr, ovH); }); }
+      D.cues.forEach((c, k) => { if (c == null) return; g.fillStyle = (D.cueCol && D.cueCol[k]) || CUE_COL[k]; g.fillRect(c / d.buf.duration * w, oy, 2 * dpr, ovH); }); }
   });
 }
-function drawDeck(){
-  const cv = $('#ttCv'); if (!cv || view !== 'deck') return;
+function drawDeck(cv = $('#ttCv'), i = curDeck){
+  if (!cv || view !== 'deck') return; const dk = decks[i];
   const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w) return;
   if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
-  const g = cv.getContext('2d'), D = deckState(), cx = w * .43, cy = h * .5, R = Math.min(w * .4, h * .45);
+  const g = cv.getContext('2d'), D = deckState(i), cx = w * .43, cy = h * .5, R = Math.min(w * .4, h * .45);
   // plinth
   let gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#6d7074'); gr.addColorStop(.5, '#4a4d51'); gr.addColorStop(1, '#3a3c3f');
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
@@ -8157,7 +8223,7 @@ function drawDeck(){
   // platter rim with strobe dots
   gr = g.createRadialGradient(cx, cy, R * .9, cx, cy, R * 1.04); gr.addColorStop(0, '#9a9da1'); gr.addColorStop(.5, '#e9ebec'); gr.addColorStop(1, '#7b7e82');
   g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R * 1.04, 0, 7); g.fill();
-  const ang = deckAngle();
+  const ang = deckAngle(dk);
   g.save(); g.translate(cx, cy); g.rotate(ang);
   for (let row = 0; row < 4; row++){ const n = [180, 183, 186, 189][row], rr = R * (1.0 - row * .022); g.fillStyle = '#2b2d30';
     for (let k = 0; k < n; k += 2){ const a = k / n * 2 * Math.PI; g.fillRect(Math.cos(a) * rr - dpr * .6, Math.sin(a) * rr - dpr * .6, dpr * 1.2, dpr * 1.2); } }
@@ -8194,7 +8260,7 @@ function drawDeck(){
   g.restore();
   g.fillStyle = '#d9dbdd'; g.beginPath(); g.arc(cx, cy, R * .03, 0, 7); g.fill();
   // tonearm: pivot top right, stylus walks in as the record plays
-  const prog = deck.buf ? clamp(deck.pos / deck.buf.duration, 0, 1) : 0, px = w * .9, py = h * .16;
+  const prog = dk.buf ? clamp(dk.pos / dk.buf.duration, 0, 1) : 0, px = w * .9, py = h * .16;
   const sr = R * (.86 - prog * .45), sa = -.35 - prog * .25, sx = cx + Math.cos(sa) * sr, sy = cy + Math.sin(sa) * sr;
   // chrome tonearm: base ring, S-shaped arm drawn in layers (dark edge, body, bright highlight), headshell, counterweight
   const chrome = (x0, y0, x1, y1) => { const cg = g.createLinearGradient(x0, y0, x1, y1); cg.addColorStop(0, '#6d7176'); cg.addColorStop(.35, '#f7f9fa'); cg.addColorStop(.5, '#b8bdc2'); cg.addColorStop(.7, '#ffffff'); cg.addColorStop(1, '#7d8186'); return cg; };
@@ -8257,7 +8323,7 @@ function renderPPads(){
   document.querySelectorAll('#padMode button').forEach(b => b.classList.toggle('on', b.dataset.m === padMode));
   [...box.children].forEach((b, k) => {
     let txt = '', bg = '';
-    if (padMode === 'cue'){ const c = D.cues[k]; txt = c == null ? String(k + 1) : (k + 1) + ' · ' + Math.floor(c / 60) + ':' + (c % 60).toFixed(1).padStart(4, '0'); if (c != null) bg = CUE_COL[k]; }
+    if (padMode === 'cue'){ const c = D.cues[k]; txt = c == null ? String(k + 1) : (k + 1) + ' · ' + Math.floor(c / 60) + ':' + (c % 60).toFixed(1).padStart(4, '0'); if (c != null) bg = (D.cueCol && D.cueCol[k]) || CUE_COL[k]; }
     else if (padMode === 'loop'){ txt = beatLabel(LOOP_BEATS[k]); if (D.loop && Math.abs((D.loop.b - D.loop.a) - LOOP_BEATS[k] * beatLen(curDeck)) < 1e-3) bg = '#2fa85a'; }
     else { txt = beatLabel(ROLL_BEATS[k]); if (deck.rolling === k) bg = '#a24dff'; }
     b.textContent = txt; b.style.background = bg ? `linear-gradient(180deg,${bg},${bg}cc)` : ''; b.classList.toggle('set', !!bg);
@@ -8294,7 +8360,7 @@ function renderDeck(){
   const pi = $('#ttPitch'); pi.min = -D.range; pi.max = D.range; pi.step = D.range > 16 ? .5 : D.range > 8 ? .1 : .05; pi.value = D.pitch;
   restepify(pi, pitchFmt);
   $('#ttRange').value = String(D.range); $('#ttVol').value = D.vol;
-  renderPPads(); renderPlat(); renderMixDJ(); renderDeckMatch(); renderSampler(); renderLib();
+  renderPPads(); renderPlat(); renderMixDJ(); renderDeckMatch(); renderSampler(); renderLib(); renderRig();
 }
 /* record the mix: everything coming out of the master (decks, sampler, the rest of the app) into a WAV */
 const mixRec = {node:null, chunks:[], t0:0, on:false};
@@ -8338,14 +8404,93 @@ function renderSampler(){
   [...box.children].forEach((b, k) => { const nm = S2.slots[k]; b.textContent = nm ? nm.slice(0, 12) : 'EMPTY ' + (k + 1); b.style.background = nm ? `linear-gradient(180deg,${CUE_COL[k]},${CUE_COL[k]}bb)` : ''; b.classList.toggle('set', !!nm); });
   $('#smpLoad').classList.toggle('on', smp.loadMode); $('#smpVol').value = S2.vol;
 }
+/* Serato compatibility: read what Serato DJ writes into a track (hot cues with their colours and names, saved loops, the
+   beatgrid, BPM and key) from MP3, AIFF and WAV (ID3 tags) and FLAC (Vorbis comments), and read Serato .crate files. */
+function seratoTags(ab){
+  const u = new Uint8Array(ab), out = {};
+  const txt = (b, enc) => { try { if (enc === 1 || enc === 2){ let le = enc === 1, o = 0; if (enc === 1 && b[0] === 0xFE && b[1] === 0xFF){ le = false; o = 2; } else if (enc === 1 && b[0] === 0xFF && b[1] === 0xFE) o = 2; return new TextDecoder(le ? 'utf-16le' : 'utf-16be').decode(b.subarray(o)).replace(/\0+$/, ''); }
+    return new TextDecoder(enc === 3 ? 'utf-8' : 'latin1').decode(b).replace(/\0+$/, ''); } catch(e){ return ''; } };
+  const b64 = str => { let c = str.replace(/[^A-Za-z0-9+/]/g, ''); if (c.length % 4 === 1) c = c.slice(0, -1); while (c.length % 4) c += '='; try { return Uint8Array.from(atob(c), ch => ch.charCodeAt(0)); } catch(e){ return null; } };
+  const geob = (desc, data) => {
+    const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    if (desc === 'Serato Markers2' && data.length > 2){
+      const raw = b64(new TextDecoder('latin1').decode(data.subarray(2)).split('\0')[0]); if (!raw) return;
+      const r = new DataView(raw.buffer); let o = 2;
+      while (o < raw.length){ let e = o; while (e < raw.length && raw[e]) e++; const type = new TextDecoder().decode(raw.subarray(o, e)); if (!type || e + 5 > raw.length) break;
+        const len = r.getUint32(e + 1), p = e + 5; if (p + len > raw.length) break;
+        if (type === 'CUE' && len >= 13){ const k = raw[p + 1], t = r.getUint32(p + 2) / 1000, col = '#' + [raw[p + 7], raw[p + 8], raw[p + 9]].map(x => x.toString(16).padStart(2, '0')).join(''); let ne = p + 12; while (ne < p + len && raw[ne]) ne++;
+          (out.cues = out.cues || [])[k] = t; (out.cueCol = out.cueCol || [])[k] = col; (out.cueName = out.cueName || [])[k] = new TextDecoder().decode(raw.subarray(p + 12, ne)); }
+        else if (type === 'LOOP' && len >= 20){ const k = raw[p + 1], a = r.getUint32(p + 2) / 1000, b2 = r.getUint32(p + 6) / 1000; if (b2 > a) (out.loops = out.loops || [])[k] = {a, b:b2}; }
+        else if (type === 'BPMLOCK') out.bpmLock = !!raw[p];
+        o = p + len; }
+    } else if (desc === 'Serato BeatGrid' && data.length >= 14){
+      const n = dv.getUint32(2); if (n < 1 || 6 + n * 8 > data.length) return;
+      const first = dv.getFloat32(6), last = 6 + (n - 1) * 8, bpm = dv.getFloat32(last + 4);
+      if (bpm > 20 && bpm < 400){ const bl = 60 / bpm; out.grid = {bpm:Math.round(bpm * 100) / 100, off:((first % bl) + bl) % bl}; }
+    } else if (desc === 'Serato Autotags' && data.length > 2){ const v = parseFloat(new TextDecoder('latin1').decode(data.subarray(2)).split('\0')[0]); if (v > 20 && v < 400) out.bpm = v; }
+  };
+  const id3 = o => {
+    if (u[o] !== 0x49 || u[o + 1] !== 0x44 || u[o + 2] !== 0x33) return;
+    const ver = u[o + 3], size = (u[o + 6] << 21) | (u[o + 7] << 14) | (u[o + 8] << 7) | u[o + 9], end = Math.min(u.length, o + 10 + size); let p = o + 10;
+    if (ver < 3) return; if (u[o + 5] & 0x40){ const ex = ver === 4 ? (u[p] << 21) | (u[p + 1] << 14) | (u[p + 2] << 7) | u[p + 3] : ((u[p] << 24) | (u[p + 1] << 16) | (u[p + 2] << 8) | u[p + 3]) + 4; p += ex; }
+    while (p + 10 <= end){
+      const id = String.fromCharCode(u[p], u[p + 1], u[p + 2], u[p + 3]); if (!/^[A-Z0-9]{4}$/.test(id)) break;
+      const sz = ver === 4 ? (u[p + 4] << 21) | (u[p + 5] << 14) | (u[p + 6] << 7) | u[p + 7] : ((u[p + 4] << 24) | (u[p + 5] << 16) | (u[p + 6] << 8) | u[p + 7]) >>> 0;
+      const f = u.subarray(p + 10, Math.min(end, p + 10 + sz)); p += 10 + sz; if (!f.length) continue;
+      const enc = f[0];
+      if (id === 'TIT2') out.title = txt(f.subarray(1), enc); else if (id === 'TPE1') out.artist = txt(f.subarray(1), enc);
+      else if (id === 'TBPM'){ const v = parseFloat(txt(f.subarray(1), enc)); if (v > 20 && v < 400) out.tagBpm = v; } else if (id === 'TKEY') out.key = txt(f.subarray(1), enc).trim();
+      else if (id === 'GEOB'){ const wide = enc === 1 || enc === 2; let q = 1; while (q < f.length && f[q]) q++; q++;
+        const zt = () => { if (wide){ while (q + 1 < f.length && (f[q] || f[q + 1])) q += 2; const s0 = q; q += 2; return s0; } while (q < f.length && f[q]) q++; return q++; };
+        zt(); const ds = q, de = zt(); geob(txt(f.subarray(ds, de), enc), f.subarray(q)); }
+    }
+  };
+  const str4 = o => String.fromCharCode(u[o], u[o + 1], u[o + 2], u[o + 3]);
+  if (str4(0) === 'fLaC'){
+    let p = 4; while (p + 4 <= u.length){ const last = u[p] & 0x80, type = u[p] & 0x7F, len = (u[p + 1] << 16) | (u[p + 2] << 8) | u[p + 3], b = u.subarray(p + 4, p + 4 + len);
+      if (type === 4){ const dv = new DataView(b.buffer, b.byteOffset, b.byteLength); let q = 4 + dv.getUint32(0, true); const n = dv.getUint32(q, true); q += 4;
+        for (let k = 0; k < n && q + 4 <= b.length; k++){ const l = dv.getUint32(q, true), c = new TextDecoder().decode(b.subarray(q + 4, q + 4 + l)); q += 4 + l; const eq = c.indexOf('='), key = c.slice(0, eq).toUpperCase(), val = c.slice(eq + 1);
+          if (key === 'TITLE') out.title = val; else if (key === 'ARTIST') out.artist = val; else if (key === 'BPM'){ const v = parseFloat(val); if (v > 20 && v < 400) out.tagBpm = v; } else if (key === 'INITIALKEY') out.key = val;
+          else if (key === 'SERATO_MARKERS_V2' || key === 'SERATO_BEATGRID'){ const raw = b64(val); if (!raw) continue; const s0 = new TextDecoder('latin1').decode(raw), nm = key === 'SERATO_BEATGRID' ? 'Serato BeatGrid' : 'Serato Markers2', at = s0.indexOf(nm + '\0'); if (at >= 0) geob(nm, raw.subarray(at + nm.length + 1)); } } }
+      p += 4 + len; if (last) break; }
+  } else if (str4(0) === 'FORM' || str4(0) === 'RIFF'){
+    const be = str4(0) === 'FORM'; let p = 12;
+    while (p + 8 <= u.length){ const id = str4(p), len = be ? ((u[p + 4] << 24) | (u[p + 5] << 16) | (u[p + 6] << 8) | u[p + 7]) >>> 0 : (u[p + 4] | (u[p + 5] << 8) | (u[p + 6] << 16) | (u[p + 7] << 24)) >>> 0;
+      if (id === 'ID3 ' || id === 'id3 ') id3(p + 8); p += 8 + len + (len & 1); }
+  } else id3(0);
+  if (out.grid) out.bpm = out.grid.bpm; else if (!out.bpm && out.tagBpm) out.bpm = out.tagBpm;
+  return out;
+}
+// Serato's Camelot-style or musical key text to the app's key fields
+function seratoKey(k){
+  if (!k) return null; k = k.trim(); const c = /^0?(\d{1,2})\s*([AB])$/i.exec(k);
+  if (c){ const cam = c[1] + c[2].toUpperCase(), mn = cam.endsWith('A'), r = (mn ? CAMELOT_MIN : CAMELOT_MAJ).indexOf(cam); return r < 0 ? null : {name:KEY_NAMES[r] + (mn ? 'm' : ''), cam}; }
+  const m = /^([A-G])([#b♯♭]?)\s*(m|min|minor)?/i.exec(k); if (!m) return null;
+  let r = {C:0, D:2, E:4, F:5, G:7, A:9, B:11}[m[1].toUpperCase()]; if (m[2] === '#' || m[2] === '♯') r++; if (m[2] === 'b' || m[2] === '♭') r--; r = (r + 12) % 12;
+  const mn = !!m[3]; return {name:KEY_NAMES[r] + (mn ? 'm' : ''), cam:(mn ? CAMELOT_MIN : CAMELOT_MAJ)[r]};
+}
+// a .crate file: tag + length records; each track is an "otrk" holding a "ptrk" path (UTF-16 big-endian)
+function parseCrate(ab){
+  const u = new Uint8Array(ab), dv = new DataView(ab), paths = [];
+  const walk = (s, e) => { let p = s; while (p + 8 <= e){ const tag = String.fromCharCode(u[p], u[p + 1], u[p + 2], u[p + 3]), len = dv.getUint32(p + 4), b = p + 8;
+    if (tag === 'otrk') walk(b, Math.min(e, b + len)); else if (tag === 'ptrk') paths.push(new TextDecoder('utf-16be').decode(u.subarray(b, Math.min(e, b + len))));
+    p = b + len; } };
+  walk(0, u.length); return paths;
+}
+function cratesState(){ return S.crates = S.crates || []; }
+function crateLink(e){ for (const c of cratesState()){ if (!c.missing || !c.missing.length) continue; const k = c.missing.indexOf(baseName(e.file || e.name)); if (k >= 0){ c.missing.splice(k, 1); if (!c.ids.includes(e.id)) c.ids.push(e.id); } } }
 /* library: tracks kept on the phone (as their original files) with BPM, key and length; load to either deck */
 function libState(){ return S.lib = S.lib || []; }
 async function libAddFile(f){
-  ensureAudio(); const ab = await f.arrayBuffer(), buf = await decodeAny(ab.slice(0));
-  const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), tmp = {i:9, buf}, name = f.name.replace(/\.[^.]+$/, '');
-  const save9 = S.decks[9]; S.decks[9] = {}; trackAnalyse(tmp); const D = S.decks[9]; S.decks.length = 2; if (save9) S.decks[9] = save9;
+  ensureAudio(); const ab = await f.arrayBuffer(), buf = await decodeAny(ab.slice(0)); let tg = {}; try { tg = seratoTags(ab); } catch(e){}
+  const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), tmp = {i:9, buf}, name = (tg.title || f.name.replace(/\.[^.]+$/, '')).trim();
+  const save9 = S.decks[9]; S.decks[9] = tg.grid ? {bpm:tg.grid.bpm, off:tg.grid.off, bpmLocked:true} : {}; trackAnalyse(tmp); const D = S.decks[9]; S.decks.length = 2; if (save9) S.decks[9] = save9;
+  const k = seratoKey(tg.key);
   await DB.put('audio', 'lib:' + id, {file:new Blob([ab], {type:f.type || 'audio/mpeg'})});
-  libState().push({id, name, bpm:D.bpm, off:D.off, key:D.key, cam:D.cam, dur:buf.duration});
+  const e = {id, name, artist:tg.artist || '', file:f.name, bpm:D.bpm, off:D.off, key:k ? k.name : D.key, cam:k ? k.cam : D.cam, dur:buf.duration};
+  if (tg.cues){ e.cues = Array.from({length:8}, (_, j) => tg.cues[j] == null ? null : tg.cues[j]); e.cueCol = Array.from({length:8}, (_, j) => tg.cueCol[j] || null); }
+  if (tg.loops) e.loops = tg.loops.filter(Boolean); if (tg.cues || tg.grid) e.serato = true;
+  libState().push(e); crateLink(e); const cr = cratesState().find(c => c.id === S.djCrate); if (cr && !cr.ids.includes(id)) cr.ids.push(id);
   return {id, buf};
 }
 async function libLoad(id, i){
@@ -8354,21 +8499,51 @@ async function libLoad(id, i){
   const a = await DB.get('audio', 'lib:' + id); if (!a || !a.file){ toast('That track is missing.'); return; }
   const buf = await decodeAny(await a.file.arrayBuffer()), d = decks[i];
   d.buf = buf; await storeAudio(recKey(i), buf);
-  const D = deckState(i); Object.assign(D, {name:e.name, cue:0, on:false, cues:[], loop:null, lastLoop:null, sync:false, bpm:e.bpm, off:e.off, key:e.key, cam:e.cam, bpmLocked:true});
+  const D = deckState(i); Object.assign(D, {name:e.name, artist:e.artist || '', cue:0, on:false, cues:e.cues ? e.cues.slice() : [], cueCol:e.cueCol ? e.cueCol.slice() : null, loop:null, lastLoop:e.loops && e.loops[0] ? Object.assign({}, e.loops[0]) : null, sync:false, bpm:e.bpm, off:e.off, key:e.key, cam:e.cam, bpmLocked:true});
   trackAnalyse(d); D.bpmLocked = false; deckEnsure(d); deckSend(buf, d); deckSet(d); save(); renderDeck();
-  toast(`${e.name} on deck ${i + 1}.`);
+  toast(`${e.name} on deck ${i + 1}.` + (e.serato ? ' Serato cues and grid loaded.' : ''));
 }
 function renderLib(){
-  const box = $('#libList'); if (!box) return; const L = libState();
-  box.innerHTML = L.length ? '' : '<p class="hint" style="display:block">No tracks yet. Tap Add tracks.</p>';
-  L.forEach(e => {
+  const box = $('#libList'); if (!box) return; const L = libState(), C = cratesState(), cur = C.find(c => c.id === S.djCrate) || null;
+  if (!cur) S.djCrate = '';
+  const bar = $('#crBar'); bar.innerHTML = '';
+  const cb = (txt, on, fn, cls) => { const b = document.createElement('button'); b.className = 'nolearn' + (on ? ' on' : '') + (cls ? ' ' + cls : ''); b.textContent = txt; b.addEventListener('click', fn); bar.appendChild(b); };
+  cb('All (' + L.length + ')', !cur, () => { S.djCrate = ''; save(); renderLib(); });
+  C.forEach(c => cb('▸ ' + c.name + ' (' + c.ids.length + ')', cur === c, () => { S.djCrate = c.id; save(); renderLib(); }));
+  cb('+ Crate', false, () => { const n = (prompt('Name the new crate:') || '').trim(); if (!n) return; const c = {id:'C' + Date.now().toString(36), name:n, ids:[]}; C.push(c); S.djCrate = c.id; save(); renderLib(); });
+  if (cur) cb('Delete crate', false, () => { if (!confirm('Delete the crate "' + cur.name + '"? The tracks stay in the library.')) return; S.crates = C.filter(c => c !== cur); S.djCrate = ''; save(); renderLib(); });
+  const q = ($('#libSearch').value || '').trim().toLowerCase();
+  let rows = cur ? cur.ids.map(id => L.find(e => e.id === id)).filter(Boolean) : L.slice();
+  if (q) rows = rows.filter(e => [e.name, e.artist, e.cam, e.key, e.bpm ? e.bpm.toFixed(0) : ''].join(' ').toLowerCase().includes(q));
+  box.innerHTML = rows.length ? '' : `<p class="hint" style="display:block">${q ? 'Nothing matches.' : cur ? 'This crate is empty. Add tracks from All with ⋮, or tap + Tracks while it’s open.' : 'No tracks yet. Tap + Tracks, or import a Serato crate.'}</p>`;
+  rows.forEach(e => {
     const r = document.createElement('div'); r.className = 'librow';
-    r.innerHTML = `<div class="libname"></div><span class="mono">${e.bpm ? e.bpm.toFixed(1) : '—'}</span><span class="mono">${e.cam || '—'}</span><button data-d="0" class="nolearn">1</button><button data-d="1" class="nolearn">2</button><button data-x="1" class="nolearn" aria-label="Remove">✕</button>`;
-    r.querySelector('.libname').textContent = e.name;
+    r.innerHTML = `<div class="libname"></div><span class="mono">${e.bpm ? e.bpm.toFixed(1) : '—'}</span><span class="mono">${e.cam || '—'}</span><span class="mono">${e.dur ? mmss(e.dur) : ''}</span><button data-d="0" class="nolearn">1</button><button data-d="1" class="nolearn">2</button><select class="nolearn" aria-label="More"><option value="">⋮</option></select>`;
+    const nm = r.querySelector('.libname'); nm.textContent = (e.serato ? '◆ ' : '') + e.name; if (e.artist){ const sm = document.createElement('small'); sm.textContent = e.artist; nm.appendChild(sm); }
     r.querySelectorAll('button[data-d]').forEach(b => b.addEventListener('click', () => libLoad(e.id, +b.dataset.d)));
-    r.querySelector('button[data-x]').addEventListener('click', async () => { if (!confirm('Remove ' + e.name + ' from the library?')) return; S.lib = libState().filter(x => x !== e); try { await DB.del('audio', 'lib:' + e.id); } catch(_){} save(); renderLib(); });
+    const sel = r.querySelector('select'), opt = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+    C.filter(c => c !== cur && !c.ids.includes(e.id)).forEach(c => opt('add:' + c.id, 'Add to ' + c.name));
+    opt('new', 'Add to a new crate…'); if (cur) opt('out', 'Remove from ' + cur.name); opt('del', 'Delete from library');
+    sel.addEventListener('change', async () => { const v = sel.value; sel.value = ''; if (!v) return;
+      if (v.startsWith('add:')){ const c = C.find(x => x.id === v.slice(4)); if (c){ c.ids.push(e.id); toast('Added to ' + c.name + '.'); } }
+      else if (v === 'new'){ const n = (prompt('Name the new crate:') || '').trim(); if (!n) return; C.push({id:'C' + Date.now().toString(36), name:n, ids:[e.id]}); toast('Crate ' + n + ' made.'); }
+      else if (v === 'out') cur.ids = cur.ids.filter(x => x !== e.id);
+      else if (v === 'del'){ if (!confirm('Remove ' + e.name + ' from the library?')) return; S.lib = libState().filter(x => x !== e); C.forEach(c => c.ids = c.ids.filter(x => x !== e.id)); try { await DB.del('audio', 'lib:' + e.id); } catch(_){} }
+      save(); renderLib(); });
     box.appendChild(r);
   });
+  if (cur && cur.missing && cur.missing.length){ const m = document.createElement('p'); m.className = 'hint'; m.style.display = 'block'; m.textContent = `${cur.missing.length} track${cur.missing.length > 1 ? 's' : ''} from the Serato crate ${cur.missing.length > 1 ? 'aren’t' : 'isn’t'} on this device yet: ${cur.missing.slice(0, 6).join(', ')}${cur.missing.length > 6 ? '…' : ''}. Tap + Tracks and pick those files; they join this crate.`; box.appendChild(m); }
+}
+async function crateImport(files){
+  let made = 0;
+  for (const f of files){ try { const paths = parseCrate(await f.arrayBuffer()); const name = f.name.replace(/\.crate$/i, '').split('%%').join(' › ');
+    const L = libState(), ids = [], missing = [];
+    for (const pth of paths){ const bn = baseName(pth), e = L.find(x => baseName(x.file || x.name) === bn); if (e){ if (!ids.includes(e.id)) ids.push(e.id); } else missing.push(bn); }
+    const C = cratesState(); let c = C.find(x => x.name === name); if (!c){ c = {id:'C' + Date.now().toString(36) + made, name, ids:[]}; C.push(c); }
+    ids.forEach(id => { if (!c.ids.includes(id)) c.ids.push(id); }); c.missing = [...new Set([...(c.missing || []), ...missing])]; S.djCrate = c.id; made++;
+    toast(`${name}: ${paths.length} tracks, ${ids.length} found here` + (missing.length ? `, ${missing.length} to add.` : '.'));
+  } catch(err){ console.warn(err); toast('Could not read ' + f.name); } }
+  if (made){ save(); renderLib(); }
 }
 function renderMixDJ(){
   const M = mixState();
@@ -8384,6 +8559,71 @@ function renderMixDJ(){
     const f = box.querySelector('.chfader'); f.value = C.vol; f.addEventListener('input', () => { C.vol = +f.value; applyMix(); save(); });
   });
 }
+/* the rig on screen: two turntables either side of the mixer, track info over the waveforms; each deck's buttons drive
+   the same controls as the Deck controls page, for that deck */
+function selDeck(i){ if (curDeck === i) return; curDeck = i; deck = decks[i]; renderDeck(); }
+function mmss(t){ t = Math.max(0, t); return Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); }
+function renderRig(){
+  [0, 1].forEach(i => { const D = deckState(i), el = $('#djd' + i); if (!el) return;
+    el.classList.toggle('on', i === curDeck); $('#dji' + i).classList.toggle('on', i === curDeck);
+    $('#djNm' + i).textContent = D.name ? (D.artist ? D.artist + ' – ' : '') + D.name : 'No record';
+    $('#dj' + i + 'start').classList.toggle('on', !!D.on); $('#dj' + i + '33').classList.toggle('on', D.speed !== 45); $('#dj' + i + '45').classList.toggle('on', D.speed === 45); $('#dj' + i + 'sync').classList.toggle('on', !!D.sync);
+    const p = $('#djPitch' + i); p.min = -D.range; p.max = D.range; p.step = D.range > 16 ? .5 : D.range > 8 ? .1 : .05; if (document.activeElement !== p) p.value = D.pitch;
+    $('#djPv' + i).textContent = (D.pitch >= 0 ? '+' : '') + D.pitch.toFixed(1) + '%';
+  });
+  djInfoT = 0; requestAnimationFrame(() => { drawDeck($('#ttCv0'), 0); drawDeck($('#ttCv1'), 1); drawWaves(); djTick(); });
+}
+var djInfoT = 0; const djVu = [0, 0], djVuBuf = new Float32Array(512);
+function djTick(){
+  const vu = $('#djVu');
+  if (vu && vu.clientWidth){
+    const dpr = devicePixelRatio || 1, w = Math.round(vu.clientWidth * dpr), h = Math.round(vu.clientHeight * dpr); if (vu.width !== w || vu.height !== h){ vu.width = w; vu.height = h; }
+    const g = vu.getContext('2d'); g.fillStyle = '#050607'; g.fillRect(0, 0, w, h);
+    const bw = Math.floor((w - 3 * dpr) / 2), seg = 14;
+    decks.forEach((d, i) => { let pk = 0; if (d.ch && d.ch.an){ d.ch.an.getFloatTimeDomainData(djVuBuf); for (const v of djVuBuf){ const a = v < 0 ? -v : v; if (a > pk) pk = a; } }
+      djVu[i] = Math.max(pk, djVu[i] * .9); const lit = Math.round(Math.min(1, djVu[i]) * seg), x = dpr + i * (bw + dpr), sh = (h - dpr) / seg;
+      for (let k = 0; k < seg; k++){ g.fillStyle = k >= lit ? '#1a1d20' : k >= seg - 2 ? '#ff3b1f' : k >= seg - 5 ? '#e8d21c' : '#3fd36b'; g.fillRect(x, h - (k + 1) * sh, bw, sh - dpr); } });
+  }
+  const now = performance.now(); if (now - djInfoT < 150) return; djInfoT = now;
+  [0, 1].forEach(i => { const el = $('#dji' + i); if (!el) return; const D = deckState(i), d = decks[i];
+    if (!el._b){ el.innerHTML = '<b></b><span class="t"></span><i></i><span class="bk"></span>'; el._b = el.children; }
+    const dur = d.buf ? d.buf.duration : 0, pos = d.buf ? clamp(livePos(d), 0, dur) : 0, b = bpmNow(i);
+    el._b[0].textContent = D.name || 'Deck ' + (i + 1) + ' · load a track'; el._b[1].textContent = d.buf ? '-' + mmss(dur - pos) : '--:--';
+    el._b[2].textContent = (D.artist || '') + (d.buf ? (D.artist ? ' · ' : '') + mmss(pos) + ' / ' + mmss(dur) : ''); el._b[3].textContent = (b ? b.toFixed(1) : '—') + (D.cam ? ' ' + D.cam : '');
+  });
+}
+(() => {
+  const act = {start:'#ttStart', 33:'#tt33', 45:'#tt45', cue:'#ttCueBtn', sync:'#ttSync', load:'#ttLoad'};
+  [0, 1].forEach(i => {
+    const box = $('#djd' + i), d = decks[i]; if (!box) return;
+    box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => { selDeck(i); $(act[b.dataset.a]).click(); renderRig(); }));
+    const pi = $('#djPitch' + i);
+    pi.addEventListener('input', () => { const v = pi.value; selDeck(i); const tp = $('#ttPitch'); tp.value = v; tp.dispatchEvent(new Event('input')); $('#djPv' + i).textContent = (deckState(i).pitch >= 0 ? '+' : '') + deckState(i).pitch.toFixed(1) + '%'; });
+    pi.addEventListener('dblclick', () => { pi.value = 0; pi.dispatchEvent(new Event('input')); });
+    $('#dji' + i).addEventListener('click', () => selDeck(i));
+    // the record: touch and move it to scratch, let go and the motor takes it again
+    const cv = $('#ttCv' + i); let last = null;
+    const geo = () => { const r = cv.getBoundingClientRect(); return {cx:r.left + r.width * .43, cy:r.top + r.height * .5, R:Math.min(r.width * .4, r.height * .45)}; };
+    const angAt = e => { const G = geo(); return Math.atan2(e.clientY - G.cy, e.clientX - G.cx); };
+    cv.addEventListener('pointerdown', e => { if (mlearn) return; const G = geo(); selDeck(i);
+      if (Math.hypot(e.clientX - G.cx, e.clientY - G.cy) > G.R * 1.04) return;
+      e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch(_){}
+      if (!d.buf){ toast('Load a record on deck ' + (i + 1) + ' first.'); return; }
+      deckHand(true, d); last = angAt(e); });
+    cv.addEventListener('pointermove', e => { if (last == null) return; const a = angAt(e); let da = a - last; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; last = a;
+      const sec = da / (2 * Math.PI) * revSec(i); d.pos = Math.max(0, d.pos + sec); d.node && d.node.port.postMessage({type:'move', d:sec}); });
+    const up = () => { if (last == null) return; last = null; deckHand(false, d); };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    // a MIDI knob mapped to this deck's record
+    $('#ttScr' + i).addEventListener('input', e => {
+      if (!d.buf) return; const v = +e.target.value;
+      if (d.midiV == null || !d.hand){ d.midiV = v; deckHand(true, d); return; }
+      const dd = (v - d.midiV) * 2 * revSec(i); d.midiV = v; d.pos = Math.max(0, d.pos + dd); d.node.port.postMessage({type:'move', d:dd});
+      clearTimeout(d.midiT); d.midiT = setTimeout(() => { d.midiV = null; deckHand(false, d); }, 160);
+    });
+  });
+  $('#wvCv').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); selDeck(e.clientY - r.top < r.height * .46 ? 0 : 1); });
+})();
 /* MIDI platter (per deck): the hardware platter drives the record. Learn listens for a few seconds while the platter spins
    with its motor on at 33 1/3, finds the message and its encoding, and how many steps make one turn. */
 const plat = {cap:null};
@@ -8516,6 +8756,9 @@ function renderPlat(){
   $('#smpVol').addEventListener('input', e => { smpState().vol = +e.target.value; if (smp.gain) smp.gain.gain.value = smpState().vol; save(); });
   stepify($('#smpVol'), v => Math.round(v * 100) + '%');
   $('#libAdd').addEventListener('click', () => $('#libFile').click());
+  $('#crImp').addEventListener('click', () => { toast('Pick .crate files from your Serato folder (Music/_Serato_/Subcrates).'); $('#crFile').click(); });
+  $('#crFile').addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) crateImport(fs); });
+  $('#libSearch').addEventListener('input', () => renderLib());
   $('#libFile').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; let n = 0;
     for (const f of fs){ try { toast(`Analysing ${f.name}…`); await libAddFile(f); n++; renderLib(); } catch(err){ console.warn(err); toast('Could not read ' + f.name); } }
     save(); if (n) toast(`Added ${n} track${n > 1 ? 's' : ''} to the library.`); });
@@ -8528,10 +8771,11 @@ function renderPlat(){
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     ensureAudio(); await workletReady; const d = deck, i = curDeck;
     try {
-      const buf = await decodeAny(await f.arrayBuffer());
+      const ab = await f.arrayBuffer(), buf = await decodeAny(ab.slice(0)); let tg = {}; try { tg = seratoTags(ab); } catch(e){}
       if (buf.duration > 900){ toast('Tracks up to 15 minutes.'); return; }
-      d.buf = buf; await storeAudio(recKey(i), buf);
-      const D = deckState(i); Object.assign(D, {name:f.name.replace(/\.[^.]+$/, ''), cue:0, on:false, cues:[], loop:null, lastLoop:null, bpmLocked:false, sync:false, key:'', cam:''});
+      d.buf = buf; await storeAudio(recKey(i), buf); const k = seratoKey(tg.key);
+      const D = deckState(i); Object.assign(D, {name:(tg.title || f.name.replace(/\.[^.]+$/, '')).trim(), artist:tg.artist || '', cue:0, on:false, cues:tg.cues ? Array.from({length:8}, (_, j) => tg.cues[j] == null ? null : tg.cues[j]) : [], cueCol:tg.cueCol ? Array.from({length:8}, (_, j) => tg.cueCol[j] || null) : null,
+        loop:null, lastLoop:tg.loops && tg.loops.find(Boolean) || null, bpmLocked:!!tg.grid, bpm:tg.grid ? tg.grid.bpm : 0, off:tg.grid ? tg.grid.off : 0, sync:false, key:k ? k.name : '', cam:k ? k.cam : ''});
       trackAnalyse(d); deckEnsure(d); deckSend(buf, d); deckSet(d); save(); renderDeck();
       toast(`Loaded on deck ${i + 1}: ${D.bpm ? D.bpm.toFixed(1) + ' BPM' : 'no clear beat'}. Press Start.`);
     } catch(err){ console.warn(err); toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
@@ -8582,7 +8826,7 @@ let stpTick = 0; const clipAt = new Map();
 function frame(){
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
-  if (view === 'deck'){ drawDeck(); drawWaves(); if (mixRec.on && stpTick % 15 === 0){ const t = (performance.now() - mixRec.t0) / 1000; $('#recMixT').textContent = 'REC ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); } }
+  if (view === 'deck'){ drawDeck(); drawDeck($('#ttCv0'), 0); drawDeck($('#ttCv1'), 1); drawWaves(); djTick(); if (mixRec.on && stpTick % 15 === 0){ const t = (performance.now() - mixRec.t0) / 1000; $('#recMixT').textContent = 'REC ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); } }
   if (view === 'mixer' && live && $('#sslGr')){ const gr = live.master.ssl && sslState().on ? live.master.sslGr || 0 : 0; $('#sslGr').style.width = Math.min(100, gr / 20 * 100) + '%'; $('#sslGrV').textContent = gr.toFixed(1) + ' dB'; }
   const h = playing ? heardStep() : null;
   if (h){
@@ -11248,10 +11492,11 @@ function renderMaps(){
 const learnable = el => el && !el.closest('nav, #learnBar, .nolearn') && !el.classList.contains('nolearn') && !el.classList.contains('pad');
 document.addEventListener('pointerdown', e => {
   if (!mlearn) return;
-  let el = e.target.closest('input[type=range], input[type=number], select, button, .knob, #ttCv');
+  let el = e.target.closest('input[type=range], input[type=number], select, button, .knob, #ttCv, .ttmini');
   if (el && el.closest('.stp')) el = el.closest('.stp')._inp;
   const kn = e.target.closest('.knob'); if (kn) el = kn._inp;
   if (e.target.closest('#ttCv')) el = $('#ttScr');
+  { const tm = e.target.closest('.ttmini'); if (tm) el = $('#ttScr' + tm.id.slice(-1)); }
   if (!learnable(el)) return;
   e.preventDefault(); e.stopPropagation();
   const tg = learnTarget(el);
@@ -12038,14 +12283,14 @@ $('#fadersReset').addEventListener('click', e => {
   allTracks().forEach(t => t.vol = VOL_M20); S.master.vol = .91; RET_KEYS.forEach(k => retState(k).vol = k === 'rev' ? .8 : .845);
   applyAll(); if (live){ applyMaster(ctx, live.master); applyRack(ctx, live.master); } save(); renderMixer(); toast('All faders reset: channels at −20 dB, master at 0 dB.');
 });
-// the Wheel (turntables) tab is hidden until it's switched on in Setup
-const wheelShown = () => { try { return localStorage.getItem('pr.wheel') === '1'; } catch(e){ return false; } };
+// the Wheel (turntables) tab shows unless it's switched off in Setup
+const wheelShown = () => { try { return localStorage.getItem('pr.wheel2') !== '0'; } catch(e){ return true; } };
 function applyWheelTab(){
   const on = wheelShown(), t = document.querySelector('#nav button[data-v="deck"]'); if (t) t.hidden = !on;
   const w = $('#wheelOn'); if (w){ w.textContent = on ? 'On' : 'Off'; w.classList.toggle('on', on); }
   if (!on && view === 'deck') setView('drums');
 }
-$('#wheelOn').addEventListener('click', () => { try { localStorage.setItem('pr.wheel', wheelShown() ? '0' : '1'); } catch(e){} applyWheelTab(); toast(wheelShown() ? 'Wheel tab is back in the bottom bar.' : 'Wheel tab hidden. Turn it on here any time.'); });
+$('#wheelOn').addEventListener('click', () => { try { localStorage.setItem('pr.wheel2', wheelShown() ? '0' : '1'); } catch(e){} applyWheelTab(); toast(wheelShown() ? 'Wheel tab is back in the bottom bar.' : 'Wheel tab hidden. Turn it on here any time.'); });
 applyWheelTab();
 
 /* ================= FX patch bay: the FX button in the top bar opens the effects for what's on screen, from any page ================= */
