@@ -955,6 +955,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
+        <select id="tauPatch" aria-label="Taurus patches"></select>
         <div class="p5sw" id="tauPresets"><button data-p="tuba">Tuba</button><button data-p="taurus">Taurus</button><button data-p="bass">Bass</button><button data-p="variable">Variable</button></div>
         <div class="label">Foot switches</div>
         <div class="p5sw"><button id="tauOct">Octave (8')</button><button id="tauGlide">Glide</button><button id="tauDecay">Decay</button></div>
@@ -963,6 +964,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <p class="hint">Modeled from the Taurus Model 205A schematic: the fixed presets use the original resistor values for the contours, filter offset and oscillator mix. Variable unlocks the Variables box. The foot sliders open the filter and set the level, like the pedals.</p>
       </div>
       <div id="tbPanel" hidden>
+        <select id="tbPreset" aria-label="TB-303 presets"></select>
         <div class="p5sw"><button id="tbSaw">Saw</button><button id="tbSq">Square</button></div>
         <div class="ctls" id="tbCtls"></div>
         <div class="p5sw"><button id="tbAcc">Accent</button><button id="tbSlide">Slide</button></div>
@@ -1012,6 +1014,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <p class="hint">Built from the Omni-2 service manual: 500 kHz master oscillator and top-octave divider, differentiated-square "sawtooth" (Hollow lets the negative spike through), a 22 µF keying capacitor per key, three bucket-brigade "phasers" on the strings, the ARP 4075 24 dB filter with an RC ADSR on the synth, and low-note-priority bass on the lowest 20 keys. Fully polyphonic like the real one: every key sounds from one divide-down tone generator. Strings have their own crescendo and sustain. The Synth section sends all notes through one resonant 4-pole filter and one ADSR, as the Omni-2 does, so a new key re-triggers the sweep. Keys below the split play the Bass section. Chorus and Phaser are on the panel.</p>
       </div>
       <div id="solPanel" hidden>
+        <select id="solPreset" aria-label="Solina presets"></select>
         <div class="label">Bass section</div>
         <div class="row solreg"><button data-k="contra">Contrabass</button><button data-k="cello">Cello</button></div>
         <div class="label">Strings and brass</div>
@@ -1606,7 +1609,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v96</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v97</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -8482,7 +8485,7 @@ function renderSynth(){
   const tr = curSynth();
   $('#synthTitle').textContent = tr.name;
   $('#sOdub').classList.toggle('on', drumRec);
-  const ps = $('#preset'); if (!ps.children.length) ps.innerHTML = Object.keys(PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  const ps = $('#preset'); if (!ps.children.length) ps.innerHTML = presetOptions(PRESETS) + '<option value="">Custom</option>';
   ps.value = tr.preset || '';
   const rs = $('#scaleRoot'); if (!rs.children.length) rs.innerHTML = NOTE.map((n, i) => `<option value="${i}">${n}</option>`).join('');
   rs.value = S.root;
@@ -8540,7 +8543,7 @@ const P5_LAYOUT = [
 const p5Time = v => { const t = .001 * Math.pow(30000, Math.pow(Math.round(v * 127) / 127, .728)); return t < 1 ? Math.round(t * 1000) + ' ms' : t.toFixed(1) + ' s'; };
 function renderP5(tr){
   const P = tr.p5, ps = $('#p5Preset');
-  ps.innerHTML = Object.keys(P5_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  ps.innerHTML = presetOptions(P5_PRESETS) + '<option value="">Custom</option>';
   ps.value = P.preset || '';
   $('#p5Wheel').value = P.wheel; $('#p5WheelV').textContent = Math.round(P.wheel * 100) + '%';
   const body = $('#p5Body'); body.innerHTML = '';
@@ -8576,7 +8579,7 @@ const OB_LAYOUT = [
 ];
 function renderOB(tr){
   const P = tr.ob || (tr.ob = OB_DEFAULT()), ps = $('#obPreset');
-  ps.innerHTML = Object.keys(OB_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  ps.innerHTML = presetOptions(OB_PRESETS) + '<option value="">Custom</option>';
   ps.value = P.preset || '';
   $('#obWheel').value = P.wheel || 0; $('#obWheelV').textContent = Math.round((P.wheel || 0) * 100) + '%';
   const body = $('#obBody'); body.innerHTML = '';
@@ -8621,6 +8624,7 @@ $('#obPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.t
 $('#obWheel').addEventListener('input', e => { const tr = curSynth(); tr.ob.wheel = +e.target.value; $('#obWheelV').textContent = Math.round(tr.ob.wheel * 100) + '%'; const n = live && live.sol && live.sol[tr.id + ':obxa']; if (n) n.port.postMessage({type:'wheel', v:tr.ob.wheel}); save(); });
 
 function renderTau(tr){
+  fillPresetSel('#tauPatch', TAU_PATCHES, tr.tauPatch);
   const T = tr.tau, up = () => solCfg(tr);
   document.querySelectorAll('#tauPresets button').forEach(b => b.classList.toggle('on', b.dataset.p === T.preset));
   $('#tauOct').classList.toggle('on', !!T.octave); $('#tauGlide').classList.toggle('on', !!T.glideOn); $('#tauDecay').classList.toggle('on', !!T.decayOn);
@@ -8652,6 +8656,7 @@ $('#tauOct').addEventListener('click', () => tauSet('octave', curSynth().tau.oct
 $('#tauGlide').addEventListener('click', () => tauSet('glideOn', curSynth().tau.glideOn ? 0 : 1));
 $('#tauDecay').addEventListener('click', () => tauSet('decayOn', curSynth().tau.decayOn ? 0 : 1));
 function renderTB(tr){
+  fillPresetSel('#tbPreset', TB_PRESETS, tr.tbPreset);
   const T = tr.tb, up = () => solCfg(tr);
   $('#tbSaw').classList.toggle('on', !T.wave); $('#tbSq').classList.toggle('on', !!T.wave);
   $('#tbAcc').classList.toggle('on', !!T.accLatch); $('#tbSlide').classList.toggle('on', !!T.slideLatch);
@@ -8747,7 +8752,7 @@ async function dxPick(tr, which, idx, bankId){
   solCfg(tr); save(); renderDx(tr);
 }
 async function renderDx(tr){
-  const D = tr.dx || (tr.dx = DX_DEFAULT()), banks = [{id:'builtin', name:'Omega originals', n:DX_BUILTIN.length}].concat(S.dxBanks || []);
+  const D = tr.dx || (tr.dx = DX_DEFAULT()), banks = [{id:'builtin', name:'Omega originals', n:DX_BUILTIN.length}].concat(DX_GEN_BANKS, S.dxBanks || []);
   const bs = $('#dxBank'); bs.innerHTML = banks.map(b => `<option value="${b.id}">${escH(b.name)} (${b.n})</option>`).join(''); bs.value = D.bank;
   const bank = await dxBank(D.bank), opts = bank.map((v, i) => `<option value="${i}">${String(i + 1).padStart(2, '0')} ${escH(v.name.trim())}</option>`).join('');
   $('#dxA').innerHTML = opts; $('#dxB').innerHTML = opts; $('#dxA').value = D.ai; $('#dxB').value = D.bi;
@@ -8818,7 +8823,7 @@ function oslider(box, label, obj, key, min, max, step, fmt, after){
 function renderOmni(tr){
   const C = tr.omni || (tr.omni = OMNI_DEFAULT()); if (C.atk == null) Object.assign(C, OMNI_DEFAULT(), {preset:''});
   const up = () => { C.preset = ''; $('#omniPreset').value = ''; solCfg(tr); save(); };
-  const ps = $('#omniPreset'); if (!ps.options.length) ps.innerHTML = Object.keys(OMNI_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  const ps = $('#omniPreset'); if (!ps.options.length) ps.innerHTML = presetOptions(OMNI_PRESETS) + '<option value="">Custom</option>';
   ps.value = C.preset || '';
   const box = $('#omniSecs'); box.innerHTML = '';
   const pct = v => Math.round(v * 100) + '%', t = (a, b) => v => { const x = a * Math.pow(b, v); return x < 1 ? Math.round(x * 1000) + ' ms' : x.toFixed(1) + ' s'; };
@@ -8833,7 +8838,14 @@ function renderOmni(tr){
   sec('GENERAL', [['HOLLOW', 'hollow'], ['CHORUS PHASER', 'chorus'], ['STEREO', 'wide']], [['MASTER', 'master', 0, 1, .01, pct], ['BASS VOL', 'bassVol', 0, 1, .01, pct], ['STRINGS ⇄ SYNTH', 'mix', 0, 1, .01, v => Math.round(v * 100) + ' / ' + Math.round((1 - v) * 100)]]);
 }
 $('#omniPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.omni = omniPreset(e.target.value); solCfg(tr); save(); renderOmni(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7, r - 12], 1.4); });
+
+// preset menus for the Solina, TB-303 and Taurus
+function fillPresetSel(id, obj, cur){ const s = $(id); if (!s.options.length) s.innerHTML = presetOptions(obj, 'Presets…'); s.value = cur && cur in obj ? cur : ''; }
+$('#solPreset').addEventListener('change', e => { const tr = curSynth(), P = SOL_PRESETS[e.target.value]; if (!P) return; tr.sol = Object.assign(SOL_DEFAULT(), P); tr.solPreset = e.target.value; solCfg(tr); save(); renderSolina(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7, r - 12], 1.2); });
+$('#tbPreset').addEventListener('change', e => { const tr = curSynth(), P = TB_PRESETS[e.target.value]; if (!P) return; Object.assign(tr.tb, P); tr.tbPreset = e.target.value; solCfg(tr); save(); renderTB(tr); const r = hearRoot() - 12; hearChord(tr, [r, r + 12, r, r + 7], .18, .2); });
+$('#tauPatch').addEventListener('change', e => { const tr = curSynth(), P = TAU_PATCHES[e.target.value]; if (!P) return; tr.tau = Object.assign(TAU_DEFAULT(), P); tr.tauPatch = e.target.value; solCfg(tr); save(); renderTau(tr); const r = hearRoot() - 24; hearChord(tr, [r], .9); });
 function renderSolina(tr){
+  fillPresetSel('#solPreset', SOL_PRESETS, tr.solPreset);
   const C = tr.sol;
   document.querySelectorAll('.solreg button').forEach(b => { b.classList.toggle('on', !!C[b.dataset.k]); });
   const box = $('#solCtls'); box.innerHTML = '';
@@ -8892,7 +8904,7 @@ function renderVocoder(){
   knob(ch, 'GROWL', V, 'growl', 0, 1, .02, v => v ? Math.round(v * 100) + '%' : 'OFF', upd, 'white');
   knob(ch, 'S/T NOISE', V, 'sib', 0, 1, .02, v => v ? Math.round(v * 100) + '%' : 'OFF', upd, 'white');
   $('#vocEns').classList.toggle('on', V.ens);
-  const ps = $('#vocPreset'); ps.innerHTML = '<option value="">Choose…</option>' + Object.keys(VOC_PRESETS).map(n => `<option>${n}</option>`).join(''); ps.value = '';
+  const ps = $('#vocPreset'); ps.innerHTML = presetOptions(VOC_PRESETS, 'Choose…'); ps.value = '';
   const car = $('#vocCar');
   car.innerHTML = `<option value="self">This synth (${tr.name.replace(/</g, '&lt;')})</option>` + S.synths.filter(t => t !== tr).map(t => `<option value="${t.id}">${t.name.replace(/</g, '&lt;')}</option>`).join('');
   car.value = V.car && S.synths.some(t => t.id === V.car && t !== tr) ? V.car : 'self';
@@ -8924,6 +8936,142 @@ const VOC_PRESETS = {
   'Herbie Hancock (Rockit)':{growl:.2, harm:.95, cons:1.1, sib:.9, ens:false, bands:[.85, .9, 1, 1.1, 1.2, 1.2, 1.15, 1.1, 1.1, 1.15],
     tts:{text:'Rock it.', voice:'normal', semi:2, speed:1, timing:'bar'}, note:-7}
 };
+/* ================= 1000 presets across every instrument: built from sound-design recipes per category with a fixed
+   seed, so every name always gives the same sound (projects that saved a preset find it again) ================= */
+const PRESET_GEN = (() => {
+  let seed = 0x5eed1;
+  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const r = (a, b) => +(a + rnd() * (b - a)).toFixed(3), pick = a => a[Math.floor(rnd() * a.length)], ch = p => rnd() < p;
+  const st = s => (s + 24) / 48;                         // Prophet / OB oscillator pitch knob for a semitone offset
+  const WORDS = {
+    Bass:[['Rubber', 'Deep', 'Round', 'Velvet', 'Punch', 'Dirty', 'Warm', 'Hollow', 'Fat', 'Tight', 'Bouncy', 'Thick', 'Low', 'Mono', 'Smooth', 'Growl', 'Dark', 'Funky', 'Wide', 'Solid'], ['Sub', 'Bass', 'Thump', 'Floor', 'Rumble', 'Bottom', 'Pulse', 'Drive', 'Groove', 'Line', 'Knock', 'Stomp']],
+    Lead:[['Screaming', 'Bright', 'Singing', 'Hot', 'Silver', 'Laser', 'Vintage', 'Wild', 'Soaring', 'Sharp', 'Liquid', 'Glide', 'Neon', 'Electric', 'Burning'], ['Lead', 'Solo', 'Whistle', 'Saw', 'Line', 'Hook', 'Riff', 'Voice', 'Wire', 'Beam']],
+    Pad:[['Warm', 'Glass', 'Dream', 'Slow', 'Wide', 'Soft', 'Cloud', 'Night', 'Golden', 'Hazy', 'Velvet', 'Ocean', 'Frozen', 'Still', 'Deep', 'Silk', 'Analog', 'Distant'], ['Pad', 'Wash', 'Haze', 'Air', 'Bloom', 'Choir', 'Sky', 'Field', 'Mist', 'Drift', 'Swell', 'Tide']],
+    Brass:[['Punchy', 'Big', 'Bright', 'Soft', 'Stab', 'Fanfare', 'Funk', 'Classic', 'Swell', 'Power', 'Muted', 'Golden'], ['Brass', 'Horns', 'Stab', 'Section', 'Blast', 'Hits', 'Chord', 'Fanfare']],
+    Keys:[['Electric', 'Soft', 'Bell', 'Clean', 'Vintage', 'Bright', 'Mellow', 'Glass', 'Funky', 'Warm'], ['Keys', 'Piano', 'Clav', 'Organ', 'Comp', 'Chords', 'Tines', 'Plinks']],
+    Pluck:[['Short', 'Bright', 'Dry', 'Wooden', 'Glass', 'Bouncy', 'Snappy', 'Tiny', 'Rubber', 'Soft'], ['Pluck', 'Pick', 'Pizz', 'Ping', 'Blip', 'Koto', 'Harp', 'Drop']],
+    Strings:[['Lush', 'Slow', 'Bright', 'Dark', 'Silk', 'Cinema', 'Disco', 'Sweet', 'Chamber', 'Wide'], ['Strings', 'Ensemble', 'Violins', 'Section', 'Bows', 'Orchestra']],
+    FX:[['Alien', 'Broken', 'Rising', 'Falling', 'Robot', 'Storm', 'Space', 'Glitch', 'Siren', 'Radio', 'Laser', 'Static'], ['Noise', 'Sweep', 'Zap', 'Drone', 'Signal', 'Wobble', 'Beacon', 'Machine', 'Ghost', 'Sparks']],
+    Sync:[['Hard', 'Tearing', 'Ripping', 'Vowel', 'Moving', 'Classic', 'Swept', 'Nasal'], ['Sync', 'Rip', 'Tear', 'Sweep', 'Lead', 'Scream']],
+    Bells:[['Glass', 'Crystal', 'Tubular', 'Church', 'Tiny', 'Music', 'Ice', 'Temple', 'Silver', 'Wind'], ['Bells', 'Chimes', 'Box', 'Gong', 'Ring', 'Tines']],
+    Organ:[['Rock', 'Gospel', 'Jazz', 'Church', 'Perc', 'Soft', 'Full', 'Cheese'], ['Organ', 'Drawbar', 'Combo', 'Pipes']],
+    Mallet:[['Wood', 'Soft', 'Bright', 'Deep', 'Glass', 'Steel'], ['Marimba', 'Vibes', 'Mallet', 'Kalimba', 'Xylo', 'Steel']],
+    Acid:[['Squelch', 'Acid', 'Rubber', 'Liquid', 'Hard', 'Mellow', 'Screaming', 'Bubbling', 'Resonant', 'Dark'], ['Line', 'Bass', 'Squelch', 'Acid', 'Groove', 'Jack', 'Bubble', 'Wire']],
+    Voice:[['Robot', 'Electro', 'Space', 'Choir', 'Whisper', 'Breakdance', 'Talkbox', 'Radio', 'Deep', 'Bright'], ['Voice', 'Vocoder', 'Speaker', 'Choir', 'Robot', 'Transmission']],
+  };
+  const named = (bag, cat, fmt) => { for (let k = 0; k < 400; k++){ const w = WORDS[cat] || WORDS.FX, n = fmt ? fmt(pick(w[0]), pick(w[1])) : cat + ' · ' + pick(w[0]) + ' ' + pick(w[1]); if (!(n in bag)) return n; } return cat + ' · ' + Math.floor(rnd() * 1e5); };
+  const add = (bag, plan, make, fmt) => { for (const [cat, n] of plan) for (let i = 0; i < n; i++) bag[named(bag, cat, fmt)] = make(cat); };
+  const out = {};
+  // ---- Prophet-5 (175)
+  out.p5 = {}; add(out.p5, [['Bass', 30], ['Lead', 25], ['Pad', 30], ['Brass', 20], ['Keys', 20], ['Pluck', 15], ['Strings', 15], ['Sync', 10], ['FX', 10]], cat => {
+    const p = {oBfine:r(0, .12), mA:r(.7, 1), mB:r(.5, .9)};
+    if (cat === 'Bass') Object.assign(p, {oApul:ch(.3) ? 1 : 0, oApw:r(.2, .5), oBf:pick([st(0), st(-12), st(7)]), cut:r(.12, .38), res:r(0, .45), fenv:r(.3, .7), fd:r(.15, .45), fs:r(0, .3), fr:r(.1, .3), aa:0, ad:r(.3, .6), as:r(.6, 1), ar:r(.05, .25), glide:ch(.3) ? r(.05, .3) : 0, uni:ch(.12) ? 1 : 0});
+    if (cat === 'Lead') Object.assign(p, {oBf:pick([st(0), st(7), st(12), st(-5)]), cut:r(.45, .8), res:r(.1, .5), fenv:r(.2, .5), fd:r(.3, .6), fs:r(.3, .7), aa:r(0, .1), as:.9, ar:r(.15, .4), glide:ch(.4) ? r(.05, .25) : 0, lfoF:r(.5, .65), wheel:r(.1, .4), wmFA:1, wmFB:1});
+    if (cat === 'Pad') Object.assign(p, {oAsaw:ch(.6) ? 1 : 0, oApul:1, oApw:r(.2, .45), oBfine:r(.05, .2), mA:.7, mB:.7, cut:r(.28, .6), res:r(0, .3), fenv:r(.1, .35), fa:r(.3, .7), fd:r(.4, .8), fs:r(.4, .8), fr:r(.5, .8), aa:r(.4, .75), ad:.5, as:1, ar:r(.55, .85), lfoF:r(.3, .5), wmPWA:ch(.5) ? 1 : 0, wheel:ch(.4) ? r(.1, .3) : 0});
+    if (cat === 'Brass') Object.assign(p, {cut:r(.25, .45), res:r(.05, .25), fenv:r(.4, .7), fa:r(.2, .45), fd:r(.4, .6), fs:r(.5, .7), fr:.4, aa:r(.1, .3), ad:.4, as:1, ar:r(.3, .45), oBfine:r(.04, .12)});
+    if (cat === 'Keys') Object.assign(p, {oApul:1, oAsaw:ch(.5) ? 1 : 0, oApw:r(.2, .5), oBtri:ch(.4) ? 1 : 0, oBf:pick([st(0), st(12)]), cut:r(.3, .55), res:r(0, .2), fenv:r(.3, .6), fd:r(.35, .55), fs:r(.1, .3), aa:0, ad:r(.45, .65), as:r(0, .3), ar:r(.3, .5)});
+    if (cat === 'Pluck') Object.assign(p, {cut:r(.12, .35), res:r(.1, .5), fenv:r(.5, .8), fd:r(.2, .4), fs:0, aa:0, ad:r(.25, .45), as:0, ar:r(.2, .4), oBf:pick([st(0), st(12), st(19)])});
+    if (cat === 'Strings') Object.assign(p, {oAsaw:0, oApul:1, oApw:r(.25, .4), oBfine:r(.08, .16), mA:.7, mB:.7, cut:r(.45, .65), res:r(0, .15), fenv:r(.1, .2), fa:r(.4, .6), aa:r(.45, .65), ad:.5, as:1, ar:r(.55, .7), lfoF:r(.45, .55), wmPWA:1, wmPWB:1, wmFA:0, wmFB:0, wheel:r(.25, .45)});
+    if (cat === 'Sync') Object.assign(p, {sync:1, oAf:r(.55, .7), oBsaw:1, mA:1, mB:0, pmEnv:r(.3, .8), pmFA:1, cut:r(.55, .85), res:r(.1, .3), fenv:r(.1, .35), fd:r(.4, .7), fs:r(.2, .5), aa:0, ad:.5, as:.8, ar:r(.2, .4)});
+    if (cat === 'FX') Object.assign(p, {sync:ch(.5) ? 1 : 0, pmEnv:r(0, 1), pmB:r(0, .7), pmFA:1, pmF:ch(.5) ? r(0, .6) : 0, lfoF:r(.5, .95), oBlo:ch(.3) ? 1 : 0, mN:r(0, .5), cut:r(.2, .8), res:r(.3, .85), fenv:r(0, .9), fa:r(0, .6), fd:r(.3, .9), fs:r(0, .8), aa:r(0, .5), as:1, ar:r(.3, .8), wmMix:r(0, .6), wheel:r(.2, .8), wmF:1});
+    return p; });
+  // ---- OB-Xa (175)
+  out.ob = {}; add(out.ob, [['Bass', 30], ['Lead', 25], ['Pad', 30], ['Brass', 30], ['Keys', 15], ['Pluck', 15], ['Strings', 15], ['FX', 15]], cat => {
+    const p = {o2det:r(.04, .16), spread:r(.4, .9)};
+    if (cat === 'Bass') Object.assign(p, {o2f:pick([.5, st(-12), st(12)]), o1pul:ch(.3) ? 1 : 0, cut:r(.15, .4), res:r(.05, .45), fmode:ch(.3) ? 1 : 0, fenv:r(.35, .7), fd:r(.15, .45), fs:r(0, .35), aa:0, ad:r(.3, .6), as:r(.7, 1), ar:r(.05, .25), glide:ch(.25) ? r(.05, .3) : 0, uni:ch(.15) ? 1 : 0, spread:r(.1, .4)});
+    if (cat === 'Lead') Object.assign(p, {o2f:pick([.5, st(7), st(12)]), cut:r(.45, .8), res:r(.1, .45), fenv:r(.2, .5), fd:r(.3, .6), fs:r(.3, .7), aa:0, as:.9, ar:r(.15, .4), glide:ch(.4) ? r(.05, .25) : 0, lfoPitch:ch(.4) ? r(.02, .06) : 0, uni:ch(.3) ? 1 : 0});
+    if (cat === 'Pad') Object.assign(p, {o1pul:ch(.4) ? 1 : 0, pw:r(.25, .45), cut:r(.3, .55), res:r(.05, .3), fenv:r(.1, .35), fa:r(.4, .7), fd:r(.5, .8), fs:r(.5, .8), fr:r(.5, .8), aa:r(.4, .7), ad:.5, as:1, ar:r(.55, .85), lfoFilt:ch(.5) ? r(.03, .1) : 0, lfoF:r(.25, .45), spread:r(.7, 1)});
+    if (cat === 'Brass') Object.assign(p, {cut:r(.3, .6), res:r(.05, .3), fmode:ch(.35) ? 1 : 0, fenv:r(.2, .6), fd:r(.25, .5), fs:r(.4, .8), aa:r(.02, .2), ad:.4, as:r(.85, 1), ar:r(.15, .35)});
+    if (cat === 'Keys') Object.assign(p, {o1pul:1, o1saw:0, pw:r(.2, .5), cut:r(.3, .55), fenv:r(.3, .55), fd:r(.3, .5), fs:r(.1, .3), aa:0, ad:r(.45, .65), as:r(0, .3), ar:r(.3, .5)});
+    if (cat === 'Pluck') Object.assign(p, {cut:r(.12, .35), res:r(.1, .5), fenv:r(.5, .8), fd:r(.2, .4), fs:0, aa:0, ad:r(.25, .45), as:0, ar:r(.2, .4)});
+    if (cat === 'Strings') Object.assign(p, {o1pul:1, o2pul:1, o1saw:0, o2saw:0, pw:r(.3, .42), lfoPW:r(.1, .25), cut:r(.45, .65), fenv:r(.1, .2), aa:r(.45, .65), as:1, ar:r(.55, .7), spread:r(.8, 1)});
+    if (cat === 'FX') Object.assign(p, {sync:ch(.5) ? 1 : 0, o2f:r(.3, .8), noise:r(0, .5), cut:r(.2, .8), res:r(.3, .85), fenv:r(0, .9), fenvO2:ch(.5) ? r(.2, .8) : 0, lfoF:r(.5, .95), lfoPitch:ch(.5) ? r(.05, .3) : 0, lfoFilt:r(0, .3), fa:r(0, .6), fd:r(.3, .9), fs:r(0, .8), aa:r(0, .5), as:1, ar:r(.3, .8)});
+    return p; });
+  // ---- basic synth (150)
+  out.basic = {}; add(out.basic, [['Bass', 30], ['Lead', 25], ['Pad', 25], ['Keys', 15], ['Pluck', 20], ['Brass', 10], ['Bells', 10], ['FX', 15]], cat => {
+    const W = ['sawtooth', 'square', 'triangle', 'sine'], p = {wave:pick(W.slice(0, 2)), wave2:pick(W), oct2:pick([-1, 0, 0, 1]), det:Math.round(r(0, 20)), mix2:r(.3, .8), sub:0, cut:r(.3, .7), res:r(.7, 6), fenv:r(.1, .5), fdec:r(.1, .8), a:.005, d:r(.2, .6), s:r(.4, .8), r:r(.1, .5), gain:r(.6, .9)};
+    if (cat === 'Bass') Object.assign(p, {oct2:pick([-1, 0]), sub:r(.2, .8), cut:r(.15, .45), res:r(1, 8), fenv:r(.3, .7), fdec:r(.1, .35), d:r(.15, .5), s:r(.3, .7), r:r(.05, .15), gain:r(.8, 1.1)});
+    if (cat === 'Lead') Object.assign(p, {det:Math.round(r(5, 20)), cut:r(.5, .8), res:r(1, 5), a:r(.003, .03), s:r(.6, .9)});
+    if (cat === 'Pad') Object.assign(p, {wave:'sawtooth', det:Math.round(r(10, 25)), cut:r(.3, .55), res:r(.7, 2), fenv:r(.05, .25), fdec:r(.5, 1.5), a:r(.3, 1.5), d:1, s:r(.7, .9), r:r(.8, 2), gain:r(.5, .7)});
+    if (cat === 'Keys') Object.assign(p, {wave:pick(['square', 'triangle']), cut:r(.35, .6), a:.003, d:r(.4, 1), s:r(.1, .4), r:r(.2, .5)});
+    if (cat === 'Pluck') Object.assign(p, {cut:r(.15, .4), res:r(2, 9), fenv:r(.5, .8), fdec:r(.08, .25), a:.002, d:r(.15, .4), s:0, r:r(.1, .3)});
+    if (cat === 'Brass') Object.assign(p, {wave:'sawtooth', wave2:'sawtooth', oct2:0, det:Math.round(r(6, 14)), cut:r(.3, .5), fenv:r(.3, .6), fdec:r(.2, .5), a:r(.03, .12), s:.8});
+    if (cat === 'Bells') Object.assign(p, {wave:'sine', wave2:pick(['triangle', 'square']), oct2:pick([1, 2]), cut:r(.6, 1), res:r(.7, 3), a:.002, d:r(.8, 2.5), s:0, r:r(.8, 2)});
+    if (cat === 'FX') Object.assign(p, {wave2:pick(W), oct2:pick([-1, 1, 2]), det:Math.round(r(20, 50)), cut:r(.2, .9), res:r(5, 18), fenv:r(.3, 1), fdec:r(.2, 2), a:r(0, 1), s:r(0, 1), r:r(.3, 2)});
+    return p; });
+  // ---- Omni-2 (100)
+  out.omni = {}; add(out.omni, [['Strings', 35], ['Pad', 20], ['Brass', 15], ['Keys', 10], ['Bass', 10], ['FX', 10]], cat => {
+    const p = {violin:0, viola:0, cello:0, sbass:0, syn4:0, syn8:0, hollow:ch(.25) ? 1 : 0, chorus:0, mix:.85, atk:r(.15, .5), rel:r(.35, .65)};
+    if (cat === 'Strings') Object.assign(p, {violin:ch(.8) ? 1 : 0, viola:1, cello:ch(.4) ? 1 : 0, sbass:ch(.25) ? 1 : 0, atk:r(.1, .6), rel:r(.3, .7)});
+    if (cat === 'Pad') Object.assign(p, {violin:1, viola:ch(.7) ? 1 : 0, syn8:1, chorus:1, freq:r(.3, .55), res:r(0, .4), adsr:r(.1, .4), a:r(.4, .8), d:r(.5, .8), s:r(.6, .9), r:r(.5, .8), mix:r(.4, .8), atk:r(.3, .7), rel:r(.5, .75)});
+    if (cat === 'Brass') Object.assign(p, {syn8:1, syn4:ch(.3) ? 1 : 0, freq:r(.3, .45), res:r(.05, .3), adsr:r(.45, .7), a:r(.15, .35), d:r(.35, .55), s:r(.5, .75), r:r(.2, .4), mix:r(0, .15)});
+    if (cat === 'Keys') Object.assign(p, {syn4:1, syn8:ch(.5) ? 1 : 0, freq:r(.4, .55), res:r(.1, .4), adsr:r(.4, .65), a:0, d:r(.25, .45), s:r(0, .2), r:r(.15, .3), mix:0});
+    if (cat === 'Bass') Object.assign(p, {bass8:1, bass16:ch(.7) ? 1 : 0, stacc:ch(.4) ? 1 : 0, bassVol:r(.7, .95), violin:ch(.5) ? 1 : 0, viola:1});
+    if (cat === 'FX') Object.assign(p, {syn8:1, syn4:1, freq:r(.1, .5), res:r(.5, .9), adsr:r(.3, .9), lfoAmt:r(.2, .7), lfoHz:r(.2, .7), a:r(0, .8), d:r(.3, .9), s:r(0, .8), r:r(.3, .8), mix:r(0, .5), chorus:ch(.5) ? 1 : 0});
+    return p; });
+  // ---- Solina (60)
+  out.sol = {}; add(out.sol, [['Strings', 30], ['Brass', 10], ['Pad', 12], ['Bass', 8]], cat => {
+    const p = {viola:ch(.8) ? 1 : 0, violin:ch(.8) ? 1 : 0, trumpet:0, horn:0, cello:ch(.5) ? 1 : 0, contra:ch(.3) ? 1 : 0, cresc:r(.1, .6), sus:1, susLen:r(.3, .8), ens:1, wide:ch(.6) ? 1 : 0, bassVol:r(.5, .9), chorusHz:r(.55, .95), tremHz:r(5.5, 7), depth:r(.25, .5), trem:r(.1, .35)};
+    if (cat === 'Brass') Object.assign(p, {trumpet:ch(.7) ? 1 : 0, horn:1, viola:ch(.3) ? 1 : 0, violin:0, cresc:r(.05, .25), depth:r(.15, .3)});
+    if (cat === 'Pad') Object.assign(p, {cresc:r(.5, .9), susLen:r(.6, 1), depth:r(.4, .6), chorusHz:r(.4, .7), wide:1});
+    if (cat === 'Bass') Object.assign(p, {cello:1, contra:1, bassVol:r(.75, 1), viola:ch(.5) ? 1 : 0, violin:0});
+    if (!p.viola && !p.violin && !p.trumpet && !p.horn) p.viola = 1;
+    return p; });
+  // ---- TB-303 (80)
+  out.tb = {}; add(out.tb, [['Acid', 50], ['Bass', 30]], cat => cat === 'Acid'
+    ? {wave:ch(.3) ? 1 : 0, cut:r(.1, .55), res:r(.6, .97), env:r(.4, .95), dec:r(.15, .75), acc:r(.5, 1)}
+    : {wave:ch(.4) ? 1 : 0, cut:r(.15, .45), res:r(.2, .65), env:r(.2, .55), dec:r(.2, .6), acc:r(.3, .7)});
+  // ---- Taurus (50)
+  out.tau = {}; add(out.tau, [['Bass', 35], ['FX', 15]], cat => cat === 'Bass'
+    ? (ch(.4) ? {preset:pick(['taurus', 'tuba', 'bass']), foot:r(.3, .8), footVol:r(.7, .95), glideOn:ch(.3) ? 1 : 0, glide:r(.1, .4), decayOn:ch(.6) ? 1 : 0}
+      : {preset:'variable', voct:pick([0, 1]), vbf:r(.3, .7), vmix:r(.2, .8), vla:r(0, .15), vld:r(.3, .8), vls:r(.5, 1), vfa:r(0, .3), vfd:r(.3, .8), vfamt:r(.3, .8), vemph:r(.1, .6), vcut:r(.1, .45), glideOn:ch(.3) ? 1 : 0, glide:r(.1, .4), decayOn:1})
+    : {preset:'variable', voct:pick([1, 2]), vbf:r(.1, .9), vmix:r(0, 1), vla:r(0, .6), vld:r(.3, 1), vls:r(0, 1), vfa:r(0, .8), vfd:r(.3, 1), vfamt:r(.5, 1), vemph:r(.5, .95), vcut:r(.1, .7), glideOn:1, glide:r(.3, .9), decayOn:ch(.5) ? 1 : 0});
+  // ---- vocoder (50)
+  out.voc = {}; add(out.voc, [['Voice', 50]], () => {
+    const shape = pick(['flat', 'bright', 'dark', 'scoop', 'phone', 'air']), b = [];
+    for (let i = 0; i < 10; i++){ const x = i / 9; let v = 1;
+      if (shape === 'bright') v = .8 + x * .5; if (shape === 'dark') v = 1.3 - x * .55; if (shape === 'scoop') v = 1.2 - Math.sin(x * Math.PI) * .45;
+      if (shape === 'phone') v = x < .2 || x > .8 ? .45 : 1.2; if (shape === 'air') v = .9 + (x > .7 ? .45 : 0); b.push(+(v * r(.92, 1.08)).toFixed(2)); }
+    return {growl:r(0, .8), harm:r(.3, .9), cons:r(.6, 1), sib:r(.4, 1), ens:ch(.4), bands:b}; }, (a, n) => 'Voice · ' + a + ' ' + n);
+  // ---- DX1: five 32-voice banks of original FM programming (160)
+  const NM = (a, b) => (a + ' ' + b).toUpperCase().slice(0, 10).padEnd(10);
+  const SHORT = {EP:[['TINE', 'SOFT', 'BELL', 'HARD', 'DYNO', 'WARM', 'GLASS', 'LITE'], ['EP', 'PIANO', 'RHODE', 'KEYS']], Bass:[['SLAP', 'SYN', 'WOOD', 'FM', 'SUB', 'PICK', 'FRET', 'ROUND', 'HARD'], ['BASS', 'BS', 'LOW']],
+    Brass:[['SOFT', 'BIG', 'FM', 'STAB', 'SYN', 'FUNK'], ['BRASS', 'HORN', 'BRS']], Bells:[['TUBE', 'GLASS', 'ICE', 'CHURCH', 'TINY', 'XMAS'], ['BELL', 'CHIME', 'GONG']],
+    Organ:[['ROCK', 'JAZZ', 'PIPE', 'PERC', 'SOFT'], ['ORGAN', 'ORG', 'BARS']], Pluck:[['KOTO', 'HARP', 'PICK', 'SITAR', 'BANJO', 'DRY'], ['PLUCK', 'STR', 'PIZZ']],
+    Pad:[['SOFT', 'WARM', 'SPACE', 'GLASS', 'SLOW', 'AIR'], ['PAD', 'CHOIR', 'WASH', 'STRNG']], Mallet:[['MARIM', 'VIBE', 'XYLO', 'KALIM', 'STEEL', 'WOOD'], ['BA', 'S', 'DRUM', 'PHONE']],
+    Lead:[['SYNC', 'SAW', 'FM', 'SQR', 'HOT'], ['LEAD', 'SOLO']], FX:[['SPACE', 'ZAP', 'WIND', 'STORM', 'ALIEN', 'METAL'], ['FX', 'NOISE', 'DRONE', 'SWEEP']]};
+  const env = (a, d, s, rl) => ({r:[a, d, s, rl], l:[99, 99 - Math.round(rnd() * 15), 0, 0]});
+  const dxGen = cat => {
+    const o = (ol, coarse, fine, rr, ll, extra) => Object.assign({ol:Math.round(ol), coarse, fine:Math.round(fine || 0), r:rr.map(Math.round), l:ll.map(Math.round), det:Math.round(r(5, 9)), kvs:Math.round(r(1, 5)), rs:Math.round(r(0, 4))}, extra || {});
+    let alg = 1, fb = Math.round(r(0, 6)), ops = [], x = {};
+    if (cat === 'EP'){ alg = 5; ops = [o(99, 1, 0, [96, r(20, 35), 25, 67], [99, r(70, 90), 0, 0]), o(r(50, 72), pick([14, 14, 7, 1]), 0, [95, r(40, 60), 35, 78], [99, 75, 0, 0], {kvs:7}), o(99, 1, 0, [95, r(15, 30), 20, 50], [99, 95, 0, 0]), o(r(75, 92), 1, 0, [95, r(25, 40), 20, 50], [99, 95, 0, 0], {kvs:6}), o(r(65, 85), 1, 0, [95, 20, 20, 50], [99, 95, 0, 0]), o(r(60, 82), pick([1, 3]), 0, [95, 29, 20, 50], [99, 95, 0, 0])]; }
+    else if (cat === 'Bass'){ alg = pick([1, 16, 7]); ops = [o(99, pick([0, 1]), 0, [99, r(30, 60), 30, 70], [99, r(60, 85), 0, 0]), o(r(65, 90), pick([1, 1, 2, 3]), 0, [99, r(40, 75), 30, 70], [99, r(30, 70), 0, 0], {kvs:6}), o(r(80, 95), pick([0, 1]), 0, [99, r(30, 50), 30, 70], [99, 80, 0, 0]), o(r(60, 85), pick([1, 2, 5]), 0, [99, r(45, 75), 30, 70], [99, r(30, 60), 0, 0]), o(r(50, 80), pick([1, 3]), 0, [99, 60, 30, 70], [99, 40, 0, 0]), o(r(55, 80), 1, 0, [99, 60, 30, 70], [99, 50, 0, 0])]; fb = Math.round(r(3, 7)); x = {transpose:12}; }
+    else if (cat === 'Brass'){ alg = pick([22, 18, 16]); const A = [r(55, 75), r(60, 80), 99, r(60, 75)]; ops = [o(99, 1, 0, A, [99, r(85, 95), 96, 0]), o(r(78, 90), 1, 0, [r(50, 65), r(45, 60), 29, 71], [82, 95, 96, 0], {kvs:3}), o(r(90, 99), 1, 0, A, [99, 88, 96, 0], {det:5}), o(r(90, 99), 1, 0, A, [99, 88, 96, 0], {det:9}), o(r(85, 97), 1, 0, A, [99, 88, 96, 0]), o(r(70, 85), 1, 0, [r(50, 65), 51, 29, 71], [82, 95, 96, 0])]; fb = 7; x = {pmd:Math.round(r(3, 10)), lfoDelay:Math.round(r(20, 50)), pr:[84, 95, 95, 60], pl:[49, 50, 50, 50]}; }
+    else if (cat === 'Bells'){ alg = pick([5, 7, 29]); const D = [r(18, 35), r(15, 25)]; ops = [o(99, 1, 0, [95, D[0], 20, 35], [99, 70, 0, 0]), o(r(65, 85), pick([3, 3, 5, 7]), pick([50, 41, 0, 76]), [95, D[0], 20, 35], [99, 70, 0, 0]), o(r(85, 99), pick([1, 2]), 0, [95, D[1], 18, 35], [99, 60, 0, 0], {det:9}), o(r(60, 80), pick([4, 7, 9]), pick([0, 14, 41]), [98, 40, 20, 35], [99, 50, 0, 0]), o(r(75, 92), 2, 0, [95, 30, 20, 35], [99, 60, 0, 0]), o(r(55, 75), pick([5, 11]), r(0, 50), [99, 45, 20, 35], [99, 40, 0, 0])]; fb = Math.round(r(0, 4)); }
+    else if (cat === 'Organ'){ alg = 32; const R = [0, 1, 2, 3, 4, 8].sort(() => rnd() - .5).slice(0, 6); ops = R.map(c => o(r(70, 97), c, 0, [99, 80, 99, 80], [99, 99, 99, 0])); fb = 0; x = {pmd:Math.round(r(2, 6)), lfoSpeed:Math.round(r(55, 70)), pms:2}; }
+    else if (cat === 'Pluck'){ alg = pick([1, 7, 3]); ops = [o(99, 1, 0, [99, r(40, 60), 25, 60], [99, 0, 0, 0]), o(r(70, 90), pick([2, 3, 4]), 0, [99, r(60, 85), 25, 60], [99, 0, 0, 0], {kvs:6}), o(r(85, 95), 1, 0, [99, r(35, 55), 25, 60], [99, 0, 0, 0]), o(r(65, 85), pick([3, 5, 7]), 0, [99, 70, 25, 60], [99, 0, 0, 0]), o(r(55, 75), 1, 0, [99, 60, 25, 60], [99, 0, 0, 0]), o(r(50, 70), 1, 0, [99, 60, 25, 60], [99, 0, 0, 0])]; }
+    else if (cat === 'Pad'){ alg = pick([2, 22, 5]); const A = r(30, 55); ops = [o(99, 1, 0, [A, 30, 20, 45], [99, 92, 90, 0], {det:6}), o(r(60, 78), pick([1, 2]), 0, [A + 5, 30, 20, 45], [99, 85, 80, 0]), o(99, 1, 0, [A, 30, 20, 45], [99, 92, 90, 0], {det:9}), o(r(60, 75), 1, 0, [A + 5, 30, 20, 45], [99, 85, 80, 0]), o(r(50, 70), pick([2, 3]), 0, [A, 30, 20, 45], [99, 80, 70, 0]), o(r(50, 65), 1, 0, [A, 30, 20, 45], [99, 80, 70, 0])]; x = {pmd:Math.round(r(4, 10)), lfoSpeed:Math.round(r(25, 40)), lfoDelay:Math.round(r(20, 50))}; }
+    else if (cat === 'Mallet'){ alg = pick([7, 5]); ops = [o(99, 1, 0, [99, r(35, 55), 30, 50], [99, 0, 0, 0]), o(r(60, 80), pick([3, 4, 7]), 0, [99, r(70, 90), 30, 50], [99, 0, 0, 0], {kvs:5}), o(r(90, 99), 1, 0, [99, r(30, 50), 30, 50], [99, 0, 0, 0]), o(r(50, 70), pick([7, 10]), 0, [99, 80, 30, 50], [99, 0, 0, 0]), o(r(45, 65), pick([10, 14]), 0, [99, 85, 30, 50], [99, 0, 0, 0]), o(r(35, 55), 1, 0, [99, 80, 30, 50], [99, 0, 0, 0])]; fb = 0; }
+    else if (cat === 'Lead'){ alg = pick([1, 2, 16]); ops = [o(99, 1, 0, [99, 40, 30, 60], [99, 95, 90, 0]), o(r(70, 88), pick([1, 2]), 0, [99, 40, 30, 60], [99, 90, 85, 0]), o(r(85, 97), 1, 0, [99, 40, 30, 60], [99, 95, 90, 0], {det:10}), o(r(70, 85), 1, 0, [99, 40, 30, 60], [99, 90, 85, 0]), o(r(60, 78), pick([2, 3]), 0, [99, 40, 30, 60], [99, 90, 85, 0]), o(r(70, 88), 1, 0, [99, 40, 30, 60], [99, 90, 85, 0])]; fb = 7; x = {pmd:Math.round(r(6, 14)), lfoSpeed:35, lfoDelay:Math.round(r(30, 60))}; }
+    else { alg = Math.round(r(1, 32)); ops = Array.from({length:6}, () => o(r(70, 99), Math.round(r(0, 15)), r(0, 99), [r(55, 99), r(10, 80), r(10, 60), r(20, 70)], [99, r(60, 99), r(30, 90), 0])); fb = Math.round(r(3, 7)); x = {pmd:Math.round(r(0, 50)), amd:Math.round(r(0, 40)), lfoSpeed:Math.round(r(10, 80)), lfoWave:Math.round(r(0, 5)), pr:[r(30, 99), r(30, 99), r(30, 99), r(30, 99)].map(Math.round), pl:[Math.round(r(30, 70)), 50, 50, Math.round(r(40, 60))]}; }
+    const sh = SHORT[cat] || SHORT.FX; return dxVoice(NM(pick(sh[0]), pick(sh[1])), alg, fb, ops, x);
+  };
+  const dxPlan = ['EP', 'EP', 'EP', 'Bass', 'Bass', 'Bass', 'Brass', 'Brass', 'Bells', 'Bells', 'Organ', 'Organ', 'Pluck', 'Pluck', 'Pad', 'Pad', 'Mallet', 'Lead', 'FX', 'Pad', 'Bass', 'EP', 'Bells', 'Pluck', 'Brass', 'Organ', 'Mallet', 'Lead', 'Pad', 'Bass', 'Keys', 'FX'];
+  out.dx = [1, 2, 3, 4, 5].map(b => { const used = new Set(); return dxPlan.map(cat => { let v; for (let k = 0; k < 20; k++){ v = dxGen(cat === 'Keys' ? 'EP' : cat); if (!used.has(v.name)) break; } used.add(v.name); return v; }); });
+  return out;
+})();
+Object.assign(P5_PRESETS, PRESET_GEN.p5); Object.assign(OB_PRESETS, PRESET_GEN.ob); Object.assign(PRESETS, PRESET_GEN.basic);
+Object.assign(OMNI_PRESETS, PRESET_GEN.omni); Object.assign(VOC_PRESETS, PRESET_GEN.voc);
+const SOL_PRESETS = PRESET_GEN.sol, TB_PRESETS = PRESET_GEN.tb, TAU_PATCHES = PRESET_GEN.tau;
+const DX_GEN_BANKS = PRESET_GEN.dx.map((v, i) => { const id = 'omega' + (i + 1); dxBankCache.set(id, v); return {id, name:'Omega FM ' + (i + 1), n:v.length}; });
+// grouped preset menus: "Category · Name" goes under its category, the classics first
+function presetOptions(obj, blank){
+  const groups = new Map([['Classics', []]]);
+  for (const k of Object.keys(obj)){ const m = k.match(/^([^·]+) · /), g = m ? m[1].trim() : 'Classics'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(k); }
+  let h = blank ? `<option value="">${blank}</option>` : '';
+  for (const [g, ks] of groups) if (ks.length) h += `<optgroup label="${escH(g)} (${ks.length})">` + ks.map(k => `<option value="${escH(k)}">${escH(k.replace(/^[^·]+ · /, ''))}</option>`).join('') + '</optgroup>';
+  return h;
+}
 /* ================= speech (text to speech for the vocoder) =================
    English letter-to-sound rules in the style of the 1976 NRL report (Elovitz et al.), then a cascade/parallel formant
    synthesizer in the Klatt manner: glottal pulse source, five formant resonators, filtered noise for fricatives and bursts.
@@ -10431,7 +10579,8 @@ $('#helpSearch').addEventListener('input', e => {
     }
     S.audio.forEach(t => { if (t.clip && !buffers.has(t.clip)) t.clip = null; });
     S.drum.pads.forEach(p => ensureKitBuf(p.sample));
-    S.drum.pads.forEach((p, i) => { if (!buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
+    // a pad whose sound went missing falls back to its built-in sound; a pad you emptied stays empty
+    S.drum.pads.forEach((p, i) => { if (p.sample && !buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
