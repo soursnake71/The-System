@@ -388,6 +388,21 @@ html.frying main{animation:fryShake .11s steps(2) infinite}
 .dx-op .knob .klab{color:#e9dfcf;font-size:8px}
 .dx-op .knob select.kval{font-size:10px;max-width:52px}
 .dx-on{flex:none;width:100%;padding:4px 0 !important}
+/* instrument picker */
+.instpick{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px !important;margin:0 0 8px;background:linear-gradient(180deg,#2e3240,#20232d) !important;border:1px solid #000 !important;color:#fff !important;text-transform:none !important;letter-spacing:0 !important}
+.instpick .ip-sw{width:38px;height:38px;border-radius:6px;flex:none;box-shadow:inset 0 0 0 2px #0006}
+.instpick .ip-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.instpick b{font:800 18px/1.1 var(--f-display);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.instpick small{font:500 11px var(--f-body);color:#aab}
+.instpick i{font:800 11px var(--f-display);font-style:normal;letter-spacing:.12em;color:#ffd23f;background:#0006;border:1px solid #ffd23f88;border-radius:14px;padding:6px 10px;white-space:nowrap}
+#instDlg{width:min(720px,94vw);max-height:88vh;overflow:auto}
+.instgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
+.instcard{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-height:104px;padding:10px !important;border-radius:8px !important;border:2px solid #000 !important;color:#fff !important;text-transform:none !important;letter-spacing:0 !important;position:relative;overflow:hidden}
+.instcard b{font:800 19px/1.05 var(--f-display);letter-spacing:.03em}
+.instcard small{font:700 10px var(--f-display);letter-spacing:.14em;opacity:.85;text-transform:uppercase}
+.instcard span{font:500 12px/1.3 var(--f-body);opacity:.92;margin-top:auto}
+.instcard.on{outline:3px solid #ffd23f;outline-offset:2px}
+.instcard.on::after{content:"✓ ON THIS TRACK";position:absolute;top:8px;right:8px;font:800 9px var(--f-display);letter-spacing:.1em;background:#ffd23f;color:#111;padding:2px 5px;border-radius:3px}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -911,6 +926,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- SYNTH -->
   <section class="view" id="v-synth" hidden>
     <div class="scenebar" id="synthBar" role="group" aria-label="Synth tracks"></div>
+    <button id="instPick" class="instpick nolearn" aria-haspopup="dialog"><span class="ip-sw" id="instPickSw"></span><span class="ip-t"><b id="instPickName">Prophet-5</b><small id="instPickSub">Sequential · 1978</small></span><i>INSTRUMENTS ▾</i></button>
       <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><button id="octDown" aria-label="Octave down">−</button><button id="octUp" aria-label="Octave up">+</button><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
       <div class="kbwhy" id="kbWhy" hidden><span id="kbWhyT" class="grow"></span><button id="kbWhyFix" class="nolearn">Fix</button></div>
       <div class="keys" id="keys"></div>
@@ -1589,7 +1605,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v94</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v95</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -1614,6 +1630,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <button data-a="all" class="nolearn">Clear all pads…</button>
   <button data-a="x" class="nolearn">Cancel</button>
 </dialog>
+<dialog id="instDlg" aria-labelledby="instDlgT"><div class="sbx-head"><h2 id="instDlgT" class="grow">Pick an instrument</h2><button id="instDlgX" class="nolearn">Close</button></div><div class="instgrid" id="instGrid"></div></dialog>
 <dialog id="synMenu" aria-labelledby="synMenuT"><h2 id="synMenuT">Prophet 1</h2>
   <button data-a="rename" class="nolearn">Rename</button>
   <button data-a="dup" class="nolearn">Duplicate</button>
@@ -8415,8 +8432,38 @@ $('#synMenu').addEventListener('click', e => {
     selSynth = S.synths.length - 1; save(); renderSynth(); toast('Made ' + cp.name + ' as a copy.');
   }
 });
+
+/* ================= instrument picker: every synth as a big card ================= */
+const INSTRUMENTS = [
+  {v:'prophet', name:'Prophet-5', sub:'Sequential · 1978', desc:'Warm 5-voice analog: pads, brass, leads.', bg:'linear-gradient(160deg,#6b3d1f,#2a1a10 55%,#111)'},
+  {v:'obxa', name:'OB-Xa', sub:'Oberheim · 1981', desc:'Big fat poly brass and “Jump” chords.', bg:'linear-gradient(160deg,#2f4f7a,#14243a 60%,#0b1220)'},
+  {v:'dx1', name:'DX1', sub:'Yamaha · 1983', desc:'FM: e-pianos, bells, bass. Loads DX7 .syx patches.', bg:'linear-gradient(160deg,#5a3a22,#2a1a10 55%,#123c38)'},
+  {v:'omni2', name:'Omni-2', sub:'ARP · 1977', desc:'String machine plus synth section and bass.', bg:'linear-gradient(160deg,#e8722c,#3a1a08 45%,#111)'},
+  {v:'solina', name:'Solina', sub:'ARP / Eminent · 1974', desc:'The classic lush string ensemble.', bg:'linear-gradient(160deg,#c9a35a,#5a4220 50%,#1b140a)'},
+  {v:'tb303', name:'TB-303', sub:'Roland · 1981', desc:'Squelchy acid bass with slide and accent.', bg:'linear-gradient(160deg,#c9cdd3,#6d737c 50%,#2b2e33)'},
+  {v:'taurus', name:'Taurus', sub:'Moog · 1976', desc:'Huge bass pedals: deep, round low end.', bg:'linear-gradient(160deg,#7a5a3a,#2e2318 55%,#0e0b08)'},
+  {v:'gm', name:'General MIDI', sub:'128 sounds', desc:'Piano, guitar, strings, choir, sax and more.', bg:'linear-gradient(160deg,#3a7a4a,#16301d 60%,#0a140c)'},
+  {v:'sf2', name:'SoundFont', sub:'.sf2 files', desc:'Load any SoundFont and play its presets.', bg:'linear-gradient(160deg,#6a3a8a,#2a1638 60%,#120a18)'},
+  {v:'padsmp', name:'Pad sample', sub:'From your pads', desc:'Play a pad’s sound up and down the keys.', bg:'linear-gradient(160deg,#ff9a3c,#8a4a14 50%,#2a160a)'},
+];
+function instPaint(){
+  const tr = curSynth(), I = INSTRUMENTS.find(x => x.v === tr.inst) || INSTRUMENTS[0];
+  $('#instPickName').textContent = I.name; $('#instPickSub').textContent = I.sub + ' · tap to change'; $('#instPickSw').style.background = I.bg;
+}
+function instOpen(){
+  const tr = curSynth(), g = $('#instGrid'); g.innerHTML = '';
+  $('#instDlgT').textContent = 'Instrument for ' + tr.name;
+  INSTRUMENTS.forEach(I => { const b = document.createElement('button'); b.className = 'instcard nolearn' + (I.v === tr.inst ? ' on' : ''); b.style.background = I.bg;
+    b.innerHTML = `<small>${I.sub}</small><b>${I.name}</b><span>${I.desc}</span>`;
+    b.addEventListener('click', () => { const s = $('#inst'); s.value = I.v; s.dispatchEvent(new Event('change')); $('#instDlg').close(); const r = hearRoot(); setTimeout(() => hearChord(curSynth(), [r, r + 4, r + 7], .9), 150); });
+    g.appendChild(b); });
+  $('#instDlg').showModal(); const on = g.querySelector('.on') || g.firstChild; if (on) on.focus();
+}
+$('#instPick').addEventListener('click', instOpen);
+$('#instDlgX').addEventListener('click', () => $('#instDlg').close());
+$('#instDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 function renderSynth(){
-  renderArp();
+  renderArp(); try { instPaint(); } catch(e){}
   const bar = $('#synthBar'); bar.innerHTML = '';
   S.synths.forEach((t, k) => { const b = document.createElement('button'); b.textContent = t.name; b.classList.toggle('on', k === selSynth);
     let ht = 0, held = false;
@@ -8428,7 +8475,7 @@ function renderSynth(){
     let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
     const tr = newSynth(n); S.synths.push(tr);
     if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); }
-    selSynth = S.synths.length - 1; save(); renderSynth();
+    selSynth = S.synths.length - 1; save(); renderSynth(); setTimeout(instOpen, 120);
   });
   bar.appendChild(add);
   const tr = curSynth();
