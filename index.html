@@ -1623,7 +1623,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-wheel"><summary>The Wheel of Steel (two decks, DJ mixer)</summary>
       <p>The <b>Wheel</b> tab is a two-deck DJ setup in the style of Serato DJ: the waveforms of both decks on top (title, artist, time left, BPM and key over each), two turntables in the style of the Technics SL-1200 MK2 with the mixer between them (HI / MID / LOW, filter, channel faders, level meters and the crossfader), and the library with crates underneath. Touch a record to scratch it. Each turntable has Start · Stop, 33 / 45, pitch (double-tap to zero), Cue, Sync and Load. Tap a deck to make it the one <b>Deck controls</b> works on (hot cues, loops, rolls, FX, key lock, nudge, censor, MIDI platter).</p>
       <p><b>Serato compatible</b>: tracks keep what Serato DJ saved in them: hot cues (with their colours), saved loops, the beatgrid, BPM, key, title and artist, from MP3, AIFF, WAV and FLAC (◆ marks a track with Serato data). <b>Serato crate</b> imports .crate files from your Serato folder (Music/_Serato_/Subcrates); tracks already in the library join the crate, and the rest join when you add their files. Make your own crates with + Crate and the ⋮ menu on each track.</p>
-      <p><b>MIDI</b>: everything on the Wheel can be MIDI-learned: both turntables (touch a record while learning to map a knob or jog wheel to scratch it), Start, 33/45, pitch, Cue, Sync, Load, the mixer knobs and faders, the crossfader, hamster, hot cues, loops, rolls, FX, sampler and record. For a Serato-style controller: map ▲ ▼ to browse the library and each deck's LOAD; LOAD then puts the selected track on that deck (tap a track to select it on screen).</p>
+      <p><b>MIDI</b>: every control in the app can be MIDI-learned (Setup → MIDI learn, tap the control, move a knob or hit a pad), except buttons that open a file picker or paste, which phones only allow from a tap. On the Wheel that includes both turntables (touch a record while learning to map a knob or jog wheel to scratch it), Start, 33/45, pitch, Cue, Sync, Load, the mixer knobs and faders, the crossfader, hamster, hot cues, loops, rolls, FX, sampler and record. For a Serato-style controller: map ▲ ▼ to browse the library and each deck's LOAD; LOAD then puts the selected track on that deck (tap a track to select it on screen).</p>
       <h3>Waveforms</h3>
       <ul>
         <li>Each deck has a scrolling waveform (6 seconds around the playhead) coloured like Serato's: red for lows, green for mids, blue for highs, with the beat grid (bright lines on every bar) and hot cues and loops marked. Under it, the whole-track overview shows where you are.</li>
@@ -1713,11 +1713,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Commodore 128</b> (Synth → Instruments): the SID chip, three voices with triangle / saw / pulse / noise, ring mod, sync, the chip's envelopes and gritty 6581 filter; Poly, Mono (stacked) and 60 Hz Arpeggio. Presets include the C128 BASIC 7.0 instruments.</li>
         <li><b>Roland D-50</b>: LA synthesis with 7 structures of PCM attack and synth partials, Upper / Lower tones (whole, dual, split), chorus and reverb.</li>
         <li><b>PPG Wave 2.2</b>: 8-bit wavetables (30 tables, 64 waves each) swept by envelope 3, the LFO and wheel, through a 24 dB filter. The display shows the table.</li>
-        <li><b>Juno-60, SH-101, JX-3P, Minimoog, Six-Trak, CS-80</b> (Synth → instrument): analog models, each with its own oscillators, filter type (Roland IR3109, Moog ladder, Curtis, Yamaha high + low-pass), envelopes and presets. Juno chorus I / II / I+II.</li>
+        <li><b>Juno-60, SH-101, JX-3P, Minimoog, Six-Trak, CS-80</b> (Synth → instrument): circuit-modelled at twice the sample rate. DCO synths (Juno, JX-3P, Six-Trak) stay exactly in tune; VCO synths (SH-101, Minimoog, CS-80) drift a few cents as they warm. Each has its own filter circuit: Roland IR3109 OTA ladder (bass thins as resonance rises), Moog transistor ladder (its mixer overdrives when the sources are loud), Curtis CEM3394, and the CS-80's high-pass into low-pass per layer. Every voice has its own part tolerances, RC envelopes and a saturating VCA; the Juno/JX chorus is a modelled bucket-brigade line with its hiss.</li>
         <li><b>Casio CZ-101</b>: phase distortion, 8 waves, two lines (1, 2, 1+1′, 1+2′) with DCW and DCA envelopes, ring and noise mod.</li>
         <li><b>Casio SK-1</b> and <b>E-mu Emax</b>: samplers at the machines' rates and bit depths (8-bit 9.4 kHz / 12-bit 27.8 kHz). Play a built-in tone, a pad's sound, or load a file. The Emax adds its 4-pole filter and envelopes.</li>
         <li><b>DR-110, DMX, Synsonics</b> (Pads): step grids like the machines. Load their sounds onto the pads, tap the grid to program, Accent for loud hits.</li>
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
+        <li><b>A/DA Flanger</b> (FX rack): the 1977 flanger's bucket-brigade line, compander and 40:1 sweep (0.25–10 ms). Manual sets the delay, Range how far the sweep goes, Speed the LFO, Enhance the regeneration (Even / Odd sets its phase), Threshold a noise gate in front. Long delays get the BBD's grainy, darker sound.</li>
         <li><b>Microverb</b> (FX rack): the Alesis Microverb's 16 programs (halls, rooms, plates, gated, reverse).</li>
         <li><b>Resonance tamer + clipper</b> (FX → Master): finds harsh peaks and turns them down as they happen; the clipper adds drive and holds a ceiling.</li>
         <li><b>SP-1200</b> (Pads → SP-1200): the E-mu faceplate: SP mode, banks A / B, eight faders for Tune, Decay or Mix, and eight pads.</li>
@@ -1848,7 +1849,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v104</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v105</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2300,7 +2301,7 @@ const KITS = {
 };
 
 /* ================= FX rack definitions ================= */
-const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp', 'mv'];
+const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp', 'mv', 'ad'];
 const RET_KEYS = ['rev', 'dly', ...RACK_KEYS];
 // FX returns on the mixer; the old fixed return levels were reverb 0.9 and 1.0 for the rest
 function retState(k){ const M = S.master; M.ret = M.ret || {}; if (!M.ret[k]) M.ret[k] = {vol:k === 'rev' ? .8 : .845, mute:false, solo:false, pan:0}; return M.ret[k]; }
@@ -2319,6 +2320,13 @@ function dpKnobs(){ const out = []; for (let k = 1; k <= 4; k++){ out.push([k + 
   out.push(['Return', 'ret', 0, 1, .01, pctF]); return out; }
 const MV_PROGS = ['1 Small room', '2 Medium room', '3 Large room', '4 Small hall', '5 Medium hall', '6 Large hall', '7 Bright plate', '8 Warm plate', '9 Big hall', '10 Huge hall', '11 Gated 1', '12 Gated 2', '13 Reverse 1', '14 Reverse 2', '15 Ambience', '16 Dark hall'];
 const RACK = {
+  ad:{name:'A/DA Flanger', sub:'SAD1024 bucket brigade, 40:1 sweep', short:'A/DA', proc:'adaflanger',
+    def:() => ({manual:.45, range:.7, speed:.3, enh:.5, odd:0, thresh:0, mix:.5, stereo:0, ret:.8}),
+    menus:[['Enhance phase', 'odd', [[0, 'Even (+)'], [1, 'Odd (−)']]], ['Output', 'stereo', [[0, 'Mono'], [1, 'Stereo (wet inverted right)']]]],
+    knobs:[['Manual', 'manual', 0, 1, .01, v => (.25 * Math.pow(40, v)).toFixed(2) + ' ms'], ['Range', 'range', 0, 1, .01, v => v < .03 ? 'off' : Math.max(1, 40 * v).toFixed(1) + ':1'], ['Speed', 'speed', 0, 1, .01, v => { const h = .02 * Math.pow(400, v); return h < 1 ? (1 / h).toFixed(1) + ' s' : h.toFixed(1) + ' Hz'; }],
+      ['Enhance', 'enh', 0, .97, .01, pctF], ['Threshold', 'thresh', 0, 1, .01, v => v ? (-80 + v * 60).toFixed(0) + ' dB' : 'off'], ['Mix', 'mix', 0, 1, .01, pctF], ['Level', 'ret', 0, 1, .01, pctF]],
+    presets:{'Classic jet':{manual:.5, range:.75, speed:.25, enh:.6}, 'Slow 40:1 sweep':{manual:.95, range:1, speed:.12, enh:.55}, 'Metallic odd':{manual:.35, range:.6, speed:.3, enh:.85, odd:1},
+      'Chorus-ish':{manual:.8, range:.15, speed:.45, enh:.1, mix:.4}, 'Static comb (manual)':{manual:.3, range:0, enh:.8}, 'Fast warble':{manual:.6, range:.3, speed:.7, enh:.3}, 'Gated drums flange':{manual:.55, range:.8, speed:.2, enh:.7, thresh:.5}, 'Wide stereo jet':{manual:.5, range:.75, speed:.22, enh:.6, stereo:1}}},
   mv:{name:'Alesis Microverb', sub:'16-program digital reverb', short:'Microverb', proc:'microverb', def:() => ({prog:4, ret:.8}),
     menus:[['Program', 'prog', MV_PROGS.map((n, i) => [i, n])]], knobs:[['Level', 'ret', 0, 1, .01, pctF]],
     presets:{'Vocal hall':{prog:4}, 'Drum room':{prog:1}, 'Snare plate':{prog:6}, 'Gated snare':{prog:10}, 'Reverse swell':{prog:12}, 'Ambience':{prog:14}, 'Huge wash':{prog:9}}},
@@ -3924,21 +3932,41 @@ class PPG extends AudioWorkletProcessor{
   }
 }
 registerProcessor('ppg', PPG);
-/* Analog poly/mono engine with per-model circuits: Juno-60 / JX-3P / SH-101 (Roland IR3109 4-pole OTA filter, smooth,
-   self-oscillating), Minimoog (transistor ladder, 3 VCOs, loudness contour), Six-Trak (Curtis CEM3394 4-pole),
-   CS-80 (two layers per voice, each with its own 12 dB high-pass + 12 dB low-pass, ring modulator). DCO models lock
-   their oscillators to the clock; VCO models drift. Juno chorus (MN3009-style BBD, I = 0.5 Hz, II = 0.83 Hz, I+II = 8 Hz
-   vibrato-chorus) and the JX-3P chorus at the end. */
+/* Analog poly/mono engine, circuit-modelled per instrument. The voice path runs at twice the sample rate and is
+   decimated through a half-band filter, so the nonlinear stages behave like the hardware instead of aliasing.
+   Oscillators: DCO models (Juno-60, JX-3P, Six-Trak) are counter-reset integrators locked to a master clock: exact
+   pitch, no drift; the pulse is a comparator on the ramp and the Juno sub a flip-flop. VCO models (SH-101, Minimoog,
+   CS-80) are exponential-converter ramp cores with thermal drift (a slow random walk of a few cents per oscillator) and
+   a little cycle jitter. Every output is AC-coupled and slew-limited like the op-amps that buffer it.
+   Filters, all solved per oversampled step with their saturating elements:
+   - Roland IR3109 (Juno, JX-3P, SH-101): four OTA integrators, each stage dv = g*tanh(v_in - v_out); resonance through
+     a saturating feedback OTA, unity-gain buffers, so the bass drops as resonance rises, as on the real synths.
+   - Moog transistor ladder (Minimoog): Huovilainen's model, tanh of each stage's input and output (the differential
+     pairs), feedback taken half a step back; the mixer before it overdrives when the sources are loud.
+   - Curtis CEM3394 (Six-Trak): four cleaner OTA-style poles with internal resonance compensation.
+   - Yamaha IG00156 (CS-80): a 12 dB high-pass into a 12 dB low-pass, each a saturating state-variable stage; the two
+     layers (osc 1 / osc 2+3) have separate filters per voice.
+   Voice cards: each voice slot has fixed part tolerances (cutoff, envelope times, VCA gain), wider on the VCO synths.
+   Envelopes are RC: the attack charges toward ~1.3 V and stops at 1, decay and release discharge exponentially.
+   VCA: OTA (Roland, Curtis) or transistor (Moog, Yamaha) soft saturation. Chorus: the Juno/JX bucket brigade (MN3009,
+   256 stages) clocked by its LFO, sampled at the BBD clock between 9 kHz anti-alias and reconstruction filters, with the
+   compander hiss the Juno chorus is known for. */
 const ana_blep = (t, d) => t < d ? (t / d) * 2 - (t / d) * (t / d) - 1 : t > 1 - d ? ((t - 1) / d) * ((t - 1) / d) + 2 * ((t - 1) / d) + 1 : 0;
+const tnh = x => x < -3 ? -1 : x > 3 ? 1 : x * (27 + x * x) / (27 + 9 * x * x);
+const ANA_HB = [-.000183, 0, .00235, 0, -.010062, 0, .030562, 0, -.082065, 0, .309433, .499932, .309433, 0, -.082065, 0, .030562, 0, -.010062, 0, .00235, 0, -.000183];  // 23-tap half-band (Blackman), 2:1
 class ANA extends AudioWorkletProcessor{
   constructor(o){
     super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
     this.cfg = Object.assign({model:'juno60', voices:6}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
-    this.vs = []; this.held = []; this.lfo = 0; this.lfoSH = 0; this.idle = 0; this.glideHz = 0;
-    this.ch = {b:[new Float32Array(8192), new Float32Array(8192)], w:0, p1:0, p2:.25, lpL:0, lpR:0};
+    this.vs = []; this.held = []; this.lfo = 0; this.lfoSH = 0; this.idle = 0; this.card = 0;
+    this.ch = {b:new Float32Array(8192), w:0, p1:0, hL:0, hR:0, cL:1, cR:1, aa:[0, 0, 0], rl:[0, 0, 0], rr:[0, 0, 0]};
+    this.hb = new Float32Array(ANA_HB.length * 2); this.hbw = 0;
+    // eight voice cards, each with its own part tolerances and thermal state
+    const R = () => Math.random() - .5; this.cards = Array.from({length:8}, () => ({fc:R(), env:R(), amp:R(), dr:[R() * .002, R() * .002, R() * .002], walk:[0, 0, 0]}));
     this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); };
   }
-  voiceNew(n, v){ return {n, v, down:true, ph:[Math.random(), Math.random(), Math.random()], sub:0, e1:0, s1:0, e2:0, s2:0, z:[0, 0, 0, 0], z2:[0, 0, 0, 0], h:[0, 0, 0, 0], drift:[(Math.random() - .5) * .004, (Math.random() - .5) * .004, (Math.random() - .5) * .004], hz:0, age:0, lfoD:0}; }
+  voiceNew(n, v){ const k = this.card++ % ((this.cfg.mono ? 1 : this.cfg.voices) || 6) % 8;
+    return {n, v, down:true, cd:this.cards[k], ph:[Math.random(), Math.random(), Math.random()], sub:1, sub2:1, e1:0, s1:0, e2:0, s2:0, z:[0, 0, 0, 0], y:[0, 0, 0, 0], sv:[0, 0, 0, 0], sv2:[0, 0, 0, 0], ac:[0, 0], sl:0, hp:0, hz:0, age:0, lfoD:0, cc:0, pw:.5, d1:1, h2b:0, h3:0, g:.1, gh:0, vca:0}; }
   noteOn(n, v){
     const C = this.cfg; this.held = this.held.filter(x => x !== n); this.held.push(n);
     const max = C.mono ? 1 : (C.voices || 6);
@@ -3951,87 +3979,131 @@ class ANA extends AudioWorkletProcessor{
     if (C.mono){ const V = this.vs[0]; if (!V) return; if (this.held.length){ V.n = this.held[this.held.length - 1]; } else V.down = false; return; }
     for (const V of this.vs) if (V.n === n && V.down) V.down = false;
   }
-  adsr(V, k, a, d, s, r, dt){
-    const t = x => .001 + x * x * 10; let e = k ? V.e2 : V.e1, st = k ? V.s2 : V.s1;
+  // RC envelope: attack charges toward 1.3 and switches to decay at 1; card tolerance scales the times
+  adsr(V, k, a, d, s, r, dt, tol){
+    const t = x => (.0008 + x * x * 10) * tol; let e = k ? V.e2 : V.e1, st = k ? V.s2 : V.s1;
     if (!V.down) st = 3;
-    if (st === 0){ e += dt / t(a) * 1.3; if (e >= 1){ e = 1; st = 1; } } else if (st === 1) e += (s - e) * (1 - Math.exp(-dt / (t(d) * .3))); else e *= Math.exp(-dt / (t(r) * .3));
+    if (st === 0){ e += (1.3 - e) * (1 - Math.exp(-dt / (t(a) * .55))); if (e >= 1){ e = 1; st = 1; } }
+    else if (st === 1) e += (s - e) * (1 - Math.exp(-dt / (t(d) * .3))); else e += -e * (1 - Math.exp(-dt / (t(r) * .3)));
     if (k){ V.e2 = e; V.s2 = st; } else { V.e1 = e; V.s1 = st; } return e;
   }
-  osc(V, i, hz, wave, pw, fs){
-    const dt = hz / fs; let ph = V.ph[i] + dt; let wrapped = false; if (ph >= 1){ ph -= 1; wrapped = true; } V.ph[i] = ph; if (dt >= .5) return 0;
+  osc(V, i, hz, wave, pw, dt2){
+    const dt = hz * dt2; let ph = V.ph[i] + dt; if (ph >= 1) ph -= 1; V.ph[i] = ph; if (dt >= .5) return 0;
     switch (wave){
-      case 1: return (ph < pw ? 1 : -1) + ana_blep(ph, dt) - ana_blep((ph + 1 - pw) % 1, dt);      // pulse
-      case 2: return 1 - 4 * Math.abs(ph - .5);                                                      // triangle
-      case 3: return Math.sin(2 * Math.PI * ph);                                                     // sine
+      case 1: return (ph < pw ? 1 : -1) + ana_blep(ph, dt) - ana_blep((ph + 1 - pw) % 1, dt);      // pulse: comparator on the ramp
+      case 2: return 1 - 4 * Math.abs(ph - .5);                                                      // triangle (shaper)
+      case 3: { const tr = 1 - 4 * Math.abs(ph - .5); return tr * (1.5 - .5 * tr * tr); }            // sine: triangle through a diode shaper
       case 4: return (ph < .5 ? 1 : -1) + ana_blep(ph, dt) - ana_blep((ph + .5) % 1, dt);           // square
-      default: return 2 * ph - 1 - ana_blep(ph, dt);                                                 // saw
+      case 5: return ph < .2 ? 10 * ph - 1 : 1 - 2.5 * (ph - .2);                                    // Minimoog "shark" (tri-saw)
+      default: return 2 * ph - 1 - ana_blep(ph, dt);                                                 // ramp: integrator reset
     }
   }
-  // filters: 4-pole OTA (IR3109 / CEM), transistor ladder (Moog), or CS-80 12 dB HP + 12 dB LP
-  filt(z, x, fc, res, type, fs){
-    fc = Math.min(fc, fs * .45); const g = 1 - Math.exp(-2 * Math.PI * fc / fs);
-    if (type === 'ladder'){ const k = res * 4.1; const u = Math.tanh(x - k * (z[3] - .5 * x * 0)); z[0] += g * (Math.tanh(u) - Math.tanh(z[0])); z[1] += g * (Math.tanh(z[0]) - Math.tanh(z[1])); z[2] += g * (Math.tanh(z[1]) - Math.tanh(z[2])); z[3] += g * (Math.tanh(z[2]) - Math.tanh(z[3])); return z[3] * (1 + res * .9); }
-    if (type === 'cs'){ const g = Math.tan(Math.PI * Math.min(fc, fs * .45) / fs), k = 1.6 - res * 1.4, a1 = 1 / (1 + g * (g + k)), v1 = a1 * (z[0] + g * (x - z[1])), v2 = z[1] + g * v1; z[0] = 2 * v1 - z[0]; z[1] = 2 * v2 - z[1]; return v2 * (1 + res * .3); }
-    const k = res * (type === 'cem' ? 3.9 : 4.2); const u = Math.tanh((x - k * z[3]) * .8) / .8;
-    z[0] += g * (u - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]); return z[3] * (1 + res * .7);
+  // one oversampled step of the low-pass: four TPT (zero-delay) integrator stages with the circuit's nonlinearity;
+  // g = tan(pi fc / fs2); the resonance loop reads the last output (half a base-rate sample back)
+  lp(V, z, x, g, res, type){
+    const G = g / (1 + g), y = V.y;
+    if (type === 'ladder'){                                         // Moog: tanh of each differential pair
+      let inp = x - res * 4.1 * y[3];
+      for (let k = 0; k < 4; k++){ const v = G * (tnh(inp) - tnh(z[k])), o = z[k] + v; z[k] = o + v; y[k] = o; inp = o; }
+      return y[3] * (1 + res * 1.1);
+    }
+    if (type === 'cem'){                                            // CEM3394: cleaner poles, compensated resonance
+      let inp = tnh((x * (1 + res * .6) - res * 3.9 * y[3]) * .6) / .6;
+      for (let k = 0; k < 4; k++){ const v = G * (inp - z[k]), o = z[k] + v; z[k] = o + v; y[k] = o; inp = o; }
+      return y[3];
+    }
+    // IR3109: OTA integrators saturate on their input difference; saturating resonance OTA
+    let inp = x - tnh(res * 4.25 * y[3] * .9) / .9;
+    for (let k = 0; k < 4; k++){ const v = G * tnh(inp - z[k]), o = z[k] + v; z[k] = o + v; y[k] = o; inp = o; }
+    return y[3] * (1 + res * .35);
+  }
+  // CS-80 IG00156 pair: saturating state-variable high-pass then low-pass (12 dB each)
+  csf(s, x, gh, gl, rh, rl){
+    let k = 2 - rh * 1.9, a1 = 1 / (1 + gh * (gh + k)), v1 = a1 * (s[0] + gh * (x - s[1])), v2 = s[1] + gh * v1; s[0] = tnh(2 * v1 - s[0]); s[1] = 2 * v2 - s[1];
+    const hp = x - k * v1 - v2;
+    k = 2 - rl * 1.95; a1 = 1 / (1 + gl * (gl + k)); v1 = a1 * (s[2] + gl * (hp - s[3])); v2 = s[3] + gl * v1; s[2] = tnh(2 * v1 - s[2]); s[3] = 2 * v2 - s[3];
+    return v2;
   }
   process(ins, outs){
-    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs;
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, fs2 = fs * 2, dt = 1 / fs, dt2 = 1 / fs2;
     if (this.vs.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
     else if ((this.idle += N) > fs * 3){ L.fill(0); if (R !== L) R.fill(0); return true; }
-    const ftype = C.filter || 'ir3109', vco = !!C.vco, lfoHz = .1 + (C.lfoRate || .3) * (C.lfoRate || .3) * 25, glide = C.glide ? Math.exp(-1 / (fs * (.005 + C.glide * C.glide * 1.5))) : 0;
+    const ftype = C.filter || 'ir3109', vco = !!C.vco, lfoHz = .1 + (C.lfoRate || .3) * (C.lfoRate || .3) * 25, glide = C.glide ? Math.exp(-1 / (fs * (.005 + C.glide * C.glide * 1.5))) : 0, glide4 = glide * glide * glide * glide;
+    const moog = ftype === 'ladder', cs = ftype === 'cs', roland = ftype === 'ir3109', tolW = vco ? 1 : .45;
+    const acA = 1 - Math.exp(-2 * Math.PI * 6 / fs2), slA = 1 - Math.exp(-2 * Math.PI * 19000 / fs2), hb = this.hb, HB = ANA_HB, HN = HB.length;
+    const mixDrive = moog ? .7 + ((C.m1 == null ? 1 : C.m1) + (C.m2 || 0) + (C.m3 || 0) + (C.noise || 0)) * .45 : 1;
     for (let i = 0; i < N; i++){
       const fr = currentFrame + i;
       while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else this.noteOff(ev.off); }
       this.lfo += lfoHz / fs; if (this.lfo >= 1){ this.lfo -= 1; this.lfoSH = Math.random() * 2 - 1; }
       const lw = C.lfoWave || 0, lv = lw === 1 ? (this.lfo < .5 ? 1 : -1) : lw === 2 ? 1 - 2 * this.lfo : lw === 3 ? this.lfoSH : 1 - 4 * Math.abs(this.lfo - .5);
-      let mix = 0;
+      // thermal drift: slow random walk per VCO, bounded to a few cents
+      if (vco && (fr & 63) === 0) for (const cd of this.cards) for (let k = 0; k < 3; k++){ cd.walk[k] = Math.max(-.003, Math.min(.003, cd.walk[k] + (Math.random() - .5) * 6e-5)); }
+      let mixA = 0, mixB = 0;
       for (let vi = this.vs.length - 1; vi >= 0; vi--){
-        const V = this.vs[vi]; V.age += dt; V.lfoD = Math.min(1, V.lfoD + dt / (.001 + (C.lfoDelay || 0) * 3));
-        const e1 = this.adsr(V, 0, C.a || 0, C.d == null ? .4 : C.d, C.s == null ? .6 : C.s, C.r == null ? .3 : C.r, dt);
-        const e2 = C.ampGate ? (V.down ? (V.e2 = 1) : (V.e2 *= .9993)) : this.adsr(V, 1, C.a2 == null ? (C.a || 0) : C.a2, C.d2 == null ? (C.d == null ? .4 : C.d) : C.d2, C.s2 == null ? (C.s == null ? .6 : C.s) : C.s2, C.r2 == null ? (C.r == null ? .3 : C.r) : C.r2, dt);
-        if (!V.down && e2 < 1e-4 && !C.ampGate || (C.ampGate && !V.down && V.e2 < 1e-3)){ this.vs.splice(vi, 1); continue; }
-        const lfoAmt = lv * V.lfoD, target = 440 * Math.pow(2, (V.n - 69 + (C.transpose || 0) + lfoAmt * (C.lfoPitch || 0) * 1.5 + (C.bend || 0)) / 12);
-        V.hz = glide && V.hz ? target + (V.hz - target) * glide : target;
-        const drift = vco ? 1 + V.drift[0] * Math.sin(V.age * .7) : 1;
-        // oscillators: osc 1 (wave1), osc 2 (wave2, interval, detune, sync / cross-mod), osc 3 (Minimoog), sub, noise
-        const pw = Math.min(.95, Math.max(.05, (C.pw == null ? .5 : C.pw) + lfoAmt * (C.pwm || 0) * .45 + (C.pwEnv || 0) * e1 * .4));
-        const h1 = V.hz * drift;
-        const ph1 = V.ph[0], o1 = this.osc(V, 0, h1, C.w1 || 0, pw, fs), wrap1 = V.ph[0] < ph1;
-        let o2 = 0, o3 = 0;
-        if (C.m2){ const h2 = V.hz * Math.pow(2, ((C.i2 || 0) + (C.d2t || 0) * .01 + (C.env2Pitch || 0) * e1 * 12) / 12) * (vco ? 1 + V.drift[1] * Math.sin(V.age * .5) : 1);
-          if (C.sync && wrap1) V.ph[1] = 0; o2 = this.osc(V, 1, h2 * (C.xmod ? 1 + o1 * C.xmod * .8 : 1), C.w2 || 0, pw, fs); }
-        if (C.m3){ o3 = this.osc(V, 2, V.hz * Math.pow(2, ((C.i3 || 0) + (C.d3t || 0) * .01) / 12) * (vco ? 1 + V.drift[2] * Math.sin(V.age * .9) : 1), C.w3 || 0, .5, fs); }
-        if (V.ph[0] < ph1) V.sub = -V.sub || 1; const sub = (V.sub || 1) * (C.subType === 2 ? .5 : 1);
-        const ring = C.ring ? o1 * o2 * C.ring : 0;
-        let x = o1 * (C.m1 == null ? 1 : C.m1) + o2 * (C.m2 || 0) + o3 * (C.m3 || 0) + sub * (C.sub || 0) + (Math.random() * 2 - 1) * (C.noise || 0) + ring;
-        x *= .5;
-        // high-pass (Juno: 4 fixed positions) then the low-pass
-        if (C.hpf){ const fh = [0, 120, 250, 520][C.hpf | 0] || 0; if (fh){ const gh = 1 - Math.exp(-2 * Math.PI * fh / fs); V.h[0] += gh * (x - V.h[0]); x -= V.h[0]; } }
-        const kt = C.kf == null ? .5 : C.kf, oct = (C.cut == null ? .5 : C.cut) * 10 + (C.fenv || 0) * e1 * 7 * (C.fenvInv ? -1 : 1) + lfoAmt * (C.lfoCut || 0) * 2 + (V.n - 60) / 12 * kt + (C.velCut || 0) * V.v * 2;
-        const fc = 25 * Math.pow(2, oct);
-        let y;
-        if (ftype === 'cs'){
-          // CS-80: high-pass then low-pass (12 dB each) per layer; two layers mixed
-          const fhp = 20 * Math.pow(2, (C.hpCut || 0) * 9);
-          const g1 = 1 - Math.exp(-2 * Math.PI * Math.min(fhp, fs * .45) / fs); V.z2[0] += g1 * (x - V.z2[0]); V.z2[1] += g1 * (x - V.z2[0] - V.z2[1]); const hp = x - V.z2[0] - V.z2[1];
-          y = this.filt(V.z, hp, fc, C.res || 0, 'cs', fs);
-        } else y = this.filt(V.z, x, fc, C.res || 0, ftype, fs);
-        mix += y * e2 * (C.velAmp ? .4 + .6 * V.v : .85);
+        const V = this.vs[vi], cd = V.cd;
+        // control voltages (envelopes, pitch, cutoff) settle at a quarter of the audio rate, like the CV buses
+        if (--V.cc < 0){ V.cc = 3; const dc = dt * 4; V.age += dc; V.lfoD = Math.min(1, V.lfoD + dc / (.001 + (C.lfoDelay || 0) * 3));
+          const et = 1 + cd.env * .12 * tolW;
+          const e1 = this.adsr(V, 0, C.a || 0, C.d == null ? .4 : C.d, C.s == null ? .6 : C.s, C.r == null ? .3 : C.r, dc, et);
+          const e2 = C.ampGate ? (V.down ? (V.e2 = 1) : (V.e2 *= .9972)) : this.adsr(V, 1, C.a2 == null ? (C.a || 0) : C.a2, C.d2 == null ? (C.d == null ? .4 : C.d) : C.d2, C.s2 == null ? (C.s == null ? .6 : C.s) : C.s2, C.r2 == null ? (C.r == null ? .3 : C.r) : C.r2, dc, et);
+          if (!V.down && e2 < 1e-4 && !C.ampGate || (C.ampGate && !V.down && V.e2 < 1e-3)){ this.vs.splice(vi, 1); continue; }
+          const lfoAmt = lv * V.lfoD, target = 440 * Math.pow(2, (V.n - 69 + (C.transpose || 0) + lfoAmt * (C.lfoPitch || 0) * 1.5 + (C.bend || 0)) / 12);
+          V.hz = glide && V.hz ? target + (V.hz - target) * glide4 : target;
+          V.pw = Math.min(.95, Math.max(.05, (C.pw == null ? .5 : C.pw) + lfoAmt * (C.pwm || 0) * .45 + (C.pwEnv || 0) * e1 * .4));
+          V.d1 = vco ? 1 + cd.dr[0] + cd.walk[0] : 1; const d2 = vco ? 1 + cd.dr[1] + cd.walk[1] : 1, d3 = vco ? 1 + cd.dr[2] + cd.walk[2] : 1;
+          V.h2b = (C.m2 || C.ring) ? V.hz * Math.pow(2, ((C.i2 || 0) + (C.d2t || 0) * .01 + (C.env2Pitch || 0) * e1 * 12) / 12) * d2 : 0;
+          V.h3 = C.m3 ? V.hz * Math.pow(2, ((C.i3 || 0) + (C.d3t || 0) * .01) / 12) * d3 : 0;
+          const kt = C.kf == null ? .5 : C.kf, oct = (C.cut == null ? .5 : C.cut) * 10 + (C.fenv || 0) * e1 * 7 * (C.fenvInv ? -1 : 1) + lfoAmt * (C.lfoCut || 0) * 2 + (V.n - 60) / 12 * kt + (C.velCut || 0) * V.v * 2;
+          const fc = Math.min(fs2 * .42, 25 * Math.pow(2, oct) * (1 + cd.fc * .06 * tolW)); V.g = Math.tan(Math.PI * fc / fs2);
+          if (cs){ const fh = Math.min(fs2 * .4, 20 * Math.pow(2, (C.hpCut || 0) * 9)); V.gh = Math.tan(Math.PI * fh / fs2); }
+          V.vca = e2 * (C.velAmp ? .4 + .6 * V.v : .85) * (1 + cd.amp * .05 * tolW);
+        }
+        const pw = V.pw, g = V.g, gh = V.gh, vca = V.vca, h2b = V.h2b, h3 = V.h3, res = C.res || 0, h1 = V.hz * V.d1 * (vco ? 1 + (Math.random() - .5) * 2e-5 : 1);
+        for (let s2 = 0; s2 < 2; s2++){
+          const ph1 = V.ph[0], o1 = this.osc(V, 0, h1, C.w1 || 0, pw, dt2), wrap1 = V.ph[0] < ph1;
+          if (wrap1){ V.sub = -V.sub; if (V.sub > 0) V.sub2 = -V.sub2; }                                     // flip-flop dividers
+          let o2 = 0, o3 = 0;
+          if (h2b){ if (C.sync && wrap1) V.ph[1] = 0; o2 = this.osc(V, 1, h2b * (C.xmod ? 1 + o1 * C.xmod * .8 : 1), C.w2 || 0, pw, dt2); }
+          if (h3) o3 = this.osc(V, 2, h3, C.w3 || 0, .5, dt2);
+          const sub = C.subType === 2 ? V.sub2 : C.subType === 1 ? (V.sub2 > 0 && V.sub > 0 ? 1 : -.33) : V.sub;
+          const ring = C.ring ? o1 * o2 * C.ring : 0, nz = (Math.random() * 2 - 1) * (C.noise || 0);
+          let x = o1 * (C.m1 == null ? 1 : C.m1) + (cs ? 0 : o2 * (C.m2 || 0) + o3 * (C.m3 || 0)) + sub * (C.sub || 0) + nz + ring;
+          // AC coupling and op-amp slew
+          V.ac[0] += acA * (x - V.ac[0]); x -= V.ac[0]; V.sl += slA * (x - V.sl); x = V.sl * .5;
+          if (moog) x = tnh(x * mixDrive) / mixDrive * 1.2;                                                     // Minimoog mixer overdrive
+          if (C.hpf){ const fh = [0, 120, 250, 520][C.hpf | 0] || 0; if (fh){ V.hp += (1 - Math.exp(-2 * Math.PI * fh / fs2)) * (x - V.hp); x -= V.hp; } }
+          let y;
+          if (cs){ const xb = (o2 * (C.m2 || 0) + o3 * (C.m3 || 0) + nz * .5) * .5;
+            y = (this.csf(V.sv, x, gh, g, C.hpRes || .1, res) + this.csf(V.sv2, xb, gh, g * 1.015, C.hpRes || .1, res)) * .6; }
+          else y = this.lp(V, V.z, x, g, res, ftype);
+          // VCA: OTA (Roland/Curtis) or transistor (Moog/Yamaha) soft saturation
+          const out = roland || ftype === 'cem' ? tnh(y * vca * 1.4) / 1.4 : tnh(y * vca * 1.1) / 1.1;
+          if (s2) mixB += out; else mixA += out;
+        }
       }
-      if (!(Math.abs(mix) < 1e3)){ mix = 0; for (const V of this.vs){ V.z.fill(0); V.z2.fill(0); } }
-      mix *= .45 * (C.vol == null ? .8 : C.vol);
-      // chorus
+      // decimate 2:1 through the half-band
+      let w = this.hbw; hb[w] = hb[w + HN] = mixA; w = (w + 1) % HN; hb[w] = hb[w + HN] = mixB; w = (w + 1) % HN; this.hbw = w;
+      let mix = hb[w + 11] * HB[11]; for (let k = 0; k < 11; k += 2) mix += HB[k] * (hb[w + k] + hb[w + 22 - k]);
+      mix += (Math.random() - .5) * 2e-6 * this.vs.length;                                                     // voice-card noise floor
+      if (!(Math.abs(mix) < 1e3)){ mix = 0; hb.fill(0); for (const V of this.vs){ V.z.fill(0); V.y.fill(0); V.sv.fill(0); V.sv2.fill(0); } }
+      mix *= .5 * (C.vol == null ? .8 : C.vol);
+      // chorus: bucket brigade clocked by the chorus LFO, sampled at its clock, with hiss
       let oL = mix, oR = mix; const cm = C.chorus | 0;
       if (cm){
         const ch = this.ch, rate = cm === 1 ? .513 : cm === 2 ? .863 : cm === 3 ? 9.75 : .6, depth = cm === 3 ? .3 : cm === 4 ? .9 : 1;
-        ch.p1 += rate / fs; if (ch.p1 >= 1) ch.p1 -= 1;
-        ch.b[0][ch.w & 8191] = mix; const tri = 1 - 4 * Math.abs(ch.p1 - .5);
-        const dL = (cm === 3 ? 3.2 : 3.5 + 1.8 * depth) * fs / 1000 + tri * 1.5 * depth * fs / 1000, dR = (cm === 3 ? 3.2 : 3.5 + 1.8 * depth) * fs / 1000 - tri * 1.5 * depth * fs / 1000;
-        const rd = d => { const r = ch.w - d, i0 = Math.floor(r), f = r - i0, a = ch.b[0][i0 & 8191], b = ch.b[0][(i0 + 1) & 8191]; return a + (b - a) * f; };
-        const wl = rd(dL), wr = rd(dR); ch.lpL += (wl - ch.lpL) * .5; ch.lpR += (wr - ch.lpR) * .5; ch.w++;
-        // Juno: dry and the BBD signal mixed, the BBD inverted on the right for width
-        oL = mix * .7 + ch.lpL * .7; oR = mix * .7 + ch.lpR * .7;
+        ch.p1 += rate / fs; if (ch.p1 >= 1) ch.p1 -= 1; const tri = 1 - 4 * Math.abs(ch.p1 - .5);
+        // 9 kHz anti-alias (3 poles) and a touch of compander hiss into the BBD
+        const aa = ch.aa, fa = 1 - Math.exp(-2 * Math.PI * 9000 / fs); let u = mix + (Math.random() - .5) * 4e-4; for (let k = 0; k < 3; k++){ aa[k] += fa * (u - aa[k]); u = aa[k]; }
+        ch.b[ch.w & 8191] = u;
+        const base = cm === 3 ? 3.2 : 3.5 + 1.8 * depth, dLm = base + tri * 1.5 * depth, dRm = base - tri * 1.5 * depth;
+        const rd = ms => { const r = ch.w - ms * fs / 1000, i0 = Math.floor(r), f = r - i0, a = ch.b[i0 & 8191], b = ch.b[(i0 + 1) & 8191]; return a + (b - a) * f; };
+        // the BBD output is held at its clock (256 stages: f = 256 / (2 d)); reconstruction low-pass after
+        ch.cL += 256 / (2 * dLm / 1000) / fs; if (ch.cL >= 1){ ch.cL -= Math.floor(ch.cL); ch.hL = rd(dLm); }
+        ch.cR += 256 / (2 * dRm / 1000) / fs; if (ch.cR >= 1){ ch.cR -= Math.floor(ch.cR); ch.hR = rd(dRm); }
+        let wl = ch.hL, wr = ch.hR; for (let k = 0; k < 3; k++){ ch.rl[k] += fa * (wl - ch.rl[k]); wl = ch.rl[k]; ch.rr[k] += fa * (wr - ch.rr[k]); wr = ch.rr[k]; }
+        ch.w++;
+        oL = mix * .7 + wl * .7; oR = mix * .7 + wr * .7;
       }
       L[i] = oL; R[i] = oR;
     }
@@ -4667,6 +4739,47 @@ class Microverb extends RackUnit{
   }
 }
 registerProcessor('microverb', Microverb);
+/* A/DA Flanger (1977): input buffer and THRESHOLD noise gate, NE570 compander around a Reticon SAD1024 bucket-brigade
+   line (512 stages: delay = 512 / (2 f_clk)), clocked by a VCO the triangle LFO sweeps exponentially over up to 40:1
+   (0.25-10 ms). The BBD samples at its own clock (aliasing and a falling bandwidth on long delays), loses a little charge
+   per transfer, adds hiss the expander pushes down; anti-alias and reconstruction low-passes either side. ENHANCE is the
+   regeneration, EVEN / ODD its polarity; the output mixes the dry and delayed signals equally for the deepest notches. */
+class ADAFlanger extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.dl = new DLine(Math.ceil(fs * .03)); this.aa = new LPN(fs, 11000, 4); this.rc = new LPN(fs, 11000, 4); this.hi = new Hold(); this.ho = new Hold();
+    this.lfo = .25; this.fb = 0; this.ce = 1e-3; this.ee = 1e-3; this.gate = 0; this.ge = 0; this.dc = 0; this.ldel = 0; }
+  reset(){ this.dl.clear(); this.fb = 0; this.ce = this.ee = 1e-3; this.gate = this.ge = 0; }
+  tail(){ return .6 + Math.abs(this.c.enh || 0) * 2; }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, ret = C.ret == null ? .8 : C.ret, man = C.manual == null ? .4 : C.manual, rng = C.range == null ? .6 : C.range;
+    const rate = .02 * Math.pow(400, C.speed == null ? .3 : C.speed), enh = Math.min(.97, C.enh || 0) * (C.odd ? -1 : 1);
+    const thr = C.thresh ? Math.pow(10, (-80 + C.thresh * 60) / 20) : 0, mix = C.mix == null ? .5 : C.mix, st = !!C.stereo;
+    const ca = 1 - Math.exp(-1 / (fs * .012)), ga = 1 - Math.exp(-1 / (fs * .002)), gr = 1 - Math.exp(-1 / (fs * .15));
+    for (let i = 0; i < N; i++){
+      const x0 = a ? (a[i] + b[i]) * .5 : 0;
+      // THRESHOLD: gate on the input level, fast open, slow close
+      const lv = Math.abs(x0); this.ge += (lv > this.ge ? ga : gr) * (lv - this.ge); const go = !thr || this.ge > thr ? 1 : 0; this.gate += (go - this.gate) * (go ? .01 : .0004);
+      const x = x0 * this.gate;
+      // LFO triangle -> exponential clock sweep; MANUAL sets the longest delay, RANGE how far up the sweep goes (40:1 max)
+      this.lfo += rate / fs; if (this.lfo >= 1) this.lfo -= 1; const tri = 1 - 2 * Math.abs(2 * this.lfo - 1);
+      const dMax = .25 * Math.pow(40, man), dMs = Math.max(.25, dMax / Math.pow(1 + 39 * rng, tri * .5 + .5)), clk = 512 / (2 * dMs / 1000);
+      this.ldel += (dMs - this.ldel) * .002;
+      // compressor (2:1): divide by the square root of the average level
+      let v = this.aa.run(x + sat(this.fb));
+      this.ce += ca * (Math.abs(v) - this.ce); v = v / Math.sqrt(Math.max(this.ce, 1e-4)) * .1;
+      // BBD: sampled at its clock, held, delayed, charge loss, hiss
+      const r = clk / fs; v = r < 1 ? this.hi.run(v, r) : v; this.dl.push(v);
+      let y = this.dl.lerp(Math.max(1, this.ldel / 1000 * fs)) * .985 + (Math.random() - .5) * 2e-4;
+      y = r < 1 ? this.ho.run(y, r) : y; y = this.rc.run(y);
+      // expander: multiply by its own level (undoes the 2:1)
+      this.ee += ca * (Math.abs(y) - this.ee); y = y * this.ee * 100;
+      this.dc += (y - this.dc) * .0005; y -= this.dc;
+      this.fb = y * enh;
+      const wet = y * mix * 1.4, dry = x * (1 - mix) * 1.4;
+      L[i] = (dry + wet) * ret; R[i] = (dry + (st ? -wet : wet)) * ret;
+    }
+  }
+}
+registerProcessor('adaflanger', ADAFlanger);
 /* Resonance tamer + clipper for the master (in the spirit of soothe2 and a mastering clipper): 18 log-spaced bands track
    the spectrum; a band poking out above its neighbours by more than the threshold gets a matching dynamic cut, eased in
    and out. Then an oversampled clipper (soft-to-hard knee) with a ceiling. */
@@ -10471,7 +10584,7 @@ Object.assign(ANA_PRESETS.sixtrak, {
   'Keys · Clav':{m1:0, m2:1, pw:.15, cut:.45, res:.35, fenv:.55, d:.2, s:0, r:.12}, 'Keys · Electric Piano':{m1:.4, m2:.7, w1:2, pw:.4, cut:.4, fenv:.45, d:.65, s:0, r:.45},
   'Keys · Organ':{m1:0, m2:1, pw:.5, cut:.7, s:1, r:.08}, 'Lead · Sync Lead':{m1:0, m2:1, w2:0, sync:1, i2:12, env2Pitch:.55, cut:.65, res:.2, s:.9},
   'Lead · Square Lead':{m1:0, m2:1, pw:.5, cut:.6, res:.3, s:.9, lfoPitch:.06, lfoDelay:.4}, 'Pluck · Harp':{m1:.6, m2:.6, w2:1, pw:.3, cut:.3, res:.2, fenv:.6, d:.5, s:0, r:.5},
-  'FX · Sync Zap':{m1:0, m2:1, w2:0, sync:1, i2:24, env2Pitch:1, cut:.6, d:.25, s:0, r:.2}, 'FX · Noise Wash':{m1:0, m2:0, noise:1, cut:.3, res:.7, lfoCut:.5, lfoRate:.12, a:.6, s:.8, r:.8}});
+  'FX · Sync Zap':{m1:0, m2:1, w2:0, sync:1, i2:24, env2Pitch:1, cut:.6, d:.25, s:0, r:.2}, 'FX · Noise Wash':{m1:0, m2:0, noise:1, cut:.35, res:.7, lfoCut:.5, lfoRate:.12, a:.35, s:.8, r:.8}});
 Object.assign(ANA_PRESETS.cs80, {
   'Brass · Bright Brass':{m1:1, m2:.8, w2:0, d2t:6, cut:.42, res:.15, fenv:.55, a:.15, d:.5, s:.7, r:.45, velCut:.7, chorus:4}, 'Brass · Fanfare':{m1:1, m2:1, w2:0, i2:7, cut:.38, fenv:.6, a:.12, d:.5, s:.75, r:.4, velCut:.6, chorus:4},
   'Brass · Soft Horns':{m1:1, m2:.6, w2:1, pw:.4, cut:.3, fenv:.4, a:.3, d:.6, s:.8, r:.5, velCut:.4, chorus:4}, 'Pad · Love Theme':{m1:1, m2:.9, w2:0, d2t:12, cut:.38, res:.25, fenv:.3, a:.7, d:.8, s:.8, r:.9, lfoPitch:.04, lfoDelay:.8, chorus:4},
@@ -11453,8 +11566,9 @@ function learnObj(path){
 }
 function learnTarget(el){
   if (el.dataset.lp) return {lp:el.dataset.lp, min:+el.min || 0, max:el.max === '' ? 1 : +el.max, step:+el.step || 0, kind:el.tagName === 'BUTTON' ? 'toggle' : 'range'};
-  if (el.id && !el.id.startsWith('c-')) return {sel:'#' + el.id, kind:el.tagName === 'SELECT' ? 'select' : el.tagName === 'BUTTON' ? 'button' : el.type === 'number' ? 'number' : 'range'};
-  return null;
+  const kind = el.tagName === 'SELECT' ? 'select' : el.tagName === 'BUTTON' ? 'button' : el.type === 'number' ? 'number' : 'range';
+  if (el.id && !el.id.startsWith('c-')) return {sel:'#' + CSS.escape(el.id), kind};
+  const sel = autoSel(el); return sel ? {sel, kind} : null;
 }
 function learnLabel(el, tg){
   const row = el.closest('.ctl, .row, .strip'), lab = row && row.querySelector('.label, .nm');
@@ -11498,7 +11612,22 @@ function renderMaps(){
   if (maps.length){ const c = document.createElement('button'); c.className = 'nolearn'; c.textContent = 'Clear all mappings';
     c.addEventListener('click', () => { if (confirm('Remove all MIDI mappings?')){ S.midiMap = []; save(); renderMaps(); markMapped(); } }); box.appendChild(c); }
 }
-const learnable = el => el && !el.closest('nav, #learnBar, .nolearn') && !el.classList.contains('nolearn') && !el.classList.contains('pad');
+/* everything can be learned, except the learn switch itself, the tab bar, and buttons that open a file picker or paste
+   (phones only allow those straight from a tap, so a MIDI message can't do them) */
+const LEARN_DENY = '#mlearnOn, #libAdd, #crImp, #midiImp, #impAny, #chopLoad, #sfLoadBtn, #dxLoad, #kitFiles, #packLoad, #projImport, #cratePaste, .fchev, .fgen';
+const learnable = el => el && !el.closest('nav, #learnBar, .chipbar, #mapList, #sheetHead') && !el.classList.contains('pad') && !el.matches(LEARN_DENY) && !(el.tagName === 'BUTTON' && /^LOAD FILE/.test(el.textContent));
+// a stable address for controls without an id: the path from the nearest element with an id (every card gets one)
+document.querySelectorAll('.card:not([id])').forEach(c => { const v = c.closest('.view'), t = (c.dataset.chip || (c.querySelector('h2, .tt-head b, .label') || {}).textContent || 'card').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24);
+  let id = 'cd-' + (v ? v.id.slice(2) : 'x') + '-' + t, n = 2; while (document.getElementById(id)) id = id.replace(/-\d+$/, '') + '-' + n++; c.id = id; });
+function autoSel(el){
+  const parts = []; let e = el;
+  while (e && e !== document.body){
+    if (e.id && !e.id.startsWith('c-') && e.id !== 'sheetBody'){ parts.unshift('#' + CSS.escape(e.id)); return parts.join(' > '); }
+    const par = e.parentElement; if (!par || par.id === 'sheetBody') return null;
+    parts.unshift(e.tagName.toLowerCase() + ':nth-child(' + ([...par.children].indexOf(e) + 1) + ')'); e = par;
+  }
+  return null;
+}
 document.addEventListener('pointerdown', e => {
   if (!mlearn) return;
   let el = e.target.closest('input[type=range], input[type=number], select, button, .knob, #ttCv, .ttmini');
@@ -11506,6 +11635,7 @@ document.addEventListener('pointerdown', e => {
   const kn = e.target.closest('.knob'); if (kn) el = kn._inp;
   if (e.target.closest('#ttCv')) el = $('#ttScr');
   { const tm = e.target.closest('.ttmini'); if (tm) el = $('#ttScr' + tm.id.slice(-1)); }
+  if (el && el.matches && !el.closest('nav, #learnBar, .chipbar') && (el.matches(LEARN_DENY) || (el.tagName === 'BUTTON' && /^LOAD FILE/.test(el.textContent)))){ e.preventDefault(); e.stopPropagation(); toast('That one opens a file picker or pastes; phones only allow that from a tap, so MIDI can’t press it.'); return; }
   if (!learnable(el)) return;
   e.preventDefault(); e.stopPropagation();
   const tg = learnTarget(el);
