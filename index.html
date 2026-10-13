@@ -1808,6 +1808,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>DR-110, DMX, Synsonics</b> (Pads): step grids like the machines. Load their sounds onto the pads, tap the grid to program, Accent for loud hits.</li>
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
+        <li><b>Output level</b> (Setup → Output level, saved on this device): Phone (−6 dB, the default) leaves headroom so a phone's speaker and headphone output don't distort; Quiet is −12 dB; Studio is full level for an interface. The final limiter tops out at −1 dBFS. Exports are always full level.</li>
         <li><b>Master meter</b> (under the top bar, on every screen): left and right output level from −48 to 0 dBFS, with a peak-hold line and the loudest recent peak in dB; it turns red when the output clips. Tap it for the master effects.</li>
         <li><b>On / off and reset</b>: anything that can be switched on has a glowing power button (orange light = on): every effect section on a track (EQ, filter, vinyl, character, duck, compressor, gate, sends), every FX rack unit, the master bus compressor and tamer, each synth track, the drums, the arp, SP-1200 mode, key lock and deck FX. Off bypasses it and keeps its settings. Every machine has a ↺ Reset: Reset effects (a track), Reset master effects, ↺ Reset on each rack unit, Reset sound (the instrument's factory sound), Reset pad, Clear all (DR-110 / DMX), Reset (SP-1200), Reset mixer and Reset deck (Wheel). Undo brings anything back.</li>
         <li><b>SP-1200 mode</b> applies to every pad until you switch it off; while it's on, a banner on the Pads screen says so, with its own off switch.</li>
@@ -1909,6 +1910,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="row"><span class="grow">Game controller</span><span class="badge" id="gpNow">None</span></div>
       <p class="hint" id="gpHelp">Connect any game controller (Bluetooth or USB) and press a button. <b>Select / View / Share</b> switches between <b>MENU</b> mode (D-pad or left stick moves, A presses, B goes back, LB / RB change page) and <b>PLAY</b> mode (16 buttons play the 16 pads, or notes on the Synth page; triggers play harder the further you pull). <b>Start</b> plays and stops in both. On a TV remote, the arrows move and OK presses.</p>
       <div class="row"><span class="grow">Screen</span><span class="badge" id="devNow">–</span><select id="screenSel" aria-label="Screen layout"><option value="auto">Auto-detect</option><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Computer</option><option value="tv">TV</option></select></div>
+      <label class="label" for="outLevel">Output level (this device)</label>
+      <select id="outLevel"><option value="-12">Quiet (−12 dB)</option><option value="-6">Phone (−6 dB, recommended)</option><option value="0">Studio (full level)</option></select>
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
@@ -1946,7 +1949,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v112</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v113</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2548,7 +2551,7 @@ let clipCurve = null;
 function softClip(){
   if (clipCurve) return clipCurve;
   const n = 4096; clipCurve = new Float32Array(n);
-  for (let i = 0; i < n; i++){ const x = (i / (n - 1) * 2 - 1) * 2, a = Math.abs(x); clipCurve[i] = Math.sign(x) * (a < .8 ? a : .8 + .19 * Math.tanh((a - .8) / .19)); }
+  for (let i = 0; i < n; i++){ const x = (i / (n - 1) * 2 - 1) * 2, a = Math.abs(x); clipCurve[i] = Math.sign(x) * (a < .7 ? a : .7 + .19 * Math.tanh((a - .7) / .19)); }   // ceiling about -1 dBFS: room for phone converters
   return clipCurve;
 }
 /* ================= master EQ and EQ match ================= */
@@ -2707,6 +2710,8 @@ function applyMaster(c, m){
   sp(c, m.glue.threshold, -30 * M.glue); sp(c, m.glue.ratio, 1 + 5 * M.glue); sp(c, m.glueMk.gain, Math.pow(10, M.glue * 8 / 20));
   sp(c, m.glueWet.gain, M.glue > 0 ? 1 : 0); sp(c, m.glueDry.gain, M.glue > 0 ? 0 : 1);
   sp(c, m.out.gain, M.vol * M.vol * 1.2);
+  // live playback headroom (Setup → Output level); exports are not affected
+  if (c === ctx) sp(c, m.bus.gain, Math.pow(10, outLevel() / 20));
   sp(c, m.dly.delayTime, M.dlyDiv * 60 / S.bpm); sp(c, m.fb.gain, M.dlyFb);
   sp(c, m.revRet.gain, retGain('rev')); sp(c, m.dlyRet.gain, retGain('dly'));
   applyVinyl(c, m, m.bus, m.bus === m.pre ? m.out : m.pre, M, M.vFollow !== false);
@@ -5576,6 +5581,7 @@ function showLatency(){
   const ms = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000), tot = ms + Math.round(btSec() * 1000);
   el.textContent = ms ? (btSec() ? ms + ' + ' + Math.round(btSec() * 1000) + ' BT = ' + tot + ' ms' : ms + ' ms') : 'n/a'; el.classList.toggle('ok', ms > 0 && ms < 40);
 }
+function outLevel(){ try { const v = localStorage.getItem('pr.out'); if (v === '0' || v === '-6' || v === '-12') return +v; } catch(e){} return -6; }
 function audioBuf(){ try { const v = localStorage.getItem('pr.buf'); if (['interactive', 'balanced', 'playback'].includes(v)) return v; } catch(e){} return 'interactive'; }
 function ensureAudio(){
   if (ctx){ if (ctx.state !== 'running') ctx.resume(); return ctx; }
@@ -12824,6 +12830,8 @@ $('#outDev').addEventListener('change', async e => {
   toast(e.target.value ? 'Playing through ' + e.target.selectedOptions[0].text : 'Playing through the phone');
 });
 $('#audioBuf').value = audioBuf();
+$('#outLevel').value = String(outLevel());
+$('#outLevel').addEventListener('change', e => { try { localStorage.setItem('pr.out', e.target.value); } catch(err){} if (live) applyMaster(ctx, live.master); toast('Output level: ' + e.target.selectedOptions[0].text + '.'); });
 $('#audioBuf').addEventListener('change', async e => {
   try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
   if (!ctx){ toast('Audio buffer set.'); return; }
