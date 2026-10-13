@@ -424,6 +424,51 @@ html.frying main{animation:fryShake .11s steps(2) infinite}
 .instcard span{font:500 12px/1.3 var(--f-body);opacity:.92;margin-top:auto}
 .instcard.on{outline:3px solid #ffd23f;outline-offset:2px}
 .instcard.on::after{content:"✓ ON THIS TRACK";position:absolute;top:8px;right:8px;font:800 9px var(--f-display);letter-spacing:.1em;background:#ffd23f;color:#111;padding:2px 5px;border-radius:3px}
+/* Commodore 128 / D-50 / PPG panels */
+.syn-sec{margin-top:10px}
+.syn-sec > .label{letter-spacing:.18em}
+.syn-sw{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.syn-sw button{flex:1 1 22%;min-width:0;padding:7px 4px !important;font-size:11px !important}
+.syn-sw button.on{background:#ffd23f !important;color:#111 !important}
+.syn-knobs{display:flex;flex-wrap:wrap;gap:6px 8px;justify-content:space-around}
+.c128{background:linear-gradient(180deg,#d8cfb7,#bdb39a);border:1px solid #6b6350;border-radius:5px;padding:10px;color:#2b2720}
+.c128 .label,.c128 .knob .klab{color:#3b352b !important}
+.c128-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px;border-bottom:3px solid #3a6ea5;padding-bottom:6px}
+.c128-head b{font:800 20px/1 "Barlow",sans-serif;color:#2a3a5a;letter-spacing:-.01em}
+.c128-head span{font:900 22px/1 "Barlow",sans-serif;color:#2a3a5a}
+.c128-head i{font:700 8px "Barlow",sans-serif;letter-spacing:.2em;color:#5a5240;font-style:normal;flex-basis:100%}
+.d50{background:linear-gradient(180deg,#2c2e33,#16171a);border:1px solid #000;border-radius:5px;padding:10px;border-top:3px solid #c8102e}
+.d50-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.d50-head b{font:800 18px/1 "Barlow",sans-serif;color:#fff;letter-spacing:.02em}
+.d50-head span{font:900 26px/1 "Barlow",sans-serif;color:#fff}
+.d50-head i{font:700 9px "Barlow",sans-serif;letter-spacing:.3em;color:#c8102e;font-style:normal}
+.d50-lcd{background:linear-gradient(180deg,#9fd6a6,#78b884);color:#0d2412;font:400 16px/1.15 "VT323",monospace;padding:5px 9px;border:3px solid #000;border-radius:3px;margin-bottom:8px;white-space:pre;overflow:hidden}
+.d50-struct button{flex:1 1 13% !important;font-size:10px !important}
+.ppg{background:linear-gradient(180deg,#1d3a52,#0e1d2a);border:1px solid #000;border-radius:5px;padding:10px}
+.ppg-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.ppg-head b{font:900 26px/1 "Barlow",sans-serif;color:#e6eef5;letter-spacing:.12em}
+.ppg-head span{font:700 14px/1 var(--f-display);color:#7dd3fc;letter-spacing:.3em}
+.ppg-wave{width:100%;height:90px;border:2px solid #000;border-radius:3px;margin-bottom:8px;display:block}
+/* E-mu SP-1200 faceplate */
+.sp12,#sheetBody > .card.sp12{background:linear-gradient(180deg,#5a5c5f,#3d3f42) !important;border:1px solid #1c1d1f;color:#f1efe9}
+.sp12 > *{break-inside:avoid}
+.sp12-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.sp12-head b{font:900 18px/1 "Barlow",sans-serif;letter-spacing:.06em}
+.sp12-head span{font:900 26px/1 "Barlow",sans-serif;color:#ff6a3d}
+.sp12-head i{font:700 8px "Barlow",sans-serif;letter-spacing:.24em;color:#d6d3cc;font-style:normal;flex-basis:100%}
+.sp12-lcd{background:#0d1a10;color:#ff6a3d;font:400 19px/1.1 "VT323",monospace;padding:6px 10px;border:2px solid #000;border-radius:3px;margin-bottom:8px;white-space:pre}
+.sp12-btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.sp12-btns button{flex:1 1 15%;padding:8px 2px !important;font:800 10px var(--f-display) !important;letter-spacing:.08em;background:linear-gradient(180deg,#d9d6cf,#aeaba3) !important;color:#222 !important;border:1px solid #000 !important}
+.sp12-btns button.on{background:linear-gradient(180deg,#ff8a5c,#e0532a) !important;color:#fff !important}
+.sp12-faders{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;align-items:end}
+.sp12-f{display:flex;flex-direction:column;align-items:center;gap:3px}
+.sp12-f input[type=range]{writing-mode:vertical-lr;direction:rtl;width:28px !important;height:110px !important;-webkit-appearance:none;appearance:none;background:transparent;touch-action:none}
+.sp12-f input[type=range]::-webkit-slider-runnable-track{width:6px;background:#111;border-radius:3px}
+.sp12-f input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:12px;border-radius:2px;background:linear-gradient(180deg,#fff,#cfcbc2);border:1px solid #000;margin-left:-9px}
+.sp12-f i{font:600 9px var(--f-mono);color:#ffb08f;font-style:normal}
+.sp12-pads{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:8px}
+.sp12-pads button{aspect-ratio:1;padding:0 !important;background:linear-gradient(180deg,#4b4d50,#2c2d2f) !important;border:2px solid #111 !important;color:#ddd !important;font:800 12px var(--f-display) !important}
+.sp12-pads button.hit{background:#ff6a3d !important}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -794,6 +839,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
       <p class="hint">Press Overdub or the record button and play the pads. Every pass layers on top. Timing correct snaps hits to the grid as you play. With it off, they stay exactly as played. Note repeat retriggers a held pad in time. Erase removes a held pad's hits as the loop passes over them.</p>
     </div>
+    <div class="card" data-chip="SP-1200" id="spCard"></div>
     <div class="card" data-title="Pad sound">
       <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
       <div class="kitrow"><span class="label">Pack</span><button id="packSave" class="nolearn">Save pack</button><button id="packLoad" class="nolearn">Load pack</button></div>
@@ -974,7 +1020,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -1019,6 +1065,26 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="obWheel">Mod lever</label><input id="obWheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="obWheelV"></span></div>
         <div id="obBody"></div>
         <p class="hint">Modeled on the Oberheim OB-Xa: two CEM3340 oscillators with sync, a CEM3320 filter you can switch between the 2-pole response (the open, brassy Oberheim sound) and 4-pole, two ADSRs, an LFO with sample &amp; hold, and eight voices spread across the stereo field like the OB-Xa's pan pots. Programs are in the style of famous OB-Xa and OB-X parts.</p>
+      </div>
+      <div id="sidPanel" class="c128" hidden>
+        <div class="c128-head"><b>commodore</b><span>128</span><i>SOUND INTERFACE DEVICE · MOS 6581</i></div>
+        <select id="sidPreset" aria-label="C128 presets"></select>
+        <div id="sidCtls"></div>
+        <p class="hint">The SID chip as the C128 had it: three voices, each a 24-bit oscillator at 1.0227 MHz with triangle, saw, pulse and noise (switch on several for the SID's combined waves), ring mod and sync, the chip's own envelope timing (the decay steps and the "ADSR bug" included) and the 6581's gritty filter. Poly plays three notes at once; Mono stacks all three voices on one note, and Arpeggio cycles held notes at 60 Hz like C64 music. The C128 presets are BASIC 7.0's built-in ENVELOPE 0–9.</p>
+      </div>
+      <div id="d50Panel" class="d50" hidden>
+        <div class="d50-head"><b>Roland</b><span>D-50</span><i>LINEAR SYNTHESIZER</i></div>
+        <div class="d50-lcd" id="d50Lcd"></div>
+        <select id="d50Preset" aria-label="D-50 patches"></select>
+        <div id="d50Ctls"></div>
+        <p class="hint">LA synthesis: each tone has two partials joined by one of the D-50's 7 structures (S = synth: saw or square through the resonant TVF; P = PCM attack or loop; ring = ring modulation). Upper and Lower tones play whole, dual or split, then the chorus and reverb. The PCM attacks here are synthesized, not Roland's samples.</p>
+      </div>
+      <div id="ppgPanel" class="ppg" hidden>
+        <div class="ppg-head"><b>PPG</b><span>WAVE 2.2</span></div>
+        <canvas id="ppgWave" class="ppg-wave" aria-label="Wavetable"></canvas>
+        <select id="ppgPreset" aria-label="PPG presets"></select>
+        <div id="ppgCtls"></div>
+        <p class="hint">Two digital oscillators per voice read 8-bit, 128-sample waves from 64-wave tables (stepped like the hardware; the top four waves are triangle, pulse, square and saw), swept by envelope 3, the LFO and the wheel, then a resonant 24 dB analog-style filter. 30 original wavetables.</p>
       </div>
       <div id="dxPanel" class="dx" hidden>
         <div class="dx-head"><b>YAMAHA</b><span>DX1</span><i>DIGITAL PROGRAMMABLE ALGORITHM SYNTHESIZER</i></div>
@@ -1507,6 +1573,11 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
         <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
+        <li><b>Commodore 128</b> (Synth → Instruments): the SID chip, three voices with triangle / saw / pulse / noise, ring mod, sync, the chip's envelopes and gritty 6581 filter; Poly, Mono (stacked) and 60 Hz Arpeggio. Presets include the C128 BASIC 7.0 instruments.</li>
+        <li><b>Roland D-50</b>: LA synthesis with 7 structures of PCM attack and synth partials, Upper / Lower tones (whole, dual, split), chorus and reverb.</li>
+        <li><b>PPG Wave 2.2</b>: 8-bit wavetables (30 tables, 64 waves each) swept by envelope 3, the LFO and wheel, through a 24 dB filter. The display shows the table.</li>
+        <li><b>SP-1200</b> (Pads → SP-1200): the E-mu faceplate: SP mode, banks A / B, eight faders for Tune, Decay or Mix, and eight pads.</li>
+        <li><b>Ensoniq DP/4</b> (FX rack): four effect units (reverbs, chorus, flanger, phaser, delays, pitch shift, distortion, rotary, sweep filter) in Parallel, Series or 2 × 2, with presets. Send any track to it with its DP/4 send.</li>
         <li><b>Yamaha DX1</b> (Synth → instrument): two DX7 voices played Single, Dual (layered, B detuned) or Split. <b>Load .syx</b> (or Import) takes DX7 32-voice banks and single voices. Modeled on the DX7 chips: 49,096 Hz operator chip with log-sine and exponential ROMs, 14-bit operators, the EGS envelope, 32 algorithms, the floating-point 12-bit DAC and 16 kHz output filter. Edit the algorithm, feedback and each operator's level, ratio and decay.</li>
         <li><b>ARP Omni-2</b> (Synth → instrument): built from the service manual. Strings: Violin 4′, Viola 8′, and single-note Cello 8′ / Bass 16′ on the lowest 20 keys, through three bucket-brigade “phasers” and a shared attack. Synthesizer: 4′ / 8′ through the ARP 4075 24 dB filter with an ADSR, LFO, Single trigger. Bass Voices 8′ / 16′ with Staccato. Hollow changes the waveform; Chorus Phaser sends the synth through the string phasers.</li>
         <li><b>FX</b> (top bar, every screen): opens the effects for what you're on: the drums on Pads, the synth on Synth, the track on Audio. Tabs switch to any track, the Master or the FX rack. The button lights up when that track has effects patched in.</li>
@@ -1633,7 +1704,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v99</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v100</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2085,7 +2156,7 @@ const KITS = {
 };
 
 /* ================= FX rack definitions ================= */
-const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx'];
+const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp'];
 const RET_KEYS = ['rev', 'dly', ...RACK_KEYS];
 // FX returns on the mixer; the old fixed return levels were reverb 0.9 and 1.0 for the rest
 function retState(k){ const M = S.master; M.ret = M.ret || {}; if (!M.ret[k]) M.ret[k] = {vol:k === 'rev' ? .8 : .845, mute:false, solo:false, pan:0}; return M.ret[k]; }
@@ -2094,7 +2165,20 @@ const retName = k => k === 'rev' ? 'Reverb' : k === 'dly' ? 'Delay' : (RACK[k] ?
 const msF = v => v >= 1000 ? (v / 1000).toFixed(2) + ' s' : (v < 10 ? v.toFixed(1) : Math.round(v)) + ' ms', pctF = v => Math.round(v * 100) + '%', hzF = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + ' Hz';
 const SYNC = [['free', 'Free (ms)'], ['0.25', '1/16'], ['0.5', '1/8'], ['0.75', 'Dotted 1/8'], ['1', '1/4'], ['1.5', 'Dotted 1/4'], ['2', '1/2'], ['0.333', '1/8 triplet']];
 const syncMs = s => s === 'free' ? 0 : +s * 60000 / S.bpm;
+
+const DP_ALGS = [['off', 'Off'], ['hall', 'Hall reverb'], ['plate', 'Plate reverb'], ['room', 'Room reverb'], ['chorus', 'Chorus'], ['flange', 'Flanger'], ['phaser', 'Phaser'], ['delay', 'Stereo delay'], ['pingpong', 'Ping-pong delay'], ['pitch', 'Pitch shifter'], ['dist', 'Distortion'], ['rotary', 'Rotary speaker'], ['filter', 'Sweep filter']];
+const DP_X = {hall:'Size', plate:'Size', room:'Size', chorus:'Rate', flange:'Rate', phaser:'Rate', delay:'Time', pingpong:'Time', pitch:'Pitch', dist:'Drive', rotary:'Speed', filter:'Rate'};
+const DP_Y = {hall:'Damping', plate:'Damping', room:'Damping', chorus:'Depth', flange:'Feedback', phaser:'Feedback', delay:'Feedback', pingpong:'Feedback', pitch:'Dry', dist:'Tone', rotary:'Depth', filter:'Resonance'};
+const dpXf = a => a === 'pitch' ? v => { const s = Math.round((v - .5) * 24); return (s > 0 ? '+' : '') + s + ' st'; } : a === 'delay' || a === 'pingpong' ? v => Math.round((.02 + v * 1.18) * 1000) + ' ms' : pctF;
+function dpKnobs(){ const out = []; for (let k = 1; k <= 4; k++){ out.push([k + ' Mix', 'm' + k, 0, 1, .01, pctF, P => P['a' + k] !== 'off']);
+  for (const [a] of DP_ALGS.slice(1)){ out.push([k + ' ' + DP_X[a], 'x' + k, 0, 1, .01, dpXf(a), P => P['a' + k] === a]); out.push([k + ' ' + DP_Y[a], 'y' + k, 0, 1, .01, pctF, P => P['a' + k] === a]); } }
+  out.push(['Return', 'ret', 0, 1, .01, pctF]); return out; }
 const RACK = {
+  dp:{name:'Ensoniq DP/4', sub:'Four-unit parallel effects processor', short:'DP/4', proc:'dp4',
+    def:() => ({cfg:'par', a1:'hall', a2:'chorus', a3:'delay', a4:'off', m1:1, m2:1, m3:1, m4:1, x1:.6, y1:.4, x2:.3, y2:.6, x3:.35, y3:.35, x4:.5, y4:.5, ret:.8}),
+    menus:[['Config', 'cfg', [['par', 'Parallel: all 4 on the input'], ['ser', 'Series: 1 > 2 > 3 > 4'], ['2x2', '2 x 2: 1 > 2 and 3 > 4']]], ['Unit 1', 'a1', DP_ALGS], ['Unit 2', 'a2', DP_ALGS], ['Unit 3', 'a3', DP_ALGS], ['Unit 4', 'a4', DP_ALGS]],
+    knobs:dpKnobs(),
+    presets:{'Big Hall + Chorus':{cfg:'par', a1:'hall', x1:.8, y1:.35, a2:'chorus', x2:.3, y2:.7, a3:'off', a4:'off'}, 'Vocal Plate & Slap':{cfg:'par', a1:'plate', x1:.5, y1:.3, a2:'delay', x2:.08, y2:.15, a3:'off', a4:'off'}, 'Ambient Wash (series)':{cfg:'ser', a1:'chorus', x1:.25, y1:.6, a2:'pingpong', x2:.35, y2:.55, a3:'hall', x3:.95, y3:.25, a4:'off', m1:1, m2:.6, m3:.8}, 'Guitar Rig (series)':{cfg:'ser', a1:'dist', x1:.5, y1:.4, a2:'phaser', x2:.2, y2:.5, a3:'delay', x3:.3, y3:.3, a4:'room', x4:.4, y4:.5, m2:.6, m3:.35, m4:.35}, 'Pitch Thickener':{cfg:'par', a1:'pitch', x1:.48, y1:0, a2:'pitch', x2:.52, y2:0, a3:'chorus', x3:.3, y3:.5, a4:'off'}, 'Octave Down':{cfg:'par', a1:'pitch', x1:0, y1:.6, a2:'off', a3:'off', a4:'off'}, 'Rotary Organ':{cfg:'ser', a1:'rotary', x1:.7, y1:.8, a2:'room', x2:.4, y2:.5, m2:.3, a3:'off', a4:'off'}, 'Dub Filter Delay':{cfg:'ser', a1:'filter', x1:.15, y1:.7, a2:'pingpong', x2:.45, y2:.7, a3:'plate', x3:.6, y3:.4, m3:.4, a4:'off'}, 'Jet Flange':{cfg:'par', a1:'flange', x1:.1, y1:.85, a2:'off', a3:'off', a4:'off'}, 'Drum Room + Plate':{cfg:'2x2', a1:'room', x1:.35, y1:.5, a2:'off', a3:'plate', x3:.45, y3:.3, a4:'off'}}},
   pt:{name:'Lexicon PrimeTime', sub:'Model 93 dual digital delay', short:'PrimeTime', proc:'primetime',
     def:() => ({sync:'free', syncB:'free', mult:2, dA:180, dB:240, fbA:.3, fbB:0, hcut:6000, inv:0, vcoRate:.5, vcoDepth:0, mixA:1, mixB:.8, ret:.8}),
     menus:[['A time', 'sync', SYNC], ['B time', 'syncB', SYNC], ['Multiply', 'mult', [[1, 'x1 (12 kHz)'], [2, 'x2 (6 kHz)'], [4, 'x4 (3 kHz)'], [8, 'x8 (1.5 kHz)']]], ['Recirc phase', 'inv', [[0, 'Normal'], [1, 'Inverted']]]],
@@ -3348,6 +3432,329 @@ class DX1 extends AudioWorkletProcessor{
   }
 }
 registerProcessor('dx1', DX1);
+/* Commodore 128 / MOS 6581 SID: three voices, each a 24-bit phase accumulator clocked at 1.0227 MHz (NTSC), 12-bit
+   triangle / sawtooth / pulse / 23-bit LFSR noise (combined waveforms AND together), ring mod and hard sync from the
+   previous voice, the SID envelope (rate counter periods from the chip, exponential decay steps at 93/54/26/14/6, and
+   the 15-bit rate-counter wrap behind the "ADSR bug"), and the 6581's nonlinear two-integrator filter with its
+   log-shaped cutoff. Runs 4x oversampled. Player-style vibrato, PWM, filter sweeps and chord arpeggios update at the
+   60 Hz frame rate like C128 / C64 music routines. */
+const SID_CLK = 1022727, SID_RATE = [9, 32, 63, 95, 149, 220, 267, 313, 392, 977, 1954, 3126, 3907, 11720, 19532, 31251];
+class SID extends AudioWorkletProcessor{
+  constructor(o){
+    super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate; this.os = 4; this.cyc = SID_CLK / (this.fs * this.os);
+    this.cfg = Object.assign({wave:4, pw:2048, pwmRate:0, pwmDepth:0, a:0, d:9, s:0, r:0, fc:1400, res:4, fmode:1, filt:1, fcSweep:0, fcSpeed:.5, vib:0, vibRate:5, ring:0, sync:0, mode:'poly', v2:12, v3:7, det:0, arp:0, vol:15, chip:'6581'}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.v = [0, 1, 2].map(i => ({acc:0, msb:0, freq:0, note:-1, gate:false, env:0, st:'R', rc:0, ec:0, lfsr:0x7ffff8, nb:0, age:0, base:0, pwPh:i * .3, fcT:0}));
+    this.svf = {lp:0, bp:0}; this.held = []; this.frame = 0; this.arpI = 0; this.vibPh = 0; this.dec = [0, 0]; this.idle = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); };
+  }
+  hz2reg(hz){ return Math.max(0, Math.min(65535, Math.round(hz * 16777216 / SID_CLK))); }
+  gateOn(V, note){ V.note = note; V.base = note; V.gate = true; V.st = 'A'; V.age = this.frame; V.fcT = 0; }
+  gateOff(V){ V.gate = false; V.st = 'R'; }
+  noteOn(n){
+    const C = this.cfg; this.held = this.held.filter(x => x !== n); this.held.push(n);
+    if (C.mode === 'poly'){ let V = this.v.find(x => !x.gate && x.env === 0) || this.v.find(x => !x.gate) || this.v.reduce((a, b) => a.age <= b.age ? a : b); this.gateOn(V, n); }
+    else this.v.forEach((V, i) => this.gateOn(V, n));
+  }
+  noteOff(n){
+    const C = this.cfg; this.held = this.held.filter(x => x !== n);
+    if (C.mode === 'poly'){ for (const V of this.v) if (V.gate && V.note === n) this.gateOff(V); }
+    else if (!this.held.length) this.v.forEach(V => this.gateOff(V));
+    else this.v.forEach(V => { V.base = this.held[this.held.length - 1]; });
+  }
+  // 60 Hz player tick: pitch (vibrato, arpeggio, layering), pulse width modulation, filter sweep
+  tick(){ this.frame++; this.vibPh += this.cfg.vibRate / 60; this.upd(true); }
+  upd(adv){
+    const C = this.cfg;
+    const arpNote = C.arp && this.held.length > 1 ? this.held[(adv ? this.arpI++ : this.arpI) % this.held.length] : null;
+    this.v.forEach((V, i) => {
+      if (V.note < 0) return;
+      let n = C.mode === 'poly' ? V.note : (arpNote != null ? arpNote : V.base);
+      if (C.mode !== 'poly'){ if (i === 1) n += C.v2 - 12 + C.det * .1; if (i === 2) n += C.v3 - 12 - C.det * .1; }
+      const vib = C.vib * .5 * Math.sin(this.vibPh * 2 * Math.PI) * Math.min(1, (this.frame - V.age) / 20);
+      V.freq = this.hz2reg(440 * Math.pow(2, (n + vib - 69) / 12));
+      if (adv) V.pwPh += C.pwmRate / 60; V.pw = Math.max(16, Math.min(4080, C.pw + C.pwmDepth * 2000 * Math.sin(V.pwPh * 2 * Math.PI)));
+      if (adv) V.fcT++;
+    });
+    const newest = this.v.reduce((a, b) => b.age > a.age ? b : a);
+    this.fcNow = Math.max(0, Math.min(2047, C.fc + C.fcSweep * 1500 * Math.exp(-newest.fcT * C.fcSpeed * .08)));
+  }
+  env(V){
+    const C = this.cfg; let per = SID_RATE[V.st === 'A' ? C.a : V.st === 'D' ? C.d : C.r];
+    // the 15-bit rate counter: if it is already past a newly shortened period it wraps through 0x7fff first (the ADSR bug)
+    V.rc += this.cyc; if (V.rc >= 32768) V.rc -= 32768;
+    while (V.rc >= per && V.rc < per + this.cyc + 1){
+      V.rc -= per;
+      if (V.st === 'A'){ V.env++; if (V.env >= 255){ V.env = 255; V.st = 'D'; } continue; }
+      const ep = V.env > 93 ? 1 : V.env > 54 ? 2 : V.env > 26 ? 4 : V.env > 14 ? 8 : V.env > 6 ? 16 : 30;
+      if (++V.ec < ep) continue; V.ec = 0;
+      if (V.st === 'D' && V.env <= C.s * 17){ V.env = C.s * 17; continue; }
+      if (V.env > 0) V.env--;
+    }
+  }
+  wave(V, src){
+    const C = this.cfg, a = V.acc | 0, w = C.wave; let out = 4095, any = false;
+    if (w & 1){ let m = (a >> 23) & 1; if (C.ring) m ^= src.msb; const t = ((m ? ~a : a) >> 11) & 4095; out &= t; any = true; }
+    if (w & 2){ out &= (a >> 12) & 4095; any = true; }
+    if (w & 4){ out &= ((a >> 12) & 4095) >= V.pw ? 4095 : 0; any = true; }
+    if (w & 8){ const L = V.lfsr; const nz = ((L >> 22 & 1) << 11) | ((L >> 20 & 1) << 10) | ((L >> 16 & 1) << 9) | ((L >> 13 & 1) << 8) | ((L >> 11 & 1) << 7) | ((L >> 7 & 1) << 6) | ((L >> 4 & 1) << 5) | ((L >> 2 & 1) << 4); out &= nz; any = true; }
+    return any ? out : 0;
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, OS = this.os, fsI = fs * OS;
+    if (this.v.some(V => V.env > 0 || V.gate) || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    else if ((this.idle += N) > 4096){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const fcHz = fc => C.chip === '8580' ? 30 + fc * 5.8 : 200 * Math.pow(90, fc / 2047);
+    const Q = C.chip === '8580' ? .707 + C.res / 15 * 2.2 : .707 + C.res / 15 * 1.3, damp = 1 / Q;
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on); else this.noteOff(ev.off); this.upd(false); }
+      if ((fr % Math.round(fs / 60)) === 0) this.tick();
+      const fc = fcHz(this.fcNow == null ? C.fc : this.fcNow), f = 2 * Math.sin(Math.PI * Math.min(fc, fsI / 6) / fsI);
+      let acc = 0;
+      for (let s = 0; s < OS; s++){
+        let filtIn = 0, direct = 0;
+        for (let k = 0; k < 3; k++){
+          const V = this.v[k], src = this.v[(k + 2) % 3];
+          const prev = V.acc; V.acc = (V.acc + V.freq * this.cyc) % 16777216;
+          const msb = (V.acc >= 8388608) ? 1 : 0, rose = msb && !V.msb; V.msb = msb;
+          if (((prev / 524288) & 1) === 0 && ((V.acc / 524288) & 1) === 1){ const L2 = V.lfsr; V.lfsr = ((L2 << 1) | (((L2 >> 22) ^ (L2 >> 17)) & 1)) & 0x7fffff; }
+          V.rose = rose;
+          this.env(V);
+        }
+        for (let k = 0; k < 3; k++){ const V = this.v[k], src = this.v[(k + 2) % 3]; if (C.sync && src.rose){ V.acc = 0; V.msb = 0; } }
+        for (let k = 0; k < 3; k++){
+          const V = this.v[k], src = this.v[(k + 2) % 3], wv = this.wave(V, src);
+          // 6581: the waveform DAC sits on a DC offset, so a silent voice still has a (gated) bias
+          const o = ((wv - 2048) / 2048) * (V.env / 255);
+          if (C.filt) filtIn += o; else direct += o;
+        }
+        const S = this.svf, x = C.chip === '6581' ? Math.tanh(filtIn * .9) : filtIn * .8;
+        const hp = x - S.lp - damp * S.bp; S.bp += f * hp; S.lp += f * S.bp;
+        if (C.chip === '6581') S.bp = Math.tanh(S.bp * .8) / .8;
+        const fo = (C.fmode & 1 ? S.lp : 0) + (C.fmode & 2 ? S.bp : 0) + (C.fmode & 4 ? hp : 0);
+        acc += (fo + direct) * (C.vol / 15);
+      }
+      let y = acc / OS * .33;
+      // output stage: RC low-pass and AC coupling
+      this.dec[0] += (y - this.dec[0]) * .6; this.dec[1] += (this.dec[0] - this.dec[1]) * .0006;
+      L[i] = R[i] = this.dec[0] - this.dec[1];
+    }
+    return true;
+  }
+}
+registerProcessor('sid', SID);
+/* Roland D-50 style LA synthesis: 16 voices; each Tone has two Partials combined by one of 7 Structures
+   (1 S+S, 2 S+ring, 3 P+S, 4 P+ring, 5 S+ring(P), 6 P+P, 7 P+ring). Synth partials: saw / square (PWM) into a resonant
+   TVF low-pass with its own envelope and key follow, then a TVA envelope. PCM partials: short attack transients and
+   loops (synthesized here, not Roland's samples). Upper and Lower tones play whole, dual or split, then chorus and
+   reverb, the D-50's signature. */
+const D50_PCM_NAMES = ['Mallet', 'Vibes', 'Xylo', 'Bell', 'Breath', 'Pick', 'Slap', 'Hammer', 'Bow', 'Chiff', 'Metal', 'Clap', 'Spectrum loop', 'Voice loop', 'Strings loop', 'Bell loop'];
+function d50MakePcm(fs){
+  const out = [], f0 = 261.63;
+  let seed = 7; const rn = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 * 2 - 1; };
+  const make = (secs, fn, loop) => { const n = Math.round(secs * fs), b = new Float32Array(n); for (let i = 0; i < n; i++) b[i] = fn(i / fs, i); let pk = 0; for (const v of b) pk = Math.max(pk, Math.abs(v)); for (let i = 0; i < n; i++) b[i] /= pk || 1;
+    if (loop){ const x = Math.round(.05 * fs); for (let i = 0; i < x; i++){ const a = i / x; b[n - x + i] = b[n - x + i] * (1 - a) + b[i] * a; } } return {b, loop:!!loop}; };
+  const partials = (t, list, dec) => list.reduce((s, [m, a, d]) => s + a * Math.sin(2 * Math.PI * f0 * m * t) * Math.exp(-t * (d || dec)), 0);
+  let lp = 0;
+  out.push(make(.35, t => partials(t, [[1, 1, 9], [3.99, .5, 22], [10.2, .25, 40]], 9)));
+  out.push(make(.8, t => partials(t, [[1, 1, 3], [4, .4, 8], [10, .15, 16]], 3) * (1 + .3 * Math.sin(2 * Math.PI * 5 * t))));
+  out.push(make(.25, t => partials(t, [[1, 1, 14], [3, .6, 30], [6.3, .3, 50]], 14)));
+  out.push(make(1.6, t => partials(t, [[1, .8, 1.6], [2.76, .6, 2.2], [5.4, .4, 3], [8.93, .25, 4.5], [13.3, .12, 6]], 2)));
+  out.push(make(.4, (t, i) => { lp += (rn() - lp) * .08; return lp * Math.min(1, t * 40) * Math.exp(-t * 8); }));
+  out.push(make(.12, (t, i) => (rn() * Math.exp(-t * 80) + partials(t, [[1, .7, 30], [2, .5, 40], [3, .3, 50]], 30))));
+  out.push(make(.15, (t, i) => partials(t, [[1, 1, 25], [2, .8, 30], [3.03, .5, 40], [5, .3, 60]], 25) + rn() * Math.exp(-t * 120) * .5));
+  out.push(make(.2, (t, i) => rn() * Math.exp(-t * 60) * .6 + partials(t, [[1, 1, 10], [2.01, .5, 14], [3.02, .3, 18]], 10)));
+  out.push(make(.5, (t, i) => { const ph = (f0 * t) % 1; return (2 * ph - 1) * Math.min(1, t * 12) * .7 + rn() * Math.exp(-t * 15) * .3; }, true));
+  out.push(make(.15, (t, i) => { lp += (rn() - lp) * .3; return lp * Math.exp(-t * 30) + Math.sin(2 * Math.PI * f0 * 2 * t) * Math.exp(-t * 25) * .5; }));
+  out.push(make(.9, t => partials(t, [[1, .6, 3], [1.41, .5, 3.5], [2.83, .45, 4], [4.13, .35, 5], [6.97, .3, 6], [9.38, .2, 8]], 3)));
+  out.push(make(.12, (t, i) => rn() * (Math.exp(-t * 60) + .6 * Math.exp(-Math.abs(t - .02) * 200) + .4 * Math.exp(-Math.abs(t - .04) * 200))));
+  out.push(make(1, t => { let s = 0; for (let k = 1; k <= 24; k++) s += Math.sin(2 * Math.PI * f0 * k * t * (1 + .002 * Math.sin(k * 1.7 + t * 3))) / k * (k % 3 ? 1 : 1.6); return s; }, true));
+  out.push(make(1, t => { let s = 0; const fm = [[700, 1], [1200, .6], [2600, .25]]; for (let k = 1; k <= 30; k++){ const f = f0 * k; let a = 0; for (const [F, g] of fm) a += g / (1 + Math.pow((f - F) / 120, 2)); s += Math.sin(2 * Math.PI * f * t) * a; } return s * (1 + .05 * Math.sin(2 * Math.PI * 5.5 * t)); }, true));
+  out.push(make(1, t => { let s = 0; for (let d of [-.006, 0, .007]) for (let k = 1; k <= 16; k++) s += Math.sin(2 * Math.PI * f0 * k * (1 + d) * t + k) / k; return s; }, true));
+  out.push(make(1, t => partials(t, [[1, .8, .001], [2.76, .5, .001], [5.4, .3, .001], [8.93, .2, .001]], .001) * (1 + .2 * Math.sin(2 * Math.PI * 1.3 * t)), true));
+  return out;
+}
+const d50blep = (t, d) => t < d ? (t / d) * 2 - (t / d) * (t / d) - 1 : t > 1 - d ? ((t - 1) / d) * ((t - 1) / d) + 2 * ((t - 1) / d) + 1 : 0;
+class D50 extends AudioWorkletProcessor{
+  constructor(o){
+    super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
+    this.cfg = Object.assign({}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.pcm = d50MakePcm(this.fs); this.voices = []; this.idle = 0;
+    const fs = this.fs; this.ch = {buf:[new Float32Array(4096), new Float32Array(4096)], w:0, ph:0};
+    const sc = fs / 44100; this.rv = {c:[1557, 1617, 1491, 1422, 1277, 1356, 1188, 1116].map((n, i) => ({b:new Float32Array(Math.ceil(n * sc * 1.6) + 8), n:Math.round(n * sc), w:0, f:0})), a:[225, 556, 441, 341].map(n => ({b:new Float32Array(Math.ceil(n * sc) + 4), n:Math.round(n * sc), w:0}))};
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') this.cfg = Object.assign({}, d.cfg); };
+  }
+  partialNew(P, n, vel){ return {P, ph:Math.random(), pos:0, env:0, st:0, fenv:0, fst:0, lp:[0, 0, 0, 0], y:0, n, vel}; }
+  tone(T, n, vel){ return {T, a:this.partialNew(T.p1, n, vel), b:this.partialNew(T.p2, n, vel), pitchEnv:T.pitchDepth || 0}; }
+  noteOn(n, vel){
+    const C = this.cfg; if (!C.upper) return;
+    if (this.voices.length >= 16) this.voices.shift();
+    const tones = [];
+    if (C.mode === 'split'){ tones.push(n >= (C.split || 60) ? this.tone(C.upper, n, vel) : this.tone(C.lower || C.upper, n, vel)); }
+    else { tones.push(this.tone(C.upper, n, vel)); if (C.mode === 'dual') tones.push(this.tone(C.lower || C.upper, n, vel)); }
+    this.voices.push({n, tones, down:true, age:0});
+  }
+  // envelopes: attack time, decay time, sustain level, release time (seconds, from 0..1 knobs)
+  envStep(p, E, down, dt){
+    const t = x => .001 + x * x * 8;
+    if (!down){ p.st = 3; }
+    if (p.st === 0){ p.env += dt / t(E.a); if (p.env >= 1){ p.env = 1; p.st = 1; } }
+    else if (p.st === 1){ p.env += (E.s - p.env) * (1 - Math.exp(-dt / (t(E.d) * .35))); }
+    else if (p.st === 3){ p.env *= Math.exp(-dt / (t(E.r) * .35)); }
+    return p.env;
+  }
+  partial(p, isPcm, down, dt, pitchOff){
+    const P = p.P, fs = this.fs; if (!P) return 0;
+    const semis = p.n - 60 + (P.coarse || 0) + (P.fine || 0) / 100 + pitchOff, ratio = Math.pow(2, semis / 12);
+    const amp = this.envStep(p, P, down, dt) * (P.level == null ? .8 : P.level) * (.4 + .6 * p.vel);
+    if (isPcm){
+      const W = this.pcm[P.wave | 0] || this.pcm[0], b = W.b; p.pos += ratio * 261.63 / 261.63;
+      let i0 = Math.floor(p.pos); if (i0 >= b.length - 1){ if (W.loop){ p.pos -= Math.round(b.length * .5); i0 = Math.floor(p.pos); } else return 0; }
+      const f = p.pos - i0; return (b[i0] + (b[i0 + 1] - b[i0]) * f) * amp;
+    }
+    const hz = 261.63 * ratio, dtp = hz / fs; p.ph += dtp; if (p.ph >= 1) p.ph -= 1;
+    const blep = d50blep; let x;
+    if (P.wave === 1){ const pw = P.pw == null ? .5 : P.pw; x = (p.ph < pw ? 1 : -1) + blep(p.ph, dtp) - blep((p.ph + 1 - pw) % 1, dtp); }
+    else x = 2 * p.ph - 1 - blep(p.ph, dtp);
+    // TVF: resonant 4-pole low-pass, envelope + key follow
+    const tt = x => .001 + x * x * 8; if (!down) p.fst = 3;
+    if (p.fst === 0){ p.fenv += dt / tt(P.fa || 0); if (p.fenv >= 1){ p.fenv = 1; p.fst = 1; } }
+    else if (p.fst === 1) p.fenv += ((P.fs == null ? .3 : P.fs) - p.fenv) * (1 - Math.exp(-dt / (tt(P.fd == null ? .4 : P.fd) * .35)));
+    else p.fenv *= Math.exp(-dt / (tt(P.fr == null ? .3 : P.fr) * .35));
+    const fe = p.fenv;
+    const oct = (P.cut == null ? .5 : P.cut) * 9 + (P.fenv || 0) * fe * 6 + (p.n - 60) / 12 * (P.kf == null ? .5 : P.kf), fc = Math.min(fs * .42, 40 * Math.pow(2, oct)), g = 1 - Math.exp(-2 * Math.PI * fc / fs), k = (P.res || 0) * 3.6, z = p.lp;
+    const u = Math.tanh(x - k * z[3]); z[0] += g * (u - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]);
+    return z[3] * amp * (1 + (P.res || 0) * .6);
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs;
+    if (this.voices.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    else if ((this.idle += N) > fs * 4){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const chD = C.chDepth == null ? .5 : C.chDepth, chR = C.chRate == null ? .4 : C.chRate, rvMix = C.revMix == null ? .3 : C.revMix, rvT = C.revTime == null ? .5 : C.revTime;
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else for (const V of this.voices) if (V.n === ev.off) V.down = false; }
+      let s = 0;
+      for (let vi = this.voices.length - 1; vi >= 0; vi--){
+        const V = this.voices[vi]; V.age += dt; let vs = 0, alive = false;
+        for (const T of V.tones){
+          const st = T.T.struct || 1, pa = st === 3 || st === 4 || st === 6 || st === 7, pb = st === 5 || st === 6 || st === 7;
+          const po = T.pitchEnv * Math.exp(-V.age * 8);
+          const a = this.partial(T.a, pa, V.down, dt, po), b = this.partial(T.b, pb, V.down, dt, po), ring = st === 2 || st === 4 || st === 5 || st === 7;
+          const bal = T.T.bal == null ? .5 : T.T.bal; vs += a * (1 - bal) + (ring ? a * b * 2.5 : b) * bal;
+          if (T.a.env > 1e-4 || T.b.env > 1e-4 || V.down) alive = true;
+        }
+        if (!alive && !V.down){ this.voices.splice(vi, 1); continue; }
+        s += vs * (V.tones.length > 1 ? .6 : 1) * (C.toneBal == null ? 1 : 1);
+      }
+      s *= .75 * (C.vol == null ? .8 : C.vol);
+      // chorus: two modulated lines, left and right
+      const ch = this.ch; ch.ph += (.1 + chR * 3) / fs; if (ch.ph > 1) ch.ph -= 1;
+      ch.buf[0][ch.w & 4095] = s; let cl = s, cr = s;
+      if (chD > 0){ for (let c = 0; c < 2; c++){ const d = (7 + chD * 6 * (1 + Math.sin(2 * Math.PI * (ch.ph + c * .5)))) * fs / 1000, r0 = ch.w - d, i0 = Math.floor(r0), f = r0 - i0, A = ch.buf[0][i0 & 4095], B = ch.buf[0][(i0 + 1) & 4095]; const v = A + (B - A) * f; if (c) cr = s * .6 + v * .7; else cl = s * .6 + v * .7; } }
+      ch.w++;
+      // reverb
+      const RV = this.rv, fbk = .72 + rvT * .25; let rin = (cl + cr) * .15, rs = 0;
+      for (const cb of RV.c){ const o = cb.b[(cb.w - Math.round(cb.n * (.8 + rvT * .6)) + cb.b.length * 4) % cb.b.length]; cb.f = o * .7 + cb.f * .3; cb.b[cb.w % cb.b.length] = rin + cb.f * fbk; cb.w++; rs += o; }
+      for (const ap of RV.a){ const o = ap.b[(ap.w - ap.n + ap.b.length * 4) % ap.b.length]; ap.b[ap.w % ap.b.length] = rs + o * .5; ap.w++; rs = o - rs * .5; }
+      L[i] = cl * (1 - rvMix * .5) + rs * rvMix * .6; R[i] = cr * (1 - rvMix * .5) - rs * rvMix * .6 * .9 + rs * rvMix * .12;
+    }
+    return true;
+  }
+}
+registerProcessor('d50', D50);
+/* PPG Wave 2.2: 8 voices x 2 digital oscillators reading 8-bit, 128-sample single-cycle waves from 64-wave wavetables
+   (stepped, no interpolation, as the 8-bit hardware), the last waves of every table being triangle / pulse / square /
+   saw like the PPG. Wave position is swept by envelope 3, the LFO and the wheel. SSM2044-style 24 dB resonant low-pass
+   per voice with envelope 1, VCA on envelope 2. Wavetables are generated here (original, not the PPG ROM). */
+const PPG_TABLES = ['Saw to Square', 'Harmonic Climb', 'Vowels', 'Pulse Sweep', 'Sync Sweep', 'Drawbars', 'Bell Morph', 'Digital Grit', 'Octave Stack', 'Odd to Even',
+  'Comb Notch', 'Hollow to Bright', 'Resonant Peak', 'Spectral Bands', 'Fifths', 'Chaos', 'Organ Perc', 'Breathy', 'Metal', 'Soft Pads',
+  'Hard Sync 2', 'Formant Bass', 'Glass', 'Square Harmonics', 'Phase Warp', 'Buzz', 'Choir', 'Synth Brass', 'Clav', 'Sub Rumble'];
+function ppgMakeTables(){
+  const T = [];
+  let seed = 99; const rn = () => { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
+  const build = amp => { const w = new Float32Array(128); for (let k = 1; k <= 48; k++){ const a = amp(k); if (!a) continue; for (let i = 0; i < 128; i++) w[i] += a * Math.sin(2 * Math.PI * k * i / 128); } return w; };
+  const q8 = w => { let pk = 0; for (const v of w) pk = Math.max(pk, Math.abs(v)); const o = new Int8Array(128); for (let i = 0; i < 128; i++) o[i] = Math.max(-128, Math.min(127, Math.round(w[i] / (pk || 1) * 127))); return o; };
+  const std = [build(k => k % 2 ? 8 / (Math.PI * Math.PI * k * k) * (((k - 1) / 2) % 2 ? -1 : 1) : 0), (() => { const w = new Float32Array(128); for (let i = 0; i < 128; i++) w[i] = i < 32 ? 1 : -.33; return w; })(), (() => { const w = new Float32Array(128); for (let i = 0; i < 128; i++) w[i] = i < 64 ? 1 : -1; return w; })(), (() => { const w = new Float32Array(128); for (let i = 0; i < 128; i++) w[i] = 1 - i / 64; return w; })()];
+  const formants = [[700, 1200, 2600], [500, 1800, 2500], [300, 2300, 3000], [500, 900, 2400], [320, 800, 2400]];
+  for (let t = 0; t < PPG_TABLES.length; t++){
+    const tab = [], shape = t % 15, sp = Array.from({length:48}, () => rn());
+    for (let wv = 0; wv < 60; wv++){
+      const x = wv / 59; let amp;
+      switch (shape){
+        case 0: amp = k => (k % 2 ? 1 : 1 - x) / k; break;
+        case 1: amp = k => k <= 1 + x * 30 ? 1 / Math.sqrt(k) : 0; break;
+        case 2: { const fi = x * 4, a = formants[Math.floor(fi)], b = formants[Math.min(4, Math.floor(fi) + 1)], m = fi % 1, F = a.map((v, i) => v + (b[i] - v) * m); amp = k => F.reduce((s, f, i) => s + [1, .6, .3][i] / (1 + Math.pow((k * 110 - f) / 90, 2)), 0); } break;
+        case 3: { const d = .5 - x * .47; amp = k => Math.sin(Math.PI * k * d) / k; } break;
+        case 4: { const r = 1 + x * 7; amp = k => Math.sin(Math.PI * k / r) / (k * (1 - Math.pow(k / r, 2)) || .01) * .3 / k; } break;
+        case 5: { const bars = [1, 2, 3, 4, 6, 8]; amp = k => { const i = bars.indexOf(k); return i < 0 ? 0 : Math.max(0, Math.sin((x * 6 + i) * .9)); }; } break;
+        case 6: amp = k => k > 24 ? 0 : sp[k] * Math.exp(-k * (1 - x) * .2) / Math.sqrt(k); break;
+        case 7: amp = k => sp[(k * 7 + Math.floor(x * 40)) % 48] > .55 ? 1 / Math.sqrt(k) : 0; break;
+        case 8: amp = k => [1, 2, 4, 8, 16, 32].includes(k) ? Math.pow(x, Math.log2(k) / 4) : 0; break;
+        case 9: amp = k => (k % 2 ? 1 - x : x + .1) / k; break;
+        case 10: { const n = 2 + Math.floor(x * 10); amp = k => (k % n ? 1 : .05) / k; } break;
+        case 11: amp = k => (k % 2 ? 1 : x) / Math.pow(k, 1.6 - x); break;
+        case 12: { const c = 1 + x * 30; amp = k => 1 / k + 2.5 / (1 + Math.pow((k - c) * 1.2, 2)); } break;
+        case 13: amp = k => Math.floor(k / 4 + x * 6) % 2 ? 1 / Math.sqrt(k) : 0; break;
+        default: amp = k => [1, 3, 9, 27].some(m => k % m === 0) ? Math.pow(1 - x * .5, k) : 0;
+      }
+      const base = build(amp);
+      if (t >= 15){ const w2 = build(k => (sp[k % 48] * (1 - x) + (k % 2 ? 1 : 0) * x) / k); for (let i = 0; i < 128; i++) base[i] = base[i] * .6 + w2[i] * .4; }
+      tab.push(q8(base));
+    }
+    std.forEach(w => tab.push(q8(w)));
+    T.push(tab);
+  }
+  return T;
+}
+class PPG extends AudioWorkletProcessor{
+  constructor(o){
+    super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
+    this.cfg = Object.assign({table:0, wave:0, waveB:0, semiB:0, detB:.1, mixB:.5, env3:.6, lfoWave:0, wheel:0, cut:.5, res:.2, fenv:.5, kf:.5, a1:0, d1:.4, s1:.3, r1:.3, a2:0, d2:.5, s2:.8, r2:.3, a3:0, d3:.6, s3:0, r3:.3, lfoHz:.3, lfoPitch:0, lfoCut:0, step:1, vol:.8}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.T = ppgMakeTables(); this.voices = []; this.lfo = 0; this.idle = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); };
+  }
+  env(V, k, a, d, s, r, dt){
+    const t = x => .0015 + x * x * 7; let e = V.e[k], st = V.s[k];
+    if (!V.down) st = 3;
+    if (st === 0){ e += dt / t(a); if (e >= 1){ e = 1; st = 1; } } else if (st === 1) e += (s - e) * (1 - Math.exp(-dt / (t(d) * .3))); else e *= Math.exp(-dt / (t(r) * .3));
+    V.e[k] = e; V.s[k] = st; return e;
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs, tab = this.T[C.table | 0] || this.T[0];
+    if (this.voices.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    else if ((this.idle += N) > 4096){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift();
+        if (ev.on != null){ if (this.voices.length >= 8) this.voices.shift(); this.voices.push({n:ev.on, v:ev.v == null ? .8 : ev.v, down:true, pa:0, pb:Math.random(), e:[0, 0, 0, 0], s:[0, 0, 0, 0], z:[0, 0, 0, 0]}); }
+        else for (const V of this.voices) if (V.n === ev.off) V.down = false; }
+      this.lfo += (.05 + C.lfoHz * 12) / fs; if (this.lfo > 1) this.lfo -= 1;
+      const lv = C.lfoWave ? (this.lfo < .5 ? 1 : -1) : 1 - 4 * Math.abs(this.lfo - .5);
+      let s = 0;
+      for (let vi = this.voices.length - 1; vi >= 0; vi--){
+        const V = this.voices[vi];
+        const e1 = this.env(V, 1, C.a1, C.d1, C.s1, C.r1, dt), e2 = this.env(V, 2, C.a2, C.d2, C.s2, C.r2, dt), e3 = this.env(V, 3, C.a3, C.d3, C.s3, C.r3, dt);
+        if (!V.down && e2 < 1e-4){ this.voices.splice(vi, 1); continue; }
+        const hz = 440 * Math.pow(2, (V.n - 69 + lv * C.lfoPitch * .5) / 12);
+        // wave position: start + envelope 3 + wheel; stepped 0..59 (or the top 4 standard waves)
+        let wp = C.wave * 63 + e3 * C.env3 * 59 + C.wheel * 59; if (C.wave * 63 >= 60) wp = C.wave * 63; wp = Math.max(0, Math.min(63, C.step ? Math.round(wp) : wp));
+        const wA = tab[Math.floor(wp)], wB = tab[Math.min(63, Math.round(C.waveB * 63))];
+        V.pa = (V.pa + hz / fs) % 1; V.pb = (V.pb + hz * Math.pow(2, (C.semiB + C.detB * .3) / 12) / fs) % 1;
+        const a = wA[(V.pa * 128) | 0] / 128, b = wB[(V.pb * 128) | 0] / 128, x = a * (1 - C.mixB * .5) + b * C.mixB * .5;
+        // SSM2044-style 4-pole low-pass
+        const oct = C.cut * 9.5 + C.fenv * e1 * 6 + (V.n - 60) / 12 * C.kf + lv * C.lfoCut, fc = Math.min(fs * .42, 30 * Math.pow(2, oct)), g = 1 - Math.exp(-2 * Math.PI * fc / fs), k = C.res * 3.8, z = V.z;
+        const u = Math.tanh(x * 1.2 - k * z[3]); z[0] += g * (u - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]);
+        s += z[3] * e2 * (.5 + .5 * V.v) * (1 + C.res * .5);
+      }
+      L[i] = R[i] = s * .65 * C.vol;
+    }
+    return true;
+  }
+}
+registerProcessor('ppg', PPG);
 `;
 const SPW_CODE = String.raw`
 /* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
@@ -3778,6 +4185,87 @@ class Effectron extends RackUnit{
   }
 }
 registerProcessor('effectron', Effectron);
+/* Ensoniq DP/4: four independent effect units (one ESP DSP each, 24-bit fixed point), routed Parallel (all four on the
+   input, outputs summed), Series (1 > 2 > 3 > 4) or 2 x 2 (1 > 2 and 3 > 4 in parallel). Each unit runs one algorithm. */
+const DP_Q = 1 / 8388608, dpq = x => Math.round(x / DP_Q) * DP_Q;    // 24-bit word
+class DPUnit {
+  constructor(fs){ this.fs = fs; this.alg = 'off'; this.dl = [new DLine(Math.ceil(fs * 2.1)), new DLine(Math.ceil(fs * 2.1))]; this.ph = 0; this.lp = [0, 0]; this.ap = new Float32Array(16); this.fb = [0, 0];
+    const cm = [1116, 1188, 1277, 1356, 1422, 1491], s = fs / 44100; this.combs = [0, 1].map(c => cm.map(n => ({d:new DLine(Math.ceil(n * s * 2.2 + 50)), n:Math.round(n * s), f:0}))); this.aps = [0, 1].map(c => [556, 441, 341, 225].map(n => ({d:new DLine(Math.ceil(n * s + 30)), n:Math.round(n * s * (1 + c * .04))}))); this.pre = [new DLine(Math.ceil(fs * .2)), new DLine(Math.ceil(fs * .2))]; this.pp = 0; this.sh = [0, 0]; this.env = 0; }
+  clear(){ this.dl.forEach(d => d.clear()); this.combs.flat().forEach(c => { c.d.clear(); c.f = 0; }); this.aps.flat().forEach(a => a.d.clear()); this.pre.forEach(d => d.clear()); this.fb = [0, 0]; this.lp = [0, 0]; this.ap.fill(0); }
+  // x: parameter 1 (0..1), y: parameter 2 (0..1)
+  run(l, r, x, y){
+    const fs = this.fs, A = this.alg, out = this.sh;
+    if (A === 'hall' || A === 'plate' || A === 'room'){
+      const size = A === 'hall' ? 1 + x * 1.2 : A === 'plate' ? .7 + x * .7 : .35 + x * .5, damp = A === 'plate' ? .15 + y * .35 : .25 + y * .5, fbk = Math.min(.97, .7 + .26 * Math.min(1, size / 2.2));
+      const pd = Math.round((A === 'hall' ? .03 : A === 'room' ? .005 : .012) * fs);
+      for (let c = 0; c < 2; c++){ const P = this.pre[c]; P.push(c ? r : l); let inp = P.at(pd) * .3, sum = 0;
+        for (const cb of this.combs[c]){ const n = Math.round(cb.n * size), o = cb.d.at(n); cb.f = o * (1 - damp) + cb.f * damp; cb.d.push(inp + cb.f * fbk); sum += o; }
+        for (const a of this.aps[c]){ const o = a.d.at(a.n); a.d.push(sum + o * .5); sum = o - sum * .5; }
+        out[c] = sum * (A === 'plate' ? .9 : .7); }
+      return out;
+    }
+    if (A === 'chorus' || A === 'flange'){
+      this.ph += (.08 + x * (A === 'chorus' ? 2.5 : 1.2)) / fs; if (this.ph > 1) this.ph -= 1;
+      for (let c = 0; c < 2; c++){ const lfo = Math.sin(2 * Math.PI * (this.ph + c * .25)), base = A === 'chorus' ? .012 : .0025, dep = A === 'chorus' ? .004 : .002 * (.3 + y);
+        const d = (base + dep * (1 + lfo) * .5) * fs, v = this.dl[c].lerp(d); this.dl[c].push((c ? r : l) + (A === 'flange' ? v * (y * 1.7 - .85) : 0)); out[c] = A === 'chorus' ? v * (.5 + y * .5) : v; }
+      return out;
+    }
+    if (A === 'phaser'){
+      this.ph += (.05 + x * 3) / fs; if (this.ph > 1) this.ph -= 1;
+      for (let c = 0; c < 2; c++){ const sw = .5 - .5 * Math.cos(2 * Math.PI * (this.ph + c * .2)), f = 150 * Math.pow(25, sw), t = Math.tan(Math.PI * f / fs), a1 = (t - 1) / (t + 1);
+        let v = (c ? r : l) + this.fb[c] * (y * .9); for (let s = 0; s < 6; s++){ const k = c * 8 + s, o = a1 * v + this.ap[k]; this.ap[k] = v - a1 * o; v = o; } this.fb[c] = v; out[c] = ((c ? r : l) + v) * .6; }
+      return out;
+    }
+    if (A === 'delay' || A === 'pingpong'){
+      const d = Math.max(1, (.02 + x * 1.18) * fs), fbk = y * .9;
+      if (A === 'delay'){ for (let c = 0; c < 2; c++){ const v = this.dl[c].at(Math.round(d * (c ? 1.02 : 1))); this.lp[c] += (v - this.lp[c]) * .35; this.dl[c].push((c ? r : l) + this.lp[c] * fbk); out[c] = v; } }
+      else { const vL = this.dl[0].at(Math.round(d)), vR = this.dl[1].at(Math.round(d)); this.dl[0].push((l + r) * .5 + vR * fbk); this.dl[1].push(vL * fbk); out[0] = vL; out[1] = vR; }
+      return out;
+    }
+    if (A === 'pitch'){
+      // two crossfaded read heads sweeping through a 60 ms window
+      const semis = Math.round((x - .5) * 24), ratio = Math.pow(2, semis / 12), W = .06 * fs; this.pp = (this.pp + (1 - ratio) + W) % W;
+      for (let c = 0; c < 2; c++){ this.dl[c].push(c ? r : l); const d1 = this.pp + 2, d2 = (this.pp + W / 2) % W + 2, g1 = Math.sin(Math.PI * this.pp / W), g2 = Math.sin(Math.PI * ((this.pp + W / 2) % W) / W);
+        out[c] = (this.dl[c].lerp(d1) * g1 + this.dl[c].lerp(d2) * g2) * .8 + (c ? r : l) * y * .5; }
+      return out;
+    }
+    if (A === 'dist'){
+      const g = 1 + x * 40, tone = .05 + y * .6;
+      for (let c = 0; c < 2; c++){ const v = Math.tanh((c ? r : l) * g) * .6; this.lp[c] += (v - this.lp[c]) * tone; out[c] = this.lp[c]; }
+      return out;
+    }
+    if (A === 'rotary'){
+      this.ph += (.7 + x * 6) / fs; if (this.ph > 1) this.ph -= 1; const m = (l + r) * .5, s = Math.sin(2 * Math.PI * this.ph), cs = Math.cos(2 * Math.PI * this.ph);
+      this.dl[0].push(m); const v = this.dl[0].lerp((.002 + .0012 * (1 + s)) * fs); out[0] = v * (1 + .5 * y * cs) * .7; out[1] = v * (1 - .5 * y * cs) * .7; return out;
+    }
+    if (A === 'filter'){
+      this.ph += (.05 + x * 4) / fs; if (this.ph > 1) this.ph -= 1;
+      for (let c = 0; c < 2; c++){ const f = 120 * Math.pow(60, .5 - .5 * Math.cos(2 * Math.PI * this.ph)), g = 2 * Math.sin(Math.PI * Math.min(f, fs / 6) / fs), q = 1.9 - y * 1.75, k = c * 8;
+        const hp = (c ? r : l) - this.ap[k] - q * this.ap[k + 1]; this.ap[k + 1] += g * hp; this.ap[k] += g * this.ap[k + 1]; out[c] = this.ap[k] * .8; }
+      return out;
+    }
+    out[0] = 0; out[1] = 0; return out;
+  }
+}
+class DP4 extends RackUnit{
+  constructor(o){ super(o); this.u = [0, 1, 2, 3].map(() => new DPUnit(this.fs)); this.update(); }
+  update(){ const C = this.c; for (let k = 0; k < 4; k++){ const a = C['a' + (k + 1)] || 'off'; if (this.u[k].alg !== a){ this.u[k].alg = a; this.u[k].clear(); } } }
+  reset(){ this.u.forEach(u => u.clear()); }
+  tail(){ return 8; }
+  run(a, b, L, R, N){
+    const C = this.c, cfg = C.cfg || 'par', ret = C.ret == null ? .8 : C.ret, U = this.u, v = this.v || (this.v = new Float64Array(2)), w = this.w2 || (this.w2 = new Float64Array(2));
+    const par = k => [C['m' + k] == null ? 1 : C['m' + k], C['x' + k] == null ? .5 : C['x' + k], C['y' + k] == null ? .5 : C['y' + k]], P = [1, 2, 3, 4].map(par);
+    const step = (k, o) => { const u = U[k]; if (u.alg === 'off') return; const [m, x, y] = P[k], r2 = u.run(o[0], o[1], x, y); o[0] = dpq(o[0] * (1 - m) + r2[0] * m); o[1] = dpq(o[1] * (1 - m) + r2[1] * m); };
+    for (let i = 0; i < N; i++){
+      const l = a ? a[i] : 0, r = b ? b[i] : 0; let oL = 0, oR = 0;
+      if (cfg === 'ser'){ v[0] = l; v[1] = r; for (let k = 0; k < 4; k++) step(k, v); oL = v[0]; oR = v[1]; }
+      else if (cfg === '2x2'){ v[0] = l; v[1] = r; step(0, v); step(1, v); w[0] = l; w[1] = r; step(2, w); step(3, w); oL = (v[0] + w[0]) * .5; oR = (v[1] + w[1]) * .5; }
+      else { let n = 0; for (let k = 0; k < 4; k++){ if (U[k].alg === 'off') continue; v[0] = l; v[1] = r; step(k, v); oL += v[0]; oR += v[1]; n++; } if (n){ oL /= Math.sqrt(n); oR /= Math.sqrt(n); } }
+      L[i] = oL * ret; R[i] = oR * ret;
+    }
+  }
+}
+registerProcessor('dp4', DP4);
 
 /* Eventide H910 Harmonizer: 11-bit delay memory between a 2:1 compressor and expander (it pumps), read at a different
    rate than it is written; the read point sweeps a ~30 ms window and jumps back at the edge with no de-glitch (the
@@ -6535,6 +7023,7 @@ function syncSteppers(){
   }
 }
 function renderPadEditor(){
+  try { renderSpCard(); } catch(e){}
   const p = S.drum.pads[selPad];
   $('#padTitle').textContent = `${padLabel(selPad)} ${p.name}`;
   const usr = !!p.sample && !p.sample.startsWith('kit:');
@@ -8207,7 +8696,7 @@ function gmPatch(prog){
 }
 const GM_TAB = 'GM ';
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const INST = {sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
   voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
@@ -8467,7 +8956,7 @@ $('#synMenu').addEventListener('click', e => {
 
 
 /* ================= preset browser: one tap from the Synth page, searchable, for whichever instrument is on the track ================= */
-const PRE_SRC = {prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
+const PRE_SRC = {sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
 let preGroup = '';
 async function preItems(){
   const tr = curSynth();
@@ -8511,6 +9000,9 @@ const INSTRUMENTS = [
   {v:'prophet', name:'Prophet-5', sub:'Sequential · 1978', desc:'Warm 5-voice analog: pads, brass, leads.', bg:'linear-gradient(160deg,#6b3d1f,#2a1a10 55%,#111)'},
   {v:'obxa', name:'OB-Xa', sub:'Oberheim · 1981', desc:'Big fat poly brass and “Jump” chords.', bg:'linear-gradient(160deg,#2f4f7a,#14243a 60%,#0b1220)'},
   {v:'dx1', name:'DX1', sub:'Yamaha · 1983', desc:'FM: e-pianos, bells, bass. Loads DX7 .syx patches.', bg:'linear-gradient(160deg,#5a3a22,#2a1a10 55%,#123c38)'},
+  {v:'d50', name:'D-50', sub:'Roland · 1987', desc:'LA synthesis: attack + synth partials, chorus and reverb.', bg:'linear-gradient(160deg,#3a3d44,#1b1d22 55%,#5b0f12)'},
+  {v:'ppg', name:'PPG Wave 2.2', sub:'PPG · 1982', desc:'8-bit wavetables swept by envelopes, analog filters.', bg:'linear-gradient(160deg,#20405a,#0f1f2c 55%,#0a3a20)'},
+  {v:'sid', name:'Commodore 128', sub:'MOS SID 6581 · 1985', desc:'3-voice SID chip: chiptune leads, bass, arps, noise.', bg:'linear-gradient(160deg,#6b6250,#3b352b 50%,#24435f)'},
   {v:'omni2', name:'Omni-2', sub:'ARP · 1977', desc:'String machine plus synth section and bass.', bg:'linear-gradient(160deg,#e8722c,#3a1a08 45%,#111)'},
   {v:'solina', name:'Solina', sub:'ARP / Eminent · 1974', desc:'The classic lush string ensemble.', bg:'linear-gradient(160deg,#c9a35a,#5a4220 50%,#1b140a)'},
   {v:'tb303', name:'TB-303', sub:'Roland · 1981', desc:'Squelchy acid bass with slide and accent.', bg:'linear-gradient(160deg,#c9cdd3,#6d737c 50%,#2b2e33)'},
@@ -8561,7 +9053,8 @@ function renderSynth(){
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
-  const isSol = tr.inst === 'solina', isOmni = tr.inst === 'omni2', isDx = tr.inst === 'dx1';
+  const isSol = tr.inst === 'solina', isOmni = tr.inst === 'omni2', isDx = tr.inst === 'dx1', isSid = tr.inst === 'sid', isD50 = tr.inst === 'd50', isPpg = tr.inst === 'ppg';
+  $('#sidPanel').hidden = !isSid; if (isSid) renderSid(tr); $('#d50Panel').hidden = !isD50; if (isD50) renderD50(tr); $('#ppgPanel').hidden = !isPpg; if (isPpg) renderPpg(tr);
   $('#dxPanel').hidden = !isDx; if (isDx) renderDx(tr);
   $('#omniPanel').hidden = !isOmni; if (isOmni) renderOmni(tr);
   const isP5 = tr.inst === 'prophet', isOB = tr.inst === 'obxa', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
@@ -8573,7 +9066,7 @@ function renderSynth(){
     if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isOmni || isDx || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isSol || isOmni || isDx || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -8863,6 +9356,244 @@ document.querySelectorAll('#dxMode button').forEach(b => b.addEventListener('cli
 $('#dxLoad').addEventListener('click', () => $('#dxFile').click());
 $('#dxFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const id = await dxImport(f); if (!id) return; const tr = curSynth(); tr.inst = 'dx1'; tr.dx = tr.dx || DX_DEFAULT(); await dxPick(tr, 'B', 1, id); await dxPick(tr, 'A', 0, id); renderSynth(); toast(f.name + ': ' + (await dxBank(id)).length + ' DX7 voices loaded.'); });
 
+const PPG_TABLES = ['Saw to Square', 'Harmonic Climb', 'Vowels', 'Pulse Sweep', 'Sync Sweep', 'Drawbars', 'Bell Morph', 'Digital Grit', 'Octave Stack', 'Odd to Even',
+  'Comb Notch', 'Hollow to Bright', 'Resonant Peak', 'Spectral Bands', 'Fifths', 'Chaos', 'Organ Perc', 'Breathy', 'Metal', 'Soft Pads',
+  'Hard Sync 2', 'Formant Bass', 'Glass', 'Square Harmonics', 'Phase Warp', 'Buzz', 'Choir', 'Synth Brass', 'Clav', 'Sub Rumble'];
+function ppgMakeTables(){
+  const T = [];
+  let seed = 99; const rn = () => { seed = (seed * 48271) % 2147483647; return seed / 2147483647; };
+  const build = amp => { const w = new Float32Array(128); for (let k = 1; k <= 48; k++){ const a = amp(k); if (!a) continue; for (let i = 0; i < 128; i++) w[i] += a * Math.sin(2 * Math.PI * k * i / 128); } return w; };
+  const q8 = w => { let pk = 0; for (const v of w) pk = Math.max(pk, Math.abs(v)); const o = new Int8Array(128); for (let i = 0; i < 128; i++) o[i] = Math.max(-128, Math.min(127, Math.round(w[i] / (pk || 1) * 127))); return o; };
+  const std = [build(k => k % 2 ? 8 / (Math.PI * Math.PI * k * k) * (((k - 1) / 2) % 2 ? -1 : 1) : 0), (() => { const w = new Float32Array(128); for (let i = 0; i < 128; i++) w[i] = i < 32 ? 1 : -.33; return w; })(), (() => { const w = new Float32Array(128); for (let i = 0; i < 128; i++) w[i] = i < 64 ? 1 : -1; return w; })(), (() => { const w = new Float32Array(128); for (let i = 0; i < 128; i++) w[i] = 1 - i / 64; return w; })()];
+  const formants = [[700, 1200, 2600], [500, 1800, 2500], [300, 2300, 3000], [500, 900, 2400], [320, 800, 2400]];
+  for (let t = 0; t < PPG_TABLES.length; t++){
+    const tab = [], shape = t % 15, sp = Array.from({length:48}, () => rn());
+    for (let wv = 0; wv < 60; wv++){
+      const x = wv / 59; let amp;
+      switch (shape){
+        case 0: amp = k => (k % 2 ? 1 : 1 - x) / k; break;
+        case 1: amp = k => k <= 1 + x * 30 ? 1 / Math.sqrt(k) : 0; break;
+        case 2: { const fi = x * 4, a = formants[Math.floor(fi)], b = formants[Math.min(4, Math.floor(fi) + 1)], m = fi % 1, F = a.map((v, i) => v + (b[i] - v) * m); amp = k => F.reduce((s, f, i) => s + [1, .6, .3][i] / (1 + Math.pow((k * 110 - f) / 90, 2)), 0); } break;
+        case 3: { const d = .5 - x * .47; amp = k => Math.sin(Math.PI * k * d) / k; } break;
+        case 4: { const r = 1 + x * 7; amp = k => Math.sin(Math.PI * k / r) / (k * (1 - Math.pow(k / r, 2)) || .01) * .3 / k; } break;
+        case 5: { const bars = [1, 2, 3, 4, 6, 8]; amp = k => { const i = bars.indexOf(k); return i < 0 ? 0 : Math.max(0, Math.sin((x * 6 + i) * .9)); }; } break;
+        case 6: amp = k => k > 24 ? 0 : sp[k] * Math.exp(-k * (1 - x) * .2) / Math.sqrt(k); break;
+        case 7: amp = k => sp[(k * 7 + Math.floor(x * 40)) % 48] > .55 ? 1 / Math.sqrt(k) : 0; break;
+        case 8: amp = k => [1, 2, 4, 8, 16, 32].includes(k) ? Math.pow(x, Math.log2(k) / 4) : 0; break;
+        case 9: amp = k => (k % 2 ? 1 - x : x + .1) / k; break;
+        case 10: { const n = 2 + Math.floor(x * 10); amp = k => (k % n ? 1 : .05) / k; } break;
+        case 11: amp = k => (k % 2 ? 1 : x) / Math.pow(k, 1.6 - x); break;
+        case 12: { const c = 1 + x * 30; amp = k => 1 / k + 2.5 / (1 + Math.pow((k - c) * 1.2, 2)); } break;
+        case 13: amp = k => Math.floor(k / 4 + x * 6) % 2 ? 1 / Math.sqrt(k) : 0; break;
+        default: amp = k => [1, 3, 9, 27].some(m => k % m === 0) ? Math.pow(1 - x * .5, k) : 0;
+      }
+      const base = build(amp);
+      if (t >= 15){ const w2 = build(k => (sp[k % 48] * (1 - x) + (k % 2 ? 1 : 0) * x) / k); for (let i = 0; i < 128; i++) base[i] = base[i] * .6 + w2[i] * .4; }
+      tab.push(q8(base));
+    }
+    std.forEach(w => tab.push(q8(w)));
+    T.push(tab);
+  }
+  return T;
+}
+/* ================= Commodore 128 (SID), Roland D-50, PPG Wave 2.2: defaults, presets, panels ================= */
+const SID_DEFAULT = () => ({preset:'C128 · Piano', wave:4, pw:1536, pwmRate:0, pwmDepth:0, a:0, d:9, s:0, r:0, fc:1600, res:3, fmode:1, filt:0, fcSweep:0, fcSpeed:.5, vib:0, vibRate:5, ring:0, sync:0, mode:'poly', v2:12, v3:7, det:0, arp:0, vol:15, chip:'6581'});
+// the ten instrument envelopes built into the C128's BASIC 7.0 (ENVELOPE 0-9), then classic SID patches
+const SID_PRESETS = {
+  'C128 · Piano':{wave:4, pw:1536, a:0, d:9, s:0, r:0}, 'C128 · Accordion':{wave:2, a:12, d:0, s:12, r:0}, 'C128 · Calliope':{wave:1, a:0, d:0, s:15, r:0},
+  'C128 · Drum':{wave:8, a:0, d:5, s:5, r:0}, 'C128 · Flute':{wave:1, a:9, d:4, s:4, r:0}, 'C128 · Guitar':{wave:2, a:0, d:9, s:2, r:1},
+  'C128 · Harpsichord':{wave:4, pw:512, a:0, d:9, s:0, r:0}, 'C128 · Organ':{wave:4, pw:2048, a:0, d:9, s:9, r:0}, 'C128 · Trumpet':{wave:4, pw:512, a:8, d:9, s:4, r:1}, 'C128 · Xylophone':{wave:1, a:0, d:9, s:0, r:0},
+  'Bass · Pulse Bass':{wave:4, pw:900, pwmRate:.5, pwmDepth:.3, a:0, d:9, s:6, r:2, filt:1, fc:500, res:9, fcSweep:.6, fcSpeed:.6, mode:'mono', v2:12, v3:12},
+  'Bass · Saw Bass':{wave:2, a:0, d:8, s:8, r:1, filt:1, fc:700, res:10, fcSweep:.5, fcSpeed:.4, mode:'mono', v2:12, v3:0},
+  'Bass · Sync Bass':{wave:2, sync:1, a:0, d:9, s:6, r:2, mode:'mono', v2:19, v3:12, filt:1, fc:900, res:6},
+  'Bass · Fat Triangle':{wave:1, a:0, d:6, s:12, r:2, mode:'mono', v2:0, v3:12, det:2},
+  'Lead · PWM Lead':{wave:4, pw:1200, pwmRate:.8, pwmDepth:.4, a:1, d:4, s:12, r:4, vib:.6, vibRate:6, mode:'mono', v2:12, v3:24, det:1},
+  'Lead · Sync Scream':{wave:2, sync:1, a:0, d:6, s:12, r:3, vib:.5, mode:'mono', v2:12, v3:31},
+  'Lead · Thin Square':{wave:4, pw:400, a:0, d:4, s:13, r:3, vib:.8, vibRate:6.5},
+  'Lead · Filter Saw':{wave:2, a:0, d:6, s:10, r:4, filt:1, fc:900, res:12, fcSweep:.8, fcSpeed:.25, vib:.4},
+  'Chords · Arp Major':{wave:4, pw:1800, pwmRate:.4, pwmDepth:.25, a:0, d:9, s:10, r:3, mode:'mono', arp:1, v2:12, v3:12},
+  'Chords · Arp Organ':{wave:5, pw:2048, a:0, d:9, s:12, r:2, mode:'mono', arp:1, v2:12, v3:12},
+  'Chords · PWM Strings':{wave:4, pw:1600, pwmRate:.25, pwmDepth:.45, a:9, d:9, s:12, r:9, filt:1, fc:1200, res:2},
+  'Bells · Ring Bell':{wave:1, ring:1, a:0, d:10, s:0, r:10, mode:'mono', v2:31, v3:19},
+  'Bells · Glass Ring':{wave:1, ring:1, a:1, d:11, s:0, r:11, mode:'mono', v2:24, v3:43},
+  'Drums · Noise Snare':{wave:8, a:0, d:6, s:0, r:6, filt:1, fmode:2, fc:1500, res:6},
+  'Drums · Kick Drop':{wave:1, a:0, d:7, s:0, r:7, vib:0, fcSweep:0},
+  'Drums · Hat':{wave:8, a:0, d:3, s:0, r:3, filt:1, fmode:4, fc:1900, res:2},
+  'FX · Laser':{wave:2, sync:1, a:0, d:10, s:0, r:9, vib:6, vibRate:9, mode:'mono', v2:7, v3:30},
+  'FX · Wind':{wave:8, a:12, d:10, s:10, r:12, filt:1, fmode:2, fc:800, res:14, fcSweep:.5, fcSpeed:.05},
+  'FX · Siren':{wave:1, a:4, d:4, s:15, r:6, vib:8, vibRate:1.2},
+  'Pad · 8580 Pad':{chip:'8580', wave:4, pw:1700, pwmRate:.2, pwmDepth:.4, a:10, d:9, s:12, r:10, filt:1, fc:1000, res:8, mode:'mono', v2:12, v3:7, det:1.5},
+  'Pad · Combined Saw+Tri':{wave:3, a:8, d:8, s:12, r:9, mode:'mono', v2:12, v3:19},
+};
+const D50_PCM_NAMES = ['Mallet', 'Vibes', 'Xylo', 'Bell', 'Breath', 'Pick', 'Slap', 'Hammer', 'Bow', 'Chiff', 'Metal', 'Clap', 'Spectrum loop', 'Voice loop', 'Strings loop', 'Bell loop'];
+const D50_P = (o) => Object.assign({wave:0, coarse:0, fine:0, level:.8, a:0, d:.5, s:.7, r:.4, cut:.55, res:.15, fenv:.3, fa:0, fd:.4, fs:.3, fr:.3, kf:.5, pw:.5}, o || {});
+const D50_T = (o) => Object.assign({struct:1, bal:.5, pitchDepth:0}, o || {}, {p1:D50_P((o || {}).p1), p2:D50_P((o || {}).p2)});
+const D50_DEFAULT = () => d50Preset('Pad · Crystal Choir');
+const D50_PRESETS = {
+  'Pad · Crystal Choir':{upper:{struct:3, bal:.55, p1:{wave:3, level:.7, d:.55, s:0, r:.6, coarse:12}, p2:{wave:0, cut:.45, res:.1, fenv:.2, fa:.5, a:.45, d:.6, s:.9, r:.7}}, lower:{struct:6, bal:.5, p1:{wave:13, level:.6, a:.4, s:.9, r:.7}, p2:{wave:12, level:.4, a:.5, s:.8, r:.7, coarse:12}}, mode:'dual', chDepth:.7, revMix:.45, revTime:.7},
+  'Pad · Breath Pad':{upper:{struct:3, p1:{wave:4, level:.6, d:.4, s:0, r:.3}, p2:{wave:0, cut:.4, fenv:.3, fa:.6, a:.5, s:.9, r:.7}}, chDepth:.6, revMix:.4},
+  'Pad · Sweep Strings':{upper:{struct:1, p1:{wave:0, cut:.35, res:.25, fenv:.5, fa:.7, fd:.8, a:.6, s:.9, r:.7}, p2:{wave:1, pw:.3, cut:.45, fenv:.3, fa:.8, a:.6, s:.9, r:.7, fine:8}}, chDepth:.8, revMix:.35},
+  'Pad · Voice Loop':{upper:{struct:6, p1:{wave:13, a:.5, s:.9, r:.6}, p2:{wave:14, a:.6, s:.8, r:.6, level:.5}}, chDepth:.5, revMix:.5, revTime:.8},
+  'Pad · Bowed Glass':{upper:{struct:6, p1:{wave:8, a:.4, s:.8, r:.6}, p2:{wave:15, a:.6, s:.7, r:.7, coarse:12, level:.5}}, chDepth:.6, revMix:.5},
+  'Bells · Digital Bells':{upper:{struct:3, bal:.6, p1:{wave:3, d:.6, s:0, r:.6}, p2:{wave:1, pw:.25, cut:.6, fenv:.4, fd:.5, fs:.1, a:0, d:.6, s:.1, r:.6, coarse:12}}, chDepth:.4, revMix:.45},
+  'Bells · Ring Glass':{upper:{struct:2, bal:.6, p1:{wave:0, cut:.7, d:.6, s:0, r:.6}, p2:{wave:1, coarse:19, cut:.8, d:.5, s:0, r:.5}}, chDepth:.5, revMix:.5},
+  'Bells · Metal Mallet':{upper:{struct:7, bal:.5, p1:{wave:10, d:.5, s:0, r:.5}, p2:{wave:0, coarse:7}}, revMix:.35},
+  'Keys · LA Piano':{upper:{struct:3, bal:.5, p1:{wave:7, d:.4, s:0, r:.3}, p2:{wave:1, pw:.4, cut:.45, fenv:.4, fd:.5, fs:.15, a:0, d:.65, s:.15, r:.35}}, chDepth:.3, revMix:.25},
+  'Keys · Glass EP':{upper:{struct:3, bal:.6, p1:{wave:1, d:.5, s:0, r:.4}, p2:{wave:1, pw:.5, cut:.4, fenv:.2, a:0, d:.7, s:.2, r:.4}}, chDepth:.5, revMix:.3},
+  'Keys · Marimba Air':{upper:{struct:6, p1:{wave:0, d:.35, s:0, r:.3}, p2:{wave:4, level:.4, d:.3, s:0, r:.3}}, revMix:.35},
+  'Keys · Harp Pluck':{upper:{struct:3, p1:{wave:5, d:.3, s:0, r:.3}, p2:{wave:0, cut:.35, fenv:.5, fd:.4, fs:0, a:0, d:.5, s:0, r:.4}}, revMix:.4},
+  'Bass · Slap Bass':{upper:{struct:3, bal:.45, p1:{wave:6, d:.3, s:0, r:.2, coarse:-12}, p2:{wave:0, coarse:-12, cut:.3, res:.3, fenv:.5, fd:.3, fs:.1, a:0, d:.5, s:.5, r:.2}}, chDepth:0, revMix:.05},
+  'Bass · Pick Bass':{upper:{struct:3, p1:{wave:5, coarse:-12, d:.25, s:0, r:.2}, p2:{wave:1, pw:.4, coarse:-12, cut:.35, fenv:.4, fd:.35, fs:.2, a:0, d:.5, s:.6, r:.2}}, chDepth:.1, revMix:.05},
+  'Bass · Synth Bass LA':{upper:{struct:1, p1:{wave:0, coarse:-12, cut:.3, res:.4, fenv:.5, fd:.3, fs:.1, a:0, d:.4, s:.7, r:.2}, p2:{wave:1, coarse:-24, cut:.25, fenv:.3, a:0, s:.8, r:.2, level:.6}}, chDepth:.15, revMix:.05},
+  'Brass · Soft Brass':{upper:{struct:1, p1:{wave:0, cut:.35, res:.1, fenv:.45, fa:.3, fd:.5, fs:.6, a:.25, d:.5, s:.85, r:.35}, p2:{wave:0, fine:7, cut:.35, fenv:.45, fa:.3, a:.25, s:.85, r:.35}}, chDepth:.5, revMix:.25},
+  'Brass · Breath Brass':{upper:{struct:3, p1:{wave:4, d:.3, s:0, r:.2, level:.5}, p2:{wave:0, cut:.4, fenv:.5, fa:.25, fd:.5, fs:.6, a:.2, s:.85, r:.3}}, chDepth:.4, revMix:.25},
+  'Strings · Velvet Strings':{upper:{struct:6, p1:{wave:14, a:.55, s:.9, r:.6}, p2:{wave:8, a:.5, s:.8, r:.6, level:.4}}, chDepth:.7, revMix:.4},
+  'Strings · Pizzicato':{upper:{struct:3, p1:{wave:9, d:.3, s:0, r:.25}, p2:{wave:0, cut:.4, fenv:.4, fd:.3, fs:0, a:0, d:.35, s:0, r:.3}}, revMix:.35},
+  'Voice · Vox Pad':{upper:{struct:6, p1:{wave:13, a:.45, s:.95, r:.65}, p2:{wave:13, coarse:12, fine:6, a:.5, s:.9, r:.65, level:.45}}, chDepth:.6, revMix:.5},
+  'FX · Spectrum Sweep':{upper:{struct:5, bal:.5, p1:{wave:0, cut:.2, res:.6, fenv:.8, fa:.9, fd:.9, a:.6, s:.9, r:.8}, p2:{wave:12, a:.7, s:.9, r:.8}}, chDepth:.8, revMix:.6, revTime:.9},
+  'FX · Clap Space':{upper:{struct:6, p1:{wave:11, d:.4, s:0, r:.5}, p2:{wave:10, d:.6, s:0, r:.6, level:.4}}, revMix:.7, revTime:.9},
+  'Split · Bass + Bells':{mode:'split', split:60, lower:{struct:3, p1:{wave:5, coarse:-12, d:.25, s:0, r:.2}, p2:{wave:1, pw:.4, coarse:-12, cut:.35, fenv:.4, fd:.35, fs:.2, a:0, d:.5, s:.6, r:.2}}, upper:{struct:3, bal:.6, p1:{wave:3, d:.6, s:0, r:.6}, p2:{wave:1, pw:.25, cut:.6, fenv:.4, a:0, d:.6, s:.1, r:.6, coarse:12}}, revMix:.35},
+  'Dual · Piano + Strings':{mode:'dual', upper:{struct:3, bal:.5, p1:{wave:7, d:.4, s:0, r:.3}, p2:{wave:1, pw:.4, cut:.45, fenv:.4, a:0, d:.65, s:.15, r:.35}}, lower:{struct:6, p1:{wave:14, a:.55, s:.9, r:.6, level:.5}, p2:{wave:8, a:.5, s:.8, r:.6, level:.3}}, chDepth:.5, revMix:.4},
+};
+function d50Preset(name){ const P = D50_PRESETS[name] || {}; return Object.assign({preset:name, mode:'whole', split:60, vol:.8, chDepth:.5, chRate:.4, revMix:.3, revTime:.5}, P, {upper:D50_T(P.upper), lower:D50_T(P.lower || P.upper)}); }
+const PPG_DEFAULT = () => ppgPreset('Classic · Wave Sweep');
+const PPG_PRESETS = {
+  'Classic · Wave Sweep':{table:0, wave:0, env3:.9, a3:0, d3:.7, s3:.2, cut:.6, res:.15, fenv:.3},
+  'Classic · Harmonic Climb':{table:1, wave:0, env3:1, a3:.5, d3:.8, s3:.9, cut:.7, a2:.2, s2:.9, r2:.5},
+  'Classic · Vowel Pad':{table:2, wave:0, env3:1, a3:.7, d3:.8, s3:.6, cut:.55, a2:.5, s2:.9, r2:.7, lfoHz:.2, lfoPitch:.05},
+  'Classic · Digital Bells':{table:6, wave:.4, env3:.5, a3:0, d3:.5, s3:0, cut:.8, a2:0, d2:.6, s2:0, r2:.6, waveB:.2, semiB:12, mixB:.6},
+  'Classic · Grit Lead':{table:7, wave:.2, env3:.4, a3:0, d3:.4, s3:.5, cut:.65, res:.35, fenv:.3, a2:0, s2:.85, lfoPitch:.08, lfoHz:.4},
+  'Bass · Formant Bass':{table:21, wave:.1, env3:.6, a3:0, d3:.3, s3:0, cut:.35, res:.4, fenv:.6, d1:.3, s1:0, a2:0, d2:.5, s2:.7, r2:.15, semiB:-12, mixB:.5},
+  'Bass · Sub Wave':{table:29, wave:.05, env3:.3, d3:.3, cut:.3, res:.2, fenv:.4, d1:.3, s1:.1, s2:.8, r2:.15, semiB:-12, mixB:.7},
+  'Bass · Stepped Sync':{table:4, wave:0, env3:1, a3:0, d3:.35, s3:0, cut:.45, res:.3, fenv:.5, d1:.3, s1:.1, d2:.4, s2:.6, r2:.15},
+  'Keys · Glass Keys':{table:22, wave:.3, env3:.5, d3:.5, s3:.2, cut:.7, d2:.6, s2:.3, r2:.4, waveB:.5, semiB:12, mixB:.4},
+  'Keys · Clav':{table:28, wave:.2, env3:.4, d3:.25, s3:.1, cut:.6, res:.3, fenv:.5, d1:.25, s1:.1, d2:.4, s2:.3, r2:.15},
+  'Keys · Organ Perc':{table:16, wave:.3, env3:.6, d3:.25, s3:.4, cut:.8, s2:.9, r2:.2},
+  'Pad · Choir':{table:26, wave:.2, env3:.6, a3:.8, d3:.9, s3:.7, cut:.6, a2:.6, s2:.9, r2:.8, lfoHz:.15, lfoPitch:.06, waveB:.6, detB:.3, mixB:.5},
+  'Pad · Soft Pads':{table:19, wave:.1, env3:.7, a3:.7, d3:.9, s3:.5, cut:.5, a2:.65, s2:.9, r2:.8, detB:.4, mixB:.6},
+  'Pad · Breathy':{table:17, wave:.2, env3:.5, a3:.6, d3:.8, s3:.6, cut:.55, a2:.55, s2:.9, r2:.7},
+  'Pad · Resonant Sweep':{table:12, wave:0, env3:1, a3:.8, d3:.9, s3:.3, cut:.45, res:.5, a2:.5, s2:.9, r2:.7},
+  'Lead · Square Harmonics':{table:23, wave:.3, env3:.5, a3:.1, d3:.5, s3:.6, cut:.7, s2:.9, lfoPitch:.08, lfoHz:.45},
+  'Lead · Phase Warp':{table:24, wave:0, env3:1, a3:.2, d3:.6, s3:.4, cut:.65, res:.25, s2:.9, lfoHz:.4, lfoPitch:.06},
+  'Lead · Buzz':{table:25, wave:.4, env3:.3, d3:.4, s3:.5, cut:.6, res:.4, fenv:.3, s2:.85},
+  'Brass · Synth Brass':{table:27, wave:.1, env3:.6, a3:.2, d3:.5, s3:.5, cut:.45, res:.15, fenv:.5, a1:.2, d1:.5, s1:.5, a2:.15, s2:.9, r2:.3},
+  'FX · Metal':{table:18, wave:.5, env3:1, a3:0, d3:.9, s3:0, cut:.75, res:.3, d2:.8, s2:0, r2:.8},
+  'FX · Chaos':{table:15, wave:0, env3:1, a3:.4, d3:.9, s3:.5, cut:.6, res:.6, lfoHz:.6, lfoCut:1, s2:.9, r2:.6},
+  'FX · Spectral Bands':{table:13, wave:0, env3:1, a3:.9, d3:.9, s3:1, cut:.7, a2:.5, s2:.9, r2:.8},
+  'Wave · Fifths':{table:14, wave:.2, env3:.5, a3:.3, d3:.6, s3:.5, cut:.65, s2:.9},
+  'Wave · Pure Saw (top wave)':{table:0, wave:1, env3:0, cut:.6, res:.2, fenv:.3},
+};
+function ppgPreset(name){ return Object.assign({preset:name, table:0, wave:0, waveB:0, semiB:0, detB:.1, mixB:.5, env3:.6, lfoWave:0, wheel:0, cut:.5, res:.2, fenv:.5, kf:.5, a1:0, d1:.4, s1:.3, r1:.3, a2:0, d2:.5, s2:.8, r2:.3, a3:0, d3:.6, s3:0, r3:.3, lfoHz:.3, lfoPitch:0, lfoCut:0, step:1, vol:.8}, PPG_PRESETS[name] || {}); }
+// one panel builder for the three: switches, menus and knobs in labeled sections
+function synPanel(box, C, sections, up){
+  box.innerHTML = '';
+  for (const S2 of sections){
+    const d = document.createElement('div'); d.className = 'syn-sec'; d.innerHTML = `<div class="label">${S2.t}</div>`;
+    if (S2.sw){ const r = document.createElement('div'); r.className = 'syn-sw'; S2.sw.forEach(([lb, key, on, off]) => { const b = document.createElement('button'); b.className = 'nolearn' + (C[key] === (on == null ? 1 : on) ? ' on' : ''); b.textContent = lb;
+      b.addEventListener('click', () => { C[key] = C[key] === (on == null ? 1 : on) ? (off == null ? 0 : off) : (on == null ? 1 : on); up(true); }); r.appendChild(b); }); d.appendChild(r); }
+    if (S2.btns){ const r = document.createElement('div'); r.className = 'syn-sw'; S2.btns.forEach(([lb, isOn, fn]) => { const b = document.createElement('button'); b.className = 'nolearn' + (isOn() ? ' on' : ''); b.textContent = lb; b.addEventListener('click', () => { fn(); up(true); }); r.appendChild(b); }); d.appendChild(r); }
+    if (S2.menus) S2.menus.forEach(([lb, key, opts]) => { const row = document.createElement('div'); row.className = 'ctl'; row.innerHTML = `<label class="label">${lb}</label><select>${opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select><span></span>`;
+      const s = row.querySelector('select'); s.value = String(C[key]); s.addEventListener('change', () => { C[key] = isNaN(+s.value) ? s.value : +s.value; up(true); }); d.appendChild(row); });
+    if (S2.knobs){ const k = document.createElement('div'); k.className = 'svc-knobs syn-knobs'; S2.knobs.forEach(([lb, key, a, b, st, f]) => knob(k, lb, C, key, a, b, st, f, () => up(false))); d.appendChild(k); }
+    box.appendChild(d);
+  }
+}
+const pct = v => Math.round(v * 100) + '%', secT = v => { const t = .001 + v * v * 8; return t < 1 ? Math.round(t * 1000) + ' ms' : t.toFixed(1) + ' s'; };
+const SID_ADSR_MS = {a:[2, 8, 16, 24, 38, 56, 68, 80, 100, 250, 500, 800, 1000, 3000, 5000, 8000], d:[6, 24, 48, 72, 114, 168, 204, 240, 300, 750, 1500, 2400, 3000, 9000, 15000, 24000]};
+function renderSid(tr){
+  const C = tr.sid || (tr.sid = SID_DEFAULT()); fillPresetSel('#sidPreset', SID_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#sidPreset').value = ''; solCfg(tr); save(); if (re) renderSid(tr); };
+  const ms = k => v => { const t = SID_ADSR_MS[k][v]; return t >= 1000 ? (t / 1000) + ' s' : t + ' ms'; };
+  synPanel($('#sidCtls'), C, [
+    {t:'WAVEFORM (combine them for the SID AND waves)', btns:[['TRI', 1], ['SAW', 2], ['PULSE', 4], ['NOISE', 8]].map(([lb, bit]) => [lb, () => !!(C.wave & bit), () => { C.wave ^= bit; if (!C.wave) C.wave = bit; }])},
+    {t:'VOICES', menus:[['Mode', 'mode', [['poly', '3-note poly (one SID voice each)'], ['mono', 'Mono: all 3 voices stacked']]], ['Chip', 'chip', [['6581', '6581 (C64 / early C128): gritty filter'], ['8580', '8580 (C128DCR): clean filter']]]], sw:[['ARPEGGIO', 'arp'], ['RING MOD', 'ring'], ['SYNC', 'sync'], ['FILTER', 'filt']],
+      knobs:[['VOICE 2', 'v2', 0, 48, 1, v => (v - 12 > 0 ? '+' : '') + (v - 12)], ['VOICE 3', 'v3', 0, 48, 1, v => (v - 12 > 0 ? '+' : '') + (v - 12)], ['DETUNE', 'det', 0, 4, .1, v => v.toFixed(1)]]},
+    {t:'ENVELOPE (SID rates)', knobs:[['ATTACK', 'a', 0, 15, 1, ms('a')], ['DECAY', 'd', 0, 15, 1, ms('d')], ['SUSTAIN', 's', 0, 15, 1, v => String(v)], ['RELEASE', 'r', 0, 15, 1, ms('d')]]},
+    {t:'PULSE', knobs:[['WIDTH', 'pw', 16, 4080, 16, v => Math.round(v / 40.95) + '%'], ['PWM RATE', 'pwmRate', 0, 3, .05, v => v.toFixed(2) + ' Hz'], ['PWM DEPTH', 'pwmDepth', 0, 1, .01, pct]]},
+    {t:'FILTER', menus:[['Type', 'fmode', [[1, 'Low-pass'], [2, 'Band-pass'], [4, 'High-pass'], [5, 'Notch (LP+HP)'], [3, 'LP + BP']]]], knobs:[['CUTOFF', 'fc', 0, 2047, 1, v => String(v)], ['RESONANCE', 'res', 0, 15, 1, v => String(v)], ['SWEEP', 'fcSweep', -1, 1, .01, pct], ['SWEEP SPEED', 'fcSpeed', .02, 1, .01, pct]]},
+    {t:'VIBRATO & VOLUME', knobs:[['VIBRATO', 'vib', 0, 8, .1, v => v.toFixed(1)], ['RATE', 'vibRate', 1, 10, .1, v => v.toFixed(1) + ' Hz'], ['VOLUME', 'vol', 0, 15, 1, v => String(v)]]},
+  ], up);
+}
+function renderD50(tr){
+  const C = tr.d50 || (tr.d50 = D50_DEFAULT()); fillPresetSel('#d50Preset', D50_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#d50Preset').value = ''; solCfg(tr); save(); if (re) renderD50(tr); };
+  if (!C.ed) C.ed = 'upper';
+  const T = C[C.ed === 'lower' ? 'lower' : 'upper'], st = T.struct, pa = [3, 4, 6, 7].includes(st), pb = [5, 6, 7].includes(st);
+  $('#d50Lcd').innerHTML = `<div>${escH((C.preset || 'Custom').replace(/^[^·]+ · /, '').toUpperCase().slice(0, 20))}</div><div>${C.mode.toUpperCase()} · ${C.ed === 'lower' ? 'LOWER' : 'UPPER'} TONE · STRUCT ${st}</div>`;
+  const pcmOpts = D50_PCM_NAMES.map((n, i) => [i, n]), sOpts = [[0, 'Saw'], [1, 'Square']];
+  const part = (P, isP, n) => ({t:`PARTIAL ${n} · ${isP ? 'PCM' : 'SYNTH'}`, menus:[['Wave', 'wave', isP ? pcmOpts : sOpts]], knobs:[['PITCH', 'coarse', -24, 24, 1, v => (v > 0 ? '+' : '') + v], ['LEVEL', 'level', 0, 1, .01, pct],
+    ...(isP ? [] : [['CUTOFF', 'cut', 0, 1, .005, pct], ['RESO', 'res', 0, 1, .01, pct], ['TVF ENV', 'fenv', 0, 1, .01, pct], ['TVF ATK', 'fa', 0, 1, .01, secT], ['TVF DEC', 'fd', 0, 1, .01, secT], ['PW', 'pw', .05, .95, .01, pct]]),
+    ['ATTACK', 'a', 0, 1, .01, secT], ['DECAY', 'd', 0, 1, .01, secT], ['SUSTAIN', 's', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, secT]], obj:P});
+  const box = $('#d50Ctls'); box.innerHTML = '';
+  const top = document.createElement('div'); synPanel(top, C, [{t:'KEY MODE', menus:[['Mode', 'mode', [['whole', 'Whole (upper tone)'], ['dual', 'Dual (upper + lower)'], ['split', 'Split (lower | upper)']]], ['Edit', 'ed', [['upper', 'Upper tone'], ['lower', 'Lower tone']]]], knobs:[['SPLIT', 'split', 36, 84, 1, v => noteName(v)], ['VOLUME', 'vol', 0, 1, .01, pct]]},
+    {t:'CHORUS & REVERB', knobs:[['CHORUS', 'chDepth', 0, 1, .01, pct], ['RATE', 'chRate', 0, 1, .01, pct], ['REVERB', 'revMix', 0, 1, .01, pct], ['TIME', 'revTime', 0, 1, .01, pct]]}], up); box.appendChild(top);
+  const sb = document.createElement('div'); sb.className = 'syn-sec'; sb.innerHTML = '<div class="label">STRUCTURE</div><div class="syn-sw d50-struct"></div>';
+  ['1 S+S', '2 S·ring', '3 P+S', '4 P·ring', '5 S·ring P', '6 P+P', '7 P·ring'].forEach((lb, i) => { const b = document.createElement('button'); b.className = 'nolearn' + (st === i + 1 ? ' on' : ''); b.textContent = lb; b.addEventListener('click', () => { T.struct = i + 1; up(true); }); sb.lastChild.appendChild(b); });
+  box.appendChild(sb);
+  const tb = document.createElement('div'); synPanel(tb, T, [{t:'TONE', knobs:[['BALANCE', 'bal', 0, 1, .01, v => Math.round((1 - v) * 100) + '/' + Math.round(v * 100)], ['PITCH ENV', 'pitchDepth', -12, 12, .5, v => (v > 0 ? '+' : '') + v]]}], up); box.appendChild(tb);
+  for (const [P, isP, n] of [[T.p1, pa, 1], [T.p2, pb, 2]]){ const s = part(P, isP, n), d = document.createElement('div'); synPanel(d, P, [s], up); box.appendChild(d); }
+}
+function renderPpg(tr){
+  const C = tr.ppg || (tr.ppg = PPG_DEFAULT()); fillPresetSel('#ppgPreset', PPG_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#ppgPreset').value = ''; solCfg(tr); save(); if (re) renderPpg(tr); drawPpgWave(C); };
+  synPanel($('#ppgCtls'), C, [
+    {t:'WAVETABLE', menus:[['Table', 'table', PPG_TABLES.map((n, i) => [i, String(i).padStart(2, '0') + ' ' + n])]], sw:[['STEPPED (8-bit)', 'step']],
+      knobs:[['WAVE', 'wave', 0, 1, 1 / 63, v => String(Math.round(v * 63)).padStart(2, '0')], ['ENV 3 > WAVE', 'env3', 0, 1, .01, pct], ['WHEEL', 'wheel', 0, 1, .01, pct], ['OSC B WAVE', 'waveB', 0, 1, 1 / 63, v => String(Math.round(v * 63)).padStart(2, '0')], ['B SEMI', 'semiB', -24, 24, 1, v => (v > 0 ? '+' : '') + v], ['B DETUNE', 'detB', 0, 1, .01, pct], ['A / B', 'mixB', 0, 1, .01, v => Math.round((1 - v * .5) * 100) + '/' + Math.round(v * 50)]]},
+    {t:'FILTER (SSM2044)', knobs:[['CUTOFF', 'cut', 0, 1, .005, pct], ['EMPHASIS', 'res', 0, 1, .01, pct], ['ENV 1', 'fenv', 0, 1, .01, pct], ['KEY', 'kf', 0, 1, .01, pct]]},
+    {t:'ENV 1 · FILTER', knobs:[['A', 'a1', 0, 1, .01, secT], ['D', 'd1', 0, 1, .01, secT], ['S', 's1', 0, 1, .01, pct], ['R', 'r1', 0, 1, .01, secT]]},
+    {t:'ENV 2 · AMP', knobs:[['A', 'a2', 0, 1, .01, secT], ['D', 'd2', 0, 1, .01, secT], ['S', 's2', 0, 1, .01, pct], ['R', 'r2', 0, 1, .01, secT]]},
+    {t:'ENV 3 · WAVES', knobs:[['A', 'a3', 0, 1, .01, secT], ['D', 'd3', 0, 1, .01, secT], ['S', 's3', 0, 1, .01, pct], ['R', 'r3', 0, 1, .01, secT]]},
+    {t:'LFO', menus:[['Shape', 'lfoWave', [[0, 'Triangle'], [1, 'Square']]]], knobs:[['RATE', 'lfoHz', 0, 1, .01, v => (.05 + v * 12).toFixed(1) + ' Hz'], ['> PITCH', 'lfoPitch', 0, 1, .01, pct], ['> FILTER', 'lfoCut', 0, 1, .01, pct], ['VOLUME', 'vol', 0, 1, .01, pct]]},
+  ], up);
+  drawPpgWave(C);
+}
+let ppgTabCache = null;
+function drawPpgWave(C){
+  const cv = $('#ppgWave'); if (!cv) return; ppgTabCache = ppgTabCache || ppgMakeTables(); const tab = ppgTabCache[C.table | 0] || ppgTabCache[0];
+  const g = cv.getContext('2d'), W = cv.width = cv.clientWidth * (devicePixelRatio || 1) || 300, H = cv.height = 90 * (devicePixelRatio || 1); g.fillStyle = '#071a10'; g.fillRect(0, 0, W, H);
+  // the whole table as a 3-D stack, the current wave bright on top
+  const cur = Math.round(C.wave * 63);
+  for (let w = 0; w < 64; w += 3){ const wave = tab[w], ox = w / 64 * W * .25, oy = (1 - w / 64) * H * .35; g.strokeStyle = w === cur - cur % 3 ? '#7dff9a' : 'rgba(80,200,120,.25)'; g.beginPath();
+    for (let i = 0; i < 128; i++){ const x = ox + i / 127 * W * .72, y = oy + H * .55 - wave[i] / 128 * H * .22; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+  const wave = tab[cur]; g.strokeStyle = '#d6ffe0'; g.lineWidth = 2 * (devicePixelRatio || 1); g.beginPath(); for (let i = 0; i < 128; i++){ const x = W * .25 + i / 127 * W * .72, y = H * .45 - wave[i] / 128 * H * .35; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
+}
+$('#sidPreset').addEventListener('change', e => { const tr = curSynth(), P = SID_PRESETS[e.target.value]; if (!P) return; tr.sid = Object.assign(SID_DEFAULT(), P, {preset:e.target.value}); solCfg(tr); save(); renderSid(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .8); });
+$('#d50Preset').addEventListener('change', e => { const tr = curSynth(); if (!D50_PRESETS[e.target.value]) return; tr.d50 = d50Preset(e.target.value); solCfg(tr); save(); renderD50(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7, r + 11], 1.4); });
+$('#ppgPreset').addEventListener('change', e => { const tr = curSynth(); if (!PPG_PRESETS[e.target.value]) return; tr.ppg = ppgPreset(e.target.value); solCfg(tr); save(); renderPpg(tr); const r = hearRoot(); hearChord(tr, [r, r + 7, r + 12], 1.2); });
+
+
+/* ================= E-mu SP-1200 faceplate: SP mode, banks, 8 faders in slider mode, 8 pads ================= */
+let spBank = 0, spFader = 'tune';
+function renderSpCard(){
+  const box = $('#spCard'); if (!box) return;
+  const base = spBank * 8, P = S.drum.pads, mode = {tune:'TUNE', decay:'DECAY', mix:'MIX'}[spFader];
+  box.classList.add('sp12');
+  const nm = a => P.slice(base + a, base + a + 4).map(p => (p.name || '----').slice(0, 4).toUpperCase().padEnd(4)).join(' ');
+  box.innerHTML = `<div class="sp12-head"><b>E-mu</b><span>SP-1200</span><i>SAMPLING PERCUSSION SYSTEM · 12-BIT · 26.04 kHz</i></div>
+    <div class="sp12-lcd">BANK ${'AB'[spBank]} ${mode.padEnd(6)} ${S.sp ? 'SP ON' : 'SP OFF'}\n${nm(0)}\n${nm(4)}</div>
+    <div class="sp12-btns"><button data-a="sp" class="${S.sp ? 'on' : ''}">SP MODE</button><button data-a="b0" class="${spBank === 0 ? 'on' : ''}">BANK A</button><button data-a="b1" class="${spBank === 1 ? 'on' : ''}">BANK B</button>
+      <button data-a="tune" class="${spFader === 'tune' ? 'on' : ''}">TUNE</button><button data-a="decay" class="${spFader === 'decay' ? 'on' : ''}">DECAY</button><button data-a="mix" class="${spFader === 'mix' ? 'on' : ''}">MIX</button></div>
+    <div class="sp12-faders"></div><div class="sp12-pads"></div>`;
+  box.querySelectorAll('.sp12-btns button').forEach(b => b.addEventListener('click', () => { const a = b.dataset.a;
+    if (a === 'sp') $('#spMode').click(); else if (a[0] === 'b' && a.length === 2) spBank = +a[1]; else spFader = a; renderSpCard(); }));
+  const fz = box.querySelector('.sp12-faders'), pz = box.querySelector('.sp12-pads');
+  for (let k = 0; k < 8; k++){
+    const i = base + k, p = P[i], f = document.createElement('div'); f.className = 'sp12-f';
+    const rng = spFader === 'tune' ? (S.sp ? [-16, 15, 1] : [-24, 24, 1]) : spFader === 'decay' ? [.05, 1, .01] : [0, 1, .01], key = spFader === 'tune' ? 'pitch' : spFader === 'decay' ? 'decay' : 'vol';
+    if (p[key] == null) p[key] = key === 'pitch' ? 0 : 1;
+    f.innerHTML = `<input type="range" min="${rng[0]}" max="${rng[1]}" step="${rng[2]}" aria-label="${padLabel(i)} ${key}"><i></i>`;
+    const inp = f.querySelector('input'), out = f.querySelector('i'), show = () => { out.textContent = key === 'pitch' ? (p.pitch > 0 ? '+' : '') + p.pitch : Math.round(p[key] * 100); };
+    inp.value = p[key]; show();
+    inp.addEventListener('input', () => { p[key] = +inp.value; show(); save(); if (i === selPad) renderPadEditor(); });
+    inp.addEventListener('change', () => auditionPad(i));
+    fz.appendChild(f);
+    const b = document.createElement('button'); b.textContent = k + 1; b.className = 'nolearn';
+    b.addEventListener('pointerdown', e => { e.preventDefault(); selPad = i; padDown(i, e, S.fullLevel ? 1 : .9); b.classList.add('hit'); });
+    const up = () => { padUp(i); b.classList.remove('hit'); }; b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
+    pz.appendChild(b);
+  }
+}
+
 /* ================= ARP Omni-2 ================= */
 const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:1, viola:1, cello:0, sbass:0, atk:.25, rel:.45, syn4:0, syn8:0, single:0, freq:.55, res:.15, adsr:.5, lfoAmt:0, lfoHz:.35, a:.1, d:.4, s:.6, r:.35, bass8:0, bass16:0, stacc:0, master:.8, bassVol:.7, mix:.85, hollow:0, chorus:0, wide:1, split:56});
 const OMNI_PRESETS = {
@@ -8928,7 +9659,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
