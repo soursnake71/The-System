@@ -860,6 +860,17 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+/* power (on / off) and reset buttons: the same look everywhere */
+.pwr{display:inline-flex !important;align-items:center;justify-content:center;gap:6px;padding:6px 11px !important;border-radius:16px !important;font:700 10px "Michroma",sans-serif !important;letter-spacing:.1em;background:linear-gradient(180deg,#2a2b2e,#141516) !important;color:#8a8a8a !important;border:1px solid #000 !important;box-shadow:inset 0 1px 0 #ffffff14 !important;min-width:0}
+.pwr::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;background:#3a1810;box-shadow:inset 0 1px 2px #000}
+.pwr.on{color:#ffe0b2 !important;text-shadow:0 0 6px #ff7a2a88}.pwr.on::before{background:radial-gradient(circle at 35% 35%,#ffd9a0,#ff7a2a 55%,#c2410c);box-shadow:0 0 6px #ff7a2a,0 0 14px #ff5a1acc,0 0 22px #ff5a1a66;animation:pwrglow 2.4s ease-in-out infinite}
+@keyframes pwrglow{50%{box-shadow:0 0 4px #ff7a2a,0 0 10px #ff5a1aaa,0 0 16px #ff5a1a44}}
+.rst{display:inline-flex !important;align-items:center;gap:5px;padding:6px 11px !important;border-radius:16px !important;font:700 10px "Michroma",sans-serif !important;letter-spacing:.08em;background:linear-gradient(180deg,#3a3c40,#232427) !important;color:#d9d4c6 !important;border:1px solid #000 !important}
+.fxsec{display:flex;align-items:center;gap:8px;margin-top:6px}.fxsec .label{flex:1}
+.fxsec.off + *, .fxsec.off + * + .ctl{opacity:.45}
+.machbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.spbanner{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:4px 0;border-radius:6px;background:#2a1208;border:1px solid #ff6a3d;color:#ffd3c0;font:700 11px "Barlow",sans-serif;letter-spacing:.06em}
+.spbanner .grow{flex:1}
 @media (max-width:759px){
   .view > .card.djtop #wvCv{height:70px}.djtop{padding:6px !important;gap:4px !important}.dji{font-size:10px;padding:2px 5px}.dji .t{font-size:11px}
   .djrig{gap:5px !important;padding:5px !important}.djdeck{padding:4px;gap:4px}.djdh{font-size:8px}.ttmini{aspect-ratio:1.62}
@@ -889,7 +900,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 #pianoPedal{white-space:nowrap;font:400 9px "Michroma",sans-serif !important;letter-spacing:.08em}#pianoPedal.on{background:#c8a23a !important;color:#111 !important}
 .rkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .rktile{display:flex !important;flex-direction:column;align-items:stretch;gap:3px;padding:6px !important;text-align:left;background:#1b1d20 !important;border:1px solid #00000088 !important;border-radius:6px !important;color:#ece8dd !important}
-.rktile.on{outline:2px solid #ef5a2a}
+.rktile.on{outline:2px solid #ef5a2a}.rktile.off{opacity:.55}.rktile.off b::after{content:" · OFF";color:#ef5a2a}
 .rkface{width:100%;aspect-ratio:4.2;display:block;border-radius:2px}
 .rktile b{font:700 12px "Barlow Condensed",sans-serif;letter-spacing:.04em}.rktile small{font-size:10px;color:#9aa3ad;line-height:1.2}
 .unitdlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;padding:0;border:0;background:#141517;color:#ece8dd}
@@ -982,6 +993,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <input type="file" id="packFile" accept=".omegapack,.zip" hidden>
       <div class="row"><span class="grow">SP-1200 mode: 12-bit, 26 kHz, drop-sample pitch, output filters</span><button id="spMode">Off</button></div>
       <div class="row"><h2 class="grow" id="padTitle">A01 Kick</h2><span class="badge" id="sampleBadge">Built-in</span><button id="clearPad">Clear hits</button></div>
+      <div class="machbar"><button class="pwr on" id="drumPwr" aria-label="Drums on or off">DRUMS ON</button><button class="rst" id="padRst">↺ RESET PAD</button></div>
       <div class="row">
         <button id="loadSample" class="grow">Load file</button>
         <button id="sampleIn" class="grow">Sample input</button>
@@ -1066,9 +1078,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="tt-row4"><button id="ttCueBtn">CUE</button><button id="ttSync">SYNC</button><button id="ttSlip">SLIP</button><button id="ttCensor" data-momentary="1">CENSOR</button></div>
       <div class="ctl"><label class="label" for="ttPitch">Pitch</label><input id="ttPitch" type="range" min="-8" max="8" step="0.1"><span class="v mono"></span></div>
       <div class="tt-row3"><select id="ttRange" aria-label="Pitch range"><option value="8">±8 %</option><option value="16">±16 %</option><option value="50">±50 %</option></select><button id="ttNudgeDn" data-momentary="1">◀ NUDGE</button><button id="ttNudgeUp" data-momentary="1">NUDGE ▶</button></div>
-      <div class="row"><button id="ttKeylock" class="grow">KEY LOCK</button><span class="badge" id="ttKey">Key —</span></div>
+      <div class="machbar"><button class="rst" id="deckRst">↺ RESET DECK</button></div>
+      <div class="row"><button id="ttKeylock" class="pwr grow">KEY LOCK</button><span class="badge" id="ttKey">Key —</span></div>
       <div class="ctl"><label class="label" for="ttVol">Level</label><input id="ttVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
-      <div class="fxrow"><button id="fxEcho">ECHO</button><button id="fxFlang">FLANGER</button><button id="fxVerb">REVERB</button></div>
+      <div class="fxrow"><button id="fxEcho" class="pwr">ECHO</button><button id="fxFlang" class="pwr">FLANGER</button><button id="fxVerb" class="pwr">REVERB</button></div>
       <div class="ctl"><label class="label" for="fxBeats">FX beats</label><select id="fxBeats" aria-label="FX beats"><option value="0.25">1/4 beat</option><option value="0.5">1/2 beat</option><option value="0.75">3/4 beat</option><option value="1">1 beat</option><option value="2">2 beats</option><option value="4">4 beats</option></select><span></span></div>
       <div class="ctl"><label class="label" for="fxDepth">FX depth</label><input id="fxDepth" type="range" min="0" max="1" step="0.05"><span class="v mono"></span></div>
       <div class="seg" id="padMode"><button id="pmCue" data-m="cue">HOT CUES</button><button id="pmLoop" data-m="loop">AUTO LOOP</button><button id="pmRoll" data-m="roll">ROLL</button></div>
@@ -1092,6 +1105,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
     <div class="card mixdj" data-chip="Mixer setup">
       <h2>Mixer setup</h2>
+      <div class="machbar"><button class="rst" id="mixRst">↺ RESET MIXER</button></div>
       <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev">REV (HAMSTER)</button></div>
       <div class="row"><button id="recMix" class="grow">● RECORD MIX</button><span class="badge" id="recMixT">Ready</span></div>
       <span class="label">EQ match (decks)</span>
@@ -1176,13 +1190,14 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
     <div class="card" data-title="Arpeggiator" data-chip="Arp">
       <div class="arp" id="arpBox">
-        <div class="row"><button id="arpOn" class="nolearn">Arp off</button><select id="arpMode" aria-label="Arp pattern"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-down</option><option value="downup">Down-up</option><option value="order">As played</option><option value="random">Random</option><option value="chord">Chord</option></select><select id="arpRate" aria-label="Arp rate"><option value="4">1/4</option><option value="2">1/8</option><option value="1.3333333">1/8T</option><option value="1">1/16</option><option value="0.6666667">1/16T</option><option value="0.5">1/32</option></select></div>
+        <div class="row"><button id="arpOn" class="pwr nolearn">Arp off</button><button id="arpRst" class="rst nolearn" aria-label="Reset arpeggiator">↺</button><select id="arpMode" aria-label="Arp pattern"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-down</option><option value="downup">Down-up</option><option value="order">As played</option><option value="random">Random</option><option value="chord">Chord</option></select><select id="arpRate" aria-label="Arp rate"><option value="4">1/4</option><option value="2">1/8</option><option value="1.3333333">1/8T</option><option value="1">1/16</option><option value="0.6666667">1/16T</option><option value="0.5">1/32</option></select></div>
         <div class="row"><select id="arpOct" aria-label="Arp octaves"><option value="1">1 oct</option><option value="2">2 oct</option><option value="3">3 oct</option><option value="4">4 oct</option></select><button id="arpLatch" class="nolearn grow">Latch</button><button id="arpHold" class="nolearn grow" title="Stop the latched notes">Clear</button></div>
         <div class="ctls" id="arpCtls"></div>
       </div>
     </div>
     <div class="card" data-chip="Sound">
       <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="piano">Grand Piano</option><option value="choir">Choir</option><option value="disco">Disco Strings</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="machbar"><button class="pwr on" id="synPwr" aria-label="Synth track on or off">ON</button><button class="rst" id="synRst">↺ RESET SOUND</button></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -1787,6 +1802,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>DR-110, DMX, Synsonics</b> (Pads): step grids like the machines. Load their sounds onto the pads, tap the grid to program, Accent for loud hits.</li>
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
+        <li><b>On / off and reset</b>: anything that can be switched on has a glowing power button (orange light = on): every effect section on a track (EQ, filter, vinyl, character, duck, compressor, gate, sends), every FX rack unit, the master bus compressor and tamer, each synth track, the drums, the arp, SP-1200 mode, key lock and deck FX. Off bypasses it and keeps its settings. Every machine has a ↺ Reset: Reset effects (a track), Reset master effects, ↺ Reset on each rack unit, Reset sound (the instrument's factory sound), Reset pad, Clear all (DR-110 / DMX), Reset (SP-1200), Reset mixer and Reset deck (Wheel). Undo brings anything back.</li>
+        <li><b>SP-1200 mode</b> applies to every pad until you switch it off; while it's on, a banner on the Pads screen says so, with its own off switch.</li>
         <li><b>Undo / redo</b>: ↶ and ↷ are on every screen (the section buttons along the bottom, every opened section and every rack unit) and Ctrl+Z / Ctrl+Shift+Z on a keyboard. They step back and forward through every change you make, up to 80 steps.</li>
         <li><b>UREI 1176LN</b> (FX rack, and on any track: FX → Compressor → Type): the FET limiter, circuit-modelled: input transformer, FET gain cell whose distortion grows with gain reduction, feedback side chain with the 1176's attack (20–800 µs) and program-dependent release, ratios 4 / 8 / 12 / 20 and all buttons in, class-A output stage. Input sets how hard it works (the threshold is fixed, like the real one); the needle shows gain reduction.</li>
         <li><b>Phil Collins Simulator</b> (FX rack): the 1979–80 Townhouse drum sound: a big stone room, crushed by the SSL 4000's listen-mic compressor so the room comes up as loud as the hit, then the SSL channel gate keyed by the dry drum lets it swell and snaps it shut. Send the drums (or just the snare and toms) to it.</li>
@@ -1875,7 +1892,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="ctl"><label class="label" for="midiBase">A01 note</label><select id="midiBase"></select><button id="midiLearn">Learn</button></div>
       <div class="ctl"><label class="label" for="midiTarget">Notes play</label><select id="midiTarget"></select><span></span></div>
       <div class="ctl"><label class="label" for="midiCh">Channel</label><select id="midiCh"><option value="0">All</option></select><span></span></div>
-      <div class="row"><span class="grow">Map MPC knobs and pads to any control</span><button id="mlearnOn" class="nolearn">MIDI learn</button></div>
+      <div class="row"><span class="grow">Map MPC knobs and pads to any control</span><button id="mlearnOn" class="pwr nolearn">MIDI learn</button></div>
       <div id="mapList" class="maplist"></div>
       <div class="status" id="midiStatus">Connect your MPC with a USB-C cable (or a USB MIDI interface), then tap Connect MIDI.</div>
       <p class="hint">Follow MPC: press play on the MPC and this app starts with it, at its tempo. Lead MPC: this app sends tempo, start and stop, so set the MPC to receive MIDI clock. If the two sound out of step, move Offset until the kicks line up.</p>
@@ -1888,7 +1905,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
-      <div class="row"><span class="grow">Show the Wheel (turntables) tab</span><button id="wheelOn" class="nolearn">Off</button></div>
+      <div class="row"><span class="grow">Show the Wheel (turntables) tab</span><button id="wheelOn" class="pwr nolearn">Off</button></div>
       <div class="row"><span class="grow">Smoke and sparks off the pads</span><button id="smokeOn" class="nolearn">On</button></div>
       <div class="row"><span class="grow">“Damn son, where’d you find this?” now and then when you load a sample</span><button id="dsOn" class="nolearn">On</button></div>
       <div class="row"><span class="grow">Bluetooth headphones</span><button id="btOn" class="nolearn">Off</button></div>
@@ -1922,7 +1939,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v110</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v111</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2631,7 +2648,8 @@ function rackNodes(c, m){
 function applyRack(c, m){
   for (const k of RACK_KEYS){
     const u = m.rk[k], cfg = rackCfg(k);
-    sp(c, u.ret.gain, retGain(k)); sp(c, m.rt[k].pan.pan, retState(k).pan || 0);
+    const off = !!(S.rack && S.rack[k] && S.rack[k].off);
+    sp(c, u.ret.gain, off ? 0 : retGain(k)); sp(c, u.in.gain, off ? 0 : 1); sp(c, m.rt[k].pan.pan, retState(k).pan || 0);
     if (u.node){ const j = JSON.stringify(cfg); if (u.sent !== j){ u.node.port.postMessage({type:'cfg', cfg}); u.sent = j; } }
   }
 }
@@ -2783,7 +2801,7 @@ function anySolo(){ return allTracks().some(t => t.solo); }
 // vinyl & tape noise: made only when used; it listens to the sound (sidechain) and adds its noise beside it
 const VIN_PRESETS = {'Clean':{hiss:0, crackle:0, pops:0, rumble:0}, 'Dusty 45':{hiss:.25, crackle:.55, pops:.3, rumble:.2}, 'Worn LP':{hiss:.35, crackle:.8, pops:.6, rumble:.45},
   'Thrift-store record':{hiss:.4, crackle:1, pops:1, rumble:.6}, 'Cassette':{hiss:.75, crackle:0, pops:0, rumble:.1}, 'Hiss only':{hiss:.5, crackle:0, pops:0, rumble:0}};
-const vinOn = o => o && ((o.vHiss || 0) + (o.vCrk || 0) + (o.vPop || 0) + (o.vRum || 0)) > 0 && (o.vMix == null || o.vMix > 0);
+const vinOn = o => o && !o.vOff && ((o.vHiss || 0) + (o.vCrk || 0) + (o.vPop || 0) + (o.vRum || 0)) > 0 && (o.vMix == null || o.vMix > 0);
 function applyVinyl(c, holder, side, dest, o, follow){
   if (!c._reduxOK) return;
   if (!vinOn(o)){ if (holder.vin){ holder.vin.port.postMessage({hiss:0, crackle:0, pops:0, rumble:0}); } return; }
@@ -2793,7 +2811,17 @@ function applyVinyl(c, holder, side, dest, o, follow){
   }
   holder.vin.port.postMessage({hiss:o.vHiss || 0, crackle:o.vCrk || 0, pops:o.vPop || 0, rumble:o.vRum || 0, follow:follow ? 1 : 0, level:o.vMix == null ? .6 : o.vMix});
 }
-function applyStrip(c, s, t){
+// a track as the audio sees it: any effect section switched off (its power button) counts as not there, settings kept
+function fxEff(t){
+  const o = t.fxOff; if (!o || !Object.values(o).some(Boolean)) return t;
+  const e = Object.assign({}, t);
+  if (o.eq){ e.low = e.mid = e.high = 0; e.match = null; } if (o.filt) e.ftype = 'off'; if (o.vinyl){ e.vHiss = e.vCrk = e.vPop = e.vRum = 0; }
+  if (o.char){ e.sat = e.crush = e.chorus = e.apan = 0; e.sp12 = false; } if (o.duck) e.duck = 0; if (o.comp){ e.comp = 0; e.compType = ''; }
+  if (o.sends){ e.sendA = e.sendB = 0; e.rack = {}; }
+  return e;
+}
+function applyStrip(c, s, t0){
+  const t = fxEff(t0);
   if (t.compType === '1176' && !s.u76 && c._reduxOK){ s.u76 = new AudioWorkletNode(c, 'urei1176', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{insert:true, cfg:c76State(t)}});
     s.u76.port.onmessage = e => { s.gr76 = e.data.gr; }; s.u76.connect(s.duck); s._wire = null; }
   if (s.u76) s.u76.port.postMessage({type:'cfg', cfg:c76State(t)});
@@ -2830,7 +2858,7 @@ function applyStrip(c, s, t){
 // sidechain-style duck: dip every track listening to this pad when it hits
 function duckAt(rig, pi, at){
   for (const tr of allTracks()){
-    if (!tr.duck || tr.duckSrc || tr.duckPad !== pi) continue;
+    if (!tr.duck || tr.duckSrc || tr.duckPad !== pi || (tr.fxOff && tr.fxOff.duck)) continue;
     const st = rig.strips.get(tr.id); if (!st) continue;
     const g = st.duck.gain;
     if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(at); else g.cancelScheduledValues(at);
@@ -2844,7 +2872,7 @@ function wireSidechains(rig){
   if (!rig || !rig.c._reduxOK) return;
   for (const t of allTracks()){
     const st = rig.strips.get(t.id); if (!st) continue;
-    const src = t.duckSrc && t.duck > 0 && t.duckSrc !== t.id ? trackById(t.duckSrc) : null, srcSt = src && src.duckSrc !== t.id ? rig.strips.get(src.id) : null;
+    const src = t.duckSrc && t.duck > 0 && !(t.fxOff && t.fxOff.duck) && t.duckSrc !== t.id ? trackById(t.duckSrc) : null, srcSt = src && src.duckSrc !== t.id ? rig.strips.get(src.id) : null;
     if (srcSt){
       if (!st.sck){ st.sck = new AudioWorkletNode(rig.c, 'sckey', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:{amount:t.duck, rel:t.duckRel || .18}}}); st.sck.connect(st.duck.gain); }
       if (st.sckSrc !== src.id){ if (st.sckFrom){ try { st.sckFrom.disconnect(st.sck); } catch(e){} } srcSt.mute.connect(st.sck); st.sckFrom = srcSt.mute; st.sckSrc = src.id; }
@@ -6794,6 +6822,7 @@ $('#arpRate').addEventListener('change', e => { arpOf(curSynth()).rate = +e.targ
 $('#arpOct').addEventListener('change', e => { arpOf(curSynth()).oct = +e.target.value; save(); });
 $('#arpLatch').addEventListener('click', () => { const tr = curSynth(), A = arpOf(tr); A.latch = !A.latch; if (!A.latch){ const st = arpState(tr); for (const id of [...st.held.keys()]) if (!st.down.has(id)) st.held.delete(id); } save(); renderArp(); });
 $('#arpHold').addEventListener('click', () => arpClear(curSynth()));
+$('#arpRst').addEventListener('click', () => { const tr = curSynth(); arpClear(tr); const A = arpOf(tr); Object.assign(A, ARP_DEF()); save(); renderArp(); toast('Arpeggiator back to default.'); });
 
 /* ================= sheets: a section opens over the screen and flips sideways in pages, so nothing scrolls ================= */
 let sheetCard = null, sheetPh = null, sheetPage = 0, sheetPages = 1, sheetT = 0;
@@ -7985,6 +8014,7 @@ function syncSteppers(){
   }
 }
 function renderPadEditor(){
+  { const b = $('#drumPwr'); if (b){ b.classList.toggle('on', !S.drum.mute); b.textContent = S.drum.mute ? 'DRUMS OFF' : 'DRUMS ON'; } spBanner(); }
   try { renderSpCard(); renderDrumMachine('dr110'); renderDrumMachine('dmx'); renderSynsonics(); } catch(e){ console.warn(e); }
   const p = S.drum.pads[selPad];
   $('#padTitle').textContent = `${padLabel(selPad)} ${p.name}`;
@@ -8039,7 +8069,7 @@ function renderPadEditor(){
     ctl(box, 'Dyn cutoff', S, 'spRest', 300, 6000, 10, v => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v) + ' Hz', cfg);
     ctl(box, 'Dyn reso', S, 'spRes', 0, .9, .01, v => Math.round(v * 100) + '%', cfg);
   }
-  $('#spMode').textContent = S.sp ? 'On' : 'Off'; $('#spMode').classList.toggle('on', !!S.sp);
+  $('#spMode').textContent = S.sp ? 'ON' : 'OFF'; $('#spMode').classList.add('pwr'); $('#spMode').classList.toggle('on', !!S.sp);
   const row = document.createElement('div'); row.className = 'ctl';
   row.innerHTML = `<label class="label" for="choke">Mute grp</label><select id="choke"><option value="0">None</option>${[1, 2, 3, 4].map(g => `<option value="${g}">Group ${g}</option>`).join('')}</select><span></span>`;
   const sel = row.querySelector('select'); sel.value = p.choke; sel.addEventListener('change', () => { p.choke = +sel.value; save(); });
@@ -8251,7 +8281,9 @@ function mkRet(k){
   box.appendChild(el);
 }
 function vinylUI(addFn, gridFn, o, after, master){
-  addFn('<span class="label">Vinyl &amp; tape</span>'); const g = gridFn();
+  { const d = document.createElement('div'); d.className = 'fxsec' + (o.vOff ? ' off' : ''); d.innerHTML = `<span class="label">Vinyl &amp; tape</span><button class="pwr${o.vOff ? '' : ' on'}" id="fxp-vinyl${master ? 'M' : ''}" aria-label="Vinyl and tape on or off">${o.vOff ? 'OFF' : 'ON'}</button>`;
+    d.querySelector('button').addEventListener('click', () => { o.vOff = !o.vOff; after(); save(); renderFx(); }); addFn('<div></div>'); const ph = $('#fxCard').lastElementChild; ph.replaceWith(d); }
+  const g = gridFn();
   const pr = document.createElement('div'); pr.className = 'ctl';
   pr.innerHTML = '<label class="label">Sound like</label><select class="vinp"><option value="">Choose…</option>' + Object.keys(VIN_PRESETS).map(k => `<option>${k}</option>`).join('') + '</select><span></span>';
   pr.querySelector('select').addEventListener('change', e => { const P = VIN_PRESETS[e.target.value]; if (!P) return; o.vHiss = P.hiss; o.vCrk = P.crackle; o.vPop = P.pops; o.vRum = P.rumble; after(); save(); renderFx(); });
@@ -8275,11 +8307,14 @@ function renderFx(){
   if (selStrip === 'master'){
     const M = S.master;
     add('<h2>Master</h2>');
+    { const d = document.createElement('div'); d.className = 'machbar'; d.innerHTML = '<button class="rst" id="masterRst">↺ RESET MASTER EFFECTS</button>'; box.appendChild(d);
+      d.querySelector('button').addEventListener('click', () => { M.glue = 0; M.eq = {}; masterEq(); Object.assign(sslState(), {on:false}); Object.assign(scState(), {on:0, clip:0}); M.vHiss = M.vCrk = M.vPop = M.vRum = 0; M.vOff = false; M.rev = 2.4; M.dlyDiv = .75; M.dlyFb = .35;
+        if (live){ live.master._eqw = null; applyMaster(ctx, live.master); } applyAll(); save(); renderFx(); toast('Master effects back to default.'); }); }
     let g = grid();
     ctl(g, 'Glue', M, 'glue', 0, 1, .01, v => v ? pct(v) + ' (+6 ms)' : 'Off', after);
     // SSL-style bus compressor panel
     const SS = sslState(), sb = document.createElement('div'); sb.className = 'sslp';
-    sb.innerHTML = `<div class="ssl-head"><b>BUS COMPRESSOR</b><span>G-SERIES STYLE · MASTER</span><button id="sslOn" class="${SS.on ? 'on' : ''}">IN</button></div>
+    sb.innerHTML = `<div class="ssl-head"><b>BUS COMPRESSOR</b><span>G-SERIES STYLE · MASTER</span><button id="sslOn" class="pwr${SS.on ? ' on' : ''}">${SS.on ? 'IN' : 'OUT'}</button></div>
       <select id="sslPreset" aria-label="Bus compressor presets"><option value="">Presets…</option>${Object.keys(SSL_PRESETS).map(n => `<option>${n}</option>`).join('')}</select>
       <div class="ssl-gr"><span>GR</span><div class="grbar"><i id="sslGr"></i></div><span id="sslGrV">0 dB</span></div>
       <div class="svc-knobs ssl-knobs"></div>`;
@@ -8295,7 +8330,7 @@ function renderFx(){
     sb.querySelector('#sslOn').addEventListener('click', () => { SS.on = !SS.on; ensureAudio(); if (live){ live.master._eqw = null; up(); } save(); renderFx(); });
     sb.querySelector('#sslPreset').addEventListener('change', e => { const P = SSL_PRESETS[e.target.value]; if (!P) return; Object.assign(SS, P, {on:true}); ensureAudio(); if (live){ live.master._eqw = null; up(); } save(); renderFx(); });
     const SC = scState(), scb = document.createElement('div'); scb.className = 'soothep';
-    scb.innerHTML = `<div class="ssl-head"><b>RESONANCE TAMER + CLIPPER</b><span>MASTER</span></div><div class="row"><button id="scOn" class="grow nolearn ${SC.on ? 'on' : ''}">Tame resonances</button><button id="scClip" class="grow nolearn ${SC.clip ? 'on' : ''}">Clipper</button></div><div class="svc-knobs sc-knobs"></div>`;
+    scb.innerHTML = `<div class="ssl-head"><b>RESONANCE TAMER + CLIPPER</b><span>MASTER</span></div><div class="row"><button id="scOn" class="pwr grow nolearn ${SC.on ? 'on' : ''}">Tame resonances</button><button id="scClip" class="pwr grow nolearn ${SC.clip ? 'on' : ''}">Clipper</button></div><div class="svc-knobs sc-knobs"></div>`;
     box.appendChild(scb);
     const scu = () => { if (live) applyMaster(ctx, live.master); save(); }, kk = scb.querySelector('.sc-knobs');
     knob(kk, 'DEPTH', SC, 'depth', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'black'); knob(kk, 'SHARPNESS', SC, 'sharp', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'white'); knob(kk, 'SPEED', SC, 'speed', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'white');
@@ -8323,10 +8358,18 @@ function renderFx(){
   }
   const t = trackById(selStrip); if (!t){ selStrip = 'drums'; return renderFx(); }
   add(`<h2>${t.name.replace(/</g, '&lt;')} effects</h2>`);
-  add('<span class="label">EQ Three</span>'); let g = grid();
+  // each section has a power button (off = bypassed, settings kept); Reset puts every effect on this track back to default
+  const fo = t.fxOff = t.fxOff || {};
+  const secH = (label, key) => { const d = document.createElement('div'); d.className = 'fxsec' + (fo[key] ? ' off' : '');
+    d.innerHTML = `<span class="label">${label}</span><button class="pwr${fo[key] ? '' : ' on'}" id="fxp-${key}" aria-label="${label} on or off">${fo[key] ? 'OFF' : 'ON'}</button>`;
+    d.querySelector('button').addEventListener('click', () => { fo[key] = !fo[key]; applyAll(); save(); renderFx(); }); box.appendChild(d); };
+  { const d = document.createElement('div'); d.className = 'machbar'; d.innerHTML = '<button class="rst" id="fxReset">↺ RESET EFFECTS</button>'; box.appendChild(d);
+    d.querySelector('button').addEventListener('click', () => { Object.assign(t, {low:0, mid:0, high:0, ftype:'off', cut:.5, res:1, comp:0, compType:'', sendA:0, sendB:0, sp12:false, match:null, rack:{}, fxOff:{}, vHiss:0, vCrk:0, vPop:0, vRum:0}, FX_DEFAULTS);
+      if (t.gs) t.gs.on = 0; t.duckSrc = ''; applyAll(); save(); renderFx(); toast(t.name + ': effects back to default.'); }); }
+  secH('EQ Three', 'eq'); let g = grid();
   ctl(g, 'Low', t, 'low', -15, 15, .5, dB, after); ctl(g, 'Mid', t, 'mid', -15, 15, .5, dB, after); ctl(g, 'High', t, 'high', -15, 15, .5, dB, after);
   add('<span class="label">EQ match</span>'); matchPanel(box, 't:' + t.id);
-  add('<span class="label">Auto Filter</span>'); g = grid();
+  secH('Auto Filter', 'filt'); g = grid();
   const row = document.createElement('div'); row.className = 'ctl';
   row.innerHTML = '<label class="label" for="ftype">Type</label><select id="ftype"><option value="off">Off</option><option value="lowpass">Low-pass</option><option value="highpass">High-pass</option><option value="bandpass">Band-pass</option></select><span></span>';
   const sel = row.querySelector('select'); sel.value = t.ftype;
@@ -8335,23 +8378,23 @@ function renderFx(){
   ctl(g, 'Cutoff', t, 'cut', 0, 1, .002, v => { const h = cutHz(v); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }, after);
   ctl(g, 'Reso', t, 'res', .5, 18, .1, v => v.toFixed(1), after);
   vinylUI(add, grid, t, after, false);
-  add('<span class="label">Character</span>'); g = grid();
+  secH('Character', 'char'); g = grid();
   ctl(g, 'Saturator', t, 'sat', 0, 1, .01, pct, after); ctl(g, 'Redux', t, 'crush', 0, 1, .01, pct, after); ctl(g, 'Chorus', t, 'chorus', 0, 1, .01, pct, after);
   const s12 = document.createElement('div'); s12.className = 'ctl';
   s12.innerHTML = '<span class="label">12-bit 26k</span><button id="sp12">Off</button><span></span>';
-  const sb = s12.querySelector('button'); sb.textContent = t.sp12 ? 'On (SP-1200)' : 'Off'; sb.classList.toggle('on', !!t.sp12);
+  const sb = s12.querySelector('button'); sb.classList.add('pwr'); sb.textContent = t.sp12 ? 'ON' : 'OFF'; sb.classList.toggle('on', !!t.sp12);
   sb.addEventListener('click', () => { t.sp12 = !t.sp12; applyAll(); save(); renderFx(); }); g.appendChild(s12);
   ctl(g, 'Auto Pan', t, 'apan', 0, 1, .01, pct, after);
   const apr = document.createElement('div'); apr.className = 'ctl';
   apr.innerHTML = '<label class="label" for="apanRate">Pan rate</label><select id="apanRate"><option value="0.25">1/16</option><option value="0.5">1/8</option><option value="1">1/4</option><option value="2">1/2</option><option value="4">1 bar</option><option value="8">2 bars</option></select><span></span>';
   const aps = apr.querySelector('select'); aps.value = String(t.apanRate || 1); aps.addEventListener('change', () => { t.apanRate = +aps.value; applyAll(); save(); }); g.appendChild(apr);
-  add('<span class="label">Sidechain duck</span>'); g = grid();
+  secH('Sidechain duck', 'duck'); g = grid();
   ctl(g, 'Amount', t, 'duck', 0, 1, .01, pct, after);
   const dp = document.createElement('div'); dp.className = 'ctl';
   dp.innerHTML = `<label class="label" for="duckPad">Ducked by</label><select id="duckPad"><optgroup label="A pad hit">${S.drum.pads.map((pd, k) => `<option value="${k}">${padLabel(k)} ${pd.name.replace(/</g, '&lt;')}</option>`).join('')}</optgroup><optgroup label="Another track's sound (sidechain)">${allTracks().filter(x => x.id !== t.id).map(x => `<option value="t:${x.id}">${x.name.replace(/</g, '&lt;')}</option>`).join('')}</optgroup></select><span></span>`;
   const dps = dp.querySelector('select'); dps.value = t.duckSrc ? 't:' + t.duckSrc : String(t.duckPad || 0); dps.addEventListener('change', () => { if (dps.value.startsWith('t:')){ t.duckSrc = dps.value.slice(2); } else { t.duckSrc = ''; t.duckPad = +dps.value; } save(); applyAll(); toast(t.duckSrc ? t.name + ' now ducks whenever ' + (trackById(t.duckSrc) || {}).name + ' plays (raise Amount).' : 'Ducked by the pad.'); }); g.appendChild(dp);
   ctl(g, 'Release', t, 'duckRel', .03, .8, .01, v => Math.round(v * 1000) + ' ms', after);
-  add('<span class="label">Compressor</span>'); g = grid();
+  secH('Compressor', 'comp'); g = grid();
   { const r = document.createElement('div'); r.className = 'ctl'; r.innerHTML = '<label class="label" for="compType">Type</label><select id="compType"><option value="">Clean (VCA)</option><option value="1176">UREI 1176LN (FET)</option></select>';
     const se = r.querySelector('select'); se.value = t.compType || ''; se.addEventListener('change', () => { t.compType = se.value; applyAll(); save(); renderFx(); }); g.appendChild(r); }
   if (t.compType === '1176'){ const C7 = c76State(t);
@@ -8363,7 +8406,7 @@ function renderFx(){
   else ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
   add('<span class="label">Gate stepper</span>'); g = grid();
   { const G = gsState(t), r = document.createElement('div'); r.className = 'gsbox';
-    r.innerHTML = `<div class="row"><button id="gsOn" class="${G.on ? 'on' : ''}">${G.on ? 'GATE ON' : 'GATE OFF'}</button><select id="gsPreset" class="grow" aria-label="Gate patterns"><option value="">Patterns…</option>${Object.keys(GS_PRESETS).map(n => `<option>${n.replace(/</g, '&lt;')}</option>`).join('')}</select></div>
+    r.innerHTML = `<div class="row"><button id="gsOn" class="pwr${G.on ? ' on' : ''}">${G.on ? 'GATE ON' : 'GATE OFF'}</button><select id="gsPreset" class="grow" aria-label="Gate patterns"><option value="">Patterns…</option>${Object.keys(GS_PRESETS).map(n => `<option>${n.replace(/</g, '&lt;')}</option>`).join('')}</select></div>
       <div class="gssteps" id="gsSteps">${G.steps.map((v, k) => `<button class="gsst${v >= .99 ? ' on' : v > 0 ? ' acc' : ''}${k % 4 === 0 ? ' beat' : ''}" data-k="${k}" aria-label="Step ${k + 1}">${k + 1}</button>`).join('')}</div>
       <div class="row"><label class="label grow" for="gsRate">Step</label><select id="gsRate"><option value="8">1/8</option><option value="16">1/16</option><option value="24">1/16 triplet</option><option value="32">1/32</option></select></div>`;
     g.appendChild(r);
@@ -8373,7 +8416,7 @@ function renderFx(){
     const rs = r.querySelector('#gsRate'); rs.value = String(G.rate); rs.addEventListener('change', () => { G.rate = +rs.value; applyAll(); save(); });
     ctl(g, 'Length', G, 'duty', .1, 1, .01, pct, after); ctl(g, 'Depth', G, 'depth', 0, 1, .01, pct, after); ctl(g, 'Attack', G, 'atk', .0005, .05, .0005, v => (v * 1000).toFixed(1) + ' ms', after);
     ctl(g, 'Release', G, 'rel', .001, .2, .001, v => Math.round(v * 1000) + ' ms', after); ctl(g, 'Swing', G, 'swing', 0, .75, .01, pct, after); ctl(g, 'Mix', G, 'mix', 0, 1, .01, pct, after); }
-  add('<span class="label">Sends</span>'); g = grid();
+  secH('Sends (reverb, delay, FX rack)', 'sends'); g = grid();
   ctl(g, 'Reverb', t, 'sendA', 0, 1, .01, pct, after); ctl(g, 'Delay', t, 'sendB', 0, 1, .01, pct, after);
   add('<span class="label">Sends to the FX rack</span>'); g = grid();
   t.rack = t.rack || {};
@@ -8411,7 +8454,7 @@ function drawFace(cv, k, big){
   g.fillStyle = F.fg; g.textBaseline = 'top'; g.textAlign = 'left'; g.font = `700 ${fs}px Michroma, sans-serif`; g.fillText(F.brand, ear + h * .12, h * .12);
   g.font = `400 ${fs * .72}px Michroma, sans-serif`; g.globalAlpha = .85; g.fillText(F.model, ear + h * .12, h * .12 + fs * 1.25); g.globalAlpha = 1;
   // the display
-  const dx = ear + h * .12, dy = h * .58, dw = Math.min(w * .28, h * 1.3), dh = h * .3, used = retUsed(k);
+  const dx = ear + h * .12, dy = h * .58, dw = Math.min(w * .28, h * 1.3), dh = h * .3, used = retUsed(k) && !P.off;
   if (F.disp === 'led' || F.disp === 'lcd'){
     g.fillStyle = F.disp === 'lcd' ? '#1f2a14' : '#140404'; g.fillRect(dx, dy, dw, dh);
     const kn = R.knobs[0], txt = kn ? String(kn[5] ? kn[5](P[kn[1]]) : P[kn[1]]).replace(/[^\w.:%\- ]/g, '').slice(0, 8) : '';
@@ -8440,7 +8483,7 @@ function renderRack(){
   box.innerHTML = '<h2>FX rack</h2><p class="hint">Tap a unit to open it. Send tracks to it with each track’s FX rack sends (FX on a mixer strip).</p><div class="rkgrid"></div>';
   const grid = box.querySelector('.rkgrid');
   for (const k of RACK_KEYS){
-    const R = RACK[k], b = document.createElement('button'); b.className = 'rktile nolearn' + (retUsed(k) ? ' on' : ''); b.dataset.k = k;
+    const R = RACK[k], b = document.createElement('button'); b.className = 'rktile nolearn' + (retUsed(k) && !rackState(k).off ? ' on' : '') + (rackState(k).off ? ' off' : ''); b.dataset.k = k;
     b.innerHTML = `<canvas class="rkface" aria-hidden="true"></canvas><b>${R.name}</b><small>${R.sub}</small>`;
     b.addEventListener('click', () => unitOpen(k)); grid.appendChild(b);
   }
@@ -8453,7 +8496,9 @@ function unitClose(){ unitK = null; const d = $('#unitDlg'); if (d.open) d.close
 function unitRender(){
   const k = unitK; if (!k) return; const R = RACK[k], P = rackState(k), body = $('#unitBody');
   $('#unitT').textContent = R.name;
-  body.innerHTML = `<canvas class="rkface big" id="unitFace" aria-hidden="true"></canvas><div class="unitsel"></div><div class="unitknobs"></div>`;
+  body.innerHTML = `<div class="machbar"><button class="pwr${P.off ? '' : ' on'}" id="unitPwr" aria-label="${R.name} on or off">${P.off ? 'OFF' : 'ON'}</button><button class="rst" id="unitRst">↺ RESET</button></div><canvas class="rkface big" id="unitFace" aria-hidden="true"></canvas><div class="unitsel"></div><div class="unitknobs"></div>`;
+  body.querySelector('#unitPwr').addEventListener('click', () => { P.off = !P.off; applyAll(); if (live) applyRack(ctx, live.master); save(); unitRender(); toast(R.name + (P.off ? ' off (bypassed).' : ' on.')); });
+  body.querySelector('#unitRst').addEventListener('click', () => { const was = !!P.off; for (const x in P) delete P[x]; Object.assign(P, R.def(), {off:was}); applyAll(); if (live) applyRack(ctx, live.master); save(); unitRender(); toast(R.name + ' back to default.'); });
   const sels = body.querySelector('.unitsel'), kb = body.querySelector('.unitknobs');
   const sel = (label, key, opts, fn) => { const id = 'uk-' + k + '-' + (key || 'preset'), w = document.createElement('label'); w.className = 'usel';
     w.innerHTML = `<span>${label}</span><select id="${id}">${opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;
@@ -8848,6 +8893,13 @@ function drawDeck(cv = $('#ttCv'), i = curDeck){
   const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w) return;
   if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
   const g = cv.getContext('2d'), D = deckState(i), cx = w * .43, cy = h * .5, R = Math.min(w * .4, h * .45);
+  // the plinth, platter rim and the record artwork only change with the size, the record and the speed: drawn once,
+  // then each frame just rotates the record image (two turntables at 60 fps stay light on a phone)
+  const ck = [w, h, D.name, D.speed].join('|');
+  if (!dk._tc || dk._tc.key !== ck){
+    const mk = (cw, chh) => { const c2 = document.createElement('canvas'); c2.width = cw; c2.height = chh; return c2; };
+    const base = mk(w, h), side = Math.ceil(R * 2.12) + 4, rec = mk(side, side);
+    { const g = base.getContext('2d');
   // plinth
   let gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#6d7074'); gr.addColorStop(.5, '#4a4d51'); gr.addColorStop(1, '#3a3c3f');
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
@@ -8855,8 +8907,8 @@ function drawDeck(cv = $('#ttCv'), i = curDeck){
   // platter rim with strobe dots
   gr = g.createRadialGradient(cx, cy, R * .9, cx, cy, R * 1.04); gr.addColorStop(0, '#9a9da1'); gr.addColorStop(.5, '#e9ebec'); gr.addColorStop(1, '#7b7e82');
   g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R * 1.04, 0, 7); g.fill();
-  const ang = deckAngle(dk);
-  g.save(); g.translate(cx, cy); g.rotate(ang);
+    }
+    { const g = rec.getContext('2d'); g.translate(side / 2, side / 2);
   for (let row = 0; row < 4; row++){ const n = [180, 183, 186, 189][row], rr = R * (1.0 - row * .022); g.fillStyle = '#2b2d30';
     for (let k = 0; k < n; k += 2){ const a = k / n * 2 * Math.PI; g.fillRect(Math.cos(a) * rr - dpr * .6, Math.sin(a) * rr - dpr * .6, dpr * 1.2, dpr * 1.2); } }
   // slipmat and record
@@ -8889,6 +8941,11 @@ function drawDeck(cv = $('#ttCv'), i = curDeck){
   g.font = `${Math.round(LR * .085)}px Michroma, sans-serif`;
   g.fillText('SIDE A', -LR * .55, LR * .02); g.fillText(D.speed === 45 ? '45 RPM' : '33⅓ RPM', LR * .55, LR * .02);
   g.font = `${Math.round(LR * .075)}px Barlow, sans-serif`; g.fillText('OMEGA-1200', 0, LR * .42);
+    }
+    dk._tc = {key:ck, base, rec, side};
+  }
+  const ang = deckAngle(dk), T = dk._tc;
+  g.drawImage(T.base, 0, 0); g.save(); g.translate(cx, cy); g.rotate(ang); g.drawImage(T.rec, -T.side / 2, -T.side / 2);
   g.restore();
   g.fillStyle = '#d9dbdd'; g.beginPath(); g.arc(cx, cy, R * .03, 0, 7); g.fill();
   // tonearm: pivot top right, stylus walks in as the record plays
@@ -8970,8 +9027,11 @@ function renderPPads(){
 function doSync(i){
   const o = 1 - i, D = deckState(i), O = deckState(o);
   if (!D.bpm || !O.bpm || !decks[o].buf){ toast('Load both decks first (each needs a BPM).'); return false; }
-  const sf = D.speed === 45 ? 1.35 : 1, target = bpmNow(o);
+  const sf = D.speed === 45 ? 1.35 : 1, target0 = bpmNow(o);
+  // like DJ software: match at half or double tempo when that is closer (a 80 BPM track against a 160 BPM one)
+  let target = target0; for (const m of [.5, 2]) if (Math.abs(target0 * m / (D.bpm * sf) - 1) < Math.abs(target / (D.bpm * sf) - 1)) target = target0 * m;
   let p = (target / (D.bpm * sf) - 1) * 100;
+  if (Math.abs(p) > 25){ toast('These two tracks are too far apart in tempo to sync.'); return false; }
   if (Math.abs(p) > D.range) D.range = Math.abs(p) > 16 ? 50 : 16;
   D.pitch = Math.round(clamp(p, -D.range, D.range) * 100) / 100;
   // line up the beats: move this deck by the phase difference
@@ -9335,7 +9395,7 @@ function renderPlat(){
     clearTimeout(deck.midiT); const dk = deck; deck.midiT = setTimeout(() => { dk.midiV = null; deckHand(false, dk); }, 160);
   });
   [0, 1].forEach(i => $('#dk' + i).addEventListener('click', () => { curDeck = i; deck = decks[i]; renderDeck(); }));
-  $('#ttStart').addEventListener('click', () => { if (!deckEnsure()) return; const D = deckState(); if (!deck.buf){ toast('Load a record first.'); return; } D.on = !D.on; deckSet(); save(); renderDeck(); });
+  $('#ttStart').addEventListener('click', () => { const D = deckState(), playing = (D.on && !!deck.node) || (!!deck.node && Math.abs(deck.rate || 0) > .02); if (!deckEnsure()) return; if (!deck.buf){ toast('Load a record first.'); return; } D.on = !playing; deckSet(); save(); renderDeck(); });
   $('#tt33').addEventListener('click', () => { deckState().speed = 33; deckSet(); save(); renderDeck(); });
   $('#tt45').addEventListener('click', () => { deckState().speed = 45; deckSet(); save(); renderDeck(); });
   $('#ttPitch').addEventListener('input', e => {
@@ -9404,6 +9464,8 @@ function renderPlat(){
   $('#xf').addEventListener('input', e => { mixState().xf = +e.target.value; applyMix(); save(); });
   dblTapReset($('#xf'), () => 0, v => { $('#xf').value = v; $('#xf').dispatchEvent(new Event('input')); });
   $('#xfCurve').addEventListener('change', e => { mixState().curve = e.target.value; applyMix(); save(); });
+  $('#mixRst').addEventListener('click', () => { const M = mixState(); M.xf = 0; M.rev = false; M.curve = 'scratch'; M.ch.forEach(C => Object.assign(C, {vol:.85, hi:0, mid:0, lo:0, filt:0})); ['mxch0', 'mxch1'].forEach(id => { $('#' + id)._built = false; }); applyMix(); save(); renderMixDJ(); toast('DJ mixer back to default.'); });
+  $('#deckRst').addEventListener('click', () => { const D = deckState(), F = fxState(curDeck); Object.assign(D, {pitch:0, range:8, speed:33, keylock:false, slip:false, sync:false}); Object.assign(F, {echo:false, flang:false, verb:false, beats:.75, depth:.5}); if (D.loop) setLoop(curDeck, null); deckSet(); applyDeckFx(curDeck); save(); renderDeck(); toast('Deck ' + (curDeck + 1) + ' back to default (the record and its cues stay).'); });
   $('#xfRev').addEventListener('click', () => { const M = mixState(); M.rev = !M.rev; applyMix(); save(); renderMixDJ(); });
   // loading
   $('#ttLoad').addEventListener('click', () => $('#ttFile').click());
@@ -10326,7 +10388,18 @@ function instOpen(){
 $('#instPick').addEventListener('click', instOpen);
 $('#instDlgX').addEventListener('click', () => $('#instDlg').close());
 $('#instDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+// factory sound for the instrument on a synth track
+function synthReset(tr){
+  const i = tr.inst;
+  if (ANA_MODELS[i]) tr['ana_' + i] = Object.assign({preset:''}, ANA_COMMON, ANA_MODELS[i].base);
+  else ({cz:() => tr.cz = CZ_DEFAULT(), piano:() => tr.piano = PIANO_DEFAULT(), choir:() => tr.choir = CHOIR_DEFAULT(), disco:() => tr.disco = DISCO_DEFAULT(), sk1:() => { tr.smpx = SMPX_DEFAULT('sk1'); tr._smpxCache = null; }, emax:() => { tr.smpx = SMPX_DEFAULT('emax'); tr._smpxCache = null; },
+    sid:() => tr.sid = SID_DEFAULT(), d50:() => tr.d50 = D50_DEFAULT(), ppg:() => tr.ppg = PPG_DEFAULT(), dx1:() => tr.dx = DX_DEFAULT(), omni2:() => tr.omni = OMNI_DEFAULT(), solina:() => tr.sol = SOL_DEFAULT(),
+    prophet:() => tr.p5 = P5_DEFAULT(), obxa:() => tr.ob = OB_DEFAULT(), tb303:() => tr.tb = TB_DEFAULT(), taurus:() => tr.tau = TAU_DEFAULT(), gm:() => tr.gm = 0,
+    synth:() => { tr.preset = 'Bass'; tr.patch = {...PRESETS.Bass}; }}[i] || (() => {}))();
+  if (INST[i]) solCfg(tr); if (tr.arp) tr.arp.on = false;
+}
 function renderSynth(){
+  { const tr = curSynth(), pb = $('#synPwr'); if (pb && tr){ pb.classList.toggle('on', !tr.mute); pb.textContent = tr.mute ? 'OFF' : 'ON'; } }
   renderArp(); try { instPaint(); } catch(e){} setTimeout(() => { try { prePaint(); } catch(e){} }, 0);
   const bar = $('#synthBar'); bar.innerHTML = '';
   S.synths.forEach((t, k) => { const b = document.createElement('button'); b.textContent = t.name; b.classList.toggle('on', k === selSynth);
@@ -10867,6 +10940,12 @@ $('#ppgPreset').addEventListener('change', e => { const tr = curSynth(); if (!PP
 
 /* ================= E-mu SP-1200 faceplate: SP mode, banks, 8 faders in slider mode, 8 pads ================= */
 let spBank = 0, spFader = 'tune';
+function spBanner(){
+  let b = $('#spBanner'); const host = $('#v-drums'); if (!host) return;
+  if (!S.sp){ if (b) b.remove(); return; }
+  if (!b){ b = document.createElement('div'); b.id = 'spBanner'; b.className = 'spbanner'; b.innerHTML = '<span class="grow">SP-1200 MODE IS ON · every pad plays 12-bit 26 kHz</span><button class="pwr on nolearn" id="spBannerOff">SP ON</button>';
+    host.insertBefore(b, host.firstChild); b.querySelector('button').addEventListener('click', () => $('#spMode').click()); }
+}
 function renderSpCard(){
   const box = $('#spCard'); if (!box) return;
   const base = spBank * 8, P = S.drum.pads, mode = {tune:'TUNE', decay:'DECAY', mix:'MIX'}[spFader];
@@ -10874,11 +10953,11 @@ function renderSpCard(){
   const nm = a => P.slice(base + a, base + a + 4).map(p => (p.name || '----').slice(0, 4).toUpperCase().padEnd(4)).join(' ');
   box.innerHTML = `<div class="sp12-head"><b>E-mu</b><span>SP-1200</span><i>SAMPLING PERCUSSION SYSTEM · 12-BIT · 26.04 kHz</i></div>
     <div class="sp12-lcd">BANK ${'AB'[spBank]} ${mode.padEnd(6)} ${S.sp ? 'SP ON' : 'SP OFF'}\n${nm(0)}\n${nm(4)}</div>
-    <div class="sp12-btns"><button data-a="sp" class="${S.sp ? 'on' : ''}">SP MODE</button><button data-a="b0" class="${spBank === 0 ? 'on' : ''}">BANK A</button><button data-a="b1" class="${spBank === 1 ? 'on' : ''}">BANK B</button>
+    <div class="sp12-btns"><button data-a="sp" class="pwr${S.sp ? ' on' : ''}">SP MODE</button><button data-a="rst" class="rst">↺ RESET</button><button data-a="b0" class="${spBank === 0 ? 'on' : ''}">BANK A</button><button data-a="b1" class="${spBank === 1 ? 'on' : ''}">BANK B</button>
       <button data-a="tune" class="${spFader === 'tune' ? 'on' : ''}">TUNE</button><button data-a="decay" class="${spFader === 'decay' ? 'on' : ''}">DECAY</button><button data-a="mix" class="${spFader === 'mix' ? 'on' : ''}">MIX</button></div>
     <div class="sp12-faders"></div><div class="sp12-pads"></div>`;
   box.querySelectorAll('.sp12-btns button').forEach(b => b.addEventListener('click', () => { const a = b.dataset.a;
-    if (a === 'sp') $('#spMode').click(); else if (a[0] === 'b' && a.length === 2) spBank = +a[1]; else spFader = a; renderSpCard(); }));
+    if (a === 'sp') $('#spMode').click(); else if (a === 'rst'){ S.sp = false; for (let k = 0; k < 16; k++) Object.assign(P[k], {pitch:0, decay:1, vol:.85}); save(); renderPadEditor(); renderPads(); toast('SP-1200 back to default: SP mode off, tune, decay and mix reset.'); } else if (a[0] === 'b' && a.length === 2) spBank = +a[1]; else spFader = a; renderSpCard(); }));
   const fz = box.querySelector('.sp12-faders'), pz = box.querySelector('.sp12-pads');
   for (let k = 0; k < 8; k++){
     const i = base + k, p = P[i], f = document.createElement('div'); f.className = 'sp12-f';
@@ -11185,13 +11264,14 @@ function renderDrumMachine(id){
     <select class="dm-pat nolearn" aria-label="Patterns">${presetOptions(DM_PATTERNS[id] || {}, 'Patterns…')}</select>
     ${Object.keys(M.sets).length > 1 ? `<div class="dm-sets">${Object.keys(M.sets).map(k => `<button class="nolearn${k === st.set ? ' on' : ''}" data-set="${k}">${k.toUpperCase()}</button>`).join('')}</div>` : ''}
     <div class="dm-lcd">${list.map(([ab], pi) => `<div class="dm-row${pi === st.sel ? ' sel' : ''}" data-p="${pi}"><span>${ab}</span>${Array.from({length:steps}, (_, s) => { const n = has(pi, s); return `<i data-s="${s}" class="${n ? (n.v >= .95 ? 'on acc' : 'on') : ''}${s % 4 === 0 ? ' beat' : ''}"></i>`; }).join('')}</div>`).join('')}</div>
-    <div class="dm-btns">${list.map(([ab], i) => `<button class="nolearn${i === st.sel ? ' on' : ''}" data-i="${i}">${ab}</button>`).join('')}<button class="nolearn acc${st.acc ? ' on' : ''}" data-a="acc">ACCENT</button></div>
-    <div class="row"><button class="grow nolearn" data-a="load">${loaded ? 'Reload' : 'Load'} the ${M.model} sounds onto the pads</button><button class="nolearn" data-a="clr">Clear ${list[st.sel][0]}</button></div>`;
+    <div class="dm-btns">${list.map(([ab], i) => `<button class="nolearn${i === st.sel ? ' on' : ''}" data-i="${i}">${ab}</button>`).join('')}<button class="nolearn pwr acc${st.acc ? ' on' : ''}" data-a="acc">ACCENT</button></div>
+    <div class="row"><button class="grow nolearn" data-a="load">${loaded ? 'Reload' : 'Load'} the ${M.model} sounds onto the pads</button><button class="nolearn" data-a="clr">Clear ${list[st.sel][0]}</button><button class="rst nolearn" data-a="clrall">↺ CLEAR ALL</button></div>`;
   const q = s2 => box.querySelector(s2);
   q('[data-a="load"]').addEventListener('click', async () => { await dmLoad(id); renderDrumMachine(id); });
   q('.dm-pat').addEventListener('change', async e => { const n = e.target.value; if (!n) return; if (!(S.drum.pads[0].name || '').startsWith(id === 'dmx' ? 'DMX ' : 'DR ')){ const need = Object.keys(DM_PATTERNS[id][n]), k = Object.keys(M.sets).find(k => need.every(ab => M.sets[k].some(r => r[0] === ab))); if (k) st.set = k; await dmLoad(id); } dmPattern(id, n); renderDrumMachine(id); toast(n + ' pattern'); });
   q('[data-a="clr"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p !== st.sel); changed(); renderDrumMachine(id); });
   q('[data-a="acc"]').addEventListener('click', () => { st.acc = !st.acc; renderDrumMachine(id); });
+  q('[data-a="clrall"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p >= list.length); st.sel = 0; st.acc = true; changed(); renderDrumMachine(id); toast(M.model + ' pattern cleared.'); });
   box.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { st.set = b.dataset.set; st.sel = 0; renderDrumMachine(id); }));
   box.querySelectorAll('.dm-btns button[data-i]').forEach(b => b.addEventListener('click', () => { st.sel = +b.dataset.i; ensureAudio(); padDown(st.sel, {timeStamp:performance.now()}, st.acc ? 1 : .7); setTimeout(() => padUp(st.sel), 80); renderDrumMachine(id); }));
   box.querySelectorAll('.dm-row').forEach(r => r.addEventListener('click', e => { const pi = +r.dataset.p, c = e.target.closest('i'); st.sel = pi; if (!c){ renderDrumMachine(id); return; }
@@ -11440,6 +11520,8 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
+$('#synPwr').addEventListener('click', () => { const tr = curSynth(); tr.mute = !tr.mute; applyAll(); save(); renderSynth(); if (view === 'mixer') renderMixer(); toast(tr.name + (tr.mute ? ' off.' : ' on.')); });
+$('#synRst').addEventListener('click', () => { const tr = curSynth(); synthReset(tr); save(); renderSynth(); toast(tr.name + ': factory sound.'); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .8); });
 $('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', piano:'Piano ', choir:'Choir ', disco:'Strings ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|Piano|Choir|Strings|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
@@ -12286,7 +12368,7 @@ function learnLabel(el, tg){
 const mName = m => (m.type === 'cc' ? 'CC ' + m.num : 'Note ' + noteName(m.num)) + (m.ch ? ' ch' + m.ch : '');
 function setLearn(on){
   mlearn = on; if (!on && mArmed){ (mArmed._stp || mArmed._knob || mArmed).classList.remove('marmed'); mArmed = null; }
-  document.body.classList.toggle('mlearn', on); $('#learnBar').hidden = !on;
+  document.body.classList.toggle('mlearn', on); $('#learnBar').hidden = !on; { const b = $('#mlearnOn'); if (b){ b.classList.toggle('on', on); b.textContent = on ? 'MIDI learn ON' : 'MIDI learn'; } }
   $('#learnMsg').textContent = 'MIDI learn: tap a knob, menu or button, then move a knob or hit a pad on the MPC.';
   if (on && !midi) connectMidi();
   markMapped(); renderMaps();
@@ -12691,7 +12773,10 @@ $('#fileIn').addEventListener('change', async e => {
   catch (err){ toast('Could not read that file. WAV, AIFF, MP3, FLAC and OGG work.'); }
 });
 $('#sampleIn').addEventListener('click', toggleSampling);
-$('#spMode').addEventListener('click', () => { S.sp = !S.sp; save(); renderPadEditor(); auditionPad(selPad); toast(S.sp ? 'SP-1200 mode on. Pitch is limited to −16…+15 semitones, like the original.' : 'SP-1200 mode off.'); });
+const PAD_RESET = {vol:.85, pitch:0, pan:0, decay:1, choke:0, start:0, end:1, lstart:0, att:0, dec2:0, sus:1, rel:0, cut:1, res:.7, s950f:99, s950ri:0, rev:false, loop:false, oneShot:false};
+$('#padRst').addEventListener('click', () => { const p = S.drum.pads[selPad]; Object.assign(p, PAD_RESET); save(); renderPadEditor(); renderPads(); auditionPad(selPad); toast(padLabel(selPad) + ': settings back to default (the sound stays).'); });
+$('#drumPwr').addEventListener('click', () => { S.drum.mute = !S.drum.mute; applyAll(); save(); renderPadEditor(); toast(S.drum.mute ? 'Drums off.' : 'Drums on.'); });
+$('#spMode').addEventListener('click', () => { S.sp = !S.sp; save(); renderPadEditor(); auditionPad(selPad); toast(S.sp ? 'SP-1200 mode on. Pitch is limited to −16…+15 semitones, like the original.' : 'SP-1200 mode off: pads play clean again.'); spBanner(); });
 $('#resetSample').addEventListener('click', () => { const p = S.drum.pads[selPad]; dropAudio(p.sample); const v = kitVoices(S.drum.kit)[selPad]; p.sample = v.key; p.name = v.name; ensureKitBuf(v.key); save(); renderPads(); renderPadEditor(); auditionPad(selPad); });
 
 $('#enableIn').addEventListener('click', enableInput);
@@ -13226,6 +13311,8 @@ $('#helpSearch').addEventListener('input', e => {
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
+  // turntables never start by themselves when the app opens or reloads
+  (S.decks || []).forEach(D => { if (D){ D.on = false; } });
   S.cur = clamp(S.cur || 0, 0, S.scenes.length - 1); S.song = S.song || []; S.launchQ = S.launchQ || 'bar'; S.songMode = !!S.songMode;
   loadScene(S.cur);
   if (S.chop){
