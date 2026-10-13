@@ -5992,27 +5992,28 @@ function startClip(rig, tr, t, offset = 0){
 /* notes common to live playback and export */
 function scheduleNotes(rig, i, t){
   const sd = stepDur(), td = sd / TPS, lo = ((i - org) % (S.bars * 16)) * TPS, hi = lo + TPS;
-  const swing = (S.swing / 100) * sd * .66;
-  playAuto(rig, lo, t, sd);
-  for (const n of S.drum.notes){
+  const swing = (S.swing / 100) * sd * .66, P = rig.pass, evSyn = tr => !!INST[tr.inst] && rig.c._reduxOK !== false;
+  if (P !== 'ev') playAuto(rig, lo, t, sd);
+  if (P !== 'ev' || S.sp) for (const n of S.drum.notes){
     if (n.t < lo || n.t >= hi) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }   // already heard when it was played in
     if (exportPadSolo != null && rig !== live && n.p !== exportPadSolo) continue;
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
-    if (rig.only && !rig.only.has('drums')){ duckAt(rig, n.p, at); continue; }
+    if (P === 'ev'){ if (!rig.only || rig.only.has('drums')) playPad(rig, padAt(n.p, n.st || 0), at, n.v, n.d ? n.d * td : null, n.st ? 100 + n.p * 32 + n.st + 8 : n.p); continue; }
+    if ((rig.only && !rig.only.has('drums')) || (P === 'src' && S.sp)){ duckAt(rig, n.p, at); continue; }
     playPad(rig, padAt(n.p, n.st || 0), at, n.v, n.d ? n.d * td : null, n.st ? 100 + n.p * 32 + n.st + 8 : n.p);
     if (rig === live) flashPad(n.p, at);
     duckAt(rig, n.p, at);
   }
   for (const tr of S.synths) for (const n of tr.notes){
-    if (n.t < lo || n.t >= hi || (rig.only && !rig.only.has(tr.id))) continue;
+    if (n.t < lo || n.t >= hi || (rig.only && !rig.only.has(tr.id)) || (P === 'ev' && !evSyn(tr)) || (P === 'src' && evSyn(tr))) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
     synthVoice(rig, tr, n.n, at, n.v, Math.max(6, n.d) * td, n);
   }
   S.audio.forEach(tr => {
     const recording = rig === live && rec && rec.id === tr.id && rec.startT != null;
-    if (tr.clip && !recording && (i - org) % tr.clipSteps === 0 && (!rig.only || rig.only.has(tr.id))) startClip(rig, tr, t);
+    if (P !== 'ev' && tr.clip && !recording && (i - org) % tr.clipSteps === 0 && (!rig.only || rig.only.has(tr.id))) startClip(rig, tr, t);
   });
 }
 
@@ -7718,11 +7719,20 @@ async function renderAudio(sr, solo, fixedLen){
     if (solo){ const only = rig.only = new Set([solo]), t = trackById(solo);
       if (t){ if (t.duckSrc) only.add(t.duckSrc); if (t.voc && t.voc.on){ if (t.voc.src && t.voc.src !== 'input') only.add(t.voc.src); if (t.voc.car && t.voc.car !== 'self') only.add(t.voc.car); } }
       (S.sc || []).forEach(r => { if (r.on && r.tgt === 't:' + solo && r.key.startsWith('t:')) only.add(r.key.slice(2)); if (r.on && r.tgt === 't:' + solo && r.key.startsWith('pad:')) only.add('drums:keys'); }); }
-    let i0 = 0;
-    try { for (const part of parts){ loadScene(part.s); org = i0; for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd); i0 += part.steps; } }
-    finally { loadScene(keepCur); org = keepOrg; }
+    // Two passes. 1: every event for the worklet engines (synths, SP-1200) goes in up front.
+    // 2: sample playback (clips, pads, sample synths) is created a few seconds ahead while rendering: thousands of
+    //    waiting sources all at once make the browser's render time grow with the square of the song length.
+    const plan = []; let i0 = 0; for (const part of parts){ for (let k = 0; k < part.steps; k++) plan.push([part.s, i0, i0 + k]); i0 += part.steps; }
+    storeScene();
+    const run = (a, b) => { const kc = S.cur, ko = org; try { for (let j = a; j < Math.min(b, plan.length); j++){ const [sc, o, i] = plan[j]; if (j === a || plan[j - 1][0] !== sc) loadScene(sc); org = o; scheduleNotes(rig, i, .02 + i * sd); } } finally { loadScene(kc); org = ko; } };
+    rig.pass = 'ev'; run(0, plan.length);
     spFinish(rig); solFinish(rig);
-    if (renderProg){ const cb = renderProg; for (let k = 1; k < 20; k++){ const at = Math.floor(len * k / 20 / 128) * 128 / sr; oc.suspend(at).then(() => { try { cb(k * 5); } catch(e){} oc.resume(); }); } }
+    rig.pass = 'src'; const cs = Math.max(16, Math.round(4 / sd)), nC = Math.ceil(plan.length / cs), cb = renderProg;
+    run(0, cs * 2);
+    for (let c = 2; c < nC; c++){
+      const at = Math.floor((c - 1) * cs * sd * sr / 128) * 128 / sr; if (at <= 0 || at * sr >= len) continue;
+      oc.suspend(at).then(() => { try { storeScene(); run(c * cs, (c + 1) * cs); if (cb) cb(Math.round(c / nC * 100)); } catch(e){ console.warn(e); } oc.resume(); });
+    }
     const out = await oc.startRendering();
     if (fixedLen) return out;
     let end = out.length; const L = out.getChannelData(0), R = out.getChannelData(1), keep = Math.ceil((total * sd + .02) * sr);
@@ -7821,7 +7831,7 @@ async function exportMix(){
       st.textContent = `Saved ${name}: the full mix plus ${list.length} tracks, all the same length so they line up from bar 1 in any DAW. ${(zip.size / 1048576).toFixed(1)} MB.`;
     }
   } catch (e){ console.warn(e); st.textContent = 'Export failed: ' + e.message; }
-  btn.disabled = false;
+  finally { btn.disabled = false; }
 }
 function renderExport(){
   const what = $('#expWhat').value, song = S.songMode && S.song.length;
