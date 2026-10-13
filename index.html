@@ -335,6 +335,18 @@ html.nav-on :focus-visible, html.nav-on .gp-focus{outline:4px solid #ffd23f !imp
 #fireFx{position:fixed;inset:0;z-index:30;pointer-events:none}
 html.frying main{animation:fryShake .11s steps(2) infinite}
 @keyframes fryShake{0%{transform:translate(0,0)}50%{transform:translate(var(--fx,0px),var(--fy,0px))}}
+.omni{background:linear-gradient(180deg,#232323,#121212);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:inset 0 1px 0 #ffffff14}
+.omni-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.omni-head b{font:900 22px/1 "Barlow",sans-serif;color:#f4f1ea;letter-spacing:.02em}
+.omni-head span{font:700 14px/1 var(--f-display);color:#e8722c;letter-spacing:.25em;flex:1}
+.omni-head select{max-width:55%}
+.omni-sw{display:flex;gap:8px;margin-bottom:8px}
+.omni-sw button{flex:1;background:#2b2b2b !important;color:#bbb !important;border:1px solid #000 !important;font:700 12px var(--f-display);letter-spacing:.15em}
+.omni-sw button.on{background:#e8722c !important;color:#111 !important;box-shadow:0 0 10px #e8722c88}
+.omni-sec{border-top:2px solid #e8722c;padding-top:6px;margin-top:8px}
+.omni-sec > .label{color:#e8722c !important;letter-spacing:.2em}
+.omni-sec .knobs{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:space-around}
+.omni .knob .klab{color:#e9e5dc}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -882,7 +894,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="solina">Solina strings</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -925,6 +937,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="obWheel">Mod lever</label><input id="obWheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="obWheelV"></span></div>
         <div id="obBody"></div>
         <p class="hint">Modeled on the Oberheim OB-Xa: two CEM3340 oscillators with sync, a CEM3320 filter you can switch between the 2-pole response (the open, brassy Oberheim sound) and 4-pole, two ADSRs, an LFO with sample &amp; hold, and eight voices spread across the stereo field like the OB-Xa's pan pots. Programs are in the style of famous OB-Xa and OB-X parts.</p>
+      </div>
+      <div id="omniPanel" class="omni" hidden>
+        <div class="omni-head"><b>ARP</b><span>OMNI-2</span><select id="omniPreset" aria-label="Omni-2 presets"></select></div>
+        <div class="omni-sw"><button data-k="ens">CHORUS</button><button data-k="phase">PHASER</button></div>
+        <div id="omniSecs"></div>
+        <p class="hint">Fully polyphonic like the real one: every key sounds from one divide-down tone generator. Strings have their own crescendo and sustain. The Synth section sends all notes through one resonant 4-pole filter and one ADSR, as the Omni-2 does, so a new key re-triggers the sweep. Keys below the split play the Bass section. Chorus and Phaser are on the panel.</p>
       </div>
       <div id="solPanel" hidden>
         <div class="label">Bass section</div>
@@ -1396,6 +1414,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
         <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
+        <li><b>ARP Omni-2</b> (Synth → instrument): the 1977 string synth. Strings (violin, viola, cello) with crescendo and sustain, a Synth section where every note shares one resonant filter and envelope, a split Bass section, plus Chorus and Phaser. 10 presets.</li>
         <li><b>FIRE</b> (top bar): the machine fries. Smoke pours out, the sound overdrives, crushes and cuts out, and the settings slowly mangle themselves, more the longer it burns. Everything that comes out is recorded: switch it off and your settings come back, and the fried take is in Chop (ready to slice onto the pads) and your sample bin. Press play first so there is a beat to burn.</li>
         <li><b>Packs</b> (Pad sound → Save pack / Load pack): a .omegapack file with all 16 pad sounds, every pad setting, and the Chop sample with its slice points.</li>
         <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
@@ -1517,7 +1536,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v90</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v91</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2886,6 +2905,104 @@ class Solina extends AudioWorkletProcessor{
   }
 }
 registerProcessor('solina', Solina);
+/* ARP Omni-2 (model 2475, 1977): fully polyphonic divide-down tone (top-octave generator + dividers), three sections.
+   STRINGS: violin (8'+4', bright) and viola (8', darker) and cello (16'+8') with crescendo and sustain per key.
+   SYNTH: every key's sawtooth (8') and square (4') summed into ONE resonant 4-pole low-pass and ONE ADSR (paraphonic,
+   re-triggered by each new key), like the Omni's synth section. BASS: keys below the split, 16' and 8', own release.
+   Then the Omni's BBD chorus ensemble and a 4-stage phaser, with delayed vibrato on the tone generator. */
+class Omni2 extends AudioWorkletProcessor{
+  constructor(o){
+    super();
+    const opt = (o && o.processorOptions) || {}, fs = sampleRate; this.fs = fs;
+    this.cfg = Object.assign({violin:.8, viola:.7, cello:.3, cresc:.25, sus:.45, strVol:.8, syn8:0, syn4:0, cut:.45, res:.2, env:.5, sa:.05, sd:.4, ss:.6, sr:.3, synVol:.7, bass16:0, bass8:0, bassRel:.25, bassVol:.8, split:48, ens:1, ensDepth:.5, phase:0, phRate:.3, phFb:.5, vib:.15, vibRate:5.5, bright:.5}, opt.cfg || {});
+    this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.detune = TOS.map((d, pc) => (TOS[9] / d) / Math.pow(2, (pc - 9) / 12));
+    this.cyc = new Float64Array(12);
+    this.fTop = TOS.map((d, pc) => 440 * Math.pow(2, (pc - 9) / 12 + 4) * this.detune[pc]);
+    this.keys = new Map(); this.idle = 0;
+    this.env = {st:'idle', v:0, gate:false}; this.lad = [0, 0, 0, 0];
+    this.vLp = [0, 0]; this.vaLp = [0, 0]; this.bLp = [0, 0];
+    this.buf = new Float32Array(8192); this.w = 0; this.lfo = [0, 1.3, 2.6]; this.chz = [[0, 0], [0, 0], [0, 0]];
+    this.ap = [0, 0, 0, 0, 0, 0, 0, 0]; this.php = 0; this.phy = 0; this.vibPh = 0; this.vibAmt = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); };
+  }
+  blep(t, dt){ if (t < dt){ const x = t / dt; return x + x - x * x - 1; } if (t > 1 - dt){ const x = (t - 1) / dt; return x * x + x + x + 1; } return 0; }
+  saw(pc, oct, vb){ const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = ((this.cyc[pc] / div) % 1 + 1) % 1, dt = this.fTop[pc] / div / this.fs * vb; if (dt >= .5) return 0; return 2 * ph - 1 - this.blep(ph, dt); }
+  sq(pc, oct, vb){ const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = ((this.cyc[pc] / div) % 1 + 1) % 1, dt = this.fTop[pc] / div / this.fs * vb; if (dt >= .5) return 0; return (ph < .5 ? 1 : -1) + this.blep(ph, dt) - this.blep((ph + .5) % 1, dt); }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.cfg;
+    if (this.keys.size || this.env.v > 1e-4 || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    else if ((this.idle += N) > 16384){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const tc = s => 1 - Math.exp(-1 / (Math.max(.0015, s) * fs));
+    const sAtk = tc(.004 + Math.pow(C.cresc, 2) * 2.5), sRel = tc(.04 + Math.pow(C.sus, 2) * 5), bRel = tc(.03 + Math.pow(C.bassRel, 2) * 3), bAtk = tc(.004);
+    const eA = tc(.002 + Math.pow(C.sa, 2) * 4), eD = tc(.01 + Math.pow(C.sd, 2) * 6), eR = tc(.01 + Math.pow(C.sr, 2) * 6);
+    const vLc = 1 - Math.exp(-2 * Math.PI * (2500 + C.bright * 6000) / fs), vaLc = 1 - Math.exp(-2 * Math.PI * (1100 + C.bright * 2500) / fs), bLc = 1 - Math.exp(-2 * Math.PI * 700 / fs);
+    const syn = C.syn8 + C.syn4 > 0, k4 = 4 * C.res * 1.05;
+    for (let i = 0; i < N; i++){
+      const frame = currentFrame + i;
+      while (this.q.length && this.q[0].f <= frame){
+        const ev = this.q.shift();
+        if (ev.on != null){ const k = this.keys.get(ev.on) || {s:0, b:0}; k.down = true; k.v = ev.v; this.keys.set(ev.on, k); this.env.st = 'a'; this.env.gate = true; }
+        else { const k = this.keys.get(ev.off); if (k) k.down = false; if (![...this.keys.values()].some(x => x.down)){ this.env.gate = false; this.env.st = 'r'; } }
+      }
+      // delayed vibrato on the master oscillator: every note shares it, as on a divide-down instrument
+      this.vibAmt += ((this.env.gate || [...this.keys.values()].some(x => x.down) ? 1 : 0) - this.vibAmt) * (1 / (fs * .8));
+      this.vibPh += C.vibRate / fs; if (this.vibPh > 1) this.vibPh -= 1;
+      const vb = 1 + Math.sin(this.vibPh * 6.2832) * .006 * C.vib * this.vibAmt;
+      for (let pc = 0; pc < 12; pc++) this.cyc[pc] += this.fTop[pc] / fs * vb;
+      let vio = 0, via = 0, cel = 0, sy = 0, bs = 0;
+      for (const [n, k] of this.keys){
+        const upper = n >= C.split, pc = n % 12, oct = Math.floor(n / 12) - 1, vel = .7 + .3 * (k.v == null ? 1 : k.v);
+        k.s += ((k.down && upper ? 1 : 0) - k.s) * (k.down ? sAtk : sRel);
+        k.b += ((k.down && !upper ? 1 : 0) - k.b) * (k.down ? bAtk : bRel);
+        if (!k.down && k.s < 1e-4 && k.b < 1e-4){ this.keys.delete(n); continue; }
+        if (k.s > 1e-4){
+          const s8 = this.saw(pc, oct, vb), s4 = oct < 8 ? this.saw(pc, oct + 1, vb) : 0, s16 = oct > 0 ? this.saw(pc, oct - 1, vb) : 0, g = k.s * vel;
+          vio += g * (s8 * .6 + s4 * .7) * C.violin; via += g * s8 * C.viola; cel += g * (s16 * .7 + s8 * .3) * C.cello;
+        }
+        if (syn && k.down && upper) sy += vel * (C.syn8 * this.saw(pc, oct, vb) + C.syn4 * this.sq(pc, oct + 1, vb) * .7);
+        if (k.b > 1e-4 && (C.bass16 || C.bass8)) bs += k.b * (C.bass16 * (oct > 0 ? this.saw(pc, oct - 1, vb) : 0) + C.bass8 * this.saw(pc, oct, vb) * .7);
+      }
+      // section voicing filters
+      this.vLp[0] += (vio - this.vLp[0]) * vLc; this.vLp[1] += (this.vLp[0] - this.vLp[1]) * vLc;
+      this.vaLp[0] += (via + cel - this.vaLp[0]) * vaLc; this.vaLp[1] += (this.vaLp[0] - this.vaLp[1]) * vaLc;
+      this.bLp[0] += (bs - this.bLp[0]) * bLc; this.bLp[1] += (this.bLp[0] - this.bLp[1]) * bLc;
+      // synth section: one ADSR and one resonant 4-pole ladder for every note
+      const E = this.env;
+      if (E.st === 'a'){ E.v += (1.05 - E.v) * eA; if (E.v >= 1){ E.v = 1; E.st = 'd'; } }
+      else if (E.st === 'd') E.v += (C.ss - E.v) * eD;
+      else if (E.st === 'r'){ E.v += (0 - E.v) * eR; if (E.v < 1e-5){ E.v = 0; E.st = 'idle'; } }
+      let synOut = 0;
+      if (syn && (E.v > 1e-5 || sy)){
+        const fc = Math.min(.45 * fs, 40 * Math.pow(400, Math.min(1, C.cut + C.env * E.v * .9))), g = 1 - Math.exp(-2 * Math.PI * fc / fs), z = this.lad;
+        let x = Math.tanh(sy * .5 - k4 * z[3]);
+        z[0] += g * (x - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]);
+        synOut = z[3] * E.v * C.synVol * (1 + C.res * .8) * 1.4;
+      }
+      let x = ((this.vLp[1] * .9 + this.vaLp[1] * .8) * C.strVol * .5 + synOut * 1.6 + this.bLp[1] * C.bassVol * .8) * .3;
+      // chorus ensemble: three BBD taps swept by slow and fast LFOs 120 degrees apart
+      this.buf[this.w & 8191] = x; let sL = x * .45, sR = x * .45;
+      if (C.ens){
+        for (let j = 0; j < 3; j++){
+          this.lfo[j] += .63 / fs * 6.2832; const m = Math.sin(this.lfo[j]) * .7 + Math.sin(this.lfo[j] * 9.6 + j) * .3;
+          const d = (5 + 3.2 * C.ensDepth * m + 1.2 * j) * .001 * fs, r = this.w - d, i0 = Math.floor(r), f = r - i0, a = this.buf[i0 & 8191], b = this.buf[(i0 + 1) & 8191];
+          const v = a + (b - a) * f; if (j === 0) sL += v * .7; else if (j === 2) sR += v * .7; else { sL += v * .35; sR += v * .35; }
+        }
+      } else { sL = x; sR = x; }
+      // phaser: four all-pass stages swept by a slow LFO, with feedback
+      if (C.phase){
+        this.php += (.05 + C.phRate * 2) / fs; if (this.php > 1) this.php -= 1;
+        const sw = .5 - .5 * Math.cos(this.php * 6.2832), fc = 200 * Math.pow(18, sw), t = Math.tan(Math.PI * fc / fs), a1 = (t - 1) / (t + 1);
+        let y = (sL + sR) * .5 + this.phy * C.phFb * .9;
+        for (let s = 0; s < 4; s++){ const o = a1 * y + this.ap[s]; this.ap[s] = y - a1 * o; y = o; }
+        this.phy = y; sL = (sL + y) * .7; sR = (sR - y * .3 + y) * .7;
+      }
+      L[i] = sL; R[i] = sR; this.w++;
+    }
+    return true;
+  }
+}
+registerProcessor('omni2', Omni2);
 `;
 const SPW_CODE = String.raw`
 /* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
@@ -7743,7 +7860,7 @@ function gmPatch(prog){
 }
 const GM_TAB = 'GM ';
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const INST = {solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
   voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
@@ -8026,7 +8143,8 @@ function renderSynth(){
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
-  const isSol = tr.inst === 'solina';
+  const isSol = tr.inst === 'solina', isOmni = tr.inst === 'omni2';
+  $('#omniPanel').hidden = !isOmni; if (isOmni) renderOmni(tr);
   const isP5 = tr.inst === 'prophet', isOB = tr.inst === 'obxa', isTB = tr.inst === 'tb303', isTau = tr.inst === 'taurus';
   $('#obPanel').hidden = !isOB; if (isOB) renderOB(tr);
   const isPS = tr.inst === 'padsmp'; $('#psPanel').hidden = !isPS;
@@ -8036,7 +8154,7 @@ function renderSynth(){
     if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isSol || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isSol || isOmni || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isSol || isOmni || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -8205,6 +8323,38 @@ $('#tbSaw').addEventListener('click', () => tbSet('wave', 0));
 $('#tbSq').addEventListener('click', () => tbSet('wave', 1));
 $('#tbAcc').addEventListener('click', () => tbSet('accLatch', curSynth().tb.accLatch ? 0 : 1));
 $('#tbSlide').addEventListener('click', () => tbSet('slideLatch', curSynth().tb.slideLatch ? 0 : 1));
+
+/* ================= ARP Omni-2 ================= */
+const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:.8, viola:.7, cello:.3, cresc:.25, sus:.45, strVol:.8, bright:.5, syn8:0, syn4:0, cut:.45, res:.2, env:.5, sa:.05, sd:.4, ss:.6, sr:.3, synVol:.7, bass16:0, bass8:0, bassRel:.25, bassVol:.8, split:48, ens:1, ensDepth:.5, phase:0, phRate:.3, phFb:.5, vib:.15, vibRate:5.5});
+const OMNI_PRESETS = {
+  'Omni Strings':{},
+  'Dark Atmosphere':{violin:.35, viola:.9, cello:.65, cresc:.6, sus:.75, bright:.25, ensDepth:.75, phase:1, phRate:.08, phFb:.6},
+  'Phased Strings':{violin:1, viola:.5, cello:.2, cresc:.35, sus:.55, bright:.7, phase:1, phRate:.22, phFb:.7},
+  'Cello Section':{violin:0, viola:.4, cello:1, cresc:.45, sus:.5, bright:.35},
+  'Full Orchestra':{violin:.9, viola:.8, cello:.6, syn8:.4, cut:.5, env:.2, sa:.3, ss:.8, sr:.5, bass16:.8, bass8:.5, cresc:.35, sus:.6},
+  'Synth Brass':{violin:0, viola:0, cello:0, syn8:1, syn4:.35, cut:.3, res:.25, env:.6, sa:.09, sd:.45, ss:.6, sr:.25, ens:0},
+  'Resonant Sweep':{violin:0, viola:0, cello:0, syn8:1, syn4:0, cut:.15, res:.8, env:.9, sa:.55, sd:.8, ss:.3, sr:.6, phase:1, phRate:.12},
+  'Harpsi-Synth':{violin:0, viola:0, cello:0, syn8:.4, syn4:1, cut:.55, res:.25, env:.5, sa:0, sd:.25, ss:0, sr:.25, ens:0},
+  'Bass + Strings':{bass16:1, bass8:.6, bassRel:.3, violin:.6, viola:.8, cello:0, sus:.5},
+  'Cold Wave Pad':{violin:.6, viola:.6, cello:.4, syn8:.5, cut:.35, res:.35, env:.3, sa:.7, sd:.8, ss:.7, sr:.7, cresc:.7, sus:.8, phase:1, phRate:.05, phFb:.75, ensDepth:.8},
+};
+function omniPreset(name){ return Object.assign(OMNI_DEFAULT(), OMNI_PRESETS[name] || {}, {preset:name}); }
+function renderOmni(tr){
+  const C = tr.omni || (tr.omni = OMNI_DEFAULT()), up = () => { C.preset = ''; $('#omniPreset').value = ''; solCfg(tr); save(); };
+  const ps = $('#omniPreset'); if (!ps.options.length) ps.innerHTML = Object.keys(OMNI_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
+  ps.value = C.preset || '';
+  document.querySelectorAll('.omni-sw button').forEach(b => b.classList.toggle('on', !!C[b.dataset.k]));
+  const box = $('#omniSecs'); box.innerHTML = '';
+  const pct = v => Math.round(v * 100) + '%', ms = (a, b) => v => { const t = a + v * v * b; return t < 1 ? Math.round(t * 1000) + ' ms' : t.toFixed(1) + ' s'; };
+  const sec = (title, items) => { const d = document.createElement('div'); d.className = 'omni-sec'; d.innerHTML = `<div class="label">${title}</div><div class="knobs"></div>`; const k = d.querySelector('.knobs');
+    items.forEach(([lb, key, a, b, st, f]) => knob(k, lb, C, key, a, b, st, f, up)); box.appendChild(d); };
+  sec('STRINGS', [['VIOLIN', 'violin', 0, 1, .01, pct], ['VIOLA', 'viola', 0, 1, .01, pct], ['CELLO', 'cello', 0, 1, .01, pct], ['CRESC', 'cresc', 0, 1, .01, ms(.004, 2.5)], ['SUSTAIN', 'sus', 0, 1, .01, ms(.04, 5)], ['BRIGHT', 'bright', 0, 1, .01, pct], ['LEVEL', 'strVol', 0, 1, .01, pct]]);
+  sec('SYNTH', [['8′ SAW', 'syn8', 0, 1, .01, pct], ['4′ SQR', 'syn4', 0, 1, .01, pct], ['CUTOFF', 'cut', 0, 1, .005, v => { const h = 40 * Math.pow(400, v); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }], ['RESO', 'res', 0, 1, .01, pct], ['ENV', 'env', 0, 1, .01, pct], ['ATTACK', 'sa', 0, 1, .01, ms(.002, 4)], ['DECAY', 'sd', 0, 1, .01, ms(.01, 6)], ['SUSTAIN', 'ss', 0, 1, .01, pct], ['RELEASE', 'sr', 0, 1, .01, ms(.01, 6)], ['LEVEL', 'synVol', 0, 1, .01, pct]]);
+  sec('BASS', [['16′', 'bass16', 0, 1, .01, pct], ['8′', 'bass8', 0, 1, .01, pct], ['RELEASE', 'bassRel', 0, 1, .01, ms(.03, 3)], ['LEVEL', 'bassVol', 0, 1, .01, pct], ['SPLIT', 'split', 36, 60, 1, v => noteName(v)]]);
+  sec('EFFECTS', [['CHORUS', 'ensDepth', 0, 1, .01, pct], ['PHASE RATE', 'phRate', 0, 1, .01, v => (.05 + v * 2).toFixed(2) + ' Hz'], ['PHASE FB', 'phFb', 0, 1, .01, pct], ['VIBRATO', 'vib', 0, 1, .01, pct], ['VIB RATE', 'vibRate', 3, 8, .1, v => v.toFixed(1) + ' Hz']]);
+}
+$('#omniPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.omni = omniPreset(e.target.value); solCfg(tr); save(); renderOmni(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7, r - 12], 1.4); });
+document.querySelectorAll('.omni-sw button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(), C = tr.omni; C[b.dataset.k] = C[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderOmni(tr); }));
 function renderSolina(tr){
   const C = tr.sol;
   document.querySelectorAll('.solreg button').forEach(b => { b.classList.toggle('on', !!C[b.dataset.k]); });
@@ -8219,7 +8369,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
