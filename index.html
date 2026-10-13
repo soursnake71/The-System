@@ -809,7 +809,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
   <!-- MIXER -->
   <section class="view" id="v-mixer" hidden>
-    <div class="row mixtop"><button id="autoArm">Automate</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
+    <div class="row mixtop"><button id="autoArm">Automate</button><button id="fadersReset" class="nolearn" title="Every channel fader back to −20 dB, master and returns to their defaults">Reset faders</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard" data-chip="Effects"></div>
     <div class="card rack" id="rackCard" data-chip="FX rack"></div>
@@ -1572,6 +1572,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <label class="label" for="audioBuf">Audio buffer</label>
       <select id="audioBuf"><option value="interactive">Small: quickest response</option><option value="balanced">Medium</option><option value="playback">Large: safest, no crackles</option></select>
       <div class="row"><span class="grow">Tap to sound, measured</span><span class="badge" id="latNow">–</span></div>
+      <div class="row"><span class="grow">Show the Wheel (turntables) tab</span><button id="wheelOn" class="nolearn">Off</button></div>
       <div class="row"><span class="grow">Smoke and sparks off the pads</span><button id="smokeOn" class="nolearn">On</button></div>
       <div class="row"><span class="grow">“Damn son, where’d you find this?” now and then when you load a sample</span><button id="dsOn" class="nolearn">On</button></div>
       <div class="row"><span class="grow">Bluetooth headphones</span><button id="btOn" class="nolearn">Off</button></div>
@@ -1605,7 +1606,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v95</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v96</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -10165,7 +10166,7 @@ function navBack(){
   if (view !== 'drums'){ setView('drums'); return true; }
   return false;
 }
-function navTab(d){ const tabs = [...document.querySelectorAll('#nav button')], i = tabs.findIndex(b => b.dataset.v === view); const b = tabs[(i + d + tabs.length) % tabs.length]; if (b) b.click(); }
+function navTab(d){ const tabs = [...document.querySelectorAll('#nav button')].filter(b => !b.hidden), i = tabs.findIndex(b => b.dataset.v === view); const b = tabs[(i + d + tabs.length) % tabs.length]; if (b) b.click(); }
 function navRange(e, d){ const st = +e.step || (e.max - e.min) / 100; e.value = clamp(+e.value + d * st * (e.max - e.min > 2 ? 1 : 2), +e.min, +e.max); e.dispatchEvent(new Event('input', {bubbles:true})); e.dispatchEvent(new Event('change', {bubbles:true})); }
 document.addEventListener('keydown', e => {
   if (e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaStop'){ e.preventDefault(); playing || e.key === 'MediaStop' ? stop() : start(0); renderTransport(); return; }
@@ -10363,6 +10364,24 @@ async function fireToggle(){
   fireRestore(); await fireRecStop(false);
 }
 $('#fire').addEventListener('click', fireToggle);
+
+// Reset faders: every channel to −20 dB, master and the effect returns to their defaults (tap twice)
+$('#fadersReset').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again to reset'; b.classList.add('on'); setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Reset faders'; b.classList.remove('on'); }, 3000); return; }
+  b.dataset.sure = ''; b.textContent = 'Reset faders'; b.classList.remove('on');
+  allTracks().forEach(t => t.vol = VOL_M20); S.master.vol = .91; RET_KEYS.forEach(k => retState(k).vol = k === 'rev' ? .8 : .845);
+  applyAll(); if (live){ applyMaster(ctx, live.master); applyRack(ctx, live.master); } save(); renderMixer(); toast('All faders reset: channels at −20 dB, master at 0 dB.');
+});
+// the Wheel (turntables) tab is hidden until it's switched on in Setup
+const wheelShown = () => { try { return localStorage.getItem('pr.wheel') === '1'; } catch(e){ return false; } };
+function applyWheelTab(){
+  const on = wheelShown(), t = document.querySelector('#nav button[data-v="deck"]'); if (t) t.hidden = !on;
+  const w = $('#wheelOn'); if (w){ w.textContent = on ? 'On' : 'Off'; w.classList.toggle('on', on); }
+  if (!on && view === 'deck') setView('drums');
+}
+$('#wheelOn').addEventListener('click', () => { try { localStorage.setItem('pr.wheel', wheelShown() ? '0' : '1'); } catch(e){} applyWheelTab(); toast(wheelShown() ? 'Wheel tab is back in the bottom bar.' : 'Wheel tab hidden. Turn it on here any time.'); });
+applyWheelTab();
 let userNav = false;
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => { userNav = true; setView(b.dataset.v); }));
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.defaultPrevented && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
