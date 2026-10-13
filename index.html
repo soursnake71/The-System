@@ -860,6 +860,11 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+.mmeter{flex:0 0 100%;max-width:100%;box-sizing:border-box;display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:-2px;min-width:0}
+.mmeter b{font:400 7px "Michroma",sans-serif;letter-spacing:.14em;color:#4a463e}
+#mMeterCv{flex:1;height:12px;border-radius:2px;border:1px solid #000;display:block;min-width:0}
+#mMeterDb{flex:none;font-size:11px;width:38px;text-align:right;color:#26241f;font-weight:700;overflow:hidden}
+.mmeter.clip #mMeterDb{color:#e0302a}.mmeter.clip b{color:#e0302a}
 /* power (on / off) and reset buttons: the same look everywhere */
 .pwr{display:inline-flex !important;align-items:center;justify-content:center;gap:6px;padding:6px 11px !important;border-radius:16px !important;font:700 10px "Michroma",sans-serif !important;letter-spacing:.1em;background:linear-gradient(180deg,#2a2b2e,#141516) !important;color:#8a8a8a !important;border:1px solid #000 !important;box-shadow:inset 0 1px 0 #ffffff14 !important;min-width:0}
 .pwr::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;background:#3a1810;box-shadow:inset 0 1px 2px #000}
@@ -872,8 +877,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .spbanner{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:4px 0;border-radius:6px;background:#2a1208;border:1px solid #ff6a3d;color:#ffd3c0;font:700 11px "Barlow",sans-serif;letter-spacing:.06em}
 .spbanner .grow{flex:1}
 @media (max-width:759px){
-  .view > .card.djtop #wvCv{height:70px}.djtop{padding:6px !important;gap:4px !important}.dji{font-size:10px;padding:2px 5px}.dji .t{font-size:11px}
-  .djrig{gap:5px !important;padding:5px !important}.djdeck{padding:4px;gap:4px}.djdh{font-size:8px}.ttmini{aspect-ratio:1.62}
+  .view > .card.djtop #wvCv{height:62px}.djtop{padding:6px !important;gap:4px !important}.dji{font-size:10px;padding:2px 5px}.dji .t{font-size:11px}
+  .djrig{gap:5px !important;padding:5px !important}.djdeck{padding:4px;gap:4px}.djdh{font-size:8px}.ttmini{aspect-ratio:1.75}
   .djbtns button,.djbtns4 button{padding:7px 0 !important;font-size:7px !important}.djp{gap:3px}
   .djmixer{padding:4px 5px;gap:3px}.djmxh{display:none}
   .djmixer .mx{grid-template-columns:1fr 14px 1fr;gap:4px}
@@ -949,6 +954,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <span class="badge" id="inBadge">No input</span>
     <button id="helpBtn" aria-label="Help" style="padding:8px 12px">?</button>
   </div>
+  <div class="mmeter nolearn" id="mMeter" role="button" tabindex="0" aria-label="Master output meter. Tap for the master effects."><b>MASTER</b><canvas id="mMeterCv"></canvas><span id="mMeterDb" class="mono">−∞</span></div>
 </header>
 
 <div class="learnbar" id="learnBar" hidden><span id="learnMsg" class="grow">MIDI learn: tap a knob, menu or button, then move a knob or hit a pad on the MPC.</span><button id="learnDone" class="nolearn">Done</button></div>
@@ -1802,6 +1808,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>DR-110, DMX, Synsonics</b> (Pads): step grids like the machines. Load their sounds onto the pads, tap the grid to program, Accent for loud hits.</li>
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
+        <li><b>Master meter</b> (under the top bar, on every screen): left and right output level from −48 to 0 dBFS, with a peak-hold line and the loudest recent peak in dB; it turns red when the output clips. Tap it for the master effects.</li>
         <li><b>On / off and reset</b>: anything that can be switched on has a glowing power button (orange light = on): every effect section on a track (EQ, filter, vinyl, character, duck, compressor, gate, sends), every FX rack unit, the master bus compressor and tamer, each synth track, the drums, the arp, SP-1200 mode, key lock and deck FX. Off bypasses it and keeps its settings. Every machine has a ↺ Reset: Reset effects (a track), Reset master effects, ↺ Reset on each rack unit, Reset sound (the instrument's factory sound), Reset pad, Clear all (DR-110 / DMX), Reset (SP-1200), Reset mixer and Reset deck (Wheel). Undo brings anything back.</li>
         <li><b>SP-1200 mode</b> applies to every pad until you switch it off; while it's on, a banner on the Pads screen says so, with its own off switch.</li>
         <li><b>Undo / redo</b>: ↶ and ↷ are on every screen (the section buttons along the bottom, every opened section and every rack unit) and Ctrl+Z / Ctrl+Shift+Z on a keyboard. They step back and forward through every change you make, up to 80 steps.</li>
@@ -1939,7 +1946,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v111</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v112</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2632,6 +2639,8 @@ function makeMaster(c){
   m.fireWet.gain.value = 0; m.fireFilt.type = 'peaking'; m.fireFilt.frequency.value = 1800; m.fireFilt.Q.value = 3; m.fireFilt.gain.value = 0; m.fireSh.oversample = 'none';
   m.lim.connect(m.fireDry).connect(m.out); m.lim.connect(m.fireDrive).connect(m.fireSh).connect(m.fireFilt).connect(m.fireWet).connect(m.out);
   m.out.connect(m.an); m.out.connect(c.destination);
+  // left / right meters for the master strip on top of every screen
+  m.split = c.createChannelSplitter(2); m.out.connect(m.split); m.anL = c.createAnalyser(); m.anR = c.createAnalyser(); m.anL.fftSize = m.anR.fftSize = 1024; m.split.connect(m.anL, 0); m.split.connect(m.anR, 1);
   masterInsert(c, m);
   applyMaster(c, m);
   return m;
@@ -9525,7 +9534,31 @@ function peak(an){ an.getFloatTimeDomainData(tmp); let p = 0; for (let i = 0; i 
 const meterH = p => clamp((20 * Math.log10(p + 1e-6) + 60) / 60, 0, 1) * 100;
 let lastPh = -1;
 let stpTick = 0; const clipAt = new Map();
+// master output meter (top of every screen): left / right peak bars on a dBFS scale, peak hold, clip light
+const MM = {buf:new Float32Array(1024), lv:[0, 0], hold:[0, 0], holdT:[0, 0], clipT:0, maxDb:-Infinity, maxT:0};
+function drawMasterMeter(){
+  const cv = $('#mMeterCv'); if (!cv) return; const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr); if (!w || !h) return;
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d'), now = performance.now(), m = live && live.master;
+  const toX = db => Math.max(0, Math.min(1, (db + 48) / 48)) * w;
+  g.fillStyle = '#07090a'; g.fillRect(0, 0, w, h);
+  for (const db of [-36, -24, -12, -6, -3]){ g.fillStyle = '#ffffff22'; g.fillRect(Math.round(toX(db)), 0, dpr, h); }
+  const bh = (h - dpr * 3) / 2;
+  [m && m.anL, m && m.anR].forEach((an, ch) => {
+    let pk = 0; if (an){ an.getFloatTimeDomainData(MM.buf); for (let i = 0; i < MM.buf.length; i++){ const a = MM.buf[i] < 0 ? -MM.buf[i] : MM.buf[i]; if (a > pk) pk = a; } }
+    MM.lv[ch] = Math.max(pk, MM.lv[ch] * .9);
+    if (pk >= MM.hold[ch] || now - MM.holdT[ch] > 1500){ MM.hold[ch] = pk; MM.holdT[ch] = now; }
+    if (pk >= .995) MM.clipT = now;
+    const db = 20 * Math.log10(MM.lv[ch] + 1e-9), x = toX(db), y = dpr + ch * (bh + dpr);
+    const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#2fbf55'); gr.addColorStop(toX(-12) / w, '#3fd36b'); gr.addColorStop(toX(-6) / w, '#e8d21c'); gr.addColorStop(toX(-1.5) / w, '#ff8a1e'); gr.addColorStop(1, '#ff2a1a');
+    g.fillStyle = gr; g.fillRect(0, y, x, bh);
+    const hx = toX(20 * Math.log10(MM.hold[ch] + 1e-9)); if (MM.hold[ch] > .001){ g.fillStyle = MM.hold[ch] >= .995 ? '#ff2a1a' : '#ffffffcc'; g.fillRect(Math.max(0, hx - 2 * dpr), y, 2 * dpr, bh); }
+  });
+  const big = Math.max(MM.hold[0], MM.hold[1]), bigDb = 20 * Math.log10(big + 1e-9);
+  if (now - MM.maxT > 250){ MM.maxT = now; const el = $('#mMeterDb'); el.textContent = big > .0001 ? (bigDb >= 0 ? '+' : '') + bigDb.toFixed(1) : '−∞'; $('#mMeter').classList.toggle('clip', now - MM.clipT < 2000); }
+}
 function frame(){
+  drawMasterMeter();
   if (live && S.bpm !== frame._gb){ frame._gb = S.bpm; live.strips.forEach(st => { if (st.gsN) st.gsN.port.postMessage({type:'cfg', cfg:{bpm:S.bpm}}); }); }
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
@@ -13244,6 +13277,8 @@ function fxShow(id){
 }
 function fxOpen(){ $('#fxDlg').showModal(); fxShow(fxDefault()); }
 $('#fxBtn').addEventListener('click', fxOpen);
+$('#mMeter').addEventListener('click', () => { $('#fxDlg').showModal(); fxShow('master'); });
+setTimeout(drawMasterMeter, 300); window.addEventListener('resize', () => setTimeout(drawMasterMeter, 50));
 $('#fxDlgX').addEventListener('click', () => $('#fxDlg').close());
 $('#fxDlg').addEventListener('close', () => { fxBack(); if (view === 'mixer') renderMixer(); fxLit(); });
 // the FX button lights up when the track on screen has any effect patched in
