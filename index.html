@@ -469,6 +469,53 @@ html.frying main{animation:fryShake .11s steps(2) infinite}
 .sp12-pads{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-top:8px}
 .sp12-pads button{aspect-ratio:1;padding:0 !important;background:linear-gradient(180deg,#4b4d50,#2c2d2f) !important;border:2px solid #111 !important;color:#ddd !important;font:800 12px var(--f-display) !important}
 .sp12-pads button.hit{background:#ff6a3d !important}
+/* new synth panels and drum machines */
+.ana{border:1px solid #000;border-radius:5px;padding:10px}
+.ana-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.ana-head b{font:900 24px/1 "Barlow",sans-serif;letter-spacing:.02em}
+.ana-head i{font:700 10px "Barlow",sans-serif;letter-spacing:.25em;font-style:normal;opacity:.8}
+.m-juno{background:linear-gradient(180deg,#2a2826,#151413);border-top:4px solid #c9c3b5;color:#eee}.m-juno .ana-head b{color:#f3efe6}
+.m-sh{background:linear-gradient(180deg,#4a5866,#2a333b);color:#fff}.m-sh .ana-head b{color:#fff}.m-sh .ana-head i{color:#ff6a5a}
+.m-jx{background:linear-gradient(180deg,#2e3238,#16181b);border-top:3px solid #c43a2a;color:#eee}
+.m-moog{background:linear-gradient(180deg,#1d1b19,#0d0c0b);border-left:12px solid #6b4423;border-right:12px solid #6b4423;color:#f0e6d6}.m-moog .ana-head b{font-family:Georgia,serif;font-style:italic;color:#f5ead8}
+.m-six{background:linear-gradient(180deg,#36363b,#1c1c20);border-top:3px solid #b78b3a;color:#eee}
+.m-cs{background:linear-gradient(180deg,#2a1714,#120a08);border-top:4px solid #e1a95f;color:#f3e3d0}.m-cs .ana-head b{color:#f0c27a}
+.ana .label,.ana .knob .klab{color:inherit !important}
+.czp{background:linear-gradient(180deg,#3a3d44,#1f2126);border:1px solid #000;border-radius:5px;padding:10px;border-top:3px solid #3a8ad8}
+.cz-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}.cz-head b{font:900 17px/1 "Barlow",sans-serif;color:#fff;letter-spacing:.2em}.cz-head span{font:900 26px/1 "Barlow",sans-serif;color:#7ab8f5}.cz-head i{font:700 9px "Barlow",sans-serif;color:#aac;letter-spacing:.25em;font-style:normal}
+.smpx{border:1px solid #000;border-radius:5px;padding:10px}
+.smpx-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}.smpx-head b{font:900 17px/1 "Barlow",sans-serif;letter-spacing:.18em}.smpx-head span{font:900 26px/1 "Barlow",sans-serif}.smpx-head i{font:700 8px "Barlow",sans-serif;letter-spacing:.2em;font-style:normal;flex-basis:100%;opacity:.8}
+.m-sk1{background:linear-gradient(180deg,#2b2b30,#121215);color:#eee}.m-sk1 .smpx-head span{color:#ff7a3a}
+.m-emax{background:linear-gradient(180deg,#d9d6cf,#aeaba3);color:#1c2a3a}.m-emax .label,.m-emax .knob .klab{color:#1c2a3a !important}
+.dmach{border-radius:5px !important;padding:10px !important}
+.dmach.dr110,#sheetBody > .card.dmach.dr110{background:linear-gradient(180deg,#d2d0c8,#b6b3aa) !important;color:#222}
+.dmach.dmx,#sheetBody > .card.dmach.dmx{background:linear-gradient(180deg,#1c1c1e,#0b0b0c) !important;color:#eee;border-top:3px solid #c8a23a}
+.dmach > *{break-inside:avoid}
+.dm-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}.dm-head b{font:900 16px/1 "Barlow",sans-serif;letter-spacing:.15em}.dm-head span{font:900 22px/1 "Barlow",sans-serif}.dm-head i{font:700 9px "Barlow",sans-serif;letter-spacing:.25em;font-style:normal;opacity:.8}
+.dr110 .dm-head b{color:#c8102e}.dmx .dm-head b{color:#c8a23a}
+.dm-sets{display:flex;gap:6px;margin-bottom:6px}.dm-sets button{flex:1;padding:6px !important;font-size:11px !important}.dm-sets button.on{background:#c8a23a !important;color:#111 !important}
+.dm-lcd{background:#b9c7a4;border:3px solid #333;border-radius:3px;padding:5px;margin-bottom:8px}
+.dmx .dm-lcd{background:#0d140d;border-color:#000}
+.dm-row{display:grid;grid-template-columns:34px repeat(16,1fr);gap:2px;align-items:center;margin-bottom:2px;cursor:pointer}
+.dm-row span{font:700 10px var(--f-mono);color:#223}.dmx .dm-row span{color:#7dff7d}
+.dm-row i{height:13px;border:1px solid #6a7a5a;border-radius:1px;background:transparent}.dm-row i.beat{border-color:#3a4a2a}
+.dmx .dm-row i{border-color:#2a4a2a}.dmx .dm-row i.beat{border-color:#4a7a4a}
+.dm-row i.on{background:#22301a}.dm-row i.acc{background:#000;box-shadow:inset 0 0 0 2px #b9c7a4}
+.dmx .dm-row i.on{background:#3ad83a}.dmx .dm-row i.acc{background:#b8ff6a}
+.dm-row.sel{background:rgba(0,0,0,.12)}.dmx .dm-row.sel{background:rgba(60,255,60,.1)}
+.dm-btns{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px}
+.dm-btns button{padding:7px 0 !important;font:800 10px var(--f-display) !important}
+.dr110 .dm-btns button{background:linear-gradient(180deg,#fafaf6,#d8d6cf) !important;color:#222 !important;border:1px solid #555 !important}
+.dm-btns button.on{background:#c8102e !important;color:#fff !important}.dmx .dm-btns button.on{background:#c8a23a !important;color:#111 !important}
+.dm-btns button.acc.on{background:#ff8a00 !important;color:#111 !important}
+.syns,#sheetBody > .card.syns{background:linear-gradient(180deg,#262626,#0d0d0d) !important;color:#eee}
+.syns > *{break-inside:avoid}
+.syns-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}.syns-head b{font:900 16px/1 "Barlow",sans-serif;color:#e33;letter-spacing:.15em}.syns-head span{font:800 26px/1 Georgia,serif;font-style:italic;color:#ffd23f}.syns-head i{font:700 9px "Barlow",sans-serif;letter-spacing:.25em;font-style:normal;opacity:.8}
+.syns-pads{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.syns-pads button{aspect-ratio:1;border-radius:50% !important;background:radial-gradient(circle at 40% 35%,#555,#151515 70%) !important;border:4px solid #c22 !important;color:#ffd23f !important;font:800 12px var(--f-display) !important}
+.syns-pads button.hit{background:radial-gradient(circle,#ff6a3d,#7a1a0a) !important}
+.soothep{border:1px solid #333;border-radius:6px;padding:8px;margin:8px 0;background:linear-gradient(180deg,#1f2a2e,#11181b)}
+.soothep .ssl-head b{color:#7fe3d0}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -840,6 +887,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <p class="hint">Press Overdub or the record button and play the pads. Every pass layers on top. Timing correct snaps hits to the grid as you play. With it off, they stay exactly as played. Note repeat retriggers a held pad in time. Erase removes a held pad's hits as the loop passes over them.</p>
     </div>
     <div class="card" data-chip="SP-1200" id="spCard"></div>
+    <div class="card" data-chip="DR-110" id="drCard"></div>
+    <div class="card" data-chip="DMX" id="dmxCard"></div>
+    <div class="card" data-chip="Synsonics" id="synsCard"></div>
     <div class="card" data-title="Pad sound">
       <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
       <div class="kitrow"><span class="label">Pack</span><button id="packSave" class="nolearn">Save pack</button><button id="packLoad" class="nolearn">Load pack</button></div>
@@ -1020,7 +1070,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -1065,6 +1115,24 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <div class="ctl"><label class="label" for="obWheel">Mod lever</label><input id="obWheel" type="range" min="0" max="1" step="0.01"><span class="v mono" id="obWheelV"></span></div>
         <div id="obBody"></div>
         <p class="hint">Modeled on the Oberheim OB-Xa: two CEM3340 oscillators with sync, a CEM3320 filter you can switch between the 2-pole response (the open, brassy Oberheim sound) and 4-pole, two ADSRs, an LFO with sample &amp; hold, and eight voices spread across the stereo field like the OB-Xa's pan pots. Programs are in the style of famous OB-Xa and OB-X parts.</p>
+      </div>
+      <div id="anaPanel" class="ana" hidden>
+        <div class="ana-head" id="anaHead"></div>
+        <select id="anaPreset" aria-label="Presets"></select>
+        <div id="anaCtls"></div>
+        <p class="hint">Each model runs its own circuit: Roland's IR3109 filter (Juno-60, SH-101, JX-3P), the Moog ladder (Minimoog), the Curtis chip (Six-Trak) or the CS-80's high-pass + low-pass pair with touch-sensitive brilliance. DCO models stay locked in tune; the Minimoog, SH-101 and CS-80 drift like real VCOs.</p>
+      </div>
+      <div id="czPanel" class="czp" hidden>
+        <div class="cz-head"><b>CASIO</b><span>CZ-101</span><i>PHASE DISTORTION</i></div>
+        <select id="czPreset" aria-label="CZ presets"></select>
+        <div id="czCtls"></div>
+        <p class="hint">Phase distortion: a cosine read through a bent phase. DCW depth and its envelope sweep from a pure sine to saw, square, pulse, double sine or the resonant waves; two lines can be layered, detuned, ring- or noise-modulated.</p>
+      </div>
+      <div id="smpxPanel" class="smpx" hidden>
+        <div class="smpx-head" id="smpxHead"></div>
+        <div id="smpxCtls"></div>
+        <input type="file" id="smpxFile" accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.m4a" hidden>
+        <p class="hint">Plays one sound up and down the keys at the machine's own quality: the SK-1 squashes it to 8-bit at 9.38 kHz with no smoothing (the crunchy toy sound); the Emax to 12-bit at 27.7 kHz through its analog filter. Use a built-in tone, any pad's sound or a file.</p>
       </div>
       <div id="sidPanel" class="c128" hidden>
         <div class="c128-head"><b>commodore</b><span>128</span><i>SOUND INTERFACE DEVICE · MOS 6581</i></div>
@@ -1576,6 +1644,13 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Commodore 128</b> (Synth → Instruments): the SID chip, three voices with triangle / saw / pulse / noise, ring mod, sync, the chip's envelopes and gritty 6581 filter; Poly, Mono (stacked) and 60 Hz Arpeggio. Presets include the C128 BASIC 7.0 instruments.</li>
         <li><b>Roland D-50</b>: LA synthesis with 7 structures of PCM attack and synth partials, Upper / Lower tones (whole, dual, split), chorus and reverb.</li>
         <li><b>PPG Wave 2.2</b>: 8-bit wavetables (30 tables, 64 waves each) swept by envelope 3, the LFO and wheel, through a 24 dB filter. The display shows the table.</li>
+        <li><b>Juno-60, SH-101, JX-3P, Minimoog, Six-Trak, CS-80</b> (Synth → instrument): analog models, each with its own oscillators, filter type (Roland IR3109, Moog ladder, Curtis, Yamaha high + low-pass), envelopes and presets. Juno chorus I / II / I+II.</li>
+        <li><b>Casio CZ-101</b>: phase distortion, 8 waves, two lines (1, 2, 1+1′, 1+2′) with DCW and DCA envelopes, ring and noise mod.</li>
+        <li><b>Casio SK-1</b> and <b>E-mu Emax</b>: samplers at the machines' rates and bit depths (8-bit 9.4 kHz / 12-bit 27.8 kHz). Play a built-in tone, a pad's sound, or load a file. The Emax adds its 4-pole filter and envelopes.</li>
+        <li><b>DR-110, DMX, Synsonics</b> (Pads): step grids like the machines. Load their sounds onto the pads, tap the grid to program, Accent for loud hits.</li>
+        <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
+        <li><b>Microverb</b> (FX rack): the Alesis Microverb's 16 programs (halls, rooms, plates, gated, reverse).</li>
+        <li><b>Resonance tamer + clipper</b> (FX → Master): finds harsh peaks and turns them down as they happen; the clipper adds drive and holds a ceiling.</li>
         <li><b>SP-1200</b> (Pads → SP-1200): the E-mu faceplate: SP mode, banks A / B, eight faders for Tune, Decay or Mix, and eight pads.</li>
         <li><b>Ensoniq DP/4</b> (FX rack): four effect units (reverbs, chorus, flanger, phaser, delays, pitch shift, distortion, rotary, sweep filter) in Parallel, Series or 2 × 2, with presets. Send any track to it with its DP/4 send.</li>
         <li><b>Yamaha DX1</b> (Synth → instrument): two DX7 voices played Single, Dual (layered, B detuned) or Split. <b>Load .syx</b> (or Import) takes DX7 32-voice banks and single voices. Modeled on the DX7 chips: 49,096 Hz operator chip with log-sine and exponential ROMs, 14-bit operators, the EGS envelope, 32 algorithms, the floating-point 12-bit DAC and 16 kHz output filter. Edit the algorithm, feedback and each operator's level, ratio and decay.</li>
@@ -1704,7 +1779,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v100</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v101</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2156,7 +2231,7 @@ const KITS = {
 };
 
 /* ================= FX rack definitions ================= */
-const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp'];
+const RACK_KEYS = ['pt', 'ef', 'h9', 'mx', 'lx', 'dp', 'mv'];
 const RET_KEYS = ['rev', 'dly', ...RACK_KEYS];
 // FX returns on the mixer; the old fixed return levels were reverb 0.9 and 1.0 for the rest
 function retState(k){ const M = S.master; M.ret = M.ret || {}; if (!M.ret[k]) M.ret[k] = {vol:k === 'rev' ? .8 : .845, mute:false, solo:false, pan:0}; return M.ret[k]; }
@@ -2173,7 +2248,11 @@ const dpXf = a => a === 'pitch' ? v => { const s = Math.round((v - .5) * 24); re
 function dpKnobs(){ const out = []; for (let k = 1; k <= 4; k++){ out.push([k + ' Mix', 'm' + k, 0, 1, .01, pctF, P => P['a' + k] !== 'off']);
   for (const [a] of DP_ALGS.slice(1)){ out.push([k + ' ' + DP_X[a], 'x' + k, 0, 1, .01, dpXf(a), P => P['a' + k] === a]); out.push([k + ' ' + DP_Y[a], 'y' + k, 0, 1, .01, pctF, P => P['a' + k] === a]); } }
   out.push(['Return', 'ret', 0, 1, .01, pctF]); return out; }
+const MV_PROGS = ['1 Small room', '2 Medium room', '3 Large room', '4 Small hall', '5 Medium hall', '6 Large hall', '7 Bright plate', '8 Warm plate', '9 Big hall', '10 Huge hall', '11 Gated 1', '12 Gated 2', '13 Reverse 1', '14 Reverse 2', '15 Ambience', '16 Dark hall'];
 const RACK = {
+  mv:{name:'Alesis Microverb', sub:'16-program digital reverb', short:'Microverb', proc:'microverb', def:() => ({prog:4, ret:.8}),
+    menus:[['Program', 'prog', MV_PROGS.map((n, i) => [i, n])]], knobs:[['Level', 'ret', 0, 1, .01, pctF]],
+    presets:{'Vocal hall':{prog:4}, 'Drum room':{prog:1}, 'Snare plate':{prog:6}, 'Gated snare':{prog:10}, 'Reverse swell':{prog:12}, 'Ambience':{prog:14}, 'Huge wash':{prog:9}}},
   dp:{name:'Ensoniq DP/4', sub:'Four-unit parallel effects processor', short:'DP/4', proc:'dp4',
     def:() => ({cfg:'par', a1:'hall', a2:'chorus', a3:'delay', a4:'off', m1:1, m2:1, m3:1, m4:1, x1:.6, y1:.4, x2:.3, y2:.6, x3:.35, y3:.35, x4:.5, y4:.5, ret:.8}),
     menus:[['Config', 'cfg', [['par', 'Parallel: all 4 on the input'], ['ser', 'Series: 1 > 2 > 3 > 4'], ['2x2', '2 x 2: 1 > 2 and 3 > 4']]], ['Unit 1', 'a1', DP_ALGS], ['Unit 2', 'a2', DP_ALGS], ['Unit 3', 'a3', DP_ALGS], ['Unit 4', 'a4', DP_ALGS]],
@@ -2361,6 +2440,7 @@ function makeMaster(c){
   m.fireWet.gain.value = 0; m.fireFilt.type = 'peaking'; m.fireFilt.frequency.value = 1800; m.fireFilt.Q.value = 3; m.fireFilt.gain.value = 0; m.fireSh.oversample = 'none';
   m.lim.connect(m.fireDry).connect(m.out); m.lim.connect(m.fireDrive).connect(m.fireSh).connect(m.fireFilt).connect(m.fireWet).connect(m.out);
   m.out.connect(m.an); m.out.connect(c.destination);
+  masterInsert(c, m);
   applyMaster(c, m);
   return m;
 }
@@ -2412,8 +2492,15 @@ function wireMasterEq(c, m){
   if (m.ssl){ m.ssl.disconnect(); at.connect(m.ssl); at = m.ssl; }
   at.connect(m.pre);
 }
+function masterInsert(c, m){
+  if (!c._reduxOK || m.sc) return;
+  m.sc = new AudioWorkletNode(c, 'soother', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:scState()}});
+  try { m.lim.disconnect(); } catch(e){} m.lim.connect(m.sc); m.sc.connect(m.fireDry); m.sc.connect(m.fireDrive);
+}
+function scState(){ const M = S.master; M.sc = Object.assign({on:0, depth:.5, sharp:.5, speed:.5, clip:0, drive:0, ceil:-.3, hard:.5}, M.sc || {}); return M.sc; }
 function applyMaster(c, m){
   const M = S.master;
+  if (m.sc) m.sc.port.postMessage({type:'cfg', cfg:scState()});
   applyRack(c, m); wireMasterEq(c, m);
   sp(c, m.glue.threshold, -30 * M.glue); sp(c, m.glue.ratio, 1 + 5 * M.glue); sp(c, m.glueMk.gain, Math.pow(10, M.glue * 8 / 20));
   sp(c, m.glueWet.gain, M.glue > 0 ? 1 : 0); sp(c, m.glueDry.gain, M.glue > 0 ? 0 : 1);
@@ -2548,7 +2635,7 @@ function applyStrip(c, s, t){
 // sidechain-style duck: dip every track listening to this pad when it hits
 function duckAt(rig, pi, at){
   for (const tr of allTracks()){
-    if (!tr.duck || tr.duckPad !== pi) continue;
+    if (!tr.duck || tr.duckSrc || tr.duckPad !== pi) continue;
     const st = rig.strips.get(tr.id); if (!st) continue;
     const g = st.duck.gain;
     if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(at); else g.cancelScheduledValues(at);
@@ -2557,15 +2644,28 @@ function duckAt(rig, pi, at){
   }
 }
 const allTracks = () => [S.drum, ...S.audio, ...(S.synths || [])];
+// track-to-track sidechain: the key track's level (post-fader) drives a follower that dips this track's duck gain
+function wireSidechains(rig){
+  if (!rig || !rig.c._reduxOK) return;
+  for (const t of allTracks()){
+    const st = rig.strips.get(t.id); if (!st) continue;
+    const src = t.duckSrc && t.duck > 0 && t.duckSrc !== t.id ? trackById(t.duckSrc) : null, srcSt = src && src.duckSrc !== t.id ? rig.strips.get(src.id) : null;
+    if (srcSt){
+      if (!st.sck){ st.sck = new AudioWorkletNode(rig.c, 'sckey', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:{amount:t.duck, rel:t.duckRel || .18}}}); st.sck.connect(st.duck.gain); }
+      if (st.sckSrc !== src.id){ if (st.sckFrom){ try { st.sckFrom.disconnect(st.sck); } catch(e){} } srcSt.mute.connect(st.sck); st.sckFrom = srcSt.mute; st.sckSrc = src.id; }
+      st.sck.port.postMessage({type:'cfg', cfg:{amount:t.duck, rel:t.duckRel || .18, thr:t.duckThr == null ? .12 : t.duckThr}});
+    } else if (st.sck){ try { if (st.sckFrom) st.sckFrom.disconnect(st.sck); st.sck.disconnect(); } catch(e){} st.sck = null; st.sckFrom = null; st.sckSrc = null; }
+  }
+}
 function trackById(id){ return allTracks().find(t => t.id === id); }
 
 function makeRig(c){
   const rig = {c, master:makeMaster(c), strips:new Map(), voices:[], srcs:[]};
   allTracks().forEach(t => { const s = makeStrip(c, rig.master); applyStrip(c, s, t); rig.strips.set(t.id, s); });
-  applyVocoders(rig);
+  applyVocoders(rig); wireSidechains(rig);
   return rig;
 }
-function applyAll(){ if (!live) return; allTracks().forEach(t => { const s = live.strips.get(t.id); if (s) applyStrip(ctx, s, t); }); applyMaster(ctx, live.master); applyVocoders(live); }
+function applyAll(){ if (!live) return; allTracks().forEach(t => { const s = live.strips.get(t.id); if (s) applyStrip(ctx, s, t); }); applyMaster(ctx, live.master); applyVocoders(live); wireSidechains(live); }
 const VOC_DEFAULT = () => ({on:false, src:'input', car:'self', bands:[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], cons:.8, bal:0, harm:.5, ens:false, growl:0, sib:.7, vol:1, clev:0});
 let vocHold = false;
 // wire each synth track's vocoder: its own sound is the carrier, the chosen input or audio track is the voice
@@ -3755,6 +3855,208 @@ class PPG extends AudioWorkletProcessor{
   }
 }
 registerProcessor('ppg', PPG);
+/* Analog poly/mono engine with per-model circuits: Juno-60 / JX-3P / SH-101 (Roland IR3109 4-pole OTA filter, smooth,
+   self-oscillating), Minimoog (transistor ladder, 3 VCOs, loudness contour), Six-Trak (Curtis CEM3394 4-pole),
+   CS-80 (two layers per voice, each with its own 12 dB high-pass + 12 dB low-pass, ring modulator). DCO models lock
+   their oscillators to the clock; VCO models drift. Juno chorus (MN3009-style BBD, I = 0.5 Hz, II = 0.83 Hz, I+II = 8 Hz
+   vibrato-chorus) and the JX-3P chorus at the end. */
+const ana_blep = (t, d) => t < d ? (t / d) * 2 - (t / d) * (t / d) - 1 : t > 1 - d ? ((t - 1) / d) * ((t - 1) / d) + 2 * ((t - 1) / d) + 1 : 0;
+class ANA extends AudioWorkletProcessor{
+  constructor(o){
+    super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate;
+    this.cfg = Object.assign({model:'juno60', voices:6}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.vs = []; this.held = []; this.lfo = 0; this.lfoSH = 0; this.idle = 0; this.glideHz = 0;
+    this.ch = {b:[new Float32Array(8192), new Float32Array(8192)], w:0, p1:0, p2:.25, lpL:0, lpR:0};
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); };
+  }
+  voiceNew(n, v){ return {n, v, down:true, ph:[Math.random(), Math.random(), Math.random()], sub:0, e1:0, s1:0, e2:0, s2:0, z:[0, 0, 0, 0], z2:[0, 0, 0, 0], h:[0, 0, 0, 0], drift:[(Math.random() - .5) * .004, (Math.random() - .5) * .004, (Math.random() - .5) * .004], hz:0, age:0, lfoD:0}; }
+  noteOn(n, v){
+    const C = this.cfg; this.held = this.held.filter(x => x !== n); this.held.push(n);
+    const max = C.mono ? 1 : (C.voices || 6);
+    if (C.mono){ let V = this.vs[0]; const legato = V && V.down; if (!V){ V = this.voiceNew(n, v); this.vs.push(V); } V.n = n; V.v = v; V.down = true; if (!legato || C.retrig){ V.s1 = 0; V.s2 = 0; } return; }
+    if (this.vs.length >= max){ let k = this.vs.findIndex(x => !x.down); if (k < 0) k = 0; this.vs.splice(k, 1); }
+    this.vs.push(this.voiceNew(n, v));
+  }
+  noteOff(n){
+    const C = this.cfg; this.held = this.held.filter(x => x !== n);
+    if (C.mono){ const V = this.vs[0]; if (!V) return; if (this.held.length){ V.n = this.held[this.held.length - 1]; } else V.down = false; return; }
+    for (const V of this.vs) if (V.n === n && V.down) V.down = false;
+  }
+  adsr(V, k, a, d, s, r, dt){
+    const t = x => .001 + x * x * 10; let e = k ? V.e2 : V.e1, st = k ? V.s2 : V.s1;
+    if (!V.down) st = 3;
+    if (st === 0){ e += dt / t(a) * 1.3; if (e >= 1){ e = 1; st = 1; } } else if (st === 1) e += (s - e) * (1 - Math.exp(-dt / (t(d) * .3))); else e *= Math.exp(-dt / (t(r) * .3));
+    if (k){ V.e2 = e; V.s2 = st; } else { V.e1 = e; V.s1 = st; } return e;
+  }
+  osc(V, i, hz, wave, pw, fs){
+    const dt = hz / fs; let ph = V.ph[i] + dt; let wrapped = false; if (ph >= 1){ ph -= 1; wrapped = true; } V.ph[i] = ph; if (dt >= .5) return 0;
+    switch (wave){
+      case 1: return (ph < pw ? 1 : -1) + ana_blep(ph, dt) - ana_blep((ph + 1 - pw) % 1, dt);      // pulse
+      case 2: return 1 - 4 * Math.abs(ph - .5);                                                      // triangle
+      case 3: return Math.sin(2 * Math.PI * ph);                                                     // sine
+      case 4: return (ph < .5 ? 1 : -1) + ana_blep(ph, dt) - ana_blep((ph + .5) % 1, dt);           // square
+      default: return 2 * ph - 1 - ana_blep(ph, dt);                                                 // saw
+    }
+  }
+  // filters: 4-pole OTA (IR3109 / CEM), transistor ladder (Moog), or CS-80 12 dB HP + 12 dB LP
+  filt(z, x, fc, res, type, fs){
+    fc = Math.min(fc, fs * .45); const g = 1 - Math.exp(-2 * Math.PI * fc / fs);
+    if (type === 'ladder'){ const k = res * 4.1; const u = Math.tanh(x - k * (z[3] - .5 * x * 0)); z[0] += g * (Math.tanh(u) - Math.tanh(z[0])); z[1] += g * (Math.tanh(z[0]) - Math.tanh(z[1])); z[2] += g * (Math.tanh(z[1]) - Math.tanh(z[2])); z[3] += g * (Math.tanh(z[2]) - Math.tanh(z[3])); return z[3] * (1 + res * .9); }
+    if (type === 'cs'){ const g = Math.tan(Math.PI * Math.min(fc, fs * .45) / fs), k = 1.6 - res * 1.4, a1 = 1 / (1 + g * (g + k)), v1 = a1 * (z[0] + g * (x - z[1])), v2 = z[1] + g * v1; z[0] = 2 * v1 - z[0]; z[1] = 2 * v2 - z[1]; return v2 * (1 + res * .3); }
+    const k = res * (type === 'cem' ? 3.9 : 4.2); const u = Math.tanh((x - k * z[3]) * .8) / .8;
+    z[0] += g * (u - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]); return z[3] * (1 + res * .7);
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs;
+    if (this.vs.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    else if ((this.idle += N) > fs * 3){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const ftype = C.filter || 'ir3109', vco = !!C.vco, lfoHz = .1 + (C.lfoRate || .3) * (C.lfoRate || .3) * 25, glide = C.glide ? Math.exp(-1 / (fs * (.005 + C.glide * C.glide * 1.5))) : 0;
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else this.noteOff(ev.off); }
+      this.lfo += lfoHz / fs; if (this.lfo >= 1){ this.lfo -= 1; this.lfoSH = Math.random() * 2 - 1; }
+      const lw = C.lfoWave || 0, lv = lw === 1 ? (this.lfo < .5 ? 1 : -1) : lw === 2 ? 1 - 2 * this.lfo : lw === 3 ? this.lfoSH : 1 - 4 * Math.abs(this.lfo - .5);
+      let mix = 0;
+      for (let vi = this.vs.length - 1; vi >= 0; vi--){
+        const V = this.vs[vi]; V.age += dt; V.lfoD = Math.min(1, V.lfoD + dt / (.001 + (C.lfoDelay || 0) * 3));
+        const e1 = this.adsr(V, 0, C.a || 0, C.d == null ? .4 : C.d, C.s == null ? .6 : C.s, C.r == null ? .3 : C.r, dt);
+        const e2 = C.ampGate ? (V.down ? (V.e2 = 1) : (V.e2 *= .9993)) : this.adsr(V, 1, C.a2 == null ? (C.a || 0) : C.a2, C.d2 == null ? (C.d == null ? .4 : C.d) : C.d2, C.s2 == null ? (C.s == null ? .6 : C.s) : C.s2, C.r2 == null ? (C.r == null ? .3 : C.r) : C.r2, dt);
+        if (!V.down && e2 < 1e-4 && !C.ampGate || (C.ampGate && !V.down && V.e2 < 1e-3)){ this.vs.splice(vi, 1); continue; }
+        const lfoAmt = lv * V.lfoD, target = 440 * Math.pow(2, (V.n - 69 + (C.transpose || 0) + lfoAmt * (C.lfoPitch || 0) * 1.5 + (C.bend || 0)) / 12);
+        V.hz = glide && V.hz ? target + (V.hz - target) * glide : target;
+        const drift = vco ? 1 + V.drift[0] * Math.sin(V.age * .7) : 1;
+        // oscillators: osc 1 (wave1), osc 2 (wave2, interval, detune, sync / cross-mod), osc 3 (Minimoog), sub, noise
+        const pw = Math.min(.95, Math.max(.05, (C.pw == null ? .5 : C.pw) + lfoAmt * (C.pwm || 0) * .45 + (C.pwEnv || 0) * e1 * .4));
+        const h1 = V.hz * drift;
+        const ph1 = V.ph[0], o1 = this.osc(V, 0, h1, C.w1 || 0, pw, fs), wrap1 = V.ph[0] < ph1;
+        let o2 = 0, o3 = 0;
+        if (C.m2){ const h2 = V.hz * Math.pow(2, ((C.i2 || 0) + (C.d2t || 0) * .01 + (C.env2Pitch || 0) * e1 * 12) / 12) * (vco ? 1 + V.drift[1] * Math.sin(V.age * .5) : 1);
+          if (C.sync && wrap1) V.ph[1] = 0; o2 = this.osc(V, 1, h2 * (C.xmod ? 1 + o1 * C.xmod * .8 : 1), C.w2 || 0, pw, fs); }
+        if (C.m3){ o3 = this.osc(V, 2, V.hz * Math.pow(2, ((C.i3 || 0) + (C.d3t || 0) * .01) / 12) * (vco ? 1 + V.drift[2] * Math.sin(V.age * .9) : 1), C.w3 || 0, .5, fs); }
+        if (V.ph[0] < ph1) V.sub = -V.sub || 1; const sub = (V.sub || 1) * (C.subType === 2 ? .5 : 1);
+        const ring = C.ring ? o1 * o2 * C.ring : 0;
+        let x = o1 * (C.m1 == null ? 1 : C.m1) + o2 * (C.m2 || 0) + o3 * (C.m3 || 0) + sub * (C.sub || 0) + (Math.random() * 2 - 1) * (C.noise || 0) + ring;
+        x *= .5;
+        // high-pass (Juno: 4 fixed positions) then the low-pass
+        if (C.hpf){ const fh = [0, 120, 250, 520][C.hpf | 0] || 0; if (fh){ const gh = 1 - Math.exp(-2 * Math.PI * fh / fs); V.h[0] += gh * (x - V.h[0]); x -= V.h[0]; } }
+        const kt = C.kf == null ? .5 : C.kf, oct = (C.cut == null ? .5 : C.cut) * 10 + (C.fenv || 0) * e1 * 7 * (C.fenvInv ? -1 : 1) + lfoAmt * (C.lfoCut || 0) * 2 + (V.n - 60) / 12 * kt + (C.velCut || 0) * V.v * 2;
+        const fc = 25 * Math.pow(2, oct);
+        let y;
+        if (ftype === 'cs'){
+          // CS-80: high-pass then low-pass (12 dB each) per layer; two layers mixed
+          const fhp = 20 * Math.pow(2, (C.hpCut || 0) * 9);
+          const g1 = 1 - Math.exp(-2 * Math.PI * Math.min(fhp, fs * .45) / fs); V.z2[0] += g1 * (x - V.z2[0]); V.z2[1] += g1 * (x - V.z2[0] - V.z2[1]); const hp = x - V.z2[0] - V.z2[1];
+          y = this.filt(V.z, hp, fc, C.res || 0, 'cs', fs);
+        } else y = this.filt(V.z, x, fc, C.res || 0, ftype, fs);
+        mix += y * e2 * (C.velAmp ? .4 + .6 * V.v : .85);
+      }
+      if (!(Math.abs(mix) < 1e3)){ mix = 0; for (const V of this.vs){ V.z.fill(0); V.z2.fill(0); } }
+      mix *= .45 * (C.vol == null ? .8 : C.vol);
+      // chorus
+      let oL = mix, oR = mix; const cm = C.chorus | 0;
+      if (cm){
+        const ch = this.ch, rate = cm === 1 ? .513 : cm === 2 ? .863 : cm === 3 ? 9.75 : .6, depth = cm === 3 ? .3 : cm === 4 ? .9 : 1;
+        ch.p1 += rate / fs; if (ch.p1 >= 1) ch.p1 -= 1;
+        ch.b[0][ch.w & 8191] = mix; const tri = 1 - 4 * Math.abs(ch.p1 - .5);
+        const dL = (cm === 3 ? 3.2 : 3.5 + 1.8 * depth) * fs / 1000 + tri * 1.5 * depth * fs / 1000, dR = (cm === 3 ? 3.2 : 3.5 + 1.8 * depth) * fs / 1000 - tri * 1.5 * depth * fs / 1000;
+        const rd = d => { const r = ch.w - d, i0 = Math.floor(r), f = r - i0, a = ch.b[0][i0 & 8191], b = ch.b[0][(i0 + 1) & 8191]; return a + (b - a) * f; };
+        const wl = rd(dL), wr = rd(dR); ch.lpL += (wl - ch.lpL) * .5; ch.lpR += (wr - ch.lpR) * .5; ch.w++;
+        // Juno: dry and the BBD signal mixed, the BBD inverted on the right for width
+        oL = mix * .7 + ch.lpL * .7; oR = mix * .7 + ch.lpR * .7;
+      }
+      L[i] = oL; R[i] = oR;
+    }
+    return true;
+  }
+}
+registerProcessor('ana', ANA);
+/* Casio CZ-101 phase distortion: a cosine read through a warped phase; the DCW envelope sets how far the phase is bent
+   (0 = pure sine). Waveforms: saw, square, pulse, double sine, saw-pulse, resonance I / II / III. Two lines (1, 2, 1+1',
+   1+2') each with DCW and DCA envelopes, line 2 detunable; ring and noise modulation. */
+class CZ extends AudioWorkletProcessor{
+  constructor(o){ super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate; this.cfg = Object.assign({}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f); this.vs = []; this.idle = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); }; }
+  pd(ph, wave, d){
+    const D = Math.max(.001, Math.min(.999, d));
+    switch (wave){
+      case 1: { const p = ph < .5 ? (ph < .5 * (1 - D) ? ph / (1 - D) : .5) : (ph < .5 + .5 * (1 - D) ? .5 + (ph - .5) / (1 - D) : 1); return Math.cos(2 * Math.PI * p); }   // square
+      case 2: { const k = 1 - D * .95, p = ph < k ? ph / k * .5 : .5 + (ph - k) / (1 - k) * .5; return Math.cos(2 * Math.PI * Math.min(1, p * (1 + D))); }                     // pulse
+      case 3: { const p = (ph * 2) % 1, w = ph < .5 ? 1 : -1, k = .5 - D * .45, q = p < k ? p / k * .5 : .5 + (p - k) / (1 - k) * .5; return Math.cos(2 * Math.PI * q) * w; } // double sine
+      case 4: { const k = .5 - D * .45, p = ph < k ? ph / k * .5 : ph < .5 ? .5 : .5 + (ph - .5); return Math.cos(2 * Math.PI * p); }                                            // saw-pulse
+      case 5: case 6: case 7: { const r = 1 + D * 14, win = wave === 5 ? 1 - ph : wave === 6 ? 1 - Math.abs(2 * ph - 1) : Math.max(0, 1 - 2 * ph); return (1 - Math.cos(2 * Math.PI * ((ph * r) % 1))) * .5 * win * 2 - .5; } // resonance
+      default: { const k = .5 - D * .48, p = ph < k ? ph / k * .5 : .5 + (ph - k) / (1 - k) * .5; return Math.cos(2 * Math.PI * p); }                                             // saw
+    }
+  }
+  env(E, st, down, dt, a, d, s, r){
+    const t = x => .002 + x * x * 8; if (!down) st.k = 3;
+    if (st.k === 0){ st.e += dt / t(a); if (st.e >= 1){ st.e = 1; st.k = 1; } } else if (st.k === 1) st.e += (s - st.e) * (1 - Math.exp(-dt / (t(d) * .3))); else st.e *= Math.exp(-dt / (t(r) * .3));
+    return st.e;
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs;
+    if (this.vs.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0; else if ((this.idle += N) > 4096){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const line = C.line || 0, two = line >= 2 || line === 1;
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null){ if (this.vs.length >= 8) this.vs.shift(); this.vs.push({n:ev.on, v:ev.v == null ? .8 : ev.v, down:true, p1:0, p2:0, w1:{e:0, k:0}, a1:{e:0, k:0}, w2:{e:0, k:0}, a2:{e:0, k:0}}); } else for (const V of this.vs) if (V.n === ev.off) V.down = false; }
+      let s = 0;
+      for (let vi = this.vs.length - 1; vi >= 0; vi--){
+        const V = this.vs[vi], hz = 440 * Math.pow(2, (V.n - 69 + (C.oct || 0) * 12) / 12);
+        const dw1 = this.env(0, V.w1, V.down, dt, C.wa1, C.wd1, C.ws1, C.wr1) * (C.dcw1 == null ? .7 : C.dcw1), da1 = this.env(0, V.a1, V.down, dt, C.aa1, C.ad1, C.as1, C.ar1);
+        V.p1 = (V.p1 + hz / fs) % 1; let x = line === 1 ? 0 : this.pd(V.p1, C.wave1 || 0, dw1) * da1;
+        if (line > 0){ const h2 = hz * Math.pow(2, ((C.det || 0) * .01 + (line === 3 ? (C.oct2 || 0) * 12 : 0)) / 12); V.p2 = (V.p2 + h2 / fs) % 1;
+          const dw2 = this.env(0, V.w2, V.down, dt, C.wa2, C.wd2, C.ws2, C.wr2) * (C.dcw2 == null ? .7 : C.dcw2), da2 = this.env(0, V.a2, V.down, dt, C.aa2, C.ad2, C.as2, C.ar2);
+          let y = this.pd(V.p2, C.wave2 || 0, dw2) * da2; if (C.ring) y *= this.pd(V.p1, 0, 0); if (C.noise) y *= (Math.random() * 2 - 1) * C.noise + (1 - C.noise);
+          x += y; }
+        if (!V.down && V.a1.e < 1e-4 && (line === 0 || V.a2.e < 1e-4)){ this.vs.splice(vi, 1); continue; }
+        s += x * (.5 + .5 * V.v);
+      }
+      L[i] = R[i] = s * .22 * (C.vol == null ? .8 : C.vol);
+    }
+    return true;
+  }
+}
+registerProcessor('cz', CZ);
+/* Sampler models: Casio SK-1 (8-bit, 9.38 kHz, no interpolation, 4 voices, no filter) and E-mu Emax (12-bit, 27.7 kHz,
+   8 voices, analog 4-pole low-pass with envelope, VCA ADSR). The sample is resampled to the machine's rate and word
+   length once, then played pitched like the hardware. */
+class SMPX extends AudioWorkletProcessor{
+  constructor(o){ super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate; this.cfg = Object.assign({model:'sk1'}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f); this.vs = []; this.idle = 0; this.data = null; this.root = 60;
+    if (opt.sample) this.load(opt.sample);
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); else if (d.type === 'sample') this.load(d); }; }
+  load(d){
+    const sk = (d.model || this.cfg.model) === 'sk1', mr = sk ? 9380 : 27778, bits = sk ? 8 : 12, src = d.data, step = d.sr / mr, n = Math.max(1, Math.floor(src.length / step)), out = new Float32Array(n), q = Math.pow(2, bits - 1);
+    let lp = 0; const a = Math.min(1, mr / d.sr * 1.6);
+    for (let i = 0; i < n; i++){ const x = src[Math.min(src.length - 1, Math.floor(i * step))]; lp += (x - lp) * a; out[i] = Math.round(Math.max(-1, Math.min(1, lp)) * (q - 1)) / (q - 1); }
+    this.data = out; this.mr = mr; this.root = d.root || 60; this.loopS = d.loop ? Math.floor(n * .3) : -1;
+  }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs, dt = 1 / fs, sk = C.model === 'sk1';
+    if (!this.data || (!this.vs.length && !(this.q.length && this.q[0].f < currentFrame + N))){ if ((this.idle += N) > 2048 || !this.data){ this.q = this.q.filter(e => e.f >= currentFrame + N); L.fill(0); if (R !== L) R.fill(0); return true; } } else this.idle = 0;
+    const D = this.data, t = x => .001 + x * x * 8;
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null){ if (this.vs.length >= (sk ? 4 : 8)) this.vs.shift(); this.vs.push({n:ev.on, v:ev.v == null ? .8 : ev.v, down:true, pos:0, e:0, k:0, fe:0, z:[0, 0, 0, 0]}); } else for (const V of this.vs) if (V.n === ev.off) V.down = false; }
+      let s = 0;
+      for (let vi = this.vs.length - 1; vi >= 0; vi--){
+        const V = this.vs[vi], rate = Math.pow(2, (V.n - this.root + (C.tune || 0)) / 12) * this.mr / fs;
+        if (!V.down) V.k = 3;
+        if (V.k === 0){ V.e += dt / t(sk ? 0 : C.a || 0); if (V.e >= 1){ V.e = 1; V.k = 1; } } else if (V.k === 1) V.e += ((sk ? 1 : C.s == null ? 1 : C.s) - V.e) * (1 - Math.exp(-dt / (t(C.d == null ? .5 : C.d) * .3))); else V.e *= Math.exp(-dt / (t(sk ? .15 : C.r == null ? .3 : C.r) * .3));
+        let idx = Math.floor(V.pos); if (idx >= D.length){ if (this.loopS >= 0 && C.loop){ V.pos = this.loopS; idx = this.loopS; } else { this.vs.splice(vi, 1); continue; } }
+        let x = sk ? D[idx] : D[idx] + (D[Math.min(D.length - 1, idx + 1)] - D[idx]) * (V.pos - idx);
+        V.pos += rate;
+        if (!sk){ V.fe = V.down ? Math.min(1, V.fe + dt / t(C.fa || 0)) * Math.exp(-dt / (t(C.fd == null ? .4 : C.fd) * 2)) : V.fe * .9995;
+          const fc = Math.min(fs * .42, 40 * Math.pow(2, (C.cut == null ? .8 : C.cut) * 9.3 + (C.fenv || 0) * V.fe * 5)), g = 1 - Math.exp(-2 * Math.PI * fc / fs), k = (C.res || 0) * 3.8, z = V.z;
+          const u = Math.tanh(x - k * z[3]); z[0] += g * (u - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]); x = z[3] * (1 + (C.res || 0) * .5); }
+        if (!V.down && V.e < 1e-4){ this.vs.splice(vi, 1); continue; }
+        s += x * V.e * (sk ? .8 : .5 + .5 * V.v);
+      }
+      L[i] = R[i] = s * .5 * (C.vol == null ? .8 : C.vol);
+    }
+    return true;
+  }
+}
+registerProcessor('smpx', SMPX);
 `;
 const SPW_CODE = String.raw`
 /* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
@@ -4266,6 +4568,93 @@ class DP4 extends RackUnit{
   }
 }
 registerProcessor('dp4', DP4);
+/* Alesis Microverb: 16 programs (rooms, halls, plates, gated, reverse), 16-bit, band-limited like its ~31 kHz converters. */
+class Microverb extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs, sc = fs / 44100; this.cb = [0, 1].map(c => [1557, 1617, 1491, 1422, 1277, 1356].map(n => ({d:new DLine(Math.ceil(n * sc * 2.6) + 10), n:Math.round(n * sc * (1 + c * .023)), f:0})));
+    this.ap = [0, 1].map(c => [225, 556, 441, 341].map(n => ({d:new DLine(Math.ceil(n * sc) + 10), n:Math.round(n * sc * (1 + c * .03))}))); this.pre = [new DLine(Math.ceil(fs * 1.2)), new DLine(Math.ceil(fs * 1.2))]; this.bl = [0, 0, 0, 0]; this.gate = 0; this.update(); }
+  reset(){ this.cb.flat().forEach(c => { c.d.clear(); c.f = 0; }); this.ap.flat().forEach(a => a.d.clear()); this.pre.forEach(p => p.clear()); }
+  tail(){ return 6; }
+  run(a, b, L, R, N){
+    const C = this.c, P = (C.prog | 0), ret = C.ret == null ? .8 : C.ret, fs = this.fs;
+    // program table: size, damping, pre-delay (ms), kind (0 normal, 1 gated, 2 reverse)
+    const T = [[.45, .5, 2, 0], [.6, .45, 6, 0], [.8, .4, 12, 0], [1, .45, 18, 0], [1.25, .4, 25, 0], [1.55, .35, 35, 0], [.9, .15, 5, 0], [1.1, .55, 8, 0],
+      [1.8, .3, 45, 0], [2.2, .25, 60, 0], [.7, .3, 0, 1], [1, .25, 0, 1], [.8, .3, 0, 2], [1.2, .3, 0, 2], [.35, .6, 0, 0], [1.4, .7, 20, 0]][P] || [1, .4, 10, 0];
+    const [size, damp, pd, kind] = T, fbk = Math.min(.975, .72 + size * .14), pdS = Math.round(pd / 1000 * fs), bw = 1 - Math.exp(-2 * Math.PI * 11000 / fs);
+    for (let i = 0; i < N; i++){
+      const inL = a ? a[i] : 0, inR = b ? b[i] : 0; let lev = Math.abs(inL) + Math.abs(inR); this.gate = Math.max(lev > .01 ? 1 : 0, this.gate * Math.exp(-1 / (fs * .25)));
+      const out = this.o || (this.o = [0, 0]);
+      for (let c = 0; c < 2; c++){
+        const P2 = this.pre[c]; let x = c ? inR : inL; this.bl[c] += (x - this.bl[c]) * bw; P2.push(this.bl[c]);
+        let inp;
+        if (kind === 2){ const len = Math.round(fs * .35 * size); let acc = 0; for (let k = 0; k < 4; k++){ const d = Math.round(len * (k + 1) / 4); acc += P2.at(d) * (k + 1) / 4; } inp = acc * .25; }
+        else inp = P2.at(pdS) * .3;
+        let s = 0; for (const cb of this.cb[c]){ const o = cb.d.at(Math.round(cb.n * size)); cb.f = o * (1 - damp) + cb.f * damp; cb.d.push(inp + cb.f * fbk); s += o; }
+        for (const ap of this.ap[c]){ const o = ap.d.at(ap.n); ap.d.push(s + o * .5); s = o - s * .5; }
+        if (kind === 1) s *= this.gate;
+        out[c] = Math.round(s * .45 * 32767) / 32767;
+      }
+      L[i] = out[0] * ret; R[i] = out[1] * ret;
+    }
+  }
+}
+registerProcessor('microverb', Microverb);
+/* Resonance tamer + clipper for the master (in the spirit of soothe2 and a mastering clipper): 18 log-spaced bands track
+   the spectrum; a band poking out above its neighbours by more than the threshold gets a matching dynamic cut, eased in
+   and out. Then an oversampled clipper (soft-to-hard knee) with a ceiling. */
+class Soother extends AudioWorkletProcessor{
+  constructor(o){ super(); this.fs = sampleRate; this.c = Object.assign({on:0, depth:.5, sharp:.5, speed:.5, clip:0, drive:0, ceil:-.3, hard:.5}, (o && o.processorOptions && o.processorOptions.cfg) || {});
+    const fs = this.fs; this.F = []; for (let k = 0; k < 18; k++) this.F.push(200 * Math.pow(12000 / 200, k / 17));
+    this.det = this.F.map(f => this.bp(f, 2.2)); this.ds = this.F.map(() => [0, 0]); this.env = new Float32Array(18); this.gain = new Float32Array(18);
+    this.eq = this.F.map(() => ({b0:1, b1:0, b2:0, a1:0, a2:0})); this.es = this.F.map(() => [[0, 0], [0, 0]]); this.n = 0; this.prev = [0, 0];
+    this.port.onmessage = e => { if (e.data.type === 'cfg') Object.assign(this.c, e.data.cfg); }; }
+  bp(f, Q){ const w = 2 * Math.PI * f / this.fs, al = Math.sin(w) / (2 * Q), a0 = 1 + al; return {b0:al / a0, b2:-al / a0, a1:-2 * Math.cos(w) / a0, a2:(1 - al) / a0}; }
+  peak(f, Q, dB){ const A = Math.pow(10, dB / 40), w = 2 * Math.PI * f / this.fs, al = Math.sin(w) / (2 * Q), a0 = 1 + al / A; return {b0:(1 + al * A) / a0, b1:-2 * Math.cos(w) / a0, b2:(1 - al * A) / a0, a1:-2 * Math.cos(w) / a0, a2:(1 - al / A) / a0}; }
+  process(ins, outs){
+    const inp = ins[0], L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.c;
+    const a = inp && inp[0] ? inp[0] : null, b = inp && inp[1] ? inp[1] : a;
+    if (!a){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    if (!C.on && !C.clip){ L.set(a); if (R !== L) R.set(b); return true; }
+    const rel = Math.exp(-1 / (this.fs * (.02 + (1 - C.speed) * .25))), Q = 1.5 + C.sharp * 5;
+    const g = Math.pow(10, (C.drive || 0) / 20), ceil = Math.pow(10, (C.ceil == null ? -.3 : C.ceil) / 20), h = 1 + C.hard * 8;
+    const clip = x => { const u = x * g / ceil; return Math.sign(u) * Math.pow(Math.tanh(Math.pow(Math.abs(u), h)), 1 / h) * ceil; };
+    for (let i = 0; i < N; i++){
+      let l = a[i], r = b[i];
+      if (C.on){
+        const m = (l + r) * .5;
+        for (let k = 0; k < 18; k++){ const d = this.det[k], s = this.ds[k]; const y = d.b0 * m + s[0]; s[0] = -d.a1 * y + s[1]; s[1] = d.b2 * m - d.a2 * y; const e = Math.abs(y); this.env[k] = e > this.env[k] ? e : this.env[k] * rel; }
+        if ((this.n++ & 31) === 0){
+          for (let k = 0; k < 18; k++){ const nb = (this.env[Math.max(0, k - 2)] + this.env[Math.max(0, k - 1)] + this.env[Math.min(17, k + 1)] + this.env[Math.min(17, k + 2)]) / 4 + 1e-6;
+            const over = 20 * Math.log10((this.env[k] + 1e-6) / nb) - (6 - C.depth * 4); const target = over > 0 ? -Math.min(12, over * (.4 + C.depth)) : 0;
+            this.gain[k] += (target - this.gain[k]) * .2; this.eq[k] = this.peak(this.F[k], Q, this.gain[k]); }
+        }
+        for (let k = 0; k < 18; k++){ if (this.gain[k] > -.05) continue; const q = this.eq[k], sL = this.es[k][0], sR = this.es[k][1];
+          let y = q.b0 * l + sL[0]; sL[0] = q.b1 * l - q.a1 * y + sL[1]; sL[1] = q.b2 * l - q.a2 * y; l = y;
+          y = q.b0 * r + sR[0]; sR[0] = q.b1 * r - q.a1 * y + sR[1]; sR[1] = q.b2 * r - q.a2 * y; r = y; }
+      }
+      if (C.clip){
+        // 2x oversampled: the midpoint is clipped too and averaged in
+        const ml = (l + this.prev[0]) * .5, mr = (r + this.prev[1]) * .5; this.prev[0] = l; this.prev[1] = r;
+        l = (clip(l) + clip(ml)) * .5; r = (clip(r) + clip(mr)) * .5;
+      }
+      L[i] = l; R[i] = r;
+    }
+    return true;
+  }
+}
+registerProcessor('soother', Soother);
+/* Sidechain key: an envelope follower on the key track; its output is a negative gain offset fed into the ducked
+   track's gain, so the track dips with the key's level (threshold, ratio-style depth, attack, release). */
+class SCKey extends AudioWorkletProcessor{
+  constructor(o){ super(); this.fs = sampleRate; this.c = Object.assign({amount:.5, rel:.18, thr:.1}, (o && o.processorOptions && o.processorOptions.cfg) || {}); this.env = 0; this.port.onmessage = e => { if (e.data.type === 'cfg') Object.assign(this.c, e.data.cfg); }; }
+  process(ins, outs){
+    const k = ins[0] && ins[0][0], k2 = ins[0] && ins[0][1], o = outs[0][0], N = o.length, C = this.c, at = Math.exp(-1 / (this.fs * .003)), re = Math.exp(-1 / (this.fs * Math.max(.02, C.rel)));
+    for (let i = 0; i < N; i++){ const x = k ? Math.max(Math.abs(k[i]), k2 ? Math.abs(k2[i]) : 0) : 0; this.env = x > this.env ? x + (this.env - x) * at : x + (this.env - x) * re;
+      const over = Math.max(0, this.env - C.thr * .3) / Math.max(.02, C.thr); o[i] = -Math.min(.95, C.amount * .95 * Math.min(1, over)); }
+    if (outs[0][1]) outs[0][1].set(o);
+    return true;
+  }
+}
+registerProcessor('sckey', SCKey);
 
 /* Eventide H910 Harmonizer: 11-bit delay memory between a 2:1 compressor and expander (it pumps), read at a different
    rate than it is written; the read point sweeps a ~30 ms window and jumps back at the edge with no de-glitch (the
@@ -4610,7 +4999,7 @@ function ensureAudio(){
   workletReady = (ctx.audioWorklet ? ctx.audioWorklet.addModule(workletUrl()) : Promise.reject(new Error('this browser has no AudioWorklet'))).then(() => {
     ctx._reduxOK = true;
     live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
-    rackNodes(ctx, live.master); applyRack(ctx, live.master); live.master._eqw = null; applyMaster(ctx, live.master);
+    rackNodes(ctx, live.master); masterInsert(ctx, live.master); applyRack(ctx, live.master); live.master._eqw = null; applyMaster(ctx, live.master);
     applyVocoders(live);
     capNode = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
     capNode.port.onmessage = e => capChunks.push(e.data);
@@ -6645,6 +7034,7 @@ function exportPlan(){
   return {parts, total:parts.reduce((a, p) => a + p.steps, 0), song};
 }
 async function renderAudio(sr, solo, fixedLen){
+  for (const t of S.synths) if ((t.inst === 'sk1' || t.inst === 'emax') && !t._smpxCache){ try { t._smpxCache = await smpxSample(t); } catch(e){} }
   const sd = stepDur(), {parts, total} = exportPlan(), len = fixedLen || Math.ceil((total * sd + 2.5) * sr);
   const saved = allTracks().map(t => [t, t.solo]);
   if (solo) allTracks().forEach(t => t.solo = t.id === solo);
@@ -7023,7 +7413,7 @@ function syncSteppers(){
   }
 }
 function renderPadEditor(){
-  try { renderSpCard(); } catch(e){}
+  try { renderSpCard(); renderDrumMachine('dr110'); renderDrumMachine('dmx'); renderSynsonics(); } catch(e){ console.warn(e); }
   const p = S.drum.pads[selPad];
   $('#padTitle').textContent = `${padLabel(selPad)} ${p.name}`;
   const usr = !!p.sample && !p.sample.startsWith('kit:');
@@ -7330,6 +7720,14 @@ function renderFx(){
     knob(kb, 'MIX', SS, 'mix', 0, 1, .05, v => Math.round(v * 100) + '%', up, 'white');
     sb.querySelector('#sslOn').addEventListener('click', () => { SS.on = !SS.on; ensureAudio(); if (live){ live.master._eqw = null; up(); } save(); renderFx(); });
     sb.querySelector('#sslPreset').addEventListener('change', e => { const P = SSL_PRESETS[e.target.value]; if (!P) return; Object.assign(SS, P, {on:true}); ensureAudio(); if (live){ live.master._eqw = null; up(); } save(); renderFx(); });
+    const SC = scState(), scb = document.createElement('div'); scb.className = 'soothep';
+    scb.innerHTML = `<div class="ssl-head"><b>RESONANCE TAMER + CLIPPER</b><span>MASTER</span></div><div class="row"><button id="scOn" class="grow nolearn ${SC.on ? 'on' : ''}">Tame resonances</button><button id="scClip" class="grow nolearn ${SC.clip ? 'on' : ''}">Clipper</button></div><div class="svc-knobs sc-knobs"></div>`;
+    box.appendChild(scb);
+    const scu = () => { if (live) applyMaster(ctx, live.master); save(); }, kk = scb.querySelector('.sc-knobs');
+    knob(kk, 'DEPTH', SC, 'depth', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'black'); knob(kk, 'SHARPNESS', SC, 'sharp', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'white'); knob(kk, 'SPEED', SC, 'speed', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'white');
+    knob(kk, 'DRIVE', SC, 'drive', 0, 12, .5, v => '+' + v + ' dB', scu, 'black'); knob(kk, 'CEILING', SC, 'ceil', -6, 0, .1, v => v.toFixed(1) + ' dB', scu, 'white'); knob(kk, 'HARDNESS', SC, 'hard', 0, 1, .01, v => Math.round(v * 100) + '%', scu, 'white');
+    scb.querySelector('#scOn').addEventListener('click', () => { SC.on = SC.on ? 0 : 1; scu(); renderFx(); });
+    scb.querySelector('#scClip').addEventListener('click', () => { SC.clip = SC.clip ? 0 : 1; scu(); renderFx(); });
     const E = masterEq();
     add('<span class="label">Master EQ</span>'); g = grid();
     const lc = document.createElement('div'); lc.className = 'ctl';
@@ -7376,8 +7774,8 @@ function renderFx(){
   add('<span class="label">Sidechain duck</span>'); g = grid();
   ctl(g, 'Amount', t, 'duck', 0, 1, .01, pct, after);
   const dp = document.createElement('div'); dp.className = 'ctl';
-  dp.innerHTML = `<label class="label" for="duckPad">Ducked by</label><select id="duckPad">${S.drum.pads.map((pd, k) => `<option value="${k}">${padLabel(k)} ${pd.name.replace(/</g, '&lt;')}</option>`).join('')}</select><span></span>`;
-  const dps = dp.querySelector('select'); dps.value = t.duckPad || 0; dps.addEventListener('change', () => { t.duckPad = +dps.value; save(); }); g.appendChild(dp);
+  dp.innerHTML = `<label class="label" for="duckPad">Ducked by</label><select id="duckPad"><optgroup label="A pad hit">${S.drum.pads.map((pd, k) => `<option value="${k}">${padLabel(k)} ${pd.name.replace(/</g, '&lt;')}</option>`).join('')}</optgroup><optgroup label="Another track's sound (sidechain)">${allTracks().filter(x => x.id !== t.id).map(x => `<option value="t:${x.id}">${x.name.replace(/</g, '&lt;')}</option>`).join('')}</optgroup></select><span></span>`;
+  const dps = dp.querySelector('select'); dps.value = t.duckSrc ? 't:' + t.duckSrc : String(t.duckPad || 0); dps.addEventListener('change', () => { if (dps.value.startsWith('t:')){ t.duckSrc = dps.value.slice(2); } else { t.duckSrc = ''; t.duckPad = +dps.value; } save(); applyAll(); toast(t.duckSrc ? t.name + ' now ducks whenever ' + (trackById(t.duckSrc) || {}).name + ' plays (raise Amount).' : 'Ducked by the pad.'); }); g.appendChild(dp);
   ctl(g, 'Release', t, 'duckRel', .03, .8, .01, v => Math.round(v * 1000) + ' ms', after);
   add('<span class="label">Compressor</span>'); g = grid();
   ctl(g, 'Amount', t, 'comp', 0, 1, .01, pct, after);
@@ -8696,7 +9094,7 @@ function gmPatch(prog){
 }
 const GM_TAB = 'GM ';
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const INST = {juno60:{proc:'ana', cfg:tr => anaCfg(tr, 'juno60')}, sh101:{proc:'ana', cfg:tr => anaCfg(tr, 'sh101')}, jx3p:{proc:'ana', cfg:tr => anaCfg(tr, 'jx3p')}, minimoog:{proc:'ana', cfg:tr => anaCfg(tr, 'minimoog')}, sixtrak:{proc:'ana', cfg:tr => anaCfg(tr, 'sixtrak')}, cs80:{proc:'ana', cfg:tr => anaCfg(tr, 'cs80')}, cz:{proc:'cz', cfg:tr => tr.cz || (tr.cz = CZ_DEFAULT())}, sk1:{proc:'smpx', cfg:tr => Object.assign({model:'sk1'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('sk1'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, emax:{proc:'smpx', cfg:tr => Object.assign({model:'emax'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('emax'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
   voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
@@ -8704,9 +9102,10 @@ function solNode(rig, tr){
   rig.sol = rig.sol || {};
   const key = tr.id + ':' + tr.inst;
   if (rig.sol[key] || rig !== live || !rig.c._reduxOK) return rig.sol[key] || null;
-  const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:I.cfg(tr)}});
+  const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:Object.assign({cfg:I.cfg(tr)}, I.extra ? I.extra(tr) : {})});
   n.connect(rig.strips.get(tr.id).input);
-  return rig.sol[key] = n;
+  rig.sol[key] = n; if (I.after) I.after(tr);
+  return n;
 }
 function solSend(rig, tr, ev){
   if (rig === live){ const n = solNode(live, tr); if (n) n.port.postMessage({type:'ev', ev}); return; }
@@ -8716,7 +9115,7 @@ function solFinish(rig){
   if (!rig.c._reduxOK) return;
   for (const id in rig.solEv || {}){
     const tr = trackById(id); if (!tr || !INST[tr.inst]) continue;
-    const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:I.cfg(tr), events:rig.solEv[id]}});
+    const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:Object.assign({cfg:I.cfg(tr), events:rig.solEv[id]}, I.extra ? I.extra(tr) : {})});
     n.connect(rig.strips.get(id).input);
   }
 }
@@ -8956,7 +9355,7 @@ $('#synMenu').addEventListener('click', e => {
 
 
 /* ================= preset browser: one tap from the Synth page, searchable, for whichever instrument is on the track ================= */
-const PRE_SRC = {sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
+const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
 let preGroup = '';
 async function preItems(){
   const tr = curSynth();
@@ -9000,6 +9399,15 @@ const INSTRUMENTS = [
   {v:'prophet', name:'Prophet-5', sub:'Sequential · 1978', desc:'Warm 5-voice analog: pads, brass, leads.', bg:'linear-gradient(160deg,#6b3d1f,#2a1a10 55%,#111)'},
   {v:'obxa', name:'OB-Xa', sub:'Oberheim · 1981', desc:'Big fat poly brass and “Jump” chords.', bg:'linear-gradient(160deg,#2f4f7a,#14243a 60%,#0b1220)'},
   {v:'dx1', name:'DX1', sub:'Yamaha · 1983', desc:'FM: e-pianos, bells, bass. Loads DX7 .syx patches.', bg:'linear-gradient(160deg,#5a3a22,#2a1a10 55%,#123c38)'},
+  {v:'juno60', name:'Juno-60', sub:'Roland · 1982', desc:'Warm DCO poly with the famous chorus I / II.', bg:'linear-gradient(160deg,#c9c3b5,#6b6458 45%,#1e1d1b)'},
+  {v:'sh101', name:'SH-101', sub:'Roland · 1982', desc:'Mono bass and lead: pulse, saw, sub, glide.', bg:'linear-gradient(160deg,#5a6b7a,#2a333b 55%,#9a2222)'},
+  {v:'jx3p', name:'JX-3P', sub:'Roland · 1983', desc:'Two DCOs with sync and cross-mod, chorus.', bg:'linear-gradient(160deg,#3a3f46,#1c1f23 55%,#7a1515)'},
+  {v:'minimoog', name:'Minimoog', sub:'Moog · 1970', desc:'Three VCOs into the ladder filter. Fat mono.', bg:'linear-gradient(160deg,#8a5a32,#3a2414 50%,#111)'},
+  {v:'sixtrak', name:'Six-Trak', sub:'Sequential · 1984', desc:'Six-voice CEM poly: tight bass, pads, stacks.', bg:'linear-gradient(160deg,#4a4a4f,#1e1e22 55%,#5a3a1a)'},
+  {v:'cs80', name:'CS-80', sub:'Yamaha · 1977', desc:'Touch-sensitive brass and pads, HPF + LPF.', bg:'linear-gradient(160deg,#5a2a24,#2a1512 50%,#0e0908)'},
+  {v:'cz', name:'CZ-101', sub:'Casio · 1984', desc:'Phase distortion: bright digital basses and keys.', bg:'linear-gradient(160deg,#4a4d55,#22242a 55%,#1f4a7a)'},
+  {v:'sk1', name:'SK-1', sub:'Casio · 1985', desc:'8-bit toy sampler: crunchy, lo-fi, 4 voices.', bg:'linear-gradient(160deg,#3a3a40,#16161a 55%,#c84a1a)'},
+  {v:'emax', name:'Emax', sub:'E-mu · 1986', desc:'12-bit sampler with analog filters: hip-hop grit.', bg:'linear-gradient(160deg,#2c3a4a,#121a22 55%,#5a5a5a)'},
   {v:'d50', name:'D-50', sub:'Roland · 1987', desc:'LA synthesis: attack + synth partials, chorus and reverb.', bg:'linear-gradient(160deg,#3a3d44,#1b1d22 55%,#5b0f12)'},
   {v:'ppg', name:'PPG Wave 2.2', sub:'PPG · 1982', desc:'8-bit wavetables swept by envelopes, analog filters.', bg:'linear-gradient(160deg,#20405a,#0f1f2c 55%,#0a3a20)'},
   {v:'sid', name:'Commodore 128', sub:'MOS SID 6581 · 1985', desc:'3-voice SID chip: chiptune leads, bass, arps, noise.', bg:'linear-gradient(160deg,#6b6250,#3b352b 50%,#24435f)'},
@@ -9053,6 +9461,8 @@ function renderSynth(){
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
+  const isAna = !!ANA_MODELS[tr.inst], isCz = tr.inst === 'cz', isSmpx = tr.inst === 'sk1' || tr.inst === 'emax';
+  $('#anaPanel').hidden = !isAna; if (isAna) renderAna(tr); $('#czPanel').hidden = !isCz; if (isCz) renderCz(tr); $('#smpxPanel').hidden = !isSmpx; if (isSmpx){ renderSmpx(tr); if (!tr._smpxCache) smpxSend(tr); }
   const isSol = tr.inst === 'solina', isOmni = tr.inst === 'omni2', isDx = tr.inst === 'dx1', isSid = tr.inst === 'sid', isD50 = tr.inst === 'd50', isPpg = tr.inst === 'ppg';
   $('#sidPanel').hidden = !isSid; if (isSid) renderSid(tr); $('#d50Panel').hidden = !isD50; if (isD50) renderD50(tr); $('#ppgPanel').hidden = !isPpg; if (isPpg) renderPpg(tr);
   $('#dxPanel').hidden = !isDx; if (isDx) renderDx(tr);
@@ -9066,7 +9476,7 @@ function renderSynth(){
     if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -9594,6 +10004,203 @@ function renderSpCard(){
   }
 }
 
+/* ================= Juno-60, SH-101, JX-3P, Minimoog, Six-Trak, CS-80 (one analog engine, per-model circuits) ================= */
+const ANA_MODELS = {
+  juno60:{name:'Juno-60', maker:'Roland · 1982', cls:'m-juno', base:{filter:'ir3109', voices:6, vco:0, w1:0, m1:1, w2:1, m2:0, sync:1, i2:0, sub:.3, chorus:1, hpf:0, ampGate:0, kf:.5}},
+  sh101:{name:'SH-101', maker:'Roland · 1982', cls:'m-sh', base:{filter:'ir3109', mono:1, voices:1, vco:1, w1:1, m1:.8, w2:0, m2:.8, sync:1, i2:0, sub:.5, chorus:0, glide:0, kf:.6}},
+  jx3p:{name:'JX-3P', maker:'Roland · 1983', cls:'m-jx', base:{filter:'ir3109', voices:6, vco:0, w1:0, m1:1, w2:0, m2:.8, i2:0, d2t:8, chorus:2, kf:.5}},
+  minimoog:{name:'Minimoog Model D', maker:'Moog · 1970', cls:'m-moog', base:{filter:'ladder', mono:1, voices:1, vco:1, w1:0, m1:1, w2:0, m2:.8, d2t:6, w3:0, m3:.7, i3:-12, kf:.33, glide:0}},
+  sixtrak:{name:'Six-Trak', maker:'Sequential · 1984', cls:'m-six', base:{filter:'cem', voices:6, vco:0, w1:0, m1:1, w2:1, m2:.6, sync:1, i2:0, kf:.5}},
+  cs80:{name:'CS-80', maker:'Yamaha · 1977', cls:'m-cs', base:{filter:'cs', voices:8, vco:1, w1:0, m1:1, w2:1, m2:.7, i2:0, d2t:7, velCut:.5, velAmp:1, hpCut:.05, kf:.5, chorus:0}},
+};
+const ANA_COMMON = {cut:.55, res:.15, fenv:.35, a:0, d:.4, s:.6, r:.3, lfoRate:.3, lfoWave:0, lfoDelay:0, lfoPitch:0, lfoCut:0, pwm:0, pw:.5, noise:0, vol:.8};
+// presets per model (my own programming)
+const ANA_PRESETS = {
+  juno60:{'Bass · Juno Sub Bass':{m1:1, m2:0, sub:.8, cut:.25, res:.25, fenv:.45, d:.35, s:.2, r:.1, chorus:0}, 'Bass · Pulse Bass':{m1:0, m2:1, pw:.3, sub:.6, cut:.3, res:.3, fenv:.5, d:.3, s:.3, r:.1, chorus:0},
+    'Pad · Juno Strings':{m1:1, m2:0, sub:0, cut:.55, res:.05, fenv:.15, a:.5, d:.6, s:.85, r:.6, chorus:1, hpf:1}, 'Pad · PWM Pad':{m1:0, m2:1, pwm:.7, lfoRate:.25, sub:.2, cut:.5, a:.45, s:.9, r:.65, chorus:2},
+    'Pad · Hoover Wash':{m1:1, m2:1, pwm:.6, lfoRate:.3, sub:.4, cut:.6, res:.1, a:.2, s:.9, r:.5, chorus:3},
+    'Keys · Juno Brass':{m1:1, m2:0, sub:.2, cut:.35, res:.1, fenv:.55, a:.15, d:.45, s:.7, r:.3, chorus:1}, 'Keys · Clean Pluck':{m1:0, m2:1, pw:.45, cut:.3, res:.35, fenv:.6, d:.3, s:0, r:.3, chorus:1},
+    'Lead · Juno Lead':{m1:1, m2:1, cut:.6, res:.3, fenv:.3, lfoPitch:.08, lfoDelay:.5, s:.9, chorus:1}, 'FX · Noise Sweep':{m1:0, m2:0, noise:1, cut:.2, res:.85, fenv:.8, a:.6, d:.8, s:.3, r:.7, chorus:2},
+    'Bass · Rubber Bass':{m1:1, m2:0, sub:.6, cut:.2, res:.55, fenv:.55, d:.25, s:0, r:.12, chorus:0}},
+  sh101:{'Bass · 101 Bass':{m1:0, m2:1, sub:.8, cut:.2, res:.3, fenv:.55, d:.3, s:.2, r:.1}, 'Bass · Acid-ish':{m1:0, m2:1, sub:.2, cut:.15, res:.75, fenv:.7, d:.25, s:0, r:.1, glide:.3},
+    'Bass · Sub Thump':{m1:0, m2:0, sub:1, subType:2, cut:.3, fenv:.3, d:.35, s:.4, r:.1}, 'Lead · 101 Lead':{m1:.8, m2:.8, cut:.55, res:.35, fenv:.3, s:.8, glide:.2, lfoPitch:.06, lfoDelay:.4},
+    'Lead · PWM Lead':{m1:.9, m2:0, pwm:.6, lfoRate:.35, cut:.6, res:.25, s:.9, glide:.15}, 'Pluck · Zap':{m1:0, m2:1, cut:.15, res:.6, fenv:.9, d:.2, s:0, r:.15},
+    'FX · Noise Hat':{m1:0, m2:0, sub:0, noise:1, cut:.85, res:.2, d:.15, s:0, r:.1}, 'FX · Laser Drop':{m1:0, m2:1, cut:.3, res:.9, fenv:1, d:.35, s:0, glide:.6}},
+  jx3p:{'Pad · JX Strings':{m1:1, m2:.8, d2t:9, cut:.55, fenv:.15, a:.5, s:.85, r:.6, chorus:2}, 'Pad · Glass Choir':{w2:1, m2:.7, d2t:12, cut:.5, res:.2, a:.6, s:.9, r:.7, chorus:2},
+    'Brass · JX Brass':{m1:1, m2:.9, d2t:7, cut:.35, fenv:.5, a:.18, d:.4, s:.75, r:.3, chorus:2}, 'Keys · Sync Keys':{w2:0, m2:.9, sync:1, i2:7, env2Pitch:.4, cut:.6, d:.4, s:.3, r:.3, chorus:2},
+    'Keys · Bell Xmod':{w2:2, m2:.8, xmod:.6, i2:19, cut:.75, d:.6, s:0, r:.6, chorus:2}, 'Bass · JX Bass':{m1:1, m2:1, i2:-12, cut:.25, res:.3, fenv:.5, d:.3, s:.3, r:.1, chorus:0},
+    'Lead · Sync Lead':{w2:0, m2:1, m1:0, sync:1, i2:12, env2Pitch:.6, cut:.7, res:.2, s:.9, chorus:2}, 'Pluck · Koto':{w1:1, w2:1, m2:.6, i2:12, pw:.3, cut:.4, fenv:.6, d:.3, s:0, r:.35, chorus:2}},
+  minimoog:{'Bass · Moog Bass':{m1:1, m2:.9, m3:.8, i3:-12, cut:.22, res:.3, fenv:.55, d:.3, s:.5, r:.15}, 'Bass · Fat Sub':{w1:2, w2:0, w3:2, m3:1, i3:-12, cut:.25, res:.1, fenv:.35, d:.4, s:.7, r:.15},
+    'Bass · Funk Pluck':{m1:1, m2:.8, m3:.6, cut:.15, res:.55, fenv:.7, d:.22, s:.1, r:.12}, 'Lead · Lucky Lead':{w1:0, w2:4, w3:0, m3:.6, i3:12, d2t:4, cut:.6, res:.35, fenv:.25, s:.9, glide:.25, lfoPitch:.06, lfoDelay:.5},
+    'Lead · Square Solo':{w1:4, w2:4, d2t:5, m3:0, cut:.55, res:.4, fenv:.3, s:.85, glide:.2}, 'Lead · Screaming Res':{cut:.45, res:.9, fenv:.4, s:.9, glide:.15, m3:.4},
+    'Brass · Moog Brass':{m1:1, m2:1, d2t:8, m3:.6, i3:0, cut:.3, fenv:.6, a:.12, d:.45, s:.7, r:.3}, 'FX · Wind':{m1:0, m2:0, m3:0, noise:1, cut:.45, res:.8, a:.3, d:.8, s:.7, r:.8, lfoCut:.4, lfoRate:.15}},
+  sixtrak:{'Pad · Six Pad':{m1:1, m2:.5, pwm:.4, lfoRate:.25, cut:.5, a:.45, s:.85, r:.6}, 'Bass · Six Bass':{m1:1, m2:.7, cut:.25, res:.4, fenv:.5, d:.3, s:.3, r:.1},
+    'Brass · Six Brass':{m1:1, m2:.4, cut:.35, fenv:.5, a:.15, d:.4, s:.75, r:.3}, 'Keys · Six Keys':{w1:1, m1:.8, m2:.6, pw:.35, cut:.45, fenv:.5, d:.45, s:.2, r:.3},
+    'Lead · Stack Lead':{m1:1, m2:.8, cut:.6, res:.3, s:.9, lfoPitch:.06, lfoDelay:.4}, 'Pluck · Six Pluck':{cut:.2, res:.5, fenv:.7, d:.25, s:0, r:.2}},
+  cs80:{'Brass · Blade Brass':{m1:1, m2:.8, w2:0, d2t:9, cut:.32, res:.15, fenv:.5, a:.25, d:.6, s:.75, r:.6, lfoPitch:.12, lfoRate:.28, lfoDelay:.6, velCut:.6, chorus:4},
+    'Pad · Dark Strings':{m1:1, m2:.7, w2:1, pwm:.4, lfoRate:.22, cut:.4, res:.1, a:.55, s:.9, r:.75, velCut:.4, chorus:4}, 'Pad · Vangelis Pad':{m1:1, m2:.8, d2t:11, cut:.45, res:.2, fenv:.25, a:.65, d:.7, s:.85, r:.85, lfoPitch:.05, lfoDelay:.7, chorus:4},
+    'Keys · CS Bells':{w1:3, w2:3, m2:.8, ring:.8, i2:19, cut:.8, a:0, d:.65, s:0, r:.7, chorus:4}, 'Lead · Ribbon Lead':{m1:1, m2:0, cut:.55, res:.35, s:.9, glide:.35, lfoPitch:.1, lfoDelay:.4, chorus:4},
+    'Bass · CS Bass':{m1:1, m2:.6, w2:4, i2:-12, cut:.22, res:.3, fenv:.5, d:.35, s:.4, r:.2}, 'FX · Sweep Swell':{m1:1, m2:.8, cut:.15, res:.6, fenv:.8, a:.7, d:.9, s:.5, r:.8, hpCut:.3, chorus:4}},
+};
+function anaCfg(tr, model){ const k = 'ana_' + model; if (!tr[k]) tr[k] = Object.assign({preset:''}, ANA_COMMON, ANA_MODELS[model].base); return Object.assign({model}, tr[k]); }
+function anaPresetOpts(model){ return ANA_PRESETS[model] || {}; }
+function renderAna(tr){
+  const model = tr.inst, M = ANA_MODELS[model]; if (!M) return; anaCfg(tr, model); const C = tr['ana_' + model];
+  $('#anaPanel').className = 'ana ' + M.cls; $('#anaHead').innerHTML = `<b>${M.name}</b><i>${M.maker}</i>`;
+  const ps = $('#anaPreset'); ps.innerHTML = presetOptions(ANA_PRESETS[model], 'Presets…'); ps.value = C.preset && C.preset in ANA_PRESETS[model] ? C.preset : '';
+  const up = re => { C.preset = ''; ps.value = ''; solCfg(tr); save(); if (re) renderAna(tr); };
+  const wv = [[0, 'Saw'], [1, 'Pulse'], [2, 'Triangle'], [3, 'Sine'], [4, 'Square']];
+  const env = [['ATTACK', 'a', 0, 1, .01, secT], ['DECAY', 'd', 0, 1, .01, secT], ['SUSTAIN', 's', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, secT]];
+  const vcf = [['FREQ', 'cut', 0, 1, .005, v => { const h = 25 * Math.pow(2, v * 10); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }], ['RES', 'res', 0, 1, .01, pct], ['ENV', 'fenv', 0, 1, .01, pct], ['LFO', 'lfoCut', 0, 1, .01, pct], ['KYBD', 'kf', 0, 1, .01, pct]];
+  const lfo = [['RATE', 'lfoRate', 0, 1, .01, v => (.1 + v * v * 25).toFixed(1) + ' Hz'], ['DELAY', 'lfoDelay', 0, 1, .01, secT], ['> PITCH', 'lfoPitch', 0, 1, .01, pct]];
+  let secs;
+  if (model === 'juno60') secs = [{t:'LFO', knobs:lfo}, {t:'DCO', btns:[['SAW', () => C.m1 > 0, () => C.m1 = C.m1 > 0 ? 0 : 1], ['PULSE', () => C.m2 > 0, () => C.m2 = C.m2 > 0 ? 0 : 1]], knobs:[['PWM', 'pwm', 0, 1, .01, pct], ['PW', 'pw', .05, .5, .01, pct], ['SUB', 'sub', 0, 1, .01, pct], ['NOISE', 'noise', 0, 1, .01, pct]]},
+    {t:'HPF', menus:[['HPF', 'hpf', [[0, '0 (bass boost off)'], [1, '1'], [2, '2'], [3, '3']]]]}, {t:'VCF', knobs:vcf}, {t:'VCA', sw:[['GATE (not ENV)', 'ampGate']]}, {t:'ENV', knobs:env},
+    {t:'CHORUS', btns:[['OFF', () => !C.chorus, () => C.chorus = 0], ['I', () => C.chorus === 1, () => C.chorus = 1], ['II', () => C.chorus === 2, () => C.chorus = 2], ['I + II', () => C.chorus === 3, () => C.chorus = 3]]}];
+  else if (model === 'sh101') secs = [{t:'MODULATOR', knobs:lfo.concat([['> PWM', 'pwm', 0, 1, .01, pct]])}, {t:'VCO / SOURCE MIXER', knobs:[['PULSE', 'm1', 0, 1, .01, pct], ['SAW', 'm2', 0, 1, .01, pct], ['SUB', 'sub', 0, 1, .01, pct], ['NOISE', 'noise', 0, 1, .01, pct], ['PW', 'pw', .05, .5, .01, pct]], menus:[['Sub type', 'subType', [[0, '1 oct down square'], [2, '1 oct down, quiet']]]]},
+    {t:'VCF', knobs:vcf}, {t:'ENV', knobs:env, sw:[['GATE VCA', 'ampGate']]}, {t:'PORTAMENTO', knobs:[['GLIDE', 'glide', 0, 1, .01, pct]]}];
+  else if (model === 'jx3p') secs = [{t:'DCO 1', menus:[['Wave', 'w1', [[0, 'Saw'], [1, 'Pulse'], [4, 'Square']]]], knobs:[['LEVEL', 'm1', 0, 1, .01, pct]]},
+    {t:'DCO 2', menus:[['Wave', 'w2', [[0, 'Saw'], [1, 'Pulse'], [4, 'Square'], [2, 'Triangle']]]], btns:[['SYNC', () => !!C.sync, () => C.sync = C.sync ? 0 : 1], ['X-MOD', () => !!C.xmod, () => C.xmod = C.xmod ? 0 : .5]], knobs:[['LEVEL', 'm2', 0, 1, .01, pct], ['RANGE', 'i2', -12, 24, 1, v => (v > 0 ? '+' : '') + v], ['FINE', 'd2t', -50, 50, 1, v => v + ' ct'], ['ENV > PITCH', 'env2Pitch', 0, 1, .01, pct], ['NOISE', 'noise', 0, 1, .01, pct]]},
+    {t:'VCF', knobs:vcf}, {t:'ENV', knobs:env}, {t:'LFO', knobs:lfo}, {t:'CHORUS', sw:[['CHORUS', 'chorus', 2, 0]]}];
+  else if (model === 'minimoog') secs = [{t:'OSCILLATOR BANK', menus:[['Osc 1', 'w1', wv], ['Osc 2', 'w2', wv], ['Osc 3', 'w3', wv]], knobs:[['OSC 2 TUNE', 'd2t', -50, 50, 1, v => v + ' ct'], ['OSC 3 RANGE', 'i3', -24, 24, 1, v => (v > 0 ? '+' : '') + v], ['OSC 3 TUNE', 'd3t', -50, 50, 1, v => v + ' ct'], ['GLIDE', 'glide', 0, 1, .01, pct]]},
+    {t:'MIXER', knobs:[['OSC 1', 'm1', 0, 1, .01, pct], ['OSC 2', 'm2', 0, 1, .01, pct], ['OSC 3', 'm3', 0, 1, .01, pct], ['NOISE', 'noise', 0, 1, .01, pct]]},
+    {t:'FILTER (LADDER)', knobs:vcf.slice(0, 3).concat([['KEY', 'kf', 0, 1, .01, pct]])}, {t:'FILTER CONTOUR', knobs:[['ATTACK', 'a', 0, 1, .01, secT], ['DECAY', 'd', 0, 1, .01, secT], ['SUSTAIN', 's', 0, 1, .01, pct]]},
+    {t:'LOUDNESS CONTOUR', knobs:[['ATTACK', 'a2', 0, 1, .01, secT], ['DECAY', 'd2', 0, 1, .01, secT], ['SUSTAIN', 's2', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, secT]]}, {t:'MODULATION', knobs:lfo}];
+  else if (model === 'sixtrak') secs = [{t:'OSCILLATOR', menus:[['Wave A', 'w1', wv], ['Wave B', 'w2', wv]], knobs:[['A LEVEL', 'm1', 0, 1, .01, pct], ['B LEVEL', 'm2', 0, 1, .01, pct], ['PW', 'pw', .05, .5, .01, pct], ['NOISE', 'noise', 0, 1, .01, pct]]},
+    {t:'FILTER (CEM3394)', knobs:vcf}, {t:'ENVELOPE', knobs:env}, {t:'LFO', knobs:lfo.concat([['> PWM', 'pwm', 0, 1, .01, pct]])}, {t:'VOICES', menus:[['Voices', 'voices', [[6, '6 (poly)'], [3, '3'], [1, '1 (mono)']]]]}];
+  else secs = [{t:'VCO I / VCO II', menus:[['VCO I', 'w1', wv], ['VCO II', 'w2', wv]], knobs:[['I LEVEL', 'm1', 0, 1, .01, pct], ['II LEVEL', 'm2', 0, 1, .01, pct], ['II DETUNE', 'd2t', -50, 50, 1, v => v + ' ct'], ['II PITCH', 'i2', -12, 24, 1, v => (v > 0 ? '+' : '') + v], ['RING MOD', 'ring', 0, 1, .01, pct]]},
+    {t:'VCF (HPF + LPF)', knobs:[['HPF', 'hpCut', 0, 1, .01, pct], ['LPF', 'cut', 0, 1, .005, pct], ['RES', 'res', 0, 1, .01, pct], ['ENV', 'fenv', 0, 1, .01, pct], ['BRILLIANCE (touch)', 'velCut', 0, 1, .01, pct]]},
+    {t:'ENVELOPE', knobs:env}, {t:'SUB OSC (LFO)', knobs:lfo}, {t:'CHORUS', sw:[['CHORUS', 'chorus', 4, 0]]}];
+  synPanel($('#anaCtls'), C, secs, up);
+}
+/* ================= Casio CZ-101 ================= */
+const CZ_WAVES = [[0, 'Saw'], [1, 'Square'], [2, 'Pulse'], [3, 'Double sine'], [4, 'Saw-pulse'], [5, 'Resonance I (saw)'], [6, 'Resonance II (tri)'], [7, 'Resonance III (trap)']];
+const CZ_DEFAULT = () => czPreset('Bass · CZ Bass');
+const CZ_PRESETS = {
+  'Bass · CZ Bass':{line:0, wave1:0, dcw1:.7, wa1:0, wd1:.35, ws1:.15, wr1:.2, aa1:0, ad1:.5, as1:.8, ar1:.15, oct:-1},
+  'Bass · Reso Bass':{line:0, wave1:5, dcw1:.8, wa1:0, wd1:.4, ws1:.1, wr1:.2, aa1:0, ad1:.5, as1:.7, ar1:.15, oct:-1},
+  'Keys · CZ Piano':{line:2, wave1:3, wave2:0, dcw1:.4, dcw2:.5, wd1:.5, ws1:0, wd2:.4, ws2:0, ad1:.6, as1:0, ar1:.4, ad2:.55, as2:0, ar2:.4, det:6},
+  'Keys · Electric Piano':{line:2, wave1:3, wave2:3, dcw1:.3, dcw2:.6, wd1:.5, ws1:.1, wd2:.3, ws2:0, ad1:.65, as1:.1, ar1:.4, ad2:.4, as2:0, ar2:.3, oct2:1, det:3},
+  'Keys · Organ':{line:2, wave1:3, wave2:1, dcw1:.3, dcw2:.2, ws1:1, ws2:1, as1:1, as2:1, ar1:.15, ar2:.15, det:2},
+  'Brass · CZ Brass':{line:0, wave1:0, dcw1:.75, wa1:.3, wd1:.5, ws1:.6, wr1:.3, aa1:.12, ad1:.5, as1:.85, ar1:.3},
+  'Strings · CZ Strings':{line:2, wave1:0, wave2:0, dcw1:.5, dcw2:.5, wa1:.6, wa2:.6, ws1:.7, ws2:.7, aa1:.5, aa2:.55, as1:.9, as2:.9, ar1:.6, ar2:.6, det:9},
+  'Lead · Square Lead':{line:0, wave1:1, dcw1:.8, wd1:.6, ws1:.6, as1:.9, ar1:.25},
+  'Lead · Reso Lead':{line:0, wave1:6, dcw1:.9, wa1:.2, wd1:.7, ws1:.5, as1:.9, ar1:.3},
+  'Bells · Ring Bell':{line:2, wave1:3, wave2:4, ring:1, dcw1:.4, dcw2:.6, wd1:.7, ws1:0, wd2:.6, ws2:0, ad1:.75, as1:0, ar1:.6, ad2:.7, as2:0, ar2:.6, det:40},
+  'Pad · Sweep Pad':{line:2, wave1:5, wave2:0, dcw1:.9, dcw2:.6, wa1:.8, wd1:.9, ws1:.5, wa2:.7, ws2:.6, aa1:.6, aa2:.6, as1:.9, as2:.9, ar1:.7, ar2:.7, det:7},
+  'FX · Noise Hit':{line:2, wave1:2, wave2:7, noise:.9, dcw1:.8, dcw2:.8, wd1:.3, ws1:0, wd2:.3, ws2:0, ad1:.3, as1:0, ar1:.3, ad2:.35, as2:0, ar2:.3},
+};
+function czPreset(name){ return Object.assign({preset:name, line:0, wave1:0, wave2:0, dcw1:.7, dcw2:.7, wa1:0, wd1:.4, ws1:.3, wr1:.3, aa1:0, ad1:.5, as1:.8, ar1:.3, wa2:0, wd2:.4, ws2:.3, wr2:.3, aa2:0, ad2:.5, as2:.8, ar2:.3, det:0, oct:0, oct2:0, ring:0, noise:0, vol:.8}, CZ_PRESETS[name] || {}); }
+function renderCz(tr){
+  const C = tr.cz || (tr.cz = CZ_DEFAULT()); fillPresetSel('#czPreset', CZ_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#czPreset').value = ''; solCfg(tr); save(); if (re) renderCz(tr); };
+  const ln = n => [{t:`LINE ${n} · DCO`, menus:[['Wave', 'wave' + n, CZ_WAVES]]}, {t:`LINE ${n} · DCW (phase distortion)`, knobs:[['DEPTH', 'dcw' + n, 0, 1, .01, pct], ['ATTACK', 'wa' + n, 0, 1, .01, secT], ['DECAY', 'wd' + n, 0, 1, .01, secT], ['SUSTAIN', 'ws' + n, 0, 1, .01, pct], ['RELEASE', 'wr' + n, 0, 1, .01, secT]]},
+    {t:`LINE ${n} · DCA`, knobs:[['ATTACK', 'aa' + n, 0, 1, .01, secT], ['DECAY', 'ad' + n, 0, 1, .01, secT], ['SUSTAIN', 'as' + n, 0, 1, .01, pct], ['RELEASE', 'ar' + n, 0, 1, .01, secT]]}];
+  synPanel($('#czCtls'), C, [{t:'LINE SELECT', menus:[['Line', 'line', [[0, '1'], [1, '2'], [2, '1 + 1′'], [3, '1 + 2′']]]], btns:[['RING', () => !!C.ring, () => C.ring = C.ring ? 0 : 1]], knobs:[['DETUNE', 'det', 0, 60, 1, v => v + ' ct'], ['OCTAVE', 'oct', -2, 2, 1, v => (v > 0 ? '+' : '') + v], ['NOISE MOD', 'noise', 0, 1, .01, pct], ['VOLUME', 'vol', 0, 1, .01, pct]]}].concat(ln(1), C.line ? ln(2) : []), up);
+}
+/* ================= Casio SK-1 and E-mu Emax: sampler models ================= */
+const SK1_TONES = ['Piano', 'Trumpet', 'Flute', 'Human voice', 'Synth drums', 'Pipe organ', 'Jazz organ', 'Brass ensemble'];
+function sk1Tone(k, sr){
+  const n = Math.round(sr * 1.2), b = new Float32Array(n), f = 261.63;
+  for (let i = 0; i < n; i++){ const t = i / sr; let x;
+    switch (k){
+      case 0: x = (Math.sin(2 * Math.PI * f * t) + .5 * Math.sin(4 * Math.PI * f * t) + .25 * Math.sin(6 * Math.PI * f * t)) * Math.exp(-t * 2.5); break;
+      case 1: { const p = (f * t) % 1; x = (2 * p - 1) * .6 * Math.min(1, t * 20) * (1 - t * .3); } break;
+      case 2: x = (Math.sin(2 * Math.PI * f * t) + (Math.random() - .5) * .08) * Math.min(1, t * 8); break;
+      case 3: { let s = 0; for (let h = 1; h < 20; h++){ const fr = f * h; s += Math.sin(2 * Math.PI * fr * t) * (1 / (1 + Math.pow((fr - 700) / 150, 2)) + .6 / (1 + Math.pow((fr - 1150) / 150, 2))); } x = s * Math.min(1, t * 6); } break;
+      case 4: x = (Math.sin(2 * Math.PI * 80 * Math.exp(-t * 12) * t * 3) * Math.exp(-t * 9) + (Math.random() - .5) * Math.exp(-t * 25)); break;
+      case 5: x = [1, 2, 4, 8].reduce((s, h) => s + Math.sin(2 * Math.PI * f * h * t) / h, 0); break;
+      case 6: x = [1, 2, 3, 4, 6].reduce((s, h) => s + Math.sin(2 * Math.PI * f * h * t) * [1, .8, .6, .5, .3][[1, 2, 3, 4, 6].indexOf(h)], 0) * (1 + .1 * Math.sin(2 * Math.PI * 6 * t)); break;
+      default: { const p = (f * t) % 1, p2 = (f * 1.006 * t) % 1; x = ((2 * p - 1) + (2 * p2 - 1)) * .4 * Math.min(1, t * 10); }
+    } b[i] = x; }
+  let pk = 0; for (const v of b) pk = Math.max(pk, Math.abs(v)); for (let i = 0; i < n; i++) b[i] /= pk || 1; return b;
+}
+const SMPX_DEFAULT = model => ({src:'tone', tone:0, pad:0, tune:0, cut:.8, res:.1, fenv:.2, fa:0, fd:.4, a:0, d:.5, s:1, r:.3, loop:1, vol:.8});
+async function smpxSample(tr){
+  const model = tr.inst, C = tr.smpx || (tr.smpx = SMPX_DEFAULT(model)); let data, sr = 44100, root = 60;
+  if (C.src === 'pad'){ const p = S.drum.pads[C.pad | 0]; if (p && p.sample){ ensureKitBuf(p.sample); const b = buffers.get(p.sample) || (await DB.get('audio', p.sample).then(a => a && makeBuffer(a.ch, a.sr)).catch(() => null)); if (b){ data = b.getChannelData(0); sr = b.sampleRate; } } }
+  else if (C.src === 'file' && C.fileKey){ const a = await DB.get('audio', C.fileKey).catch(() => null); if (a){ data = a.ch[0]; sr = a.sr; } }
+  if (!data){ sr = 44100; data = sk1Tone(C.tone | 0, sr); }
+  return {data, sr, root, model, loop:!!C.loop};
+}
+async function smpxSend(tr){ const s = await smpxSample(tr); const n = live && live.sol && live.sol[tr.id + ':' + tr.inst]; if (n) n.port.postMessage(Object.assign({type:'sample'}, s)); tr._smpxCache = s; }
+function renderSmpx(tr){
+  const model = tr.inst, C = tr.smpx || (tr.smpx = SMPX_DEFAULT(model)), sk = model === 'sk1';
+  $('#smpxPanel').className = sk ? 'smpx m-sk1' : 'smpx m-emax'; $('#smpxHead').innerHTML = sk ? '<b>CASIO</b><span>SK-1</span><i>SAMPLING KEYBOARD · 8-BIT · 9.38 kHz · 4 VOICES</i>' : '<b>E-mu</b><span>Emax</span><i>DIGITAL SAMPLING KEYBOARD · 12-BIT · 27.7 kHz · 8 VOICES · ANALOG FILTERS</i>';
+  const up = re => { solCfg(tr); save(); if (re) renderSmpx(tr); };
+  const srcUp = () => { save(); smpxSend(tr); renderSmpx(tr); setTimeout(() => { const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .8); }, 150); };
+  const secs = [{t:'SOUND', menus:[['Source', 'src', [['tone', sk ? 'SK-1 built-in tones' : 'Built-in tones'], ['pad', 'A pad’s sound'], ['file', 'Loaded file']]]].concat(C.src === 'pad' ? [['Pad', 'pad', S.drum.pads.map((p, i) => [i, padLabel(i) + ' ' + (p.name || '')])]] : C.src === 'tone' ? [['Tone', 'tone', SK1_TONES.map((n, i) => [i, n])]] : []),
+    btns:[['LOAD FILE…', () => false, () => $('#smpxFile').click()], ['LOOP', () => !!C.loop, () => { C.loop = C.loop ? 0 : 1; }]], knobs:[['TUNE', 'tune', -24, 24, 1, v => (v > 0 ? '+' : '') + v], ['VOLUME', 'vol', 0, 1, .01, pct]]}];
+  if (!sk) secs.push({t:'VCF (4-pole)', knobs:[['CUTOFF', 'cut', 0, 1, .005, pct], ['Q', 'res', 0, 1, .01, pct], ['ENV', 'fenv', 0, 1, .01, pct], ['F ATTACK', 'fa', 0, 1, .01, secT], ['F DECAY', 'fd', 0, 1, .01, secT]]}, {t:'VCA', knobs:[['ATTACK', 'a', 0, 1, .01, secT], ['DECAY', 'd', 0, 1, .01, secT], ['SUSTAIN', 's', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, secT]]});
+  synPanel($('#smpxCtls'), C, secs, re => { if (['src', 'pad', 'tone'].some(k => C['_' + k] !== C[k])){ ['src', 'pad', 'tone'].forEach(k => C['_' + k] = C[k]); srcUp(); } else up(re); });
+}
+/* ================= Mattel Synsonics: four analog drums on big pads ================= */
+function synsonicsKit(sr){
+  const mk = (secs, fn) => { const n = Math.round(secs * sr), b = new Float32Array(n); for (let i = 0; i < n; i++) b[i] = fn(i / sr); let pk = 0; for (const v of b) pk = Math.max(pk, Math.abs(v)); for (let i = 0; i < n; i++) b[i] /= pk || 1; return makeBuffer([b], sr); };
+  let ph = 0, n1 = 0;
+  return [
+    ['Syn Bass', mk(.6, t => { ph += 2 * Math.PI * (52 + 90 * Math.exp(-t * 28)) / sr; return Math.sin(ph) * Math.exp(-t * 6); })],
+    ['Syn Snare', mk(.35, t => { n1 = n1 * .6 + (Math.random() * 2 - 1) * .4; return (Math.sin(2 * Math.PI * 190 * t) * Math.exp(-t * 22) * .6 + n1 * Math.exp(-t * 11)); })],
+    ['Syn Tom Hi', (ph = 0, mk(.5, t => { ph += 2 * Math.PI * (180 + 120 * Math.exp(-t * 14)) / sr; return Math.sin(ph) * Math.exp(-t * 7); }))],
+    ['Syn Tom Lo', (ph = 0, mk(.6, t => { ph += 2 * Math.PI * (110 + 80 * Math.exp(-t * 12)) / sr; return Math.sin(ph) * Math.exp(-t * 6); }))],
+    ['Syn Cymbal', mk(1.2, t => { let s = 0; for (const f of [3150, 4700, 5850, 7400, 8800]) s += Math.sign(Math.sin(2 * Math.PI * f * t)); return (s * .15 + (Math.random() * 2 - 1) * .5) * Math.exp(-t * 3.2); })],
+    ['Syn Zap', (ph = 0, mk(.3, t => { ph += 2 * Math.PI * (900 * Math.exp(-t * 18) + 60) / sr; return Math.sign(Math.sin(ph)) * .6 * Math.exp(-t * 9); }))],
+  ];
+}
+async function synsonicsLoad(){ ensureAudio(); const kit = synsonicsKit(44100); for (let i = 0; i < kit.length; i++) await setPadBuffer(i, kit[i][1], kit[i][0], true); save(); renderPads(); renderPadEditor(); toast('Synsonics drums on A01–A06.'); }
+function renderSynsonics(){
+  const box = $('#synsCard'); if (!box) return; box.classList.add('syns');
+  box.innerHTML = `<div class="syns-head"><b>MATTEL</b><span>Synsonics</span><i>ELECTRONIC DRUMS · 1981</i></div>
+    <div class="syns-pads">${['BASS', 'SNARE', 'TOM HI', 'TOM LO', 'CYMBAL', 'ZAP'].map((n, i) => `<button class="nolearn" data-i="${i}">${n}</button>`).join('')}</div>
+    <div class="row"><button id="synsLoad" class="grow nolearn">Load Synsonics onto pads A01–A06</button></div>`;
+  box.querySelector('#synsLoad').addEventListener('click', synsonicsLoad);
+  box.querySelectorAll('.syns-pads button').forEach(b => { const i = +b.dataset.i;
+    b.addEventListener('pointerdown', async e => { e.preventDefault(); ensureAudio(); if (!/^Syn /.test(S.drum.pads[i].name || '')) await synsonicsLoad(); padDown(i, e, 1); b.classList.add('hit'); });
+    const u = () => { padUp(i); b.classList.remove('hit'); }; b.addEventListener('pointerup', u); b.addEventListener('pointercancel', u); });
+}
+/* ================= Sample drum machines with the real sounds: Boss DR-110 Dr. Rhythm Graphic and Oberheim DMX.
+   Load puts the machine's sounds on the pads; the LCD grid programs 16 steps per instrument; Accent hits harder. ================= */
+const DRUM_MACHINES = {
+  dr110:{card:'#drCard', cls:'dr110', brand:'BOSS', model:'Dr. Rhythm DR-110', sub:'GRAPHIC', dir:'dr110',
+    sets:{Kit:[['BD', 'kick', 'Kick'], ['SD', 'snare1', 'Snare 1'], ['S2', 'snare2', 'Snare 2'], ['S3', 'snare3', 'Snare 3'], ['S4', 'snare4', 'Snare 4'], ['S5', 'snare5', 'Snare 5'], ['S6', 'snare6', 'Snare 6'],
+      ['CH', 'closed-hat', 'Closed Hat'], ['OH', 'open-hat', 'Open Hat'], ['CY', 'cymbal', 'Cymbal'], ['CP', 'clap', 'Clap'], ['RS', 'rimshot', 'Rimshot'], ['SH', 'shaker', 'Shaker']]}, choke:['CH', 'OH']},
+  dmx:{card:'#dmxCard', cls:'dmx', brand:'OBERHEIM', model:'DMX', sub:'DIGITAL DRUM MACHINE', dir:'dmx',
+    sets:{Kit:[['BD', 'kick', 'Kick'], ['SD', 'snare', 'Snare'], ['RIM', 'rimshot', 'Rimshot'], ['CLP', 'clap', 'Clap'], ['HHT', 'hi-hat-tight', 'Hat Tight'], ['HHM', 'hi-hat-medium', 'Hat Medium'], ['HHO', 'hi-hat-open', 'Hat Open'],
+      ['T1', 'tom-1', 'Tom 1'], ['T2', 'tom-2', 'Tom 2'], ['T3', 'tom-3', 'Tom 3'], ['T4', 'tom-4', 'Tom 4'], ['T5', 'tom-5', 'Tom 5'], ['T6', 'tom-6', 'Tom 6'], ['CRS', 'crash', 'Crash'], ['RDE', 'ride', 'Ride'], ['TMB', 'tambourine', 'Tambourine']],
+      Perc:[['BD', 'kick', 'Kick'], ['SD', 'snare', 'Snare'], ['RIM', 'rimshot', 'Rimshot'], ['CLP', 'clap', 'Clap'], ['HHT', 'hi-hat-tight', 'Hat Tight'], ['HHM', 'hi-hat-medium', 'Hat Medium'], ['HHO', 'hi-hat-open', 'Hat Open'],
+      ['SHK', 'shaker', 'Shaker'], ['SH>', 'shaker-accent', 'Shaker Accent'], ['TMB', 'tambourine', 'Tambourine'], ['TM>', 'tambourine-accent', 'Tamb Accent'], ['RDE', 'ride', 'Ride'], ['RD>', 'ride-accent', 'Ride Accent'], ['CRS', 'crash', 'Crash'], ['T1', 'tom-1', 'Tom 1'], ['T4', 'tom-4', 'Tom 4']]}, choke:['HHT', 'HHM', 'HHO']},
+};
+const dmState = {dr110:{sel:0, acc:true, set:'Kit'}, dmx:{sel:0, acc:true, set:'Kit'}};
+async function dmLoad(id){
+  const M = DRUM_MACHINES[id], st = dmState[id], list = M.sets[st.set]; ensureAudio(); toast('Loading the ' + M.model + '…');
+  for (let i = 0; i < list.length && i < 16; i++){ try { const ab = await (await fetch('kits/' + M.dir + '/' + list[i][1] + '.wav')).arrayBuffer(); const buf = await decodeAny(ab);
+      await setPadBuffer(i, buf, (id === 'dmx' ? 'DMX ' : 'DR ') + list[i][2], true); S.drum.pads[i].choke = M.choke.includes(list[i][0]) ? 1 : 0; } catch(e){ toast('Could not load ' + list[i][2]); } }
+  save(); renderPads(); renderPadEditor(); toast(M.model + ' ' + st.set.toLowerCase() + ' on A01–A' + String(Math.min(16, list.length)).padStart(2, '0') + '.');
+}
+function renderDrumMachine(id){
+  const M = DRUM_MACHINES[id], box = $(M.card); if (!box) return; const st = dmState[id], list = M.sets[st.set]; box.classList.add('dmach', M.cls);
+  const steps = 16, L = S.bars * TPB, stepT = L / steps, has = (pi, s) => S.drum.notes.find(n => n.p === pi && n.t < L && Math.round(n.t / stepT) === s);
+  const loaded = (S.drum.pads[0].name || '').startsWith(id === 'dmx' ? 'DMX ' : 'DR ');
+  box.innerHTML = `<div class="dm-head"><b>${M.brand}</b><span>${M.model}</span><i>${M.sub}</i></div>
+    ${Object.keys(M.sets).length > 1 ? `<div class="dm-sets">${Object.keys(M.sets).map(k => `<button class="nolearn${k === st.set ? ' on' : ''}" data-set="${k}">${k.toUpperCase()}</button>`).join('')}</div>` : ''}
+    <div class="dm-lcd">${list.map(([ab], pi) => `<div class="dm-row${pi === st.sel ? ' sel' : ''}" data-p="${pi}"><span>${ab}</span>${Array.from({length:steps}, (_, s) => { const n = has(pi, s); return `<i data-s="${s}" class="${n ? (n.v >= .95 ? 'on acc' : 'on') : ''}${s % 4 === 0 ? ' beat' : ''}"></i>`; }).join('')}</div>`).join('')}</div>
+    <div class="dm-btns">${list.map(([ab], i) => `<button class="nolearn${i === st.sel ? ' on' : ''}" data-i="${i}">${ab}</button>`).join('')}<button class="nolearn acc${st.acc ? ' on' : ''}" data-a="acc">ACCENT</button></div>
+    <div class="row"><button class="grow nolearn" data-a="load">${loaded ? 'Reload' : 'Load'} the ${M.model} sounds onto the pads</button><button class="nolearn" data-a="clr">Clear ${list[st.sel][0]}</button></div>`;
+  const q = s2 => box.querySelector(s2);
+  q('[data-a="load"]').addEventListener('click', async () => { await dmLoad(id); renderDrumMachine(id); });
+  q('[data-a="clr"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p !== st.sel); changed(); renderDrumMachine(id); });
+  q('[data-a="acc"]').addEventListener('click', () => { st.acc = !st.acc; renderDrumMachine(id); });
+  box.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { st.set = b.dataset.set; st.sel = 0; renderDrumMachine(id); }));
+  box.querySelectorAll('.dm-btns button[data-i]').forEach(b => b.addEventListener('click', () => { st.sel = +b.dataset.i; ensureAudio(); padDown(st.sel, {timeStamp:performance.now()}, st.acc ? 1 : .7); setTimeout(() => padUp(st.sel), 80); renderDrumMachine(id); }));
+  box.querySelectorAll('.dm-row').forEach(r => r.addEventListener('click', e => { const pi = +r.dataset.p, c = e.target.closest('i'); st.sel = pi; if (!c){ renderDrumMachine(id); return; }
+    const s = +c.dataset.s, n = has(pi, s); pushUndo(); if (n) S.drum.notes = S.drum.notes.filter(x => x !== n); else S.drum.notes.push({p:pi, t:Math.round(s * stepT), v:st.acc ? 1 : .7}); changed(); renderDrumMachine(id); }));
+}
+
+$('#anaPreset').addEventListener('change', e => { const tr = curSynth(), model = tr.inst, P = (ANA_PRESETS[model] || {})[e.target.value]; if (!P) return; tr['ana_' + model] = Object.assign({}, ANA_COMMON, ANA_MODELS[model].base, P, {preset:e.target.value}); solCfg(tr); save(); renderAna(tr); const r = hearRoot(); hearChord(tr, ANA_MODELS[model].base.mono ? [r - 12] : [r, r + 4, r + 7], .9); });
+$('#czPreset').addEventListener('change', e => { const tr = curSynth(); if (!CZ_PRESETS[e.target.value]) return; tr.cz = czPreset(e.target.value); solCfg(tr); save(); renderCz(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .9); });
+$('#smpxFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const tr = curSynth(); try { const b = await decodeAny(await f.arrayBuffer()); const key = 'smpx:' + tr.id;
+  await DB.put('audio', key, {sr:b.sampleRate, ch:[b.getChannelData(0).slice(0, Math.min(b.length, b.sampleRate * 20))]}); tr.smpx.src = 'file'; tr.smpx.fileKey = key; tr.smpx._src = 'file'; save(); await smpxSend(tr); renderSmpx(tr); toast(f.name + ' loaded into the ' + (tr.inst === 'sk1' ? 'SK-1' : 'Emax') + '.'); const r = hearRoot(); hearChord(tr, [r], .8); } catch(err){ toast('Could not read that file.'); } });
+
 /* ================= ARP Omni-2 ================= */
 const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:1, viola:1, cello:0, sbass:0, atk:.25, rel:.45, syn4:0, syn8:0, single:0, freq:.55, res:.15, adsr:.5, lfoAmt:0, lfoHz:.35, a:.1, d:.4, s:.6, r:.35, bass8:0, bass16:0, stacc:0, master:.8, bassVol:.7, mix:.85, hollow:0, chorus:0, wide:1, split:56});
 const OMNI_PRESETS = {
@@ -9659,7 +10266,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });

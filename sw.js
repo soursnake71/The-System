@@ -1,6 +1,6 @@
 // Network first so updates show up; cached copy when offline.
-const CACHE = 'pocket-rack-v100';
-const CORE = ['./', 'index.html', 'manifest.webmanifest', 'damn-son.mp3', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const CACHE = 'pocket-rack-v101';
+const CORE = ['./', 'index.html', 'manifest.webmanifest', 'damn-son.mp3', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'kits/dr110/clap.wav', 'kits/dr110/closed-hat.wav', 'kits/dr110/cymbal.wav', 'kits/dr110/kick.wav', 'kits/dr110/open-hat.wav', 'kits/dr110/rimshot.wav', 'kits/dr110/shaker.wav', 'kits/dr110/snare1.wav', 'kits/dr110/snare2.wav', 'kits/dr110/snare3.wav', 'kits/dr110/snare4.wav', 'kits/dr110/snare5.wav', 'kits/dr110/snare6.wav', 'kits/dmx/clap.wav', 'kits/dmx/crash.wav', 'kits/dmx/hi-hat-medium.wav', 'kits/dmx/hi-hat-open.wav', 'kits/dmx/hi-hat-tight.wav', 'kits/dmx/kick.wav', 'kits/dmx/ride-accent.wav', 'kits/dmx/ride.wav', 'kits/dmx/rimshot.wav', 'kits/dmx/shaker-accent.wav', 'kits/dmx/shaker.wav', 'kits/dmx/snare.wav', 'kits/dmx/tambourine-accent.wav', 'kits/dmx/tambourine.wav', 'kits/dmx/tom-1.wav', 'kits/dmx/tom-2.wav', 'kits/dmx/tom-3.wav', 'kits/dmx/tom-4.wav', 'kits/dmx/tom-5.wav', 'kits/dmx/tom-6.wav'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', e => {
