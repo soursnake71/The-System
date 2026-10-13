@@ -335,18 +335,32 @@ html.nav-on :focus-visible, html.nav-on .gp-focus{outline:4px solid #ffd23f !imp
 #fireFx{position:fixed;inset:0;z-index:30;pointer-events:none}
 html.frying main{animation:fryShake .11s steps(2) infinite}
 @keyframes fryShake{0%{transform:translate(0,0)}50%{transform:translate(var(--fx,0px),var(--fy,0px))}}
-.omni{background:linear-gradient(180deg,#232323,#121212);border:1px solid #000;border-radius:6px;padding:10px;box-shadow:inset 0 1px 0 #ffffff14}
-.omni-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
-.omni-head b{font:900 22px/1 "Barlow",sans-serif;color:#f4f1ea;letter-spacing:.02em}
-.omni-head span{font:700 14px/1 var(--f-display);color:#e8722c;letter-spacing:.25em;flex:1}
-.omni-head select{max-width:55%}
-.omni-sw{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
-.omni-sw button{flex:1 1 22%;padding:7px 4px;background:#2b2b2b !important;color:#bbb !important;border:1px solid #000 !important;font:700 12px var(--f-display);letter-spacing:.15em}
-.omni-sw button.on{background:#e8722c !important;color:#111 !important;box-shadow:0 0 10px #e8722c88}
-.omni-sec{border-top:2px solid #e8722c;padding-top:6px;margin-top:8px}
-.omni-sec > .label{color:#e8722c !important;letter-spacing:.2em}
-.omni-sec .knobs{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:space-around}
-.omni .knob .klab{color:#e9e5dc}
+/* ARP Omni-2 faceplate: black panel between leather end blocks, white silk-screen, vertical sliders, push buttons with LEDs */
+.omni{position:relative;background:linear-gradient(180deg,#1d1d1c,#0d0d0d);border-radius:4px;padding:10px 12px 12px;border-left:12px solid #3b2417;border-right:12px solid #3b2417;
+  box-shadow:inset 0 1px 0 #ffffff1c,inset 3px 0 0 #0006,inset -3px 0 0 #0006,0 3px 10px #0008;border-image:linear-gradient(90deg,#2a170e,#5b3a26 40%,#2a170e) 1}
+.omni-head{display:flex;align-items:center;gap:10px;margin-bottom:6px;border-bottom:1px solid #ffffff30;padding-bottom:7px}
+.omni-head b{font:900 26px/1 "Barlow",sans-serif;color:#fff;letter-spacing:-.01em}
+.omni-head span{font:700 15px/1 "Barlow",sans-serif;color:#fff;letter-spacing:.32em;flex:1;white-space:nowrap}
+.omni-head span small{display:block;font:600 7px/1.4 "Barlow",sans-serif;letter-spacing:.28em;color:#bdb8ad}
+.omni-head select{max-width:46%;background:#000 !important;color:#ffd9a6 !important;border:1px solid #444 !important}
+.omni-sec{border:1px solid #ffffff38;border-radius:3px;padding:16px 6px 8px;margin-top:12px;position:relative}
+.omni-sec > .label{position:absolute;top:-8px;left:10px;background:#141413;padding:0 6px;color:#fff !important;font:700 10px "Barlow",sans-serif !important;letter-spacing:.25em !important}
+.omni-sw{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.omni-sw button{flex:1 1 20%;min-width:0;padding:16px 2px 6px !important;position:relative;background:linear-gradient(180deg,#efe9dc,#cfc7b6) !important;color:#1a1a1a !important;border:1px solid #000 !important;border-radius:2px !important;box-shadow:0 3px 0 #000,inset 0 1px 0 #fff !important;font:800 9.5px "Barlow",sans-serif !important;letter-spacing:.06em;text-transform:uppercase}
+.omni-sw button::before{content:"";position:absolute;top:5px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#4a1010;box-shadow:inset 0 1px 1px #000}
+.omni-sw button.on{transform:translateY(2px);box-shadow:0 1px 0 #000,inset 0 1px 0 #fff !important}
+.omni-sw button.on::before{background:#ff2a1a;box-shadow:0 0 6px 2px #ff3b2a}
+.omni-sl{display:flex;justify-content:space-around;gap:2px}
+.osl{display:flex;flex-direction:column;align-items:center;flex:1 1 0;min-width:0;max-width:56px}
+.osl-body{position:relative;height:118px;width:100%;display:flex;justify-content:center}
+.osl-body::before{content:"";position:absolute;top:6px;bottom:6px;left:50%;margin-left:-1px;width:2px;background:#000;box-shadow:0 0 0 1px #333}
+.osl-scale{position:absolute;top:6px;bottom:6px;left:2px;display:flex;flex-direction:column;justify-content:space-between;font:600 6.5px/1 "Barlow",sans-serif;color:#cfcac0}
+.osl input[type=range]{writing-mode:vertical-lr;direction:rtl;width:30px !important;height:118px !important;margin:0;background:transparent;-webkit-appearance:none;appearance:none;position:relative;z-index:1;touch-action:none}
+.osl input[type=range]::-webkit-slider-runnable-track{width:30px;background:transparent;border:0}
+.osl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:14px;border-radius:2px;background:linear-gradient(180deg,#fff,#d8d4cc 45%,#b9b4aa 55%,#f2efe9);border:1px solid #000;box-shadow:0 2px 3px #000c;margin:0}
+.osl input[type=range]::-moz-range-thumb{width:26px;height:14px;border-radius:2px;background:#eee;border:1px solid #000}
+.osl b{font:800 8.5px/1.15 "Barlow",sans-serif;color:#fff;letter-spacing:.06em;text-align:center;margin-top:4px;min-height:20px;text-transform:uppercase}
+.osl i{font:600 9px/1 var(--f-mono);color:#ffb15e;font-style:normal;margin-top:2px;white-space:nowrap}
 @keyframes eraseFlash{0%{background:#ff3b30;color:#fff;box-shadow:0 0 14px #ff3b30}50%{background:#5a0f0b;color:#ffb3ad;box-shadow:none}}
 .ctl button{padding:8px 4px}
 
@@ -939,7 +953,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <p class="hint">Modeled on the Oberheim OB-Xa: two CEM3340 oscillators with sync, a CEM3320 filter you can switch between the 2-pole response (the open, brassy Oberheim sound) and 4-pole, two ADSRs, an LFO with sample &amp; hold, and eight voices spread across the stereo field like the OB-Xa's pan pots. Programs are in the style of famous OB-Xa and OB-X parts.</p>
       </div>
       <div id="omniPanel" class="omni" hidden>
-        <div class="omni-head"><b>ARP</b><span>OMNI-2</span><select id="omniPreset" aria-label="Omni-2 presets"></select></div>
+        <div class="omni-head"><b>ARP</b><span>OMNI-2<small>POLYPHONIC SYNTHESIZER</small></span><select id="omniPreset" aria-label="Omni-2 presets"></select></div>
         <div id="omniSecs"></div>
         <p class="hint">Built from the Omni-2 service manual: 500 kHz master oscillator and top-octave divider, differentiated-square "sawtooth" (Hollow lets the negative spike through), a 22 µF keying capacitor per key, three bucket-brigade "phasers" on the strings, the ARP 4075 24 dB filter with an RC ADSR on the synth, and low-note-priority bass on the lowest 20 keys. Fully polyphonic like the real one: every key sounds from one divide-down tone generator. Strings have their own crescendo and sustain. The Synth section sends all notes through one resonant 4-pole filter and one ADSR, as the Omni-2 does, so a new key re-triggers the sweep. Keys below the split play the Bass section. Chorus and Phaser are on the panel.</p>
       </div>
@@ -1535,7 +1549,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v92</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v93</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -8400,6 +8414,16 @@ const OMNI_PRESETS = {
   'Staccato Bass':{violin:0, viola:0, bass8:1, bass16:1, stacc:1, bassVol:.9},
 };
 function omniPreset(name){ return Object.assign(OMNI_DEFAULT(), OMNI_PRESETS[name] || {}, {preset:name}); }
+// Omni-2 slider: vertical, white cap, 0–10 silk-screen scale
+function oslider(box, label, obj, key, min, max, step, fmt, after){
+  const w = document.createElement('div'); w.className = 'osl';
+  w.innerHTML = `<div class="osl-body"><div class="osl-scale">${[10, 8, 6, 4, 2, 0].map(n => `<span>${n}</span>`).join('')}</div><input type="range" min="${min}" max="${max}" step="${step}" aria-label="${label}"></div><b>${label}</b><i></i>`;
+  const inp = w.querySelector('input'), out = w.querySelector('i'); inp.value = obj[key];
+  const lp = learnPath(obj); if (lp) inp.dataset.lp = lp + '|' + key;
+  const draw = () => { out.textContent = fmt(+inp.value); inp.setAttribute('aria-valuetext', fmt(+inp.value)); };
+  inp.addEventListener('input', () => { obj[key] = +inp.value; draw(); after && after(); });
+  inp.addEventListener('stp-sync', draw); draw(); box.appendChild(w); return inp;
+}
 function renderOmni(tr){
   const C = tr.omni || (tr.omni = OMNI_DEFAULT()); if (C.atk == null) Object.assign(C, OMNI_DEFAULT(), {preset:''});
   const up = () => { C.preset = ''; $('#omniPreset').value = ''; solCfg(tr); save(); };
@@ -8410,10 +8434,10 @@ function renderOmni(tr){
   const sec = (title, sw, items) => { const d = document.createElement('div'); d.className = 'omni-sec'; d.innerHTML = `<div class="label">${title}</div><div class="omni-sw"></div><div class="knobs"></div>`;
     const sb = d.querySelector('.omni-sw'); sw.forEach(([lb, key]) => { const b = document.createElement('button'); b.className = 'nolearn' + (C[key] ? ' on' : ''); b.textContent = lb; b.addEventListener('click', () => { C[key] = C[key] ? 0 : 1; up(); renderOmni(tr); }); sb.appendChild(b); });
     if (!sw.length) sb.remove();
-    const k = d.querySelector('.knobs'); items.forEach(([lb, key, a, b, st, f]) => knob(k, lb, C, key, a, b, st, f, up)); box.appendChild(d); };
+    const k = d.querySelector('.knobs'); k.className = 'omni-sl'; items.forEach(([lb, key, a, b, st, f]) => oslider(k, lb, C, key, a, b, st, f, up)); if (!items.length) k.remove(); box.appendChild(d); };
   sec('STRINGS', [['VIOLIN 4′', 'violin'], ['VIOLA 8′', 'viola'], ['CELLO 8′', 'cello'], ['BASS 16′', 'sbass']], [['ATTACK', 'atk', 0, 1, .01, t(.005, 800)], ['RELEASE', 'rel', 0, 1, .01, t(.03, 250)]]);
-  sec('SYNTHESIZER', [['4′', 'syn4'], ['8′', 'syn8'], ['SINGLE TRIG', 'single']], [['VCF FREQ', 'freq', 0, 1, .005, v => { const h = 16 * Math.pow(2, v * 10.5); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }], ['RESONANCE', 'res', 0, 1, .01, pct], ['ADSR DEPTH', 'adsr', 0, 1, .01, pct], ['LFO DEPTH', 'lfoAmt', 0, 1, .01, pct], ['LFO SPEED', 'lfoHz', 0, 1, .01, v => (.1 * Math.pow(200, v)).toFixed(1) + ' Hz'],
-    ['ATTACK', 'a', 0, 1, .01, t(.002, 2500)], ['DECAY', 'd', 0, 1, .01, t(.005, 1600)], ['SUSTAIN', 's', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, t(.005, 1600)]]);
+  sec('SYNTHESIZER', [['4′', 'syn4'], ['8′', 'syn8'], ['SINGLE TRIG', 'single']], [['VCF FREQ', 'freq', 0, 1, .005, v => { const h = 16 * Math.pow(2, v * 10.5); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }], ['RESONANCE', 'res', 0, 1, .01, pct], ['ADSR DEPTH', 'adsr', 0, 1, .01, pct], ['LFO DEPTH', 'lfoAmt', 0, 1, .01, pct], ['LFO SPEED', 'lfoHz', 0, 1, .01, v => (.1 * Math.pow(200, v)).toFixed(1) + ' Hz']]);
+  sec('ADSR', [], [['ATTACK', 'a', 0, 1, .01, t(.002, 2500)], ['DECAY', 'd', 0, 1, .01, t(.005, 1600)], ['SUSTAIN', 's', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, t(.005, 1600)]]);
   sec('BASS VOICES', [['BASS 8′', 'bass8'], ['BASS 16′', 'bass16'], ['STACCATO', 'stacc']], [['SPLIT', 'split', 36, 72, 1, v => noteName(v)]]);
   sec('GENERAL', [['HOLLOW', 'hollow'], ['CHORUS PHASER', 'chorus'], ['STEREO', 'wide']], [['MASTER', 'master', 0, 1, .01, pct], ['BASS VOL', 'bassVol', 0, 1, .01, pct], ['STRINGS ⇄ SYNTH', 'mix', 0, 1, .01, v => Math.round(v * 100) + ' / ' + Math.round((1 - v) * 100)]]);
 }
