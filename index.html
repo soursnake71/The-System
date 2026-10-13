@@ -860,6 +860,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+.djcrate .librow.sel{background:#2b3a4a;outline:1px solid #46a6ff;border-radius:3px}
+#libUp,#libDn{padding:8px 12px !important}
 .librow select{padding:6px 0;font-size:14px;min-width:0;width:100%;text-align:center}
 </style>
 
@@ -982,9 +984,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="djdeck" id="djd0" data-d="0">
       <div class="djdh"><b>1</b><span class="djnm" id="djNm0">No record</span></div>
       <canvas class="ttmini" id="ttCv0" aria-label="Deck 1 turntable. Touch the record and move it to scratch."></canvas>
-      <div class="djbtns"><button id="dj0start" class="djstart" data-a="start">START · STOP</button><button id="dj033" data-a="33">33</button><button id="dj045" data-a="45">45</button></div>
+      <div class="djbtns"><button id="dj0start" class="djstart" data-a="start" aria-label="Deck 1 start/stop">START · STOP</button><button id="dj033" data-a="33" aria-label="Deck 1 33">33</button><button id="dj045" data-a="45" aria-label="Deck 1 45">45</button></div>
       <div class="djp"><span>PITCH</span><input type="range" class="djpitch" id="djPitch0" min="-8" max="8" step="0.05" value="0" aria-label="Deck 1 pitch"><span class="mono djpv" id="djPv0">0.0%</span></div>
-      <div class="djbtns4"><button id="dj0cue" data-a="cue">CUE</button><button id="dj0sync" data-a="sync">SYNC</button><button id="dj0load" class="nolearn" data-a="load">LOAD</button></div>
+      <div class="djbtns4"><button id="dj0cue" data-a="cue" aria-label="Deck 1 cue">CUE</button><button id="dj0sync" data-a="sync" aria-label="Deck 1 sync">SYNC</button><button id="dj0load" data-a="load" aria-label="Deck 1 load">LOAD</button></div>
       <input id="ttScr0" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Deck 1 scratch (map a knob with MIDI learn)">
     </div>
     <div class="djmixer">
@@ -995,14 +997,14 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="djdeck" id="djd1" data-d="1">
       <div class="djdh"><b>2</b><span class="djnm" id="djNm1">No record</span></div>
       <canvas class="ttmini" id="ttCv1" aria-label="Deck 2 turntable. Touch the record and move it to scratch."></canvas>
-      <div class="djbtns"><button id="dj1start" class="djstart" data-a="start">START · STOP</button><button id="dj133" data-a="33">33</button><button id="dj145" data-a="45">45</button></div>
+      <div class="djbtns"><button id="dj1start" class="djstart" data-a="start" aria-label="Deck 2 start/stop">START · STOP</button><button id="dj133" data-a="33" aria-label="Deck 2 33">33</button><button id="dj145" data-a="45" aria-label="Deck 2 45">45</button></div>
       <div class="djp"><span>PITCH</span><input type="range" class="djpitch" id="djPitch1" min="-8" max="8" step="0.05" value="0" aria-label="Deck 2 pitch"><span class="mono djpv" id="djPv1">0.0%</span></div>
-      <div class="djbtns4"><button id="dj1cue" data-a="cue">CUE</button><button id="dj1sync" data-a="sync">SYNC</button><button id="dj1load" class="nolearn" data-a="load">LOAD</button></div>
+      <div class="djbtns4"><button id="dj1cue" data-a="cue" aria-label="Deck 2 cue">CUE</button><button id="dj1sync" data-a="sync" aria-label="Deck 2 sync">SYNC</button><button id="dj1load" data-a="load" aria-label="Deck 2 load">LOAD</button></div>
       <input id="ttScr1" type="range" min="0" max="1" step="0.002" value="0.5" hidden aria-label="Deck 2 scratch (map a knob with MIDI learn)">
     </div>
     </div>
     <div class="card sdj djcrate">
-      <div class="row"><h2 class="grow">Library</h2><button id="libAdd" class="nolearn">+ TRACKS</button><button id="crImp" class="nolearn">SERATO CRATE</button></div>
+      <div class="row"><h2 class="grow">Library</h2><button id="libUp" aria-label="Browse up">▲</button><button id="libDn" aria-label="Browse down">▼</button><button id="libAdd" class="nolearn">+ TRACKS</button><button id="crImp" class="nolearn">SERATO CRATE</button></div>
       <div class="crbar" id="crBar"></div>
       <input id="libSearch" type="search" placeholder="Search title, artist, key or BPM" aria-label="Search the library">
       <div class="librow libhead"><span>SONG</span><span>BPM</span><span>KEY</span><span>TIME</span><span></span><span></span><span></span></div>
@@ -1023,7 +1025,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="fxrow"><button id="fxEcho">ECHO</button><button id="fxFlang">FLANGER</button><button id="fxVerb">REVERB</button></div>
       <div class="ctl"><label class="label" for="fxBeats">FX beats</label><select id="fxBeats" aria-label="FX beats"><option value="0.25">1/4 beat</option><option value="0.5">1/2 beat</option><option value="0.75">3/4 beat</option><option value="1">1 beat</option><option value="2">2 beats</option><option value="4">4 beats</option></select><span></span></div>
       <div class="ctl"><label class="label" for="fxDepth">FX depth</label><input id="fxDepth" type="range" min="0" max="1" step="0.05"><span class="v mono"></span></div>
-      <div class="seg" id="padMode"><button data-m="cue">HOT CUES</button><button data-m="loop">AUTO LOOP</button><button data-m="roll">ROLL</button></div>
+      <div class="seg" id="padMode"><button id="pmCue" data-m="cue">HOT CUES</button><button id="pmLoop" data-m="loop">AUTO LOOP</button><button id="pmRoll" data-m="roll">ROLL</button></div>
       <div class="ppads" id="ppads"></div>
       <div class="lrow"><button id="lpIn">IN</button><button id="lpOut">OUT</button><button id="lpExit">RELOOP</button><button id="lpHalf">½</button><button id="lpDbl">×2</button></div>
       <div class="row"><button id="ttCut" class="grow" data-momentary="1">CUT (HOLD)</button><button id="ppDel" class="grow">DELETE CUE</button></div>
@@ -1031,21 +1033,21 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <input type="file" id="ttFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
       <div class="tt-midi">
         <div class="row"><span class="label grow">MIDI platter (Denon DN-S3700 or any jog wheel)</span><span class="badge" id="ttExtBadge">Off</span></div>
-        <div class="row"><button id="ttLearnPl" class="grow nolearn">LEARN PLATTER</button><button id="ttExtOn" class="grow nolearn">PLATTER CONTROL</button><button id="ttExtRev" class="nolearn">REV</button></div>
+        <div class="row"><button id="ttLearnPl" class="grow nolearn">LEARN PLATTER</button><button id="ttExtOn" class="grow">PLATTER CONTROL</button><button id="ttExtRev">REV</button></div>
         <div class="ctl"><label class="label" for="ttTpr">Steps / turn</label><input id="ttTpr" type="range" min="8" max="4096" step="1"><span class="v mono"></span></div>
         <div class="status" id="ttExtStatus">Put the DN-S3700 in MIDI mode, connect it by USB, Connect MIDI in Setup, then tap Learn platter.</div>
       </div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Sampler</h2><button id="smpLoad" class="nolearn">LOAD MODE</button></div>
+      <div class="row"><h2 class="grow">Sampler</h2><button id="smpLoad">LOAD MODE</button></div>
       <div class="ppads" id="smpPads"></div>
       <div class="ctl"><label class="label" for="smpVol">Level</label><input id="smpVol" type="range" min="0" max="1.5" step="0.05"><span class="v mono"></span></div>
       <input type="file" id="smpFile" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
     </div>
     <div class="card mixdj" data-chip="Mixer setup">
       <h2>Mixer setup</h2>
-      <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev" class="nolearn">REV (HAMSTER)</button></div>
-      <div class="row"><button id="recMix" class="grow nolearn">● RECORD MIX</button><span class="badge" id="recMixT">Ready</span></div>
+      <div class="row"><select id="xfCurve" class="grow" aria-label="Crossfader curve"><option value="scratch">Scratch curve (sharp cut)</option><option value="smooth">Smooth curve (mixing)</option><option value="linear">Linear</option></select><button id="xfRev">REV (HAMSTER)</button></div>
+      <div class="row"><button id="recMix" class="grow">● RECORD MIX</button><span class="badge" id="recMixT">Ready</span></div>
       <span class="label">EQ match (decks)</span>
       <div id="deckMatch" class="mpanel"></div>
       <p class="hint">Map a knob to the crossfader with MIDI learn (tap the crossfader while learning). On the Scratch curve the sound is fully on just past the edge, for cuts and transforms.</p>
@@ -1621,6 +1623,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <details id="h-wheel"><summary>The Wheel of Steel (two decks, DJ mixer)</summary>
       <p>The <b>Wheel</b> tab is a two-deck DJ setup in the style of Serato DJ: the waveforms of both decks on top (title, artist, time left, BPM and key over each), two turntables in the style of the Technics SL-1200 MK2 with the mixer between them (HI / MID / LOW, filter, channel faders, level meters and the crossfader), and the library with crates underneath. Touch a record to scratch it. Each turntable has Start · Stop, 33 / 45, pitch (double-tap to zero), Cue, Sync and Load. Tap a deck to make it the one <b>Deck controls</b> works on (hot cues, loops, rolls, FX, key lock, nudge, censor, MIDI platter).</p>
       <p><b>Serato compatible</b>: tracks keep what Serato DJ saved in them: hot cues (with their colours), saved loops, the beatgrid, BPM, key, title and artist, from MP3, AIFF, WAV and FLAC (◆ marks a track with Serato data). <b>Serato crate</b> imports .crate files from your Serato folder (Music/_Serato_/Subcrates); tracks already in the library join the crate, and the rest join when you add their files. Make your own crates with + Crate and the ⋮ menu on each track.</p>
+      <p><b>MIDI</b>: everything on the Wheel can be MIDI-learned: both turntables (touch a record while learning to map a knob or jog wheel to scratch it), Start, 33/45, pitch, Cue, Sync, Load, the mixer knobs and faders, the crossfader, hamster, hot cues, loops, rolls, FX, sampler and record. For a Serato-style controller: map ▲ ▼ to browse the library and each deck's LOAD; LOAD then puts the selected track on that deck (tap a track to select it on screen).</p>
       <h3>Waveforms</h3>
       <ul>
         <li>Each deck has a scrolling waveform (6 seconds around the playhead) coloured like Serato's: red for lows, green for mids, blue for highs, with the beat grid (bright lines on every bar) and hot cues and loops marked. Under it, the whole-track overview shows where you are.</li>
@@ -1845,7 +1848,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v103</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v104</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -8519,6 +8522,7 @@ function renderLib(){
   rows.forEach(e => {
     const r = document.createElement('div'); r.className = 'librow';
     r.innerHTML = `<div class="libname"></div><span class="mono">${e.bpm ? e.bpm.toFixed(1) : '—'}</span><span class="mono">${e.cam || '—'}</span><span class="mono">${e.dur ? mmss(e.dur) : ''}</span><button data-d="0" class="nolearn">1</button><button data-d="1" class="nolearn">2</button><select class="nolearn" aria-label="More"><option value="">⋮</option></select>`;
+    if (e.id === S.libSel) r.classList.add('sel'); r.addEventListener('click', ev => { if (ev.target.closest('button, select')) return; S.libSel = S.libSel === e.id ? '' : e.id; renderLib(); });
     const nm = r.querySelector('.libname'); nm.textContent = (e.serato ? '◆ ' : '') + e.name; if (e.artist){ const sm = document.createElement('small'); sm.textContent = e.artist; nm.appendChild(sm); }
     r.querySelectorAll('button[data-d]').forEach(b => b.addEventListener('click', () => libLoad(e.id, +b.dataset.d)));
     const sel = r.querySelector('select'), opt = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
@@ -8532,6 +8536,7 @@ function renderLib(){
       save(); renderLib(); });
     box.appendChild(r);
   });
+  box._rows = rows;
   if (cur && cur.missing && cur.missing.length){ const m = document.createElement('p'); m.className = 'hint'; m.style.display = 'block'; m.textContent = `${cur.missing.length} track${cur.missing.length > 1 ? 's' : ''} from the Serato crate ${cur.missing.length > 1 ? 'aren’t' : 'isn’t'} on this device yet: ${cur.missing.slice(0, 6).join(', ')}${cur.missing.length > 6 ? '…' : ''}. Tap + Tracks and pick those files; they join this crate.`; box.appendChild(m); }
 }
 async function crateImport(files){
@@ -8556,6 +8561,7 @@ function renderMixDJ(){
     knob(kb, 'MID', C, 'mid', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
     knob(kb, 'LOW', C, 'lo', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
     knob(kb, 'FILTER', C, 'filt', -1, 1, .05, v => Math.abs(v) < .03 ? 'OFF' : v < 0 ? 'LP ' + Math.round(-v * 100) : 'HP ' + Math.round(v * 100), applyMix, 'white');
+    [...kb.querySelectorAll('.knob')].forEach((k, j) => { if (k._inp) k._inp.id = 'mx' + i + ['hi', 'mid', 'lo', 'filt'][j]; });
     const f = box.querySelector('.chfader'); f.value = C.vol; f.addEventListener('input', () => { C.vol = +f.value; applyMix(); save(); });
   });
 }
@@ -8596,7 +8602,7 @@ function djTick(){
   const act = {start:'#ttStart', 33:'#tt33', 45:'#tt45', cue:'#ttCueBtn', sync:'#ttSync', load:'#ttLoad'};
   [0, 1].forEach(i => {
     const box = $('#djd' + i), d = decks[i]; if (!box) return;
-    box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => { selDeck(i); $(act[b.dataset.a]).click(); renderRig(); }));
+    box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => { selDeck(i); if (b.dataset.a === 'load' && S.libSel && libState().some(e => e.id === S.libSel)){ libLoad(S.libSel, i); return; } $(act[b.dataset.a]).click(); renderRig(); }));
     const pi = $('#djPitch' + i);
     pi.addEventListener('input', () => { const v = pi.value; selDeck(i); const tp = $('#ttPitch'); tp.value = v; tp.dispatchEvent(new Event('input')); $('#djPv' + i).textContent = (deckState(i).pitch >= 0 ? '+' : '') + deckState(i).pitch.toFixed(1) + '%'; });
     pi.addEventListener('dblclick', () => { pi.value = 0; pi.dispatchEvent(new Event('input')); });
@@ -8759,6 +8765,9 @@ function renderPlat(){
   $('#crImp').addEventListener('click', () => { toast('Pick .crate files from your Serato folder (Music/_Serato_/Subcrates).'); $('#crFile').click(); });
   $('#crFile').addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) crateImport(fs); });
   $('#libSearch').addEventListener('input', () => renderLib());
+  const browse = dir => { const rows = $('#libList')._rows || []; if (!rows.length) return; let k = rows.findIndex(e => e.id === S.libSel); k = k < 0 ? (dir > 0 ? 0 : rows.length - 1) : clamp(k + dir, 0, rows.length - 1); S.libSel = rows[k].id; renderLib();
+    const el = $('#libList .librow.sel'); if (el) el.scrollIntoView({block:'nearest'}); };
+  $('#libUp').addEventListener('click', () => browse(-1)); $('#libDn').addEventListener('click', () => browse(1));
   $('#libFile').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; let n = 0;
     for (const f of fs){ try { toast(`Analysing ${f.name}…`); await libAddFile(f); n++; renderLib(); } catch(err){ console.warn(err); toast('Could not read ' + f.name); } }
     save(); if (n) toast(`Added ${n} track${n > 1 ? 's' : ''} to the library.`); });
