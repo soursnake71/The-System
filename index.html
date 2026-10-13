@@ -340,8 +340,8 @@ html.frying main{animation:fryShake .11s steps(2) infinite}
 .omni-head b{font:900 22px/1 "Barlow",sans-serif;color:#f4f1ea;letter-spacing:.02em}
 .omni-head span{font:700 14px/1 var(--f-display);color:#e8722c;letter-spacing:.25em;flex:1}
 .omni-head select{max-width:55%}
-.omni-sw{display:flex;gap:8px;margin-bottom:8px}
-.omni-sw button{flex:1;background:#2b2b2b !important;color:#bbb !important;border:1px solid #000 !important;font:700 12px var(--f-display);letter-spacing:.15em}
+.omni-sw{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.omni-sw button{flex:1 1 22%;padding:7px 4px;background:#2b2b2b !important;color:#bbb !important;border:1px solid #000 !important;font:700 12px var(--f-display);letter-spacing:.15em}
 .omni-sw button.on{background:#e8722c !important;color:#111 !important;box-shadow:0 0 10px #e8722c88}
 .omni-sec{border-top:2px solid #e8722c;padding-top:6px;margin-top:8px}
 .omni-sec > .label{color:#e8722c !important;letter-spacing:.2em}
@@ -940,9 +940,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
       <div id="omniPanel" class="omni" hidden>
         <div class="omni-head"><b>ARP</b><span>OMNI-2</span><select id="omniPreset" aria-label="Omni-2 presets"></select></div>
-        <div class="omni-sw"><button data-k="ens">CHORUS</button><button data-k="phase">PHASER</button></div>
         <div id="omniSecs"></div>
-        <p class="hint">Fully polyphonic like the real one: every key sounds from one divide-down tone generator. Strings have their own crescendo and sustain. The Synth section sends all notes through one resonant 4-pole filter and one ADSR, as the Omni-2 does, so a new key re-triggers the sweep. Keys below the split play the Bass section. Chorus and Phaser are on the panel.</p>
+        <p class="hint">Built from the Omni-2 service manual: 500 kHz master oscillator and top-octave divider, differentiated-square "sawtooth" (Hollow lets the negative spike through), a 22 µF keying capacitor per key, three bucket-brigade "phasers" on the strings, the ARP 4075 24 dB filter with an RC ADSR on the synth, and low-note-priority bass on the lowest 20 keys. Fully polyphonic like the real one: every key sounds from one divide-down tone generator. Strings have their own crescendo and sustain. The Synth section sends all notes through one resonant 4-pole filter and one ADSR, as the Omni-2 does, so a new key re-triggers the sweep. Keys below the split play the Bass section. Chorus and Phaser are on the panel.</p>
       </div>
       <div id="solPanel" hidden>
         <div class="label">Bass section</div>
@@ -1414,7 +1413,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li>The project, samples and recordings save automatically in this browser on this phone. Nothing is uploaded.</li>
         <li>Clearing Chrome's site data for this app, or uninstalling Chrome, deletes the project. Export anything you want to keep.</li>
-        <li><b>ARP Omni-2</b> (Synth → instrument): the 1977 string synth. Strings (violin, viola, cello) with crescendo and sustain, a Synth section where every note shares one resonant filter and envelope, a split Bass section, plus Chorus and Phaser. 10 presets.</li>
+        <li><b>ARP Omni-2</b> (Synth → instrument): built from the service manual. Strings: Violin 4′, Viola 8′, and single-note Cello 8′ / Bass 16′ on the lowest 20 keys, through three bucket-brigade “phasers” and a shared attack. Synthesizer: 4′ / 8′ through the ARP 4075 24 dB filter with an ADSR, LFO, Single trigger. Bass Voices 8′ / 16′ with Staccato. Hollow changes the waveform; Chorus Phaser sends the synth through the string phasers.</li>
         <li><b>FIRE</b> (top bar): the machine fries. Smoke pours out, the sound overdrives, crushes and cuts out, and the settings slowly mangle themselves, more the longer it burns. Everything that comes out is recorded: switch it off and your settings come back, and the fried take is in Chop (ready to slice onto the pads) and your sample bin. Press play first so there is a beat to burn.</li>
         <li><b>Packs</b> (Pad sound → Save pack / Load pack): a .omegapack file with all 16 pad sounds, every pad setting, and the Chop sample with its slice points.</li>
         <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
@@ -1536,7 +1535,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v91</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v92</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2905,99 +2904,160 @@ class Solina extends AudioWorkletProcessor{
   }
 }
 registerProcessor('solina', Solina);
-/* ARP Omni-2 (model 2475, 1977): fully polyphonic divide-down tone (top-octave generator + dividers), three sections.
-   STRINGS: violin (8'+4', bright) and viola (8', darker) and cello (16'+8') with crescendo and sustain per key.
-   SYNTH: every key's sawtooth (8') and square (4') summed into ONE resonant 4-pole low-pass and ONE ADSR (paraphonic,
-   re-triggered by each new key), like the Omni's synth section. BASS: keys below the split, 16' and 8', own release.
-   Then the Omni's BBD chorus ensemble and a 4-stage phaser, with delayed vibrato on the tone generator. */
+/* ARP Omni-2 (models 2471-2475), from the service manual (doc 90026, 1978):
+   500 kHz master oscillator -> top octave divider -> CD4520 dividers -> square per key, differentiated by a per-pitch
+   capacitor with the negative spike clipped by a diode = the "sawtooth" (Hollow / waveform enhancement lets part of the
+   negative spike through). Each key: 22uF keying capacitor, 470 ohm charge (fast), release through the Release slider;
+   a new key's trigger pulse dumps capacitors still releasing. TDA470 gates -> 4' and 8' poly sums with formant voicing.
+   STRINGS: Violin 4', Viola 8' poly; Cello 8' and Bass 16' single-note low-note priority over keys 1-20 -> three BBD delay
+   lines ("phasers", clocks 75 / 46.5 / 82 kHz, each swept by its own LFO, outputs mixed, no dry) -> String VCA with a
+   shared AR (attack slider; reset at each new phrase; release follows the keys).
+   SYNTH: 4' and 8' poly -> ARP 4075 24 dB/oct ladder (Freq, Resonance, ADSR depth, LFO depth) -> VCA, RC ADSR (attack
+   charges toward 1.5x and flips to decay at 1.0), multiple trigger or Single trigger; Chorus Phaser routes it through
+   the delay lines and slows their LFOs. BASS VOICES: low-note-priority 8' / 16' square -> diode VCA -> resonant shaping
+   -> 2-pole OTA low-pass swept by a one-shot ADR (Staccato = faster decay), fixed ~1 s key release. */
 class Omni2 extends AudioWorkletProcessor{
   constructor(o){
     super();
     const opt = (o && o.processorOptions) || {}, fs = sampleRate; this.fs = fs;
-    this.cfg = Object.assign({violin:.8, viola:.7, cello:.3, cresc:.25, sus:.45, strVol:.8, syn8:0, syn4:0, cut:.45, res:.2, env:.5, sa:.05, sd:.4, ss:.6, sr:.3, synVol:.7, bass16:0, bass8:0, bassRel:.25, bassVol:.8, split:48, ens:1, ensDepth:.5, phase:0, phRate:.3, phFb:.5, vib:.15, vibRate:5.5, bright:.5}, opt.cfg || {});
+    this.cfg = Object.assign({violin:1, viola:1, cello:0, sbass:0, atk:.25, rel:.45, syn4:0, syn8:0, single:0, freq:.55, res:.15, adsr:.5, lfoAmt:0, lfoHz:.35, a:.1, d:.4, s:.6, r:.35, bass8:0, bass16:0, stacc:0, master:.8, bassVol:.7, mix:.85, hollow:0, chorus:0, wide:1, split:56}, opt.cfg || {});
     this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
     this.detune = TOS.map((d, pc) => (TOS[9] / d) / Math.pow(2, (pc - 9) / 12));
     this.cyc = new Float64Array(12);
     this.fTop = TOS.map((d, pc) => 440 * Math.pow(2, (pc - 9) / 12 + 4) * this.detune[pc]);
-    this.keys = new Map(); this.idle = 0;
-    this.env = {st:'idle', v:0, gate:false}; this.lad = [0, 0, 0, 0];
-    this.vLp = [0, 0]; this.vaLp = [0, 0]; this.bLp = [0, 0];
-    this.buf = new Float32Array(8192); this.w = 0; this.lfo = [0, 1.3, 2.6]; this.chz = [[0, 0], [0, 0], [0, 0]];
-    this.ap = [0, 0, 0, 0, 0, 0, 0, 0]; this.php = 0; this.phy = 0; this.vibPh = 0; this.vibAmt = 0;
+    this.keys = new Map(); this.idle = 0; this.upperHeld = 0;
+    this.ar = 0; this.arPhrase = true;                          // string AR
+    this.adsr = {v:0, st:'idle'};                               // synth ADSR
+    this.lad = new Float64Array(4); this.lfoT = 0; this.lfoD = 1;
+    this.f4 = [0, 0, 0], this.f8 = [0, 0, 0];                   // formant voicing (HP + 2-pole LP)
+    this.bass = {note:-1, g:0, gate:false, adr:0, lp:[0, 0], res:[0, 0], sbLp:[0, 0]};
+    this.bbd = [75000, 46500, 82000].map((clk, j) => ({clk, ph:j * 2.1, lp1:0, lp2:[0, 0]}));
+    this.buf = new Float32Array(8192); this.w = 0; this.dc = [0, 0, 0];
     this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg') Object.assign(this.cfg, d.cfg); };
   }
   blep(t, dt){ if (t < dt){ const x = t / dt; return x + x - x * x - 1; } if (t > 1 - dt){ const x = (t - 1) / dt; return x * x + x + x + 1; } return 0; }
-  saw(pc, oct, vb){ const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = ((this.cyc[pc] / div) % 1 + 1) % 1, dt = this.fTop[pc] / div / this.fs * vb; if (dt >= .5) return 0; return 2 * ph - 1 - this.blep(ph, dt); }
-  sq(pc, oct, vb){ const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = ((this.cyc[pc] / div) % 1 + 1) % 1, dt = this.fTop[pc] / div / this.fs * vb; if (dt >= .5) return 0; return (ph < .5 ? 1 : -1) + this.blep(ph, dt) - this.blep((ph + .5) % 1, dt); }
+  // differentiated square, negative spike clipped (hollow: partly passed), band-limited at both edges
+  tone(pc, oct, hollow){
+    const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = (this.cyc[pc] / div) % 1, dt = this.fTop[pc] / div / this.fs;
+    if (dt >= .45) return 0;
+    const r = .32, e = Math.exp(-.5 / r), A = 2 / (1 + e);   // RC = 0.32 of the period (capacitor chosen per pitch)
+    let y = ph < .5 ? A * Math.exp(-ph / r) : -hollow * A * Math.exp(-(ph - .5) / r);
+    y += (A + hollow * A * e) * this.blep(ph, dt) * .5;       // rising edge jump
+    y -= (A * e + hollow * A) * this.blep((ph + .5) % 1, dt) * .5;   // falling edge jump
+    return (y - (1 - hollow) * .38) * (1 - hollow * .45);
+  }
+  sqr(pc, oct){ const k = 8 - oct, div = k >= 0 ? 1 << k : Math.pow(2, k), ph = (this.cyc[pc] / div) % 1, dt = this.fTop[pc] / div / this.fs; if (dt >= .45) return 0;
+    return (ph < .5 ? 1 : -1) + this.blep(ph, dt) - this.blep((ph + .5) % 1, dt); }
   process(ins, outs){
     const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, fs = this.fs, C = this.cfg;
-    if (this.keys.size || this.env.v > 1e-4 || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
+    if (this.keys.size || this.bass.g > 1e-4 || this.ar > 1e-4 || this.adsr.v > 1e-4 || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0;
     else if ((this.idle += N) > 16384){ L.fill(0); if (R !== L) R.fill(0); return true; }
-    const tc = s => 1 - Math.exp(-1 / (Math.max(.0015, s) * fs));
-    const sAtk = tc(.004 + Math.pow(C.cresc, 2) * 2.5), sRel = tc(.04 + Math.pow(C.sus, 2) * 5), bRel = tc(.03 + Math.pow(C.bassRel, 2) * 3), bAtk = tc(.004);
-    const eA = tc(.002 + Math.pow(C.sa, 2) * 4), eD = tc(.01 + Math.pow(C.sd, 2) * 6), eR = tc(.01 + Math.pow(C.sr, 2) * 6);
-    const vLc = 1 - Math.exp(-2 * Math.PI * (2500 + C.bright * 6000) / fs), vaLc = 1 - Math.exp(-2 * Math.PI * (1100 + C.bright * 2500) / fs), bLc = 1 - Math.exp(-2 * Math.PI * 700 / fs);
-    const syn = C.syn8 + C.syn4 > 0, k4 = 4 * C.res * 1.05;
+    const k1 = t => 1 - Math.exp(-1 / (Math.max(.0005, t) * fs));
+    const kOn = k1(.0103), kRel = k1(.03 * Math.pow(250, C.rel)), kDump = k1(.025);
+    const kArA = k1(.005 * Math.pow(800, C.atk)), kArR = kRel;
+    const kA = k1(.002 * Math.pow(2500, C.a)), kD = k1(.005 * Math.pow(1600, C.d)), kR = k1(.005 * Math.pow(1600, C.r));
+    const bassSel = C.cello || C.sbass || C.bass8 || C.bass16, split = C.split | 0, hollow = C.hollow ? .65 : 0;
+    const lfoHz = .1 * Math.pow(200, C.lfoHz), res4 = C.res * 4.1;
+    const kBassRel = k1(1), kBassOn = k1(.004), kAdrDec = k1(C.stacc ? .12 : .55), kAdrRel = k1(.047 * 1);
+    const v4 = 1 - Math.exp(-2 * Math.PI * 4600 / fs), v8 = 1 - Math.exp(-2 * Math.PI * 3300 / fs), hp = 1 - Math.exp(-2 * Math.PI * 140 / fs);
+    const bbdLp1 = 1 - Math.exp(-2 * Math.PI * 12000 / fs), bbdLp2 = 1 - Math.exp(-2 * Math.PI * 9000 / fs);
+    const lfoScale = C.chorus ? .16 : 1, rates = [5.1, 6.3, 4.4];
     for (let i = 0; i < N; i++){
       const frame = currentFrame + i;
       while (this.q.length && this.q[0].f <= frame){
         const ev = this.q.shift();
-        if (ev.on != null){ const k = this.keys.get(ev.on) || {s:0, b:0}; k.down = true; k.v = ev.v; this.keys.set(ev.on, k); this.env.st = 'a'; this.env.gate = true; }
-        else { const k = this.keys.get(ev.off); if (k) k.down = false; if (![...this.keys.values()].some(x => x.down)){ this.env.gate = false; this.env.st = 'r'; } }
+        if (ev.on != null){
+          const upper = ev.on >= split || !bassSel, first = !this.upperHeld && upper;
+          // trigger pulse: capacitors of keys no longer held are dumped so notes don't run together
+          for (const k of this.keys.values()) if (!k.down) k.dump = true;
+          const k = this.keys.get(ev.on) || {kv:0}; k.down = true; k.dump = false; k.upper = upper; this.keys.set(ev.on, k);
+          if (upper){ if (!this.upperHeld && this.ar < .02) this.ar = 0; this.upperHeld++;
+            if (first || !C.single) this.adsr.st = 'a'; }
+          else { this.bass.gate = true; this.bass.adr = 1; }
+        } else {
+          const k = this.keys.get(ev.off); if (k && k.down){ k.down = false; if (k.upper) this.upperHeld = Math.max(0, this.upperHeld - 1); }
+          if (!this.upperHeld && this.adsr.st !== 'idle') this.adsr.st = 'r';
+        }
       }
-      // delayed vibrato on the master oscillator: every note shares it, as on a divide-down instrument
-      this.vibAmt += ((this.env.gate || [...this.keys.values()].some(x => x.down) ? 1 : 0) - this.vibAmt) * (1 / (fs * .8));
-      this.vibPh += C.vibRate / fs; if (this.vibPh > 1) this.vibPh -= 1;
-      const vb = 1 + Math.sin(this.vibPh * 6.2832) * .006 * C.vib * this.vibAmt;
-      for (let pc = 0; pc < 12; pc++) this.cyc[pc] += this.fTop[pc] / fs * vb;
-      let vio = 0, via = 0, cel = 0, sy = 0, bs = 0;
+      for (let pc = 0; pc < 12; pc++) this.cyc[pc] += this.fTop[pc] / fs;
+      // keyed polyphonic tones
+      let s4 = 0, s8 = 0, low = 999;
       for (const [n, k] of this.keys){
-        const upper = n >= C.split, pc = n % 12, oct = Math.floor(n / 12) - 1, vel = .7 + .3 * (k.v == null ? 1 : k.v);
-        k.s += ((k.down && upper ? 1 : 0) - k.s) * (k.down ? sAtk : sRel);
-        k.b += ((k.down && !upper ? 1 : 0) - k.b) * (k.down ? bAtk : bRel);
-        if (!k.down && k.s < 1e-4 && k.b < 1e-4){ this.keys.delete(n); continue; }
-        if (k.s > 1e-4){
-          const s8 = this.saw(pc, oct, vb), s4 = oct < 8 ? this.saw(pc, oct + 1, vb) : 0, s16 = oct > 0 ? this.saw(pc, oct - 1, vb) : 0, g = k.s * vel;
-          vio += g * (s8 * .6 + s4 * .7) * C.violin; via += g * s8 * C.viola; cel += g * (s16 * .7 + s8 * .3) * C.cello;
+        k.kv += ((k.down ? 1 : 0) - k.kv) * (k.down ? kOn : k.dump ? kDump : kRel);
+        if (!k.down && k.kv < 1e-4){ this.keys.delete(n); continue; }
+        if (k.down && n < split && n < low) low = n;
+        if (bassSel && n < split) continue;              // lower 20 keys go to the bass voices instead
+        const g = k.kv * k.kv * (3 - 2 * k.kv);          // transistor gate turning on
+        if (g < 1e-4) continue;
+        const pc = n % 12, oct = Math.floor(n / 12) - 1;
+        s8 += g * this.tone(pc, oct, hollow); if (oct < 8) s4 += g * this.tone(pc, oct + 1, hollow);
+      }
+      // formant voicing of the poly sums
+      const F4 = this.f4, F8 = this.f8;
+      F4[0] += (s4 - F4[0]) * hp; let x4 = s4 - F4[0]; F4[1] += (x4 - F4[1]) * v4; F4[2] += (F4[1] - F4[2]) * v4; x4 = F4[2];
+      F8[0] += (s8 - F8[0]) * hp; let x8 = s8 - F8[0]; F8[1] += (x8 - F8[1]) * v8; F8[2] += (F8[1] - F8[2]) * v8; x8 = F8[2];
+      // single-note low-priority bass line (keys below the split): string cello / bass and the bass voices
+      const B = this.bass;
+      if (low < 999) B.note = low;
+      if (low === 999) B.gate = false;
+      B.g += ((B.gate ? 1 : 0) - B.g) * (B.gate ? kBassOn : kBassRel);
+      B.adr += ((B.gate ? 0 : 0) - B.adr) * (B.gate ? kAdrDec : kAdrRel);
+      let cello = 0, sbass = 0, bassOut = 0;
+      if (B.note >= 0 && B.g > 1e-4){
+        const pc = B.note % 12, oct = Math.floor(B.note / 12) - 1, q8 = this.sqr(pc, oct), q16 = oct > 0 ? this.sqr(pc, oct - 1) : 0;
+        // Q21/Q22: differentiated and resonated into a saw-like string bass
+        B.res[0] += (q8 - B.res[0]) * .02; const sb8 = (q8 - B.res[0]) * B.g;
+        B.sbLp[0] += (sb8 - B.sbLp[0]) * .12; B.sbLp[1] += (B.sbLp[0] - B.sbLp[1]) * .12;
+        cello = B.sbLp[1] * C.cello; sbass = (q16 * .5) * B.g * C.sbass * .6;
+        if (C.bass8 || C.bass16){
+          const src = (C.bass8 ? q8 * B.g : 0) + (C.bass16 ? q16 * B.g : 0);
+          const fc = Math.min(.4 * fs, 90 * Math.pow(2, 1 + B.adr * 4.5)), g = 1 - Math.exp(-2 * Math.PI * fc / fs);
+          B.lp[0] += (src - B.lp[0] - .6 * (B.lp[0] - B.lp[1])) * g; B.lp[1] += (B.lp[0] - B.lp[1]) * g;
+          bassOut = B.lp[1] * .9;
         }
-        if (syn && k.down && upper) sy += vel * (C.syn8 * this.saw(pc, oct, vb) + C.syn4 * this.sq(pc, oct + 1, vb) * .7);
-        if (k.b > 1e-4 && (C.bass16 || C.bass8)) bs += k.b * (C.bass16 * (oct > 0 ? this.saw(pc, oct - 1, vb) : 0) + C.bass8 * this.saw(pc, oct, vb) * .7);
       }
-      // section voicing filters
-      this.vLp[0] += (vio - this.vLp[0]) * vLc; this.vLp[1] += (this.vLp[0] - this.vLp[1]) * vLc;
-      this.vaLp[0] += (via + cel - this.vaLp[0]) * vaLc; this.vaLp[1] += (this.vaLp[0] - this.vaLp[1]) * vaLc;
-      this.bLp[0] += (bs - this.bLp[0]) * bLc; this.bLp[1] += (this.bLp[0] - this.bLp[1]) * bLc;
-      // synth section: one ADSR and one resonant 4-pole ladder for every note
-      const E = this.env;
-      if (E.st === 'a'){ E.v += (1.05 - E.v) * eA; if (E.v >= 1){ E.v = 1; E.st = 'd'; } }
-      else if (E.st === 'd') E.v += (C.ss - E.v) * eD;
-      else if (E.st === 'r'){ E.v += (0 - E.v) * eR; if (E.v < 1e-5){ E.v = 0; E.st = 'idle'; } }
-      let synOut = 0;
-      if (syn && (E.v > 1e-5 || sy)){
-        const fc = Math.min(.45 * fs, 40 * Math.pow(400, Math.min(1, C.cut + C.env * E.v * .9))), g = 1 - Math.exp(-2 * Math.PI * fc / fs), z = this.lad;
-        let x = Math.tanh(sy * .5 - k4 * z[3]);
-        z[0] += g * (x - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]);
-        synOut = z[3] * E.v * C.synVol * (1 + C.res * .8) * 1.4;
-      }
-      let x = ((this.vLp[1] * .9 + this.vaLp[1] * .8) * C.strVol * .5 + synOut * 1.6 + this.bLp[1] * C.bassVol * .8) * .3;
-      // chorus ensemble: three BBD taps swept by slow and fast LFOs 120 degrees apart
-      this.buf[this.w & 8191] = x; let sL = x * .45, sR = x * .45;
-      if (C.ens){
-        for (let j = 0; j < 3; j++){
-          this.lfo[j] += .63 / fs * 6.2832; const m = Math.sin(this.lfo[j]) * .7 + Math.sin(this.lfo[j] * 9.6 + j) * .3;
-          const d = (5 + 3.2 * C.ensDepth * m + 1.2 * j) * .001 * fs, r = this.w - d, i0 = Math.floor(r), f = r - i0, a = this.buf[i0 & 8191], b = this.buf[(i0 + 1) & 8191];
-          const v = a + (b - a) * f; if (j === 0) sL += v * .7; else if (j === 2) sR += v * .7; else { sL += v * .35; sR += v * .35; }
+      // synth section: RC ADSR
+      const E = this.adsr;
+      if (E.st === 'a'){ E.v += (1.5 - E.v) * kA; if (E.v >= 1){ E.v = 1; E.st = 'd'; } }
+      else if (E.st === 'd') E.v += (C.s - E.v) * kD;
+      else if (E.st === 'r'){ E.v += -E.v * kR; if (E.v < 1e-5){ E.v = 0; E.st = 'idle'; } }
+      // LFO: integrator + hysteresis switch = triangle
+      this.lfoT += this.lfoD * 4 * lfoHz / fs; if (this.lfoT > 1){ this.lfoT = 1; this.lfoD = -1; } else if (this.lfoT < -1){ this.lfoT = -1; this.lfoD = 1; }
+      let syn = 0;
+      if ((C.syn4 || C.syn8) && (E.v > 1e-5)){
+        const sin = (C.syn4 ? x4 : 0) + (C.syn8 ? x8 : 0);
+        const oc = C.freq * 10.5 + C.adsr * E.v * 9 + C.lfoAmt * this.lfoT * 3, fc = Math.min(.42 * fs * 2, 16 * Math.pow(2, oc));
+        // ARP 4075: 4-pole transistor ladder, 2x oversampled
+        const g = 1 - Math.exp(-2 * Math.PI * fc / (2 * fs)), z = this.lad;
+        for (let o = 0; o < 2; o++){
+          const u = Math.tanh(sin * .9 - res4 * z[3]);
+          z[0] += g * (u - z[0]); z[1] += g * (Math.tanh(z[0]) - z[1]); z[2] += g * (Math.tanh(z[1]) - z[2]); z[3] += g * (Math.tanh(z[2]) - z[3]);
         }
-      } else { sL = x; sR = x; }
-      // phaser: four all-pass stages swept by a slow LFO, with feedback
-      if (C.phase){
-        this.php += (.05 + C.phRate * 2) / fs; if (this.php > 1) this.php -= 1;
-        const sw = .5 - .5 * Math.cos(this.php * 6.2832), fc = 200 * Math.pow(18, sw), t = Math.tan(Math.PI * fc / fs), a1 = (t - 1) / (t + 1);
-        let y = (sL + sR) * .5 + this.phy * C.phFb * .9;
-        for (let s = 0; s < 4; s++){ const o = a1 * y + this.ap[s]; this.ap[s] = y - a1 * o; y = o; }
-        this.phy = y; sL = (sL + y) * .7; sR = (sR - y * .3 + y) * .7;
+        syn = z[3] * (1 + C.res * 1.2) * E.v;
       }
-      L[i] = sL; R[i] = sR; this.w++;
+      // string section input (string voices, plus the synth when Chorus Phaser is on)
+      const strIn = (C.violin ? x4 : 0) + (C.viola ? x8 : 0) + cello + sbass + (C.chorus ? syn : 0);
+      this.buf[this.w & 8191] = strIn;
+      let pL = 0, pR = 0, pS = 0;
+      for (let j = 0; j < 3; j++){
+        const P = this.bbd[j]; P.ph += 2 * Math.PI * rates[j] * lfoScale / fs; if (P.ph > 6.2832) P.ph -= 6.2832;
+        const tri = Math.asin(Math.sin(P.ph)) * .6366, lfo = Math.tanh(tri * 1.6);   // triangle rounded toward sine by diodes
+        const clk = P.clk * (1 + lfo * (C.chorus ? .28 : .14)), d = 256 / clk * fs, r = this.w - d, i0 = Math.floor(r), f = r - i0;
+        const a = this.buf[i0 & 8191], b = this.buf[(i0 + 1) & 8191]; let v = a + (b - a) * f;
+        P.lp1 += (v - P.lp1) * bbdLp1; P.lp2[0] += (P.lp1 - P.lp2[0]) * bbdLp2; P.lp2[1] += (P.lp2[0] - P.lp2[1]) * bbdLp2; v = P.lp2[1];
+        pS += v; if (j === 0) pL += v; else if (j === 2) pR += v; else { pL += v * .5; pR += v * .5; }
+      }
+      // string AR (shared VCA): attack slider, release follows the key capacitors
+      const anyStr = this.upperHeld > 0 && (C.violin || C.viola) || (B.gate && (C.cello || C.sbass));
+      this.ar += ((anyStr ? 1 : 0) - this.ar) * (anyStr ? kArA : kArR);
+      const strVoices = C.violin || C.viola || C.cello || C.sbass, strGain = (strVoices ? this.ar : C.chorus ? 1 : 0) * C.master, mixS = C.mix, mixY = 1 - C.mix, bassG = C.bassVol * 1.1;
+      const synDirect = C.chorus ? 0 : syn;
+      const sL = C.wide ? pL * .66 : pS * .33, sR = C.wide ? pR * .66 : pS * .33;
+      let oL = (sL * strGain * mixS * .24 + synDirect * C.master * mixY * 1.1 + bassOut * bassG * .3) * .55;
+      let oR = (sR * strGain * mixS * .24 + synDirect * C.master * mixY * 1.1 + bassOut * bassG * .3) * .55;
+      // AC coupling at the output
+      this.dc[0] += (oL - this.dc[0]) * .0005; this.dc[1] += (oR - this.dc[1]) * .0005;
+      L[i] = oL - this.dc[0]; R[i] = oR - this.dc[1]; this.w++;
     }
     return true;
   }
@@ -8325,36 +8385,39 @@ $('#tbAcc').addEventListener('click', () => tbSet('accLatch', curSynth().tb.accL
 $('#tbSlide').addEventListener('click', () => tbSet('slideLatch', curSynth().tb.slideLatch ? 0 : 1));
 
 /* ================= ARP Omni-2 ================= */
-const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:.8, viola:.7, cello:.3, cresc:.25, sus:.45, strVol:.8, bright:.5, syn8:0, syn4:0, cut:.45, res:.2, env:.5, sa:.05, sd:.4, ss:.6, sr:.3, synVol:.7, bass16:0, bass8:0, bassRel:.25, bassVol:.8, split:48, ens:1, ensDepth:.5, phase:0, phRate:.3, phFb:.5, vib:.15, vibRate:5.5});
+const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:1, viola:1, cello:0, sbass:0, atk:.25, rel:.45, syn4:0, syn8:0, single:0, freq:.55, res:.15, adsr:.5, lfoAmt:0, lfoHz:.35, a:.1, d:.4, s:.6, r:.35, bass8:0, bass16:0, stacc:0, master:.8, bassVol:.7, mix:.85, hollow:0, chorus:0, wide:1, split:56});
 const OMNI_PRESETS = {
   'Omni Strings':{},
-  'Dark Atmosphere':{violin:.35, viola:.9, cello:.65, cresc:.6, sus:.75, bright:.25, ensDepth:.75, phase:1, phRate:.08, phFb:.6},
-  'Phased Strings':{violin:1, viola:.5, cello:.2, cresc:.35, sus:.55, bright:.7, phase:1, phRate:.22, phFb:.7},
-  'Cello Section':{violin:0, viola:.4, cello:1, cresc:.45, sus:.5, bright:.35},
-  'Full Orchestra':{violin:.9, viola:.8, cello:.6, syn8:.4, cut:.5, env:.2, sa:.3, ss:.8, sr:.5, bass16:.8, bass8:.5, cresc:.35, sus:.6},
-  'Synth Brass':{violin:0, viola:0, cello:0, syn8:1, syn4:.35, cut:.3, res:.25, env:.6, sa:.09, sd:.45, ss:.6, sr:.25, ens:0},
-  'Resonant Sweep':{violin:0, viola:0, cello:0, syn8:1, syn4:0, cut:.15, res:.8, env:.9, sa:.55, sd:.8, ss:.3, sr:.6, phase:1, phRate:.12},
-  'Harpsi-Synth':{violin:0, viola:0, cello:0, syn8:.4, syn4:1, cut:.55, res:.25, env:.5, sa:0, sd:.25, ss:0, sr:.25, ens:0},
-  'Bass + Strings':{bass16:1, bass8:.6, bassRel:.3, violin:.6, viola:.8, cello:0, sus:.5},
-  'Cold Wave Pad':{violin:.6, viola:.6, cello:.4, syn8:.5, cut:.35, res:.35, env:.3, sa:.7, sd:.8, ss:.7, sr:.7, cresc:.7, sus:.8, phase:1, phRate:.05, phFb:.75, ensDepth:.8},
+  'Violins':{viola:0, atk:.35, rel:.5},
+  'Dark Strings + Cello':{violin:0, cello:1, sbass:1, atk:.5, rel:.6},
+  'Hollow Strings':{hollow:1, atk:.3},
+  'Chorus Phaser Pad':{syn8:1, chorus:1, freq:.45, adsr:.3, a:.6, d:.6, s:.8, r:.6, mix:.7, atk:.45, rel:.6},
+  'Synth Brass':{violin:0, viola:0, syn8:1, freq:.36, res:.15, adsr:.6, a:.28, d:.45, s:.65, r:.3, mix:.05},
+  'Resonant Sweep':{violin:0, viola:0, syn8:1, syn4:1, freq:.2, res:.75, adsr:.85, a:.55, d:.7, s:.3, r:.5, mix:.05},
+  'Clavinet':{violin:0, viola:0, syn4:1, hollow:1, freq:.48, res:.3, adsr:.55, a:0, d:.3, s:0, r:.15, mix:0},
+  'LFO Wah':{violin:0, viola:0, syn8:1, lfoAmt:.45, lfoHz:.42, freq:.42, res:.55, adsr:.15, a:.05, s:.9, mix:0},
+  'Bass + Strings':{bass8:1, bass16:1, bassVol:.8},
+  'Staccato Bass':{violin:0, viola:0, bass8:1, bass16:1, stacc:1, bassVol:.9},
 };
 function omniPreset(name){ return Object.assign(OMNI_DEFAULT(), OMNI_PRESETS[name] || {}, {preset:name}); }
 function renderOmni(tr){
-  const C = tr.omni || (tr.omni = OMNI_DEFAULT()), up = () => { C.preset = ''; $('#omniPreset').value = ''; solCfg(tr); save(); };
+  const C = tr.omni || (tr.omni = OMNI_DEFAULT()); if (C.atk == null) Object.assign(C, OMNI_DEFAULT(), {preset:''});
+  const up = () => { C.preset = ''; $('#omniPreset').value = ''; solCfg(tr); save(); };
   const ps = $('#omniPreset'); if (!ps.options.length) ps.innerHTML = Object.keys(OMNI_PRESETS).map(k => `<option>${k}</option>`).join('') + '<option value="">Custom</option>';
   ps.value = C.preset || '';
-  document.querySelectorAll('.omni-sw button').forEach(b => b.classList.toggle('on', !!C[b.dataset.k]));
   const box = $('#omniSecs'); box.innerHTML = '';
-  const pct = v => Math.round(v * 100) + '%', ms = (a, b) => v => { const t = a + v * v * b; return t < 1 ? Math.round(t * 1000) + ' ms' : t.toFixed(1) + ' s'; };
-  const sec = (title, items) => { const d = document.createElement('div'); d.className = 'omni-sec'; d.innerHTML = `<div class="label">${title}</div><div class="knobs"></div>`; const k = d.querySelector('.knobs');
-    items.forEach(([lb, key, a, b, st, f]) => knob(k, lb, C, key, a, b, st, f, up)); box.appendChild(d); };
-  sec('STRINGS', [['VIOLIN', 'violin', 0, 1, .01, pct], ['VIOLA', 'viola', 0, 1, .01, pct], ['CELLO', 'cello', 0, 1, .01, pct], ['CRESC', 'cresc', 0, 1, .01, ms(.004, 2.5)], ['SUSTAIN', 'sus', 0, 1, .01, ms(.04, 5)], ['BRIGHT', 'bright', 0, 1, .01, pct], ['LEVEL', 'strVol', 0, 1, .01, pct]]);
-  sec('SYNTH', [['8′ SAW', 'syn8', 0, 1, .01, pct], ['4′ SQR', 'syn4', 0, 1, .01, pct], ['CUTOFF', 'cut', 0, 1, .005, v => { const h = 40 * Math.pow(400, v); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }], ['RESO', 'res', 0, 1, .01, pct], ['ENV', 'env', 0, 1, .01, pct], ['ATTACK', 'sa', 0, 1, .01, ms(.002, 4)], ['DECAY', 'sd', 0, 1, .01, ms(.01, 6)], ['SUSTAIN', 'ss', 0, 1, .01, pct], ['RELEASE', 'sr', 0, 1, .01, ms(.01, 6)], ['LEVEL', 'synVol', 0, 1, .01, pct]]);
-  sec('BASS', [['16′', 'bass16', 0, 1, .01, pct], ['8′', 'bass8', 0, 1, .01, pct], ['RELEASE', 'bassRel', 0, 1, .01, ms(.03, 3)], ['LEVEL', 'bassVol', 0, 1, .01, pct], ['SPLIT', 'split', 36, 60, 1, v => noteName(v)]]);
-  sec('EFFECTS', [['CHORUS', 'ensDepth', 0, 1, .01, pct], ['PHASE RATE', 'phRate', 0, 1, .01, v => (.05 + v * 2).toFixed(2) + ' Hz'], ['PHASE FB', 'phFb', 0, 1, .01, pct], ['VIBRATO', 'vib', 0, 1, .01, pct], ['VIB RATE', 'vibRate', 3, 8, .1, v => v.toFixed(1) + ' Hz']]);
+  const pct = v => Math.round(v * 100) + '%', t = (a, b) => v => { const x = a * Math.pow(b, v); return x < 1 ? Math.round(x * 1000) + ' ms' : x.toFixed(1) + ' s'; };
+  const sec = (title, sw, items) => { const d = document.createElement('div'); d.className = 'omni-sec'; d.innerHTML = `<div class="label">${title}</div><div class="omni-sw"></div><div class="knobs"></div>`;
+    const sb = d.querySelector('.omni-sw'); sw.forEach(([lb, key]) => { const b = document.createElement('button'); b.className = 'nolearn' + (C[key] ? ' on' : ''); b.textContent = lb; b.addEventListener('click', () => { C[key] = C[key] ? 0 : 1; up(); renderOmni(tr); }); sb.appendChild(b); });
+    if (!sw.length) sb.remove();
+    const k = d.querySelector('.knobs'); items.forEach(([lb, key, a, b, st, f]) => knob(k, lb, C, key, a, b, st, f, up)); box.appendChild(d); };
+  sec('STRINGS', [['VIOLIN 4′', 'violin'], ['VIOLA 8′', 'viola'], ['CELLO 8′', 'cello'], ['BASS 16′', 'sbass']], [['ATTACK', 'atk', 0, 1, .01, t(.005, 800)], ['RELEASE', 'rel', 0, 1, .01, t(.03, 250)]]);
+  sec('SYNTHESIZER', [['4′', 'syn4'], ['8′', 'syn8'], ['SINGLE TRIG', 'single']], [['VCF FREQ', 'freq', 0, 1, .005, v => { const h = 16 * Math.pow(2, v * 10.5); return h >= 1000 ? (h / 1000).toFixed(1) + 'k' : Math.round(h) + ''; }], ['RESONANCE', 'res', 0, 1, .01, pct], ['ADSR DEPTH', 'adsr', 0, 1, .01, pct], ['LFO DEPTH', 'lfoAmt', 0, 1, .01, pct], ['LFO SPEED', 'lfoHz', 0, 1, .01, v => (.1 * Math.pow(200, v)).toFixed(1) + ' Hz'],
+    ['ATTACK', 'a', 0, 1, .01, t(.002, 2500)], ['DECAY', 'd', 0, 1, .01, t(.005, 1600)], ['SUSTAIN', 's', 0, 1, .01, pct], ['RELEASE', 'r', 0, 1, .01, t(.005, 1600)]]);
+  sec('BASS VOICES', [['BASS 8′', 'bass8'], ['BASS 16′', 'bass16'], ['STACCATO', 'stacc']], [['SPLIT', 'split', 36, 72, 1, v => noteName(v)]]);
+  sec('GENERAL', [['HOLLOW', 'hollow'], ['CHORUS PHASER', 'chorus'], ['STEREO', 'wide']], [['MASTER', 'master', 0, 1, .01, pct], ['BASS VOL', 'bassVol', 0, 1, .01, pct], ['STRINGS ⇄ SYNTH', 'mix', 0, 1, .01, v => Math.round(v * 100) + ' / ' + Math.round((1 - v) * 100)]]);
 }
 $('#omniPreset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.omni = omniPreset(e.target.value); solCfg(tr); save(); renderOmni(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7, r - 12], 1.4); });
-document.querySelectorAll('.omni-sw button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(), C = tr.omni; C[b.dataset.k] = C[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderOmni(tr); }));
 function renderSolina(tr){
   const C = tr.sol;
   document.querySelectorAll('.solreg button').forEach(b => { b.classList.toggle('on', !!C[b.dataset.k]); });
