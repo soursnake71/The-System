@@ -860,6 +860,9 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+.pianop{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:6px;background:linear-gradient(180deg,#1a1715,#0b0a09);border:1px solid #3a3128}
+.piano-head{display:flex;align-items:baseline;gap:10px}.piano-head b{font:400 16px "Michroma",sans-serif;letter-spacing:.18em;color:#e9dcc0}.piano-head i{font:400 8px "Michroma",sans-serif;letter-spacing:.2em;color:#a89a7c;font-style:normal}
+#pianoPedal{white-space:nowrap;font:400 9px "Michroma",sans-serif !important;letter-spacing:.08em}#pianoPedal.on{background:#c8a23a !important;color:#111 !important}
 .rkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .rktile{display:flex !important;flex-direction:column;align-items:stretch;gap:3px;padding:6px !important;text-align:left;background:#1b1d20 !important;border:1px solid #00000088 !important;border-radius:6px !important;color:#ece8dd !important}
 .rktile.on{outline:2px solid #ef5a2a}
@@ -1155,7 +1158,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="piano">Grand Piano</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -1206,6 +1209,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <select id="anaPreset" aria-label="Presets"></select>
         <div id="anaCtls"></div>
         <p class="hint">Each model runs its own circuit: Roland's IR3109 filter (Juno-60, SH-101, JX-3P), the Moog ladder (Minimoog), the Curtis chip (Six-Trak) or the CS-80's high-pass + low-pass pair with touch-sensitive brilliance. DCO models stay locked in tune; the Minimoog, SH-101 and CS-80 drift like real VCOs.</p>
+      </div>
+      <div id="pianoPanel" class="pianop" hidden>
+        <div class="piano-head"><b>GRAND PIANO</b><i>CONCERT GRAND · 88 KEYS</i></div>
+        <div class="row"><select id="pianoPreset" class="grow" aria-label="Piano presets"></select><button id="pianoPedal" data-momentary="1" aria-label="Sustain pedal">SUSTAIN PEDAL</button></div>
+        <div id="pianoCtls"></div>
+        <p class="hint">Hold Sustain pedal (or the pedal on your MIDI keyboard, CC 64) and the notes ring on with the strings resonating together. Samples: Salamander Grand Piano by Alexander Holm (CC-BY 3.0).</p>
       </div>
       <div id="czPanel" class="czp" hidden>
         <div class="cz-head"><b>CASIO</b><span>CZ-101</span><i>PHASE DISTORTION</i></div>
@@ -1732,6 +1741,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Commodore 128</b> (Synth → Instruments): the SID chip, three voices with triangle / saw / pulse / noise, ring mod, sync, the chip's envelopes and gritty 6581 filter; Poly, Mono (stacked) and 60 Hz Arpeggio. Presets include the C128 BASIC 7.0 instruments.</li>
         <li><b>Roland D-50</b>: LA synthesis with 7 structures of PCM attack and synth partials, Upper / Lower tones (whole, dual, split), chorus and reverb.</li>
         <li><b>PPG Wave 2.2</b>: 8-bit wavetables (30 tables, 64 waves each) swept by envelope 3, the LFO and wheel, through a 24 dB filter. The display shows the table.</li>
+        <li><b>Grand Piano</b> (Synth → instrument): a real sampled concert grand (Yamaha C5) with the piano modelled around it: velocity changes both loudness and brightness, hammer knock on hard notes, dampers (none in the top octaves, like a real piano) and their thump, the sustain pedal (button, or CC 64 from your keyboard's pedal) with the strings resonating together, stretch tuning, lid open / half / closed, and player or audience mics. 12 presets.</li>
         <li><b>Juno-60, SH-101, JX-3P, Minimoog, Six-Trak, CS-80</b> (Synth → instrument): circuit-modelled at twice the sample rate. DCO synths (Juno, JX-3P, Six-Trak) stay exactly in tune; VCO synths (SH-101, Minimoog, CS-80) drift a few cents as they warm. Each has its own filter circuit: Roland IR3109 OTA ladder (bass thins as resonance rises), Moog transistor ladder (its mixer overdrives when the sources are loud), Curtis CEM3394, and the CS-80's high-pass into low-pass per layer. Every voice has its own part tolerances, RC envelopes and a saturating VCA; the Juno/JX chorus is a modelled bucket-brigade line with its hiss.</li>
         <li><b>Casio CZ-101</b>: phase distortion, 8 waves, two lines (1, 2, 1+1′, 1+2′) with DCW and DCA envelopes, ring and noise mod.</li>
         <li><b>Casio SK-1</b> and <b>E-mu Emax</b>: samplers at the machines' rates and bit depths (8-bit 9.4 kHz / 12-bit 27.8 kHz). Play a built-in tone, a pad's sound, or load a file. The Emax adds its 4-pole filter and envelopes.</li>
@@ -1783,6 +1793,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
     <details id="h-credits"><summary>Credits</summary>
       <ul>
+        <li>Grand piano samples: <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm, CC-BY 3.0 (via the Tone.js audio collection).</li>
         <li>SP-1200 audio path data (filter prototypes, pitch table, converter behaviour): <a href="https://github.com/Mudb0y/libmd12" target="_blank" rel="noopener">libmd12</a> (MIT licence). Not affiliated with E-mu or Rossum Electro-Music.</li>
         <li>SVC-350 vocoder: modeled from the Roland SVC-350 service notes (Dec. 8, 1979), <a href="https://archive.org/details/roland_SVC-350_SERVICE_NOTES" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Roland.</li>
         <li>Solina String Ensemble: modeled from the Eminent/ARP Solina schematic set (sheets 015.0212 and 015.0214), <a href="https://archive.org/details/ARP_Solina_Schematics" target="_blank" rel="noopener">archive.org</a>. Not affiliated with ARP or Eminent.</li>
@@ -1872,7 +1883,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v106</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v107</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7349,6 +7360,7 @@ function exportPlan(){
   return {parts, total:parts.reduce((a, p) => a + p.steps, 0), song};
 }
 async function renderAudio(sr, solo, fixedLen){
+  if (S.synths.some(t => t.inst === 'piano')) try { await pianoLoad(); } catch(e){}
   for (const t of S.synths) if ((t.inst === 'sk1' || t.inst === 'emax') && !t._smpxCache){ try { t._smpxCache = await smpxSample(t); } catch(e){} }
   const sd = stepDur(), {parts, total} = exportPlan(), len = fixedLen || Math.ceil((total * sd + 2.5) * sr);
   const saved = allTracks().map(t => [t, t.solo]);
@@ -9751,6 +9763,7 @@ function padSmpVoice(rig, tr, note, t, vel, dur){
 function synthVoice(rig, tr, note, t, vel, dur, extra){
   if (tr.inst === 'padsmp') return padSmpVoice(rig, tr, note, t, vel, dur);
   if (tr.inst === 'sf2') return sfVoice(rig, tr, note, t, vel, dur);
+  if (tr.inst === 'piano') return pianoVoice(rig, tr, note, t, vel, dur);
   // the modeled synths run in an AudioWorklet; if that couldn't start on this phone, fall back to the basic synth so keys still sound
   if (INST[tr.inst] && rig.c._reduxOK !== false && (rig !== live || rig.c._reduxOK)){
     const fs = rig.c.sampleRate; solSend(rig, tr, {f:Math.round(t * fs), on:note, v:vel, sl:extra && extra.sl ? 1 : 0});
@@ -9965,7 +9978,7 @@ $('#synMenu').addEventListener('click', e => {
 
 
 /* ================= preset browser: one tap from the Synth page, searchable, for whichever instrument is on the track ================= */
-const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
+const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', piano:'#pianoPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
 let preGroup = '';
 async function preItems(){
   const tr = curSynth();
@@ -10015,6 +10028,7 @@ const INSTRUMENTS = [
   {v:'minimoog', name:'Minimoog', sub:'Moog · 1970', desc:'Three VCOs into the ladder filter. Fat mono.', bg:'linear-gradient(160deg,#8a5a32,#3a2414 50%,#111)'},
   {v:'sixtrak', name:'Six-Trak', sub:'Sequential · 1984', desc:'Six-voice CEM poly: tight bass, pads, stacks.', bg:'linear-gradient(160deg,#4a4a4f,#1e1e22 55%,#5a3a1a)'},
   {v:'cs80', name:'CS-80', sub:'Yamaha · 1977', desc:'Touch-sensitive brass and pads, HPF + LPF.', bg:'linear-gradient(160deg,#5a2a24,#2a1512 50%,#0e0908)'},
+  {v:'piano', name:'Grand Piano', sub:'Concert grand · 88 keys', desc:'A real sampled grand with pedal, resonance, lid and mics.', bg:'linear-gradient(160deg,#2a2622,#0d0c0b 55%,#6a5a3a)'},
   {v:'cz', name:'CZ-101', sub:'Casio · 1984', desc:'Phase distortion: bright digital basses and keys.', bg:'linear-gradient(160deg,#4a4d55,#22242a 55%,#1f4a7a)'},
   {v:'sk1', name:'SK-1', sub:'Casio · 1985', desc:'8-bit toy sampler: crunchy, lo-fi, 4 voices.', bg:'linear-gradient(160deg,#3a3a40,#16161a 55%,#c84a1a)'},
   {v:'emax', name:'Emax', sub:'E-mu · 1986', desc:'12-bit sampler with analog filters: hip-hop grit.', bg:'linear-gradient(160deg,#2c3a4a,#121a22 55%,#5a5a5a)'},
@@ -10071,6 +10085,7 @@ function renderSynth(){
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
+  const isPiano = tr.inst === 'piano'; $('#pianoPanel').hidden = !isPiano; if (isPiano) renderPiano(tr);
   const isAna = !!ANA_MODELS[tr.inst], isCz = tr.inst === 'cz', isSmpx = tr.inst === 'sk1' || tr.inst === 'emax';
   $('#anaPanel').hidden = !isAna; if (isAna) renderAna(tr); $('#czPanel').hidden = !isCz; if (isCz) renderCz(tr); $('#smpxPanel').hidden = !isSmpx; if (isSmpx){ renderSmpx(tr); if (!tr._smpxCache) smpxSend(tr); }
   const isSol = tr.inst === 'solina', isOmni = tr.inst === 'omni2', isDx = tr.inst === 'dx1', isSid = tr.inst === 'sid', isD50 = tr.inst === 'd50', isPpg = tr.inst === 'ppg';
@@ -10086,7 +10101,7 @@ function renderSynth(){
     if (tr.gm == null) tr.gm = 0; g.value = tr.gm; $('#gmNum').textContent = (tr.gm + 1) + ' / 128 · ' + GM_FAMILIES[tr.gm >> 3]; }
   if (isPS){ const ps2 = $('#psPad'); ps2.innerHTML = S.drum.pads.map((p, i) => `<option value="${i}">${padLabel(i)} ${p.name.replace(/</g, '')}</option>`).join(''); if (tr.smpPad == null) tr.smpPad = selPad; ps2.value = tr.smpPad; }
   $('#tauPanel').hidden = !isTau; if (isTau) renderTau(tr);
-  $('#preset').hidden = isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
+  $('#preset').hidden = isPiano || isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm' || tr.inst === 'sf2'; $('#patchCtls').hidden = isPiano || isAna || isCz || isSmpx || isSol || isOmni || isDx || isSid || isD50 || isPpg || isP5 || isOB || isTB || isTau || tr.inst === 'padsmp' || tr.inst === 'gm'; $('#solPanel').hidden = !isSol; $('#p5Panel').hidden = !isP5; $('#tbPanel').hidden = !isTB;
   if (isTB) renderTB(tr);
   if (isSol) renderSolina(tr);
   if (isP5) renderP5(tr);
@@ -10921,6 +10936,97 @@ $('#smpxPreset').addEventListener('change', async e => { const tr = curSynth(), 
 $('#smpxFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const tr = curSynth(); try { const b = await decodeAny(await f.arrayBuffer()); const key = 'smpx:' + tr.id;
   await DB.put('audio', key, {sr:b.sampleRate, ch:[b.getChannelData(0).slice(0, Math.min(b.length, b.sampleRate * 20))]}); tr.smpx.src = 'file'; tr.smpx.fileKey = key; tr.smpx._src = 'file'; save(); await smpxSend(tr); renderSmpx(tr); toast(f.name + ' loaded into the ' + (tr.inst === 'sk1' ? 'SK-1' : 'Emax') + '.'); const r = hearRoot(); hearChord(tr, [r], .8); } catch(err){ toast('Could not read that file.'); } });
 
+/* ================= Grand piano: Salamander Grand Piano (Yamaha C5, Alexander Holm, CC-BY 3.0), 30 notes a minor third
+   apart, with the piano's behaviour modelled around them: velocity sets level (up to ~40 dB of range) and brightness, the
+   hammer knock on hard notes, dampers that stop the string on release (none above E6, like a real piano), the damper's
+   thump, the sustain pedal holding notes and opening the soundboard so the strings ring together, Railsback stretch
+   tuning, the lid (open / half-stick / closed) and the mic perspective (player or audience). ================= */
+const PIANO_NOTES = [21]; for (let n = 24; n <= 108; n += 3) PIANO_NOTES.push(n);
+const pianoFile = n => ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'][n % 12] + (Math.floor(n / 12) - 1);
+const PIANO = {bufs:new Map(), gain:new Map(), loading:null, noise:null};
+function pianoLoad(){
+  if (PIANO.loading) return PIANO.loading;
+  PIANO.loading = Promise.all(PIANO_NOTES.map(async n => { const ab = await (await fetch('kits/piano/' + pianoFile(n) + '.mp3')).arrayBuffer(); const bf = await decodeAny(ab); PIANO.bufs.set(n, bf);
+    // even the recorded levels out: each sample's first-second peak onto a smooth curve that tapers gently toward the treble
+    let m = 0; for (let ch = 0; ch < bf.numberOfChannels; ch++){ const d = bf.getChannelData(ch); for (let i = 0, e = Math.min(d.length, bf.sampleRate); i < e; i++){ const v = d[i] < 0 ? -d[i] : d[i]; if (v > m) m = v; } }
+    PIANO.gain.set(n, (.5 - (n - 21) / 87 * .17) / Math.max(.02, m)); }))
+    .catch(e => { PIANO.loading = null; toast('Could not load the piano samples. Check the connection once; after that they work offline.'); throw e; });
+  return PIANO.loading;
+}
+const PIANO_DEFAULT = () => ({preset:'Grand · Concert Grand', tone:.6, dyn:.6, hammer:.3, rel:.5, damp:.3, res:.4, stretch:.6, lid:'open', mic:'player', width:.7, detune:0, vol:.8});
+const PIANO_PRESETS = {
+  'Grand · Concert Grand':{}, 'Grand · Bright Pop':{tone:.85, dyn:.45, hammer:.45, lid:'open', width:.8}, 'Grand · Mellow Ballad':{tone:.35, dyn:.8, hammer:.15, lid:'closed', res:.55, rel:.65},
+  'Grand · Jazz Club':{tone:.48, dyn:.7, hammer:.25, lid:'half', res:.3, width:.5}, 'Grand · Rock Piano':{tone:.95, dyn:.35, hammer:.75, lid:'open', res:.25},
+  'Grand · Audience View':{mic:'audience', width:.8}, 'Grand · Mono Session':{mic:'mono', tone:.65},
+  'Character · Honky-Tonk':{detune:.6, tone:.75, lid:'open', hammer:.5}, 'Character · Felt Piano':{tone:.15, hammer:0, damp:.6, rel:.3, dyn:.7, lid:'closed', res:.3},
+  'Character · Ambient Pedal':{res:.95, rel:1, tone:.4, lid:'half', width:1}, 'Character · Lo-Fi Upright':{tone:.3, detune:.25, lid:'closed', width:.3, damp:.5},
+  'Character · Hip-Hop Chop Keys':{tone:.55, dyn:.35, hammer:.35, rel:.25, res:.15, lid:'half'}};
+function pianoPreset(name){ return Object.assign(PIANO_DEFAULT(), PIANO_PRESETS[name] || {}, {preset:name}); }
+function pianoBus(rig, tr){
+  rig._pb = rig._pb || new Map(); let B = rig._pb.get(tr.id); if (B) return B;
+  const c = rig.c, st = rig.strips.get(tr.id); B = {in:c.createGain(), lid:c.createBiquadFilter(), body:c.createBiquadFilter(), send:c.createGain(), cv:c.createConvolver(), hp:c.createBiquadFilter(), ret:c.createGain()};
+  B.lid.type = 'highshelf'; B.lid.frequency.value = 2400; B.body.type = 'peaking'; B.body.frequency.value = 180; B.body.Q.value = .8;
+  B.cv.buffer = makeIR(c, 2.4); B.hp.type = 'highpass'; B.hp.frequency.value = 220;
+  B.in.connect(B.lid).connect(B.body).connect(st.input); B.in.connect(B.send).connect(B.cv).connect(B.hp).connect(B.ret).connect(st.input);
+  rig._pb.set(tr.id, B); pianoApply(rig, tr); return B;
+}
+function pianoApply(rig, tr){
+  const B = rig._pb && rig._pb.get(tr.id); if (!B) return; const P = tr.piano || (tr.piano = PIANO_DEFAULT()), c = rig.c, t = c.currentTime;
+  B.lid.gain.setTargetAtTime(P.lid === 'closed' ? -10 : P.lid === 'half' ? -4 : 0, t, .02); B.body.gain.setTargetAtTime(P.lid === 'closed' ? 2 : 0, t, .02);
+  // the soundboard always rings a little; with the pedal down every string is free to resonate
+  B.send.gain.setTargetAtTime(P.res * (tr._ped && rig === live ? .32 : .05), t, .05); B.ret.gain.value = .9;
+}
+function pianoNoise(c){ if (PIANO.noise && PIANO.noise.sampleRate === c.sampleRate) return PIANO.noise; const n = Math.round(c.sampleRate * .08), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / n * 6); return PIANO.noise = b; }
+function pianoVoice(rig, tr, note, t, vel, dur){
+  const nil = {release(){}}; if (!PIANO.bufs.size){ pianoLoad(); return nil; }
+  const P = tr.piano || (tr.piano = PIANO_DEFAULT()), c = rig.c;
+  if (!rig.strips.has(tr.id)){ const s = makeStrip(c, rig.master); applyStrip(c, s, tr); rig.strips.set(tr.id, s); }
+  const B = pianoBus(rig, tr);
+  let root = PIANO_NOTES[0]; for (const n of PIANO_NOTES) if (Math.abs(n - note) < Math.abs(root - note)) root = n;
+  const buf = PIANO.bufs.get(root), ng = PIANO.gain.get(root) || 1, d = note - 69, cents = Math.sign(d) * Math.pow(Math.abs(d) / 39, 2.2) * 30 * P.stretch;
+  const v = clamp(vel, 0, 1), range = 18 + P.dyn * 24, lvl = Math.pow(10, (v - 1) * range / 20) * P.vol * 1.6 * ng;
+  const fc = Math.min(19000, (500 + 11000 * Math.pow(v, 1.4) * (.35 + P.tone)) * Math.pow(2, (note - 60) / 30));
+  const pan = P.mic === 'mono' ? 0 : clamp((note - 64) / 44, -1, 1) * P.width * (P.mic === 'audience' ? -1 : 1);
+  const out = c.createGain(), lp = c.createBiquadFilter(), pn = c.createStereoPanner(), srcs = [];
+  lp.type = 'lowpass'; lp.frequency.value = fc; lp.Q.value = .5; pn.pan.value = pan; out.gain.value = lvl; out.connect(lp).connect(pn).connect(B.in);
+  const strike = (det, g) => { const s = c.createBufferSource(), gg = c.createGain(); s.buffer = buf; s.playbackRate.value = Math.pow(2, (note - root + (cents + det) / 100) / 12); gg.gain.value = g; s.connect(gg).connect(out); s.start(t); s.stop(t + buf.duration / s.playbackRate.value); srcs.push(s); };
+  strike(0, 1); if (P.detune > 0) strike(P.detune * 22, .75);
+  // hammer knock: a short band-limited thump, louder on hard notes
+  if (P.hammer > 0 && v > .3){ const h = c.createBufferSource(), bp = c.createBiquadFilter(), hg = c.createGain(); h.buffer = pianoNoise(c); bp.type = 'bandpass'; bp.frequency.value = 900 * Math.pow(2, (note - 60) / 36); bp.Q.value = 1.2;
+    hg.gain.value = P.hammer * (v - .3) * .35 * P.vol; h.connect(bp).connect(hg).connect(pn); h.start(t); }
+  // re-striking a key stops the string that was ringing
+  const key = tr.id + ':' + note; rig._pv = rig._pv || new Map(); const old = rig._pv.get(key); if (old) old.kill(t);
+  let done = false;
+  const V = {held:false, kill(at){ out.gain.cancelScheduledValues(at); out.gain.setTargetAtTime(0, at, .03); srcs.forEach(s => { try { s.stop(at + .2); } catch(e){} }); },
+    damp(at){ if (done) return; done = true; if (rig._pv.get(key) === V) rig._pv.delete(key); if (note >= 89) return;                 // no dampers in the top octaves
+      const tau = (.04 + .3 * (1 - (note - 21) / 87)) * (.4 + P.rel * 1.6); if (out.gain.cancelAndHoldAtTime) out.gain.cancelAndHoldAtTime(at); out.gain.setTargetAtTime(0, at, tau);
+      srcs.forEach(s => { try { s.stop(at + tau * 8 + .05); } catch(e){} });
+      if (P.damp > 0){ const h = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(); h.buffer = pianoNoise(c); f.type = 'lowpass'; f.frequency.value = 260; g.gain.value = P.damp * .12 * (.3 + v) * P.vol; h.connect(f).connect(g).connect(pn); h.start(at); } }};
+  rig._pv.set(key, V);
+  const release = at => { at = Math.max(at, t + .005); if (tr._ped && rig === live){ V.held = true; (tr._held = tr._held || new Set()).add(V); return; } V.damp(at); };
+  if (dur != null) V.damp(Math.max(t + .005, t + dur));
+  return {release};
+}
+function pianoPedal(tr, on){
+  tr._ped = !!on; if (live) pianoApply(live, tr);
+  if (!on && tr._held && ctx){ const at = ctx.currentTime; tr._held.forEach(V => V.damp(at)); tr._held.clear(); }
+  const b = $('#pianoPedal'); if (b) b.classList.toggle('on', tr._ped);
+}
+function renderPiano(tr){
+  const C = tr.piano || (tr.piano = PIANO_DEFAULT()); fillPresetSel('#pianoPreset', PIANO_PRESETS, C.preset);
+  if (!PIANO.bufs.size) pianoLoad().then(() => toast('Grand piano ready.')).catch(() => {});
+  const up = re => { C.preset = ''; $('#pianoPreset').value = ''; if (live) pianoApply(live, tr); save(); if (re) renderPiano(tr); };
+  synPanel($('#pianoCtls'), C, [
+    {t:'TOUCH & TONE', knobs:[['BRIGHTNESS', 'tone', 0, 1, .01, pct], ['DYNAMICS', 'dyn', 0, 1, .01, pct], ['HAMMER', 'hammer', 0, 1, .01, pct], ['DETUNE', 'detune', 0, 1, .01, v => v ? Math.round(v * 22) + ' ct' : 'in tune']]},
+    {t:'PEDAL & STRINGS', knobs:[['RESONANCE', 'res', 0, 1, .01, pct], ['RELEASE', 'rel', 0, 1, .01, pct], ['DAMPER NOISE', 'damp', 0, 1, .01, pct], ['STRETCH TUNING', 'stretch', 0, 1, .01, pct]]},
+    {t:'LID & MICS', menus:[['Lid', 'lid', [['open', 'Open (full stick)'], ['half', 'Half-stick'], ['closed', 'Closed']]], ['Mics', 'mic', [['player', 'Player (bass left)'], ['audience', 'Audience (bass right)'], ['mono', 'Mono']]]], knobs:[['WIDTH', 'width', 0, 1, .01, pct], ['VOLUME', 'vol', 0, 1, .01, pct]]}], up);
+  const pb = $('#pianoPedal'); pb.classList.toggle('on', !!tr._ped);
+}
+(() => {
+  const pb = $('#pianoPedal'); pb._down = () => pianoPedal(curSynth(), true); pb._up = () => pianoPedal(curSynth(), false);
+  pb.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); pb._down(); }); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => pb.addEventListener(t, () => { if (curSynth()._ped && !pb._latch) pb._up(); }));
+  $('#pianoPreset').addEventListener('change', e => { const tr = curSynth(); if (!PIANO_PRESETS[e.target.value]) return; tr.piano = pianoPreset(e.target.value); if (live) pianoApply(live, tr); save(); renderPiano(tr); const r = hearRoot(); hearChord(tr, [r - 12, r, r + 4, r + 7], .9); });
+})();
 /* ================= ARP Omni-2 ================= */
 const OMNI_DEFAULT = () => ({preset:'Omni Strings', violin:1, viola:1, cello:0, sbass:0, atk:.25, rel:.45, syn4:0, syn8:0, single:0, freq:.55, res:.15, adsr:.5, lfoAmt:0, lfoHz:.35, a:.1, d:.4, s:.6, r:.35, bass8:0, bass16:0, stacc:0, master:.8, bassVol:.7, mix:.85, hollow:0, chorus:0, wide:1, split:56});
 const OMNI_PRESETS = {
@@ -10986,7 +11092,7 @@ function renderSolina(tr){
   ctl(box, 'Tremolo', C, 'trem', 0, .8, .01, v => Math.round(v / .25 * 100) + '%', up);
 }
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', piano:'Piano ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|Piano|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
@@ -11963,6 +12069,7 @@ function onMidi(e){
     if (syn && type === 0xE0 && n) n.port.postMessage({type:'bend', v:(((d[2] << 7) | d[1]) - 8192) / 8192 * 2});
     return;
   }
+  if (type === 0xB0 && d[1] === 64){ const syn = S.synths.find(t => t.id === S.midiTarget) || curSynth(); if (syn && syn.inst === 'piano') pianoPedal(syn, d[2] >= 64); return; }
   if (type !== 0x90 && type !== 0x80) return;
   if (S.midiCh && ch !== S.midiCh) return;
   const note = d[1], vel = d[2];
