@@ -67,6 +67,7 @@ main{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 24px;-webkit-ove
 .row .grow{flex:1;min-width:0}
 h2{font:700 20px/1.1 var(--f-display);letter-spacing:.04em;text-transform:uppercase;margin:0;text-wrap:balance}
 .hint{color:var(--dim);font-size:14px;margin:0}
+.scrow{border-top:1px solid var(--line,#333);padding:6px 0}.scrow .row{gap:6px;align-items:center;flex-wrap:nowrap}.scrow select{min-width:0;font-size:13px}.scrow .label{margin:0;font-size:12px}.scrow .badge{min-width:46px;text-align:center}
 
 /* Pads: MPC layout, pad 1 bottom-left */
 .rack .unit{border-radius:8px;padding:10px 12px;border:1px solid #0006;box-shadow:inset 0 1px 0 #fff2;display:flex;flex-direction:column;gap:6px}
@@ -715,7 +716,7 @@ body.mlearn .stp{outline:2px dashed var(--accent);outline-offset:2px}
 body.mlearn .stp.mmapped{outline:2px solid #4cd07d}
 body.mlearn .stp.marmed{outline:3px solid #fff}
 /* keep the playing screens clean: explanations live in Help (?) and Setup */
-#v-drums .hint,#v-audio .hint,#v-mixer .hint,#v-chop .hint,#v-synth .hint,#v-song .hint,#v-deck .hint{display:none}
+#v-drums .hint,#v-audio .hint,#v-mixer .hint:not(#scCard .hint),#v-chop .hint,#v-synth .hint,#v-song .hint,#v-deck .hint{display:none}
 
 /* ===== Star Screamer 350: the SVC-350 rack front. Black panel, red and white lettering, sections boxed in white,
    black knobs with a red stripe, white voice-character knobs, black push buttons ===== */
@@ -1034,6 +1035,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="row mixtop"><button id="autoArm">Automate</button><button id="fadersReset" class="nolearn" title="Every channel fader back to −20 dB, master and returns to their defaults">Reset faders</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard" data-chip="Effects"></div>
+    <div class="card" id="scCard" data-chip="Sidechain"></div>
     <div class="card rack" id="rackCard" data-chip="FX rack"></div>
   </section>
 
@@ -1485,7 +1487,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </ul>
     </details>
     <details id="h-syntabs"><summary>Synth tracks</summary>
-      <p>The tabs at the top of the Synth screen are your synth tracks (up to 4). <b>+</b> adds one. <b>Press and hold a tab</b> to rename it, duplicate it, or delete it.</p>
+      <p>The tabs at the top of the Synth screen are your synth tracks (up to 34). <b>+</b> adds one. <b>Press and hold a tab</b> to rename it, duplicate it, or delete it.</p>
     </details>
     <details id="h-vinyl"><summary>Vinyl &amp; tape noise</summary>
       <p>Mixer → <b>FX</b> on any track (or Master) → <b>Vinyl &amp; tape</b>. Pick <b>Sound like</b> (Dusty 45, Worn LP, Thrift-store record, Cassette, Hiss only) or set <b>Crackle</b>, <b>Hiss</b>, <b>Pops</b> and <b>Rumble</b> yourself. <b>Blend</b> sets how loud the noise sits under the sound. On a track, the noise follows the sound, so it's baked in like a sample off a record. On Master you can choose whether it plays with the sound or all the time.</p>
@@ -1568,7 +1570,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Import</b> loads an audio file into the track and guesses its bar length from the tempo. Fix it with <b>Clip</b> if the guess is wrong.</li>
         <li>Clips remember their tempo and follow the project BPM with <b>Warp</b>: <i>Complex</i> stretches without changing pitch (best for vocals and instruments); <i>Beats</i> retriggers each 1/16 (best for drum loops); <i>Re-Pitch</i> speeds up and slows down like a record; <i>Off</i> plays as is.</li>
         <li><b>Stems</b> splits the clip into four tracks (see Stem separation).</li>
-        <li>Up to 10 audio tracks. Clips belong to the current pattern.</li>
+        <li>Up to 64 audio tracks (99 tracks in all, counting drums and synths). Clips belong to the current pattern.</li>
       </ul>
     </details>
 
@@ -1783,6 +1785,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>MIDI file</b>: drum hits on channel 10 (A01 = the A01 note set in MIDI settings, C1 by default) and each synth on its own channel, at the project tempo with swing applied.</li>
         <li><b>Format</b>: WAV 16-bit, WAV 24-bit (best for further mixing), MP3 320 or 192 kbps. <b>Rate</b>: 44.1 or 48 kHz.</li>
         <li><b>Repeat</b>: how many times to loop the current pattern. With Song mode on, the whole song is exported instead.</li>
+        <li><b>Big songs</b>: up to 99 tracks (drums + 64 audio + 34 synths). The mix shows its progress in % while it renders. Rendering is done by the circuit models, so a long song with many synths takes a while: roughly 3× the song length for 99 busy tracks on a fast computer, longer on a phone. Keep the app open while it works. Stems of a big song can be too large to build in a phone's memory; the app tells you the size and suggests MP3 or muting tracks you don't need.</li>
         <li>Files go to your Downloads folder. <b>Share</b> sends the last export straight to another app (Drive, WhatsApp, a DAW…).</li>
       </ul>
     </details>
@@ -1809,6 +1812,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
         <li><b>New project</b> (Setup, tap twice): saves the current one to Projects, then starts from factory defaults: tempo, patterns, pads, every synth, effect, rack unit, master, mixer and turntable setting. Only your setup stays: MIDI mappings and settings, the DJ library and crates, SoundFonts.</li>
+        <li><b>Templates</b> (Setup, the menu next to New project): start a whole song already laid out. Each one sets the tempo, key, drum kit, three instruments with presets, sends, rack and sidechain, a set of patterns (Intro, Verse, Hook, Break and so on) and the song order, with Song mode on. Press play and it runs start to finish, and exports as a full song. <b>Vocoder robot</b> has a Speech track (muted) already feeding the vocoder on the Robot Voice synth, so the chords talk; change the words on the vocoder's speech box and press Send. <b>80s synth-pop</b> has gated room drums (Phil Collins Simulator). <b>House</b> pumps: the kick ducks the bass, pad, stab and reverb. Then change anything.</li>
+        <li><b>Sidechain</b> (Mixer → Sidechain card): anything ducks anything. Each route is <i>key → target</i>. The key can be a pad hit, any track's sound, any FX return, a turntable or the mic input; the target can be any track, any FX return or a turntable. Amount is how far it dips, Release how fast it comes back. Several keys can duck one target. Each route has its own on/off and can be MIDI-learned. Routes play in exports too (turntables and the mic are live only). The older "Ducked by" on each track's FX still works alongside.</li>
         <li><b>Output level</b> (Setup → Output level, saved on this device): Phone (−6 dB, the default) leaves headroom so a phone's speaker and headphone output don't distort; Quiet is −12 dB; Studio is full level for an interface. The final limiter tops out at −1 dBFS. Exports are always full level.</li>
         <li><b>Master meter</b> (under the top bar, on every screen): left and right output level from −48 to 0 dBFS, with a peak-hold line and the loudest recent peak in dB; it turns red when the output clips. Tap it for the master effects.</li>
         <li><b>On / off and reset</b>: anything that can be switched on has a glowing power button (orange light = on): every effect section on a track (EQ, filter, vinyl, character, duck, compressor, gate, sends), every FX rack unit, the master bus compressor and tamer, each synth track, the drums, the arp, SP-1200 mode, key lock and deck FX. Off bypasses it and keeps its settings. Every machine has a ↺ Reset: Reset effects (a track), Reset master effects, ↺ Reset on each rack unit, Reset sound (the instrument's factory sound), Reset pad, Clear all (DR-110 / DMX), Reset (SP-1200), Reset mixer and Reset deck (Wheel). Undo brings anything back.</li>
@@ -1950,13 +1955,13 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v114</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v115</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
       <input type="file" id="projFile" accept=".omega,.zip" hidden>
       <p class="hint">Everything also saves automatically as you work. <b>Save</b> keeps this project, its sounds and recordings, in your list so you can come back to it. Opening another project or starting a new one saves the current one first, so nothing is lost. Your sample library and SoundFonts are shared by all projects. A project file (.omega) moves a project to another phone, tablet or computer.</p>
-      <button id="wipe">New project</button>
+      <div class="row"><select id="tplSel" class="grow" aria-label="Start the new project from"><option value="">Blank project</option></select><button id="wipe">New project</button></div>
       <button id="helpOpen">Open help</button>
     </div>
   </section>
@@ -2105,7 +2110,15 @@ const DB = {
 let saveT = 0;
 // saves 0.4 s after the last change, but never later than 1.5 s after the first unsaved one, and at once when the app is hidden or closed
 let saveFirst = 0, saveBlocked = false;   // blocked while switching projects, so the old one is never written back
-function saveNow(){ clearTimeout(saveT); saveFirst = 0; if (saveBlocked) return; try { storeScene(); DB.put('kv', 'project', S); } catch(e){} if (typeof histPush === 'function') histPush(); }
+// a save-safe copy: live-only things (functions, sets and maps of playing voices, audio and page objects) are left out, so one stray runtime object can never stop the project from saving
+function saveCopy(v){
+  if (v === null || typeof v !== 'object') return typeof v === 'function' ? undefined : v;
+  if (ArrayBuffer.isView(v) || v instanceof ArrayBuffer || v instanceof Date || v instanceof Blob) return v;
+  if (v instanceof Set || v instanceof Map || v instanceof WeakMap || v instanceof WeakSet || (typeof AudioNode !== 'undefined' && (v instanceof AudioNode || v instanceof AudioParam)) || v instanceof EventTarget) return undefined;
+  if (Array.isArray(v)) return v.map(x => { const y = saveCopy(x); return y === undefined ? null : y; });
+  const o = {}; for (const k in v){ const y = saveCopy(v[k]); if (y !== undefined) o[k] = y; } return o;
+}
+function saveNow(){ clearTimeout(saveT); saveFirst = 0; if (saveBlocked) return; try { storeScene(); DB.put('kv', 'project', saveCopy(S)); } catch(e){ console.warn('save', e); } if (typeof histPush === 'function') histPush(); }
 function save(){ if (saveBlocked) return; const now = performance.now(); if (!saveFirst) saveFirst = now; clearTimeout(saveT); saveT = setTimeout(saveNow, now - saveFirst > 1500 ? 0 : 400); }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveFirst) saveNow(); });
 window.addEventListener('pagehide', () => { if (saveFirst) saveNow(); });
@@ -2627,7 +2640,7 @@ function makeMaster(c){
   m.rt = {};
   for (const k of RET_KEYS){
     const g = k === 'rev' ? m.revRet : k === 'dly' ? m.dlyRet : m.rk[k].ret, pan = c.createStereoPanner(), an = c.createAnalyser(); an.fftSize = 512;
-    g.connect(pan).connect(m.bus); pan.connect(an); m.rt[k] = {g, pan, an};
+    const duck = c.createGain(); g.connect(duck).connect(pan).connect(m.bus); pan.connect(an); m.rt[k] = {g, pan, an, duck};
   }
   rackNodes(c, m);
   // master EQ (low cut, low shelf, five peaks, high shelf) and the 31-band match curve; switched out when flat
@@ -2729,27 +2742,28 @@ function satCurve(amt){
 }
 function insertRedux(c, s){
   if (s.rdx || !c._reduxOK) return;
-  s.rdx = new AudioWorkletNode(c, 'redux', {outputChannelCount:[2]});
-  s._wire = null;
+  s.rdxOK = true; s._wire = null;      // the node itself is made the first time the track uses it (an idle worklet still costs CPU)
 }
 // connect only the stages a track is using; an effect at zero is taken out of the chain so it costs no CPU
 function wireStrip(s, t){
-  const use = {sat:(t.sat || 0) > 0, rdx:!!s.rdx && (!!t.sp12 || (t.crush || 0) > 0), eq:!!(t.low || t.mid || t.high), filt:t.ftype !== 'off',
+  const use = {sat:(t.sat || 0) > 0, rdx:!!(s.rdx || s.rdxOK) && (!!t.sp12 || (t.crush || 0) > 0), eq:!!(t.low || t.mid || t.high), filt:t.ftype !== 'off',
     ch:(t.chorus || 0) > 0, comp:t.compType === '1176' ? !!s.u76 : t.comp > 0, u76:t.compType === '1176' && !!s.u76, ap:(t.apan || 0) > 0, mt:!!(t.match && t.match.gains && t.match.amount > 0)};
   const key = Object.values(use).map(Number).join('');
   if (s._wire === key) return; s._wire = key;
-  for (const n of [s.vocOut, s.satOut, s.high, s.filt, s.chIn, s.chOut, s.apDepth]) n.disconnect();
+  for (const n of [s.vocOut, s.satOut, s.high, s.filt, s.chIn, s.chOut, s.apDepth, s.chWet]) n.disconnect();
+  if (use.ch && !s.chRun){ s.chRun = true; s.chOsc.forEach(o => o.start(0)); }
+  if (use.ap && !s.apRun){ s.apRun = true; s.apOsc.start(0); }
   if (s.mtOut) s.mtOut.disconnect();
   if (s.rdx) s.rdx.disconnect();
   let at = s.vocOut;
   const to = n => { at.connect(n); at = n; };
   if (use.sat){ at.connect(s.sat); at = s.satOut; }
-  if (use.rdx){ to(s.rdx); }
+  if (use.rdx){ if (!s.rdx) s.rdx = new AudioWorkletNode(s.input.context, 'redux', {outputChannelCount:[2]}); to(s.rdx); }
   if (use.eq){ at.connect(s.low); at = s.high; }
   if (use.mt){ const mt = matchChain(s.input.context, s); s.mtOut.disconnect(); at.connect(mt[0]); at = s.mtOut; }
   if (use.filt) to(s.filt);
   to(s.chIn); s.chIn.connect(s.chOut);
-  if (use.ch) s.chIn.connect(s.chSend);
+  if (use.ch){ s.chIn.connect(s.chSend); s.chWet.connect(s.chOut); }
   if (use.u76) s.chOut.connect(s.u76); else if (use.comp) s.chOut.connect(s.comp); else s.chOut.connect(s.compDry);
   if (use.ap) s.apDepth.connect(s.pan.pan);
 }
@@ -2771,13 +2785,13 @@ function makeStrip(c, m){
   const lfoDelay = (base, rate, side) => {
     const d = c.createDelay(.05), o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner();
     d.delayTime.value = base; o.frequency.value = rate; g.gain.value = 0; p.pan.value = side;
-    o.connect(g).connect(d.delayTime); o.start(0);
+    o.connect(g).connect(d.delayTime); (s.chOsc = s.chOsc || []).push(o);
     s.chSend.connect(d).connect(p).connect(s.chWet); return g;
   };
   s.chDepth = [lfoDelay(.012, .57, -.7), lfoDelay(.019, .83, .7)];
-  s.chWet.connect(s.chOut);
+  // the chorus and auto-pan LFOs start the first time they're used, and the chorus is only in the path while on: an idle strip costs almost nothing
   s.duck = c.createGain();
-  s.apOsc = c.createOscillator(); s.apDepth = c.createGain(); s.apDepth.gain.value = 0; s.apOsc.start(0);
+  s.apOsc = c.createOscillator(); s.apDepth = c.createGain(); s.apDepth.gain.value = 0;
   s.low = c.createBiquadFilter(); s.low.type = 'lowshelf'; s.low.frequency.value = 160;
   s.mid = c.createBiquadFilter(); s.mid.type = 'peaking'; s.mid.frequency.value = 1100; s.mid.Q.value = .8;
   s.high = c.createBiquadFilter(); s.high.type = 'highshelf'; s.high.frequency.value = 6500;
@@ -2786,7 +2800,7 @@ function makeStrip(c, m){
   s.mk = c.createGain(); s.compDry = c.createGain(); s.pan = c.createStereoPanner(); s.fader = c.createGain(); s.mute = c.createGain();
   s.an = c.createAnalyser(); s.an.fftSize = 512;
   s.sa = c.createGain(); s.sb = c.createGain();
-  s.rs = {}; s.rsOn = {}; for (const k of RACK_KEYS){ s.rs[k] = c.createGain(); s.rs[k].gain.value = 0; s.rs[k].connect(m.rk[k].in); }
+  s.rs = {}; s.rsOn = {}; s.rkm = m; for (const k of RACK_KEYS){ s.rs[k] = c.createGain(); s.rs[k].gain.value = 0; }   // rack sends are patched in only while used
   s.vocIn = c.createGain(); s.vocOut = c.createGain(); s.vocIn.connect(s.vocOut);
   s.input.connect(s.vocIn); s.sat.connect(s.satOut);
   s.low.connect(s.mid).connect(s.high);
@@ -2856,7 +2870,7 @@ function applyStrip(c, s, t0){
   setMatchGains(c, s.mt, t.match);
   for (const k of RACK_KEYS){
     const v = (t.rack && t.rack[k]) || 0;
-    if (v > 0 && !s.rsOn[k]){ s.mute.connect(s.rs[k]); s.rsOn[k] = true; } else if (!v && s.rsOn[k]){ s.mute.disconnect(s.rs[k]); s.rsOn[k] = false; }
+    if (v > 0 && !s.rsOn[k]){ s.mute.connect(s.rs[k]); s.rs[k].connect(s.rkm.rk[k].in); s.rsOn[k] = true; } else if (!v && s.rsOn[k]){ s.mute.disconnect(s.rs[k]); s.rs[k].disconnect(); s.rsOn[k] = false; }
     sp(c, s.rs[k].gain, v);
   }
   const sat = t.sat || 0;
@@ -2880,8 +2894,51 @@ function duckAt(rig, pi, at){
     g.linearRampToValueAtTime(1 - tr.duck * .92, at + .004);
     g.setTargetAtTime(1, at + .02, Math.max(.01, tr.duckRel / 3));
   }
+  for (const r of S.sc || []){
+    if (!r.on || r.key !== 'pad:' + pi || !(r.amt > 0)) continue;
+    const g = scTarget(rig, r.tgt); if (!g) continue;
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(at); else g.cancelScheduledValues(at);
+    g.linearRampToValueAtTime(1 - Math.min(.95, r.amt * .92), at + .004);
+    g.setTargetAtTime(1, at + .02, Math.max(.01, (r.rel || .18) / 3));
+  }
+}
+/* Sidechain routes (S.sc): anything keys anything. Key: a pad, a track, an FX return, a deck or the mic input.
+   Target: a track, an FX return or a deck. Pad keys fire on the hit; the rest follow the key's level. */
+function scDeck(i){ try { return decks[i]; } catch(e){ return null; } }
+function scKey(rig, ref){
+  const [a, b] = String(ref || '').split(':');
+  if (a === 't'){ const st = rig.strips.get(b); return st ? st.mute : null; }
+  if (a === 'ret') return rig.master.rt && rig.master.rt[b] ? rig.master.rt[b].pan : null;
+  if (a === 'deck'){ const d = rig === live && scDeck(+b); return d && d.ch ? d.ch.xf : null; }
+  if (a === 'in') return rig === live ? inSrc : null;
+  return null;
+}
+function scTarget(rig, ref){
+  const [a, b] = String(ref || '').split(':');
+  if (a === 't'){ const st = rig.strips.get(b); return st ? st.duck.gain : null; }
+  if (a === 'ret') return rig.master.rt && rig.master.rt[b] ? rig.master.rt[b].duck.gain : null;
+  if (a === 'deck'){ const d = rig === live && scDeck(+b); return d && d.ch && d.ch.duck ? d.ch.duck.gain : null; }
+  return null;
+}
+function wireRoutes(rig){
+  const old = rig.scr || (rig.scr = new Map()), want = new Map(), tot = {};
+  for (const r of S.sc || []) if (r.on && r.amt > 0 && !String(r.key).startsWith('pad:') && r.key !== r.tgt) tot[r.tgt] = (tot[r.tgt] || 0) + r.amt;
+  (S.sc || []).forEach(r => {
+    if (!r.on || !(r.amt > 0) || String(r.key).startsWith('pad:') || r.key === r.tgt) return;
+    const from = scKey(rig, r.key), to = scTarget(rig, r.tgt); if (!from || !to) return;
+    const amt = r.amt * Math.min(1, 1 / tot[r.tgt]);     // several keys on one target never push its gain below zero
+    let w = old.get(r.id);
+    if (w && (w.from !== from || w.to !== to)){ try { w.from.disconnect(w.node); w.node.disconnect(); } catch(e){} w = null; }
+    if (!w){ const node = new AudioWorkletNode(rig.c, 'sckey', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1], channelCount:2, channelCountMode:'explicit', processorOptions:{cfg:{amount:amt, rel:r.rel || .18}}});
+      from.connect(node); node.connect(to); w = {node, from, to}; }
+    w.node.port.postMessage({type:'cfg', cfg:{amount:amt, rel:r.rel || .18, thr:r.thr == null ? .12 : r.thr}});
+    want.set(r.id, w);
+  });
+  for (const [id, w] of old) if (!want.has(id)){ try { w.from.disconnect(w.node); w.node.disconnect(); } catch(e){} }
+  rig.scr = want;
 }
 const allTracks = () => [S.drum, ...S.audio, ...(S.synths || [])];
+const MAX_AUDIO = 64, MAX_SYN = 34, MAX_TRACKS = 99;   // 1 drum + 64 audio + 34 synth = 99
 // track-to-track sidechain: the key track's level (post-fader) drives a follower that dips this track's duck gain
 function wireSidechains(rig){
   if (!rig || !rig.c._reduxOK) return;
@@ -2894,6 +2951,7 @@ function wireSidechains(rig){
       st.sck.port.postMessage({type:'cfg', cfg:{amount:t.duck, rel:t.duckRel || .18, thr:t.duckThr == null ? .12 : t.duckThr}});
     } else if (st.sck){ try { if (st.sckFrom) st.sckFrom.disconnect(st.sck); st.sck.disconnect(); } catch(e){} st.sck = null; st.sckFrom = null; st.sckSrc = null; }
   }
+  wireRoutes(rig);
 }
 function trackById(id){ return allTracks().find(t => t.id === id); }
 
@@ -3934,17 +3992,22 @@ class D50 extends AudioWorkletProcessor{
     this.voices.push({n, tones, down:true, age:0});
   }
   // envelopes: attack time, decay time, sustain level, release time (seconds, from 0..1 knobs)
+  // envelope and filter coefficients are worked out every 16 samples (control rate), the audio path runs every sample
   envStep(p, E, down, dt){
-    const t = x => .001 + x * x * 8;
     if (!down){ p.st = 3; }
-    if (p.st === 0){ p.env += dt / t(E.a); if (p.env >= 1){ p.env = 1; p.st = 1; } }
-    else if (p.st === 1){ p.env += (E.s - p.env) * (1 - Math.exp(-dt / (t(E.d) * .35))); }
-    else if (p.st === 3){ p.env *= Math.exp(-dt / (t(E.r) * .35)); }
+    if (p.st === 0){ p.env += p.kA; if (p.env >= 1){ p.env = 1; p.st = 1; } }
+    else if (p.st === 1){ p.env += (E.s - p.env) * p.kD; }
+    else if (p.st === 3){ p.env *= p.kR; }
     return p.env;
   }
   partial(p, isPcm, down, dt, pitchOff){
     const P = p.P, fs = this.fs; if (!P) return 0;
-    const semis = p.n - 60 + (P.coarse || 0) + (P.fine || 0) / 100 + pitchOff, ratio = Math.pow(2, semis / 12);
+    if (!(p.cc-- > 0)){ p.cc = 15; const t = x => .001 + x * x * 8;
+      p.ratio = Math.pow(2, (p.n - 60 + (P.coarse || 0) + (P.fine || 0) / 100 + pitchOff) / 12);
+      p.kA = dt / t(P.a); p.kD = 1 - Math.exp(-dt / (t(P.d) * .35)); p.kR = Math.exp(-dt / (t(P.r) * .35));
+      p.kfA = dt / t(P.fa || 0); p.kfD = 1 - Math.exp(-dt / (t(P.fd == null ? .4 : P.fd) * .35)); p.kfR = Math.exp(-dt / (t(P.fr == null ? .3 : P.fr) * .35));
+      const oct = (P.cut == null ? .5 : P.cut) * 9 + (P.fenv || 0) * p.fenv * 6 + (p.n - 60) / 12 * (P.kf == null ? .5 : P.kf), fc = Math.min(fs * .42, 40 * Math.pow(2, oct)); p.g = 1 - Math.exp(-2 * Math.PI * fc / fs); }
+    const ratio = p.ratio;
     const amp = this.envStep(p, P, down, dt) * (P.level == null ? .8 : P.level) * (.4 + .6 * p.vel);
     if (isPcm){
       const W = this.pcm[P.wave | 0] || this.pcm[0], b = W.b; p.pos += ratio * 261.63 / 261.63;
@@ -3956,12 +4019,11 @@ class D50 extends AudioWorkletProcessor{
     if (P.wave === 1){ const pw = P.pw == null ? .5 : P.pw; x = (p.ph < pw ? 1 : -1) + blep(p.ph, dtp) - blep((p.ph + 1 - pw) % 1, dtp); }
     else x = 2 * p.ph - 1 - blep(p.ph, dtp);
     // TVF: resonant 4-pole low-pass, envelope + key follow
-    const tt = x => .001 + x * x * 8; if (!down) p.fst = 3;
-    if (p.fst === 0){ p.fenv += dt / tt(P.fa || 0); if (p.fenv >= 1){ p.fenv = 1; p.fst = 1; } }
-    else if (p.fst === 1) p.fenv += ((P.fs == null ? .3 : P.fs) - p.fenv) * (1 - Math.exp(-dt / (tt(P.fd == null ? .4 : P.fd) * .35)));
-    else p.fenv *= Math.exp(-dt / (tt(P.fr == null ? .3 : P.fr) * .35));
-    const fe = p.fenv;
-    const oct = (P.cut == null ? .5 : P.cut) * 9 + (P.fenv || 0) * fe * 6 + (p.n - 60) / 12 * (P.kf == null ? .5 : P.kf), fc = Math.min(fs * .42, 40 * Math.pow(2, oct)), g = 1 - Math.exp(-2 * Math.PI * fc / fs), k = (P.res || 0) * 3.6, z = p.lp;
+    if (!down) p.fst = 3;
+    if (p.fst === 0){ p.fenv += p.kfA; if (p.fenv >= 1){ p.fenv = 1; p.fst = 1; } }
+    else if (p.fst === 1) p.fenv += ((P.fs == null ? .3 : P.fs) - p.fenv) * p.kfD;
+    else p.fenv *= p.kfR;
+    const g = p.g, k = (P.res || 0) * 3.6, z = p.lp;
     const u = Math.tanh(x - k * z[3]); z[0] += g * (u - z[0]); z[1] += g * (z[0] - z[1]); z[2] += g * (z[1] - z[2]); z[3] += g * (z[2] - z[3]);
     return z[3] * amp * (1 + (P.res || 0) * .6);
   }
@@ -3978,7 +4040,7 @@ class D50 extends AudioWorkletProcessor{
         const V = this.voices[vi]; V.age += dt; let vs = 0, alive = false;
         for (const T of V.tones){
           const st = T.T.struct || 1, pa = st === 3 || st === 4 || st === 6 || st === 7, pb = st === 5 || st === 6 || st === 7;
-          const po = T.pitchEnv * Math.exp(-V.age * 8);
+          const po = T.pitchEnv ? T.pitchEnv * Math.exp(-V.age * 8) : 0;
           const a = this.partial(T.a, pa, V.down, dt, po), b = this.partial(T.b, pb, V.down, dt, po), ring = st === 2 || st === 4 || st === 5 || st === 7;
           const bal = T.T.bal == null ? .5 : T.T.bal; vs += a * (1 - bal) + (ring ? a * b * 2.5 : b) * bal;
           if (T.a.env > 1e-4 || T.b.env > 1e-4 || V.down) alive = true;
@@ -4255,7 +4317,7 @@ class ANA extends AudioWorkletProcessor{
         const ch = this.ch, rate = cm === 1 ? .513 : cm === 2 ? .863 : cm === 3 ? 9.75 : .6, depth = cm === 3 ? .3 : cm === 4 ? .9 : 1;
         ch.p1 += rate / fs; if (ch.p1 >= 1) ch.p1 -= 1; const tri = 1 - 4 * Math.abs(ch.p1 - .5);
         // 9 kHz anti-alias (3 poles) and a touch of compander hiss into the BBD
-        const aa = ch.aa, fa = 1 - Math.exp(-2 * Math.PI * 9000 / fs); let u = mix + (Math.random() - .5) * 4e-4; for (let k = 0; k < 3; k++){ aa[k] += fa * (u - aa[k]); u = aa[k]; }
+        const aa = ch.aa, fa = this.chFa || (this.chFa = 1 - Math.exp(-2 * Math.PI * 9000 / fs)); let u = mix + (Math.random() - .5) * 4e-4; for (let k = 0; k < 3; k++){ aa[k] += fa * (u - aa[k]); u = aa[k]; }
         ch.b[ch.w & 8191] = u;
         const base = cm === 3 ? 3.2 : 3.5 + 1.8 * depth, dLm = base + tri * 1.5 * depth, dRm = base - tri * 1.5 * depth;
         const rd = ms => { const r = ch.w - ms * fs / 1000, i0 = Math.floor(r), f = r - i0, a = ch.b[i0 & 8191], b = ch.b[(i0 + 1) & 8191]; return a + (b - a) * f; };
@@ -4718,7 +4780,7 @@ class SVC350 extends AudioWorkletProcessor{
       { const y = this.hpA[3] * (h[6] + x - h[7]); h[7] = x; h[6] = y; x = y; }
       this.consY += (x * Math.min(1, this.det * 40) - this.consY) * this.consLp;
       const exp = Math.min(2.5, this.cPk / ref) * this.gate;
-      const voc = (sum * 4 + this.consY * 12 * P.cons) * exp;
+      const voc = (sum * 4 + this.consY * 12 * P.cons) * exp * 2.5;
       const o = (voc * (1 - P.bal) + m * P.bal) * (P.vol == null ? 1 : P.vol);
       if (P.ens){
         this.buf[this.w % this.buf.length] = o;
@@ -5602,7 +5664,7 @@ function ensureAudio(){
     ctx._reduxOK = true;
     live.strips.forEach((st, id) => { insertRedux(ctx, st); const tr = trackById(id); if (tr) applyStrip(ctx, st, tr); });
     rackNodes(ctx, live.master); masterInsert(ctx, live.master); applyRack(ctx, live.master); live.master._eqw = null; applyMaster(ctx, live.master);
-    applyVocoders(live);
+    applyVocoders(live); wireSidechains(live);
     capNode = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:1, channelCount:2, channelCountMode:'explicit'});
     capNode.port.onmessage = e => capChunks.push(e.data);
     capNode.connect(silent);
@@ -5937,19 +5999,20 @@ function scheduleNotes(rig, i, t){
     if (rig === live && n.skip){ delete n.skip; continue; }   // already heard when it was played in
     if (exportPadSolo != null && rig !== live && n.p !== exportPadSolo) continue;
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
+    if (rig.only && !rig.only.has('drums')){ duckAt(rig, n.p, at); continue; }
     playPad(rig, padAt(n.p, n.st || 0), at, n.v, n.d ? n.d * td : null, n.st ? 100 + n.p * 32 + n.st + 8 : n.p);
     if (rig === live) flashPad(n.p, at);
     duckAt(rig, n.p, at);
   }
   for (const tr of S.synths) for (const n of tr.notes){
-    if (n.t < lo || n.t >= hi) continue;
+    if (n.t < lo || n.t >= hi || (rig.only && !rig.only.has(tr.id))) continue;
     if (rig === live && n.skip){ delete n.skip; continue; }
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
     synthVoice(rig, tr, n.n, at, n.v, Math.max(6, n.d) * td, n);
   }
   S.audio.forEach(tr => {
     const recording = rig === live && rec && rec.id === tr.id && rec.startT != null;
-    if (tr.clip && !recording && (i - org) % tr.clipSteps === 0) startClip(rig, tr, t);
+    if (tr.clip && !recording && (i - org) % tr.clipSteps === 0 && (!rig.only || rig.only.has(tr.id))) startClip(rig, tr, t);
   });
 }
 
@@ -6204,7 +6267,7 @@ async function enableInput(){
     routeMonitor();
     inStream.getAudioTracks()[0].addEventListener('ended', () => { inStream = null; inSrc = null; renderInput(); toast('Audio input disconnected.'); });
     await listDevices();
-    renderInput(); applyVocoders(live);
+    renderInput(); applyVocoders(live); wireRoutes(live);
     return true;
   } catch (e){
     console.warn(e);
@@ -7132,9 +7195,9 @@ async function importMidi(file){
   const isDrum = n => n.ch === 9 || (M.mpc && !M.notes.some(x => x.ch === 9));
   const drums = M.notes.filter(n => isDrum(n) && n.t * k < L);
   if (drums.length) S.drum.notes = drums.map(n => ({p:drumPad(n.n), t:Math.round(n.t * k), v:Math.max(.1, n.v)}));
-  // melodic channels: one synth track each (up to 4)
+  // melodic channels: one synth track each (up to 16)
   const chans = [...new Set(M.notes.filter(n => !isDrum(n)).map(n => n.ch))].sort((a, b) => a - b);
-  chans.slice(0, 4).forEach((ch, idx) => {
+  chans.slice(0, 16).forEach((ch, idx) => {
     let tr = S.synths[idx];
     if (!tr){ let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++; tr = newSynth(n); S.synths.push(tr); if (live){ const st = makeStrip(ctx, live.master); live.strips.set(tr.id, st); applyStrip(ctx, st, tr); } }
     if (M.progs[ch] != null && !M.ours){ tr.inst = 'gm'; tr.gm = M.progs[ch]; tr.name = (GM_NAMES[tr.gm].replace(/ \(.*\)/, '')).slice(0, 14); }
@@ -7640,6 +7703,7 @@ function exportPlan(){
     : [{s:S.cur, steps:Math.max(S.bars * 16, ...S.audio.filter(t => t.clip).map(t => t.clipSteps)) * loops}];
   return {parts, total:parts.reduce((a, p) => a + p.steps, 0), song};
 }
+let renderProg = null;   // set while exporting: called with 5, 10 … 95 (%) as the offline render goes
 async function renderAudio(sr, solo, fixedLen){
   if (S.synths.some(t => t.inst === 'piano')) try { await pianoLoad(); } catch(e){}
   for (const t of S.synths) if ((t.inst === 'sk1' || t.inst === 'emax') && !t._smpxCache){ try { t._smpxCache = await smpxSample(t); } catch(e){} }
@@ -7650,10 +7714,15 @@ async function renderAudio(sr, solo, fixedLen){
     const oc = new OfflineAudioContext(2, len, sr);
     try { await oc.audioWorklet.addModule(workletUrl()); oc._reduxOK = true; } catch(e){ oc._reduxOK = false; }
     const rig = makeRig(oc), keepCur = S.cur, keepOrg = org;
+    // a stem plays only its own track and what feeds it (sidechain keys, vocoder voice and carrier); the rest stay silent and cost almost nothing
+    if (solo){ const only = rig.only = new Set([solo]), t = trackById(solo);
+      if (t){ if (t.duckSrc) only.add(t.duckSrc); if (t.voc && t.voc.on){ if (t.voc.src && t.voc.src !== 'input') only.add(t.voc.src); if (t.voc.car && t.voc.car !== 'self') only.add(t.voc.car); } }
+      (S.sc || []).forEach(r => { if (r.on && r.tgt === 't:' + solo && r.key.startsWith('t:')) only.add(r.key.slice(2)); if (r.on && r.tgt === 't:' + solo && r.key.startsWith('pad:')) only.add('drums:keys'); }); }
     let i0 = 0;
     try { for (const part of parts){ loadScene(part.s); org = i0; for (let i = i0; i < i0 + part.steps; i++) scheduleNotes(rig, i, .02 + i * sd); i0 += part.steps; } }
     finally { loadScene(keepCur); org = keepOrg; }
     spFinish(rig); solFinish(rig);
+    if (renderProg){ const cb = renderProg; for (let k = 1; k < 20; k++){ const at = Math.floor(len * k / 20 / 128) * 128 / sr; oc.suspend(at).then(() => { try { cb(k * 5); } catch(e){} oc.resume(); }); } }
     const out = await oc.startRendering();
     if (fixedLen) return out;
     let end = out.length; const L = out.getChannelData(0), R = out.getChannelData(1), keep = Math.ceil((total * sd + .02) * sr);
@@ -7726,8 +7795,8 @@ async function exportMix(){
       const zip = await makeZip(files), name = `omega-system-${stamp}-pads.zip`;
       saveFile(zip, name); st.textContent = `Saved ${name}: ${files.length} pads, each on its own, all the same length so they line up from bar 1.`;
     } else if (what === 'mix'){
-      st.textContent = 'Rendering the mix…';
-      const buf = await renderAudio(sr);
+      st.textContent = 'Rendering the mix…'; renderProg = p => st.textContent = 'Rendering the mix… ' + p + '%';
+      const buf = await renderAudio(sr).finally(() => renderProg = null);
       st.textContent = 'Encoding…';
       const {blob, ext} = await encodeAudio(buf, fmt, f => st.textContent = 'Encoding MP3… ' + Math.round(f * 100) + '%');
       const name = `omega-system-${stamp}.${ext}`;
@@ -7735,6 +7804,9 @@ async function exportMix(){
     } else {
       const sd = stepDur(), {total} = exportPlan(), len = Math.ceil((total * sd + 2.5) * sr), files = [];
       const list = allTracks().filter(t => !t.mute);
+      // a phone can't hold gigabytes in memory: stop before starting a zip that would crash it
+      const est = (list.length + 1) * len * 2 * (fmt === 'wav24' ? 3 : fmt.startsWith('mp3') ? .18 : 2);
+      if (est > 1.5e9){ st.textContent = `Those stems would be about ${(est / 1e9).toFixed(1)} GB, too big to build on this device. Pick MP3, or mute the tracks you don't need (muted tracks are left out), or export a shorter song.`; toast('Stems too big: ' + (est / 1e9).toFixed(1) + ' GB. Try MP3 or mute some tracks.'); return; }
       st.textContent = 'Rendering the mix…';
       const mix = await renderAudio(sr, null, len);
       files.push({name:'00 Mix.' + (fmt.startsWith('mp3') ? 'mp3' : 'wav'), blob:(await encodeAudio(mix, fmt)).blob});
@@ -8149,7 +8221,7 @@ function renderTracks(){
     box.appendChild(c);
     drawWave(tr);
   });
-  $('#addTrack').disabled = S.audio.length >= 10;
+  $('#addTrack').disabled = S.audio.length >= MAX_AUDIO || allTracks().length >= MAX_TRACKS;
   $('#stemStatus').hidden = !stemBusy;
 }
 function drawWave(tr){
@@ -8264,10 +8336,45 @@ function renderMixer(){
   box.querySelectorAll('.fz').forEach(faderDrag);
   const n = box.querySelectorAll('.strip').length, two = n > 8;
   box.classList.toggle('two', two); box.style.setProperty('--sc', Math.ceil(n / 2));
-  renderFx();
+  renderFx(); renderSc();
   if (mlearn) markMapped();
 }
 let fadeMode = 'vol';
+// Sidechain card: a list of routes, each "key ducks target"
+const scEsc = x => String(x).replace(/[&<>"]/g, ch => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[ch]));
+function scOpts(kind){
+  const tr = allTracks().map(x => `<option value="t:${x.id}">${scEsc(x.name)}</option>`).join(''), rt = RET_KEYS.map(k => `<option value="ret:${k}">${scEsc(retName(k))} return</option>`).join(''), dk = '<option value="deck:0">Deck 1</option><option value="deck:1">Deck 2</option>';
+  if (kind === 'tgt') return `<optgroup label="Tracks">${tr}</optgroup><optgroup label="FX returns">${rt}</optgroup><optgroup label="Turntables">${dk}</optgroup>`;
+  return `<optgroup label="Pad hit">${S.drum.pads.map((pd, k) => `<option value="pad:${k}">${padLabel(k)} ${scEsc(pd.name)}</option>`).join('')}</optgroup><optgroup label="Track sound">${tr}</optgroup><optgroup label="FX return">${rt}</optgroup><optgroup label="Turntable">${dk}</optgroup><optgroup label="Input"><option value="in">Mic / line input</option></optgroup>`;
+}
+function scNew(key, tgt, amt){ S.sc = S.sc || []; let n = 1; while (S.sc.some(r => r.id === 'r' + n)) n++; const r = {id:'r' + n, on:true, key, tgt, amt:amt == null ? .6 : amt, rel:.18}; S.sc.push(r); return r; }
+function renderSc(){
+  const card = $('#scCard'); if (!card) return; S.sc = S.sc || [];
+  card.innerHTML = `<div class="row"><h2 class="grow">Sidechain</h2><button class="nolearn" id="scAdd">+ Route</button></div><p class="hint">Anything ducks anything: pick what you hear (the key) and what gets pushed down when it plays (the target). Works in exports too, except turntables and the mic.</p><div id="scList"></div>`;
+  const list = card.querySelector('#scList');
+  if (!S.sc.length) list.innerHTML = '<p class="hint">No routes yet. Tap + Route. Classic pump: Kick pad → Bass, Amount 70%.</p>';
+  S.sc.forEach((r, k) => {
+    const row = document.createElement('div'); row.className = 'scrow';
+    row.innerHTML = `<div class="row"><button class="pwr${r.on ? ' on' : ''}" aria-label="Route on or off">${r.on ? 'ON' : 'OFF'}</button><select class="grow" aria-label="Key (what you hear)">${scOpts('key')}</select><span>→</span><select class="grow" aria-label="Target (what gets ducked)">${scOpts('tgt')}</select><button class="nolearn scdel" aria-label="Delete route">✕</button></div>
+      <div class="row"><label class="label">Amount</label><input type="range" class="grow" min="0" max="1" step="0.01" aria-label="Duck amount"><span class="badge scA"></span><label class="label">Release</label><input type="range" class="grow" min="0.03" max="1" step="0.01" aria-label="Duck release"><span class="badge scR"></span></div>`;
+    const [pw] = row.querySelectorAll('.pwr'), [ks, ts] = row.querySelectorAll('select'), [am, rl] = row.querySelectorAll('input'), lp = learnPath(r);
+    ks.value = r.key; ts.value = r.tgt; am.value = r.amt; rl.value = r.rel;
+    am.dataset.lp = lp + '|amt'; rl.dataset.lp = lp + '|rel'; pw.dataset.lp = lp + '|on';
+    const lab = () => { row.querySelector('.scA').textContent = Math.round(r.amt * 100) + '%'; row.querySelector('.scR').textContent = Math.round(r.rel * 1000) + ' ms'; };
+    const up = () => { lab(); live && wireSidechains(live); save(); };
+    lab();
+    pw.addEventListener('click', () => { r.on = !r.on; pw.classList.toggle('on', r.on); pw.textContent = r.on ? 'ON' : 'OFF'; up(); });
+    ks.addEventListener('change', () => { r.key = ks.value; up(); if (r.key === r.tgt) toast('A sound can’t duck itself. Pick another key or target.'); });
+    ts.addEventListener('change', () => { r.tgt = ts.value; up(); if (r.key === r.tgt) toast('A sound can’t duck itself. Pick another key or target.'); });
+    am.addEventListener('input', () => { r.amt = +am.value; up(); }); rl.addEventListener('input', () => { r.rel = +rl.value; up(); });
+    dblTapReset(am, () => .6, v => { am.value = v; am.dispatchEvent(new Event('input')); }); dblTapReset(rl, () => .18, v => { rl.value = v; rl.dispatchEvent(new Event('input')); });
+    row.querySelector('.scdel').addEventListener('click', () => { S.sc.splice(k, 1); live && wireSidechains(live); save(); renderSc(); });
+    list.appendChild(row);
+  });
+  card.querySelector('#scAdd').addEventListener('click', () => {
+    const bass = (S.synths || [])[0]; scNew('pad:0', bass ? 't:' + bass.id : 'ret:rev', .6); live && wireSidechains(live); save(); renderSc(); toast('Route added: Kick → ' + (bass ? bass.name : 'Reverb') + '. Change either side.');
+  });
+}
 const retUsed = k => k === 'rev' || k === 'dly' || allTracks().some(t => t.rack && t.rack[k] > 0) || retState(k).vol !== .845 || retState(k).mute;
 function mkRet(k){
   const r = retState(k), box = $('#strips'), el = document.createElement('div'); el.className = 'strip ret';
@@ -8674,9 +8781,9 @@ function deckChain(d){
   ch.flt = c.createBiquadFilter(); ch.flt.type = 'allpass';
   ch.fad = c.createGain(); ch.xf = c.createGain(); ch.an = c.createAnalyser(); ch.an.fftSize = 512;
   ch.fxIn = c.createGain();
-  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi); ch.flt.connect(ch.fxIn).connect(ch.fad).connect(ch.xf).connect(live.master.bus); ch.wired = null;
+  d.node.connect(ch.lo).connect(ch.mid).connect(ch.hi); ch.duck = c.createGain(); ch.flt.connect(ch.fxIn).connect(ch.fad).connect(ch.duck).connect(ch.xf).connect(live.master.bus); ch.wired = null;
   ch.xf.connect(ch.an);
-  d.ch = ch; applyMix(); applyDeckFx(d.i);
+  d.ch = ch; applyMix(); applyDeckFx(d.i); if ((S.sc || []).length) wireRoutes(live);
 }
 /* Serato-style FX per deck, synced to the deck's beat: ECHO (tape-like, darkening repeats), FLANGER (sweep over a set
    number of beats) and REVERB. Built the first time they're used; Beats sets the echo time and flanger sweep; Depth the amount. */
@@ -10316,7 +10423,7 @@ function frameRoll(){
   rollGeo.g.fillRect(Math.round(rollGeo.X(tick)), 0, 2 * (devicePixelRatio || 1), rollGeo.h);
 }
 let synMenuK = 0;
-function synMenuOpen(k){ synMenuK = k; $('#synMenuT').textContent = S.synths[k].name; $('#synMenu').querySelector('[data-a=del]').disabled = S.synths.length < 2; $('#synMenu').querySelector('[data-a=dup]').disabled = S.synths.length >= 4; if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){} $('#synMenu').showModal(); }
+function synMenuOpen(k){ synMenuK = k; $('#synMenuT').textContent = S.synths[k].name; $('#synMenu').querySelector('[data-a=del]').disabled = S.synths.length < 2; $('#synMenu').querySelector('[data-a=dup]').disabled = (S.synths.length >= MAX_SYN || allTracks().length >= MAX_TRACKS); if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){} $('#synMenu').showModal(); }
 function deleteSynth(k){
   const tr = S.synths[k]; if (!tr || S.synths.length < 2) return;
   storeScene(); pushUndo(); undoPass = null;
@@ -10336,7 +10443,7 @@ $('#synMenu').addEventListener('click', e => {
   if (a === 'rename'){ const n = (prompt('Name this synth', tr.name) || '').trim().slice(0, 14); if (n){ tr.name = n; save(); renderSynth(); } }
   else if (a === 'del'){ if (confirm('Delete ' + tr.name + ' and its notes in every pattern?')) deleteSynth(k); }
   else if (a === 'dup'){
-    if (S.synths.length >= 4) return; let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
+    if ((S.synths.length >= MAX_SYN || allTracks().length >= MAX_TRACKS)) return; let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
     const cp = JSON.parse(JSON.stringify(tr)); cp.id = 's' + n; cp.name = (tr.name.replace(/ \d+$/, '') + ' ' + n).slice(0, 14); S.synths.push(cp);
     if (live){ const st = makeStrip(ctx, live.master); live.strips.set(cp.id, st); applyStrip(ctx, st, cp); }
     selSynth = S.synths.length - 1; save(); renderSynth(); toast('Made ' + cp.name + ' as a copy.');
@@ -10447,7 +10554,7 @@ function renderSynth(){
     b.addEventListener('pointerdown', () => { held = false; clearTimeout(ht); ht = setTimeout(() => { held = true; synMenuOpen(k); }, 600); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => clearTimeout(ht)));
     b.addEventListener('click', () => { if (held){ held = false; return; } selSynth = k; renderSynth(); }); bar.appendChild(b); });
-  const add = document.createElement('button'); add.textContent = '+'; add.setAttribute('aria-label', 'Add synth track'); add.disabled = S.synths.length >= 4;
+  const add = document.createElement('button'); add.textContent = '+'; add.setAttribute('aria-label', 'Add synth track'); add.disabled = (S.synths.length >= MAX_SYN || allTracks().length >= MAX_TRACKS);
   add.addEventListener('click', () => {
     let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++;
     const tr = newSynth(n); S.synths.push(tr);
@@ -11396,13 +11503,15 @@ function pianoVoice(rig, tr, note, t, vel, dur){
       srcs.forEach(s => { try { s.stop(at + tau * 8 + .05); } catch(e){} });
       if (P.damp > 0){ const h = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(); h.buffer = pianoNoise(c); f.type = 'lowpass'; f.frequency.value = 260; g.gain.value = P.damp * .12 * (.3 + v) * P.vol; h.connect(f).connect(g).connect(pn); h.start(at); } }};
   rig._pv.set(key, V);
-  const release = at => { at = Math.max(at, t + .005); if (tr._ped && rig === live){ V.held = true; (tr._held = tr._held || new Set()).add(V); return; } V.damp(at); };
+  const release = at => { at = Math.max(at, t + .005); if (tr._ped && rig === live){ V.held = true; pianoHeld(tr).add(V); return; } V.damp(at); };
   if (dur != null) V.damp(Math.max(t + .005, t + dur));
   return {release};
 }
+const PIANO_HELD = new Map();   // track id -> voices held by the sustain pedal (live only, never saved)
+function pianoHeld(tr){ if (!PIANO_HELD.has(tr.id)) PIANO_HELD.set(tr.id, new Set()); return PIANO_HELD.get(tr.id); }
 function pianoPedal(tr, on){
   tr._ped = !!on; if (live) pianoApply(live, tr);
-  if (!on && tr._held && ctx){ const at = ctx.currentTime; tr._held.forEach(V => V.damp(at)); tr._held.clear(); }
+  if (!on && ctx){ const at = ctx.currentTime, H = pianoHeld(tr); H.forEach(V => V.damp(at)); H.clear(); }
   const b = $('#pianoPedal'); if (b) b.classList.toggle('on', tr._ped);
 }
 function renderGrand(tr){
@@ -11765,6 +11874,26 @@ const PRESET_GEN = (() => {
 })();
 Object.assign(P5_PRESETS, PRESET_GEN.p5); Object.assign(OB_PRESETS, PRESET_GEN.ob); Object.assign(PRESETS, PRESET_GEN.basic);
 Object.assign(OMNI_PRESETS, PRESET_GEN.omni); Object.assign(VOC_PRESETS, PRESET_GEN.voc);
+// presets checked against the records (sources: SOS, MusicTech, Reverb Machine, artist interviews); these replace the earlier guesses
+VOC_PRESETS['Herbie Hancock (Rockit)'] = {growl:0, harm:.9, cons:1.1, sib:.9, ens:false, bands:[.85, .9, 1, 1.1, 1.2, 1.2, 1.15, 1.1, 1.1, 1.15],
+  tts:{text:'Rock it.', voice:'normal', semi:2, speed:1, timing:'bar'}, note:-7};
+VOC_PRESETS['Mr. Roboto'] = {growl:.1, harm:.6, cons:.9, sib:.7, ens:false, bands:[1, 1, 1, 1.05, 1.1, 1.1, 1.05, 1, 1, 1],
+  tts:{text:'Domo arigato, Mister Roboto.', voice:'robot', semi:0, speed:.9, timing:'bar'}, note:-5};
+VOC_PRESETS['Cylon Warrior'] = {growl:.3, harm:.25, cons:.25, sib:.15, ens:false, bands:[1.3, 1.4, 1.35, 1.25, 1.1, 1, .8, .4, .15, .05],
+  tts:{text:'By your command.', voice:'deep', semi:-5, speed:.7, timing:'bar'}, note:-17};
+GS_PRESETS["Synth-pop 8ths (Don't You Want Me)"] = {steps:[1, .55, .8, .55, 1, .55, .8, .55, 1, .55, .8, .55, 1, .55, .8, .55], rate:16, duty:.5, atk:.001, rel:.012, swing:0};
+ANA_PRESETS.minimoog['Lead · Lucky Lead'] = {w1:0, m1:1, w2:4, m2:.9, d2t:9, w3:0, m3:0, cut:.62, res:.08, fenv:.15, a:0, d:.5, s:.95, r:.15, glide:.35, lfoPitch:0, lfoDelay:0};
+ANA_PRESETS.cs80['Brass · Blade Brass'] = {m1:1, m2:.8, w2:0, d2t:9, cut:.32, res:.15, fenv:.5, a:.25, d:.6, s:.75, r:.6, lfoPitch:.1, lfoRate:.45, lfoDelay:.6, velCut:.6, chorus:4};
+ANA_PRESETS.cs80['Pad · Vangelis Pad'] = {m1:1, m2:.8, d2t:11, cut:.45, res:.2, fenv:.25, a:.65, d:.7, s:.85, r:.85, lfoPitch:.05, lfoRate:.42, lfoDelay:.7, chorus:4};
+ANA_PRESETS.cs80['Pad · Love Theme'] = {m1:1, m2:.9, w2:0, d2t:12, cut:.38, res:.15, fenv:.3, a:.7, d:.8, s:.8, r:.9, lfoPitch:.04, lfoRate:.42, lfoDelay:.8, chorus:4};
+ANA_PRESETS.juno60['Bass · Juno Reese'] = {m1:1, m2:1, pw:.5, pwm:.6, lfoRate:.15, sub:.5, cut:.32, res:.05, fenv:.15, d:.4, s:.9, r:.15, chorus:2};
+ANA_PRESETS.sh101['Bass · Rave Hoover Bass'] = {m1:.9, m2:1, pwm:.6, lfoRate:.4, sub:.5, cut:.4, res:.2, fenv:.3, s:.8, r:.15, glide:.15};
+OB_PRESETS['Jump Brass'] = {o2det:.14, cut:.72, res:.05, fenv:.18, fd:.4, fs:.7, aa:.02, ad:.4, as:1, ar:.22, spread:.6};
+OB_PRESETS['Tom Sawyer Growl'] = {uni:1, det:.2, o1f:.25, o2f:.5, mix1:.8, mix2:.45, o2det:.06, cut:.22, res:.7, fmode:0, fenv:.55, fa:.62, fd:.72, fs:.25, fr:.5, aa:.05, ad:.4, as:1, ar:.45, lfoFilt:0, vint:.7, glide:.3, spread:.4};
+OB_PRESETS['1999 Stab'] = {o2f:1, mix2:.55, o2det:.04, cut:.82, res:.05, fmode:0, fenv:.15, fd:.3, fs:.5, aa:0, ad:.35, as:.8, ar:.2, lfoPitch:.02, lfoF:.77, lfoP1:1, lfoP2:1, spread:.7};
+CHOIR_PRESETS['Dark · Hellraiser Cathedral'] = {lvb:1, lvt:1, lva:.8, lvs:.9, singers:8, spread:.5, vib:.4, a:.4, r:.75, breath:.1, vowel:2, drift:.3, hum:0, dark:.5, sub:.35, space:.9};
+CHOIR_PRESETS['Dark · Omen Chant'] = {lvb:1, lvt:1, lva:.9, lvs:1, singers:8, spread:.6, vib:.3, a:.15, r:.5, breath:.45, vowel:2, drift:.5, dark:.65, sub:.3, space:.8};
+
 const SOL_PRESETS = PRESET_GEN.sol, TB_PRESETS = PRESET_GEN.tb, TAU_PATCHES = PRESET_GEN.tau;
 const DX_GEN_BANKS = PRESET_GEN.dx.map((v, i) => { const id = 'omega' + (i + 1); dxBankCache.set(id, v); return {id, name:'Omega FM ' + (i + 1), n:v.length}; });
 // grouped preset menus: "Category · Name" goes under its category, the classics first
@@ -12003,7 +12132,7 @@ async function ttsMake(noteOff){
   parts.forEach((a, k) => { const o = Math.round(starts[k] * sr); for (let i = 0; i < a.length && o + i < len; i++) d[o + i] = a[i] * .4; });   // about a mic's level
   let tr = S.audio.find(t => t.id === S.ttsTrack);
   if (!tr){
-    if (S.audio.length >= 10){ toast('Speech needs a free audio track (10 max). Delete one first.'); return; }
+    if (S.audio.length >= MAX_AUDIO || allTracks().length >= MAX_TRACKS){ toast('Speech needs a free audio track (' + MAX_TRACKS + ' tracks max). Delete one first.'); return; }
     let n = 1; while (S.audio.some(t => t.id === 'a' + n)) n++;
     tr = Object.assign({id:'a' + n, name:'Speech', armed:false, recBars:bars, clip:null, clipSteps:16, warp:'complex'}, mixDefaults());
     S.audio.push(tr); S.ttsTrack = tr.id;
@@ -12374,6 +12503,7 @@ function learnPath(obj){
   if (obj === S) return 's';
   if (S.mix && S.mix.ch){ const ci = S.mix.ch.indexOf(obj); if (ci >= 0) return 'x:' + ci; }
   if (S.rack) for (const k in S.rack) if (S.rack[k] === obj) return 'r:' + k;
+  if (S.sc){ const ci = S.sc.indexOf(obj); if (ci >= 0) return 'c:' + ci; }
   if (S.master.ret) for (const k in S.master.ret) if (S.master.ret[k] === obj) return 'q:' + k;
   const pi = S.drum.pads.indexOf(obj); if (pi >= 0) return 'p:' + pi;
   for (const t of allTracks()){ if (t === obj) return 't:' + t.id; for (const sub of ['rack', 'p5', 'tb', 'tau', 'sol', 'voc', 'patch']) if (t[sub] === obj) return 't:' + t.id + ':' + sub; }
@@ -12381,7 +12511,7 @@ function learnPath(obj){
 }
 function learnObj(path){
   const [a, b, c] = path.split(':');
-  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'x') return mixState().ch[+b]; if (a === 'r') return rackState(b); if (a === 'q') return retState(b); if (a === 'p') return S.drum.pads[+b];
+  if (a === 'm') return S.master; if (a === 's') return S; if (a === 'x') return mixState().ch[+b]; if (a === 'r') return rackState(b); if (a === 'q') return retState(b); if (a === 'p') return S.drum.pads[+b]; if (a === 'c') return (S.sc || [])[+b] || null;
   if (a === 't'){ const t = trackById(b); return t && (c ? t[c] : t); }
   return null;
 }
@@ -12837,7 +12967,7 @@ $('#audioBuf').addEventListener('change', async e => {
   try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
   if (!ctx){ toast('Audio buffer set.'); return; }
   if (playing) stop();
-  clearTimeout(saveT); storeScene(); try { await DB.put('kv', 'project', S); } catch(err){}
+  clearTimeout(saveT); storeScene(); try { await DB.put('kv', 'project', saveCopy(S)); } catch(err){}
   location.reload();
 });
 $('#countIn').addEventListener('click', () => { S.countIn = !S.countIn; save(); renderInput(); });
@@ -12924,7 +13054,7 @@ const SHARED_AUDIO = k => /^(lib|sf):/.test(k);
 async function projAudioKeys(){ return ((await DB.op('audio', 'readonly', st => st.getAllKeys())) || []).filter(k => typeof k === 'string' && !SHARED_AUDIO(k)); }
 const projHasContent = () => S.drum.notes.length || S.synths.some(t => (t.notes || []).length) || S.audio.some(t => t.clip) || S.drum.pads.some(p => p.sample && !String(p.sample).startsWith('kit:'));
 async function projSnapshot(){
-  clearTimeout(saveT); storeScene(); await DB.put('kv', 'project', S);
+  clearTimeout(saveT); storeScene(); await DB.put('kv', 'project', saveCopy(S));
   const audio = {}; for (const k of await projAudioKeys()){ const v = await DB.get('audio', k); if (v) audio[k] = v; }
   return {S:JSON.parse(JSON.stringify(S)), audio};
 }
@@ -12993,15 +13123,132 @@ $('#projExport').addEventListener('click', () => projExport($('#projList').value
 $('#projImport').addEventListener('click', () => $('#projFile').click());
 $('#projFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) projImportFile(f); });
 setTimeout(renderProjects, 500);
+/* ================= song templates: a whole arrangement, pre-wired (instruments, sends, rack, sidechain, vocoder) ================= */
+const TEMPLATES = {
+  vocoder:{name:'Vocoder robot (electro)', bpm:108, kit:'dmx', root:9, scale:'Minor'},
+  synthpop:{name:'80s synth-pop', bpm:118, kit:'lm2', root:2, scale:'Minor'},
+  house:{name:'House (sidechain pump)', bpm:124, kit:'tr909', root:5, scale:'Minor'},
+  hiphop:{name:'Boom bap', bpm:90, kit:'pocket', root:0, scale:'Minor'},
+  disco:{name:'Disco strings', bpm:116, kit:'lm2', root:7, scale:'Minor'}
+};
+// steps: 'x' hit (accent), 'o' soft hit, '.' rest; the string repeats to fill the bars
+function tplDrums(bars, rows){ const out = []; for (const p in rows){ const r = rows[p]; for (let i = 0; i < bars * 16; i++){ const ch = r[i % r.length]; if (ch === 'x' || ch === 'o') out.push({p:+p, t:i * TPS, v:ch === 'x' ? 1 : .62}); } } return out.sort((a, b) => a.t - b.t); }
+// chords: [[notes...], bars] in order; repeats to fill
+function tplChords(bars, prog, v = .8){ const out = []; let bar = 0, k = 0; while (bar < bars){ const [ns, len] = prog[k++ % prog.length]; ns.forEach(n => out.push({n, t:bar * TPB, d:Math.min(len, bars - bar) * TPB - 12, v})); bar += len; } return out; }
+// a mono line: [note or null, steps] in order, repeats to fill
+function tplLine(bars, seq, v = .85){ const out = []; let st = 0, k = 0; while (st < bars * 16){ const [n, len] = seq[k++ % seq.length]; if (n != null) out.push({n, t:st * TPS, d:Math.max(1, Math.min(len, bars * 16 - st)) * TPS - 4, v}); st += len; } return out; }
+function tplSynth(id, name, inst, preset){
+  const tr = newSynth(id); tr.name = name; tr.inst = inst; delete tr.notes;
+  if (ANA_MODELS[inst]){ const P = (ANA_PRESETS[inst] || {})[preset]; tr['ana_' + inst] = Object.assign({preset:P ? preset : ''}, ANA_COMMON, ANA_MODELS[inst].base, P || {}); }
+  else if (inst === 'piano') tr.piano = pianoPreset(preset || '');
+  else if (inst === 'disco') tr.disco = DISCO_DEFAULT(); else if (inst === 'choir') tr.choir = CHOIR_DEFAULT();
+  return tr;
+}
+async function tplSpeech(fresh, id, lines, bars){
+  const sr = 22050, bar = 240 / fresh.bpm, opts = Object.assign(ttsOpts({voice:'robot', semi:0, speed:1}), {sr}), len = Math.round(bars * bar * sr), d = new Float32Array(len);
+  lines.forEach((l, k) => { if (!l) return; const a = ttsRender(l, opts), o = Math.round(k * bar * sr); for (let i = 0; i < a.length && o + i < len; i++) d[o + i] = a[i] * .4; });
+  const key = 'tts:' + id + ':' + Date.now() + ':' + Math.random().toString(36).slice(2, 6), buf = makeBuffer([d], sr);
+  await storeAudio(key, buf); return {key, steps:bars * 16, bpm:fresh.bpm};
+}
+async function tplBuild(name, S0){
+  const T = TEMPLATES[name], F = S0, A = 57 + T.root - 9;     // A = the root around A3 (MIDI 57)
+  Object.assign(F, {bpm:T.bpm, root:T.root, scale:T.scale, swing:name === 'hiphop' ? 30 : name === 'house' ? 8 : 0, songMode:true, launchQ:'bar', tplName:T.name});
+  const vs = kitVoices(T.kit); F.drum.pads.forEach((p, i) => { p.sample = vs[i].key; p.name = vs[i].name; p.choke = vs[i].choke; }); F.drum.kit = T.kit;
+  F.drum.sendA = .12; F.audio = []; F.sc = []; F.scenes = []; F.song = []; F.cur = 0;
+  const route = (key, tgt, amt, rel) => { let n = F.sc.length + 1; F.sc.push({id:'r' + n, on:true, key, tgt, amt, rel:rel || .18}); };
+  const scene = (nm, bars, drums, syn, clips) => { F.scenes.push({name:nm, bars, notes:drums, clips:clips || {}, synth:syn, auto:{}}); return F.scenes.length - 1; };
+  const r = A, m = n => r + n;
+  if (name === 'vocoder'){
+    const voc = tplSynth(1, 'Robot Voice', 'juno60', 'Pad · Juno Strings'), bass = tplSynth(2, 'Bass', 'sh101', 'Bass · 101 Bass'), lead = tplSynth(3, 'Lead', 'minimoog', 'Lead · Lucky Lead');
+    voc.vol = .9; voc.sendA = .25; voc.sendB = .12; bass.vol = .8; lead.vol = .62; lead.sendB = .3;
+    const sp = Object.assign({id:'a1', name:'Speech', armed:false, recBars:4, clip:null, clipSteps:64, warp:'complex', mute:true}, mixDefaults());
+    F.audio = [sp]; F.ttsTrack = 'a1';
+    voc.voc = Object.assign(VOC_DEFAULT(), {on:true, src:'a1', car:'self', ens:true, cons:.85});
+    F.synths = [voc, bass, lead];
+    F.tts = {text:'we are the robots\nin the omega system\nturn it up\nmake it funky', voice:'robot', semi:0, speed:1, timing:'bar'};
+    const s1 = await tplSpeech(F, 'a1', ['we are the robots', 'in the omega system', 'turn it up', 'make it funky'], 4);
+    const s2 = await tplSpeech(F, 'a1', ['electric', '', 'machine', ''], 4);
+    const beat = {0:'x.....x...x.....', 1:'....x.......x...', 4:'x.o.x.o.x.o.x.oo', 2:'............x...'};
+    const prog = [[[m(-12), m(-5), m(0), m(3)], 1], [[m(-14), m(-7), m(-2), m(2)], 1], [[m(-16), m(-9), m(-4), m(0)], 1], [[m(-14), m(-7), m(-2), m(2)], 1]];
+    const bl = tplLine(4, [[m(-24), 3], [m(-24), 3], [m(-12), 2], [null, 2], [m(-24), 2], [m(-21), 2], [m(-19), 2]]);
+    const ld = tplLine(4, [[m(12), 4], [m(10), 2], [m(7), 6], [null, 4], [m(12), 2], [m(15), 2], [m(14), 4], [m(10), 8], [null, 16], [m(7), 8], [m(10), 8]]);
+    const intro = scene('Intro', 4, tplDrums(4, {4:'x.o.x.o.x.o.x.o.'}), {s1:tplChords(4, prog), s2:[], s3:[]}, {a1:s2});
+    const verse = scene('Verse', 4, tplDrums(4, beat), {s1:tplChords(4, prog), s2:bl, s3:[]}, {a1:s1});
+    const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {5:'..............x.', 7:'x...............'})), {s1:tplChords(4, prog), s2:bl, s3:ld}, {a1:s2});
+    const brk = scene('Break', 4, tplDrums(4, {0:'x...............', 4:'x.x.x.x.x.x.x.x.'}), {s1:tplChords(4, prog, .7), s2:[], s3:[]}, {a1:s1});
+    F.song = [{s:intro, n:1}, {s:verse, n:2}, {s:hook, n:2}, {s:brk, n:1}, {s:verse, n:1}, {s:hook, n:2}];
+    route('pad:0', 't:s2', .45, .12);
+  } else if (name === 'synthpop'){
+    const pad = tplSynth(1, 'Pad', 'juno60', 'Pad · PWM Pad'), bass = tplSynth(2, 'Bass', 'sh101', 'Bass · 101 Bass'), lead = tplSynth(3, 'Lead', 'jx3p', 'Lead · Sync Lead');
+    pad.vol = .6; pad.sendA = .3; bass.vol = .8; lead.vol = .6; lead.sendB = .35; F.synths = [pad, bass, lead];
+    F.drum.rack = {pc:.55};    // gated room on the drums (Phil Collins Simulator)
+    const beat = {0:'x.......x.x.....', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.'};
+    const prog = [[[m(-12), m(-9), m(-5)], 1], [[m(-16), m(-12), m(-9)], 1], [[m(-19), m(-15), m(-12)], 1], [[m(-14), m(-10), m(-7)], 1]];
+    const roots = [-12, -16, -19, -14], bl = []; roots.forEach((o, b) => tplLine(1, [[m(o - 12), 2], [m(o), 2]]).forEach(n => { n.t += b * TPB; bl.push(n); }));
+    const ld = tplLine(4, [[m(7), 6], [m(5), 2], [m(3), 4], [m(0), 4], [m(3), 6], [m(5), 2], [m(7), 8], [null, 8], [m(12), 4], [m(10), 4], [m(7), 8], [null, 8]]);
+    const intro = scene('Intro', 4, tplDrums(4, {4:'x.x.x.x.x.x.x.x.'}), {s1:tplChords(4, prog), s2:[], s3:[]});
+    const verse = scene('Verse', 4, tplDrums(4, beat), {s1:tplChords(4, prog), s2:bl, s3:[]});
+    const chorus = scene('Chorus', 4, tplDrums(4, Object.assign({}, beat, {7:'x...............', 2:'....x.......x...'})), {s1:tplChords(4, prog), s2:bl, s3:ld});
+    const fill = scene('Tom fill', 1, tplDrums(1, {8:'x.x.....', 9:'....x.x.', 10:'........', 0:'x...............'}).concat(tplDrums(1, {10:'........x.x.x.x.'})), {s1:tplChords(1, [prog[3]]), s2:[], s3:[]});
+    F.song = [{s:intro, n:1}, {s:verse, n:2}, {s:fill, n:1}, {s:chorus, n:2}, {s:verse, n:1}, {s:fill, n:1}, {s:chorus, n:2}];
+    route('pad:0', 't:s1', .4, .2);
+  } else if (name === 'house'){
+    const stab = tplSynth(1, 'Organ Stab', 'juno60', 'Keys · House Organ'), bass = tplSynth(2, 'Bass', 'juno60', 'Bass · Deep House Bass'), pad = tplSynth(3, 'Pad', 'juno60', 'Pad · Warm Analog');
+    stab.vol = .6; stab.sendA = .2; stab.sendB = .2; bass.vol = .8; pad.vol = .5; pad.sendA = .4; F.synths = [stab, bass, pad];
+    const beat = {0:'x...x...x...x...', 2:'....x.......x...', 4:'..x...x...x...x.', 5:'..o...o...o...o.'};
+    const ch = [[m(-9), m(-5), m(-2), m(3)], [m(-11), m(-7), m(-4), m(1)]];
+    const stb = []; [0, 1, 2, 3].forEach(b => [3, 6, 10, 14].forEach(st => ch[b >> 1].forEach(n => stb.push({n, t:b * TPB + st * TPS, d:TPS * 2, v:.8}))));
+    const bl = tplLine(4, [[null, 2], [m(-21), 2], [null, 2], [m(-21), 2], [null, 2], [m(-21), 2], [null, 2], [m(-9), 2]]);
+    const pd = tplChords(4, [[ch[0].map(n => n - 12), 2], [ch[1].map(n => n - 12), 2]], .7);
+    const intro = scene('Intro', 4, tplDrums(4, {0:'x...x...x...x...', 4:'..x...x...x...x.'}), {s1:[], s2:[], s3:pd});
+    const groove = scene('Groove', 4, tplDrums(4, beat), {s1:[], s2:bl, s3:pd});
+    const drop = scene('Drop', 4, tplDrums(4, Object.assign({}, beat, {6:'x.x.x.x.x.x.x.x.'})), {s1:stb, s2:bl, s3:pd});
+    const brk = scene('Breakdown', 4, tplDrums(4, {2:'....x.......x...'}), {s1:stb, s2:[], s3:pd});
+    F.song = [{s:intro, n:2}, {s:groove, n:2}, {s:drop, n:2}, {s:brk, n:1}, {s:drop, n:2}, {s:groove, n:1}];
+    route('pad:0', 't:s2', .75, .14); route('pad:0', 't:s3', .65, .2); route('pad:0', 't:s1', .4, .12); route('pad:0', 'ret:rev', .6, .2);
+  } else if (name === 'hiphop'){
+    const keys = tplSynth(1, 'Piano', 'piano', 'Character · Hip-Hop Chop Keys'), bass = tplSynth(2, 'Bass', 'minimoog', 'Bass · Moog Bass'), str = tplSynth(3, 'Strings', 'disco', '');
+    keys.vol = .65; keys.sendA = .2; bass.vol = .8; str.vol = .4; str.sendA = .35; F.synths = [keys, bass, str];
+    const beat = {0:'x.........x..x..', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.'};
+    const prog = [[[m(-12), m(-9), m(-5), m(-2)], 2], [[m(-16), m(-12), m(-9), m(-5)], 2]];
+    const bl = tplLine(4, [[m(-24), 6], [m(-24), 4], [m(-22), 6], [m(-28), 6], [m(-28), 4], [m(-26), 6]]);
+    const verse = scene('Verse', 4, tplDrums(4, beat), {s1:tplChords(4, prog, .7), s2:bl, s3:[]});
+    const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {2:'....x.......x...'})), {s1:tplChords(4, prog, .75), s2:bl, s3:tplChords(4, prog, .6)});
+    const intro = scene('Intro', 2, [], {s1:tplChords(2, prog, .7), s2:[], s3:[]});
+    F.song = [{s:intro, n:1}, {s:verse, n:2}, {s:hook, n:1}, {s:verse, n:2}, {s:hook, n:2}];
+    route('pad:0', 't:s2', .35, .12);
+  } else if (name === 'disco'){
+    const str = tplSynth(1, 'Strings', 'disco', ''), bass = tplSynth(2, 'Bass', 'minimoog', 'Bass · Funk Pluck'), keys = tplSynth(3, 'Keys', 'jx3p', 'Brass · JX Brass');
+    str.vol = .55; str.sendA = .35; bass.vol = .8; keys.vol = .5; F.synths = [str, bass, keys];
+    const beat = {0:'x...x...x...x...', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 5:'..x...x...x...x.'};
+    const prog = [[[m(-5), m(-2), m(3)], 2], [[m(-7), m(-4), m(0)], 2]];
+    const bl = tplLine(4, [[m(-24), 2], [m(-12), 2], [m(-24), 2], [m(-12), 2], [m(-24), 2], [m(-12), 2], [m(-22), 2], [m(-10), 2]]);
+    const riff = tplLine(4, [[m(12), 2], [m(15), 2], [m(17), 2], [m(19), 2], [m(22), 8]], .75);
+    const intro = scene('Intro', 4, tplDrums(4, {4:'x.x.x.x.x.x.x.x.', 5:'..x...x...x...x.'}), {s1:tplChords(4, prog), s2:[], s3:[]});
+    const groove = scene('Groove', 4, tplDrums(4, beat), {s1:tplChords(4, prog), s2:bl, s3:[]});
+    const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {2:'....x.......x...'})), {s1:riff, s2:bl, s3:tplChords(4, prog, .6)});
+    F.song = [{s:intro, n:1}, {s:groove, n:2}, {s:hook, n:2}, {s:groove, n:1}, {s:hook, n:2}];
+    route('pad:0', 't:s1', .3, .2);
+  }
+  // the first pattern is what you see; its notes are the working copy
+  const sc = F.scenes[F.song[0].s]; F.cur = F.song[0].s; F.bars = sc.bars; F.drum.notes = sc.notes; F.synths.forEach(t => t.notes = sc.synth[t.id] || []);
+  F.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c ? c.key : null; t.clipSteps = c ? c.steps : 16; t.clipBpm = F.bpm; });
+  if (!F.audio.length) F.audio = [Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())];
+  return F;
+}
+$('#tplSel').innerHTML += Object.entries(TEMPLATES).map(([k, t]) => `<option value="${k}">Template: ${t.name}</option>`).join('');
+$('#tplSel').addEventListener('change', e => { const b = $('#wipe'); b.textContent = e.target.value ? 'New from template' : 'New project'; });
 $('#wipe').addEventListener('click', async e => {
   const b = e.target;
-  if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again: this one is saved to Projects first'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'New project'; }, 3000); return; }
+  if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again: this one is saved to Projects first'; setTimeout(() => { b.dataset.sure = ''; b.textContent = $('#tplSel').value ? 'New from template' : 'New project'; }, 3000); return; }
   if (playing) stop();
   await projKeepCurrent();
   saveBlocked = true; clearTimeout(saveT);
   for (const k of await projAudioKeys()) await DB.del('audio', k);   // the library and SoundFonts stay
   // a factory-fresh project; only your setup carries over: MIDI mappings and settings, the DJ library and crates, SoundFonts
-  const fresh = defaultState(); for (const k of ['midiMap', 'midiBase', 'midiCh', 'midiNotes', 'padMap', 'midiClock', 'lib', 'crates', 'sfonts', 'screen']) if (S[k] !== undefined) fresh[k] = S[k];
+  let fresh = defaultState(); for (const k of ['midiMap', 'midiBase', 'midiCh', 'midiNotes', 'padMap', 'midiClock', 'lib', 'crates', 'sfonts', 'screen']) if (S[k] !== undefined) fresh[k] = S[k];
+  const tpl = $('#tplSel').value;
+  if (tpl && TEMPLATES[tpl]){ b.textContent = 'Building ' + TEMPLATES[tpl].name + '…'; try { fresh = await tplBuild(tpl, fresh); } catch(err){ console.warn(err); toast('That template could not be built; starting blank.'); } }
   await DB.put('kv', 'project', fresh); location.reload();
 });
 
