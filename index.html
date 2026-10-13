@@ -860,6 +860,22 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .librow.libhead{font:400 8px "Michroma",sans-serif;letter-spacing:.1em;color:#9aa3ad;padding:0 2px}
 .librow .mono{font-size:12px}.libname small{display:block;color:#9aa3ad;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .librow.miss{opacity:.45}
+@media (max-width:759px){
+  .view > .card.djtop #wvCv{height:70px}.djtop{padding:6px !important;gap:4px !important}.dji{font-size:10px;padding:2px 5px}.dji .t{font-size:11px}
+  .djrig{gap:5px !important;padding:5px !important}.djdeck{padding:4px;gap:4px}.djdh{font-size:8px}.ttmini{aspect-ratio:1.62}
+  .djbtns button,.djbtns4 button{padding:7px 0 !important;font-size:7px !important}.djp{gap:3px}
+  .djmixer{padding:4px 5px;gap:3px}.djmxh{display:none}
+  .djmixer .mx{grid-template-columns:1fr 14px 1fr;gap:4px}
+  .djmixer .mxch{flex-direction:row;align-items:center;justify-content:center;gap:4px;padding:3px 2px}
+  #mxch1{flex-direction:row-reverse}
+  .djmixer .mxch .chlab{display:none}
+  .djmixer .mxch .knobs{gap:0 2px}
+  .djmixer .mxch .kcap{width:28px;height:28px}.djmixer .mxch .klab{font-size:6px;margin-top:1px}.djmixer .mxch .kval{font-size:8px !important;padding:0 !important;min-height:0 !important;height:auto}
+  html.retro .djmixer .mxch input.chfader{height:92px !important;min-height:0 !important;width:30px !important}
+  .view > .card.djtop, .view > .card.djrig{margin-bottom:0}
+  #djVu{min-height:96px;width:14px}
+  .djmixer .xfrow{gap:6px}html.retro .djmixer input.xfader{height:38px !important}
+}
 .gsbox{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
 .gssteps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}.gsst{padding:9px 0 !important;font:400 9px "JetBrains Mono",monospace !important;background:#1d1f22 !important;color:#888 !important}
 .gsst.beat{border-bottom:2px solid #c8a23a !important}.gsst.on{background:#ef5a2a !important;color:#111 !important}.gsst.acc{background:#7a3a22 !important;color:#eee !important}
@@ -1785,7 +1801,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>FIRE</b> (top bar): the machine fries. Smoke pours out, the sound overdrives, crushes and cuts out, and the settings slowly mangle themselves, more the longer it burns. Everything that comes out is recorded: switch it off and your settings come back, and the fried take is in Chop (ready to slice onto the pads) and your sample bin. Press play first so there is a beat to burn.</li>
         <li><b>Packs</b> (Pad sound → Save pack / Load pack): a .omegapack file with all 16 pad sounds, every pad setting, and the Chop sample with its slice points.</li>
         <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
-        <li><b>Mixer</b>: channel faders start at −20 dB (double-tap a fader to go back to −20 dB), leaving headroom.</li>
+        <li><b>Mixer</b>: channel faders start at −20 dB, leaving headroom. Double-tap any fader, pan or send to put it back to its default; on the Wheel, double-tap a channel fader, EQ or filter knob, the crossfader or a pitch slider.</li>
         <li><b>Projects</b> (Setup): Save keeps the project in your list. Open switches projects. Export makes a .omega file to move it to another device. <b>New project</b> (tap twice) saves the current one first, then starts fresh.</li>
         <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
       </ul>
@@ -1906,7 +1922,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v109</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v110</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2059,7 +2075,12 @@ const DB = {
   del(s, k){ return this.op(s, 'readwrite', st => st.delete(k)); }
 };
 let saveT = 0;
-function save(){ clearTimeout(saveT); saveT = setTimeout(() => { storeScene(); DB.put('kv', 'project', S); if (typeof histPush === 'function') histPush(); }, 400); }
+// saves 0.4 s after the last change, but never later than 1.5 s after the first unsaved one, and at once when the app is hidden or closed
+let saveFirst = 0;
+function saveNow(){ clearTimeout(saveT); saveFirst = 0; try { storeScene(); DB.put('kv', 'project', S); } catch(e){} if (typeof histPush === 'function') histPush(); }
+function save(){ const now = performance.now(); if (!saveFirst) saveFirst = now; clearTimeout(saveT); saveT = setTimeout(saveNow, now - saveFirst > 1500 ? 0 : 400); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveFirst) saveNow(); });
+window.addEventListener('pagehide', () => { if (saveFirst) saveNow(); });
 function storeAudio(key, buf){
   const ch = []; for (let c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c).slice());
   return DB.put('audio', key, {sr:buf.sampleRate, ch});
@@ -7926,6 +7947,14 @@ function stepify(inp, fmt){
 }
 /* rotary knob: drag up/down to turn, the value underneath is a menu. Like the steppers it keeps a hidden range input as
    the model, so MIDI learn and automation work the same way. */
+// double-tap (two taps within a third of a second, without dragging) puts a control back to its default
+function dblTapReset(el, getDef, set){
+  let last = 0, x0 = 0, y0 = 0, moved = false;
+  el.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; moved = false; });
+  el.addEventListener('pointermove', e => { if (Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) > 14) moved = true; });
+  el.addEventListener('pointerup', () => { if (mlearn) return; const n = performance.now(), d = getDef(); if (!moved && n - last < 330 && d != null){ set(d); last = 0; } else last = moved ? 0 : n; });
+  el.addEventListener('dblclick', () => { const d = getDef(); if (d != null && !mlearn) set(d); });
+}
 function knob(box, label, obj, key, min, max, step, fmt, after, kind = 'black'){
   const w = document.createElement('div'); w.className = 'knob ' + kind;
   w.innerHTML = `<div class="kcap" role="slider" aria-label="${label}"><i></i></div><span class="klab">${label}</span><select class="kval" aria-label="${label} value"></select>`;
@@ -7945,6 +7974,7 @@ function knob(box, label, obj, key, min, max, step, fmt, after, kind = 'black'){
   cap.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); try { cap.setPointerCapture(e.pointerId); } catch(_){} y0 = e.clientY; v0 = +inp.value; });
   cap.addEventListener('pointermove', e => { if (y0 == null) return; const v = snap(v0 + (y0 - e.clientY) / 150 * (max - min)); if (v !== +inp.value){ inp.value = v; inp.dispatchEvent(new Event('input')); } });
   const end = () => { y0 = null; }; cap.addEventListener('pointerup', end); cap.addEventListener('pointercancel', end);
+  dblTapReset(cap, () => inp._def, v => { inp.value = v; inp.dispatchEvent(new Event('input')); });
   w._inp = inp; inp._knob = w; box.appendChild(w); draw(); return inp;
 }
 // keep the menus in step when code changes a value directly
@@ -8153,6 +8183,7 @@ function renderMixer(){
       if (so[sk] == null) so[sk] = 0;
       el.classList.add('sendmode'); f.value = so[sk]; db.textContent = Math.round(so[sk] * 100) + '%';
       f.dataset.lp = learnPath(so) + '|' + sk;
+      dblTapReset(f, () => 0, v => { f.value = v; f.dispatchEvent(new Event('input')); f.dispatchEvent(new Event('change')); });
       f.addEventListener('input', () => { so[sk] = +f.value; db.textContent = Math.round(so[sk] * 100) + '%'; applyAll(); if (so === t) autoTouch(t, sk); save(); });
       f.addEventListener('change', () => { if (so !== t && !S.retAll && ![...document.querySelectorAll('.strip.ret')].some(e => e._ret === sk)) renderMixer(); });
     } else {
@@ -8163,6 +8194,7 @@ function renderMixer(){
     if (!isMaster){
       const p = el.querySelector('.pan'); p.value = t.pan; p.dataset.lp = 't:' + t.id + '|pan';
       p.addEventListener('input', () => { t.pan = Math.abs(+p.value) < .04 ? 0 : +p.value; applyAll(); autoTouch(t, 'pan'); save(); });
+      dblTapReset(p, () => 0, v => { p.value = v; p.dispatchEvent(new Event('input')); });
       const m = el.querySelector('.mute'), s = el.querySelector('.solo');
       m.dataset.lp = 't:' + t.id + '|mute'; s.dataset.lp = 't:' + t.id + '|solo';
       m.classList.toggle('on', t.mute); s.classList.toggle('on', t.solo);
@@ -9158,7 +9190,8 @@ function renderMixDJ(){
     knob(kb, 'MID', C, 'mid', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
     knob(kb, 'LOW', C, 'lo', -26, 6, 1, v => v <= -26 ? 'KILL' : dB(v), applyMix, 'black');
     knob(kb, 'FILTER', C, 'filt', -1, 1, .05, v => Math.abs(v) < .03 ? 'OFF' : v < 0 ? 'LP ' + Math.round(-v * 100) : 'HP ' + Math.round(v * 100), applyMix, 'white');
-    [...kb.querySelectorAll('.knob')].forEach((k, j) => { if (k._inp) k._inp.id = 'mx' + i + ['hi', 'mid', 'lo', 'filt'][j]; });
+    [...kb.querySelectorAll('.knob')].forEach((k, j) => { if (k._inp){ k._inp.id = 'mx' + i + ['hi', 'mid', 'lo', 'filt'][j]; k._inp._def = 0; } });
+    { const fd = box.querySelector('.chfader'); dblTapReset(fd, () => .85, v => { fd.value = v; fd.dispatchEvent(new Event('input')); }); }
     const f = box.querySelector('.chfader'); f.value = C.vol; f.addEventListener('input', () => { C.vol = +f.value; applyMix(); save(); });
   });
 }
@@ -9202,7 +9235,7 @@ function djTick(){
     box.querySelectorAll('button[data-a]').forEach(b => b.addEventListener('click', () => { selDeck(i); if (b.dataset.a === 'load' && S.libSel && libState().some(e => e.id === S.libSel)){ libLoad(S.libSel, i); return; } $(act[b.dataset.a]).click(); renderRig(); }));
     const pi = $('#djPitch' + i);
     pi.addEventListener('input', () => { const v = pi.value; selDeck(i); const tp = $('#ttPitch'); tp.value = v; tp.dispatchEvent(new Event('input')); $('#djPv' + i).textContent = (deckState(i).pitch >= 0 ? '+' : '') + deckState(i).pitch.toFixed(1) + '%'; });
-    pi.addEventListener('dblclick', () => { pi.value = 0; pi.dispatchEvent(new Event('input')); });
+    dblTapReset(pi, () => 0, v => { pi.value = v; pi.dispatchEvent(new Event('input')); });
     $('#dji' + i).addEventListener('click', () => selDeck(i));
     // the record: touch and move it to scratch, let go and the motor takes it again
     const cv = $('#ttCv' + i); let last = null;
@@ -9369,6 +9402,7 @@ function renderPlat(){
     for (const f of fs){ try { toast(`Analysing ${f.name}…`); await libAddFile(f); n++; renderLib(); } catch(err){ console.warn(err); toast('Could not read ' + f.name); } }
     save(); if (n) toast(`Added ${n} track${n > 1 ? 's' : ''} to the library.`); });
   $('#xf').addEventListener('input', e => { mixState().xf = +e.target.value; applyMix(); save(); });
+  dblTapReset($('#xf'), () => 0, v => { $('#xf').value = v; $('#xf').dispatchEvent(new Event('input')); });
   $('#xfCurve').addEventListener('change', e => { mixState().curve = e.target.value; applyMix(); save(); });
   $('#xfRev').addEventListener('click', () => { const M = mixState(); M.rev = !M.rev; applyMix(); save(); renderMixDJ(); });
   // loading
@@ -9955,6 +9989,7 @@ function solNode(rig, tr){
   const key = tr.id + ':' + tr.inst;
   if (rig.sol[key] || rig !== live || !rig.c._reduxOK) return rig.sol[key] || null;
   const I = INST[tr.inst], n = new AudioWorkletNode(rig.c, I.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:Object.assign({cfg:I.cfg(tr)}, I.extra ? I.extra(tr) : {})});
+  if (!rig.strips.has(tr.id)){ const st = makeStrip(rig.c, rig.master); applyStrip(rig.c, st, tr); rig.strips.set(tr.id, st); }
   n.connect(rig.strips.get(tr.id).input);
   rig.sol[key] = n; if (I.after) I.after(tr);
   return n;
@@ -10317,7 +10352,7 @@ function renderSynth(){
   const ty = $('#scaleType'); if (!ty.children.length) ty.innerHTML = Object.keys(SCALES).map(k => `<option>${k}</option>`).join('');
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
-  const isPiano = tr.inst === 'piano'; $('#pianoPanel').hidden = !isPiano; if (isPiano) renderPiano(tr);
+  const isPiano = tr.inst === 'piano'; $('#pianoPanel').hidden = !isPiano; if (isPiano) renderGrand(tr);
   const isChoir = tr.inst === 'choir', isDisco = tr.inst === 'disco'; $('#choirPanel').hidden = !isChoir; if (isChoir) renderChoir(tr); $('#discoPanel').hidden = !isDisco; if (isDisco) renderDisco(tr);
   const isAna = !!ANA_MODELS[tr.inst], isCz = tr.inst === 'cz', isSmpx = tr.inst === 'sk1' || tr.inst === 'emax';
   $('#anaPanel').hidden = !isAna; if (isAna) renderAna(tr); $('#czPanel').hidden = !isCz; if (isCz) renderCz(tr); $('#smpxPanel').hidden = !isSmpx; if (isSmpx){ renderSmpx(tr); if (!tr._smpxCache) smpxSend(tr); }
@@ -11179,7 +11214,11 @@ const pianoFile = n => ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'A
 const PIANO = {bufs:new Map(), gain:new Map(), loading:null, noise:null};
 function pianoLoad(){
   if (PIANO.loading) return PIANO.loading;
-  PIANO.loading = Promise.all(PIANO_NOTES.map(async n => { const ab = await (await fetch('kits/piano/' + pianoFile(n) + '.mp3')).arrayBuffer(); const bf = await decodeAny(ab); PIANO.bufs.set(n, bf);
+  PIANO.loading = Promise.all(PIANO_NOTES.map(async n => { const ab = await (await fetch('kits/piano/' + pianoFile(n) + '.mp3')).arrayBuffer(); const raw = await decodeAny(ab), keep = Math.min(raw.length, Math.round(raw.sampleRate * (4 + (108 - n) / 87 * 6))), fade = Math.round(raw.sampleRate * .6);
+    // mono (each note is panned by the mic setting anyway) and trimmed to how long the string really rings, with a fade: a quarter of the memory
+    const mono = new Float32Array(keep), chs = [...Array(raw.numberOfChannels)].map((_, k) => raw.getChannelData(k));
+    for (let i = 0; i < keep; i++){ let v = 0; for (const c2 of chs) v += c2[i]; mono[i] = v / chs.length * (i > keep - fade ? (keep - i) / fade : 1); }
+    const bf = makeBuffer([mono], raw.sampleRate); PIANO.bufs.set(n, bf);
     // even the recorded levels out: each sample's first-second peak onto a smooth curve that tapers gently toward the treble
     let m = 0; for (let ch = 0; ch < bf.numberOfChannels; ch++){ const d = bf.getChannelData(ch); for (let i = 0, e = Math.min(d.length, bf.sampleRate); i < e; i++){ const v = d[i] < 0 ? -d[i] : d[i]; if (v > m) m = v; } }
     PIANO.gain.set(n, (.5 - (n - 21) / 87 * .17) / Math.max(.02, m)); }))
@@ -11215,7 +11254,8 @@ function pianoVoice(rig, tr, note, t, vel, dur){
   const P = tr.piano || (tr.piano = PIANO_DEFAULT()), c = rig.c;
   if (!rig.strips.has(tr.id)){ const s = makeStrip(c, rig.master); applyStrip(c, s, tr); rig.strips.set(tr.id, s); }
   const B = pianoBus(rig, tr);
-  let root = PIANO_NOTES[0]; for (const n of PIANO_NOTES) if (Math.abs(n - note) < Math.abs(root - note)) root = n;
+  let root = -99; for (const n of PIANO.bufs.keys()) if (Math.abs(n - note) < Math.abs(root - note)) root = n;          // nearest sample that has loaded (others may still be on their way)
+  if (root < 0) return nil;
   const buf = PIANO.bufs.get(root), ng = PIANO.gain.get(root) || 1, d = note - 69, cents = Math.sign(d) * Math.pow(Math.abs(d) / 39, 2.2) * 30 * P.stretch;
   const v = clamp(vel, 0, 1), range = 18 + P.dyn * 24, lvl = Math.pow(10, (v - 1) * range / 20) * P.vol * 1.6 * ng;
   const fc = Math.min(19000, (500 + 11000 * Math.pow(v, 1.4) * (.35 + P.tone)) * Math.pow(2, (note - 60) / 30));
@@ -11245,10 +11285,10 @@ function pianoPedal(tr, on){
   if (!on && tr._held && ctx){ const at = ctx.currentTime; tr._held.forEach(V => V.damp(at)); tr._held.clear(); }
   const b = $('#pianoPedal'); if (b) b.classList.toggle('on', tr._ped);
 }
-function renderPiano(tr){
+function renderGrand(tr){
   const C = tr.piano || (tr.piano = PIANO_DEFAULT()); fillPresetSel('#pianoPreset', PIANO_PRESETS, C.preset);
   if (!PIANO.bufs.size) pianoLoad().then(() => toast('Grand piano ready.')).catch(() => {});
-  const up = re => { C.preset = ''; $('#pianoPreset').value = ''; if (live) pianoApply(live, tr); save(); if (re) renderPiano(tr); };
+  const up = re => { C.preset = ''; $('#pianoPreset').value = ''; if (live) pianoApply(live, tr); save(); if (re) renderGrand(tr); };
   synPanel($('#pianoCtls'), C, [
     {t:'TOUCH & TONE', knobs:[['BRIGHTNESS', 'tone', 0, 1, .01, pct], ['DYNAMICS', 'dyn', 0, 1, .01, pct], ['HAMMER', 'hammer', 0, 1, .01, pct], ['DETUNE', 'detune', 0, 1, .01, v => v ? Math.round(v * 22) + ' ct' : 'in tune']]},
     {t:'PEDAL & STRINGS', knobs:[['RESONANCE', 'res', 0, 1, .01, pct], ['RELEASE', 'rel', 0, 1, .01, pct], ['DAMPER NOISE', 'damp', 0, 1, .01, pct], ['STRETCH TUNING', 'stretch', 0, 1, .01, pct]]},
@@ -11258,7 +11298,7 @@ function renderPiano(tr){
 (() => {
   const pb = $('#pianoPedal'); pb._down = () => pianoPedal(curSynth(), true); pb._up = () => pianoPedal(curSynth(), false);
   pb.addEventListener('pointerdown', e => { if (mlearn) return; e.preventDefault(); pb._down(); }); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => pb.addEventListener(t, () => { if (curSynth()._ped && !pb._latch) pb._up(); }));
-  $('#pianoPreset').addEventListener('change', e => { const tr = curSynth(); if (!PIANO_PRESETS[e.target.value]) return; tr.piano = pianoPreset(e.target.value); if (live) pianoApply(live, tr); save(); renderPiano(tr); const r = hearRoot(); hearChord(tr, [r - 12, r, r + 4, r + 7], .9); });
+  $('#pianoPreset').addEventListener('change', e => { const tr = curSynth(); if (!PIANO_PRESETS[e.target.value]) return; tr.piano = pianoPreset(e.target.value); if (live) pianoApply(live, tr); save(); renderGrand(tr); const r = hearRoot(); hearChord(tr, [r - 12, r, r + 4, r + 7], .9); });
 })();
 /* ================= Choir and Disco Strings: presets and panels ================= */
 const CHOIR_DEFAULT = () => ({preset:'Dark · Hellraiser Cathedral', lvb:1, lvt:.8, lva:0, lvs:.25, singers:6, spread:.5, vib:.25, a:.55, r:.7, breath:.2, vowel:.6, drift:.4, hum:0, dark:.75, sub:.5, space:.85, vol:.8});
@@ -12008,6 +12048,7 @@ function storeScene(){
   S.scenes[S.cur] = {name:old.name, bars:S.bars, notes:S.drum.notes, clips:Object.fromEntries(S.audio.map(t => [t.id, t.clip ? {key:t.clip, steps:t.clipSteps, bpm:t.clipBpm} : null])), synth:Object.fromEntries((S.synths || []).map(t => [t.id, t.notes])), auto:S.auto || {}};
 }
 function loadScene(k){
+  if (!S.scenes[k]){ k = clamp(k, 0, S.scenes.length - 1); if (!S.scenes[k]) return; }
   const sc = S.scenes[k]; S.cur = k;
   S.bars = sc.bars; S.drum.notes = sc.notes;
   S.audio.forEach(t => { const c = sc.clips[t.id]; t.clip = c && buffers.has(c.key) ? c.key : null; t.clipSteps = c ? c.steps : 16; t.clipBpm = (c && c.bpm) || S.bpm; });
