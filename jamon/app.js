@@ -381,7 +381,7 @@ function loadSong(i){
 /* ================= UI ================= */
 const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'P-Bass'], ['voc', 'Vocoder'], ['mix', 'Mixer']];
 const curTab = () => S.tab;
-function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button data-k="${k}" class="${S.tab === k ? 'on' : ''}" style="--c:${MACH[k] ? MACH[k].color : '#e8742b'}">${l}</button>`).join(''); }
+function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button data-k="${k}" class="${S.tab === k ? 'on' : ''}" style="--c:${MACH[k] ? MACH[k].color : k === 'voc' ? '#7fd' : '#e8742b'}">${gearSVG(k)}<span>${l}</span></button>`).join(''); }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.k; save(); renderAll(); $('#main').scrollTop = 0; });
 function renderTransport(){
   $('#playBtn').textContent = playing ? '■' : '▶'; $('#playBtn').classList.toggle('on', playing);
@@ -502,7 +502,7 @@ function resizeSection(s, bars){
 const MV = [['pat', 'Pattern'], ['snd', 'Sound'], ['play', 'Play']];
 function renderMachine(m, id){
   const M = MACH[id], ms = S.mach[id];
-  m.innerHTML = `<section class="card mach" style="--c:${M.color}"><div class="mhead"><h2>${M.name}</h2><span class="maker">${M.maker}</span>${viewTabs(id, MV)}</div>
+  m.innerHTML = `<section class="card mach" style="--c:${M.color}"><div class="mhead">${gearSVG(id, 'hero')}<div class="mtitle"><h2>${M.name}</h2><span class="maker">${M.maker}</span></div>${viewTabs(id, MV)}</div>
     <div class="${vw(id, 'pat', MV)}" data-v="pat">${sectionBar()}<div id="editor"></div></div>
     <div class="${vw(id, 'snd', MV)}" data-v="snd">${presetRow(id)}
     ${M.kind !== 'drum' ? `<div class="row arp"><label>Arp<select id="arpMode">${['off', 'up', 'down', 'updown', 'random'].map(x => `<option ${ms.arp.mode === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
@@ -580,7 +580,7 @@ function renderKeys(id){
 function renderVoc(m){
   const sec = section(), V = S.voc;
   const VV = [['say', 'Speech'], ['snd', 'Sound']];
-  m.innerHTML = `<section class="card mach" style="--c:#7fd"><div class="mhead"><h2>Vocoder</h2><span class="maker">Electro-Harmonix · 1978 (EH-0300 model)</span>${viewTabs('voc', VV)}</div>
+  m.innerHTML = `<section class="card mach" style="--c:#7fd"><div class="mhead">${gearSVG('voc', 'hero')}<div class="mtitle"><h2>Vocoder</h2><span class="maker">Electro-Harmonix · 1978 (EH-0300 model)</span></div>${viewTabs('voc', VV)}</div>
     <div class="${vw('voc', 'snd', VV)}" data-v="snd">${presetRow('voc')}
     ${panelHTML('voc', VOC_PANEL, V.p)}<div id="bands" class="bands">${EH_BANDS_UI.map(f => `<div><i></i><span>${f < 1000 ? f : (f / 1000).toFixed(1) + 'k'}</span></div>`).join('')}</div>
     <div class="row"><label>Music input (carrier)<select id="carSel">${Object.keys(MACH).filter(k => MACH[k].kind !== 'drum').map(k => `<option value="${k}" ${V.carrier === k ? 'selected' : ''}>${MACH[k].name}</option>`).join('')}</select></label>

@@ -98,6 +98,10 @@ main{padding:8px 8px calc(20px + env(safe-area-inset-bottom))}.card{padding:10px
 .secrow{flex-wrap:nowrap}.secrow input{flex:1;min-width:0;width:auto}.secrow .acts{margin-left:0;flex:none}.secrow .acts button{width:34px;padding:0}
 .secrow .parts{display:none}@media (min-width:700px){.secrow{flex-wrap:wrap}.secrow .parts{display:flex}}
 .card h2+.hint+.row button{min-height:32px;padding:4px 9px;font-size:13px}
+#tabs button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:3px 7px 4px;min-width:62px}#tabs .gear{width:52px;height:28px;display:block}#tabs button span{font-size:11.5px;line-height:1.1}
+.mhead .gear.hero{width:92px;height:49px;flex:none;filter:drop-shadow(0 2px 3px #0008)}.mtitle{display:flex;flex-direction:column;min-width:0}.mtitle .maker{font-size:11.5px}
+@media (min-width:900px){.mhead .gear.hero{width:150px;height:80px}}
+@media (max-width:520px){#editor>.hint{display:none}.mhead .gear.hero{width:76px;height:41px}}
 </style></head>
 <body>
 <header>
@@ -124,5 +128,5 @@ main{padding:8px 8px calc(20px + env(safe-area-inset-bottom))}.card{padding:10px
   <div class="row"><button id="impOk" class="on">Import as a new song</button><button id="impCancel">Cancel</button></div></dialog>
 <input id="midFile" type="file" accept=".mid,.midi,audio/midi" hidden><input id="projFile" type="file" accept=".json,application/json" hidden>
 <div id="toast"></div><div id="busy"></div>
-<script src="dsp/drums.js"></script><script src="dsp/tts.js"></script><script src="midi.js"></script><script src="presets.js"></script><script src="songs.js"></script><script src="app.js"></script>
+<script src="dsp/drums.js"></script><script src="dsp/tts.js"></script><script src="midi.js"></script><script src="gear.js"></script><script src="presets.js"></script><script src="songs.js"></script><script src="app.js"></script>
 </body></html>
