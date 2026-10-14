@@ -61,7 +61,7 @@ function defaultState(){
 let S;
 try { S = JSON.parse(localStorage.getItem(STORE)); } catch(e){ S = null; }
 if (!S || S.v !== 1) S = defaultState();
-{ const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; for (const id in MACH){ if (!S.mach[id]) S.mach[id] = D.mach[id]; S.mach[id].p = Object.assign(MACH[id].def(), S.mach[id].p); } S.voc.p = Object.assign(VOC_DEF(), S.voc.p); if (!S.learn) S.learn = {}; if (!S.cymOut) S.cymOut = JSON.parse(JSON.stringify(CYM_DEF)); }
+{ const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; for (const id in MACH){ if (!S.mach[id]) S.mach[id] = D.mach[id]; S.mach[id].p = Object.assign(MACH[id].def(), S.mach[id].p); } S.voc.p = Object.assign(VOC_DEF(), S.voc.p); if (!S.learn) S.learn = {}; if (!S.midi) S.midi = {sync:'int', clockOut:false, notesOut:false, thru:false, out:''}; if (!S.cymOut) S.cymOut = JSON.parse(JSON.stringify(CYM_DEF)); }
 let saveT = 0; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e){} }, 400); };
 const song = () => S.songs[S.cur] || S.songs[0], section = () => song().sections[clamp(S.sec, 0, song().sections.length - 1)];
 
@@ -243,7 +243,12 @@ function sendNote(r, id, n, v, t0, t1, sl){
   const sr = r.c.sampleRate, f0 = Math.round(t0 * sr), f1 = Math.round(t1 * sr);
   node.port.postMessage({type:'ev', ev:{f:f0, on:n, v, sl}}); node.port.postMessage({type:'ev', ev:{f:f1, off:n}});
 }
-const liveOut = {note:(id, n, v, t0, t1, sl) => sendNote(R, id, n, v, t0, t1, sl), hit:(id, v, t, a) => drumHit(R, id, v, t, a), say:(text, t) => speak(R, text, t)};
+const midiTs = t => performance.now() + (t - ctx.currentTime + (ctx.outputLatency || ctx.baseLatency || 0)) * 1000;
+function midiOutDev(){ if (!midiAccess || !S.midi.out) return null; return midiAccess.outputs.get(S.midi.out) || null; }
+function midiSend(bytes, t){ const o = midiOutDev(); if (!o) return; try { t == null ? o.send(bytes) : o.send(bytes, Math.max(performance.now(), midiTs(t))); } catch(e){} }
+function midiNoteOut(id, n, v, t0, t1){ if (!S.midi.notesOut) return; const ch = S.midiCh[id] & 15; midiSend([0x90 | ch, n & 127, Math.max(1, Math.round(v * 127))], t0); midiSend([0x80 | ch, n & 127, 0], t1); }
+const liveOut = {note:(id, n, v, t0, t1, sl) => { sendNote(R, id, n, v, t0, t1, sl); midiNoteOut(id, n, v, t0, t1); },
+  hit:(id, v, t, a) => { drumHit(R, id, v, t, a); midiNoteOut(id, MACH[id].gm[v], a ? 1 : .7, t, t + .05); }, say:(text, t) => speak(R, text, t)};
 function schedLoop(){
   setInterval(() => {
     if (!ctx) return;
@@ -254,6 +259,7 @@ function schedLoop(){
         stepLog.push({t:nextT, sec:pos.sec, step:pos.step}); if (stepLog.length > 64) stepLog.shift();
         stepEvents(sec, pos.step, t, liveOut);
         liveArp(t, sd);
+        if (S.midi.clockOut) for (let k = 0; k < 6; k++) midiSend([0xF8], nextT + k * sd / 6);
         nextT += sd; pos.step++;
         if (pos.step >= sec.bars * 16){ pos.step = 0;
           if (S.loopSec) {} else if (++pos.rep >= sec.rep){ pos.rep = 0; pos.sec = (pos.sec + 1) % song().sections.length; } }
@@ -278,13 +284,17 @@ function liveArp(t, sd){
       if (MACH[id].kind !== 'drum') sendNote(R, id, n, .85, t0, t0 + sd * per * .55 / sub * (per >= 1 ? 1 : 1), false); }
   }
 }
-async function play(){
+async function play(){ if (playing){ stop(); return; } return startAt(null); }
+// start the song at a 16th-note position (MIDI song position), or at the section being edited
+function posFromSteps(n){ const secs = song().sections; let k = 0; for (let i = 0; i < secs.length; i++) for (let r = 0; r < secs[i].rep; r++){ const len = secs[i].bars * 16; if (n < k + len) return {sec:i, rep:r, step:n - k}; k += len; } return {sec:0, rep:0, step:0}; }
+function stepsFromPos(p){ const secs = song().sections; let k = 0; for (let i = 0; i < p.sec; i++) k += secs[i].bars * 16 * secs[i].rep; return k + p.rep * secs[p.sec].bars * 16 + p.step; }
+async function startAt(steps, fromMidi){
   await ensureAudio(); if (ctx.state !== 'running') await ctx.resume();
-  if (playing){ stop(); return; }
-  playing = true; pos = {sec:S.loopSec ? S.sec : S.sec, rep:0, step:0}; nextT = ctx.currentTime + .06; stepLog = [];
+  playing = true; pos = steps == null ? {sec:S.sec, rep:0, step:0} : posFromSteps(steps); nextT = ctx.currentTime + .06; stepLog = [];
+  if (!fromMidi && S.midi.clockOut){ const spp = stepsFromPos(pos); midiSend([0xF2, spp & 127, (spp >> 7) & 127]); midiSend(spp ? [0xFB] : [0xFA], nextT); }
   renderTransport();
 }
-function stop(){ playing = false; if (R) for (const id in R.nodes) R.nodes[id].port.postMessage({type:'panic'}); for (const id in R ? R.nodes : {}) for (let n = 0; n < 128; n++) R.nodes[id].port.postMessage({type:'ev', ev:{f:0, off:n}}); renderTransport(); }
+function stop(fromMidi){ if (playing && !fromMidi && S.midi.clockOut) midiSend([0xFC]); playing = false; if (R) for (const id in R.nodes) R.nodes[id].port.postMessage({type:'panic'}); for (const id in R ? R.nodes : {}) for (let n = 0; n < 128; n++) R.nodes[id].port.postMessage({type:'ev', ev:{f:0, off:n}}); renderTransport(); }
 function nowPos(){ if (!playing || !ctx) return null; let p = null; for (const s of stepLog) if (s.t <= ctx.currentTime) p = s; return p; }
 
 /* ================= live playing: on-screen keys, pads, MIDI ================= */
@@ -295,6 +305,7 @@ function liveOn(id, n, v = .85){
     const A = S.mach[id].arp;
     if (A && A.mode !== 'off'){ (live.held[id] || (live.held[id] = new Set())).add(n); return; }
     R.nodes[id].port.postMessage({type:'ev', ev:{f:0, on:n, v}}); recordNote(id, n, v, true);
+    if (S.midi.notesOut && !S.midi.thru) midiSend([0x90 | (S.midiCh[id] & 15), n & 127, Math.max(1, Math.round(v * 127))]);
   });
 }
 function liveOff(id, n){
@@ -321,24 +332,54 @@ let midiAccess = null;
 async function midiInit(){
   if (!navigator.requestMIDIAccess){ toast('This browser has no Web MIDI. On the S23 use Chrome.'); return; }
   try {
-    const acc = midiAccess = await navigator.requestMIDIAccess();
-    const hook = () => { let n = 0; acc.inputs.forEach(inp => { inp.onmidimessage = onMidi; n++; }); $('#midiStat').textContent = n ? 'MIDI: ' + n + ' in' : 'MIDI: none'; };
+    const acc = midiAccess = await navigator.requestMIDIAccess({sysex:false});
+    const hook = () => { let n = 0; acc.inputs.forEach(inp => { inp.onmidimessage = onMidi; n++; }); $('#midiStat').textContent = 'MIDI: ' + n + ' in, ' + acc.outputs.size + ' out'; if (S.tab === 'song') renderMain(); };
     acc.onstatechange = hook; hook(); toast('MIDI on. Notes play ' + (S.midiMode === 'selected' ? 'the machine on screen' : 'by channel') + '.');
   } catch(e){ toast('MIDI was not allowed.'); }
 }
+/* MIDI in: notes with velocity, sustain (CC64), pitch bend, mod wheel (CC1), volume (CC7), pan (CC10), program change
+   (picks the machine's preset), all sound off / reset / all notes off (CC120, 121, 123), and clock, start, stop, continue
+   and song position when the tempo follows an external clock. */
+const sus = {}, susHeld = {}, ext = {last:0, iv:[], rt:0};
+function midiPanic(){ for (let c = 0; c < 16; c++){ midiSend([0xB0 | c, 123, 0]); midiSend([0xB0 | c, 120, 0]); } }
+function machineFor(ch){ let id = curTab(); if (S.midiMode === 'channel' || !MACH[id]) id = Object.keys(S.midiCh).find(k => S.midiCh[k] === ch); return id; }
+function bendTo(id, v){ if (!R || !R.nodes[id]) return; const M = MACH[id];
+  if (M.proc === 'ana') R.nodes[id].port.postMessage({type:'cfg', cfg:{bend:v * 2}}); else R.nodes[id].port.postMessage({type:'bend', v:v * 2}); }
+function allOff(id){ if (!R || !R.nodes[id]) return; R.nodes[id].port.postMessage({type:'panic'}); for (let n = 0; n < 128; n++) R.nodes[id].port.postMessage({type:'ev', ev:{f:0, off:n}}); if (live.held[id]) live.held[id] = new Set(); susHeld[id] = new Set(); }
+function midiRealtime(st, ts){
+  if (S.midi.sync !== 'ext') return;
+  if (st === 0xF8){ if (ext.last){ const dt = ts - ext.last; if (dt > 4 && dt < 250){ ext.iv.push(dt); if (ext.iv.length > 48) ext.iv.shift();
+      const avg = ext.iv.reduce((a, b) => a + b, 0) / ext.iv.length, bpm = Math.round(60000 / (avg * 24) * 10) / 10;
+      if (Math.abs(bpm - song().bpm) >= .2 && ext.iv.length >= 12){ song().bpm = clamp(bpm, 40, 240); clearTimeout(ext.rt); ext.rt = setTimeout(renderTransport, 200); } } }
+    ext.last = ts; }
+  else if (st === 0xFA){ ext.iv = []; startAt(0, true); }
+  else if (st === 0xFB){ startAt(ext.spp || 0, true); }
+  else if (st === 0xFC) stop(true);
+}
 function onMidi(e){
-  const [st, d1, d2] = e.data, hi = st & 0xF0, ch = st & 15;
+  const d = e.data, st = d[0];
+  if (st >= 0xF8) return midiRealtime(st, e.timeStamp || performance.now());
+  if (st === 0xF2){ ext.spp = d[1] | d[2] << 7; if (S.midi.sync === 'ext' && playing) startAt(ext.spp, true); return; }
+  if (st >= 0xF0) return;
+  const hi = st & 0xF0, ch = st & 15, d1 = d[1], d2 = d[2];
   if (hi === 0xB0 || (hi === 0x90 && d2)){ const src = (hi === 0xB0 ? 'cc:' : 'note:') + ch + ':' + d1;
     if (learn.on && learn.sel){ learnBind(src); return; }
     const key = S.learn[src]; if (key){ learnApply(key, d2 / 127, hi === 0x90 || d2 >= 64, hi === 0x90); return; } }
   if (hi === 0x80 || (hi === 0x90 && !d2)){ const key = S.learn['note:' + ch + ':' + d1]; if (key){ learnApply(key, 0, false, true); return; } }
-  let id = curTab();
-  if (S.midiMode === 'channel' || !MACH[id]){ id = Object.keys(S.midiCh).find(k => S.midiCh[k] === ch); if (!id) return; }
-  if (hi === 0x90 && d2) liveOn(id, d1, d2 / 127); else if (hi === 0x80 || (hi === 0x90 && !d2)) liveOff(id, d1);
-  else if (hi === 0xE0 && R && R.nodes[id]) R.nodes[id].port.postMessage({type:'bend', v:((d2 << 7 | d1) - 8192) / 8192 * 2});
-  else if (hi === 0xB0 && d1 === 1 && R && R.nodes[id]) R.nodes[id].port.postMessage({type:'wheel', v:d2 / 127});
+  const id = machineFor(ch); if (!id) return;
+  if (hi === 0x90 && d2){ if (susHeld[id]) susHeld[id].delete(d1); liveOn(id, d1, d2 / 127); if (S.midi.thru) midiSend([0x90 | (S.midiCh[id] & 15), d1, d2]); }
+  else if (hi === 0x80 || hi === 0x90){ if (sus[id]) (susHeld[id] || (susHeld[id] = new Set())).add(d1); else liveOff(id, d1); if (S.midi.thru) midiSend([0x80 | (S.midiCh[id] & 15), d1, 0]); }
+  else if (hi === 0xE0) bendTo(id, ((d2 << 7 | d1) - 8192) / 8192);
+  else if (hi === 0xC0){ const names = Object.keys(PRESETS[id] || {}); if (names[d1]){ applyPreset(id, names[d1]); if (curTab() === id) renderMain(); toast(MACH[id].name + ': ' + names[d1]); } }
+  else if (hi === 0xB0){
+    if (d1 === 1 && R && R.nodes[id]) R.nodes[id].port.postMessage({type:'wheel', v:d2 / 127});
+    else if (d1 === 64){ sus[id] = d2 >= 64; if (!sus[id] && susHeld[id]){ for (const n of susHeld[id]) liveOff(id, n); susHeld[id].clear(); } }
+    else if (d1 === 7){ chState(id).vol = d2 / 127; applyMix(); }
+    else if (d1 === 10){ chState(id).pan = (d2 - 64) / 64; applyMix(); }
+    else if (d1 === 120 || d1 === 123) allOff(id);
+    else if (d1 === 121){ bendTo(id, 0); sus[id] = false; if (R && R.nodes[id]) R.nodes[id].port.postMessage({type:'wheel', v:0}); }
+  }
 }
-
 
 /* ================= MIDI learn: every knob, slider, switch and selector, the mixer and the transport ================= */
 const learn = {on:false, sel:null};
@@ -493,7 +534,7 @@ function loadSong(i){
 }
 
 /* ================= UI ================= */
-const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'P-Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['about', 'About']];
+const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'Chilly Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['about', 'About']];
 const curTab = () => S.tab;
 function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button data-k="${k}" class="${S.tab === k ? 'on' : ''}" style="--c:${MACH[k] ? MACH[k].color : k === 'voc' ? '#7fd' : '#e8742b'}">${gearSVG(k)}<span>${l}</span></button>`).join(''); }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.k; save(); renderAll(); $('#main').scrollTop = 0; });
@@ -588,6 +629,10 @@ function renderSong(m){
     <p class="hint">MIDI export has one track per machine: drums on their channels with General MIDI notes, arpeggios written out as they play. Import puts every track on a machine you pick.</p></details>
     <details class="card fold" ${S.foldMidi ? "open" : ""} data-fold="foldMidi"><summary><h3>MIDI input</h3></summary><div class="row"><button id="midiOn">Connect MIDI</button><span id="midiStat2" class="hint"></span>
       <select id="midiMode"><option value="selected" ${S.midiMode === 'selected' ? 'selected' : ''}>Plays the machine on screen</option><option value="channel" ${S.midiMode === 'channel' ? 'selected' : ''}>Plays by channel</option></select></div>
+      <h3>Sync and output</h3><div class="row"><label>Tempo<select id="mSync"><option value="int" ${S.midi.sync === 'int' ? 'selected' : ''}>Internal</option><option value="ext" ${S.midi.sync === 'ext' ? 'selected' : ''}>Follow MIDI clock in</option></select></label>
+        <label>Out<select id="mOut"><option value="">None</option>${midiAccess ? [...midiAccess.outputs.values()].map(o => `<option value="${esc(o.id)}" ${S.midi.out === o.id ? 'selected' : ''}>${esc(o.name)}</option>`).join('') : ''}</select></label></div>
+      <div class="row"><label><input type="checkbox" id="mClock" ${S.midi.clockOut ? 'checked' : ''}> Send clock, start / stop and song position</label><label><input type="checkbox" id="mNotes" ${S.midi.notesOut ? 'checked' : ''}> Send every machine's notes on its channel</label><label><input type="checkbox" id="mThru" ${S.midi.thru ? 'checked' : ''}> MIDI thru</label></div>
+      <p class="hint">In: notes and velocity, sustain, pitch bend, mod wheel, volume (CC7), pan (CC10), program change (picks a preset), all notes off. With "Follow MIDI clock in" the tempo, start, stop, continue and song position come from your MPC or DAW.</p>
       <h3>MIDI Learn</h3><p class="hint">Tap <b>Learn</b> (top bar, under ⋯), tap any knob, slider, switch, mixer control or Play, then move a control on your MIDI device.</p>
       <div id="learnList">${Object.entries(S.learn).map(([src, key]) => { const [t, ch, n] = src.split(':'), L = learnSpec(key); return `<div class="sayrow"><span class="grow">${t === 'cc' ? 'CC ' + n : 'Note ' + nn(+n)} · ch ${+ch + 1} → ${esc(L ? L.name : key)}</span><button data-src="${src}">✕</button></div>`; }).join('') || '<p class="hint">Nothing learned yet.</p>'}</div>
       <h3>Channels</h3><div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></details>`;
@@ -612,6 +657,11 @@ function renderSong(m){
   $('#projLoad').onclick = () => $('#projFile').click();
   $('#midiOn').onclick = midiInit; $('#midiMode').onchange = e => { S.midiMode = e.target.value; save(); };
   m.querySelectorAll('[data-ch]').forEach(s => s.onchange = () => { S.midiCh[s.dataset.ch] = +s.value; save(); });
+  $('#mSync').onchange = e => { S.midi.sync = e.target.value; save(); };
+  $('#mOut').onchange = e => { S.midi.out = e.target.value; save(); };
+  $('#mClock').onchange = e => { S.midi.clockOut = e.target.checked; save(); };
+  $('#mNotes').onchange = e => { S.midi.notesOut = e.target.checked; save(); };
+  $('#mThru').onchange = e => { S.midi.thru = e.target.checked; save(); };
   $('#learnList').onclick = e => { const src = e.target.dataset.src; if (!src) return; delete S.learn[src]; save(); renderMain(); };
 }
 function partsSummary(s){
@@ -819,21 +869,22 @@ const ART = (() => {
   const tx = async (mode, f) => { const d = await db(); return new Promise((ok, no) => { const t = d.transaction('img', mode), r = f(t.objectStore('img')); t.oncomplete = () => ok(r && r.result); t.onerror = () => no(t.error); }); };
   const urls = {};
   return {
-    async get(k){ if (urls[k]) return urls[k]; try { const b = await tx('readonly', s => s.get(k)); if (b) return urls[k] = URL.createObjectURL(b); } catch(e){} return null; },
+    async get(k){ if (urls[k]) return urls[k]; try { const b = await tx('readonly', s => s.get(k)); if (b) return urls[k] = URL.createObjectURL(b); } catch(e){}
+      for (const ext of ['jpg', 'webp', 'png']){ const u = 'art/' + k + '.' + ext; try { const r = await fetch(u, {method:'HEAD'}); if (r.ok) return urls[k] = u; } catch(e){} } return null; },
     async put(k, blob){ await tx('readwrite', s => s.put(blob, k)); if (urls[k]) URL.revokeObjectURL(urls[k]); urls[k] = URL.createObjectURL(blob); },
-    async del(k){ await tx('readwrite', s => s.delete(k)); if (urls[k]){ URL.revokeObjectURL(urls[k]); delete urls[k]; } }
+    async del(k){ await tx('readwrite', s => s.delete(k)); if (urls[k]){ if (urls[k].startsWith('blob:')) URL.revokeObjectURL(urls[k]); delete urls[k]; } }
   };
 })();
-async function applyBackdrop(){ const u = S.artBack ? await ART.get('cover') : null; document.body.style.setProperty('--backdrop', u ? `url("${u}")` : 'none'); document.body.classList.toggle('has-art', !!u); }
+async function applyBackdrop(){ const u = S.artBack !== false ? await ART.get('cover') : null; document.body.style.setProperty('--backdrop', u ? `url("${u}")` : 'none'); document.body.classList.toggle('has-art', !!u); }
 function renderAbout(m){
   const slot = (k, title, cap) => `<figure class="artslot" data-art="${k}"><div class="artimg"><span class="hint">No picture yet</span></div><figcaption>${cap}</figcaption>
     <div class="row"><button data-pick="${k}">Choose picture</button><button data-clear="${k}">Remove</button></div></figure>`;
   m.innerHTML = `<section class="card about"><h2 class="comic">Newcleus · Jam On Revenge</h2>
-    <p>Newcleus, from Brooklyn: <b>Cozmo D</b>, <b>Chilly B</b> and <b>Lady E</b>. <i>Jam On Revenge</i> came out on Sunnyview Records in 1984; the mixing sessions were handled by <b>Jonathan Fearing</b>.</p>
+    <p>Newcleus, from Brooklyn: <b>Cozmo D</b> on keys, <b>Chilly B</b> on bass, and <b>Lady E</b>. The bass here is the <b>Chilly B Bass</b>, a Fender Precision simulator; the Pro-One, SH-101, Juno-60 and RS-09 are Cozmo D's keys. <i>Jam On Revenge</i> came out on Sunnyview Records in 1984; the mixing sessions were handled by <b>Jonathan Fearing</b>.</p>
     <p class="hint">This rig recreates the gear and the 1984 studio around it. The songs here are new arrangements in the album's style, not the records.</p></section>
-    <section class="card"><h3>Your pictures</h3><p class="hint">Pick the album cover and the band photo from your phone. They are kept only on this device: they are not uploaded and are not part of the app.</p>
+    <section class="card"><h3>Your pictures</h3><p class="hint">Pictures in the app's <code>art/</code> folder (cover.jpg, band.jpg) show here for everyone. You can also pick your own from your phone; those stay on this device only.</p>
     <div class="artgrid">${slot('cover', 'Album cover', 'Album cover')}${slot('band', 'Band', 'Chilly B (left), Lady E (middle), Cozmo D (right)')}</div>
-    <label class="row"><input type="checkbox" id="artBack" ${S.artBack ? 'checked' : ''}> Use the cover as the app's backdrop</label></section>`;
+    <label class="row"><input type="checkbox" id="artBack" ${S.artBack !== false ? 'checked' : ''}> Use the cover as the app's backdrop</label></section>`;
   for (const k of ['cover', 'band']) ART.get(k).then(u => { const el = m.querySelector(`[data-art="${k}"] .artimg`); if (u && el) el.innerHTML = `<img src="${u}" alt="${k === 'cover' ? 'Album cover' : 'Chilly B, Lady E and Cozmo D'}">`; });
   m.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const f = $('#artFile'); f.dataset.k = b.dataset.pick; f.click(); });
   m.querySelectorAll('[data-clear]').forEach(b => b.onclick = async () => { await ART.del(b.dataset.clear); applyBackdrop(); renderMain(); });
@@ -853,7 +904,7 @@ $('#recBtn').onclick = toggleRec;
 $('#moreBtn').onclick = () => $('#more').classList.toggle('on');
 $('#learnBtn').onclick = learnToggle;
 $('#recNotesBtn').onclick = () => { recNotes = !recNotes; renderTransport(); toast(recNotes ? 'Notes you play now are written into the playing section.' : 'Note recording off.'); };
-$('#panicBtn').onclick = () => { stop(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
+$('#panicBtn').onclick = () => { stop(); midiPanic(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
 $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); };
 $('#impOk').onclick = importApply; $('#impCancel').onclick = () => $('#impDlg').close();
 $('#projFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const o = JSON.parse(await f.text()); if (o.v !== 1 || !o.songs) throw 0; S = o; const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; save(); loadSong(S.cur || 0); toast('Project opened.'); } catch(_){ toast('That is not a Jam-On Rig project.'); } };

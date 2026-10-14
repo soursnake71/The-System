@@ -37,6 +37,7 @@ const bq = {
   hp(fs, f, q){ const w = 2 * Math.PI * Math.min(f, fs * .45) / fs, al = Math.sin(w) / (2 * q), cw = Math.cos(w), a0 = 1 + al; return {b0:(1 + cw) / 2 / a0, b1:-(1 + cw) / a0, b2:(1 + cw) / 2 / a0, a1:-2 * cw / a0, a2:(1 - al) / a0, z1:0, z2:0}; },
   run(q, x){ const y = q.b0 * x + q.z1; q.z1 = q.b1 * x - q.a1 * y + q.z2; q.z2 = q.b2 * x - q.a2 * y; return y; }
 };
+const tnh = x => x < -3 ? -1 : x > 3 ? 1 : x * (27 + x * x) / (27 + 9 * x * x);
 const sat = x => x > 3 ? 1 : x < -3 ? -1 : x * (27 + x * x) / (27 + 9 * x * x);
 
 /* Lexicon 224 / AMS RMX16.
