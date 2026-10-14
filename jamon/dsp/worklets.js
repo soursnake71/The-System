@@ -503,12 +503,17 @@ class EHVocoder extends AudioWorkletProcessor{
     const hp = f => { const w = 2 * Math.PI * f / fs, al = Math.sin(w) / (2 * .7071), a0 = 1 + al, c = Math.cos(w);
       return {b0:(1 + c) / 2 / a0, b1:-(1 + c) / a0, b2:(1 + c) / 2 / a0, a1:-2 * c / a0, a2:(1 - al) / a0, z1:0, z2:0}; };
     this.H = [hp(3300), hp(3300)]; this.cPk = 0; this.gC = 1;
+    // clarity: each band's output weighted against the carrier's falling top end (a saw drops 6 dB per octave),
+    // normalised to keep the level; the unvoiced detector compares the mic's hiss (above 3.3 kHz) with its body (below 1 kHz)
+    const w = EH_BANDS.map(f => Math.min(3.2, Math.max(.75, Math.pow(f / 420, .7)))), wm = w.reduce((a, b) => a + b, 0) / w.length; this.W = w.map(x => x / wm);
+    this.Hu = [hp(3300), hp(3300)]; this.lfz = 0; this.hfE = 0; this.lfE = 0; this.uv = 0; this.cEnv = 0; this.cPrev = 0;
     this.port.onmessage = e => Object.assign(this.p, e.data);
   }
   bq(q, x){ const y = q.b0 * x + q.z1; q.z1 = (q.b1 || 0) * x - q.a1 * y + q.z2; q.z2 = q.b2 * x - q.a2 * y; return y; }
   process(ins, outs){
     const mus = ins[0], mic = ins[1], L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, P = this.p, fs = this.fs;
-    const atk = 1 - Math.exp(-1 / ((.003 + P.resp * .012) * fs)), rel = 1 - Math.exp(-1 / ((.015 + P.resp * .12) * fs)), sm = 1 - Math.exp(-1 / (.006 * fs));
+    const atk = 1 - Math.exp(-1 / ((.002 + P.resp * .008) * fs)), rel = 1 - Math.exp(-1 / ((.01 + P.resp * .07) * fs)), sm = 1 - Math.exp(-1 / (.004 * fs));
+    const eA = 1 - Math.exp(-1 / (.006 * fs)), lfA = 1 - Math.exp(-2 * Math.PI * 1000 / fs), uvA = 1 - Math.exp(-1 / (.004 * fs)), W = this.W;
     const cA = 1 - Math.exp(-1 / (.002 * fs)), cR = Math.exp(-1 / (.25 * fs)), maxG = Math.pow(10, 20 * P.comp / 20);
     const gMic = Math.pow(10, (P.mic - .5) * 40 / 20) * 2, gMus = Math.pow(10, (P.music - .5) * 40 / 20) * 2;
     for (let i = 0; i < N; i++){
@@ -518,15 +523,24 @@ class EHVocoder extends AudioWorkletProcessor{
       // compressor: peak follower, gain up to 20 dB toward a fixed reference
       const am = Math.abs(m); if (am > this.cPk) this.cPk += (am - this.cPk) * cA; else this.cPk *= cR;
       this.gC = Math.min(maxG, Math.max(1, .25 / Math.max(this.cPk, 1e-5))); m *= this.gC;
+      // carrier: a little pre-emphasis so the upper bands have something to work with
+      const cp = c + .55 * (c - this.cPrev); this.cPrev = c; this.cEnv += (Math.abs(c) - this.cEnv) * eA;
+      // unvoiced (S, T, SH, F): when the mic is mostly hiss, noise takes over the carrier in the upper bands
+      const hf = this.bq(this.Hu[1], this.bq(this.Hu[0], m)); this.lfz += lfA * (m - this.lfz);
+      this.hfE += (Math.abs(hf) - this.hfE) * eA; this.lfE += (Math.abs(this.lfz) - this.lfE) * eA;
+      const u = Math.min(1, Math.max(0, (this.hfE / (this.lfE + 1e-4) - .35) * 1.6)); this.uv += (u - this.uv) * uvA;
+      const nz = (Math.random() * 2 - 1) * Math.max(this.cEnv, .02) * 1.6;
       let sum = 0;
       for (let k = 0; k < 14; k++){
         const A = this.A[k], S = this.S[k];
         const a = this.bq(A[1], this.bq(A[0], m)), r = Math.abs(a);
         let e = this.env[k]; e += (r - e) * (r > e ? atk : rel); this.env[k] = e;
         const e2 = this.env2[k] += (e - this.env2[k]) * sm;
-        sum += this.bq(S[1], this.bq(S[0], c)) * e2;
+        const mix = k >= 8 ? this.uv * .85 : this.uv * .25, cc = cp * (1 - mix) + nz * mix;
+        sum += this.bq(S[1], this.bq(S[0], cc)) * e2 * Math.sqrt(e2 * 4 + 1e-6) * W[k];   // a gentle expander sharpens syllables
         if (e2 > this.meter[k]) this.meter[k] = e2;
       }
+      sum *= 1.6;
       const hi = this.bq(this.H[1], this.bq(this.H[0], m)) * P.hi * .8;
       const voc = Math.tanh((sum * 9 + hi) * .9);
       const o = (voc * (1 - P.blend) + m * .5 * P.blend) * P.vol;

@@ -6,7 +6,7 @@ class RackUnit extends AudioWorkletProcessor{
   constructor(o){
     super(); this.fs = sampleRate; this.c = Object.assign({}, (o && o.processorOptions && o.processorOptions.cfg) || {});
     this.quiet = 1e12; this.asleep = true;
-    this.port.onmessage = e => { if (e.data.type === 'cfg'){ Object.assign(this.c, e.data.cfg); this.update(); } };
+    this.port.onmessage = e => { if (e.data.type === 'cfg'){ Object.assign(this.c, e.data.cfg); this.update(); } else if (e.data.type === 'flush'){ this.reset(); this.quiet = 1e12; this.asleep = true; } };
   }
   update(){}
   tail(){ return 5; }
@@ -146,11 +146,11 @@ const tailOf = (ms, fb) => Math.min(20, ms / 1000 * (fb > .01 ? Math.log(1e-4) /
 class PrimeTime extends RackUnit{
   constructor(o){ super(o); const fs = this.fs; this.dl = new DLine(Math.ceil(fs * 2.1)); this.aa = new LPN(fs, 12000, 5); this.rc = new LPN(fs, 12000, 5); this.h = new Hold(); this.lfo = 0; this.fl = 0; this.yA = 0; this.yB = 0; this.update(); }
   reset(){ this.dl.clear(); this.fl = this.yA = this.yB = 0; }
-  tail(){ const C = this.c; return tailOf(Math.max(C.dA || 0, C.dB || 0), Math.max(C.fbA || 0, C.fbB || 0)); }
+  tail(){ const C = this.c; return tailOf(Math.max(C.dA || 0, C.dB || 0), Math.min(.85, (C.fbA || 0) + (C.fbB || 0))); }
   update(){ const C = this.c, bw = 12000 / (C.mult || 1); this.aa.set(bw); this.rc.set(bw); }
   run(a, b, L, R, N){
     const C = this.c, fs = this.fs, bw = 12000 / (C.mult || 1), clk = bw * 2.6 / fs, q = 2048;
-    const fa = 1 - Math.exp(-2 * Math.PI * (C.hcut || 6000) / fs), inv = C.inv ? -1 : 1, ret = C.ret == null ? .8 : C.ret;
+    const fa = 1 - Math.exp(-2 * Math.PI * (C.hcut || 6000) / fs), inv = C.inv ? -1 : 1, ret = C.ret == null ? .8 : C.ret, fbSum = (C.fbA || 0) + (C.fbB || 0), fbScale = fbSum > .85 ? .85 / fbSum : 1;
     for (let i = 0; i < N; i++){
       // VCO: triangle on the clock, 2:1 range -> delay scales between 1 and 0.5
       this.lfo += (C.vcoRate || .5) / fs; if (this.lfo >= 1) this.lfo -= 1;
@@ -160,7 +160,7 @@ class PrimeTime extends RackUnit{
       this.dl.push(w);
       this.yA = this.rc.run(this.dl.lerp(Math.max(1, (C.dA || 0) / 1000 * fs * k)));
       const yB = this.dl.lerp(Math.max(1, (C.dB || 0) / 1000 * fs * k)); this.yB += (yB - this.yB) * .5;
-      this.fl += fa * (this.yA * (C.fbA || 0) + this.yB * (C.fbB || 0) - this.fl);
+      this.fl += fa * ((this.yA * (C.fbA || 0) + this.yB * (C.fbB || 0)) * fbScale - this.fl);
       L[i] = this.yA * (C.mixA == null ? 1 : C.mixA) * ret; R[i] = this.yB * (C.mixB == null ? 1 : C.mixB) * ret;
     }
   }
@@ -198,7 +198,7 @@ class Effectron extends RackUnit{
       // de-emphasis and the 15 kHz output filter, then the delay itself
       this.de += (dec - this.de) * .31; this.dl.push(this.de);
       const y = this.rec.run(this.dl.lerp(Math.max(1, dMs / 1000 * fs)));
-      this.fbl += fbA * (y * (C.regen || 0) - this.fbl);
+      this.fbl += fbA * (y * Math.max(-.9, Math.min(.9, C.regen || 0)) - this.fbl);
       const v = y * ret, m = C.pan || 'center';
       if (m === 'haasL'){ L[i] = v; R[i] = 0; } else if (m === 'haasR'){ L[i] = 0; R[i] = v; } else if (m === 'wide'){ L[i] = v; R[i] = -v; } else { L[i] = v * .7; R[i] = v * .7; }
     }
@@ -538,7 +538,7 @@ class H910 extends RackUnit{
     for (let i = 0; i < N; i++){
       const x0 = a ? (a[i] + b[i]) * .5 : 0;
       for (let c = 0; c < 2; c++){
-        const x = x0 + this.fb[c] * (C.fb || 0);
+        const x = x0 + this.fb[c] * Math.min(.85, C.fb || 0) * .9;
         // compressor (2:1) ahead of the converter
         const ax = Math.abs(x); this.env += (ax > this.env ? atk : rel) * (ax - this.env);
         const g = 1 / Math.sqrt(Math.max(this.env, 1e-4)) * .1;
@@ -552,8 +552,8 @@ class H910 extends RackUnit{
         y = this.lp[c].run(y);
         // expander after the D/A (its own detector, slower: the pumping)
         const ay = Math.abs(y); this.envO[c] += (ay > this.envO[c] ? atk * .5 : rel * .5) * (ay - this.envO[c]);
-        y *= Math.min(600, this.envO[c] * 141);
-        this.fb[c] = y; out[c] = y;
+        y *= Math.min(600, this.envO[c] * 100);
+        this.fb[c] = sat(y * .8) / .8; out[c] = y;
       }
       const l = out[0] * (.5 + .5 * sp) + out[1] * (.5 - .5 * sp), r = out[1] * (.5 + .5 * sp) + out[0] * (.5 - .5 * sp);
       const wg = (C.wings == null ? .7 : C.wings) * ret; L[i] = l * wg; R[i] = r * wg;
@@ -574,10 +574,13 @@ class MXR113 extends RackUnit{
   run(a, b, L, R, N){
     const C = this.c, fs = this.fs, bw = C.bw || 10000, ret = C.ret == null ? .8 : C.ret, q = 512;
     const atk = 1 - Math.exp(-1 / (.005 * fs)), rel = 1 - Math.exp(-1 / (.05 * fs)), clk = Math.min(1, bw * 2.5 / fs);
+    const decay = Math.pow(Math.max(.05, Math.min(.9, C.regen || 0)), 1 / Math.max(1, (C.delay || 100) / 1000 * fs));
     for (let i = 0; i < N; i++){
       this.lfo += (C.lfoRate || .3) / fs; if (this.lfo >= 1) this.lfo -= 1;
       const k = Math.pow(4, -(C.lfoDepth || 0) * (.5 + .5 * Math.sin(2 * Math.PI * this.lfo)));
-      let x = (a ? (a[i] + b[i]) * .5 : 0) + this.fb;
+      const xin = a ? (a[i] + b[i]) * .5 : 0;
+      // the echoes may only fade: a ceiling that falls at the rate REGEN implies per repeat, raised by new input
+      this.ceil = Math.max((this.ceil || 0) * decay, Math.abs(xin)); let x = xin + this.fb;
       const p = x + 1.5 * (x - this.pe); this.pe = x; x = p;                      // pre-emphasis
       const ax = Math.abs(x); this.env += (ax > this.env ? atk : rel) * (ax - this.env);
       x = x / Math.sqrt(Math.max(this.env, 1e-4)) * .12;                          // NE571 compressor
@@ -586,9 +589,9 @@ class MXR113 extends RackUnit{
       this.dl.push(x);
       let y = this.rc.run(this.dl.lerp(Math.max(1, (C.delay || 100) / 1000 * fs * k)));
       const ay = Math.abs(y); this.envO += (ay > this.envO ? atk : rel) * (ay - this.envO);
-      y *= Math.min(300, this.envO * 70);                                          // expander
+      y *= Math.min(300, this.envO * 58);                                          // expander (matched to the compressor)
       this.de += (y - this.de) * .4; y = this.de;                                 // de-emphasis
-      this.fb = y * (C.regen || 0);
+      let f = sat(y * .8) / .8 * Math.min(.9, C.regen || 0) * .92; const af = Math.abs(f), lim = this.ceil * 1.3 + 1e-6; if (af > lim) f *= lim / af; this.fb = f;
       const v = y * ret * (C.inv ? -1 : 1); L[i] = v; R[i] = v;
     }
   }

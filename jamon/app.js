@@ -212,7 +212,8 @@ function ttsBuf(text){
     const c = ctx || new OfflineAudioContext(1, 1, 22050); b = c.createBuffer(1, Math.max(1, d.length), 22050); b.copyToChannel(d, 0); ttsCache.set(key, b); }
   return b;
 }
-function speak(r, text, t){ const s = r.c.createBufferSource(); s.buffer = ttsBuf(text); s.connect(r.micBus); s.start(t); return s.buffer.duration; }
+const speaking = new Set();
+function speak(r, text, t){ const s = r.c.createBufferSource(); s.buffer = ttsBuf(text); s.connect(r.micBus); s.start(t); if (r === R){ speaking.add(s); s.onended = () => speaking.delete(s); } return s.buffer.duration; }
 
 /* ================= sequencer ================= */
 const stepDur = () => 60 / song().bpm / 4;
@@ -303,7 +304,14 @@ async function startAt(steps, fromMidi){
   if (!fromMidi && S.midi.clockOut){ const spp = stepsFromPos(pos); midiSend([0xF2, spp & 127, (spp >> 7) & 127]); midiSend(spp ? [0xFB] : [0xFA], nextT); }
   renderTransport();
 }
-function stop(fromMidi){ if (playing && !fromMidi && S.midi.clockOut) midiSend([0xFC]); playing = false; if (R) for (const id in R.nodes) R.nodes[id].port.postMessage({type:'panic'}); for (const id in R ? R.nodes : {}) for (let n = 0; n < 128; n++) R.nodes[id].port.postMessage({type:'ev', ev:{f:0, off:n}}); renderTransport(); }
+function flushFx(){
+  if (!R) return; const t = ctx.currentTime;
+  for (const s of speaking){ try { s.stop(); } catch(e){} } speaking.clear();
+  for (const u of RET_U){ const g = R.retG[u].gain; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + .12); }
+  setTimeout(() => { for (const u of RET_U) R.ret[u].port.postMessage({type:'flush'}); for (const id in R.ins) if (R.ins[id]) R.ins[id].port.postMessage({type:'flush'});
+    for (const u of RET_U){ R.retG[u].gain.cancelScheduledValues(0); } applyMix(); }, 160);
+}
+function stop(fromMidi){ if (playing && !fromMidi && S.midi.clockOut) midiSend([0xFC]); const was = playing; playing = false; if (was || fromMidi === 'panic') flushFx(); if (R) for (const id in R.nodes) R.nodes[id].port.postMessage({type:'panic'}); for (const id in R ? R.nodes : {}) for (let n = 0; n < 128; n++) R.nodes[id].port.postMessage({type:'ev', ev:{f:0, off:n}}); renderTransport(); }
 function nowPos(){ if (!playing || !ctx) return null; let p = null; for (const s of stepLog) if (s.t <= ctx.currentTime) p = s; return p; }
 
 /* ================= live playing: on-screen keys, pads, MIDI ================= */
@@ -937,7 +945,7 @@ $('#moreBtn').onclick = () => $('#more').classList.toggle('on');
 $('#learnBtn').onclick = learnToggle;
 $('#helpBtn').onclick = () => helpFor(S.tab);
 $('#recNotesBtn').onclick = () => { recNotes = !recNotes; renderTransport(); toast(recNotes ? 'Notes you play now are written into the playing section.' : 'Note recording off.'); };
-$('#panicBtn').onclick = () => { stop(); midiPanic(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
+$('#panicBtn').onclick = () => { stop('panic'); midiPanic(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
 $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); };
 $('#impOk').onclick = importApply; $('#impCancel').onclick = () => $('#impDlg').close();
 $('#projFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const o = JSON.parse(await f.text()); if (o.v !== 1 || !o.songs) throw 0; S = o; const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; save(); loadSong(S.cur || 0); toast('Project opened.'); } catch(_){ toast('That is not a Jam-On Rig project.'); } };
