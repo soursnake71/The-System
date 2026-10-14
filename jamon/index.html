@@ -2,6 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Jam-On Rig</title><meta name="theme-color" content="#14110f">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg:#14110f;--card:#1f1b18;--card2:#29231f;--ink:#efe6d8;--dim:#9c8f7d;--acc:#e8742b;--ok:#7fd;--line:#3a322b}
@@ -135,11 +136,35 @@ body.learning .learn-sel{outline:3px solid #7fd!important;animation:lpulse .8s i
 #learnBtn.on{background:#7fd;color:#06201d;border-color:#7fd}
 .grow{flex:1}
 .fader b{margin-top:4px}.seg{grid-column:span 2;justify-self:center}.knobs .seg>div{max-width:100%;overflow-x:auto}
+
+/* look of the 1984 cover style: comic-book red block lettering, sunset sky, desert sand (no artwork included) */
+:root{--sky1:#f7e25a;--sky2:#f29a4a;--sky3:#c0478f;--sky4:#5b3d9a;--sand:#e7c38a;--red:#e3262b}
+.comic{font-family:Bangers,Impact,"Arial Black",system-ui,sans-serif;letter-spacing:.06em;color:var(--red);-webkit-text-stroke:1px #111;text-shadow:2px 2px 0 #111,3px 3px 0 var(--sky1)}
+header{background:linear-gradient(100deg,var(--sky1) 0%,var(--sky2) 30%,var(--sky3) 65%,var(--sky4) 100%);border-bottom:3px solid #111}
+header .logo.comic{font-size:22px;line-height:1;transform:skew(-6deg)}
+header button,header select,header input{background:#14110fd9;border-color:#111}
+#tabs button{background:#14110fe0}
+.card{border-color:#3a322b;box-shadow:0 0 0 1px #0006}
+.mhead h2{font-family:Bangers,Impact,system-ui,sans-serif;letter-spacing:.06em;font-weight:400;font-size:20px;color:var(--sand)}
+body.has-art::before{content:"";position:fixed;inset:0;background:var(--backdrop) center/cover no-repeat;opacity:.16;filter:saturate(1.2);z-index:-1;pointer-events:none}
+body.has-art{background:#14110fe8}
+.about h2.comic{font-size:28px;margin-bottom:8px}
+.artgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.artslot{margin:0}
+.artimg{aspect-ratio:1;background:#0004;border:2px dashed #555;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden}.artimg img{width:100%;height:100%;object-fit:cover}
+.artslot figcaption{font-size:12.5px;color:var(--dim);margin:6px 0}
+.dubgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:8px}
+.dubcell{display:grid;grid-template-columns:1fr 1fr;gap:4px;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:8px;padding:6px}.dubcell b{grid-column:1/-1;font-size:12px}
+.dub{min-height:48px;touch-action:none;user-select:none;font-weight:600}.dub.thr.on{background:#7fd;color:#06201d}.dub.drp.on{background:#d33;color:#fff}
+.inssel>div{flex-wrap:wrap}.chlist button{font-size:12px}
+.mixer.rets{grid-template-columns:repeat(auto-fill,minmax(90px,1fr))}
+.mixer{display:flex!important;gap:6px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}.mixer .strip{flex:none;width:86px;scroll-snap-align:start}
+.mixer .strip .fader{writing-mode:vertical-lr;direction:rtl;height:150px;width:30px;align-self:center}
+.mixer.rets{margin-top:8px;align-items:stretch}.retlbl{writing-mode:vertical-lr;transform:rotate(180deg);color:var(--dim);font-size:11px;letter-spacing:.1em}
 </style></head>
 <body>
 <header>
   <div class="top">
-    <span class="logo">JAM-ON</span>
+    <span class="logo comic">JAM-ON</span>
     <button id="playBtn" title="Play / stop (space)" data-learn="play">▶</button>
     <select id="songSel"></select>
     <input id="bpm" type="number" min="40" max="240" title="BPM" aria-label="BPM">
@@ -160,7 +185,7 @@ body.learning .learn-sel{outline:3px solid #7fd!important;animation:lpulse .8s i
 <dialog id="impDlg"><h3>Import MIDI</h3><p id="impInfo" class="hint"></p><div id="impRows"></div>
   <p class="hint">Pick the machine for each track. Notes land on the nearest 16th; drums follow General MIDI note numbers.</p>
   <div class="row"><button id="impOk" class="on">Import as a new song</button><button id="impCancel">Cancel</button></div></dialog>
-<input id="midFile" type="file" accept=".mid,.midi,audio/midi" hidden><input id="projFile" type="file" accept=".json,application/json" hidden>
+<input id="artFile" type="file" accept="image/*" hidden><input id="midFile" type="file" accept=".mid,.midi,audio/midi" hidden><input id="projFile" type="file" accept=".json,application/json" hidden>
 <div id="toast"></div><div id="busy"></div>
-<script src="dsp/drums.js"></script><script src="dsp/tts.js"></script><script src="midi.js"></script><script src="gear.js"></script><script src="presets.js"></script><script src="songs.js"></script><script src="app.js"></script>
+<script src="dsp/drums.js"></script><script src="dsp/tts.js"></script><script src="midi.js"></script><script src="gear.js"></script><script src="presets.js"></script><script src="fx.js"></script><script src="songs.js"></script><script src="app.js"></script>
 </body></html>

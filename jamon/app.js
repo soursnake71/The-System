@@ -61,7 +61,7 @@ function defaultState(){
 let S;
 try { S = JSON.parse(localStorage.getItem(STORE)); } catch(e){ S = null; }
 if (!S || S.v !== 1) S = defaultState();
-{ const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; for (const id in MACH){ if (!S.mach[id]) S.mach[id] = D.mach[id]; S.mach[id].p = Object.assign(MACH[id].def(), S.mach[id].p); } S.voc.p = Object.assign(VOC_DEF(), S.voc.p); if (!S.learn) S.learn = {}; }
+{ const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; for (const id in MACH){ if (!S.mach[id]) S.mach[id] = D.mach[id]; S.mach[id].p = Object.assign(MACH[id].def(), S.mach[id].p); } S.voc.p = Object.assign(VOC_DEF(), S.voc.p); if (!S.learn) S.learn = {}; if (!S.cymOut) S.cymOut = JSON.parse(JSON.stringify(CYM_DEF)); }
 let saveT = 0; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e){} }, 400); };
 const song = () => S.songs[S.cur] || S.songs[0], section = () => song().sections[clamp(S.sec, 0, song().sections.length - 1)];
 
@@ -75,44 +75,90 @@ const cfgFor = id => { const M = MACH[id], p = S.mach[id].p; if (M.proc !== 'ana
   if (id === 'sh101') c.retrig = (p.envTrig | 0) === 0;
   return c; };
 // builds every machine, the vocoder and the mixer on a context; ev = {id: [events]} for offline renders
+/* every channel: source -> insert slot -> drop (dub cut) -> fader -> pan -> master; sends post-fader, throws pre-fader into the PrimeTime */
+const CH = () => [...Object.keys(MACH), 'cym', 'voc'];
+const chName = id => id === 'cym' ? 'Cymbal bus' : id === 'voc' ? 'Vocoder' : MACH[id].name;
+function chState(id){
+  const o = id === 'voc' ? (S.vocMix || (S.vocMix = {vol:.85, pan:0, mute:false, solo:false})) : id === 'cym' ? (S.cymMix || (S.cymMix = {vol:.8, pan:0, mute:false, solo:false})) : S.mach[id];
+  if (!o.snd) o.snd = {}; for (const u of RET_U) if (o.snd[u] == null) o.snd[u] = 0; if (!o.insP) o.insP = {}; if (!o.ins) o.ins = 'none'; return o;
+}
+// a return keeps its level and mute, and its unit's values under the unit's own key
+function retState(u){ S.ret = S.ret || {}; return S.ret[u] || (S.ret[u] = {vol:.8, mute:false}); }
+const retVals = u => fxVals(retState(u), u);
+const insVals = (id, u) => fxVals(chState(id).insP, u);
 function buildRig(c, ev){
-  const r = {c, nodes:{}, strip:{}, pan:{}, carrier:{}, drumIn:{}};
+  const r = {c, nodes:{}, strip:{}, pan:{}, carrier:{}, drumIn:{}, pre:{}, post:{}, drop:{}, ins:{}, snd:{}, thr:{}, ret:{}, retG:{}, sendBus:{}};
   r.masterIn = c.createGain(); r.master = c.createGain(); r.master.gain.value = S.master;
-  r.lim = c.createDynamicsCompressor(); Object.assign(r.lim, {}); r.lim.threshold.value = -3; r.lim.knee.value = 0; r.lim.ratio.value = 20; r.lim.attack.value = .002; r.lim.release.value = .12;
+  r.lim = c.createDynamicsCompressor(); r.lim.threshold.value = -3; r.lim.knee.value = 0; r.lim.ratio.value = 20; r.lim.attack.value = .002; r.lim.release.value = .12;
   r.masterIn.connect(r.master); r.master.connect(r.lim); r.lim.connect(c.destination);
+  // returns
+  for (const u of RET_U){
+    const bus = c.createGain(), node = new AudioWorkletNode(c, FXU[u].proc, {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:fxCfg(u, retVals(u), song().bpm)}}), g = c.createGain();
+    bus.connect(node); node.connect(g); g.connect(r.masterIn); r.sendBus[u] = bus; r.ret[u] = node; r.retG[u] = g;
+  }
   r.musicBus = c.createGain(); r.micBus = c.createGain();
   r.voc = new AudioWorkletNode(c, 'ehvocoder', {numberOfInputs:2, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:S.voc.p}});
   r.musicBus.connect(r.voc, 0, 0); r.micBus.connect(r.voc, 0, 1);
-  const strip = id => { const g = c.createGain(), p = c.createStereoPanner(); g.connect(p); p.connect(r.masterIn); r.strip[id] = g; r.pan[id] = p; return g; };
-  r.voc.connect(strip('voc'));
+  for (const id of CH()){
+    const pre = c.createGain(), post = c.createGain(), drop = c.createGain(), g = c.createGain(), p = c.createStereoPanner();
+    post.connect(drop); drop.connect(g); g.connect(p); p.connect(r.masterIn);
+    Object.assign(r, {}); r.pre[id] = pre; r.post[id] = post; r.drop[id] = drop; r.strip[id] = g; r.pan[id] = p; r.snd[id] = {};
+    for (const u of RET_U){ const sg = c.createGain(); sg.gain.value = 0; g.connect(sg); sg.connect(r.sendBus[u]); r.snd[id][u] = sg; }
+    const th = c.createGain(); th.gain.value = 0; post.connect(th); th.connect(r.sendBus.pt); r.thr[id] = th;
+    setInsert(r, id);
+  }
+  r.voc.connect(r.pre.voc);
   for (const id in MACH){
-    const M = MACH[id], st = strip(id);
-    if (M.kind === 'drum'){ const g = c.createGain(); g.connect(st); r.drumIn[id] = g; continue; }
+    const M = MACH[id];
+    if (M.kind === 'drum'){ r.drumIn[id] = r.pre[id]; continue; }
     const n = new AudioWorkletNode(c, M.proc, {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:cfgFor(id), events:(ev && ev[id]) || []}});
-    n.connect(st); const cs = c.createGain(); cs.gain.value = 0; n.connect(cs); cs.connect(r.musicBus); r.carrier[id] = cs; r.nodes[id] = n;
+    n.connect(r.pre[id]); const cs = c.createGain(); cs.gain.value = 0; n.connect(cs); cs.connect(r.musicBus); r.carrier[id] = cs; r.nodes[id] = n;
   }
   r.voc.port.onmessage = e => { if (e.data.meter) vocMeter(e.data.meter); };
   applyMix(r);
   return r;
 }
+function setInsert(r, id){
+  const st = chState(id), u = st.ins, pre = r.pre[id], post = r.post[id];
+  pre.disconnect(); if (r.ins[id]){ r.ins[id].disconnect(); r.ins[id] = null; }
+  if (!FXU[u]){ pre.connect(post); return; }
+  const n = new AudioWorkletNode(r.c, FXU[u].proc, {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2], processorOptions:{cfg:fxCfg(u, insVals(id, u), song().bpm)}});
+  pre.connect(n); n.connect(post); r.ins[id] = n;
+}
+function pushFx(kind, id){
+  if (!R) return;
+  if (kind === 'ret') R.ret[id].port.postMessage({type:'cfg', cfg:fxCfg(id, retVals(id), song().bpm)});
+  else { const u = chState(id).ins; if (R.ins[id] && FXU[u]) R.ins[id].port.postMessage({type:'cfg', cfg:fxCfg(u, insVals(id, u), song().bpm)}); }
+}
 function applyMix(r = R){
   if (!r) return;
-  const solo = Object.keys(S.mach).some(id => S.mach[id].solo) || (S.vocMix && S.vocMix.solo);
-  for (const id in MACH){
-    const m = S.mach[id], isCar = S.voc.carrier === id;
-    let g = m.vol * m.vol * 1.2; if (m.mute || (solo && !m.solo)) g = 0; if (isCar && !S.voc.direct) g = 0;
-    r.strip[id].gain.value = g; r.pan[id].pan.value = m.pan;
+  const ids = CH(), solo = ids.some(id => chState(id).solo);
+  for (const id of ids){
+    const m = chState(id), isCar = S.voc.carrier === id;
+    let g = m.vol * m.vol * (id === 'voc' ? 1.4 : 1.2); if (m.mute || (solo && !m.solo)) g = 0; if (isCar && !S.voc.direct) g = 0;
+    r.strip[id].gain.value = g; r.pan[id].pan.value = m.pan || 0;
     if (r.carrier[id]) r.carrier[id].gain.value = isCar ? 1 : 0;
+    for (const u of RET_U) r.snd[id][u].gain.value = (m.snd[u] || 0) * (m.snd[u] || 0) * 1.2;
   }
-  const vm = S.vocMix || (S.vocMix = {vol:.85, pan:0, mute:false, solo:false});
-  r.strip.voc.gain.value = vm.mute || (solo && !vm.solo) ? 0 : vm.vol * vm.vol * 1.4; r.pan.voc.pan.value = vm.pan;
+  for (const u of RET_U){ const o = retState(u); r.retG[u].gain.value = o.mute ? 0 : o.vol * o.vol * 1.3; }
   r.master.gain.value = S.master;
+}
+// dub moves: THROW sends the channel (before its fader) into the PrimeTime while held; DROP cuts it while held
+function dubThrow(id, on){ if (!R) return; R.thr[id].gain.setTargetAtTime(on ? 1.1 : 0, ctx.currentTime, on ? .004 : .02); $$(`[data-learn="thr:${id}"]`).forEach(e => e.classList.toggle('on', on)); }
+function dubDrop(id, on){ if (!R) return; R.drop[id].gain.setTargetAtTime(on ? 0 : 1, ctx.currentTime, .004); $$(`[data-learn="drp:${id}"]`).forEach(e => e.classList.toggle('on', on)); }
+function applyMixPreset(name){
+  const P = MIX_PRESETS[name]; if (!P) return;
+  for (const id of CH()){ const st = chState(id); st.snd = Object.assign({}, (P.snd || {})[id] || {}); }
+  const cy = chState('cym'); cy.ins = P.cym ? P.cym.ins : 'none'; if (P.cym && P.cym.p && FXU[cy.ins]) fxPreset(cy.insP, cy.ins, P.cym.p);
+  for (const u of RET_U){ const pn = (P.ret || {})[u]; if (pn) fxPreset(retState(u), u, pn); }
+  S.mixPreset = name; save();
+  if (R){ setInsert(R, 'cym'); for (const u of RET_U) pushFx('ret', u); applyMix(); }
 }
 async function ensureAudio(){
   if (audioReady) return audioReady;
   audioReady = (async () => {
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
-    await ctx.audioWorklet.addModule('dsp/worklets.js');
+    await ctx.audioWorklet.addModule('dsp/worklets.js'); await ctx.audioWorklet.addModule('dsp/rack.js');
     R = buildRig(ctx);
     R.cap = new AudioWorkletNode(ctx, 'cap', {numberOfInputs:1, numberOfOutputs:0}); R.lim.connect(R.cap);
     R.cap.port.onmessage = e => { if (rec.on || rec.flushing) rec.chunks.push(e.data); };
@@ -140,7 +186,7 @@ function drumHit(r, id, v, t, acc){
   const p = S.mach[id].p, b = drumBuf(id, v, acc), s = r.c.createBufferSource(), g = r.c.createGain();
   s.buffer = b; if (id === 'dmx') s.playbackRate.value = Math.pow(2, ((p[v + 'P'] == null ? .5 : p[v + 'P']) - .5) * 14 / 12);
   const lk = id === 'd808' ? k808(v) + 'L' : v + 'L', lv = p[lk] == null ? .8 : p[lk]; g.gain.value = lv * lv * (acc ? (id === 'dmx' ? 1 + p.acc * .6 : 1.15) : .8);
-  s.connect(g); g.connect(r.drumIn[id]); s.start(t);
+  s.connect(g); g.connect((S.cymOut[id] || []).includes(v) ? r.pre.cym : r.drumIn[id]); s.start(t);
   // open hat is choked by the closed hat
   const open = id === 'd808' ? 'oh' : 'ohh', closers = id === 'd808' ? ['ch'] : ['chh', 'hha'];
   const ck = r === R ? chokeOpen : (r.choke || (r.choke = {}));
@@ -285,7 +331,7 @@ function onMidi(e){
   if (hi === 0xB0 || (hi === 0x90 && d2)){ const src = (hi === 0xB0 ? 'cc:' : 'note:') + ch + ':' + d1;
     if (learn.on && learn.sel){ learnBind(src); return; }
     const key = S.learn[src]; if (key){ learnApply(key, d2 / 127, hi === 0x90 || d2 >= 64, hi === 0x90); return; } }
-  if (hi === 0x80 && S.learn['note:' + ch + ':' + d1]) return;
+  if (hi === 0x80 || (hi === 0x90 && !d2)){ const key = S.learn['note:' + ch + ':' + d1]; if (key){ learnApply(key, 0, false, true); return; } }
   let id = curTab();
   if (S.midiMode === 'channel' || !MACH[id]){ id = Object.keys(S.midiCh).find(k => S.midiCh[k] === ch); if (!id) return; }
   if (hi === 0x90 && d2) liveOn(id, d1, d2 / 127); else if (hi === 0x80 || (hi === 0x90 && !d2)) liveOff(id, d1);
@@ -300,7 +346,13 @@ function learnSpec(key){
   const [kind, id, k] = key.split(':');
   if (kind === 'p'){ const c = MACH[id] && MACH[id].panel.find(x => x.k === k); return c && {c, vals:S.mach[id].p, name:MACH[id].name + ' · ' + c.g + ' · ' + c.l, after:() => { S.mach[id].preset = ''; pushCfg(id); }}; }
   if (kind === 'v'){ const c = VOC_PANEL.find(x => x.k === k); return c && {c, vals:S.voc.p, name:'Vocoder · ' + c.g + ' · ' + c.l, after:() => { S.voc.preset = ''; pushCfg('voc'); }}; }
-  if (kind === 'mix'){ const o = id === 'voc' ? S.vocMix : S.mach[id], nm = (id === 'voc' ? 'Vocoder' : MACH[id].name) + ' · Mixer · ';
+  if (kind === 'f'){ const c = FXU[id].ctl.find(x => x.k === k); return c && {c, vals:retVals(id), name:FXU[id].short + ' · ' + c.l, after:() => { retVals(id)._preset = ''; pushFx('ret', id); }}; }
+  if (kind === 'i'){ const u = chState(id).ins, c = FXU[u] && FXU[u].ctl.find(x => x.k === k); return c && {c, vals:insVals(id, u), name:chName(id) + ' · ' + FXU[u].short + ' · ' + c.l, after:() => pushFx('ins', id)}; }
+  if (kind === 'snd') return {c:{t:'k', k}, vals:chState(id).snd, name:chName(id) + ' · Send · ' + FXU[k].short, after:() => applyMix()};
+  if (kind === 'rv') return {c:{t:'k', k:'vol'}, vals:retState(id), name:FXU[id].short + ' · Return level', after:() => applyMix()};
+  if (kind === 'thr') return {c:{t:'mom'}, name:chName(id) + ' · Echo throw', set:on => dubThrow(id, on)};
+  if (kind === 'drp') return {c:{t:'mom'}, name:chName(id) + ' · Drop', set:on => dubDrop(id, on)};
+  if (kind === 'mix'){ const o = chState(id), nm = chName(id) + ' · Mixer · ';
     return {c:{t:k === 'mute' || k === 'solo' ? 's' : 'k', k, l:k}, vals:o, name:nm + k, after:() => applyMix(), pan:k === 'pan'}; }
   if (kind === 'master') return {c:{t:'k', k:'master'}, vals:S, name:'Master level', after:() => applyMix()};
   if (kind === 'play') return {c:{t:'btn'}, name:'Play / Stop', press:() => play()};
@@ -311,6 +363,7 @@ function learnSpec(key){
 function learnApply(key, v, press, isNote){
   const L = learnSpec(key); if (!L) return; const c = L.c;
   if (c.t === 'btn'){ if (press) L.press(); return; }
+  if (c.t === 'mom'){ L.set(!!press); return; }
   if (c.t === 's'){ if (isNote){ if (press) L.vals[c.k] = L.vals[c.k] ? 0 : 1; } else L.vals[c.k] = v >= .5 ? 1 : 0; }
   else if (c.t === 'sel'){ const o = c.opts[Math.min(c.opts.length - 1, Math.floor(v * c.opts.length))]; L.vals[c.k] = o[0]; }
   else L.vals[c.k] = L.pan ? Math.round((v * 2 - 1) * 20) / 20 : Math.round(v * 100) / 100;
@@ -372,7 +425,7 @@ async function exportWav(){
     const ev = {}, hits = [], says = [];
     const out = {note:(id, n, v, t0, t1, sl) => { (ev[id] || (ev[id] = [])).push({f:Math.round(t0 * sr), on:n, v, sl}, {f:Math.round(t1 * sr), off:n}); }, hit:(id, v, t, a) => hits.push([id, v, t, a]), say:(text, t) => says.push([text, t])};
     let t = .05; for (const sec of sg.sections) for (let r = 0; r < sec.rep; r++) for (let st = 0; st < sec.bars * 16; st++){ stepEvents(sec, st, t + swingOff(st, sd), out); t += sd; }
-    const oc = new OfflineAudioContext(2, Math.ceil(dur * sr), sr); await oc.audioWorklet.addModule('dsp/worklets.js');
+    const oc = new OfflineAudioContext(2, Math.ceil(dur * sr), sr); await oc.audioWorklet.addModule('dsp/worklets.js'); await oc.audioWorklet.addModule('dsp/rack.js');
     const r = buildRig(oc, ev); r.voc.port.onmessage = null;
     for (const h of hits) drumHit(r, ...h);
     for (const [text, tt] of says) speak(r, text, tt);
@@ -440,7 +493,7 @@ function loadSong(i){
 }
 
 /* ================= UI ================= */
-const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'P-Bass'], ['voc', 'Vocoder'], ['mix', 'Mixer']];
+const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'P-Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['about', 'About']];
 const curTab = () => S.tab;
 function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button data-k="${k}" class="${S.tab === k ? 'on' : ''}" style="--c:${MACH[k] ? MACH[k].color : k === 'voc' ? '#7fd' : '#e8742b'}">${gearSVG(k)}<span>${l}</span></button>`).join(''); }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.k; save(); renderAll(); $('#main').scrollTop = 0; });
@@ -461,19 +514,22 @@ function onSectionBar(root){
 // rotary knob: drag up / down (or left / right), double-tap for the middle; arrow keys work too
 const knobArc = v => { const a0 = -225 * Math.PI / 180, a = a0 + v * 270 * Math.PI / 180, r = 15, p = t => (20 + r * Math.cos(t)).toFixed(2) + ' ' + (20 + r * Math.sin(t)).toFixed(2);
   return {track:`M${p(a0)} A${r} ${r} 0 1 1 ${p(a0 + 270 * Math.PI / 180)}`, val:v > .002 ? `M${p(a0)} A${r} ${r} 0 ${v * 270 > 180 ? 1 : 0} 1 ${p(a)}` : '', x:(20 + 10 * Math.cos(a)).toFixed(2), y:(20 + 10 * Math.sin(a)).toFixed(2)}; };
-const knobHTML = (k, l, v, L = '') => { const A = knobArc(v); return `<div class="knob dial" data-k="${k}" ${L} tabindex="0" role="slider" aria-label="${esc(l)}" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${(v * 10).toFixed(1)}"><svg viewBox="0 0 40 40"><path class="kt" d="${A.track}"/><circle class="body" cx="20" cy="20" r="11.5"/><path class="kv" d="${A.val}"/><line x1="20" y1="20" x2="${A.x}" y2="${A.y}"/></svg><b>${(v * 10).toFixed(1)}</b><span>${esc(l)}</span></div>`; };
-function knobSet(el, v){ const A = knobArc(v); el.querySelector('.kv').setAttribute('d', A.val); const ln = el.querySelector('line'); ln.setAttribute('x2', A.x); ln.setAttribute('y2', A.y); el.querySelector('b').textContent = (v * 10).toFixed(1); el.setAttribute('aria-valuenow', (v * 10).toFixed(1)); }
+const dialText = (el, v) => { const f = el.dataset.fmt; return f != null && f !== '' ? FMTS[+f](toX({min:+el.dataset.min, max:+el.dataset.max, curve:el.dataset.curve}, v)) : (v * 10).toFixed(1); };
+const ctlAttrs = c => c && c.fmt != null ? `data-fmt="${c.fmt}" data-min="${c.min}" data-max="${c.max}" data-curve="${c.curve}"` : '';
+const ctlText = (c, v) => c && c.fmt != null ? FMTS[c.fmt](toX(c, v)) : (v * 10).toFixed(1);
+const knobHTML = (k, l, v, L = '', c = null) => { const A = knobArc(v); return `<div class="knob dial" data-k="${k}" ${L} ${ctlAttrs(c)} tabindex="0" role="slider" aria-label="${esc(l)}" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${(v * 10).toFixed(1)}"><svg viewBox="0 0 40 40"><path class="kt" d="${A.track}"/><circle class="body" cx="20" cy="20" r="11.5"/><path class="kv" d="${A.val}"/><line x1="20" y1="20" x2="${A.x}" y2="${A.y}"/></svg><b>${ctlText(c, v)}</b><span>${esc(l)}</span></div>`; };
+function knobSet(el, v){ const A = knobArc(v); el.querySelector('.kv').setAttribute('d', A.val); const ln = el.querySelector('line'); ln.setAttribute('x2', A.x); ln.setAttribute('y2', A.y); el.querySelector('b').textContent = dialText(el, v); el.setAttribute('aria-valuenow', (v * 10).toFixed(1)); }
 const lookVars = L => L ? `--pbg:${L.bg};--pink:${L.ink};--kb:${L.knob || '#333'};--kp:${L.ptr || '#eee'};--kr:${L.ring || '#555'};--cap:${L.cap || '#eee'};--track:${L.track || '#000'}` : '';
-function panelHTML(id, panel, vals, look){
+function panelHTML(id, panel, vals, look, preOver){
   const groups = []; for (const c of panel){ let g = groups.find(x => x.g === c.g); if (!g) groups.push(g = {g:c.g, cs:[]}); g.cs.push(c); }
-  const sel = (S.grp || (S.grp = {}))[id], cur = groups.some(g => g.g === sel) ? sel : groups[0].g, pre = id === 'voc' ? 'v:' : 'p:' + id + ':', swk = (look && look.sw) || 'btn';
+  const sel = (S.grp || (S.grp = {}))[id], cur = groups.some(g => g.g === sel) ? sel : groups[0].g, pre = preOver || (id === 'voc' ? 'v:' : 'p:' + id + ':'), swk = (look && look.sw) || 'btn';
   return `<div class="panel" data-pid="${id}" style="${lookVars(look)}">${groups.length > 1 ? `<div class="chips">${groups.map(g => `<button data-g="${esc(g.g)}" class="${g.g === cur ? 'on' : ''}">${esc(g.g)}</button>`).join('')}</div>` : ''}
     ${groups.map(g => `<fieldset class="grp ${g.g === cur ? 'on' : ''}" data-g="${esc(g.g)}"><legend>${esc(g.g)}</legend><div class="knobs">${g.cs.map(c => {
     const v = vals[c.k], L = `data-learn="${pre}${c.k}"`;
     if (c.t === 's') return `<button class="sw sw-${swk} ${v ? 'on' : ''}" data-k="${c.k}" ${L}><i></i><span>${esc(c.l)}</span></button>`;
     if (c.t === 'sel') return `<div class="seg" data-k="${c.k}" ${L}><div>${c.opts.map(([ov, ol]) => `<button data-v="${ov}" class="${+v === ov ? 'on' : ''}">${esc(ol)}</button>`).join('')}</div><span>${esc(c.l)}</span></div>`;
     if (c.t === 'f'){ const cap = (look && look.caps && look.caps[c.g]) || ''; return `<div class="fader dial" data-k="${c.k}" ${L} tabindex="0" role="slider" aria-label="${esc(c.l)}"><div class="ftrack"><i style="bottom:calc(${((v == null ? .5 : v) * 100).toFixed(1)}% * .84 + 2px);${cap ? 'background:' + cap : ''}"></i></div><b>${((v == null ? .5 : v) * 10).toFixed(1)}</b><span>${esc(c.l)}</span></div>`; }
-    return knobHTML(c.k, c.l, v == null ? .5 : v, L);
+    return knobHTML(c.k, c.l, v == null ? .5 : v, L, c);
   }).join('')}</div></fieldset>`).join('')}</div>`;
 }
 function dialSet(el, v){ if (el.classList.contains('knob')) return knobSet(el, v); el.querySelector('.ftrack i').style.bottom = `calc(${(v * 100).toFixed(1)}% * .84 + 2px)`; el.querySelector('b').textContent = (v * 10).toFixed(1); }
@@ -514,6 +570,8 @@ function renderMain(){
   const m = $('#main'), k = S.tab;
   if (k === 'song') return renderSong(m);
   if (k === 'mix') return renderMixer(m);
+  if (k === 'fx') return renderFx(m);
+  if (k === 'about') return renderAbout(m);
   if (k === 'voc') return renderVoc(m);
   renderMachine(m, k);
 }
@@ -695,15 +753,57 @@ async function toggleMic(){
   renderMain();
 }
 function renderMixer(m){
-  const ch = Object.keys(MACH).map(id => ({id, name:MACH[id].name, c:MACH[id].color, s:S.mach[id]})).concat([{id:'voc', name:'Vocoder', c:'#7fd', s:S.vocMix || (S.vocMix = {vol:.85, pan:0, mute:false, solo:false})}]);
+  const ch = CH().map(id => ({id, name:chName(id), c:MACH[id] ? MACH[id].color : id === 'voc' ? '#7fd' : '#e6b23a', s:chState(id)}));
   m.innerHTML = `<section class="card"><h2>Mixer</h2><div class="mixer">${ch.map(x => `<div class="strip" style="--c:${x.c}" data-id="${x.id}"><b>${x.name}</b>
-    <input type="range" class="fader" min="0" max="1" step="0.01" value="${x.s.vol}" data-f="vol" data-learn="mix:${x.id}:vol"><label>Pan<input type="range" min="-1" max="1" step="0.05" value="${x.s.pan}" data-f="pan" data-learn="mix:${x.id}:pan"></label>
+    <input type="range" class="fader" min="0" max="1" step="0.01" value="${x.s.vol}" data-f="vol" data-learn="mix:${x.id}:vol"><label>Pan<input type="range" min="-1" max="1" step="0.05" value="${x.s.pan || 0}" data-f="pan" data-learn="mix:${x.id}:pan"></label>
     <div class="ms"><button data-f="mute" class="${x.s.mute ? 'on' : ''}" data-learn="mix:${x.id}:mute">M</button><button data-f="solo" class="${x.s.solo ? 'on' : ''}" data-learn="mix:${x.id}:solo">S</button></div>${S.voc.carrier === x.id && !S.voc.direct ? '<small>into vocoder</small>' : ''}</div>`).join('')}</div>
+    <div class="mixer rets"><b class="retlbl">Returns</b>${RET_U.map(u => `<div class="strip" style="--c:#9ad" data-ret="${u}"><b>${FXU[u].short}</b><input type="range" class="fader" min="0" max="1" step="0.01" value="${retState(u).vol}" data-f="vol" data-learn="rv:${u}:vol">
+      <div class="ms"><button data-f="mute" class="${retState(u).mute ? 'on' : ''}">M</button></div></div>`).join('')}</div>
     <label class="ctl master"><span>Master</span><input id="masterVol" type="range" min="0" max="1" step="0.01" value="${S.master}" data-learn="master"></label></section>`;
   markLearned();
-  m.querySelector('.mixer').oninput = e => { const st = e.target.closest('.strip'), f = e.target.dataset.f; if (!st || !f) return; const o = st.dataset.id === 'voc' ? S.vocMix : S.mach[st.dataset.id]; o[f] = +e.target.value; applyMix(); save(); };
-  m.querySelector('.mixer').onclick = e => { const st = e.target.closest('.strip'), f = e.target.dataset.f; if (!st || (f !== 'mute' && f !== 'solo')) return; const o = st.dataset.id === 'voc' ? S.vocMix : S.mach[st.dataset.id]; o[f] = !o[f]; e.target.classList.toggle('on', o[f]); applyMix(); save(); };
+  const obj = e => { const st = e.target.closest('.strip'); if (!st) return null; return st.dataset.ret ? retState(st.dataset.ret) : chState(st.dataset.id); };
+  m.querySelectorAll('.mixer').forEach(mx => {
+    mx.oninput = e => { const o = obj(e), f = e.target.dataset.f; if (!o || !f) return; o[f] = +e.target.value; applyMix(); save(); };
+    mx.onclick = e => { const o = obj(e), f = e.target.dataset.f; if (!o || (f !== 'mute' && f !== 'solo')) return; o[f] = !o[f]; e.target.classList.toggle('on', o[f]); applyMix(); save(); };
+  });
   $('#masterVol').oninput = e => { S.master = +e.target.value; applyMix(); save(); };
+}
+/* ---- Mix FX: dub pads, channel insert + sends, the effect rack ---- */
+const FV = [['dub', 'Dub'], ['ch', 'Channel'], ['rack', 'Rack']];
+function renderFx(m){
+  S.fxCh = CH().includes(S.fxCh) ? S.fxCh : 'cym'; S.fxRet = RET_U.includes(S.fxRet) ? S.fxRet : 'pt';
+  const id = S.fxCh, st = chState(id), u = st.ins, ru = S.fxRet;
+  const presetSel = (sid, names, cur) => `<select id="${sid}"><option value="">Preset…</option>${names.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+  m.innerHTML = `<section class="card mach" style="--c:#e6b23a"><div class="mhead">${gearSVG('fx', 'hero')}<div class="mtitle"><h2>Mix FX</h2><span class="maker">1984 studio rack · sends, inserts, dub</span></div>${viewTabs('fx', FV)}</div>
+    <div class="row"><label>Whole mix ${presetSel('mixPre', Object.keys(MIX_PRESETS), S.mixPreset)}</label></div>
+    <div class="${vw('fx', 'dub', FV)}" data-v="dub"><p class="hint">Hold <b>Throw</b> to fire a channel into the PrimeTime echo; hold <b>Drop</b> to cut it. Both can be MIDI-learned (notes work best).</p>
+      <div class="dubgrid">${CH().map(c => `<div class="dubcell" style="--c:${MACH[c] ? MACH[c].color : c === 'voc' ? '#7fd' : '#e6b23a'}"><b>${chName(c)}</b><button class="dub thr" data-dub="thr" data-ch="${c}" data-learn="thr:${c}">Throw</button><button class="dub drp" data-dub="drp" data-ch="${c}" data-learn="drp:${c}">Drop</button></div>`).join('')}</div></div>
+    <div class="${vw('fx', 'ch', FV)}" data-v="ch"><div class="chips chlist">${CH().map(c => `<button data-fxch="${c}" class="${c === id ? 'on' : ''}">${chName(c)}</button>`).join('')}</div>
+      <h3>Insert</h3><div class="seg inssel"><div>${['none'].concat(INS_U).map(x => `<button data-ins="${x}" class="${x === u ? 'on' : ''}">${x === 'none' ? 'None' : FXU[x].short}</button>`).join('')}</div></div>
+      ${FXU[u] ? `<div class="row"><span class="maker">${FXU[u].name} · ${FXU[u].maker}</span>${presetSel('insPre', Object.keys(FXU[u].presets), insVals(id, u)._preset)}</div><div id="insPanel">${panelHTML('ins_' + id, FXU[u].ctl, insVals(id, u), FX_LOOK[u], 'i:' + id + ':')}</div>` : ''}
+      <h3>Sends</h3><div id="sndPanel">${panelHTML('snd_' + id, RET_U.map(r => K(r, FXU[r].short, 'Sends')), st.snd, null, 'snd:' + id + ':')}</div>
+      ${id === 'cym' ? `<details class="fold"><summary><h3>Voices on the cymbal bus</h3></summary><div class="row">${['d808', 'dmx'].map(d => MACH[d].voices.map(([v, nm]) => `<button class="sw ${(S.cymOut[d] || []).includes(v) ? 'on' : ''}" data-cymv="${d}:${v}">${MACH[d].name} ${nm}</button>`).join('')).join('')}</div></details>` : ''}</div>
+    <div class="${vw('fx', 'rack', FV)}" data-v="rack"><div class="chips">${RET_U.map(r => `<button data-fxret="${r}" class="${r === ru ? 'on' : ''}">${FXU[r].short}</button>`).join('')}</div>
+      <div class="row"><span class="maker">${FXU[ru].name} · ${FXU[ru].maker}</span>${presetSel('retPre', Object.keys(FXU[ru].presets), retVals(ru)._preset)}</div>
+      <div id="retPanel">${panelHTML('ret_' + ru, FXU[ru].ctl, retVals(ru), FX_LOOK[ru], 'f:' + ru + ':')}</div>
+      <div id="retLvl">${panelHTML('rl_' + ru, [K('vol', 'Return level', 'Return')], retState(ru), null, 'rv:' + ru + ':')}</div></div></section>`;
+  bindViews(m, 'fx');
+  $('#mixPre').onchange = e => { if (e.target.value){ applyMixPreset(e.target.value); renderMain(); } };
+  m.querySelectorAll('[data-dub]').forEach(b => {
+    const f = b.dataset.dub === 'thr' ? dubThrow : dubDrop, on = v => ensureAudio().then(() => f(b.dataset.ch, v));
+    b.onpointerdown = e => { e.preventDefault(); b.setPointerCapture(e.pointerId); on(true); }; b.onpointerup = b.onpointercancel = () => on(false);
+  });
+  m.querySelectorAll('[data-fxch]').forEach(b => b.onclick = () => { S.fxCh = b.dataset.fxch; save(); renderMain(); });
+  m.querySelectorAll('[data-fxret]').forEach(b => b.onclick = () => { S.fxRet = b.dataset.fxret; save(); renderMain(); });
+  m.querySelectorAll('[data-ins]').forEach(b => b.onclick = () => { st.ins = b.dataset.ins; if (R) setInsert(R, id); save(); renderMain(); });
+  if ($('#insPre')) $('#insPre').onchange = e => { if (!e.target.value) return; fxPreset(st.insP, u, e.target.value); pushFx('ins', id); save(); renderMain(); };
+  $('#retPre').onchange = e => { if (!e.target.value) return; fxPreset(retState(ru), ru, e.target.value); pushFx('ret', ru); save(); renderMain(); };
+  if ($('#insPanel')) bindPanel($('#insPanel'), insVals(id, u), () => { insVals(id, u)._preset = ''; pushFx('ins', id); save(); });
+  bindPanel($('#sndPanel'), st.snd, () => { applyMix(); save(); });
+  bindPanel($('#retPanel'), retVals(ru), () => { retVals(ru)._preset = ''; pushFx('ret', ru); save(); });
+  bindPanel($('#retLvl'), retState(ru), () => { applyMix(); save(); });
+  m.querySelectorAll('[data-cymv]').forEach(b => b.onclick = () => { const [d, v] = b.dataset.cymv.split(':'), a = S.cymOut[d] || (S.cymOut[d] = []), i = a.indexOf(v); if (i < 0) a.push(v); else a.splice(i, 1); b.classList.toggle('on', i < 0); save(); });
+  markLearned();
 }
 function drawPlayhead(){
   requestAnimationFrame(drawPlayhead);
@@ -712,6 +812,36 @@ function drawPlayhead(){
   const sec = song().sections[p.sec]; $('#posLbl').textContent = sec.name + ' · ' + (Math.floor(p.step / 16) + 1) + '.' + (Math.floor(p.step % 16 / 4) + 1);
   if (p.sec === S.sec && Math.floor(p.step / 16) === S.bar) $$(`#editor .st[data-s="${p.step}"]`).forEach(e => e.classList.add('ph'));
 }
+
+/* ---- About: credits, and pictures that stay on this device (never uploaded, never part of the app) ---- */
+const ART = (() => {
+  let dbp = null; const db = () => dbp || (dbp = new Promise((ok, no) => { const q = indexedDB.open('jamon-art', 1); q.onupgradeneeded = () => q.result.createObjectStore('img'); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }));
+  const tx = async (mode, f) => { const d = await db(); return new Promise((ok, no) => { const t = d.transaction('img', mode), r = f(t.objectStore('img')); t.oncomplete = () => ok(r && r.result); t.onerror = () => no(t.error); }); };
+  const urls = {};
+  return {
+    async get(k){ if (urls[k]) return urls[k]; try { const b = await tx('readonly', s => s.get(k)); if (b) return urls[k] = URL.createObjectURL(b); } catch(e){} return null; },
+    async put(k, blob){ await tx('readwrite', s => s.put(blob, k)); if (urls[k]) URL.revokeObjectURL(urls[k]); urls[k] = URL.createObjectURL(blob); },
+    async del(k){ await tx('readwrite', s => s.delete(k)); if (urls[k]){ URL.revokeObjectURL(urls[k]); delete urls[k]; } }
+  };
+})();
+async function applyBackdrop(){ const u = S.artBack ? await ART.get('cover') : null; document.body.style.setProperty('--backdrop', u ? `url("${u}")` : 'none'); document.body.classList.toggle('has-art', !!u); }
+function renderAbout(m){
+  const slot = (k, title, cap) => `<figure class="artslot" data-art="${k}"><div class="artimg"><span class="hint">No picture yet</span></div><figcaption>${cap}</figcaption>
+    <div class="row"><button data-pick="${k}">Choose picture</button><button data-clear="${k}">Remove</button></div></figure>`;
+  m.innerHTML = `<section class="card about"><h2 class="comic">Newcleus · Jam On Revenge</h2>
+    <p>Newcleus, from Brooklyn: <b>Cozmo D</b>, <b>Chilly B</b> and <b>Lady E</b>. <i>Jam On Revenge</i> came out on Sunnyview Records in 1984; the mixing sessions were handled by <b>Jonathan Fearing</b>.</p>
+    <p class="hint">This rig recreates the gear and the 1984 studio around it. The songs here are new arrangements in the album's style, not the records.</p></section>
+    <section class="card"><h3>Your pictures</h3><p class="hint">Pick the album cover and the band photo from your phone. They are kept only on this device: they are not uploaded and are not part of the app.</p>
+    <div class="artgrid">${slot('cover', 'Album cover', 'Album cover')}${slot('band', 'Band', 'Chilly B (left), Lady E (middle), Cozmo D (right)')}</div>
+    <label class="row"><input type="checkbox" id="artBack" ${S.artBack ? 'checked' : ''}> Use the cover as the app's backdrop</label></section>`;
+  for (const k of ['cover', 'band']) ART.get(k).then(u => { const el = m.querySelector(`[data-art="${k}"] .artimg`); if (u && el) el.innerHTML = `<img src="${u}" alt="${k === 'cover' ? 'Album cover' : 'Chilly B, Lady E and Cozmo D'}">`; });
+  m.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { const f = $('#artFile'); f.dataset.k = b.dataset.pick; f.click(); });
+  m.querySelectorAll('[data-clear]').forEach(b => b.onclick = async () => { await ART.del(b.dataset.clear); applyBackdrop(); renderMain(); });
+  $('#artBack').onchange = e => { S.artBack = e.target.checked; save(); applyBackdrop(); };
+}
+$('#artFile').onchange = async e => { const f = e.target.files[0], k = e.target.dataset.k; e.target.value = ''; if (!f || !k) return;
+  try { await ART.put(k, f); if (k === 'cover' && S.artBack == null){ S.artBack = true; save(); } applyBackdrop(); renderMain(); toast('Saved on this device only.'); } catch(err){ toast('Could not keep that picture: ' + err.message); } };
+applyBackdrop();
 
 /* ================= transport bindings ================= */
 $('#playBtn').onclick = play;
@@ -728,5 +858,6 @@ $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''
 $('#impOk').onclick = importApply; $('#impCancel').onclick = () => $('#impDlg').close();
 $('#projFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const o = JSON.parse(await f.text()); if (o.v !== 1 || !o.songs) throw 0; S = o; const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; save(); loadSong(S.cur || 0); toast('Project opened.'); } catch(_){ toast('That is not a Jam-On Rig project.'); } };
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); play(); } });
+if (!S.mixPreset) applyMixPreset(Object.keys(MIX_PRESETS)[0]);
 if (!localStorage.getItem(STORE)) loadSong(0); else renderAll();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
