@@ -545,7 +545,7 @@ function loadSong(i){
 }
 
 /* ================= UI ================= */
-const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'Chilly Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['about', 'About']];
+const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'Chilly Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['help', 'Help'], ['about', 'About']];
 const curTab = () => S.tab;
 function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button data-k="${k}" class="${S.tab === k ? 'on' : ''}" style="--c:${MACH[k] ? MACH[k].color : k === 'voc' ? '#7fd' : '#e8742b'}">${gearSVG(k)}<span>${l}</span></button>`).join(''); }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.k; save(); renderAll(); $('#main').scrollTop = 0; });
@@ -624,12 +624,14 @@ function renderMain(){
   if (k === 'mix') return renderMixer(m);
   if (k === 'fx') return renderFx(m);
   if (k === 'about') return renderAbout(m);
+  if (k === 'help') return renderHelp(m);
   if (k === 'voc') return renderVoc(m);
   renderMachine(m, k);
 }
 function renderSong(m){
   const sg = song();
   m.innerHTML = `<section class="card"><h2>${esc(sg.name)}</h2><p class="hint">${esc(sg.note || '')}${sg.key ? ' · ' + esc(sg.key) : ''}</p>
+    <div class="row"><label>Rig preset<select id="rigSel"><option value="">Pick a whole sound…</option>${Object.keys(RIG_PRESETS).map(n => `<option ${S.rigPreset === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></div>
     <div class="row"><button id="songNew">New song</button><button id="songDup">Copy</button><button id="songRen">Rename</button><button id="songDel">Delete</button><button id="songReset">Reset the 7 styles</button></div></section>
     <section class="card"><h3>Sections <small>play in order; tap one to edit it</small></h3><div id="secList">${sg.sections.map((s, i) => `<div class="secrow ${i === S.sec ? 'on' : ''}" data-i="${i}">
       <input value="${esc(s.name)}" data-f="name"><label><select data-f="bars" aria-label="Bars">${[1, 2, 4, 8, 16].concat(s.bars > 16 ? [s.bars] : []).map(b => `<option ${b === s.bars ? 'selected' : ''}>${b}</option>`).join('')}</select>bars</label>
@@ -648,6 +650,7 @@ function renderSong(m){
       <div id="learnList">${Object.entries(S.learn).map(([src, key]) => { const [t, ch, n] = src.split(':'), L = learnSpec(key); return `<div class="sayrow"><span class="grow">${t === 'cc' ? 'CC ' + n : 'Note ' + nn(+n)} · ch ${+ch + 1} → ${esc(L ? L.name : key)}</span><button data-src="${src}">✕</button></div>`; }).join('') || '<p class="hint">Nothing learned yet.</p>'}</div>
       <h3>Channels</h3><div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></details>`;
   m.querySelectorAll('[data-fold]').forEach(d => d.ontoggle = () => { S[d.dataset.fold] = d.open; save(); });
+  $('#rigSel').onchange = e => { if (e.target.value) applyRig(e.target.value); };
   $('#songNew').onclick = () => { S.songs.push({name:'New song', bpm:112, swing:0, key:'', note:'', presets:{}, carrier:S.voc.carrier, arp:{}, sections:[emptySection('A', 4)]}); loadSong(S.songs.length - 1); };
   $('#songDup').onclick = () => { const c = JSON.parse(JSON.stringify(sg)); c.name += ' (copy)'; S.songs.push(c); loadSong(S.songs.length - 1); };
   $('#songRen').onclick = () => { const n = prompt('Song name:', sg.name); if (n){ sg.name = n; save(); renderAll(); } };
@@ -879,6 +882,19 @@ function drawPlayhead(){
   if (p.sec === S.sec && Math.floor(p.step / 16) === S.bar) $$(`#editor .st[data-s="${p.step}"]`).forEach(e => e.classList.add('ph'));
 }
 
+/* ---- Help ---- */
+let helpOpen = 'start';
+function renderHelp(m){
+  m.innerHTML = `<section class="card"><h2 class="comic">Help</h2>${HELP.map(([k, t, body]) => `<details class="fold help" data-h="${k}" ${k === helpOpen ? 'open' : ''}><summary><h3>${t}</h3></summary><div class="helpbody">${body}</div></details>`).join('')}</section>`;
+  const open = m.querySelector(`[data-h="${helpOpen}"]`); if (open) setTimeout(() => open.scrollIntoView({block:'start'}), 30);
+}
+function helpFor(tab){ helpOpen = HELP_FOR[tab] || (tab === 'help' ? helpOpen : 'start'); S.tab = 'help'; renderAll(); }
+// rig presets: every machine, the vocoder and the mix
+function applyRig(name){
+  const P = RIG_PRESETS[name]; if (!P) return;
+  for (const [id, pn] of Object.entries(P)){ if (id === 'mix') applyMixPreset(pn); else applyPreset(id, pn); }
+  S.rigPreset = name; save(); toast('Rig: ' + name);
+}
 /* ---- About: credits, and pictures that stay on this device (never uploaded, never part of the app) ---- */
 const ART = (() => {
   let dbp = null; const db = () => dbp || (dbp = new Promise((ok, no) => { const q = indexedDB.open('jamon-art', 1); q.onupgradeneeded = () => q.result.createObjectStore('img'); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }));
@@ -919,6 +935,7 @@ $('#loopBtn').onclick = () => { S.loopSec = !S.loopSec; if (playing && S.loopSec
 $('#recBtn').onclick = toggleRec;
 $('#moreBtn').onclick = () => $('#more').classList.toggle('on');
 $('#learnBtn').onclick = learnToggle;
+$('#helpBtn').onclick = () => helpFor(S.tab);
 $('#recNotesBtn').onclick = () => { recNotes = !recNotes; renderTransport(); toast(recNotes ? 'Notes you play now are written into the playing section.' : 'Note recording off.'); };
 $('#panicBtn').onclick = () => { stop(); midiPanic(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
 $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); };
