@@ -1841,7 +1841,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Sidechain</b> (FX → Duck): pick any track or the drums as the key; the track ducks whenever the key plays.</li>
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
         <li><b>New project</b> (Setup, tap twice): saves the current one to Projects, then starts from factory defaults: tempo, patterns, pads, every synth, effect, rack unit, master, mixer and turntable setting. Only your setup stays: MIDI mappings and settings, the DJ library and crates, SoundFonts.</li>
-        <li><b>Templates</b> (Setup, the menu next to New project): start a whole song already laid out. Each one sets the tempo, key, drum kit, three instruments with presets, sends, rack and sidechain, a set of patterns (Intro, Verse, Hook, Break and so on) and the song order, with Song mode on. Press play and it runs start to finish, and exports as a full song. <b>Vocoder robot</b> has a Speech track (muted) already feeding the vocoder on the Robot Voice synth, so the chords talk; change the words on the vocoder's speech box and press Send. <b>80s synth-pop</b> has gated room drums (Phil Collins Simulator). <b>House</b> pumps: the kick ducks the bass, pad, stab and reverb. Then change anything.</li>
+        <li><b>Templates</b> (Setup, the menu next to New project): start a whole song already laid out. Each one sets the tempo, key, drum kit, three instruments with presets, sends, rack and sidechain, a set of patterns (Intro, Verse, Hook, Break and so on) and the song order, with Song mode on. Press play and it runs start to finish, and exports as a full song. <b>Vocoder robot</b> has a Speech track (muted) already feeding the vocoder on the Robot Voice synth, so the chords talk; change the words on the vocoder's speech box and press Send. <b>80s synth-pop</b> has gated room drums (Phil Collins Simulator). <b>House</b> pumps: the kick ducks the bass, pad, stab and reverb. <b>Computer Age</b> is DMX electro: a mono bass, zaps, a vocoder speech track and sped-up chipmunk voices on their own track. Then change anything.</li>
         <li><b>Classic-record templates</b> (Setup → the menu next to New project), each laid out as a full song in the style of the record with the gear it used: <b>Newcleus</b> (TR-808, Pro-One-style bass, TB-303 arp, RS-09-style strings, vocoder plus chipmunk raps), <b>Jonzun Crew</b> (808, Prophet vocoder, Minimoog, a vocoder a cappella), <b>Planet Rock</b> (808 kick, claps and cowbell, Micromoog bass, Prophet strings, orchestra hits; the robot voice is a short comb delay, as on the record), <b>Electro-funk 1984</b> (808, SH-101, SVC-350-style vocoder), <b>Whodini</b> (LinnDrum, bells, two MCs), <b>Run-DMC King of Rock</b> (DMX, the Eddie Martinez guitar sim with riff, harmony and solo, two MCs), <b>Fat Boys</b> (DMX, human beatbox), <b>Freak-a-Zoid</b> (vocoder lead, Moog Source-style bass, OB-Xa) and <b>Heart of Glass</b> (CR-78, SH-5-style sequence, EBow guitar, double-tracked vocal). Every verse and chorus is sung by the speech generator; the words are new, written for the templates.</li>
         <li><b>Drum machine</b> (Pads screen → Drum machine): put a whole modeled machine on the pads: TR-808, CR-78, TR-909, TR-505, LinnDrum, DMX, DR-110 or Simmons. The 808 and CR-78 are analog models (bridged-T drums, the 808's six-square-wave cymbal and hats, the CR-78's noise hats and metal beat).</li>
         <li><b>Rock Guitar</b> (Synth → instrument): a plucked-string guitar into a cranked stack and 4x12 cabinet, double-tracked. Each key can play a power chord, a single note, or a <b>harmony in the song's key</b>: the Brian May presets play two or three separate takes a third and a fifth apart, slightly loose and detuned like real overdubs, with treble-boosted amp tone; Brighton Rock Echo is the long repeating delay.</li>
@@ -13633,7 +13633,8 @@ const TEMPLATES = {
   fatboys:{name:'Fat Boys style (1984)', bpm:104, kit:'dmx', root:7, scale:'Minor', pro:'fatboys'},
   freakazoid:{name:'Freak-a-Zoid style (1983)', bpm:120, kit:'lm2', root:2, scale:'Minor', pro:'freakazoid'},
   heartofglass:{name:'Heart of Glass style (1978)', bpm:114, kit:'cr78', root:4, scale:'Major', pro:'heartofglass'},
-  disco:{name:'Disco strings', bpm:116, kit:'lm2', root:7, scale:'Minor'}
+  disco:{name:'Disco strings', bpm:116, kit:'lm2', root:7, scale:'Minor'},
+  computerage:{name:'Computer Age (Newcleus-style electro)', bpm:112, kit:'dmx', root:4, scale:'Minor'}
 };
 // steps: 'x' hit (accent), 'o' soft hit, '.' rest; the string repeats to fill the bars
 function tplDrums(bars, rows){ const out = []; for (const p in rows){ const r = rows[p]; for (let i = 0; i < bars * 16; i++){ const ch = r[i % r.length]; if (ch === 'x' || ch === 'o') out.push({p:+p, t:i * TPS, v:ch === 'x' ? 1 : .62}); } } return out.sort((a, b) => a.t - b.t); }
@@ -13923,6 +13924,31 @@ async function tplBuild(name, S0){
     const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {2:'....x.......x...'})), {s1:riff, s2:bl, s3:tplChords(4, prog, .6)});
     F.song = [{s:intro, n:1}, {s:groove, n:2}, {s:hook, n:2}, {s:groove, n:1}, {s:hook, n:2}];
     route('pad:0', 't:s1', .3, .2);
+  } else if (name === 'computerage'){
+    // 1984 Brooklyn electro: Oberheim DMX, a Pro One-style mono bass, zaps, a vocoder that talks and sped-up "chipmunk" voices
+    const voc = tplSynth(1, 'Vocoder', 'juno60', ''), bass = tplSynth(2, 'Bass', 'sh101', 'Bass · 101 Bass'), zap = tplSynth(3, 'Zaps', 'sh101', 'Pluck · Zap');
+    voc.inst = 'prophet'; voc.p5 = P5_DEFAULT('Vocoder carrier'); delete voc.ana_juno60;
+    voc.vol = .9; voc.sendB = .15; bass.vol = .85; zap.vol = .5; zap.sendB = .35; F.synths = [voc, bass, zap];
+    const sp = Object.assign({id:'a1', name:'Speech', armed:false, recBars:4, clip:null, clipSteps:64, warp:'complex', mute:true}, mixDefaults());
+    const ch = Object.assign({id:'a2', name:'Chipmunks', armed:false, recBars:4, clip:null, clipSteps:64, warp:'complex'}, mixDefaults(), {vol:.45, sendB:.2});
+    F.audio = [sp, ch]; F.ttsTrack = 'a1';
+    const P = VOC_PRESETS['Newcleus (Jam On It)'];
+    voc.voc = Object.assign(VOC_DEFAULT(), {on:true, src:'a1', car:'self', growl:P.growl, harm:P.harm, cons:P.cons, sib:P.sib, ens:P.ens, bands:P.bands.slice()});
+    F.tts = {text:'push the button\ncomputer age\nthis is the\ncomputer age', voice:'robot', semi:0, speed:1, timing:'bar'};
+    const s1 = await tplSpeech(F, 'a1', ['push the button', 'computer age', 'this is the', 'computer age'], 4);
+    const s2 = await tplSpeech(F, 'a1', ['push the button', '', 'push the button', ''], 4);
+    const chip = {voice:'high', semi:7, speed:1.35}, c1 = await tplSpeech(F, 'a2', ['wikki wikki wikki', '', 'push it push it', ''], 4, chip);
+    const beat = {0:'x.....x...x.....', 2:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 6:'..o...o...o...o.'};
+    const prog = [[[m(-12), m(-5), m(0)], 2], [[m(-16), m(-9), m(-4)], 1], [[m(-14), m(-7), m(-2)], 1]];
+    const bl = tplLine(4, [[m(-24), 2], [null, 1], [m(-24), 1], [m(-12), 2], [m(-24), 2], [null, 2], [m(-21), 2], [m(-19), 2], [m(-17), 2],
+      [m(-24), 2], [null, 1], [m(-24), 1], [m(-12), 2], [m(-24), 2], [m(-26), 4], [m(-22), 4]]);
+    const zp = tplLine(4, [[null, 4], [m(12), 1], [null, 3], [null, 4], [m(19), 1], [null, 3], [null, 12], [m(24), 1], [null, 3]], .7);
+    const intro = scene('Intro', 4, tplDrums(4, {4:'x.x.x.x.x.x.x.x.', 2:'............x...'}), {s1:tplChords(4, prog, .75), s2:[], s3:zp}, {a1:s2});
+    const verse = scene('Verse', 4, tplDrums(4, beat), {s1:tplChords(4, prog), s2:bl, s3:[]}, {a1:s1});
+    const hook = scene('Hook', 4, tplDrums(4, Object.assign({}, beat, {5:'..............x.', 7:'x...............'})), {s1:tplChords(4, prog), s2:bl, s3:zp}, {a1:s2, a2:c1});
+    const brk = scene('Break', 2, tplDrums(2, {0:'x.....x...x.....', 8:'x.x.............', 9:'....x.x.........', 10:'........x.x.....', 11:'............x.x.'}), {s1:[], s2:[], s3:zp}, {a2:c1});
+    F.song = [{s:intro, n:1}, {s:verse, n:2}, {s:hook, n:2}, {s:brk, n:1}, {s:verse, n:1}, {s:hook, n:2}];
+    route('pad:0', 't:s2', .35, .1);
   }
   // the first pattern is what you see; its notes are the working copy
   const sc = F.scenes[F.song[0].s]; F.cur = F.song[0].s; F.bars = sc.bars; F.drum.notes = sc.notes; F.synths.forEach(t => t.notes = sc.synth[t.id] || []);
