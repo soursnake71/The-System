@@ -94,6 +94,22 @@ body.mlearn .marmed{outline:3px solid #fff !important}
 .maplist{display:flex;flex-direction:column;gap:4px}
 .maplist .row{font-size:13px}
 .maplist .mono{opacity:.75;min-width:76px}
+.rig{--rw:#5a3418;--rp:#1c1c1e;--rt:#e8e4da;--ra:#e8662a;border-radius:10px;background:var(--rp);border:1px solid #000;box-shadow:0 6px 18px #0008,inset 0 1px 0 #fff2;padding:0;overflow:visible;display:flex;flex-direction:column}
+.rig.wood{border-left:16px solid var(--rw);border-right:16px solid var(--rw);border-image:linear-gradient(90deg,#3a1f0c,var(--rw) 30%,#7a4a26 50%,var(--rw) 70%,#3a1f0c) 1}
+.rig-head{display:flex;align-items:baseline;gap:10px;padding:8px 12px 4px;border-bottom:2px solid var(--ra);flex-wrap:wrap}
+.rig-head b{font:700 15px "Michroma",sans-serif;letter-spacing:.22em;color:var(--rt)}.rig-head i{font:400 10px "Michroma",sans-serif;letter-spacing:.2em;color:var(--rt);opacity:.7;font-style:normal}
+.rig-panel{padding:8px}.rig-panel>div{margin:0}
+.rig-kb{position:sticky;bottom:0;z-index:6;padding:6px 6px 8px;background:linear-gradient(180deg,var(--rp),#000);border-radius:0 0 8px 8px;box-shadow:0 -4px 10px #0007}
+.rig .piano{height:150px}
+.rig.ivory .piano .w{background:linear-gradient(180deg,#f3ead2,#e6dbbd)}.rig.silver .piano .w{background:linear-gradient(180deg,#e8e8ea,#bfc0c4)}.rig.silver .piano .b{background:#9a9ca2}
+.rig.mini .piano{height:105px}.rig.pedal .piano .w{background:linear-gradient(180deg,#a9774a,#7a5030);color:#f3e6d0}.rig.pedal .piano .b{background:#2a1a10}
+.rig.wood .piano .w{border-color:#222}
+.rig[data-k=prophet]{--rp:#141414;--ra:#c9c9c9}.rig[data-k=obxa]{--rp:#0f1115;--ra:#3b7bd6}.rig[data-k=juno60]{--rp:#2a2b2e;--ra:#e8662a}.rig[data-k=sh101]{--rp:#55575c;--ra:#1c63c9}
+.rig[data-k=jx3p]{--rp:#2f3236;--ra:#d4421e}.rig[data-k=minimoog]{--rp:#0c0c0c;--ra:#3a7bd5}.rig[data-k=sixtrak]{--rp:#1a1a1a;--ra:#c9a24a}.rig[data-k=cs80]{--rp:#2e1d17;--ra:#c8a23a}
+.rig[data-k=cz]{--rp:#34363b;--ra:#2a7ad8}.rig[data-k=sk1]{--rp:#5c6066;--ra:#ffcc33}.rig[data-k=emax]{--rp:#4d5258;--ra:#2fb3e0}.rig[data-k=d50]{--rp:#22252a;--ra:#2ec4b6}
+.rig[data-k=ppg]{--rp:#1d3f8a;--ra:#f2f2f2}.rig[data-k=sid]{--rp:#d8ccb4;--rt:#3a3328;--ra:#7a5a3a}.rig[data-k=dx1]{--rp:#2a2018;--ra:#3ec46b}.rig[data-k=omni2]{--rp:#131313;--ra:#e8e8e8}
+.rig[data-k=solina]{--rp:#1b1b1b;--ra:#ff8a1e}.rig[data-k=tb303]{--rp:#b9bbc0;--rt:#222;--ra:#222}.rig[data-k=taurus]{--rp:#111;--ra:#c9a24a}.rig[data-k=piano]{--rp:#0a0a0a;--ra:#c8a96a}
+.rig[data-k=choir]{--rp:#140808;--ra:#c94a3a}.rig[data-k=disco]{--rp:#2a1530;--ra:#c9a23a}.rig[data-k=guitar]{--rp:#2a1a0e;--ra:#e0b050}.rig[data-k=gm],.rig[data-k=sf2],.rig[data-k=padsmp]{--rp:#1e2126;--ra:#5bb0e8}
 .piano{position:relative;height:180px;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px;overflow:hidden;background:#111}
 .piano .pk{position:absolute;top:0;box-sizing:border-box;display:flex;align-items:flex-end;justify-content:center;font:600 10px var(--f-mono);padding-bottom:6px}
 .piano .w{height:100%;background:#eceae4;border:1px solid #111;border-radius:0 0 6px 6px;color:#555;z-index:1}
@@ -113,7 +129,8 @@ body.mlearn .marmed{outline:3px solid #fff !important}
 .uhead .fchev{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
 .card.shut > :not(.fh){display:none !important}
 .card.shut{gap:0}
-.unit.shut > :not(.fh), .tt-midi.shut > :not(.fh), .p5sec.shut > :not(.fh), .svc-sec.shut > :not(.fh){display:none !important}
+.unit.shut:not(.rig *) > :not(.fh), .tt-midi.shut > :not(.fh), .p5sec.shut:not(.rig *) > :not(.fh), .svc-sec.shut:not(.rig *) > :not(.fh){display:none !important}
+.rig .fchev{display:none}
 .label.fh.shut + *{display:none !important}
 .label.fh{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
 button.fgen{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:0;font:600 17px var(--f-display);letter-spacing:.04em;text-transform:uppercase;color:var(--fg);min-height:30px}
@@ -1188,6 +1205,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><button id="octDown" aria-label="Octave down">−</button><button id="octUp" aria-label="Octave up">+</button><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
       <div class="kbwhy" id="kbWhy" hidden><span id="kbWhyT" class="grow"></span><button id="kbWhyFix" class="nolearn">Fix</button></div>
       <div class="keys" id="keys"></div>
+      <div class="rig" id="rig" hidden><div class="rig-head"><b id="rigBrand"></b><i id="rigModel"></i></div><div class="rig-panel" id="rigPanel"></div><div class="rig-kb" id="rigKb"></div></div>
       <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
     <div class="card" data-title="Notes">
       <div class="row">
@@ -1829,6 +1847,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Rock Guitar</b> (Synth → instrument): a plucked-string guitar into a cranked stack and 4x12 cabinet, double-tracked. Each key can play a power chord, a single note, or a <b>harmony in the song's key</b>: the Brian May presets play two or three separate takes a third and a fifth apart, slightly loose and detuned like real overdubs, with treble-boosted amp tone; Brighton Rock Echo is the long repeating delay.</li>
         <li><b>AI EQ</b> (Mixer → AI EQ): listens to each track across the song, works out what it is, and EQs it like an engineer: high-pass, mud and ring cuts, presence lift, and room for the kick, bass and vocal. AI master EQ shapes the whole mix toward a style. Each track's curve shows on its FX page with an Amount.</li>
         <li><b>Pitch tracking</b>: on an audio track, <b>To notes</b> turns a sung or played line into synth notes; <b>Auto-tune</b> pulls a clip to the project's key (Natural keeps vibrato, Hard is the robot effect, Undo tune brings the take back). On the Synth screen, <b>Sing to play</b> lets your voice play the synth through the mic, with a live tuner next to it.</li>
+        <li><b>Keyboard = the instrument</b> (Synth → Keyboard): the keys take on the look of the synth you picked (Minimoog wood cheeks and ivory keys, the Juno-60 and SH-101 cases, the blue PPG, the silver TB-303 and so on) with the synth's own knobs, sliders and switches right above them. The keys stay at the bottom of the screen while you scroll the panel. Tap Sound to open the same panel full-screen; Grid goes back to the pad grid.</li>
         <li><b>Big screens</b>: on a computer or TV the whole interface scales up to fill the screen.</li>
         <li><b>Sidechain</b> (Mixer → Sidechain card): anything ducks anything. Each route is <i>key → target</i>. The key can be a pad hit, any track's sound, any FX return, a turntable or the mic input; the target can be any track, any FX return or a turntable. Amount is how far it dips, Release how fast it comes back. Several keys can duck one target. Each route has its own on/off and can be MIDI-learned. Routes play in exports too (turntables and the mic are live only). The older "Ducked by" on each track's FX still works alongside.</li>
         <li><b>Output level</b> (Setup → Output level, saved on this device): Phone (−6 dB, the default) leaves headroom so a phone's speaker and headphone output don't distort; Quiet is −12 dB; Studio is full level for an interface. The final limiter tops out at −1 dBFS. Exports are always full level.</li>
@@ -1972,7 +1991,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v116</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v117</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7100,6 +7119,7 @@ function sheetTitle(c){ const h = c.querySelector(':scope > .fh, :scope > .row h
 function sheetOpen(c){
   if (sheetCard === c) return; if (sheetCard) sheetClose();
   sheetFrame();
+  if (c.dataset.chip === 'Sound'){ rigRestore(); $('#rig').hidden = true; }
   sheetPh = document.createComment('sheet'); c.before(sheetPh);
   $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
   $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on'); document.documentElement.classList.add('sheet-on');
@@ -7111,6 +7131,7 @@ function sheetClose(){
   if (!sheetCard) return;
   const c = sheetCard; sheetCard = null; c.classList.add('shut'); c.classList.remove('sheeted'); c.scrollLeft = 0;
   if (sheetPh){ sheetPh.replaceWith(c); sheetPh = null; }
+  if (c.dataset.chip === 'Sound' && typeof rigMount === 'function') setTimeout(rigMount, 0);
   $('#sheet').classList.remove('on'); document.documentElement.classList.remove('sheet-on'); document.querySelectorAll('.chipbar button.on').forEach(b => b.classList.remove('on')); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 /* ================= Phone, tablet or computer: pick a layout, and redo it when the window or the screen turns ================= */
@@ -7181,7 +7202,7 @@ function fitScreen(){
     const k = $('#keys'), pn = $('#piano'); k.style.height = ''; k.style.gridAutoRows = ''; pn.style.height = '';
     const o = over(); if (o > 0){
       if (!k.hidden && k.offsetHeight){ const h = Math.max(200, k.offsetHeight - o - 2); k.style.gridAutoRows = Math.floor((h - 4 * 5) / 5) + 'px'; k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = 'auto'); }
-      if (!pn.hidden && pn.offsetHeight) pn.style.height = Math.max(110, pn.offsetHeight - o - 2) + 'px';
+      if (!pn.hidden && pn.offsetHeight && !pn.closest('.rig')) pn.style.height = Math.max(110, pn.offsetHeight - o - 2) + 'px';
     } else k.querySelectorAll('.key').forEach(b => b.style.aspectRatio = '');
   } else if (view === 'mixer'){
     const zs = document.querySelectorAll('#strips .fz'), rows = $('#strips').classList.contains('two') ? 2 : 1;
@@ -10557,6 +10578,32 @@ function kbWhy(){
   $('#kbWhyFix').textContent = tr.arp && tr.arp.on && msg.startsWith('Arp') ? 'Arp off' : msg.startsWith('Vocoder') ? 'Vocoder off' : 'Fix';
 }
 $('#kbWhyFix').addEventListener('click', () => { const f = $('#kbWhy')._fix; if (f){ f(); applyAll(); save(); renderSynth(); if (view === 'mixer') renderMixer(); kbWhy(); toast('Done. The keys play the synth now.'); } });
+{ const _rs = renderSynth; renderSynth = function(){ const r = _rs.apply(this, arguments); try { rigMount(); } catch(e){ console.warn(e); } return r; }; }
+/* ================= The instrument rig: in Keyboard mode the synth's own front panel (its original knobs, sliders and
+   switches) sits right above the keys, in a case that looks like that instrument. The keys stay at the bottom while you tweak. ================= */
+const RIG_SKIN = {prophet:['SEQUENTIAL CIRCUITS', 'PROPHET-5', 'wood ivory'], obxa:['OBERHEIM', 'OB-Xa', ''], juno60:['ROLAND', 'JUNO-60', ''], sh101:['ROLAND', 'SH-101', ''], jx3p:['ROLAND', 'JX-3P', ''],
+  minimoog:['MOOG', 'MINIMOOG MODEL D', 'wood ivory'], sixtrak:['SEQUENTIAL', 'SIX-TRAK', 'wood'], cs80:['YAMAHA', 'CS-80', 'wood ivory'], cz:['CASIO', 'CZ-101', 'mini'], sk1:['CASIO', 'SK-1', 'mini'],
+  emax:['E-MU SYSTEMS', 'EMAX', ''], d50:['ROLAND', 'D-50', ''], ppg:['PPG', 'WAVE 2.2', 'wood'], sid:['COMMODORE', '128 · SID', ''], dx1:['YAMAHA', 'DX1', 'wood'], omni2:['ARP', 'OMNI-2', 'wood'],
+  solina:['SOLINA', 'STRING ENSEMBLE', 'wood'], tb303:['ROLAND', 'TB-303 BASS LINE', 'silver mini'], taurus:['MOOG', 'TAURUS PEDALS', 'wood pedal'], piano:['CONCERT', 'GRAND PIANO', ''],
+  choir:['OMEGA', 'CHOIR', ''], disco:['OMEGA', 'DISCO STRINGS', ''], guitar:['OMEGA', 'ROCK GUITAR', ''], gm:['GENERAL', 'MIDI', ''], sf2:['SOUND', 'FONT', ''], padsmp:['PAD', 'KEYS', '']};
+const RIG_PANELS = ['patchCtls', 'tauPanel', 'tbPanel', 'p5Panel', 'gmPanel', 'sfPanel', 'psPanel', 'obPanel', 'anaPanel', 'pianoPanel', 'choirPanel', 'gtrPanel', 'discoPanel', 'czPanel', 'smpxPanel', 'sidPanel', 'd50Panel', 'ppgPanel', 'dxPanel', 'omniPanel', 'solPanel'];
+const rigHome = new Map();
+function rigRestore(){
+  for (const [el, ph] of rigHome){ ph.replaceWith(el); } rigHome.clear();
+  const pn = $('#piano'), home = $('#rig'); if (pn && pn.parentNode === $('#rigKb')) home.after(pn);
+}
+function rigMount(){
+  const rig = $('#rig'); if (!rig) return; const tr = curSynth(), on = S.kbMode === 'piano' && !!tr && !(sheetCard && sheetCard.dataset.chip === 'Sound') && S.rigOff !== true;
+  rigRestore(); rig.hidden = !on; if (!on) return;
+  const k = tr.inst || 'prophet', sk = RIG_SKIN[k] || ['', (tr.name || '').toUpperCase(), ''];
+  rig.dataset.k = k; rig.className = 'rig ' + sk[2]; $('#rigBrand').textContent = sk[0]; $('#rigModel').textContent = sk[1];
+  const box = $('#rigPanel');
+  const vis = RIG_PANELS.filter(id => { const el = document.getElementById(id); return el && !el.hidden && el.children.length; }), use = vis.length > 1 ? vis.filter(id => id !== 'patchCtls') : vis;
+  for (const id of use){ const el = document.getElementById(id);
+    const ph = document.createComment('rig:' + id); el.before(ph); rigHome.set(el, ph); box.appendChild(el); }
+  box.querySelectorAll('.p5sec.shut, .unit.shut, .svc-sec.shut').forEach(e => e.classList.remove('shut'));   // a real front panel shows every section at once
+  $('#rigKb').appendChild($('#piano'));
+}
 function renderPlaySurface(){
   setTimeout(kbWhy, 0);
   const piano = S.kbMode === 'piano';
@@ -10564,6 +10611,7 @@ function renderPlaySurface(){
   $('#kbSpan').value = String(S.kbSpan || 2);
   document.querySelectorAll('#kbMode button').forEach(b => b.classList.toggle('on', b.dataset.m === (piano ? 'piano' : 'grid')));
   if (piano) renderPiano(); else renderKeys();
+  rigMount();
 }
 document.querySelectorAll('#kbMode button').forEach(b => b.addEventListener('click', () => { S.kbMode = b.dataset.m; save(); renderPlaySurface(); }));
 $('#kbSpan').addEventListener('change', e => { S.kbSpan = +e.target.value; save(); renderPiano(); });
@@ -10826,8 +10874,9 @@ function renderP5(tr){
         b.addEventListener('click', () => { P[k] = P[k] ? 0 : 1; b.classList.toggle('on', !!P[k]); up(); save(); if (k === 'oBlo') renderP5(tr); }); row.appendChild(b); });
       sec.appendChild(row);
     }
-    const g = document.createElement('div'); g.className = 'ctls'; g.id = 'p5g' + si; sec.appendChild(g);
-    knobs.forEach(([k, lb, f]) => ctl(g, lb, P, k, 0, 1, .005, f === 'T' ? p5Time : typeof f === 'function' ? v => f(v, P) : v => (Math.round(v * 127) / 12.7).toFixed(1), up));
+    // real knobs, like the front panel
+    const g = document.createElement('div'); g.className = 'svc-knobs syn-knobs'; g.id = 'p5g' + si; sec.appendChild(g);
+    knobs.forEach(([k, lb, f]) => knob(g, lb.toUpperCase(), P, k, 0, 1, .005, f === 'T' ? p5Time : typeof f === 'function' ? v => f(v, P) : v => (Math.round(v * 127) / 12.7).toFixed(1), up));
     body.appendChild(sec);
   });
 }
@@ -10864,7 +10913,7 @@ function renderOB(tr){
       paint(); sec.appendChild(row);
     }
     const g = document.createElement('div'); g.className = 'ctls'; sec.appendChild(g);
-    knobs.forEach(([k, lb, f]) => ctl(g, lb, P, k, 0, 1, .005, f === 'T' ? p5Time : typeof f === 'function' ? v => f(v, P) : v => (Math.round(v * 127) / 12.7).toFixed(1), up));
+    g.className = 'svc-knobs syn-knobs'; knobs.forEach(([k, lb, f]) => knob(g, lb.toUpperCase(), P, k, 0, 1, .005, f === 'T' ? p5Time : typeof f === 'function' ? v => f(v, P) : v => (Math.round(v * 127) / 12.7).toFixed(1), up));
     body.appendChild(sec);
   });
 }
@@ -12947,7 +12996,7 @@ function learnPath(obj){
   if (S.sc){ const ci = S.sc.indexOf(obj); if (ci >= 0) return 'c:' + ci; }
   if (S.master.ret) for (const k in S.master.ret) if (S.master.ret[k] === obj) return 'q:' + k;
   const pi = S.drum.pads.indexOf(obj); if (pi >= 0) return 'p:' + pi;
-  for (const t of allTracks()){ if (t === obj) return 't:' + t.id; for (const sub of ['rack', 'p5', 'tb', 'tau', 'sol', 'voc', 'patch']) if (t[sub] === obj) return 't:' + t.id + ':' + sub; }
+  for (const t of allTracks()){ if (t === obj) return 't:' + t.id; for (const sub in t) if (sub[0] !== '_' && t[sub] === obj && obj && typeof obj === 'object' && !Array.isArray(obj)) return 't:' + t.id + ':' + sub; }
   return null;
 }
 function learnObj(path){
