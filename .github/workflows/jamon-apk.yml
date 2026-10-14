@@ -15,7 +15,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.14.3'}
       - name: Point the app at the Jam-On Rig
@@ -25,7 +24,11 @@ jobs:
           sed -i 's#<string name="app_name">The Omega System</string>#<string name="app_name">Jam-On Rig</string>#' android/app/src/main/res/values/strings.xml
           grep -n 'jamon' android/app/src/main/java/com/thesnakedevice/app/TvActivity.java android/app/build.gradle
       - name: Build
-        run: gradle -p android assembleDebug --no-daemon
+        run: |
+          # the runner image ships with the Android SDK; point Gradle at it
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android assembleDebug --no-daemon
       - name: Publish
         env: {GH_TOKEN: '${{ github.token }}'}
         run: |
