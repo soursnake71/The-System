@@ -397,21 +397,43 @@ function onSectionBar(root){
   root.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => { S.sec = +b.dataset.sec; S.bar = 0; save(); renderAll(); });
   root.querySelectorAll('[data-bar]').forEach(b => b.onclick = () => { S.bar = +b.dataset.bar; save(); renderAll(); });
 }
+// rotary knob: drag up / down (or left / right), double-tap for the middle; arrow keys work too
+const knobArc = v => { const a0 = -225 * Math.PI / 180, a = a0 + v * 270 * Math.PI / 180, r = 15, p = t => (20 + r * Math.cos(t)).toFixed(2) + ' ' + (20 + r * Math.sin(t)).toFixed(2);
+  return {track:`M${p(a0)} A${r} ${r} 0 1 1 ${p(a0 + 270 * Math.PI / 180)}`, val:v > .002 ? `M${p(a0)} A${r} ${r} 0 ${v * 270 > 180 ? 1 : 0} 1 ${p(a)}` : '', x:(20 + 10 * Math.cos(a)).toFixed(2), y:(20 + 10 * Math.sin(a)).toFixed(2)}; };
+const knobHTML = (k, l, v) => { const A = knobArc(v); return `<div class="knob" data-k="${k}" tabindex="0" role="slider" aria-label="${esc(l)}" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${(v * 10).toFixed(1)}"><svg viewBox="0 0 40 40"><path class="kt" d="${A.track}"/><path class="kv" d="${A.val}"/><line x1="20" y1="20" x2="${A.x}" y2="${A.y}"/></svg><b>${(v * 10).toFixed(1)}</b><span>${esc(l)}</span></div>`; };
+function knobSet(el, v){ const A = knobArc(v); el.querySelector('.kv').setAttribute('d', A.val); const ln = el.querySelector('line'); ln.setAttribute('x2', A.x); ln.setAttribute('y2', A.y); el.querySelector('b').textContent = (v * 10).toFixed(1); el.setAttribute('aria-valuenow', (v * 10).toFixed(1)); }
 function panelHTML(id, panel, vals){
   const groups = []; for (const c of panel){ let g = groups.find(x => x.g === c.g); if (!g) groups.push(g = {g:c.g, cs:[]}); g.cs.push(c); }
-  return `<div class="panel">${groups.map(g => `<fieldset><legend>${esc(g.g)}</legend>${g.cs.map(c => {
+  const sel = (S.grp || (S.grp = {}))[id], cur = groups.some(g => g.g === sel) ? sel : groups[0].g;
+  return `<div class="panel" data-pid="${id}">${groups.length > 1 ? `<div class="chips">${groups.map(g => `<button data-g="${esc(g.g)}" class="${g.g === cur ? 'on' : ''}">${esc(g.g)}</button>`).join('')}</div>` : ''}
+    ${groups.map(g => `<fieldset class="grp ${g.g === cur ? 'on' : ''}" data-g="${esc(g.g)}"><legend>${esc(g.g)}</legend><div class="knobs">${g.cs.map(c => {
     const v = vals[c.k];
     if (c.t === 's') return `<button class="sw ${v ? 'on' : ''}" data-k="${c.k}">${esc(c.l)}</button>`;
-    if (c.t === 'sel') return `<label class="ctl"><span>${esc(c.l)}</span><select data-k="${c.k}">${c.opts.map(([ov, ol]) => `<option value="${ov}" ${+v === ov ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select></label>`;
-    return `<label class="ctl"><span>${esc(c.l)}</span><input type="range" min="0" max="1" step="0.01" value="${v == null ? .5 : v}" data-k="${c.k}"><b>${Math.round((v == null ? .5 : v) * 10 * 10) / 10}</b></label>`;
-  }).join('')}</fieldset>`).join('')}</div>`;
+    if (c.t === 'sel') return `<label class="selc"><select data-k="${c.k}">${c.opts.map(([ov, ol]) => `<option value="${ov}" ${+v === ov ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select><span>${esc(c.l)}</span></label>`;
+    return knobHTML(c.k, c.l, v == null ? .5 : v);
+  }).join('')}</div></fieldset>`).join('')}</div>`;
 }
 function bindPanel(root, vals, onChange){
-  root.querySelectorAll('.panel input[type=range]').forEach(el => el.oninput = () => { vals[el.dataset.k] = +el.value; el.nextElementSibling.textContent = Math.round(el.value * 100) / 10; onChange(); });
-  root.querySelectorAll('.panel select').forEach(el => el.onchange = () => { vals[el.dataset.k] = +el.value; onChange(); });
-  root.querySelectorAll('.panel .sw').forEach(el => el.onclick = () => { vals[el.dataset.k] = vals[el.dataset.k] ? 0 : 1; el.classList.toggle('on', !!vals[el.dataset.k]); onChange(); });
-  root.querySelectorAll('.panel input[type=range]').forEach(el => el.ondblclick = () => {});
+  const P = root.querySelector('.panel'); if (!P) return;
+  P.querySelectorAll('.chips button').forEach(b => b.onclick = () => { S.grp[P.dataset.pid] = b.dataset.g; save();
+    P.querySelectorAll('.chips button').forEach(x => x.classList.toggle('on', x === b)); P.querySelectorAll('.grp').forEach(f => f.classList.toggle('on', f.dataset.g === b.dataset.g)); });
+  P.querySelectorAll('select').forEach(el => el.onchange = () => { vals[el.dataset.k] = +el.value; onChange(); });
+  P.querySelectorAll('.sw').forEach(el => el.onclick = () => { vals[el.dataset.k] = vals[el.dataset.k] ? 0 : 1; el.classList.toggle('on', !!vals[el.dataset.k]); onChange(); });
+  P.querySelectorAll('.knob').forEach(el => {
+    const k = el.dataset.k, set = v => { v = clamp(Math.round(v * 100) / 100, 0, 1); if (v === vals[k]) return; vals[k] = v; knobSet(el, v); onChange(); };
+    let drag = null, lastTap = 0;
+    el.onpointerdown = e => { e.preventDefault(); el.setPointerCapture(e.pointerId); drag = {x:e.clientX, y:e.clientY, v:vals[k] == null ? .5 : vals[k]}; el.classList.add('drag');
+      const now = Date.now(); if (now - lastTap < 300) set(.5); lastTap = now; };
+    el.onpointermove = e => { if (!drag) return; set(drag.v + ((drag.y - e.clientY) + (e.clientX - drag.x)) / 160); };
+    el.onpointerup = el.onpointercancel = () => { drag = null; el.classList.remove('drag'); };
+    el.onkeydown = e => { const d = {ArrowUp:.05, ArrowRight:.05, ArrowDown:-.05, ArrowLeft:-.05}[e.key]; if (d){ e.preventDefault(); set((vals[k] == null ? .5 : vals[k]) + d); } };
+  });
 }
+// a machine screen is split into views so each one fits on a phone; wide screens show them all
+function viewTabs(id, list){ const cur = (S.view || (S.view = {}))[id] || list[0][0]; return `<div class="vtabs">${list.map(([k, l]) => `<button data-view="${k}" class="${k === cur ? 'on' : ''}">${l}</button>`).join('')}</div>`; }
+const vw = (id, k, list) => (((S.view || {})[id]) || list[0][0]) === k ? 'vw on' : 'vw';
+function bindViews(m, id){ m.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { S.view[id] = b.dataset.view; save();
+  m.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b)); m.querySelectorAll('.vw').forEach(v => v.classList.toggle('on', v.dataset.v === b.dataset.view)); }); }
 function presetRow(id){
   const names = Object.keys(PRESETS[id] || {}), user = Object.keys(S.user[id] || {}), cur = id === 'voc' ? S.voc.preset : S.mach[id].preset;
   return `<div class="row"><select id="preSel"><option value="">Preset…</option>${names.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('')}${user.length ? '<optgroup label="Yours">' + user.map(n => `<option ${n === cur ? 'selected' : ''}>${esc(n)}</option>`).join('') + '</optgroup>' : ''}</select>
@@ -433,16 +455,17 @@ function renderSong(m){
   const sg = song();
   m.innerHTML = `<section class="card"><h2>${esc(sg.name)}</h2><p class="hint">${esc(sg.note || '')}${sg.key ? ' · ' + esc(sg.key) : ''}</p>
     <div class="row"><button id="songNew">New song</button><button id="songDup">Copy</button><button id="songRen">Rename</button><button id="songDel">Delete</button><button id="songReset">Reset the 7 styles</button></div></section>
-    <section class="card"><h3>Sections <small>play in order; tap one to edit it on every machine</small></h3><div id="secList">${sg.sections.map((s, i) => `<div class="secrow ${i === S.sec ? 'on' : ''}" data-i="${i}">
-      <input value="${esc(s.name)}" data-f="name"><label>Bars<select data-f="bars">${[1, 2, 4, 8, 16].concat(s.bars > 16 ? [s.bars] : []).map(b => `<option ${b === s.bars ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
+    <section class="card"><h3>Sections <small>play in order; tap one to edit it</small></h3><div id="secList">${sg.sections.map((s, i) => `<div class="secrow ${i === S.sec ? 'on' : ''}" data-i="${i}">
+      <input value="${esc(s.name)}" data-f="name"><label><select data-f="bars" aria-label="Bars">${[1, 2, 4, 8, 16].concat(s.bars > 16 ? [s.bars] : []).map(b => `<option ${b === s.bars ? 'selected' : ''}>${b}</option>`).join('')}</select>bars</label>
       <label>×<select data-f="rep">${[1, 2, 3, 4, 6, 8].map(b => `<option ${b === s.rep ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
-      <span class="parts">${partsSummary(s)}</span><span class="acts"><button data-a="edit">Edit</button><button data-a="up">↑</button><button data-a="dup">Copy</button><button data-a="del">✕</button></span></div>`).join('')}</div>
+      <span class="acts"><button data-a="up" title="Move up" aria-label="Move up">↑</button><button data-a="dup" title="Copy" aria-label="Copy">⧉</button><button data-a="del" title="Delete" aria-label="Delete">✕</button></span><span class="parts">${partsSummary(s)}</span></div>`).join('')}</div>
       <div class="row"><button id="secAdd">Add section</button></div></section>
-    <section class="card"><h3>Files</h3><div class="row"><button id="wavBtn">Export WAV</button><button id="midBtn">Export MIDI</button><button id="midImp">Import MIDI</button><button id="projSave">Save project</button><button id="projLoad">Open project</button></div>
-    <p class="hint">MIDI export has one track per machine: drums on their channels with General MIDI notes, arpeggios written out as they play. Import puts every track on a machine you pick.</p></section>
-    <section class="card"><h3>MIDI input</h3><div class="row"><button id="midiOn">Connect MIDI</button><span id="midiStat2" class="hint"></span>
+    <details class="card fold" ${S.foldFiles ? "open" : ""} data-fold="foldFiles"><summary><h3>Files: WAV, MIDI, project</h3></summary><div class="row"><button id="wavBtn">Export WAV</button><button id="midBtn">Export MIDI</button><button id="midImp">Import MIDI</button><button id="projSave">Save project</button><button id="projLoad">Open project</button></div>
+    <p class="hint">MIDI export has one track per machine: drums on their channels with General MIDI notes, arpeggios written out as they play. Import puts every track on a machine you pick.</p></details>
+    <details class="card fold" ${S.foldMidi ? "open" : ""} data-fold="foldMidi"><summary><h3>MIDI input</h3></summary><div class="row"><button id="midiOn">Connect MIDI</button><span id="midiStat2" class="hint"></span>
       <select id="midiMode"><option value="selected" ${S.midiMode === 'selected' ? 'selected' : ''}>Plays the machine on screen</option><option value="channel" ${S.midiMode === 'channel' ? 'selected' : ''}>Plays by channel</option></select></div>
-      <div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></section>`;
+      <div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></details>`;
+  m.querySelectorAll('[data-fold]').forEach(d => d.ontoggle = () => { S[d.dataset.fold] = d.open; save(); });
   $('#songNew').onclick = () => { S.songs.push({name:'New song', bpm:112, swing:0, key:'', note:'', presets:{}, carrier:S.voc.carrier, arp:{}, sections:[emptySection('A', 4)]}); loadSong(S.songs.length - 1); };
   $('#songDup').onclick = () => { const c = JSON.parse(JSON.stringify(sg)); c.name += ' (copy)'; S.songs.push(c); loadSong(S.songs.length - 1); };
   $('#songRen').onclick = () => { const n = prompt('Song name:', sg.name); if (n){ sg.name = n; save(); renderAll(); } };
@@ -476,18 +499,20 @@ function resizeSection(s, bars){
   for (const id in s.notes){ const old = s.bars * 16, ns = s.notes[id].filter(o => o.s < steps); if (steps > old) for (const o of s.notes[id]) for (let k = old; k < steps; k += old) if (o.s + k < steps) ns.push(Object.assign({}, o, {s:o.s + k})); s.notes[id] = ns; }
   s.say = s.say.filter(l => l.bar < bars); s.bars = bars; S.bar = Math.min(S.bar, bars - 1);
 }
+const MV = [['pat', 'Pattern'], ['snd', 'Sound'], ['play', 'Play']];
 function renderMachine(m, id){
   const M = MACH[id], ms = S.mach[id];
-  m.innerHTML = `<section class="card mach" style="--c:${M.color}"><div class="mhead"><h2>${M.name}</h2><span class="maker">${M.maker}</span></div>${presetRow(id)}
-    ${M.kind !== 'drum' ? `<div class="row arp"><label>Arpeggiator<select id="arpMode">${['off', 'up', 'down', 'updown', 'random'].map(x => `<option ${ms.arp.mode === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
-      <label>Range<select id="arpOct">${[1, 2, 3].map(x => `<option ${ms.arp.oct === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+  m.innerHTML = `<section class="card mach" style="--c:${M.color}"><div class="mhead"><h2>${M.name}</h2><span class="maker">${M.maker}</span>${viewTabs(id, MV)}</div>
+    <div class="${vw(id, 'pat', MV)}" data-v="pat">${sectionBar()}<div id="editor"></div></div>
+    <div class="${vw(id, 'snd', MV)}" data-v="snd">${presetRow(id)}
+    ${M.kind !== 'drum' ? `<div class="row arp"><label>Arp<select id="arpMode">${['off', 'up', 'down', 'updown', 'random'].map(x => `<option ${ms.arp.mode === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+      <label>Oct<select id="arpOct">${[1, 2, 3].map(x => `<option ${ms.arp.oct === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
       <label>Rate<select id="arpRate">${[[8, '1/8'], [16, '1/16'], [32, '1/32']].map(([v, l]) => `<option value="${v}" ${ms.arp.rate === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>` : ''}
-    <details ${S.openPanel !== false ? 'open' : ''} id="panelDet"><summary>Panel</summary>${panelHTML(id, M.panel, ms.p)}</details></section>
-    <section class="card">${sectionBar()}<div id="editor"></div></section>
-    <section class="card">${M.kind === 'drum' ? '<div id="pads" class="pads"></div>' : `<div class="row"><button id="kbDn">◀ Oct</button><span id="kbLbl"></span><button id="kbUp">Oct ▶</button><button id="latch" class="${keyLatch ? 'on' : ''}">Hold</button></div><div id="kb" class="kb"></div>`}</section>`;
+    ${panelHTML(id, M.panel, ms.p)}</div>
+    <div class="${vw(id, 'play', MV)}" data-v="play">${M.kind === 'drum' ? '<div id="pads" class="pads"></div>' : `<div class="row"><button id="kbDn">◀ Oct</button><span id="kbLbl"></span><button id="kbUp">Oct ▶</button><button id="latch" class="${keyLatch ? 'on' : ''}">Hold</button></div><div id="kb" class="kb"></div>`}</div></section>`;
+  bindViews(m, id);
   bindPresetRow(id);
   bindPanel(m, ms.p, () => { ms.preset = ''; pushCfg(id); save(); });
-  $('#panelDet').ontoggle = e => { S.openPanel = e.target.open; save(); };
   onSectionBar(m);
   if (M.kind !== 'drum'){
     $('#arpMode').onchange = e => { ms.arp.mode = e.target.value; live.held[id] = new Set(); save(); };
@@ -554,20 +579,22 @@ function renderKeys(id){
 }
 function renderVoc(m){
   const sec = section(), V = S.voc;
-  m.innerHTML = `<section class="card mach" style="--c:#7fd"><div class="mhead"><h2>Vocoder</h2><span class="maker">Electro-Harmonix · 1978 (EH-0300 model)</span></div>${presetRow('voc')}
+  const VV = [['say', 'Speech'], ['snd', 'Sound']];
+  m.innerHTML = `<section class="card mach" style="--c:#7fd"><div class="mhead"><h2>Vocoder</h2><span class="maker">Electro-Harmonix · 1978 (EH-0300 model)</span>${viewTabs('voc', VV)}</div>
+    <div class="${vw('voc', 'snd', VV)}" data-v="snd">${presetRow('voc')}
     ${panelHTML('voc', VOC_PANEL, V.p)}<div id="bands" class="bands">${EH_BANDS_UI.map(f => `<div><i></i><span>${f < 1000 ? f : (f / 1000).toFixed(1) + 'k'}</span></div>`).join('')}</div>
     <div class="row"><label>Music input (carrier)<select id="carSel">${Object.keys(MACH).filter(k => MACH[k].kind !== 'drum').map(k => `<option value="${k}" ${V.carrier === k ? 'selected' : ''}>${MACH[k].name}</option>`).join('')}</select></label>
-      <button id="direct" class="sw ${V.direct ? 'on' : ''}">Carrier also dry</button><button id="micBtn" class="sw ${micOn ? 'on' : ''}">Live mic</button></div></section>
-    <section class="card"><h3>Text to speech (the mic input)</h3>
+      <button id="direct" class="sw ${V.direct ? 'on' : ''}">Carrier also dry</button><button id="micBtn" class="sw ${micOn ? 'on' : ''}">Live mic</button></div></div>
+    <div class="${vw('voc', 'say', VV)}" data-v="say">
       <div class="row"><label>Voice<select id="ttsVoice">${Object.keys(TTS_VOICES).map(v => `<option ${V.tts.voice === v ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <label>Pitch<input id="ttsSemi" type="number" min="-12" max="12" value="${V.tts.semi}"></label><label>Speed<input id="ttsSpeed" type="number" min=".5" max="2" step=".05" value="${V.tts.speed}"></label></div>
       <textarea id="sayText" rows="2">${esc(V.sayText)}</textarea>
       <div class="row"><button id="sayBtn" class="big">Say it</button><label>with chord<select id="sayRoot">${Array.from({length:25}, (_, i) => 40 + i).map(n => `<option value="${n}" ${V.sayRoot === n ? 'selected' : ''}>${nn(n)}</option>`).join('')}</select></label>
       <select id="sayChord">${[['min', 'minor'], ['maj', 'major'], ['one', 'one note'], ['oct', 'octaves'], ['m7', 'minor 7']].map(([k, l]) => `<option value="${k}" ${V.sayChord === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <p class="hint">Type /phonemes/ between slashes to spell a word exactly (e.g. /K AX M P Y UW T ER/). Say it plays the chord on the carrier machine while the speech runs.</p></section>
-    <section class="card">${sectionBar()}<h3>Speech in "${esc(sec.name)}"</h3><div id="sayList">${sec.say.map((l, i) => `<div class="sayrow"><select data-i="${i}" data-f="bar">${Array.from({length:sec.bars}, (_, b) => `<option value="${b}" ${l.bar === b ? 'selected' : ''}>Bar ${b + 1}</option>`).join('')}</select><input data-i="${i}" data-f="text" value="${esc(l.text)}"><button data-i="${i}" data-a="del">✕</button></div>`).join('')}</div>
-      <div class="row"><button id="sayAdd">Add a line</button></div><p class="hint">Each line is spoken at the start of its bar. The carrier machine needs notes in that section (the songs hold chords there).</p></section>`;
-  bindPresetRow('voc'); bindPanel(m, V.p, () => { V.preset = ''; pushCfg('voc'); save(); }); onSectionBar(m);
+      <p class="hint">Type /phonemes/ between slashes to spell a word exactly (e.g. /K AX M P Y UW T ER/). Say it plays the chord on the carrier machine while the speech runs.</p>
+    <h3>Spoken in a section</h3>${sectionBar()}<div id="sayList">${sec.say.map((l, i) => `<div class="sayrow"><select data-i="${i}" data-f="bar">${Array.from({length:sec.bars}, (_, b) => `<option value="${b}" ${l.bar === b ? 'selected' : ''}>Bar ${b + 1}</option>`).join('')}</select><input data-i="${i}" data-f="text" value="${esc(l.text)}"><button data-i="${i}" data-a="del">✕</button></div>`).join('')}</div>
+      <div class="row"><button id="sayAdd">Add a line</button></div><p class="hint">Each line is spoken at the start of its bar. The carrier machine needs notes in that section (the songs hold chords there).</p></div></section>`;
+  bindViews(m, 'voc'); bindPresetRow('voc'); bindPanel(m, V.p, () => { V.preset = ''; pushCfg('voc'); save(); }); onSectionBar(m);
   $('#carSel').onchange = e => { V.carrier = e.target.value; song().carrier = V.carrier; applyMix(); save(); };
   $('#direct').onclick = e => { V.direct = !V.direct; e.target.classList.toggle('on', V.direct); applyMix(); save(); };
   $('#micBtn').onclick = toggleMic;
@@ -623,6 +650,7 @@ $('#swing').onchange = e => { song().swing = clamp(+e.target.value || 0, 0, 60);
 $('#songSel').onchange = e => loadSong(+e.target.value);
 $('#loopBtn').onclick = () => { S.loopSec = !S.loopSec; if (playing && S.loopSec){ pos.sec = S.sec; } save(); renderTransport(); toast(S.loopSec ? 'Looping the section you are editing.' : 'Playing the whole song.'); };
 $('#recBtn').onclick = toggleRec;
+$('#moreBtn').onclick = () => $('#more').classList.toggle('on');
 $('#recNotesBtn').onclick = () => { recNotes = !recNotes; renderTransport(); toast(recNotes ? 'Notes you play now are written into the playing section.' : 'Note recording off.'); };
 $('#panicBtn').onclick = () => { stop(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
 $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); };

@@ -66,22 +66,57 @@ dialog{background:var(--card);color:var(--ink);border:1px solid var(--line);bord
 #toast.on{opacity:1;transform:translate(-50%,0)}
 #busy{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:30;font-size:16px}#busy.on{display:flex}
 @media (max-width:520px){.gl{grid-template-columns:52px repeat(16,minmax(0,1fr))}.ctl{grid-template-columns:70px 1fr 28px}.panel{grid-template-columns:1fr}#songSel{max-width:60vw}}
+
+/* compact layout: one header row, knobs, one view at a time on phones */
+header{padding:calc(4px + env(safe-area-inset-top)) 8px 4px;position:sticky}
+.top{flex-wrap:nowrap}.logo{font-size:13px;margin-right:0}
+#songSel{flex:1;min-width:0;max-width:none}#bpm{width:58px}#playBtn{width:46px;font-size:16px}#moreBtn{width:40px;padding:0}
+.top.more{display:none;flex-wrap:wrap;margin-top:4px}.top.more.on{display:flex}
+#tabs{padding:4px 0 0}#tabs button{padding:5px 9px;min-height:32px;font-size:13px}
+#posLbl{position:absolute;right:10px;top:calc(100% + 2px);font-size:11px;background:#14110fcc;padding:1px 6px;border-radius:6px;pointer-events:none}
+main{padding:8px 8px calc(20px + env(safe-area-inset-bottom))}.card{padding:10px;margin-bottom:8px}
+.mhead{align-items:center}.mhead h2{font-size:16px;margin:0}
+.vtabs{display:flex;gap:4px;margin-left:auto}.vtabs button{min-height:32px;padding:4px 12px}.vtabs button.on{background:var(--c,var(--acc));border-color:var(--c,var(--acc));color:#111}
+.vw{display:none;margin-top:8px}.vw.on{display:block}
+.chips{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:6px 0 4px}.chips::-webkit-scrollbar{display:none}.chips button{flex:none;min-height:30px;padding:3px 10px;font-size:12.5px}
+.chips button.on{background:var(--c,var(--acc));border-color:var(--c,var(--acc));color:#111}
+.panel{display:block}.grp{display:none;border:0;padding:0}.grp.on{display:block}.grp legend{display:none}
+.knobs{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px 4px;align-items:start}
+.knob{display:flex;flex-direction:column;align-items:center;touch-action:none;user-select:none;cursor:ns-resize;outline:none}
+.knob svg{width:52px;height:52px}.knob path{fill:none;stroke-width:4;stroke-linecap:round}.knob .kt{stroke:#3d342c}.knob .kv{stroke:var(--c,var(--acc))}
+.knob line{stroke:var(--ink);stroke-width:3;stroke-linecap:round}.knob b{font:10px ui-monospace,monospace;margin-top:-6px}.knob span{font-size:11px;color:var(--dim);text-align:center;line-height:1.15}
+.knob.drag svg,.knob:focus-visible svg{filter:drop-shadow(0 0 4px var(--c,var(--acc)))}
+.knobs .sw{align-self:center;min-height:34px}.selc{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--dim)}.selc select{min-height:34px;padding:3px 6px;max-width:100%}
+.kb{height:min(46vh,260px)}.pads .pad{min-height:min(11vh,80px)}
+.roll .st{min-height:16px;height:16px}.st{min-height:22px;height:22px}
+@media (min-width:900px){
+  .vtabs{display:none}.vw{display:block}.mach{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:0 16px}.mach .mhead{grid-column:1/-1}
+  .mach .vw[data-v="play"]{grid-column:1/-1}.grp{display:block;margin-bottom:6px}.grp legend{display:block}.chips{display:none}
+}
+.fold summary{cursor:pointer;list-style:none}.fold summary::-webkit-details-marker{display:none}.fold summary h3{display:inline;margin:0}.fold summary::after{content:" ▾";color:var(--dim)}.fold[open] summary::after{content:" ▴"}
+.secrow{padding:6px;gap:4px;margin-bottom:4px}.secrow input{width:110px;min-height:32px}.secrow select,.secrow button{min-height:32px;padding:3px 8px}.parts{gap:2px}.parts i{font-size:10px}
+.secrow{flex-wrap:nowrap}.secrow input{flex:1;min-width:0;width:auto}.secrow .acts{margin-left:0;flex:none}.secrow .acts button{width:34px;padding:0}
+.secrow .parts{display:none}@media (min-width:700px){.secrow{flex-wrap:wrap}.secrow .parts{display:flex}}
+.card h2+.hint+.row button{min-height:32px;padding:4px 9px;font-size:13px}
 </style></head>
 <body>
 <header>
   <div class="top">
-    <span class="logo">JAM-ON RIG<br><small>1984 electro</small></span>
+    <span class="logo">JAM-ON</span>
     <button id="playBtn" title="Play / stop (space)">▶</button>
-    <label>BPM<input id="bpm" type="number" min="40" max="240"></label>
-    <label>Swing<input id="swing" type="number" min="0" max="60"></label>
     <select id="songSel"></select>
+    <input id="bpm" type="number" min="40" max="240" title="BPM" aria-label="BPM">
+    <button id="moreBtn" title="More">⋯</button>
+  </div>
+  <div class="top more" id="more">
+    <label>Swing<input id="swing" type="number" min="0" max="60"></label>
     <button id="loopBtn" title="Loop the section being edited">Loop sec</button>
     <button id="recNotesBtn" title="Write played notes into the playing section">● Notes</button>
     <button id="recBtn" title="Record the output to WAV">REC</button>
     <button id="panicBtn" title="All notes off">Panic</button>
-    <span id="posLbl"></span><span id="midiStat" class="hint"></span>
+    <span id="midiStat" class="hint"></span>
   </div>
-  <nav id="tabs"></nav>
+  <nav id="tabs"></nav><span id="posLbl"></span>
 </header>
 <main id="main"></main>
 <dialog id="impDlg"><h3>Import MIDI</h3><p id="impInfo" class="hint"></p><div id="impRows"></div>
