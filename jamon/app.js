@@ -61,13 +61,19 @@ function defaultState(){
 let S;
 try { S = JSON.parse(localStorage.getItem(STORE)); } catch(e){ S = null; }
 if (!S || S.v !== 1) S = defaultState();
-{ const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; for (const id in MACH) if (!S.mach[id]) S.mach[id] = D.mach[id]; }
+{ const D = defaultState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; for (const id in MACH){ if (!S.mach[id]) S.mach[id] = D.mach[id]; S.mach[id].p = Object.assign(MACH[id].def(), S.mach[id].p); } S.voc.p = Object.assign(VOC_DEF(), S.voc.p); if (!S.learn) S.learn = {}; }
 let saveT = 0; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e){} }, 400); };
 const song = () => S.songs[S.cur] || S.songs[0], section = () => song().sections[clamp(S.sec, 0, song().sections.length - 1)];
 
 /* ================= audio graph ================= */
 let ctx = null, R = null, audioReady = null;
-const cfgFor = id => { const M = MACH[id], p = S.mach[id].p; return M.proc === 'ana' ? Object.assign({model:M.model}, ANA_BASE[M.model], p) : Object.assign({}, p); };
+// panel settings -> engine settings (pulse width source switches, Juno chorus buttons, SH-101 envelope trigger)
+const cfgFor = id => { const M = MACH[id], p = S.mach[id].p; if (M.proc !== 'ana') return Object.assign({}, p);
+  const c = Object.assign({model:M.model}, ANA_BASE[M.model], p), k = p.pwk || 0, src = p.pwmSrc | 0;
+  c.pw = src === 1 ? .5 - k * .45 : .5; c.pwm = src === 0 ? k : 0; c.pwEnv = src === 2 ? k : 0;
+  if (id === 'juno'){ c.chorus = p.chI && p.chII ? 3 : p.chI ? 1 : p.chII ? 2 : 0; c.fenvInv = !!p.fenvInv; }
+  if (id === 'sh101') c.retrig = (p.envTrig | 0) === 0;
+  return c; };
 // builds every machine, the vocoder and the mixer on a context; ev = {id: [events]} for offline renders
 function buildRig(c, ev){
   const r = {c, nodes:{}, strip:{}, pan:{}, carrier:{}, drumIn:{}};
@@ -122,7 +128,7 @@ function drumBuf(id, v, acc){
   const p = S.mach[id].p, q = x => Math.round((x == null ? .5 : x) * 20) / 20;
   let key, make;
   if (id === 'd808'){
-    const prm = v === 'bd' ? {tone:q(p.bdT), decay:q(p.bdD)} : v === 'sd' ? {tone:q(p.sdT), snappy:q(p.sdS)} : /^(lt|mt|ht|lc|mc|hc)$/.test(v) ? {tune:q(p[v + 'T'])} : v === 'cy' ? {tone:q(p.cyT), decay:q(p.cyD)} : v === 'oh' ? {decay:q(p.ohD)} : {};
+    const prm = v === 'bd' ? {tone:q(p.bdT), decay:q(p.bdD)} : v === 'sd' ? {tone:q(p.sdT), snappy:q(p.sdS)} : /^(lt|mt|ht|lc|mc|hc)$/.test(v) ? {tune:q(p[k808(v) + 'T'])} : v === 'cy' ? {tone:q(p.cyT), decay:q(p.cyD)} : v === 'oh' ? {decay:q(p.ohD)} : {};
     const a = acc ? q(p.acc) : 0; key = 'd808:' + v + ':' + JSON.stringify(prm) + ':' + a; make = () => tr808(v, prm, a);
   } else { key = 'dmx:' + v; make = () => dmx(v); }
   let b = drumCache.get(key);
@@ -133,7 +139,7 @@ const chokeOpen = {};
 function drumHit(r, id, v, t, acc){
   const p = S.mach[id].p, b = drumBuf(id, v, acc), s = r.c.createBufferSource(), g = r.c.createGain();
   s.buffer = b; if (id === 'dmx') s.playbackRate.value = Math.pow(2, ((p[v + 'P'] == null ? .5 : p[v + 'P']) - .5) * 14 / 12);
-  const lv = p[v + 'L'] == null ? .8 : p[v + 'L']; g.gain.value = lv * lv * (acc ? (id === 'dmx' ? 1 + p.acc * .6 : 1.15) : .8);
+  const lk = id === 'd808' ? k808(v) + 'L' : v + 'L', lv = p[lk] == null ? .8 : p[lk]; g.gain.value = lv * lv * (acc ? (id === 'dmx' ? 1 + p.acc * .6 : 1.15) : .8);
   s.connect(g); g.connect(r.drumIn[id]); s.start(t);
   // open hat is choked by the closed hat
   const open = id === 'd808' ? 'oh' : 'ohh', closers = id === 'd808' ? ['ch'] : ['chh', 'hha'];
@@ -265,22 +271,77 @@ function recordHit(id, v, acc){
   sec.drums[id][v] = s.slice(0, st) + (acc ? 'x' : 'o') + s.slice(st + 1); save(); if (curTab() === id) renderEditor();
 }
 let keyLatch = false;
+let midiAccess = null;
 async function midiInit(){
   if (!navigator.requestMIDIAccess){ toast('This browser has no Web MIDI. On the S23 use Chrome.'); return; }
   try {
-    const acc = await navigator.requestMIDIAccess();
+    const acc = midiAccess = await navigator.requestMIDIAccess();
     const hook = () => { let n = 0; acc.inputs.forEach(inp => { inp.onmidimessage = onMidi; n++; }); $('#midiStat').textContent = n ? 'MIDI: ' + n + ' in' : 'MIDI: none'; };
     acc.onstatechange = hook; hook(); toast('MIDI on. Notes play ' + (S.midiMode === 'selected' ? 'the machine on screen' : 'by channel') + '.');
   } catch(e){ toast('MIDI was not allowed.'); }
 }
 function onMidi(e){
   const [st, d1, d2] = e.data, hi = st & 0xF0, ch = st & 15;
+  if (hi === 0xB0 || (hi === 0x90 && d2)){ const src = (hi === 0xB0 ? 'cc:' : 'note:') + ch + ':' + d1;
+    if (learn.on && learn.sel){ learnBind(src); return; }
+    const key = S.learn[src]; if (key){ learnApply(key, d2 / 127, hi === 0x90 || d2 >= 64, hi === 0x90); return; } }
+  if (hi === 0x80 && S.learn['note:' + ch + ':' + d1]) return;
   let id = curTab();
   if (S.midiMode === 'channel' || !MACH[id]){ id = Object.keys(S.midiCh).find(k => S.midiCh[k] === ch); if (!id) return; }
   if (hi === 0x90 && d2) liveOn(id, d1, d2 / 127); else if (hi === 0x80 || (hi === 0x90 && !d2)) liveOff(id, d1);
   else if (hi === 0xE0 && R && R.nodes[id]) R.nodes[id].port.postMessage({type:'bend', v:((d2 << 7 | d1) - 8192) / 8192 * 2});
   else if (hi === 0xB0 && d1 === 1 && R && R.nodes[id]) R.nodes[id].port.postMessage({type:'wheel', v:d2 / 127});
 }
+
+
+/* ================= MIDI learn: every knob, slider, switch and selector, the mixer and the transport ================= */
+const learn = {on:false, sel:null};
+function learnSpec(key){
+  const [kind, id, k] = key.split(':');
+  if (kind === 'p'){ const c = MACH[id] && MACH[id].panel.find(x => x.k === k); return c && {c, vals:S.mach[id].p, name:MACH[id].name + ' · ' + c.g + ' · ' + c.l, after:() => { S.mach[id].preset = ''; pushCfg(id); }}; }
+  if (kind === 'v'){ const c = VOC_PANEL.find(x => x.k === k); return c && {c, vals:S.voc.p, name:'Vocoder · ' + c.g + ' · ' + c.l, after:() => { S.voc.preset = ''; pushCfg('voc'); }}; }
+  if (kind === 'mix'){ const o = id === 'voc' ? S.vocMix : S.mach[id], nm = (id === 'voc' ? 'Vocoder' : MACH[id].name) + ' · Mixer · ';
+    return {c:{t:k === 'mute' || k === 'solo' ? 's' : 'k', k, l:k}, vals:o, name:nm + k, after:() => applyMix(), pan:k === 'pan'}; }
+  if (kind === 'master') return {c:{t:'k', k:'master'}, vals:S, name:'Master level', after:() => applyMix()};
+  if (kind === 'play') return {c:{t:'btn'}, name:'Play / Stop', press:() => play()};
+  if (kind === 'loop') return {c:{t:'btn'}, name:'Loop section', press:() => $('#loopBtn').click()};
+  if (kind === 'say') return {c:{t:'btn'}, name:'Vocoder · Say it', press:() => sayNow()};
+  return null;
+}
+function learnApply(key, v, press, isNote){
+  const L = learnSpec(key); if (!L) return; const c = L.c;
+  if (c.t === 'btn'){ if (press) L.press(); return; }
+  if (c.t === 's'){ if (isNote){ if (press) L.vals[c.k] = L.vals[c.k] ? 0 : 1; } else L.vals[c.k] = v >= .5 ? 1 : 0; }
+  else if (c.t === 'sel'){ const o = c.opts[Math.min(c.opts.length - 1, Math.floor(v * c.opts.length))]; L.vals[c.k] = o[0]; }
+  else L.vals[c.k] = L.pan ? Math.round((v * 2 - 1) * 20) / 20 : Math.round(v * 100) / 100;
+  L.after(); save();
+  // move the control on screen if it is showing
+  const el = document.querySelector(`[data-learn="${key}"]`); if (!el) return; const val = L.vals[c.k];
+  if (el.classList.contains('dial')) dialSet(el, val);
+  else if (el.classList.contains('seg')) el.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === val));
+  else if (el.tagName === 'INPUT') el.value = val; else el.classList.toggle('on', !!val);
+}
+function learnBind(src){
+  for (const k in S.learn) if (S.learn[k] === learn.sel) delete S.learn[k];
+  S.learn[src] = learn.sel; save();
+  const [t, ch, n] = src.split(':'), L = learnSpec(learn.sel);
+  toast((t === 'cc' ? 'CC ' + n : 'Note ' + nn(+n)) + ' (ch ' + (+ch + 1) + ') → ' + (L ? L.name : learn.sel));
+  learn.sel = null; $$('.learn-sel').forEach(e => e.classList.remove('learn-sel')); markLearned();
+}
+function markLearned(){ const on = new Set(Object.values(S.learn || {})); $$('[data-learn]').forEach(e => e.classList.toggle('mapped', on.has(e.dataset.learn))); }
+async function learnToggle(){
+  learn.on = !learn.on; learn.sel = null; document.body.classList.toggle('learning', learn.on); $('#learnBtn').classList.toggle('on', learn.on);
+  if (learn.on){ if (!midiAccess) await midiInit(); toast('MIDI Learn: tap a control, then move a knob or press a key on your MIDI device. Tap Learn again to finish.', 4500); }
+  $$('.learn-sel').forEach(e => e.classList.remove('learn-sel'));
+}
+// while learning, a tap picks the control instead of changing it
+['pointerdown', 'click'].forEach(ev => document.addEventListener(ev, e => {
+  if (!learn.on) return; const el = e.target.closest('[data-learn]'); if (!el) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (ev === 'click') return;
+  $$('.learn-sel').forEach(x => x.classList.remove('learn-sel')); el.classList.add('learn-sel'); learn.sel = el.dataset.learn;
+  const L = learnSpec(learn.sel); toast('Now move a control on your MIDI device for: ' + (L ? L.name : learn.sel));
+}, true));
 
 /* ================= WAV: live recording and offline export ================= */
 const rec = {on:false, chunks:[], flushing:false};
@@ -400,34 +461,39 @@ function onSectionBar(root){
 // rotary knob: drag up / down (or left / right), double-tap for the middle; arrow keys work too
 const knobArc = v => { const a0 = -225 * Math.PI / 180, a = a0 + v * 270 * Math.PI / 180, r = 15, p = t => (20 + r * Math.cos(t)).toFixed(2) + ' ' + (20 + r * Math.sin(t)).toFixed(2);
   return {track:`M${p(a0)} A${r} ${r} 0 1 1 ${p(a0 + 270 * Math.PI / 180)}`, val:v > .002 ? `M${p(a0)} A${r} ${r} 0 ${v * 270 > 180 ? 1 : 0} 1 ${p(a)}` : '', x:(20 + 10 * Math.cos(a)).toFixed(2), y:(20 + 10 * Math.sin(a)).toFixed(2)}; };
-const knobHTML = (k, l, v) => { const A = knobArc(v); return `<div class="knob" data-k="${k}" tabindex="0" role="slider" aria-label="${esc(l)}" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${(v * 10).toFixed(1)}"><svg viewBox="0 0 40 40"><path class="kt" d="${A.track}"/><path class="kv" d="${A.val}"/><line x1="20" y1="20" x2="${A.x}" y2="${A.y}"/></svg><b>${(v * 10).toFixed(1)}</b><span>${esc(l)}</span></div>`; };
+const knobHTML = (k, l, v, L = '') => { const A = knobArc(v); return `<div class="knob dial" data-k="${k}" ${L} tabindex="0" role="slider" aria-label="${esc(l)}" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${(v * 10).toFixed(1)}"><svg viewBox="0 0 40 40"><path class="kt" d="${A.track}"/><circle class="body" cx="20" cy="20" r="11.5"/><path class="kv" d="${A.val}"/><line x1="20" y1="20" x2="${A.x}" y2="${A.y}"/></svg><b>${(v * 10).toFixed(1)}</b><span>${esc(l)}</span></div>`; };
 function knobSet(el, v){ const A = knobArc(v); el.querySelector('.kv').setAttribute('d', A.val); const ln = el.querySelector('line'); ln.setAttribute('x2', A.x); ln.setAttribute('y2', A.y); el.querySelector('b').textContent = (v * 10).toFixed(1); el.setAttribute('aria-valuenow', (v * 10).toFixed(1)); }
-function panelHTML(id, panel, vals){
+const lookVars = L => L ? `--pbg:${L.bg};--pink:${L.ink};--kb:${L.knob || '#333'};--kp:${L.ptr || '#eee'};--kr:${L.ring || '#555'};--cap:${L.cap || '#eee'};--track:${L.track || '#000'}` : '';
+function panelHTML(id, panel, vals, look){
   const groups = []; for (const c of panel){ let g = groups.find(x => x.g === c.g); if (!g) groups.push(g = {g:c.g, cs:[]}); g.cs.push(c); }
-  const sel = (S.grp || (S.grp = {}))[id], cur = groups.some(g => g.g === sel) ? sel : groups[0].g;
-  return `<div class="panel" data-pid="${id}">${groups.length > 1 ? `<div class="chips">${groups.map(g => `<button data-g="${esc(g.g)}" class="${g.g === cur ? 'on' : ''}">${esc(g.g)}</button>`).join('')}</div>` : ''}
+  const sel = (S.grp || (S.grp = {}))[id], cur = groups.some(g => g.g === sel) ? sel : groups[0].g, pre = id === 'voc' ? 'v:' : 'p:' + id + ':', swk = (look && look.sw) || 'btn';
+  return `<div class="panel" data-pid="${id}" style="${lookVars(look)}">${groups.length > 1 ? `<div class="chips">${groups.map(g => `<button data-g="${esc(g.g)}" class="${g.g === cur ? 'on' : ''}">${esc(g.g)}</button>`).join('')}</div>` : ''}
     ${groups.map(g => `<fieldset class="grp ${g.g === cur ? 'on' : ''}" data-g="${esc(g.g)}"><legend>${esc(g.g)}</legend><div class="knobs">${g.cs.map(c => {
-    const v = vals[c.k];
-    if (c.t === 's') return `<button class="sw ${v ? 'on' : ''}" data-k="${c.k}">${esc(c.l)}</button>`;
-    if (c.t === 'sel') return `<label class="selc"><select data-k="${c.k}">${c.opts.map(([ov, ol]) => `<option value="${ov}" ${+v === ov ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select><span>${esc(c.l)}</span></label>`;
-    return knobHTML(c.k, c.l, v == null ? .5 : v);
+    const v = vals[c.k], L = `data-learn="${pre}${c.k}"`;
+    if (c.t === 's') return `<button class="sw sw-${swk} ${v ? 'on' : ''}" data-k="${c.k}" ${L}><i></i><span>${esc(c.l)}</span></button>`;
+    if (c.t === 'sel') return `<div class="seg" data-k="${c.k}" ${L}><div>${c.opts.map(([ov, ol]) => `<button data-v="${ov}" class="${+v === ov ? 'on' : ''}">${esc(ol)}</button>`).join('')}</div><span>${esc(c.l)}</span></div>`;
+    if (c.t === 'f'){ const cap = (look && look.caps && look.caps[c.g]) || ''; return `<div class="fader dial" data-k="${c.k}" ${L} tabindex="0" role="slider" aria-label="${esc(c.l)}"><div class="ftrack"><i style="bottom:calc(${((v == null ? .5 : v) * 100).toFixed(1)}% * .84 + 2px);${cap ? 'background:' + cap : ''}"></i></div><b>${((v == null ? .5 : v) * 10).toFixed(1)}</b><span>${esc(c.l)}</span></div>`; }
+    return knobHTML(c.k, c.l, v == null ? .5 : v, L);
   }).join('')}</div></fieldset>`).join('')}</div>`;
 }
+function dialSet(el, v){ if (el.classList.contains('knob')) return knobSet(el, v); el.querySelector('.ftrack i').style.bottom = `calc(${(v * 100).toFixed(1)}% * .84 + 2px)`; el.querySelector('b').textContent = (v * 10).toFixed(1); }
 function bindPanel(root, vals, onChange){
   const P = root.querySelector('.panel'); if (!P) return;
   P.querySelectorAll('.chips button').forEach(b => b.onclick = () => { S.grp[P.dataset.pid] = b.dataset.g; save();
     P.querySelectorAll('.chips button').forEach(x => x.classList.toggle('on', x === b)); P.querySelectorAll('.grp').forEach(f => f.classList.toggle('on', f.dataset.g === b.dataset.g)); });
-  P.querySelectorAll('select').forEach(el => el.onchange = () => { vals[el.dataset.k] = +el.value; onChange(); });
+  P.querySelectorAll('.seg').forEach(el => el.querySelectorAll('button').forEach(b => b.onclick = () => { vals[el.dataset.k] = +b.dataset.v; el.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); onChange(); }));
   P.querySelectorAll('.sw').forEach(el => el.onclick = () => { vals[el.dataset.k] = vals[el.dataset.k] ? 0 : 1; el.classList.toggle('on', !!vals[el.dataset.k]); onChange(); });
-  P.querySelectorAll('.knob').forEach(el => {
-    const k = el.dataset.k, set = v => { v = clamp(Math.round(v * 100) / 100, 0, 1); if (v === vals[k]) return; vals[k] = v; knobSet(el, v); onChange(); };
+  P.querySelectorAll('.dial').forEach(el => {
+    const k = el.dataset.k, set = v => { v = clamp(Math.round(v * 100) / 100, 0, 1); if (v === vals[k]) return; vals[k] = v; dialSet(el, v); onChange(); };
+    const span = el.classList.contains('fader') ? 110 : 160;
     let drag = null, lastTap = 0;
     el.onpointerdown = e => { e.preventDefault(); el.setPointerCapture(e.pointerId); drag = {x:e.clientX, y:e.clientY, v:vals[k] == null ? .5 : vals[k]}; el.classList.add('drag');
       const now = Date.now(); if (now - lastTap < 300) set(.5); lastTap = now; };
-    el.onpointermove = e => { if (!drag) return; set(drag.v + ((drag.y - e.clientY) + (e.clientX - drag.x)) / 160); };
+    el.onpointermove = e => { if (!drag) return; set(drag.v + ((drag.y - e.clientY) + (el.classList.contains('fader') ? 0 : e.clientX - drag.x)) / span); };
     el.onpointerup = el.onpointercancel = () => { drag = null; el.classList.remove('drag'); };
     el.onkeydown = e => { const d = {ArrowUp:.05, ArrowRight:.05, ArrowDown:-.05, ArrowLeft:-.05}[e.key]; if (d){ e.preventDefault(); set((vals[k] == null ? .5 : vals[k]) + d); } };
   });
+  markLearned();
 }
 // a machine screen is split into views so each one fits on a phone; wide screens show them all
 function viewTabs(id, list){ const cur = (S.view || (S.view = {}))[id] || list[0][0]; return `<div class="vtabs">${list.map(([k, l]) => `<button data-view="${k}" class="${k === cur ? 'on' : ''}">${l}</button>`).join('')}</div>`; }
@@ -443,7 +509,7 @@ function bindPresetRow(id){
   $('#preSel').onchange = e => { if (e.target.value){ applyPreset(id, e.target.value); renderAll(); } };
   $('#preSave').onclick = () => { const n = prompt('Name for this sound:'); if (!n) return; (S.user[id] || (S.user[id] = {}))[n] = id === 'voc' ? {voc:Object.assign({}, S.voc.p), tts:Object.assign({}, S.voc.tts)} : Object.assign({}, S.mach[id].p); if (id === 'voc') S.voc.preset = n; else S.mach[id].preset = n; save(); renderAll(); toast('Saved.'); };
 }
-function renderAll(){ renderTabs(); renderTransport(); renderMain(); }
+function renderAll(){ renderTabs(); renderTransport(); renderMain(); markLearned(); }
 function renderMain(){
   const m = $('#main'), k = S.tab;
   if (k === 'song') return renderSong(m);
@@ -464,7 +530,9 @@ function renderSong(m){
     <p class="hint">MIDI export has one track per machine: drums on their channels with General MIDI notes, arpeggios written out as they play. Import puts every track on a machine you pick.</p></details>
     <details class="card fold" ${S.foldMidi ? "open" : ""} data-fold="foldMidi"><summary><h3>MIDI input</h3></summary><div class="row"><button id="midiOn">Connect MIDI</button><span id="midiStat2" class="hint"></span>
       <select id="midiMode"><option value="selected" ${S.midiMode === 'selected' ? 'selected' : ''}>Plays the machine on screen</option><option value="channel" ${S.midiMode === 'channel' ? 'selected' : ''}>Plays by channel</option></select></div>
-      <div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></details>`;
+      <h3>MIDI Learn</h3><p class="hint">Tap <b>Learn</b> (top bar, under ⋯), tap any knob, slider, switch, mixer control or Play, then move a control on your MIDI device.</p>
+      <div id="learnList">${Object.entries(S.learn).map(([src, key]) => { const [t, ch, n] = src.split(':'), L = learnSpec(key); return `<div class="sayrow"><span class="grow">${t === 'cc' ? 'CC ' + n : 'Note ' + nn(+n)} · ch ${+ch + 1} → ${esc(L ? L.name : key)}</span><button data-src="${src}">✕</button></div>`; }).join('') || '<p class="hint">Nothing learned yet.</p>'}</div>
+      <h3>Channels</h3><div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></details>`;
   m.querySelectorAll('[data-fold]').forEach(d => d.ontoggle = () => { S[d.dataset.fold] = d.open; save(); });
   $('#songNew').onclick = () => { S.songs.push({name:'New song', bpm:112, swing:0, key:'', note:'', presets:{}, carrier:S.voc.carrier, arp:{}, sections:[emptySection('A', 4)]}); loadSong(S.songs.length - 1); };
   $('#songDup').onclick = () => { const c = JSON.parse(JSON.stringify(sg)); c.name += ' (copy)'; S.songs.push(c); loadSong(S.songs.length - 1); };
@@ -486,6 +554,7 @@ function renderSong(m){
   $('#projLoad').onclick = () => $('#projFile').click();
   $('#midiOn').onclick = midiInit; $('#midiMode').onchange = e => { S.midiMode = e.target.value; save(); };
   m.querySelectorAll('[data-ch]').forEach(s => s.onchange = () => { S.midiCh[s.dataset.ch] = +s.value; save(); });
+  $('#learnList').onclick = e => { const src = e.target.dataset.src; if (!src) return; delete S.learn[src]; save(); renderMain(); };
 }
 function partsSummary(s){
   const out = [];
@@ -508,7 +577,7 @@ function renderMachine(m, id){
     ${M.kind !== 'drum' ? `<div class="row arp"><label>Arp<select id="arpMode">${['off', 'up', 'down', 'updown', 'random'].map(x => `<option ${ms.arp.mode === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
       <label>Oct<select id="arpOct">${[1, 2, 3].map(x => `<option ${ms.arp.oct === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
       <label>Rate<select id="arpRate">${[[8, '1/8'], [16, '1/16'], [32, '1/32']].map(([v, l]) => `<option value="${v}" ${ms.arp.rate === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>` : ''}
-    ${panelHTML(id, M.panel, ms.p)}</div>
+    ${panelHTML(id, M.panel, ms.p, M.look)}</div>
     <div class="${vw(id, 'play', MV)}" data-v="play">${M.kind === 'drum' ? '<div id="pads" class="pads"></div>' : `<div class="row"><button id="kbDn">◀ Oct</button><span id="kbLbl"></span><button id="kbUp">Oct ▶</button><button id="latch" class="${keyLatch ? 'on' : ''}">Hold</button></div><div id="kb" class="kb"></div>`}</div></section>`;
   bindViews(m, id);
   bindPresetRow(id);
@@ -582,14 +651,14 @@ function renderVoc(m){
   const VV = [['say', 'Speech'], ['snd', 'Sound']];
   m.innerHTML = `<section class="card mach" style="--c:#7fd"><div class="mhead">${gearSVG('voc', 'hero')}<div class="mtitle"><h2>Vocoder</h2><span class="maker">Electro-Harmonix · 1978 (EH-0300 model)</span></div>${viewTabs('voc', VV)}</div>
     <div class="${vw('voc', 'snd', VV)}" data-v="snd">${presetRow('voc')}
-    ${panelHTML('voc', VOC_PANEL, V.p)}<div id="bands" class="bands">${EH_BANDS_UI.map(f => `<div><i></i><span>${f < 1000 ? f : (f / 1000).toFixed(1) + 'k'}</span></div>`).join('')}</div>
+    ${panelHTML('voc', VOC_PANEL, V.p, VOC_LOOK)}<div id="bands" class="bands">${EH_BANDS_UI.map(f => `<div><i></i><span>${f < 1000 ? f : (f / 1000).toFixed(1) + 'k'}</span></div>`).join('')}</div>
     <div class="row"><label>Music input (carrier)<select id="carSel">${Object.keys(MACH).filter(k => MACH[k].kind !== 'drum').map(k => `<option value="${k}" ${V.carrier === k ? 'selected' : ''}>${MACH[k].name}</option>`).join('')}</select></label>
       <button id="direct" class="sw ${V.direct ? 'on' : ''}">Carrier also dry</button><button id="micBtn" class="sw ${micOn ? 'on' : ''}">Live mic</button></div></div>
     <div class="${vw('voc', 'say', VV)}" data-v="say">
       <div class="row"><label>Voice<select id="ttsVoice">${Object.keys(TTS_VOICES).map(v => `<option ${V.tts.voice === v ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <label>Pitch<input id="ttsSemi" type="number" min="-12" max="12" value="${V.tts.semi}"></label><label>Speed<input id="ttsSpeed" type="number" min=".5" max="2" step=".05" value="${V.tts.speed}"></label></div>
       <textarea id="sayText" rows="2">${esc(V.sayText)}</textarea>
-      <div class="row"><button id="sayBtn" class="big">Say it</button><label>with chord<select id="sayRoot">${Array.from({length:25}, (_, i) => 40 + i).map(n => `<option value="${n}" ${V.sayRoot === n ? 'selected' : ''}>${nn(n)}</option>`).join('')}</select></label>
+      <div class="row"><button id="sayBtn" class="big" data-learn="say">Say it</button><label>with chord<select id="sayRoot">${Array.from({length:25}, (_, i) => 40 + i).map(n => `<option value="${n}" ${V.sayRoot === n ? 'selected' : ''}>${nn(n)}</option>`).join('')}</select></label>
       <select id="sayChord">${[['min', 'minor'], ['maj', 'major'], ['one', 'one note'], ['oct', 'octaves'], ['m7', 'minor 7']].map(([k, l]) => `<option value="${k}" ${V.sayChord === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <p class="hint">Type /phonemes/ between slashes to spell a word exactly (e.g. /K AX M P Y UW T ER/). Say it plays the chord on the carrier machine while the speech runs.</p>
     <h3>Spoken in a section</h3>${sectionBar()}<div id="sayList">${sec.say.map((l, i) => `<div class="sayrow"><select data-i="${i}" data-f="bar">${Array.from({length:sec.bars}, (_, b) => `<option value="${b}" ${l.bar === b ? 'selected' : ''}>Bar ${b + 1}</option>`).join('')}</select><input data-i="${i}" data-f="text" value="${esc(l.text)}"><button data-i="${i}" data-a="del">✕</button></div>`).join('')}</div>
@@ -628,9 +697,10 @@ async function toggleMic(){
 function renderMixer(m){
   const ch = Object.keys(MACH).map(id => ({id, name:MACH[id].name, c:MACH[id].color, s:S.mach[id]})).concat([{id:'voc', name:'Vocoder', c:'#7fd', s:S.vocMix || (S.vocMix = {vol:.85, pan:0, mute:false, solo:false})}]);
   m.innerHTML = `<section class="card"><h2>Mixer</h2><div class="mixer">${ch.map(x => `<div class="strip" style="--c:${x.c}" data-id="${x.id}"><b>${x.name}</b>
-    <input type="range" class="fader" min="0" max="1" step="0.01" value="${x.s.vol}" data-f="vol"><label>Pan<input type="range" min="-1" max="1" step="0.05" value="${x.s.pan}" data-f="pan"></label>
-    <div class="ms"><button data-f="mute" class="${x.s.mute ? 'on' : ''}">M</button><button data-f="solo" class="${x.s.solo ? 'on' : ''}">S</button></div>${S.voc.carrier === x.id && !S.voc.direct ? '<small>into vocoder</small>' : ''}</div>`).join('')}</div>
-    <label class="ctl master"><span>Master</span><input id="masterVol" type="range" min="0" max="1" step="0.01" value="${S.master}"></label></section>`;
+    <input type="range" class="fader" min="0" max="1" step="0.01" value="${x.s.vol}" data-f="vol" data-learn="mix:${x.id}:vol"><label>Pan<input type="range" min="-1" max="1" step="0.05" value="${x.s.pan}" data-f="pan" data-learn="mix:${x.id}:pan"></label>
+    <div class="ms"><button data-f="mute" class="${x.s.mute ? 'on' : ''}" data-learn="mix:${x.id}:mute">M</button><button data-f="solo" class="${x.s.solo ? 'on' : ''}" data-learn="mix:${x.id}:solo">S</button></div>${S.voc.carrier === x.id && !S.voc.direct ? '<small>into vocoder</small>' : ''}</div>`).join('')}</div>
+    <label class="ctl master"><span>Master</span><input id="masterVol" type="range" min="0" max="1" step="0.01" value="${S.master}" data-learn="master"></label></section>`;
+  markLearned();
   m.querySelector('.mixer').oninput = e => { const st = e.target.closest('.strip'), f = e.target.dataset.f; if (!st || !f) return; const o = st.dataset.id === 'voc' ? S.vocMix : S.mach[st.dataset.id]; o[f] = +e.target.value; applyMix(); save(); };
   m.querySelector('.mixer').onclick = e => { const st = e.target.closest('.strip'), f = e.target.dataset.f; if (!st || (f !== 'mute' && f !== 'solo')) return; const o = st.dataset.id === 'voc' ? S.vocMix : S.mach[st.dataset.id]; o[f] = !o[f]; e.target.classList.toggle('on', o[f]); applyMix(); save(); };
   $('#masterVol').oninput = e => { S.master = +e.target.value; applyMix(); save(); };
@@ -651,6 +721,7 @@ $('#songSel').onchange = e => loadSong(+e.target.value);
 $('#loopBtn').onclick = () => { S.loopSec = !S.loopSec; if (playing && S.loopSec){ pos.sec = S.sec; } save(); renderTransport(); toast(S.loopSec ? 'Looping the section you are editing.' : 'Playing the whole song.'); };
 $('#recBtn').onclick = toggleRec;
 $('#moreBtn').onclick = () => $('#more').classList.toggle('on');
+$('#learnBtn').onclick = learnToggle;
 $('#recNotesBtn').onclick = () => { recNotes = !recNotes; renderTransport(); toast(recNotes ? 'Notes you play now are written into the playing section.' : 'Note recording off.'); };
 $('#panicBtn').onclick = () => { stop(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
 $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); };

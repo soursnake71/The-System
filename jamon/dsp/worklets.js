@@ -208,7 +208,8 @@ class ANA extends AudioWorkletProcessor{
       const fr = currentFrame + i;
       while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else this.noteOff(ev.off); }
       this.lfo += lfoHz / fs; if (this.lfo >= 1){ this.lfo -= 1; this.lfoSH = Math.random() * 2 - 1; }
-      const lw = C.lfoWave || 0, lv = lw === 1 ? (this.lfo < .5 ? 1 : -1) : lw === 2 ? 1 - 2 * this.lfo : lw === 3 ? this.lfoSH : 1 - 4 * Math.abs(this.lfo - .5);
+      if (C.lfoWave === 4) this.lfoN = (this.lfoN || 0) + ((Math.random() * 2 - 1) * 1.7 - (this.lfoN || 0)) * .02;   // SH-101 noise modulator
+      const lw = C.lfoWave || 0, lv = lw === 1 ? (this.lfo < .5 ? 1 : -1) : lw === 2 ? 1 - 2 * this.lfo : lw === 3 ? this.lfoSH : lw === 4 ? this.lfoN : 1 - 4 * Math.abs(this.lfo - .5);
       // thermal drift: slow random walk per VCO, bounded to a few cents
       if (vco && (fr & 63) === 0) for (const cd of this.cards) for (let k = 0; k < 3; k++){ cd.walk[k] = Math.max(-.003, Math.min(.003, cd.walk[k] + (Math.random() - .5) * 6e-5)); }
       let mixA = 0, mixB = 0;
