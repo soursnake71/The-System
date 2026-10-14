@@ -1,6 +1,6 @@
 /* In-app help. One section per screen; the ? button opens the section for the screen you are on. */
 const HELP = [
-  ['start', 'Getting started', `<ol><li>Pick a song in the top bar (seven styles from the album, or your own) and press <b>▶</b>. Space bar also plays and stops.</li>
+  ['start', 'Getting started', `<ol><li>Pick a song in the top bar (seven styles from the album, or your own) and press <b>▶</b>. <b>■</b> stops; <b>double-tap ■</b> stops everything (held notes, echoes, speech, outside MIDI gear). Space bar also plays and stops.</li>
     <li>The tabs along the top are the machines. Each machine has three views: <b>Pattern</b> (the notes or steps), <b>Sound</b> (its front panel) and <b>Play</b> (keys or pads).</li>
     <li>Want a whole new sound at once? On the <b>Song</b> tab pick a <b>Rig preset</b>: it sets every machine, the vocoder and the mix.</li>
     <li>Add it to your home screen from Chrome's menu and it works offline.</li></ol>`],

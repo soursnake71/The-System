@@ -144,6 +144,7 @@ function applyMix(r = R){
   }
   for (const u of RET_U){ const o = retState(u); r.retG[u].gain.value = o.mute ? 0 : o.vol * o.vol * 1.3; }
   r.vf.gain.value = S.voiceDry ? 1 : 0;
+  if (r === R && performance.now() < muteUntil) return;
   r.master.gain.value = S.master;
 }
 // the dry Voice channel, with its chipmunk insert (used by the Chipmunk vocoder preset and the button on the Vocoder screen)
@@ -414,6 +415,7 @@ function learnSpec(key){
     return {c:{t:k === 'mute' || k === 'solo' ? 's' : 'k', k, l:k}, vals:o, name:nm + k, after:() => applyMix(), pan:k === 'pan'}; }
   if (kind === 'master') return {c:{t:'k', k:'master'}, vals:S, name:'Master level', after:() => applyMix()};
   if (kind === 'play') return {c:{t:'btn'}, name:'Play / Stop', press:() => play()};
+  if (kind === 'stopall') return {c:{t:'btn'}, name:'Stop everything', press:() => stopAll()};
   if (kind === 'loop') return {c:{t:'btn'}, name:'Loop section', press:() => $('#loopBtn').click()};
   if (kind === 'say') return {c:{t:'btn'}, name:'Vocoder · Say it', press:() => sayNow()};
   if (kind === 'chip') return {c:{t:'btn'}, name:'Chipmunk voice on / off', press:() => { setVoice(!S.voiceDry, {ins:'chipmunk'}); if (S.tab === 'voc') renderMain(); }};
@@ -489,6 +491,7 @@ async function exportWav(){
     for (const h of hits) drumHit(r, ...h);
     for (const [text, tt] of says) speak(r, text, tt);
     const b = await oc.startRendering();
+    { let pk = 0; for (let c = 0; c < 2; c++) for (const x of b.getChannelData(c)) pk = Math.max(pk, Math.abs(x)); if (pk > .97){ const g = .95 / pk; for (let c = 0; c < 2; c++){ const d = b.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] *= g; } } }
     download(wavBlob([b.getChannelData(0), b.getChannelData(1)], sr), fname('wav')); toast('WAV saved.');
   } catch(e){ console.error(e); toast('Export failed: ' + e.message); }
   $('#busy').classList.remove('on');
@@ -936,6 +939,16 @@ applyBackdrop();
 
 /* ================= transport bindings ================= */
 $('#playBtn').onclick = play;
+// ■ stops the song; a double tap stops everything: held and arpeggiated notes, echoes and reverb tails, speech, outside MIDI gear
+let muteUntil = 0;
+function stopAll(){
+  if (R){ muteUntil = performance.now() + 450; const g = R.master.gain, t = ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + .03); setTimeout(() => { g.cancelScheduledValues(0); applyMix(); }, 470); }
+  stop('panic'); midiPanic(); keyLatch = false; for (const k in live.held) live.held[k] = new Set();
+  for (const id in MACH) if (MACH[id].kind !== 'drum') allOff(id); for (const id of CH()){ dubThrow(id, false); dubDrop(id, false); }
+  const b = $('#stopBtn'); b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 300); toast('Everything stopped.');
+}
+let stopTap = 0;
+$('#stopBtn').onclick = () => { const now = Date.now(); if (now - stopTap < 400){ stopTap = 0; stopAll(); } else { stopTap = now; stop(); } };
 $('#bpm').onchange = e => { song().bpm = clamp(+e.target.value || 112, 40, 240); save(); };
 $('#swing').onchange = e => { song().swing = clamp(+e.target.value || 0, 0, 60); save(); };
 $('#songSel').onchange = e => loadSong(+e.target.value);
