@@ -138,5 +138,5 @@ const PRESETS = {
     'Electro Robot': {voc:{mic:.65, music:.6, hi:.45, comp:.75, blend:0, resp:.3, vol:.9}, tts:{voice:'robot', semi:0, speed:1}},
     'Clear Speech': {voc:{mic:.6, music:.55, hi:.8, comp:.6, blend:.1, resp:.25, vol:.9}, tts:{voice:'normal', semi:0, speed:.9}},
     'Deep Machine': {voc:{mic:.65, music:.65, hi:.3, comp:.8, blend:0, resp:.5, vol:.9}, tts:{voice:'deep', semi:-3, speed:.8}},
-    'Chipmunk': {voc:{mic:.6, music:.6, hi:.7, comp:.6, blend:.35, resp:.2, vol:.9}, tts:{voice:'high', semi:7, speed:1.35}}}
+    'Chipmunk': {voc:{mic:.6, music:.6, hi:.7, comp:.6, blend:0, resp:.2, vol:.7}, tts:{voice:'normal', semi:0, speed:1}, voice:{ins:'chipmunk', p:'Tape ×2 (classic chipmunk)'}}}
 };
