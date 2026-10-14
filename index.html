@@ -699,6 +699,16 @@ html.retro .pad .pload{left:9%;right:auto;bottom:7%;z-index:2;padding:4px 5px;ba
 html.retro .pad.sel::before{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 3px 0 #4a4843,inset 0 1px 0 #ffffff55}
 html.retro .pad.hit{background:none;color:#26241f;transform:none}
 html.retro .pad.hit .num{color:#45433e;transform:translateY(2px)}
+/* drum machine skins: the pads take on the look of the machine that is loaded */
+.kitplate{display:flex;align-items:baseline;gap:10px;padding:7px 12px 6px;border-radius:6px 6px 0 0;background:var(--kcase);border:2px solid #1b1c1e;border-bottom:0;margin-bottom:-2px;flex-wrap:wrap}
+.kitplate b{font:700 14px "Michroma",sans-serif;letter-spacing:.22em;color:var(--kink)}.kitplate i{font:400 8px "Michroma",sans-serif;letter-spacing:.14em;white-space:nowrap;color:var(--kink);opacity:.75;font-style:normal}
+html.retro #pads.kskin{background:var(--kcase);border-radius:0 0 6px 6px}
+#pads.kskin .pad .nm{color:var(--kink) !important}
+html.retro #pads.kskin .pad::before{background:radial-gradient(130% 100% at 50% 0%,color-mix(in srgb,var(--pc) 75%,#fff),var(--pc) 58%,color-mix(in srgb,var(--pc) 82%,#000));border-color:color-mix(in srgb,var(--pc) 60%,#000)}
+html.retro #pads.kskin .pad.hit::before{background:color-mix(in srgb,var(--pc) 70%,#000)}
+html.retro #pads.kskin .pad .num{color:#0009}
+html:not(.retro) #pads.kskin .pad{background:var(--pc);color:#111}
+#pads.kskin.hex .pad::before{clip-path:polygon(25% 2%,75% 2%,100% 50%,75% 98%,25% 98%,0 50%);border-radius:0}
 html.retro .pad.hit::before{background:radial-gradient(130% 100% at 50% 0%,#8e8c86,#7c7a75);transform:translateY(2px);box-shadow:0 0 0 2px #00000022,0 1px 0 #4a4843,inset 0 2px 5px #00000055}
 html.retro .pad.has::after{top:2px;right:2px;background:#ff3b1f;box-shadow:0 0 6px #ff3b1f}
 html.retro .key{background:radial-gradient(120% 90% at 50% 20%,#5d5f62,#46484b);color:#d9d4c7;border-color:#000}
@@ -993,6 +1003,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
     <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
+    <div class="kitplate" id="kitPlate" hidden><b></b><i></i></div>
     <div class="pads" id="pads"></div>
     <div class="card" data-title="Sequencer">
       <canvas id="seq" aria-label="Recorded hits for every pad across the loop. Tap a hit to delete it, or tap a row to select that pad."></canvas>
@@ -1848,6 +1859,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>AI EQ</b> (Mixer → AI EQ): listens to each track across the song, works out what it is, and EQs it like an engineer: high-pass, mud and ring cuts, presence lift, and room for the kick, bass and vocal. AI master EQ shapes the whole mix toward a style. Each track's curve shows on its FX page with an Amount.</li>
         <li><b>Pitch tracking</b>: on an audio track, <b>To notes</b> turns a sung or played line into synth notes; <b>Auto-tune</b> pulls a clip to the project's key (Natural keeps vibrato, Hard is the robot effect, Undo tune brings the take back). On the Synth screen, <b>Sing to play</b> lets your voice play the synth through the mic, with a live tuner next to it.</li>
         <li><b>Keyboard = the instrument</b> (Synth → Keyboard): the keys take on the look of the synth you picked (Minimoog wood cheeks and ivory keys, the Juno-60 and SH-101 cases, the blue PPG, the silver TB-303 and so on) with the synth's own knobs, sliders and switches right above them. The keys stay at the bottom of the screen while you scroll the panel. Tap Sound to open the same panel full-screen; Grid goes back to the pad grid.</li>
+        <li><b>Drum machine skins</b>: the pads take on the look of the machine loaded with Drum machine: the TR-808's red, orange, yellow and cream keys, the CR-78's walnut case, the grey TR-909, Simmons red hexagon pads, the Oberheim DMX, the LinnDrum and more, with the maker's nameplate above.</li>
+        <li><b>MIDI learn</b>: every knob, slider, switch and menu on every instrument panel, drum machine, effect and mixer can be learned (MIDI learn, then tap the control, then move a knob on your controller). Only the Load file buttons can't, because a browser only opens files on a real tap.</li>
         <li><b>Big screens</b>: on a computer or TV the whole interface scales up to fill the screen.</li>
         <li><b>Sidechain</b> (Mixer → Sidechain card): anything ducks anything. Each route is <i>key → target</i>. The key can be a pad hit, any track's sound, any FX return, a turntable or the mic input; the target can be any track, any FX return or a turntable. Amount is how far it dips, Release how fast it comes back. Several keys can duck one target. Each route has its own on/off and can be MIDI-learned. Routes play in exports too (turntables and the mic are live only). The older "Ducked by" on each track's FX still works alongside.</li>
         <li><b>Output level</b> (Setup → Output level, saved on this device): Phone (−6 dB, the default) leaves headroom so a phone's speaker and headphone output don't distort; Quiet is −12 dB; Studio is full level for an interface. The final limiter tops out at −1 dBFS. Exports are always full level.</li>
@@ -1991,7 +2004,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v118</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v119</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7198,6 +7211,7 @@ function fitScreen(){
   if (view === 'drums'){
     const pads = $('#pads'); pads.style.maxWidth = ''; pads.style.width = '100%'; pads.style.margin = '';
     const o = over(); if (o > 0){ const h = pads.offsetHeight, w = pads.offsetWidth, nh = Math.max(200, h - o - 2); pads.style.maxWidth = Math.floor(w * nh / h) + 'px'; pads.style.margin = '0 auto'; pads.style.alignSelf = 'center'; }
+    { const pl = $('#kitPlate'); if (pl){ pl.style.maxWidth = pads.style.maxWidth; pl.style.margin = pads.style.maxWidth ? '0 auto -2px' : ''; pl.style.width = pads.style.maxWidth ? '100%' : ''; } }
   } else if (view === 'synth'){
     const k = $('#keys'), pn = $('#piano'); k.style.height = ''; k.style.gridAutoRows = ''; pn.style.height = '';
     const o = over(); if (o > 0){
@@ -8099,6 +8113,23 @@ function renderInput(){
   $('#latMs').value = ms; $('#latMs').disabled = S.autoLat; $('#latV').textContent = ms + ' ms';
 }
 
+const KIT_SKIN = {
+  tr808:{plate:['ROLAND', 'RHYTHM COMPOSER TR-808'], cas:'linear-gradient(180deg,#3d3d40,#232326)', ink:'#f1e9da', pad:i => ['#d8352a', '#ec7a2a', '#ecc83c', '#ede6d4'][i >> 2]},
+  cr78:{plate:['ROLAND', 'COMPURHYTHM CR-78'], cas:'linear-gradient(90deg,#4a2a14,#7a4a26 20%,#5a3418 50%,#7a4a26 80%,#4a2a14)', ink:'#f3e6cf', pad:i => i % 4 === 0 ? '#d9442e' : '#e9dfc7'},
+  tr909:{plate:['ROLAND', 'RHYTHM COMPOSER TR-909'], cas:'linear-gradient(180deg,#d6d6d2,#b8b8b3)', ink:'#1d1d1d', pad:i => i < 4 ? '#e8e6e0' : '#bdbcb7'},
+  tr505:{plate:['ROLAND', 'RHYTHM COMPOSER TR-505'], cas:'linear-gradient(180deg,#34353a,#212226)', ink:'#ececec', pad:i => ['#e05a3a', '#9a9ca2', '#9a9ca2', '#c9cbcf'][i >> 2]},
+  lm2:{plate:['LINN', 'LINNDRUM'], cas:'linear-gradient(180deg,#1b1b1b,#0c0c0c)', ink:'#e9dfc7', pad:i => '#d9cfb6'},
+  dmx:{plate:['OBERHEIM', 'DMX'], cas:'linear-gradient(180deg,#1a1a1a,#0a0a0a)', ink:'#f2f2f2', pad:i => i % 4 === 0 ? '#2f6fd0' : '#7d7f84'},
+  dr110:{plate:['BOSS', 'DR. RHYTHM DR-110'], cas:'linear-gradient(180deg,#232323,#111)', ink:'#d8d8d8', pad:i => '#c6c7c9'},
+  sdsv:{plate:['SIMMONS', 'SDS-V'], cas:'linear-gradient(180deg,#151515,#050505)', ink:'#f4f4f4', pad:i => '#c4161c', cls:'hex'}};
+function skinPads(){
+  const box = $('#pads'), pl = $('#kitPlate'), K = KIT_SKIN[S.drum.kit] || null;
+  box.classList.toggle('kskin', !!K); box.classList.toggle('hex', !!(K && K.cls === 'hex')); pl.hidden = !K;
+  if (!K){ box.style.removeProperty('--kcase'); return; }
+  for (const el of [box, pl]){ el.style.setProperty('--kcase', K.cas); el.style.setProperty('--kink', K.ink); }
+  pl.querySelector('b').textContent = K.plate[0]; pl.querySelector('i').textContent = K.plate[1];
+  box.querySelectorAll('.pad').forEach(b => b.style.setProperty('--pc', K.pad(+b.dataset.i)));
+}
 function renderPads(){
   const box = $('#pads');
   if (!box.children.length){
@@ -8131,7 +8162,7 @@ function renderPads(){
     b.classList.toggle('has', S.drum.notes.some(n => n.p === +b.dataset.i && n.t < loopTicks()));
     b.classList.toggle('user', !!p.sample && !p.sample.startsWith('kit:')); b.classList.toggle('empty', !p.sample);
     b.setAttribute('aria-label', `${padLabel(+b.dataset.i)} ${p.name}`);
-  });
+  });  skinPads();
 }
 function padLoadAt(i){ sbxOpen(i); }
 let padHoldT = 0, padMenuI = 0, padEditOn = false;
