@@ -1,0 +1,34 @@
+# Builds the Jam-On Rig Android app (a WebView around the /jamon/ site) and attaches the APK to the
+# "jamon-latest" release. Debug-signed, so it installs on your own phone without the private release key.
+name: Jam-On Rig APK
+on:
+  push:
+    branches: [main]
+    paths: ['jamon/**', 'android/**', '.github/workflows/jamon-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Point the app at the Jam-On Rig
+        run: |
+          sed -i 's#https://soursnake71.github.io/The-System/"#https://soursnake71.github.io/The-System/jamon/"#' android/app/src/main/java/com/thesnakedevice/app/TvActivity.java
+          sed -i "s#applicationId 'com.thesnakedevice.app'#applicationId 'com.thesnakedevice.jamon'#" android/app/build.gradle
+          sed -i 's#<string name="app_name">The Omega System</string>#<string name="app_name">Jam-On Rig</string>#' android/app/src/main/res/values/strings.xml
+          grep -n 'jamon' android/app/src/main/java/com/thesnakedevice/app/TvActivity.java android/app/build.gradle
+      - name: Build
+        run: gradle -p android assembleDebug --no-daemon
+      - name: Publish
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk jamon-rig.apk
+          gh release view jamon-latest >/dev/null 2>&1 || gh release create jamon-latest --title "Jam-On Rig (latest)" --notes "Android app for the Jam-On Rig. Download jamon-rig.apk on your phone and open it to install (allow installs from your browser when Android asks)."
+          gh release upload jamon-latest jamon-rig.apk --clobber

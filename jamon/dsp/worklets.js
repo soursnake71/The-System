@@ -426,7 +426,7 @@ class RS09 extends AudioWorkletProcessor{
     this.port.onmessage = e => { const d = e.data;
       if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); }
       else if (d.type === 'cfg') Object.assign(this.c, d.cfg);
-      else if (d.type === 'panic'){ this.q = []; for (const v of this.vs.values()) v.down = false; } };
+      else if (d.type === 'panic'){ this.q = []; this.vs.clear(); } };
   }
   hz(n){ const pc = ((n % 12) + 12) % 12; return RS_CLK / RS_TOS[pc] / Math.pow(2, (108 + pc - n) / 12); }
   sq(ph, dt){ if (dt >= .5) return 0; let y = ph < .5 ? 1 : -1;

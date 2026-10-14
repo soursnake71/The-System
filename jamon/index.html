@@ -161,12 +161,13 @@ body.has-art{background:#14110fe8}
 .mixer .strip .fader{writing-mode:vertical-lr;direction:rtl;height:150px;width:30px;align-self:center}
 .mixer.rets{margin-top:8px;align-items:stretch}.retlbl{writing-mode:vertical-lr;transform:rotate(180deg);color:var(--dim);font-size:11px;letter-spacing:.1em}
 #helpBtn{width:36px;padding:0;font-weight:700}.help .helpbody{font-size:14px;line-height:1.5}.help .helpbody li{margin:4px 0}.help summary h3{font-size:15px}
+#stopBtn{width:44px;font-size:15px}#stopBtn.flash{background:#d33;border-color:#d33;color:#fff}
 </style></head>
 <body>
 <header>
   <div class="top">
     <span class="logo comic">JAM-ON</span>
-    <button id="playBtn" title="Play / stop (space)" data-learn="play">▶</button>
+    <button id="playBtn" title="Play / stop (space)" data-learn="play">▶</button><button id="stopBtn" title="Stop. Double-tap: stop everything (notes, echoes, speech, MIDI)" data-learn="stopall">■</button>
     <select id="songSel"></select>
     <input id="bpm" type="number" min="40" max="240" title="BPM" aria-label="BPM">
     <button id="helpBtn" title="Help for this screen" aria-label="Help">?</button><button id="moreBtn" title="More">⋯</button>
