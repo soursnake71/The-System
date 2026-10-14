@@ -198,6 +198,7 @@ html.retro #strips .strip input.pan::-webkit-slider-thumb{width:16px !important;
 .chipbar{display:flex;flex-wrap:wrap;gap:5px}
 .chipbar button{flex:1 1 auto;padding:10px 8px;font-size:12px;white-space:nowrap}
 .chipbar button.on{background:var(--accent);color:var(--accent-ink)}
+.chipbar .hgrp{display:flex;gap:5px;flex:0 0 auto}.chipbar .hgrp button{flex:0 0 auto;min-width:40px;padding:10px 6px}
 .view > .card:not(.sheeted):not(.sdj) > :not(.chead){display:none !important}
 .view > .card{gap:0;padding:6px 10px}
 .view > .card > .chead{min-height:36px}
@@ -716,7 +717,7 @@ body.mlearn .stp{outline:2px dashed var(--accent);outline-offset:2px}
 body.mlearn .stp.mmapped{outline:2px solid #4cd07d}
 body.mlearn .stp.marmed{outline:3px solid #fff}
 /* keep the playing screens clean: explanations live in Help (?) and Setup */
-#v-drums .hint,#v-audio .hint,#v-mixer .hint:not(#scCard .hint),#v-chop .hint,#v-synth .hint,#v-song .hint,#v-deck .hint{display:none}
+#v-drums .hint,#v-audio .hint,#v-mixer .hint:not(#scCard .hint):not(#aiCard .hint),#v-chop .hint,#v-synth .hint,#v-song .hint,#v-deck .hint{display:none}
 
 /* ===== Star Screamer 350: the SVC-350 rack front. Black panel, red and white lettering, sections boxed in white,
    black knobs with a red stripe, white voice-character knobs, black push buttons ===== */
@@ -875,6 +876,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .fxsec{display:flex;align-items:center;gap:8px;margin-top:6px}.fxsec .label{flex:1}
 .fxsec.off + *, .fxsec.off + * + .ctl{opacity:.45}
 .machbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tuner{font:600 13px var(--f-mono,monospace);padding:4px 8px;border-radius:4px;background:#0006;min-width:120px;text-align:center;color:var(--dim)}.tuner.ok{color:#5be37a}
 .spbanner{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:4px 0;border-radius:6px;background:#2a1208;border:1px solid #ff6a3d;color:#ffd3c0;font:700 11px "Barlow",sans-serif;letter-spacing:.06em}
 .spbanner .grow{flex:1}
 @media (max-width:759px){
@@ -897,6 +899,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .gssteps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}.gsst{padding:9px 0 !important;font:400 9px "JetBrains Mono",monospace !important;background:#1d1f22 !important;color:#888 !important}
 .gsst.beat{border-bottom:2px solid #c8a23a !important}.gsst.on{background:#ef5a2a !important;color:#111 !important}.gsst.acc{background:#7a3a22 !important;color:#eee !important}
 #gsOn.on{background:#ef5a2a !important;color:#111 !important}
+.gtrp{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:6px;border:1px solid #6a4a2a;background:linear-gradient(180deg,#2a1a0e,#0c0705)}.gtr-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.gtr-head b{font:700 18px "Michroma",sans-serif;letter-spacing:.2em;color:#e0b050}.gtr-head i{font:400 8px "Michroma",sans-serif;letter-spacing:.18em;color:#a89a8c;font-style:normal}
 .choirp,.discop{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:6px;border:1px solid #3a2a2a}
 .choirp{background:linear-gradient(180deg,#1a0d0d,#070404)}.discop{background:linear-gradient(180deg,#2a1530,#0e0610);border-color:#6a4a2a}
 .choir-head,.disco-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.choir-head b{font:400 18px "Michroma",sans-serif;letter-spacing:.3em;color:#c94a3a}.disco-head b{font:700 18px "Barlow Condensed",sans-serif;letter-spacing:.14em;color:#f2c14e;text-shadow:0 0 8px #f2c14e88}
@@ -995,6 +998,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="card" data-chip="DMX" id="dmxCard"></div>
     <div class="card" data-chip="Synsonics" id="synsCard"></div>
     <div class="card" data-title="Pad sound">
+      <div class="kitrow"><span class="label">Drum machine</span><select id="kitPick" class="grow" aria-label="Drum machine on the pads"></select></div>
       <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
       <div class="kitrow"><span class="label">Pack</span><button id="packSave" class="nolearn">Save pack</button><button id="packLoad" class="nolearn">Load pack</button></div>
       <input type="file" id="packFile" accept=".omegapack,.zip" hidden>
@@ -1036,6 +1040,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard" data-chip="Effects"></div>
     <div class="card" id="scCard" data-chip="Sidechain"></div>
+    <div class="card" id="aiCard" data-chip="AI EQ"></div>
     <div class="card rack" id="rackCard" data-chip="FX rack"></div>
   </section>
 
@@ -1204,8 +1209,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       </div>
     </div>
     <div class="card" data-chip="Sound">
-      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="piano">Grand Piano</option><option value="choir">Choir</option><option value="disco">Disco Strings</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
-      <div class="machbar"><button class="pwr on" id="synPwr" aria-label="Synth track on or off">ON</button><button class="rst" id="synRst">↺ RESET SOUND</button></div>
+      <div class="row"><h2 class="grow" id="synthTitle">Prophet 1</h2><select id="inst" aria-label="Instrument"><option value="prophet">Prophet-5</option><option value="obxa">Oberheim OB-Xa</option><option value="gm">General MIDI (128 sounds)</option><option value="padsmp">Pad sample (keys)</option><option value="piano">Grand Piano</option><option value="choir">Choir</option><option value="disco">Disco Strings</option><option value="guitar">Rock Guitar (Eddie Martinez sim)</option><option value="sf2">SoundFont (.sf2)</option><option value="dx1">Yamaha DX1 (DX7 patches)</option><option value="juno60">Roland Juno-60</option><option value="sh101">Roland SH-101</option><option value="jx3p">Roland JX-3P</option><option value="minimoog">Moog Minimoog</option><option value="sixtrak">Sequential Six-Trak</option><option value="cs80">Yamaha CS-80</option><option value="cz">Casio CZ-101</option><option value="sk1">Casio SK-1 (sampler)</option><option value="emax">E-mu Emax (sampler)</option><option value="d50">Roland D-50</option><option value="ppg">PPG Wave 2.2</option><option value="sid">Commodore 128 (SID)</option><option value="solina">Solina strings</option><option value="omni2">ARP Omni-2</option><option value="tb303">TB-303</option><option value="taurus">Moog Taurus</option></select><select id="preset" aria-label="Preset"></select></div>
+      <div class="machbar"><button class="pwr on" id="synPwr" aria-label="Synth track on or off">ON</button><button class="rst" id="synRst">↺ RESET SOUND</button><button class="pwr" id="singBtn" title="Sing or hum into the mic: your pitch plays this synth, snapped to the key">🎤 SING TO PLAY</button><span class="tuner" id="tunerOut" aria-live="off">—</span></div>
       <div class="ctls" id="patchCtls"></div>
       <div id="tauPanel" hidden>
         <div class="label">Presets</div>
@@ -1268,6 +1273,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <select id="choirPreset" aria-label="Choir presets"></select>
         <div id="choirCtls"></div>
         <p class="hint">Every note is sung by the sections you turn up, each in its own range, several singers per section with their own pitch, drift and vibrato, through the formants of real vowels. Hold chords; slow attacks and the cathedral make it dark.</p>
+      </div>
+      <div id="gtrPanel" class="gtrp" hidden>
+        <div class="gtr-head"><b>ROCK GUITAR</b><i>HUMBUCKER · 100W STACK · 4x12 · DOUBLE-TRACKED</i></div>
+        <select id="gtrPreset" aria-label="Guitar presets"></select>
+        <div id="gtrCtls"></div>
+        <p class="hint">Play low notes for riffs: each key is a whole power chord (root, fifth, octave) unless you pick Single. Palm mute chugs, Gain drives the amp, Double adds the second take on the other side.</p>
       </div>
       <div id="discoPanel" class="discop" hidden>
         <div class="disco-head"><b>DISCO STRINGS</b><i>VIOLINS · VIOLAS · CELLOS · STUDIO HALL</i></div>
@@ -1813,6 +1824,12 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>FX rack</b>: every unit is shown as a picture of its front panel (the knobs show your settings). Tap one and all of its controls open on one screen, with ◀ Back, ▶ Hear (plays a few drum hits through it), and ↶ / ↷.</li>
         <li><b>New project</b> (Setup, tap twice): saves the current one to Projects, then starts from factory defaults: tempo, patterns, pads, every synth, effect, rack unit, master, mixer and turntable setting. Only your setup stays: MIDI mappings and settings, the DJ library and crates, SoundFonts.</li>
         <li><b>Templates</b> (Setup, the menu next to New project): start a whole song already laid out. Each one sets the tempo, key, drum kit, three instruments with presets, sends, rack and sidechain, a set of patterns (Intro, Verse, Hook, Break and so on) and the song order, with Song mode on. Press play and it runs start to finish, and exports as a full song. <b>Vocoder robot</b> has a Speech track (muted) already feeding the vocoder on the Robot Voice synth, so the chords talk; change the words on the vocoder's speech box and press Send. <b>80s synth-pop</b> has gated room drums (Phil Collins Simulator). <b>House</b> pumps: the kick ducks the bass, pad, stab and reverb. Then change anything.</li>
+        <li><b>Classic-record templates</b> (Setup → the menu next to New project), each laid out as a full song in the style of the record with the gear it used: <b>Newcleus</b> (TR-808, Pro-One-style bass, TB-303 arp, RS-09-style strings, vocoder plus chipmunk raps), <b>Jonzun Crew</b> (808, Prophet vocoder, Minimoog, a vocoder a cappella), <b>Planet Rock</b> (808 kick, claps and cowbell, Micromoog bass, Prophet strings, orchestra hits; the robot voice is a short comb delay, as on the record), <b>Electro-funk 1984</b> (808, SH-101, SVC-350-style vocoder), <b>Whodini</b> (LinnDrum, bells, two MCs), <b>Run-DMC King of Rock</b> (DMX, the Eddie Martinez guitar sim with riff, harmony and solo, two MCs), <b>Fat Boys</b> (DMX, human beatbox), <b>Freak-a-Zoid</b> (vocoder lead, Moog Source-style bass, OB-Xa) and <b>Heart of Glass</b> (CR-78, SH-5-style sequence, EBow guitar, double-tracked vocal). Every verse and chorus is sung by the speech generator; the words are new, written for the templates.</li>
+        <li><b>Drum machine</b> (Pads screen → Drum machine): put a whole modeled machine on the pads: TR-808, CR-78, TR-909, TR-505, LinnDrum, DMX, DR-110 or Simmons. The 808 and CR-78 are analog models (bridged-T drums, the 808's six-square-wave cymbal and hats, the CR-78's noise hats and metal beat).</li>
+        <li><b>Rock Guitar</b> (Synth → instrument): a plucked-string guitar into a cranked stack and 4x12 cabinet, double-tracked. Each key can play a power chord, a single note, or a <b>harmony in the song's key</b>: the Brian May presets play two or three separate takes a third and a fifth apart, slightly loose and detuned like real overdubs, with treble-boosted amp tone; Brighton Rock Echo is the long repeating delay.</li>
+        <li><b>AI EQ</b> (Mixer → AI EQ): listens to each track across the song, works out what it is, and EQs it like an engineer: high-pass, mud and ring cuts, presence lift, and room for the kick, bass and vocal. AI master EQ shapes the whole mix toward a style. Each track's curve shows on its FX page with an Amount.</li>
+        <li><b>Pitch tracking</b>: on an audio track, <b>To notes</b> turns a sung or played line into synth notes; <b>Auto-tune</b> pulls a clip to the project's key (Natural keeps vibrato, Hard is the robot effect, Undo tune brings the take back). On the Synth screen, <b>Sing to play</b> lets your voice play the synth through the mic, with a live tuner next to it.</li>
+        <li><b>Big screens</b>: on a computer or TV the whole interface scales up to fill the screen.</li>
         <li><b>Sidechain</b> (Mixer → Sidechain card): anything ducks anything. Each route is <i>key → target</i>. The key can be a pad hit, any track's sound, any FX return, a turntable or the mic input; the target can be any track, any FX return or a turntable. Amount is how far it dips, Release how fast it comes back. Several keys can duck one target. Each route has its own on/off and can be MIDI-learned. Routes play in exports too (turntables and the mic are live only). The older "Ducked by" on each track's FX still works alongside.</li>
         <li><b>Output level</b> (Setup → Output level, saved on this device): Phone (−6 dB, the default) leaves headroom so a phone's speaker and headphone output don't distort; Quiet is −12 dB; Studio is full level for an interface. The final limiter tops out at −1 dBFS. Exports are always full level.</li>
         <li><b>Master meter</b> (under the top bar, on every screen): left and right output level from −48 to 0 dBFS, with a peak-hold line and the loudest recent peak in dB; it turns red when the output clips. Tap it for the master effects.</li>
@@ -1955,7 +1972,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v115</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v116</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2065,7 +2082,7 @@ function defaultState(){
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0, padMap:'chrom',
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
-    drum:Object.assign({id:'drums', name:'Drums', pads, notes}, mixDefaults()),
+    drum:Object.assign({id:'drums', name:'Pads', pads, notes}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
     synths:[], auto:{}, autoOff:[]
   };
@@ -2407,8 +2424,70 @@ function simmons(v){
   }
   return {d:knorm(d), sr:KSR};
 }
+/* ---- Roland TR-808 (1980), from the service notes: every voice analog.
+   BD: bridged-T resonator ~56 Hz, kicked by a trigger pulse that bends the pitch down at the start; DECAY sets the ring.
+   SD: two bridged-T rings (238 / 476 Hz, TONE balances them) plus high-passed noise (SNAPPY). Toms/congas: bridged-T with a
+   small downward sweep, toms with a little pink noise. Rim 1667+455 Hz, claves 2.5 kHz. Clap: band-passed noise with three
+   fast saw envelopes and a reverb tail. Cowbell: 540 + 800 Hz squares through a band-pass, two-stage decay. Hats and cymbal:
+   six squares (205.3, 304.4, 369.6, 522.7, 540, 800 Hz) through band-passes (hats ~7 kHz, cymbal adds a low band). */
+function tr808(v){
+  kseed = 808 + v.charCodeAt(0) * 23 + v.length;
+  const acc = /A$/.test(v) ? 1.25 : 1, b = v.replace(/A$/, ''); let d;
+  const bp = (x, f, q) => { const w = 2 * Math.PI * f / KSR, al = Math.sin(w) / (2 * q), a0 = 1 + al; let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < x.length; i++){ const y = (al * x[i] - al * x2 + 2 * Math.cos(w) * y1 - (1 - al) * y2) / a0; x2 = x1; x1 = x[i]; y2 = y1; y1 = y; x[i] = y; } return x; };
+  const SQ6 = [205.3, 304.4, 369.6, 522.7, 540, 800];
+  switch (b){
+    case 'bd': case 'bdl': { const dec = b === 'bdl' ? 1.1 : .42; d = kbuf(dec * 4.5); ring(d, 120, 54, .007, dec, 1); ring(d, 1700, 1700, 1, .0012, .25 * acc);
+      shape(d, 1.15 + (acc - 1) * 1.5); lpf1(d, 4000); hpf1(d, 16); break; }
+    case 'sd': d = kbuf(.45); ring(d, 260, 238, .004, .045, .9); ring(d, 476, 476, 1, .028, .5); noise(d, expE(.085), 9000, 1600, .75 * acc); shape(d, 1.1); break;
+    case 'lt': case 'mt': case 'ht': { const f = {lt:88, mt:128, ht:180}[b]; d = kbuf(1); ring(d, f * 1.18, f, .025, .25, 1); noise(d, expE(.03), 1800, 0, .07); break; }
+    case 'lc': case 'hc': { const f = {lc:168, hc:370}[b]; d = kbuf(.5); ring(d, f * 1.08, f, .01, .1, 1); break; }
+    case 'rim': d = kbuf(.08); ring(d, 1667, 1667, 1, .008, 1); ring(d, 455, 455, 1, .012, .7); hpf1(d, 300); shape(d, 1.8); break;
+    case 'cl': d = kbuf(.15); ring(d, 2500, 2500, 1, .022, 1); break;
+    case 'ma': d = kbuf(.12); noise(d, t => Math.min(1, t / .004) * Math.exp(-t / .03), 12000, 5000, 1); break;
+    case 'cp': d = kbuf(.6); noise(d, t => (t < .03 ? 1 - (t % .0105) / .0105 : 0) * .9 + (t >= .026 ? Math.exp(-(t - .026) / .11) * .6 : 0), 1000, 0, acc, 2.4); hpf1(d, 500); break;
+    case 'cb': { d = kbuf(.6); const x = kbuf(.6); metal(x, [540, 800], () => 1, 0, 1); bp(x, 2640, 1.4);
+      for (let i = 0; i < d.length; i++){ const t = i / KSR; d[i] = x[i] * (Math.exp(-t / .015) * .7 + Math.exp(-t / .12) * .45); } break; }
+    case 'ch': case 'oh': case 'cy': {
+      const T = {ch:.25, oh:1.2, cy:3}[b]; d = kbuf(T); const hi = kbuf(T); metal(hi, SQ6, () => 1, 0, 1); bp(hi, 7100, 3); bp(hi, 7100, 3);
+      if (b === 'cy'){ const lo = kbuf(T); metal(lo, SQ6, () => 1, 0, 1); bp(lo, 3440, 2.5);
+        for (let i = 0; i < d.length; i++){ const t = i / KSR; d[i] = hi[i] * Math.exp(-t / .5) + lo[i] * Math.exp(-t / .9) * .7; } }
+      else for (let i = 0; i < d.length; i++){ const t = i / KSR; d[i] = hi[i] * Math.exp(-t / (b === 'ch' ? .022 : .19)) * (t < .001 ? t / .001 : 1); }
+      hpf1(d, 5500); hpf1(d, 5500); break; }
+  }
+  return {d:knorm(d, .9 * (acc > 1 ? 1 : .85)), sr:KSR};
+}
+/* ---- Roland CompuRhythm CR-78 (1978): analog voices, ringing filters struck by pulses, noise through gated filters.
+   Bass drum: a soft, round bridged-T around 70 Hz with no click to speak of. Snare: ~200 Hz ring plus noise. Hats are
+   filtered noise (the CR-78 has no metal oscillator bank; the separate METAL BEAT voice is a ringing high band), cymbal
+   a longer noise burst, plus guiro, bongos, conga, claves, maracas, tambourine and a dry cowbell. */
+function cr78(v){
+  kseed = 78 + v.charCodeAt(0) * 29 + v.length;
+  const acc = /A$/.test(v) ? 1.25 : 1, b = v.replace(/A$/, ''); let d;
+  switch (b){
+    case 'bd': d = kbuf(.5); ring(d, 78, 68, .02, .11 * acc, 1); lpf1(d, 1200); break;
+    case 'sd': d = kbuf(.35); ring(d, 205, 195, .005, .03, .8); noise(d, expE(.065), 7000, 1100, .8 * acc); break;
+    case 'rim': d = kbuf(.08); ring(d, 1280, 1280, 1, .01, 1); ring(d, 440, 440, 1, .008, .4); shape(d, 1.5); break;
+    case 'chh': d = kbuf(.15); noise(d, t => Math.min(1, t / .0008) * Math.exp(-t / .018), 13000, 7500, acc); break;
+    case 'ohh': d = kbuf(.6); noise(d, t => Math.min(1, t / .001) * Math.exp(-t / .12), 13000, 7000, acc); break;
+    case 'cym': d = kbuf(1.6); noise(d, t => Math.min(1, t / .002) * Math.exp(-t / .45), 11000, 4500, 1); break;
+    case 'mb': d = kbuf(.3); ring(d, 4100, 4100, 1, .05, 1); ring(d, 6250, 6250, 1, .035, .6); noise(d, expE(.01), 12000, 6000, .3); break;
+    case 'gui': d = kbuf(.3); noise(d, t => t < .16 ? (1 - ((t * 55) % 1)) * .9 : 0, 4000, 1500, 1, 4); break;
+    case 'lb': case 'hb': { const f = b === 'lb' ? 300 : 440; d = kbuf(.3); ring(d, f * 1.04, f, .008, .05, 1); break; }
+    case 'lc': d = kbuf(.4); ring(d, 220 * 1.05, 220, .01, .085, 1); break;
+    case 'cl': d = kbuf(.12); ring(d, 2550, 2550, 1, .018, 1); break;
+    case 'mar': d = kbuf(.1); noise(d, t => Math.min(1, t / .006) * Math.exp(-t / .022), 12000, 6000, 1); break;
+    case 'tamb': d = kbuf(.4); noise(d, t => Math.min(1, t / .002) * Math.exp(-t / .09) * (1 + .5 * Math.sin(t * 2 * Math.PI * 28)), 13000, 6500, 1); ring(d, 7200, 7200, 1, .06, .15); break;
+    case 'cb': d = kbuf(.3); ring(d, 800, 800, 1, .05, 1); ring(d, 1185, 1185, 1, .04, .7); shape(d, 1.4); break;
+  }
+  return {d:knorm(d, .9 * (acc > 1 ? 1 : .85)), sr:KSR};
+}
 const KITS = {
   pocket:{name:'The Omega System (original)'},
+  tr808:{name:'Roland TR-808', make:tr808, voices:[['Kick','bd'],['Snare','sd'],['Clap','cp'],['Rim','rim'],['C Hat','ch',1],['O Hat','oh',1],['Cowbell','cb'],['Cymbal','cy'],
+    ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Lo Conga','lc'],['Hi Conga','hc'],['Claves','cl'],['Maracas','ma'],['Kick Long','bdl']]},
+  cr78:{name:'Roland CR-78', make:cr78, voices:[['Kick','bd'],['Snare','sd'],['Guiro','gui'],['Rim','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Tambourine','tamb'],['Cymbal','cym'],
+    ['Lo Bongo','lb'],['Hi Bongo','hb'],['Lo Conga','lc'],['Cowbell','cb'],['Claves','cl'],['Maracas','mar'],['Metal Beat','mb'],['Kick Accent','bdA']]},
   tr909:{name:'Roland TR-909', make:tr909, voices:[['Kick','bd'],['Snare','sd'],['Clap','hc'],['Rim','rs'],['C Hat','ch',1],['O Hat','oh',1],['Ride','ride'],['Crash','crash'],
     ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Kick Long','bdl'],['Kick Accent','bdhA'],['Snare Snappy','sds'],['Snare Tight','sdt'],['Clap Accent','hcA']]},
   tr505:{name:'Roland TR-505', make:tr505, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rim','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Ride','ride'],['Crash','crash'],
@@ -2534,6 +2613,7 @@ function ensureKitBuf(key){
   const out = KITS[id].make(v);
   if (out) buffers.set(key, makeBuffer([out.d], out.sr));
 }
+function renderKitPick(){ const k = $('#kitPick'); if (!k) return; k.innerHTML = Object.entries(KITS).map(([id, K]) => `<option value="${id}">${K.name}</option>`).join(''); k.value = S.drum.kit && KITS[S.drum.kit] ? S.drum.kit : 'pocket'; }
 function loadKit(id){
   const vs = kitVoices(id), pads = S.drum.pads;
   const own = pads.some(p => !p.sample.startsWith('kit:'));
@@ -2543,7 +2623,7 @@ function loadKit(id){
     dropAudio(p.sample); p.sample = vs[i].key; p.name = vs[i].name; p.choke = vs[i].choke; ensureKitBuf(vs[i].key);
   });
   S.drum.kit = id;
-  save(); renderPads(); renderPadEditor(); toast(KITS[id] ? KITS[id].name + ' loaded' : 'Kit loaded');
+  save(); renderPads(); renderPadEditor(); renderKitPick(); toast(KITS[id] ? KITS[id].name + ' loaded' : 'Kit loaded');
 }
 
 /* ================= audio engine ================= */
@@ -4573,6 +4653,92 @@ class Disco extends AudioWorkletProcessor{
   }
 }
 registerProcessor('disco', Disco);
+/* Rock guitar (the Eddie Martinez sound on Run-DMC's "Rock Box" and "King of Rock" is a Les Paul-style humbucker guitar
+   into a cranked British stack, double-tracked). The string is a plucked-string model: a delay line one period long with
+   an all-pass for exact tuning, a loss filter (string damping), the pick position as a comb on the excitation, and palm
+   muting as extra damping. A power chord plays root + fifth + octave strings. The amp: preamp gain into two cascaded,
+   asymmetric triode stages with coupling-cap high-passes between them, a Marshall-style tone stack (bass, mid, treble),
+   presence, power-amp sag, then a closed-back 4x12 cabinet (low resonance ~100 Hz, a 2.5 kHz bite, steep roll-off above
+   ~5 kHz). Effects after the cab: double-tracking (a second, slightly late and detuned take panned opposite), chorus and
+   a tape-style delay. */
+class Guitar extends AudioWorkletProcessor{
+  constructor(o){ super(); const opt = (o && o.processorOptions) || {}; this.fs = sampleRate; this.cfg = Object.assign({}, opt.cfg || {}); this.q = (opt.events || []).slice().sort((a, b) => a.f - b.f);
+    this.vs = []; this.idle = 0; this.z = new Float32Array(32); this.sag = 0; this.dl = new Float32Array(this.fs * 2 | 0); this.dw = 0; this.dlp = 0; this.cb = new Float32Array(4096); this.cw = 0; this.cph = 0;
+    this.db = new Float32Array(4096); this.dbw = 0; this.dbp = 0; this.mk(); this.cc = 0;
+    this.port.onmessage = e => { const d = e.data; if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); } else if (d.type === 'cfg'){ Object.assign(this.cfg, d.cfg); this.mk(); } }; }
+  // biquad coefficients (RBJ) for the tone stack and cabinet
+  bq(type, f, q, gDb){ const fs = this.fs, w = 2 * Math.PI * Math.min(f, fs * .45) / fs, cs = Math.cos(w), sn = Math.sin(w), al = sn / (2 * q), A = Math.pow(10, (gDb || 0) / 40); let b0, b1, b2, a0, a1, a2;
+    if (type === 'lp'){ b0 = (1 - cs) / 2; b1 = 1 - cs; b2 = b0; a0 = 1 + al; a1 = -2 * cs; a2 = 1 - al; }
+    else if (type === 'hp'){ b0 = (1 + cs) / 2; b1 = -(1 + cs); b2 = b0; a0 = 1 + al; a1 = -2 * cs; a2 = 1 - al; }
+    else if (type === 'pk'){ b0 = 1 + al * A; b1 = -2 * cs; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * cs; a2 = 1 - al / A; }
+    else if (type === 'ls'){ const sq = 2 * Math.sqrt(A) * al; b0 = A * ((A + 1) - (A - 1) * cs + sq); b1 = 2 * A * ((A - 1) - (A + 1) * cs); b2 = A * ((A + 1) - (A - 1) * cs - sq); a0 = (A + 1) + (A - 1) * cs + sq; a1 = -2 * ((A - 1) + (A + 1) * cs); a2 = (A + 1) + (A - 1) * cs - sq; }
+    else { const sq = 2 * Math.sqrt(A) * al; b0 = A * ((A + 1) + (A - 1) * cs + sq); b1 = -2 * A * ((A - 1) + (A + 1) * cs); b2 = A * ((A + 1) + (A - 1) * cs - sq); a0 = (A + 1) - (A - 1) * cs + sq; a1 = 2 * ((A - 1) - (A + 1) * cs); a2 = (A + 1) - (A - 1) * cs - sq; }
+    return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0, 0, 0]; }
+  run(c, x){ const y = c[0] * x + c[5]; c[5] = c[1] * x - c[3] * y + c[6]; c[6] = c[2] * x - c[4] * y; return y; }
+  mk(){ const C = this.cfg, k = v => v == null ? .5 : v;
+    this.f = [this.bq('hp', 30, .7), this.bq('hp', 120 + k(C.tight) * 400, .6), this.bq('lp', 6500, .7),                                  // pre / interstage
+      this.bq('ls', 140, .7, (k(C.bass) - .5) * 18), this.bq('pk', 650, .8, (k(C.mid) - .5) * 16 - 2), this.bq('hs', 2600, .7, (k(C.treble) - .5) * 18), // tone stack
+      this.bq('pk', 3500, .9, k(C.presence) * 8 - 2),
+      this.bq('hp', 75, .8), this.bq('pk', 105, 1.3, 4.5), this.bq('pk', 2500, 1.4, 3.5), this.bq('pk', 4100, 3, -6), this.bq('lp', 5200, .9), this.bq('lp', 6500, .7)]; } // 4x12 cab
+  noteOn(n, v){
+    const C = this.cfg, fs = this.fs; if (this.vs.length >= 12) this.vs.splice(0, this.vs.length - 11);
+    // diatonic harmony in the song's key (Brian May's multitracked guitar orchestra): each part is a separate take
+    const sc = C.scale || [0, 2, 3, 5, 7, 8, 10], rt = ((C.root || 0) % 12 + 12) % 12, deg = x => { const pc = ((x - rt) % 12 + 12) % 12; let k = sc.length - 1; while (k > 0 && sc[k] > pc) k--; return k; };
+    const up = (x, steps) => { const pc = ((x - rt) % 12 + 12) % 12, k = deg(x), base = x - pc, j = k + steps; return base + sc[j % sc.length] + 12 * Math.floor(j / sc.length) + (pc - sc[k]); };
+    const ch = C.chord || 'power', notes = ch === 'harm3' ? [n, up(n, 2), up(n, 4)] : ch === 'harm2' ? [n, up(n, 2)] : ch === 'harm4' ? [n, up(n, 2), up(n, 4), n - 12] : ch === 'power' ? [n, n + 7, n + 12] : ch === 'fifth' ? [n, n + 7] : ch === 'octave' ? [n, n + 12] : ch === 'major' ? [n, n + 4, n + 7, n + 12] : ch === 'minor' ? [n, n + 3, n + 7, n + 12] : [n];
+    const harm = /^harm/.test(ch);
+    notes.forEach((m, si) => { const f = 440 * Math.pow(2, (m - 69) / 12) * (harm && si ? 1 + (si % 2 ? .0025 : -.002) : 1), P = fs / f, N = Math.floor(P - .5), fr = P - N - .5, len = N + 2, buf = new Float32Array(len);
+      // pick: a short noise burst, brightness = a 1-pole low-pass, pick position = a comb
+      const br = .15 + (C.bright == null ? .6 : C.bright) * .8; let lp = 0; for (let i = 0; i < len; i++){ lp += br * ((Math.random() * 2 - 1) - lp); buf[i] = lp; }
+      const pp = Math.max(1, Math.round(len * (C.pickup === 'neck' ? .28 : .12))); for (let i = len - 1; i >= pp; i--) buf[i] -= buf[i - pp];
+      const strum = (harm ? si * (.008 + Math.random() * .012) : si * (C.strum == null ? .006 : C.strum * .02)) * fs;   // separate takes never land exactly together
+      this.vs.push({n, buf, w:0, N, ap:(1 - fr) / (1 + fr), apx:0, apy:0, lp:0, down:true, v:v * (si ? .8 : 1), wait:Math.round(strum), age:0}); }); }
+  process(ins, outs){
+    const L = outs[0][0], R = outs[0][1] || outs[0][0], N = L.length, C = this.cfg, fs = this.fs;
+    if (this.vs.length || (this.q.length && this.q[0].f < currentFrame + N)) this.idle = 0; else if ((this.idle += N) > fs * 3){ L.fill(0); if (R !== L) R.fill(0); return true; }
+    const k = (x, d) => x == null ? d : x, mute = k(C.mute, 0), sus = k(C.sustain, .7), gain = Math.pow(10, k(C.gain, .7) * 3.2) * .6, mas = k(C.master, .6);
+    const fbOpen = 1 - Math.pow(10, -2.2 - sus * 2.3), damp = .45 + (1 - mute) * .5 - (C.pickup === 'neck' ? .08 : 0), fbMute = .985 - mute * .02;
+    const f = this.f, dlyN = Math.round(k(C.delay, 0) * fs), dfb = k(C.dfb, .3), dmix = k(C.dmix, 0), dbl = k(C.dbl, 0), chs = k(C.chorus, 0);
+    for (let i = 0; i < N; i++){
+      const fr = currentFrame + i;
+      while (this.q.length && this.q[0].f <= fr){ const ev = this.q.shift(); if (ev.on != null) this.noteOn(ev.on, ev.v == null ? .8 : ev.v); else for (const V of this.vs) if (V.n === ev.off) V.down = false; }
+      let x = 0;
+      for (let vi = this.vs.length - 1; vi >= 0; vi--){
+        const V = this.vs[vi]; if (V.wait > 0){ V.wait--; continue; } V.age++;
+        const b = V.buf, len = b.length, r = (V.w + 1) % len, y0 = b[V.w];
+        // fractional-delay all-pass, then the loss filter; released strings are choked by the fretting hand
+        const ay = V.ap * y0 + V.apx - V.ap * V.apy; V.apx = y0; V.apy = ay;
+        V.lp += (V.down ? damp : .25) * (ay - V.lp);
+        const g = V.down ? fbOpen * fbMute / .985 : .93;
+        b[V.w] = V.lp * g; V.w = r;
+        x += ay * V.v;
+        if (!V.down && V.age > 200 && Math.abs(ay) < 1e-4 || V.age > fs * 12) this.vs.splice(vi, 1);
+      }
+      // amp: two asymmetric triode stages
+      let a = this.run(f[0], x) * gain;
+      a = a >= 0 ? 1 - Math.exp(-a) : -(1 - Math.exp(a * 1.25)) / 1.25;
+      a = this.run(f[2], this.run(f[1], a)) * (1 + gain * .08);
+      a = a >= 0 ? Math.tanh(a * 1.6) : Math.tanh(a * 1.3) * 1.08;
+      a = this.run(f[5], this.run(f[4], this.run(f[3], a)));
+      a = this.run(f[6], a);
+      // power amp with sag: loud passages pull the supply down
+      this.sag += ((Math.abs(a) > this.sag ? .002 : .0002)) * (Math.abs(a) - this.sag);
+      a = Math.tanh(a * (.6 + mas * 1.6) / (1 + this.sag * .6));
+      for (let c = 7; c < 13; c++) a = this.run(f[c], a);
+      a *= .55 * (C.vol == null ? .8 : C.vol);
+      // double-track: the second take is ~18 ms late with a slow 6-cent drift
+      let l = a, rr = a;
+      if (dbl > 0){ const B = this.db; B[this.dbw & 4095] = a; this.dbp += .23 / fs; const dd = (.018 + .0015 * Math.sin(2 * Math.PI * this.dbp)) * fs, ri = this.dbw - dd, i0 = Math.floor(ri), fr2 = ri - i0, t = B[i0 & 4095] + (B[(i0 + 1) & 4095] - B[i0 & 4095]) * fr2; this.dbw++;
+        l = a * (1 - dbl * .35); rr = t * dbl + a * (1 - dbl); }
+      if (chs > 0){ const B = this.cb; B[this.cw & 4095] = (l + rr) * .5; this.cph += .7 / fs; const s1 = Math.sin(2 * Math.PI * this.cph), d1 = (.007 + .003 * s1) * fs, d2 = (.007 - .003 * s1) * fs;
+        const tap = d => { const ri = this.cw - d, i0 = Math.floor(ri), q = ri - i0; return B[i0 & 4095] + (B[(i0 + 1) & 4095] - B[i0 & 4095]) * q; }; l += tap(d1) * chs * .7; rr += tap(d2) * chs * .7; this.cw++; }
+      if (dlyN > 0 && dmix > 0){ const D = this.dl, n2 = D.length, rd = D[(this.dw - dlyN + n2) % n2]; this.dlp += .35 * (rd - this.dlp); D[this.dw] = (l + rr) * .5 + this.dlp * dfb; this.dw = (this.dw + 1) % n2; l += this.dlp * dmix; rr += this.dlp * dmix; }
+      L[i] = l; R[i] = rr;
+    }
+    return true;
+  }
+}
+registerProcessor('guitar', Guitar);
 `;
 const SPW_CODE = String.raw`
 /* SP-1200 output engine: its own 26,041.67 Hz frame clock, 8 mono channels (a new hit cuts the old one),
@@ -6920,7 +7086,7 @@ function chipBar(v){
     bar._key = key; bar.innerHTML = '';
     cards.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = c.dataset.chip || sheetTitle(c) || 'More'; b._card = c;
       b.addEventListener('click', () => { if (sheetCard === c) sheetClose(); else sheetOpen(c); }); bar.appendChild(b); });
-    bar.insertAdjacentHTML('beforeend', '<button class="hundo nolearn hbtn" aria-label="Undo">↶</button><button class="hredo nolearn hbtn" aria-label="Redo">↷</button>'); histPaint();
+    bar.insertAdjacentHTML('afterbegin', '<span class="hgrp"><button class="hundo nolearn hbtn" aria-label="Undo">↶</button><button class="hredo nolearn hbtn" aria-label="Redo">↷</button></span>'); histPaint();
   }
   bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b._card === sheetCard));
 }
@@ -6966,6 +7132,9 @@ function applyDevice(){
   const tag = k + (land ? ' landscape' : ' portrait') + (wide ? ', split screen' : '');
   if (devNow && devNow !== tag) toast('Layout: ' + tag + '.');
   devNow = tag; const b = $('#devNow'); if (b) b.textContent = tag;
+  // a big monitor or TV: draw everything larger instead of a small island in the middle (1280 x 800 is the design size)
+  const z = (k === 'desktop' || k === 'tv') && S.uiZoom !== 'off' ? Math.max(1, Math.min(2.2, innerWidth / 1280, innerHeight / 800)) : 1;
+  r.style.zoom = z > 1.04 ? z.toFixed(3) : ''; r.classList.toggle('zoomed', z > 1.04);
 }
 applyDevice();
 window.addEventListener('resize', () => { clearTimeout(applyDevice._t); applyDevice._t = setTimeout(() => { const was = devNow; applyDevice(); if (was !== devNow){ if (sheetCard) sheetLayout(); fitScreen(); } }, 120); });
@@ -8198,6 +8367,7 @@ function renderTracks(){
       <canvas></canvas>
       <div class="row"><span class="label">Record</span><select class="rb" aria-label="Recording length">${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select>
       <span class="grow"></span><button class="stm"${tr.clip && !stemBusy ? '' : ' disabled'}>Stems</button><button class="imp">Import</button></div>
+      <div class="row"><span class="label">Pitch</span><button class="p2n"${tr.clip ? '' : ' disabled'} title="Track the pitch and write it as synth notes">To notes</button><select class="tun grow" aria-label="Auto-tune"${tr.clip ? '' : ' disabled'}><option value="">Auto-tune…</option><option value="nat">Natural (keeps vibrato)</option><option value="hard">Hard (robot)</option><option value="half">Gentle 50%</option>${tr.orig ? '<option value="undo">Undo tune</option>' : ''}</select></div>
       <div class="row"><span class="label">Warp</span><select class="wm" aria-label="Warp mode"><option value="complex">Complex</option><option value="beats">Beats</option><option value="repitch">Re-Pitch</option><option value="off">Off</option></select>
       <span class="label">Clip</span><select class="cb" aria-label="Clip length"${tr.clip ? '' : ' disabled'}>${[1, 2, 4, 8].map(b => `<option value="${b}">${b} bar${b > 1 ? 's' : ''}</option>`).join('')}</select>
       <span class="grow mono" style="font-size:12px;color:var(--dim)">${tr.clip ? Math.round((tr.clipBpm || S.bpm) * 10) / 10 + ' BPM' : 'Empty'}</span></div>
@@ -8215,6 +8385,8 @@ function renderTracks(){
     });
     c.querySelector('.imp').addEventListener('click', () => { importTarget = tr; $('#trackFile').click(); });
     c.querySelector('.stm').addEventListener('click', () => stemTrack(tr));
+    c.querySelector('.p2n').addEventListener('click', () => clipToNotes(tr));
+    const tu = c.querySelector('.tun'); tu.addEventListener('change', () => { const v = tu.value; tu.value = ''; if (v === 'undo') clipUntune(tr); else if (v === 'nat') clipTune(tr, 1, .6); else if (v === 'hard') clipTune(tr, 1, 0); else if (v === 'half') clipTune(tr, .5, .7); });
     c.querySelector('.clr').addEventListener('click', e => {
       if (!e.target.dataset.sure){ e.target.dataset.sure = 1; e.target.textContent = 'Sure?'; setTimeout(() => { e.target.dataset.sure = ''; e.target.textContent = 'Clear'; }, 2500); return; }
       dropAudio(tr.clip); tr.clip = null; save(); renderTracks();
@@ -8346,7 +8518,7 @@ function renderMixer(){
   box.querySelectorAll('.fz').forEach(faderDrag);
   const n = box.querySelectorAll('.strip').length, two = n > 8;
   box.classList.toggle('two', two); box.style.setProperty('--sc', Math.ceil(n / 2));
-  renderFx(); renderSc();
+  renderFx(); renderSc(); renderAiEq();
   if (mlearn) markMapped();
 }
 let fadeMode = 'vol';
@@ -9682,7 +9854,7 @@ function drawMasterMeter(){
   if (now - MM.maxT > 250){ MM.maxT = now; const el = $('#mMeterDb'); el.textContent = big > .0001 ? (bigDb >= 0 ? '+' : '') + bigDb.toFixed(1) : '−∞'; $('#mMeter').classList.toggle('clip', now - MM.clipT < 2000); }
 }
 function frame(){
-  drawMasterMeter();
+  drawMasterMeter(); if (pitchLive.on) pitchLiveTick();
   if (live && S.bpm !== frame._gb){ frame._gb = S.bpm; live.strips.forEach(st => { if (st.gsN) st.gsN.port.postMessage({type:'cfg', cfg:{bpm:S.bpm}}); }); }
   requestAnimationFrame(frame);
   if (++stpTick % 8 === 0) syncSteppers();
@@ -9980,7 +10152,7 @@ $('#crateSample').addEventListener('click', crateSample);
 (() => { const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   if (!ios || navigator.standalone || matchMedia('(display-mode: standalone)').matches) return;
   try { if (localStorage.getItem('pr.iosTip')) return; localStorage.setItem('pr.iosTip', 1); } catch(e){}
-  setTimeout(() => toast('On iPhone: tap the Share button, then “Add to Home Screen” to install The Omega System as an app.'), 2500); })();
+  setTimeout(() => toast('On iPhone or iPad: tap the Share button, then “Add to Home Screen” to install The Omega System as an app.'), 2500); })();
 renderCrate();
 // log in to the streaming services in the browser, so their players inside the app play full songs instead of previews
 const LOGINS = {spotify:'https://accounts.spotify.com/login?continue=' + encodeURIComponent('https://open.spotify.com/'), ytm:'https://accounts.google.com/ServiceLogin?service=youtube&continue=' + encodeURIComponent('https://music.youtube.com/'), sc:'https://soundcloud.com/signin', apple:'https://music.apple.com/'};
@@ -10199,7 +10371,7 @@ function gmPatch(prog){
 }
 const GM_TAB = 'GM ';
 const SOL_DEFAULT = () => ({viola:1, violin:1, trumpet:0, horn:0, cello:1, contra:0, cresc:.3, sus:1, susLen:.5, ens:1, wide:0, bassVol:.7, chorusHz:.75, tremHz:6.3, depth:.35, trem:.25});
-const INST = {choir:{proc:'choir', cfg:tr => tr.choir || (tr.choir = CHOIR_DEFAULT())}, disco:{proc:'disco', cfg:tr => tr.disco || (tr.disco = DISCO_DEFAULT())}, juno60:{proc:'ana', cfg:tr => anaCfg(tr, 'juno60')}, sh101:{proc:'ana', cfg:tr => anaCfg(tr, 'sh101')}, jx3p:{proc:'ana', cfg:tr => anaCfg(tr, 'jx3p')}, minimoog:{proc:'ana', cfg:tr => anaCfg(tr, 'minimoog')}, sixtrak:{proc:'ana', cfg:tr => anaCfg(tr, 'sixtrak')}, cs80:{proc:'ana', cfg:tr => anaCfg(tr, 'cs80')}, cz:{proc:'cz', cfg:tr => tr.cz || (tr.cz = CZ_DEFAULT())}, sk1:{proc:'smpx', cfg:tr => Object.assign({model:'sk1'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('sk1'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, emax:{proc:'smpx', cfg:tr => Object.assign({model:'emax'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('emax'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
+const INST = {guitar:{proc:'guitar', cfg:tr => Object.assign({}, tr.gtr || (tr.gtr = GTR_DEFAULT()), {root:S.root || 0, scale:SCALES[S.scale] || SCALES.Minor})}, choir:{proc:'choir', cfg:tr => tr.choir || (tr.choir = CHOIR_DEFAULT())}, disco:{proc:'disco', cfg:tr => tr.disco || (tr.disco = DISCO_DEFAULT())}, juno60:{proc:'ana', cfg:tr => anaCfg(tr, 'juno60')}, sh101:{proc:'ana', cfg:tr => anaCfg(tr, 'sh101')}, jx3p:{proc:'ana', cfg:tr => anaCfg(tr, 'jx3p')}, minimoog:{proc:'ana', cfg:tr => anaCfg(tr, 'minimoog')}, sixtrak:{proc:'ana', cfg:tr => anaCfg(tr, 'sixtrak')}, cs80:{proc:'ana', cfg:tr => anaCfg(tr, 'cs80')}, cz:{proc:'cz', cfg:tr => tr.cz || (tr.cz = CZ_DEFAULT())}, sk1:{proc:'smpx', cfg:tr => Object.assign({model:'sk1'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('sk1'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, emax:{proc:'smpx', cfg:tr => Object.assign({model:'emax'}, tr.smpx || (tr.smpx = SMPX_DEFAULT('emax'))), extra:tr => tr._smpxCache ? {sample:tr._smpxCache} : {}, after:tr => smpxSend(tr)}, sid:{proc:'sid', cfg:tr => tr.sid || (tr.sid = SID_DEFAULT())}, d50:{proc:'d50', cfg:tr => tr.d50 || (tr.d50 = D50_DEFAULT())}, ppg:{proc:'ppg', cfg:tr => tr.ppg || (tr.ppg = PPG_DEFAULT())}, dx1:{proc:'dx1', cfg:tr => dxCfg(tr)}, solina:{proc:'solina', cfg:tr => tr.sol}, omni2:{proc:'omni2', cfg:tr => tr.omni || (tr.omni = OMNI_DEFAULT())}, prophet:{proc:'prophet5', cfg:tr => tr.p5}, obxa:{proc:'obxa', cfg:tr => tr.ob || (tr.ob = OB_DEFAULT())}, tb303:{proc:'tb303', cfg:tr => tr.tb}, taurus:{proc:'taurus', cfg:tr => tr.tau}};
 const TAU_DEFAULT = () => ({preset:'taurus', octave:0, glideOn:0, glide:.3, decayOn:1, foot:.6, footVol:.85, tune:.5, beat:.55,
   voct:0, vbf:.5, vmix:.5, vla:.05, vld:.5, vls:.8, vfa:.1, vfd:.5, vfamt:.6, vemph:.4, vcut:.25});
 const TB_DEFAULT = () => ({tune:.5, wave:0, cut:.3, res:.78, env:.6, dec:.4, acc:.75, vol:.8, accLatch:0, slideLatch:0});
@@ -10462,7 +10634,7 @@ $('#synMenu').addEventListener('click', e => {
 
 
 /* ================= preset browser: one tap from the Synth page, searchable, for whichever instrument is on the track ================= */
-const PRE_SRC = {juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', piano:'#pianoPreset', choir:'#choirPreset', disco:'#discoPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
+const PRE_SRC = {guitar:'#gtrPreset', juno60:'#anaPreset', sh101:'#anaPreset', jx3p:'#anaPreset', minimoog:'#anaPreset', sixtrak:'#anaPreset', cs80:'#anaPreset', cz:'#czPreset', piano:'#pianoPreset', choir:'#choirPreset', disco:'#discoPreset', sk1:'#smpxPreset', emax:'#smpxPreset', sid:'#sidPreset', d50:'#d50Preset', ppg:'#ppgPreset', prophet:'#p5Preset', obxa:'#obPreset', omni2:'#omniPreset', solina:'#solPreset', tb303:'#tbPreset', taurus:'#tauPatch', gm:'#gmProg', sf2:'#sfPreset', synth:'#preset'};
 let preGroup = '';
 async function preItems(){
   const tr = curSynth();
@@ -10513,6 +10685,7 @@ const INSTRUMENTS = [
   {v:'sixtrak', name:'Six-Trak', sub:'Sequential · 1984', desc:'Six-voice CEM poly: tight bass, pads, stacks.', bg:'linear-gradient(160deg,#4a4a4f,#1e1e22 55%,#5a3a1a)'},
   {v:'cs80', name:'CS-80', sub:'Yamaha · 1977', desc:'Touch-sensitive brass and pads, HPF + LPF.', bg:'linear-gradient(160deg,#5a2a24,#2a1512 50%,#0e0908)'},
   {v:'choir', name:'Choir', sub:'Dark cathedral voices', desc:'Formant choir: SATB sections, vowels, breath. Hellraiser-dark or angelic.', bg:'linear-gradient(160deg,#2a1414,#0a0606 55%,#3a2a4a)'},
+  {v:'guitar', name:'Rock Guitar', sub:'Eddie Martinez sim', desc:'Humbucker into a cranked British stack, double-tracked: King of Rock power chords, palm mutes, leads.', bg:'linear-gradient(160deg,#c8a24a,#5a1a12 50%,#111)'},
   {v:'disco', name:'Disco Strings', sub:'Philly / Salsoul section', desc:'String section with octaves, stabs, falls, rip-ups and swells.', bg:'linear-gradient(160deg,#c9a23a,#5a2a6a 55%,#14081a)'},
   {v:'piano', name:'Grand Piano', sub:'Concert grand · 88 keys', desc:'A real sampled grand with pedal, resonance, lid and mics.', bg:'linear-gradient(160deg,#2a2622,#0d0c0b 55%,#6a5a3a)'},
   {v:'cz', name:'CZ-101', sub:'Casio · 1984', desc:'Phase distortion: bright digital basses and keys.', bg:'linear-gradient(160deg,#4a4d55,#22242a 55%,#1f4a7a)'},
@@ -10549,7 +10722,7 @@ $('#instDlg').addEventListener('click', e => { if (e.target === e.currentTarget)
 function synthReset(tr){
   const i = tr.inst;
   if (ANA_MODELS[i]) tr['ana_' + i] = Object.assign({preset:''}, ANA_COMMON, ANA_MODELS[i].base);
-  else ({cz:() => tr.cz = CZ_DEFAULT(), piano:() => tr.piano = PIANO_DEFAULT(), choir:() => tr.choir = CHOIR_DEFAULT(), disco:() => tr.disco = DISCO_DEFAULT(), sk1:() => { tr.smpx = SMPX_DEFAULT('sk1'); tr._smpxCache = null; }, emax:() => { tr.smpx = SMPX_DEFAULT('emax'); tr._smpxCache = null; },
+  else ({guitar:() => tr.gtr = GTR_DEFAULT(), cz:() => tr.cz = CZ_DEFAULT(), piano:() => tr.piano = PIANO_DEFAULT(), choir:() => tr.choir = CHOIR_DEFAULT(), disco:() => tr.disco = DISCO_DEFAULT(), sk1:() => { tr.smpx = SMPX_DEFAULT('sk1'); tr._smpxCache = null; }, emax:() => { tr.smpx = SMPX_DEFAULT('emax'); tr._smpxCache = null; },
     sid:() => tr.sid = SID_DEFAULT(), d50:() => tr.d50 = D50_DEFAULT(), ppg:() => tr.ppg = PPG_DEFAULT(), dx1:() => tr.dx = DX_DEFAULT(), omni2:() => tr.omni = OMNI_DEFAULT(), solina:() => tr.sol = SOL_DEFAULT(),
     prophet:() => tr.p5 = P5_DEFAULT(), obxa:() => tr.ob = OB_DEFAULT(), tb303:() => tr.tb = TB_DEFAULT(), taurus:() => tr.tau = TAU_DEFAULT(), gm:() => tr.gm = 0,
     synth:() => { tr.preset = 'Bass'; tr.patch = {...PRESETS.Bass}; }}[i] || (() => {}))();
@@ -10583,6 +10756,7 @@ function renderSynth(){
   ty.value = S.scale;
   $('#inst').value = tr.inst || 'prophet';
   const isPiano = tr.inst === 'piano'; $('#pianoPanel').hidden = !isPiano; if (isPiano) renderGrand(tr);
+  const isGtr = tr.inst === 'guitar'; $('#gtrPanel').hidden = !isGtr; if (isGtr) renderGuitar(tr);
   const isChoir = tr.inst === 'choir', isDisco = tr.inst === 'disco'; $('#choirPanel').hidden = !isChoir; if (isChoir) renderChoir(tr); $('#discoPanel').hidden = !isDisco; if (isDisco) renderDisco(tr);
   const isAna = !!ANA_MODELS[tr.inst], isCz = tr.inst === 'cz', isSmpx = tr.inst === 'sk1' || tr.inst === 'emax';
   $('#anaPanel').hidden = !isAna; if (isAna) renderAna(tr); $('#czPanel').hidden = !isCz; if (isCz) renderCz(tr); $('#smpxPanel').hidden = !isSmpx; if (isSmpx){ renderSmpx(tr); if (!tr._smpxCache) smpxSend(tr); }
@@ -11581,6 +11755,36 @@ function renderDisco(tr){
 }
 $('#choirPreset').addEventListener('change', e => { const tr = curSynth(); if (!CHOIR_PRESETS[e.target.value]) return; tr.choir = choirPreset(e.target.value); solCfg(tr); save(); renderChoir(tr); const r = hearRoot(); hearChord(tr, [r - 12, r - 5, r, r + 3], 1.6); });
 $('#discoPreset').addEventListener('change', e => { const tr = curSynth(); if (!DISCO_PRESETS[e.target.value]) return; tr.disco = discoPreset(e.target.value); solCfg(tr); save(); renderDisco(tr); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .9); });
+/* ================= Rock guitar: presets and panel ================= */
+const GTR_DEFAULT = () => ({preset:'Rock · King of Rock Riff', chord:'power', pickup:'bridge', mute:.25, bright:.6, sustain:.7, strum:.3, gain:.75, tight:.5, bass:.55, mid:.55, treble:.6, presence:.5, master:.6, dbl:.8, chorus:0, delay:0, dfb:.25, dmix:0, vol:.8});
+const GTR_PRESETS = {
+  'Rock · King of Rock Riff':{},
+  'Rock · Rock Box Power Chords':{mute:.1, gain:.8, sustain:.8, dbl:.9, mid:.6},
+  'Rock · Palm-Muted Chug':{mute:.75, gain:.85, tight:.75, bass:.6, dbl:.8},
+  'Lead · Rock Box Solo':{chord:'single', mute:0, gain:.9, sustain:.95, mid:.65, treble:.55, dbl:0, delay:.38, dfb:.3, dmix:.25},
+  'Lead · Singing Neck Lead':{chord:'single', pickup:'neck', mute:0, gain:.85, sustain:1, treble:.45, dbl:0, delay:.42, dfb:.35, dmix:.3, chorus:.2},
+  'Rock · Arena Octaves':{chord:'octave', mute:0, gain:.7, sustain:.85, dbl:1, delay:.32, dfb:.2, dmix:.15},
+  'Rock · Crunch Rhythm':{gain:.5, mute:.2, mid:.6, treble:.65, dbl:.7},
+  'Metal · Hi-Gain Tight':{gain:1, tight:.9, mid:.35, bass:.65, treble:.7, mute:.5, dbl:1},
+  'Clean · Funk Scratch':{chord:'minor', mute:.65, gain:.08, bright:.85, treble:.7, master:.4, dbl:0, chorus:.1},
+  'Clean · Chorus Chords':{chord:'major', mute:0, gain:.05, pickup:'neck', treble:.55, chorus:.7, delay:.3, dfb:.2, dmix:.15, dbl:0, strum:.6},
+  'Clean · Fifths Stab':{chord:'fifth', mute:.4, gain:.25, treble:.6, dbl:.5},
+  'Lead · Brian May Harmonies (3-part)':{chord:'harm3', pickup:'bridge', mute:0, bright:.8, sustain:1, gain:.8, tight:.35, bass:.45, mid:.72, treble:.68, presence:.6, master:.7, dbl:.35, chorus:0, delay:.3, dfb:.2, dmix:.18},
+  'Lead · Brian May Thirds':{chord:'harm2', pickup:'bridge', mute:0, bright:.78, sustain:1, gain:.78, tight:.35, bass:.45, mid:.72, treble:.66, presence:.6, master:.7, dbl:.3, delay:.3, dfb:.2, dmix:.15},
+  'Lead · Brighton Rock Echo':{chord:'single', pickup:'bridge', mute:0, bright:.8, sustain:1, gain:.82, mid:.72, treble:.68, presence:.6, master:.7, dbl:0, delay:.8, dfb:.55, dmix:.55},
+  'Lead · Guitar Orchestra (4-part)':{chord:'harm4', pickup:'neck', mute:0, bright:.7, sustain:1, gain:.75, tight:.3, bass:.4, mid:.7, treble:.6, presence:.55, master:.7, dbl:.5, chorus:.15, delay:.35, dfb:.25, dmix:.2},
+  'Rock · Slapback Rockabilly':{chord:'single', gain:.4, mute:.3, delay:.11, dfb:.05, dmix:.45, dbl:0}};
+const gtrPreset = n => Object.assign(GTR_DEFAULT(), GTR_PRESETS[n] || {}, {preset:n});
+function renderGuitar(tr){
+  const C = tr.gtr || (tr.gtr = GTR_DEFAULT()); fillPresetSel('#gtrPreset', GTR_PRESETS, C.preset);
+  const up = re => { C.preset = ''; $('#gtrPreset').value = ''; solCfg(tr); save(); if (re) renderGuitar(tr); };
+  synPanel($('#gtrCtls'), C, [
+    {t:'GUITAR', menus:[['Each key plays', 'chord', [['power', 'Power chord (1-5-8)'], ['harm3', '3-part harmony in key (Brian May)'], ['harm2', 'Harmony in thirds'], ['harm4', 'Harmony + low octave'], ['fifth', 'Fifth (1-5)'], ['octave', 'Octave (1-8)'], ['single', 'Single note'], ['major', 'Major chord'], ['minor', 'Minor chord']]], ['Pickup', 'pickup', [['bridge', 'Bridge humbucker'], ['neck', 'Neck humbucker']]]],
+      knobs:[['PALM MUTE', 'mute', 0, 1, .01, pct], ['PICK ATTACK', 'bright', 0, 1, .01, pct], ['SUSTAIN', 'sustain', 0, 1, .01, pct], ['STRUM', 'strum', 0, 1, .01, v => Math.round(v * 20) + ' ms']]},
+    {t:'AMP', knobs:[['GAIN', 'gain', 0, 1, .01, pct], ['TIGHT', 'tight', 0, 1, .01, pct], ['BASS', 'bass', 0, 1, .01, pct], ['MIDDLE', 'mid', 0, 1, .01, pct], ['TREBLE', 'treble', 0, 1, .01, pct], ['PRESENCE', 'presence', 0, 1, .01, pct], ['MASTER', 'master', 0, 1, .01, pct]]},
+    {t:'STUDIO', knobs:[['DOUBLE', 'dbl', 0, 1, .01, pct], ['CHORUS', 'chorus', 0, 1, .01, pct], ['DELAY', 'delay', 0, .8, .01, v => v ? Math.round(v * 1000) + ' ms' : 'off'], ['FEEDBACK', 'dfb', 0, .9, .01, pct], ['DELAY MIX', 'dmix', 0, 1, .01, pct], ['VOLUME', 'vol', 0, 1, .01, pct]]}], up);
+}
+$('#gtrPreset').addEventListener('change', e => { const tr = curSynth(); if (!GTR_PRESETS[e.target.value]) return; tr.gtr = gtrPreset(e.target.value); solCfg(tr); save(); renderGuitar(tr); const r = hearRoot(); hearChord(tr, [r - 24], 1); });
 // more presets for the newer units and instruments
 Object.assign(RACK.ad.presets, {'Guitar jet (Even)':{manual:.55, range:.8, speed:.2, enh:.7, odd:0}, 'Hollow tube (Odd)':{manual:.25, range:.35, speed:.15, enh:.9, odd:1}, 'Vocal sweep':{manual:.7, range:.5, speed:.18, enh:.35, mix:.4},
   'Drum bus whoosh':{manual:.6, range:.9, speed:.08, enh:.65, thresh:.35}, 'Through the floor (slowest)':{manual:1, range:1, speed:0, enh:.75}, 'Robot voice comb':{manual:.15, range:0, enh:.92, odd:1},
@@ -11681,7 +11885,7 @@ function renderSolina(tr){
 document.querySelectorAll('.solreg button').forEach(b => b.addEventListener('click', () => { const tr = curSynth(); tr.sol[b.dataset.k] = tr.sol[b.dataset.k] ? 0 : 1; solCfg(tr); save(); renderSolina(tr); }));
 $('#synPwr').addEventListener('click', () => { const tr = curSynth(); tr.mute = !tr.mute; applyAll(); save(); renderSynth(); if (view === 'mixer') renderMixer(); toast(tr.name + (tr.mute ? ' off.' : ' on.')); });
 $('#synRst').addEventListener('click', () => { const tr = curSynth(); synthReset(tr); save(); renderSynth(); toast(tr.name + ': factory sound.'); const r = hearRoot(); hearChord(tr, [r, r + 4, r + 7], .8); });
-$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', piano:'Piano ', choir:'Choir ', disco:'Strings ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|Piano|Choir|Strings|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
+$('#inst').addEventListener('change', e => { const tr = curSynth(); tr.inst = e.target.value; const nm = {guitar:'Guitar ', juno60:'Juno ', sh101:'SH-101 ', jx3p:'JX-3P ', minimoog:'Mini ', sixtrak:'Six-Trak ', cs80:'CS-80 ', cz:'CZ ', piano:'Piano ', choir:'Choir ', disco:'Strings ', sk1:'SK-1 ', emax:'Emax ', sid:'C128 ', d50:'D-50 ', ppg:'PPG ', dx1:'DX1 ', omni2:'Omni ', solina:'Solina ', prophet:'Prophet ', obxa:'OB-Xa ', tb303:'TB-303 ', taurus:'Taurus ', padsmp:'Keys ', gm:'GM ', sf2:'SF2 '}[tr.inst]; if (/^(Guitar|Synth|Juno|SH-101|JX-3P|Mini|Six-Trak|CS-80|CZ|Piano|Choir|Strings|SK-1|Emax|C128|D-50|PPG|DX1|Omni|Solina|Prophet|OB-Xa|TB-303|Taurus|Keys|GM|SF2) \d+$/.test(tr.name)) tr.name = nm + tr.id.slice(1); save(); renderSynth(); if (view === 'mixer') renderMixer(); });
 $('#preset').addEventListener('change', e => { const tr = curSynth(); if (!e.target.value) return; tr.preset = e.target.value; tr.patch = {...PRESETS[tr.preset]}; save(); renderSynth(); });
 $('#scaleRoot').addEventListener('change', e => { S.root = +e.target.value; save(); renderPlaySurface(); rollDirty = true; });
 $('#scaleType').addEventListener('change', e => { S.scale = e.target.value; save(); renderPlaySurface(); rollDirty = true; });
@@ -11884,6 +12088,21 @@ const PRESET_GEN = (() => {
 })();
 Object.assign(P5_PRESETS, PRESET_GEN.p5); Object.assign(OB_PRESETS, PRESET_GEN.ob); Object.assign(PRESETS, PRESET_GEN.basic);
 Object.assign(OMNI_PRESETS, PRESET_GEN.omni); Object.assign(VOC_PRESETS, PRESET_GEN.voc);
+// presets for the classic-record templates (gear per the template research; settings are this app's best match)
+Object.assign(VOC_PRESETS, {
+  'Newcleus (Computer Age)':{growl:.45, harm:.75, cons:1, sib:.85, ens:false, bands:[1.25, 1.2, 1.15, 1.1, 1, 1, 1.05, 1.1, 1.15, 1.2], tts:{text:'Computer age.', voice:'robot', semi:-2, speed:.95, timing:'bar'}, note:-12},
+  'Jonzun Crew (Pack Jam)':{growl:.4, harm:.9, cons:1.1, sib:.9, ens:true, bands:[1.2, 1.15, 1.05, 1, 1, 1, 1.05, 1.15, 1.2, 1.3], tts:{text:'We are the crew.', voice:'deep', semi:0, speed:.9, timing:'bar'}, note:-12},
+  'Electro-Funk 84 (SVC-350)':{growl:.25, harm:.7, cons:1, sib:.8, ens:true, bands:[1.15, 1.15, 1.1, 1, 1, 1, 1, 1.05, 1.1, 1.15], tts:{text:'Electro funk.', voice:'robot', semi:0, speed:1, timing:'bar'}, note:-12},
+  'Midnight Star (Freak-a-Zoid)':{growl:.15, harm:.85, cons:1.1, sib:.9, ens:true, bands:[1, 1, 1.05, 1.1, 1.15, 1.15, 1.1, 1.1, 1.15, 1.2], tts:{text:'Electric lover.', voice:'robot', semi:2, speed:.9, timing:'bar'}, note:-7}});
+Object.assign(ANA_PRESETS.sh101, {
+  'Bass · Jam On It (Pro-One style)':{m1:.9, w1:1, m2:.5, sub:.6, cut:.32, res:.35, fenv:.5, kf:.5, a:0, d:.22, s:.3, r:.08, velCut:.2},
+  'Seq · Heart of Glass (SH-5 style)':{m1:1, w1:0, pw:.35, m2:.4, sub:0, cut:.4, res:.6, fenv:.45, kf:.8, a:0, d:.12, s:0, r:.06}});
+Object.assign(ANA_PRESETS.minimoog, {
+  'Bass · Planet Rock (Micromoog)':{m1:1, w1:0, m2:0, m3:0, cut:.3, res:.15, fenv:.45, a:0, d:.35, s:.25, r:.1},
+  'Bass · Freak-a-Zoid (Moog Source)':{m1:1, m2:.8, i2:12, m3:0, cut:.35, res:.4, fenv:.55, a:0, d:.25, s:.35, r:.12, glide:.12},
+  'Bass · Larry Smith Rock Bass':{m1:1, m2:.7, m3:.4, i3:-12, cut:.28, res:.1, fenv:.3, a:0, d:.4, s:.6, r:.12}});
+Object.assign(ANA_PRESETS.juno60, {'Keys · Whodini Bells':{m1:0, m2:1, pw:.5, sub:0, cut:.62, res:.45, fenv:.25, kf:1, a:0, d:.55, s:0, r:.6, chorus:1}});
+Object.assign(DISCO_PRESETS, {'Disco · Orchestra Hit (1982)':{mode:'stab', oct:1, low:1, stab:.25, bright:.85, hall:.55, players:8, spread:.4}});
 // presets checked against the records (sources: SOS, MusicTech, Reverb Machine, artist interviews); these replace the earlier guesses
 VOC_PRESETS['Herbie Hancock (Rockit)'] = {growl:0, harm:.9, cons:1.1, sib:.9, ens:false, bands:[.85, .9, 1, 1.1, 1.2, 1.2, 1.15, 1.1, 1.1, 1.15],
   tts:{text:'Rock it.', voice:'normal', semi:2, speed:1, timing:'bar'}, note:-7};
@@ -12120,7 +12339,7 @@ function ttsRender(text, opts = {}){
   return out;
 }
 
-const TTS_VOICES = {robot:{pitch:98, robot:true}, deep:{pitch:76}, normal:{pitch:112}, high:{pitch:190}};
+const TTS_VOICES = {robot:{pitch:98, robot:true}, deep:{pitch:76}, normal:{pitch:112}, high:{pitch:190}, female:{pitch:215}, chipmunk:{pitch:320}};
 function ttsState(){ return S.tts = Object.assign({text:'Ahhhh, this stuff is really fresh.', voice:'robot', semi:0, speed:1, timing:'bar'}, S.tts); }
 function ttsOpts(T){ const v = TTS_VOICES[T.voice] || TTS_VOICES.robot; return {pitch:v.pitch * Math.pow(2, T.semi / 12), robot:!!v.robot, speed:T.speed, sr:22050}; }
 let ttsSrc = null;
@@ -12301,6 +12520,218 @@ $('#fadeMode').addEventListener('change', e => { fadeMode = e.target.value; rend
 $('#autoArm').addEventListener('click', () => { autoArm = !autoArm; $('#autoArm').classList.toggle('on', autoArm); if (autoArm) toast(playing ? 'Automation armed. Move a control to record it.' : 'Automation armed. Press play, then move a control to record it.'); });
 $('#autoBack').addEventListener('click', () => { S.autoOff = []; $('#autoBack').disabled = true; save(); toast('Automation is back in control.'); });
 
+/* ================= AI EQ =================
+   Listens to every track on its own, works out what it is (kick, bass, drum kit, snare, hats, vocal, pad, lead, keys,
+   guitar, strings) from its instrument, name and spectrum, then (1) applies the moves mix engineers make for that role
+   (high-pass what it doesn't need, cut mud, lift presence), (2) tames resonant build-ups the analysis finds, and
+   (3) makes room: where two tracks pile up in the same band, the one that owns the band keeps it and the others step back.
+   The result goes into each track's 31-band EQ (the same filters as EQ match), with an Amount to taste. The master gets a
+   tonal-balance curve for the chosen style. */
+const AI_ROLE_NAMES = {kick:'Kick', bass:'Bass', drums:'Drum kit', snare:'Snare', hats:'Hats / cymbals', vocal:'Vocal', pad:'Pad', lead:'Lead', keys:'Keys', guitar:'Guitar', strings:'Strings', other:'Other'};
+const AI_STYLES = {electro:{name:'Electro / hip-hop (80s)', curve:[4, 4.5, 5, 5.5, 5.5, 5, 4.5, 3.5, 2.5, 1.5, .5, 0, -.5, -1, -1.5, -2, -2.5, -3, -3.5, -4, -4.5, -5, -5.5, -6, -6.5, -7.5, -8.5, -10, -12, -14, -17]},
+  modern:{name:'Modern hip-hop / trap', curve:[6, 7, 7.5, 7.5, 7, 6, 4.5, 3, 1.5, .5, 0, -.5, -1, -1.5, -2, -2.5, -3, -3.5, -4, -4.5, -5, -5.5, -6, -6.5, -7, -7.5, -8.5, -9.5, -11, -13, -16]},
+  rock:{name:'Rock', curve:[0, 1.5, 3, 4, 4.5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1, .5, 0, -.5, -1, -1.5, -2, -2.5, -3.5, -4.5, -5.5, -6.5, -7.5, -8.5, -9.5, -11, -13, -15, -18]},
+  pop:{name:'Pop / dance', curve:[3, 4, 5, 5.5, 5.5, 5, 4, 3, 2, 1, .5, 0, -.5, -1, -1.5, -2, -2.5, -3, -3, -3.5, -4, -4.5, -5, -5.5, -6, -7, -8, -9, -10.5, -12.5, -15]}};
+const aiB = (f, fc, w, g) => g * Math.exp(-Math.pow(Math.log2(f / fc) / w, 2));
+const aiHP = (f, fc, slope = 12) => f < fc ? Math.max(-24, -slope * Math.log2(fc / f)) : 0;
+const aiLP = (f, fc, slope = 6) => f > fc ? Math.max(-18, -slope * Math.log2(f / fc)) : 0;
+const AI_SHAPE = {
+  kick:f => aiHP(f, 28) + aiB(f, 60, .6, 3) + aiB(f, 350, .8, -4.5) + aiB(f, 3500, .6, 2.5) + aiLP(f, 9000),
+  bass:f => aiHP(f, 32) + aiB(f, 90, .9, 2.5) + aiB(f, 280, .6, -1.5) + aiB(f, 900, .5, 1.5) + aiLP(f, 5000),
+  drums:f => aiHP(f, 28) + aiB(f, 60, .5, 1.5) + aiB(f, 420, .8, -3) + aiB(f, 5000, .8, 1.5) + aiB(f, 11000, .6, 2),
+  snare:f => aiHP(f, 90) + aiB(f, 200, .5, 2) + aiB(f, 500, .6, -3) + aiB(f, 4000, .7, 2.5),
+  hats:f => aiHP(f, 300, 18) + aiB(f, 9000, .8, 2),
+  vocal:f => aiHP(f, 90) + aiB(f, 250, .6, -3) + aiB(f, 3000, .7, 3) + aiB(f, 10000, .6, 2),
+  pad:f => aiHP(f, 150) + aiB(f, 2500, .8, -2) + aiLP(f, 10000, 3),
+  lead:f => aiHP(f, 150) + aiB(f, 300, .5, -2) + aiB(f, 1500, 1, 2),
+  keys:f => aiHP(f, 70) + aiB(f, 300, .6, -2) + aiB(f, 2500, .8, 1.5),
+  guitar:f => aiHP(f, 90) + aiB(f, 250, .5, -2) + aiB(f, 1500, .8, 2) + aiLP(f, 7000),
+  strings:f => aiHP(f, 120) + aiB(f, 3000, .7, 1),
+  other:f => aiHP(f, 30) + aiB(f, 300, .7, -1.5)};
+// who owns which band when tracks fight over it (earlier = owns it)
+const AI_OWN = [[40, 100, ['kick', 'bass', 'drums']], [100, 250, ['bass', 'kick', 'drums', 'keys']], [250, 600, ['keys', 'guitar', 'vocal', 'snare']], [1500, 5000, ['vocal', 'lead', 'snare', 'guitar', 'keys']], [6000, 16000, ['hats', 'vocal', 'drums']]];
+function aiRole(t, spec){
+  const nm = (t.name || '').toLowerCase();
+  if (t.id === 'drums') return 'drums';
+  if (/vox|vocal|voice|speech|rap|sing|verse|chorus|hook|mc\b/.test(nm)) return 'vocal';
+  if (/kick|bd\b|808 ?boom/.test(nm)) return 'kick';
+  if (/snare|clap/.test(nm)) return 'snare';
+  if (/hat|cym|shaker|perc/.test(nm)) return 'hats';
+  if (/bass|sub/.test(nm)) return 'bass';
+  if (/gtr|guitar/.test(nm) || t.inst === 'guitar') return 'guitar';
+  if (t.inst){ if (['choir', 'solina', 'disco', 'omni2'].includes(t.inst)) return t.inst === 'choir' ? 'pad' : 'strings';
+    if (['tb303', 'taurus'].includes(t.inst)) return 'bass';
+    const ns = t.notes || [], avg = ns.length ? ns.reduce((a, n) => a + n.n, 0) / ns.length : 60;
+    if (avg < 48) return 'bass'; if (['piano', 'cz', 'dx1', 'padsmp', 'sk1', 'emax'].includes(t.inst)) return 'keys';
+    const poly = ns.length > 1 && ns.some((a, i) => ns.some((b, j) => i !== j && a.t === b.t)); return poly ? 'pad' : 'lead'; }
+  if (!spec) return 'other';
+  // audio track: spectral centroid of the band powers
+  let w = 0, c = 0; spec.forEach((db, k) => { if (db == null) return; const p = Math.pow(10, db / 10); w += p; c += p * Math.log2(MATCH_F[k]); });
+  const cen = w ? Math.pow(2, c / w) : 1000; return cen < 180 ? 'bass' : cen > 4500 ? 'hats' : 'vocal';
+}
+let aiMsg = '';
+async function aiEqAll(amount = .7){
+  const st = $('#aiStatus'), list = allTracks().filter(t => !t.mute), out = [];
+  // listen across the song (first minute) so parts that come in later are heard too
+  const plan = exportPlan(), len = Math.round(Math.min(60, plan.total * stepDur() + 1) * 44100);
+  {
+    for (let k = 0; k < list.length; k++){ const t = list[k]; if (st) st.textContent = `Listening to ${t.name} (${k + 1} of ${list.length})…`;
+      const keep = t.match; t.match = null; applyAll();
+      const buf = await renderAudio(44100, t.id, len); t.match = keep;
+      const spec = await bandSpectrum(buf), loud = spec.filter(x => x != null && x > -90).length > 6;
+      out.push({t, spec, loud, role:aiRole(t, spec)}); }
+  }
+  // level of each band per track, relative to the track's own loudest band
+  const rel = o => { const mx = Math.max(...o.spec.filter(x => x != null)); return o.spec.map(x => x == null ? -99 : x - mx); };
+  const R = out.map(rel);
+  out.forEach((o, i) => {
+    if (!o.loud){ return; }
+    const sm = o.spec.map((x, k) => { const a = o.spec[Math.max(0, k - 1)], b = o.spec[Math.min(30, k + 1)]; return x == null ? null : ((a ?? x) + 2 * x + (b ?? x)) / 4; });
+    const corr = MATCH_F.map((f, k) => {
+      let c = AI_SHAPE[o.role](f);
+      // resonant build-up: more than ~4 dB above the surrounding octave gets pulled down by half the excess
+      if (sm[k] != null && f >= 60 && f <= 12000){ const nb = []; for (let j = k - 3; j <= k + 3; j++) if (j !== k && sm[j] != null) nb.push(sm[j]); const avg = nb.reduce((a, b) => a + b, 0) / (nb.length || 1); c -= Math.min(4, Math.max(0, sm[k] - avg - 4) * .5); }
+      // masking: if a band's owner is also loud there, step back
+      for (const [lo, hi, owners] of AI_OWN){ if (f < lo || f > hi) continue; const me = owners.indexOf(o.role);
+        for (let j = 0; j < out.length; j++){ if (j === i || !out[j].loud) continue; const them = owners.indexOf(out[j].role); if (them < 0 || (me >= 0 && me <= them)) continue;
+          if (R[j][k] > -10 && R[i][k] > -14){ c -= 2.5 * (1 + Math.min(0, R[i][k]) / 14); break; } } }
+      return clamp(c, -12, 6); });
+    const gains = matchGains(corr);
+    o.t.match = {ref:o.spec.map((x, k) => x == null ? null : x + corr[k]), mix:o.spec, curve:corr, gains, amount, name:'AI EQ: ' + AI_ROLE_NAMES[o.role], ai:o.role};
+  });
+  applyAll(); save(); renderMixer();
+  const done = out.filter(o => o.loud).map(o => `${o.t.name}: ${AI_ROLE_NAMES[o.role]}`);
+  aiMsg = done.length ? 'Done. ' + done.join(' · ') : 'Nothing was playing. Put some notes or clips in the song.';
+  toast(done.length ? `AI EQ set on ${done.length} tracks. Each track's FX page shows its curve; Amount sets how much.` : 'Nothing to listen to in this pattern.');
+}
+async function aiEqMaster(style){
+  const st = $('#aiStatus'), A = AI_STYLES[style] || AI_STYLES.electro; if (st) st.textContent = 'Listening to the mix…';
+  const E = masterEq(), keep = E.match; E.match = null; applyMix && applyMix();
+  try { const buf = await renderAudio(44100, null, Math.round(Math.min(60, exportPlan().total * stepDur() + 1) * 44100)); const mix = await bandSpectrum(buf), curve = matchCurve(A.curve, mix);
+    E.match = {ref:A.curve, mix, curve, gains:matchGains(curve), name:'AI master: ' + A.name, amount:.6}; E.amount = .6; applyAll(); applyMix && applyMix(); save(); renderMixer();
+    aiMsg = `Master shaped toward ${A.name}. The curve is on Master → EQ.`; renderAiEq(); toast('AI master EQ: ' + A.name + '.'); }
+  catch (e){ console.warn(e); E.match = keep; if (st) st.textContent = 'Could not analyse the mix.'; }
+}
+function renderAiEq(){
+  const card = $('#aiCard'); if (!card) return; const n = allTracks().filter(t => t.match && t.match.ai).length;
+  card.innerHTML = `<div class="row"><h2 class="grow">AI EQ</h2><span class="badge">${n ? n + ' tracks' : 'off'}</span></div>
+    <p class="hint">Listens to each track, works out what it is, and EQs it the way an engineer would: clears the low end that isn't its job, cuts mud and ringing, lifts presence, then makes room so the kick, bass and vocal don't fight.</p>
+    <div class="row"><button id="aiAll" class="grow nolearn">AI EQ every track</button><button id="aiClear" class="nolearn"${n ? '' : ' disabled'}>Clear</button></div>
+    <div class="row"><select id="aiStyle" class="grow" aria-label="Master style">${Object.entries(AI_STYLES).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('')}</select><button id="aiMaster" class="nolearn">AI master EQ</button></div>
+    <div class="status" id="aiStatus">${aiMsg.replace(/</g, '&lt;')}</div>`;
+  card.querySelector('#aiStyle').value = S.aiStyle || 'electro';
+  card.querySelector('#aiStyle').addEventListener('change', e => { S.aiStyle = e.target.value; save(); });
+  card.querySelector('#aiAll').addEventListener('click', async e => { e.target.disabled = true; try { await aiEqAll(); } finally { e.target.disabled = false; } });
+  card.querySelector('#aiMaster').addEventListener('click', async e => { e.target.disabled = true; try { await aiEqMaster(card.querySelector('#aiStyle').value); } finally { e.target.disabled = false; } });
+  card.querySelector('#aiClear').addEventListener('click', () => { allTracks().forEach(t => { if (t.match && t.match.ai) t.match = null; }); applyAll(); save(); renderMixer(); toast('AI EQ cleared from every track.'); });
+}
+/* ================= Pitch tracking =================
+   YIN (de Cheveigné & Kawahara 2002): difference function, cumulative-mean normalisation, absolute threshold, parabolic
+   interpolation. Run on a 4x-decimated signal so a 10 s clip analyses in a fraction of a second. Used for:
+   audio -> notes (a sung or played line becomes synth notes), clip auto-tune (TD-PSOLA: grains two periods long are
+   re-spaced at the corrected period, so the voice keeps its formants), a live tuner, and sing-to-play (your voice plays the synth). */
+function yinPitch(x, off, W, sr, lo = 55, hi = 1100, thr = .15){
+  const tMin = Math.max(2, Math.floor(sr / hi)), tMax = Math.min(Math.ceil(sr / lo), x.length - off - W - 1); if (tMax <= tMin) return {f:0, c:0};
+  const d = new Float32Array(tMax + 1); let run = 0, best = -1;
+  for (let t = 1; t <= tMax; t++){ let s = 0; for (let j = 0; j < W; j++){ const v = x[off + j] - x[off + j + t]; s += v * v; } run += s; d[t] = run ? s * t / run : 1; }
+  for (let t = tMin; t <= tMax; t++) if (d[t] < thr){ while (t + 1 <= tMax && d[t + 1] < d[t]) t++; best = t; break; }
+  if (best < 0){ let m = 1; for (let t = tMin; t <= tMax; t++) if (d[t] < m){ m = d[t]; best = t; } if (m > .35) return {f:0, c:0}; }
+  const a = d[best - 1] || d[best], b = d[best], c2 = d[best + 1] || d[best], den = a - 2 * b + c2, sh = den ? .5 * (a - c2) / den : 0;
+  return {f:sr / (best + Math.max(-1, Math.min(1, sh))), c:1 - b};
+}
+// frames every ~5.8 ms: {t (s), f (Hz, 0 = unvoiced), r (rms)}
+function pitchFrames(buf){
+  const sr = buf.sampleRate, D = 4, chs = [...Array(buf.numberOfChannels)].map((_, k) => buf.getChannelData(k)), n = Math.floor(buf.length / D), x = new Float32Array(n);
+  let lp1 = 0, lp2 = 0; const a = 1 - Math.exp(-2 * Math.PI * 2200 / sr);
+  for (let i = 0, j = 0; i < buf.length; i++){ let v = 0; for (const c of chs) v += c[i]; v /= chs.length; lp1 += a * (v - lp1); lp2 += a * (lp1 - lp2); if (i % D === 0 && j < n) x[j++] = lp2; }
+  const fs = sr / D, W = 256, hop = 64, out = [];
+  for (let o = 0; o + W * 2 < n; o += hop){ let r = 0; for (let j = 0; j < W; j++) r += x[o + j] * x[o + j]; r = Math.sqrt(r / W);
+    const p = r > 1e-3 ? yinPitch(x, o, W, fs) : {f:0}; out.push({t:(o + W / 2) / fs, f:p.f, r}); }
+  return out;
+}
+const hz2m = f => 69 + 12 * Math.log2(f / 440), m2hz = m => 440 * Math.pow(2, (m - 69) / 12);
+// steady stretches of pitch become notes
+function framesToNotes(fr){
+  const notes = []; let cur = null; const pk = fr.reduce((m, q) => Math.max(m, q.r), 0) || 1;
+  const close = () => { if (cur && cur.e - cur.s >= .07){ const ms = cur.ms.slice().sort((a, b) => a - b), med = ms[ms.length >> 1]; notes.push({s:cur.s, e:cur.e, m:Math.round(med), v:Math.min(1, .35 + cur.r / pk)}); } cur = null; };
+  for (const q of fr){
+    if (!q.f || q.r < pk * .06){ close(); continue; }
+    const m = hz2m(q.f);
+    if (cur && Math.abs(m - cur.ref) < .7){ cur.e = q.t; cur.ms.push(m); cur.r = Math.max(cur.r, q.r); cur.ref = cur.ref * .8 + m * .2; }
+    else { close(); cur = {s:q.t, e:q.t, ms:[m], ref:m, r:q.r}; }
+  }
+  close(); return notes;
+}
+function scaleSnap(m){ const sc = SCALES[S.scale] || SCALES.Minor, r = ((S.root || 0) % 12 + 12) % 12; let best = Math.round(m), bd = 99;
+  for (let k = Math.floor(m) - 2; k <= Math.ceil(m) + 2; k++) if (sc.includes(((k - r) % 12 + 12) % 12) && Math.abs(k - m) < bd){ bd = Math.abs(k - m); best = k; } return best; }
+// an audio track's clip -> notes on a synth track (new one if there is room)
+async function clipToNotes(tr){
+  const buf = buffers.get(tr.clip); if (!buf){ toast('Record or import something on this track first.'); return; }
+  toast('Tracking the pitch…'); await new Promise(r => setTimeout(r, 30));
+  const notes = framesToNotes(pitchFrames(buf)); if (!notes.length){ toast('No clear pitch found. Pitch tracking needs one voice or instrument at a time.'); return; }
+  let syn = S.synths.find(t => t.fromClip === tr.id);
+  if (!syn){ if (S.synths.length >= MAX_SYN || allTracks().length >= MAX_TRACKS){ syn = curSynth(); } else { let n = 1; while (S.synths.some(t => t.id === 's' + n)) n++; syn = newSynth(n); syn.inst = 'minimoog'; syn.name = (tr.name + ' notes').slice(0, 14); syn.fromClip = tr.id; S.synths.push(syn);
+    if (live){ const st = makeStrip(ctx, live.master); live.strips.set(syn.id, st); applyStrip(ctx, st, syn); } } }
+  const k = tr.clipSteps * TPS / buf.duration, maxT = S.bars * TPB;
+  syn.notes = notes.map(q => ({n:q.m, t:Math.round(q.s * k), d:Math.max(6, Math.round((q.e - q.s) * k)), v:+q.v.toFixed(2)})).filter(q => q.t < maxT);
+  storeScene(); rollDirty = true; save(); renderMixer(); if (view === 'synth') renderSynth();
+  toast(`${syn.notes.length} notes tracked from ${tr.name} onto ${syn.name}. Change its instrument on the Synth screen.`);
+}
+// clip auto-tune: TD-PSOLA toward the project's key. amt 0..1, speed: 0 = hard (robot) ... 1 = natural (keeps vibrato)
+async function clipTune(tr, amt = 1, speed = .5){
+  const buf = buffers.get(tr.orig || tr.clip); if (!buf){ toast('Nothing to tune on this track.'); return; }
+  toast('Tuning to ' + noteName(S.root + 60).replace(/\d+$/, '') + ' ' + S.scale + '…'); await new Promise(r => setTimeout(r, 30));
+  const sr = buf.sampleRate, fr = pitchFrames(buf), len = buf.length;
+  // per-frame ratio target/actual, smoothed (retune speed)
+  let tgt = null; const tau = .005 + speed * .12;
+  const ratio = fr.map((q, i) => { if (!q.f) { tgt = null; return 1; } const m = hz2m(q.f), sn = scaleSnap(m); const dt = i ? q.t - fr[i - 1].t : .006;
+    tgt = tgt == null ? sn : tgt + (sn - tgt) * Math.min(1, dt / tau); const corr = (tgt - m) * amt; return Math.pow(2, corr / 12); });
+  const step = fr.length > 1 ? fr[1].t - fr[0].t : .0058, idx = t => Math.max(0, Math.min(fr.length - 1, Math.round((t - (fr[0] ? fr[0].t : 0)) / step)));
+  const per = t => { const q = fr[idx(t)]; return q && q.f ? sr / q.f : sr * .008; };
+  // analysis marks every local period, synthesis marks every period / ratio; each output grain = nearest analysis grain
+  const am = []; for (let t = 0; t < len; t += Math.max(32, Math.round(per(t / sr)))) am.push(t);
+  const outs = [...Array(buf.numberOfChannels)].map(() => new Float32Array(len)), wsum = new Float32Array(len), ins = [...Array(buf.numberOfChannels)].map((_, c) => buf.getChannelData(c));
+  let ai = 0;
+  for (let to = 0; to < len;){
+    const q = idx(to / sr), P = Math.max(32, Math.round(per(to / sr))), r = ratio[q] || 1;
+    while (ai + 1 < am.length && Math.abs(am[ai + 1] - to) <= Math.abs(am[ai] - to)) ai++;
+    const ta = am[ai];
+    for (let j = -P; j < P; j++){ const o = to + j, i = ta + j; if (o < 0 || o >= len || i < 0 || i >= len) continue; const w = .5 + .5 * Math.cos(Math.PI * j / P);
+      for (let c = 0; c < outs.length; c++) outs[c][o] += ins[c][i] * w; wsum[o] += w; }
+    to += Math.max(16, Math.round(P / r));
+  }
+  for (let c = 0; c < outs.length; c++){ const o = outs[c]; for (let i = 0; i < len; i++) o[i] /= Math.max(.4, wsum[i]); }
+  const key = 'tune:' + tr.id + ':' + Date.now(), nb = makeBuffer(outs, sr);
+  if (!tr.orig) tr.orig = tr.clip; else if (tr.clip !== tr.orig) dropAudio(tr.clip);
+  buffers.set(key, nb); await storeAudio(key, nb); tr.clip = key; storeScene(); save(); renderTracks();
+  toast(`Tuned ${tr.name} to ${noteName(S.root + 60).replace(/\d+$/, '')} ${S.scale}. Undo tune puts the original back.`);
+}
+function clipUntune(tr){ if (!tr.orig) return; if (tr.clip !== tr.orig) dropAudio(tr.clip); tr.clip = tr.orig; delete tr.orig; storeScene(); save(); renderTracks(); toast('Original take restored.'); }
+// live: tuner readout and sing-to-play, from the input
+let pitchLive = {on:false, sing:false, an:null, buf:null, last:0, note:-1, hold:0, txt:''};
+function pitchLiveStart(){
+  if (!ctx || !inSrc){ toast('Turn the input on first (Setup → Input).'); return false; }
+  if (!pitchLive.an){ pitchLive.an = ctx.createAnalyser(); pitchLive.an.fftSize = 4096; pitchLive.buf = new Float32Array(4096); }
+  try { inSrc.connect(pitchLive.an); } catch(e){}
+  pitchLive.on = true; return true;
+}
+function pitchLiveTick(){
+  const P = pitchLive; if (!P.on || !P.an || !ctx) return;
+  const now = performance.now(); if (now - P.last < 30) return; P.last = now;
+  P.an.getFloatTimeDomainData(P.buf); const D = 2, sr = ctx.sampleRate / D, n = P.buf.length / D, x = new Float32Array(n); let r = 0;
+  for (let i = 0; i < n; i++){ x[i] = (P.buf[i * D] + P.buf[i * D + 1]) * .5; r += x[i] * x[i]; } r = Math.sqrt(r / n);
+  const p = r > .006 ? yinPitch(x, 0, 700, sr, 60, 1000) : {f:0};
+  const el = $('#tunerOut');
+  if (p.f){ const m = hz2m(p.f), nm = Math.round(m), cents = Math.round((m - nm) * 100); P.txt = `${noteName(nm)} ${cents > 0 ? '+' : ''}${cents}¢ · ${p.f.toFixed(1)} Hz`;
+    if (el){ el.textContent = P.txt; el.style.setProperty('--c', cents); el.classList.toggle('ok', Math.abs(cents) < 8); } }
+  else if (el && now - P.hold > 300){ el.textContent = '—'; el.classList.remove('ok'); }
+  if (p.f) P.hold = now;
+  // sing-to-play: the nearest note in the key; a new note when the voice moves a semitone or more, note off on silence
+  if (P.sing){ const syn = curSynth(); if (!syn) return;
+    if (p.f){ const nm = scaleSnap(hz2m(p.f)); if (nm !== P.note){ if (P.note >= 0) keyUp('sing', {}); keyDown(syn, nm, {}, Math.min(1, .4 + r * 6), 'sing'); P.note = nm; } }
+    else if (P.note >= 0 && now - P.hold > 120){ keyUp('sing', {}); P.note = -1; } }
+}
+function pitchLiveStop(){ const P = pitchLive; if (P.note >= 0){ keyUp('sing', {}); P.note = -1; } P.on = false; P.sing = false; try { inSrc && P.an && inSrc.disconnect(P.an); } catch(e){} }
 /* ================= scenes & song ================= */
 let pending = null, loopCount = 0, songPos = 0, songDone = false;
 function storeScene(){
@@ -12957,6 +13388,11 @@ const PAD_RESET = {vol:.85, pitch:0, pan:0, decay:1, choke:0, start:0, end:1, ls
 $('#padRst').addEventListener('click', () => { const p = S.drum.pads[selPad]; Object.assign(p, PAD_RESET); save(); renderPadEditor(); renderPads(); auditionPad(selPad); toast(padLabel(selPad) + ': settings back to default (the sound stays).'); });
 $('#drumPwr').addEventListener('click', () => { S.drum.mute = !S.drum.mute; applyAll(); save(); renderPadEditor(); toast(S.drum.mute ? 'Drums off.' : 'Drums on.'); });
 $('#spMode').addEventListener('click', () => { S.sp = !S.sp; save(); renderPadEditor(); auditionPad(selPad); toast(S.sp ? 'SP-1200 mode on. Pitch is limited to −16…+15 semitones, like the original.' : 'SP-1200 mode off: pads play clean again.'); spBanner(); });
+$('#singBtn').addEventListener('click', async e => { const b = e.currentTarget; ensureAudio();
+  if (pitchLive.sing){ pitchLiveStop(); b.classList.remove('on'); toast('Sing to play is off.'); return; }
+  if (!inSrc && !(await enableInput())) return;
+  if (pitchLiveStart()){ pitchLive.sing = true; b.classList.add('on'); toast('Sing or hum one note at a time. Headphones stop the synth from feeding back into the mic.'); } });
+$('#kitPick').addEventListener('change', e => { ensureAudio(); loadKit(e.target.value); });
 $('#resetSample').addEventListener('click', () => { const p = S.drum.pads[selPad]; dropAudio(p.sample); const v = kitVoices(S.drum.kit)[selPad]; p.sample = v.key; p.name = v.name; ensureKitBuf(v.key); save(); renderPads(); renderPadEditor(); auditionPad(selPad); });
 
 $('#enableIn').addEventListener('click', enableInput);
@@ -13139,6 +13575,15 @@ const TEMPLATES = {
   synthpop:{name:'80s synth-pop', bpm:118, kit:'lm2', root:2, scale:'Minor'},
   house:{name:'House (sidechain pump)', bpm:124, kit:'tr909', root:5, scale:'Minor'},
   hiphop:{name:'Boom bap', bpm:90, kit:'pocket', root:0, scale:'Minor'},
+  newcleus:{name:'Newcleus style · Jam On It (1984)', bpm:116, kit:'tr808', root:11, scale:'Minor', pro:'newcleus'},
+  jonzun:{name:'Jonzun Crew style · Pack Jam (1982)', bpm:120, kit:'tr808', root:9, scale:'Minor', pro:'jonzun'},
+  planetrock:{name:'Planet Rock style (1982)', bpm:127, kit:'tr808', root:5, scale:'Minor', pro:'planetrock'},
+  electrofunk:{name:'Electro-funk 1984', bpm:125, kit:'tr808', root:7, scale:'Minor', pro:'electrofunk'},
+  whodini:{name:'Whodini style (1984)', bpm:101, kit:'lm2', root:1, scale:'Minor', pro:'whodini'},
+  rundmc:{name:'Run-DMC style · King of Rock (1985)', bpm:104, kit:'dmx', root:4, scale:'Minor', pro:'rundmc'},
+  fatboys:{name:'Fat Boys style (1984)', bpm:104, kit:'dmx', root:7, scale:'Minor', pro:'fatboys'},
+  freakazoid:{name:'Freak-a-Zoid style (1983)', bpm:120, kit:'lm2', root:2, scale:'Minor', pro:'freakazoid'},
+  heartofglass:{name:'Heart of Glass style (1978)', bpm:114, kit:'cr78', root:4, scale:'Major', pro:'heartofglass'},
   disco:{name:'Disco strings', bpm:116, kit:'lm2', root:7, scale:'Minor'}
 };
 // steps: 'x' hit (accent), 'o' soft hit, '.' rest; the string repeats to fill the bars
@@ -13151,14 +13596,203 @@ function tplSynth(id, name, inst, preset){
   const tr = newSynth(id); tr.name = name; tr.inst = inst; delete tr.notes;
   if (ANA_MODELS[inst]){ const P = (ANA_PRESETS[inst] || {})[preset]; tr['ana_' + inst] = Object.assign({preset:P ? preset : ''}, ANA_COMMON, ANA_MODELS[inst].base, P || {}); }
   else if (inst === 'piano') tr.piano = pianoPreset(preset || '');
-  else if (inst === 'disco') tr.disco = DISCO_DEFAULT(); else if (inst === 'choir') tr.choir = CHOIR_DEFAULT();
+  else if (inst === 'prophet' && preset && P5_PRESETS[preset]) tr.p5 = P5_DEFAULT(preset);
+  else if (inst === 'obxa' && preset && OB_PRESETS[preset]) tr.ob = OB_DEFAULT(preset);
+  else if (inst === 'solina' && preset && SOL_PRESETS[preset]){ tr.sol = Object.assign(SOL_DEFAULT(), SOL_PRESETS[preset]); tr.solPreset = preset; }
+  else if (inst === 'guitar') tr.gtr = gtrPreset(preset || 'Rock · King of Rock Riff'); else if (inst === 'disco') tr.disco = preset && DISCO_PRESETS[preset] ? discoPreset(preset) : DISCO_DEFAULT(); else if (inst === 'choir') tr.choir = CHOIR_DEFAULT();
   return tr;
 }
-async function tplSpeech(fresh, id, lines, bars){
-  const sr = 22050, bar = 240 / fresh.bpm, opts = Object.assign(ttsOpts({voice:'robot', semi:0, speed:1}), {sr}), len = Math.round(bars * bar * sr), d = new Float32Array(len);
-  lines.forEach((l, k) => { if (!l) return; const a = ttsRender(l, opts), o = Math.round(k * bar * sr); for (let i = 0; i < a.length && o + i < len; i++) d[o + i] = a[i] * .4; });
+async function tplSpeech(fresh, id, lines, bars, vo = {}){
+  const sr = 22050, bar = 240 / fresh.bpm, per = vo.per || 1, opts = Object.assign(ttsOpts({voice:vo.voice || 'robot', semi:vo.semi || 0, speed:vo.speed || 1}), {sr}), len = Math.round(bars * bar * sr), d = new Float32Array(len);
+  // one line per bar (or per half bar with per:2), each starting on its beat; a line that runs long is cut at the next one
+  lines.forEach((l, k) => { if (!l) return; const a = ttsRender(l, opts), o = Math.round(k * bar / per * sr + (vo.push || 0) * bar / 4 * sr), end = Math.min(len, Math.round((k + 1) * bar / per * sr + bar / 4 * sr));
+    for (let i = 0; i < a.length && o + i < end; i++) d[o + i] += a[i] * .4 * (vo.gain || 1); });
   const key = 'tts:' + id + ':' + Date.now() + ':' + Math.random().toString(36).slice(2, 6), buf = makeBuffer([d], sr);
   await storeAudio(key, buf); return {key, steps:bars * 16, bpm:fresh.bpm};
+}
+/* The classic-record templates. Gear follows what the records used (see Help → Templates); the words are new, written
+   for these templates, and sung by the speech generator: rap verses on their own track, vocoder lines on a muted
+   track that feeds the vocoder. Drum grids are 16 steps per bar ('x' accent, 'o' soft). */
+const TPL_PRO = {
+  newcleus:m => ({
+    synths:[['s1', 'Vocoder', 'juno60', 'Pad · Juno Strings', {vol:.85, sendA:.25}], ['s2', 'Pro-One Bass', 'sh101', 'Bass · Jam On It (Pro-One style)', {vol:.8}],
+      ['s3', '303 Arp', 'tb303', '', {vol:.45, sendB:.25}], ['s4', 'RS-09 Strings', 'solina', '', {vol:.4, sendA:.35}]],
+    voc:{syn:'s1', src:'a1', preset:'Newcleus (Computer Age)'},
+    speech:[{id:'a1', name:'Vocoder words', mute:true, voice:'robot', semi:-2}, {id:'a2', name:'Chipmunk raps', voice:'chipmunk', speed:1.15, vol:.75, sendA:.12}],
+    drums:{intro:{0:'x.....x.........', 2:'....x.......x...', 6:'..x...x...x.x...', 4:'xoxoxoxoxoxoxoxo'},
+      verse:{0:'x.....x...x.....', 2:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 6:'..x...x...x.x..x', 14:'..o...o...o...o.'},
+      hook:{0:'x.....x...x.....', 2:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 5:'..............x.', 6:'x.x...x...x.x..x', 13:'...x......x.....'},
+      brk:{0:'x...............', 2:'....x.......x...', 8:'........x.x.x.xx', 9:'..............x.', 10:'............x...'}},
+    notes:(L, C) => { const ch = [[m(-12), m(-9), m(-5)], [m(-14), m(-10), m(-7)], [m(-16), m(-12), m(-9)], [m(-14), m(-10), m(-7)]];
+      const bass = L(4, [[m(-24), 2], [m(-24), 1], [m(-12), 1], [null, 2], [m(-24), 2], [m(-22), 2], [m(-19), 2], [m(-17), 2], [m(-22), 2]]);
+      const arp = L(4, [[m(0), 1], [m(3), 1], [m(7), 1], [m(12), 1]], .7), str = C(4, ch.map(c => [c, 1]), .6);
+      return {intro:{s1:C(4, ch.map(c => [c, 1])), s4:str}, verse:{s1:C(4, ch.map(c => [c, 1])), s2:bass, s3:arp, s4:str}, hook:{s1:C(4, ch.map(c => [c, 1])), s2:bass, s3:arp, s4:str}, brk:{s1:C(4, ch.map(c => [c, 1])), s3:arp}}; },
+    say:{intro:{a1:['attention', 'all breakers', 'the floor is open', 'begin']},
+      verse:{a2:['we came to rock the party', 'on the count of three', 'the bass is in your body', 'and the beat is set free', 'now spin it on the cardboard', 'do the wave and freeze', 'the cowbell keeps on ringing', 'and the crowd says please'], a1:['', '', '', '', '', '', 'move', 'move']},
+      hook:{a1:['come on and move it', 'electric groove', 'the beat is in the box', 'and the box will not stop']},
+      brk:{a2:['now everybody', 'pop and lock', 'one more time', 'around the clock']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4], ['Break', 'brk', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [1, 1], [2, 2], [3, 1], [2, 2]], routes:[['pad:0', 't:s2', .35, .12]]}),
+  jonzun:m => ({
+    synths:[['s1', 'Vocoder', 'prophet', '', {vol:.85, sendA:.3, sendB:.15}], ['s2', 'Minimoog Bass', 'minimoog', 'Bass · Moog Bass', {vol:.8}], ['s3', 'Space Lead', 'minimoog', 'Lead · Lucky Lead', {vol:.5, sendB:.35}]],
+    voc:{syn:'s1', src:'a1', preset:'Jonzun Crew (Pack Jam)'},
+    speech:[{id:'a1', name:'Vocoder words', mute:true, voice:'deep', semi:0, speed:.9}, {id:'a2', name:'MC', voice:'normal', speed:1.05, vol:.7, sendA:.15}],
+    drums:{intro:{4:'x.x.x.x.x.x.x.x.', 7:'x...............'},
+      verse:{0:'x.......x.x.....', 1:'....x.......x...', 2:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 5:'......x.......x.'},
+      hook:{0:'x.......x.x.....', 1:'....x.......x...', 2:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 8:'............x.x.', 9:'..............xx'},
+      acap:{}},
+    notes:(L, C) => { const ch = [[m(-12), m(-9), m(-5), m(-2)], [m(-17), m(-14), m(-10), m(-5)], [m(-15), m(-12), m(-8), m(-3)], [m(-14), m(-10), m(-7), m(-2)]];
+      const bass = L(4, [[m(-24), 3], [m(-24), 3], [m(-12), 2], [m(-24), 2], [m(-21), 2], [m(-19), 2], [m(-17), 2]]), lead = L(4, [[m(12), 8], [m(10), 4], [m(7), 4], [m(5), 8], [m(3), 8], [null, 32]], .7);
+      return {intro:{s1:C(4, ch.map(c => [c, 1]))}, verse:{s1:C(4, ch.map(c => [c, 1])), s2:bass}, hook:{s1:C(4, ch.map(c => [c, 1])), s2:bass, s3:lead}, acap:{s1:C(4, ch.map(c => [c, 1]), .7)}}; },
+    say:{intro:{a1:['attention earth people', 'we have landed', 'the mothership is calling', 'stand by']},
+      verse:{a2:['from a galaxy far across the sky', 'we came to make your body fly', 'the funk is coded in the stars', 'from the moon to the edge of mars', 'so lock the doors and dim the light', 'the crew is landing here tonight', 'your feet are moving on their own', 'you are now in the zone'], a1:['', '', '', '', '', '', 'zone', 'zone']},
+      hook:{a1:['space funk', 'take me higher', 'space funk', 'set the sky on fire']},
+      acap:{a1:['we are the crew', 'from outer space', 'we leave the funk', 'in every place']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4], ['Vocoder a cappella', 'acap', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [1, 1], [2, 2], [3, 2]], routes:[['pad:0', 't:s2', .3, .12]]}),
+  planetrock:m => ({
+    synths:[['s1', 'Prophet Strings', 'prophet', '', {vol:.6, sendA:.3}], ['s2', 'Micromoog Bass', 'minimoog', 'Bass · Planet Rock (Micromoog)', {vol:.85}], ['s3', 'Orchestra Hit', 'disco', 'Disco · Orchestra Hit (1982)', {vol:.55, sendA:.3}]],
+    speech:[{id:'a1', name:'MCs (robot)', voice:'normal', speed:1.05, vol:.7, rack:{ad:.6}, sendA:.15}], units:{ad:'Robot voice comb'},
+    drums:{intro:{0:'x.....x.........', 2:'....x.......x...', 14:'....x.......x...', 6:'x.x.x.xx.x.xx.x.'},
+      verse:{0:'x.....x.........', 2:'....x.......x...', 14:'....x.......x...', 6:'x.x.x.xx.x.xx.x.', 4:'xxxxxxxxxxxxxxxx'},
+      hook:{0:'x.....x...x.....', 2:'....x.......x...', 14:'....x.......x...', 6:'x.x.x.xx.x.xx.x.', 4:'xxxxxxxxxxxxxxxx', 7:'x...............'},
+      brk:{0:'x.....x.........', 2:'....x.......x...', 11:'x.....x...x.....', 12:'..x.....x.....x.'}},
+    notes:(L, C) => { const ch = [[m(-5), m(0), m(3)], [m(-7), m(-2), m(2)]];
+      const bass = L(1, [[m(-24), 6], [m(-24), 4], [m(-24), 6]]), hits = [{n:m(-12), t:0, d:90, v:1}, {n:m(-12), t:TPB * 2, d:90, v:1}], str = C(4, [[ch[0], 2], [ch[1], 2]], .6);
+      const b4 = []; for (let b = 0; b < 4; b++) bass.forEach(n => b4.push(Object.assign({}, n, {t:n.t + b * TPB})));
+      return {intro:{s1:str, s3:hits}, verse:{s1:str, s2:b4}, hook:{s1:str, s2:b4, s3:hits.concat(hits.map(n => Object.assign({}, n, {t:n.t + TPB})))}, brk:{s2:b4}}; },
+    say:{intro:{a1:['party people', 'from the stars', 'to the street', 'feel the beat']},
+      verse:{a1:['rock it to the rhythm of the planet beat', 'from the cosmos down to the city street', 'the soul sonic force is in the place', 'we bring the funk from outer space', 'just hit me', 'with the cowbell', 'and the eight oh eight', 'cannot wait']},
+      hook:{a1:['rock rock', 'to the planet beat', 'rock rock', 'move your feet']},
+      brk:{a1:['', 'get up', '', 'get down']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4], ['Break', 'brk', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [3, 1], [1, 1], [2, 2]], routes:[['pad:0', 't:s1', .35, .2]]}),
+  electrofunk:m => ({
+    synths:[['s1', 'Vocoder', 'juno60', 'Keys · Juno Brass', {vol:.8, sendA:.2}], ['s2', 'SH-101 Bass', 'sh101', 'Bass · Electro Bass', {vol:.8}], ['s3', 'Stab', 'jx3p', 'Brass · JX Brass', {vol:.5, sendB:.2}]],
+    voc:{syn:'s1', src:'a1', preset:'Electro-Funk 84 (SVC-350)'},
+    speech:[{id:'a1', name:'Vocoder words', mute:true, voice:'robot'}, {id:'a2', name:'MC', voice:'deep', speed:1.05, vol:.65, sendA:.12}],
+    drums:{intro:{0:'x.....x...x.....', 4:'xoxoxoxoxoxoxoxo'},
+      verse:{0:'x.....x...x.....', 2:'....x.......x...', 1:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 6:'..x.....x.x.....'},
+      hook:{0:'x.....x...x...x.', 2:'....x.......x...', 1:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 6:'..x.....x.x.....', 5:'......x.......x.'},
+      brk:{0:'x.....x...x.....', 8:'....x.x.x.x.xxxx', 9:'............x.x.'}},
+    notes:(L, C) => { const ch = [[m(-12), m(-9), m(-5)], [m(-14), m(-10), m(-7)]];
+      const bass = L(2, [[m(-24), 1], [m(-24), 1], [m(-12), 1], [m(-24), 1], [null, 1], [m(-24), 1], [m(-22), 1], [m(-12), 1]]);
+      const stab = []; [0, 1, 2, 3].forEach(b => [6, 10].forEach(st => ch[b % 2].forEach(n => stab.push({n:n + 12, t:b * TPB + st * TPS, d:TPS * 2, v:.85}))));
+      return {intro:{s1:C(4, [[ch[0], 2], [ch[1], 2]])}, verse:{s1:C(4, [[ch[0], 2], [ch[1], 2]]), s2:L(4, [[m(-24), 1], [m(-24), 1], [m(-12), 1], [m(-24), 1], [null, 1], [m(-24), 1], [m(-22), 1], [m(-12), 1]])}, hook:{s1:C(4, [[ch[0], 2], [ch[1], 2]]), s2:L(4, [[m(-24), 1], [m(-24), 1], [m(-12), 1], [m(-24), 1], [null, 1], [m(-24), 1], [m(-22), 1], [m(-12), 1]]), s3:stab}, brk:{s1:C(4, [[ch[0], 2], [ch[1], 2]])}}; },
+    say:{intro:{a1:['electro', 'funk', 'is in', 'control']},
+      verse:{a2:['the beat box rumbles under the floor', 'the city wants a little more', 'the lights go red and the speakers blow', 'the robots move and the people go', 'pop it lock it tick and glide', 'nobody here is gonna hide', 'the eight oh eight is the heart of the night', 'so turn it up and hold on tight']},
+      hook:{a1:['electro funk', 'lock and pop', 'the machine is in control', 'do not stop']},
+      brk:{a1:['', 'tick', '', 'tock']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4], ['Break', 'brk', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [1, 1], [3, 1], [2, 2]], routes:[['pad:0', 't:s2', .4, .12]]}),
+  whodini:m => ({
+    synths:[['s1', 'Bells', 'juno60', 'Keys · Whodini Bells', {vol:.5, sendA:.3, sendB:.2}], ['s2', 'Bass', 'minimoog', 'Bass · Funk Pluck', {vol:.8}], ['s3', 'Strings', 'solina', '', {vol:.4, sendA:.3}]],
+    speech:[{id:'a1', name:'MC Jalil', voice:'normal', speed:1.05, vol:.75, sendA:.1}, {id:'a2', name:'MC Ecstasy', voice:'deep', speed:1.05, vol:.75, sendA:.1}],
+    drums:{intro:{0:'x.........x.....', 3:'....x.......x...', 4:'x.x.x.x.x.x.x.x.'},
+      verse:{0:'x.........x.x...', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 5:'..............x.', 11:'..x.......x.....'},
+      hook:{0:'x.........x.x...', 1:'....x.......x...', 2:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 5:'......x.......x.', 11:'..x.......x.....'}},
+    notes:(L, C) => { const ch = [[m(-12), m(-9), m(-5), m(-2)], [m(-16), m(-12), m(-9), m(-5)]];
+      const bass = L(2, [[m(-24), 3], [m(-24), 1], [null, 2], [m(-21), 2], [m(-19), 4], [m(-17), 2], [m(-19), 2], [m(-24), 3], [null, 5], [m(-28), 4], [m(-26), 4]]);
+      const bells = L(4, [[m(7), 2], [m(3), 2], [m(0), 4], [null, 8], [m(5), 2], [m(2), 2], [m(-2), 4], [null, 8]], .7);
+      const b4 = bass.concat(bass.map(n => Object.assign({}, n, {t:n.t + TPB * 2})));
+      return {intro:{s1:bells, s3:C(4, [[ch[0], 2], [ch[1], 2]])}, verse:{s2:b4, s3:C(4, [[ch[0], 2], [ch[1], 2]], .5)}, hook:{s1:bells, s2:b4, s3:C(4, [[ch[0], 2], [ch[1], 2]])}}; },
+    say:{intro:{a1:['ladies and gentlemen', '', 'the show', 'is about to begin']},
+      verse:{a1:['when the sun goes down and the street lights glow', '', 'the whole town wakes for the midnight show', '', 'the radio plays and the beat comes through', '', 'everybody knows what they came to do', ''],
+        a2:['', 'the crowd is jumping wall to wall', '', 'we rock the jam and we rock it all', '', 'so grab your partner do not be shy', '', 'the party goes till the morning sky']},
+      hook:{a1:['when the lights go low', 'the party starts to show', 'when the lights go low', 'everybody go']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4]],
+    song:[[0, 1], [1, 1], [2, 1], [1, 1], [2, 2], [1, 1], [2, 2]], routes:[]}),
+  rundmc:m => ({
+    synths:[['s1', 'Eddie riff', 'guitar', 'Rock · King of Rock Riff', {vol:.75, sendA:.08}], ['s2', 'Eddie harmony', 'guitar', 'Rock · Rock Box Power Chords', {vol:.5, pan:.5}], ['s3', 'Eddie solo', 'guitar', 'Lead · Rock Box Solo', {vol:.55, sendA:.15}], ['s4', 'Larry bass', 'minimoog', 'Bass · Larry Smith Rock Bass', {vol:.8}]],
+    speech:[{id:'a1', name:'Run', voice:'normal', speed:1.1, vol:.8, sendA:.08}, {id:'a2', name:'DMC', voice:'deep', speed:1.1, vol:.8, sendA:.08}],
+    drumFx:{rack:{u7:.5}}, units:{u7:'Drum smash (all buttons)'},
+    drums:{intro:{0:'x.......x.x.....', 1:'....x.......x...', 7:'x...............'},
+      verse:{0:'x.......x.x.....', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 13:'..x...x...x...x.'},
+      hook:{0:'x.......x.x.....', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 7:'x...............', 13:'x.x.x.x.x.x.x.x.'},
+      solo:{0:'x.......x.x.....', 1:'....x.......x...', 6:'x.x.x.x.x.x.x.x.', 7:'x...............'}},
+    notes:(L, C) => { const riff = L(2, [[m(-24), 2], [m(-24), 1], [m(-24), 1], [m(-21), 2], [m(-19), 2], [m(-24), 2], [m(-14), 2], [m(-16), 2], [m(-19), 2], [m(-24), 2], [m(-24), 1], [m(-24), 1], [m(-21), 2], [m(-19), 2], [m(-17), 4], [m(-19), 4]]);
+      const harm = L(2, [[null, 16], [m(-12), 8], [m(-14), 8]], .8), solo = L(4, [[m(7), 2], [m(10), 2], [m(12), 4], [m(10), 2], [m(7), 2], [m(5), 4], [m(3), 4], [m(5), 2], [m(7), 6], [m(12), 8], [m(15), 4], [m(12), 4], [m(10), 4], [m(7), 12]], .9);
+      const r4 = riff.concat(riff.map(n => Object.assign({}, n, {t:n.t + TPB * 2}))), h4 = harm.concat(harm.map(n => Object.assign({}, n, {t:n.t + TPB * 2})));
+      const bass = r4.map(n => Object.assign({}, n, {n:n.n - 12, v:.9}));
+      return {intro:{s1:r4}, verse:{s4:bass}, hook:{s1:r4, s2:h4, s4:bass}, solo:{s1:r4, s3:solo, s4:bass}}; },
+    say:{intro:{a1:['', '', 'two m c s', 'and a guitar']},
+      verse:{a1:['we came to rock with a beat that is tough', '', 'loud guitar and that is enough', '', 'from the city block to the arena stage', '', 'we turn the noise into a brand new age', ''],
+        a2:['', 'we do not play we do not pretend', '', 'the drum machine is our best friend', '', 'the rhymes are hard and the riff is mean', '', 'the loudest crew that you ever seen']},
+      hook:{a1:['rock the house', 'rock the town', 'rock the beat', 'and do not back down'], a2:['rock the house', 'rock the town', 'rock the beat', 'and do not back down']},
+      solo:{a2:['', '', 'eddie', 'take it']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4], ['Guitar solo', 'solo', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [1, 1], [2, 1], [3, 2], [2, 2]], routes:[]}),
+  fatboys:m => ({
+    synths:[['s1', 'Keys', 'dx1', '', {vol:.5, sendA:.2}], ['s2', 'Bass', 'minimoog', 'Bass · Moog Bass', {vol:.8}], ['s3', 'Brass', 'obxa', 'Jump Brass', {vol:.45, sendA:.2}]],
+    speech:[{id:'a1', name:'Rap', voice:'normal', speed:1.1, vol:.75, sendA:.1}, {id:'a2', name:'Human beatbox', voice:'deep', speed:1.4, vol:.7, per:2}],
+    drums:{intro:{},
+      verse:{0:'x......x..x.....', 1:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 13:'....x.......x...'},
+      hook:{0:'x......x..x.....', 1:'....x.......x...', 2:'....x.......x...', 4:'x.x.x.x.x.x.x.x.', 13:'x.x.x.x.x.x.x.x.'},
+      box:{}},
+    notes:(L, C) => { const ch = [[m(-12), m(-8), m(-5)], [m(-10), m(-7), m(-3)]];
+      const bass = L(2, [[m(-24), 3], [m(-24), 3], [m(-17), 2], [m(-19), 4], [m(-14), 4], [m(-24), 3], [m(-24), 3], [m(-12), 2], [m(-14), 4], [m(-17), 4]]);
+      const b4 = bass.concat(bass.map(n => Object.assign({}, n, {t:n.t + TPB * 2})));
+      const brass = []; [0, 2].forEach(b => ch[b / 2].forEach(n => brass.push({n:n + 12, t:b * TPB + 14 * TPS, d:TPS * 6, v:.9})));
+      return {intro:{}, verse:{s1:C(4, [[ch[0], 2], [ch[1], 2]], .6), s2:b4}, hook:{s1:C(4, [[ch[0], 2], [ch[1], 2]]), s2:b4, s3:brass}, box:{}}; },
+    say:{intro:{a2:['boom', 'ka', 'boom boom', 'tss', 'boom', 'ka', 'boom boom', 'tss']},
+      verse:{a1:['we came in heavy and we came in proud', 'three big fellas and we rock the crowd', 'the beat is fat and the rhymes are too', 'we eat the stage and we feed it to you', 'we got the bass and we got the drum', 'we leave the party when the morning come', 'so make some noise for the heavy weight', 'the biggest crew on the dinner plate']},
+      hook:{a1:['make some noise', 'for the heavy crew', 'make some noise', 'we rock for you']},
+      box:{a2:['boom', 'tss', 'ka boom', 'tss', 'boom boom', 'tss', 'ka', 'tss', 'boom', 'tss', 'ka boom', 'tss', 'boom boom', 'tss', 'ka', 'pfff']}},
+    sections:[['Beatbox intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4], ['Beatbox break', 'box', 8]],
+    song:[[0, 1], [1, 1], [2, 2], [3, 1], [1, 1], [2, 2]], routes:[['pad:0', 't:s2', .3, .12]]}),
+  freakazoid:m => ({
+    synths:[['s1', 'Vocoder', 'prophet', '', {vol:.85, sendA:.3}], ['s2', 'Moog Source Bass', 'minimoog', 'Bass · Freak-a-Zoid (Moog Source)', {vol:.8}], ['s3', 'OB-Xa Pad', 'obxa', '', {vol:.4, sendA:.35}]],
+    voc:{syn:'s1', src:'a1', preset:'Midnight Star (Freak-a-Zoid)'},
+    speech:[{id:'a1', name:'Vocoder words', mute:true, voice:'robot', semi:2}, {id:'a2', name:'Lead vocal', voice:'normal', semi:2, speed:.95, vol:.7, sendA:.2}],
+    drums:{intro:{0:'x.....x.x.......', 2:'....x.......x...', 4:'xoxoxoxoxoxoxoxo'},
+      verse:{0:'x.....x.x.......', 1:'....x.......x...', 2:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 14:'..o...o...o...o.'},
+      hook:{0:'x.....x.x.......', 1:'....x.......x...', 2:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 5:'..............x.', 11:'x.....x.........'}},
+    notes:(L, C) => { const ch = [[m(-12), m(-9), m(-5), m(-2)], [m(-14), m(-10), m(-7), m(-2)], [m(-16), m(-12), m(-9), m(-5)], [m(-17), m(-14), m(-10), m(-5)]];
+      const bass = L(4, [[m(-24), 2], [m(-12), 1], [m(-24), 1], [null, 2], [m(-24), 2], [m(-22), 4], [m(-24), 2], [m(-12), 1], [m(-24), 1], [null, 2], [m(-26), 2], [m(-27), 4], [m(-29), 2], [m(-17), 1], [m(-29), 1], [null, 2], [m(-29), 2], [m(-27), 4], [m(-26), 8], [m(-24), 8]]);
+      const c4 = C(4, ch.map(c => [c, 1]));
+      return {intro:{s1:c4, s3:C(4, ch.map(c => [c, 1]), .5)}, verse:{s1:c4, s2:bass, s3:C(4, ch.map(c => [c, 1]), .5)}, hook:{s1:c4, s2:bass}}; },
+    say:{intro:{a1:['electric lover', '', 'come in', 'tonight']},
+      verse:{a2:['she moves like a signal in the dark', 'a little circuit with a lot of spark', 'the dance floor glows when she walks in', 'her mind is metal and her heart is tin', 'she does the robot and she does it right', 'a satellite girl on a saturday night', 'the d j plays and the bass goes deep', 'she never stops and she never sleeps']},
+      hook:{a1:['electric lover', 'under the lights', 'my circuits are burning', 'for you tonight']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Hook', 'hook', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [1, 1], [2, 3]], routes:[['pad:0', 't:s2', .3, .12]]}),
+  heartofglass:m => ({
+    synths:[['s1', 'SH-5 Sequence', 'sh101', 'Seq · Heart of Glass (SH-5 style)', {vol:.6, sendB:.2}], ['s2', 'Minimoog Bass', 'minimoog', 'Bass · Fat Sub', {vol:.7}], ['s3', 'EBow Guitar', 'guitar', 'Lead · Singing Neck Lead', {vol:.4, sendA:.3}], ['s4', 'Rhythm guitar', 'guitar', 'Clean · Chorus Chords', {vol:.4, pan:-.4}]],
+    speech:[{id:'a1', name:'Lead vocal', voice:'female', speed:.95, vol:.75, sendA:.3}, {id:'a2', name:'Low octave', voice:'female', semi:-12, speed:.95, vol:.4, sendA:.2}],
+    drums:{intro:{4:'xxxxxxxxxxxxxxxx', 0:'x...x...x...x...'},
+      verse:{0:'x...x...x...x...', 1:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 5:'..x...x...x...x.', 14:'x.......x.......'},
+      chorus:{0:'x...x...x...x...', 1:'....x.......x...', 4:'xoxoxoxoxoxoxoxo', 5:'..x...x...x...x.', 6:'xoxoxoxoxoxoxoxo'}},
+    notes:(L, C) => { const prog = [[m(0), m(4), m(7)], [m(-1), m(4), m(7)], [m(-3), m(0), m(4)], [m(-1), m(2), m(7)]];
+      const seq = L(4, [[m(-12), 1], [m(-12), 1], [m(0), 1], [m(-12), 1], [m(-5), 1], [m(-12), 1], [m(0), 1], [m(-10), 1]], .8);
+      const bass = L(4, [[m(-24), 4], [m(-24), 2], [m(-12), 2], [m(-25), 4], [m(-25), 2], [m(-13), 2], [m(-27), 4], [m(-27), 2], [m(-15), 2], [m(-29), 4], [m(-29), 2], [m(-17), 2]]);
+      const eb = L(4, [[m(12), 16], [m(11), 16], [m(9), 16], [m(7), 16]], .6);
+      return {intro:{s1:seq}, verse:{s1:seq, s2:bass, s4:C(4, prog.map(c => [c, 1]), .5)}, chorus:{s1:seq, s2:bass, s3:eb, s4:C(4, prog.map(c => [c, 1]), .6)}}; },
+    say:{intro:{a1:['', '', 'ooh', 'ooh']},
+      verse:{a1:['you held my hand then let it go', 'the light was bright but the night was slow', 'i tried to say what i could not show', 'the city hummed down below', 'you said forever then you were gone', 'the music played and the beat went on', 'i keep on dancing till the dawn', 'with every light switched on']},
+      chorus:{a1:['so clear', 'so cold', 'i see right through', 'the stories told'], a2:['so clear', 'so cold', 'i see right through', 'the stories told']}},
+    sections:[['Intro', 'intro', 4], ['Verse', 'verse', 8], ['Chorus', 'chorus', 4]],
+    song:[[0, 1], [1, 1], [2, 2], [1, 1], [2, 2], [0, 1]], routes:[]})
+};
+async function tplPro(F, T, m, route, scene){
+  const P = TPL_PRO[T.pro](m), L = tplLine, C = tplChords;
+  F.synths = P.synths.map(([id, name, inst, preset, o]) => { const tr = tplSynth(+id.slice(1), name, inst, preset); Object.assign(tr, o || {}); if (o && o.vol) tr.vol = o.vol * .62; return tr; });   // leave headroom: the limiter should rarely work
+  F.audio = P.speech.map(sp => Object.assign({id:sp.id, name:sp.name, armed:false, recBars:4, clip:null, clipSteps:64, warp:'complex'}, mixDefaults(), {mute:!!sp.mute, vol:(sp.vol || .6) * .66, sendA:sp.sendA || 0}, sp.rack ? {rack:sp.rack} : {}));
+  if (P.voc){ const tr = F.synths.find(t => t.id === P.voc.syn), V = VOC_PRESETS[P.voc.preset] || {}, pv = Object.assign({}, V); delete pv.tts; delete pv.note;
+    tr.voc = Object.assign(VOC_DEFAULT(), pv, {on:true, src:P.voc.src, car:'self'}); F.ttsTrack = P.voc.src; }
+  if (P.drumFx) Object.assign(F.drum, P.drumFx);
+  for (const [k, pre] of Object.entries(P.units || {})){ F.rack = F.rack || {}; F.rack[k] = Object.assign(RACK[k].def(), (RACK[k].presets || {})[pre] || {}); }
+  const N = P.notes(L, C), idx = {};
+  for (const [label, key, bars] of P.sections){
+    const clips = {}, say = (P.say || {})[key] || {};
+    for (const sp of P.speech){ const lines = say[sp.id]; if (lines && lines.some(Boolean)) clips[sp.id] = await tplSpeech(F, sp.id, lines, Math.max(bars, Math.ceil(lines.length / (sp.per || 1))), {voice:sp.voice, semi:sp.semi, speed:sp.speed, per:sp.per}); }
+    const syn = {}; F.synths.forEach(t => {
+      const src = (N[key] || {})[t.id] || [], len = bars * TPB, base = src.length ? Math.max(TPB, Math.ceil(Math.max(...src.map(n => n.t + 1)) / TPB) * TPB) : TPB, out = [];
+      for (let o = 0; o < len; o += base) src.forEach(n => { if (n.t + o < len) out.push(Object.assign({}, n, {t:n.t + o})); }); syn[t.id] = out; });
+    idx[key] = scene(label, bars, tplDrums(bars, P.drums[key] || {}), syn, clips);
+  }
+  const keys = P.sections.map(x => x[1]);
+  F.song = P.song.map(([k, n]) => ({s:idx[keys[k]], n}));
+  (P.routes || []).forEach(r => route(...r));
 }
 async function tplBuild(name, S0){
   const T = TEMPLATES[name], F = S0, A = 57 + T.root - 9;     // A = the root around A3 (MIDI 57)
@@ -13227,6 +13861,7 @@ async function tplBuild(name, S0){
     const intro = scene('Intro', 2, [], {s1:tplChords(2, prog, .7), s2:[], s3:[]});
     F.song = [{s:intro, n:1}, {s:verse, n:2}, {s:hook, n:1}, {s:verse, n:2}, {s:hook, n:2}];
     route('pad:0', 't:s2', .35, .12);
+  } else if (T.pro){ await tplPro(F, T, m, route, scene);
   } else if (name === 'disco'){
     const str = tplSynth(1, 'Strings', 'disco', ''), bass = tplSynth(2, 'Bass', 'minimoog', 'Bass · Funk Pluck'), keys = tplSynth(3, 'Keys', 'jx3p', 'Brass · JX Brass');
     str.vol = .55; str.sendA = .35; bass.vol = .8; keys.vol = .5; F.synths = [str, bass, keys];
@@ -13610,6 +14245,7 @@ $('#helpSearch').addEventListener('input', e => {
     S.drum.pads.forEach((p, i) => { if (p.sample && !buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
+  if (S.drum.name === 'Drums') S.drum.name = 'Pads';   // the pad track is called Pads everywhere, the mixer included
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); if (!t.inst || t.inst === 'synth'){ t.inst = 'prophet'; if (/^Synth \d+$/.test(t.name)) t.name = 'Prophet ' + t.id.slice(1); } t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.ob = Object.assign(OB_DEFAULT(), t.ob); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
@@ -13633,7 +14269,7 @@ stepify($('#clickVol'), v => Math.round(v * 100) + '%' + (v > 2.5 ? ' LOUD' : ''
 stepify($('#swing'), v => v + '%'); stepify($('#chopSens'), v => v + '%'); stepify($('#p5Wheel'), v => Math.round(v * 100) + '%');
 stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs'), v => v + ' ms'); stepify($('#tapMs'), v => v + ' ms'); stepify($('#btMs'), v => v + ' ms');
   renderSeqCtl(); renderScenes();
-  renderTransport(); renderPads(); renderPadEditor(); renderInput(); renderMidi();
+  renderTransport(); renderPads(); renderPadEditor(); renderKitPick(); renderInput(); renderMidi();
   if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
     navigator.permissions.query({name:'midi'}).then(r => { if (r.state === 'granted') connectMidi(); }).catch(() => {});
   }
