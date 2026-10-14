@@ -768,3 +768,27 @@ class Mistress extends RackUnit{
   }
 }
 registerProcessor('mistress', Mistress);
+/* Chipmunk Voice: the sped-up tape trick, done live. Record a voice slowly and play the tape back faster and both the
+   pitch and the formants rise by the same ratio, which is what makes it sound small and squeaky (a pitch shifter that
+   kept the formants would not). Here two read heads glide through a short delay line faster than it is written, each
+   faded in and out with a sine window, so the whole spectrum is resampled up by the speed ratio. TAPE adds the
+   machine's flutter, the hiss and the thin low end of a sped-up reel. */
+class Chipmunk extends RackUnit{
+  constructor(o){ super(o); const fs = this.fs; this.W = Math.round(fs * .045); this.dl = new DLine(this.W * 2 + 8); this.ph = 0; this.fl = 0; this.hp = 0; this.lp = 0; }
+  reset(){ this.dl.clear(); this.ph = 0; this.hp = this.lp = 0; }
+  tail(){ return .3; }
+  run(a, b, L, R, N){
+    const C = this.c, fs = this.fs, W = this.W, semis = (C.speed == null ? 12 : C.speed) + (C.fine || 0), ratio = Math.pow(2, semis / 12), tape = C.tape == null ? .3 : C.tape;
+    const mix = C.mix == null ? 1 : C.mix, hpA = 1 - Math.exp(-2 * Math.PI * (80 + tape * 220) / fs), lpA = 1 - Math.exp(-2 * Math.PI * (14000 - tape * 6000) / fs);
+    for (let i = 0; i < N; i++){
+      const x = a ? (a[i] + b[i]) * .5 : 0; this.dl.push(x);
+      // flutter: a few hertz of speed wobble, deeper with more TAPE
+      this.fl += 2 * Math.PI * 5.5 / fs; const r = ratio * (1 + tape * .004 * Math.sin(this.fl) + tape * .002 * Math.sin(this.fl * .37));
+      this.ph -= (r - 1) / W; this.ph -= Math.floor(this.ph);
+      const p2 = (this.ph + .5) % 1, y = this.dl.lerp(1 + this.ph * W) * Math.sin(Math.PI * this.ph) + this.dl.lerp(1 + p2 * W) * Math.sin(Math.PI * p2);
+      let w = y * .82; this.hp += hpA * (w - this.hp); w -= this.hp; this.lp += lpA * (w - this.lp); w = this.lp + (Math.random() - .5) * 6e-4 * tape;
+      const o = x * (1 - mix) + w * mix; L[i] = o; R[i] = o;
+    }
+  }
+}
+registerProcessor('chipmunk', Chipmunk);

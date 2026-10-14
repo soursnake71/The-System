@@ -87,12 +87,21 @@ const VOC_DEF = () => ({mic:.6, music:.6, hi:.5, comp:.6, blend:0, resp:.35, vol
 /* Presets: sounds built for the roles on the record (my programming of each machine, not factory patches). */
 const PRESETS = {
   tb303:{
+    'Dark Electro Bass': {cut:.12, res:.45, env:.35, dec:.55, acc:.5, wave:0},
+    'Plucky Acid': {cut:.3, res:.85, env:.75, dec:.18, acc:.85, wave:0},
+    'Slide Bass': {cut:.22, res:.65, env:.55, dec:.45, acc:.7, wave:1},
+    'Resonant Sweep': {cut:.45, res:.95, env:.9, dec:.6, acc:.9, wave:0},
     'Acid Bass': {cut:.25, res:.82, env:.65, dec:.35, acc:.8, wave:0},
     'Rubber Electro Bass': {cut:.18, res:.55, env:.45, dec:.5, acc:.6, wave:0},
     'Square Sub Bass': {cut:.15, res:.3, env:.25, dec:.7, acc:.4, wave:1},
     'Squelch Line': {cut:.35, res:.92, env:.8, dec:.25, acc:.9, wave:0},
     'Zap Bass': {cut:.4, res:.7, env:.9, dec:.12, acc:.7, wave:1}},
   proone:{
+    'Brass Stab': {oAf:.5, oAsaw:1, oBf:.5, oBfine:.54, oBsaw:1, mA:.8, mB:.8, cut:.3, res:.15, fenv:.6, fa:.08, fd:.35, fs:.4, aa:.05, ad:.4, as:.7, ar:.2},
+    'Bass Pluck': {oAf:.25, oAsaw:1, oApul:1, oApw:.3, oBf:.25, oBsaw:1, mA:.8, mB:.4, cut:.18, res:.45, fenv:.65, fd:.18, fs:0, ad:.25, as:.2, ar:.12},
+    'Electro Arp': {oAf:.75, oAsaw:0, oApul:1, oApw:.25, mA:1, mB:0, cut:.3, res:.6, fenv:.7, kbd:1, fd:.15, fs:0, ad:.2, as:0, ar:.15},
+    'Hollow Lead': {oAf:.75, oAsaw:0, oApul:1, oApw:.12, oBf:.75, oBfine:.51, oBtri:1, oBsaw:0, mA:.7, mB:.6, cut:.5, res:.3, fenv:.2, kbd:1, as:.9, glide:.12, mLFO:.06, lfoF:.5, dFA:1},
+    'Noise Sweep': {mA:0, mB:0, mN:1, cut:.2, res:.85, fenv:.9, fa:.6, fd:.7, fs:.2, aa:.3, ad:.8, as:.5, ar:.6},
     'Electro Bass (sync)': {oAf:.5, oAsaw:1, oApul:0, sync:1, oBf:.25, oBsaw:1, mA:.9, mB:.3, cut:.3, res:.35, fenv:.55, kbd:.5, fd:.3, fs:.1, ad:.45, as:.6, mFE:.45, dFA:1, glide:0},
     'Fat Unison Bass': {oAf:.5, oAsaw:1, oApul:1, oApw:.4, oBf:.25, oBfine:.53, oBsaw:1, mA:.8, mB:.8, cut:.22, res:.25, fenv:.5, fd:.35, fs:.2, ad:.5, as:.7},
     'Wikki Lead': {oAf:.75, oAsaw:0, oApul:1, oApw:.3, oBf:.75, oBfine:.55, oBsaw:1, mA:.8, mB:.6, cut:.55, res:.4, fenv:.4, kbd:1, fd:.4, fs:.5, as:.9, mLFO:.08, lfoF:.55, lfoTri:1, dFA:1, dFB:1, glide:.18, lfoWheel:0},
@@ -101,6 +110,10 @@ const PRESETS = {
     'Space Arp': {oAf:.75, oAsaw:1, oBf:.75, oBfine:.52, oBpul:1, oBsaw:0, oBpw:.35, mA:.7, mB:.6, cut:.35, res:.55, fenv:.6, kbd:1, fd:.22, fs:0, ad:.3, as:0, ar:.25},
     'Siren FX': {oAf:.75, oAsaw:0, oApul:1, mA:1, mB:0, oBlo:1, oBf:.35, oBtri:1, oBsaw:0, mOB:.4, dFA:1, cut:.6, res:.5, as:1}},
   sh101:{
+    'Arp Blip': {m1:.9, m2:0, pwmSrc:1, pwk:.4, cut:.35, res:.4, fenv:.6, d:.12, s:0, r:.08, transpose:12},
+    'Sub Bass': {m1:0, m2:0, sub:1, subType:0, cut:.25, res:.1, fenv:.2, d:.4, s:.6, r:.1},
+    'Acid 101': {m1:0, m2:1, sub:.3, cut:.12, res:.8, fenv:.75, d:.22, s:0, r:.1, glide:.25},
+    'Zap Drum': {m1:.9, m2:0, cut:.6, res:.9, fenv:1, d:.12, s:0, r:.1, kf:0},
     'Squelch Arp': {m1:0, m2:1, sub:.2, cut:.2, res:.7, fenv:.7, d:.18, s:0, r:.1, kf:.8},
     'Bubble Bass': {m1:.6, m2:0, pwmSrc:1, pwk:.33, sub:.8, subType:0, cut:.22, res:.45, fenv:.55, d:.25, s:.1, r:.1},
     'Electro Pluck': {m1:.8, m2:.4, pwmSrc:1, pwk:.55, cut:.25, res:.5, fenv:.8, d:.15, s:0, r:.12, transpose:12},
@@ -108,6 +121,10 @@ const PRESETS = {
     'PWM Lead': {m1:.9, m2:0, pwmSrc:0, pwk:.65, lfoRate:.4, cut:.6, res:.25, s:.9, glide:.15, transpose:12},
     'Noise Snare FX': {m1:0, m2:0, sub:0, noise:1, cut:.7, res:.2, d:.15, s:0, r:.1, kf:0}},
   juno:{
+    'Strings 60': {m1:1, m2:0, sub:0, cut:.55, res:.05, fenv:.1, a:.45, d:.6, s:.85, r:.55, chI:1, chII:1, hpf:1},
+    'Soft Choir Pad': {m1:0, m2:1, pwmSrc:0, pwk:.5, lfoRate:.2, sub:.2, cut:.4, res:.2, a:.6, s:.9, r:.7, chI:0, chII:1, hpf:2},
+    'Bright Stab': {m1:1, m2:1, pwmSrc:1, pwk:.2, sub:.3, cut:.45, res:.25, fenv:.7, a:0, d:.25, s:.2, r:.15, chI:1, chII:0},
+    'Funky Clav-ish': {m1:0, m2:1, pwmSrc:1, pwk:.6, cut:.35, res:.4, fenv:.6, d:.15, s:0, r:.1, chI:0, chII:0, hpf:2},
     'Electro Brass Stab': {m1:1, m2:0, sub:.2, cut:.35, res:.15, fenv:.6, a:.05, d:.35, s:.4, r:.25, chI:1, chII:0},
     'Vocoder Carrier': {m1:1, m2:1, pwmSrc:1, pwk:0, sub:.5, noise:.04, cut:.8, res:0, fenv:0, a:0, d:.5, s:1, r:.15, chI:0, chII:0, hpf:0},
     'Space Pad': {m1:0, m2:1, pwmSrc:0, pwk:.7, lfoRate:.25, sub:.3, cut:.45, res:.1, a:.55, d:.6, s:.9, r:.65, chI:1, chII:1},
@@ -115,28 +132,51 @@ const PRESETS = {
     'Hoover Chord': {m1:1, m2:1, pwmSrc:0, pwk:.6, lfoRate:.3, sub:.4, cut:.6, res:.1, a:.15, s:.9, r:.45, chI:1, chII:1},
     'Sub Bass': {m1:1, m2:0, sub:.8, cut:.25, res:.25, fenv:.45, d:.35, s:.2, r:.1, chI:0, chII:0}},
   rs09:{
+    'Full Organ': {o16:1, o8:1, o4:1, o2:1, orgTone:0, bal:0, ens:1},
+    'Thin Strings 4\'': {s8:0, s4:1, sAtk:.3, sRel:.45, sTone:.75, bal:1, ens:1},
+    'Cathedral': {o16:1, o8:1, o4:0, o2:0, orgTone:1, s8:1, s4:1, sAtk:.6, sRel:.8, bal:.5, ens:2},
     'Strings': {o16:0, o8:0, o4:0, o2:0, s8:1, s4:1, sAtk:.35, sRel:.5, sTone:.6, bal:1, ens:1},
     'Slow Strings': {s8:1, s4:0, sAtk:.7, sRel:.75, sTone:.45, bal:1, ens:2},
     'Organ': {o16:1, o8:1, o4:1, o2:0, orgTone:0, bal:0, ens:0},
     'Mellow Organ': {o16:1, o8:1, o4:0, o2:0, orgTone:1, bal:0, ens:1},
     'Organ + Strings': {o16:0, o8:1, o4:1, o2:0, orgTone:1, s8:1, s4:1, sAtk:.4, sRel:.5, bal:.6, ens:1}},
   pbass:{
+    'Funk Pop': {style:2, tone:.8, decay:.4, pos:.35, buzz:.3},
+    'Muted Electro': {style:3, tone:.5, decay:.25, pos:.2, buzz:0},
+    'Bright Pick': {style:1, tone:.9, decay:.55, pos:.15, buzz:.2},
     'Finger Funk': {style:0, tone:.55, decay:.5, pos:.22, buzz:.1},
     'Slap': {style:2, tone:.9, decay:.55, pos:.4, buzz:.4},
     'Pick': {style:1, tone:.75, decay:.6, pos:.18, buzz:.15},
     'Palm Mute': {style:3, tone:.4, decay:.3, pos:.2, buzz:0},
     'Deep Round': {style:0, tone:.3, decay:.75, pos:.3, buzz:0}},
   d808:{
+    'Short Punch': {bdT:.55, bdD:.3, sdT:.6, sdS:.75, ohD:.2, cyD:.3, acc:.7},
+    'Cowbell Forward': {bdD:.6, cbL:1, rsL:.8, ohD:.35, acc:.6},
+    'Long Hats': {bdD:.6, ohD:.8, cyD:.9, cyT:.7, chL:.7, ohL:.8},
     'Electro Boom': {bdT:.35, bdD:.8, sdT:.55, sdS:.6, cyD:.6, ohD:.45, acc:.7},
     'Tight Electro': {bdT:.5, bdD:.4, sdT:.6, sdS:.8, ohD:.25, acc:.6},
     'Long Boom': {bdT:.25, bdD:.95, sdT:.4, sdS:.5, ohD:.5, acc:.8}},
   dmx:{
+    'Tight Snare': {sdP:.65, sd2P:.6, acc:.5},
+    'Deep Toms': {t1P:.3, t2P:.3, t3P:.3, t4P:.3, bdP:.45, acc:.6},
     'Punchy': {bdP:.5, sdP:.55, acc:.5},
     'Low and Heavy': {bdP:.4, sdP:.45, t1P:.4, t2P:.4, t3P:.4, t4P:.4, acc:.6},
     'Bright': {bdP:.55, sdP:.6, chhP:.6, ohhP:.6, acc:.4}},
   voc:{
+    'Whisper Robot': {voc:{mic:.7, music:.45, hi:.9, comp:.7, blend:0, resp:.2, vol:.9}, tts:{voice:'normal', semi:0, speed:.85}},
+    'Choir Robot': {voc:{mic:.6, music:.7, hi:.4, comp:.8, blend:0, resp:.55, vol:.9}, tts:{voice:'deep', semi:0, speed:.75}},
+    'Robot + Chipmunk': {voc:{mic:.65, music:.6, hi:.5, comp:.75, blend:0, resp:.3, vol:.85}, tts:{voice:'robot', semi:0, speed:1}, voice:{ins:'chipmunk', p:'Tape ×1.5 (little voice)'}},
     'Electro Robot': {voc:{mic:.65, music:.6, hi:.45, comp:.75, blend:0, resp:.3, vol:.9}, tts:{voice:'robot', semi:0, speed:1}},
     'Clear Speech': {voc:{mic:.6, music:.55, hi:.8, comp:.6, blend:.1, resp:.25, vol:.9}, tts:{voice:'normal', semi:0, speed:.9}},
     'Deep Machine': {voc:{mic:.65, music:.65, hi:.3, comp:.8, blend:0, resp:.5, vol:.9}, tts:{voice:'deep', semi:-3, speed:.8}},
-    'Chipmunk': {voc:{mic:.6, music:.6, hi:.7, comp:.6, blend:.35, resp:.2, vol:.9}, tts:{voice:'high', semi:7, speed:1.35}}}
+    'Chipmunk': {voc:{mic:.6, music:.6, hi:.7, comp:.6, blend:0, resp:.2, vol:.7}, tts:{voice:'normal', semi:0, speed:1}, voice:{ins:'chipmunk', p:'Tape ×2 (classic chipmunk)'}}}
+};
+
+/* Rig presets: one tap sets every machine's sound, the vocoder and the whole mix for a style. */
+const RIG_PRESETS = {
+  '1984 Electro Rig':{d808:'Electro Boom', dmx:'Punchy', tb303:'Rubber Electro Bass', proone:'Electro Bass (sync)', sh101:'Electro Pluck', juno:'Vocoder Carrier', rs09:'Strings', pbass:'Finger Funk', voc:'Electro Robot', mix:'Electro 12-inch (Small Stone on cymbals)'},
+  'Chipmunk Party':{d808:'Tight Electro', dmx:'Punchy', tb303:'Square Sub Bass', proone:'Wikki Lead', sh101:'Arp Blip', juno:'Electro Brass Stab', rs09:'Organ', pbass:'Slap', voc:'Chipmunk', mix:'Phase 90 hats, dry drums'},
+  'Space Age':{d808:'Long Boom', dmx:'Deep Toms', tb303:'Square Sub Bass', proone:'Space Arp', sh101:'Solo Lead', juno:'Space Pad', rs09:'Slow Strings', pbass:'Deep Round', voc:'Choir Robot', mix:'Electric Mistress jet on cymbals'},
+  'Acid Machine':{d808:'Short Punch', dmx:'Tight Snare', tb303:'Acid Bass', proone:'Laser Zap', sh101:'Acid 101', juno:'Bright Stab', rs09:'Thin Strings 4\'', pbass:'Muted Electro', voc:'Deep Machine', mix:'Electro 12-inch (Small Stone on cymbals)'},
+  'Dub Plate':{d808:'Long Boom', dmx:'Low and Heavy', tb303:'Dark Electro Bass', proone:'Fat Unison Bass', sh101:'Bubble Bass', juno:'Soft Choir Pad', rs09:'Cathedral', pbass:'Deep Round', voc:'Whisper Robot', mix:'Dub version'}
 };

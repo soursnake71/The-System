@@ -66,13 +66,18 @@ const FXU = {
       RK('enh', 'Enhance', 'A/DA', 0, .97, 'lin', pc), SEL('odd', 'Phase', 'A/DA', [[0, 'Even'], [1, 'Odd']]), RK('thresh', 'Threshold', 'A/DA', 0, 1, 'lin', pc), RK('mix', 'Mix', 'A/DA', 0, 1, 'lin', pc)],
     def:{manual:.45, range:.7, speed:.3, enh:.5, odd:0, thresh:0, mix:.5},
     presets:{'Classic jet':{manual:.5, range:.75, speed:.25, enh:.6}, 'Slow 40:1 sweep':{manual:.95, range:1, speed:.12, enh:.55}, 'Metallic odd':{manual:.35, range:.6, speed:.3, enh:.85, odd:1}}},
+  chipmunk:{name:'Chipmunk Voice', maker:'Sped-up tape trick, live', proc:'chipmunk', short:'Chipmunk',
+    ctl:[SEL('speed', 'Tape speed', 'Chipmunk', [[5, '×1.33'], [7, '×1.5'], [9, '×1.7'], [12, '×2'], [19, '×3']]), RK('fine', 'Fine', 'Chipmunk', -2, 2, 'lin', v => (v > 0 ? '+' : '') + v.toFixed(1) + 'st'),
+      RK('tape', 'Tape', 'Chipmunk', 0, 1, 'lin', pc), RK('mix', 'Mix', 'Chipmunk', 0, 1, 'lin', pc)],
+    def:{speed:12, fine:0, tape:.3, mix:1},
+    presets:{'Tape ×2 (classic chipmunk)':{speed:12, fine:0, tape:.35}, 'Tape ×1.5 (little voice)':{speed:7, tape:.25}, 'Squeaky ×1.7':{speed:9, fine:.5, tape:.3}, 'Tiny ×3':{speed:19, tape:.2}, 'Double-track (half wet)':{speed:12, tape:.3, mix:.5}}},
   urei1176:{name:'UREI 1176LN', maker:'FET limiter · 1967', proc:'urei1176', short:'1176',
     ctl:[RK('input', 'Input', '1176', 0, 1, 'lin', v => Math.round(v * 50 - 20) + 'dB'), RK('output', 'Output', '1176', 0, 1, 'lin', v => Math.round(v * 40 - 30) + 'dB'), RK('attack', 'Attack', '1176', 1, 7, 'lin', v => v.toFixed(1)),
       RK('release', 'Release', '1176', 1, 7, 'lin', v => v.toFixed(1)), SEL('ratio', 'Ratio', '1176', [[4, '4'], [8, '8'], [12, '12'], [20, '20'], [99, 'All']]), RK('mix', 'Mix', '1176', 0, 1, 'lin', pc)],
     def:{input:.55, output:.62, attack:5, release:4, ratio:4, mix:1},
     presets:{'Drum smash (all buttons)':{input:.75, output:.45, attack:6, release:7, ratio:99, mix:.6}, 'Bass even-out 8:1':{input:.6, output:.55, attack:3, release:3, ratio:8}, 'Vocal 4:1':{input:.55, output:.55, attack:5, release:5, ratio:4}}}
 };
-const RET_U = ['pt', 'ef', 'h9', 'lx', 'pc'], INS_U = ['phase90', 'smallstone', 'mistress', 'adaflanger', 'urei1176'];
+const RET_U = ['pt', 'ef', 'h9', 'lx', 'pc'], INS_U = ['chipmunk', 'phase90', 'smallstone', 'mistress', 'adaflanger', 'urei1176'];
 // stored state for a unit: knobs normalised, selectors raw
 function fxVals(store, u){ const U = FXU[u], o = store[u] || (store[u] = {}); for (const c of U.ctl) if (o[c.k] == null){ const x = U.def[c.k]; o[c.k] = c.t === 'k' ? toN(c, x) : x; } return o; }
 function fxPreset(store, u, name){ const U = FXU[u], P = U.presets[name]; if (!P) return; const o = store[u] = {}; for (const c of U.ctl){ const x = P[c.k] != null ? P[c.k] : U.def[c.k]; o[c.k] = c.t === 'k' ? clamp(toN(c, x), 0, 1) : x; } o._preset = name; }
@@ -108,6 +113,7 @@ const FX_LOOK = {
   pt:{bg:'#1d1d1f', ink:'#e9e9e9', knob:'#2c2c2c', ptr:'#f2f2f2', ring:'#555'}, ef:{bg:'#17191d', ink:'#cfe0ff', knob:'#33363c', ptr:'#cfe0ff', ring:'#445'},
   h9:{bg:'#1a1a1a', ink:'#f0f0f0', knob:'#3a3a3a', ptr:'#fff', ring:'#555'}, lx:{bg:'#d9d4c7', ink:'#222', knob:'#3a3a3a', ptr:'#fff', ring:'#999'}, pc:{bg:'#2b2f33', ink:'#e9e9e9', knob:'#555', ptr:'#fff', ring:'#666'},
   phase90:{bg:'#f07a1a', ink:'#1a1a1a', knob:'#1c1c1c', ptr:'#fff', ring:'#a24f0c'}, smallstone:{bg:'#c9c9c4', ink:'#1a1a1a', knob:'#1c1c1c', ptr:'#fff', ring:'#888'},
+  chipmunk:{bg:'#3b2a1d', ink:'#f7e25a', knob:'#d8c39a', ptr:'#3b2a1d', ring:'#7a5a3a'},
   mistress:{bg:'#c4c6c9', ink:'#7a1414', knob:'#1c1c1c', ptr:'#fff', ring:'#888'}, adaflanger:{bg:'#26282b', ink:'#e9e9e9', knob:'#555', ptr:'#fff', ring:'#666'},
   urei1176:{bg:'#1b1b1b', ink:'#d9d9d9', knob:'#c9c9c9', ptr:'#111', ring:'#555'}
 };

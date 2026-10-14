@@ -76,10 +76,10 @@ const cfgFor = id => { const M = MACH[id], p = S.mach[id].p; if (M.proc !== 'ana
   return c; };
 // builds every machine, the vocoder and the mixer on a context; ev = {id: [events]} for offline renders
 /* every channel: source -> insert slot -> drop (dub cut) -> fader -> pan -> master; sends post-fader, throws pre-fader into the PrimeTime */
-const CH = () => [...Object.keys(MACH), 'cym', 'voc'];
-const chName = id => id === 'cym' ? 'Cymbal bus' : id === 'voc' ? 'Vocoder' : MACH[id].name;
+const CH = () => [...Object.keys(MACH), 'cym', 'mic', 'voc'];
+const chName = id => id === 'cym' ? 'Cymbal bus' : id === 'mic' ? 'Voice' : id === 'voc' ? 'Vocoder' : MACH[id].name;
 function chState(id){
-  const o = id === 'voc' ? (S.vocMix || (S.vocMix = {vol:.85, pan:0, mute:false, solo:false})) : id === 'cym' ? (S.cymMix || (S.cymMix = {vol:.8, pan:0, mute:false, solo:false})) : S.mach[id];
+  const o = id === 'voc' ? (S.vocMix || (S.vocMix = {vol:.85, pan:0, mute:false, solo:false})) : id === 'mic' ? (S.micMix || (S.micMix = {vol:.8, pan:0, mute:false, solo:false, ins:'chipmunk'})) : id === 'cym' ? (S.cymMix || (S.cymMix = {vol:.8, pan:0, mute:false, solo:false})) : S.mach[id];
   if (!o.snd) o.snd = {}; for (const u of RET_U) if (o.snd[u] == null) o.snd[u] = 0; if (!o.insP) o.insP = {}; if (!o.ins) o.ins = 'none'; return o;
 }
 // a return keeps its level and mute, and its unit's values under the unit's own key
@@ -108,6 +108,8 @@ function buildRig(c, ev){
     setInsert(r, id);
   }
   r.voc.connect(r.pre.voc);
+  // the Voice channel: the same mic and speech the vocoder hears, dry (with the chipmunk insert by default)
+  r.vf = c.createGain(); r.vf.gain.value = 0; r.micBus.connect(r.vf); r.vf.connect(r.pre.mic);
   for (const id in MACH){
     const M = MACH[id];
     if (M.kind === 'drum'){ r.drumIn[id] = r.pre[id]; continue; }
@@ -141,7 +143,14 @@ function applyMix(r = R){
     for (const u of RET_U) r.snd[id][u].gain.value = (m.snd[u] || 0) * (m.snd[u] || 0) * 1.2;
   }
   for (const u of RET_U){ const o = retState(u); r.retG[u].gain.value = o.mute ? 0 : o.vol * o.vol * 1.3; }
+  r.vf.gain.value = S.voiceDry ? 1 : 0;
   r.master.gain.value = S.master;
+}
+// the dry Voice channel, with its chipmunk insert (used by the Chipmunk vocoder preset and the button on the Vocoder screen)
+function setVoice(on, v){
+  S.voiceDry = on; const st = chState('mic');
+  if (on){ st.ins = (v && v.ins) || 'chipmunk'; if (FXU[st.ins]) fxPreset(st.insP, st.ins, (v && v.p) || Object.keys(FXU[st.ins].presets)[0]); if (R) setInsert(R, 'mic'); }
+  applyMix(); save();
 }
 // dub moves: THROW sends the channel (before its fader) into the PrimeTime while held; DROP cuts it while held
 function dubThrow(id, on){ if (!R) return; R.thr[id].gain.setTargetAtTime(on ? 1.1 : 0, ctx.currentTime, on ? .004 : .02); $$(`[data-learn="thr:${id}"]`).forEach(e => e.classList.toggle('on', on)); }
@@ -399,6 +408,7 @@ function learnSpec(key){
   if (kind === 'play') return {c:{t:'btn'}, name:'Play / Stop', press:() => play()};
   if (kind === 'loop') return {c:{t:'btn'}, name:'Loop section', press:() => $('#loopBtn').click()};
   if (kind === 'say') return {c:{t:'btn'}, name:'Vocoder · Say it', press:() => sayNow()};
+  if (kind === 'chip') return {c:{t:'btn'}, name:'Chipmunk voice on / off', press:() => { setVoice(!S.voiceDry, {ins:'chipmunk'}); if (S.tab === 'voc') renderMain(); }};
   return null;
 }
 function learnApply(key, v, press, isNote){
@@ -519,7 +529,8 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;', '<':'&lt;', '>
 
 /* ================= presets ================= */
 function applyPreset(id, name){
-  if (id === 'voc'){ const P = PRESETS.voc[name] || (S.user.voc || {})[name]; if (!P) return; S.voc.p = Object.assign(VOC_DEF(), P.voc); S.voc.tts = Object.assign({}, P.tts); S.voc.preset = name; if (R) R.voc.port.postMessage(S.voc.p); save(); return; }
+  if (id === 'voc'){ const P = PRESETS.voc[name] || (S.user.voc || {})[name]; if (!P) return; S.voc.p = Object.assign(VOC_DEF(), P.voc); S.voc.tts = Object.assign({}, P.tts); S.voc.preset = name; if (R) R.voc.port.postMessage(S.voc.p);
+    setVoice(!!P.voice, P.voice); save(); return; }
   const P = (PRESETS[id] || {})[name] || ((S.user[id] || {})[name]); if (!P) return;
   const m = S.mach[id]; m.p = Object.assign(MACH[id].def(), P); m.preset = name; pushCfg(id); save();
 }
@@ -534,7 +545,7 @@ function loadSong(i){
 }
 
 /* ================= UI ================= */
-const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'Chilly Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['about', 'About']];
+const TABS = [['song', 'Song'], ['d808', 'TR-808'], ['dmx', 'DMX'], ['tb303', 'TB-303'], ['proone', 'Pro-One'], ['sh101', 'SH-101'], ['juno', 'Juno-60'], ['rs09', 'RS-09'], ['pbass', 'Chilly Bass'], ['voc', 'Vocoder'], ['fx', 'Mix FX'], ['mix', 'Mixer'], ['help', 'Help'], ['about', 'About']];
 const curTab = () => S.tab;
 function renderTabs(){ $('#tabs').innerHTML = TABS.map(([k, l]) => `<button data-k="${k}" class="${S.tab === k ? 'on' : ''}" style="--c:${MACH[k] ? MACH[k].color : k === 'voc' ? '#7fd' : '#e8742b'}">${gearSVG(k)}<span>${l}</span></button>`).join(''); }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.k; save(); renderAll(); $('#main').scrollTop = 0; });
@@ -613,12 +624,14 @@ function renderMain(){
   if (k === 'mix') return renderMixer(m);
   if (k === 'fx') return renderFx(m);
   if (k === 'about') return renderAbout(m);
+  if (k === 'help') return renderHelp(m);
   if (k === 'voc') return renderVoc(m);
   renderMachine(m, k);
 }
 function renderSong(m){
   const sg = song();
   m.innerHTML = `<section class="card"><h2>${esc(sg.name)}</h2><p class="hint">${esc(sg.note || '')}${sg.key ? ' · ' + esc(sg.key) : ''}</p>
+    <div class="row"><label>Rig preset<select id="rigSel"><option value="">Pick a whole sound…</option>${Object.keys(RIG_PRESETS).map(n => `<option ${S.rigPreset === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></div>
     <div class="row"><button id="songNew">New song</button><button id="songDup">Copy</button><button id="songRen">Rename</button><button id="songDel">Delete</button><button id="songReset">Reset the 7 styles</button></div></section>
     <section class="card"><h3>Sections <small>play in order; tap one to edit it</small></h3><div id="secList">${sg.sections.map((s, i) => `<div class="secrow ${i === S.sec ? 'on' : ''}" data-i="${i}">
       <input value="${esc(s.name)}" data-f="name"><label><select data-f="bars" aria-label="Bars">${[1, 2, 4, 8, 16].concat(s.bars > 16 ? [s.bars] : []).map(b => `<option ${b === s.bars ? 'selected' : ''}>${b}</option>`).join('')}</select>bars</label>
@@ -637,6 +650,7 @@ function renderSong(m){
       <div id="learnList">${Object.entries(S.learn).map(([src, key]) => { const [t, ch, n] = src.split(':'), L = learnSpec(key); return `<div class="sayrow"><span class="grow">${t === 'cc' ? 'CC ' + n : 'Note ' + nn(+n)} · ch ${+ch + 1} → ${esc(L ? L.name : key)}</span><button data-src="${src}">✕</button></div>`; }).join('') || '<p class="hint">Nothing learned yet.</p>'}</div>
       <h3>Channels</h3><div class="chmap">${Object.keys(MACH).map(id => `<label>${MACH[id].name}<select data-ch="${id}">${Array.from({length:16}, (_, c) => `<option value="${c}" ${S.midiCh[id] === c ? 'selected' : ''}>ch ${c + 1}</option>`).join('')}</select></label>`).join('')}</div></details>`;
   m.querySelectorAll('[data-fold]').forEach(d => d.ontoggle = () => { S[d.dataset.fold] = d.open; save(); });
+  $('#rigSel').onchange = e => { if (e.target.value) applyRig(e.target.value); };
   $('#songNew').onclick = () => { S.songs.push({name:'New song', bpm:112, swing:0, key:'', note:'', presets:{}, carrier:S.voc.carrier, arp:{}, sections:[emptySection('A', 4)]}); loadSong(S.songs.length - 1); };
   $('#songDup').onclick = () => { const c = JSON.parse(JSON.stringify(sg)); c.name += ' (copy)'; S.songs.push(c); loadSong(S.songs.length - 1); };
   $('#songRen').onclick = () => { const n = prompt('Song name:', sg.name); if (n){ sg.name = n; save(); renderAll(); } };
@@ -761,7 +775,10 @@ function renderVoc(m){
     <div class="${vw('voc', 'snd', VV)}" data-v="snd">${presetRow('voc')}
     ${panelHTML('voc', VOC_PANEL, V.p, VOC_LOOK)}<div id="bands" class="bands">${EH_BANDS_UI.map(f => `<div><i></i><span>${f < 1000 ? f : (f / 1000).toFixed(1) + 'k'}</span></div>`).join('')}</div>
     <div class="row"><label>Music input (carrier)<select id="carSel">${Object.keys(MACH).filter(k => MACH[k].kind !== 'drum').map(k => `<option value="${k}" ${V.carrier === k ? 'selected' : ''}>${MACH[k].name}</option>`).join('')}</select></label>
-      <button id="direct" class="sw ${V.direct ? 'on' : ''}">Carrier also dry</button><button id="micBtn" class="sw ${micOn ? 'on' : ''}">Live mic</button></div></div>
+      <button id="direct" class="sw ${V.direct ? 'on' : ''}">Carrier also dry</button><button id="micBtn" class="sw ${micOn ? 'on' : ''}">Live mic</button></div>
+    <div class="row"><button id="chipBtn" class="sw ${S.voiceDry && chState('mic').ins === 'chipmunk' ? 'on' : ''}" data-learn="chip">Chipmunk voice</button>
+      <select id="chipSpeed">${FXU.chipmunk.ctl[0].opts.map(([v, l]) => `<option value="${v}" ${insVals('mic', 'chipmunk').speed === v ? 'selected' : ''}>Tape ${l}</option>`).join('')}</select>
+      <span class="hint">The mic and the speech, sped up like tape, on the Voice channel (beside the vocoder). Use headphones with the live mic.</span></div></div>
     <div class="${vw('voc', 'say', VV)}" data-v="say">
       <div class="row"><label>Voice<select id="ttsVoice">${Object.keys(TTS_VOICES).map(v => `<option ${V.tts.voice === v ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <label>Pitch<input id="ttsSemi" type="number" min="-12" max="12" value="${V.tts.semi}"></label><label>Speed<input id="ttsSpeed" type="number" min=".5" max="2" step=".05" value="${V.tts.speed}"></label></div>
@@ -775,6 +792,8 @@ function renderVoc(m){
   $('#carSel').onchange = e => { V.carrier = e.target.value; song().carrier = V.carrier; applyMix(); save(); };
   $('#direct').onclick = e => { V.direct = !V.direct; e.target.classList.toggle('on', V.direct); applyMix(); save(); };
   $('#micBtn').onclick = toggleMic;
+  $('#chipBtn').onclick = async () => { await ensureAudio(); const on = !(S.voiceDry && chState('mic').ins === 'chipmunk'); setVoice(on, {ins:'chipmunk', p:on ? 'Tape ×2 (classic chipmunk)' : null}); if (on) insVals('mic', 'chipmunk').speed = +$('#chipSpeed').value; pushFx('ins', 'mic'); renderMain(); };
+  $('#chipSpeed').onchange = e => { insVals('mic', 'chipmunk').speed = +e.target.value; pushFx('ins', 'mic'); save(); };
   $('#ttsVoice').onchange = e => { V.tts.voice = e.target.value; save(); };
   $('#ttsSemi').onchange = e => { V.tts.semi = +e.target.value; save(); };
   $('#ttsSpeed').onchange = e => { V.tts.speed = clamp(+e.target.value || 1, .5, 2); save(); };
@@ -863,6 +882,19 @@ function drawPlayhead(){
   if (p.sec === S.sec && Math.floor(p.step / 16) === S.bar) $$(`#editor .st[data-s="${p.step}"]`).forEach(e => e.classList.add('ph'));
 }
 
+/* ---- Help ---- */
+let helpOpen = 'start';
+function renderHelp(m){
+  m.innerHTML = `<section class="card"><h2 class="comic">Help</h2>${HELP.map(([k, t, body]) => `<details class="fold help" data-h="${k}" ${k === helpOpen ? 'open' : ''}><summary><h3>${t}</h3></summary><div class="helpbody">${body}</div></details>`).join('')}</section>`;
+  const open = m.querySelector(`[data-h="${helpOpen}"]`); if (open) setTimeout(() => open.scrollIntoView({block:'start'}), 30);
+}
+function helpFor(tab){ helpOpen = HELP_FOR[tab] || (tab === 'help' ? helpOpen : 'start'); S.tab = 'help'; renderAll(); }
+// rig presets: every machine, the vocoder and the mix
+function applyRig(name){
+  const P = RIG_PRESETS[name]; if (!P) return;
+  for (const [id, pn] of Object.entries(P)){ if (id === 'mix') applyMixPreset(pn); else applyPreset(id, pn); }
+  S.rigPreset = name; save(); toast('Rig: ' + name);
+}
 /* ---- About: credits, and pictures that stay on this device (never uploaded, never part of the app) ---- */
 const ART = (() => {
   let dbp = null; const db = () => dbp || (dbp = new Promise((ok, no) => { const q = indexedDB.open('jamon-art', 1); q.onupgradeneeded = () => q.result.createObjectStore('img'); q.onsuccess = () => ok(q.result); q.onerror = () => no(q.error); }));
@@ -903,6 +935,7 @@ $('#loopBtn').onclick = () => { S.loopSec = !S.loopSec; if (playing && S.loopSec
 $('#recBtn').onclick = toggleRec;
 $('#moreBtn').onclick = () => $('#more').classList.toggle('on');
 $('#learnBtn').onclick = learnToggle;
+$('#helpBtn').onclick = () => helpFor(S.tab);
 $('#recNotesBtn').onclick = () => { recNotes = !recNotes; renderTransport(); toast(recNotes ? 'Notes you play now are written into the playing section.' : 'Note recording off.'); };
 $('#panicBtn').onclick = () => { stop(); midiPanic(); for (const k in live.held) live.held[k] = new Set(); keyLatch = false; };
 $('#midFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importMidi(f); };

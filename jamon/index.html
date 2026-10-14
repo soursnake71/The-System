@@ -160,6 +160,7 @@ body.has-art{background:#14110fe8}
 .mixer{display:flex!important;gap:6px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}.mixer .strip{flex:none;width:86px;scroll-snap-align:start}
 .mixer .strip .fader{writing-mode:vertical-lr;direction:rtl;height:150px;width:30px;align-self:center}
 .mixer.rets{margin-top:8px;align-items:stretch}.retlbl{writing-mode:vertical-lr;transform:rotate(180deg);color:var(--dim);font-size:11px;letter-spacing:.1em}
+#helpBtn{width:36px;padding:0;font-weight:700}.help .helpbody{font-size:14px;line-height:1.5}.help .helpbody li{margin:4px 0}.help summary h3{font-size:15px}
 </style></head>
 <body>
 <header>
@@ -168,7 +169,7 @@ body.has-art{background:#14110fe8}
     <button id="playBtn" title="Play / stop (space)" data-learn="play">▶</button>
     <select id="songSel"></select>
     <input id="bpm" type="number" min="40" max="240" title="BPM" aria-label="BPM">
-    <button id="moreBtn" title="More">⋯</button>
+    <button id="helpBtn" title="Help for this screen" aria-label="Help">?</button><button id="moreBtn" title="More">⋯</button>
   </div>
   <div class="top more" id="more">
     <label>Swing<input id="swing" type="number" min="0" max="60"></label>
@@ -187,5 +188,5 @@ body.has-art{background:#14110fe8}
   <div class="row"><button id="impOk" class="on">Import as a new song</button><button id="impCancel">Cancel</button></div></dialog>
 <input id="artFile" type="file" accept="image/*" hidden><input id="midFile" type="file" accept=".mid,.midi,audio/midi" hidden><input id="projFile" type="file" accept=".json,application/json" hidden>
 <div id="toast"></div><div id="busy"></div>
-<script src="dsp/drums.js"></script><script src="dsp/tts.js"></script><script src="midi.js"></script><script src="gear.js"></script><script src="presets.js"></script><script src="fx.js"></script><script src="songs.js"></script><script src="app.js"></script>
+<script src="dsp/drums.js"></script><script src="dsp/tts.js"></script><script src="midi.js"></script><script src="gear.js"></script><script src="presets.js"></script><script src="fx.js"></script><script src="songs.js"></script><script src="help.js"></script><script src="app.js"></script>
 </body></html>
