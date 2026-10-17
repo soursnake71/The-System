@@ -135,12 +135,15 @@ int main(void)
     for (i = 0; i < TUNE_TRIES; i++) {
         int answer;
 
-        panel_tx_raw(0x7F);
+        /* Each byte's echo is consumed by panel_tx; the answer to FD is
+         * either its reply (if not an echo) or the next byte after it. */
+        panel_tx(0x7F);
         delay(TUNE_GAP);
-        panel_tx_raw(0xFF);
+        panel_tx(0xFF);
         delay(TUNE_GAP);
-        panel_tx_raw(0xFD);
-        answer = panel_rx_wait(TUNE_WAIT);
+        answer = panel_tx(0xFD);
+        if (answer < 0 || answer == 0xFD)
+            answer = panel_rx_wait(TUNE_WAIT);
         panel_putc(' ');
         if (answer < 0) {
             panel_puts("--");

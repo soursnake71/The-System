@@ -79,11 +79,16 @@ int panel_tx(unsigned char byte)
         return -1;
     for (n = 0; n < PANEL_REPLY_TIMEOUT; n++) {
         if (DUART_SRB & DUART_RXRDY) {
-            panel_rx_push(DUART_RHRB);
-            return 0;
+            unsigned char r = DUART_RHRB;
+
+            /* The panel echoes most bytes (as MAME's EPS model does);
+             * an echo isn't input. Anything else is. */
+            if (r != byte)
+                panel_rx_push(r);
+            return r;
         }
     }
-    return 1; /* no reply; carry on */
+    return -1; /* no reply; carry on */
 }
 
 void delay(unsigned long loops)

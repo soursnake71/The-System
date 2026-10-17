@@ -34,6 +34,7 @@
 void midi_init(void);
 void midi_setup(void);
 int midi_tx(unsigned char byte);
+/* Sends a byte and returns the panel's reply (-1 if none came). */
 int panel_tx(unsigned char byte);
 
 /* Called with every byte read from the panel while panel_tx waits, so
