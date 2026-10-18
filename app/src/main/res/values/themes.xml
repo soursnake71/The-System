@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="farp_bg">#FF121417</color>
+    <color name="farp_panel">#FF2F343B</color>
+    <color name="farp_amber">#FFFFB238</color>
+    <style name="FarpTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/farp_bg</item>
+        <item name="android:statusBarColor">@color/farp_bg</item>
+        <item name="android:navigationBarColor">@color/farp_bg</item>
+    </style>
+</resources>

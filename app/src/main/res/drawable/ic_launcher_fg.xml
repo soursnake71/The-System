@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Three fader slots with caps at different heights over a strip of keys -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FF07080A" android:pathData="M37,30h4v34h-4z M52,30h4v34h-4z M67,30h4v34h-4z" />
+    <path android:fillColor="#FFE8E8E6" android:pathData="M32,50h14v7h-14z M47,36h14v7h-14z M62,44h14v7h-14z" />
+    <path android:fillColor="#FFFFB238" android:pathData="M34,53h10v1.5h-10z M49,39h10v1.5h-10z M64,47h10v1.5h-10z" />
+    <path android:fillColor="#FFECE4D0" android:pathData="M30,68h48v12h-48z" />
+    <path android:fillColor="#FF0C0C0C" android:pathData="M35,68h4v7h-4z M43,68h4v7h-4z M55,68h4v7h-4z M62,68h4v7h-4z M69,68h4v7h-4z" />
+</vector>
