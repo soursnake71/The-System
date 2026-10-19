@@ -6,6 +6,7 @@ let midiAcc = null, sysexOK = false;
 const midiOut = () => { if (!midiAcc || !S.midi.outId) return null; return midiAcc.outputs.get(S.midi.outId) || null; };
 const msend = b => { const o = midiOut(); if (o) try { o.send(b); } catch(e){} };
 async function midiInit(){
+  if (HOST){ HOST.send({t:'midiDevices'}); return; }   // inside the plugin the ports are opened natively
   if (!navigator.requestMIDIAccess){ toast('This browser has no Web MIDI. Use Chrome.'); return; }
   try { midiAcc = await navigator.requestMIDIAccess({sysex:true}); sysexOK = true; }
   catch(e){ try { midiAcc = await navigator.requestMIDIAccess({sysex:false}); sysexOK = false; toast('MIDI on without SysEx, so MMC is off. Allow SysEx in the site settings for MMC.', 5000); } catch(e2){ toast('MIDI was not allowed.'); return; } }
@@ -14,15 +15,22 @@ async function midiInit(){
   midiAcc.onstatechange = hook; hook(); S.midi.on = true; save();
 }
 
+// the plugin's device list, wrapped to look like Web MIDI so the MIDI tab works unchanged
+function onHostMidi(d){
+  const send = b => HOST.send({t:'midiout', bytes:[...b]});
+  midiAcc = {inputs:new Map(d.ins.map(x => [x.id, {id:x.id, name:x.name}])), outputs:new Map(d.outs.map(x => [x.id, {id:x.id, name:x.name, send}])), onstatechange(){}};
+  sysexOK = true; S.midi.on = true;
+  $('#midiStat').textContent = 'MIDI ' + d.ins.length + ' in / ' + d.outs.length + ' out · MMC';
+  if (S.view === 'midi') renderMidi();
+}
 /* ---------- CC -> parameter ---------- */
 const MMAP = XL.MIDIMAP;
-function slotParam(ch, cc){ const w = 'slot' + (ch + 1); if (ch > 15) return null; const t = S.types[w], M = XL.MOD[t]; if (!M) return null; const j = cc - XL.SLOT_CC0; return M.params[j] ? w + '.' + t + '.' + M.params[j].n : null; }
-const ccTarget = (ch, cc) => S.learn[ch + ':' + cc] || MMAP[ch + ':' + cc] || (cc >= XL.SLOT_CC0 ? slotParam(ch, cc) : null);
+const ccTarget = (ch, cc) => S.learn[ch + ':' + cc] || MMAP[ch + ':' + cc] || null;
 function applyMidi(id, v7, raw14){
   if (id[0] === '@') return midiAction(id, v7);
-  const sp = XL.P[id]; if (!sp) return;
-  if (sp.k === 'pot'){ const v = raw14 != null ? raw14 / 16383 : v7 / 127; setP(id, (/pan|bal/.test(id) && v7 === 64 && raw14 == null) ? .5 : v, 'midi'); }
-  else if (sp.k === 'step') setP(id, Math.round(v7 / 127 * (sp.v.length - 1)), 'midi');
+  const sp = spec(id); if (!sp) return;
+  if (sp.k === 'pot'){ const v = raw14 != null ? raw14 / 16383 : v7 / 127; setP(id, (sp.u === 'pan' && v7 === 64 && raw14 == null) ? .5 : v, 'midi'); }
+  else if (sp.k === 'step') setP(id, v7 / 127, 'midi');
   else if (sp.k === 'btn'){
     if (S.midi.btn === 'follow') setP(id, v7 >= 64, 'midi');
     else if (v7 > 0){ if (typeof press === 'function' && !/^(fbA|fbB)\.talk$/.test(id)) press(id); else setP(id, !val(id), 'midi'); }
@@ -53,22 +61,22 @@ function learnBind(ch, cc){
   for (const key in S.learn) if (S.learn[key] === id) delete S.learn[key];
   S.learn[k] = id; save(); rev = null;
   $$('.learnsel').forEach(x => x.classList.remove('learnsel')); learn.sel = null;
-  toast((XL.P[id] ? XL.P[id].lb : id.slice(1)) + ' → MIDI ch ' + (ch + 1) + ' CC ' + cc + '. Tap another control or Learn to finish.');
+  toast(ctlName(id) + ' → MIDI ch ' + (ch + 1) + ' CC ' + cc + '. Tap another control or Learn to finish.');
   if (S.view === 'midi') renderMidi();
 }
 /* ---------- feedback to the controller ---------- */
 let rev = null;
 function revMap(){ if (rev) return rev; rev = {}; for (const k in MMAP) if (!rev[MMAP[k]]) rev[MMAP[k]] = k; for (const k in S.learn) rev[S.learn[k]] = k; return rev; }
 function feedback(id, v, from){
+  if (HOST) return;   // the plugin sends feedback itself, editor open or not
   if (!S.midi.fb || from === 'midi' || !midiOut()) return;
-  const sp = XL.P[id]; let key = revMap()[id];
-  if (!key){ const m = /^slot(\d+)\.(\w+)\.(\w+)$/.exec(id); if (m && +m[1] <= 16 && S.types['slot' + m[1]] === m[2]){ const j = XL.MOD[m[2]].params.findIndex(q => q.n === m[3]); if (j >= 0) key = (m[1] - 1) + ':' + (XL.SLOT_CC0 + j); } }
-  const v7 = sp.k === 'pot' ? Math.round(v * 127) : sp.k === 'step' ? Math.round(v / (sp.v.length - 1) * 127) : v ? 127 : 0;
+  const sp = spec(id); if (!sp) return; const key = revMap()[id];
+  const v7 = Math.round(v * 127);
   if (key){ const [ch, cc] = key.split(':').map(Number); msend([0xB0 | ch, cc, v7]); }
   const f = /^m(\d+)\.fader$/.exec(id); if (f && S.midi.pb){ const r = Math.round(v * 16383); msend([0xE0 | (f[1] - 1), r & 127, r >> 7]); }
 }
 listeners.push(feedback);
-function sendAll(){ for (const id in XL.P) if (XL.P[id].k !== 'num') feedback(id, val(id)); toast('Sent every control to the controller.'); }
+function sendAll(){ for (const id in XL.P) feedback(id, val(id)); toast('Sent every control to the controller.'); }
 
 /* ---------- MMC ---------- */
 const MMC_NAMES = {1:'Stop', 2:'Play', 3:'Deferred play', 4:'Fast forward', 5:'Rewind', 6:'Record strobe', 7:'Record exit', 8:'Record pause', 9:'Pause', 0x0D:'MMC reset', 0x44:'Locate'};
@@ -98,7 +106,7 @@ function recallSnap(n){
   const s = S.snaps[n]; if (!s){ toast('Program ' + (n + 1) + ' is empty.'); return; }
   S.P = Object.assign(XL.defaults(), s.P); for (const w in s.types) if (S.types[w] !== s.types[w]){ S.types[w] = s.types[w]; post({t:'type', w, type:s.types[w]}); }
   S.names = Object.assign({}, s.names); post({t:'pp', P:S.P}); save(); refreshAll(); $$('.name').forEach(n => n.value = S.names[n.dataset.key] || ''); for (const w in SLOTHD) drawSlotHead(w); drawSafe(); if (S.view !== 'desk') show(S.view);
-  if (S.midi.fb) for (const id in XL.P) if (XL.P[id].k !== 'num') feedback(id, val(id));
+  if (S.midi.fb) for (const id in XL.P) feedback(id, val(id));
   if (typeof n === 'number') toast('Recalled program ' + (n + 1) + '.'); else toast('Desk loaded.');
 }
 
@@ -107,7 +115,7 @@ function renderMidi(){
   const v = $('#v-midi'); v.innerHTML = '';
   const c = el('div', 'card'); c.append(el('h2', '', 'MIDI'));
   if (!midiAcc){ const b = el('button', 'on', 'Turn on MIDI'); b.onclick = () => midiInit(); c.append(kp(b), el('p', 'hint', 'Chrome asks for MIDI with SysEx; allow it so MMC works.')); v.appendChild(c); renderMap(v); return; }
-  const si = el('select'); si.appendChild(new Option('All inputs', '')); midiAcc.inputs.forEach(i => si.appendChild(new Option(i.name, i.id))); si.value = S.midi.inId; si.onchange = () => { S.midi.inId = si.value; save(); midiAcc.onstatechange(); };
+  const si = el('select'); si.appendChild(new Option(HOST ? 'No hardware input (track MIDI only)' : 'All inputs', '')); midiAcc.inputs.forEach(i => si.appendChild(new Option(i.name, i.id))); si.value = S.midi.inId; si.onchange = () => { S.midi.inId = si.value; save(); midiAcc.onstatechange(); if (HOST) toast('The plugin also takes MIDI from its track.'); };
   const so = el('select'); so.appendChild(new Option('No output', '')); midiAcc.outputs.forEach(o => so.appendChild(new Option(o.name, o.id))); so.value = S.midi.outId; so.onchange = () => { S.midi.outId = so.value; save(); };
   c.append(el('div', 'row'), kp(el('span', 'hint', 'In'), si, el('span', 'hint', 'Out'), so));
   const chk = (k, lb) => { const l = el('label'), i = el('input'); i.type = 'checkbox'; i.checked = !!S.midi[k]; i.onchange = () => { S.midi[k] = i.checked; save(); }; l.append(i, lb); return l; };
@@ -135,13 +143,13 @@ function renderMidi(){
 }
 function ctlName(id){
   if (id[0] === '@') return {'@play':'Transport play', '@stop':'Transport stop', '@rec':'Transport record', '@rtz':'Return to zero', '@rew':'Rewind (hold)', '@ff':'Fast forward (hold)', '@soloclear':'Solo clear', '@sub':'SUB (current speakers)'}[id] || id;
-  const sp = XL.P[id], m = /^(m|s|r)(\d+)\./.exec(id), pre = m ? ({m:'Ch ', s:'Stereo ', r:'Return '}[m[1]] + m[2] + ' · ') : /^slot(\d+)/.test(id) ? 'Slot ' + id.match(/^slot(\d+)/)[1] + ' · ' : /^ins(\d+)/.test(id) ? 'Ch ' + id.match(/^ins(\d+)/)[1] + ' INS · ' : '';
+  const sp = spec(id), m = /^(m|s|r)(\d+)\./.exec(id), pre = m ? ({m:'Ch ', s:'Stereo ', r:'Return '}[m[1]] + m[2] + ' · ') : /^slot(\d+)\.\d/.test(id) ? 'Slot ' + id.match(/^slot(\d+)/)[1] + ' · ' : /^ins(\d+)\.\d/.test(id) ? 'Ch ' + id.match(/^ins(\d+)/)[1] + ' INS · ' : '';
   return pre + (sp ? sp.lb : id);
 }
 function renderMap(v){
   const c = el('div', 'card'), d = el('details'); d.appendChild(el('summary', '', 'Default MIDI map (works with no setup)'));
   const strip = Object.entries(XL.STRIP_CC).map(([k, cc]) => cc + ' ' + (XL.P['m1.' + k] || XL.P['m9.' + k]).lb).join(' · ');
-  d.append(el('p', 'hint', 'MIDI channel n controls mono channel n (1-16): ' + strip + '. CC 102 up: that channel\'s 500 slot module, in faceplate order. Pitch bend on channel n moves fader n.'));
+  d.append(el('p', 'hint', 'MIDI channel n controls mono channel n (1-16): ' + strip + '. CC 102-117: that channel\'s 500 slot module, in the order of its controls. Pitch bend on channel n moves fader n.'));
   const t = el('table'); t.innerHTML = '<tr><th>MIDI</th><th>Control</th></tr>';
   const rows = Object.entries(XL.MIDIMAP).filter(([k]) => +k.split(':')[1] >= 40 && +k.split(':')[1] < 64).sort((a, b) => { const [c1, n1] = a[0].split(':').map(Number), [c2, n2] = b[0].split(':').map(Number); return c1 - c2 || n1 - n2; });
   for (const [k, id] of rows){ const [ch, cc] = k.split(':'); const tr = el('tr'); tr.append(el('td', '', 'ch ' + (+ch + 1) + ' CC ' + cc), el('td', '', ctlName(id))); t.appendChild(tr); }

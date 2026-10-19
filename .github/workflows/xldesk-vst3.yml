@@ -1,0 +1,79 @@
+# Builds the XL-Desk VST3 (and Standalone app) for Windows, macOS (Intel + Apple Silicon) and Linux.
+# Every run uploads the plugins as workflow artifacts; runs on main also publish them to the "xldesk-vst3-latest" release.
+name: XL-Desk VST3
+on:
+  push:
+    paths: ['xldesk/**', '.github/workflows/xldesk-vst3.yml']
+  pull_request:
+    paths: ['xldesk/**', '.github/workflows/xldesk-vst3.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: windows}
+          - {os: macos-14, name: macos}
+          - {os: ubuntu-24.04, name: linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '20'}
+      - name: Spec header matches spec.js
+        run: node xldesk/plugin/tools/gen-spec.js --check
+      - name: Linux packages
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libwebkit2gtk-4.1-dev libgtk-3-dev libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxext-dev ninja-build
+      - name: WebView2 SDK (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: nuget install Microsoft.Web.WebView2 -Version 1.0.2903.40 -OutputDirectory "$env:RUNNER_TEMP\webview2"
+      - name: Configure
+        shell: bash
+        run: |
+          extra=""
+          if [ "${{ matrix.name }}" = windows ]; then extra="-DJUCE_WEBVIEW2_PACKAGE_LOCATION=$RUNNER_TEMP/webview2"; fi
+          if [ "${{ matrix.name }}" = linux ]; then extra="-G Ninja"; fi
+          cmake -S xldesk/plugin -B build -DCMAKE_BUILD_TYPE=Release $extra
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Engine tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package
+        shell: bash
+        run: |
+          art=build/XLDesk_artefacts/Release
+          mkdir -p out
+          if [ "${{ matrix.name }}" = macos ]; then
+            codesign --force --deep -s - "$art/VST3/XL-Desk.vst3"; codesign --force --deep -s - "$art/Standalone/XL-Desk.app"
+            ditto -c -k --keepParent "$art/VST3/XL-Desk.vst3" out/XL-Desk-VST3-macos.zip
+            ditto -c -k --keepParent "$art/Standalone/XL-Desk.app" out/XL-Desk-Standalone-macos.zip
+          elif [ "${{ matrix.name }}" = windows ]; then
+            (cd "$art/VST3" && 7z a -tzip "$GITHUB_WORKSPACE/out/XL-Desk-VST3-windows.zip" XL-Desk.vst3)
+            (cd "$art/Standalone" && 7z a -tzip "$GITHUB_WORKSPACE/out/XL-Desk-Standalone-windows.zip" XL-Desk.exe)
+          else
+            (cd "$art/VST3" && zip -qr "$GITHUB_WORKSPACE/out/XL-Desk-VST3-linux.zip" XL-Desk.vst3)
+            (cd "$art/Standalone" && zip -q "$GITHUB_WORKSPACE/out/XL-Desk-Standalone-linux.zip" XL-Desk)
+          fi
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with: {name: 'XL-Desk-${{ matrix.name }}', path: out/*.zip}
+  release:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Publish
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view xldesk-vst3-latest >/dev/null 2>&1 || gh release create xldesk-vst3-latest --title "XL-Desk VST3 (latest)" --notes "XL-Desk VST3 and Standalone for Windows, macOS (Intel + Apple Silicon) and Linux. Unzip XL-Desk.vst3 into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, macOS ~/Library/Audio/Plug-Ins/VST3, Linux ~/.vst3. macOS builds are ad-hoc signed: run  xattr -dr com.apple.quarantine XL-Desk.vst3  once after unzipping."
+          gh release upload xldesk-vst3-latest dl/*.zip --clobber

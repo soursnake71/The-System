@@ -19,6 +19,7 @@ class BQ {
   lp(f, q, fs){ const w = 2 * Math.PI * f / fs, c = Math.cos(w), a = Math.sin(w) / (2 * q); return this.set((1 - c) / 2, 1 - c, (1 - c) / 2, 1 + a, -2 * c, 1 - a); }
   hp(f, q, fs){ const w = 2 * Math.PI * f / fs, c = Math.cos(w), a = Math.sin(w) / (2 * q); return this.set((1 + c) / 2, -(1 + c), (1 + c) / 2, 1 + a, -2 * c, 1 - a); }
   lp1(f, fs){ const K = Math.tan(Math.PI * f / fs); return this.set(K, K, 0, K + 1, K - 1, 0); }
+  hp1(f, fs){ const K = Math.tan(Math.PI * f / fs); return this.set(1, -1, 0, K + 1, K - 1, 0); }
   peak(f, q, g, fs){ const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / fs, c = Math.cos(w), a = Math.sin(w) / (2 * q); return this.set(1 + a * A, -2 * c, 1 - a * A, 1 + a / A, -2 * c, 1 - a / A); }
   // first-order (6 dB/octave) shelves, as the E Series EQ guide describes; cut mirrors boost
   lshelf1(f, g, fs){ const K = Math.tan(Math.PI * f / fs), V = Math.pow(10, g / 20), a = g >= 0 ? V : 1, b = g >= 0 ? 1 : 1 / V; return this.set(1 + a * K, a * K - 1, 0, 1 + b * K, b * K - 1, 0); }
@@ -156,7 +157,41 @@ class GCOMP {
   }
 }
 
-const mkMod = (type, fs) => type === 'eeq' ? new EEQ(fs) : type === 'edyn' ? new EDYN(fs) : type === 'gcomp' ? new GCOMP(fs) : null;
+/* ---------- SSL VHD Pre (500) ----------
+   Block diagram from the module guide: +48V -> HI-Z -> -20 dB pad -> VHD pre -> +/-20 dB trim -> polarity -> HPF -> out,
+   signal LED at the output. Gain +20 to +75 dB; HPF 18 dB/octave, 15-500 Hz; same VHD stage as the desk's own preamps. */
+class VHDPRE {
+  constructor(fs){ this.fs = fs; this.pre = new VHD(fs); this.h = [new BQ(), new BQ()]; this.hk = 0; this.pk = 0; }
+  upd(g){ this.gain = dB(20 + 55 * g('gain')); this.vhd = !!g('vhd'); this.drive = g('drive'); this.trim = dB((g('trim') - .5) * 40) * (g('phase') ? -1 : 1);
+    this.pad = g('pad') ? .1 : 1; this.hiz = g('hiz') ? 10000 / 10150 : 1200 / 1350; this.hpfIn = !!g('hpfIn');
+    const f = 15 * Math.pow(500 / 15, g('hpf')); if (f !== this.hk){ this.hk = f; this.h[0].hp1(f, this.fs); this.h[1].hp(f, 1, this.fs); }   // 3rd-order Butterworth = 1st order + 2nd order Q 1
+    if (g('p48') !== this.p48){ if (this.p48 !== undefined) this.pre.thump(); this.p48 = g('p48'); } }
+  run(b, N){
+    const k = this.pad * this.hiz; for (let i = 0; i < N; i++) b[i] *= k;
+    this.pre.run(b, N, this.gain, this.vhd, this.drive, this.noise || 0);
+    let pk = this.pk; const t = this.trim, [h1, h2] = this.h, hp = this.hpfIn;
+    for (let i = 0; i < N; i++){ let x = b[i] * t; if (hp) x = h2.run(h1.run(x)); x = rail(x); b[i] = x; const a = x < 0 ? -x : x; if (a > pk) pk = a; }
+    this.pk = pk;
+  }
+}
+// the 500 module registry: type id -> DSP class. New modules and revisions register here (and in spec.js).
+const MODULES = {vhdpre:VHDPRE, eeq:EEQ, edyn:EDYN, gcomp:GCOMP};
+/* ---------- true-peak detector for the bus bargraphs ----------
+   The desk meters the analogue signal, whose peaks can fall between samples; 4x oversampling with a 32-tap
+   windowed-sinc interpolator (ITU-R BS.1770 style) recovers them so the bargraph reads what the analogue bus does. */
+const TP_TAPS = 8, TP_PH = 4, TP_H = (() => { const h = []; for (let p = 0; p < TP_PH; p++){ const row = []; for (let k = 0; k < TP_TAPS; k++){ const t = k - (TP_TAPS / 2 - 1) - p / TP_PH, w = .5 + .5 * Math.cos(Math.PI * t / (TP_TAPS / 2)); row.push((Math.abs(t) < 1e-9 ? 1 : Math.sin(Math.PI * t) / (Math.PI * t)) * w); }
+  const s = row.reduce((a, b) => a + b, 0); h.push(row.map(v => v / s)); } return h; })();
+class TruePeak {
+  constructor(){ this.z = new Float32Array(TP_TAPS); }
+  run(b, N){ let pk = 0; const z = this.z, c0 = TP_TAPS / 2 - 1;
+    for (let n = 0; n < N; n++){ z.copyWithin(0, 1); z[TP_TAPS - 1] = b[n];
+      const a = b[n] < 0 ? -b[n] : b[n]; if (a > pk) pk = a;
+      // only interpolate where the neighbouring samples are near the running peak; elsewhere the true peak can't win
+      const l = Math.max(Math.abs(z[c0]), Math.abs(z[c0 + 1])); if (l < pk * .7) continue;
+      for (let p = 1; p < TP_PH; p++){ const h = TP_H[p]; let y = 0; for (let k = 0; k < TP_TAPS; k++) y += h[k] * z[k]; if (y < 0) y = -y; if (y > pk) pk = y; } }
+    return pk; }
+}
+const mkMod = (type, fs) => MODULES[type] ? new MODULES[type](fs) : null;
 
 class XLDesk extends AudioWorkletProcessor {
   constructor(o){
@@ -166,14 +201,14 @@ class XLDesk extends AudioWorkletProcessor {
     this.io = opt.io || {}; this.outMap = opt.outMap || [{sig:'monsel', ch:0}]; this.cfg = Object.assign({micRef:-20, convRef:24, nOut:2}, opt.cfg || {});
     this.mods = {}; for (const w in XL.WHERE) this.setType(w, this.types[w]);
     this.pre = []; for (let i = 0; i < 8; i++) this.pre.push(new VHD(fs));
-    this.sm = {}; this.kc = {}; this.gc = {};                                   // smoothed gains: key -> last value
+    this.sm = {}; this.kc = {}; this.gc = {}; this.slotExt = []; this.tpk = [0, 1, 2, 3, 4, 5, 6, 7].map(() => new TruePeak());                                   // smoothed gains: key -> last value
     this.tracks = new Map(); this.tp = {play:false, pos:0, wind:0, rec:false, loop:false, ls:0, le:0};
     this.rec = {targets:[], buf:{}, n:0};
     this.tone = 0; this.toneBuf = new Float32Array(N); this.toneAt = -1; this.pink = [0, 0, 0, 0, 0, 0, 0];
     const buf = () => new Float32Array(N); this.B = buf;
     this.sig = {}; this.sigs = {};
     const ST = ['monsel', 'main', 'mini1', 'mini2', 'hp', 'fbA', 'fbB', 'cue', 'mixA', 'mixB', 'mixC', 'mixD', 'ret1out', 'ret2out', 'meter', 'st1out', 'st2out', 'st3out', 'st4out'];
-    const MO = ['sub', 'aux1', 'aux2', 'lsnout']; for (let i = 1; i <= 16; i++) MO.push('ch' + i);
+    const MO = ['sub', 'aux1', 'aux2', 'lsnout']; for (let i = 1; i <= 16; i++) MO.push('ch' + i, 'slotout' + i);
     for (const s of ST) this.sig[s] = [buf(), buf()]; for (const s of MO) this.sig[s] = [buf()];
     this.src = {}; this.tmp = [buf(), buf(), buf(), buf()];
     this.bus = {A:[buf(), buf()], B:[buf(), buf()], C:[buf(), buf()], D:[buf(), buf()], cue:[buf(), buf()], aux1:[buf()], aux2:[buf()], afl:[buf(), buf()]};
@@ -186,8 +221,8 @@ class XLDesk extends AudioWorkletProcessor {
     this.port.onmessage = e => this.msg(e.data);
   }
   setType(w, type){
-    this.types[w] = type;
-    if (type === 'gcomp' && w.startsWith('bins')) this.mods[w] = [new GCOMP(this.fs)];
+    this.types[w] = type; if (this.gc) for (const k in this.gc) if (k.startsWith(w + '.')) delete this.gc[k];
+    if (XL.MOD[type] && XL.MOD[type].st) this.mods[w] = [mkMod(type, this.fs)];
     else if (w.startsWith('bins')) this.mods[w] = [mkMod(type, this.fs), mkMod(type, this.fs)];
     else this.mods[w] = [mkMod(type, this.fs)];
   }
@@ -218,12 +253,12 @@ class XLDesk extends AudioWorkletProcessor {
   // ramp a gain over the block: returns [start, step]
   rp(key, v, N){ const s = this.sm[key]; this.sm[key] = v; if (s === undefined || s === v) return [v, 0]; return [s, (v - s) / N]; }
   g(id){ const v = this.P[id]; return v === undefined ? (P_[id] ? P_[id].d : 0) : v; }
-  law(id){ return P_[id].f(this.g(id)); }
+  law(id){ return XL.law(P_[id].law, this.g(id)); }
   getSrc(name, N, ins){
     // returns [L, R] in console units, or null when nothing is plugged in
     const s = this.io[name]; if (!s || s.k === 'none') return null;
     const out = this.src[name] || (this.src[name] = [new Float32Array(N), new Float32Array(N)]), [L, R] = out;
-    const mic = /^(mic|listen|talk)/.test(name), sc = mic ? dBu(this.cfg.micRef) : dBu(this.cfg.convRef);
+    const mic = /^(mic|listen|talk|slotin)/.test(name), sc = mic ? dBu(this.cfg.micRef) : dBu(this.cfg.convRef);
     if (s.k === 'iface'){
       const inp = ins[0] || [], a = inp[s.ch], b = inp[s.ch + 1] || a; if (!a){ L.fill(0); R.fill(0); return out; }
       for (let i = 0; i < N; i++){ L[i] = a[i] * sc; R[i] = (s.mono ? a[i] : b[i]) * sc; }
@@ -247,8 +282,12 @@ class XLDesk extends AudioWorkletProcessor {
   }
   // cached id lookups so the audio thread doesn't build strings every block
   K(pre){ let o = this.kc[pre]; if (o) return o; o = this.kc[pre] = {}; for (const n of ['fd', 'lv', 'A', 'B', 'C', 'D']) o[n] = pre + '.' + n; for (const id in P_) if (id.startsWith(pre + '.')) o[id.slice(pre.length + 1)] = id; return o; }
-  G(w, t){ const key = w + '.' + t; let f = this.gc[key]; if (f) return f; const k = this.K(key), P = this.P; f = this.gc[key] = n => { const v = P[k[n]]; return v === undefined ? P_[k[n]].d : v; }; return f; }
-  modRun(w, b, N){ const m = this.mods[w] && this.mods[w][0]; if (!m){ b.fill(0); return; } const t = this.types[w]; m.upd(this.G(w, t)); m.run(b, N); if (m.grMax !== undefined){ const o = this.meters.mod[w] || (this.meters.mod[w] = [0, 0]); o[0] = Math.max(o[0], m.grMax); o[1] = Math.max(o[1], m.gMax); } }
+  // a module reads its controls by name; they live in the location's generic slots <where>.<j>
+  G(w, t){ const key = w + '.' + t; let f = this.gc[key]; if (f) return f; const M = XL.MOD[t], P = this.P, ids = {}, st = {};
+    for (const q of M.params){ ids[q.n] = w + '.' + q.j; if (q.k === 'step') st[q.n] = q.v.length - 1; }
+    f = this.gc[key] = n => { const v = P[ids[n]]; return st[n] ? Math.round((v || 0) * st[n]) : v || 0; }; return f; }
+  modRun(w, b, N){ const m = this.mods[w] && this.mods[w][0]; if (!m){ b.fill(0); return; } const t = this.types[w]; m.upd(this.G(w, t)); m.run(b, N); this.modMeter(w, m); }
+  modMeter(w, m){ const o = this.meters.mod[w] || (this.meters.mod[w] = [0, 0]); if (m.grMax !== undefined){ o[0] = Math.max(o[0], m.grMax); o[1] = Math.max(o[1], m.gMax); } else if (m.pk !== undefined){ o[0] = Math.max(o[0], m.pk); m.pk = 0; } }
   process(ins, outs){
     const out = outs[0], N = out[0].length, fs = this.fs, P = this.P, g = id => this.g(id); this.blk = (this.blk | 0) + 1;
     const noiseOn = !!g('sys.noise'), nCh = noiseOn ? dBu(-86) * 1.732 : 1e-9, nPre = noiseOn ? dBu(-128) * 1.732 : 0;
@@ -264,6 +303,13 @@ class XLDesk extends AudioWorkletProcessor {
     const links = [!g('rear.unlink1'), !g('rear.unlink2')];   // the four short D-sub cables (ships fitted)
     const aux1Pre = !!g('aux1.pre'), aux2Pre = !!g('aux2.pre');
     const M = this.meters, idle = {A:0, B:0, C:0, D:0};
+    /* ---------- 500 slots fed from the rear 500 SLOT IN connector (a mic or line straight into the module) ---------- */
+    for (let i = 1; i <= 16; i++){
+      const w = 'slot' + i, so = this.sig['slotout' + i][0]; this.slotExt[i] = false;
+      if (stolen[i] || !P[w + '.ext'] || this.types[w] === 'empty') continue;
+      const s = this.getSrc('slotin' + i, N, ins); if (s) so.set(s[0]); else so.fill(0);
+      const m = this.mods[w][0]; if (m.pre) m.noise = noiseOn ? dBu(-128) * 1.732 : 0; this.modRun(w, so, N); this.slotExt[i] = true;
+    }
     /* ---------- mono channels ---------- */
     for (let i = 1; i <= 16; i++){
       const m = this.K('m' + i), x = this.ch[i - 1], alt = this.alt[i - 1];
@@ -278,7 +324,7 @@ class XLDesk extends AudioWorkletProcessor {
       } else { const s = this.getSrc('line' + i, N, ins); if (s) main = s[0]; }
       const ds = this.getSrc('daw' + i, N, ins), dw = ds ? ds[0] : null;
       const sel = daw ? dw : main, oth = daw ? main : dw;
-      if (!sel && !oth){   // nothing plugged in: skip the strip but keep its line-amp noise on the buses it feeds
+      if (!sel && !oth && !(P[m.s500] && this.slotExt[i])){   // nothing plugged in: skip the strip but keep its line-amp noise on the buses it feeds
         const cutI = P[m.cut] || (sip && !P[m.solo] && !P[m.safe]), f = cutI ? 0 : dB(this.law(m.fader)), e = f * f * .5;
         for (const b of 'ABCD') if (P[m[b]]) idle[b] += e; this.sm[m.fd] = undefined; continue;
       }
@@ -286,7 +332,10 @@ class XLDesk extends AudioWorkletProcessor {
       if (sel) for (let n = 0; n < N; n++) x[n] = sel[n] * (t0 + tS * n) + nCh * rnd(); else for (let n = 0; n < N; n++) x[n] = nCh * rnd();
       if (oth) alt.set(oth); else alt.fill(0);
       // 500: the second insert, wired to the slot above the channel through the rear D-sub links
-      if (P[m.s500]){ if (stolen[i] || !links[i <= 8 ? 0 : 1] || this.types['slot' + i] === 'empty') x.fill(0); else this.modRun('slot' + i, x, N); }
+      // 500: the second insert. The send reaches the slot through the link cable; the slot's output comes back to the 500 return.
+      if (P[m.s500]){ if (stolen[i] || this.types['slot' + i] === 'empty' || (!this.slotExt[i] && !links[i <= 8 ? 0 : 1])) x.fill(0);
+        else if (this.slotExt[i]) x.set(this.sig['slotout' + i][0]);
+        else { this.modRun('slot' + i, x, N); this.sig['slotout' + i][0].set(x); } }
       if (P[m.ins]){ const t = this.types['ins' + i]; if (t === 'none') x.fill(0); else if (t !== 'loop') this.modRun('ins' + i, x, N); }
       let pk = 0; for (let n = 0; n < N; n++){ x[n] = rail(x[n]); const a = x[n] < 0 ? -x[n] : x[n]; if (a > pk) pk = a; }
       if (pk > M.m[i - 1]) M.m[i - 1] = pk;
@@ -358,8 +407,8 @@ class XLDesk extends AudioWorkletProcessor {
       if (ins || sum){
         const t = this.types['bins' + X], [rl, rr] = this.ins; rl.set(b[0]); rr.set(b[1]);
         if (t === 'none'){ rl.fill(0); rr.fill(0); }
-        else if (t === 'gcomp'){ const m = this.mods['bins' + X][0]; m.upd(this.G('bins' + X, 'gcomp')); m.run(rl, rr, N); this.meters.mod['bins' + X] = m.meter; }
-        else if (t !== 'loop'){ const ms = this.mods['bins' + X]; for (const [j, a] of [[0, rl], [1, rr]]){ ms[j].upd(this.G('bins' + X, t)); ms[j].run(a, N); } if (ms[0].grMax !== undefined) this.meters.mod['bins' + X] = [Math.max(ms[0].grMax, ms[1].grMax), Math.max(ms[0].gMax, ms[1].gMax)]; }
+        else if (XL.MOD[t] && XL.MOD[t].st){ const m = this.mods['bins' + X][0]; m.upd(this.G('bins' + X, t)); m.run(rl, rr, N); this.meters.mod['bins' + X] = m.meter; }
+        else if (t !== 'loop'){ const ms = this.mods['bins' + X]; for (const [j, a] of [[0, rl], [1, rr]]){ ms[j].upd(this.G('bins' + X, t)); ms[j].run(a, N); this.modMeter('bins' + X, ms[j]); } }
         for (let n = 0; n < N; n++){ b[0][n] = sum ? b[0][n] + rl[n] : rl[n]; b[1][n] = sum ? b[1][n] + rr[n] : rr[n]; }   // SUM: return added to the bus feed
       }
     };
@@ -383,7 +432,7 @@ class XLDesk extends AudioWorkletProcessor {
       const [f0, fS] = this.rp('A.fd', dB(this.law('A.fader')), N), o = this.sig.mixA;
       for (let n = 0; n < N; n++){ const f = f0 + fS * n; o[0][n] = rail(b[0][n] * f); o[1][n] = rail(b[1][n] * f); }
     }
-    for (const [j, X] of ['A', 'B', 'C', 'D'].entries()){ const o = this.sig['mix' + X]; let pl = 0, pr = 0; for (let n = 0; n < N; n++){ const a = Math.abs(o[0][n]), c = Math.abs(o[1][n]); if (a > pl) pl = a; if (c > pr) pr = c; } M.b[2 * j] = Math.max(M.b[2 * j], pl); M.b[2 * j + 1] = Math.max(M.b[2 * j + 1], pr); }
+    for (const [j, X] of ['A', 'B', 'C', 'D'].entries()){ const o = this.sig['mix' + X]; M.b[2 * j] = Math.max(M.b[2 * j], this.tpk[2 * j].run(o[0], N)); M.b[2 * j + 1] = Math.max(M.b[2 * j + 1], this.tpk[2 * j + 1].run(o[1], N)); }
     /* ---------- listen mic: preamp and the classic listen-mic compressor (fast, heavy, fixed: est.) ---------- */
     let lsn = null;
     { const s = this.getSrc('listen', N, ins);
@@ -414,7 +463,7 @@ class XLDesk extends AudioWorkletProcessor {
     }
     { const mono = P['mon.mono'], cut = P['mon.cut'], set = P['mon.mini1'] ? 'mini1' : P['mon.mini2'] ? 'mini2' : 'main';
       let v = cut ? 0 : dB(this.law('mon.level')) * (P['mon.dim'] ? dB(this.law('mon.dimamt')) : 1);
-      if (set === 'mini1') v *= dB(g('mon.off1')); if (set === 'mini2') v *= dB(g('mon.off2'));
+      if (set === 'mini1') v *= dB(this.law('mon.off1')); if (set === 'mini2') v *= dB(this.law('mon.off2'));
       const [v0, vS] = this.rp('mon.v', v, N), subOn = !!P[set === 'main' ? 'mon.subMain' : set === 'mini1' ? 'mon.subMini1' : 'mon.subMini2'];
       const mono2 = set === 'mini2' && P['dip.7'], o = this.sig[set], sub = this.sig.sub[0], sel = this.sig.monsel, F = this.mon;
       for (let n = 0; n < N; n++){

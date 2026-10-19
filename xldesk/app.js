@@ -1,5 +1,6 @@
 /* XL-Desk: the console surface, the rear panel, the tape machine and the print recorder. The audio is all in dsp/console.js. */
 'use strict';
+const HOST = window.XLHOST;   // set inside the VST3
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -13,31 +14,37 @@ for (let i = 1; i <= 16; i++) INPUTS.push({id:'daw' + i, lb:'DAW in ' + i, st:0,
 for (let k = 1; k <= 4; k++) INPUTS.push({id:'st' + k, lb:'Stereo in ' + k, st:1, grp:'STEREO INPUT 1-4'});
 INPUTS.push({id:'ret1', lb:'Stereo return 1', st:1, grp:'MISC INPUTS'}, {id:'ret2', lb:'Stereo return 2', st:1, grp:'MISC INPUTS'}, {id:'ext', lb:'External input', st:1, grp:'MISC INPUTS'},
   {id:'ijack', lb:'iJack (front)', st:1, grp:'Front panel'}, {id:'talk', lb:'Talkback mic', st:0, grp:'Front panel'}, {id:'listen', lb:'Listen mic', st:0, grp:'LISTEN IN (XLR)'});
+for (let i = 1; i <= 16; i++) INPUTS.push({id:'slotin' + i, lb:'500 slot in ' + i, st:0, grp:'500 SLOT IN 1-16 (straight into the module)'});
 const INP = Object.fromEntries(INPUTS.map(x => [x.id, x]));
 // console outputs that can be patched to interface channels
 const OUTS = [['monsel', 'Monitor: selected speakers (+ sub folded in)', 2], ['main', 'Monitor: Main L/R', 2], ['mini1', 'Monitor: Mini 1 L/R', 2], ['mini2', 'Monitor: Mini 2 L/R', 2], ['sub', 'Monitor: Sub', 1],
   ['hp', 'Headphones', 2], ['fbA', 'Foldback A', 2], ['fbB', 'Foldback B', 2], ['cue', 'Cue stereo', 2], ['aux1', 'Aux 1', 1], ['aux2', 'Aux 2', 1],
   ['mixA', 'Mix A out', 2], ['mixB', 'Mix B out', 2], ['mixC', 'Mix C out', 2], ['mixD', 'Mix D out', 2], ['ret1out', 'Stereo return out 1', 2], ['ret2out', 'Stereo return out 2', 2],
   ['meter', 'Meter L/R', 2], ['lsnout', 'Listen mic out', 1]];
-for (let i = 1; i <= 16; i++) OUTS.push(['ch' + i, 'Channel out ' + i, 1]); for (let k = 1; k <= 4; k++) OUTS.push(['st' + k + 'out', 'Stereo out ' + k, 2]);
+for (let i = 1; i <= 16; i++) OUTS.push(['ch' + i, 'Channel out ' + i, 1]); for (let i = 1; i <= 16; i++) OUTS.push(['slotout' + i, '500 slot out ' + i, 1]); for (let k = 1; k <= 4; k++) OUTS.push(['st' + k + 'out', 'Stereo out ' + k, 2]);
 const OUT = Object.fromEntries(OUTS.map(([id, lb, n]) => [id, {lb, n}]));
 
 /* ================= state ================= */
-const STORE = 'xldesk-v1';
+const STORE = 'xldesk-v2';
 function defState(){
-  return {v:1, P:XL.defaults(), types:XL.defTypes(), names:{}, io:{}, out:[{sig:'monsel', ch:0}], cfg:{micRef:-20, convRef:24}, dev:{in:'', out:'', inOn:false},
+  return {v:2, P:XL.defaults(), types:XL.defTypes(), names:{}, io:{}, out:[{sig:'monsel', ch:0}], cfg:{micRef:-20, convRef:24}, dev:{in:'', out:'', inOn:false},
     tracks:[], midi:{on:false, inId:'', outId:'', fb:true, pb:true, btn:'toggle', mmcIn:true, mmcOut:false, mmcId:127}, learn:{}, snaps:{},
-    rec:{targets:['mixA']}, loop:{on:false, ls:0, le:0}, view:'desk', rackType:'eeq'};
+    rec:{targets:['mixA']}, loop:{on:false, ls:0, le:0}, view:'desk', rackType:'vhdpre'};
 }
 let S;
 try { S = JSON.parse(localStorage.getItem(STORE)); } catch(e){ S = null; }
-if (!S || S.v !== 1) S = defState();
+if (!S){ // carry files, patching and MIDI settings over from version 1 (its module settings used a different layout)
+  let o = null; try { o = JSON.parse(localStorage.getItem('xldesk-v1')); } catch(e){}
+  S = defState(); if (o) for (const k of ['names', 'io', 'out', 'cfg', 'dev', 'tracks', 'midi', 'loop']) if (o[k]) S[k] = o[k]; }
+if (S.v !== 2) S = defState();
 { const D = defState(); for (const k in D) if (S[k] === undefined) S[k] = D[k]; S.P = Object.assign(XL.defaults(), S.P); S.types = Object.assign(XL.defTypes(), S.types); S.midi = Object.assign(D.midi, S.midi); S.cfg = Object.assign(D.cfg, S.cfg); }
-let saveT = 0; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e){} }, 300); };
+// in the plugin, controls live in the plugin's parameters; the page only keeps its own settings (MIDI, names, snapshots) in the session
+const uiState = () => ({names:S.names, midi:S.midi, learn:S.learn, snaps:S.snaps, view:S.view, rackType:S.rackType, rec:S.rec});
+let saveT = 0; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { if (HOST){ HOST.send({t:'ui', ui:JSON.stringify(uiState())}); return; } try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e){} }, 300); };
 
 /* ================= audio ================= */
 let ctx = null, node = null, inSrc = null, inStream = null, nIn = 0, nOut = 2;
-const post = m => node && node.port.postMessage(m);
+const post = m => HOST ? HOST.send(m) : node && node.port.postMessage(m);
 async function power(){
   if (ctx){ if (ctx.state === 'running'){ await ctx.suspend(); $('#power').classList.remove('on'); toast('Desk off.'); } else { await ctx.resume(); $('#power').classList.add('on'); } return; }
   try {
@@ -79,15 +86,17 @@ const pushIO = () => { post({t:'io', io:ioMap()}); save(); };
 
 /* ================= parameters ================= */
 const bound = {};   // id -> [render fns]
-let SCOPE = 'desk';
+let SCOPE = 'global';
 const bind = (id, fn) => { fn.sc = SCOPE; (bound[id] || (bound[id] = [])).push(fn); };
 // panels that re-render drop their old bindings first
 function scoped(name, build){ for (const id in bound) bound[id] = bound[id].filter(f => f.sc !== name); const prev = SCOPE; SCOPE = name; try { return build(); } finally { SCOPE = prev; } }
 const val = id => S.P[id] !== undefined ? S.P[id] : (XL.P[id] ? XL.P[id].d : 0);
+// the spec for any control: console controls from XL.P, module controls from whatever module is loaded at that location
+const spec = id => { const sp = XL.P[id]; return sp && sp.k === 'mod' ? XL.modParam(S.types, id) : sp; };
 const listeners = [];   // (id, v, from) -> MIDI feedback etc.
 function setP(id, v, from){
-  const sp = XL.P[id]; if (!sp) return;
-  if (sp.k === 'btn') v = v ? 1 : 0; else if (sp.k === 'step') v = clamp(Math.round(v), 0, sp.v.length - 1); else if (sp.k === 'pot') v = clamp(v, 0, 1);
+  const sp = spec(id); if (!sp) return;
+  if (sp.k === 'btn') v = v ? 1 : 0; else if (sp.k === 'step'){ const n = sp.v.length - 1; v = clamp(Math.round(v * n), 0, n) / n; } else v = clamp(v, 0, 1);
   if (S.P[id] === v) return;
   S.P[id] = v; post({t:'p', id, v}); (bound[id] || []).forEach(f => f(v)); save();
   for (const f of listeners) f(id, v, from);
@@ -96,15 +105,13 @@ function setP(id, v, from){
 listeners.push(id => { const m = /^(slot\d+)\./.exec(id); if (m) drawSlotHead(m[1]); });
 const refreshAll = () => { for (const id in bound) bound[id].forEach(f => f(val(id))); $('#prog').classList.toggle('on', !!val('dip.12')); };
 function fmt(id, v = val(id)){
-  const sp = XL.P[id]; if (!sp) return '';
+  const sp = spec(id); if (!sp) return '';
   if (sp.k === 'btn') return v ? 'on' : 'off';
-  if (sp.k === 'step'){ const x = sp.v[v]; return typeof x === 'number' ? x + (sp.u ? (sp.u[0] === ':' ? '' : ' ') + sp.u : '') : x; }
-  if (sp.k === 'num') return (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
-  if (sp.g){ const w = id.split('.'), blk = val(w[0] + '.' + w[1] + '.blk'), d = (v - .5) * 2 * (blk ? 18 : 15); return (d > 0 ? '+' : '') + d.toFixed(1) + ' dB'; }
-  if (!sp.f) return Math.round(v * 100) + '%';
-  const x = sp.f(v);
-  if (/pan|bal/i.test(id) && !sp.u) return Math.abs(x) < .02 ? 'C' : (x < 0 ? 'L' : 'R') + Math.round(Math.abs(x) * 100);
-  if (/drive/.test(id)) return x < .05 ? '2nd' : x > .95 ? '3rd' : Math.round((1 - x) * 100) + '% 2nd';
+  if (sp.k === 'step'){ const x = sp.v[Math.round(v * (sp.v.length - 1))]; return typeof x === 'number' ? x + (sp.u ? (sp.u[0] === ':' ? '' : ' ') + sp.u : '') : x; }
+  const x = XL.law(sp.law, v);
+  if (sp.u === 'eqdB'){ const w = id.split('.')[0], M = XL.MOD[S.types[w]], bj = M.params.find(q => q.n === 'blk'), d = x * (bj && val(w + '.' + bj.j) ? 18 : 15); return (d > 0 ? '+' : '') + d.toFixed(1) + ' dB'; }
+  if (sp.u === 'pan') return Math.abs(x) < .02 ? 'C' : (x < 0 ? 'L' : 'R') + Math.round(Math.abs(x) * 100);
+  if (sp.u === 'h') return x < .05 ? '2nd' : x > .95 ? '3rd' : Math.round((1 - x) * 100) + '% 2nd';
   if (sp.u === 'dB' || sp.u === 'dBu') return x === -Infinity ? '-∞' : (x > 0 ? '+' : '') + x.toFixed(1) + ' ' + sp.u;
   if (sp.u === 'Hz') return x >= 1000 ? (x / 1000).toFixed(x >= 10000 ? 1 : 2) + ' kHz' : Math.round(x) + ' Hz';
   if (sp.u === 's') return x < 1 ? Math.round(x * 1000) + ' ms' : x.toFixed(2) + ' s';
@@ -112,28 +119,29 @@ function fmt(id, v = val(id)){
   if (sp.u === ':1') return x === Infinity ? '∞:1 (limit)' : x.toFixed(1) + ':1';
   return x.toFixed(2);
 }
+const ctlLabel = id => { const sp = spec(id); if (!sp) return id; const m = /^(slot|ins|bins)(\w+)\.\d+$/.exec(id); return m ? XL.MOD[S.types[m[1] + m[2]]].short + ' ' + m[2] + ' ' + sp.lb : sp.lb; };
 const ro = $('#readout');
-function showRO(e, id){ ro.textContent = (XL.P[id].lb || id) + ': ' + fmt(id); ro.style.display = 'block'; const r = e.getBoundingClientRect(); ro.style.left = clamp(r.left - 20, 4, innerWidth - 200) + 'px'; ro.style.top = Math.max(4, r.top - 34) + 'px'; }
+function showRO(e, id){ ro.textContent = ctlLabel(id) + ': ' + fmt(id); ro.style.display = 'block'; const r = e.getBoundingClientRect(); ro.style.left = clamp(r.left - 20, 4, innerWidth - 200) + 'px'; ro.style.top = Math.max(4, r.top - 34) + 'px'; }
 const hideRO = () => { ro.style.display = 'none'; };
 
 /* ---------- controls ---------- */
 const learn = {on:false, sel:null};
-function learnPick(e, id){ if (!learn.on) return false; e.preventDefault(); e.stopPropagation(); $$('.learnsel').forEach(x => x.classList.remove('learnsel')); e.currentTarget.classList.add('learnsel'); learn.sel = id; toast('Now move a knob, fader or button on your MIDI controller.'); return true; }
+function learnPick(e, id){ if (!learn.on) return false; e.preventDefault(); e.stopPropagation(); $$('.learnsel').forEach(x => x.classList.remove('learnsel')); e.currentTarget.classList.add('learnsel'); learn.sel = id; if (HOST) HOST.send({t:'learn', id}); toast('Now move a knob, fader or button on your MIDI controller.'); return true; }
 function knob(id, color = 'black', label = '', size = ''){
-  const sp = XL.P[id], w = el('div', 'kw'), k = el('div', 'kn c-' + color + (size ? ' ' + size : '')), cap = el('div', 'cap'); k.appendChild(cap); k.dataset.id = id; w.appendChild(k); if (label) w.appendChild(el('div', 'kl', label));
+  const sp = spec(id), w = el('div', 'kw'), k = el('div', 'kn c-' + color + (size ? ' ' + size : '')), cap = el('div', 'cap'); k.appendChild(cap); k.dataset.id = id; w.appendChild(k); if (label) w.appendChild(el('div', 'kl', label));
   const steps = sp.k === 'step' ? sp.v.length : 0;
-  const draw = v => { const p = steps ? v / (steps - 1) : v; cap.style.setProperty('--r', (-135 + 270 * p) + 'deg'); };
+  const draw = v => cap.style.setProperty('--r', (-135 + 270 * v) + 'deg');
   draw(val(id)); bind(id, draw);
   let y0 = 0, v0 = 0, lastTap = 0;
   k.addEventListener('pointerdown', e => {
     if (learnPick(e, id)) return;
     k.setPointerCapture(e.pointerId); y0 = e.clientY; v0 = val(id); showRO(k, id);
-    const now = Date.now(); if (now - lastTap < 300){ setP(id, sp.d); showRO(k, id); } lastTap = now;
+    const now = Date.now(); if (now - lastTap < 300){ setP(id, sp.dn !== undefined ? sp.dn : sp.d); showRO(k, id); } lastTap = now;
   });
   k.addEventListener('pointermove', e => { if (!k.hasPointerCapture(e.pointerId)) return; const dy = y0 - e.clientY;
-    setP(id, steps ? v0 + Math.round(dy / 22) : v0 + dy / (e.shiftKey ? 900 : 200)); showRO(k, id); });
+    setP(id, steps ? v0 + Math.round(dy / 22) / (steps - 1) : v0 + dy / (e.shiftKey ? 900 : 200)); showRO(k, id); });
   const up = () => hideRO(); k.addEventListener('pointerup', up); k.addEventListener('pointercancel', up);
-  k.addEventListener('wheel', e => { e.preventDefault(); setP(id, steps ? val(id) - Math.sign(e.deltaY) : val(id) - e.deltaY / 2000); showRO(k, id); clearTimeout(k.t); k.t = setTimeout(hideRO, 700); }, {passive:false});
+  k.addEventListener('wheel', e => { e.preventDefault(); setP(id, steps ? val(id) - Math.sign(e.deltaY) / (steps - 1) : val(id) - e.deltaY / 2000); showRO(k, id); clearTimeout(k.t); k.t = setTimeout(hideRO, 700); }, {passive:false});
   return w;
 }
 function lz(id, label, color = 'yel', extra = ''){
@@ -147,15 +155,16 @@ function lz(id, label, color = 'yel', extra = ''){
 function press(id){
   if (/^m\d+\.solo$|^s\d+\.solo$/.test(id) && safeMode){ const sid = id.replace('solo', 'safe'); setP(sid, !val(sid)); drawSafe(); return; }
   if (id === 'mon.mini1' || id === 'mon.mini2'){ if (miniSetup){ miniSetup = null; toast('Mini level setup done.'); drawBars(true); return; } const other = id === 'mon.mini1' ? 'mon.mini2' : 'mon.mini1'; if (!val(id)) setP(other, 0); setP(id, !val(id)); drawSub(); return; }
-  if (miniSetup && (id === 'mon.dim' || id === 'mon.cut')){ const k = miniSetup === 1 ? 'mon.off1' : 'mon.off2'; S.P[k] = clamp(val(k) + (id === 'mon.cut' ? .5 : -.5), -20, 20); post({t:'p', id:k, v:S.P[k]}); save(); toast('Mini ' + miniSetup + ' level: ' + fmt(k)); return; }
+  if (miniSetup && (id === 'mon.dim' || id === 'mon.cut')){ const k = miniSetup === 1 ? 'mon.off1' : 'mon.off2'; setP(k, val(k) + (id === 'mon.cut' ? .5 : -.5) / 40); toast('Mini ' + miniSetup + ' level: ' + fmt(k)); return; }
   if (/^mon\.src/.test(id) && !val('mon.sum')){ for (const s of ['mon.srcA', 'mon.srcExt', 'mon.srcIj']) if (s !== id) setP(s, 0); setP(id, 1); return; }
   if (id === 'hp.fbA' || id === 'hp.fbB'){ const o = id === 'hp.fbA' ? 'hp.fbB' : 'hp.fbA'; if (!val(id)) setP(o, 0); }
   setP(id, !val(id));
 }
 function fader(id, mix){
-  const sp = XL.P[id], f = el('div', 'fdr' + (mix ? ' mix' : '')), tr = el('div', 'tr'), sc = el('div', 'sc'), cap = el('div', 'fc'); f.dataset.id = id;
-  const marks = mix ? [0, -5, -10, -20, -30, -40, -60] : [10, 5, 0, -5, -10, -20, -30, -40, -60];
-  for (const d of marks){ const s = el('span', '', d > 0 ? '+' + d : String(d)); s.style.top = ((1 - XL.faderPos(mix ? d + 10 : d)) * 100) + '%'; sc.appendChild(s); }
+  const sp = spec(id), f = el('div', 'fdr' + (mix ? ' mix' : '')), tr = el('div', 'tr'), sc = el('div', 'sc'), cap = el('div', 'fc'); f.dataset.id = id;
+  // the scales printed on the desk (manual artwork): channel +10 to -30, Mix A 0 to -60
+  const T = mix ? XL.FADA : XL.FAD;
+  for (const [p, d] of T){ const s = el('span', '', d === -Infinity ? '∞' : d > 0 ? '+' + d : String(Math.abs(d))); s.style.top = ((1 - p) * 100) + '%'; sc.appendChild(s); }
   f.append(tr, sc, cap);
   const H = 150, draw = v => { cap.style.top = (10 + (1 - v) * H) + 'px'; }; draw(val(id)); bind(id, draw);
   let y0 = 0, v0 = 0, lastTap = 0;
@@ -267,18 +276,20 @@ function drawSlotHead(w){
   const st = stolenBy && val(stolenBy + '.s500');
   d.className = 'slothd' + (t === 'empty' ? ' empty' : '') + (st ? ' stolen' : '');
   d.innerHTML = ''; d.append(el('small', '', 'SLOT ' + n), el('div', '', M ? M.short : 'EMPTY'));
-  if (t === 'edyn'){ const gr = el('div', 'gr'); for (let j = 0; j < 5; j++) gr.appendChild(el('i')); d.appendChild(gr); }
-  else if (M) d.appendChild(el('small', '', val(w + '.' + t + '.in') ? 'IN' : 'out'));
+  if (M && (M.cat === 'dyn' || M.cat === 'pre')){ const gr = el('div', 'gr'); for (let j = 0; j < (M.cat === 'pre' ? 1 : 5); j++) gr.appendChild(el('i')); d.appendChild(gr); }
+  const inq = M && M.params.find(q => q.n === 'in'); if (inq) d.appendChild(el('small', '', val(w + '.' + inq.j) ? 'IN' : 'out'));
+  if (M && M.cat === 'pre') d.appendChild(el('small', '', val(w + '.ext') ? '◂ 500 SLOT IN' : '◂ ch send'));
   if (st) d.appendChild(el('small', '', '→ MIX ' + stolenBy));
 }
+for (let i = 1; i <= 16; i++) bind('slot' + i + '.ext', () => drawSlotHead('slot' + i));
 ['A', 'B', 'C', 'D'].forEach(X => bind(X + '.s500', () => { for (let i = 9; i <= 16; i++) drawSlotHead('slot' + i); }));
 const BARS = [];   // [bus][side] -> segments
-const SEG_DB = [0, -2, -4, -6, -8, -10, -12, -14, -16, -18, -20, -22, -24, -27, -30, -33, -36, -40, -44, -48];   // 20-segment peak bargraph, 0 dB = peak reference (est. spacing)
+const SEG_DB = XL.SEG_DB;
 function bridge(){
   const b = el('div', 'bridge'), bars = el('div', 'bars');
   ['A', 'B', 'C', 'D'].forEach((X, j) => { const bar = el('div', 'bar'), col = el('div', 'bcol'); BARS[j] = [];
     for (let s = 0; s < 2; s++){ const sg = el('div', 'seg'); BARS[j][s] = [];
-      for (let q = SEG_DB.length - 1; q >= 0; q--){ const i = el('i', q < 2 ? 'r' : q < 6 ? 'y' : 'g'); sg.appendChild(i); BARS[j][s][q] = i; } col.appendChild(sg); }
+      for (let q = SEG_DB.length - 1; q >= 0; q--){ const i = el('i'); sg.appendChild(i); BARS[j][s][q] = i; } col.appendChild(sg); }
     bar.append(el('b', '', 'MIX ' + X), col); bars.appendChild(bar); });
   const badge = el('div', 'badge'); const img = el('img'); img.src = 'art/afs-logo.jpg'; img.alt = 'Absolute Future Studios';
   badge.append(img, el('div', 'xl', 'XL-Desk'), el('div', 'mk', 'Absolute Future Studios'));
@@ -297,7 +308,7 @@ function buildDesk(){
   const d = $('#desk'), p = $('#pent'); d.innerHTML = ''; p.innerHTML = '';
   for (let i = 1; i <= 16; i++){ const ps = el('div', 'ps'); ps.appendChild(slotHead('slot' + i)); p.appendChild(ps); d.appendChild(monoStrip(i)); }
   for (let k = 1; k <= 4; k++) d.appendChild(stereoStrip(k));
-  p.appendChild(bridge());
+  p.appendChild(bridge()); segColours();
   d.appendChild(centre());
   const j = $('#jump'); j.innerHTML = '';
   [['1-8', 0], ['9-16', 8], ['Stereo', 16], ['Returns', 20], ['Mix B-D', 21], ['Monitor', 22], ['Mix A', 24]].forEach(([lb, idx]) => {
@@ -307,34 +318,39 @@ function buildDesk(){
 }
 
 /* ---------- module faceplates ---------- */
+// faceplates are drawn from each module's layout in spec.js, so a new module or revision needs no UI code
 function faceplate(w){
   const t = S.types[w], M = XL.MOD[t], f = el('div', 'fp' + (M && M.w === 2 ? ' w2' : '') + (M ? '' : ' empty'));
-  const n = w.replace(/^slot|^ins|^bins/, ''), kind = w.startsWith('slot') ? 'SLOT ' + n : w.startsWith('ins') ? 'INS ' + n : 'MIX ' + n + ' INS';
+  const n = w.replace(/^slot|^ins|^bins/, ''), kind = w.startsWith('slot') ? (w === 'slot17' ? 'SLOTS 17-18' : 'SLOT ' + n) : w.startsWith('ins') ? 'INS ' + n : 'MIX ' + n + ' INS';
   const h = el('h5'); h.append(el('span', '', M ? M.short : (t === 'loop' ? 'CABLE' : '—')), el('span', 'slotno', kind)); f.appendChild(h);
-  const sel = el('select'); for (const o of XL.WHERE[w]) { const op = el('option', '', XL.TYPE_NAME[o]); op.value = o; sel.appendChild(op); } sel.value = t;
+  const sel = el('select'); for (const o of XL.WHERE[w]) sel.appendChild(new Option(XL.TYPE_NAME[o] + (XL.MOD[o] ? ' (rev ' + XL.MOD[o].rev + ')' : ''), o)); sel.value = t;
   sel.onchange = () => setType(w, sel.value); f.appendChild(sel);
   if (!M){ f.appendChild(el('div', 'hint', t === 'empty' ? 'Nothing in this slot: the 500 insert returns silence, as on the desk.' : t === 'none' ? 'Nothing patched: pressing INS mutes, as on the desk.' : 'Send wired straight to return.')); return f; }
-  const id = q => w + '.' + t + '.' + q.n;
-  if (t === 'eeq'){
-    const ps = Object.fromEntries(M.params.map(q => [q.n, q]));
-    const K = (n, size) => knob(id(ps[n]), ps[n].c, ps[n].lb.replace(/^(HF|HMF|LMF|LF) /, ''), size || 'sm');
-    f.append(el('div', 'kl', 'HF'), kp(K('hfG'), K('hfF')), lz(id(ps.hfBell), 'BELL', 'wht'), el('div', 'kl', 'HMF'), kp(K('hmfG'), K('hmfF')), kp(K('hmfQ'), lz(id(ps.blk), 'BLK', 'wht')),
-      lz(id(ps.in), 'IN', 'grn', 'wide'), el('div', 'kl', 'LMF'), kp(K('lmfG'), K('lmfF')), K('lmfQ'), el('div', 'kl', 'LF'), kp(K('lfF'), K('lfG')), lz(id(ps.lfBell), 'BELL', 'wht'));
-  } else if (t === 'edyn'){
-    const ps = Object.fromEntries(M.params.map(q => [q.n, q])), K = n => knob(id(ps[n]), ps[n].c, ps[n].lb, 'sm');
-    const leds = el('div', 'ledcol'); const L = []; [[20, 'r'], [14, 'r'], [10, 'y'], [6, 'y'], [3, 'y']].forEach(([d]) => { const s = el('span'); const a = el('span', 'led'), b = el('span', 'led'); s.append(a, String(d), b); leds.appendChild(s); L.push([a, b, d]); });
-    MODLED[w] = L;
-    f.append(el('div', 'kl', 'COMPRESSOR / LIMITER'), kp(K('ratio'), lz(id(ps.hard), 'HARD', 'wht')), kp(K('cthr'), lz(id(ps.linrel), 'LIN REL', 'wht')), kp(K('crel'), lz(id(ps.cfast), 'FAST', 'wht')),
-      kp(lz(id(ps.in), 'IN', 'grn'), leds), el('div', 'kl', 'GATE / EXPANDER'), kp(K('range'), lz(id(ps.exp), 'EXP', 'wht')), K('gthr'), kp(K('grel'), lz(id(ps.gfast), 'FAST', 'wht')));
-  } else if (t === 'gcomp'){
-    const ps = Object.fromEntries(M.params.map(q => [q.n, q])), K = n => knob(id(ps[n]), 'blue', ps[n].lb);
-    f.append(needle('nd-' + w), kp(K('thr'), K('mk')), lz(id(ps.in), 'IN', 'wht', 'wide'), kp(K('att'), K('rel')), kp(K('ratio'), K('hpf')));
+  const ps = Object.fromEntries(M.params.map(q => [q.n, q])), big = M.w === 2;
+  for (const row of M.layout){
+    const r = el('div', 'pair');
+    for (const n of row){
+      if (n === '#LED'){ r.appendChild(modLed(w, M)); continue; }
+      if (n === '#NEEDLE'){ r.appendChild(needle('nd-' + w)); continue; }
+      const q = ps[n], id = w + '.' + q.j;
+      r.appendChild(q.k === 'btn' ? lz(id, q.lb, n === 'in' ? 'grn' : 'wht') : knob(id, q.c || 'grey', q.lb, big ? '' : 'sm'));
+    }
+    f.appendChild(r);
   }
   return f;
 }
+// module meters: a signal LED for preamps, gain-reduction / gate LEDs for dynamics
+function modLed(w, M){
+  if (M.cat === 'pre'){ const l = el('span', 'led'); MODLED[w] = {pre:l}; const d = el('div', 'ledcol'); d.append(l, el('span', '', 'SIGNAL')); return d; }
+  const leds = el('div', 'ledcol'), L = [];
+  [20, 14, 10, 6, 3].forEach(d => { const s = el('span'); const a = el('span', 'led'), b = el('span', 'led'); s.append(a, String(d), b); leds.appendChild(s); L.push([a, b, d]); });
+  MODLED[w] = {dyn:L}; return leds;
+}
 const MODLED = {};
 function setType(w, type){
-  S.types[w] = type; post({t:'type', w, type}); save(); drawSlotHead(w);
+  S.types[w] = type; post({t:'type', w, type});
+  const d = XL.modDefaults(type); for (let j = 0; j < XL.MODMAX; j++) setP(w + '.' + j, d[j]);   // a freshly fitted module starts at its own defaults
+  save(); drawSlotHead(w);
   if ($('#modDlg').open) openModule(w); if (S.view === 'rack') renderRack(); if (S.view === 'rear') renderRear();
 }
 function openModule(w){
@@ -357,30 +373,44 @@ function onEngine(d){
 }
 const scale24 = () => !val('dip.1');   // DIP 1 up = +24 dBu, down = +18 dBu
 function ledClass(dbu){ const s = scale24(); return dbu >= (s ? 21 : 16) ? 'r' : dbu >= (s ? 4 : 0) ? 'y' : dbu >= -24 ? 'g' : ''; }
+/* Bargraph: 20-segment true-peak meter, 0 dB at the top = the selected peak level (+24 or +18 dBu, DIP 1), -48 at the
+   bottom. Colours follow the desk (SOS): green below -24 dBu... up to nominal, yellow above nominal (+4 / 0 dBu), red within
+   2 dB of the peak level. Instant attack; fall-back 20 dB in 1.7 s (IEC 60268-18 peak programme meter, est. for this desk). */
+let barT = 0;
+function segColours(){ const ref = scale24() ? 24 : 18, nom = scale24() ? 4 : 0;
+  for (const bus of BARS) for (const side of bus) side.forEach((seg, q) => { const d = SEG_DB[q]; seg.className = d >= -2 ? 'r' : ref + d >= nom ? 'y' : 'g'; }); }
+bind('dip.1', () => segColours());
 function drawBars(force){
-  const test = !!val('dip.11'), ref = scale24() ? 24 : 18;
+  const test = !!val('dip.11'), ref = scale24() ? 24 : 18, now = performance.now(), dt = Math.min(.1, (now - (barT || now)) / 1000); barT = now;
   for (let j = 0; j < 4; j++) for (let s = 0; s < 2; s++){
-    let v = lastM ? lastM.b[2 * j + s] - ref : -99;
-    const k = j + ':' + s, h = peakHold[k] || -99; v = Math.max(v, h - 1.2); peakHold[k] = v;   // ~ 36 dB/s fall
-    BARS[j][s].forEach((seg, q) => seg.classList.toggle('on', test || v >= SEG_DB[q]));
+    const k = j + ':' + s, inst = lastM ? lastM.b[2 * j + s] - ref : -99, held = (peakHold[k] === undefined ? -99 : peakHold[k]) - dt * 20 / 1.7;
+    const v = Math.max(inst, held); peakHold[k] = v;
+    BARS[j][s].forEach((seg, q) => seg.classList.toggle('on', test || v >= SEG_DB[q] - .001));
   }
-  if (miniSetup){ const off = val(miniSetup === 1 ? 'mon.off1' : 'mon.off2'); BARS[0].forEach(side => side.forEach((seg, q) => seg.classList.toggle('on', q === clamp(Math.round(-off / 1) + 6, 0, 19)))); }
+  if (miniSetup){ const off = XL.law(XL.P['mon.off1'].law, val(miniSetup === 1 ? 'mon.off1' : 'mon.off2')); BARS[0].forEach(side => side.forEach((seg, q) => seg.classList.toggle('on', q === clamp(Math.round(-off * 2) + 6, 0, 19)))); }
 }
+// channel LEDs hold for 100 ms so short peaks stay visible
+const ledHold = {};
+function setLed(key, e, dbu){ const now = performance.now(), c = ledClass(dbu), h = ledHold[key]; const rank = {'':0, g:1, y:2, r:3};
+  if (!h || rank[c] >= rank[h.c] || now - h.t > 100){ ledHold[key] = {c, t:now}; e.className = 'led ' + c; } }
 function frame(){
   requestAnimationFrame(frame);
   if (!lastM) return;
   const m = lastM;
   if (S.view === 'desk'){
-    for (let i = 1; i <= 16; i++){ const e = LEDS['m' + i]; if (e) e.className = 'led ' + ledClass(m.m[i - 1]); }
-    for (let k = 1; k <= 4; k++){ LEDS['s' + k + 'L'].className = 'led ' + ledClass(m.s[2 * k - 2]); LEDS['s' + k + 'R'].className = 'led ' + ledClass(m.s[2 * k - 1]); }
+    for (let i = 1; i <= 16; i++){ const e = LEDS['m' + i]; if (e) setLed('m' + i, e, m.m[i - 1]); }
+    for (let k = 1; k <= 4; k++){ setLed('s' + k + 'L', LEDS['s' + k + 'L'], m.s[2 * k - 2]); setLed('s' + k + 'R', LEDS['s' + k + 'R'], m.s[2 * k - 1]); }
     drawBars();
-    for (let i = 1; i <= 16; i++){ const d = SLOTHD['slot' + i]; if (!d || S.types['slot' + i] !== 'edyn') continue; const g = m.mod['slot' + i] || [0, 0], dots = d.querySelectorAll('.gr i');
-      [3, 6, 10, 14, 20].forEach((t, j) => dots[j].className = g[0] >= t ? (j > 2 ? 'r' : 'y') : ''); if (g[1] > 3) dots[0].className = 'g'; }
+    for (let i = 1; i <= 16; i++){ const w = 'slot' + i, d = SLOTHD[w], M = XL.MOD[S.types[w]]; if (!d || !M) continue; const g = m.mod[w] || [0, 0], dots = d.querySelectorAll('.gr i');
+      if (M.cat === 'dyn'){ [3, 6, 10, 14, 20].forEach((t, j) => dots[j].className = g[0] >= t ? (j > 2 ? 'r' : 'y') : ''); if (g[1] > 3) dots[0].className = 'g'; }
+      else if (M.cat === 'pre' && dots[0]) dots[0].className = ledClass(20 * Math.log10(g[0] + 1e-12) + 24); }
   }
   const setNeedle = (id, gr) => { const n = document.getElementById(id); if (!n) return; const a = (-50 + clamp(gr, 0, 20) / 20 * 100) * Math.PI / 180; n.setAttribute('x2', 60 + Math.sin(a) * 44); n.setAttribute('y2', 62 - Math.cos(a) * 44); };
   setNeedle('gcNeedle', m.gc); setNeedle('nd-slot17', m.gc);
   for (const w of ['binsA', 'binsB', 'binsC', 'binsD']) if (typeof m.mod[w] === 'number') setNeedle('nd-' + w, m.mod[w]);
-  for (const w in MODLED){ const g = m.mod[w] || [0, 0]; if (!document.body.contains(MODLED[w][0][0])){ delete MODLED[w]; continue; } MODLED[w].forEach(([a, b, d]) => { a.className = 'led' + (g[1] >= d ? ' g' : ''); b.className = 'led' + (g[0] >= d ? (d >= 14 ? ' r' : ' y') : ''); }); }
+  for (const w in MODLED){ const g = m.mod[w] || [0, 0], L = MODLED[w], first = L.pre || L.dyn[0][0]; if (!document.body.contains(first)){ delete MODLED[w]; continue; }
+    if (L.pre) L.pre.className = 'led ' + ledClass(20 * Math.log10(g[0] + 1e-12) + 24);
+    else L.dyn.forEach(([a, b, d]) => { a.className = 'led' + (g[1] >= d ? ' g' : ''); b.className = 'led' + (g[0] >= d ? (d >= 14 ? ' r' : ' y') : ''); }); }
   $('#tc').textContent = tcStr(m.pos);
   $('#tPlay').classList.toggle('on', m.play && !m.wind); $('#tRec').classList.toggle('on', m.rec);
   tpState.play = m.play; tpState.pos = m.pos; tpState.rec = m.rec;
@@ -487,8 +517,11 @@ async function renderRear(){
   let devs = []; try { devs = await navigator.mediaDevices.enumerateDevices(); } catch(e){}
   scoped('rear', () => buildRear(devs));
 }
+const PLUGIN_BUSES = {in:[['DAW 1-16 (main input)', 'the DAW inputs; on a stereo track you get DAW 1-2'], ['Mic 1-8 (VHD)', 'into the desk\'s VHD preamps, mic level'], ['Line 9-16', 'main inputs of channels 9-16'], ['Stereo In 1-4', 'the four stereo channels'], ['Returns 1-2 + Ext', 'stereo returns and the External monitor source'], ['iJack + Talk + Listen', 'iJack L/R, talkback mic, listen mic'], ['500 Slot In 1-16', 'straight into each 500 module, mic level']],
+  out:[['Mix A (main output)', 'the mix'], ['Mix B, C, D', 'stems'], ['Monitor Main, Mini 1, Mini 2, Sub', 'speaker sets after the monitor section'], ['Headphones', ''], ['Foldback A, B', 'cue mixes with talkback'], ['Cue, Aux 1-2', 'send buses'], ['Channel outs 1-16', 'CHOP direct outs'], ['Stereo outs 1-4', ''], ['Return outs 1-2', ''], ['500 Slot outs 1-16', 'each module\'s output, for recording preamps directly'], ['Meter L/R + Listen out', '']]};
 function buildRear(devs){
   const v = $('#v-rear'); v.innerHTML = '';
+  if (HOST) return buildRearPlugin(v);
   const c0 = el('div', 'card'); c0.append(el('h2', '', 'Audio interface'));
   const si = el('select'); si.appendChild(new Option('Default input', '')); devs.filter(d => d.kind === 'audioinput').forEach(d => si.appendChild(new Option(d.label || 'Input ' + d.deviceId.slice(0, 6), d.deviceId))); si.value = S.dev.in;
   si.onchange = () => { S.dev.in = si.value; save(); if (S.dev.inOn) enableInput().catch(e => toast(e.message)); };
@@ -525,6 +558,11 @@ function buildRear(devs){
     og.append(el('span', '', 'Out ' + (c + 1)), s); }
   c2.appendChild(og);
   // outboard (INS) and rear links, DIP switches
+  buildRearCommon(v, [c0, c1, c2]);
+}
+function buildRearCommon(v, first = []){
+  const cs = el('div', 'card'); cs.append(el('h2', '', '500 SLOT IN'), el('p', 'hint', "Lit: the slot's input comes from the rear 500 SLOT IN connector (a mic or line plugged straight into the module, the manual's way of using 500 preamps). Unlit: it comes from the channel's 500 send through the link cable, so the module is an insert. Either way the module's output returns to the channel when you press 500, and also appears on 500 SLOT OUT."));
+  const sg = el('div', 'pair'); for (let i = 1; i <= 16; i++){ const b = lz('slot' + i + '.ext', 'SLOT ' + i, 'red'); b.style.height = 'auto'; b.style.padding = '4px 8px'; sg.appendChild(b); } cs.appendChild(sg);
   const c3 = el('div', 'card'); c3.append(el('h2', '', 'Outboard on the INS points'), el('p', 'hint', "Each mono channel's INS and each Mix bus INS is a real insert: pick what is patched there. 'Nothing patched' goes silent when INS is pressed, exactly like the desk with an empty return."));
   const ig = el('div', 'patch');
   for (const w of [...Array.from({length:16}, (_, i) => 'ins' + (i + 1)), 'binsA', 'binsB', 'binsC', 'binsD']){
@@ -541,15 +579,23 @@ function buildRear(devs){
     const cap = el('span'); bind(id, draw); b.onclick = () => setP(id, !val(id)); draw(val(id)); l.append(b, cap); dp.appendChild(l); });
   c5.append(dp, el('div', 'row'), lz('sys.noise', 'Analogue noise floor (spec: < -86 dBu channel, < -83 dBu mix)', 'grn', 'wide'));
   c5.querySelectorAll('.lz').forEach(b => { b.style.height = 'auto'; b.style.padding = '4px 10px'; });
-  v.append(c0, c1, c2, c3, c4, c5);
+  v.append(...first, cs, c3, c4, c5);
 }
 
+function buildRearPlugin(v){
+  const c = el('div', 'card'); c.append(el('h2', '', 'Plugin buses (the rear panel)'), el('p', 'hint', 'Each D-sub on the desk is a bus on the plugin. Turn on the buses you need in your DAW (sidechain / extra inputs and outputs) and route tracks to them; the main input and output work on any stereo track.'));
+  for (const [k, title] of [['in', 'Inputs'], ['out', 'Outputs']]){ const t = el('table'); t.innerHTML = '<tr><th>' + title + '</th><th></th></tr>'; for (const [a, b] of PLUGIN_BUSES[k]){ const tr = el('tr'); tr.append(el('td', '', a), el('td', '', b)); t.appendChild(tr); } c.appendChild(t); }
+  const cal = el('div', 'row'), mr = el('input'); mr.type = 'number'; mr.value = S.cfg.micRef; mr.style.width = '70px'; mr.onchange = () => { S.cfg.micRef = +mr.value; post({t:'cfg', cfg:S.cfg}); };
+  cal.append(el('span', 'hint', 'Mic-level inputs: 0 dBFS ='), mr, el('span', 'hint', 'dBu. Line inputs: 0 dBFS = +24 dBu, the desk\'s headroom.')); c.appendChild(cal);
+  v.appendChild(c);
+  buildRearCommon(v);
+}
 /* ================= rack view ================= */
 function renderRack(){ scoped('rack', buildRack); }
 function buildRack(){
   const v = $('#v-rack'); v.innerHTML = '';
   const c = el('div', 'card'); c.append(el('h2', '', '500-series rack (16 + 2 slots)'), el('p', 'hint', "Slots 1-16 sit above channels 1-16 and come in with the channel's 500 button. Mix A steals slots 9-10, Mix B 11-12, Mix C 13-14, Mix D 15-16 with their 500 buttons (odd slot = left, even = right). Slots 17-18 hold the bus compressor, inserted over Mix A with COMP."));
-  const fill = el('div', 'row'); const ft = el('select'); ['eeq', 'edyn', 'empty'].forEach(t => ft.appendChild(new Option(XL.TYPE_NAME[t], t))); ft.value = S.rackType;
+  const fill = el('div', 'row'); const ft = el('select'); ['vhdpre', 'eeq', 'edyn', 'empty'].forEach(t => ft.appendChild(new Option(XL.TYPE_NAME[t], t))); ft.value = S.rackType;
   const fb = el('button', '', 'Fill slots 1-16'); fb.onclick = () => { S.rackType = ft.value; for (let i = 1; i <= 16; i++) setType('slot' + i, ft.value); }; fill.append(ft, fb); c.appendChild(fill);
   const r = el('div', 'rack'); for (let i = 1; i <= 17; i++) r.appendChild(faceplate('slot' + i));
   v.append(c, r);
@@ -566,5 +612,28 @@ $('#power').onclick = () => power();
 $('#learnBtn').onclick = () => { learn.on = !learn.on; learn.sel = null; $('#learnBtn').classList.toggle('on', learn.on); document.body.classList.toggle('learning', learn.on); $$('.learnsel').forEach(x => x.classList.remove('learnsel'));
   toast(learn.on ? 'MIDI Learn: tap any control on the desk, then move a control on your MIDI controller.' : 'Learn off.'); };
 document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.code === 'Space'){ e.preventDefault(); tpState.play ? tp.stop() : tp.play(); } });
-buildDesk(); refreshAll(); show(S.view);
+scoped('desk', buildDesk); refreshAll(); show(S.view);
+/* ---------- inside the VST3 ---------- */
+function applyRemote(id, v){ if (!XL.P[id]) return; S.P[id] = v; (bound[id] || []).forEach(f => f(v)); for (const f of listeners) f(id, v, 'host'); if (id === 'dip.12') $('#prog').classList.toggle('on', !!v); }
+if (HOST){
+  document.body.classList.add('host'); $('#tabs button[data-v="tape"]').style.display = 'none'; if (S.view === 'tape') S.view = 'desk';
+  // the transport drives your DAW over MMC
+  tp.play = () => mmcSend(0x02); tp.stop = () => mmcSend(0x01); tp.pause = () => mmcSend(0x09); tp.rec = () => mmcSend(0x06);
+  tp.locate = sec => mmcLocate(sec); tp.wind = sp => mmcSend(sp > 0 ? 0x04 : sp < 0 ? 0x05 : 0x01);
+  HOST.on(d => {
+    if (d.t === 'm') lastM = d;
+    else if (d.t === 'p') applyRemote(d.id, d.v);
+    else if (d.t === 'init'){
+      S.P = Object.assign(XL.defaults(), d.P); S.types = Object.assign(XL.defTypes(), d.types); S.cfg = {micRef:d.micRef, convRef:d.convRef};
+      try { Object.assign(S, JSON.parse(d.ui || '{}')); } catch(e){}
+      scoped('desk', buildDesk); refreshAll(); show(S.view); if (window.midiInit) midiInit();
+    }
+    else if (d.t === 'type'){ S.types[d.w] = d.type; drawSlotHead(d.w); if (S.view === 'rack') renderRack(); }
+    else if (d.t === 'learned'){ for (const k in S.learn) if (S.learn[k] === d.id) delete S.learn[k]; S.learn[d.key] = d.id; save(); $$('.learnsel').forEach(x => x.classList.remove('learnsel')); learn.sel = null; const [ch, cc] = d.key.split(':'); toast(ctlName(d.id) + ' → MIDI ch ' + (+ch + 1) + ' CC ' + cc + '.'); if (S.view === 'midi') renderMidi(); }
+    else if (d.t === 'mmc') $('#midiStat').textContent = 'MMC ' + (typeof MMC_NAMES !== 'undefined' && MMC_NAMES[d.cmd] || d.cmd) + ' → DAW';
+    else if (d.t === 'recalled') toast('Recalled program ' + (+d.n + 1) + '.');
+    else if (d.t === 'midiDevices' && window.onHostMidi) onHostMidi(d);
+  });
+  HOST.send({t:'hello'});
+}
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
