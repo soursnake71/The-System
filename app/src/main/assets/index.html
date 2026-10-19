@@ -320,6 +320,23 @@ canvas#waveC{position:absolute;inset:0;width:100%;height:100%;touch-action:none;
 .srmenus{display:flex;gap:6px;flex-wrap:wrap}.srmenus label{display:flex;flex-direction:column;font-size:11px;color:var(--dim);gap:2px;min-width:0;flex:1 1 140px}
 @media (max-width:700px){.srmenus label{flex:1 1 110px}.torack{bottom:6px;right:6px}}
 @media (max-height:700px) and (max-width:700px){.srmenus{gap:3px 5px}.srmenus label{flex:1 1 30%;font-size:10px}.srack select{font-size:12px;padding:3px}.srhead b{font-size:12px}}
+/* files */
+.files{flex:1;min-height:0;min-width:0;background:var(--groove);border:1px solid #000;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.files.busy{opacity:.75;pointer-events:none}
+.fhead{display:flex;align-items:center;justify-content:space-between;gap:8px}.fhead h2{margin:0}
+.frow{display:flex;gap:8px;align-items:center;font-size:13px}.frow b{color:var(--dim);font-weight:600;letter-spacing:.08em}
+.frow select{background:#0e0f11;color:var(--legend);border:1px solid #000;border-radius:4px;padding:5px;font-family:var(--f-ui);font-size:14px;min-width:0;flex:1;max-width:320px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;min-height:0}
+.fcard{background:#0003;border:1px solid #0007;border-radius:7px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.fcard h3{margin:0;font-size:12px;letter-spacing:.14em;color:var(--legend)}.fcard p{margin:0;font-size:12px;color:var(--dim);line-height:1.35}
+.fbtns{display:flex;gap:6px;flex-wrap:wrap}.fbtns .btn{padding:6px 10px;font-size:13px}
+.fmsg{font-family:var(--f-lcd);font-size:17px;color:var(--amber);min-height:20px;overflow-wrap:anywhere}
+@media (max-width:700px){.fgrid{grid-template-columns:1fr 1fr;gap:5px}.fcard{padding:6px 7px;gap:4px}.fcard p{font-size:10.5px;line-height:1.25}.fbtns .btn{padding:5px 6px;font-size:11.5px}.files{padding:7px;gap:5px}}
+@media (max-width:700px){.fcard p{display:none}}
+.vtext{width:100%;box-sizing:border-box;background:#0e0f11;color:var(--legend);border:1px solid #000;border-radius:5px;padding:6px;font-family:var(--f-ui);font-size:14px;resize:none;min-height:44px}
+.midi{row-gap:8px}@media (max-height:700px) and (max-width:700px){.midi{gap:5px 12px;font-size:13px;padding:8px}.midi select{font-size:13px;padding:3px}.midi h2{margin:0}}@media (max-width:700px){.ihead .ititle{flex:1 1 90px}.ibtns .btn{padding:5px 8px}.midi .hint{display:none}.ipanel .vnote{display:none}.vtext{min-height:34px;font-size:13px;padding:4px}}
+.vbands{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}
+@media (max-width:700px){.vbands{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 /* instruments */
 .zinst{background:#0e0f11;color:var(--legend);border:1px solid #000;border-radius:4px;padding:3px 2px;font-size:11px;font-family:var(--f-ui);max-width:70px}
 .zone:not(.omni)[data-z] .chip{opacity:.4}
@@ -538,8 +555,9 @@ canvas.ilcd.wide{width:200px;height:40px}
       <div class="ichips" id="iChips" role="tablist" aria-label="Instruments"></div>
       <div class="ipanel" id="iPanel"></div>
     </section>
+    <section class="files" data-screen="file" id="fileSec"></section>
     <section class="midi" data-screen="midi">
-      <h2><span>MIDI</span></h2>
+      <h2><span>MIDI</span><button class="btn" id="toFiles" style="float:right;padding:3px 9px;font-size:12px;line-height:1.2">◂ FILES</button></h2>
       <button class="btn" id="midiBtn">Connect MIDI</button>
       <label>Input <select id="midiIn"><option value="">All inputs</option></select></label>
       <label>Output <select id="midiOut"><option value="">None</option></select></label>
@@ -1354,6 +1372,204 @@ class CZEngine{
     return sum*0.16*this.level}
 }
 
+/* ===================== Vocoders, ported from The Wave Motion System (vx/ and talker/) =====================
+   VX-350: the SVC-350 circuit model (component values, diode detectors, BA662 levelers, PWM VCAs, 2x
+   oversampled) and the Clear model; the Talker pedal (six programs) with its analog I/O. */
+class VxDsp{
+  static bq(){return {b0:1,b1:0,b2:0,a1:0,a2:0,z1:0,z2:0}}
+  static run(q,x){const y=q.b0*x+q.z1;q.z1=q.b1*x-q.a1*y+q.z2;q.z2=q.b2*x-q.a2*y;return y}
+  static bp(q,fs,f,Q){const w=2*Math.PI*Math.min(f,fs*.45)/fs,al=Math.sin(w)/(2*Q),a0=1+al;q.b0=al/a0;q.b1=0;q.b2=-al/a0;q.a1=-2*Math.cos(w)/a0;q.a2=(1-al)/a0}
+  static hp(q,fs,f,Q){const w=2*Math.PI*Math.min(f,fs*.45)/fs,al=Math.sin(w)/(2*Q),c=Math.cos(w),a0=1+al;q.b0=(1+c)/2/a0;q.b1=-(1+c)/a0;q.b2=q.b0;q.a1=-2*c/a0;q.a2=(1-al)/a0}
+  static lp(q,fs,f,Q){const w=2*Math.PI*Math.min(f,fs*.45)/fs,al=Math.sin(w)/(2*Q),c=Math.cos(w),a0=1+al;q.b0=(1-c)/2/a0;q.b1=(1-c)/a0;q.b2=q.b0;q.a1=-2*c/a0;q.a2=(1-al)/a0}
+  static ms(ms,fs){return 1-Math.exp(-1/(ms*0.001*fs))}
+  static db(d){return Math.pow(10,d/20)}
+  static soft(x,k){const a=Math.abs(x);if(a<=k)return x;const o=(a-k)/(1-k);return Math.sign(x)*(k+(1-k)*o/(1+o))}
+  static harm(x,h){const d=1+20*h;return x*(1-h)+(0.35*Math.tanh(d*x)+0.5*Math.abs(x))*h}
+  static params(){return {micGainDb:0,instGainDb:0,guitarMode:false,harmonics:0.3,bands:[.8,.8,.8,.8,.8,.8,.8,.8,.8,.8],consonant:0.5,balance:1,ensemble:true,hold:false,stereo:true,volumeDb:0}}
+}
+// the SVC-350's ensemble: two MN3010 lines, composite sine + triangle clock sweep
+class VxEnsemble{
+  constructor(fs){this.fs=fs;let n=1;while(n<fs*0.02)n<<=1;this.buf=new Float32Array(n);this.mask=n-1;this.w=0;
+    this.pre=VxDsp.bq();this.pA=VxDsp.bq();this.pB=VxDsp.bq();[this.pre,this.pA,this.pB].forEach(q=>VxDsp.lp(q,fs,9000,0.707));
+    this.sI=1/(4.5*fs);this.fI=1/(0.215*fs);this.sP=0;this.fP=0.25;this.L=0;this.R=0}
+  read(d){const pos=this.w-d,fl=Math.floor(pos),t=pos-fl,b=this.buf,m=this.mask,y0=b[(fl-1)&m],y1=b[fl&m],y2=b[(fl+1)&m],y3=b[(fl+2)&m];
+    const c1=0.5*(y2-y0),c2=y0-2.5*y1+2*y2-0.5*y3,c3=0.5*(y3-y0)+1.5*(y1-y2);return ((c3*t+c2)*t+c1)*t+y1}
+  process(x){this.buf[this.w&this.mask]=VxDsp.run(this.pre,x);this.sP+=this.sI;if(this.sP>=1)this.sP-=1;this.fP+=this.fI;if(this.fP>=1)this.fP-=1;
+    const m=0.8*Math.sin(2*Math.PI*this.sP)+0.2*(4*Math.abs(this.fP-0.5)-1),mid=9.5,half=5.5,fs=this.fs;
+    const sat=v=>v/(1+0.15*Math.abs(v)),a=VxDsp.run(this.pA,sat(this.read(256*(mid+half*m)*1e-6*fs))),b=VxDsp.run(this.pB,sat(this.read(256*(mid-half*m)*1e-6*fs)));
+    this.w++;this.L=0.7*(x+a);this.R=0.7*(x+b)}
+}
+/* ---- VX-350 Clear: the tuned character model ---- */
+class VxClear{
+  constructor(fs){this.fs=fs;const T=[161,234,333,499,732,1098,1614,2335,3326,4988];this.ana=[];this.syn=[];this.env=[];this.envSm=[];this.deemph=[];
+    const shelf=(f,f1,f2)=>Math.sqrt(1+(f/f1)**2)/Math.sqrt(1+(f/f2)**2);
+    for(let b=0;b<10;b++){this.ana.push([0,1,2].map(()=>{const q=VxDsp.bq();VxDsp.bp(q,fs,T[b],2.5);return q}));this.syn.push([0,1,2].map(()=>{const q=VxDsp.bq();VxDsp.bp(q,fs,T[b],2.5);return q}));
+      this.env.push(0);this.envSm.push(0);this.deemph.push(1/shelf(T[b],1000,8000))}
+    {const K=2*fs,w1=2*Math.PI*1000,w2=2*Math.PI*Math.min(8000,fs*.45),a0=1+K/w2;this.peB0=(1+K/w1)/a0;this.peB1=(1-K/w1)/a0;this.peA1=(1-K/w2)/a0;this.peX=0;this.peY=0}
+    this.c1=VxDsp.bq();VxDsp.hp(this.c1,fs,6000,1.2);this.c2=VxDsp.bq();VxDsp.hp(this.c2,fs,6000,0.707);
+    this.eA=VxDsp.ms(1,fs);this.eR=VxDsp.ms(8,fs);this.eRH=VxDsp.ms(8000,fs);this.eS=1-Math.exp(-2*Math.PI*120/fs);
+    this.mA=VxDsp.ms(2,fs);this.mR=VxDsp.ms(150,fs);this.gA=VxDsp.ms(1,fs);this.gR=VxDsp.ms(200,fs);this.dA=VxDsp.ms(3,fs);this.dR=VxDsp.ms(80,fs);
+    this.gtA=VxDsp.ms(3,fs);this.gtR=VxDsp.ms(60,fs);this.holdDecay=Math.exp(-1/(8*fs));this.holdN=Math.round(0.05*fs);this.sk=VxDsp.ms(20,fs);
+    this.dcR=Math.exp(-2*Math.PI*20/fs);this.dcX=0;this.dcY=0;this.ens=new VxEnsemble(fs);this.p=VxDsp.params();
+    this.micE=0;this.gtrE=0;this.carE=0;this.gate=0;this.gateOpen=false;this.expCv=0;this.hc=0;this.held=false;this.s=null;this.L=0;this.R=0}
+  process(voice,carrier){
+    const P=this.p,k=this.sk;if(!this.s)this.s={mic:VxDsp.db(P.micGainDb),inst:VxDsp.db(P.instGainDb),vol:VxDsp.db(P.volumeDb),ens:P.ensemble?1:0,harm:P.harmonics,cons:P.consonant,bal:P.balance,band:P.bands.slice()};
+    const S=this.s;S.mic+=k*(VxDsp.db(P.micGainDb)-S.mic);S.inst+=k*(VxDsp.db(P.instGainDb)-S.inst);S.vol+=k*(VxDsp.db(P.volumeDb)-S.vol);S.ens+=k*((P.ensemble?1:0)-S.ens);
+    S.harm+=k*(P.harmonics-S.harm);S.cons+=k*(P.consonant-S.cons);S.bal+=k*(P.balance-S.bal);for(let b=0;b<10;b++)S.band[b]+=k*(P.bands[b]-S.band[b]);
+    if(P.hold){if(this.hc<this.holdN)this.hc++;else this.held=true}else{this.hc=0;this.held=false}
+    const mic=voice*S.mic,ma=Math.abs(mic);this.micE+=(ma>this.micE?this.mA:this.mR)*(ma-this.micE);
+    if(this.held)this.expCv*=this.holdDecay;else this.expCv=this.micE;
+    const cg=Math.min(10,Math.max(0.1,Math.sqrt(0.2/Math.max(this.micE,1e-5)))),pin=this.held?0:mic*cg;
+    const ain=this.peB0*pin+this.peB1*this.peX-this.peA1*this.peY;this.peX=pin;this.peY=ain;
+    let c=carrier*S.inst;const ca=Math.abs(c);this.carE+=(ca>this.carE?this.dA:this.dR)*(ca-this.carE);
+    if(P.guitarMode){this.gtrE+=(ca>this.gtrE?this.gA:this.gR)*(ca-this.gtrE);c*=Math.min(20,Math.max(0,0.3/Math.max(this.gtrE,1e-5)));const h=VxDsp.harm(c,S.harm),y=h-this.dcX+this.dcR*this.dcY;this.dcX=h;this.dcY=y;c=y}
+    if(this.carE>0.003)this.gateOpen=true;else if(this.carE<0.0015)this.gateOpen=false;const gt=this.gateOpen?1:0;this.gate+=(gt>this.gate?this.gtA:this.gtR)*(gt-this.gate);
+    let sum=0;const rel=this.held?this.eRH:this.eR;
+    for(let b=0;b<10;b++){const A=this.ana[b];let a=VxDsp.run(A[2],VxDsp.run(A[1],VxDsp.run(A[0],ain)));a=Math.abs(a);this.env[b]+=(a>this.env[b]?this.eA:rel)*(a-this.env[b]);this.envSm[b]+=this.eS*(this.env[b]-this.envSm[b]);
+      const duty=Math.min(1,Math.max(0,(this.envSm[b]-0.001)*3)),Y=this.syn[b];let y=VxDsp.run(Y[1],VxDsp.run(Y[0],c));y=VxDsp.run(Y[2],y*duty);sum+=y*S.band[b]*this.deemph[b]}
+    let voc=sum*35*Math.min(1,this.expCv/0.2);
+    const hp=VxDsp.run(this.c2,VxDsp.run(this.c1,mic));voc+=hp*S.cons*(this.held?0:Math.min(1,this.carE/0.1));voc*=this.gate;
+    let l=voc,r=voc;this.ens.process(S.ens>1e-4?voc:0);if(S.ens>1e-4){l=voc+S.ens*(this.ens.L-voc);r=voc+S.ens*(this.ens.R-voc)}
+    const vg=Math.sin(S.bal*Math.PI/2),dg=Math.cos(S.bal*Math.PI/2);l=(l*vg+mic*dg)*S.vol;r=(r*vg+mic*dg)*S.vol;if(!P.stereo)l=r=0.5*(l+r);
+    this.L=VxDsp.soft(l,0.8);this.R=VxDsp.soft(r,0.8)}
+}
+/* ---- VX-350 SVC circuit model ---- */
+class VxCircuit{
+  constructor(fs){
+    this.factor=fs<88000?2:1;const F=fs*this.factor;this.fs=F;
+    const anaC=[0.068e-6,0.047e-6,0.033e-6,0.022e-6,0.015e-6,0.01e-6,0.0068e-6,0.0047e-6,0.0033e-6,0.0022e-6],synC=[0.056e-6,0.039e-6,0.027e-6,0.018e-6,0.012e-6,0.0082e-6,0.0056e-6,0.0039e-6,0.0027e-6,0.0018e-6];
+    this.sumR=[56e3,56e3,56e3,56e3,68e3,82e3,100e3,100e3,100e3,100e3];this.synBRinNom=22e3+6.8e3/2;
+    const mk=(R1,R2,R3,C)=>{const q=VxDsp.bq();VxCircuit.setMFB(q,F,R1,R2,R3,C);return q};
+    this.aA=[];this.aB=[];this.sA=[];this.sB=[];this.det=[];
+    for(let b=0;b<10;b++){this.aA.push(mk(33e3,1.2e3,220e3,anaC[b]));this.aB.push(mk(27e3,1e3,180e3,anaC[b]));this.sA.push(mk(180e3,1.2e3,220e3,synC[b]));this.sB.push(mk(this.synBRinNom,1e3,180e3,synC[b]));this.det.push({vc:0,v1:0,v2:0})}
+    {const w=1/(10e3*0.012e-6),K=w/Math.tan(w/(2*F)),g=-15e3/10e3;this.peB0=g*K/(K+w);this.peA1=(w-K)/(K+w);this.peX=0;this.peY=0}
+    this.hpf=[[4046.64,1.2706],[4693.82,0.62281],[4452.41,0.67085]].map(([f,q])=>{const b=VxDsp.bq(),w=2*Math.PI*f;VxCircuit.a2b(b,F,1,0,0,1,w/q,w*w);return b});
+    {const w=2*Math.PI*3175.61,K=w/Math.tan(w/(2*F));this.hp1b0=K/(K+w);this.hp1a1=(w-K)/(K+w);this.hp1x=0;this.hp1y=0}
+    {const w=1/(10e3*0.01e-6),K=w/Math.tan(w/(2*F));this.hfB0=K/(K+w);this.hfA1=(w-K)/(K+w);this.hfX=0;this.hfY=0;this.hfNode=0}
+    this.T=1/F;this.micD={vh:0,v1:0,v2:0};this.outD={vh:0,v1:0,v2:0};this.micY=0;this.outY=0;this.carDet=0;this.carA=VxDsp.ms(15,F);
+    this.gate=0;this.gateOpen=false;this.gA=VxDsp.ms(2,F);this.gR=VxDsp.ms(40,F);this.expCv=0;this.hc=0;this.held=false;this.holdN=Math.round(0.05*F);this.holdDecay=Math.exp(-1/(8.6*F));
+    this.gtr=0;this.gtrA=VxDsp.ms(1,F);this.gtrR=VxDsp.ms(200,F);this.dcR=Math.exp(-2*Math.PI*20/F);this.dcX=0;this.dcY=0;this.sk=VxDsp.ms(20,F);this.vLow=0.6;
+    this.ens=new VxEnsemble(F);this.p=VxDsp.params();this.s=null;
+    // 2x: 127-tap half-band (non-zero taps only)
+    const H=VxCircuit.HB,nz=[],hz=[];for(let k=0;k<H.length;k++)if(Math.abs(H[k])>1e-9){nz.push(k);hz.push(H[k])}this.nz=nz;this.hz=hz;
+    this.fir=[0,1,2,3].map(()=>({buf:new Float64Array(254),pos:0}));this.L=0;this.R=0}
+  static a2b(q,fs,b0,b1,b2,a0,a1,a2){const w0=Math.sqrt(a2/a0),K=w0/Math.tan(Math.min(w0/(2*fs),1.5)),K2=K*K,A0=a0*K2+a1*K+a2;
+    q.b0=(b0*K2+b1*K+b2)/A0;q.b1=2*(b2-b0*K2)/A0;q.b2=(b0*K2-b1*K+b2)/A0;q.a1=2*(a2-a0*K2)/A0;q.a2=(a0*K2-a1*K+a2)/A0}
+  static setMFB(q,fs,R1,R2,R3,C){const wt=2*Math.PI*3e6,d3=C*C*R1*R2*R3,d2=C*C*R1*R2*R3*wt+2*C*R1*R2+C*R1*R3+C*R2*R3,d1=2*C*R1*R2*wt+R1+R2,d0=(R1+R2)*wt;
+    let p=-d2/d3;for(let i=0;i<50;i++){const f=((d3*p+d2)*p+d1)*p+d0,df=(3*d3*p+2*d2)*p+d1,st=f/df;p-=st;if(Math.abs(st)<1e-9*Math.abs(p))break}
+    const e1=d2+d3*p,e0=d1+e1*p,num=-C*R2*R3*wt/(-p);VxCircuit.a2b(q,fs,0,num,0,d3,e1,e0)}
+  static rail(v){const r=13.5,a=Math.abs(v);if(a<0.8*r)return v;return Math.sign(v)*(0.8*r+0.2*r*Math.tanh((a-0.8*r)/(0.2*r)))}
+  envDet(d,vo,hold){const T=this.T,detC=0.022e-6,skR1=100e3,skR2=100e3,skC1=0.033e-6,skC2=0.022e-6,dIs=2.52e-9,nVt=1.752*0.025852,gDis=1/(hold?390e6:470e3);
+    let x=d.vc;if(vo-d.vc<0.3){const a0=detC/T;x=(a0*d.vc+d.v1/skR1)/(a0+gDis+1/skR1)}
+    else for(let it=0;it<4;it++){const vd=Math.min(vo-x,0.9),ed=Math.exp(vd/nVt),id=dIs*(ed-1),f=detC*(x-d.vc)/T-id+x*gDis+(x-d.v1)/skR1,df=detC/T+dIs*ed/nVt+gDis+1/skR1;x-=f/df}
+    d.vc=x;const a=skC1/T,b=skC2/T,g1=1/skR1,g2=1/skR2,m11=a+g1+g2,m12=-a-g2,r1=a*(d.v1-d.v2)+g1*d.vc,m21=-g2,m22=b+g2,r2=b*d.v2,det=m11*m22-m12*m21;
+    d.v1=(r1*m22-m12*r2)/det;d.v2=(m11*r2-m21*r1)/det;return d.v2}
+  compDet(d,vin,hold){const T=this.T,r=Math.abs(vin),gC=0.047e-6/T,gDis=hold?0:1/4.7e6,gA=r>d.vh?1/1e3:0;d.vh=(gC*d.vh+gA*r)/(gC+gA+gDis);
+    if(d.vh-0.55>d.v2)d.v2+=(d.vh-0.55-d.v2)*Math.min(1,T/(1e3*0.0022e-6));
+    const a=0.0033e-6/T,b=0.0022e-6/T,g1=1e-5,g2=1e-5,m11=a+g1+g2,m12=-a-g2,r1=a*(d.v1-d.v2)+g1*d.vh,m21=-g2,m22=b+g2,r2=b*d.v2,det=m11*m22-m12*m21;
+    d.v1=(r1*m22-m12*r2)/det;d.v2=(m11*r2-m21*r1)/det;return Math.max(0,d.v2)}
+  leveler(vin,venv,key){const ZT=100e3+100e3+1e8,K=(470/(270e3+470))/(2*0.025852),iabc=Math.max(0,venv)/33e3,tg=vin/98.7e3;let y=this[key];
+    for(let it=0;it<2;it++){const th=Math.tanh(K*y),f=y/ZT+iabc*th-tg,df=1/ZT+iabc*K*(1-th*th);y-=f/df;y=Math.min(20,Math.max(-20,y))}this[key]=y;return VxCircuit.rail(y)}
+  step(voice,carrier){
+    const P=this.p,k=this.sk,S=this.s,R=VxCircuit.rail,triPP=2*15*2.7/(5.6+2.7)*0.9;
+    S.mic+=k*(VxDsp.db(P.micGainDb)-S.mic);S.inst+=k*(VxDsp.db(P.instGainDb)-S.inst);S.vol+=k*(VxDsp.db(P.volumeDb)-S.vol);S.ens+=k*((P.ensemble?1:0)-S.ens);
+    S.harm+=k*(P.harmonics-S.harm);S.cons+=k*(P.consonant-S.cons);S.bal+=k*(P.balance-S.bal);for(let b=0;b<10;b++)S.band[b]+=k*(P.bands[b]-S.band[b]);
+    if(P.hold){if(this.hc<this.holdN)this.hc++;else this.held=true}else{this.hc=0;this.held=false}
+    const vmic=R(voice*10*S.mic),vEnv=this.compDet(this.micD,vmic,this.held),vComp=this.leveler(vmic,vEnv,'micY');
+    if(!this.held)this.expCv=vEnv;else this.expCv*=this.holdDecay;
+    let vPre=0;{const y=this.peB0*(vComp-this.peX)-this.peA1*this.peY;this.peX=vComp;this.peY=y;if(!this.held)vPre=R(y)}
+    let c=carrier*10*S.inst;
+    if(P.guitarMode){const a=Math.abs(c);this.gtr+=(a>this.gtr?this.gtrA:this.gtrR)*(a-this.gtr);c*=Math.min(20,Math.max(0,3/Math.max(this.gtr,1e-4)));const h=VxDsp.harm(c*0.1,S.harm)*10,y=h-this.dcX+this.dcR*this.dcY;this.dcX=h;this.dcY=y;c=R(y)}
+    c=R(c);
+    this.carDet+=this.carA*(Math.min(150/22*Math.max(-c,0),13.5)-this.carDet);const th=15*10e3/230e3;
+    if(this.carDet>th*1.1)this.gateOpen=true;else if(this.carDet<th*0.9)this.gateOpen=false;this.gate+=(this.gateOpen?this.gA:this.gR)*((this.gateOpen?1:0)-this.gate);
+    let gSum=1/100e3,iSum=0;
+    for(let b=0;b<10;b++){const a1=R(VxDsp.run(this.aA[b],vPre)),a2=R(VxDsp.run(this.aB[b],a1)),venv=this.envDet(this.det[b],a2,this.held);
+      const duty=Math.min(1,Math.max(0,(venv-this.vLow)/triPP)),s1=R(VxDsp.run(this.sA[b],c)),drive=s1*duty/(1+duty)*(this.synBRinNom/(22e3+6.8e3/(1+duty))),s2=R(VxDsp.run(this.sB[b],drive));
+      const rBot=1e3+S.band[b]*10e3,rTop=11e3-rBot,vw=s2*rBot/11e3,rw=rTop*rBot/11e3,g=1/(this.sumR[b]+rw);gSum+=g;iSum+=vw*g}
+    let h=0.22702*vPre;for(const q of this.hpf)h=VxDsp.run(q,h);{const y=this.hp1b0*(h-this.hp1x)-this.hp1a1*this.hp1y;this.hp1x=h;this.hp1y=y;h=y}
+    const dutyC=this.held?0:Math.min(1,Math.max(0,(this.carDet-this.vLow)/triPP));
+    {const hh=this.hfB0*(h-this.hfX)-this.hfA1*this.hfY;this.hfX=h;this.hfY=hh;const G1=dutyC/(6.8e3+33e3),G2=1/11e3,a=1-Math.exp(-(G1+G2)/0.0022e-6/this.fs);
+      this.hfNode+=a*((G1*hh)/(G1+G2)-this.hfNode);const rBot=1e3+S.cons*10e3,rTop=11e3-rBot,g=1/(100e3+rTop*rBot/11e3);gSum+=g;iSum+=this.hfNode*rBot/11e3*g}
+    const vSum=R(iSum/gSum*(1+100e3/1.5e3)),vOEnv=this.compDet(this.outD,vSum,false),vLev=this.leveler(vSum,vOEnv,'outY');
+    const voc=vLev*Math.min(this.expCv/10,1.5)*this.gate/10;
+    this.ens.process(S.ens>1e-4?voc:0);let l=voc+S.ens*(this.ens.L-voc),r=voc+S.ens*(this.ens.R-voc);
+    const dry=vmic/10,vg=Math.sin(S.bal*Math.PI/2),dg=Math.cos(S.bal*Math.PI/2);l=(l*vg+dry*dg)*S.vol;r=(r*vg+dry*dg)*S.vol;if(!P.stereo)l=r=0.5*(l+r);
+    this.oL=VxDsp.soft(l,0.8);this.oR=VxDsp.soft(r,0.8)}
+  firPush(f,x){f.pos=(f.pos+126)%127;f.buf[f.pos]=f.buf[f.pos+127]=x}
+  firOut(f){let acc=0;const b=f.buf,p=f.pos,nz=this.nz,hz=this.hz;for(let i=0;i<nz.length;i++)acc+=hz[i]*b[p+nz[i]];return acc}
+  process(voice,carrier){
+    const P=this.p;if(!this.s)this.s={mic:VxDsp.db(P.micGainDb),inst:VxDsp.db(P.instGainDb),vol:VxDsp.db(P.volumeDb),ens:P.ensemble?1:0,harm:P.harmonics,cons:P.consonant,bal:P.balance,band:P.bands.slice()};
+    if(this.factor===1){this.step(voice,carrier);this.L=this.oL;this.R=this.oR;return}
+    const [uV,uC,dL,dR]=this.fir;
+    this.firPush(uV,2*voice);const v0=this.firOut(uV);this.firPush(uV,0);const v1=this.firOut(uV);
+    this.firPush(uC,2*carrier);const c0=this.firOut(uC);this.firPush(uC,0);const c1=this.firOut(uC);
+    this.step(v0,c0);this.firPush(dL,this.oL);this.firPush(dR,this.oR);this.step(v1,c1);this.firPush(dL,this.oL);this.firPush(dR,this.oR);
+    this.L=VxDsp.soft(this.firOut(dL),0.9);this.R=VxDsp.soft(this.firOut(dR),0.9)}
+  static HB=[-1.4312955212e-05,-1.5896435997e-08,2.3687908834e-05,8.6212468188e-09,-4.2587036693e-05,-4.6936576562e-08,7.0847325091e-05,4.7601995464e-08,-1.1135922590e-04,-9.5612520489e-08,1.6776892255e-04,1.1365945542e-07,-2.4417767030e-04,-1.8454245198e-07,3.4554367973e-04,2.1572517139e-07,-4.7735920416e-04,-3.0959578192e-07,6.4607380070e-04,3.7192803994e-07,-8.5877124131e-04,-4.9053331378e-07,1.1236115821e-03,5.7227949030e-07,-1.4495504906e-03,-7.1838036555e-07,1.8468561249e-03,8.3338939003e-07,-2.3269311867e-03,-1.0053803049e-06,2.9029967183e-03,1.1393516436e-06,-3.5901815192e-03,-1.3310819614e-06,4.4065940785e-03,1.4864892213e-06,-5.3740115800e-03,-1.6932851157e-06,6.5198885995e-03,1.8563843453e-06,-7.8795465192e-03,-2.0662197099e-06,9.5006239393e-03,2.2307748074e-06,-1.1449450651e-02,-2.4364017327e-06,1.3822975909e-02,2.5874421431e-06,-1.6769280557e-02,-2.7688099108e-06,2.0528113717e-02,2.8914165620e-06,-2.5514575810e-02,-3.0444544301e-06,3.2515555907e-02,3.1366892195e-06,-4.3221524510e-02,-3.2498326557e-06,6.2036006122e-02,3.2925685089e-06,-1.0512045301e-01,-3.3523473028e-06,3.1798107152e-01,5.0000334308e-01,3.1798107152e-01,-3.3523473028e-06,-1.0512045301e-01,3.2925685089e-06,6.2036006122e-02,-3.2498326557e-06,-4.3221524510e-02,3.1366892195e-06,3.2515555907e-02,-3.0444544301e-06,-2.5514575810e-02,2.8914165620e-06,2.0528113717e-02,-2.7688099108e-06,-1.6769280557e-02,2.5874421431e-06,1.3822975909e-02,-2.4364017327e-06,-1.1449450651e-02,2.2307748074e-06,9.5006239393e-03,-2.0662197099e-06,-7.8795465192e-03,1.8563843453e-06,6.5198885995e-03,-1.6932851157e-06,-5.3740115800e-03,1.4864892213e-06,4.4065940785e-03,-1.3310819614e-06,-3.5901815192e-03,1.1393516436e-06,2.9029967183e-03,-1.0053803049e-06,-2.3269311867e-03,8.3338939003e-07,1.8468561249e-03,-7.1838036555e-07,-1.4495504906e-03,5.7227949030e-07,1.1236115821e-03,-4.9053331378e-07,-8.5877124131e-04,3.7192803994e-07,6.4607380070e-04,-3.0959578192e-07,-4.7735920416e-04,2.1572517139e-07,3.4554367973e-04,-1.8454245198e-07,-2.4417767030e-04,1.1365945542e-07,1.6776892255e-04,-9.5612520489e-08,-1.1135922590e-04,4.7601995464e-08,7.0847325091e-05,-4.6936576562e-08,-4.2587036693e-05,8.6212468188e-09,2.3687908834e-05,-1.5896435997e-08,-1.4312955212e-05];
+}
+/* ---- the Talker pedal: six programs, with its preamps, converters and output stage ---- */
+class TalkerPedal{
+  static MODES=[ // bands fLo fHi q shift atk rel whiten drive agc sib wah growl ring smooth auto trim
+    [20,100,7500,1.0,1.00,1.5,18,0.8,2.5,0.7,0.5,0.0,0.0,0.0,0.0,0,1.60],[12,150,5000,1.0,1.00,3.0,35,0.5,2.0,0.6,0.1,1.0,0.0,0.0,0.0,0,2.80],
+    [16,90,6000,1.3,0.72,1.0,12,0.8,8.0,0.8,0.2,0.0,0.7,0.0,0.0,0,0.60],[14,120,5500,1.8,1.00,4.0,40,0.6,3.0,0.7,0.15,0.0,0.0,0.0,0.5,0,2.80],
+    [18,100,7000,1.2,1.55,1.0,15,0.8,3.0,0.7,0.3,0.0,0.0,0.6,0.0,0,2.40],[14,120,5500,1.8,1.00,4.0,40,0.5,3.0,0.6,0.0,0.0,0.0,0.0,0.4,1,1.00]];
+  static NAMES=['NuVo','NuWah','TazMania','TalkBox','Alien','AutoTalk'];
+  constructor(fs){this.fs=fs;const c=ms=>1-Math.exp(-1/(fs*ms*0.001));this.c=c;
+    this.cAtk=c(5);this.cRel=c(250);this.gateC=c(5);this.envCC=c(30);this.fastAtk=c(1);this.fastRel=c(20);this.slowC=c(40);this.fadeStep=1/(0.008*fs);
+    this.wahSmooth=1-Math.exp(-16/(0.03*fs));this.glide=1-Math.exp(-16/(0.12*fs));this.sib1=TalkerPedal.svf();this.sib2=TalkerPedal.svf();TalkerPedal.svfSet(this.sib1,4500,0.707,fs);TalkerPedal.svfSet(this.sib2,4500,0.707,fs);
+    this.gInc=2*Math.PI*31/fs;this.gInc2=2*Math.PI*7.3/fs;this.rInc=2*Math.PI*95/fs;this.gPh=0;this.gPh2=0;this.rPh=0;this.wah=TalkerPedal.svf();
+    this.mode=0;this.pending=0;this.fade=1;this.carE=0;this.gate=0;this.fastE=0;this.slowE=0;this.refr=0;this.cd=0;this.bands=[];this.apply(0);
+    this.knob={mic:.5,inst:.5,out:.7};this.sk={mic:.5,inst:.5,out:.7};this.smooth=1-Math.exp(-1/(0.03*fs));
+    // analog I/O (volts; codec 2.83 V peak)
+    const cc=(R,C)=>({a:Math.exp(-1/(R*C*fs)),z:0});this.micCap=cc(20e3,0.82e-6);this.instCap=cc(500e3,33e-9);this.outCap=cc(10e3,10e-6);
+    const corner=Math.atan(Math.tan(Math.PI*14.5e3/fs)/0.9464)*fs/Math.PI;const bw8=()=>[0,1,2,3].map(k=>{const q=VxDsp.bq();VxDsp.lp(q,fs,corner,1/(2*Math.cos((2*k+1)*Math.PI/16)));return q});
+    this.adcM=bw8();this.adcI=bw8();this.dac=bw8();this.rng1=0x1234567;this.rng2=0x89abcdef;this.L=0}
+  static svf(){return {a1:0,a2:0,a3:0,k:1,ic1:0,ic2:0}}
+  static svfSet(s,f,q,fs){const g=Math.tan(Math.PI*Math.min(Math.max(f,10),0.45*fs)/fs),k=1/q,b1=1/(1+g*(g+k));s.k=k;s.a1=b1;s.a2=g*b1;s.a3=g*g*b1}
+  static svfTick(s,v0){const v3=v0-s.ic2,v1=s.a1*s.ic1+s.a2*v3,v2=s.ic2+s.a2*s.ic1+s.a3*v3;s.ic1=2*v1-s.ic1;s.ic2=2*v2-s.ic2;return [v2,s.k*v1,v0-s.k*v1-v2]}
+  apply(m){this.mode=m;const S=TalkerPedal.MODES[m],fs=this.fs,n=S[0],r=Math.pow(S[2]/S[1],1/(n-1)),q=S[3]/(Math.sqrt(r)-1/Math.sqrt(r));this.bands=[];
+    for(let k=0;k<n;k++){const f=S[1]*Math.pow(r,k),b={an1:TalkerPedal.svf(),an2:TalkerPedal.svf(),sy1:TalkerPedal.svf(),sy2:TalkerPedal.svf(),envM:0,envC:0,g:0,gStep:0,freq:f,lf:Math.log2(f)};
+      TalkerPedal.svfSet(b.an1,f,q,fs);TalkerPedal.svfSet(b.an2,f,q,fs);TalkerPedal.svfSet(b.sy1,f*S[4],q,fs);TalkerPedal.svfSet(b.sy2,f*S[4],q,fs);this.bands.push(b)}
+    this.envAtk=this.c(S[5]);this.envRel=this.c(S[6]);this.wah=TalkerPedal.svf();this.wahF=700;TalkerPedal.svfSet(this.wah,700,6,fs);
+    this.vi=0;this.mouth=0;this.form=[250,700,2200].map(Math.log2);this.formT=[730,1090,2440].map(Math.log2);this.cd=0}
+  setMode(m){this.pending=Math.max(0,Math.min(5,m|0))}
+  engine(mic,inst){
+    if(this.pending!==this.mode){this.fade-=this.fadeStep;if(this.fade<=0){this.fade=0;this.apply(this.pending)}}else if(this.fade<1)this.fade=Math.min(1,this.fade+this.fadeStep);
+    const S=TalkerPedal.MODES[this.mode],a=Math.abs(inst);this.carE+=(a>this.carE?this.cAtk:this.cRel)*(a-this.carE);
+    const agc=Math.min(16,0.3/(this.carE+1e-6));let car=inst*Math.pow(agc,S[9]);car=Math.tanh(S[8]*car)*0.5;
+    const gt=Math.min(1,Math.max(0,(this.carE-0.0005)/0.0015));this.gate+=this.gateC*(gt-this.gate);
+    if(S[15]){this.fastE+=(a>this.fastE?this.fastAtk:this.fastRel)*(a-this.fastE);this.slowE+=this.slowC*(a-this.slowE);
+      if(this.refr>0)this.refr--;else if(this.fastE>1.8*this.slowE+0.002){const V=[[730,1090,2440],[570,840,2410],[530,1840,2480],[730,1090,2440],[270,2290,3010],[640,1190,2390]];
+        this.vi=(this.vi+1)%6;this.form=[250,700,2200].map(Math.log2);this.formT=V[this.vi].map(Math.log2);this.mouth=0.3;this.refr=Math.round(0.12*this.fs)}}
+    if(--this.cd<=0){this.cd=16;this.control(S)}
+    let sum=0;const B=this.bands,n=B.length;
+    for(let k=0;k<n;k++){const b=B[k];if(!S[15]){const m=Math.abs(TalkerPedal.svfTick(b.an2,TalkerPedal.svfTick(b.an1,mic)[1])[1]);b.envM+=(m>b.envM?this.envAtk:this.envRel)*(m-b.envM)}
+      const c=TalkerPedal.svfTick(b.sy2,TalkerPedal.svfTick(b.sy1,car)[1])[1];b.envC+=this.envCC*(Math.abs(c)-b.envC);b.g+=b.gStep;sum+=c*b.g}
+    let y=sum*9*Math.sqrt(n);
+    if(S[11]>0)y=y*0.6+TalkerPedal.svfTick(this.wah,car)[1]*S[11]*0.8;
+    if(S[12]>0){this.gPh=(this.gPh+this.gInc)%(2*Math.PI);this.gPh2=(this.gPh2+this.gInc2)%(2*Math.PI);const d=S[12]*(0.6+0.4*Math.sin(this.gPh2));y*=1-d*0.5*(1+Math.sin(this.gPh));y*=1.5}
+    if(S[13]>0){this.rPh=(this.rPh+this.rInc)%(2*Math.PI);y=y*(1-S[13])+y*Math.sin(this.rPh)*S[13]*1.4}
+    if(S[10]>0)y+=TalkerPedal.svfTick(this.sib2,TalkerPedal.svfTick(this.sib1,mic)[2])[2]*S[10]*1.5;
+    y*=this.gate*this.fade*S[16];const ay=Math.abs(y);return ay<=0.8?y:Math.sign(y)*(0.8+0.2*Math.tanh((ay-0.8)/0.2))}
+  control(S){const B=this.bands,n=B.length,e=new Array(n);
+    if(S[15]){for(let j=0;j<3;j++)this.form[j]+=this.glide*(this.formT[j]-this.form[j]);this.mouth+=this.glide*(1-this.mouth);
+      for(let k=0;k<n;k++){let g=0;const f=B[k].freq;[1,0.7,0.4].forEach((am,j)=>{const F=Math.pow(2,this.form[j]),d=(f-F)/(0.2*F);g+=am/(1+d*d)});e[k]=0.14*this.mouth*g}}
+    else for(let k=0;k<n;k++)e[k]=B[k].envM;
+    if(S[14]>0){const sm=e.slice();for(let k=0;k<n;k++){const l=e[Math.max(0,k-1)],r=e[Math.min(n-1,k+1)];sm[k]=(1-S[14])*e[k]+S[14]*0.5*(l+r)}for(let k=0;k<n;k++)e[k]=sm[k]}
+    let meanC=0;for(const b of B)meanC+=b.envC;meanC/=n;
+    for(let k=0;k<n;k++){const b=B[k],w=Math.min(8,Math.max(0.25,Math.pow((meanC+1e-6)/(b.envC+1e-6),S[7])));b.gStep=(e[k]*w-b.g)/16}
+    if(S[11]>0){let num=0,den=0;for(const b of B){num+=b.envM*b.lf;den+=b.envM}if(den>1e-4){const t=Math.min(2400,Math.max(300,Math.pow(2,num/den)*0.7));this.wahF+=this.wahSmooth*(t-this.wahF);TalkerPedal.svfSet(this.wah,this.wahF,6,this.fs)}}}
+  // volts in (mic 0.5 V per unit, instrument 1 V), volts out
+  process(voice,inst){const sk=this.sk,K=this.knob,s=this.smooth;sk.mic+=s*(K.mic-sk.mic);sk.inst+=s*(K.inst-sk.inst);sk.out+=s*(K.out-sk.out);
+    const pre=(cap,v,knob,lo,hi)=>{cap.z=v+cap.a*(cap.z-v);const x=v-cap.z,gMin=2.83/(Math.pow(10,lo/20)*Math.SQRT2),g=gMin*Math.pow(10,(lo-hi)*Math.min(1,Math.max(0,knob))/20),y=g*x,a=Math.abs(y);return a<=5.85?y:Math.sign(y)*(5.85+0.65*Math.tanh((a-5.85)/0.65))};
+    const adc=(f,v,seed)=>{let x=Math.min(1,Math.max(-1,v/2.83));this[seed]^=this[seed]<<13;this[seed]^=this[seed]>>>17;this[seed]^=this[seed]<<5;x+=((this[seed]>>>0)/4294967295*2-1)*3e-5;for(const q of f)x=VxDsp.run(q,x);return x};
+    const m=adc(this.adcM,pre(this.micCap,voice*0.5,sk.mic,15,-34),'rng1'),i=adc(this.adcI,pre(this.instCap,inst,sk.inst,15,-14),'rng2');
+    let y=Math.min(1,Math.max(-1,this.engine(m,i)));for(const q of this.dac)y=VxDsp.run(q,y);
+    const taper=(Math.pow(10,2*Math.min(1,Math.max(0,sk.out)))-1)/99,buf=Math.pow(10,11.3/20)*Math.SQRT2/2.83;let v=y*2.83*taper*buf;const av=Math.abs(v);if(av>5.85)v=Math.sign(v)*(5.85+0.65*Math.tanh((av-5.85)/0.65));
+    this.outCap.z=v+this.outCap.a*(this.outCap.z-v);this.L=v-this.outCap.z}
+}
+
 class FarpDSP{
   constructor(fs){
     this.fs=fs;this.p={};
@@ -1392,6 +1608,10 @@ class FarpDSP{
     this.scope=new Float32Array(1024);this.si=0;this.post=null;
     this.upd();
   }
+  capFlush(last){const C=this.cap;if(!C||(!C.n&&!last))return;const L=[],Rr=[];
+    for(let k=0;k<11;k++){let pk=0;const a=C.L[k],b=C.R[k];for(let i=0;i<C.n;i++){const v=Math.abs(a[i])+Math.abs(b[i]);if(v>pk)pk=v}
+      L.push(pk>1e-7?a.slice(0,C.n):null);Rr.push(pk>1e-7?b.slice(0,C.n):null)}
+    if(this.post)this.post({t:'cap',n:C.n,L,R:Rr,last:!!last});C.n=0}
   rnd(){this.seed=(this.seed*1664525+1013904223)>>>0;return this.seed/4294967296-0.5}
   msg(m){
     if((m.t==='on'||m.t==='off')&&m.at>0){this.q.push(m);return}
@@ -1399,6 +1619,11 @@ class FarpDSP{
     if(m.t==='p5'){Object.assign(this.p5.p,m.p);return}
     if(m.t==='e2'){Object.assign(this.e2.p,m.p);return}
     if(m.t==='e2z'){this.e2.setZones(m.z);return}
+    if(m.t==='voc'){const V=this.voc||(this.voc={on:0,eng:'clear',ch:-1,E:{}});Object.assign(V,{on:m.on,eng:m.eng,ch:m.ch});
+      if(m.on){const fs=this.fs;if(!V.E[m.eng])V.E[m.eng]=m.eng==='svc'?new VxCircuit(fs):m.eng==='talker'?new TalkerPedal(fs):new VxClear(fs);const E=V.E[m.eng];
+        if(m.p&&E.p)Object.assign(E.p,m.p);if(m.tk&&E.knob){E.setMode(m.tk.mode);E.knob.mic=m.tk.mic;E.knob.inst=m.tk.inst;E.knob.out=m.tk.out}}
+      return}
+    if(m.t==='cap'){if(m.on){this.cap={n:0,L:[],R:[]};for(let k=0;k<11;k++){this.cap.L.push(new Float32Array(4096));this.cap.R.push(new Float32Array(4096))}}else if(this.cap){this.capFlush(true);this.cap=null}return}
     if(m.t==='eng'){const E=this.ins[m.i];if(!E)return;
       if(m.op==='load'){if(m.i==='p5r3')E.load(m.rom,m.nv);else if(m.i==='six')E.load(m.rom,m.a,m.b);if(this.post)this.post({t:'eng',i:m.i,loaded:E.loaded})}
       else if(m.op==='unload'){E.allOff&&E.allOff();E.loaded=false}
@@ -1449,7 +1674,7 @@ class FarpDSP{
     this.cDamp=op(Math.min(4500,this.lfs*0.4));
     this.rvFb=0.70+0.27*g('rvSize');
   }
-  process(oL,oR,N,t0,inL,inR,rtL,rtR,sOut){
+  process(oL,oR,N,t0,inL,inR,rtL,rtR,sOut,vIn){
     const now=(t0!==undefined&&t0>0)?t0:this.frames/this.fs;
     if(this.q.length){const end=now+N/this.fs;const due=[],keep=[];for(const e of this.q)(e.at<end?due:keep).push(e);
       if(due.length){due.sort((a,b)=>a.at-b.at||(a.t==='off'?-1:1));this.q=keep;for(const e of due)this.apply(e)}}
@@ -1602,17 +1827,25 @@ class FarpDSP{
       this.cw=(this.cw+1)%this.cl;
       // ---- mixer: strings (chorus out), synth, bass, pads; fader, balance, FX send ----
       const MX=this.mx,MG=MX.g,MBL=MX.bl,MBR=MX.br,MSD=MX.s,MPK=MX.pk;
-      const mSL=(outs[0]*0.45+outs[1]*0.33+outs[2]*0.22)*1.35*vol,mSR=(outs[2]*0.45+outs[1]*0.33+outs[0]*0.22)*1.35*vol;
-      const mSy=(chs?0:synOut)*vol,mBa=bassOut*vol,IO=this.iout;IO[4]=IO[5]=IO[6]=IO[7]=IO[8]=0;
+      let mSL=(outs[0]*0.45+outs[1]*0.33+outs[2]*0.22)*1.35*vol,mSR=(outs[2]*0.45+outs[1]*0.33+outs[0]*0.22)*1.35*vol;
+      let mSy=(chs?0:synOut)*vol,mBa=bassOut*vol;const IO=this.iout;IO[4]=IO[5]=IO[6]=IO[7]=IO[8]=0;
       for(let j=0;j<this.insList.length;j++){const k=this.insList[j],E=this.ins[k];if(E.active())IO[this.insCh[k]]+=E.tick()*vol}let mPL=inL?inL[i]:0,mPR=inL?(inR||inL)[i]:0;if(!(mPL===mPL&&Math.abs(mPL)<8))mPL=0;if(!(mPR===mPR&&Math.abs(mPR)<8))mPR=0;
+      // ---- vocoder: the voice (input 3) shapes the chosen carrier channel, whose output it replaces ----
+      let vcL=0,vcR=0,vcCh=-2;const VO=this.voc;
+      if(VO&&VO.on){const E=VO.E[VO.eng];if(E){let vv=vIn?vIn[i]:0;if(!(vv===vv&&Math.abs(vv)<8))vv=0;const ch=VO.ch;let car;
+        if(ch<0){car=(mSL+mSR)*0.5+mSy+mBa;mSL=mSR=mSy=mBa=0}else if(ch===0){car=(mSL+mSR)*0.5;mSL=mSR=0}else if(ch===1){car=mSy;mSy=0}else if(ch===2){car=mBa;mBa=0}else{car=IO[ch];IO[ch]=0}
+        if(VO.eng==='talker'){E.process(vv,car*2);vcL=vcR=E.L*0.35}else{E.process(vv,car);vcL=E.L;vcR=E.R}vcCh=ch<0?0:ch}}
       const mAL=mSL*MG[0]*MBL[0],mAR=mSR*MG[0]*MBR[0],mBL=mSy*MG[1]*MBL[1],mBR=mSy*MG[1]*MBR[1],mCL=mBa*MG[2]*MBL[2],mCR=mBa*MG[2]*MBR[2],mEL=mPL*MG[3]*MBL[3],mER=mPR*MG[3]*MBR[3];
       let mFx=(mSL+mSR)*0.5*MG[0]*MSD[0]+mSy*MG[1]*MSD[1]+mBa*MG[2]*MSD[2]+(mPL+mPR)*0.5*MG[3]*MSD[3];
-      let dL=mAL+mBL+mCL+mEL,dR=mAR+mBR+mCR+mER;
-      for(let j=4;j<9;j++){const x=IO[j];if(x===0)continue;const g=x*MG[j];dL+=g*MBL[j];dR+=g*MBR[j];mFx+=g*MSD[j];const a=Math.abs(g);if(a>MPK[j])MPK[j]=a}
+      let dL=mAL+mBL+mCL+mEL,dR=mAR+mBR+mCR+mER;const CP=this.cap,cn=CP?CP.n:0;
+      if(CP){CP.L[0][cn]=mAL;CP.R[0][cn]=mAR;CP.L[1][cn]=mBL;CP.R[1][cn]=mBR;CP.L[2][cn]=mCL;CP.R[2][cn]=mCR;CP.L[3][cn]=mEL;CP.R[3][cn]=mER}
+      for(let j=4;j<9;j++){const x=IO[j];if(CP){CP.L[j][cn]=0;CP.R[j][cn]=0}if(x===0)continue;const g=x*MG[j];dL+=g*MBL[j];dR+=g*MBR[j];mFx+=g*MSD[j];const a=Math.abs(g);if(a>MPK[j])MPK[j]=a;if(CP){CP.L[j][cn]=g*MBL[j];CP.R[j][cn]=g*MBR[j]}}
+      if(vcCh>-2){const g=MG[vcCh],a=vcL*g*MBL[vcCh],b=vcR*g*MBR[vcCh];dL+=a;dR+=b;mFx+=(vcL+vcR)*0.5*g*MSD[vcCh];const pk=Math.max(Math.abs(a),Math.abs(b));if(pk>MPK[vcCh])MPK[vcCh]=pk;if(CP){CP.L[vcCh][cn]+=a;CP.R[vcCh][cn]+=b}}
+      let fxL=0,fxR=0;
       let mv;mv=Math.max(Math.abs(mAL),Math.abs(mAR));if(mv>MPK[0])MPK[0]=mv;mv=Math.abs(mSy*MG[1]);if(mv>MPK[1])MPK[1]=mv;mv=Math.abs(mBa*MG[2]);if(mv>MPK[2])MPK[2]=mv;mv=Math.max(Math.abs(mEL),Math.abs(mER));if(mv>MPK[3])MPK[3]=mv;
       // ---- studio rack: the send leaves on output 2, the rack's return comes back on input 2 ----
       if(sOut)sOut[i]=mFx;
-      if(rtL){let a=rtL[i],b=rtR?rtR[i]:a;if(!(a===a&&Math.abs(a)<8))a=0;if(!(b===b&&Math.abs(b)<8))b=0;a*=MX.bus*MX.busL;b*=MX.bus*MX.busR;dL+=a;dR+=b;mv=Math.max(Math.abs(a),Math.abs(b));if(mv>MPK[11])MPK[11]=mv}
+      if(rtL){let a=rtL[i],b=rtR?rtR[i]:a;if(!(a===a&&Math.abs(a)<8))a=0;if(!(b===b&&Math.abs(b)<8))b=0;a*=MX.bus*MX.busL;b*=MX.bus*MX.busR;dL+=a;dR+=b;fxL+=a;fxR+=b;mv=Math.max(Math.abs(a),Math.abs(b));if(mv>MPK[11])MPK[11]=mv}
       // ---- DFX-84: 12-bit, reduced-rate effects processor ----
       let yL=dL,yR=dR;
       if(fxMix>0){
@@ -1661,13 +1894,14 @@ class FarpDSP{
         this.fpostL+=this.cFx*(this.fxL-this.fpostL);this.fpostL2+=this.cFx*(this.fpostL-this.fpostL2);
         this.fpostR+=this.cFx*(this.fxR-this.fpostR);this.fpostR2+=this.cFx*(this.fpostR-this.fpostR2);
         const rg=fxMix*MX.bus,rL=this.fpostL2*rg*MX.busL,rR=this.fpostR2*rg*MX.busR;
-        yL=dL+rL;yR=dR+rR;mv=Math.max(Math.abs(rL),Math.abs(rR));if(mv>MPK[11])MPK[11]=mv;
+        yL=dL+rL;yR=dR+rR;fxL+=rL;fxR+=rR;mv=Math.max(Math.abs(rL),Math.abs(rR));if(mv>MPK[11])MPK[11]=mv;
       }
       // master fader and output stage soft limit
       yL*=MX.master;yR*=MX.master;
       yL=yL/(1+Math.abs(yL)*0.3);yR=yR/(1+Math.abs(yR)*0.3);
       mv=Math.abs(yL);if(mv>MPK[9])MPK[9]=mv;mv=Math.abs(yR);if(mv>MPK[10])MPK[10]=mv;
       oL[i]=yL;oR[i]=yR;
+      if(CP){CP.L[9][cn]=fxL;CP.R[9][cn]=fxR;CP.L[10][cn]=yL;CP.R[10][cn]=yR;if(++CP.n>=4096)this.capFlush(false)}
       this.scope[this.si++]=yL;
       if(this.si>=1024){this.si=0;if(this.post){let st=null;if(++this.stN>=4){this.stN=0;st={};if(this.p5r3.loaded)st.p5r3=this.p5r3.state();if(this.six.loaded)st.six=this.six.state();if(this.p5r3.m.nvDirty||this.six.m.nvDirty){st.nvDirty=1}}this.post({t:'scope',d:this.scope.slice(0),m:MPK.slice(0),st})}MPK.fill(0);}
     }
@@ -1951,10 +2185,10 @@ async function powerUp(){
   kickAudio();
   let node=null;
   try{
-    const src=[WmsDsp,P5Engine,E2Engine,Z80,Pit8253,P5Machine,P5Voices,P5R3Engine,SixtrakMachine,SixtrakEngine,DXEngine,CZEngine,FarpDSP].map(c=>c.toString()).join("\n")+"\nclass FarpProc extends AudioWorkletProcessor{constructor(){super();this.d=new FarpDSP(sampleRate);this.port.onmessage=e=>this.d.msg(e.data);this.d.post=m=>this.port.postMessage(m);}process(i,o){const out=o[0],inp=i[0],rt=i[1],so=o[1]&&o[1][0];this.d.process(out[0],out[1]||out[0],out[0].length,currentTime,inp&&inp[0],inp&&(inp[1]||inp[0]),rt&&rt[0],rt&&(rt[1]||rt[0]),so);return true;}}\nregisterProcessor('farp',FarpProc);";
+    const src=[WmsDsp,P5Engine,E2Engine,Z80,Pit8253,P5Machine,P5Voices,P5R3Engine,SixtrakMachine,SixtrakEngine,DXEngine,CZEngine,VxDsp,VxEnsemble,VxClear,VxCircuit,TalkerPedal,FarpDSP].map(c=>c.toString()).join("\n")+"\nclass FarpProc extends AudioWorkletProcessor{constructor(){super();this.d=new FarpDSP(sampleRate);this.port.onmessage=e=>this.d.msg(e.data);this.d.post=m=>this.port.postMessage(m);}process(i,o){const out=o[0],inp=i[0],rt=i[1],vi=i[2],so=o[1]&&o[1][0];this.d.process(out[0],out[1]||out[0],out[0].length,currentTime,inp&&inp[0],inp&&(inp[1]||inp[0]),rt&&rt[0],rt&&(rt[1]||rt[0]),so,vi&&vi[0]);return true;}}\nregisterProcessor('farp',FarpProc);";
     const url=URL.createObjectURL(new Blob([src],{type:'application/javascript'}));
     await ctx.audioWorklet.addModule(url);
-    node=new AudioWorkletNode(ctx,'farp',{numberOfInputs:2,numberOfOutputs:2,outputChannelCount:[2,1],channelCount:2,channelCountMode:'explicit'});
+    node=new AudioWorkletNode(ctx,'farp',{numberOfInputs:3,numberOfOutputs:2,outputChannelCount:[2,1],channelCount:2,channelCountMode:'explicit'});
     node.port.onmessage=e=>onDsp(e.data);
     send=m=>node.port.postMessage(m);
   }catch(err){
@@ -2118,8 +2352,8 @@ document.getElementById('learnClr').onclick=()=>{CCMAP={...DEFCC};LS.set('farp_c
 /* ===================== Wiring ===================== */
 buildPanel();buildKbd();
 /* ===================== Screens ===================== */
-const SCREENS_WIDE=[['play','PLAY'],['panel','PANEL'],['fx','EFFECTS'],['seq','SEQUENCER'],['pads','PADS'],['inst','INSTRUMENTS'],['mix','MIXER'],['midi','MIDI']];
-const SCREENS_NARROW=[['play','PLAY'],['strings','STR'],['synth','SYN'],['bass','BASS'],['fx','FX'],['seq','SEQ'],['pads','PADS'],['inst','INST'],['mix','MIX'],['midi','MIDI']];
+const SCREENS_WIDE=[['play','PLAY'],['panel','PANEL'],['fx','EFFECTS'],['seq','SEQUENCER'],['pads','PADS'],['inst','INSTRUMENTS'],['mix','MIXER'],['file','FILES · MIDI']];
+const SCREENS_NARROW=[['play','PLAY'],['strings','STR'],['synth','SYN'],['bass','BASS'],['fx','FX'],['seq','SEQ'],['pads','PADS'],['inst','INST'],['mix','MIX'],['file','I/O']];
 let wide=null,screen='play';
 function isWide(){return window.innerWidth>=1000&&window.innerHeight>=620}
 function showScreen(id){
@@ -2271,7 +2505,7 @@ function seqStop(){
   if(!playing)return;
   playing=false;clearInterval(timer);send({t:'clearq'});
   const keys=new Set();SEQ.patterns.forEach(p=>p.notes.forEach(n=>keys.add(n.k)));
-  keys.forEach(k=>{if(!held.has(k)){send({t:'off',n:routeKey(k).n});markKey(k,false)}});
+  keys.forEach(k=>{if(!held.has(k)){const r=routeKey(k);send({t:'off',n:r.n,inst:r.i});markKey(k,false)}});
   document.getElementById('sqPlay').classList.remove('on');
   queued=null;stopAt=0;renderPats();renderSong();gridDraw();
 }
@@ -3484,17 +3718,18 @@ const INST=[
   {id:'six',chip:'6-TRAK',name:'Six-Trak firmware on an emulated Z80',rom:'sixtrak'},
   {id:'dx',chip:'FM-4',name:'4-operator FM playing the DX100’s ROM voices',rom:'dx100'},
   {id:'cz',chip:'PD-8',name:'Phase distortion playing CZ-101 / CZ-230S tones',rom:'cz'},
+  {id:'voc',chip:'VOCODER',name:'VX-350 and Talker vocoders, with speech'},
   {id:'roms',chip:'ROMS',name:'ROM path'}];
 let iSel=LS.get('farp_isel',''),iTab={};window.KEYS_INST=LS.get('farp_keys','');
 const chipsEl=document.getElementById('iChips'),panel=document.getElementById('iPanel');
 function fwRun(){const use=new Set([window.KEYS_INST]);if(window.SPLIT&&SPLIT.on)['lo','hi'].forEach(z=>{const v=SPLIT[z].inst;use.add(v===undefined||v==='keys'?window.KEYS_INST:v)});
   ['p5r3','six'].forEach(i=>engSend({t:'eng',i,op:'run',v:use.has(i)?1:0}))}
 window.fwRun=fwRun;window.addEventListener('farp-power',()=>setTimeout(fwRun,50));
-function setKeys(id){window.KEYS_INST=id;LS.set('farp_keys',id);setTimeout(fwRun,0);if(window.panic)panic();lcdParam('Keys',(INST.find(x=>x.id===id)||INST[0]).chip);if(window.renderSplit)renderSplit()}
+function setKeys(id){window.KEYS_INST=id;LS.set('farp_keys',id);setTimeout(fwRun,0);if(window.panic)panic();lcdParam('Keys',(INST.find(x=>x.id===id)||INST[0]).chip);if(window.renderSplit)renderSplit();if(window.vocPush)vocPush()}
 function chips(){chipsEl.innerHTML='';INST.forEach(it=>{const b=document.createElement('button');b.textContent=it.chip;b.setAttribute('role','tab');
-  b.setAttribute('aria-selected',String(it.id===iSel));if(it.id!=='roms'&&it.id===KEYS_INST)b.classList.add('keys');
+  b.setAttribute('aria-selected',String(it.id===iSel));if(it.id!=='roms'&&it.id!=='voc'&&it.id===KEYS_INST)b.classList.add('keys');
   if(it.rom&&!(it.rom==='cz'?(ROMS.cz101||ROMS.cz230s):ROMS[it.rom]))b.classList.add('norom');
-  b.onclick=()=>{iSel=it.id;LS.set('farp_isel',iSel);if(it.id!=='roms')setKeys(it.id);instRefresh()};chipsEl.appendChild(b)})}
+  b.onclick=()=>{iSel=it.id;LS.set('farp_isel',iSel);if(it.id!=='roms'&&it.id!=='voc')setKeys(it.id);instRefresh()};chipsEl.appendChild(b)})}
 const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e};
 function head(it,extra){const h=el('div','ihead');const t=el('div','ititle');t.appendChild(el('b','',it.chip));t.appendChild(el('span','',it.name));h.appendChild(t);if(extra)h.appendChild(extra);return h}
 function tabs(id,names,onSel){const w=el('div','petabs itabs');const cur=iTab[id]||names[0];names.forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(n===cur));b.onclick=()=>{iTab[id]=n;instRefresh()};w.appendChild(b)});return [w,cur]}
@@ -3552,6 +3787,7 @@ function instRefresh(){
     p.innerHTML='The keys play the original F.A.R.P. voice: string ensemble, synthesizer and bass. Pick another instrument above and the keyboard, MIDI input, arpeggiator and sequencer play it instead. Each instrument has its own mixer channel. With the keyboard split on, each half can play a different instrument: choose it in the SPLIT card on the PLAY screen.';
     panel.appendChild(p);return}
   if(it.id==='roms'){renderRoms(it);return}
+  if(it.id==='voc'){if(window.vocRender)vocRender(panel);return}
   if(it.id==='p5'){
     const sel=document.createElement('select');sel.setAttribute('aria-label','P-5 preset');sel.add(new Option('Presets…',''));P5PRE.forEach((p,i)=>sel.add(new Option(p[0],i)));sel.value='';
     sel.onchange=()=>{if(sel.value==='')return;const pr=P5PRE[+sel.value];P5=Object.assign({},P5D,pr[1]);LS.set('farp_p5',P5);engSend({t:'p5',p:P5});instRefresh()};
@@ -3638,7 +3874,7 @@ function renderRoms(it){
     :'Pick your MAME-style ROM zips. This browser keeps a private copy so they load every time F.A.R.P. starts. Nothing is uploaded.'));
 }
 function instLive(){if(live)try{live()}catch(e){}}
-window.instRefresh=instRefresh;
+window.instRefresh=instRefresh;window.farpUnzip=unzip;
 const _show=showScreen;showScreen=function(id){_show(id);if(id==='inst')instRefresh()};
 document.querySelectorAll('#screens button').forEach(b=>b.onclick=()=>showScreen(b.dataset.s));
 window.addEventListener('resize',()=>{if(screen==='inst')instLive()});
@@ -4576,6 +4812,324 @@ document.getElementById('toRack').onclick=()=>showScreen('fxr');document.getElem
 const _sh=showScreen;showScreen=function(id){_sh(id);if(id==='fxr'){render();document.querySelectorAll('#screens button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.s==='fx')));init()}};
 document.querySelectorAll('#screens button').forEach(b=>b.onclick=()=>showScreen(b.dataset.s));
 render();
+})();
+</script>
+<script>
+/* ===================== F.A.R.P. speech: a small rule-based formant text-to-speech =====================
+   Written for F.A.R.P.: English spelling rules and a short word list turn text into phonemes, and a
+   cascade formant synthesizer (glottal pulses, three formants, nasal and noise branches) speaks them,
+   in the spirit of early-80s speech chips. Its output is the vocoder's voice. */
+const FarpSpeech=(()=>{
+  // phoneme: [F1,F2,F3, voiced amp, noise amp, noise centre Hz, duration ms, kind]
+  const P={
+    IY:[270,2290,3010,1,0,0,110,'v'],IH:[390,1990,2550,1,0,0,80,'v'],EH:[530,1840,2480,1,0,0,90,'v'],AE:[660,1720,2410,1,0,0,120,'v'],
+    AA:[730,1090,2440,1,0,0,120,'v'],AH:[640,1190,2390,1,0,0,80,'v'],AO:[570,840,2410,1,0,0,120,'v'],UH:[440,1020,2240,1,0,0,80,'v'],
+    UW:[300,870,2240,1,0,0,110,'v'],ER:[490,1350,1690,1,0,0,110,'v'],AX:[500,1500,2500,0.8,0,0,55,'v'],
+    EY:[480,1950,2550,1,0,0,140,'d',[330,2200,2900]],AY:[700,1220,2600,1,0,0,160,'d',[330,2100,2800]],OY:[550,860,2400,1,0,0,160,'d',[360,1950,2700]],
+    AW:[730,1150,2450,1,0,0,160,'d',[380,900,2300]],OW:[540,950,2400,1,0,0,140,'d',[330,780,2300]],
+    M:[280,1100,2200,0.6,0,0,70,'n'],N:[280,1700,2600,0.6,0,0,65,'n'],NG:[280,2300,2750,0.6,0,0,70,'n'],
+    L:[360,1050,2900,0.7,0,0,65,'l'],R:[420,1250,1600,0.75,0,0,65,'l'],W:[300,700,2200,0.7,0,0,60,'l'],Y:[260,2100,3000,0.7,0,0,55,'l'],
+    HH:[500,1500,2500,0,0.35,1500,55,'f'],F:[340,1100,2100,0,0.25,5000,90,'f'],TH:[320,1300,2500,0,0.2,4500,90,'f'],S:[320,1400,2600,0,0.55,6000,100,'f'],SH:[300,1800,2400,0,0.55,3000,100,'f'],
+    V:[300,1100,2100,0.45,0.15,5000,70,'f'],DH:[300,1300,2500,0.45,0.12,4500,55,'f'],Z:[300,1400,2600,0.45,0.35,6000,80,'f'],ZH:[300,1800,2400,0.45,0.35,3000,80,'f'],
+    P:[400,1100,2150,0,0.5,1200,80,'p'],T:[400,1600,2600,0,0.6,4000,75,'p'],K:[350,1800,2500,0,0.55,2500,85,'p'],
+    B:[400,1100,2150,0.4,0.3,1200,65,'p'],D:[400,1600,2600,0.4,0.35,4000,60,'p'],G:[350,1800,2500,0.4,0.35,2500,70,'p'],
+    CH:[300,1800,2400,0,0.6,3000,110,'p'],JH:[300,1800,2400,0.4,0.4,3000,95,'p'],_:[500,1500,2500,0,0,0,90,'s']};
+  // common words that spelling rules get wrong
+  const DICT={the:'DH AX',a:'AX',of:'AH V',to:'T UW',and:'AE N D',is:'IH Z',you:'Y UW',are:'AA R',i:'AY',we:'W IY',me:'M IY',he:'HH IY',she:'SH IY',be:'B IY',
+    one:'W AH N',two:'T UW',three:'TH R IY',four:'F AO R',five:'F AY V',six:'S IH K S',seven:'S EH V AX N',eight:'EY T',nine:'N AY N',ten:'T EH N',zero:'Z IY R OW',
+    do:'D UW',does:'D AH Z',done:'D AH N',was:'W AA Z',were:'W ER',have:'HH AE V',give:'G IH V',live:'L IH V',love:'L AH V',come:'K AH M',some:'S AH M',what:'W AH T',who:'HH UW',
+    where:'W EH R',there:'DH EH R',their:'DH EH R',they:'DH EY',said:'S EH D',says:'S EH Z',again:'AX G EH N',any:'EH N IY',many:'M EH N IY',
+    your:'Y AO R',my:'M AY',by:'B AY',hi:'HH AY',hello:'HH EH L OW',robot:'R OW B AA T',computer:'K AX M P Y UW T ER',music:'M Y UW Z IH K',
+    machine:'M AX SH IY N',synthesizer:'S IH N TH AX S AY Z ER',vocoder:'V OW K OW D ER',electro:'IH L EH K T R OW',funk:'F AH NG K',beat:'B IY T',
+    rock:'R AA K',rap:'R AE P',break:'B R EY K',dance:'D AE N S',party:'P AA R T IY',people:'P IY P AX L',world:'W ER L D',planet:'P L AE N AX T',
+    space:'S P EY S',future:'F Y UW CH ER',freak:'F R IY K',jam:'JH AE M',pump:'P AH M P',up:'AH P',down:'D AW N',now:'N AW',how:'HH AW',know:'N OW',
+    yeah:'Y EH',ok:'OW K EY',okay:'OW K EY',this:'DH IH S',that:'DH AE T',with:'W IH DH',from:'F R AH M',for:'F AO R',not:'N AA T',no:'N OW',go:'G OW',
+    so:'S OW',all:'AO L',can:'K AE N',get:'G EH T',got:'G AA T',let:'L EH T',it:'IH T',in:'IH N',on:'AA N',at:'AE T',as:'AE Z',or:'AO R',our:'AW R',out:'AW T',
+    time:'T AY M',take:'T EY K',make:'M EY K',like:'L AY K',feel:'F IY L',body:'B AA D IY',move:'M UW V',shake:'SH EY K',talk:'T AO K',walk:'W AO K',
+    voice:'V OY S',say:'S EY',play:'P L EY',together:'T AX G EH DH ER',everybody:'EH V R IY B AA D IY',baby:'B EY B IY',night:'N AY T',light:'L AY T',right:'R AY T',
+    hundred:'HH AH N D R AX D',thousand:'TH AW Z AX N D',twenty:'T W EH N T IY',thirty:'TH ER T IY',forty:'F AO R T IY',fifty:'F IH F T IY',sixty:'S IH K S T IY',seventy:'S EH V AX N T IY',eighty:'EY T IY',ninety:'N AY N T IY',eleven:'IH L EH V AX N',twelve:'T W EH L V',thirteen:'TH ER T IY N',fifteen:'F IH F T IY N',cow:'K AW',cowboy:'K AW B OY',cowboys:'K AW B OY Z',farp:'F AA R P',crew:'K R UW',star:'S T AA R',midnight:'M IH D N AY T',tonight:'T AX N AY T',very:'V EH R IY',only:'OW N L IY'};
+  // spelling rules, tried longest first at each position: [letters, phonemes, needs-vowel-after?]
+  const R=[['tion','SH AX N'],['sion','ZH AX N'],['ough','AO'],['augh','AO'],['eigh','EY'],['igh','AY'],['tch','CH'],['dge','JH'],['ght','T'],
+    ['sh','SH'],['ch','CH'],['th','TH'],['ph','F'],['wh','W'],['ck','K'],['ng','NG'],['qu','K W'],['kn','N'],['wr','R'],['gn','N'],
+    ['ee','IY'],['ea','IY'],['oo','UW'],['ou','AW'],['ow','OW'],['oi','OY'],['oy','OY'],['ai','EY'],['ay','EY'],['oa','OW'],['au','AO'],['aw','AO'],['ew','UW'],['ue','UW'],['ie','IY'],['ei','EY'],
+    ['ar','AA R'],['or','AO R'],['er','ER'],['ir','ER'],['ur','ER'],['ll','L'],['ss','S'],['ff','F'],['tt','T'],['pp','P'],['bb','B'],['dd','D'],['gg','G'],['mm','M'],['nn','N'],['rr','R'],['zz','Z'],
+    ['a','AE'],['b','B'],['c','K'],['d','D'],['e','EH'],['f','F'],['g','G'],['h','HH'],['i','IH'],['j','JH'],['k','K'],['l','L'],['m','M'],['n','N'],['o','AA'],['p','P'],['q','K'],['r','R'],
+    ['s','S'],['t','T'],['u','AH'],['v','V'],['w','W'],['x','K S'],['y','IY'],['z','Z']];
+  const LONG={a:'EY',e:'IY',i:'AY',o:'OW',u:'UW'};
+  const vow=c=>'aeiouy'.includes(c);
+  function word2ph(w){
+    if(DICT[w])return DICT[w].split(' ');
+    const out=[];let i=0;
+    // a silent final e makes the vowel before the last consonant long (make, time, home, cute)
+    const magic=w.length>3&&w.endsWith('e')&&!vow(w[w.length-2])&&vow(w[w.length-3]);const magicAt=magic?w.length-3:-1;const W=magic?w.slice(0,-1):w;
+    while(i<W.length){
+      if(i===magicAt&&LONG[W[i]]){out.push(LONG[W[i]]);i++;continue}
+      const c=W[i];
+      if(c==='c'&&'eiy'.includes(W[i+1]||'')){out.push('S');i++;continue}
+      if(c==='g'&&'eiy'.includes(W[i+1]||'')&&i>0){out.push('JH');i++;continue}
+      if(c==='y'&&i===0){out.push('Y');i++;continue}
+      if(c==='y'&&i===W.length-1&&W.length<=3){out.push('AY');i++;continue}
+      if(c==='s'&&i===W.length-1&&i>0&&!'ptkf'.includes(W[i-1])){out.push('Z');i++;continue}
+      if(c==='e'&&i===W.length-1&&W.length>2){i++;continue}
+      if(c==='e'&&W.slice(i)==='ed'&&i>1){out.push(...('td'.includes(W[i-1])?['AX','D']:'pkfsx'.includes(W[i-1])?['T']:['D']));break}
+      let hit=null;for(const r of R)if(W.startsWith(r[0],i)){hit=r;break}
+      if(!hit){i++;continue}
+      out.push(...hit[1].split(' '));i+=hit[0].length}
+    return out}
+  const ONES=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'],TENS=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  function num(n){n=+n;if(n<20)return ONES[n];if(n<100)return TENS[Math.floor(n/10)]+(n%10?' '+ONES[n%10]:'');if(n<1000)return ONES[Math.floor(n/100)]+' hundred'+(n%100?' '+num(n%100):'');
+    if(n<1e6)return num(Math.floor(n/1000))+' thousand'+(n%1000?' '+num(n%1000):'');return String(n).split('').map(d=>ONES[+d]).join(' ')}
+  const LET={a:'EY',b:'B IY',c:'S IY',d:'D IY',e:'IY',f:'EH F',g:'JH IY',h:'EY CH',i:'AY',j:'JH EY',k:'K EY',l:'EH L',m:'EH M',n:'EH N',o:'OW',p:'P IY',q:'K Y UW',r:'AA R',s:'EH S',t:'T IY',u:'Y UW',v:'V IY',w:'D AH B AX L Y UW',x:'EH K S',y:'W AY',z:'Z IY'};
+  function year(n){n=+n;if(n>=1100&&n<2000&&n%100>=10)return num(Math.floor(n/100))+' '+num(n%100);if(n>=2000&&n<2010)return num(n);if(n>=2010&&n<2100)return 'twenty '+num(n%100);return num(n)}
+  function phonemes(text){
+    // spelled-out letters: F.A.R.P., DJ, MC
+    text=text.replace(/\b(?:[A-Za-z]\.){2,}/g,m=>' '+m.replace(/\./g,'').split('').map(c=>'@'+c.toLowerCase()).join(' ')+' ').replace(/\b[A-Z]{2,4}\b/g,m=>DICT[m.toLowerCase()]?m:' '+m.split('').map(c=>'@'+c.toLowerCase()).join(' ')+' ');
+    const t=text.toLowerCase().replace(/\d+/g,m=>' '+(m.length===4?year(m):num(m))+' ').replace(/[^a-z@'.,!?\s-]/g,' ');
+    const seq=[];for(const tok of t.split(/(\s+|[.,!?-])/)){if(!tok||/^\s+$/.test(tok))continue;if(/[.,!?-]/.test(tok)){seq.push(tok==='.'||tok==='!'||tok==='?'?'__':'_');continue}
+      const w=tok.replace(/'/g,'');const ph=w[0]==='@'?(LET[w[1]]||'').split(' ').filter(Boolean):word2ph(w);if(ph.length){seq.push(...ph);seq.push('|')}}
+    return seq}
+  // ---- the synthesizer
+  function res(f,bw,fs){const r=Math.exp(-Math.PI*bw/fs),c=-r*r,b=2*r*Math.cos(2*Math.PI*f/fs),a=1-b-c;return {a,b,c,y1:0,y2:0}}
+  function rs(q,x){const y=q.a*x+q.b*q.y1+q.c*q.y2;q.y2=q.y1;q.y1=y;return y}
+  function speak(text,o){
+    o=Object.assign({fs:22050,pitch:110,rate:1,robot:false,whisper:false},o||{});const fs=o.fs,seq=phonemes(text);
+    // build frames: [F1,F2,F3,av,an,nf,dur]
+    const segs=[];let wordStart=true;
+    for(let k=0;k<seq.length;k++){const s=seq[k];if(s==='|'){wordStart=true;continue}if(s==='_'||s==='__'){segs.push({p:P._,dur:(s==='__'?160:90)/o.rate,ph:'_'});continue}
+      const p=P[s];if(!p)continue;let dur=p[6]/o.rate;if(p[7]==='v'||p[7]==='d'){const next=seq[k+1];if(next==='|'||next==='_'||next==='__'||next===undefined)dur*=1.3}
+      segs.push({p,dur,ph:s,start:wordStart});wordStart=false}
+    const total=segs.reduce((a,s)=>a+s.dur,0)/1000+0.15,N=Math.ceil(total*fs),out=new Float32Array(N);
+    const F=[res(500,60,fs),res(1500,90,fs),res(2500,150,fs)],nas=res(270,100,fs),fric=res(4000,1500,fs);let ph=0,seed=12345,t=0,i=0;
+    const noise=()=>{seed=(Math.imul(seed,1103515245)+12345)>>>0;return seed/2147483648-1};
+    let cur=[500,1500,2500],av=0,an=0,nf=3000;const BW=[60,90,150];let lp=0;
+    for(let si=0;si<segs.length;si++){const s=segs[si],p=s.p,n=Math.round(s.dur/1000*fs),next=segs[si+1]?segs[si+1].p:P._;
+      const tgt=[p[0],p[1],p[2]],tgt2=p[8]||tgt,kind=p[7];
+      for(let j=0;j<n&&i<N;j++,i++){t=i/fs;const u=j/n;
+        // formant glide toward the target (diphthongs move across their length; others settle in ~35 ms)
+        const g=1-Math.exp(-1/(0.012*fs));for(let f=0;f<3;f++){const T=kind==='d'?tgt[f]+(tgt2[f]-tgt[f])*u:tgt[f];cur[f]+=g*(T-cur[f])}
+        let tav=p[3],tan=p[4];if(kind==='p'){const burst=u<0.35?0:u<0.5?1:0.25;tan=p[4]*burst;tav=p[3]*(u>0.4?1:0.2)}
+        if(kind==='s'){tav=0;tan=0}
+        av+=(tav-av)*0.006;an+=(tan-an)*0.02;nf+=(p[5]||nf)-nf>0?((p[5]||nf)-nf)*0.05:((p[5]||nf)-nf)*0.05;
+        if((i&31)===0){for(let f=0;f<3;f++){const q=res(cur[f],BW[f],fs);F[f].a=q.a;F[f].b=q.b;F[f].c=q.c}const q=res(Math.max(800,nf),Math.max(800,nf*0.4),fs);fric.a=q.a;fric.b=q.b;fric.c=q.c}
+        // glottal source: declining pitch across the phrase, gentle vibrato unless robot
+        const prog=i/N,f0=o.robot?o.pitch:o.pitch*(1.12-0.25*prog)*(1+0.012*Math.sin(2*Math.PI*5*t));ph+=f0/fs;let src=0;
+        if(ph>=1){ph-=1}const gp=ph<0.6?Math.sin(Math.PI*ph/0.6)**2:0;src=o.whisper?noise()*0.6:(gp-0.35)+noise()*0.03;
+        lp+=0.5*(src-lp);let v=rs(F[2],rs(F[1],rs(F[0],lp*av)));if(kind==='n')v=v*0.4+rs(nas,lp*av)*0.8;
+        const fr=rs(fric,noise())*an;out[i]=v*0.9+fr*0.6}}
+    let pk=0;for(const v of out)pk=Math.max(pk,Math.abs(v));const k=pk?0.9/pk:1;for(let j=0;j<N;j++)out[j]*=k;
+    return {data:out,fs,phonemes:seq.filter(s=>s!=='|').join(' ')}}
+  return {speak,phonemes};
+})();
+
+</script>
+<script>
+/* ===================== Vocoder screen: VX-350 (circuit / clear), Talker, speech and mic voices ===================== */
+(()=>{
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e};
+const D={on:0,eng:'clear',car:'keys',src:'phrase',text:'Welcome to the F.A.R.P. Play a chord and I will sing it.',voice:'robot',pitch:110,rate:1,trig:'say',
+  vx:{micGainDb:0,instGainDb:0,guitarMode:false,harmonics:0.3,bands:[.8,.8,.8,.8,.8,.8,.8,.8,.8,.8],consonant:0.5,balance:1,ensemble:true,hold:false,stereo:true,volumeDb:0},
+  tk:{mode:0,mic:.5,inst:.5,out:.7},tab:'VOICE'};
+let V=Object.assign({},D,LS.get('farp_voc',{}));V.vx=Object.assign({},D.vx,V.vx||{});V.tk=Object.assign({},D.tk,V.tk||{});
+const save=()=>LS.set('farp_voc',V);
+const CH={keys:null,omni:-1,str:0,syn:1,bas:2,p5:4,e2:5,six:6,dx:7,cz:8};
+const keysCh=()=>{const k=window.KEYS_INST||'';return k===''?-1:k==='p5'||k==='p5r3'?4:k==='e2'?5:k==='six'?6:k==='dx'?7:8};
+function push(){if(!powered||!window.farpNode)return;send({t:'voc',on:V.on?1:0,eng:V.eng,ch:V.car==='keys'?keysCh():CH[V.car],p:V.vx,tk:V.tk});syncVoice()}
+window.vocPush=push;
+/* ---- the voice: a phrase buffer (speech or a loaded file) or the microphone, into the processor's third input ---- */
+let vBus=null,phrase=null,phraseName='',src=null,mic=null,micStream=null,lastSay=-1;
+function ensureBus(){if(vBus||!ctx||!(window.farpNode instanceof AudioWorkletNode))return!!vBus;vBus=ctx.createGain();vBus.connect(farpNode,0,2);return true}
+function stopPhrase(at){if(src){try{src.stop(at||0)}catch(e){}src=null}}
+function sayNow(at){if(!V.on||V.src!=='phrase'||!phrase||!ensureBus())return;const t=Math.max(at||0,ctx.currentTime);stopPhrase(t);src=ctx.createBufferSource();src.buffer=phrase;src.loop=V.trig==='loop';src.connect(vBus);src.start(t);lastSay=t}
+async function syncVoice(){
+  if(!ensureBus())return;
+  if(V.on&&V.src==='mic'){if(!mic){try{micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});mic=ctx.createMediaStreamSource(micStream);mic.connect(vBus);toast('Mic on. Use headphones so the speakers don’t feed back.')}
+      catch(e){V.src='phrase';save();toast('The microphone isn’t available here'+(window.FarpAndroid?'':' (try the Android app, or a phrase)')+'.');refresh()}}}
+  else if(mic){try{mic.disconnect();micStream.getTracks().forEach(t=>t.stop())}catch(e){}mic=null;micStream=null}
+  if(!V.on||V.src!=='phrase')stopPhrase();else if(V.trig==='loop'&&!src)sayNow()}
+// restart the phrase with each new chord when that trigger is chosen
+const _noteOn=noteOn;noteOn=function(k,v,s,at){const first=!at&&held.size===0;_noteOn(k,v,s,at);
+  if(V.on&&V.src==='phrase'&&V.trig==='keys'){if(first)sayNow();else if(at&&at-lastSay>0.08)sayNow(at)}};
+function useBuffer(data,fs,name){if(!ctx)return;const b=ctx.createBuffer(1,data.length,fs);b.copyToChannel(data,0);phrase=b;phraseName=name;refresh()}
+async function speak(){
+  if(!powered)await power();
+  if(V.voice==='phone'&&window.FarpAndroid&&FarpAndroid.speak){toast('Speaking…');FarpAndroid.speak(V.text,String(V.rate),String(V.pitch/110));return}
+  const r=FarpSpeech.speak(V.text,{fs:22050,pitch:V.pitch,rate:V.rate,robot:V.voice==='robot',whisper:V.voice==='whisper'});useBuffer(r.data,r.fs,'“'+V.text.slice(0,28)+(V.text.length>28?'…':'')+'”');
+  if(V.on)sayNow();else toast('Speech ready. Turn the vocoder on and play.')}
+window.onSpeech=async(b64,err)=>{if(err||!b64){toast('The phone’s speech engine couldn’t say that');return}
+  const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  try{const b=await ctx.decodeAudioData(u.buffer);phrase=b;phraseName='“'+V.text.slice(0,28)+'”';refresh();if(V.on)sayNow()}catch(e){toast('Couldn’t read the speech audio')}};
+const voiceIn=document.createElement('input');voiceIn.type='file';voiceIn.accept='audio/*,.wav,.mp3,.aif,.aiff,.m4a,.ogg';voiceIn.hidden=true;document.body.appendChild(voiceIn);
+voiceIn.onchange=async()=>{const f=voiceIn.files&&voiceIn.files[0];voiceIn.value='';if(!f)return;if(!powered)await power();try{phrase=await ctx.decodeAudioData(await f.arrayBuffer());phraseName=f.name;refresh();if(V.on)sayNow()}catch(e){toast('That file couldn’t be read as audio')}};
+window.addEventListener('farp-power',()=>setTimeout(()=>{push();if(!phrase){const r=FarpSpeech.speak(V.text,{fs:22050,pitch:V.pitch,rate:V.rate,robot:V.voice==='robot',whisper:V.voice==='whisper'});useBuffer(r.data,r.fs,'“'+V.text.slice(0,28)+'…”')}},200));
+/* ---- panel (the VOCODER chip on the instruments screen) ---- */
+function slider(label,min,max,step,get,set,fmt){const l=el('label','isl');l.appendChild(el('i','',label));const r=document.createElement('input');r.type='range';r.min=min;r.max=max;r.step=step;r.value=get();
+  const s=el('span','',fmt(+get()));r.oninput=()=>{set(+r.value);s.textContent=fmt(+r.value)};r.onchange=()=>{save();push()};r.setAttribute('aria-label',label);l.appendChild(r);l.appendChild(s);return l}
+function sel(label,opts,get,set){const l=el('label','',label);const s=document.createElement('select');opts.forEach(([v,n])=>s.add(new Option(n,v)));s.value=get();s.onchange=()=>{set(s.value);save();push();refresh()};l.appendChild(s);return l}
+function chip(label,get,set){const b=el('button','chipbtn',label);b.setAttribute('aria-pressed',String(!!get()));b.onclick=()=>{set(!get());save();push();refresh()};return b}
+let host=null;
+function refresh(){if(host)render(host)}
+function render(panel){host=panel;panel.innerHTML='';
+  const h=el('div','ihead');const t=el('div','ititle');t.appendChild(el('b','','VOCODER'));t.appendChild(el('span','',V.eng==='talker'?'The Talker pedal’s six programs':'VX-350: modeled on the Roland SVC-350'+(V.eng==='svc'?' (component-level circuit)':' (clear model)')));h.appendChild(t);
+  const on=el('button','chipbtn big',V.on?'VOCODER ON':'VOCODER OFF');on.setAttribute('aria-pressed',String(!!V.on));on.onclick=async()=>{if(!powered)await power();V.on=V.on?0:1;save();push();refresh();if(V.on&&V.src==='phrase'&&V.trig!=='keys')sayNow()};h.appendChild(on);
+  const tabs=el('div','petabs itabs');['VOICE','VOCODER',V.eng==='talker'?null:'BANDS'].filter(Boolean).forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(V.tab===n));b.onclick=()=>{V.tab=n;save();refresh()};tabs.appendChild(b)});h.appendChild(tabs);
+  panel.appendChild(h);if(V.tab==='BANDS'&&V.eng==='talker')V.tab='VOCODER';
+  if(V.tab==='VOICE'){
+    const m=el('div','srmenus');
+    m.appendChild(sel('Voice from',[['phrase','Speech / phrase'],['mic','Microphone']],()=>V.src,v=>V.src=v));
+    m.appendChild(sel('Phrase plays',[['say','On SAY'],['keys','With each new chord'],['loop','Looping']],()=>V.trig,v=>{V.trig=v;stopPhrase()}));
+    const vo=[['robot','F.A.R.P. robot'],['human','F.A.R.P. natural'],['whisper','F.A.R.P. whisper']];if(window.FarpAndroid&&FarpAndroid.speak)vo.push(['phone','Phone voice']);
+    m.appendChild(sel('Speaker',vo,()=>V.voice,v=>V.voice=v));panel.appendChild(m);
+    const tx=document.createElement('textarea');tx.className='vtext';tx.value=V.text;tx.rows=2;tx.setAttribute('aria-label','Words to speak');tx.oninput=()=>{V.text=tx.value;save()};panel.appendChild(tx);
+    const b=el('div','ibtns');const sp=el('button','btn','SPEAK IT');sp.onclick=speak;b.appendChild(sp);const sy=el('button','btn','SAY ▶');sy.onclick=async()=>{if(!powered)await power();if(!V.on){V.on=1;save();push();refresh()}sayNow()};b.appendChild(sy);
+    const st=el('button','btn','■');st.setAttribute('aria-label','Stop the phrase');st.onclick=()=>stopPhrase();b.appendChild(st);
+    const ld=el('button','btn','Load file…');ld.onclick=()=>voiceIn.click();b.appendChild(ld);panel.appendChild(b);
+    const g=el('div','igrid');g.appendChild(slider('PITCH',60,220,1,()=>V.pitch,v=>V.pitch=v,v=>Math.round(v)+'Hz'));g.appendChild(slider('SPEED',0.5,1.8,0.05,()=>V.rate,v=>V.rate=v,v=>v.toFixed(2)+'×'));panel.appendChild(g);
+    panel.appendChild(el('p','inote vnote',(phrase?'Voice: '+phraseName+' ('+phrase.duration.toFixed(1)+' s). ':'')+'Type words and tap SPEAK IT, then play chords: the vocoder makes the carrier instrument say them. The carrier is set on the VOCODER tab.'))}
+  else if(V.tab==='VOCODER'){
+    const m=el('div','srmenus');
+    m.appendChild(sel('Engine',[['clear','VX-350 Clear'],['svc','VX-350 SVC circuit (heavier)'],['talker','Talker pedal']],()=>V.eng,v=>V.eng=v));
+    m.appendChild(sel('Carrier',[['keys','The keys’ instrument'],['omni','OMNI strings+synth+bass'],['str','Strings'],['syn','Synth'],['bas','Bass'],['p5','P-5 / P-5 R3'],['e2','E-II'],['six','6-TRAK'],['dx','FM-4'],['cz','PD-8']],()=>V.car,v=>V.car=v));
+    if(V.eng==='talker')m.appendChild(sel('Program',TalkerPedal.NAMES.map((n,i)=>[String(i),n]),()=>String(V.tk.mode),v=>V.tk.mode=+v));
+    panel.appendChild(m);const g=el('div','igrid');
+    if(V.eng==='talker'){g.appendChild(slider('MIC IN',0,1,0.01,()=>V.tk.mic,v=>V.tk.mic=v,v=>Math.round(v*10)+''));g.appendChild(slider('INST IN',0,1,0.01,()=>V.tk.inst,v=>V.tk.inst=v,v=>Math.round(v*10)+''));g.appendChild(slider('EFFECT OUT',0,1,0.01,()=>V.tk.out,v=>V.tk.out=v,v=>Math.round(v*10)+''))}
+    else{const X=V.vx;g.appendChild(slider('MIC LEVEL',-24,24,0.5,()=>X.micGainDb,v=>X.micGainDb=v,v=>(v>0?'+':'')+v+'dB'));g.appendChild(slider('INST LEVEL',-24,24,0.5,()=>X.instGainDb,v=>X.instGainDb=v,v=>(v>0?'+':'')+v+'dB'));
+      g.appendChild(slider('BALANCE',0,1,0.01,()=>X.balance,v=>X.balance=v,v=>v>=0.99?'VOC':v<=0.01?'MIC':Math.round(v*100)+''));g.appendChild(slider('VOLUME',-24,12,0.5,()=>X.volumeDb,v=>X.volumeDb=v,v=>(v>0?'+':'')+v+'dB'));
+      const w=el('div','isws');w.appendChild(chip('ENSEMBLE',()=>X.ensemble,v=>X.ensemble=v));w.appendChild(chip('HOLD',()=>X.hold,v=>X.hold=v));w.appendChild(chip('GUITAR',()=>X.guitarMode,v=>X.guitarMode=v));w.appendChild(chip('STEREO',()=>X.stereo,v=>X.stereo=v));panel.appendChild(w);
+      if(X.guitarMode)g.appendChild(slider('HARMONICS',0,1,0.01,()=>X.harmonics,v=>X.harmonics=v,v=>Math.round(v*100)+''))}
+    panel.appendChild(g)}
+  else{const g=el('div','igrid vbands');const HZ=['160','230','330','500','730','1.1k','1.6k','2.3k','3.3k','5k'];
+    V.vx.bands.forEach((b,i)=>g.appendChild(slider(HZ[i],0,1,0.01,()=>V.vx.bands[i],v=>V.vx.bands[i]=v,v=>Math.round(v*10)+'')));
+    g.appendChild(slider('HF CONS.',0,1,0.01,()=>V.vx.consonant,v=>V.vx.consonant=v,v=>Math.round(v*10)+''));panel.appendChild(g)}
+}
+window.vocRender=render;
+})();
+</script>
+<script>
+/* ===================== Files: project save/load, bounce to WAV, stems, exploded drums and MIDI ===================== */
+(()=>{
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e};
+/* ---- file builders ---- */
+function wav(chs,sr,bits){bits=bits||16;const n=chs[0].length,nc=chs.length,bps=bits/8,b=new ArrayBuffer(44+n*nc*bps),v=new DataView(b);let o=0;
+  const s=x=>{for(let i=0;i<x.length;i++)v.setUint8(o++,x.charCodeAt(i))},u32=x=>{v.setUint32(o,x,true);o+=4},u16=x=>{v.setUint16(o,x,true);o+=2};
+  s('RIFF');u32(36+n*nc*bps);s('WAVE');s('fmt ');u32(16);u16(1);u16(nc);u32(sr);u32(sr*nc*bps);u16(nc*bps);u16(bits);s('data');u32(n*nc*bps);
+  for(let i=0;i<n;i++)for(let c=0;c<nc;c++){let x=Math.max(-1,Math.min(1,chs[c][i]||0));
+    if(bits===24){const q=Math.round(x*8388607);v.setUint8(o,q&255);v.setUint8(o+1,(q>>8)&255);v.setUint8(o+2,(q>>16)&255);o+=3}
+    else{v.setInt16(o,Math.round(x*32767+(Math.random()-Math.random())*0.5),true);o+=2}}
+  return new Uint8Array(b)}
+function zipMany(files){
+  const enc=new TextEncoder(),parts=[],cen=[];let off=0;const d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  const le=(v,n)=>{const a=new Uint8Array(n);for(let i=0;i<n;i++)a[i]=(v>>>(8*i))&255;return a};
+  for(const f of files){const nm=enc.encode(f.name),crc=crc32(f.data),sz=f.data.length;
+    const lh=[le(0x04034b50,4),le(20,2),le(0,2),le(0,2),le(tm,2),le(dt,2),le(crc,4),le(sz,4),le(sz,4),le(nm.length,2),le(0,2),nm];
+    const ch=[le(0x02014b50,4),le(20,2),le(20,2),le(0,2),le(0,2),le(tm,2),le(dt,2),le(crc,4),le(sz,4),le(sz,4),le(nm.length,2),le(0,2),le(0,2),le(0,2),le(0,2),le(0,4),le(off,4),nm];
+    parts.push(...lh,f.data);off+=lh.reduce((a,x)=>a+x.length,0)+sz;cen.push(...ch)}
+  const cl=cen.reduce((a,x)=>a+x.length,0);const end=[le(0x06054b50,4),le(0,2),le(0,2),le(files.length,2),le(files.length,2),le(cl,4),le(off,4),le(0,2)];
+  return new Blob([...parts,...cen,...end],{type:'application/zip'})}
+/* ---- saving: the Android app writes to Downloads, the Claude viewer asks first, browsers download ---- */
+async function farpSave(name,blob){
+  if(window.FarpAndroid&&FarpAndroid.saveBegin){try{const u=new Uint8Array(await blob.arrayBuffer());FarpAndroid.saveBegin(name);
+      for(let i=0;i<u.length;i+=1<<20)FarpAndroid.saveChunk(b64(u.subarray(i,i+(1<<20))));FarpAndroid.saveEnd();return 'Saving '+name+' to Downloads'}catch(e){return 'Could not save the file'}}
+  let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){dl=null}
+  if(dl){try{await dl.save({filename:name,data:blob});return 'Saved '+name}catch(e){return e&&e.code==='declined'?'Save cancelled':e&&e.code==='too_large'?'That file is too large to save here':'Saving isn’t available here'}}
+  if(window.claude&&window.claude.use&&!dl)return 'Saving isn’t available in this view';
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000);return 'Saved '+name}catch(e){return 'Saving isn’t available here'}}
+window.farpSave=farpSave;window.farpZip=zipMany;window.farpWav=wav;
+const stamp=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())};
+/* ---- project: every F.A.R.P. setting and your pad samples, in one zip ---- */
+async function idbAll(){const out={};try{const db=await idb();await new Promise(res=>{const st=db.transaction('samples').objectStore('samples');let left=16;for(let i=0;i<16;i++){const q=st.get(i);q.onsuccess=()=>{if(q.result&&q.result.data)out[i]=q.result.data;if(--left===0)res()};q.onerror=()=>{if(--left===0)res()}}})}catch(e){}return out}
+async function exportProject(){
+  const ls={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('farp_')&&k!=='farp_rompath'&&k!=='farp_romseen')ls[k]=localStorage.getItem(k)}
+  const smp=await idbAll(),files=[],list=[];
+  for(const i in smp){const nm='samples/pad'+String(+i+1).padStart(2,'0')+'.bin';files.push({name:nm,data:new Uint8Array(smp[i])});list.push({pad:+i,file:nm,name:userNames[i]||''})}
+  const proj={app:'The F.A.R.P.',format:1,saved:new Date().toISOString(),settings:ls,samples:list};
+  files.unshift({name:'project.json',data:new TextEncoder().encode(JSON.stringify(proj,null,1))});
+  return farpSave('farp-project-'+stamp()+'.zip',zipMany(files))}
+async function importProject(file){
+  const ab=await file.arrayBuffer();let z;try{z=await window.farpUnzip(ab)}catch(e){return 'That isn’t a F.A.R.P. project zip'}
+  const pj=z['project.json'];if(!pj)return 'No project.json in that zip';let P;try{P=JSON.parse(new TextDecoder().decode(pj))}catch(e){return 'The project file is damaged'}
+  if(!P.settings)return 'The project file is damaged';
+  for(const k of Object.keys(localStorage))if(k.startsWith('farp_')&&k!=='farp_rompath'&&k!=='farp_romseen')localStorage.removeItem(k);
+  for(const k in P.settings)try{localStorage.setItem(k,P.settings[k])}catch(e){}
+  for(let i=0;i<16;i++)await idbPut(i,null);
+  for(const s of P.samples||[]){const d=z[s.file.split('/').pop()];if(d)await idbPut(s.pad,{data:d.buffer.slice(d.byteOffset,d.byteOffset+d.byteLength)})}
+  setTimeout(()=>location.reload(),600);return 'Project loaded. Restarting…'}
+/* ---- the arrangement as timed events (song, or the current pattern looped) ---- */
+function plan(mode,loops){
+  const sd=60/SEQ.bpm/4,pats=mode==='song'?SEQ.song.flatMap(it=>Array(it.r).fill(it.p)):Array(loops).fill(SEQ.cur);
+  const drums=[],notes=[];let step0=0;
+  for(const pi of pats){const p=SEQ.patterns[pi];for(let s=0;s<p.len;s++){const t=(step0+s)*sd+(s%2?SEQ.swing/100*sd*0.5:0);
+      for(const d of p.drums)if(d.s===s)drums.push({t,p:d.p,v:d.v,x:d.x});for(const n of p.notes)if(n.s===s)notes.push({t,k:n.k,v:n.v,l:Math.max(0.03,n.l*sd*0.95)})}
+    step0+=p.len}
+  return {drums,notes,dur:step0*sd,steps:step0}}
+/* ---- real-time bounce: the mix, or every mixer channel as its own WAV ---- */
+const STEMS=['Strings','Synth','Bass','Pads','P-5','E-II','6-TRAK','FM-4','PD-8','FX returns','Master'];
+let cap=null;
+const prevEng=window.onEngMsg;window.onEngMsg=m=>{if(m.t==='cap'){if(cap){cap.chunks.push(m);if(m.last&&cap.done)cap.done()}return}if(prevEng)prevEng(m)};
+async function bounce(stems,mode,loops,msg){
+  if(!powered)await power();if(!(window.farpNode instanceof AudioWorkletNode))return 'Bouncing needs the audio engine this browser can’t run';
+  if(playing)seqStop();await new Promise(r=>setTimeout(r,300));
+  const save={songOn:SEQ.songOn,songLoop:SEQ.songLoop,cur:SEQ.cur};SEQ.songOn=mode==='song'?1:0;SEQ.songLoop=false;
+  const pl=plan(mode,loops),tail=2.5,total=pl.dur+tail;if(pl.dur<=0)return 'Nothing to play';
+  cap={chunks:[],done:null};send({t:'cap',on:1});seqStart();const t0=performance.now();
+  await new Promise(res=>{const iv=setInterval(()=>{const el=(performance.now()-t0)/1000;msg('Bouncing in real time… '+el.toFixed(0)+' / '+total.toFixed(0)+' s');
+    if(el>=pl.dur&&playing)seqStop();if(el>=total){clearInterval(iv);res()}},200)});
+  await new Promise(res=>{cap.done=res;send({t:'cap',on:0});setTimeout(res,1500)});
+  Object.assign(SEQ,{songOn:save.songOn,songLoop:save.songLoop});
+  const ch=cap.chunks;cap=null;const N=ch.reduce((a,c)=>a+c.n,0),sr=ctx.sampleRate,files=[];
+  const pick=stems?STEMS.map((_,k)=>k):[10];
+  for(const k of pick){if(!ch.some(c=>c.L[k]))continue;const L=new Float32Array(N),R=new Float32Array(N);let o=0;for(const c of ch){if(c.L[k]){L.set(c.L[k],o);R.set(c.R[k],o)}o+=c.n}
+    files.push({name:(stems?String(k+1).padStart(2,'0')+' '+STEMS[k]:'farp-mix')+'.wav',data:wav([L,R],sr,24)})}
+  if(!files.length)return 'Nothing was heard: is everything muted?';
+  msg('Packing '+files.length+' file'+(files.length>1?'s':'')+'…');
+  return farpSave((stems?'farp-stems-':'farp-mix-')+stamp()+'.zip',zipMany(files))}
+/* ---- explode the drum track: one WAV per pad, rendered offline (no effects, pad settings kept) ---- */
+async function explodeDrums(mode,loops,msg){
+  if(!powered)await power();if(!padBus&&window.farpNode)onEngineReady(window.farpNode);
+  const pl=plan(mode,loops);if(!pl.drums.length)return 'There are no drum hits to explode';
+  const used=[...new Set(pl.drums.map(d=>d.p))].sort((a,b)=>a-b),sr=ctx.sampleRate,len=Math.ceil((pl.dur+3)*sr),files=[];
+  for(const p of used){msg('Rendering pad '+(p+1)+'…');const off=new OfflineAudioContext(2,len,sr),bus=off.createGain();bus.gain.value=1.2;bus.connect(off.destination);
+    const keep={ctx,padBus};ctx=off;padBus=bus;try{for(const d of pl.drums)if(d.p===p)Sampler.trigger(d.p,d.v/127,d.t+0.0001,d.x)}finally{ctx=keep.ctx;padBus=keep.padBus;for(const k in active)delete active[k]}
+    const b=await off.startRendering();const name=(userNames[p]||(ROMKIT.names[p]||KIT[p].name)).replace(/[^A-Za-z0-9 _-]/g,'').trim();
+    files.push({name:String(p+1).padStart(2,'0')+' '+name+'.wav',data:wav([b.getChannelData(0),b.getChannelData(1)],sr,24)})}
+  msg('Packing '+files.length+' pad stems…');return farpSave('farp-drum-stems-'+stamp()+'.zip',zipMany(files))}
+/* ---- exploded MIDI: a track per pad, plus the notes, as a type-1 file ---- */
+function smfExploded(mode,loops){
+  const pl=plan(mode,loops),PPQ_=96,tick=t=>Math.round(t/(60/SEQ.bpm)*PPQ_);if(!pl.drums.length&&!pl.notes.length)return null;
+  const trk=(name,evs)=>{const nm=[...name].map(c=>c.charCodeAt(0)&127),d=[0,0xFF,0x03,nm.length,...nm];evs.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);let last=0;
+    for(const e of evs){d.push(...vlq(e[0]-last),e[2],e[3],e[4]);last=e[0]}d.push(0,0xFF,0x2F,0);const L=d.length;return [0x4D,0x54,0x72,0x6B,(L>>>24)&255,(L>>16)&255,(L>>8)&255,L&255,...d]};
+  const us=Math.round(60000000/SEQ.bpm),t0=[0,0xFF,0x51,3,(us>>16)&255,(us>>8)&255,us&255,0,0xFF,0x58,4,4,2,24,8,0,0xFF,0x2F,0];
+  const tracks=[[0x4D,0x54,0x72,0x6B,0,0,0,t0.length,...t0]];
+  if(pl.notes.length)tracks.push(trk('Keys',pl.notes.flatMap(n=>[[tick(n.t),1,0x90,n.k,n.v],[tick(n.t+n.l),0,0x80,n.k,0]])));
+  for(let p=0;p<16;p++){const ev=pl.drums.filter(d=>d.p===p);if(!ev.length)continue;const nm=(userNames[p]||ROMKIT.names[p]||KIT[p].name);
+    tracks.push(trk(nm,ev.flatMap(d=>[[tick(d.t),1,0x99,PADNOTE[p],d.v],[tick(d.t)+22,0,0x89,PADNOTE[p],0]])))}
+  const head=[0x4D,0x54,0x68,0x64,0,0,0,6,0,1,0,tracks.length,0,PPQ_];return new Uint8Array([...head,...tracks.flat()])}
+/* ---- the FILES screen ---- */
+const sec=document.getElementById('fileSec');let busy=false;
+function render(){
+  sec.innerHTML='';const h=el('div','fhead');h.appendChild(el('h2','','FILES'));const mb=el('button','btn','MIDI SETUP ▸');mb.onclick=()=>showScreen('midi');h.appendChild(mb);sec.appendChild(h);
+  const msg=el('div','msg fmsg',' ');const say=t=>{msg.textContent=t};
+  const run=fn=>async()=>{if(busy)return;busy=true;sec.classList.add('busy');try{say(await fn())}catch(e){say('Something went wrong: '+(e&&e.message||e))}busy=false;sec.classList.remove('busy')};
+  // what to render
+  const rng=el('div','frow');rng.appendChild(el('b','','Play'));const ms=document.createElement('select');ms.setAttribute('aria-label','What to render');
+  ms.add(new Option('Song ('+SEQ.song.length+' entr'+(SEQ.song.length===1?'y':'ies')+')','song'));[1,2,4,8].forEach(n=>ms.add(new Option('Pattern '+(SEQ.cur+1)+' × '+n,'p'+n)));
+  ms.value=LS.get('farp_bmode','p2');ms.onchange=()=>LS.set('farp_bmode',ms.value);rng.appendChild(ms);sec.appendChild(rng);
+  const M=()=>ms.value==='song'?['song',1]:['pat',+ms.value.slice(1)];
+  const g=el('div','fgrid');
+  const card=(title,txt,btns)=>{const c=el('div','fcard');c.appendChild(el('h3','',title));c.appendChild(el('p','',txt));const r=el('div','fbtns');btns.forEach(([l,f])=>{const b=el('button','btn',l);b.onclick=run(f);r.appendChild(b)});c.appendChild(r);g.appendChild(c);return c};
+  card('EXPORT AUDIO','Plays the arrangement once in real time and records it, 24-bit WAV. Stems: one WAV per mixer channel (pre-master, effects returns on their own).',
+    [['Mix WAV',()=>bounce(false,...M(),say)],['Stems',()=>bounce(true,...M(),say)]]);
+  card('EXPLODE','Drums: one WAV per pad, rendered straight from the pads with their settings. MIDI: a type-1 file with a track for each pad and one for the keys.',
+    [['Drum stems',()=>explodeDrums(...M(),say)],['MIDI tracks',async()=>{const u=smfExploded(...M());if(!u)return 'Add some notes or hits first';const n='farp-exploded-'+stamp();return farpSave(n+'.zip',zipMany([{name:n+'.mid',data:u}]))}]]);
+  const pc=card('PROJECT','Everything: patterns, song, sounds, pads and your samples, mixer, instruments, rack, vocoder. ROMs are never included.',[['Save project',exportProject]]);
+  {const lab=el('label','btn filebtn','Load project…');const inp=document.createElement('input');inp.type='file';inp.accept='.zip,application/zip';
+    inp.onchange=async()=>{const f=inp.files&&inp.files[0];inp.value='';if(f){say('Loading…');say(await importProject(f))}};lab.appendChild(inp);pc.querySelector('.fbtns').appendChild(lab)}
+  const ic=card('IMPORT','MIDI files go into patterns; audio goes onto the pads (one file, or many at once by name: kick, snare, hat…).',[]);
+  {const r=ic.querySelector('.fbtns');const a=el('button','btn','MIDI file…');a.onclick=()=>document.getElementById('sqFile').click();r.appendChild(a);
+    const b=el('button','btn','Samples to pads…');b.onclick=()=>document.getElementById('pdMulti').click();r.appendChild(b)}
+  sec.appendChild(g);sec.appendChild(msg)}
+const _sh=showScreen;showScreen=function(id){_sh(id);if(id==='file')render();if(id==='file'||id==='midi')document.querySelectorAll('#screens button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.s==='file')))};
+document.querySelectorAll('#screens button').forEach(b=>b.onclick=()=>showScreen(b.dataset.s));
+document.getElementById('toFiles').onclick=()=>showScreen('file');
 })();
 </script>
 

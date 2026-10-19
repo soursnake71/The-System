@@ -18,6 +18,12 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
+import android.Manifest;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.webkit.PermissionRequest;
+import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
 import android.database.Cursor;
 import android.provider.DocumentsContract;
 import java.io.InputStream;
@@ -66,6 +72,12 @@ public class MainActivity extends Activity {
     private final Set<Integer> openedIds = new HashSet<>();
     private static final int PICK_FILE = 42;
     private static final int PICK_ROMS = 43;
+    private static final int ASK_MIC = 44;
+    private PermissionRequest pendingMic;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+    private String pendingSpeech = null; private float pendingRate = 1f, pendingPitch = 1f;
+    private File saveTmp; private FileOutputStream saveOut; private String saveName;
     private final Map<String, Uri> romDocs = new HashMap<>();
     private ValueCallback<Uri[]> pendingChooser;
 
@@ -116,6 +128,21 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "FarpAndroid");
         web.setWebChromeClient(new WebChromeClient() {
             @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                main.post(() -> {
+                    boolean wantsMic = false;
+                    for (String r : request.getResources()) if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) wantsMic = true;
+                    if (!wantsMic) { request.deny(); return; }
+                    if (Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                    } else {
+                        pendingMic = request;
+                        requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, ASK_MIC);
+                    }
+                });
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (pendingChooser != null) pendingChooser.onReceiveValue(null);
                 pendingChooser = callback;
@@ -148,6 +175,43 @@ public class MainActivity extends Activity {
         });
 
         web.loadUrl(START_URL);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        if (requestCode != ASK_MIC || pendingMic == null) return;
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED)
+            pendingMic.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+        else pendingMic.deny();
+        pendingMic = null;
+    }
+
+    // ---------------------------------------------------------------- speech for the vocoder
+    private void speakNow(final String text, float rate, float pitch) {
+        try {
+            tts.setSpeechRate(rate);
+            tts.setPitch(pitch);
+            final File f = new File(getCacheDir(), "farp-speech.wav");
+            final String id = "farp" + System.currentTimeMillis();
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String u) { }
+                @Override public void onDone(String u) {
+                    try (FileInputStream in = new FileInputStream(f); ByteArrayOutputStream bo = new ByteArrayOutputStream()) {
+                        byte[] buf = new byte[65536]; int n;
+                        while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                        final String b64 = Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
+                        main.post(() -> { if (web != null) web.evaluateJavascript("window.onSpeech&&onSpeech('" + b64 + "')", null); });
+                    } catch (Exception e) { speechFailed(); }
+                }
+                @Override public void onError(String u) { speechFailed(); }
+            });
+            Bundle params = new Bundle();
+            if (tts.synthesizeToFile(text, params, f, id) != TextToSpeech.SUCCESS) speechFailed();
+        } catch (Exception e) { speechFailed(); }
+    }
+
+    private void speechFailed() {
+        main.post(() -> { if (web != null) web.evaluateJavascript("window.onSpeech&&onSpeech(null,'failed')", null); });
     }
 
     @Override
@@ -226,6 +290,69 @@ public class MainActivity extends Activity {
 
     /** Lets the page save exported MIDI files into the phone's Downloads folder, and reach the ROM folder. */
     private class Bridge {
+        @JavascriptInterface
+        public void speak(final String text, final String rate, final String pitch) {
+            main.post(() -> {
+                float r = 1f, p = 1f;
+                try { r = Float.parseFloat(rate); p = Float.parseFloat(pitch); } catch (Exception ignored) { }
+                if (tts != null && ttsReady) { speakNow(text, r, p); return; }
+                pendingSpeech = text; pendingRate = r; pendingPitch = p;
+                if (tts == null) tts = new TextToSpeech(MainActivity.this, status -> {
+                    ttsReady = status == TextToSpeech.SUCCESS;
+                    if (!ttsReady) { speechFailed(); return; }
+                    if (pendingSpeech != null) { speakNow(pendingSpeech, pendingRate, pendingPitch); pendingSpeech = null; }
+                });
+            });
+        }
+
+        // large files arrive in pieces (a whole stems zip would not fit through one call)
+        @JavascriptInterface
+        public void saveBegin(String name) {
+            try {
+                saveName = name.replaceAll("[^A-Za-z0-9._ -]", "_");
+                saveTmp = new File(getCacheDir(), "farp-save.tmp");
+                saveOut = new FileOutputStream(saveTmp);
+            } catch (Exception e) { saveOut = null; }
+        }
+
+        @JavascriptInterface
+        public void saveChunk(String b64) {
+            try { if (saveOut != null) saveOut.write(Base64.decode(b64, Base64.DEFAULT)); } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public void saveEnd() {
+            String where;
+            try {
+                saveOut.close(); saveOut = null;
+                String lower = saveName.toLowerCase(), mime = lower.endsWith(".zip") ? "application/zip" : lower.endsWith(".wav") ? "audio/wav" : lower.endsWith(".mid") ? "audio/midi" : "application/octet-stream";
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.MediaColumns.DISPLAY_NAME, saveName);
+                    v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                    v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                    Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (uri == null) throw new Exception("no uri");
+                    try (OutputStream os = getContentResolver().openOutputStream(uri); FileInputStream in = new FileInputStream(saveTmp)) {
+                        byte[] buf = new byte[1 << 16]; int n; while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                    }
+                    where = "Downloads";
+                } else {
+                    File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                    File f = new File(dir, saveName);
+                    try (OutputStream os = new FileOutputStream(f); FileInputStream in = new FileInputStream(saveTmp)) {
+                        byte[] buf = new byte[1 << 16]; int n; while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                    }
+                    where = f.getParent();
+                }
+                saveTmp.delete();
+                final String msg = "Saved " + saveName + " to " + where;
+                main.post(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
+            } catch (Exception e) {
+                main.post(() -> Toast.makeText(MainActivity.this, "Couldn't save the file", Toast.LENGTH_LONG).show());
+            }
+        }
+
         @JavascriptInterface
         public void pickRomFolder() {
             main.post(() -> {
@@ -321,6 +448,7 @@ public class MainActivity extends Activity {
         for (MidiDevice d : devices) {
             try { d.close(); } catch (Exception ignored) { }
         }
+        if (tts != null) { try { tts.shutdown(); } catch (Exception ignored) { } }
         if (web != null) {
             web.destroy();
             web = null;
