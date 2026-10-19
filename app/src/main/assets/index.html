@@ -25,7 +25,7 @@ html,body{height:100%;overflow:hidden}
 [hidden]{display:none!important}
 .app,.app *{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .app{user-select:none;-webkit-user-select:none}
-.app input,.app select{user-select:text;-webkit-user-select:text}
+.app input,.app select,.app textarea{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
 body{background:#121417;color:var(--legend);font-family:var(--f-ui);font-size:15px;
   padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-block:8px;
   overscroll-behavior:none}
@@ -335,6 +335,10 @@ canvas#waveC{position:absolute;inset:0;width:100%;height:100%;touch-action:none;
 @media (max-width:700px){.fcard p{display:none}}
 .vtext{width:100%;box-sizing:border-box;background:#0e0f11;color:var(--legend);border:1px solid #000;border-radius:5px;padding:6px;font-family:var(--f-ui);font-size:14px;resize:none;min-height:44px}
 .midi{row-gap:8px}@media (max-height:700px) and (max-width:700px){.midi{gap:5px 12px;font-size:13px;padding:8px}.midi select{font-size:13px;padding:3px}.midi h2{margin:0}}@media (max-width:700px){.ihead .ititle{flex:1 1 90px}.ibtns .btn{padding:5px 8px}.midi .hint{display:none}.ipanel .vnote{display:none}.vtext{min-height:34px;font-size:13px;padding:4px}}
+.isws.vlines,.isws.vquick{display:flex!important;flex-wrap:wrap;gap:4px}
+@media (max-height:700px) and (max-width:700px){.vquick .chipbtn:nth-of-type(n+4){display:none}}
+.vlines .chipbtn{font-size:11.5px;padding:5px 7px;letter-spacing:0;text-transform:none;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}.vquick i{font-style:normal;font-size:11px;color:var(--dim)}
+.vquick .chipbtn{font-size:11px;padding:5px 7px;letter-spacing:.02em}.btn.vtest{background:var(--amber);color:#1c1204;font-weight:700}
 .vbands{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important}
 @media (max-width:700px){.vbands{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 /* instruments */
@@ -2416,7 +2420,7 @@ function layout(){
 }
 window.addEventListener('resize',layout);
 // Stop the phone's long-press gesture (selection / menu / haptic buzz) on the instrument
-const blockPress=e=>{if(e.target.closest('input,select'))return;e.preventDefault()};
+const blockPress=e=>{if(e.target.closest('input,select,textarea'))return;e.preventDefault()};
 document.addEventListener('contextmenu',blockPress);
 document.addEventListener('selectstart',blockPress);
 ['touchstart','touchmove'].forEach(t=>document.querySelector('.app').addEventListener(t,e=>{if(e.target.closest('.kbd,.track,.dial'))e.preventDefault()},{passive:false}));
@@ -5018,20 +5022,27 @@ const FarpSpeech=(()=>{
 /* ===================== Vocoder screen: VX-350 (circuit / clear), Talker, speech and mic voices ===================== */
 (()=>{
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e};
-const D={on:0,eng:'clear',car:'keys',src:'phrase',text:'Welcome to the F.A.R.P. Play a chord and I will sing it.',voice:'robot',pitch:110,rate:1,trig:'say',
+const D={on:0,eng:'clear',car:'keys',src:'phrase',text:'Welcome to the F.A.R.P.\nPlay a chord\nAnd I will sing it',li:0,voice:'robot',pitch:110,rate:1,trig:'say',
   vx:{micGainDb:0,instGainDb:0,guitarMode:false,harmonics:0.3,bands:[.8,.8,.8,.8,.8,.8,.8,.8,.8,.8],consonant:0.5,balance:1,ensemble:true,hold:false,stereo:true,volumeDb:0},
   tk:{mode:0,mic:.5,inst:.5,out:.7},tab:'VOICE'};
 let V=Object.assign({},D,LS.get('farp_voc',{}));V.vx=Object.assign({},D.vx,V.vx||{});V.tk=Object.assign({},D.tk,V.tk||{});
 const save=()=>LS.set('farp_voc',V);
 const CH={keys:null,omni:-1,str:0,syn:1,bas:2,p5:4,e2:5,six:6,dx:7,cz:8};
-const keysCh=()=>{const k=window.KEYS_INST||'';return k===''?-1:k==='p5'||k==='p5r3'?4:k==='e2'||k==='sd1'||k==='cm'?5:k==='six'?6:k==='dx'?7:8};
+const keysCh=()=>{const k=window.KEYS_INST||'';return k===''?-1:k==='p5'||k==='p5r3'?4:k==='e2'?5:k==='six'?6:k==='dx'?7:8};
 function push(){if(!powered||!window.farpNode)return;send({t:'voc',on:V.on?1:0,eng:V.eng,ch:V.car==='keys'?keysCh():CH[V.car],p:V.vx,tk:V.tk});syncVoice()}
 window.vocPush=push;
 /* ---- the voice: a phrase buffer (speech or a loaded file) or the microphone, into the processor's third input ---- */
-let vBus=null,phrase=null,phraseName='',src=null,mic=null,micStream=null,lastSay=-1;
+let vBus=null,phrase=null,phraseName='',src=null,mic=null,micStream=null,lastSay=-1,phrases=[],fileVoice=null;
+const lines=()=>V.text.split('\n').map(s=>s.trim()).filter(Boolean);
+const sopts=()=>({fs:22050,pitch:V.pitch,rate:V.rate,robot:V.voice==='robot',whisper:V.voice==='whisper'});
+// every line becomes its own phrase; the current one is what SAY and the chords play
+function buildPhrases(){if(!ctx)return;if(fileVoice){phrases=[fileVoice];V.li=0;phrase=fileVoice;return}
+  phrases=lines().map(l=>{const r=FarpSpeech.speak(l,sopts());const b=ctx.createBuffer(1,r.data.length,r.fs);b.copyToChannel(r.data,0);return b});
+  if(V.li>=phrases.length)V.li=0;phrase=phrases[V.li]||null}
+function pickLine(i){if(!phrases.length)return;V.li=((i%phrases.length)+phrases.length)%phrases.length;phrase=phrases[V.li];save();refresh()}
 function ensureBus(){if(vBus||!ctx||!(window.farpNode instanceof AudioWorkletNode))return!!vBus;vBus=ctx.createGain();vBus.connect(farpNode,0,2);return true}
 function stopPhrase(at){if(src){try{src.stop(at||0)}catch(e){}src=null}}
-function sayNow(at){if(!V.on||V.src!=='phrase'||!phrase||!ensureBus())return;const t=Math.max(at||0,ctx.currentTime);stopPhrase(t);src=ctx.createBufferSource();src.buffer=phrase;src.loop=V.trig==='loop';src.connect(vBus);src.start(t);lastSay=t}
+function sayNow(at,next){if(next&&phrases.length>1)pickLine(V.li+1);if(!V.on||V.src!=='phrase'||!phrase||!ensureBus())return;const t=Math.max(at||0,ctx.currentTime);stopPhrase(t);src=ctx.createBufferSource();src.buffer=phrase;src.loop=V.trig==='loop';src.connect(vBus);src.start(t);lastSay=t}
 async function syncVoice(){
   if(!ensureBus())return;
   if(V.on&&V.src==='mic'){if(!mic){try{micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});mic=ctx.createMediaStreamSource(micStream);mic.connect(vBus);toast('Mic on. Use headphones so the speakers don’t feed back.')}
@@ -5040,19 +5051,22 @@ async function syncVoice(){
   if(!V.on||V.src!=='phrase')stopPhrase();else if(V.trig==='loop'&&!src)sayNow()}
 // restart the phrase with each new chord when that trigger is chosen
 const _noteOn=noteOn;noteOn=function(k,v,s,at){const first=!at&&held.size===0;_noteOn(k,v,s,at);
-  if(V.on&&V.src==='phrase'&&V.trig==='keys'){if(first)sayNow();else if(at&&at-lastSay>0.08)sayNow(at)}};
+  if(V.on&&V.src==='phrase'&&V.trig==='keys'){if(first)sayNow(0,lastSay>=0);else if(at&&at-lastSay>0.08)sayNow(at,true)}};
 function useBuffer(data,fs,name){if(!ctx)return;const b=ctx.createBuffer(1,data.length,fs);b.copyToChannel(data,0);phrase=b;phraseName=name;refresh()}
 async function speak(){
   if(!powered)await power();
-  if(V.voice==='phone'&&window.FarpAndroid&&FarpAndroid.speak){toast('Speaking…');FarpAndroid.speak(V.text,String(V.rate),String(V.pitch/110));return}
-  const r=FarpSpeech.speak(V.text,{fs:22050,pitch:V.pitch,rate:V.rate,robot:V.voice==='robot',whisper:V.voice==='whisper'});useBuffer(r.data,r.fs,'“'+V.text.slice(0,28)+(V.text.length>28?'…':'')+'”');
-  if(V.on)sayNow();else toast('Speech ready. Turn the vocoder on and play.')}
+  fileVoice=null;
+  if(V.voice==='phone'&&window.FarpAndroid&&FarpAndroid.speak){const L=lines();if(!L.length)return;toast('Speaking '+L.length+' line'+(L.length>1?'s':'')+'…');phoneQ=L.slice();phoneOut=[];FarpAndroid.speak(phoneQ.shift(),String(V.rate),String(V.pitch/110));return}
+  buildPhrases();refresh();if(V.on)sayNow();else toast(phrases.length+' line'+(phrases.length===1?'':'s')+' ready. Tap TEST or turn the vocoder on and play.')}
+let phoneQ=[],phoneOut=[];
 window.onSpeech=async(b64,err)=>{if(err||!b64){toast('The phone’s speech engine couldn’t say that');return}
   const bin=atob(b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
-  try{const b=await ctx.decodeAudioData(u.buffer);phrase=b;phraseName='“'+V.text.slice(0,28)+'”';refresh();if(V.on)sayNow()}catch(e){toast('Couldn’t read the speech audio')}};
+  try{phoneOut.push(await ctx.decodeAudioData(u.buffer))}catch(e){toast('Couldn’t read the speech audio')}
+  if(phoneQ.length){FarpAndroid.speak(phoneQ.shift(),String(V.rate),String(V.pitch/110));return}
+  phrases=phoneOut;if(V.li>=phrases.length)V.li=0;phrase=phrases[V.li]||null;refresh();if(V.on)sayNow()};
 const voiceIn=document.createElement('input');voiceIn.type='file';voiceIn.accept='audio/*,.wav,.mp3,.aif,.aiff,.m4a,.ogg';voiceIn.hidden=true;document.body.appendChild(voiceIn);
-voiceIn.onchange=async()=>{const f=voiceIn.files&&voiceIn.files[0];voiceIn.value='';if(!f)return;if(!powered)await power();try{phrase=await ctx.decodeAudioData(await f.arrayBuffer());phraseName=f.name;refresh();if(V.on)sayNow()}catch(e){toast('That file couldn’t be read as audio')}};
-window.addEventListener('farp-power',()=>setTimeout(()=>{push();if(!phrase){const r=FarpSpeech.speak(V.text,{fs:22050,pitch:V.pitch,rate:V.rate,robot:V.voice==='robot',whisper:V.voice==='whisper'});useBuffer(r.data,r.fs,'“'+V.text.slice(0,28)+'…”')}},200));
+voiceIn.onchange=async()=>{const f=voiceIn.files&&voiceIn.files[0];voiceIn.value='';if(!f)return;if(!powered)await power();try{fileVoice=await ctx.decodeAudioData(await f.arrayBuffer());phraseName=f.name;buildPhrases();refresh();if(V.on)sayNow()}catch(e){toast('That file couldn’t be read as audio')}};
+window.addEventListener('farp-power',()=>setTimeout(()=>{push();if(!phrases.length){buildPhrases();refresh()}},200));
 /* ---- panel (the VOCODER chip on the instruments screen) ---- */
 function slider(label,min,max,step,get,set,fmt){const l=el('label','isl');l.appendChild(el('i','',label));const r=document.createElement('input');r.type='range';r.min=min;r.max=max;r.step=step;r.value=get();
   const s=el('span','',fmt(+get()));r.oninput=()=>{set(+r.value);s.textContent=fmt(+r.value)};r.onchange=()=>{save();push()};r.setAttribute('aria-label',label);l.appendChild(r);l.appendChild(s);return l}
@@ -5063,24 +5077,37 @@ function refresh(){if(host)render(host)}
 function render(panel){host=panel;panel.innerHTML='';
   const h=el('div','ihead');const t=el('div','ititle');t.appendChild(el('b','','VOCODER'));t.appendChild(el('span','',V.eng==='talker'?'The Talker pedal’s six programs':'VX-350: modeled on the Roland SVC-350'+(V.eng==='svc'?' (component-level circuit)':' (clear model)')));h.appendChild(t);
   const on=el('button','chipbtn big',V.on?'VOCODER ON':'VOCODER OFF');on.setAttribute('aria-pressed',String(!!V.on));on.onclick=async()=>{if(!powered)await power();V.on=V.on?0:1;save();push();refresh();if(V.on&&V.src==='phrase'&&V.trig!=='keys')sayNow()};h.appendChild(on);
-  const tabs=el('div','petabs itabs');['VOICE','VOCODER',V.eng==='talker'?null:'BANDS'].filter(Boolean).forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(V.tab===n));b.onclick=()=>{V.tab=n;save();refresh()};tabs.appendChild(b)});h.appendChild(tabs);
+  const tabs=el('div','petabs itabs');['VOICE','SPEECH','VOCODER',V.eng==='talker'?null:'BANDS'].filter(Boolean).forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(V.tab===n));b.onclick=()=>{V.tab=n;save();refresh()};tabs.appendChild(b)});h.appendChild(tabs);
   panel.appendChild(h);if(V.tab==='BANDS'&&V.eng==='talker')V.tab='VOCODER';
   if(V.tab==='VOICE'){
+    // the lyric sheet: one phrase per line
+    const tx=document.createElement('textarea');tx.className='vtext';tx.value=V.text;tx.rows=3;tx.placeholder='Type words here, one phrase per line';tx.setAttribute('aria-label','Words to speak, one phrase per line');
+    let deb=0;tx.oninput=()=>{V.text=tx.value;save();clearTimeout(deb);deb=setTimeout(()=>{if(V.voice!=='phone'){fileVoice=null;buildPhrases();renderLines()}},700)};
+    panel.appendChild(tx);
+    const lw=el('div','isws vlines');panel.appendChild(lw);
+    const renderLines=()=>{lw.innerHTML='';const L=fileVoice?[phraseName]:lines();
+      L.forEach((l,i)=>{const x=el('button','chipbtn',(i+1)+' '+l.slice(0,18)+(l.length>18?'…':''));x.setAttribute('aria-pressed',String(i===V.li));x.title=l;
+        x.onclick=async()=>{if(!powered)await power();if(!phrases.length)buildPhrases();pickLine(i);if(!V.on){V.on=1;save();push()}sayNow()};lw.appendChild(x)});
+      const add=el('button','chipbtn','+ LINE');add.onclick=()=>{V.text=V.text.replace(/\s*$/,'')+'\n';tx.value=V.text;save();tx.focus();tx.setSelectionRange(tx.value.length,tx.value.length)};lw.appendChild(add)};
+    renderLines();
+    const b=el('div','ibtns');const te=el('button','btn vtest','TEST ▶');te.onclick=testVoc;b.appendChild(te);
+    const sy=el('button','btn','SAY ▶');sy.onclick=async()=>{if(!powered)await power();if(!phrases.length)buildPhrases();if(!V.on){V.on=1;save();push();refresh()}sayNow()};b.appendChild(sy);
+    const nx=el('button','btn','NEXT ▶');nx.setAttribute('aria-label','Next line');nx.onclick=async()=>{if(!powered)await power();if(!phrases.length)buildPhrases();if(!V.on){V.on=1;save();push()}sayNow(0,true)};b.appendChild(nx);
+    const st=el('button','btn','■');st.setAttribute('aria-label','Stop the phrase');st.onclick=()=>stopPhrase();b.appendChild(st);panel.appendChild(b);
+    const m=el('div','srmenus');m.appendChild(sel('Lines play',[['say','When tapped'],['keys','Next line on each new chord'],['loop','Current line looping']],()=>V.trig,v=>{V.trig=v;stopPhrase()}));panel.appendChild(m)}
+  else if(V.tab==='SPEECH'){
     const m=el('div','srmenus');
     m.appendChild(sel('Voice from',[['phrase','Speech / phrase'],['mic','Microphone']],()=>V.src,v=>V.src=v));
-    m.appendChild(sel('Phrase plays',[['say','On SAY'],['keys','With each new chord'],['loop','Looping']],()=>V.trig,v=>{V.trig=v;stopPhrase()}));
     const vo=[['robot','F.A.R.P. robot'],['human','F.A.R.P. natural'],['whisper','F.A.R.P. whisper']];if(window.FarpAndroid&&FarpAndroid.speak)vo.push(['phone','Phone voice']);
     m.appendChild(sel('Speaker',vo,()=>V.voice,v=>V.voice=v));panel.appendChild(m);
-    const tx=document.createElement('textarea');tx.className='vtext';tx.value=V.text;tx.rows=2;tx.setAttribute('aria-label','Words to speak');tx.oninput=()=>{V.text=tx.value;save()};panel.appendChild(tx);
-    const b=el('div','ibtns');const sp=el('button','btn','SPEAK IT');sp.onclick=speak;b.appendChild(sp);const sy=el('button','btn','SAY ▶');sy.onclick=async()=>{if(!powered)await power();if(!V.on){V.on=1;save();push();refresh()}sayNow()};b.appendChild(sy);
-    const st=el('button','btn','■');st.setAttribute('aria-label','Stop the phrase');st.onclick=()=>stopPhrase();b.appendChild(st);
-    const ld=el('button','btn','Load file…');ld.onclick=()=>voiceIn.click();b.appendChild(ld);panel.appendChild(b);
     const g=el('div','igrid');g.appendChild(slider('PITCH',60,220,1,()=>V.pitch,v=>V.pitch=v,v=>Math.round(v)+'Hz'));g.appendChild(slider('SPEED',0.5,1.8,0.05,()=>V.rate,v=>V.rate=v,v=>v.toFixed(2)+'×'));panel.appendChild(g);
-    panel.appendChild(el('p','inote vnote',(phrase?'Voice: '+phraseName+' ('+phrase.duration.toFixed(1)+' s). ':'')+'Type words and tap SPEAK IT, then play chords: the vocoder makes the carrier instrument say them. The carrier is set on the VOCODER tab.'))}
+    const b=el('div','ibtns');const sp=el('button','btn','RE-SPEAK ALL LINES');sp.onclick=speak;b.appendChild(sp);const ld=el('button','btn','Load voice file…');ld.onclick=()=>voiceIn.click();b.appendChild(ld);panel.appendChild(b);
+    const qp=el('div','isws vquick');qp.appendChild(el('i','','Add a line:'));['Hello, I am the F.A.R.P.','Welcome to the future','I am a robot','Push the button','Freak the beat','Electric dreams'].forEach(q=>{const x=el('button','chipbtn',q);x.onclick=()=>{V.text=(V.text.trim()?V.text.replace(/\s*$/,'')+'\n':'')+q;save();fileVoice=null;buildPhrases();toast('Added: '+q)};qp.appendChild(x)});panel.appendChild(qp);
+    panel.appendChild(el('p','inote vnote','After changing the speaker, pitch or speed, tap RE-SPEAK ALL LINES. A loaded voice file replaces the lines until you edit them again.'))}
   else if(V.tab==='VOCODER'){
     const m=el('div','srmenus');
     m.appendChild(sel('Engine',[['clear','VX-350 Clear'],['svc','VX-350 SVC circuit (heavier)'],['talker','Talker pedal']],()=>V.eng,v=>V.eng=v));
-    m.appendChild(sel('Carrier',[['keys','The keys’ instrument'],['omni','OMNI strings+synth+bass'],['str','Strings'],['syn','Synth'],['bas','Bass'],['p5','P-5 / P-5 R3'],['e2','E-II / WAVES / PCM-32'],['six','6-TRAK'],['dx','FM-4'],['cz','PD-8']],()=>V.car,v=>V.car=v));
+    m.appendChild(sel('Carrier',[['keys','The keys’ instrument'],['omni','OMNI strings+synth+bass'],['str','Strings'],['syn','Synth'],['bas','Bass'],['p5','P-5 / P-5 R3'],['e2','E-II'],['six','6-TRAK'],['dx','FM-4'],['cz','PD-8']],()=>V.car,v=>V.car=v));
     if(V.eng==='talker')m.appendChild(sel('Program',TalkerPedal.NAMES.map((n,i)=>[String(i),n]),()=>String(V.tk.mode),v=>V.tk.mode=+v));
     panel.appendChild(m);const g=el('div','igrid');
     if(V.eng==='talker'){g.appendChild(slider('MIC IN',0,1,0.01,()=>V.tk.mic,v=>V.tk.mic=v,v=>Math.round(v*10)+''));g.appendChild(slider('INST IN',0,1,0.01,()=>V.tk.inst,v=>V.tk.inst=v,v=>Math.round(v*10)+''));g.appendChild(slider('EFFECT OUT',0,1,0.01,()=>V.tk.out,v=>V.tk.out=v,v=>Math.round(v*10)+''))}
@@ -5093,6 +5120,15 @@ function render(panel){host=panel;panel.innerHTML='';
     V.vx.bands.forEach((b,i)=>g.appendChild(slider(HZ[i],0,1,0.01,()=>V.vx.bands[i],v=>V.vx.bands[i]=v,v=>Math.round(v*10)+'')));
     g.appendChild(slider('HF CONS.',0,1,0.01,()=>V.vx.consonant,v=>V.vx.consonant=v,v=>Math.round(v*10)+''));panel.appendChild(g)}
 }
+// one tap: vocoder on, a chord held on the carrier, the phrase spoken through it
+let testing=false;
+async function testVoc(){if(testing)return;testing=true;
+  try{if(!powered)await power();V.src='phrase';if(V.trig==='keys')V.trig='say';V.on=1;save();push();
+    if(!phrases.length)buildPhrases();
+    await new Promise(r=>setTimeout(r,120));const chord=[48,55,60,63,67];chord.forEach(n=>noteOn(n,0.9,'test'));sayNow();refresh();
+    toast('Vocoder test: a C minor chord is saying line '+(V.li+1));
+    await new Promise(r=>setTimeout(r,Math.min(12000,(phrase?phrase.duration:2)*1000+400)));chord.forEach(n=>noteOff(n,'test'))}
+  finally{testing=false}}
 window.vocRender=render;
 })();
 </script>
