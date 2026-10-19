@@ -1,5 +1,9 @@
-# Builds the XL-Desk VST3 (and Standalone app) for Windows, macOS (Intel + Apple Silicon) and Linux.
-# Every run uploads the plugins as workflow artifacts; runs on main also publish them to the "xldesk-vst3-latest" release.
+# Builds, validates and packages the XL-Desk plugin for Windows, macOS (Intel + Apple Silicon) and Linux:
+#   - engine tests (C++ engine vs the published specs and the web engine's numbers)
+#   - pluginval at strictness 10 on every platform
+#   - installers: Windows setup .exe, macOS .pkg, Linux .deb and .tar.gz, plus the source code
+#   - AAX too when the repository has an AAX_SDK_URL secret (a link to your copy of Avid's AAX SDK zip)
+# Pushes (not pull requests) publish everything to the "xldesk-latest" release.
 name: XL-Desk VST3
 on:
   push:
@@ -9,6 +13,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+env:
+  VERSION: 1.1.0
 jobs:
   build:
     strategy:
@@ -29,51 +35,81 @@ jobs:
         if: matrix.name == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libwebkit2gtk-4.1-dev libgtk-3-dev libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxext-dev ninja-build
-      - name: WebView2 SDK (Windows)
+          sudo apt-get install -y libasound2-dev libwebkit2gtk-4.1-dev libgtk-3-dev libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxcomposite-dev libxext-dev ninja-build xvfb
+      - name: WebView2 SDK and Inno Setup (Windows)
         if: matrix.name == 'windows'
         shell: pwsh
-        run: nuget install Microsoft.Web.WebView2 -Version 1.0.2903.40 -OutputDirectory "$env:RUNNER_TEMP\webview2"
+        run: |
+          nuget install Microsoft.Web.WebView2 -Version 1.0.2903.40 -OutputDirectory "$env:RUNNER_TEMP\webview2"
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: AAX SDK (only if the AAX_SDK_URL secret is set)
+        if: matrix.name != 'linux'
+        shell: bash
+        env: {AAX_SDK_URL: '${{ secrets.AAX_SDK_URL }}'}
+        run: |
+          if [ -n "$AAX_SDK_URL" ]; then
+            curl -sSL -o "$RUNNER_TEMP/aax.zip" "$AAX_SDK_URL" && mkdir -p "$RUNNER_TEMP/aax" && (cd "$RUNNER_TEMP/aax" && unzip -q ../aax.zip)
+            sdk=$(dirname "$(find "$RUNNER_TEMP/aax" -name AAX.h -path '*Interfaces*' | head -1)")/..
+            echo "AAX_FLAG=-DXL_AAX_SDK=$(cd "$sdk" && pwd)" >> $GITHUB_ENV; echo "AAX SDK found"
+          else echo "No AAX_SDK_URL secret: building VST3 and Standalone only"; fi
       - name: Configure
         shell: bash
         run: |
-          extra=""
-          if [ "${{ matrix.name }}" = windows ]; then extra="-DJUCE_WEBVIEW2_PACKAGE_LOCATION=$RUNNER_TEMP/webview2"; fi
-          if [ "${{ matrix.name }}" = linux ]; then extra="-G Ninja"; fi
+          extra="${AAX_FLAG:-}"
+          if [ "${{ matrix.name }}" = windows ]; then extra="$extra -DJUCE_WEBVIEW2_PACKAGE_LOCATION=$RUNNER_TEMP/webview2"; fi
+          if [ "${{ matrix.name }}" = linux ]; then extra="$extra -G Ninja"; fi
           cmake -S xldesk/plugin -B build -DCMAKE_BUILD_TYPE=Release $extra
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Engine tests
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Package
+      - name: pluginval (strictness 10)
         shell: bash
         run: |
-          art=build/XLDesk_artefacts/Release
-          mkdir -p out
+          case "${{ matrix.name }}" in
+            windows) z=pluginval_Windows.zip; exe=./pluginval.exe ;;
+            macos) z=pluginval_macOS.zip; exe=./pluginval.app/Contents/MacOS/pluginval ;;
+            *) z=pluginval_Linux.zip; exe=./pluginval ;;
+          esac
+          curl -sSL -o pv.zip "https://github.com/Tracktion/pluginval/releases/latest/download/$z" && unzip -q pv.zip
+          run="$exe --strictness-level 10 --validate-in-process --timeout-ms 600000 --output-dir pluginval-logs build/XLDesk_artefacts/Release/VST3/XL-Desk.vst3"
+          if [ "${{ matrix.name }}" = linux ]; then xvfb-run -a $run; else $run; fi
+      - name: Installers
+        shell: bash
+        run: |
+          art=build/XLDesk_artefacts/Release; mkdir -p out
           if [ "${{ matrix.name }}" = macos ]; then
-            codesign --force --deep -s - "$art/VST3/XL-Desk.vst3"; codesign --force --deep -s - "$art/Standalone/XL-Desk.app"
-            ditto -c -k --keepParent "$art/VST3/XL-Desk.vst3" out/XL-Desk-VST3-macos.zip
-            ditto -c -k --keepParent "$art/Standalone/XL-Desk.app" out/XL-Desk-Standalone-macos.zip
+            for b in "$art/VST3/XL-Desk.vst3" "$art/Standalone/XL-Desk.app" "$art/AAX/XL-Desk.aaxplugin"; do if [ -e "$b" ]; then codesign --force --deep -s - "$b"; fi; done
+            xldesk/plugin/installer/macos-pkg.sh "$art" "$VERSION" out
+            ditto -c -k --keepParent "$art/VST3/XL-Desk.vst3" "out/XL-Desk-$VERSION-macOS-VST3.zip"
+            [ -d "$art/AAX/XL-Desk.aaxplugin" ] && ditto -c -k --keepParent "$art/AAX/XL-Desk.aaxplugin" "out/XL-Desk-$VERSION-macOS-AAX-unsigned.zip" || true
           elif [ "${{ matrix.name }}" = windows ]; then
-            (cd "$art/VST3" && 7z a -tzip "$GITHUB_WORKSPACE/out/XL-Desk-VST3-windows.zip" XL-Desk.vst3)
-            (cd "$art/Standalone" && 7z a -tzip "$GITHUB_WORKSPACE/out/XL-Desk-Standalone-windows.zip" XL-Desk.exe)
+            aax=""; [ -d "$art/AAX/XL-Desk.aaxplugin" ] && aax="//DAAX"
+            "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" //DVERSION=$VERSION "//DSRC=$(cygpath -w "$PWD/$art")" $aax //O"$(cygpath -w "$PWD/out")" xldesk/plugin/installer/windows.iss
+            (cd "$art/VST3" && 7z a -tzip "$GITHUB_WORKSPACE/out/XL-Desk-$VERSION-Windows-VST3.zip" XL-Desk.vst3)
+            [ -d "$art/AAX/XL-Desk.aaxplugin" ] && (cd "$art/AAX" && 7z a -tzip "$GITHUB_WORKSPACE/out/XL-Desk-$VERSION-Windows-AAX-unsigned.zip" XL-Desk.aaxplugin) || true
           else
-            (cd "$art/VST3" && zip -qr "$GITHUB_WORKSPACE/out/XL-Desk-VST3-linux.zip" XL-Desk.vst3)
-            (cd "$art/Standalone" && zip -q "$GITHUB_WORKSPACE/out/XL-Desk-Standalone-linux.zip" XL-Desk)
+            xldesk/plugin/installer/linux-deb.sh "$art" "$VERSION" out
           fi
           ls -la out
       - uses: actions/upload-artifact@v4
-        with: {name: 'XL-Desk-${{ matrix.name }}', path: out/*.zip}
+        with: {name: 'XL-Desk-${{ matrix.name }}', path: out/*}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: 'pluginval-logs-${{ matrix.name }}', path: pluginval-logs, if-no-files-found: ignore}
   release:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with: {path: dl, merge-multiple: true}
+        with: {path: dl, pattern: 'XL-Desk-*', merge-multiple: true}
+      - name: Source code
+        run: (cd xldesk && zip -qr "$GITHUB_WORKSPACE/dl/XL-Desk-$VERSION-source.zip" . -x 'plugin/build/*')
       - name: Publish
         env: {GH_TOKEN: '${{ github.token }}'}
         run: |
-          gh release view xldesk-vst3-latest >/dev/null 2>&1 || gh release create xldesk-vst3-latest --title "XL-Desk VST3 (latest)" --notes "XL-Desk VST3 and Standalone for Windows, macOS (Intel + Apple Silicon) and Linux. Unzip XL-Desk.vst3 into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, macOS ~/Library/Audio/Plug-Ins/VST3, Linux ~/.vst3. macOS builds are ad-hoc signed: run  xattr -dr com.apple.quarantine XL-Desk.vst3  once after unzipping."
-          gh release upload xldesk-vst3-latest dl/*.zip --clobber
+          ls -la dl
+          gh release delete xldesk-latest --cleanup-tag -y >/dev/null 2>&1 || true
+          gh release create xldesk-latest dl/* --target "$GITHUB_SHA" --title "XL-Desk $VERSION" --notes-file xldesk/plugin/installer/RELEASE_NOTES.md

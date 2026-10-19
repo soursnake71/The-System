@@ -14,10 +14,24 @@ if(JUCE_DIR)
   add_subdirectory(${JUCE_DIR} juce)
 else()
   include(FetchContent)
+  if(POLICY CMP0169)
+    cmake_policy(SET CMP0169 OLD)   # FetchContent_Populate, so the Linux WebView fix can go in before JUCE is added
+  endif()
   FetchContent_Declare(juce GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.9 GIT_SHALLOW TRUE)
   FetchContent_Populate(juce)
   xl_fix_juce_linux_webview(${juce_SOURCE_DIR})
   add_subdirectory(${juce_SOURCE_DIR} ${juce_BINARY_DIR})
+endif()
+
+# AAX (Pro Tools): needs Avid's AAX SDK, which Avid only gives to registered developers (developer.avid.com).
+#   cmake ... -DXL_AAX_SDK=/path/to/aax-sdk
+# Retail Pro Tools only loads AAX plugins signed with PACE's wraptool (free from Avid/PACE, needs an iLok);
+# installer/sign-aax.sh does the signing. Unsigned builds load in Pro Tools Developer.
+set(XL_FORMATS VST3 Standalone)
+if(XL_AAX_SDK AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  juce_set_aax_sdk_path(${XL_AAX_SDK})
+  list(APPEND XL_FORMATS AAX)
+  message(STATUS "XL-Desk: building AAX with the SDK at ${XL_AAX_SDK}")
 endif()
 
 juce_add_plugin(XLDesk
@@ -26,7 +40,9 @@ juce_add_plugin(XLDesk
   BUNDLE_ID com.absolutefuturestudios.xldesk
   PLUGIN_MANUFACTURER_CODE Afst
   PLUGIN_CODE Xlds
-  FORMATS VST3 Standalone
+  FORMATS ${XL_FORMATS}
+  AAX_IDENTIFIER com.absolutefuturestudios.xldesk
+  AAX_CATEGORY AAX_ePlugInCategory_Dynamics
   PRODUCT_NAME "XL-Desk"
   DESCRIPTION "SSL XL-Desk analogue console model"
   VST3_CATEGORIES Fx Tools

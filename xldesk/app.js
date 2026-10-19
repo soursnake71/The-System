@@ -623,6 +623,7 @@ if (HOST){
   HOST.on(d => {
     if (d.t === 'm') lastM = d;
     else if (d.t === 'p') applyRemote(d.id, d.v);
+    else if (d.t === 'pp') for (const id in d.P) applyRemote(id, d.P[id]);
     else if (d.t === 'init'){
       S.P = Object.assign(XL.defaults(), d.P); S.types = Object.assign(XL.defTypes(), d.types); S.cfg = {micRef:d.micRef, convRef:d.convRef};
       try { Object.assign(S, JSON.parse(d.ui || '{}')); } catch(e){}

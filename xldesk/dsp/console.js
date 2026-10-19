@@ -290,7 +290,8 @@ class XLDesk extends AudioWorkletProcessor {
   modMeter(w, m){ const o = this.meters.mod[w] || (this.meters.mod[w] = [0, 0]); if (m.grMax !== undefined){ o[0] = Math.max(o[0], m.grMax); o[1] = Math.max(o[1], m.gMax); } else if (m.pk !== undefined){ o[0] = Math.max(o[0], m.pk); m.pk = 0; } }
   process(ins, outs){
     const out = outs[0], N = out[0].length, fs = this.fs, P = this.P, g = id => this.g(id); this.blk = (this.blk | 0) + 1;
-    const noiseOn = !!g('sys.noise'), nCh = noiseOn ? dBu(-86) * 1.732 : 1e-9, nPre = noiseOn ? dBu(-128) * 1.732 : 0;
+    // uniform noise at the published RMS level: amplitude = rms * sqrt(3), and a sine-calibrated dBu has rms dBu() / sqrt(2)
+    const U = 1.2247449, noiseOn = !!g('sys.noise'), nCh = noiseOn ? dBu(-86) * U : 1e-9, nPre = noiseOn ? dBu(-128) * U : 0;
     const B = this.bus; for (const k in B) for (const a of B[k]) a.fill(0);
     for (const k in this.sig) for (const a of this.sig[k]) a.fill(0);
     const tp = this.tp;
@@ -308,7 +309,7 @@ class XLDesk extends AudioWorkletProcessor {
       const w = 'slot' + i, so = this.sig['slotout' + i][0]; this.slotExt[i] = false;
       if (stolen[i] || !P[w + '.ext'] || this.types[w] === 'empty') continue;
       const s = this.getSrc('slotin' + i, N, ins); if (s) so.set(s[0]); else so.fill(0);
-      const m = this.mods[w][0]; if (m.pre) m.noise = noiseOn ? dBu(-128) * 1.732 : 0; this.modRun(w, so, N); this.slotExt[i] = true;
+      const m = this.mods[w][0]; if (m.pre) m.noise = nPre; this.modRun(w, so, N); this.slotExt[i] = true;
     }
     /* ---------- mono channels ---------- */
     for (let i = 1; i <= 16; i++){
@@ -412,7 +413,7 @@ class XLDesk extends AudioWorkletProcessor {
         for (let n = 0; n < N; n++){ b[0][n] = sum ? b[0][n] + rl[n] : rl[n]; b[1][n] = sum ? b[1][n] + rr[n] : rr[n]; }   // SUM: return added to the bus feed
       }
     };
-    const nBus = noiseOn ? dBu(-86) * 1.732 : 0;
+    const nBus = noiseOn ? dBu(-86) * U : 0;
     for (const [X, s1] of [['B', 11], ['C', 13], ['D', 15]]){
       const b = B[X]; bamp(b, Math.sqrt(nBus * nBus + nCh * nCh * idle[X])); busChain(X, s1);
       const [v0, vS] = this.rp(X + '.lv', dB(this.law(X + '.level')), N), o = this.sig['mix' + X], toA = P[X + '.toA'], afl = P[X + '.afl'];

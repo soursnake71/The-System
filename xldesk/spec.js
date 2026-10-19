@@ -125,7 +125,7 @@ btn('mon.srcA', 1, 'Source MIX A'); btn('mon.srcExt', 0, 'Source EXT'); btn('mon
 pot('mon.off1', .5, ['lin', -20, 20], 'Mini 1 level offset', 'dB'); pot('mon.off2', .5, ['lin', -20, 20], 'Mini 2 level offset', 'dB');
 pot('hp.level', .5, ['vol'], 'Headphone level', 'dB'); btn('hp.fbA', 0, 'H/P F/B A'); btn('hp.fbB', 0, 'H/P F/B B');
 for (const f of ['fbA', 'fbB']){ const n = f === 'fbA' ? 'A' : 'B'; pot(f + '.level', .5, ['u10'], 'Foldback ' + n, 'dB'); btn(f + '.mon', 0, 'F/B ' + n + ' MON'); btn(f + '.talk', 0, 'TALK ' + n); }
-pot('talk.level', .5, ['lin', -20, 40], 'Talkback mic gain', 'dB'); pot('listen.level', .5, ['lin', 0, 60], 'Listen mic gain', 'dB'); btn('listen.on', 0, 'LISTEN');
+pot('talk.level', .5, ['lin', 0, 60], 'Talkback mic gain', 'dB'); pot('listen.level', .5, ['lin', 0, 60], 'Listen mic gain', 'dB'); btn('listen.on', 0, 'LISTEN');
 for (let d = 1; d <= 12; d++) btn('dip.' + d, 0, 'DIP ' + d);
 btn('sys.noise', 1, 'Analogue noise floor');
 btn('rear.unlink1', 0, '500 links removed, slots 1-8'); btn('rear.unlink2', 0, '500 links removed, slots 9-16');

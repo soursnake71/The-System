@@ -71,5 +71,5 @@ inline double law (const Law& L, double p)
 } // namespace xlspec
 `;
 const out = path.join(__dirname, '..', 'Source', 'Spec.generated.h');
-if (process.argv.includes('--check')){ const cur = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : ''; if (cur !== o){ console.error('Spec.generated.h is out of date: run node xldesk/plugin/tools/gen-spec.js'); process.exit(1); } console.log('Spec.generated.h is up to date'); }
+if (process.argv.includes('--check')){ const cur = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').replace(/\r\n/g, '\n') : ''; if (cur !== o){ /* Windows checkouts use CRLF */ console.error('Spec.generated.h is out of date: run node xldesk/plugin/tools/gen-spec.js'); process.exit(1); } console.log('Spec.generated.h is up to date'); }
 else { fs.writeFileSync(out, o); console.log('wrote', out, ids.length, 'parameters,', types.length, 'modules'); }

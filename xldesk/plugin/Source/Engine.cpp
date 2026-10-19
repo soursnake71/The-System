@@ -130,7 +130,9 @@ void Engine::process (int n, const float* const* src, float* const* out)
 void Engine::block (int N, const float* const* src, int off)
 {
     const bool noiseOn = on (noise);
-    const float nCh = noiseOn ? (float) dBu (-86) * 1.732f : 1e-9f, nPre = noiseOn ? (float) dBu (-128) * 1.732f : 0.f, nBus = noiseOn ? (float) dBu (-86) * 1.732f : 0.f;
+    // uniform noise with the published RMS level: amplitude = rms * sqrt(3), rms of a sine-calibrated dBu = dBu() / sqrt(2)
+    constexpr float U = 1.2247449f;
+    const float nCh = noiseOn ? (float) dBu (-86) * U : 1e-9f, nPre = noiseOn ? (float) dBu (-128) * U : 0.f, nBus = noiseOn ? (float) dBu (-86) * U : 0.f;
     for (auto& b : bus) std::fill (b.begin(), b.begin() + N, 0.f);
     for (auto& s : sig) std::fill (s.begin(), s.begin() + N, 0.f);
     float* BA[2] = { bus[0].data(), bus[1].data() }; float* BB[2] = { bus[2].data(), bus[3].data() }; float* BC[2] = { bus[4].data(), bus[5].data() }; float* BD[2] = { bus[6].data(), bus[7].data() };

@@ -24,7 +24,7 @@ A working model of the Solid State Logic XL-Desk analogue console, made for Abso
 - Monitoring: three speaker sets with bass management, MINI level trims, dim, mono, foldback A/B with talkback, headphones, listen mic and its compressor, all 12 rear DIP switches.
 - Tape tab plays your stems into the DAW inputs; print any outputs to 24-bit WAV. Multichannel interfaces: patch inputs and outputs on the Rear panel tab.
 - Full MIDI: every control on a fixed CC map plus MIDI Learn, feedback to the controller, 14-bit pitch-bend faders, program change snapshots, and MMC in and out (transport and locate).
-- Also a VST3 plugin (Windows, macOS, Linux) with the same interface and DSP: the rear panel becomes its buses, every control is automatable, MIDI and MMC work with the window closed. See `xldesk/plugin/README.md`; builds are on the xldesk-vst3-latest release.
+- Also a VST3 plugin (Windows, macOS, Linux) with the same interface and DSP: the rear panel becomes its buses, every control is automatable, MIDI and MMC work with the window closed. See `xldesk/plugin/README.md`; builds are on the xldesk-latest release.
 - Switches light red when engaged; fader scales are the ones printed on the desk; bus bargraphs are true-peak.
 - Built from SSL's XL-Desk Owner's Manual (82BMLM01B), the VHD Pre module guide, the G Comp, E EQ and E Dynamics 500 module guides, and Sound On Sound's review. The Help tab lists every source and every value that had to be estimated.
 

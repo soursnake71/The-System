@@ -100,14 +100,16 @@ void XLDeskEditor::timerCallback()
     o->setProperty ("mod", mod.get());
     send (o.get());
     // automation, MIDI and snapshot changes reach the page; the page's own moves are not echoed back for half a second
+    // one message per frame however many controls moved (a snapshot or a busy automation lane moves hundreds)
     const auto now = juce::Time::getMillisecondCounter();
+    juce::DynamicObject::Ptr changed = new juce::DynamicObject(); int nChanged = 0;
     for (int i = 0; i < xlspec::NPARAMS; ++i)
     {
         const float v = proc.param (i)->getValue();
         if (std::abs (v - sent[(size_t) i]) < 1e-7f || now - uiTouched[(size_t) i] < 500) continue;
-        sent[(size_t) i] = v;
-        juce::DynamicObject::Ptr p = new juce::DynamicObject(); p->setProperty ("t", "p"); p->setProperty ("id", xlspec::PARAMS[i].id); p->setProperty ("v", v); send (p.get());
+        sent[(size_t) i] = v; changed->setProperty (xlspec::PARAMS[i].id, v); ++nChanged;
     }
+    if (nChanged) { juce::DynamicObject::Ptr p = new juce::DynamicObject(); p->setProperty ("t", "pp"); p->setProperty ("P", changed.get()); send (p.get()); }
     for (int w = 0; w < xlspec::NWHERE; ++w)
     {
         const auto ty = proc.typeAt (w);

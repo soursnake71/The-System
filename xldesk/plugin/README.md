@@ -4,12 +4,25 @@ The XL-Desk console as a VST3 plugin (plus a Standalone app) for Windows, macOS 
 as the web version (`../index.html`, shown in a WebView); the DSP is a C++ port of `../dsp/console.js` that matches it to
 0.01 dB (`tests/engine_test.cpp`).
 
-## Download
-GitHub Actions builds every push (artifacts on the workflow run); pushes to `main` also publish the
-**xldesk-vst3-latest** release. Unzip `XL-Desk.vst3` into your VST3 folder:
-- Windows: `C:\Program Files\Common Files\VST3`
-- macOS: `~/Library/Audio/Plug-Ins/VST3` (then `xattr -dr com.apple.quarantine XL-Desk.vst3`, the build is ad-hoc signed)
-- Linux: `~/.vst3`
+## Download and install
+Every push builds, tests and packages it on GitHub Actions and publishes the **xldesk-latest** release:
+- `XL-Desk-<ver>-Windows-Setup.exe`: installs the VST3 (`C:\Program Files\Common Files\VST3`) and the Standalone app.
+- `XL-Desk-<ver>-macOS.pkg`: universal (Apple Silicon + Intel); VST3 to `/Library/Audio/Plug-Ins/VST3`, app to `/Applications`.
+  Not notarised yet: right-click the .pkg and choose Open the first time.
+- `xl-desk_<ver>_amd64.deb` / `XL-Desk-<ver>-Linux.tar.gz`: VST3 to `/usr/lib/vst3` (or `~/.vst3` via `install.sh`).
+- `XL-Desk-<ver>-source.zip`: all the code.
+
+## AAX (Pro Tools)
+The build makes an AAX as well as soon as it has Avid's AAX SDK, which Avid only gives to registered developers
+(developer.avid.com). Locally: `-DXL_AAX_SDK=/path/to/aax-sdk`. On GitHub: add a repository secret `AAX_SDK_URL` with a
+download link to your SDK zip; the installers then include the AAX. Retail Pro Tools only loads AAX plugins signed with
+PACE's wraptool (free through Avid, needs an iLok and a PACE account): run `installer/sign-aax.sh` on your machine.
+Unsigned AAX builds load in Pro Tools Developer (ask devauth@avid.com for a free activation).
+
+## Signing (optional)
+Without paid certificates, Windows SmartScreen and macOS Gatekeeper warn on first install. With an Apple Developer ID,
+pass its "Developer ID Installer" identity as the 4th argument of `installer/macos-pkg.sh` and notarise; on Windows,
+sign the setup .exe with your Authenticode certificate (`signtool sign`).
 
 ## Build
 Needs CMake 3.22+, a C++17 compiler and Node (only to regenerate the spec header). JUCE 8.0.9 is fetched automatically.

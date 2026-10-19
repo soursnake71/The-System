@@ -552,7 +552,7 @@ constexpr ParamDef PARAMS[] = {
   {"fbB.level", "Foldback B", 'p', 0.5f, {Law::U10, 0.0, 0.0}, "dB"},
   {"fbB.mon", "F/B B MON", 'b', 0.0f, {Law::None, 0.0, 0.0}, ""},
   {"fbB.talk", "TALK B", 'b', 0.0f, {Law::None, 0.0, 0.0}, ""},
-  {"talk.level", "Talkback mic gain", 'p', 0.5f, {Law::Lin, -20.0, 40.0}, "dB"},
+  {"talk.level", "Talkback mic gain", 'p', 0.5f, {Law::Lin, 0.0, 60.0}, "dB"},
   {"listen.level", "Listen mic gain", 'p', 0.5f, {Law::Lin, 0.0, 60.0}, "dB"},
   {"listen.on", "LISTEN", 'b', 0.0f, {Law::None, 0.0, 0.0}, ""},
   {"dip.1", "DIP 1", 'b', 0.0f, {Law::None, 0.0, 0.0}, ""},
