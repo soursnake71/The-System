@@ -1031,6 +1031,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="card" data-title="Pad sound">
       <div class="kitrow"><span class="label">Drum machine</span><select id="kitPick" class="grow" aria-label="Drum machine on the pads"></select></div>
       <div class="kitrow"><span class="label">My samples</span><button id="libBrowse" class="grow">Browse my samples</button><button id="libImport" class="grow">Import samples folder</button></div>
+      <div class="kitrow"><span class="label">Randomize</span><button id="rndKit" class="grow">🎲 Random kit</button><button id="rndPad" class="grow">🎲 This pad</button></div>
       <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
       <div class="kitrow"><span class="label">Pack</span><button id="packSave" class="nolearn">Save pack</button><button id="packLoad" class="nolearn">Load pack</button></div>
       <input type="file" id="packFile" accept=".omegapack,.zip" hidden>
@@ -1485,6 +1486,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>Edit</b> (above the pads): turn it on, then tap a pad for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>, or <b>Clear all pads…</b> (also the <b>Clear all</b> button above the pads, and in Pad sound). Turn Edit off to play the pads again.: empty every pad, empty every pad and its hits, or reset all 16 to the built-in sounds.</li>
         <li><b>Load…</b> in a pad's hold menu, or <b>Load file</b> in Pad sound, opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
         <li><b>My samples</b> (Pads screen): <b>Import samples folder</b>, pick your phone's samples folder (Android shows a folder picker; on phones that don't, open the folder and select all), and every sound is copied into the app's own library with its sub-folders. It stays on the phone and works offline. <b>Browse my samples</b> opens it: tap a folder, tap a sound to hear it, ◀ ▶ to step through, then <b>Load on pad</b>. Search finds a sound in any folder.</li>
+        <li><b>🎲 Random kit</b> (Pads screen): builds a whole kit from your own sample library (My samples). Each pad gets a random sound of the right kind, picked by file and folder names: kicks on the kick pads, snares, claps, closed and open hats, low/mid/high toms, percussion, cymbals, an 808 and an FX, never the same file twice. Tap again for another kit. <b>🎲 This pad</b> re-rolls just the selected pad. Import your samples folder first.</li>
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
@@ -2011,7 +2013,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v123</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v124</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7055,6 +7057,48 @@ $('#libFilesIn').addEventListener('change', async e => { const fs = [...e.target
 // a folder picker where the browser has one (Chrome on Android, desktop); otherwise pick all the files inside the folder
 const libPick = () => { const d = $('#libDirIn'); if ('webkitdirectory' in d) d.click(); else $('#libFilesIn').click(); };
 $('#sbxImport').addEventListener('click', libPick); $('#libImport').addEventListener('click', libPick);
+/* ================= Random kit: a whole kit from your own library =================
+   Every sample you imported is sorted by its name and folder (kick, snare, clap, hats open/closed, toms, percussion,
+   cymbals, 808s, FX). Each pad gets a random sound of the right kind, never the same file twice. Tap again for another. */
+const RND_ROLES = [['Kick', ['Kicks']], ['Snare', ['Snares']], ['Clap', ['Claps', 'Snares']], ['Rim', ['Percussion'], /rim|stick|click/], ['C Hat', ['Hats'], null, /open|\boh\b|ohh/],
+  ['O Hat', ['Hats'], /open|\boh\b|ohh/], ['Perc', ['Percussion']], ['Cymbal', ['Cymbals', 'Hats'], null, null],
+  ['Lo Tom', ['Toms', 'Percussion'], /lo|low|floor|1\b/], ['Mid Tom', ['Toms', 'Percussion'], /mid|2\b/], ['Hi Tom', ['Toms', 'Percussion'], /hi|high|3\b/], ['Shaker', ['Percussion'], /shak|tamb|cabasa|maraca/],
+  ['Kick 2', ['Kicks']], ['Snare 2', ['Snares', 'Claps']], ['808', ['808 & Bass', 'Kicks']], ['FX', ['FX', 'Vocals', 'Percussion']]];
+async function rndPool(){
+  const idx = await binIndex(), pool = {};
+  for (const e of idx){ if (!SBX_EXT.test(e.name) || e.size > 4e6) continue; const c = catGuess(e.name, e.path); (pool[c] = pool[c] || []).push(e); }
+  return {pool, n:idx.length};
+}
+function rndPick(pool, role, used){
+  const [, cats, want, avoid] = role;
+  for (const c of cats){ let list = (pool[c] || []).filter(e => !used.has(e.id)); if (!list.length) continue;
+    const txt = e => (e.name + ' ' + (e.path || '')).toLowerCase().replace(/[_\-.]+/g, ' ');
+    if (avoid){ const l2 = list.filter(e => !avoid.test(txt(e))); if (l2.length) list = l2; }
+    if (want){ const l2 = list.filter(e => want.test(txt(e))); if (l2.length) list = l2; }
+    return list[Math.floor(Math.random() * list.length)]; }
+  return null;
+}
+async function rndLoad(i, e, label){
+  const bytes = await DB.get('kv', 'bin:' + e.id); if (!bytes) throw 0;
+  const buf = await decodeAny(bytes.slice(0)), p = S.drum.pads[i], key = 'usr:' + i + ':' + Date.now() + ':' + Math.random().toString(36).slice(2, 5);
+  dropAudio(p.sample); buffers.set(key, buf); p.sample = key; p.name = e.name.replace(/\.[^.]+$/, '').slice(0, 14); delete p.tempo; p.fit = 0; p.rev = 0; p.pitch = 0;
+  p.choke = /Hat/.test(label) ? 1 : 0; await storeAudio(key, buf);
+}
+async function randomKit(only){
+  ensureAudio(); const {pool, n} = await rndPool();
+  if (!n){ toast('Your sample library is empty. Tap Import samples folder first, then roll again.'); return; }
+  const used = new Set(S.drum.pads.map(p => p._rndId).filter(Boolean)), pads = only == null ? RND_ROLES.map((r, i) => i) : [only]; let ok = 0, miss = [];
+  if (only == null) used.clear();
+  for (const i of pads){ const role = only == null ? RND_ROLES[i] : (RND_ROLES.find(r => S.drum.pads[i].name && new RegExp('^' + r[0].split(' ')[0], 'i').test(S.drum.pads[i].name)) || RND_ROLES[i]);
+    const e = rndPick(pool, role, used); if (!e){ miss.push(role[0]); continue; }
+    try { await rndLoad(i, e, role[0]); used.add(e.id); S.drum.pads[i]._rndId = e.id; ok++; } catch(err){ miss.push(role[0]); } }
+  S.drum.kit = 'random'; save(); renderPads(); renderPadEditor(); try { renderKitPick(); } catch(e){}
+  if (only != null) auditionPad(only);
+  toast(only != null ? (ok ? 'New sound on ' + padLabel(only) + ': ' + S.drum.pads[only].name : 'Nothing of that kind in your library.')
+    : `Random kit from your library: ${ok} pads` + (miss.length ? `. Nothing found for ${[...new Set(miss)].join(', ')}, so those kept their sound` : '') + '. Tap 🎲 again for another kit.');
+}
+$('#rndKit').addEventListener('click', () => randomKit());
+$('#rndPad').addEventListener('click', () => randomKit(selPad));
 $('#libBrowse').addEventListener('click', () => { sbxOpen(selPad); setTimeout(() => sbxShowTab('bin'), 50); });
 
 /* ================= arpeggiator (per synth; follows the transport when playing, its own clock when stopped) ================= */
