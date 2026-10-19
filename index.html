@@ -1003,6 +1003,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <button id="padsClr" class="grow nolearn">Clear</button>
       </div>
     <input type="file" id="padFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" hidden>
+    <input type="file" id="libDirIn" webkitdirectory directory multiple hidden>
+    <input type="file" id="libFilesIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
     <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
     <div class="kitplate" id="kitPlate" hidden><b></b><i></i></div>
     <div class="pads" id="pads"></div>
@@ -1028,6 +1030,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="card" data-chip="Synsonics" id="synsCard"></div>
     <div class="card" data-title="Pad sound">
       <div class="kitrow"><span class="label">Drum machine</span><select id="kitPick" class="grow" aria-label="Drum machine on the pads"></select></div>
+      <div class="kitrow"><span class="label">My samples</span><button id="libBrowse" class="grow">Browse my samples</button><button id="libImport" class="grow">Import samples folder</button></div>
       <div class="kitrow"><span class="label">All pads</span><button id="kitFiles">Load files onto pads</button><button id="clearPads">Clear pads</button></div>
       <div class="kitrow"><span class="label">Pack</span><button id="packSave" class="nolearn">Save pack</button><button id="packLoad" class="nolearn">Load pack</button></div>
       <input type="file" id="packFile" accept=".omegapack,.zip" hidden>
@@ -1481,6 +1484,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <ul>
         <li><b>Edit</b> (above the pads): turn it on, then tap a pad for its menu: <b>Delete sound</b> (the pad goes empty; its hits stay but play nothing), <b>Delete sound and its hits</b>, <b>Load…</b>, or <b>Built-in sound</b>, or <b>Clear all pads…</b> (also the <b>Clear all</b> button above the pads, and in Pad sound). Turn Edit off to play the pads again.: empty every pad, empty every pad and its hits, or reset all 16 to the built-in sounds.</li>
         <li><b>Load…</b> in a pad's hold menu, or <b>Load file</b> in Pad sound, opens the sample browser. Tap a sound to hear it, then use <b>◀ ▶</b> to step through the folder; each one plays as you land on it (the next few are loaded ahead, so it's instant). <b>Load on pad</b> keeps the one you like. Switch <b>Tap: hear</b> to <b>Tap: load</b> if you'd rather every tap go straight onto the pad. <b>Search</b> looks through your whole samples folder, subfolders included, e.g. "909 snare". <b>My folder</b> remembers your folder and where you were in it; <b>Recent</b> keeps every sample you've loaded. With a keyboard: ↑ ↓ to step, Space to hear, Enter to load.</li>
+        <li><b>My samples</b> (Pads screen): <b>Import samples folder</b>, pick your phone's samples folder (Android shows a folder picker; on phones that don't, open the folder and select all), and every sound is copied into the app's own library with its sub-folders. It stays on the phone and works offline. <b>Browse my samples</b> opens it: tap a folder, tap a sound to hear it, ◀ ▶ to step through, then <b>Load on pad</b>. Search finds a sound in any folder.</li>
         <li><b>Catalog</b> sorts every sound in your samples folder into categories by its name and folder: Kicks, Snares, Claps, Hats, Cymbals, Toms, Percussion, 808 &amp; Bass, Vocals, FX, Synth &amp; Keys, Loops, Breaks, Other. Tap a category chip to browse just those. <b>All lengths / One-shots / Loops</b> filters by length, and loops show their BPM when it's in the file name. Pick a sound to see its tools: <b>☆</b> makes it a favorite (favorites get their own chip and sit at the top), the category menu moves it (or makes a <b>New category…</b>), and <b>tags</b> (e.g. "dusty, 90s, SP") are searchable. Added new files to the folder? Tap <b>Rescan</b>. Your favorites, categories and tags are kept.</li>
         <li><b>Load files onto pads</b> (above the pads): pick a whole sample pack at once. Each file goes to the pad its name matches (kick/BD, snare/SD, clap, rim, closed/open hat, ride, crash, low/mid/high tom, conga, cowbell and so on). Files that match nothing fill the remaining pads in order.</li>
         <li><b>Built-in</b> (in Pad sound) puts the pad's original sound back.</li>
@@ -2005,7 +2009,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v121</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v122</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2053,7 +2057,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 </dialog>
 <dialog id="sbx" aria-labelledby="sbxTitle">
   <div class="sbx-head"><h2 id="sbxTitle" class="grow">Load onto A01</h2><button id="sbxDone" class="nolearn">Done</button></div>
-  <div class="seg sbx-tabs"><button data-t="cat" class="nolearn">Catalog</button><button data-t="dir" class="nolearn">Folders</button><button data-t="bin" class="nolearn">Recent</button></div>
+  <div class="seg sbx-tabs"><button data-t="cat" class="nolearn">Catalog</button><button data-t="dir" class="nolearn">Folders</button><button data-t="bin" class="nolearn">My samples</button></div>
   <div id="sbxDir">
     <div class="row"><span id="sbxDirName" class="grow sbx-path">No folder yet</span><button id="sbxPick" class="nolearn">Choose folder</button></div>
     <div class="row"><button id="sbxFolderPads" class="grow nolearn">Load this folder onto pads</button></div>
@@ -2072,7 +2076,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <button id="sbxNext" class="nolearn" aria-label="Next sound">▶</button>
     <button id="sbxUse" class="nolearn on">Load on pad</button>
   </div>
-  <button id="sbxPhone" class="nolearn sbx-phone">From phone…</button>
+  <div class="row"><button id="sbxPhone" class="nolearn sbx-phone grow">From phone…</button><button id="sbxImport" class="nolearn sbx-phone grow">Import my samples folder</button></div>
 </dialog>
 <nav id="nav">
   <button data-v="drums" class="cur">Pads</button>
@@ -6666,13 +6670,13 @@ let sbxLoadOnTap = (() => { try { return localStorage.getItem('pr.sbxTap2') !== 
 let sbxRoot = null, sbxStack = [], sbxItems = [], sbxSel = -1, sbxSrc = null, sbxTree = null, sbxTreeBusy = null;
 const sbxCache = new Map();      // item id -> {bytes, buf}, most recent last (decoded once, so stepping back and forth is instant)
 async function binIndex(){ try { return (await DB.get('kv', 'binIndex')) || []; } catch(e){ return []; } }
-async function binAdd(name, bytes){
+async function binAdd(name, bytes, path){
   try {
     const idx = await binIndex(), size = bytes.byteLength;
     const old = idx.findIndex(e => e.name === name && e.size === size);
     if (old >= 0){ const [e] = idx.splice(old, 1); e.t = Date.now(); idx.unshift(e); }
-    else { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await DB.put('kv', 'bin:' + id, bytes); idx.unshift({id, name, size, t:Date.now()}); }
-    while (idx.length > 300){ const e = idx.pop(); DB.del('kv', 'bin:' + e.id); }
+    else { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await DB.put('kv', 'bin:' + id, bytes); idx.unshift(Object.assign({id, name, size, t:Date.now()}, path ? {path} : {})); }
+    while (idx.length > (path ? 8000 : Math.max(300, idx.filter(e => e.path).length + 300))){ const e = idx.pop(); DB.del('kv', 'bin:' + e.id); }
     await DB.put('kv', 'binIndex', idx);
   } catch(e){}
 }
@@ -6750,7 +6754,7 @@ function sbxShowTab(t){
   sbxTab = t; try { localStorage.setItem('pr.sbxTab', t); } catch(e){}
   document.querySelectorAll('.sbx-tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   $('#sbxDir').hidden = t === 'bin'; $('#sbxCatBar').hidden = t !== 'cat'; $('#sbxEdit').hidden = true;
-  $('#sbxFind').placeholder = t === 'dir' ? 'Search this folder and all folders inside' : t === 'cat' ? 'Search names, folders and tags' : 'Search recent samples';
+  $('#sbxFind').placeholder = t === 'dir' ? 'Search this folder and all folders inside' : t === 'cat' ? 'Search names, folders and tags' : 'Search my samples';
   sbxRefresh();
 }
 function sbxRefresh(){ if (sbxTab === 'dir') sbxDirRender(); else if (sbxTab === 'cat') sbxCatRender(); else sbxBinRender(); }
@@ -6834,10 +6838,20 @@ async function sbxSearchTree(q){
   sbxItems = hits.map(e => ({id:'f:' + e.path + '/' + e.h.name, ckey:catKey(e.path, e.h.name), kind:'file', name:e.h.name, file:e.h.name, path:e.path, get:async () => (await e.h.getFile()).arrayBuffer()}));
   sbxDraw('Nothing matches.');
 }
+let binDir = '';
 async function sbxBinRender(){
   const q = $('#sbxFind').value.trim().toLowerCase(), idx = await binIndex(), words = q.split(/\s+/).filter(Boolean);
-  sbxItems = idx.filter(e => words.every(w => e.name.toLowerCase().includes(w))).slice(0, 300)
-    .map(e => ({id:'b:' + e.id, kind:'file', name:e.name, note:Math.max(1, Math.round(e.size / 1024)) + ' KB', get:async () => { const b = await DB.get('kv', 'bin:' + e.id); if (!b) throw 0; return b; }}));
+  const item = e => ({id:'b:' + e.id, kind:'file', name:e.name, path:e.path || '', note:Math.max(1, Math.round(e.size / 1024)) + ' KB', get:async () => { const b = await DB.get('kv', 'bin:' + e.id); if (!b) throw 0; return b; }});
+  if (words.length){ sbxItems = idx.filter(e => words.every(w => (e.name + ' ' + (e.path || '')).toLowerCase().includes(w))).slice(0, 500).map(item); }
+  else {
+    // your imported folders, one level at a time, then loose samples
+    sbxItems = [];
+    if (binDir){ const up = binDir.split('/').slice(0, -1).join('/'); sbxItems.push({id:'up', kind:'up', path:binDir, open:() => { binDir = up; sbxBinRender(); }}); }
+    const subs = new Set(), here = [];
+    for (const e of idx){ const pth = e.path || ''; if (pth === binDir) here.push(e); else if (!binDir ? pth : pth.startsWith(binDir + '/')){ const rest = binDir ? pth.slice(binDir.length + 1) : pth; subs.add(rest.split('/')[0]); } }
+    [...subs].sort((a, b) => a.localeCompare(b, undefined, {numeric:true})).forEach(d => sbxItems.push({id:'bd:' + d, kind:'dir', name:d, open:() => { binDir = binDir ? binDir + '/' + d : d; sbxBinRender(); }}));
+    here.sort((a, b) => binDir ? a.name.localeCompare(b.name, undefined, {numeric:true}) : 0).slice(0, 800).forEach(e => sbxItems.push(item(e)));
+  }
   sbxDraw(idx.length ? 'Nothing matches.' : 'Samples you load show up here, so you can put them on any pad again without looking for the file.');
 }
 
@@ -7008,6 +7022,26 @@ $('#sbxPick').addEventListener('click', async () => {
   catch(e){ if (e && e.name !== 'AbortError') toast('Could not open that folder.'); }
 });
 $('#sbxPhone').addEventListener('click', () => { const inp = $('#padFileIn'); inp.dataset.i = sbxPad; inp.click(); });
+/* Import my samples folder: phones can't keep a folder open for a web app, so the whole folder is copied once into the
+   app's own library (kept on the phone, works offline) with its sub-folders, and browsed from there. */
+async function libImport(files){
+  const list = [...files].filter(f => SBX_EXT.test(f.name) || /^audio/.test(f.type)); if (!list.length){ toast('No audio files there. Pick your samples folder, or open it and select all.'); return; }
+  let n = 0, mb = 0; const t0 = Date.now();
+  for (const f of list){
+    const rel = f.webkitRelativePath || '', path = rel ? rel.split('/').slice(0, -1).join('/') : 'Imported';
+    try { const bytes = await f.arrayBuffer(); await binAdd(f.name, bytes, path); n++; mb += bytes.byteLength / 1048576; } catch(e){}
+    if (n % 25 === 0){ toast(`Importing your samples… ${n} of ${list.length}`); await new Promise(r => setTimeout(r, 0)); }
+  }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+  binDir = ''; if ($('#sbx').open){ sbxShowTab('bin'); }
+  toast(`${n} samples (${mb.toFixed(0)} MB) are in My samples now. Tap Browse my samples, open a folder, tap a sound to hear it, then Load on pad.`);
+}
+$('#libDirIn').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) await libImport(fs); });
+$('#libFilesIn').addEventListener('change', async e => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) await libImport(fs); });
+// a folder picker where the browser has one (Chrome on Android, desktop); otherwise pick all the files inside the folder
+const libPick = () => { const d = $('#libDirIn'); if ('webkitdirectory' in d) d.click(); else $('#libFilesIn').click(); };
+$('#sbxImport').addEventListener('click', libPick); $('#libImport').addEventListener('click', libPick);
+$('#libBrowse').addEventListener('click', () => { sbxOpen(selPad); setTimeout(() => sbxShowTab('bin'), 50); });
 
 /* ================= arpeggiator (per synth; follows the transport when playing, its own clock when stopped) ================= */
 const ARP_DEF = () => ({on:false, mode:'up', rate:1, oct:1, gate:.5, latch:false, swing:0});
