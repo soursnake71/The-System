@@ -1063,7 +1063,7 @@ class P5Voices{
     const pwA=Math.min(0.98,Math.max(0.02,cv[13]/10)),pwB=Math.min(0.98,Math.max(0.02,cv[11]/10));
     const kG=1-Math.exp(-dt/(0.0005+0.002*Math.exp(cv[16]*0.6))),ampN=C(5,3.3e3);
     // the oscillators' frequencies change only with the CVs: once per slice is enough
-    const bm=this.bendMul||1,fBv=[],fAv=[];for(let vi=0;vi<5;vi++){fBv.push(this.freqOf(m,vi,false)*bm);fAv.push(this.freqOf(m,vi,true)*bm)}
+    const bm=(this.bendMul||1)*(this.xpMul||1),fBv=[],fAv=[];for(let vi=0;vi<5;vi++){fBv.push(this.freqOf(m,vi,false)*bm);fAv.push(this.freqOf(m,vi,true)*bm)}
     const cutBase=cv[8]-5;
     for(let s=0;s<n;s++){
       this.glide+=(cv[21]-this.glide)*kG;let mix=0;
@@ -1095,11 +1095,12 @@ class P5R3Engine{
   constructor(sr){this.sr=sr;this.m=new P5Machine();this.v=new P5Voices();this.v.prepare(sr);this.m.oscFreq=i=>this.v.oscFreq(this.m,i);
     this.loaded=false;this.bootLeft=0;this.held=new Int8Array(61);this.taps=[];this.buf=new Float32Array(4096);this.bn=0;this.bi=0;this.level=1;this.scratch=new Float32Array(64)}
   load(rom,nv){if(rom.length!==0xC00)return false;this.m.rom.set(rom);if(nv&&nv.length===0x400)this.m.nvram.set(nv);this.m.reset();this.v.prepare(this.sr);this.loaded=true;this.bootLeft=9;this.held.fill(0);return true}
-  keyOf(n){let k=n-36;while(k<0)k+=12;while(k>=61)k-=12;return k}
+  keyOf(n,on){if(!this.nk)this.nk={};if(!on&&this.nk[n]!==undefined){const k=this.nk[n];delete this.nk[n];return k}const b=n-36;if(on&&!this.held.some(x=>x)){this.xp=b<0?-Math.ceil(-b/12):(b>=61?Math.ceil((b-61+1)/12):0);this.setXp(Math.pow(2,this.xp||0))}let k=b-12*(this.xp||0);while(k<0)k+=12;while(k>=61)k-=12;if(on)this.nk[n]=k;return k}
+  setXp(m){this.v.xpMul=m}
   setSwitch(row,bit,down){const r=this.m.switches;r[row]=down?(r[row]|(1<<bit)):(r[row]&~(1<<bit))}
-  noteOn(n){if(!this.loaded)return;const k=this.keyOf(n);if(this.held[k]++===0)this.setSwitch(8+(k>>3),k&7,true)}
+  noteOn(n){if(!this.loaded)return;const k=this.keyOf(n,true);if(this.held[k]++===0)this.setSwitch(8+(k>>3),k&7,true)}
   noteOff(n){if(!this.loaded)return;const k=this.keyOf(n);if(this.held[k]>0&&--this.held[k]===0)this.setSwitch(8+(k>>3),k&7,false)}
-  allOff(){for(let k=0;k<61;k++)if(this.held[k]){this.held[k]=0;this.setSwitch(8+(k>>3),k&7,false)}}
+  allOff(){this.nk={};for(let k=0;k<61;k++)if(this.held[k]){this.held[k]=0;this.setSwitch(8+(k>>3),k&7,false)}}
   tap(row,bit,ms){this.setSwitch(row,bit,true);this.taps.push({row,bit,left:(ms||60)*0.001})}
   active(){return this.loaded}
   // per audio block: run the firmware in 32-sample slices between voice renders
@@ -1148,7 +1149,7 @@ class SixtrakMachine{
       for(let i=0;i<6;i++){const v=this.voice[i];
         v.gain.v+=(v.gain.target-v.gain.v)*kG[i];v.freq.v+=(v.freq.target-v.freq.v)*kF[i];
         const fg=DB(v.gain.v);if(fg<1e-4&&Math.abs(v.hp)<1e-5)continue;
-        const f=SixtrakMachine.vcoFreq(v),d=Math.min(0.45,f*dt);v.phase+=d;if(v.phase>=1)v.phase-=1;
+        const f=SixtrakMachine.vcoFreq(v)*(this.xpMul||1),d=Math.min(0.45,f*dt);v.phase+=d;if(v.phase>=1)v.phase-=1;
         const tri=1-4*Math.abs(v.phase-0.5),saw=2*v.phase-1-WmsDsp.blep(v.phase,d),pw=Math.min(1,Math.max(0,0.5*v.pwCv));
         let pul=(v.phase<pw?1:-1)+WmsDsp.blep(v.phase,d);{let t2=v.phase-pw;if(t2<0)t2+=1;pul-=WmsDsp.blep(t2,d)}
         if(pw<=0)pul=-1;else if(pw>=1)pul=1;
@@ -1209,11 +1210,12 @@ class SixtrakEngine{
     m.prepare(this.sr);m.reset();this.loaded=true;this.held.fill(0);
     // the firmware's own autotune: CONTROL RECORD + SELECT 6, then about 12 s while it tunes six oscillators and filters
     this.boot=[[1,null],[0.1,()=>m.keys[1]|=1<<5],[0.15,()=>m.keys[0]|=1<<6],[12,()=>{m.keys[0]&=~(1<<6);m.keys[1]&=~(1<<5)}]];this.bootT=0;return true}
-  keyOf(n){let k=n-36;while(k<0)k+=12;while(k>=49)k-=12;return k}
+  keyOf(n,on){if(!this.nk)this.nk={};if(!on&&this.nk[n]!==undefined){const k=this.nk[n];delete this.nk[n];return k}const b=n-36;if(on&&!this.held.some(x=>x)){this.xp=b<0?-Math.ceil(-b/12):(b>=49?Math.ceil((b-49+1)/12):0);this.setXp(Math.pow(2,this.xp||0))}let k=b-12*(this.xp||0);while(k<0)k+=12;while(k>=49)k-=12;if(on)this.nk[n]=k;return k}
+  setXp(m){this.m.xpMul=m}
   setKey(row,bit,down){const r=this.m.keys;r[row]=down?(r[row]|(1<<bit)):(r[row]&~(1<<bit))}
-  noteOn(n){if(!this.loaded)return;const k=this.keyOf(n);if(this.held[k]++===0)this.setKey(8+(k>>3),k&7,true)}
+  noteOn(n){if(!this.loaded)return;const k=this.keyOf(n,true);if(this.held[k]++===0)this.setKey(8+(k>>3),k&7,true)}
   noteOff(n){if(!this.loaded)return;const k=this.keyOf(n);if(this.held[k]>0&&--this.held[k]===0)this.setKey(8+(k>>3),k&7,false)}
-  allOff(){for(let k=0;k<49;k++)if(this.held[k]){this.held[k]=0;this.setKey(8+(k>>3),k&7,false)}}
+  allOff(){this.nk={};for(let k=0;k<49;k++)if(this.held[k]){this.held[k]=0;this.setKey(8+(k>>3),k&7,false)}}
   tap(row,bit,ms,holdRow,holdBit){if(holdRow>=0&&holdRow!==undefined){this.setKey(holdRow,holdBit,true);this.taps.push({row:holdRow,bit:holdBit,left:((ms||80)+60)*0.001})}
     this.setKey(row,bit,true);this.taps.push({row,bit,left:(ms||80)*0.001})}
   active(){return this.loaded}
@@ -1256,7 +1258,7 @@ class DXEngine{
       if(!t){t=this.v[0];for(const v of this.v)if(v.age<t.age)t=v}}
     t.note=n;t.on=true;t.age=++this.counter;t.vel=vel;const key=n+(p.trps-24),kc=Math.max(0,Math.min(31,Math.floor((key-12)/3)));
     for(let i=0;i<4;i++){const o=p.ops[i],ks=kc>>(3-o.rs);t.st[i]=0;
-      t.r[i]={a:o.ar?Math.min(63,2*o.ar+ks):0,d1:o.d1r?Math.min(63,2*o.d1r+ks):0,d2:o.d2r?Math.min(63,2*o.d2r+ks):0,rr:Math.min(63,4*o.rr+2+ks),sl:o.d1l*3};
+      t.r[i]={a:o.ar?Math.min(63,2*o.ar+ks):0,d1:o.d1r?Math.min(63,2*o.d1r+ks):0,d2:o.d2r?Math.min(63,2*o.d2r+ks):0,rr:Math.min(63,4*o.rr+2+ks),sl:o.d1l?(15-o.d1l)*3:96};
       const hz=440*Math.pow(2,(key-69)/12)*DXEngine.RATIO[o.crs]*Math.pow(2,(o.dbt-3)*1.5/1200);t.inc[i]=hz/this.sr;
       const att=o.out?(99-o.out)*0.75:96,ls=o.ls/99*Math.max(0,key-48)/12*6,kv=o.kvs/7*(1-vel)*24;t.keyAtt[i]=att+ls+kv}
   }
@@ -1620,7 +1622,7 @@ class FarpDSP{
     this.bNote=-1;this.bEnv=0;this.bHeld=false;this.bLow=0;this.bBand=0;
     this.mx={g:new Float64Array(9).fill(1),bl:new Float64Array(9).fill(1),br:new Float64Array(9).fill(1),s:new Float64Array(9).fill(1),master:1,bus:1,busL:1,busR:1,pk:new Float32Array(12)};
     this.p5=new P5Engine(fs);this.e2=new E2Engine(fs);this.p5r3=new P5R3Engine(fs);this.six=new SixtrakEngine(fs);this.dx=new DXEngine(fs);this.cz=new CZEngine(fs);this.sd1=new RomPcmEngine(fs);this.cm=new RomPcmEngine(fs);this.cm.level=3.2;
-    this.ins={p5:this.p5,e2:this.e2,p5r3:this.p5r3,six:this.six,dx:this.dx,cz:this.cz,sd1:this.sd1,cm:this.cm};this.insCh={p5:4,p5r3:4,e2:5,six:6,dx:7,cz:8,sd1:5,cm:5};this.insList=Object.keys(this.ins);this.iout=new Float64Array(9);this.stN=0;
+    this.ins={p5:this.p5,e2:this.e2,p5r3:this.p5r3,six:this.six,dx:this.dx,cz:this.cz,sd1:this.sd1,cm:this.cm};this.insCh={p5:4,p5r3:4,e2:5,six:6,dx:7,cz:8,sd1:5,cm:5};this.insList=Object.keys(this.ins);this.insG=this.insList.map(k=>({p5:3,p5r3:3.2,six:3.4,dx:2.2,cz:1.3,sd1:2.6,cm:2,e2:1})[k]||1);this.iout=new Float64Array(9);this.stN=0;
     this.mask=new Uint8Array(128).fill(7);this.q=[];this.frames=0;this.sHeld=false;
     this.lfo=0;this.bAtt=0;this.bStage=0;this.outs=new Float32Array(3);
     const cl=Math.ceil(fs*0.03);this.cb=new Float32Array(cl);this.cl=cl;this.cw=0;
@@ -1865,7 +1867,7 @@ class FarpDSP{
       const MX=this.mx,MG=MX.g,MBL=MX.bl,MBR=MX.br,MSD=MX.s,MPK=MX.pk;
       let mSL=(outs[0]*0.45+outs[1]*0.33+outs[2]*0.22)*1.35*vol,mSR=(outs[2]*0.45+outs[1]*0.33+outs[0]*0.22)*1.35*vol;
       let mSy=(chs?0:synOut)*vol,mBa=bassOut*vol;const IO=this.iout;IO[4]=IO[5]=IO[6]=IO[7]=IO[8]=0;
-      for(let j=0;j<this.insList.length;j++){const k=this.insList[j],E=this.ins[k];if(E.active())IO[this.insCh[k]]+=E.tick()*vol}let mPL=inL?inL[i]:0,mPR=inL?(inR||inL)[i]:0;if(!(mPL===mPL&&Math.abs(mPL)<8))mPL=0;if(!(mPR===mPR&&Math.abs(mPR)<8))mPR=0;
+      for(let j=0;j<this.insList.length;j++){const k=this.insList[j],E=this.ins[k];if(E.active())IO[this.insCh[k]]+=E.tick()*vol*this.insG[j]}let mPL=inL?inL[i]:0,mPR=inL?(inR||inL)[i]:0;if(!(mPL===mPL&&Math.abs(mPL)<8))mPL=0;if(!(mPR===mPR&&Math.abs(mPR)<8))mPR=0;
       // ---- vocoder: the voice (input 3) shapes the chosen carrier channel, whose output it replaces ----
       let vcL=0,vcR=0,vcCh=-2;const VO=this.voc;
       if(VO&&VO.on){const E=VO.E[VO.eng];if(E){let vv=vIn?vIn[i]:0;if(!(vv===vv&&Math.abs(vv)<8))vv=0;const ch=VO.ch;let car;
