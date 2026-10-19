@@ -110,6 +110,7 @@ body.mlearn .marmed{outline:3px solid #fff !important}
 .rig[data-k=ppg]{--rp:#1d3f8a;--ra:#f2f2f2}.rig[data-k=sid]{--rp:#d8ccb4;--rt:#3a3328;--ra:#7a5a3a}.rig[data-k=dx1]{--rp:#2a2018;--ra:#3ec46b}.rig[data-k=omni2]{--rp:#131313;--ra:#e8e8e8}
 .rig[data-k=solina]{--rp:#1b1b1b;--ra:#ff8a1e}.rig[data-k=tb303]{--rp:#b9bbc0;--rt:#222;--ra:#222}.rig[data-k=taurus]{--rp:#111;--ra:#c9a24a}.rig[data-k=piano]{--rp:#0a0a0a;--ra:#c8a96a}
 .rig[data-k=choir]{--rp:#140808;--ra:#c94a3a}.rig[data-k=disco]{--rp:#2a1530;--ra:#c9a23a}.rig[data-k=guitar]{--rp:#2a1a0e;--ra:#e0b050}.rig[data-k=gm],.rig[data-k=sf2],.rig[data-k=padsmp]{--rp:#1e2126;--ra:#5bb0e8}
+#piano,#keys,#pads,.piano .pk,.keys .key,.pad{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 .piano{position:relative;height:180px;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:8px;overflow:hidden;background:#111}
 .piano .pk{position:absolute;top:0;box-sizing:border-box;display:flex;align-items:flex-end;justify-content:center;font:600 10px var(--f-mono);padding-bottom:6px}
 .piano .w{height:100%;background:#eceae4;border:1px solid #111;border-radius:0 0 6px 6px;color:#555;z-index:1}
@@ -2004,7 +2005,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v119</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v120</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -8171,7 +8172,7 @@ function padMenuOpen(i){
   $('#padMenuT').textContent = padLabel(i) + ' ' + (p.sample ? p.name : 'Empty');
   d.querySelector('[data-a=del]').disabled = !p.sample;
   d.querySelector('[data-a=builtin]').disabled = !!p.sample && p.sample.startsWith('kit:');
-  if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
+  
   if (!d.open) d.showModal();
 }
 function padEmpty(i){
@@ -10610,6 +10611,8 @@ function kbWhy(){
 }
 $('#kbWhyFix').addEventListener('click', () => { const f = $('#kbWhy')._fix; if (f){ f(); applyAll(); save(); renderSynth(); if (view === 'mixer') renderMixer(); kbWhy(); toast('Done. The keys play the synth now.'); } });
 { const _rs = renderSynth; renderSynth = function(){ const r = _rs.apply(this, arguments); try { rigMount(); } catch(e){ console.warn(e); } return r; }; }
+// holding a key or pad must not start a text selection or the long-press menu (Android buzzes for those)
+['contextmenu', 'selectstart'].forEach(t => document.addEventListener(t, e => { if (e.target.closest && e.target.closest('#piano, #keys, #pads, .rig-kb')) e.preventDefault(); }, true));
 /* ================= The instrument rig: in Keyboard mode the synth's own front panel (its original knobs, sliders and
    switches) sits right above the keys, in a case that looks like that instrument. The keys stay at the bottom while you tweak. ================= */
 const RIG_SKIN = {prophet:['SEQUENTIAL CIRCUITS', 'PROPHET-5', 'wood ivory'], obxa:['OBERHEIM', 'OB-Xa', ''], juno60:['ROLAND', 'JUNO-60', ''], sh101:['ROLAND', 'SH-101', ''], jx3p:['ROLAND', 'JX-3P', ''],
@@ -10684,7 +10687,7 @@ function frameRoll(){
   rollGeo.g.fillRect(Math.round(rollGeo.X(tick)), 0, 2 * (devicePixelRatio || 1), rollGeo.h);
 }
 let synMenuK = 0;
-function synMenuOpen(k){ synMenuK = k; $('#synMenuT').textContent = S.synths[k].name; $('#synMenu').querySelector('[data-a=del]').disabled = S.synths.length < 2; $('#synMenu').querySelector('[data-a=dup]').disabled = (S.synths.length >= MAX_SYN || allTracks().length >= MAX_TRACKS); if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){} $('#synMenu').showModal(); }
+function synMenuOpen(k){ synMenuK = k; $('#synMenuT').textContent = S.synths[k].name; $('#synMenu').querySelector('[data-a=del]').disabled = S.synths.length < 2; $('#synMenu').querySelector('[data-a=dup]').disabled = (S.synths.length >= MAX_SYN || allTracks().length >= MAX_TRACKS);  $('#synMenu').showModal(); }
 function deleteSynth(k){
   const tr = S.synths[k]; if (!tr || S.synths.length < 2) return;
   storeScene(); pushUndo(); undoPass = null;
@@ -14231,7 +14234,7 @@ async function fireToggle(){
     b.classList.add('on'); b.setAttribute('aria-pressed', 'true');
     if (!$('#fireFx')){ const cv = document.createElement('canvas'); cv.id = 'fireFx'; document.body.appendChild(cv); }
     if (!fire.raf) fire.raf = requestAnimationFrame(fireDraw);
-    fireStep(); if (navigator.vibrate) try { navigator.vibrate([30, 40, 60]); } catch(e){}
+    fireStep();
     toast('🔥 FIRE: the circuits are frying' + (fire.rec ? ' and everything is being recorded' : '') + '. ' + (playing ? '' : 'Press play to burn the beat. ') + 'Switch it off to get your settings back.');
     return;
   }
