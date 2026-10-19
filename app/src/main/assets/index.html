@@ -425,6 +425,65 @@ canvas.ilcd.wide{width:200px;height:40px}
 @media (max-width:420px){nav.screens{overflow:hidden;gap:2px}nav.screens button{flex:1 1 auto;padding:7px 1px;font-size:10.5px;letter-spacing:0}.strip label{font-size:9.5px;letter-spacing:0}.strip label b{font-size:13px}}
 @media (max-width:374px){nav.screens button{padding:7px 1px;font-size:10.5px}nav.screens{gap:2px}.strip h3{font-size:10px;letter-spacing:0}.strip .mfader{width:22px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* VX-350 front panel */
+.vxrack{display:flex;flex-direction:column;gap:6px;min-width:0}
+.vxtop{display:flex;gap:6px}.vxtop label{flex:1 1 0;display:flex;flex-direction:row;align-items:center;font-size:10px;letter-spacing:.1em;color:var(--dim);gap:2px;min-width:0}.vxtop select{font-size:13px;padding:3px 4px;min-width:0;flex:1}.ihead.vxmode>.chipbtn.big{display:none}@media (max-width:700px){.ihead.vxmode .ititle span{display:none}.ihead.vxmode{flex-wrap:nowrap}.vxtr{height:68px}}
+.vxface{--sk:#e9e6dc;background:linear-gradient(180deg,#26272a,#151618 60%,#101113);border:1px solid #000;border-radius:3px;box-shadow:inset 0 1px 0 #3a3b3f,0 2px 6px #0008;padding:7px;color:var(--sk);
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:9px;letter-spacing:.06em;display:grid;gap:5px;
+  grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"mic mic mic ins ins ins" "vcc vcc vcc vcc vcc vcc" "rem rem rem out out pw";user-select:none;-webkit-user-select:none}
+.vxbox{border:1px solid #bdb9ad99;border-radius:2px;padding:4px 5px;position:relative;min-width:0}
+.vxbox h5{margin:0;font:inherit;font-size:9px;letter-spacing:.1em;white-space:pre;line-height:1.05;text-align:center}
+.vxrem{grid-area:rem;display:flex;align-items:flex-start;justify-content:space-around;gap:3px;padding-top:14px}.vxrem>h5{position:absolute;top:2px;left:0;right:0}
+.vxmic{grid-area:mic}.vxins{grid-area:ins;display:flex;flex-direction:column;gap:2px}.vxvcc{grid-area:vcc;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;column-gap:6px}
+.vxout{grid-area:out;display:flex;align-items:flex-start;justify-content:space-around;gap:2px;padding-top:14px}.vxout>h5{position:absolute;top:2px;left:0;right:0}
+.vxpw{grid-area:pw;border:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:2px}
+.vxrow{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0}
+.vxk{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}.vxk>i,.vxj>i,.vxf>i,.vxlmh>i,.vxpwc>i{font-style:normal;white-space:pre;text-align:center;line-height:1}
+.vxdial{width:34px;height:34px;border-radius:50%;position:relative;touch-action:none;cursor:ns-resize;
+  }
+.vxdial::before{content:"";position:absolute;inset:-4px;border-radius:50%;background:repeating-conic-gradient(from -141deg,#d9d5c9 0 2deg,transparent 2deg 28deg);-webkit-mask:radial-gradient(circle,transparent 60%,#000 61%,#000 70%,transparent 71%);mask:radial-gradient(circle,transparent 60%,#000 61%,#000 70%,transparent 71%);clip-path:polygon(50% 50%,0 100%,0 0,100% 0,100% 100%)}
+.vxdial b{position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#4a4b4f,#16171a 70%);box-shadow:0 2px 3px #000,inset 0 0 0 2px #0a0a0b;
+  background-image:radial-gradient(circle at 40% 35%,#4a4b4f,#16171a 70%),repeating-conic-gradient(#222 0 6deg,#111 6deg 12deg)}
+.vxdial b::after{content:"";position:absolute;left:calc(50% - 1.5px);top:2px;width:3px;height:40%;border-radius:2px;background:#e3392b}
+.vxdial:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+.vxends{display:flex;justify-content:space-between;width:100%;font-size:7px;gap:4px}
+.vxled{width:6px;height:6px;border-radius:50%;background:#4a1410;box-shadow:inset 0 1px 1px #000;flex:none;display:inline-block}.vxled.on{background:#ff3b25;box-shadow:0 0 6px #ff3b25}
+.vxled.g{background:#103a18}.vxled.g.on{background:#3dff6a;box-shadow:0 0 6px #3dff6a}
+.vxleds{display:flex;flex-direction:column;gap:6px}
+.vxxlr{width:30px;height:34px;border-radius:3px;background:linear-gradient(#cfcab9,#9f9a8a);display:grid;place-items:center;flex:none}.vxxlr span{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle,#1a1a1a 0 2px,#2b2b2b 2px 3px,#1a1a1a 3px)}
+.vxj{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative}.vxj .vxled{position:absolute;right:-3px;top:13px;width:5px;height:5px}
+.vxjack{width:26px;height:26px;border-radius:50%;border:0;padding:0;background:radial-gradient(circle,#050505 0 5px,#8d8a80 5.5px 8px,#3a3a3a 8.5px 10px,#1d1d1f 10.5px);box-shadow:0 1px 2px #000;cursor:pointer}
+.vxjack[aria-pressed=true]{background:radial-gradient(circle,#050505 0 5px,#ffd08a 5.5px 8px,#3a3a3a 8.5px 10px,#1d1d1f 10.5px)}
+.vxj.inl{flex-direction:row;gap:5px}.vxj.inl .vxled{right:-8px;top:10px}.vxj.sm .vxjack{width:22px;height:22px}
+.vxsw3{display:flex;flex-direction:column;align-items:center}.vxswb{display:flex;background:#0a0a0b;border-radius:3px;padding:1px;gap:1px}.vxswb button{font:inherit;font-size:8px;padding:3px 3px;border:0;border-radius:2px;background:transparent;color:var(--sk);min-width:20px}
+.vxswb button[aria-pressed=true]{background:linear-gradient(#d8d4c8,#8f8b7f);color:#111}.vxswb.v{flex-direction:column}
+.vxlmh{display:flex;flex-direction:column;align-items:center;gap:2px}
+.vxfreq{display:flex;align-items:center;gap:4px;font-size:8px}.vxfreq span:nth-child(2){flex:1;text-align:center;position:relative}.vxfreq span:nth-child(2)::before,.vxfreq span:nth-child(2)::after{content:"";position:absolute;top:50%;width:28%;border-top:1px solid #bdb9ad99}.vxfreq span:nth-child(2)::before{left:0}.vxfreq span:nth-child(2)::after{right:0}
+.vxfaders{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:1px;min-height:0;grid-row:2}
+.vxf{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}.vxf>i{width:13px;height:13px;border:1px solid var(--sk);border-radius:50%;font-size:8px;line-height:12px}
+.vxtr{position:relative;width:100%;flex:1;min-height:70px;height:86px;touch-action:none;cursor:ns-resize}
+.vxtr::before{content:"";position:absolute;left:calc(50% - 2px);top:4px;bottom:4px;width:4px;background:#000;border-radius:2px;box-shadow:inset 0 0 0 1px #333}
+.vxtr::after{content:"";position:absolute;inset:6px 0;background:repeating-linear-gradient(180deg,#bdb9ad66 0 1px,transparent 1px 12.5%);-webkit-mask:linear-gradient(90deg,#000 22%,transparent 22% 78%,#000 78%);mask:linear-gradient(90deg,#000 22%,transparent 22% 78%,#000 78%)}
+.vxtr b{position:absolute;left:calc(50% - 8px);width:16px;height:12px;border-radius:2px 2px 5px 5px;background:linear-gradient(#fff,#d5d2c8 60%,#a9a69c);box-shadow:0 2px 2px #000a;z-index:1}
+.vxtr:focus-visible{outline:2px solid var(--amber)}
+.vxvt{grid-row:3;grid-column:1;border-top:1px solid #bdb9ad99;margin-top:2px!important;padding-top:1px}
+.vxbv{grid-row:1/4;grid-column:2;display:flex;flex-direction:column;justify-content:space-around;gap:6px;border-left:1px solid #bdb9ad55;padding-left:6px}
+.vxplate{text-align:center;line-height:1}.vxplate b{display:block;font-family:Michroma,sans-serif;font-size:9px;color:#e8542f;letter-spacing:.05em}.vxplate em{font-family:Michroma,sans-serif;font-size:8px;font-style:italic;color:#e8542f}
+.vxpwc{display:flex;flex-direction:column;align-items:center;gap:2px}.vxpwc .vxonoff{font-size:6px;white-space:nowrap}
+.vxrock{width:26px;height:20px;border:2px solid #000;border-radius:2px;padding:0;cursor:pointer;background:linear-gradient(180deg,#3a3a3d 0 45%,#111 55%);box-shadow:0 1px 0 #444}
+.vxrock.on{background:linear-gradient(180deg,#111 0 45%,#3a3a3d 55%)}
+@media (min-width:1000px){.vxface{grid-template-columns:auto 1.1fr 1.1fr 2.6fr auto auto;grid-template-areas:"rem mic mic vcc out pw" "rem ins ins vcc out pw";padding:10px 14px;font-size:10px;border-left:18px solid #2b2c30;border-right:18px solid #2b2c30}
+  .vxrem{flex-direction:column;align-items:center;justify-content:space-around}.vxout{flex-direction:column;align-items:center}.vxtr{height:120px}.vxdial{width:40px;height:40px}}
+@media (max-width:700px){.vxrem>h5,.vxout>h5{display:none}.vxrem,.vxout{padding:3px 2px;align-items:center}.vxj>i{font-size:7.5px}.vxjack{width:20px;height:20px;background:radial-gradient(circle,#050505 0 4px,#8d8a80 4.5px 6px,#3a3a3a 6.5px 8px,#1d1d1f 8.5px)}
+  .vxjack[aria-pressed=true]{background:radial-gradient(circle,#050505 0 4px,#ffd08a 4.5px 6px,#3a3a3a 6.5px 8px,#1d1d1f 8.5px)}.vxj.sm .vxjack{width:20px;height:20px}.vxj .vxled{top:11px}
+  .vxlmh{flex-direction:row}.vxswb.v{flex-direction:row}.vxplate b{font-size:7px}.vxplate em{font-size:7px}.vxpwc .vxonoff{display:none}.vxrock{width:22px;height:16px}
+  .vxdial{width:28px;height:28px}.vxxlr{width:22px;height:26px}.vxxlr span{width:16px;height:16px}.vxtr{height:56px;min-height:40px}.vxface{padding:5px;gap:4px}.vxbox{padding:3px 4px}
+  .ihead.vxmode .itabs button{padding:4px 6px;font-size:11px}.vxface{grid-template-columns:repeat(12,minmax(0,1fr));grid-template-areas:"mic mic mic mic mic ins ins ins ins ins ins ins" "vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc" "rem rem rem rem rem rem out out out pw pw pw"}
+  .vxlmh>i{display:none}.vxout{gap:1px}.vxswb button{min-width:15px;padding:3px 2px}.vxpw{flex-direction:column;gap:1px;justify-content:center}.vxpwc{flex-direction:row;gap:3px}.vxpwc>i{font-size:7px}.vxtop label{font-size:9px;gap:3px}}
+@media (max-width:380px){.ihead.vxmode .ititle{display:none}}
+@media (max-height:700px) and (max-width:700px){.vxfreq,.vxvt{display:none}.vxface{gap:3px}.vxtr{height:38px}.vxdial{width:24px;height:24px}.vxk>i{font-size:8px}.vxends{display:none}.vxbv{gap:4px;flex-direction:row;align-items:center}.vxtr{height:44px}}
+@media (max-height:700px) and (max-width:700px){.vxdial{width:28px;height:28px}.vxtop select{font-size:12px;padding:2px}.vxface{padding:5px;gap:4px}}
 </style>
 
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{box-sizing:border-box}body{margin:0}</style>
@@ -1719,7 +1778,8 @@ class FarpDSP{
     this.frames+=N;
     for(let j=0;j<this.insList.length;j++){const E=this.ins[this.insList[j]];if(E.block)E.block(N)}
     const p=this.p,fs=this.fs,down=this.down,susd=this.susd,se=this.se,sg=this.sg,sq=this.sq,saw=this.saw;
-    const model=p.model||2,vln=p.vln,vla=p.vla,cel=p.cel,sbs=p.sbs,s16=p.s16&&model==2?1:0,s8=p.s8,s4=p.s4,hol=p.hol,chs=p.chs;
+    const vF=this.voc&&this.voc.on?this.voc.ch:-9;const model=p.model||2;let vln=p.vln,vla=p.vla,cel=p.cel,s16=p.s16&&model==2?1:0,s8=p.s8,s4=p.s4;const sbs=p.sbs,hol=p.hol,chs=p.chs;
+    if(vF===0&&!vln&&!vla&&!cel){vln=1;vla=1}if(vF===1&&!s16&&!s8&&!s4)s8=1;
     const vs=p.velSens?1:0;
     // ---- block-rate key scan ----
     const act=[];let anyHeld=false,low=-1,lowS=-1;const mask=this.mask;
@@ -1740,7 +1800,7 @@ class FarpDSP{
     const twoPi=2*Math.PI;
     const tuneF=Math.pow(2,((p.tune||0.5)-0.5)/12+this.bend/12);
     const vibD=Math.min(1,(p.vib||0)+this.mod)*0.35/12;
-    const stac=p.stac,bassOn=p.bass,bassLv=p.bassLv||0,strLv=p.strLv||0,synLv=p.synLv||0,vlfo=p.vlfo||0,envA=p.env||0,res=p.res||0;
+    const stac=p.stac,bassOn=p.bass||vF===2,bassLv=vF===2?Math.max(0.8,p.bassLv||0):(p.bassLv||0),strLv=vF===0?Math.max(0.6,p.strLv||0):(p.strLv||0),synLv=vF===1?Math.max(0.6,p.synLv||0):(p.synLv||0),vlfo=p.vlfo||0,envA=p.env||0,res=p.res||0;
     const vol=p.vol===undefined?0.8:p.vol;
     const chorusSlow=chs?0.55:1;
     const cr=model==1?[0.92,1.84,3.6]:[0.78,1.57,3.1];
@@ -2263,7 +2323,7 @@ function onDsp(m){if(m.t==='scope'){scopeData=m.d;lcdDirty=true;if(m.m&&window.o
 /* ===================== Notes ===================== */
 const held=new Set();
 const liveMap={};
-function routeKey(k){const gi=window.KEYS_INST||'';if(!window.SPLIT||!SPLIT.on)return {n:k,m:7,i:gi};const z=k<SPLIT.point?SPLIT.lo:SPLIT.hi;return {n:Math.max(0,Math.min(127,k+12*z.oct)),m:(z.str?1:0)|(z.syn?2:0)|(z.bas?4:0)|8,i:z.inst===undefined||z.inst==='keys'?gi:z.inst}}
+function routeKey(k){const vr=window.VOC_ROUTE;if(vr&&!(window.SPLIT&&SPLIT.on))return {n:k,m:vr.m,i:vr.i};const gi=window.KEYS_INST||'';if(!window.SPLIT||!SPLIT.on)return {n:k,m:7,i:gi};const z=k<SPLIT.point?SPLIT.lo:SPLIT.hi;return {n:Math.max(0,Math.min(127,k+12*z.oct)),m:(z.str?1:0)|(z.syn?2:0)|(z.bas?4:0)|8,i:z.inst===undefined||z.inst==='keys'?gi:z.inst}}
 function noteOn(k,v=1,src,at){if(k<0||k>127)return;if(!powered){power().then(()=>noteOn(k,v,src,at));return}
   if(window.splitArmed&&src!=='seq'){window.splitArmed(k);return}
   if(src!=='seq'&&src!=='arp'&&!at&&window.arpTake&&arpTake(k,v))return;
@@ -3802,7 +3862,7 @@ const INST=[
   {id:'roms',chip:'ROMS',name:'ROM path'}];
 let iSel=LS.get('farp_isel',''),iTab={};window.KEYS_INST=LS.get('farp_keys','');
 const chipsEl=document.getElementById('iChips'),panel=document.getElementById('iPanel');
-function fwRun(){const use=new Set([window.KEYS_INST]);if(window.SPLIT&&SPLIT.on)['lo','hi'].forEach(z=>{const v=SPLIT[z].inst;use.add(v===undefined||v==='keys'?window.KEYS_INST:v)});
+function fwRun(){const use=new Set([window.KEYS_INST]);if(window.VOC_ROUTE)use.add(VOC_ROUTE.i);if(window.SPLIT&&SPLIT.on)['lo','hi'].forEach(z=>{const v=SPLIT[z].inst;use.add(v===undefined||v==='keys'?window.KEYS_INST:v)});
   ['p5r3','six'].forEach(i=>engSend({t:'eng',i,op:'run',v:use.has(i)?1:0}))}
 window.fwRun=fwRun;window.addEventListener('farp-power',()=>setTimeout(fwRun,50));
 function setKeys(id){window.KEYS_INST=id;LS.set('farp_keys',id);setTimeout(fwRun,0);if(window.panic)panic();lcdParam('Keys',(INST.find(x=>x.id===id)||INST[0]).chip);if(window.renderSplit)renderSplit();if(window.vocPush)vocPush()}
@@ -5031,7 +5091,9 @@ let V=Object.assign({},D,LS.get('farp_voc',{}));V.vx=Object.assign({},D.vx,V.vx|
 const save=()=>LS.set('farp_voc',V);
 const CH={keys:null,omni:-1,str:0,syn:1,bas:2,p5:4,e2:5,six:6,dx:7,cz:8};
 const keysCh=()=>{const k=window.KEYS_INST||'';return k===''?-1:k==='p5'||k==='p5r3'?4:k==='e2'?5:k==='six'?6:k==='dx'?7:8};
-function push(){if(!powered||!window.farpNode)return;send({t:'voc',on:V.on?1:0,eng:V.eng,ch:V.car==='keys'?keysCh():CH[V.car],p:V.vx,tk:V.tk});syncVoice()}
+function route(){const k=window.KEYS_INST||'',c=V.car,M={omni:[7,''],str:[1,''],syn:[2,''],bas:[4,''],p5:[7,k==='p5r3'?'p5r3':'p5'],e2:[7,k==='sd1'||k==='cm'?k:'e2'],six:[7,'six'],dx:[7,'dx'],cz:[7,'cz']}[c];
+  window.VOC_ROUTE=V.on&&M?{m:M[0],i:M[1]}:null;if(window.fwRun)setTimeout(fwRun,0)}
+function push(){route();if(!powered||!window.farpNode)return;if(window.panic&&push.last!==V.on+V.car)panic();push.last=V.on+V.car;const P=Object.assign({},V.vx,{volumeDb:V.vx.volumeDb+({L:-10,M:0,H:6}[V.vx.outLvl||'M']),balance:V.vx.direct?0:V.vx.balance});send({t:'voc',on:V.on?1:0,eng:V.eng,ch:V.car==='keys'?keysCh():CH[V.car],p:P,tk:V.tk});syncVoice()}
 window.vocPush=push;
 /* ---- the voice: a phrase buffer (speech or a loaded file) or the microphone, into the processor's third input ---- */
 let vBus=null,phrase=null,phraseName='',src=null,mic=null,micStream=null,lastSay=-1,phrases=[],fileVoice=null;
@@ -5044,7 +5106,7 @@ function buildPhrases(){if(!ctx)return;if(fileVoice){phrases=[fileVoice];V.li=0;
 function pickLine(i){if(!phrases.length)return;V.li=((i%phrases.length)+phrases.length)%phrases.length;phrase=phrases[V.li];save();refresh()}
 function ensureBus(){if(vBus||!ctx||!(window.farpNode instanceof AudioWorkletNode))return!!vBus;vBus=ctx.createGain();vBus.connect(farpNode,0,2);return true}
 function stopPhrase(at){if(src){try{src.stop(at||0)}catch(e){}src=null}}
-function sayNow(at,next){if(next&&phrases.length>1)pickLine(V.li+1);if(!V.on||V.src!=='phrase'||!phrase||!ensureBus())return;const t=Math.max(at||0,ctx.currentTime);stopPhrase(t);src=ctx.createBufferSource();src.buffer=phrase;src.loop=V.trig==='loop';src.connect(vBus);src.start(t);lastSay=t}
+function sayNow(at,next){if(next&&phrases.length>1)pickLine(V.li+1);if(!V.on||V.src!=='phrase'||!phrase||!ensureBus())return;const t=Math.max(at||0,ctx.currentTime);stopPhrase(t);const s=src=ctx.createBufferSource();s.buffer=phrase;s.loop=V.trig==='loop';s.connect(vBus);s.onended=()=>{if(src===s)src=null};s.start(t);lastSay=t}
 async function syncVoice(){
   if(!ensureBus())return;
   if(V.on&&V.src==='mic'){if(!mic){try{micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});mic=ctx.createMediaStreamSource(micStream);mic.connect(vBus);toast('Mic on. Use headphones so the speakers don’t feed back.')}
@@ -5053,7 +5115,7 @@ async function syncVoice(){
   if(!V.on||V.src!=='phrase')stopPhrase();else if(V.trig==='loop'&&!src)sayNow()}
 // restart the phrase with each new chord when that trigger is chosen
 const _noteOn=noteOn;noteOn=function(k,v,s,at){const first=!at&&held.size===0;_noteOn(k,v,s,at);
-  if(V.on&&V.src==='phrase'&&V.trig==='keys'){if(first)sayNow(0,lastSay>=0);else if(at&&at-lastSay>0.08)sayNow(at,true)}};
+  if(V.on&&V.src==='phrase'){if(V.trig==='keys'){if(first)sayNow(0,lastSay>=0);else if(at&&at-lastSay>0.08)sayNow(at,true)}else if(first&&!src&&s!=='test'){if(!phrases.length)buildPhrases();sayNow()}}};
 function useBuffer(data,fs,name){if(!ctx)return;const b=ctx.createBuffer(1,data.length,fs);b.copyToChannel(data,0);phrase=b;phraseName=name;refresh()}
 async function speak(){
   if(!powered)await power();
@@ -5077,10 +5139,10 @@ function chip(label,get,set){const b=el('button','chipbtn',label);b.setAttribute
 let host=null;
 function refresh(){if(host)render(host)}
 function render(panel){host=panel;panel.innerHTML='';
-  const h=el('div','ihead');const t=el('div','ititle');t.appendChild(el('b','','VOCODER'));t.appendChild(el('span','',V.eng==='talker'?'The Talker pedal’s six programs':'VX-350: modeled on the Roland SVC-350'+(V.eng==='svc'?' (component-level circuit)':' (clear model)')));h.appendChild(t);
+  const h=el('div','ihead'+(V.tab==='VOCODER'&&V.eng!=='talker'?' vxmode':''));const t=el('div','ititle');t.appendChild(el('b','','VOCODER'));t.appendChild(el('span','',V.eng==='talker'?'The Talker pedal’s six programs':'VX-350: modeled on the Roland SVC-350'+(V.eng==='svc'?' (component-level circuit)':' (clear model)')));h.appendChild(t);
   const on=el('button','chipbtn big',V.on?'VOCODER ON':'VOCODER OFF');on.setAttribute('aria-pressed',String(!!V.on));on.onclick=async()=>{if(!powered)await power();V.on=V.on?0:1;save();push();refresh();if(V.on&&V.src==='phrase'&&V.trig!=='keys')sayNow()};h.appendChild(on);
-  const tabs=el('div','petabs itabs');['VOICE','SPEECH','VOCODER',V.eng==='talker'?null:'BANDS'].filter(Boolean).forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(V.tab===n));b.onclick=()=>{V.tab=n;save();refresh()};tabs.appendChild(b)});h.appendChild(tabs);
-  panel.appendChild(h);if(V.tab==='BANDS'&&V.eng==='talker')V.tab='VOCODER';
+  const tabs=el('div','petabs itabs');['VOICE','SPEECH','VOCODER'].forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(V.tab===n));b.onclick=()=>{V.tab=n;save();refresh()};tabs.appendChild(b)});h.appendChild(tabs);
+  panel.appendChild(h);if(V.tab==='BANDS')V.tab='VOCODER';
   if(V.tab==='VOICE'){
     // the lyric sheet: one phrase per line
     const tx=document.createElement('textarea');tx.className='vtext';tx.value=V.text;tx.rows=3;tx.placeholder='Type words here, one phrase per line';tx.setAttribute('aria-label','Words to speak, one phrase per line');
@@ -5106,22 +5168,71 @@ function render(panel){host=panel;panel.innerHTML='';
     const b=el('div','ibtns');const sp=el('button','btn','RE-SPEAK ALL LINES');sp.onclick=speak;b.appendChild(sp);const ld=el('button','btn','Load voice file…');ld.onclick=()=>voiceIn.click();b.appendChild(ld);panel.appendChild(b);
     const qp=el('div','isws vquick');qp.appendChild(el('i','','Add a line:'));['Hello, I am the F.A.R.P.','Welcome to the future','I am a robot','Push the button','Freak the beat','Electric dreams'].forEach(q=>{const x=el('button','chipbtn',q);x.onclick=()=>{V.text=(V.text.trim()?V.text.replace(/\s*$/,'')+'\n':'')+q;save();fileVoice=null;buildPhrases();toast('Added: '+q)};qp.appendChild(x)});panel.appendChild(qp);
     panel.appendChild(el('p','inote vnote','After changing the speaker, pitch or speed, tap RE-SPEAK ALL LINES. A loaded voice file replaces the lines until you edit them again.'))}
-  else if(V.tab==='VOCODER'){
+  else if(V.tab==='VOCODER'&&V.eng==='talker'){
     const m=el('div','srmenus');
-    m.appendChild(sel('Engine',[['clear','VX-350 Clear'],['svc','VX-350 SVC circuit (heavier)'],['talker','Talker pedal']],()=>V.eng,v=>V.eng=v));
-    m.appendChild(sel('Carrier',[['keys','The keys’ instrument'],['omni','OMNI strings+synth+bass'],['str','Strings'],['syn','Synth'],['bas','Bass'],['p5','P-5 / P-5 R3'],['e2','E-II'],['six','6-TRAK'],['dx','FM-4'],['cz','PD-8']],()=>V.car,v=>V.car=v));
-    if(V.eng==='talker')m.appendChild(sel('Program',TalkerPedal.NAMES.map((n,i)=>[String(i),n]),()=>String(V.tk.mode),v=>V.tk.mode=+v));
+    m.appendChild(sel('Engine',ENG,()=>V.eng,v=>V.eng=v));
+    m.appendChild(sel('Carrier',CAR,()=>V.car,v=>V.car=v));
+    m.appendChild(sel('Program',TalkerPedal.NAMES.map((n,i)=>[String(i),n]),()=>String(V.tk.mode),v=>V.tk.mode=+v));
     panel.appendChild(m);const g=el('div','igrid');
-    if(V.eng==='talker'){g.appendChild(slider('MIC IN',0,1,0.01,()=>V.tk.mic,v=>V.tk.mic=v,v=>Math.round(v*10)+''));g.appendChild(slider('INST IN',0,1,0.01,()=>V.tk.inst,v=>V.tk.inst=v,v=>Math.round(v*10)+''));g.appendChild(slider('EFFECT OUT',0,1,0.01,()=>V.tk.out,v=>V.tk.out=v,v=>Math.round(v*10)+''))}
-    else{const X=V.vx;g.appendChild(slider('MIC LEVEL',-24,24,0.5,()=>X.micGainDb,v=>X.micGainDb=v,v=>(v>0?'+':'')+v+'dB'));g.appendChild(slider('INST LEVEL',-24,24,0.5,()=>X.instGainDb,v=>X.instGainDb=v,v=>(v>0?'+':'')+v+'dB'));
-      g.appendChild(slider('BALANCE',0,1,0.01,()=>X.balance,v=>X.balance=v,v=>v>=0.99?'VOC':v<=0.01?'MIC':Math.round(v*100)+''));g.appendChild(slider('VOLUME',-24,12,0.5,()=>X.volumeDb,v=>X.volumeDb=v,v=>(v>0?'+':'')+v+'dB'));
-      const w=el('div','isws');w.appendChild(chip('ENSEMBLE',()=>X.ensemble,v=>X.ensemble=v));w.appendChild(chip('HOLD',()=>X.hold,v=>X.hold=v));w.appendChild(chip('GUITAR',()=>X.guitarMode,v=>X.guitarMode=v));w.appendChild(chip('STEREO',()=>X.stereo,v=>X.stereo=v));panel.appendChild(w);
-      if(X.guitarMode)g.appendChild(slider('HARMONICS',0,1,0.01,()=>X.harmonics,v=>X.harmonics=v,v=>Math.round(v*100)+''))}
+    g.appendChild(slider('MIC IN',0,1,0.01,()=>V.tk.mic,v=>V.tk.mic=v,v=>Math.round(v*10)+''));g.appendChild(slider('INST IN',0,1,0.01,()=>V.tk.inst,v=>V.tk.inst=v,v=>Math.round(v*10)+''));g.appendChild(slider('EFFECT OUT',0,1,0.01,()=>V.tk.out,v=>V.tk.out=v,v=>Math.round(v*10)+''));
     panel.appendChild(g)}
-  else{const g=el('div','igrid vbands');const HZ=['160','230','330','500','730','1.1k','1.6k','2.3k','3.3k','5k'];
-    V.vx.bands.forEach((b,i)=>g.appendChild(slider(HZ[i],0,1,0.01,()=>V.vx.bands[i],v=>V.vx.bands[i]=v,v=>Math.round(v*10)+'')));
-    g.appendChild(slider('HF CONS.',0,1,0.01,()=>V.vx.consonant,v=>V.vx.consonant=v,v=>Math.round(v*10)+''));panel.appendChild(g)}
+  else panel.appendChild(vxPanel())
 }
+/* ---- the VX-350 front panel: knobs, eleven voice-character faders, remote jacks, power rocker ---- */
+const ENG=[['clear','VX-350 Clear'],['svc','VX-350 SVC circuit'],['talker','Talker pedal']];
+const CAR=[['keys','The keys’ instrument'],['omni','OMNI strings+synth+bass'],['str','Strings'],['syn','Synth'],['bas','Bass'],['p5','P-5 / P-5 R3'],['e2','E-II'],['six','6-TRAK'],['dx','FM-4'],['cz','PD-8']];
+let pushT=0;const live=()=>{const n=performance.now();if(n-pushT>60){pushT=n;push()}};
+function drag(elm,get,set,min,max,vertPx,onv){elm.addEventListener('pointerdown',e=>{e.preventDefault();elm.setPointerCapture(e.pointerId);const y0=e.clientY,v0=get();
+  const mv=ev=>{const v=Math.min(max,Math.max(min,v0+(y0-ev.clientY)/vertPx*(max-min)));set(v);onv();live()};
+  const up=()=>{elm.removeEventListener('pointermove',mv);elm.removeEventListener('pointerup',up);elm.removeEventListener('pointercancel',up);save();push()};
+  elm.addEventListener('pointermove',mv);elm.addEventListener('pointerup',up);elm.addEventListener('pointercancel',up)});
+  elm.addEventListener('keydown',e=>{const st=(max-min)/40;let v=get();if(e.key==='ArrowUp'||e.key==='ArrowRight')v+=st;else if(e.key==='ArrowDown'||e.key==='ArrowLeft')v-=st;else return;e.preventDefault();set(Math.min(max,Math.max(min,v)));onv();save();push()})}
+function knob(label,min,max,get,set,fmt,cls,lo,hi){const w=el('div','vxk '+(cls||''));w.appendChild(el('i','',label));
+  const k=el('div','vxdial');k.tabIndex=0;k.setAttribute('role','slider');k.setAttribute('aria-label',label);const cap=el('b');k.appendChild(cap);w.appendChild(k);
+  if(lo||hi){const s=el('div','vxends');s.appendChild(el('span','',lo||''));s.appendChild(el('span','',hi||''));w.appendChild(s)}
+  const show=()=>{const v=get(),f=(v-min)/(max-min);cap.style.transform='rotate('+(-140+280*f)+'deg)';k.setAttribute('aria-valuetext',fmt(v));k.title=label+' '+fmt(v)};
+  show();drag(k,get,set,min,max,140,show);return w}
+function fader(n,get,set){const w=el('div','vxf');w.appendChild(el('i','',String(n)));const tr=el('div','vxtr');tr.tabIndex=0;tr.setAttribute('role','slider');tr.setAttribute('aria-label','Voice character band '+n);
+  const cap=el('b');tr.appendChild(cap);w.appendChild(tr);const show=()=>{const v=get();cap.style.bottom='calc('+(v*100)+'% - '+(v*12)+'px)';tr.setAttribute('aria-valuetext',Math.round(v*10)+'')};
+  const at=e=>{const r=tr.getBoundingClientRect();set(Math.min(1,Math.max(0,1-(e.clientY-r.top-6)/(r.height-12))));show();live()};
+  tr.addEventListener('pointerdown',e=>{e.preventDefault();tr.setPointerCapture(e.pointerId);at(e)});
+  tr.addEventListener('pointermove',e=>{if(tr.hasPointerCapture(e.pointerId))at(e)});
+  const end=()=>{save();push()};tr.addEventListener('pointerup',end);tr.addEventListener('pointercancel',end);
+  tr.addEventListener('keydown',e=>{let v=get();if(e.key==='ArrowUp')v+=0.05;else if(e.key==='ArrowDown')v-=0.05;else return;e.preventDefault();set(Math.min(1,Math.max(0,v)));show();end()});
+  show();return w}
+function jack(label,get,set,cls){const w=el('div','vxj '+(cls||''));w.appendChild(el('i','',label));const b=el('button','vxjack');b.setAttribute('aria-pressed',String(!!get()));b.setAttribute('aria-label',label.replace(/\n/g,' '));
+  const led=el('span','vxled'+(get()?' on':''));b.onclick=()=>{set(!get());save();push();b.setAttribute('aria-pressed',String(!!get()));led.classList.toggle('on',!!get())};w.appendChild(b);w.appendChild(led);return w}
+function box(cls,title){const b=el('div','vxbox '+cls);if(title)b.appendChild(el('h5','',title));return b}
+function vxPanel(){const X=V.vx,R=el('div','vxrack');
+  const top=el('div','vxtop');const s1=sel('ENGINE',ENG,()=>V.eng,v=>V.eng=v),s2=sel('CARRIER',CAR,()=>V.car,v=>V.car=v);top.appendChild(s1);top.appendChild(s2);R.appendChild(top);
+  const face=el('div','vxface');R.appendChild(face);
+  // remote
+  const rm=box('vxrem','REMOTE');rm.appendChild(jack('HOLD',()=>X.hold,v=>X.hold=v));rm.appendChild(jack('VOCODER/\nDIRECT',()=>!X.direct,v=>X.direct=!v));rm.appendChild(jack('ENSEMBLE',()=>X.ensemble,v=>X.ensemble=v));face.appendChild(rm);
+  // microphone
+  const mc=box('vxmic','MICROPHONE');const mrow=el('div','vxrow');const xlr=el('div','vxxlr');xlr.appendChild(el('span'));mrow.appendChild(xlr);
+  mrow.appendChild(knob('LEVEL',-24,24,()=>X.micGainDb,v=>X.micGainDb=Math.round(v*2)/2,v=>(v>0?'+':'')+v+' dB'));
+  const leds=el('div','vxleds');const lr=el('span','vxled'),lg=el('span','vxled g'+(V.on?' on':''));leds.appendChild(lr);leds.appendChild(lg);mrow.appendChild(leds);mc.appendChild(mrow);face.appendChild(mc);
+  // instrument + guitar
+  const ins=box('vxins');const r1=el('div','vxrow');r1.appendChild(el('h5','','INSTRU-\nMENT'));
+  const sw=el('div','vxsw3');const pos=[['-30',12],['-15',0],['0dB',-12]];const cur=()=>pos.reduce((a,p)=>Math.abs(p[1]-X.instGainDb)<Math.abs(a[1]-X.instGainDb)?p:a);
+  const swb=el('div','vxswb');pos.forEach(p=>{const b=el('button','',p[0]);b.setAttribute('aria-pressed',String(cur()===p));b.setAttribute('aria-label','Instrument level '+p[0]);b.onclick=()=>{X.instGainDb=p[1];save();push();refresh()};swb.appendChild(b)});sw.appendChild(swb);r1.appendChild(sw);
+  const l1=el('span','vxled g'+(V.on&&!X.guitarMode?' on':''));r1.appendChild(l1);ins.appendChild(r1);
+  const r2=el('div','vxrow');r2.appendChild(jack('GUITAR',()=>X.guitarMode,v=>X.guitarMode=v,'inl'));
+  r2.appendChild(knob('HARMONICS',0,1,()=>X.harmonics,v=>X.harmonics=v,v=>Math.round(v*100)+''));ins.appendChild(r2);face.appendChild(ins);
+  // voice character control
+  const vc=box('vxvcc');const hd=el('div','vxfreq');hd.appendChild(el('span','','LOW'));hd.appendChild(el('span','','FREQUENCY'));hd.appendChild(el('span','','HIGH'));vc.appendChild(hd);
+  const fr=el('div','vxfaders');for(let i=0;i<10;i++)fr.appendChild(fader(i+1,()=>X.bands[i],v=>X.bands[i]=v));fr.appendChild(fader(11,()=>X.consonant,v=>X.consonant=v));vc.appendChild(fr);
+  vc.appendChild(el('h5','vxvt','VOICE CHARACTER CONTROL'));
+  const kn=el('div','vxbv');kn.appendChild(knob('BALANCE',0,1,()=>X.balance,v=>X.balance=v,v=>v>=0.99?'VOCODER':v<=0.01?'DIRECT MIC':Math.round(v*100)+'','','DIRECT','VOCODER'));
+  kn.appendChild(knob('VOLUME',-24,12,()=>X.volumeDb,v=>X.volumeDb=Math.round(v*2)/2,v=>(v>0?'+':'')+v+' dB'));vc.appendChild(kn);face.appendChild(vc);
+  // output + power
+  const ou=box('vxout','OUTPUT');const lv=el('div','vxlmh');lv.appendChild(el('i','','L M H'));const lb=el('div','vxswb v');['L','M','H'].forEach(k=>{const b=el('button','',k);b.setAttribute('aria-pressed',String((X.outLvl||'M')===k));b.setAttribute('aria-label','Output level '+k);b.onclick=()=>{X.outLvl=k;save();push();refresh()};lb.appendChild(b)});lv.appendChild(lb);ou.appendChild(lv);
+  ou.appendChild(jack('A / B\nSTEREO',()=>X.stereo,v=>X.stereo=v,'sm'));face.appendChild(ou);
+  const pw=box('vxpw');const plate=el('div','vxplate');plate.appendChild(el('b','','VOCODER'));plate.appendChild(el('em','','VX-350'));pw.appendChild(plate);
+  const rk=el('button','vxrock'+(V.on?' on':''));rk.setAttribute('aria-pressed',String(!!V.on));rk.setAttribute('aria-label','Vocoder power');const pl=el('span','vxled r'+(V.on?' on':''));
+  const pc=el('div','vxpwc');pc.appendChild(el('i','','POWER'));pc.appendChild(pl);pc.appendChild(rk);pc.appendChild(el('i','vxonoff','■ ON  ■ OFF'));pw.appendChild(pc);
+  rk.onclick=async()=>{if(!powered)await power();V.on=V.on?0:1;save();push();refresh();if(V.on&&V.src==='phrase'&&V.trig!=='keys')sayNow()};face.appendChild(pw);
+  return R}
 // one tap: vocoder on, a chord held on the carrier, the phrase spoken through it
 let testing=false;
 async function testVoc(){if(testing)return;testing=true;
