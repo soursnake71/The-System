@@ -17,6 +17,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import android.content.pm.PackageManager;
+import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.provider.DocumentsContract;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiManager;
@@ -57,6 +65,8 @@ public class MainActivity extends Activity {
     private final List<MidiOutputPort> ports = new ArrayList<>();
     private final Set<Integer> openedIds = new HashSet<>();
     private static final int PICK_FILE = 42;
+    private static final int PICK_ROMS = 43;
+    private final Map<String, Uri> romDocs = new HashMap<>();
     private ValueCallback<Uri[]> pendingChooser;
 
     @Override
@@ -88,6 +98,19 @@ public class MainActivity extends Activity {
 
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .addPathHandler("/roms/", path -> {
+                    // the user's ROM folder, read through the access they granted (nothing is copied)
+                    try {
+                        String name = Uri.decode(path);
+                        if (romDocs.isEmpty()) listRomDocs();
+                        Uri doc = romDocs.get(name);
+                        if (doc == null) return null;
+                        InputStream in = getContentResolver().openInputStream(doc);
+                        return new WebResourceResponse("application/zip", null, in);
+                    } catch (Exception e) {
+                        return null;
+                    }
+                })
                 .build();
 
         web.addJavascriptInterface(new Bridge(), "FarpAndroid");
@@ -130,6 +153,19 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PICK_ROMS) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                Uri tree = data.getData();
+                try {
+                    getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (Exception ignored) { }
+                prefs().edit().putString("romTree", tree.toString()).apply();
+                romDocs.clear();
+                final String label = folderLabel(tree);
+                if (web != null) web.evaluateJavascript("window.onRomFolder&&onRomFolder('" + label.replace("'", "") + "')", null);
+            }
+            return;
+        }
         if (requestCode != PICK_FILE || pendingChooser == null) return;
         Uri[] result = null;
         if (resultCode == RESULT_OK && data != null) {
@@ -145,8 +181,75 @@ public class MainActivity extends Activity {
         pendingChooser = null;
     }
 
-    /** Lets the page save exported MIDI files into the phone's Downloads folder. */
+    private SharedPreferences prefs() { return getSharedPreferences("farp", MODE_PRIVATE); }
+
+    private Uri romTree() {
+        String t = prefs().getString("romTree", null);
+        return t == null ? null : Uri.parse(t);
+    }
+
+    /** "primary:ROMs" -> "/sdcard/ROMs", "1234-5678:ROMs" -> "SD card/ROMs" */
+    private static String folderLabel(Uri tree) {
+        try {
+            String id = DocumentsContract.getTreeDocumentId(tree);
+            int c = id.indexOf(':');
+            String vol = c >= 0 ? id.substring(0, c) : id, rest = c >= 0 ? id.substring(c + 1) : "";
+            return ("primary".equals(vol) ? "/sdcard/" : "SD card/") + rest;
+        } catch (Exception e) {
+            return "ROM folder";
+        }
+    }
+
+    private synchronized JSONArray listRomDocs() {
+        JSONArray out = new JSONArray();
+        romDocs.clear();
+        Uri tree = romTree();
+        if (tree == null) return out;
+        try {
+            Uri kids = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+            try (Cursor c = getContentResolver().query(kids, new String[] {
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_SIZE }, null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    String id = c.getString(0), name = c.getString(1);
+                    if (name == null || !name.toLowerCase().endsWith(".zip")) continue;
+                    romDocs.put(name, DocumentsContract.buildDocumentUriUsingTree(tree, id));
+                    JSONObject o = new JSONObject();
+                    o.put("n", name);
+                    o.put("s", c.getLong(2));
+                    out.put(o);
+                }
+            }
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    /** Lets the page save exported MIDI files into the phone's Downloads folder, and reach the ROM folder. */
     private class Bridge {
+        @JavascriptInterface
+        public void pickRomFolder() {
+            main.post(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                try {
+                    startActivityForResult(i, PICK_ROMS);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "No folder picker on this device", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String romFolder() {
+            Uri t = romTree();
+            return t == null ? "" : folderLabel(t);
+        }
+
+        @JavascriptInterface
+        public String romList() {
+            return listRomDocs().toString();
+        }
+
         @JavascriptInterface
         public void saveFile(String name, String base64) {
             final String safeName = name.replaceAll("[^A-Za-z0-9._-]", "_");
