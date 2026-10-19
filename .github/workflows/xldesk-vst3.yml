@@ -73,7 +73,11 @@ jobs:
           esac
           curl -sSL -o pv.zip "https://github.com/Tracktion/pluginval/releases/latest/download/$z" && unzip -q pv.zip
           run="$exe --strictness-level 10 --validate-in-process --timeout-ms 600000 --output-dir pluginval-logs build/XLDesk_artefacts/Release/VST3/XL-Desk.vst3"
-          if [ "${{ matrix.name }}" = linux ]; then xvfb-run -a $run; else $run; fi
+          if [ "${{ matrix.name }}" = linux ]; then
+            sudo apt-get install -y gdb >/dev/null
+            # on a crash, run it again under gdb so the log shows where
+            xvfb-run -a $run || { echo "::warning::pluginval crashed; re-running under gdb"; xvfb-run -a gdb -batch -ex run -ex "thread apply all bt 25" --args $run; exit 1; }
+          else $run; fi
       - name: Installers
         shell: bash
         run: |
