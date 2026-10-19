@@ -1864,6 +1864,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>AI EQ</b> (Mixer → AI EQ): listens to each track across the song, works out what it is, and EQs it like an engineer: high-pass, mud and ring cuts, presence lift, and room for the kick, bass and vocal. AI master EQ shapes the whole mix toward a style. Each track's curve shows on its FX page with an Amount.</li>
         <li><b>Pitch tracking</b>: on an audio track, <b>To notes</b> turns a sung or played line into synth notes; <b>Auto-tune</b> pulls a clip to the project's key (Natural keeps vibrato, Hard is the robot effect, Undo tune brings the take back). On the Synth screen, <b>Sing to play</b> lets your voice play the synth through the mic, with a live tuner next to it.</li>
         <li><b>Keyboard = the instrument</b> (Synth → Keyboard): the keys take on the look of the synth you picked (Minimoog wood cheeks and ivory keys, the Juno-60 and SH-101 cases, the blue PPG, the silver TB-303 and so on) with the synth's own knobs, sliders and switches right above them. The keys stay at the bottom of the screen while you scroll the panel. Tap Sound to open the same panel full-screen; Grid goes back to the pad grid.</li>
+        <li><b>Real drum machine recordings</b>: the TR-808 (Michael Fischer's recordings of a real 808), Oberheim DMX and Boss DR-110 in the Drum machine menu are real samples, and new projects start on the real 808. The other machines in that menu are circuit models. Your own sounds go in with My samples.</li>
         <li><b>Drum machine skins</b>: the pads take on the look of the machine loaded with Drum machine: the TR-808's red, orange, yellow and cream keys, the CR-78's walnut case, the grey TR-909, Simmons red hexagon pads, the Oberheim DMX, the LinnDrum and more, with the maker's nameplate above.</li>
         <li><b>MIDI learn</b>: every knob, slider, switch and menu on every instrument panel, drum machine, effect and mixer can be learned (MIDI learn, then tap the control, then move a knob on your controller). Only the Load file buttons can't, because a browser only opens files on a real tap.</li>
         <li><b>Big screens</b>: on a computer or TV the whole interface scales up to fill the screen.</li>
@@ -1917,6 +1918,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
     <details id="h-credits"><summary>Credits</summary>
       <ul>
+        <li>TR-808 samples: recorded directly from a Roland TR-808 by Michael Fischer (1994, released free), via <a href="https://github.com/tidalcycles/sounds-tr808-fischer" target="_blank" rel="noopener">tidalcycles/sounds-tr808-fischer</a> (CC0 1.0). Not affiliated with Roland.</li>
         <li>Grand piano samples: <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Salamander Grand Piano</a> by Alexander Holm, CC-BY 3.0 (via the Tone.js audio collection).</li>
         <li>SP-1200 audio path data (filter prototypes, pitch table, converter behaviour): <a href="https://github.com/Mudb0y/libmd12" target="_blank" rel="noopener">libmd12</a> (MIT licence). Not affiliated with E-mu or Rossum Electro-Music.</li>
         <li>SVC-350 vocoder: modeled from the Roland SVC-350 service notes (Dec. 8, 1979), <a href="https://archive.org/details/roland_SVC-350_SERVICE_NOTES" target="_blank" rel="noopener">archive.org</a>. Not affiliated with Roland.</li>
@@ -2009,7 +2011,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v122</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v123</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2108,7 +2110,9 @@ const VOL_M20 = Math.sqrt(.1 / 1.4);
 const mixDefaults = () => Object.assign({vol:VOL_M20, pan:0, mute:false, solo:false, low:0, mid:0, high:0, ftype:'off', cut:.5, res:1, comp:0, sendA:0, sendB:0}, FX_DEFAULTS);
 
 function defaultState(){
-  const pads = KIT.map(([name, kind]) => ({name, sample:'kit:' + kind, vol:.85, pitch:0, pan:0, decay:1, choke:(kind==='chh'||kind==='ohh') ? 1 : 0}));
+  // a new project starts on real TR-808 recordings (pad order: kick, snare, clap, rim, closed hat, open hat, ...)
+  const pads = [['Kick','bd'],['Snare','sd'],['Clap','cp'],['Rim','rim'],['C Hat','ch'],['O Hat','oh'],['Cowbell','cb'],['Cymbal','cy'],['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Lo Conga','lc'],['Hi Conga','hc'],['Claves','cl'],['Maracas','ma'],['Kick Long','bdl']]
+    .map(([name, v]) => ({name, sample:'kit:tr808:' + v, vol:.85, pitch:0, pan:0, decay:1, choke:(v === 'ch' || v === 'oh') ? 1 : 0}));
   const notes = [], add = (p, steps, v = .72) => steps.forEach(st => notes.push({p, t:st * TPS, v}));
   add(0, [0], 1); add(0, [7, 10]); add(1, [4, 12], 1);
   add(4, [0, 4, 8, 12]); add(4, [2, 6, 10], 1); add(5, [14]);
@@ -2119,7 +2123,7 @@ function defaultState(){
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0, padMap:'chrom',
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
-    drum:Object.assign({id:'drums', name:'Pads', pads, notes}, mixDefaults()),
+    drum:Object.assign({id:'drums', name:'Pads', pads, notes, kit:'tr808'}, mixDefaults()),
     audio:[Object.assign({id:'a1', name:'Audio 1', armed:true, recBars:1, clip:null, clipSteps:16, warp:'complex'}, mixDefaults())],
     synths:[], auto:{}, autoOff:[]
   };
@@ -2521,7 +2525,7 @@ function cr78(v){
 }
 const KITS = {
   pocket:{name:'The Omega System (original)'},
-  tr808:{name:'Roland TR-808', make:tr808, voices:[['Kick','bd'],['Snare','sd'],['Clap','cp'],['Rim','rim'],['C Hat','ch',1],['O Hat','oh',1],['Cowbell','cb'],['Cymbal','cy'],
+  tr808:{name:'Roland TR-808 (real samples)', make:tr808, voices:[['Kick','bd'],['Snare','sd'],['Clap','cp'],['Rim','rim'],['C Hat','ch',1],['O Hat','oh',1],['Cowbell','cb'],['Cymbal','cy'],
     ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Lo Conga','lc'],['Hi Conga','hc'],['Claves','cl'],['Maracas','ma'],['Kick Long','bdl']]},
   cr78:{name:'Roland CR-78', make:cr78, voices:[['Kick','bd'],['Snare','sd'],['Guiro','gui'],['Rim','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Tambourine','tamb'],['Cymbal','cym'],
     ['Lo Bongo','lb'],['Hi Bongo','hb'],['Lo Conga','lc'],['Cowbell','cb'],['Claves','cl'],['Maracas','mar'],['Metal Beat','mb'],['Kick Accent','bdA']]},
@@ -2531,9 +2535,9 @@ const KITS = {
     ['Lo Tom','lt'],['Mid Tom','mt'],['Hi Tom','ht'],['Lo Conga','cgl'],['Hi Conga','cgh'],['Timbale','tl'],['Lo Cowbell','cbl'],['Hi Cowbell','cbh']]},
   lm2:{name:'LinnDrum LM-2', make:lm2, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Sidestick','ss'],['C Hat','chh',1],['O Hat','ohh',1],['Ride','ride'],['Crash','crash'],
     ['Lo Tom','t1'],['Mid Tom','t2'],['Hi Tom','t3'],['Cowbell','cb'],['Lo Conga','cg1'],['Hi Conga','cg2'],['Cabasa','cab'],['Tambourine','tamb']]},
-  dmx:{name:'Oberheim DMX', make:dmx, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rimshot','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Hat Accent','hha',1],['Cymbal','cym'],
+  dmx:{name:'Oberheim DMX (real samples)', make:dmx, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rimshot','rim'],['C Hat','chh',1],['O Hat','ohh',1],['Hat Accent','hha',1],['Cymbal','cym'],
     ['Tom 1','t4'],['Tom 2','t3'],['Tom 3','t2'],['Tom 4','t1'],['Snare 2','sd2'],['Tambourine','tamb'],['Shaker','shk'],['Ride','ride']]},
-  dr110:{name:'Boss DR-110', make:dr110, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Kick Accent','bdA'],['C Hat','chh',1],['O Hat','ohh',1],['Cymbal','cym'],['Snare Accent','sdA'],
+  dr110:{name:'Boss DR-110 (real samples)', make:dr110, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Kick Accent','bdA'],['C Hat','chh',1],['O Hat','ohh',1],['Cymbal','cym'],['Snare Accent','sdA'],
     ['Clap Accent','clapA'],['C Hat Acc','chhA',1],['O Hat Acc','ohhA',1],['Cymbal Acc','cymA'],['Kick 2','bd'],['Snare 2','sd'],['C Hat 2','chh',1],['Cymbal 2','cym']]},
   sdsv:{name:'Simmons SDS-V', make:simmons, voices:[['Kick','bd'],['Snare','sd'],['Clap','clap'],['Rim','rim'],['Hat','hh'],['Snare 2','sd2'],['Cymbal','cym'],['Kick 2','bd2'],
     ['Tom 1','t1'],['Tom 2','t2'],['Tom 3','t3'],['Tom 4','t4'],['Floor Tom','t5'],['Bend Tom','tb'],['Up Tom','tu'],['Noise Tom','tn']]}
@@ -2644,12 +2648,22 @@ function kitVoices(id){
   if (!id || id === 'pocket' || !KITS[id]) return KIT.map(([name, kind]) => ({name, key:'kit:' + kind, choke:(kind === 'chh' || kind === 'ohh') ? 1 : 0}));
   return KITS[id].voices.map(([name, v, choke]) => ({name, key:'kit:' + id + ':' + v, choke:choke || 0}));
 }
+// real recordings for the machines we have them for; the model fills in until the file has loaded (and if it can't)
+const KIT_REAL = {
+  tr808:{dir:'tr808', map:{bd:'kick', bdl:'kicklong', sd:'snare', cp:'clap', rim:'rim', ch:'chh', oh:'ohh', cb:'cowbell', cy:'cymbal', lt:'lotom', mt:'midtom', ht:'hitom', lc:'loconga', hc:'hiconga', cl:'claves', ma:'maracas'}},
+  dmx:{dir:'dmx', map:{bd:'kick', sd:'snare', clap:'clap', rim:'rimshot', chh:'hi-hat-tight', ohh:'hi-hat-open', hha:'hi-hat-medium', cym:'crash', t4:'tom-1', t3:'tom-2', t2:'tom-3', t1:'tom-4', tamb:'tambourine', shk:'shaker', ride:'ride'}},
+  dr110:{dir:'dr110', map:{bd:'kick', bdA:'kick', sd:'snare1', sdA:'snare2', clap:'clap', clapA:'clap', chh:'closed-hat', chhA:'closed-hat', ohh:'open-hat', ohhA:'open-hat', cym:'cymbal', cymA:'cymbal'}}};
+const kitRealBusy = new Set();
 function ensureKitBuf(key){
-  if (!key || buffers.has(key) || !key.startsWith('kit:')) return;
+  if (!key || !key.startsWith('kit:')) return;
   const [, id, v] = key.split(':'); if (!v || !KITS[id]) return;
-  const out = KITS[id].make(v);
-  if (out) buffers.set(key, makeBuffer([out.d], out.sr));
+  if (!buffers.has(key)){ const out = KITS[id].make(v); if (out) buffers.set(key, makeBuffer([out.d], out.sr)); }
+  const R = KIT_REAL[id], f = R && R.map[v]; if (!f || kitRealBusy.has(key)) return; kitRealBusy.add(key);
+  fetch('kits/' + R.dir + '/' + f + '.wav').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).then(ab => decodeAny(ab))
+    .then(b => { buffers.set(key, v.endsWith('A') ? gainBuf(b, 1.25) : b); if (typeof renderPadEditor === 'function' && view === 'drums') try { renderPadEditor(); } catch(e){} })
+    .catch(() => {});
 }
+function gainBuf(b, g){ const chs = [...Array(b.numberOfChannels)].map((_, k) => { const d = b.getChannelData(k).slice(); for (let i = 0; i < d.length; i++) d[i] = Math.max(-1, Math.min(1, d[i] * g)); return d; }); return makeBuffer(chs, b.sampleRate); }
 function renderKitPick(){ const k = $('#kitPick'); if (!k) return; k.innerHTML = Object.entries(KITS).map(([id, K]) => `<option value="${id}">${K.name}</option>`).join(''); k.value = S.drum.kit && KITS[S.drum.kit] ? S.drum.kit : 'pocket'; }
 function loadKit(id){
   const vs = kitVoices(id), pads = S.drum.pads;
@@ -14390,6 +14404,7 @@ $('#helpSearch').addEventListener('input', e => {
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (S.drum.name === 'Drums') S.drum.name = 'Pads';   // the pad track is called Pads everywhere, the mixer included
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
+  S.drum.pads.forEach(p => ensureKitBuf(p.sample));   // every machine sound on the pads, real recordings where we have them
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); if (!t.inst || t.inst === 'synth'){ t.inst = 'prophet'; if (/^Synth \d+$/.test(t.name)) t.name = 'Prophet ' + t.id.slice(1); } t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.ob = Object.assign(OB_DEFAULT(), t.ob); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
