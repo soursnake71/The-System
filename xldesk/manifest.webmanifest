@@ -1,0 +1,2 @@
+{"name":"XL-Desk","short_name":"XL-Desk","description":"A working model of the SSL XL-Desk analogue console: VHD preamps, 500-series rack with E Series EQ and Dynamics and the G Series Bus Compressor, full monitoring, MIDI and MMC.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#151618","theme_color":"#151618",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

@@ -17,6 +17,15 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
+## XL-Desk (`/xldesk/`)
+A working model of the Solid State Logic XL-Desk analogue console, made for Absolute Future Studios. Open `https://<your-username>.github.io/<repo>/xldesk/` in Chrome and Add to Home screen.
+- 16 dual-input mono channels (VHD preamps with 2nd/3rd harmonic drive on 1-8), 4 stereo channels, 2 stereo returns, Mix A-D with B/C/D to A, stereo cue, two auxes, 500 and INS inserts, CHOP direct outs, solo-in-place / AFL / solo safe.
+- 16 + 2 slot 500 rack: SSL E Series EQ (Brown 02 / Black 242), E Series Dynamics, and the G Series Bus Compressor over Mix A; mix buses steal slot pairs 9-16 like the desk.
+- Monitoring: three speaker sets with bass management, MINI level trims, dim, mono, foldback A/B with talkback, headphones, listen mic and its compressor, all 12 rear DIP switches.
+- Tape tab plays your stems into the DAW inputs; print any outputs to 24-bit WAV. Multichannel interfaces: patch inputs and outputs on the Rear panel tab.
+- Full MIDI: every control on a fixed CC map plus MIDI Learn, feedback to the controller, 14-bit pitch-bend faders, program change snapshots, and MMC in and out (transport and locate).
+- Built from SSL's XL-Desk Owner's Manual (82BMLM01B), the G Comp, E EQ and E Dynamics 500 module guides, and Sound On Sound's review. The Help tab lists every source and every value that had to be estimated.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
