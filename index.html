@@ -1069,7 +1069,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
   <!-- MIXER -->
   <section class="view" id="v-mixer" hidden>
-    <div class="row mixtop"><button id="autoArm">Automate</button><button id="fadersReset" class="nolearn" title="Every channel fader back to −20 dB, master and returns to their defaults">Reset faders</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
+    <div class="row mixtop"><button id="autoArm">Automate</button><button id="fadersReset" class="nolearn" title="Every channel fader back to 0 dB, master and returns to their defaults">Reset faders</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
     <div class="strips" id="strips"></div>
     <div class="card" id="fxCard" data-chip="Effects"></div>
     <div class="card" id="scCard" data-chip="Sidechain"></div>
@@ -1889,7 +1889,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>FIRE</b> (top bar): the machine fries. Smoke pours out, the sound overdrives, crushes and cuts out, and the settings slowly mangle themselves, more the longer it burns. Everything that comes out is recorded: switch it off and your settings come back, and the fried take is in Chop (ready to slice onto the pads) and your sample bin. Press play first so there is a beat to burn.</li>
         <li><b>Packs</b> (Pad sound → Save pack / Load pack): a .omegapack file with all 16 pad sounds, every pad setting, and the Chop sample with its slice points.</li>
         <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
-        <li><b>Mixer</b>: channel faders start at −20 dB, leaving headroom. Double-tap any fader, pan or send to put it back to its default; on the Wheel, double-tap a channel fader, EQ or filter knob, the crossfader or a pitch slider.</li>
+        <li><b>Mixer</b>: channel faders start at 0 dB (unity gain). Double-tap any fader, pan or send to put it back to its default; on the Wheel, double-tap a channel fader, EQ or filter knob, the crossfader or a pitch slider.</li>
         <li><b>Projects</b> (Setup): Save keeps the project in your list. Open switches projects. Export makes a .omega file to move it to another device. <b>New project</b> (tap twice) saves the current one first, then starts fresh.</li>
         <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
       </ul>
@@ -2013,7 +2013,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v124</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v125</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2107,8 +2107,8 @@ const KIT = [
 const $ = (s, r = document) => r.querySelector(s);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const FX_DEFAULTS = {sat:0, crush:0, chorus:0, apan:0, apanRate:1, duck:0, duckPad:0, duckRel:.18};
-// channel faders start at −20 dB: gain = vol² × 1.4, so vol = √(0.1 / 1.4)
-const VOL_M20 = Math.sqrt(.1 / 1.4);
+// channel faders start at 0 dB (unity): gain = vol² × 1.4, so vol = √(1 / 1.4)
+const VOL_M20 = Math.sqrt(1 / 1.4);   // (name kept) the default channel fader: 0 dB
 const mixDefaults = () => Object.assign({vol:VOL_M20, pan:0, mute:false, solo:false, low:0, mid:0, high:0, ftype:'off', cut:.5, res:1, comp:0, sendA:0, sendB:0}, FX_DEFAULTS);
 
 function defaultState(){
@@ -14338,13 +14338,13 @@ async function fireToggle(){
 }
 $('#fire').addEventListener('click', fireToggle);
 
-// Reset faders: every channel to −20 dB, master and the effect returns to their defaults (tap twice)
+// Reset faders: every channel to 0 dB, master and the effect returns to their defaults (tap twice)
 $('#fadersReset').addEventListener('click', e => {
   const b = e.currentTarget;
   if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again to reset'; b.classList.add('on'); setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Reset faders'; b.classList.remove('on'); }, 3000); return; }
   b.dataset.sure = ''; b.textContent = 'Reset faders'; b.classList.remove('on');
   allTracks().forEach(t => t.vol = VOL_M20); S.master.vol = .91; RET_KEYS.forEach(k => retState(k).vol = k === 'rev' ? .8 : .845);
-  applyAll(); if (live){ applyMaster(ctx, live.master); applyRack(ctx, live.master); } save(); renderMixer(); toast('All faders reset: channels at −20 dB, master at 0 dB.');
+  applyAll(); if (live){ applyMaster(ctx, live.master); applyRack(ctx, live.master); } save(); renderMixer(); toast('All faders reset: channels and master at 0 dB.');
 });
 // the Wheel (turntables) tab shows unless it's switched off in Setup
 const wheelShown = () => { try { return localStorage.getItem('pr.wheel2') !== '0'; } catch(e){ return true; } };
