@@ -2013,7 +2013,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v126</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v127</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -6617,7 +6617,7 @@ async function damnSon(force){
   if (!force && (S.damnSon === false || now - dsLast < 90000 || Math.random() > .2)) return;
   dsLast = now; ensureAudio();
   try { if (!dsBuf) dsBuf = await ctx.decodeAudioData(await (await fetch('damn-son.mp3')).arrayBuffer()); } catch(e){ return; }
-  const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .9; src.buffer = dsBuf; src.connect(g).connect(live.master.bus); src.start(ctx.currentTime + .02);
+  const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .45; src.buffer = dsBuf; src.connect(g).connect(live.master.bus); src.start(ctx.currentTime + .02);
   document.querySelector('#damnSon') && document.querySelector('#damnSon').remove();
   const w = document.createElement('div'); w.id = 'damnSon'; w.innerHTML = '<b>DAMN SON,<br>WHERE’D YOU FIND THIS?</b>';
   w.onclick = () => { w.remove(); try { src.stop(); } catch(e){} };
