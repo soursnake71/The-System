@@ -27,7 +27,11 @@ final class Converter {
 
   private Converter() {}
 
-  static Plan plan(MediaInformation info, String input, String output, boolean maxCompat) {
+  /**
+   * @param maxKbps the most video bitrate a Google TV dongle should be asked to stream (0 = no limit). Video above it is
+   *     re-encoded under that limit even when it could be copied, since a big Blu-ray rip stutters over Wi-Fi.
+   */
+  static Plan plan(MediaInformation info, String input, String output, boolean maxCompat, int maxKbps) {
     StreamInformation video = null;
     List<StreamInformation> audio = new ArrayList<>();
     List<StreamInformation> subs = new ArrayList<>();
@@ -58,18 +62,27 @@ final class Converter {
     // 10-bit H.264 ("Hi10P", common in anime) is re-encoded too, since TV hardware can't decode it.
     String vc = codec(video);
     boolean h264ok = "h264".equals(vc) && is8bit420(video);
+    long kbps = videoKbps(info, video, audio);
+    boolean tooBig = maxKbps > 0 && kbps > maxKbps;
     String videoNote;
-    if (h264ok || ("hevc".equals(vc) && !maxCompat)) {
+    if ((h264ok || ("hevc".equals(vc) && !maxCompat)) && !tooBig) {
       add(a, "-c:v", "copy");
       // hvc1 is the HEVC tag Apple and Google TV players expect in MP4
       if ("hevc".equals(vc)) add(a, "-tag:v", "hvc1");
-      videoNote = "video copied (" + label(vc) + ")";
+      videoNote = "video copied (" + label(vc) + (kbps > 0 ? ", " + mbps(kbps) : "") + ")";
     } else {
       add(a, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-profile:v", "high");
+      // aim 10% under the limit with a one-second buffer: x264 overshoots maxrate a little, and this keeps the
+      // average under the limit and peaks close to it, so the stream never outruns the Wi-Fi
+      if (maxKbps > 0) add(a, "-maxrate", (maxKbps * 9 / 10) + "k", "-bufsize", maxKbps + "k");
+      // a keyframe every 2 seconds, so skipping around while streaming is quick
+      add(a, "-force_key_frames", "expr:gte(t,n_forced*2)");
       Long h = video.getHeight();
       // a phone re-encoding 4K to H.264 would take hours; 1080p plays everywhere
       if (h != null && h > 1080) add(a, "-vf", "scale=-2:1080");
-      videoNote = "video re-encoded " + label(vc) + ("h264".equals(vc) ? " 10-bit" : "") + " → H.264";
+      videoNote = "video re-encoded " + label(vc) + ("h264".equals(vc) && !h264ok ? " 10-bit" : "") + " → H.264";
+      if (tooBig) videoNote += " (was " + mbps(kbps) + ", now at most " + mbps(maxKbps) + ")";
+      else if (maxKbps > 0) videoNote += " (at most " + mbps(maxKbps) + ")";
     }
 
     // Audio: AAC is what every Google TV / Chromecast app plays; AC-3, DTS, TrueHD, FLAC, Opus... become AAC.
@@ -123,6 +136,42 @@ final class Converter {
   private static boolean is8bit420(StreamInformation s) {
     String pf = s.getStringProperty("pix_fmt");
     return pf == null || pf.equals("yuv420p") || pf.equals("yuvj420p");
+  }
+
+  /**
+   * Video bitrate in kbit/s, or 0 if unknown. MKVs rarely store it on the stream, but mkvmerge writes a BPS tag;
+   * failing both, it is the whole file's bitrate minus the audio.
+   */
+  private static long videoKbps(MediaInformation info, StreamInformation video, List<StreamInformation> audio) {
+    long bps = number(video.getBitrate());
+    JSONObject tags = video.getTags();
+    if (bps <= 0 && tags != null) {
+      for (java.util.Iterator<String> it = tags.keys(); it.hasNext() && bps <= 0; ) {
+        String k = it.next();
+        if (k.equalsIgnoreCase("BPS") || k.toUpperCase().startsWith("BPS-")) bps = number(tags.optString(k));
+      }
+    }
+    if (bps <= 0) {
+      bps = number(info.getBitrate());
+      if (bps <= 0) return 0;
+      for (StreamInformation s : audio) {
+        long ab = number(s.getBitrate());
+        bps -= ab > 0 ? ab : 640_000;
+      }
+    }
+    return Math.max(bps, 0) / 1000;
+  }
+
+  private static long number(String s) {
+    try {
+      return s == null ? 0 : Long.parseLong(s.trim());
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
+  private static String mbps(long kbps) {
+    return kbps >= 10_000 ? Math.round(kbps / 1000.0) + " Mbps" : String.format(java.util.Locale.US, "%.1f Mbps", kbps / 1000.0);
   }
 
   private static long durationMs(MediaInformation info) {

@@ -4,11 +4,29 @@
     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/app_name" android:textSize="28sp" android:textStyle="bold" android:textColor="#FFFFFFFF" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/intro" android:textSize="15sp" android:textColor="#FFC8CCD4" />
     <Button android:id="@+id/choose" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/choose" android:textSize="18sp" android:backgroundTint="@color/accent" android:textColor="#FFFFFFFF" />
+    <Button android:id="@+id/choose_folder" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/choose_folder" android:textSize="18sp" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/folder_hint" android:textSize="13sp" android:textColor="#FF8A909C" />
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/output" android:textSize="16sp" android:textStyle="bold" android:textColor="#FFFFFFFF" />
+    <TextView android:id="@+id/output" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="15sp" android:textColor="#FFC8CCD4" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+      <Button android:id="@+id/change_output" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/change_output" />
+      <Button android:id="@+id/default_output" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/default_output" />
+    </LinearLayout>
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/bitrate" android:textSize="16sp" android:textStyle="bold" android:textColor="#FFFFFFFF" />
+    <RadioGroup android:id="@+id/bitrate" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp">
+      <RadioButton android:id="@+id/kbps_6000" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/kbps_6000" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+      <RadioButton android:id="@+id/kbps_10000" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/kbps_10000" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+      <RadioButton android:id="@+id/kbps_20000" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/kbps_20000" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+      <RadioButton android:id="@+id/kbps_0" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/kbps_0" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+    </RadioGroup>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/bitrate_hint" android:textSize="13sp" android:textColor="#FF8A909C" />
+
     <CheckBox android:id="@+id/max_compat" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/max_compat" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
     <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/idle" android:textSize="16sp" android:textColor="#FFFFFFFF" />
     <ProgressBar android:id="@+id/progress" style="@android:style/Widget.Material.ProgressBar.Horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:max="1000" android:progressTint="@color/accent" android:visibility="gone" />
     <Button android:id="@+id/cancel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/cancel" android:visibility="gone" />
     <TextView android:id="@+id/log" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:textSize="14sp" android:textColor="#FFC8CCD4" android:textIsSelectable="true" />
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="@string/saved_to" android:textSize="13sp" android:textColor="#FF8A909C" />
   </LinearLayout>
 </ScrollView>
