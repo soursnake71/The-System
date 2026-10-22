@@ -27,12 +27,13 @@ public class MainActivity extends Activity {
   private static final int PICK = 1, PICK_FOLDER = 2, PICK_OUTPUT = 3;
   private static final int[] BITRATE_IDS = {R.id.kbps_6000, R.id.kbps_10000, R.id.kbps_20000, R.id.kbps_0};
   private static final int[] BITRATE_KBPS = {6000, 10000, 20000, 0};
+  private static final int[] QUALITY_IDS = {R.id.quality_fast, R.id.quality_good};
 
   private TextView status, log, output;
   private ProgressBar progress;
   private Button cancel;
   private CheckBox maxCompat, keepSubs;
-  private RadioGroup bitrate;
+  private RadioGroup bitrate, quality;
   private SharedPreferences prefs;
 
   @Override protected void onCreate(Bundle saved) {
@@ -47,6 +48,7 @@ public class MainActivity extends Activity {
     maxCompat = findViewById(R.id.max_compat);
     keepSubs = findViewById(R.id.keep_subs);
     bitrate = findViewById(R.id.bitrate);
+    quality = findViewById(R.id.quality);
     Button choose = findViewById(R.id.choose);
     choose.setOnClickListener(v -> pick());
     findViewById(R.id.choose_folder).setOnClickListener(v -> pickFolder(PICK_FOLDER));
@@ -61,6 +63,8 @@ public class MainActivity extends Activity {
     int kbps = prefs.getInt("max_kbps", 10000);
     for (int i = 0; i < BITRATE_KBPS.length; i++) if (BITRATE_KBPS[i] == kbps) bitrate.check(BITRATE_IDS[i]);
     bitrate.setOnCheckedChangeListener((g, id) -> prefs.edit().putInt("max_kbps", maxKbps()).apply());
+    quality.check(QUALITY_IDS[prefs.getInt("quality", Converter.QUALITY) == Converter.FAST ? Converter.FAST : Converter.QUALITY]);
+    quality.setOnCheckedChangeListener((g, id) -> prefs.edit().putInt("quality", quality()).apply());
     showOutput();
 
     choose.requestFocus();
@@ -87,6 +91,11 @@ public class MainActivity extends Activity {
   private int maxKbps() {
     for (int i = 0; i < BITRATE_IDS.length; i++) if (bitrate.getCheckedRadioButtonId() == BITRATE_IDS[i]) return BITRATE_KBPS[i];
     return 10000;
+  }
+
+  private int quality() {
+    for (int i = 0; i < QUALITY_IDS.length; i++) if (quality.getCheckedRadioButtonId() == QUALITY_IDS[i]) return i;
+    return Converter.QUALITY;
   }
 
   private void pick() {
@@ -150,6 +159,8 @@ public class MainActivity extends Activity {
     }
     if (tree != null) keep(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
     prefs.edit().putString("out_tree", tree == null ? null : tree.toString()).apply();
+    quality.check(QUALITY_IDS[prefs.getInt("quality", Converter.QUALITY) == Converter.FAST ? Converter.FAST : Converter.QUALITY]);
+    quality.setOnCheckedChangeListener((g, id) -> prefs.edit().putInt("quality", quality()).apply());
     showOutput();
   }
 
@@ -205,6 +216,7 @@ public class MainActivity extends Activity {
         .putExtra(ConvertService.EXTRA_MAX_COMPAT, maxCompat.isChecked())
         .putExtra(ConvertService.EXTRA_MAX_KBPS, maxKbps())
         .putExtra(ConvertService.EXTRA_KEEP_SUBS, keepSubs.isChecked())
+        .putExtra(ConvertService.EXTRA_QUALITY, quality())
         .putExtra(ConvertService.EXTRA_FOLDERS, folders)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
     if (out != null) i.putExtra(ConvertService.EXTRA_OUT_TREE, out.toString());

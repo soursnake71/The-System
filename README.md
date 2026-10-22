@@ -22,8 +22,9 @@ A separate Android app that converts MKV files into MP4s that play on Google TV 
 - Tap Choose MKV files (several at once is fine), or share / "Open with" an MKV from a file manager.
 - Convert a whole folder: every MKV in it and its subfolders is converted. Files already in the output folder are skipped, so re-running a folder only does the new ones.
 - Save to: Movies/MKV to MP4 unless you pick another output folder (internal storage, SD card, USB drive...). The setting is remembered.
-- Streaming limit (6, 10 or 20 Mbps, or none; 10 is the default): video over the limit is re-encoded to H.264 under it so it doesn't stutter on the dongle.
-- H.264 and HEVC video under the limit is copied as is, so most files take a minute or two with no quality loss. Other video (VP9, 10-bit H.264, MPEG-4...) is re-encoded to H.264, at most 1080p, with the phone's hardware video encoder (falls back to x264 in software if the phone's encoder can't do it).
+- Streaming limit (6, 10 or 20 Mbps, or none; 10 is the default): video over the limit is re-encoded to H.264 under it so it doesn't stutter on the dongle. The limit is what decides the picture most: use 20 Mbps if your Wi-Fi is strong.
+- H.264 and HEVC video under the limit is copied as is, so most files take a minute or two with no quality loss. Other video (VP9, 10-bit H.264, MPEG-4...) is re-encoded to H.264, at most 1080p, in software with x264 (Quality, the default) or with the phone's hardware encoder (Fast: quicker but softer; falls back to x264 if the phone's encoder can't do it).
+- HDR video (HDR10, HLG) that has to be re-encoded is tone-mapped to normal colour, so it doesn't come out grey and washed out.
 - Audio becomes AAC (AC-3, DTS, TrueHD, FLAC, Opus...), keeping 5.1. Subtitles are left out unless Keep subtitles is on; then text subtitles (SRT, ASS) are kept, while picture subtitles (PGS, VobSub) can't go in an MP4 and are still left out.
 - The MP4 index is at the front of the file (faststart), so it starts playing straight away when streamed.
 - Max compatibility also turns HEVC into H.264 and mixes audio to stereo, for older dongles. It is much slower.

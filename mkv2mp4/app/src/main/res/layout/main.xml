@@ -23,6 +23,13 @@
     </RadioGroup>
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/bitrate_hint" android:textSize="13sp" android:textColor="#FF8A909C" />
 
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/quality" android:textSize="16sp" android:textStyle="bold" android:textColor="#FFFFFFFF" />
+    <RadioGroup android:id="@+id/quality" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp">
+      <RadioButton android:id="@+id/quality_fast" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/quality_fast" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+      <RadioButton android:id="@+id/quality_good" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/quality_good" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+    </RadioGroup>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/quality_hint" android:textSize="13sp" android:textColor="#FF8A909C" />
+
     <CheckBox android:id="@+id/keep_subs" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/keep_subs" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
     <CheckBox android:id="@+id/max_compat" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/max_compat" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
     <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/idle" android:textSize="16sp" android:textColor="#FFFFFFFF" />

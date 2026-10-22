@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">MKV to MP4</string>
-  <string name="intro">Turns MKV files into MP4s that play on Google TV and Chromecast. Video is copied as is when it can be (fast, no quality loss), otherwise re-encoded with the phone\'s hardware encoder; audio becomes AAC.</string>
+  <string name="intro">Turns MKV files into MP4s that play on Google TV and Chromecast. Video is copied as is when it can be (fast, no quality loss), otherwise re-encoded; audio becomes AAC.</string>
   <string name="choose">Choose MKV files</string>
   <string name="choose_folder">Convert a whole folder</string>
   <string name="folder_hint">Every MKV in the folder and its subfolders is converted. Files already in the output folder are skipped, so you can run the same folder again later to do just the new ones.</string>
@@ -15,6 +15,10 @@
   <string name="kbps_20000">20 Mbps: strong 5 GHz Wi-Fi or Ethernet</string>
   <string name="kbps_0">No limit: keep the original quality, never re-encode for size</string>
   <string name="max_compat">Max compatibility: also re-encode HEVC to H.264 and mix audio to stereo (much slower, for older TVs and dongles)</string>
+  <string name="quality">Re-encoding quality</string>
+  <string name="quality_fast">Fast: the phone\'s hardware encoder. Quickest, but softer and blockier</string>
+  <string name="quality_good">Quality: clean picture, a few times slower than Fast (recommended)</string>
+  <string name="quality_hint">Only matters when video has to be re-encoded (over the streaming limit, or a format Google TV can\'t play). Copied video is always full quality. The streaming limit matters most: 20 Mbps looks much better than 10 if your Wi-Fi can take it.</string>
   <string name="keep_subs">Keep subtitles (SRT / ASS text subtitles only; off leaves all subtitles out)</string>
   <string name="cancel">Cancel</string>
   <string name="idle">Nothing converting.</string>

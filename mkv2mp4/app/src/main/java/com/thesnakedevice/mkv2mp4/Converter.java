@@ -27,15 +27,23 @@ final class Converter {
     boolean hardware;
   }
 
+  /** the phone's encoder chip: many times faster, but softer and blockier at the same bitrate */
+  static final int FAST = 0;
+  /**
+   * x264 veryfast, CRF 18: a clean picture at a few times slower than the chip. Slower x264 presets were tried and
+   * looked no better under a streaming limit (the limit, not the preset, is what caps the picture).
+   */
+  static final int QUALITY = 1;
+
   private Converter() {}
 
   /**
    * @param maxKbps the most video bitrate a Google TV dongle should be asked to stream (0 = no limit). Video above it is
    *     re-encoded under that limit even when it could be copied, since a big Blu-ray rip stutters over Wi-Fi.
    * @param keepSubs keep text subtitles (as mov_text); off leaves every subtitle out
-   * @param hardware re-encode with the phone's video encoder chip (many times faster) rather than x264
+   * @param quality how video that must be re-encoded is encoded: {@link #FAST} or {@link #QUALITY}
    */
-  static Plan plan(MediaInformation info, String input, String output, boolean maxCompat, int maxKbps, boolean keepSubs, boolean hardware) {
+  static Plan plan(MediaInformation info, String input, String output, boolean maxCompat, int maxKbps, boolean keepSubs, int quality) {
     StreamInformation video = null;
     List<StreamInformation> audio = new ArrayList<>();
     List<StreamInformation> subs = new ArrayList<>();
@@ -77,25 +85,37 @@ final class Converter {
       videoNote = "video copied (" + label(vc) + (kbps > 0 ? ", " + mbps(kbps) : "") + ")";
     } else {
       Long h = video.getHeight();
-      if (hardware) {
-        // The encoder chip has no quality mode, just a bitrate: 10 Mbps looks good at 1080p, 5 at 720p and below.
-        // Hardware encoders overshoot more than x264, so stay 20% under the streaming limit.
-        long target = h == null || h > 720 ? 10000 : 5000;
-        if (maxKbps > 0) target = Math.min(target, maxKbps * 8L / 10);
-        add(a, "-c:v", "h264_mediacodec", "-b:v", target + "k", "-bitrate_mode", "vbr", "-pix_fmt", "nv12");
+      String hdr = hdrTransfer(video);
+      List<String> vf = new ArrayList<>();
+      // a phone re-encoding 4K to H.264 would take hours; 1080p plays everywhere. Lanczos keeps it sharp.
+      if (h != null && h > 1080) vf.add("scale=-2:1080:flags=lanczos");
+      // HDR re-encoded to 8-bit H.264 looks grey and washed out unless it is tone-mapped down to normal (SDR) colour
+      if (hdr != null) vf.add("zscale=tin=" + hdr + ":min=bt2020nc:pin=bt2020:rin=tv:t=linear:npl=100,format=gbrpf32le,"
+          + "zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv");
+      if (quality == FAST) {
+        // The encoder chip has no quality mode, just a bitrate: 16 Mbps at 1080p, 8 at 720p, 4 below that,
+        // kept 15% under the streaming limit since hardware encoders overshoot. High profile: some phones default
+        // to Baseline, which looks far worse at the same bitrate.
+        long target = h == null || h > 720 ? 16000 : h > 480 ? 8000 : 4000;
+        if (maxKbps > 0) target = Math.min(target, maxKbps * 85L / 100);
+        vf.add("format=nv12");
+        add(a, "-c:v", "h264_mediacodec", "-b:v", target + "k", "-bitrate_mode", "vbr", "-profile:v", "high");
         // a keyframe every 2 seconds, so skipping around while streaming is quick
         add(a, "-g", String.valueOf(Math.round(fps(video) * 2)));
         p.hardware = true;
       } else {
-        add(a, "-c:v", "libx264", "-preset", "superfast", "-crf", "20", "-pix_fmt", "yuv420p", "-profile:v", "high");
+        // CRF 18 looks the same as the source to most eyes
+        vf.add("format=yuv420p");
+        add(a, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-profile:v", "high");
         // aim 20% under the limit with a one-second buffer: x264's fast presets overshoot maxrate, and this keeps
         // the average under the limit and peaks close to it, so the stream never outruns the Wi-Fi
         if (maxKbps > 0) add(a, "-maxrate", (maxKbps * 8 / 10) + "k", "-bufsize", maxKbps + "k");
         add(a, "-force_key_frames", "expr:gte(t,n_forced*2)");
       }
-      // a phone re-encoding 4K to H.264 would take hours; 1080p plays everywhere
-      if (h != null && h > 1080) add(a, "-vf", "scale=-2:1080");
-      videoNote = "video re-encoded " + (hardware ? "" : "in software ") + label(vc) + ("h264".equals(vc) && !h264ok ? " 10-bit" : "") + " → H.264";
+      add(a, "-vf", String.join(",", vf));
+      if (hdr != null) add(a, "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709");
+      videoNote = "video re-encoded " + label(vc) + ("h264".equals(vc) && !h264ok ? " 10-bit" : "") + (hdr != null ? " HDR" : "")
+          + " → H.264" + (hdr != null ? " SDR" : "") + (quality == FAST ? " with the hardware encoder" : "");
       if (tooBig) videoNote += " (was " + mbps(kbps) + ", now at most " + mbps(maxKbps) + ")";
       else if (maxKbps > 0) videoNote += " (at most " + mbps(maxKbps) + ")";
     }
@@ -187,6 +207,12 @@ final class Converter {
 
   private static String mbps(long kbps) {
     return kbps >= 10_000 ? Math.round(kbps / 1000.0) + " Mbps" : String.format(java.util.Locale.US, "%.1f Mbps", kbps / 1000.0);
+  }
+
+  /** The ffmpeg name of an HDR stream's transfer (PQ for HDR10, HLG), or null for normal video. */
+  private static String hdrTransfer(StreamInformation s) {
+    String t = s.getStringProperty("color_transfer");
+    return "smpte2084".equals(t) || "arib-std-b67".equals(t) ? t : null;
   }
 
   /** Frames per second, from "24000/1001" style rates; 24 when unknown. */
