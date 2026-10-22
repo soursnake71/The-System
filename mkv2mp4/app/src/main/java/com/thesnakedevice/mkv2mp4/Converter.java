@@ -23,6 +23,8 @@ final class Converter {
     long durationMs;
     /** One line for the log, such as "video copied (HEVC), 2 audio to AAC, 1 subtitle". */
     String summary;
+    /** true when the video is re-encoded with the phone's hardware encoder, so a failure is worth retrying in software */
+    boolean hardware;
   }
 
   private Converter() {}
@@ -30,8 +32,10 @@ final class Converter {
   /**
    * @param maxKbps the most video bitrate a Google TV dongle should be asked to stream (0 = no limit). Video above it is
    *     re-encoded under that limit even when it could be copied, since a big Blu-ray rip stutters over Wi-Fi.
+   * @param keepSubs keep text subtitles (as mov_text); off leaves every subtitle out
+   * @param hardware re-encode with the phone's video encoder chip (many times faster) rather than x264
    */
-  static Plan plan(MediaInformation info, String input, String output, boolean maxCompat, int maxKbps) {
+  static Plan plan(MediaInformation info, String input, String output, boolean maxCompat, int maxKbps, boolean keepSubs, boolean hardware) {
     StreamInformation video = null;
     List<StreamInformation> audio = new ArrayList<>();
     List<StreamInformation> subs = new ArrayList<>();
@@ -44,6 +48,7 @@ final class Converter {
         // the track the MKV marks as default goes first, since that is the one TVs play
         if (disposition(s, "default") == 1) audio.add(0, s); else audio.add(s);
       } else if ("subtitle".equals(type)) {
+        if (!keepSubs) continue;
         if (TEXT_SUBS.contains(codec)) subs.add(s); else skippedSubs++;
       }
     }
@@ -71,16 +76,26 @@ final class Converter {
       if ("hevc".equals(vc)) add(a, "-tag:v", "hvc1");
       videoNote = "video copied (" + label(vc) + (kbps > 0 ? ", " + mbps(kbps) : "") + ")";
     } else {
-      add(a, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-profile:v", "high");
-      // aim 10% under the limit with a one-second buffer: x264 overshoots maxrate a little, and this keeps the
-      // average under the limit and peaks close to it, so the stream never outruns the Wi-Fi
-      if (maxKbps > 0) add(a, "-maxrate", (maxKbps * 9 / 10) + "k", "-bufsize", maxKbps + "k");
-      // a keyframe every 2 seconds, so skipping around while streaming is quick
-      add(a, "-force_key_frames", "expr:gte(t,n_forced*2)");
       Long h = video.getHeight();
+      if (hardware) {
+        // The encoder chip has no quality mode, just a bitrate: 10 Mbps looks good at 1080p, 5 at 720p and below.
+        // Hardware encoders overshoot more than x264, so stay 20% under the streaming limit.
+        long target = h == null || h > 720 ? 10000 : 5000;
+        if (maxKbps > 0) target = Math.min(target, maxKbps * 8L / 10);
+        add(a, "-c:v", "h264_mediacodec", "-b:v", target + "k", "-bitrate_mode", "vbr", "-pix_fmt", "nv12");
+        // a keyframe every 2 seconds, so skipping around while streaming is quick
+        add(a, "-g", String.valueOf(Math.round(fps(video) * 2)));
+        p.hardware = true;
+      } else {
+        add(a, "-c:v", "libx264", "-preset", "superfast", "-crf", "20", "-pix_fmt", "yuv420p", "-profile:v", "high");
+        // aim 20% under the limit with a one-second buffer: x264's fast presets overshoot maxrate, and this keeps
+        // the average under the limit and peaks close to it, so the stream never outruns the Wi-Fi
+        if (maxKbps > 0) add(a, "-maxrate", (maxKbps * 8 / 10) + "k", "-bufsize", maxKbps + "k");
+        add(a, "-force_key_frames", "expr:gte(t,n_forced*2)");
+      }
       // a phone re-encoding 4K to H.264 would take hours; 1080p plays everywhere
       if (h != null && h > 1080) add(a, "-vf", "scale=-2:1080");
-      videoNote = "video re-encoded " + label(vc) + ("h264".equals(vc) && !h264ok ? " 10-bit" : "") + " → H.264";
+      videoNote = "video re-encoded " + (hardware ? "" : "in software ") + label(vc) + ("h264".equals(vc) && !h264ok ? " 10-bit" : "") + " → H.264";
       if (tooBig) videoNote += " (was " + mbps(kbps) + ", now at most " + mbps(maxKbps) + ")";
       else if (maxKbps > 0) videoNote += " (at most " + mbps(maxKbps) + ")";
     }
@@ -172,6 +187,21 @@ final class Converter {
 
   private static String mbps(long kbps) {
     return kbps >= 10_000 ? Math.round(kbps / 1000.0) + " Mbps" : String.format(java.util.Locale.US, "%.1f Mbps", kbps / 1000.0);
+  }
+
+  /** Frames per second, from "24000/1001" style rates; 24 when unknown. */
+  private static double fps(StreamInformation s) {
+    for (String r : new String[] {s.getAverageFrameRate(), s.getRealFrameRate()}) {
+      if (r == null) continue;
+      String[] parts = r.split("/");
+      try {
+        double f = parts.length == 2 ? Double.parseDouble(parts[0]) / Double.parseDouble(parts[1]) : Double.parseDouble(r);
+        if (f > 1 && f < 200) return f;
+      } catch (NumberFormatException ignored) {
+        // try the next one
+      }
+    }
+    return 24;
   }
 
   private static long durationMs(MediaInformation info) {

@@ -31,7 +31,7 @@ public class MainActivity extends Activity {
   private TextView status, log, output;
   private ProgressBar progress;
   private Button cancel;
-  private CheckBox maxCompat;
+  private CheckBox maxCompat, keepSubs;
   private RadioGroup bitrate;
   private SharedPreferences prefs;
 
@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
     progress = findViewById(R.id.progress);
     cancel = findViewById(R.id.cancel);
     maxCompat = findViewById(R.id.max_compat);
+    keepSubs = findViewById(R.id.keep_subs);
     bitrate = findViewById(R.id.bitrate);
     Button choose = findViewById(R.id.choose);
     choose.setOnClickListener(v -> pick());
@@ -55,6 +56,8 @@ public class MainActivity extends Activity {
 
     maxCompat.setChecked(prefs.getBoolean("max_compat", false));
     maxCompat.setOnCheckedChangeListener((v, on) -> prefs.edit().putBoolean("max_compat", on).apply());
+    keepSubs.setChecked(prefs.getBoolean("keep_subs", false));
+    keepSubs.setOnCheckedChangeListener((v, on) -> prefs.edit().putBoolean("keep_subs", on).apply());
     int kbps = prefs.getInt("max_kbps", 10000);
     for (int i = 0; i < BITRATE_KBPS.length; i++) if (BITRATE_KBPS[i] == kbps) bitrate.check(BITRATE_IDS[i]);
     bitrate.setOnCheckedChangeListener((g, id) -> prefs.edit().putInt("max_kbps", maxKbps()).apply());
@@ -201,6 +204,7 @@ public class MainActivity extends Activity {
     Intent i = new Intent(this, ConvertService.class)
         .putExtra(ConvertService.EXTRA_MAX_COMPAT, maxCompat.isChecked())
         .putExtra(ConvertService.EXTRA_MAX_KBPS, maxKbps())
+        .putExtra(ConvertService.EXTRA_KEEP_SUBS, keepSubs.isChecked())
         .putExtra(ConvertService.EXTRA_FOLDERS, folders)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
     if (out != null) i.putExtra(ConvertService.EXTRA_OUT_TREE, out.toString());

@@ -45,6 +45,7 @@ public class ConvertService extends Service {
   static final String EXTRA_MAX_COMPAT = "max_compat";
   /** most video kbit/s to stream, 0 = no limit */
   static final String EXTRA_MAX_KBPS = "max_kbps";
+  static final String EXTRA_KEEP_SUBS = "keep_subs";
   /** a folder (document tree) to save into; absent = Movies/MKV to MP4 */
   static final String EXTRA_OUT_TREE = "out_tree";
   /** true when the ClipData holds folders (document trees) to search for MKVs, not files */
@@ -72,6 +73,7 @@ public class ConvertService extends Service {
   private static final class Options {
     boolean maxCompat;
     int maxKbps;
+    boolean keepSubs;
     Uri outTree;
   }
 
@@ -96,6 +98,7 @@ public class ConvertService extends Service {
   private PowerManager.WakeLock wakeLock;
   private long lastNotify;
   private int ok, failed, skipped;
+  private volatile boolean hardwareFailed;
 
   @Override public IBinder onBind(Intent intent) { return null; }
 
@@ -113,6 +116,7 @@ public class ConvertService extends Service {
       Options o = new Options();
       o.maxCompat = intent.getBooleanExtra(EXTRA_MAX_COMPAT, false);
       o.maxKbps = intent.getIntExtra(EXTRA_MAX_KBPS, 0);
+      o.keepSubs = intent.getBooleanExtra(EXTRA_KEEP_SUBS, false);
       String tree = intent.getStringExtra(EXTRA_OUT_TREE);
       o.outTree = tree == null ? null : Uri.parse(tree);
       boolean folders = intent.getBooleanExtra(EXTRA_FOLDERS, false);
@@ -234,21 +238,15 @@ public class ConvertService extends Service {
       MediaInformationSession probe = FFprobeKit.getMediaInformation(FFmpegKitConfig.getSafParameterForRead(this, job.uri));
       MediaInformation info = probe.getMediaInformation();
       if (info == null) throw new IllegalArgumentException("couldn't read the file");
-      Converter.Plan plan = Converter.plan(info, FFmpegKitConfig.getSafParameterForRead(this, job.uri), t.file.getAbsolutePath(),
-          job.options.maxCompat, job.options.maxKbps);
-      final long duration = plan.durationMs;
-      FFmpegSession session = FFmpegSession.create(plan.args.toArray(new String[0]), null, null, stats -> {
-        if (duration <= 0) return;
-        float f = (float) Math.min(1.0, stats.getTime() / duration);
-        ui(() -> state.progress = f);
-        long now = System.currentTimeMillis();
-        if (now - lastNotify > 1000) {
-          lastNotify = now;
-          notes().notify(NOTE_PROGRESS, progressNote(name, f));
-        }
-      });
-      notes().notify(NOTE_PROGRESS, progressNote(name, -1));
-      FFmpegKitConfig.ffmpegExecute(session);
+      Converter.Plan plan = plan(job, info, t, !hardwareFailed);
+      FFmpegSession session = run(plan, name);
+      if (plan.hardware && !cancelled && !ReturnCode.isSuccess(session.getReturnCode())) {
+        // this phone's encoder chip didn't take it; do it with x264 instead (slower) and stop trying the chip
+        hardwareFailed = true;
+        log("• " + name + ": the hardware encoder failed, re-encoding in software (slower)");
+        plan = plan(job, info, t, false);
+        session = run(plan, name);
+      }
       if (ReturnCode.isCancel(session.getReturnCode()) || cancelled) {
         t.file.delete();
         log(name + ": cancelled");
@@ -269,6 +267,29 @@ public class ConvertService extends Service {
       log("✗ " + name + ": " + e.getMessage());
       failed++;
     }
+  }
+
+  private Converter.Plan plan(Job job, MediaInformation info, Target t, boolean hardware) {
+    return Converter.plan(info, FFmpegKitConfig.getSafParameterForRead(this, job.uri), t.file.getAbsolutePath(),
+        job.options.maxCompat, job.options.maxKbps, job.options.keepSubs, hardware);
+  }
+
+  private FFmpegSession run(Converter.Plan plan, String name) {
+    final long duration = plan.durationMs;
+    FFmpegSession session = FFmpegSession.create(plan.args.toArray(new String[0]), null, null, stats -> {
+      if (duration <= 0) return;
+      float f = (float) Math.min(1.0, stats.getTime() / duration);
+      ui(() -> state.progress = f);
+      long now = System.currentTimeMillis();
+      if (now - lastNotify > 1000) {
+        lastNotify = now;
+        notes().notify(NOTE_PROGRESS, progressNote(name, f));
+      }
+    });
+    ui(() -> state.progress = -1);
+    notes().notify(NOTE_PROGRESS, progressNote(name, -1));
+    FFmpegKitConfig.ffmpegExecute(session);
+    return session;
   }
 
   private static String mp4Name(String inputName) {

@@ -23,8 +23,8 @@ A separate Android app that converts MKV files into MP4s that play on Google TV 
 - Convert a whole folder: every MKV in it and its subfolders is converted. Files already in the output folder are skipped, so re-running a folder only does the new ones.
 - Save to: Movies/MKV to MP4 unless you pick another output folder (internal storage, SD card, USB drive...). The setting is remembered.
 - Streaming limit (6, 10 or 20 Mbps, or none; 10 is the default): video over the limit is re-encoded to H.264 under it so it doesn't stutter on the dongle.
-- H.264 and HEVC video under the limit is copied as is, so most files take a minute or two with no quality loss. Other video (VP9, 10-bit H.264, MPEG-4...) is re-encoded to H.264, at most 1080p.
-- Audio becomes AAC (AC-3, DTS, TrueHD, FLAC, Opus...), keeping 5.1. Text subtitles (SRT, ASS) are kept; picture subtitles (PGS, VobSub) can't go in an MP4 and are left out.
+- H.264 and HEVC video under the limit is copied as is, so most files take a minute or two with no quality loss. Other video (VP9, 10-bit H.264, MPEG-4...) is re-encoded to H.264, at most 1080p, with the phone's hardware video encoder (falls back to x264 in software if the phone's encoder can't do it).
+- Audio becomes AAC (AC-3, DTS, TrueHD, FLAC, Opus...), keeping 5.1. Subtitles are left out unless Keep subtitles is on; then text subtitles (SRT, ASS) are kept, while picture subtitles (PGS, VobSub) can't go in an MP4 and are still left out.
 - The MP4 index is at the front of the file (faststart), so it starts playing straight away when streamed.
 - Max compatibility also turns HEVC into H.264 and mixes audio to stereo, for older dongles. It is much slower.
 - Uses FFmpeg via [ffmpeg-kit](https://github.com/sk3llo/ffmpeg_kit_flutter_android) (GPL build).
