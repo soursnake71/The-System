@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Google TV home screen banner (320x180) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="320dp" android:height="180dp" android:viewportWidth="320" android:viewportHeight="180">
+  <path android:fillColor="#FF15171C" android:pathData="M0,0h320v180h-320z" />
+  <path android:fillColor="#FF4F9DFF" android:pathData="M126,36h68a10,10 0 0 1 10,10v88a10,10 0 0 1 -10,10h-68a10,10 0 0 1 -10,-10v-88a10,10 0 0 1 10,-10z" />
+  <path android:fillColor="#FF15171C" android:pathData="M124,48h8v10h-8zM124,85h8v10h-8zM124,122h8v10h-8zM188,48h8v10h-8zM188,85h8v10h-8zM188,122h8v10h-8z" />
+  <path android:fillColor="#FFFFFFFF" android:pathData="M147,66l32,24 -32,24z" />
+</vector>

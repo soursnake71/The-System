@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MKV to MP4: converts MKV files on the phone (or the TV) into MP4s that stream to Google TV / Chromecast.
+     FFmpeg runs inside a foreground service so a long movie keeps converting with the screen off. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <!-- only Android 10 and older need this to write into Movies/; newer versions allow it for the app's own videos -->
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+  <!-- also installs on Google TV / Android TV -->
+  <uses-feature android:name="android.software.leanback" android:required="false" />
+  <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+  <application android:label="@string/app_name" android:icon="@drawable/ic_launcher" android:banner="@drawable/banner" android:theme="@android:style/Theme.Material" android:allowBackup="false" android:supportsRtl="true" android:requestLegacyExternalStorage="true">
+    <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+        <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+      </intent-filter>
+      <!-- "Open with" / "Share" from a file manager -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="content" />
+        <data android:mimeType="video/x-matroska" />
+        <data android:mimeType="application/x-matroska" />
+        <data android:mimeType="video/mkv" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="video/*" />
+        <data android:mimeType="application/x-matroska" />
+        <data android:mimeType="application/octet-stream" />
+      </intent-filter>
+    </activity>
+    <service android:name=".ConvertService" android:exported="false" android:foregroundServiceType="dataSync|mediaProcessing" />
+  </application>
+</manifest>

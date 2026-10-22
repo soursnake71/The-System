@@ -17,6 +17,15 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
+## MKV to MP4 (`/mkv2mp4/`)
+A separate Android app that converts MKV files into MP4s that play on Google TV and Chromecast. Get `mkv-to-mp4.apk` from the "MKV to MP4 (latest)" release and open it on your phone (or sideload it onto the TV).
+- Tap Choose MKV files (several at once is fine), or share / "Open with" an MKV from a file manager. Results land in Movies/MKV to MP4.
+- H.264 and HEVC video is copied as is, so most files take a minute or two with no quality loss. Other video (VP9, 10-bit H.264, MPEG-4...) is re-encoded to H.264, at most 1080p.
+- Audio becomes AAC (AC-3, DTS, TrueHD, FLAC, Opus...), keeping 5.1. Text subtitles (SRT, ASS) are kept; picture subtitles (PGS, VobSub) can't go in an MP4 and are left out.
+- The MP4 index is at the front of the file (faststart), so it starts playing straight away when streamed.
+- Max compatibility also turns HEVC into H.264 and mixes audio to stereo, for older dongles. It is much slower.
+- Uses FFmpeg via [ffmpeg-kit](https://github.com/sk3llo/ffmpeg_kit_flutter_android) (GPL build).
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 

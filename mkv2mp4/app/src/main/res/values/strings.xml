@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">MKV to MP4</string>
+  <string name="intro">Turns MKV files into MP4s that play on Google TV and Chromecast. Video is copied as is when it can be (fast, no quality loss); audio becomes AAC; text subtitles are kept.</string>
+  <string name="choose">Choose MKV files</string>
+  <string name="max_compat">Max compatibility: also re-encode HEVC to H.264 and mix audio to stereo (much slower, for older TVs and dongles)</string>
+  <string name="cancel">Cancel</string>
+  <string name="idle">Nothing converting.</string>
+  <string name="saved_to">Converted files go to Movies/MKV to MP4 on this device.</string>
+</resources>

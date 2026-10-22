@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/bg">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/app_name" android:textSize="28sp" android:textStyle="bold" android:textColor="#FFFFFFFF" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/intro" android:textSize="15sp" android:textColor="#FFC8CCD4" />
+    <Button android:id="@+id/choose" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/choose" android:textSize="18sp" android:backgroundTint="@color/accent" android:textColor="#FFFFFFFF" />
+    <CheckBox android:id="@+id/max_compat" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/max_compat" android:textColor="#FFC8CCD4" android:buttonTint="@color/accent" />
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/idle" android:textSize="16sp" android:textColor="#FFFFFFFF" />
+    <ProgressBar android:id="@+id/progress" style="@android:style/Widget.Material.ProgressBar.Horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:max="1000" android:progressTint="@color/accent" android:visibility="gone" />
+    <Button android:id="@+id/cancel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/cancel" android:visibility="gone" />
+    <TextView android:id="@+id/log" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:textSize="14sp" android:textColor="#FFC8CCD4" android:textIsSelectable="true" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="@string/saved_to" android:textSize="13sp" android:textColor="#FF8A909C" />
+  </LinearLayout>
+</ScrollView>

@@ -1,0 +1,33 @@
+# Builds the MKV to MP4 converter app (mkv2mp4/) and attaches the APK to the "mkv2mp4-latest" release.
+# Debug-signed, so it installs on your own phone or Google TV without a private release key.
+name: MKV to MP4 APK
+on:
+  push:
+    paths: ['mkv2mp4/**', '.github/workflows/mkv2mp4-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          # the runner image ships with the Android SDK; point Gradle at it
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > mkv2mp4/local.properties
+          gradle -p mkv2mp4 assembleDebug --no-daemon
+          cp mkv2mp4/app/build/outputs/apk/debug/app-debug.apk mkv-to-mp4.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: mkv-to-mp4-apk, path: mkv-to-mp4.apk}
+      - name: Publish
+        if: github.ref == 'refs/heads/main'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view mkv2mp4-latest >/dev/null 2>&1 || gh release create mkv2mp4-latest --title "MKV to MP4 (latest)" --notes "Android app that converts MKV files into MP4s that stream to Google TV / Chromecast. Download mkv-to-mp4.apk on your phone and open it to install (allow installs from your browser when Android asks)."
+          gh release upload mkv2mp4-latest mkv-to-mp4.apk --clobber
