@@ -1042,6 +1042,14 @@ nav button.notes{color:#5cf2a0!important}
 #stTplList button{min-height:64px}
 .st-pro{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:14px}
 .st-pro input{width:22px;height:22px}
+
+html,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.talkbtn{padding:8px 10px;font-weight:700}
+.talkbtn.on,#ttsRobot.on{background:#5cf2a0!important;color:#111!important}
+.sheettabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:6px 10px}
+.sheettabs button{padding:10px 4px;font-size:14px}
+.sheettabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 </style>
 
 </head>
@@ -1069,6 +1077,7 @@ nav button.notes{color:#5cf2a0!important}
     <span class="grow"></span>
     <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
     <span class="badge" id="inBadge">No input</span>
+    <button id="talkBtn" class="nolearn talkbtn" aria-label="Talk: play the text to speech through the vocoder" title="Talk: the speech through the vocoder (loops when Loop is on)">🗣 TALK</button>
     <button id="homeBtn" class="nolearn" aria-label="Start screen" title="Start screen: what do you want to do?">⌂</button>
     <button id="helpBtn" aria-label="Help" style="padding:8px 12px">?</button>
   </div>
@@ -1491,7 +1500,7 @@ nav button.notes{color:#5cf2a0!important}
       <div class="ctl"><label class="label" for="ttsTiming">Timing</label><select id="ttsTiming"><option value="bar">Each line starts a bar</option><option value="run">Back to back</option></select><span></span></div>
       <div class="ctls" id="ttsCtls"></div>
       <div class="row"><button id="ttsPlay" class="grow">Preview</button><button id="ttsMake" class="grow">Send to vocoder</button></div>
-      <div class="row"><button id="ttsRobot" class="grow">▶ Hear it through the vocoder</button></div>
+      <div class="row"><button id="ttsRobot" class="grow">🗣 Talk through the vocoder</button><button id="ttsLoop" class="pwr nolearn" aria-pressed="false">🔁 Loop off</button></div>
     </div>
   </section>
 
@@ -2110,7 +2119,7 @@ nav button.notes{color:#5cf2a0!important}
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v130</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v131</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2142,6 +2151,7 @@ nav button.notes{color:#5cf2a0!important}
 
 <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
   <div class="sheet-bar"><button id="sheetBack" class="nolearn" aria-label="Back">◀ Back</button><button id="sheetPrev" class="nolearn" aria-label="Previous page">‹</button><span id="sheetTtl" class="grow"></span><button class="hundo nolearn" aria-label="Undo">↶</button><button class="hredo nolearn" aria-label="Redo">↷</button><span id="sheetPg" class="mono"></span><button id="sheetRand" class="nolearn" aria-label="Random preset" title="Random preset">🎲</button><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">›</button><button id="sheetX" class="nolearn" aria-label="Close" hidden>✕</button></div>
+  <div id="sheetTabs" class="sheettabs" hidden><button data-k="Sound" class="nolearn">🎹 Synth</button><button data-k="Speech" class="nolearn">🗣 Speech</button><button data-k="Vocoder" class="nolearn">🎛 Vocoder</button></div>
   <div id="sheetBody"></div>
 </div>
 <dialog id="unitDlg" class="unitdlg" aria-labelledby="unitT">
@@ -7364,7 +7374,7 @@ function sheetOpen(c){
   $('#sheetBody').appendChild(c); c.classList.remove('shut'); c.classList.add('sheeted'); sheetCard = c; sheetPage = 0;
   $('#sheetTtl').textContent = c.dataset.chip && !sheetTitle(c) ? c.dataset.chip : sheetTitle(c) || c.dataset.chip; $('#sheet').classList.add('on'); document.documentElement.classList.add('sheet-on');
   document.querySelectorAll('.chipbar button').forEach(b => b.classList.toggle('on', b._card === c));
-  hearPaint(); setTimeout(randPaint, 60);
+  hearPaint(); setTimeout(randPaint, 60); voxTabsPaint();
   requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); sheetLayout(); });
 }
 function sheetClose(){
@@ -7372,7 +7382,7 @@ function sheetClose(){
   const c = sheetCard; sheetCard = null; c.classList.add('shut'); c.classList.remove('sheeted'); c.scrollLeft = 0;
   if (sheetPh){ sheetPh.replaceWith(c); sheetPh = null; }
   if (c.dataset.chip === 'Sound' && typeof rigMount === 'function') setTimeout(rigMount, 0);
-  $('#sheet').classList.remove('on'); document.documentElement.classList.remove('sheet-on'); document.querySelectorAll('.chipbar button.on').forEach(b => b.classList.remove('on')); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  $('#sheet').classList.remove('on'); document.documentElement.classList.remove('sheet-on'); voxTabsPaint(); document.querySelectorAll('.chipbar button.on').forEach(b => b.classList.remove('on')); requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
 }
 /* ================= Phone, tablet or computer: pick a layout, and redo it when the window or the screen turns ================= */
 function devKind(){
@@ -10841,7 +10851,7 @@ function kbWhy(){
 $('#kbWhyFix').addEventListener('click', () => { const f = $('#kbWhy')._fix; if (f){ f(); applyAll(); save(); renderSynth(); if (view === 'mixer') renderMixer(); kbWhy(); toast('Done. The keys play the synth now.'); } });
 { const _rs = renderSynth; renderSynth = function(){ const r = _rs.apply(this, arguments); try { rigMount(); } catch(e){ console.warn(e); } return r; }; }
 // holding a key or pad must not start a text selection or the long-press menu (Android buzzes for those)
-['contextmenu', 'selectstart'].forEach(t => document.addEventListener(t, e => { if (e.target.closest && e.target.closest('#piano, #keys, #pads, .rig-kb')) e.preventDefault(); }, true));
+['contextmenu', 'selectstart'].forEach(t => document.addEventListener(t, e => { if (e.target.closest && !e.target.closest('input[type=text], input[type=search], input:not([type]), textarea')) e.preventDefault(); }, true));
 /* ================= The instrument rig: in Keyboard mode the synth's own front panel (its original knobs, sliders and
    switches) sits right above the keys, in a case that looks like that instrument. The keys stay at the bottom while you tweak. ================= */
 const RIG_SKIN = {prophet:['SEQUENTIAL CIRCUITS', 'PROPHET-5', 'wood ivory'], obxa:['OBERHEIM', 'OB-Xa', ''], juno60:['ROLAND', 'JUNO-60', ''], sh101:['ROLAND', 'SH-101', ''], jx3p:['ROLAND', 'JX-3P', ''],
@@ -12663,7 +12673,7 @@ function ttsPreview(){
   if (ttsSrc) try { ttsSrc.stop(); } catch(e){}
   ttsSrc = ctx.createBufferSource(); ttsSrc.buffer = b; ttsSrc.connect(live.master.bus); ttsSrc.start();
 }
-async function ttsMake(noteOff){
+async function ttsMake(noteOff, quiet){
   ensureAudio(); await workletReady;
   const T = ttsState(), lines = T.text.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length){ toast('Type a line first.'); return; }
   const sr = 22050, bar = 240 / S.bpm, opts = ttsOpts(T), parts = lines.map(l => ttsRender(l, opts)), starts = [];
@@ -12693,14 +12703,31 @@ async function ttsMake(noteOff){
   if (!carTr.notes.length){ carTr.notes = [{n:clamp((typeof noteOff === 'number' ? 48 : 12 * (S.oct + 2)) + S.root + (typeof noteOff === 'number' ? noteOff : 0), 28, 84), t:0, d:bars * TPB - 12, v:.9}]; rollDirty = true; added = true; }
   storeScene(); applyAll(); if (live) applyVocoders(live); save(); renderVocoder(); renderTracks();
   toast(`Sent. You'll hear it through the vocoder now; it's also on the "${tr.name}" track and plays with the beat.` + (added ? ` A held note on ${carTr.name} is the carrier.` : ''));
-  setTimeout(() => ttsAudition(), 150);
+  if (quiet !== true){ talkStop(); setTimeout(() => ttsAudition(), 150); }
 }
 // play the speech through the vocoder right now, with a held carrier note, without starting the beat
+let talk = null;   // the speech playing through the vocoder: {src, voice}
+function talkStop(){
+  if (talk){ const t = ctx ? ctx.currentTime : 0; try { talk.src.stop(); } catch(e){} try { talk.voice && talk.voice.release(t); } catch(e){} clearTimeout(talk.timer); talk = null; }
+  if (ttsSrc){ try { ttsSrc.stop(); } catch(e){} ttsSrc = null; }
+  talkPaint();
+}
+function talkPaint(){
+  const on = !!talk, L = !!ttsState().loop;
+  [$('#talkBtn'), $('#ttsRobot')].forEach(b => { if (b) b.classList.toggle('on', on); });
+  $('#talkBtn').textContent = on ? '■ TALK' : '🗣 TALK';
+  $('#ttsRobot').textContent = on ? '■ Stop talking' : '🗣 Talk through the vocoder';
+  const lb = $('#ttsLoop'); lb.classList.toggle('on', L); lb.setAttribute('aria-pressed', L); lb.textContent = L ? '🔁 Loop on' : '🔁 Loop off';
+}
+// play the speech through the vocoder from any screen; with Loop on it repeats until you stop it
 async function ttsAudition(){
+  if (talk){ talkStop(); return; }
   ensureAudio(); await workletReady;
-  const tr = S.audio.find(t => t.id === S.ttsTrack), syn = curSynth();
-  if (!tr || !tr.clip || !buffers.get(tr.clip)){ return ttsMake(); }
-  const V = syn.voc || (syn.voc = VOC_DEFAULT());
+  const T = ttsState();
+  let tr = S.audio.find(t => t.id === S.ttsTrack);
+  if (!tr || !tr.clip || !buffers.get(tr.clip) || (T.text || '') !== (T.sent || '')){ await ttsMake(undefined, true); tr = S.audio.find(t => t.id === S.ttsTrack); }
+  if (!tr || !tr.clip || !buffers.get(tr.clip)) return;
+  const syn = curSynth(), V = syn.voc || (syn.voc = VOC_DEFAULT());
   if (!V.on || V.src !== tr.id){ V.src = tr.id; V.on = true; applyAll(); applyVocoders(live); renderVocoder(); }
   const st = live.strips.get(tr.id); if (!st) return;
   const buf = buffers.get(tr.clip), now = ctx.currentTime + .05;
@@ -12708,17 +12735,22 @@ async function ttsAudition(){
   const d = buf.getChannelData(0); let end = d.length - 1; while (end > 0 && Math.abs(d[end]) < 1e-4) end--;
   const dur = Math.min(buf.duration, end / buf.sampleRate + .25);
   if (ttsSrc) try { ttsSrc.stop(); } catch(e){}
-  ttsSrc = ctx.createBufferSource(); ttsSrc.buffer = buf; ttsSrc.connect(st.input); ttsSrc.start(now, 0, dur);
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(st.input);
+  const loop = !!T.loop; if (loop){ src.loop = true; src.loopStart = 0; src.loopEnd = dur; src.start(now); } else src.start(now, 0, dur);
   const carTr = V.car && V.car !== 'self' ? trackById(V.car) || syn : syn;
   const note = clamp(12 * (S.oct + 2) + S.root, 28, 84);
-  synthVoice(live, carTr, note, now, .9, dur);
+  const voice = synthVoice(live, carTr, note, now, .9, null);
+  ttsSrc = src; talk = {src, voice, timer:loop ? 0 : setTimeout(talkStop, (dur + .1) * 1000)};
+  talkPaint();
 }
 $('#ttsText').addEventListener('input', e => { ttsState().text = e.target.value; save(); });
 $('#ttsVoice').addEventListener('change', e => { ttsState().voice = e.target.value; save(); });
 $('#ttsTiming').addEventListener('change', e => { ttsState().timing = e.target.value; save(); });
 $('#ttsPlay').addEventListener('click', ttsPreview);
-$('#ttsMake').addEventListener('click', ttsMake);
+$('#ttsMake').addEventListener('click', () => ttsMake());
 $('#ttsRobot').addEventListener('click', ttsAudition);
+$('#talkBtn').addEventListener('click', ttsAudition);
+$('#ttsLoop').addEventListener('click', () => { const T = ttsState(); T.loop = !T.loop; save(); talkPaint(); if (talk){ talkStop(); ttsAudition(); } toast(T.loop ? 'Loop on: the speech repeats until you tap TALK again.' : 'Loop off: the speech plays once.'); });
 $('#vocCar').addEventListener('change', e => { const V = curSynth().voc; V.car = e.target.value; if (live) applyVocoders(live); save();
   if (V.car !== 'self') toast('The vocoder now plays from ' + trackById(V.car).name + '. Mute that track in the mixer to hear only the vocoder.'); });
 $('#vocPreset').addEventListener('change', async e => {
@@ -14582,12 +14614,17 @@ function applyEasy(on){
   setTimeout(fitScreen, 30);
 }
 function voxBarMount(){
-  const v = $('#v-synth'); if (APP !== 'vox' || v.querySelector('.voxbar')) return;
+  const v = $('#v-synth'); if (v.querySelector('.voxbar')) return;
   const bar = document.createElement('div'); bar.className = 'voxbar';
-  [['Speech', '🗣 Speech'], ['Vocoder', '🎛 Vocoder'], ['Sound', '🎚 Sound']].forEach(([k, t]) => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = t;
+  [['Sound', '🎹 Synth'], ['Speech', '🗣 Speech'], ['Vocoder', '🎛 Vocoder']].forEach(([k, t]) => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = t;
     b.addEventListener('click', () => { const c = v.querySelector(`.card[data-chip="${k}"]`) || (sheetCard && sheetCard.dataset.chip === k && sheetCard); if (c) sheetOpen(c); }); bar.appendChild(b); });
   const g = v.querySelector(':scope > .guide'); if (g) g.after(bar); else v.prepend(bar);
 }
+function voxTabsPaint(){
+  const k = sheetCard && sheetCard.dataset.chip, on = k === 'Sound' || k === 'Speech' || k === 'Vocoder', bar = $('#sheetTabs'); if (!bar) return;
+  bar.hidden = !on; bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+}
+$('#sheetTabs').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; const c = document.querySelector(`#v-synth > .card[data-chip="${b.dataset.k}"]`); if (c) sheetOpen(c); });
 function guideMount(){
   document.querySelectorAll('.view[id^="v-"]').forEach(v => {
     const k = APP === 'vox' && v.id === 'v-synth' ? 'vox' : v.id.slice(2), G = GUIDES[k]; if (!G || v.querySelector(':scope > .guide')) return;
@@ -14701,7 +14738,7 @@ stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs')
   }
   let v = APP === 'vox' ? 'synth' : 'drums';   // always open on the pads (Omega Vox: on the synth)
   setView(userNav ? view : v);
-  guideMount(); voxBarMount(); applyEasy(isEasy());
+  guideMount(); voxBarMount(); applyEasy(isEasy()); talkPaint();
   if (APP !== 'vox'){ let seen = true; try { seen = localStorage.getItem('pr.started') === '1'; } catch(e){} if (!seen) startOpen(); }        // don't jump away from a tab picked while the project was loading
   if ('serviceWorker' in navigator && location.protocol === 'https:'){
     navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(r => r.update()).catch(() => {});

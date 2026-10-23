@@ -29,6 +29,7 @@ public class TvActivity extends Activity {
     super.onCreate(b);
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     web = new WebView(this);
+    web.setHapticFeedbackEnabled(false);   // no buzz on long presses
     WebSettings s = web.getSettings();
     s.setJavaScriptEnabled(true);
     s.setDomStorageEnabled(true);
