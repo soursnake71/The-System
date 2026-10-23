@@ -240,6 +240,36 @@ html.retro #strips .strip input.pan::-webkit-slider-thumb{width:16px !important;
 .transport{padding-left:10px;padding-right:10px;row-gap:6px}
 .sbx-phone{width:100%}
 .strip.ret{background:linear-gradient(180deg,#2a3340,#20262f)}
+/* SSL XL-style console skin: grey strips, coloured EQ knobs, cream scribble strips, LED meters, CUT/SOLO, dark fader caps */
+.ssl-plate{display:flex;align-items:baseline;gap:10px;padding:4px 10px;margin-bottom:-4px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,#3c4046,#2b2e33);border:1px solid #111;flex-wrap:wrap}
+.ssl-plate b{font:700 13px "Michroma",sans-serif;letter-spacing:.24em;color:#e9e6dc}.ssl-plate i{font:400 8px "Michroma",sans-serif;letter-spacing:.18em;color:#a9b0b8;font-style:normal}
+#strips.ssl{background:linear-gradient(180deg,#4a4e54,#3a3d42);padding:6px;border:1px solid #111;border-radius:0 0 4px 4px;gap:3px}
+#strips.ssl .strip{background:linear-gradient(90deg,#5c6168,#6c7178 12%,#666b72 88%,#53575d)!important;border:1px solid #2a2c30!important;border-radius:2px!important;box-shadow:inset 0 1px 0 #ffffff22}
+#strips.ssl .strip.ret{background:linear-gradient(90deg,#4d5866,#5b6878 12%,#566272 88%,#46505c)!important}
+#strips.ssl .strip.sel{box-shadow:inset 0 0 0 2px #f5b301!important}
+#strips.ssl .strip .nm{order:99;background:#f1ecdc;color:#151515!important;font:700 11px/1.2 var(--f-display);border-radius:2px;padding:3px 4px;width:100%;text-align:center;box-shadow:inset 0 -1px 0 #0003}
+#strips.ssl .ssleq{display:flex;flex-direction:column;gap:2px;align-items:center}
+#strips.ssl .ssleq .knob{min-width:0;gap:0}
+#strips.ssl .ssleq .kcap{width:22px;height:22px;box-shadow:0 2px 2px #000a,0 0 0 2px #0006}
+#strips.ssl .ssleq .kcap i{top:2px;height:8px;width:2px;margin-left:-1px;background:#fff}
+#strips.ssl .ssleq .klab{display:none}
+@media (min-width:900px){#strips.ssl .ssleq .kcap{width:32px;height:32px}#strips.ssl .ssleq .kcap i{height:11px}#strips.ssl .ssleq .klab{display:block;font:700 8px/1 var(--f-mono);color:#e9e6dc;margin-top:2px}}
+#strips.ssl .ssleq{gap:4px!important;padding:2px 0}
+#strips.ssl .ssleq .kval{display:none}
+.knob.sslr .kcap{background:radial-gradient(circle at 40% 30%,#ff6b5e,#c4231d 55%,#7a0f0b)}
+.knob.sslg .kcap{background:radial-gradient(circle at 40% 30%,#6fd48c,#26884a 55%,#10461f)}
+.knob.sslk .kcap{background:radial-gradient(circle at 40% 30%,#6a5a50,#2a211b 55%,#0d0a08)}
+#strips.ssl .vmeter{background:#050505;border-radius:1px}
+#strips.ssl .vmeter i{background:linear-gradient(0deg,#22d04a 0 62%,#f2d21c 62% 84%,#ff3324 84%)!important;-webkit-mask:repeating-linear-gradient(0deg,#000 0 3px,transparent 3px 4px);mask:repeating-linear-gradient(0deg,#000 0 3px,transparent 3px 4px)}
+#strips.ssl .strip .db{color:#f1ecdc;font-size:10px}
+#strips.ssl .strip .ms .mute{background:#4a1a18;color:#ffb3ad;border-color:#1c0907}#strips.ssl .strip .ms .mute.on{background:#e3261d;color:#fff;box-shadow:0 0 8px #ff3b30aa}
+#strips.ssl .strip .ms .solo{background:#4a4318;color:#ffe9a0;border-color:#1c1907}#strips.ssl .strip .ms .solo.on{background:#f5c518;color:#111;box-shadow:0 0 8px #f5c518aa}
+#strips.ssl .strip .ms button{font:700 8px/1 var(--f-mono)!important;letter-spacing:.02em;padding:7px 0}
+#strips.ssl .strip .fx{background:#2d3035;color:#e9e6dc;border-color:#15171a}
+#strips.ssl input.fader::-webkit-slider-thumb{background:linear-gradient(180deg,#5a5c60,#1c1d20 45%,#e9e6dc 47% 53%,#1c1d20 55%,#3a3c40)!important;border:1px solid #000!important;box-shadow:0 3px 4px #000c!important}
+#strips.ssl input.fader::-moz-range-thumb{background:linear-gradient(180deg,#5a5c60,#1c1d20 45%,#e9e6dc 47% 53%,#1c1d20 55%,#3a3c40)!important;border:1px solid #000!important}
+#strips.ssl input.fader::-webkit-slider-runnable-track{background:#0c0c0d!important;border-radius:2px}
+#strips.ssl .strip input.pan{accent-color:#e9e6dc}
 html.retro .strip.ret{background:linear-gradient(180deg,#3b4553,#2c333d)}
 .strip .retlbl{font:700 8px/1 var(--f-mono);letter-spacing:.12em;color:var(--dim);text-align:center}
 .strip.sendmode .fader{accent-color:#f5b301}
@@ -1070,7 +1100,8 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
   <!-- MIXER -->
   <section class="view" id="v-mixer" hidden>
     <div class="row mixtop"><button id="autoArm">Automate</button><button id="fadersReset" class="nolearn" title="Every channel fader back to 0 dB, master and returns to their defaults">Reset faders</button><button id="autoBack" disabled title="Re-enable automation">Re-arm</button><select id="fadeMode" class="grow" aria-label="What the track faders control"></select></div>
-    <div class="strips" id="strips"></div>
+    <div class="ssl-plate"><b>SSL-STYLE</b><i>XL CONSOLE</i></div>
+    <div class="strips ssl" id="strips"></div>
     <div class="card" id="fxCard" data-chip="Effects"></div>
     <div class="card" id="scCard" data-chip="Sidechain"></div>
     <div class="card" id="aiCard" data-chip="AI EQ"></div>
@@ -1889,7 +1920,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
         <li><b>FIRE</b> (top bar): the machine fries. Smoke pours out, the sound overdrives, crushes and cuts out, and the settings slowly mangle themselves, more the longer it burns. Everything that comes out is recorded: switch it off and your settings come back, and the fried take is in Chop (ready to slice onto the pads) and your sample bin. Press play first so there is a beat to burn.</li>
         <li><b>Packs</b> (Pad sound → Save pack / Load pack): a .omegapack file with all 16 pad sounds, every pad setting, and the Chop sample with its slice points.</li>
         <li><b>TV and game controllers</b>: on Google TV install the Android app; the remote's arrows move and OK presses, Back closes pages. Any game controller works on every device: Select switches MENU (D-pad moves, A presses, B back, LB / RB change page, X all stop) and PLAY (16 buttons play the pads or synth notes, triggers by how hard you pull). Start plays and stops.</li>
-        <li><b>Mixer</b>: channel faders start at 0 dB (unity gain). Double-tap any fader, pan or send to put it back to its default; on the Wheel, double-tap a channel fader, EQ or filter knob, the crossfader or a pitch slider.</li>
+        <li><b>Mixer</b> (SSL XL-style console): each channel has the console's colour-coded EQ knobs on top (red = HF treble, green = MF mids, black = LF bass; drag up/down, ±15 dB), pan, a long fader with an LED meter, <b>CUT</b> (mute), <b>SOLO</b>, FX, and the white scribble strip with the track name. Channel faders start at 0 dB (unity gain). Double-tap any fader, pan or send to put it back to its default; on the Wheel, double-tap a channel fader, EQ or filter knob, the crossfader or a pitch slider.</li>
         <li><b>Projects</b> (Setup): Save keeps the project in your list. Open switches projects. Export makes a .omega file to move it to another device. <b>New project</b> (tap twice) saves the current one first, then starts fresh.</li>
         <li>Updates arrive automatically. If something looks old, close the app fully and open it again.</li>
       </ul>
@@ -2013,7 +2044,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v127</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v128</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7315,7 +7346,7 @@ function fitScreen(){
     const zs = document.querySelectorAll('#strips .fz'), rows = $('#strips').classList.contains('two') ? 2 : 1;
     zs.forEach(z => z.style.height = ''); zs.forEach(z => z.querySelector('.fader').style.height = '');
     const cs = getComputedStyle(m), room = m.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0) - $('#v-mixer').offsetHeight;
-    const o = over() > 0 ? over() : -room, h = Math.max(44, Math.min(420, 150 - Math.ceil(o / rows) - 4));
+    const o = over() > 0 ? over() : -room, h = Math.max(130, Math.min(420, 150 - Math.ceil(o / rows) - 4));   // a fader needs real travel; the page scrolls a little on small phones instead
     zs.forEach(z => { z.style.height = h + 'px'; z.querySelector('.fader').style.height = h + 'px'; });
   }
 }
@@ -8612,11 +8643,12 @@ function renderMixer(){
     const el = document.createElement('div'); el.className = 'strip' + (selStrip === t.id ? ' sel' : '');
     const obj = isMaster ? S.master : t;
     el.innerHTML = `<div class="nm">${isMaster ? 'Master' : ''}</div>
+      <div class="ssleq"${isMaster ? ' hidden' : ''}></div>
       <input class="pan" type="range" min="-1" max="1" step="0.02" aria-label="Pan"${isMaster ? ' style="visibility:hidden" tabindex="-1"' : ''}>
       <div class="fz"><input class="fader" type="range" min="0" max="1" step="0.005" aria-label="Volume"><div class="vmeter"><i></i></div></div>
       <div class="db"></div>
       <button class="clipled nolearn" aria-label="Clip light, tap to reset">CLIP</button>
-      <div class="ms"${isMaster ? ' style="visibility:hidden"' : ''}><button class="mute"${isMaster ? ' tabindex="-1"' : ''}>M</button><button class="solo"${isMaster ? ' tabindex="-1"' : ''}>S</button></div>
+      <div class="ms"${isMaster ? ' style="visibility:hidden"' : ''}><button class="mute"${isMaster ? ' tabindex="-1"' : ''} aria-label="Cut (mute)">CUT</button><button class="solo"${isMaster ? ' tabindex="-1"' : ''} aria-label="Solo">SOLO</button></div>
       <button class="fx${selStrip === t.id ? ' on' : ''}">FX</button>`;
     if (!isMaster) el.querySelector('.nm').textContent = t.name;
     const f = el.querySelector('.fader'), db = el.querySelector('.db');
@@ -8647,6 +8679,8 @@ function renderMixer(){
       s.addEventListener('click', () => { t.solo = !t.solo; s.classList.toggle('on', t.solo); applyAll(); save(); });
     }
     el.querySelector('.fx').addEventListener('click', () => { selStrip = t.id; renderMixer(); });
+    if (!isMaster){ const eq = el.querySelector('.ssleq'), dbf = v => (v > 0 ? '+' : '') + (+v).toFixed(1);
+      [['HF', 'high', 'r'], ['MF', 'mid', 'g'], ['LF', 'low', 'k']].forEach(([l, k, c]) => knob(eq, l, t, k, -15, 15, .5, dbf, () => { applyAll(); save(); }, 'ssl' + c)); }
     el._meter = el.querySelector('.vmeter i'); el._id = t.id; el._clip = el.querySelector('.clipled');
     el._clip.addEventListener('click', () => { clipAt.delete(t.id); el._clip.classList.remove('on'); });
     box.appendChild(el);
@@ -8709,7 +8743,7 @@ function mkRet(k){
     <input class="pan" type="range" min="-1" max="1" step="0.02" aria-label="${retName(k)} return pan">
     <div class="fz"><input class="fader" type="range" min="0" max="1" step="0.005" aria-label="${retName(k)} return level"><div class="vmeter"><i></i></div></div>
     <div class="db"></div><span class="retlbl">RETURN</span>
-    <div class="ms"><button class="mute">M</button><button class="solo">S</button></div>
+    <div class="ms"><button class="mute" aria-label="Cut (mute)">CUT</button><button class="solo" aria-label="Solo">SOLO</button></div>
     <button class="fx">${k === 'rev' || k === 'dly' ? 'EDIT' : 'UNIT'}</button>`;
   const retApply = () => { applyAll(); if (live) applyRack(ctx, live.master); };
   const f = el.querySelector('.fader'), db = el.querySelector('.db'), pn = el.querySelector('.pan'), lp = 'q:' + k;
