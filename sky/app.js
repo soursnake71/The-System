@@ -27,10 +27,10 @@
   const KIND_NAME = {arp:'circling', rise:'climbing', fall:'descending', drone:'cruising', hit:'low & close', level:'level', ground:'on the ground'};
 
   /* ---- settings ---- */
-  const DEF = {source:Feed.native ? 'adsblol' : 'demo', place:'LHR', lat:51.47, lon:-0.4543, radius:45, localUrl:'http://192.168.1.50:8080/data/aircraft.json',
+  const DEF = {source:Feed.native ? 'adsblol' : 'demo', place:'LHR', placeName:'London Heathrow', lat:51.47, lon:-0.4543, radius:45, localUrl:'http://192.168.1.50:8080/data/aircraft.json',
     bpm:96, root:9, scale:'minor', window:5, thresh:0.3, labels:true, trails:true, midiOut:'', clock:false, lanes:{}};
-  let S;
-  try { S = Object.assign({}, DEF, JSON.parse(localStorage.getItem('sky-seq') || '{}')); } catch (e) { S = Object.assign({}, DEF); }
+  let S, firstRun = false;
+  try { const saved = localStorage.getItem('sky-seq'); firstRun = !saved; S = Object.assign({}, DEF, JSON.parse(saved || '{}')); } catch (e) { S = Object.assign({}, DEF); }
   for (const l of LANES) S.lanes[l.id] = Object.assign({on:true, engine:l.engine, ch:l.ch, vol:l.vol, rev:l.rev, dly:l.dly}, S.lanes[l.id] || {});
   const save = () => { try { localStorage.setItem('sky-seq', JSON.stringify(S)); } catch (e) {} };
 
@@ -192,7 +192,7 @@
     g.beginPath(); g.moveTo(half, 0); g.lineTo(half, W); g.moveTo(0, half); g.lineTo(W, half); g.stroke();
     g.fillStyle = 'rgba(150,255,200,.5)'; g.font = '11px ui-monospace,monospace'; g.textAlign = 'center';
     g.fillText('N', half, 12); g.fillText('S', half, W - 4); g.textAlign = 'left'; g.fillText('W', 3, half - 4); g.textAlign = 'right'; g.fillText('E', W - 3, half - 4);
-    g.textAlign = 'left'; g.fillText(Math.round(R) + ' km', half + 4, W - 4);
+    g.textAlign = 'left'; g.fillText(Math.round(R) + ' km radius', 6, W - 4);
     // sweep
     sweep = (sweep + 0.012) % (Math.PI * 2);
     const grd = g.createConicGradient ? g.createConicGradient(sweep - Math.PI / 2, half, half) : null;
@@ -239,6 +239,15 @@
     $('#legend').innerHTML = Object.keys(KIND_NAME).map(k => `<span style="--c:${KIND_COL[k]}"><i></i>${KIND_NAME[k]} <b>${counts[k] || 0}</b></span>`).join('');
   }
   setInterval(renderStatus, 1000);
+  // keep = leave the Sky tab as it is (so a list of search results stays up)
+  function setPlace(lat, lon, name, code = '', keep = false){
+    S.lat = +(+lat).toFixed(4); S.lon = +(+lon).toFixed(4); S.place = code; S.placeName = name || `${S.lat}, ${S.lon}`;
+    save(); restartFeed(); renderWhere(); toast('Centred on ' + S.placeName);
+    if (tab !== 'sky') return;
+    if (!keep) render();
+    else { const n = $('#nowPlace'); if (n) n.textContent = 'Now: ' + S.placeName; }
+  }
+  function renderWhere(){ const w = $('#where'); w.textContent = '📍 ' + (S.placeName || `${S.lat}, ${S.lon}`); w.title = `${S.lat}, ${S.lon} · tap to change`; }
   function restartFeed(){ planes.clear(); heat.fill(0); lastUpdate = 0; firstBatch = true; arrivals = []; sel = null; Feed.start(S, onData); renderStatus(); }
 
   const opt = (v, t, cur) => { const o = el('option', {value:v}, t); if (String(v) === String(cur)) o.selected = true; return o; };
@@ -257,7 +266,7 @@
   function exportMidi(r){
     if (!r.length){ toast('Nothing was recorded'); return; }
     const tracks = LANES.map(l => ({name:l.name + ' - ' + l.to, notes:r.filter(n => n.lane === l.id && n.t >= 0)})).filter(t => t.notes.length);
-    const bytes = Sound.smf(tracks, S.bpm), d = new Date(), name = `sky-${S.place || 'here'}-${d.toISOString().slice(0, 16).replace(/[-:T]/g, '')}.mid`;
+    const bytes = Sound.smf(tracks, S.bpm), d = new Date(), name = `sky-${(S.place || S.placeName || 'here').replace(/[^\w]+/g, '-').slice(0, 24)}-${d.toISOString().slice(0, 16).replace(/[-:T]/g, '')}.mid`;
     if (window.SkyNative && SkyNative.saveFile){ let b = ''; for (const x of bytes) b += String.fromCharCode(x); toast(SkyNative.saveFile(name, btoa(b), 'audio/midi')); return; }
     const a = el('a', {href:URL.createObjectURL(new Blob([bytes], {type:'audio/midi'})), download:name}); document.body.append(a); a.click(); a.remove(); toast('Saved ' + name);
   }
@@ -292,27 +301,50 @@
   function renderSky(m){
     const src = el('select', {id:'source'}); for (const k in Feed.SOURCES) src.append(opt(k, Feed.SOURCES[k].name, S.source));
     src.onchange = () => { S.source = src.value; save(); restartFeed(); render(); };
-    const place = el('select'); place.append(opt('', 'Custom / my location', S.place)); for (const [c, n] of PLACES) place.append(opt(c, `${c} · ${n}`, S.place));
+    const place = el('select'); place.append(opt('', 'Pick an airport', S.place)); for (const [c, n] of PLACES) place.append(opt(c, `${c} · ${n}`, S.place));
     const lat = el('input', {type:'number', step:'0.0001'}), lon = el('input', {type:'number', step:'0.0001'}); lat.value = S.lat; lon.value = S.lon;
-    place.onchange = () => { const p = PLACES.find(x => x[0] === place.value); if (p){ S.place = p[0]; S.lat = p[2]; S.lon = p[3]; lat.value = S.lat; lon.value = S.lon; save(); restartFeed(); } };
-    const setLL = () => { if (isFinite(+lat.value) && isFinite(+lon.value)){ S.lat = +lat.value; S.lon = +lon.value; S.place = ''; place.value = ''; save(); restartFeed(); } };
+    place.onchange = () => { const p = PLACES.find(x => x[0] === place.value); if (p) setPlace(p[2], p[3], p[1], p[0]); };
+    const setLL = () => { const a = +lat.value, b = +lon.value; if (lat.value !== '' && lon.value !== '' && Math.abs(a) <= 90 && Math.abs(b) <= 180) setPlace(a, b, ''); else toast('Latitude is -90 to 90, longitude -180 to 180'); };
     lat.onchange = setLL; lon.onchange = setLL;
-    const me = el('button', {}, '◎ Use my location');
-    me.onclick = () => { if (!navigator.geolocation){ toast('Location is not available here'); return; } me.textContent = 'Finding you…';
-      navigator.geolocation.getCurrentPosition(p => { S.lat = +p.coords.latitude.toFixed(4); S.lon = +p.coords.longitude.toFixed(4); S.place = ''; lat.value = S.lat; lon.value = S.lon; place.value = ''; save(); restartFeed(); me.textContent = '◎ Use my location'; toast('Centred on you'); },
-        e => { me.textContent = '◎ Use my location'; toast('Could not get your location: ' + e.message); }, {enableHighAccuracy:false, timeout:15000, maximumAge:600000}); };
+    const q = el('input', {type:'search', placeholder:'Any place, address or airport, or coordinates', style:'flex:1;min-width:200px', enterkeyhint:'search'});
+    const results = el('div', {class:'results'}), find = el('button', {}, 'Find');
+    const doFind = async () => {
+      const text = q.value.trim(); if (!text) return;
+      const c = Feed.parseCoords(text); results.innerHTML = '';
+      if (c){ setPlace(c.lat, c.lon, ''); return; }
+      find.textContent = 'Searching…';
+      try {
+        const list = await Feed.searchPlaces(text);
+        if (!list.length){ toast('Nothing found for "' + text + '"'); return; }
+        setPlace(list[0].lat, list[0].lon, list[0].name, '', true);
+        if (list.length > 1) list.forEach((p, i) => { const b = el('button', {class:'sw' + (i ? '' : ' on')}, p.name); b.onclick = () => { setPlace(p.lat, p.lon, p.name, '', true); results.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }; results.append(b); });
+      } catch (e) { toast('Search failed: ' + e.message + (Feed.native ? '' : ' (check your connection)')); }
+      finally { find.textContent = 'Find'; }
+    };
+    find.onclick = doFind; q.onkeydown = e => { if (e.key === 'Enter') doFind(); };
+    const gps = el('button', {}, '◎ GPS');
+    gps.onclick = () => { if (!navigator.geolocation){ toast('GPS location is not available here, try "Internet"'); return; } gps.textContent = 'Finding you…';
+      navigator.geolocation.getCurrentPosition(p => { gps.textContent = '◎ GPS'; setPlace(+p.coords.latitude.toFixed(4), +p.coords.longitude.toFixed(4), 'My location'); },
+        e => { gps.textContent = '◎ GPS'; toast('Could not get your location: ' + e.message + '. Try "Internet" or search.'); }, {enableHighAccuracy:false, timeout:15000, maximumAge:600000}); };
+    const ip = el('button', {}, '⌖ Internet');
+    ip.onclick = async () => { ip.textContent = 'Finding you…'; try { const p = await Feed.locateByIp(); setPlace(p.lat, p.lon, p.name + ' (approximate)'); } catch (e) { toast('Could not find you from your connection. Search or type coordinates instead.'); } ip.textContent = '⌖ Internet'; };
     const local = el('input', {type:'url', value:S.localUrl, style:'flex:1;min-width:220px'}); local.onchange = () => { S.localUrl = local.value.trim(); save(); if (S.source === 'local') restartFeed(); };
     const win = el('select'); for (const w of [1, 2, 5, 10, 15, 30, 60]) win.append(opt(w, w + ' min', S.window)); win.onchange = () => { S.window = +win.value; save(); };
     const frz = el('button', {class:'sw' + (frozen ? ' on' : '')}, frozen ? 'Frozen' : 'Freeze grid'); frz.onclick = () => { frozen = !frozen; frz.classList.toggle('on', frozen); frz.textContent = frozen ? 'Frozen' : 'Freeze grid'; };
     const lab = el('button', {class:'sw' + (S.labels ? ' on' : '')}, 'Labels'); lab.onclick = () => { S.labels = !S.labels; lab.classList.toggle('on', S.labels); save(); };
     const trl = el('button', {class:'sw' + (S.trails ? ' on' : '')}, 'Trails'); trl.onclick = () => { S.trails = !S.trails; trl.classList.toggle('on', S.trails); save(); };
-    m.append(el('div', {class:'lane'},
+    const feedCard = el('div', {class:'lane'},
       el('h3', {}, 'Feed'), el('div', {class:'row'}, src),
       S.source === 'local' ? el('div', {class:'row'}, el('span', {class:'hint'}, 'Receiver address'), local) : '',
       el('p', {class:'hint'}, Feed.native ? 'adsb.lol, airplanes.live and adsb.fi are free community ADS-B networks. OpenSky updates every 10 seconds. With an RTL-SDR stick running readsb or dump1090 on your network, pick "My own receiver" and enter its aircraft.json address.'
-        : 'In a browser the public feeds are blocked (they don\'t allow requests from other websites), so use the Android app for live traffic. Your own receiver works if it runs on this computer (http://localhost…).')),
-      el('div', {class:'lane'}, el('h3', {}, 'Where'), el('div', {class:'row'}, place, me), el('div', {class:'row'}, el('label', {}, 'Lat ', lat), el('label', {}, 'Lon ', lon)),
+        : 'In a browser the public feeds are blocked (they don\'t allow requests from other websites), so use the Android app for live traffic. Your own receiver works if it runs on this computer (http://localhost…).'));
+    m.append(el('div', {class:'lane'}, el('h3', {}, 'Where'), el('p', {class:'hint', id:'nowPlace'}, 'Now: ' + (S.placeName || `${S.lat}, ${S.lon}`)),
+        el('div', {class:'row'}, q, find), results,
+        el('p', {class:'hint'}, 'Search any town, address or landmark, or type coordinates (51.47, -0.45 or 51.47N 0.45W), or paste a Google/Apple Maps link.'),
+        el('div', {class:'row'}, el('span', {class:'hint'}, 'Find me:'), gps, ip), el('div', {class:'row'}, place),
+        el('div', {class:'row'}, el('label', {}, 'Lat ', lat), el('label', {}, 'Lon ', lon)),
         range('Radius', 5, 150, 1, S.radius, v => v + ' km', v => { S.radius = v; clearTimeout(renderSky.k); renderSky.k = setTimeout(restartFeed, 400); })),
+      feedCard,
       el('div', {class:'lane'}, el('h3', {}, 'Grid'), el('div', {class:'row'}, el('label', {}, 'Collect over ', win), frz, el('button', {onclick:() => heat.fill(0)}, 'Clear grid')),
         range('Threshold', 0.05, 0.9, 0.01, S.thresh, v => Math.round(v * 100) + '%', v => S.thresh = v),
         el('p', {class:'hint'}, 'Cells hotter than the threshold (compared with the hottest cell) play. Lower = busier pattern.'),
@@ -342,7 +374,10 @@
       el('p', {class:'hint'}, 'Positions come from ADS-B receivers run by volunteers (adsb.lol, airplanes.live, adsb.fi, OpenSky Network). Tap a plane on the radar for its details. Busy places with holding stacks, like London Heathrow, have the most circling traffic.')));
   }
 
-  header(); render(); renderStatus(); requestAnimationFrame(draw);
+  header(); render(); renderStatus(); renderWhere(); requestAnimationFrame(draw);
+  $('#where').onclick = () => document.querySelector('#tabs button[data-t=sky]').click();
+  // first open: centre on the listener from their internet connection (no permission prompt); GPS and search are on the Sky tab
+  if (firstRun) Feed.locateByIp().then(p => setPlace(p.lat, p.lon, p.name + ' (approximate)')).catch(() => {});
   Sound.midiInit(() => { if (tab === 'midi') render(); }).then(() => { if (S.midiOut) Sound.midiSelect(S.midiOut); if (tab === 'midi') render(); });
   Feed.start(S, onData);
   if ('serviceWorker' in navigator && !Feed.native && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

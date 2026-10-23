@@ -28,7 +28,12 @@ Turns live air traffic into music. Pick a place (or use your location) and it wa
 
 Each lane has its own sound and MIDI channel, so every behaviour can drive a different synth (USB MIDI in the Android app, Web MIDI in Chrome). Record to a .mid file with one track per lane.
 
-Live feeds: adsb.lol, airplanes.live, adsb.fi, OpenSky Network, or your own RTL-SDR receiver running readsb / dump1090. Browsers block the public feeds, so the web version plays a simulated sky unless the receiver is on the same computer; the Android app gets live traffic. The APK is built by the "Sky Sequencer APK" workflow and attached to the `sky-latest` release.
+Where: it finds you from your internet connection the first time it opens. You can also use GPS (phone), search any place, address or airport by name (OpenStreetMap), type coordinates (`51.47, -0.45` or `51.47N 0.45W`), paste a Google or Apple Maps link, or pick a busy airport.
+
+Live feeds: adsb.lol, airplanes.live, adsb.fi, OpenSky Network, or your own RTL-SDR receiver running readsb / dump1090. Browsers block the public feeds, so the web version plays a simulated sky unless the receiver is on the same computer; the Android app and the plugin get live traffic. The APK is built by the "Sky Sequencer APK" workflow and attached to the `sky-latest` release.
+
+### In a DAW (VST3 / AU / standalone, `plugin/`)
+The same sequencer as a JUCE instrument plugin. It locks to the DAW's tempo and plays while the transport runs (or always, on its own tempo). Its built-in sounds work in every DAW, including Ableton, and each lane also sends MIDI on its own channel for DAWs that route plugin MIDI out (Reaper, Bitwig, Cubase, FL Studio, Logic). Location and feed are saved with the project. The "Sky Sequencer plugin" workflow builds Windows, macOS (VST3 + AU) and Linux versions, checks them with pluginval, and attaches zips to the `sky-plugin-latest` release; see `plugin/INSTALL.txt`. To build it yourself: `cmake -S plugin -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release` (JUCE is downloaded automatically; JUCE is free for open-source use under the AGPLv3).
 
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.

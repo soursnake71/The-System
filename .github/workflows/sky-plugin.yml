@@ -1,0 +1,74 @@
+# Builds the Sky Sequencer plugin (VST3 + standalone on Windows, macOS and Linux, plus AU on macOS), checks it with
+# pluginval, and attaches the zips to the "sky-plugin-latest" release.
+name: Sky Sequencer plugin
+on:
+  push:
+    paths: ['plugin/**', '.github/workflows/sky-plugin.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: macOS}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libglu1-mesa-dev mesa-common-dev xvfb
+      - name: Configure
+        run: cmake -S plugin -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Validate (pluginval)
+        if: runner.os == 'Linux'
+        run: |
+          curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip && unzip -q pv.zip
+          xvfb-run -a ./pluginval --strictness-level 10 --validate-in-process --timeout-ms 300000 "build/SkySequencer_artefacts/Release/VST3/Sky Sequencer.vst3"
+      - name: Validate (pluginval, no GUI)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pv.zip; Expand-Archive pv.zip -DestinationPath pv
+          ./pv/pluginval.exe --strictness-level 8 --skip-gui-tests --validate-in-process --timeout-ms 300000 "build/SkySequencer_artefacts/Release/VST3/Sky Sequencer.vst3"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory out | Out-Null
+          Copy-Item -Recurse "build/SkySequencer_artefacts/Release/VST3/Sky Sequencer.vst3" out/
+          Copy-Item "build/SkySequencer_artefacts/Release/Standalone/Sky Sequencer.exe" out/
+          Copy-Item plugin/INSTALL.txt out/
+          Compress-Archive -Path out/* -DestinationPath SkySequencer-Windows.zip
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir out && A=build/SkySequencer_artefacts/Release
+          cp -R "$A/VST3/Sky Sequencer.vst3" "$A/AU/Sky Sequencer.component" "$A/Standalone/Sky Sequencer.app" out/ && cp plugin/INSTALL.txt out/
+          for b in out/*.vst3 out/*.component out/*.app; do codesign --force --deep --sign - "$b"; done
+          (cd out && ditto -c -k --keepParent . ../SkySequencer-macOS.zip)
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir out && cp -R "build/SkySequencer_artefacts/Release/VST3/Sky Sequencer.vst3" "build/SkySequencer_artefacts/Release/Standalone/Sky Sequencer" plugin/INSTALL.txt out/
+          (cd out && zip -qr ../SkySequencer-Linux.zip .)
+      - uses: actions/upload-artifact@v4
+        with: {name: 'SkySequencer-${{ matrix.name }}', path: 'SkySequencer-${{ matrix.name }}.zip'}
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dist, merge-multiple: true}
+      - name: Attach to release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          gh release view sky-plugin-latest >/dev/null 2>&1 || gh release create sky-plugin-latest --target "${{ github.sha }}" --prerelease --title "Sky Sequencer plugin (latest build)" --notes "VST3 + standalone for Windows, macOS (also AU) and Linux. Unzip and follow INSTALL.txt inside."
+          gh release upload sky-plugin-latest dist/*.zip --clobber

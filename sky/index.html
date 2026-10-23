@@ -19,6 +19,8 @@ main{max-width:1100px;margin:0 auto;padding:10px 10px calc(30px + env(safe-area-
 #radar{width:100%;aspect-ratio:1;display:block;border-radius:12px;border:1px solid var(--line);background:#04100c;touch-action:manipulation}
 .status{font:12px ui-monospace,monospace;color:var(--acc);margin:6px 2px}.status.bad{color:var(--bad);font-family:inherit}.status button{margin-left:6px;min-height:30px;padding:3px 9px}
 #legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--dim);margin:4px 2px}#legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:4px}#legend b{color:var(--ink);font-weight:600}
+#where{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:2px 2px 6px;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.results{display:flex;flex-direction:column;gap:4px;margin:4px 0}.results button{text-align:left;font-size:12.5px}
 #sel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px}#sel span{color:var(--dim)}
 #tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:8px}#tabs::-webkit-scrollbar{display:none}#tabs button{flex:none}
 .lane{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--c,var(--line));border-radius:12px;padding:10px 12px;margin-bottom:8px}
@@ -45,6 +47,7 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}th{text-align:left;co
 </div></header>
 <main>
   <section id="scope">
+    <button id="where" class="where"></button>
     <canvas id="radar"></canvas>
     <div id="status" class="status"></div>
     <div id="legend"></div>

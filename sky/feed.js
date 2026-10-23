@@ -84,6 +84,28 @@ const Feed = (() => {
     });
   }
 
+  /* ---- finding a place: search by name (OpenStreetMap), locate by internet connection, or coordinates ---- */
+  async function searchPlaces(q){
+    const j = await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=' + encodeURIComponent(q.trim()));
+    return (Array.isArray(j) ? j : []).map(r => ({name:r.display_name, lat:+r.lat, lon:+r.lon}));
+  }
+  async function locateByIp(){
+    try { const j = await getJSON('https://ipwho.is/'); if (j.success) return {name:[j.city, j.region, j.country].filter(Boolean).join(', '), lat:+j.latitude, lon:+j.longitude}; } catch (e) {}
+    const j = await getJSON('https://get.geojs.io/v1/ip/geo.json');
+    if (j && j.latitude) return {name:[j.city, j.country].filter(Boolean).join(', '), lat:+j.latitude, lon:+j.longitude};
+    throw new Error('no answer');
+  }
+  // "51.47, -0.45", "51.47N 0.45W", map links (…/@51.47,-0.45,12z, ?q=51.47,-0.45, geo:51.47,-0.45); null if it's a place name
+  function parseCoords(text){
+    let s = String(text).trim();
+    const link = /https?:|@|geo:/i.test(s);
+    if (link){ const m = s.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/) || s.match(/(?:[?&](?:q|ll|query|center)=|geo:)(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i); if (!m) return null; s = m[1] + ',' + m[2]; }
+    else if (!/^[\d.\-+\s,;:\/°NSEWnsew]+$/.test(s)) return null;
+    const parts = [...s.matchAll(/([-+]?\d+(?:\.\d+)?)\s*°?\s*([NSEWnsew])?/g)].slice(0, 2).map(m => (/[SWsw]/.test(m[2] || '') ? -Math.abs(+m[1]) : +m[1]));
+    if (parts.length < 2 || Math.abs(parts[0]) > 90 || Math.abs(parts[1]) > 180) return null;
+    return {lat:parts[0], lon:parts[1]};
+  }
+
   let timer = null, busy = false;
   // calls onData(planes, info) on every update; info = {ok, live, error}
   function start(cfg, onData){
@@ -100,5 +122,5 @@ const Feed = (() => {
     tick(); timer = setInterval(tick, src.every);
   }
   function stop(){ clearInterval(timer); timer = null; }
-  return {SOURCES, start, stop, native:!!native};
+  return {SOURCES, start, stop, native:!!native, searchPlaces, locateByIp, parseCoords};
 })();

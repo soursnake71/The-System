@@ -1,4 +1,4 @@
-const CACHE = 'sky-seq-v1', FILES = ['./', 'index.html', 'app.js', 'feed.js', 'sound.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'sky-seq-v2', FILES = ['./', 'index.html', 'app.js', 'feed.js', 'sound.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 // network first so updates arrive; the cache keeps it working offline (flight data is never cached)

@@ -1,0 +1,24 @@
+SKY SEQUENCER - install
+
+Windows
+  Copy the "Sky Sequencer.vst3" folder to  C:\Program Files\Common Files\VST3\
+  Rescan plugins in your DAW. "Sky Sequencer.exe" is the standalone app (no DAW needed).
+
+macOS
+  Copy "Sky Sequencer.vst3" to   ~/Library/Audio/Plug-Ins/VST3/
+  Copy "Sky Sequencer.component" (Audio Unit, for Logic / GarageBand) to   ~/Library/Audio/Plug-Ins/Components/
+  The build isn't notarised, so the first time open Terminal and run:
+      xattr -cr ~/Library/Audio/Plug-Ins/VST3/"Sky Sequencer.vst3" ~/Library/Audio/Plug-Ins/Components/"Sky Sequencer.component"
+  then rescan plugins (in Logic: restart it; it checks Audio Units on launch).
+
+Linux
+  Copy "Sky Sequencer.vst3" to ~/.vst3/
+
+Using it
+  Load it as an instrument on a track. It plays while the DAW transport runs, locked to the project tempo
+  (Music tab -> Play -> "Always" keeps it going when the DAW is stopped).
+  Where tab: it finds you from your internet connection the first time; search any place by name,
+  type coordinates (51.47, -0.45 or 51.47N 0.45W), paste a map link, or pick a busy airport.
+  Lanes tab: every behaviour has its own sound and MIDI channel. Set a lane to "MIDI only" and route
+  that channel to another instrument (Reaper, Bitwig, Cubase, FL Studio, Logic). Ableton doesn't take
+  MIDI out of plugins: use the built-in sounds there, or run the standalone app into a virtual MIDI port.
