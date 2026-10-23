@@ -1,0 +1,30 @@
+# Builds the Sky Sequencer Android app (the /sky/ web app bundled in a WebView) and attaches the APK to the
+# "sky-latest" release. Debug-signed, so it installs on your own phone without the private release key.
+name: Sky Sequencer APK
+on:
+  push:
+    branches: [main]
+    paths: ['sky/**', 'android/sky/**', '.github/workflows/sky-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android :sky:assembleDebug --no-daemon
+      - name: Publish
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          cp android/sky/build/outputs/apk/debug/sky-debug.apk sky-sequencer.apk
+          gh release view sky-latest >/dev/null 2>&1 || gh release create sky-latest --title "Sky Sequencer (latest)" --notes "Android app for the Sky Sequencer. Download sky-sequencer.apk on your phone and open it to install (allow installs from your browser when Android asks)."
+          gh release upload sky-latest sky-sequencer.apk --clobber

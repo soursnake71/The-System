@@ -1,0 +1,2 @@
+{"name":"Sky Sequencer","short_name":"Sky Seq","description":"Turns live air traffic into music: circling planes play arpeggios, climbs rise, descents fall, and a heat grid of the sky becomes a step sequence.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#030b08","theme_color":"#04100c",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

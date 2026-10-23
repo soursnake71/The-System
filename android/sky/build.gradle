@@ -1,0 +1,17 @@
+plugins { id 'com.android.application' }
+// Sky Sequencer: the /sky/ web app bundled inside the APK and run in a WebView, with the app doing the
+// flight-feed requests (the public feeds don't allow browser requests), USB MIDI out and saving MIDI files.
+android {
+  namespace 'com.thesnakedevice.sky'
+  compileSdk 35
+  defaultConfig {
+    applicationId 'com.thesnakedevice.sky'
+    minSdk 24
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+  }
+  sourceSets { main { assets.srcDirs = ['../../sky'] } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.12.1' }

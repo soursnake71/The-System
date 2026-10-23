@@ -17,6 +17,19 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
+## Sky Sequencer (`/sky/`)
+Turns live air traffic into music. Pick a place (or use your location) and it watches the planes within a radius, works out what each one is doing from its last few minutes of track, and plays it in time:
+- **Circling** (holding stacks, helicopter orbits) plays an arpeggio: turn rate sets the speed, turn direction sets up or down, orbit size sets the range.
+- **Climbing** and **descending** planes play lines whose pitch is their altitude.
+- **Cruising** traffic holds chord tones on a pad.
+- **Low & close** planes play percussion, and every new arrival plays one hit.
+- **Sky grid**: the area is a 16 × 8 grid that collects heat as planes pass through it over a window you choose (1 to 60 minutes). It is read as a step sequencer, west to east.
+- An emergency squawk shifts the key up a fourth until it clears.
+
+Each lane has its own sound and MIDI channel, so every behaviour can drive a different synth (USB MIDI in the Android app, Web MIDI in Chrome). Record to a .mid file with one track per lane.
+
+Live feeds: adsb.lol, airplanes.live, adsb.fi, OpenSky Network, or your own RTL-SDR receiver running readsb / dump1090. Browsers block the public feeds, so the web version plays a simulated sky unless the receiver is on the same computer; the Android app gets live traffic. The APK is built by the "Sky Sequencer APK" workflow and attached to the `sky-latest` release.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
