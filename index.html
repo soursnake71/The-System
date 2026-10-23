@@ -10,7 +10,14 @@
 <meta name="apple-mobile-web-app-title" content="Omega System">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>The Omega System</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest" id="manifestLink">
+<script>
+// ?app=vox opens Omega Vox: just the Prophet-5, the vocoder and the talking machine, with its own saved project
+window.APP = new URLSearchParams(location.search).get('app') === 'vox' ? 'vox' : '';
+(function(){ const r = document.documentElement;
+  if (APP === 'vox'){ r.classList.add('vox'); document.title = 'Omega Vox'; document.getElementById('manifestLink').href = 'vox.webmanifest'; return; }
+  let easy = true; try { easy = localStorage.getItem('pr.easy') !== '0'; } catch(e){} if (easy) r.classList.add('easy'); })();
+</script>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -175,7 +182,7 @@ button.fgen{display:flex;align-items:center;justify-content:space-between;width:
 #sheetBody .ctls{display:block}
 #sheetBody .ctls > *{break-inside:avoid;margin-bottom:6px}
 #sheetBody .p5sec > .fh, #sheetBody .unit > .fh, #sheetBody .ctl, #sheetBody .row{break-inside:avoid}
-.view > .card:not(.sdj):not(.trk){display:none !important}
+.view > .card:not(.sdj):not(.trk):not(.keep){display:none !important}
 .hearbtn{background:linear-gradient(180deg,#2d8a4e,#1d6538) !important;color:#fff !important;border-color:#0e3a1f !important;white-space:nowrap;font-weight:700}
 /* bigger mixer faders: fat cap, wide touch lane, the fader fills the strip height */
 #strips .strip input.fader{width:calc(100% - 9px) !important;max-width:46px;flex:1 1 auto;min-width:0}
@@ -217,7 +224,7 @@ html.retro #strips .strip input.pan::-webkit-slider-thumb{width:16px !important;
 .chipbar button{flex:1 1 auto;padding:10px 8px;font-size:12px;white-space:nowrap}
 .chipbar button.on{background:var(--accent);color:var(--accent-ink)}
 .chipbar .hgrp{display:flex;gap:5px;flex:0 0 auto}.chipbar .hgrp button{flex:0 0 auto;min-width:40px;padding:10px 6px}
-.view > .card:not(.sheeted):not(.sdj) > :not(.chead){display:none !important}
+.view > .card:not(.sheeted):not(.sdj):not(.keep) > :not(.chead){display:none !important}
 .view > .card{gap:0;padding:6px 10px}
 .view > .card > .chead{min-height:36px}
 .view > .card > .chead h2{font-size:16px}
@@ -987,13 +994,61 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 .djcrate .librow.sel{background:#2b3a4a;outline:1px solid #46a6ff;border-radius:3px}
 #libUp,#libDn{padding:8px 12px !important}
 .librow select{padding:6px 0;font-size:14px;min-width:0;width:100%;text-align:center}
+
+/* ================= Easy mode, Start screen, tips, notes, Omega Vox ================= */
+html.easy #autoArm,html.easy #autoBack,html.easy #fire,html.easy #padSet,html.easy #lvl16,html.easy #repeat,html.easy #erase,html.easy .ssl-plate{display:none!important}
+html.easy .chipbar button.adv{display:none}
+html.vox #fire,html.vox #padSet,html.vox #homeBtn,html.vox #synthBar,html.vox #instPick,html.vox #autoArm,html.vox #autoBack{display:none!important}
+html.vox .chipbar button:not(.voxok):not(.hbtn){display:none}
+html.vox .chipbar button.voxok{font-size:15px;padding:10px 14px;flex:1}
+html.vox .easycard #voxOpen{display:none}
+html:not(.vox) .voxonly{display:none!important}
+html.vox .nonvox{display:none!important}
+.brand .voxtag{color:#c0471c;font-weight:700}
+html.vox #nav button[data-v="synth"]{order:-1}
+.voxbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:0 0 8px}
+.voxbar button{padding:12px 6px;font-size:15px;border-radius:12px}
+.easyrow{display:none;gap:6px;margin:0 0 6px;align-items:center}
+html.easy .easyrow{display:flex}
+.easyrow select{min-width:0;flex:1}
+.easyrow button{white-space:nowrap;padding:8px 10px;font-size:13px}
+.guide{display:flex;gap:8px;align-items:flex-start;background:color-mix(in srgb,var(--accent) 14%,var(--panel));border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:10px;padding:7px 10px;margin:0 0 8px;font-size:13.5px;line-height:1.35}
+.guide b{color:var(--accent);margin-right:4px}
+.guide span{flex:1}
+.guide button{padding:2px 9px;min-height:0;font-size:13px}
+html:not(.easy):not(.vox) .guide{display:none}
+.notescard{padding:8px 10px}
+.notescard .nchead{margin-bottom:6px;gap:6px}
+.notescard .nchead b{font-family:var(--f-display);letter-spacing:.08em;color:var(--accent);font-size:15px}
+.notescard .nchead small{color:var(--dim);font-family:var(--f-body);letter-spacing:0;font-weight:400;font-size:12px;margin-left:4px}
+.notescard .nchead button{padding:6px 10px}
+.notescard #roll{height:92px}
+.notescard .row:last-child{margin-top:6px}
+@media (min-height:820px){.notescard #roll{height:120px}}
+.key.play{background:#2f8f5b!important;color:#fff!important;box-shadow:0 0 0 2px #5cf2a0,0 0 14px #5cf2a0!important}
+.piano .pk.play{background:#5cf2a0!important;color:#111;box-shadow:0 0 12px #5cf2a0}
+nav button.notes{color:#5cf2a0!important}
+#homeBtn{padding:8px 12px;font-size:16px}
+.startscr{position:fixed;inset:0;z-index:9000;background:var(--bg);overflow:auto;padding:max(18px,env(safe-area-inset-top)) 16px 24px}
+.startscr .st-in{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.startscr h1{font-family:var(--f-display);font-size:28px;margin:6px 0 0;letter-spacing:.02em}
+.startscr .st-sub{color:var(--dim);margin:0}
+.st-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.st-grid button,#stTplList button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:14px;border-radius:14px;min-height:96px}
+.st-grid button b{font-size:28px;line-height:1}
+.st-grid button span,#stTplList button span{font-size:17px;font-weight:700;color:inherit}
+.st-grid button small,#stTplList button small{color:inherit;opacity:.72;font-size:12.5px;text-transform:none;letter-spacing:0;font-family:var(--f-body)}
+#stTplList{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#stTplList button{min-height:64px}
+.st-pro{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:14px}
+.st-pro input{width:22px;height:22px}
 </style>
 
 </head>
 <body>
 
 <header class="transport">
-  <div class="brand"><svg class="brand-logo" viewBox="0 0 185.8 14" role="img" aria-label="The Omega System"><path d="M0 0h10v1.5h-10zM4.25 0h1.5v7h-1.5zM2.9 7h4.2v7h-4.2zM12.6 0h1.5v7h-1.5zM12.6 7h4.2v7h-4.2zM21.1 0h1.5v14h-1.5zM12.6 5.5h10v1.5h-10zM25.2 0h1.5v7h-1.5zM25.2 7h4.2v7h-4.2zM25.2 0h10v1.5h-10zM25.2 5.5h8v1.5h-8zM25.2 12.5h10v1.5h-10zM43.8 0h1.5v7h-1.5zM43.8 7h4.2v7h-4.2zM43.8 0h10v1.5h-10zM52.3 0h1.5v14h-1.5zM43.8 12.5h10v1.5h-10zM56.4 0h1.5v7h-1.5zM56.4 7h4.2v7h-4.2zM56.4 0h10v1.5h-10zM64.9 0h1.5v14h-1.5zM60.65 0h1.5v9.5h-1.5zM69 0h1.5v7h-1.5zM69 7h4.2v7h-4.2zM69 0h10v1.5h-10zM69 5.5h8v1.5h-8zM69 12.5h10v1.5h-10zM81.6 0h1.5v7h-1.5zM81.6 7h4.2v7h-4.2zM81.6 0h10v1.5h-10zM81.6 12.5h10v1.5h-10zM90.1 5.5h1.5v8.5h-1.5zM86.6 5.5h5v1.5h-5zM94.2 0h1.5v7h-1.5zM94.2 7h4.2v7h-4.2zM94.2 0h10v1.5h-10zM102.7 0h1.5v14h-1.5zM94.2 5.5h10v1.5h-10zM112.8 0h10v1.5h-10zM112.8 0h1.5v7h-1.5zM112.8 5.5h10v1.5h-10zM118.6 7h4.2v7h-4.2zM112.8 12.5h10v1.5h-10zM125.4 0h1.5v7h-1.5zM133.9 0h1.5v7h-1.5zM125.4 5.5h10v1.5h-10zM128.3 7h4.2v7h-4.2zM138 0h10v1.5h-10zM138 0h1.5v7h-1.5zM138 5.5h10v1.5h-10zM143.8 7h4.2v7h-4.2zM138 12.5h10v1.5h-10zM150.6 0h10v1.5h-10zM154.85 0h1.5v7h-1.5zM153.5 7h4.2v7h-4.2zM163.2 0h1.5v7h-1.5zM163.2 7h4.2v7h-4.2zM163.2 0h10v1.5h-10zM163.2 5.5h8v1.5h-8zM163.2 12.5h10v1.5h-10zM175.8 0h1.5v7h-1.5zM175.8 7h4.2v7h-4.2zM175.8 0h10v1.5h-10zM184.3 0h1.5v14h-1.5zM180.05 0h1.5v9.5h-1.5z"/></svg><span>MIDI PRODUCTION CENTER · SAMPLING PERCUSSION SYSTEM</span></div>
+  <div class="brand"><svg class="brand-logo" viewBox="0 0 185.8 14" role="img" aria-label="The Omega System"><path d="M0 0h10v1.5h-10zM4.25 0h1.5v7h-1.5zM2.9 7h4.2v7h-4.2zM12.6 0h1.5v7h-1.5zM12.6 7h4.2v7h-4.2zM21.1 0h1.5v14h-1.5zM12.6 5.5h10v1.5h-10zM25.2 0h1.5v7h-1.5zM25.2 7h4.2v7h-4.2zM25.2 0h10v1.5h-10zM25.2 5.5h8v1.5h-8zM25.2 12.5h10v1.5h-10zM43.8 0h1.5v7h-1.5zM43.8 7h4.2v7h-4.2zM43.8 0h10v1.5h-10zM52.3 0h1.5v14h-1.5zM43.8 12.5h10v1.5h-10zM56.4 0h1.5v7h-1.5zM56.4 7h4.2v7h-4.2zM56.4 0h10v1.5h-10zM64.9 0h1.5v14h-1.5zM60.65 0h1.5v9.5h-1.5zM69 0h1.5v7h-1.5zM69 7h4.2v7h-4.2zM69 0h10v1.5h-10zM69 5.5h8v1.5h-8zM69 12.5h10v1.5h-10zM81.6 0h1.5v7h-1.5zM81.6 7h4.2v7h-4.2zM81.6 0h10v1.5h-10zM81.6 12.5h10v1.5h-10zM90.1 5.5h1.5v8.5h-1.5zM86.6 5.5h5v1.5h-5zM94.2 0h1.5v7h-1.5zM94.2 7h4.2v7h-4.2zM94.2 0h10v1.5h-10zM102.7 0h1.5v14h-1.5zM94.2 5.5h10v1.5h-10zM112.8 0h10v1.5h-10zM112.8 0h1.5v7h-1.5zM112.8 5.5h10v1.5h-10zM118.6 7h4.2v7h-4.2zM112.8 12.5h10v1.5h-10zM125.4 0h1.5v7h-1.5zM133.9 0h1.5v7h-1.5zM125.4 5.5h10v1.5h-10zM128.3 7h4.2v7h-4.2zM138 0h10v1.5h-10zM138 0h1.5v7h-1.5zM138 5.5h10v1.5h-10zM143.8 7h4.2v7h-4.2zM138 12.5h10v1.5h-10zM150.6 0h10v1.5h-10zM154.85 0h1.5v7h-1.5zM153.5 7h4.2v7h-4.2zM163.2 0h1.5v7h-1.5zM163.2 7h4.2v7h-4.2zM163.2 0h10v1.5h-10zM163.2 5.5h8v1.5h-8zM163.2 12.5h10v1.5h-10zM175.8 0h1.5v7h-1.5zM175.8 7h4.2v7h-4.2zM175.8 0h10v1.5h-10zM184.3 0h1.5v14h-1.5zM180.05 0h1.5v9.5h-1.5z"/></svg><span class="nonvox">MIDI PRODUCTION CENTER · SAMPLING PERCUSSION SYSTEM</span><span class="voxonly voxtag">VOX · PROPHET-5 + VOCODER</span></div>
   <button id="play" class="tbtn" aria-label="Play"><svg viewBox="0 0 24 24"><path id="playIcon" d="M7 4l13 8-13 8z"/></svg></button>
   <button id="rec" class="tbtn" aria-label="Record"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></button>
   <div class="pos" id="pos">1.1.1</div>
@@ -1014,6 +1069,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <span class="grow"></span>
     <button class="clipbadge nolearn" id="clipBadge" hidden>CLIP</button>
     <span class="badge" id="inBadge">No input</span>
+    <button id="homeBtn" class="nolearn" aria-label="Start screen" title="Start screen: what do you want to do?">⌂</button>
     <button id="helpBtn" aria-label="Help" style="padding:8px 12px">?</button>
   </div>
   <div class="mmeter nolearn" id="mMeter" role="button" tabindex="0" aria-label="Master output meter. Tap for the master effects."><b>MASTER</b><canvas id="mMeterCv"></canvas><span id="mMeterDb" class="mono">−∞</span></div>
@@ -1036,6 +1092,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <input type="file" id="libDirIn" webkitdirectory directory multiple hidden>
     <input type="file" id="libFilesIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
     <input type="file" id="kitFileIn" accept="audio/*,.wav,.aif,.aiff,.aifc,.mp3,.flac,.ogg,.m4a,.aac,.opus,.webm,.snd" multiple hidden>
+    <div class="easyrow" id="easyPads"><select id="kitPick2" class="grow" aria-label="Drum machine"></select><button id="rndKit2" class="nolearn" aria-label="Random kit">🎲 Random</button><button id="libBrowse2" class="nolearn" aria-label="My samples">📁 Mine</button></div>
     <div class="kitplate" id="kitPlate" hidden><b></b><i></i></div>
     <div class="pads" id="pads"></div>
     <div class="card" data-title="Sequencer">
@@ -1249,23 +1306,20 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <div class="scenebar" id="synthBar" role="group" aria-label="Synth tracks"></div>
     <button id="instPick" class="instpick nolearn" aria-haspopup="dialog"><span class="ip-sw" id="instPickSw"></span><span class="ip-t"><b id="instPickName">Prophet-5</b><small id="instPickSub">Sequential · 1978</small></span><i>INSTRUMENTS ▾</i></button>
     <button id="presetPick" class="instpick presetpick nolearn" aria-haspopup="dialog"><span class="ip-t"><b id="presetPickName">Presets</b><small id="presetPickSub">tap to browse</small></span><i>PRESETS ▾</i></button>
-      <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><button id="octDown" aria-label="Octave down">−</button><button id="octUp" aria-label="Octave up">+</button><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
-      <div class="kbwhy" id="kbWhy" hidden><span id="kbWhyT" class="grow"></span><button id="kbWhyFix" class="nolearn">Fix</button></div>
-      <div class="keys" id="keys"></div>
-      <div class="rig" id="rig" hidden><div class="rig-head"><b id="rigBrand"></b><i id="rigModel"></i></div><div class="rig-panel" id="rigPanel"></div><div class="rig-kb" id="rigKb"></div></div>
-      <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
-    <div class="card" data-title="Notes">
-      <div class="row">
-        <button id="sOdub" class="grow">Overdub</button>
-        <button id="sUndo" class="grow" disabled>Undo</button>
-        <button id="sClear" class="grow">Clear</button>
-      </div>
+    <div class="card keep notescard" id="notesCard">
+      <div class="row nchead"><b class="grow" title="The notes this synth plays in the loop. Record with Overdub, tap a note to delete it.">♪ NOTES <small id="notesWhat"></small></b>
+        <button id="sOdub">Overdub</button><button id="sUndo" disabled aria-label="Undo">↶</button><button id="sClear">Clear</button></div>
       <canvas id="roll" aria-label="Piano roll of this synth's notes in the current pattern. Tap a note to delete it."></canvas>
       <div class="row">
         <select id="scaleRoot" aria-label="Key"></select>
         <select id="scaleType" class="grow" aria-label="Scale"></select>
       </div>
     </div>
+      <div class="row"><div class="seg grow" id="kbMode" role="group" aria-label="Play surface"><button data-m="grid">Grid</button><button data-m="piano">Keyboard</button></div><button id="octDown" aria-label="Octave down">−</button><button id="octUp" aria-label="Octave up">+</button><select id="kbSpan" aria-label="Keyboard size"><option value="1">1 octave</option><option value="1.5">1½ octaves</option><option value="2">2 octaves</option></select></div>
+      <div class="kbwhy" id="kbWhy" hidden><span id="kbWhyT" class="grow"></span><button id="kbWhyFix" class="nolearn">Fix</button></div>
+      <div class="keys" id="keys"></div>
+      <div class="rig" id="rig" hidden><div class="rig-head"><b id="rigBrand"></b><i id="rigModel"></i></div><div class="rig-panel" id="rigPanel"></div><div class="rig-kb" id="rigKb"></div></div>
+      <div class="piano" id="piano" hidden aria-label="Keyboard"></div>
     <div class="card" data-title="Arpeggiator" data-chip="Arp">
       <div class="arp" id="arpBox">
         <div class="row"><button id="arpOn" class="pwr nolearn">Arp off</button><button id="arpRst" class="rst nolearn" aria-label="Reset arpeggiator">↺</button><select id="arpMode" aria-label="Arp pattern"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-down</option><option value="downup">Down-up</option><option value="order">As played</option><option value="random">Random</option><option value="chord">Chord</option></select><select id="arpRate" aria-label="Arp rate"><option value="4">1/4</option><option value="2">1/8</option><option value="1.3333333">1/8T</option><option value="1">1/16</option><option value="0.6666667">1/16T</option><option value="0.5">1/32</option></select></div>
@@ -1463,7 +1517,15 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     <input id="helpSearch" type="search" placeholder="Search help (e.g. latency, vocoder, MP3)" aria-label="Search help">
     <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
 
-    <details id="h-start" open><summary>Getting started</summary>
+    <details id="h-easy" open><summary>Easy mode, the Start screen and Omega Vox</summary>
+      <p><b>Easy mode</b> is on when you first open the app. It shows plain tab names (Beats, Record, Mix, Keys, Song, Settings), puts a one-line tip at the top of every screen, and hides the pro tools (Chop, Wheel, Arp, Sidechain, the FX rack, automation, FIRE and the vintage machine panels). Turn it off at the top of <b>Settings</b> to get every tool back. Nothing is lost either way.</p>
+      <p><b>The Start screen</b> (the ⌂ button at the top) gives you big choices: make a beat, play keys, start from a ready-made song, robot voice, use your own samples, or record audio.</p>
+      <h3>Where are the notes my synth plays?</h3>
+      <p>On the Keys (Synth) screen, the <b>♪ NOTES</b> box sits right above the keys. Every recorded note is a bar in it, and the white line is the playhead. While the loop plays, each note also lights up <b>green</b> on the keys, and the Keys tab glows green when notes play while you're on another screen. Tap a note in NOTES to delete it.</p>
+      <h3>Omega Vox</h3>
+      <p>A separate small app with just the Prophet-5, the vocoder and the talking machine. Open it from the Start screen (Robot voice) or Settings, or go to the app's address with <b>?app=vox</b> on the end. It has its own saved project, so it never touches your main song. Tap <b>🗣 Speech</b>, type words, tap <b>Send to vocoder</b>, then press ▶: the Prophet-5 sings your words. Play keys to change the chord. Install it on your home screen like the main app, or use the Omega Vox APK.</p>
+    </details>
+    <details id="h-start"><summary>Getting started</summary>
       <p>The Omega System is a small studio for your phone: an MPC-style drum rack, synths, audio tracks you record from a USB-C interface, a mixer with effects, patterns for song parts, and export to WAV, MP3, stems and MIDI.</p>
       <h3>Install it like an app</h3>
       <ol><li>Android: open the app in Chrome, tap Chrome's ⋮ menu, then <b>Add to Home screen</b>. iPhone: open it in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</li><li>Open it from the home screen icon. It runs full-screen and works offline after the first visit (MP3 export needs internet the first time).</li></ol>
@@ -1968,6 +2030,10 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
 
   <!-- SETUP -->
   <section class="view" id="v-setup" hidden>
+    <div class="card keep easycard">
+      <div class="row"><span class="grow"><b>Easy mode</b><br><small class="dim">Fewer buttons, plain names and a tip on every screen. Turn it off for every pro tool.</small></span><button id="easyOn" class="pwr nolearn">On</button></div>
+      <div class="row"><button id="startOpen" class="grow nolearn">⌂ Start screen</button><button id="voxOpen" class="grow nolearn">🤖 Open Omega Vox</button></div>
+    </div>
     <div class="card">
       <h2>Audio input</h2>
       <label class="label" for="device">Device</label>
@@ -2044,7 +2110,7 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v128</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v129</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2055,6 +2121,24 @@ html.retro .fxrow button.on{background:linear-gradient(180deg,#b06bff,#7a32d9);c
     </div>
   </section>
 </main>
+
+<div id="start" class="startscr" hidden role="dialog" aria-modal="true" aria-labelledby="startTtl">
+  <div class="st-in">
+    <h1 id="startTtl">What do you want to do?</h1>
+    <p class="st-sub">Pick one to get going. You can come back here any time with the ⌂ button at the top.</p>
+    <div class="st-grid" id="stGrid">
+      <button data-go="beat" class="nolearn"><b>🥁</b><span>Make a beat</span><small>Tap pads and record a loop</small></button>
+      <button data-go="keys" class="nolearn"><b>🎹</b><span>Play keys</span><small>Classic synths, pianos, strings</small></button>
+      <button data-go="song" class="nolearn"><b>🎼</b><span>Start from a song</span><small>A ready-made track to play with</small></button>
+      <button data-go="vox" class="nolearn"><b>🤖</b><span>Robot voice</span><small>Omega Vox: Prophet-5 + vocoder</small></button>
+      <button data-go="samples" class="nolearn"><b>📁</b><span>Use my samples</span><small>Import a folder from your phone</small></button>
+      <button data-go="rec" class="nolearn"><b>🎙</b><span>Record audio</span><small>Voice, guitar, anything</small></button>
+    </div>
+    <div id="stTpl" hidden><h2>Pick a song to start from</h2><div id="stTplList"></div><p class="hint">Your current project is saved to Projects first, so nothing is lost.</p><button id="stTplBack" class="nolearn">◀ Back</button></div>
+    <button id="stClose" class="nolearn">Just let me in</button>
+    <label class="st-pro"><input type="checkbox" id="stEasy" checked> Easy mode: simpler screens with a tip on each one</label>
+  </div>
+</div>
 
 <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
   <div class="sheet-bar"><button id="sheetBack" class="nolearn" aria-label="Back">◀ Back</button><button id="sheetPrev" class="nolearn" aria-label="Previous page">‹</button><span id="sheetTtl" class="grow"></span><button class="hundo nolearn" aria-label="Undo">↶</button><button class="hredo nolearn" aria-label="Redo">↷</button><span id="sheetPg" class="mono"></span><button id="sheetRand" class="nolearn" aria-label="Random preset" title="Random preset">🎲</button><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">›</button><button id="sheetX" class="nolearn" aria-label="Close" hidden>✕</button></div>
@@ -2174,12 +2258,13 @@ if (!(window.AudioContext || window.webkitAudioContext)){
     d.innerHTML = '<div><b style="font-size:22px">The Omega System</b><br><br>This browser can’t make sound (no Web Audio).<br>Open it in Chrome, Edge, Firefox, Safari or Samsung Internet.</div>'; document.body.appendChild(d); });
   throw new Error('no Web Audio');
 }
+const PROJ_KEY = 'project';   // each app has its own database, so this key never clashes
 const DB = {
   db:null,
   open(){
     if (this.db) return this.db;
     this.db = new Promise((res, rej) => {
-      const r = indexedDB.open('pocket-rack', 1);
+      const r = indexedDB.open(APP === 'vox' ? 'omega-vox' : 'pocket-rack', 1);
       r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('audio'); };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
@@ -2209,7 +2294,7 @@ function saveCopy(v){
   if (Array.isArray(v)) return v.map(x => { const y = saveCopy(x); return y === undefined ? null : y; });
   const o = {}; for (const k in v){ const y = saveCopy(v[k]); if (y !== undefined) o[k] = y; } return o;
 }
-function saveNow(){ clearTimeout(saveT); saveFirst = 0; if (saveBlocked) return; try { storeScene(); DB.put('kv', 'project', saveCopy(S)); } catch(e){ console.warn('save', e); } if (typeof histPush === 'function') histPush(); }
+function saveNow(){ clearTimeout(saveT); saveFirst = 0; if (saveBlocked) return; try { storeScene(); DB.put('kv', PROJ_KEY, saveCopy(S)); } catch(e){ console.warn('save', e); } if (typeof histPush === 'function') histPush(); }
 function save(){ if (saveBlocked) return; const now = performance.now(); if (!saveFirst) saveFirst = now; clearTimeout(saveT); saveT = setTimeout(saveNow, now - saveFirst > 1500 ? 0 : 400); }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveFirst) saveNow(); });
 window.addEventListener('pagehide', () => { if (saveFirst) saveNow(); });
@@ -2697,7 +2782,7 @@ function ensureKitBuf(key){
     .catch(() => {});
 }
 function gainBuf(b, g){ const chs = [...Array(b.numberOfChannels)].map((_, k) => { const d = b.getChannelData(k).slice(); for (let i = 0; i < d.length; i++) d[i] = Math.max(-1, Math.min(1, d[i] * g)); return d; }); return makeBuffer(chs, b.sampleRate); }
-function renderKitPick(){ const k = $('#kitPick'); if (!k) return; k.innerHTML = Object.entries(KITS).map(([id, K]) => `<option value="${id}">${K.name}</option>`).join(''); k.value = S.drum.kit && KITS[S.drum.kit] ? S.drum.kit : 'pocket'; }
+function renderKitPick(){ const k = $('#kitPick'); if (!k) return; k.innerHTML = Object.entries(KITS).map(([id, K]) => `<option value="${id}">${K.name}</option>`).join(''); k.value = S.drum.kit && KITS[S.drum.kit] ? S.drum.kit : 'pocket'; const k2 = $('#kitPick2'); if (k2){ k2.innerHTML = k.innerHTML; k2.value = k.value; } }
 function loadKit(id){
   const vs = kitVoices(id), pads = S.drum.pads;
   const own = pads.some(p => !p.sample.startsWith('kit:'));
@@ -6260,6 +6345,7 @@ function scheduleNotes(rig, i, t){
     if (rig === live && n.skip){ delete n.skip; continue; }
     const at = t + (n.t - lo) * td + (n.t % 48 === 24 ? swing : 0);
     synthVoice(rig, tr, n.n, at, n.v, Math.max(6, n.d) * td, n);
+    if (rig === live) flashNote(tr, n.n, at, Math.max(6, n.d) * td);
   }
   S.audio.forEach(tr => {
     const recording = rig === live && rec && rec.id === tr.id && rec.startT != null;
@@ -7229,10 +7315,27 @@ $('#arpRst').addEventListener('click', () => { const tr = curSynth(); arpClear(t
 /* ================= sheets: a section opens over the screen and flips sideways in pages, so nothing scrolls ================= */
 let sheetCard = null, sheetPh = null, sheetPage = 0, sheetPages = 1, sheetT = 0;
 // each tab's sections as one row of buttons, so the screen keeps its space for pads, keys and faders
+const EASY_NAV = {drums:'🥁 Beats', audio:'🎙 Record', mixer:'🎚 Mix', synth:'🎹 Keys', song:'🎼 Song', setup:'⚙ Settings'};
+const VOX_NAV = {synth:'🤖 Vox', mixer:'🎚 Mix', setup:'⚙ Settings'};
+const GUIDES = {
+  drums:['Beats', 'Tap a pad to hear it. Press ● and play to record a beat. Change the sounds just below.'],
+  audio:['Record', 'Tap Enable input, arm a track, then press ● to record your voice or an instrument.'],
+  mixer:['Mix', 'One fader for each track. Slide up for louder. CUT silences a track, SOLO plays only that one.'],
+  synth:['Keys', 'Play the keys. Press ● to record. Your notes show in ♪ NOTES and light up green as they play.'],
+  song:['Song', 'Each pattern is a loop. Make a few, then line them up here to build a whole song.'],
+  setup:['Settings', 'Save projects, export WAV or MP3, connect MIDI. Easy mode is right here.'],
+  chop:['Chop', 'Load a sample and slice it across the pads.'],
+  deck:['Wheel', 'Two turntables: load tracks, scratch and mix.'],
+  vox:['Omega Vox', 'Tap 🗣 Speech, type words, tap “Send to vocoder”, then press ▶: the Prophet-5 sings them. Play keys to change the chord.']
+};
+// tools a beginner doesn't need: Easy mode hides their buttons (Setup turns it off)
+const ADV_CHIPS = new Set(['Arp', 'Vocoder', 'Speech', 'Sidechain', 'FX rack', 'SP-1200', 'DR-110', 'DMX', 'Synsonics', 'AI EQ']);
+const VOX_CHIPS = {Sound:'🎚 Sound', Vocoder:'🎛 Vocoder', Speech:'🗣 Speech', Arp:'Arp'};   // all Omega Vox shows
+function isEasy(){ return document.documentElement.classList.contains('easy'); }
 function chipBar(v){
   if (!v.classList.contains('view')) return;
   v._cards = (v._cards || []).filter(c => c.isConnected);
-  v.querySelectorAll(':scope > .card:not(.trk):not(.sdj)').forEach(c => { if (!v._cards.includes(c)) v._cards.push(c); });
+  v.querySelectorAll(':scope > .card:not(.trk):not(.sdj):not(.keep)').forEach(c => { if (!v._cards.includes(c)) v._cards.push(c); });
   const cards = v._cards;
   let bar = v.querySelector(':scope > .chipbar');
   if (!bar){ bar = document.createElement('div'); bar.className = 'chipbar'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Sections'); }
@@ -7240,7 +7343,7 @@ function chipBar(v){
   const key = cards.map(c => c.dataset.chip || sheetTitle(c)).join('|');
   if (bar._key !== key){
     bar._key = key; bar.innerHTML = '';
-    cards.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = c.dataset.chip || sheetTitle(c) || 'More'; b._card = c;
+    cards.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = c.dataset.chip || sheetTitle(c) || 'More'; b._card = c; if (ADV_CHIPS.has(b.textContent)) b.classList.add('adv'); if (VOX_CHIPS[c.dataset.chip]){ b.classList.add('voxok'); if (window.APP === 'vox') b.textContent = VOX_CHIPS[c.dataset.chip]; }
       b.addEventListener('click', () => { if (sheetCard === c) sheetClose(); else sheetOpen(c); }); bar.appendChild(b); });
     bar.insertAdjacentHTML('afterbegin', '<span class="hgrp"><button class="hundo nolearn hbtn" aria-label="Undo">↶</button><button class="hredo nolearn hbtn" aria-label="Redo">↷</button></span>'); histPaint();
   }
@@ -7928,7 +8031,7 @@ function foldPrep(el, head, defShut){
 }
 function foldify(){
   document.querySelectorAll('.view').forEach(v => {
-    v.querySelectorAll(':scope > .card:not(.trk)').forEach(c => {
+    v.querySelectorAll(':scope > .card:not(.trk):not(.keep)').forEach(c => {
       if (c.classList.contains('djtop') || c.classList.contains('djrig') || c.classList.contains('djcrate')) return;
       const f = c.firstElementChild; if (!f && !c.dataset.title) return; if (!c.dataset.title && f.tagName === 'CANVAS'){ c.classList.add('sdj'); return; }
       let head = f;
@@ -10675,7 +10778,7 @@ function renderKeys(){
   for (let r = 4; r >= 0; r--) for (let c = 0; c < 8; c++){
     const note = gridNote(r, c), b = document.createElement('button');
     b.className = 'key' + (((note - S.root) % 12 + 12) % 12 === 0 ? ' root' : '');
-    b.textContent = noteName(note); b.setAttribute('aria-label', 'Play ' + noteName(note));
+    b.textContent = noteName(note); b.dataset.n = note; b.setAttribute('aria-label', 'Play ' + noteName(note));
     const id = 'k' + r + '-' + c;
     b.addEventListener('pointerdown', e => {
       e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch(_){}
@@ -10797,6 +10900,7 @@ function drawRoll(){
   g.fillStyle = col('--accent');
   for (const n of notes){ g.globalAlpha = .4 + .6 * n.v; g.fillRect(X(n.t), Y(n.n) + 1, Math.max(3 * dpr, (n.d / L) * (w - gut) - dpr), Math.max(2, rh - 2)); }
   g.globalAlpha = 1;
+  const nw = $('#notesWhat'); if (nw) nw.textContent = notes.length ? notes.length + (notes.length === 1 ? ' note' : ' notes') + '' : 'none yet';
   rollImg = g.getImageData(0, 0, w, h); rollDirty = false;
   return {g, w, h, X, Y, L, rh, lo, hi};
 }
@@ -13622,7 +13726,7 @@ $('#audioBuf').addEventListener('change', async e => {
   try { localStorage.setItem('pr.buf', e.target.value); } catch(err){ toast('Could not save this setting on this phone.'); return; }
   if (!ctx){ toast('Audio buffer set.'); return; }
   if (playing) stop();
-  clearTimeout(saveT); storeScene(); try { await DB.put('kv', 'project', saveCopy(S)); } catch(err){}
+  clearTimeout(saveT); storeScene(); try { await DB.put('kv', PROJ_KEY, saveCopy(S)); } catch(err){}
   location.reload();
 });
 $('#countIn').addEventListener('click', () => { S.countIn = !S.countIn; save(); renderInput(); });
@@ -13703,13 +13807,13 @@ $('#packFile').addEventListener('change', e => { const f = e.target.files[0]; e.
 /* ================= Projects: save, open, export and import whole projects (patterns, settings, every sound) ================= */
 const PDB = Object.assign(Object.create(DB), {db:null, open(){
   if (this.db) return this.db;
-  this.db = new Promise((res, rej) => { const r = indexedDB.open('omega-projects', 1); r.onupgradeneeded = () => { r.result.createObjectStore('meta'); r.result.createObjectStore('data'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  this.db = new Promise((res, rej) => { const r = indexedDB.open(APP === 'vox' ? 'omega-vox-projects' : 'omega-projects', 1); r.onupgradeneeded = () => { r.result.createObjectStore('meta'); r.result.createObjectStore('data'); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
   return this.db; }});
 const SHARED_AUDIO = k => /^(lib|sf):/.test(k);
 async function projAudioKeys(){ return ((await DB.op('audio', 'readonly', st => st.getAllKeys())) || []).filter(k => typeof k === 'string' && !SHARED_AUDIO(k)); }
 const projHasContent = () => S.drum.notes.length || S.synths.some(t => (t.notes || []).length) || S.audio.some(t => t.clip) || S.drum.pads.some(p => p.sample && !String(p.sample).startsWith('kit:'));
 async function projSnapshot(){
-  clearTimeout(saveT); storeScene(); await DB.put('kv', 'project', saveCopy(S));
+  clearTimeout(saveT); storeScene(); await DB.put('kv', PROJ_KEY, saveCopy(S));
   const audio = {}; for (const k of await projAudioKeys()){ const v = await DB.get('audio', k); if (v) audio[k] = v; }
   return {S:JSON.parse(JSON.stringify(S)), audio};
 }
@@ -13741,7 +13845,7 @@ async function projLoad(snap){
   for (const k of await projAudioKeys()) await DB.del('audio', k);
   for (const [k, v] of Object.entries(snap.audio || {})) await DB.put('audio', k, v);
   saveBlocked = true; clearTimeout(saveT);
-  await DB.put('kv', 'project', snap.S); location.reload();
+  await DB.put('kv', PROJ_KEY, snap.S); location.reload();
 }
 async function projOpen(id){
   if (!id) return; const snap = await PDB.get('data', id); if (!snap){ toast('That project is missing.'); return; }
@@ -14121,16 +14225,19 @@ $('#tplSel').addEventListener('change', e => { const b = $('#wipe'); b.textConte
 $('#wipe').addEventListener('click', async e => {
   const b = e.target;
   if (!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Tap again: this one is saved to Projects first'; setTimeout(() => { b.dataset.sure = ''; b.textContent = $('#tplSel').value ? 'New from template' : 'New project'; }, 3000); return; }
+  await newProject($('#tplSel').value, b);
+});
+async function newProject(tpl, b){
   if (playing) stop();
   await projKeepCurrent();
   saveBlocked = true; clearTimeout(saveT);
   for (const k of await projAudioKeys()) await DB.del('audio', k);   // the library and SoundFonts stay
   // a factory-fresh project; only your setup carries over: MIDI mappings and settings, the DJ library and crates, SoundFonts
   let fresh = defaultState(); for (const k of ['midiMap', 'midiBase', 'midiCh', 'midiNotes', 'padMap', 'midiClock', 'lib', 'crates', 'sfonts', 'screen']) if (S[k] !== undefined) fresh[k] = S[k];
-  const tpl = $('#tplSel').value;
-  if (tpl && TEMPLATES[tpl]){ b.textContent = 'Building ' + TEMPLATES[tpl].name + '…'; try { fresh = await tplBuild(tpl, fresh); } catch(err){ console.warn(err); toast('That template could not be built; starting blank.'); } }
-  await DB.put('kv', 'project', fresh); location.reload();
-});
+  if (APP === 'vox') fresh = voxFresh(fresh);
+  if (tpl && TEMPLATES[tpl]){ if (b) b.textContent = 'Building ' + TEMPLATES[tpl].name + '…'; try { fresh = await tplBuild(tpl, fresh); } catch(err){ console.warn(err); toast('That template could not be built; starting blank.'); } }
+  await DB.put('kv', PROJ_KEY, fresh); location.reload();
+}
 
 /* ================= TV remote and game controllers: move around with arrows / D-pad, play the pads with buttons ================= */
 const navOn = () => document.documentElement.classList.contains('dev-tv') || gp.mode === 'menu' && gp.seen;
@@ -14383,7 +14490,7 @@ $('#fadersReset').addEventListener('click', e => {
 // the Wheel (turntables) tab shows unless it's switched off in Setup
 const wheelShown = () => { try { return localStorage.getItem('pr.wheel2') !== '0'; } catch(e){ return true; } };
 function applyWheelTab(){
-  const on = wheelShown(), t = document.querySelector('#nav button[data-v="deck"]'); if (t) t.hidden = !on;
+  const on = wheelShown(), t = document.querySelector('#nav button[data-v="deck"]'); if (t) t.hidden = navHidden('deck');
   const w = $('#wheelOn'); if (w){ w.textContent = on ? 'On' : 'Off'; w.classList.toggle('on', on); }
   if (!on && view === 'deck') setView('drums');
 }
@@ -14456,9 +14563,91 @@ $('#helpSearch').addEventListener('input', e => {
   $('#helpNone').hidden = any;
 });
 
+
+/* ================= Easy mode, the Start screen, a tip on every screen, and Omega Vox ================= */
+function navHidden(v){
+  if (APP === 'vox') return !VOX_NAV[v];
+  if (v === 'chop') return isEasy();
+  if (v === 'deck') return isEasy() || !wheelShown();
+  return false;
+}
+function applyEasy(on){
+  const r = document.documentElement;
+  if (APP !== 'vox'){ r.classList.toggle('easy', !!on); try { localStorage.setItem('pr.easy', on ? '1' : '0'); } catch(e){} }
+  document.querySelectorAll('#nav button').forEach(b => { if (b._full == null) b._full = b.textContent;
+    b.textContent = (APP === 'vox' ? VOX_NAV[b.dataset.v] : isEasy() && EASY_NAV[b.dataset.v]) || b._full; b.hidden = navHidden(b.dataset.v); });
+  const e = $('#easyOn'); if (e){ e.textContent = isEasy() ? 'On' : 'Off'; e.classList.toggle('on', isEasy()); }
+  const se = $('#stEasy'); if (se) se.checked = isEasy();
+  if (navHidden(view)) setView(APP === 'vox' ? 'synth' : 'drums');
+  setTimeout(fitScreen, 30);
+}
+function voxBarMount(){
+  const v = $('#v-synth'); if (APP !== 'vox' || v.querySelector('.voxbar')) return;
+  const bar = document.createElement('div'); bar.className = 'voxbar';
+  [['Speech', '🗣 Speech'], ['Vocoder', '🎛 Vocoder'], ['Sound', '🎚 Sound']].forEach(([k, t]) => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = t;
+    b.addEventListener('click', () => { const c = v.querySelector(`.card[data-chip="${k}"]`) || (sheetCard && sheetCard.dataset.chip === k && sheetCard); if (c) sheetOpen(c); }); bar.appendChild(b); });
+  const g = v.querySelector(':scope > .guide'); if (g) g.after(bar); else v.prepend(bar);
+}
+function guideMount(){
+  document.querySelectorAll('.view[id^="v-"]').forEach(v => {
+    const k = APP === 'vox' && v.id === 'v-synth' ? 'vox' : v.id.slice(2), G = GUIDES[k]; if (!G || v.querySelector(':scope > .guide')) return;
+    let gone = false; try { gone = localStorage.getItem('pr.guide.' + (APP || 'main') + '.' + k) === '0'; } catch(e){}
+    if (gone) return;
+    const d = document.createElement('div'); d.className = 'guide'; d.dataset.g = k;
+    d.innerHTML = '<span><b></b></span><button class="nolearn" aria-label="Hide this tip">✕</button>';
+    d.querySelector('b').textContent = G[0]; d.querySelector('span').append(G[1]);
+    d.querySelector('button').addEventListener('click', () => { d.remove(); try { localStorage.setItem('pr.guide.' + (APP || 'main') + '.' + k, '0'); } catch(e){} setTimeout(fitScreen, 30); });
+    v.prepend(d);
+  });
+}
+// a sequenced note lights its key, and the Keys tab glows while you're on another screen
+function flashNote(tr, n, at, dur){
+  if (!ctx) return;
+  const d = Math.max(0, (at - ctx.currentTime + outL()) * 1000);
+  setTimeout(() => {
+    if (view !== 'synth'){ const nb = document.querySelector('#nav button[data-v="synth"]'); if (nb){ nb.classList.add('notes'); clearTimeout(nb._nt); nb._nt = setTimeout(() => nb.classList.remove('notes'), 160); } return; }
+    if (tr !== curSynth()) return;
+    document.querySelectorAll(`#keys .key[data-n="${n}"], #piano .pk[data-n="${n}"]`).forEach(k => { k.classList.add('play'); clearTimeout(k._pt); k._pt = setTimeout(() => k.classList.remove('play'), clamp(dur * 1000, 90, 2000)); });
+  }, d);
+}
+// Start screen: the big plain choices
+function startOpen(){ $('#stTpl').hidden = true; $('#stGrid').hidden = false; $('#start').hidden = false; $('#stEasy').checked = isEasy(); }
+function startClose(){ $('#start').hidden = true; try { localStorage.setItem('pr.started', '1'); } catch(e){} setTimeout(fitScreen, 30); }
+$('#stGrid').addEventListener('click', e => {
+  const b = e.target.closest('button[data-go]'); if (!b) return; const go = b.dataset.go;
+  if (go === 'song'){ const L = $('#stTplList'); L.innerHTML = '';
+    [['', 'Blank project', 'An empty beat to start from']].concat(Object.entries(TEMPLATES).map(([k, T]) => [k, T.name, T.bpm + ' BPM'])).forEach(([k, n, sub]) => {
+      const x = document.createElement('button'); x.className = 'nolearn'; x.innerHTML = '<span></span><small></small>'; x.querySelector('span').textContent = n; x.querySelector('small').textContent = sub;
+      x.addEventListener('click', async () => { x.querySelector('small').textContent = 'Building…'; try { localStorage.setItem('pr.started', '1'); } catch(_){} await newProject(k, null); }); L.appendChild(x); });
+    $('#stGrid').hidden = true; $('#stTpl').hidden = false; return; }
+  if (go === 'vox'){ startClose(); location.href = './?app=vox'; return; }
+  startClose();
+  if (go === 'beat'){ setView('drums'); toast('Tap the pads. Press ● and play to record a beat.'); }
+  if (go === 'keys'){ setView('synth'); toast('Play the keys. Your recorded notes show in ♪ NOTES.'); }
+  if (go === 'rec') setView('audio');
+  if (go === 'samples'){ setView('drums'); $('#libImport').click(); }
+});
+$('#stTplBack').addEventListener('click', () => { $('#stTpl').hidden = true; $('#stGrid').hidden = false; });
+$('#stClose').addEventListener('click', startClose);
+$('#stEasy').addEventListener('change', e => applyEasy(e.target.checked));
+$('#homeBtn').addEventListener('click', startOpen);
+$('#startOpen').addEventListener('click', startOpen);
+$('#voxOpen').addEventListener('click', () => { location.href = './?app=vox'; });
+$('#easyOn').addEventListener('click', () => { applyEasy(!isEasy()); toast(isEasy() ? 'Easy mode on: fewer buttons and a tip on each screen.' : 'Easy mode off: every pro tool is showing.'); });
+$('#kitPick2').addEventListener('change', e => { ensureAudio(); $('#kitPick').value = e.target.value; loadKit(e.target.value); });
+$('#rndKit2').addEventListener('click', () => $('#rndKit').click());
+$('#libBrowse2').addEventListener('click', () => $('#libBrowse').click());
+// Omega Vox: a fresh project is one Prophet-5 with the talking machine ready to go
+function voxFresh(st){
+  st.drum.notes = []; st.audio = []; st.scenes = []; st.cur = 0; st.song = []; st.bpm = 100; st.bars = 2;
+  const tr = newSynth(1); tr.name = 'Prophet-5'; tr.inst = 'prophet'; st.synths = [tr]; st.midiTarget = tr.id;
+  st.kbMode = 'piano'; st.tts = {text:'I am the Omega Vox.\nType your words here.', voice:'robot', semi:0, speed:1, timing:'bar'};
+  delete st.tplName; return st;
+}
+
 /* ================= boot ================= */
 (async function boot(){
-  const saved = await DB.get('kv', 'project');
+  const saved = await DB.get('kv', PROJ_KEY);
   if (saved && (saved.v === 1 || saved.v === 2)){
     if (saved.v === 1){   // step patterns from the first version become recorded hits
       saved.drum.notes = [];
@@ -14479,6 +14668,7 @@ $('#helpSearch').addEventListener('input', e => {
     // a pad whose sound went missing falls back to its built-in sound; a pad you emptied stays empty
     S.drum.pads.forEach((p, i) => { if (p.sample && !buffers.has(p.sample)) p.sample = 'kit:' + KIT[i][1]; });
   }
+  if (APP === 'vox' && !(saved && (saved.v === 1 || saved.v === 2))) S = voxFresh(S);
   S.audio.forEach(t => { t.warp = t.warp || 'complex'; t.clipBpm = t.clipBpm || S.bpm; });
   if (S.drum.name === 'Drums') S.drum.name = 'Pads';   // the pad track is called Pads everywhere, the mixer included
   if (!S.synths || !S.synths.length) S.synths = [newSynth(1)];
@@ -14509,8 +14699,10 @@ stepify($('#midiOff'), v => (v > 0 ? '+' : '') + v + ' ms'); stepify($('#latMs')
   if ((S.midiInName || S.midiOutName || S.midiClock !== 'off') && navigator.permissions){
     navigator.permissions.query({name:'midi'}).then(r => { if (r.state === 'granted') connectMidi(); }).catch(() => {});
   }
-  let v = 'drums';   // always open on the pads
-  setView(userNav ? view : v);        // don't jump away from a tab picked while the project was loading
+  let v = APP === 'vox' ? 'synth' : 'drums';   // always open on the pads (Omega Vox: on the synth)
+  setView(userNav ? view : v);
+  guideMount(); voxBarMount(); applyEasy(isEasy());
+  if (APP !== 'vox'){ let seen = true; try { seen = localStorage.getItem('pr.started') === '1'; } catch(e){} if (!seen) startOpen(); }        // don't jump away from a tab picked while the project was loading
   if ('serviceWorker' in navigator && location.protocol === 'https:'){
     navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(r => r.update()).catch(() => {});
     // a newer version took over: reload once so the screen shows it

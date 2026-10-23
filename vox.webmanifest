@@ -1,0 +1,30 @@
+{
+  "name": "Omega Vox",
+  "short_name": "Omega Vox",
+  "description": "Prophet-5 synth, vocoder and talking machine: type words and make the synth sing them.",
+  "start_url": "./?app=vox",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14100c",
+  "theme_color": "#14100c",
+  "icons": [
+    {
+      "src": "vox-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "vox-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "vox-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "./?app=vox"
+}

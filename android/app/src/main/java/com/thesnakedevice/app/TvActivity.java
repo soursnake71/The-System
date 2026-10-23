@@ -19,7 +19,7 @@ import android.widget.Toast;
 /** Google TV / Android TV: TVs usually have no Chrome, so the app runs in the system WebView.
  *  The remote's arrows and OK, game controllers (Gamepad API), file import and offline storage all work here. */
 public class TvActivity extends Activity {
-  static final String HOME = "https://soursnake71.github.io/The-System/";
+  static final String HOME = BuildConfig.START_URL;
   static final int PICK = 7;
   WebView web;
   ValueCallback<Uri[]> pending;
