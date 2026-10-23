@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Dragonstomper 3D</title><meta name="theme-color" content="#0b0b14">
+<meta name="description" content="Starpath's 1982 Dragonstomper, reverse engineered from the Supercharger tapes and rebuilt in 3D.">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--band:#545cd6;--box:#a8308f;--ink:#fc90fc;--bg:#0b0b14}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#eee;font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{image-rendering:pixelated}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block}
+/* top bar */
+#top{position:fixed;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top)) 10px 6px;background:linear-gradient(#000c,#0000);z-index:3}
+#statcv{height:auto;width:min(300px,62vw);flex:none}
+#top .sp{flex:1}
+#top button{background:#0008;border:1px solid #fff3;color:#fff;border-radius:8px;min-width:36px;height:34px;font-size:16px;cursor:pointer}
+/* the message band, like the bottom of the 2600 screen */
+#band{position:fixed;left:0;right:0;bottom:0;background:var(--band);padding:8px 0 calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center;z-index:3;transition:background .4s}
+#box{background:var(--box);padding:0}
+#boxcv{display:block;width:min(92vw,400px);height:auto}
+#bossbar{position:fixed;top:calc(52px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(70vw,420px);height:12px;border:2px solid #fce070;background:#300;display:none;z-index:3}
+#bossfill{height:100%;width:100%;background:linear-gradient(#5c5,#272)}
+#bossbar::before{content:"THE DRAGON";position:absolute;top:-19px;left:0;font:700 12px ui-monospace,monospace;letter-spacing:.2em;color:#fce070}
+/* touch controls */
+#touch{display:none}
+@media (pointer:coarse){
+  #touch{display:block}
+  #band{bottom:auto;top:calc(44px + env(safe-area-inset-top));background:transparent;padding:0}
+  #boxcv{width:min(94vw,520px);border:3px solid var(--band)}
+  #bossbar{top:auto;bottom:calc(200px + env(safe-area-inset-bottom))}
+}
+#stickzone{position:fixed;left:0;bottom:0;width:58vw;height:60vh;z-index:2;touch-action:none}
+#stickbase{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid #fff5;background:#fff1;display:none;z-index:2;pointer-events:none}
+#stickknob{position:absolute;left:50%;top:50%;width:50px;height:50px;border-radius:50%;background:#fff6;transform:translate(-50%,-50%)}
+.tb{position:fixed;z-index:4;border-radius:50%;border:2px solid #fff6;background:#0007;color:#fff;font:800 22px system-ui;touch-action:none;display:flex;align-items:center;justify-content:center}
+.tb.down{background:#fff4}
+#btnA{right:calc(22px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));width:92px;height:92px;background:#a3391599}
+#btnB{right:calc(128px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:60px;height:60px;font-size:13px}
+body.modal #btnA,body.modal #btnB{opacity:.35}
+/* four-way menu buttons (shown with menus on touch screens) */
+#diamond{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(150px + env(safe-area-inset-bottom));width:230px;height:200px;z-index:5;display:none}
+@media (pointer:coarse){#diamond.dir,#diamond.list{display:block}}
+#diamond button{position:absolute;width:104px;height:56px;border-radius:12px;border:2px solid var(--ink);background:var(--box);color:#fff;font:800 13px ui-monospace,monospace;letter-spacing:.05em;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;touch-action:none}
+#diamond button.down{filter:brightness(1.5)}
+#diamond [data-k=up]{left:63px;top:0}#diamond [data-k=down]{left:63px;bottom:0}
+#diamond [data-k=left]{left:0;top:72px}#diamond [data-k=right]{right:0;top:72px}
+#diamond.list [data-k=right] span::after{content:"OK"}#diamond.list [data-k=left] span::after{content:"BACK"}
+#diamond.list span{font-size:0}#diamond.list span::after{font-size:13px}
+/* overlays */
+.ov{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#1b1640ee,#000f);padding:20px}
+.ov[hidden]{display:none}
+.card{max-width:560px;width:100%;text-align:center}
+#titlecv{width:min(90vw,520px);height:auto}
+.ov h1{font:800 26px/1.2 system-ui;letter-spacing:.06em;margin:.3em 0;color:#fce070}
+.ov p{color:#c9c3e6;margin:.5em 0}
+.ov .btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
+.ov button{font:700 16px system-ui;letter-spacing:.05em;padding:13px 22px;border-radius:10px;border:2px solid #fce070;background:#a8308f;color:#fff;cursor:pointer;min-width:150px}
+.ov button.alt{background:#222;border-color:#666}
+.ov small{color:#8a84a8;display:block;margin-top:16px;font-size:12px}
+#help .card{text-align:left;max-height:86vh;overflow:auto;background:#120f26;border:1px solid #3a3466;border-radius:14px;padding:18px 20px}
+#help h2{margin:.2em 0 .4em;color:#fce070;font-size:20px}#help h3{margin:1em 0 .3em;color:#fc90fc;font-size:15px}
+#help li{margin:.2em 0;color:#d6d0f0}#help kbd{background:#333;border-radius:4px;padding:1px 5px;font-size:12px}
+#partcard{position:fixed;left:0;right:0;top:30%;z-index:6;text-align:center;pointer-events:none;text-shadow:0 3px 0 #000}
+#partcard b{display:block;font:800 18px ui-monospace,monospace;letter-spacing:.4em;color:#fc90fc}
+#partcard span{display:block;font:800 clamp(22px,6vw,44px) system-ui;letter-spacing:.06em;color:#fce070}
+#partcard.fade{animation:pc 2.6s ease forwards}
+@keyframes pc{0%{opacity:0;transform:scale(.9)}15%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0}}
+#loading{position:fixed;inset:0;z-index:9;background:#000;display:flex;align-items:center;justify-content:center;font:700 14px ui-monospace,monospace;letter-spacing:.3em;color:#fc90fc}
+#loading[hidden]{display:none}
+</style>
+</head><body>
+<canvas id="view"></canvas>
+
+<div id="top"><canvas id="statcv" width="120" height="8"></canvas><span class="sp"></span>
+  <button id="helpbtn" title="How to play">?</button><button id="mute" title="Sound on/off">&#x1F50A;</button><button id="quit" title="Back to title">&#x2302;</button></div>
+<div id="bossbar"><div id="bossfill"></div></div>
+<div id="band"><div id="box"><canvas id="boxcv"></canvas></div></div>
+<div id="partcard" hidden><b></b><span></span></div>
+
+<div id="touch">
+  <div id="stickzone"></div>
+  <div id="stickbase"><div id="stickknob"></div></div>
+  <div id="btnA" class="tb">FIRE</div>
+  <div id="btnB" class="tb">BACK</div>
+</div>
+<div id="diamond">
+  <button data-k="up">&#x25B2;<span></span></button>
+  <button data-k="left">&#x25C0;<span></span></button>
+  <button data-k="right">&#x25B6;<span></span></button>
+  <button data-k="down">&#x25BC;<span></span></button>
+</div>
+
+<div id="loading" hidden>LOADING</div>
+
+<div id="title" class="ov"><div class="card">
+  <canvas id="titlecv"></canvas>
+  <p>Starpath's 1982 Supercharger adventure, reverse engineered from the original tapes and rebuilt in 3D. Same monsters, same dice, same three parts.</p>
+  <div class="btns"><button id="continue" hidden>Continue</button><button id="newgame">New game</button><button id="howto" class="alt">How to play</button></div>
+  <small>Original game by Steve Landrum, Starpath Corporation, 1982. Fan remake.</small>
+</div></div>
+
+<div id="dead" class="ov" hidden><div class="card">
+  <h1>YOU ARE DEAD</h1><p>The countryside claims another hero.</p>
+  <div class="btns"><button id="retry">Try this part again</button><button id="deadnew" class="alt">New game</button></div>
+</div></div>
+
+<div id="win" class="ov" hidden><div class="card">
+  <h1>YOU HAVE DEFEATED THE DRAGON</h1><p>The enchanted amulet is yours. Dragonstomper!</p><p id="winstats"></p>
+  <div class="btns"><button id="winnew">Play again</button></div>
+</div></div>
+
+<div id="help" class="ov" hidden><div class="card">
+  <h2>How to play</h2>
+  <p>Three parts, as on the original tapes: cross the <b>Enchanted Countryside</b> and get past the bridge guard, gear up in the <b>Village</b>, then go down into the <b>Dragon's Cave</b> and kill the dragon.</p>
+  <h3>Controls</h3>
+  <ul>
+    <li>Move: stick (left half of the screen on a phone), <kbd>WASD</kbd> or arrows, or a gamepad.</li>
+    <li><b>FIRE</b> (<kbd>Space</kbd> / <kbd>Enter</kbd>) opens the menu: <b>&#x25B2; MOVE &#x25B6; FIGHT &#x25C0; USE &#x25BC; STATUS</b>. Push the stick that way (or <kbd>1</kbd>-<kbd>4</kbd>) to pick.</li>
+    <li><b>BACK</b> (<kbd>Esc</kbd> / <kbd>X</kbd>) closes menus. In the dragon's lair FIRE attacks and BACK opens the menu.</li>
+  </ul>
+  <h3>Searching and fighting</h3>
+  <ul>
+    <li>Walk into trees, huts, temples, rocks, lakes and swamps to search them. You might find gold or an item - or a monster, a trap or a pit.</li>
+    <li>Fights take turns. <b>FIGHT</b> swings, <b>RUN</b> tries to get away, <b>USE</b> uses an item. STR is your life; DEX decides who hits. STR slowly comes back while you walk.</li>
+    <li>Churches: DONATE 200 fills your STR, DONATE 15 might give one point.</li>
+  </ul>
+  <h3>Items</h3>
+  <ul>
+    <li><b>CROSS, RING, STAFF, CHARM, POTION</b> are magic. Each game the five effects are dealt out at random: full strength (and +2 max), better DEX, worse DEX, poison, or protection. The only clue the game gives is "THE RING FEELS WEIRD" - watch your numbers.</li>
+    <li><b>KEY</b> opens locked doors and a <b>CHEST</b> (75 gold and maybe an item). <b>HANDAXE</b> hits harder, <b>SHIELD</b> blocks a point of damage.</li>
+    <li>The bridge guard wants your <b>ID</b> - the PAPER. Maniacs carry it. Or pay him, or fight him if you are very brave.</li>
+    <li>In the village: the Trade Shop sells a LANTERN (light in the cave), MEDICINE (cures fever), ROPE (pits), CHAIN armour, ELIXIR, VITAMINS, a LONGBOW (hit the dragon from afar), a SAPPHIRE (stops dragon magic cancelling your spells) and a RUBY (halves dragon fire). The Magic Shop sells BLAST, FLASH, STUN, UNLOCK, VISION and PROTECT. Warriors will fight for you, for a price.</li>
+  </ul>
+  <h3>About</h3>
+  <p>The monsters, items, scenery shapes, colours, font, text and combat rules were pulled straight out of the 6502 code on the three Supercharger loads. See REVERSE_ENGINEERING.md in the project for the details.</p>
+  <div class="btns"><button id="helpclose">Got it</button></div>
+</div></div>
+
+<script type="module" src="js/main.js"></script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+</body></html>

@@ -17,6 +17,13 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
+## Dragonstomper 3D (`/dragonstomper/`)
+Starpath's 1982 Supercharger adventure, reverse engineered from the original tapes and rebuilt as a 3D game with three.js. Open `https://<your-username>.github.io/<repo>/dragonstomper/` and Add to Home screen.
+- The monsters, items, scenery shapes, colours, font, every line of text and the combat rules (dice, hit rolls, loot, the shuffled magic items, the church) come straight out of the 6502 code; the 8-pixel sprites are turned into voxel models.
+- Three parts as on the tapes: the Enchanted Countryside and its bridge guard, the Village (shops, hospital, warriors for hire), and the Dragon's Cave with a real-time dragon fight.
+- Works with touch (stick + FIRE/BACK, big menu buttons), keyboard or a gamepad. Saves in the browser.
+- `dragonstomper/tools/` has the extractor, a small Supercharger emulator and a disassembler; `dragonstomper/REVERSE_ENGINEERING.md` has the notes. The ROM is not included: run `python3 dragonstomper/tools/extract.py <your dragonstomper.zip>` to rebuild `data.js`.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
