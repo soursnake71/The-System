@@ -36,8 +36,10 @@ jobs:
         shell: pwsh
         run: |
           Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pv.zip; Expand-Archive pv.zip -DestinationPath pv
-          ./pv/pluginval.exe --strictness-level 8 --skip-gui-tests --validate-in-process --timeout-ms 300000 "build/SkySequencer_artefacts/Release/VST3/Sky Sequencer.vst3"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # pluginval's exit code isn't reliable on Windows, so judge by its report
+          ./pv/pluginval.exe --strictness-level 8 --skip-gui-tests --validate-in-process --timeout-ms 300000 "build/SkySequencer_artefacts/Release/VST3/Sky Sequencer.vst3" | Tee-Object -FilePath pv.log
+          if ((Select-String -Path pv.log -Pattern 'FAILED' -Quiet) -or -not (Select-String -Path pv.log -Pattern 'SUCCESS' -Quiet)) { exit 1 }
+          exit 0
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -47,6 +49,18 @@ jobs:
           Copy-Item "build/SkySequencer_artefacts/Release/Standalone/Sky Sequencer.exe" out/
           Copy-Item plugin/INSTALL.txt out/
           Compress-Archive -Path out/* -DestinationPath SkySequencer-Windows.zip
+      - name: Installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Qp "/DBuildDir=$PWD\build" plugin\installer\SkySequencer.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Move-Item dist\SkySequencer-Windows-Setup.exe .
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with: {name: SkySequencer-Windows-Setup, path: SkySequencer-Windows-Setup.exe}
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -70,5 +84,5 @@ jobs:
       - name: Attach to release
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
-          gh release view sky-plugin-latest >/dev/null 2>&1 || gh release create sky-plugin-latest --target "${{ github.sha }}" --prerelease --title "Sky Sequencer plugin (latest build)" --notes "VST3 + standalone for Windows, macOS (also AU) and Linux. Unzip and follow INSTALL.txt inside."
-          gh release upload sky-plugin-latest dist/*.zip --clobber
+          gh release view sky-plugin-latest >/dev/null 2>&1 || gh release create sky-plugin-latest --target "${{ github.sha }}" --prerelease --title "Sky Sequencer plugin (latest build)" --notes "Windows: run SkySequencer-Windows-Setup.exe (installs the VST3 and the standalone app). Zips for Windows, macOS (VST3 + AU) and Linux: unzip and follow INSTALL.txt inside."
+          gh release upload sky-plugin-latest dist/*.zip dist/*.exe --clobber

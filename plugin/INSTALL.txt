@@ -1,7 +1,10 @@
 SKY SEQUENCER - install
 
 Windows
-  Copy the "Sky Sequencer.vst3" folder to  C:\Program Files\Common Files\VST3\
+  Easiest: run SkySequencer-Windows-Setup.exe. It puts the VST3 where every DAW looks and adds the standalone app
+  to the Start menu. Windows may say "Windows protected your PC" (the installer isn't code-signed):
+  click "More info", then "Run anyway".
+  Or by hand: copy the "Sky Sequencer.vst3" folder to  C:\Program Files\Common Files\VST3\
   Rescan plugins in your DAW. "Sky Sequencer.exe" is the standalone app (no DAW needed).
 
 macOS
