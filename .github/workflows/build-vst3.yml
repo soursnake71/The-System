@@ -1,0 +1,60 @@
+name: Build The F.A.R.P. VST3 (Windows)
+
+on:
+  push:
+    branches: [farp-vst3]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get the WebView2 SDK (the plugin window is a WebView2 page)
+        shell: pwsh
+        run: nuget install Microsoft.Web.WebView2 -Version 1.0.2903.40 -OutputDirectory "$env:RUNNER_TEMP\webview2"
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -A x64 -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$($env:RUNNER_TEMP -replace '\\','/')/webview2"
+
+      - name: Build
+        run: cmake --build build --config Release --target FARP_VST3 FARP_Standalone --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $art = "build/FARP_artefacts/Release"
+          Get-ChildItem -Recurse $art | Select-Object FullName | Format-Table -AutoSize | Out-String -Width 300 | Write-Host
+          $out = "package"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $bundle = Get-ChildItem "$art/VST3" -Directory -Filter "*.vst3" | Select-Object -First 1
+          Copy-Item -Recurse $bundle.FullName "$out/FARP.vst3"
+          $inner = Get-ChildItem "$out/FARP.vst3/Contents/x86_64-win" -Filter "*.vst3" | Select-Object -First 1
+          if ($inner.Name -ne "FARP.vst3") { Rename-Item $inner.FullName "FARP.vst3" }
+          $exe = Get-ChildItem "$art/Standalone" -Filter "*.exe" | Select-Object -First 1
+          Copy-Item $exe.FullName "$out/FARP Standalone.exe"
+          Copy-Item "INSTALL.txt" "$out/INSTALL.txt"
+          Compress-Archive -Path "$out/*" -DestinationPath "FARP-VST3-Windows.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FARP-VST3-Windows
+          path: FARP-VST3-Windows.zip
+
+      - name: Publish to the Releases page
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view farp-vst3-latest >/dev/null 2>&1; then
+            gh release upload farp-vst3-latest FARP-VST3-Windows.zip --clobber
+          else
+            gh release create farp-vst3-latest FARP-VST3-Windows.zip --target farp-vst3 \
+              --title "The F.A.R.P. VST3 for Windows" \
+              --notes "Unzip, then copy FARP.vst3 to C:\\Program Files\\Common Files\\VST3\\ and rescan plugins in your DAW. See INSTALL.txt."
+          fi

@@ -1,0 +1,23 @@
+THE F.A.R.P. - VST3 for Windows
+
+Install
+  1. Copy the FARP.vst3 folder to  C:\Program Files\Common Files\VST3\
+  2. In your music software, rescan plugins. It shows up as an instrument called "The F.A.R.P."
+  "FARP Standalone.exe" runs it on its own (pick your audio device and MIDI keyboard in its Options).
+
+Needs
+  Windows 10 or 11 (64-bit). The plugin window uses Microsoft Edge WebView2, which Windows already has.
+
+ROMs
+  Open the plugin, go to INSTRUMENTS > ROMS and press "Change..." to pick the folder with your ROM zips
+  (the same MAME-style zips the app uses). Nothing is copied: the plugin reads them from that folder.
+  The sounds you pick are saved with your project.
+
+Playing
+  MIDI from your DAW track plays whatever the on-screen keyboard plays: the instrument picked on the
+  INSTRUMENTS screen, or the split. Mod wheel, pitch bend and the sustain pedal work.
+
+Vocoder
+  The vocoder's voice can be the speech lines (VOICE tab) or audio sent into the plugin: route a mic or
+  an audio track into the plugin's input (or sidechain), and choose "Plugin input" under SPEECH > Voice from.
+  Chords from your DAW speak the lines the same way the on-screen keyboard does.
