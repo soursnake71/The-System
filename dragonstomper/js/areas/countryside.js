@@ -81,7 +81,7 @@ export class Countryside {
       const px = pathX(z);
       let h = fbm(x * 0.012, z * 0.012, 0, 4) * 6 + fbm(x * 0.05, z * 0.05, 3, 3) * 0.8;
       const side = Math.max(0, Math.abs(x) - HALF);
-      h += Math.min(side, 70) ** 2 * 0.009 + side * 0.3 + Math.max(0, side - 10) * fbm(x * 0.03, z * 0.03, 7, 3) * 2.2;
+      h += Math.min(side, 70) ** 2 * 0.009 + side * 0.3 + THREE.MathUtils.clamp(side - 10, 0, 50) * fbm(x * 0.02, z * 0.02, 7, 3) * 1.6;
       // crags and ledges on the valley walls
       if (side > 2) h += Math.min(side - 2, 40) * 0.22 * fbm(x * 0.04, z * 0.04, 11, 4);
       // flatten the road
