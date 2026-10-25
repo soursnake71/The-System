@@ -1,0 +1,40 @@
+# Builds the Dragonstomper Windows installer (an Electron app around /dragonstomper/).
+# Pull requests get it as a downloadable artifact; pushes to main also attach it to the
+# "dragonstomper-latest" release.
+name: Dragonstomper Windows installer
+on:
+  push:
+    branches: [main]
+    paths: ['dragonstomper/**', '.github/workflows/dragonstomper-windows.yml']
+  pull_request:
+    paths: ['dragonstomper/**', '.github/workflows/dragonstomper-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: dragonstomper/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Build
+        run: |
+          npm ci --no-audit --no-fund
+          npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dragonstomper-Setup
+          path: dragonstomper/desktop/dist/Dragonstomper-Setup-*.exe
+          compression-level: 0
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view dragonstomper-latest >/dev/null 2>&1 || gh release create dragonstomper-latest --title "Dragonstomper for Windows (latest)" --notes "Download Dragonstomper-Setup.exe and run it. Windows may warn that the app is from an unknown publisher (it isn't code-signed): choose More info, then Run anyway."
+          cp dist/Dragonstomper-Setup-*.exe dist/Dragonstomper-Setup.exe
+          gh release upload dragonstomper-latest dist/Dragonstomper-Setup.exe --clobber

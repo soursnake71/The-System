@@ -57,6 +57,8 @@ $('bQuit').onclick = () => { game.save(); stop(); music(null); refreshContinue()
 $('bRetry').onclick = () => retry();
 $('bDeadNew').onclick = () => newGame();
 $('bWonNew').onclick = () => { Game.wipeSave(); refreshContinue(); newGame(); };
+// the Windows app can quit; in a browser tab there's nothing to quit to
+if (window.desktop) { $('bExit').hidden = false; $('bExit').onclick = () => { game.save(); window.desktop.quit(); }; }
 
 // ---------- settings ----------
 const fields = {

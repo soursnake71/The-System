@@ -18,7 +18,8 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
 ## Dragonstomper 3D (`/dragonstomper/`)
-Starpath's 1982 Supercharger adventure, reverse engineered from the original tapes and rebuilt as a realistic desktop 3D action game with three.js. Open `https://<your-username>.github.io/<repo>/dragonstomper/` in a desktop browser.
+Starpath's 1982 Supercharger adventure, reverse engineered from the original tapes and rebuilt as a realistic desktop 3D action game with three.js. Open `https://<your-username>.github.io/<repo>/dragonstomper/` in a desktop browser, or install it on Windows.
+- **Windows installer:** download `Dragonstomper-Setup.exe` from the `dragonstomper-latest` release and run it. It installs per user (no admin needed), adds Start menu and desktop shortcuts, and has an uninstaller. It isn't code-signed, so SmartScreen may warn: choose *More info → Run anyway*. The app is an Electron wrapper in `dragonstomper/desktop/` (`npm run dist` builds the installer; GitHub Actions builds it on every change).
 - Third-person over-the-shoulder camera, or first person (V / R3). Real-time sword combat (combo, shield block, dodge roll, stamina) where every hit and every point of damage is still rolled with the ROM's own dice and monster stats.
 - PBR rendering: Poly Haven scanned textures and models, HDR sky lighting, ACES tone mapping, soft shadows, ambient occlusion (GTAO), bloom, SMAA, GPU grass and procedural trees. Quality presets Low to Ultra; render resolution up to 4K (3840×2160), or supersampled to 4K on a smaller screen.
 - Keyboard and mouse, or an Xbox or PlayStation controller (standard Gamepad API mapping, button prompts follow the pad you use, menus work with the d-pad).
