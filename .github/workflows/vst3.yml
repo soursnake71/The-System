@@ -1,0 +1,54 @@
+# Builds the Omega plugins (VST3, plus AU on macOS) for Windows, macOS and Linux and attaches a zip for each
+# to the "vst3-latest" release.
+name: Omega VST3 plugins
+on:
+  push:
+    branches: [main]
+    paths: ['plugins/**', '.github/workflows/vst3.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls out
+          cd out && 7z a -tzip "../Omega-Plugins-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'Omega-Plugins-${{ matrix.name }}', path: 'Omega-Plugins-${{ matrix.name }}.zip'}
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls dl
+          gh release view vst3-latest >/dev/null 2>&1 || gh release create vst3-latest --title "Omega plugins (latest)" --notes "The Omega System instruments and effects as VST3 plugins (AU too on Mac). Download the zip for your computer, unzip, and copy the .vst3 files into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 (and the .component files into /Library/Audio/Plug-Ins/Components), Linux ~/.vst3. On a Mac, if your DAW refuses them, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
+          gh release upload vst3-latest dl/*.zip --clobber
