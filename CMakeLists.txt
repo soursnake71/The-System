@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
+# link the C++ runtime into the plugin so it doesn't need the Visual C++ redistributable
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 project(FARP VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)

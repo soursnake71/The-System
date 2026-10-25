@@ -165,7 +165,7 @@ void FarpProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void FarpProcessor::postOut (std::string&& s)
 {
     std::unique_lock<std::mutex> o (outbox.m, std::try_to_lock);
-    if (o.owns_lock()) outbox.msgs.push_back (std::move (s));
+    if (o.owns_lock() && outbox.msgs.size() < 256) outbox.msgs.push_back (std::move (s));
 }
 
 // messages the engine doesn't know: MIDI routing and the vocoder's spoken phrases
