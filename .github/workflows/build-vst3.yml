@@ -41,10 +41,19 @@ jobs:
           Copy-Item "INSTALL.txt" "$out/INSTALL.txt"
           Compress-Archive -Path "$out/*" -DestinationPath "FARP-VST3-Windows.zip" -Force
 
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
+          if (-not (Test-Path FARP-Setup.exe)) { throw "installer not built" }
+
       - uses: actions/upload-artifact@v4
         with:
           name: FARP-VST3-Windows
-          path: FARP-VST3-Windows.zip
+          path: |
+            FARP-VST3-Windows.zip
+            FARP-Setup.exe
 
       - name: Publish to the Releases page
         shell: bash
@@ -52,9 +61,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view farp-vst3-latest >/dev/null 2>&1; then
-            gh release upload farp-vst3-latest FARP-VST3-Windows.zip --clobber
+            gh release upload farp-vst3-latest FARP-VST3-Windows.zip FARP-Setup.exe --clobber
           else
-            gh release create farp-vst3-latest FARP-VST3-Windows.zip --target farp-vst3 \
+            gh release create farp-vst3-latest FARP-VST3-Windows.zip FARP-Setup.exe --target farp-vst3 \
               --title "The F.A.R.P. VST3 for Windows" \
-              --notes "Unzip, then copy FARP.vst3 to C:\\Program Files\\Common Files\\VST3\\ and rescan plugins in your DAW. See INSTALL.txt."
+              --notes "Run FARP-Setup.exe (or unzip and copy FARP.vst3 to C:\\Program Files\\Common Files\\VST3\\ by hand), then rescan plugins in your DAW. See INSTALL.txt."
           fi

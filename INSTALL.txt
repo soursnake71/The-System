@@ -1,6 +1,9 @@
 THE F.A.R.P. - VST3 for Windows
 
 Install
+  Run FARP-Setup.exe. It puts the plugin in C:\Program Files\Common Files\VST3, the standalone app in
+  Program Files, and makes Documents\FARP ROMs and Documents\FARP Samples for your files.
+  Or by hand:
   1. Copy the FARP.vst3 folder to  C:\Program Files\Common Files\VST3\
   2. In your music software, rescan plugins. It shows up as an instrument called "The F.A.R.P."
   "FARP Standalone.exe" runs it on its own (pick your audio device and MIDI keyboard in its Options).
