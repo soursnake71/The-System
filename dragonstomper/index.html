@@ -1,142 +1,263 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>Dragonstomper 3D</title><meta name="theme-color" content="#0b0b14">
-<meta name="description" content="Starpath's 1982 Dragonstomper, reverse engineered from the Supercharger tapes and rebuilt in 3D.">
-<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragonstomper</title>
+<meta name="description" content="Starpath's 1982 Dragonstomper, reverse engineered from the Supercharger tapes and rebuilt as a realistic third and first person 3D game.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }
+</script>
 <style>
-:root{--band:#545cd6;--box:#a8308f;--ink:#fc90fc;--bg:#0b0b14}
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#eee;font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none}
-canvas{image-rendering:pixelated}
-#view{position:fixed;inset:0;width:100%;height:100%;display:block}
-/* top bar */
-#top{position:fixed;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top)) 10px 6px;background:linear-gradient(#000c,#0000);z-index:3}
-#statcv{height:auto;width:min(300px,62vw);flex:none}
-#top .sp{flex:1}
-#top button{background:#0008;border:1px solid #fff3;color:#fff;border-radius:8px;min-width:36px;height:34px;font-size:16px;cursor:pointer}
-/* the message band, like the bottom of the 2600 screen */
-#band{position:fixed;left:0;right:0;bottom:0;background:var(--band);padding:8px 0 calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center;z-index:3;transition:background .4s}
-#box{background:var(--box);padding:0}
-#boxcv{display:block;width:min(92vw,400px);height:auto}
-#bossbar{position:fixed;top:calc(52px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(70vw,420px);height:12px;border:2px solid #fce070;background:#300;display:none;z-index:3}
-#bossfill{height:100%;width:100%;background:linear-gradient(#5c5,#272)}
-#bossbar::before{content:"THE DRAGON";position:absolute;top:-19px;left:0;font:700 12px ui-monospace,monospace;letter-spacing:.2em;color:#fce070}
-/* touch controls */
-#touch{display:none}
-@media (pointer:coarse){
-  #touch{display:block}
-  #band{bottom:auto;top:calc(44px + env(safe-area-inset-top));background:transparent;padding:0}
-  #boxcv{width:min(94vw,520px);border:3px solid var(--band)}
-  #bossbar{top:auto;bottom:calc(200px + env(safe-area-inset-bottom))}
+:root {
+  --gold: #e7c77a; --gold-dim: #a88c4c; --ink: #f2ead8; --ink-dim: #b9ae96; --bg: #07080c;
+  --panel: rgba(12, 11, 9, 0.82); --edge: rgba(231, 199, 122, 0.35); --red: #c8302a; --green: #6fbf5a;
+  --serif: 'EB Garamond', Georgia, serif; --title: 'Cinzel', Georgia, serif;
 }
-#stickzone{position:fixed;left:0;bottom:0;width:58vw;height:60vh;z-index:2;touch-action:none}
-#stickbase{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid #fff5;background:#fff1;display:none;z-index:2;pointer-events:none}
-#stickknob{position:absolute;left:50%;top:50%;width:50px;height:50px;border-radius:50%;background:#fff6;transform:translate(-50%,-50%)}
-.tb{position:fixed;z-index:4;border-radius:50%;border:2px solid #fff6;background:#0007;color:#fff;font:800 22px system-ui;touch-action:none;display:flex;align-items:center;justify-content:center}
-.tb.down{background:#fff4}
-#btnA{right:calc(22px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));width:92px;height:92px;background:#a3391599}
-#btnB{right:calc(128px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom));width:60px;height:60px;font-size:13px}
-body.modal #btnA,body.modal #btnB{opacity:.35}
-/* four-way menu buttons (shown with menus on touch screens) */
-#diamond{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(150px + env(safe-area-inset-bottom));width:230px;height:200px;z-index:5;display:none}
-@media (pointer:coarse){#diamond.dir,#diamond.list{display:block}}
-#diamond button{position:absolute;width:104px;height:56px;border-radius:12px;border:2px solid var(--ink);background:var(--box);color:#fff;font:800 13px ui-monospace,monospace;letter-spacing:.05em;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;touch-action:none}
-#diamond button.down{filter:brightness(1.5)}
-#diamond [data-k=up]{left:63px;top:0}#diamond [data-k=down]{left:63px;bottom:0}
-#diamond [data-k=left]{left:0;top:72px}#diamond [data-k=right]{right:0;top:72px}
-#diamond.list [data-k=right] span::after{content:"OK"}#diamond.list [data-k=left] span::after{content:"BACK"}
-#diamond.list span{font-size:0}#diamond.list span::after{font-size:13px}
-/* overlays */
-.ov{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#1b1640ee,#000f);padding:20px}
-.ov[hidden]{display:none}
-.card{max-width:560px;width:100%;text-align:center}
-#titlecv{width:min(90vw,520px);height:auto}
-.ov h1{font:800 26px/1.2 system-ui;letter-spacing:.06em;margin:.3em 0;color:#fce070}
-.ov p{color:#c9c3e6;margin:.5em 0}
-.ov .btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
-.ov button{font:700 16px system-ui;letter-spacing:.05em;padding:13px 22px;border-radius:10px;border:2px solid #fce070;background:#a8308f;color:#fff;cursor:pointer;min-width:150px}
-.ov button.alt{background:#222;border-color:#666}
-.ov small{color:#8a84a8;display:block;margin-top:16px;font-size:12px}
-#help .card{text-align:left;max-height:86vh;overflow:auto;background:#120f26;border:1px solid #3a3466;border-radius:14px;padding:18px 20px}
-#help h2{margin:.2em 0 .4em;color:#fce070;font-size:20px}#help h3{margin:1em 0 .3em;color:#fc90fc;font-size:15px}
-#help li{margin:.2em 0;color:#d6d0f0}#help kbd{background:#333;border-radius:4px;padding:1px 5px;font-size:12px}
-#partcard{position:fixed;left:0;right:0;top:30%;z-index:6;text-align:center;pointer-events:none;text-shadow:0 3px 0 #000}
-#partcard b{display:block;font:800 18px ui-monospace,monospace;letter-spacing:.4em;color:#fc90fc}
-#partcard span{display:block;font:800 clamp(22px,6vw,44px) system-ui;letter-spacing:.06em;color:#fce070}
-#partcard.fade{animation:pc 2.6s ease forwards}
-@keyframes pc{0%{opacity:0;transform:scale(.9)}15%{opacity:1;transform:scale(1)}75%{opacity:1}100%{opacity:0}}
-#loading{position:fixed;inset:0;z-index:9;background:#000;display:flex;align-items:center;justify-content:center;font:700 14px ui-monospace,monospace;letter-spacing:.3em;color:#fc90fc}
-#loading[hidden]{display:none}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--serif); user-select: none; }
+canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+button { font: inherit; color: inherit; cursor: pointer; }
+kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px solid var(--gold-dim); border-radius: 4px; background: rgba(0,0,0,.5); font: 600 0.8em var(--title); color: var(--gold); text-align: center; line-height: 1.6em; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s; }
+#hud.on { opacity: 1; }
+#vitals { position: absolute; left: 36px; bottom: 34px; width: 340px; }
+.bar { position: relative; height: 14px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); margin-bottom: 6px; }
+.bar > div { position: absolute; inset: 1px auto 1px 1px; transition: width .25s; }
+#hpfill { background: linear-gradient(#d84a3a, #8a1e16); width: 100%; }
+#stbar { height: 7px; }
+#stfill { background: linear-gradient(#e6dca2, #a39456); width: 100%; transition: width .1s; }
+#hptext { position: absolute; inset: 0; font: 600 10px/14px var(--title); letter-spacing: .12em; padding-left: 8px; text-shadow: 0 1px 2px #000; }
+#statline { font: 600 13px var(--title); letter-spacing: .1em; color: var(--ink-dim); text-shadow: 0 1px 3px #000; display: flex; gap: 18px; }
+#gold::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff2b0, #c79a2c 60%, #6a4a0c); margin-right: 6px; }
+#status { color: #e4785a; }
+#spells { position: absolute; right: 36px; bottom: 34px; display: flex; gap: 6px; }
+.slot { width: 74px; padding: 6px 4px; background: var(--panel); border: 1px solid var(--edge); text-align: center; font: 600 10px var(--title); letter-spacing: .08em; }
+.slot b { display: block; color: var(--gold); font-size: 12px; }
+.slot i { display: block; font-style: normal; color: var(--ink-dim); }
+#compass { position: absolute; top: 22px; left: 50%; width: 360px; height: 26px; margin-left: -180px; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1440' height='26'%3E%3Cg font-family='Georgia' font-size='13' fill='%23e7c77a' text-anchor='middle'%3E%3Ctext x='0' y='18'%3EN%3C/text%3E%3Ctext x='360' y='18'%3EE%3C/text%3E%3Ctext x='720' y='18'%3ES%3C/text%3E%3Ctext x='1080' y='18'%3EW%3C/text%3E%3Ctext x='1440' y='18'%3EN%3C/text%3E%3C/g%3E%3Cg stroke='%23b9ae96' stroke-opacity='.5'%3E%3Cpath d='M180 8v10M540 8v10M900 8v10M1260 8v10'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat-x; background-position: 180px 0; -webkit-mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent); mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent); }
+#compass::after { content: ''; position: absolute; left: 50%; top: -1px; border: 5px solid transparent; border-top-color: var(--gold); margin-left: -5px; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255,255,255,.75); box-shadow: 0 0 3px #000; opacity: 0; }
+#crosshair.on { opacity: 1; }
+#prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); font: 600 15px var(--title); letter-spacing: .08em; text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .15s; white-space: nowrap; }
+#prompt.on { opacity: 1; }
+#subtitles { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: 70vw; padding: 8px 22px; background: rgba(0,0,0,.55); font: 600 20px var(--title); letter-spacing: .12em; text-align: center; opacity: 0; transition: opacity .3s; }
+#subtitles.on { opacity: 1; }
+#toasts { position: absolute; right: 36px; top: 80px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.toast { padding: 8px 16px; background: var(--panel); border-left: 2px solid var(--gold); font-size: 17px; transition: opacity .6s, transform .6s; }
+.toast.out { opacity: 0; transform: translateX(20px); }
+#boss { position: absolute; left: 50%; bottom: 96px; width: 620px; margin-left: -310px; opacity: 0; transition: opacity .5s; }
+#boss.on { opacity: 1; }
+#boss span { display: block; font: 700 18px var(--title); letter-spacing: .2em; text-shadow: 0 1px 4px #000; margin-bottom: 4px; }
+#boss div { height: 10px; background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.2); }
+#boss i { display: block; height: 100%; background: linear-gradient(#d0402c, #6e140c); transition: width .3s; }
+#enemybars { position: absolute; inset: 0; }
+.ebar { position: absolute; left: 0; top: 0; width: 110px; text-align: center; }
+.ebar span { font: 600 10px var(--title); letter-spacing: .14em; text-shadow: 0 1px 3px #000; }
+.ebar i { display: block; height: 4px; background: #c43a2a; box-shadow: 0 0 0 1px rgba(0,0,0,.7); }
+#floaters { position: fixed; inset: 0; pointer-events: none; }
+.float { position: absolute; left: 0; top: 0; font: 700 22px var(--title); text-shadow: 0 2px 4px #000; white-space: nowrap; }
+.float.dmg { color: #fff1c8; } .float.miss { color: #c9c1b0; font-size: 16px; } .float.hurt { color: #ff5a46; }
+.float.gold { color: #ffd35a; font-size: 18px; } .float.good { color: #8fe07a; font-size: 18px; } .float.bad { color: #ff7a5a; font-size: 18px; }
+#vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.45)); transition: background .2s; }
+#vignette.hit { background: radial-gradient(ellipse at center, transparent 35%, rgba(150,0,0,.55)); transition: none; }
+
+/* ---------- dialogs ---------- */
+#dialog { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.45); }
+#dialog.on { display: flex; }
+.card { min-width: 440px; max-width: 620px; padding: 28px 34px; background: linear-gradient(rgba(22,19,14,.95), rgba(10,9,7,.95)); border: 1px solid var(--edge); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.card.wide { max-width: 900px; width: 80vw; }
+.card h2 { margin: 0 0 10px; font: 700 26px var(--title); letter-spacing: .12em; color: var(--gold); }
+.card p { margin: 0 0 18px; font-size: 19px; line-height: 1.4; color: var(--ink); }
+.card .statline { font: 600 13px var(--title); letter-spacing: .08em; color: var(--ink-dim); }
+.opts { display: flex; flex-direction: column; gap: 6px; }
+.opts button { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(231,199,122,.18); text-align: left; font-size: 19px; }
+.opts button:hover { background: rgba(231,199,122,.14); border-color: var(--gold-dim); }
+.opts button b { font: 700 13px var(--title); color: var(--gold); width: 18px; }
+.opts button span { flex: 1; }
+.opts button small { color: var(--ink-dim); font-size: 15px; }
+.opts button.off { opacity: .4; }
+.opts canvas, .grid canvas { image-rendering: pixelated; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.cell { display: flex; flex-direction: column; align-items: center; padding: 12px 8px; background: rgba(255,255,255,.04); border: 1px solid rgba(231,199,122,.18); }
+.cell:hover { background: rgba(231,199,122,.14); }
+.cell span { font: 600 13px var(--title); letter-spacing: .06em; margin-top: 6px; }
+.cell small { color: var(--ink-dim); font-size: 14px; text-align: center; }
+.card .hint, .card .empty { color: var(--ink-dim); font-size: 15px; margin: 0; }
+
+/* ---------- screens ---------- */
+.screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.screen.on { display: flex; }
+#title { background: radial-gradient(ellipse at 50% 40%, rgba(40,26,12,.35), rgba(0,0,0,.85)), url('assets/title.jpg') center/cover, #07080c; }
+#title h1 { margin: 0; font: 900 clamp(48px, 7vw, 110px) var(--title); letter-spacing: .14em; color: var(--gold); text-shadow: 0 4px 30px rgba(0,0,0,.9), 0 0 60px rgba(200,120,40,.25); }
+#title .sub { margin: 6px 0 44px; font-size: 21px; font-style: italic; color: var(--ink-dim); }
+.menu { display: flex; flex-direction: column; gap: 4px; min-width: 300px; }
+.menu button { padding: 10px 24px; background: none; border: none; font: 600 20px var(--title); letter-spacing: .16em; color: var(--ink); transition: color .15s, letter-spacing .2s; }
+.menu button:hover, .menu button:focus, .opts button:focus, .cell:focus { color: var(--gold); letter-spacing: .22em; outline: none; }
+.menu button[disabled] { opacity: .3; pointer-events: none; }
+.menu small { display: block; font: italic 14px var(--serif); letter-spacing: 0; color: var(--ink-dim); }
+.foot { position: absolute; bottom: 20px; font-size: 14px; color: var(--ink-dim); opacity: .7; }
+#help.on { overflow-y: auto; justify-content: flex-start; padding: 4vh 16px; }
+#pause, #settings, #help { background: rgba(4,4,6,.72); backdrop-filter: blur(6px); }
+#pause h2, #settings h2, #help h2, #dead h2, #won h2 { font: 700 40px var(--title); letter-spacing: .2em; color: var(--gold); margin: 0 0 26px; }
+#loading { background: #050506; }
+#loading p { font: 600 16px var(--title); letter-spacing: .2em; color: var(--ink-dim); }
+#loadbar { width: 360px; height: 2px; background: rgba(255,255,255,.1); margin-top: 14px; }
+#loadbar i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .2s; }
+#loading .tip { margin-top: 40px; font-style: italic; font-size: 18px; max-width: 560px; color: var(--ink-dim); }
+.form { display: grid; grid-template-columns: 180px 300px; gap: 14px 22px; align-items: center; text-align: left; margin-bottom: 28px; }
+.form label { font: 600 14px var(--title); letter-spacing: .1em; color: var(--ink-dim); }
+.form select, .form input[type=range] { width: 100%; }
+.form select { padding: 6px 8px; background: #16130e; color: var(--ink); border: 1px solid var(--edge); font: 17px var(--serif); }
+.form input[type=range] { accent-color: var(--gold); }
+.form output { font-size: 14px; color: var(--ink-dim); margin-left: 8px; }
+.form .row { display: flex; align-items: center; }
+#gpu { font-size: 14px; color: var(--ink-dim); margin: -12px 0 22px; }
+.keys { display: grid; max-width: 92vw; grid-template-columns: auto auto; gap: 8px 26px; text-align: left; font-size: 18px; margin-bottom: 28px; }
+.keys div:nth-child(odd) { text-align: right; }
+#dead { background: radial-gradient(ellipse, rgba(60,0,0,.5), rgba(0,0,0,.9)); }
+#dead h2 { color: #d0402c; }
+#won { background: radial-gradient(ellipse, rgba(60,40,0,.4), rgba(0,0,0,.9)); }
+#won p, #dead p { font-size: 20px; color: var(--ink-dim); margin: -12px 0 30px; max-width: 640px; }
+#clickhint { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 14px 26px; background: var(--panel); border: 1px solid var(--edge); font: 600 16px var(--title); letter-spacing: .12em; display: none; }
+#clickhint.on { display: block; }
+#fps { position: fixed; right: 8px; top: 6px; font: 12px monospace; color: #9f9; display: none; }
+#fps.on { display: block; }
 </style>
-</head><body>
+</head>
+<body>
 <canvas id="view"></canvas>
+<div id="vignette"></div>
 
-<div id="top"><canvas id="statcv" width="120" height="8"></canvas><span class="sp"></span>
-  <button id="helpbtn" title="How to play">?</button><button id="mute" title="Sound on/off">&#x1F50A;</button><button id="quit" title="Back to title">&#x2302;</button></div>
-<div id="bossbar"><div id="bossfill"></div></div>
-<div id="band"><div id="box"><canvas id="boxcv"></canvas></div></div>
-<div id="partcard" hidden><b></b><span></span></div>
-
-<div id="touch">
-  <div id="stickzone"></div>
-  <div id="stickbase"><div id="stickknob"></div></div>
-  <div id="btnA" class="tb">FIRE</div>
-  <div id="btnB" class="tb">BACK</div>
+<div id="hud">
+  <div id="compass"></div>
+  <div id="crosshair"></div>
+  <div id="enemybars"></div>
+  <div id="boss"><span></span><div><i></i></div></div>
+  <div id="vitals">
+    <div class="bar"><div id="hpfill"></div><span id="hptext"></span></div>
+    <div class="bar" id="stbar"><div id="stfill"></div></div>
+    <div id="statline"><span id="dex"></span><span id="gold"></span><span id="status"></span></div>
+  </div>
+  <div id="spells"></div>
+  <div id="prompt"></div>
+  <div id="subtitles"></div>
+  <div id="toasts"></div>
 </div>
-<div id="diamond">
-  <button data-k="up">&#x25B2;<span></span></button>
-  <button data-k="left">&#x25C0;<span></span></button>
-  <button data-k="right">&#x25B6;<span></span></button>
-  <button data-k="down">&#x25BC;<span></span></button>
-</div>
+<div id="floaters"></div>
+<div id="dialog"></div>
+<div id="clickhint">Click to continue</div>
+<div id="fps"></div>
 
-<div id="loading" hidden>LOADING</div>
+<section id="title" class="screen on">
+  <h1>DRAGONSTOMPER</h1>
+  <div class="sub">Find the amulet. Slay the dragon.</div>
+  <div class="menu">
+    <button id="bContinue" disabled>Continue<small></small></button>
+    <button id="bNew">New Game</button>
+    <button data-open="settings">Settings</button>
+    <button data-open="help">Controls</button>
+  </div>
+  <div class="foot">Rebuilt from Starpath's 1982 Supercharger game · keyboard &amp; mouse or gamepad</div>
+</section>
 
-<div id="title" class="ov"><div class="card">
-  <canvas id="titlecv"></canvas>
-  <p>Starpath's 1982 Supercharger adventure, reverse engineered from the original tapes and rebuilt in 3D. Same monsters, same dice, same three parts.</p>
-  <div class="btns"><button id="continue" hidden>Continue</button><button id="newgame">New game</button><button id="howto" class="alt">How to play</button></div>
-  <small>Original game by Steve Landrum, Starpath Corporation, 1982. Fan remake.</small>
-</div></div>
+<section id="loading" class="screen">
+  <p id="loadtext">LOADING</p>
+  <div id="loadbar"><i></i></div>
+  <div class="tip" id="tip"></div>
+</section>
 
-<div id="dead" class="ov" hidden><div class="card">
-  <h1>YOU ARE DEAD</h1><p>The countryside claims another hero.</p>
-  <div class="btns"><button id="retry">Try this part again</button><button id="deadnew" class="alt">New game</button></div>
-</div></div>
+<section id="pause" class="screen">
+  <h2>PAUSED</h2>
+  <div class="menu">
+    <button id="bResume">Resume</button>
+    <button data-open="settings">Settings</button>
+    <button data-open="help">Controls</button>
+    <button id="bQuit">Save &amp; Quit to Title</button>
+  </div>
+</section>
 
-<div id="win" class="ov" hidden><div class="card">
-  <h1>YOU HAVE DEFEATED THE DRAGON</h1><p>The enchanted amulet is yours. Dragonstomper!</p><p id="winstats"></p>
-  <div class="btns"><button id="winnew">Play again</button></div>
-</div></div>
+<section id="settings" class="screen">
+  <h2>SETTINGS</h2>
+  <div class="form">
+    <label for="sQuality">Graphics quality</label>
+    <select id="sQuality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
+    <label for="sRes">Render resolution</label>
+    <select id="sRes"><option value="50">50%</option><option value="75">75%</option><option value="native">Native</option><option value="4k">4K (3840 × 2160)</option></select>
+    <label for="sView">Camera</label>
+    <select id="sView"><option value="third">Third person</option><option value="first">First person</option></select>
+    <label for="sFov">Field of view</label>
+    <div class="row"><input id="sFov" type="range" min="55" max="100" step="1"><output></output></div>
+    <label for="sSens">Mouse sensitivity</label>
+    <div class="row"><input id="sSens" type="range" min="0.2" max="3" step="0.05"><output></output></div>
+    <label for="sInv">Invert Y</label>
+    <select id="sInv"><option value="0">Off</option><option value="1">On</option></select>
+    <label for="sVol">Volume</label>
+    <div class="row"><input id="sVol" type="range" min="0" max="1" step="0.05"><output></output></div>
+  </div>
+  <div id="gpu"></div>
+  <div class="menu"><button data-back>Back</button></div>
+</section>
 
-<div id="help" class="ov" hidden><div class="card">
-  <h2>How to play</h2>
-  <p>Three parts, as on the original tapes: cross the <b>Enchanted Countryside</b> and get past the bridge guard, gear up in the <b>Village</b>, then go down into the <b>Dragon's Cave</b> and kill the dragon.</p>
-  <h3>Controls</h3>
-  <ul>
-    <li>Move: stick (left half of the screen on a phone), <kbd>WASD</kbd> or arrows, or a gamepad.</li>
-    <li><b>FIRE</b> (<kbd>Space</kbd> / <kbd>Enter</kbd>) opens the menu: <b>&#x25B2; MOVE &#x25B6; FIGHT &#x25C0; USE &#x25BC; STATUS</b>. Push the stick that way (or <kbd>1</kbd>-<kbd>4</kbd>) to pick.</li>
-    <li><b>BACK</b> (<kbd>Esc</kbd> / <kbd>X</kbd>) closes menus. In the dragon's lair FIRE attacks and BACK opens the menu.</li>
-  </ul>
-  <h3>Searching and fighting</h3>
-  <ul>
-    <li>Walk into trees, huts, temples, rocks, lakes and swamps to search them. You might find gold or an item - or a monster, a trap or a pit.</li>
-    <li>Fights take turns. <b>FIGHT</b> swings, <b>RUN</b> tries to get away, <b>USE</b> uses an item. STR is your life; DEX decides who hits. STR slowly comes back while you walk.</li>
-    <li>Churches: DONATE 200 fills your STR, DONATE 15 might give one point.</li>
-  </ul>
-  <h3>Items</h3>
-  <ul>
-    <li><b>CROSS, RING, STAFF, CHARM, POTION</b> are magic. Each game the five effects are dealt out at random: full strength (and +2 max), better DEX, worse DEX, poison, or protection. The only clue the game gives is "THE RING FEELS WEIRD" - watch your numbers.</li>
-    <li><b>KEY</b> opens locked doors and a <b>CHEST</b> (75 gold and maybe an item). <b>HANDAXE</b> hits harder, <b>SHIELD</b> blocks a point of damage.</li>
-    <li>The bridge guard wants your <b>ID</b> - the PAPER. Maniacs carry it. Or pay him, or fight him if you are very brave.</li>
-    <li>In the village: the Trade Shop sells a LANTERN (light in the cave), MEDICINE (cures fever), ROPE (pits), CHAIN armour, ELIXIR, VITAMINS, a LONGBOW (hit the dragon from afar), a SAPPHIRE (stops dragon magic cancelling your spells) and a RUBY (halves dragon fire). The Magic Shop sells BLAST, FLASH, STUN, UNLOCK, VISION and PROTECT. Warriors will fight for you, for a price.</li>
-  </ul>
-  <h3>About</h3>
-  <p>The monsters, items, scenery shapes, colours, font, text and combat rules were pulled straight out of the 6502 code on the three Supercharger loads. See REVERSE_ENGINEERING.md in the project for the details.</p>
-  <div class="btns"><button id="helpclose">Got it</button></div>
-</div></div>
+<section id="help" class="screen">
+  <h2>CONTROLS</h2>
+  <div class="keys">
+    <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div>Move</div>
+    <div><kbd>Mouse</kbd></div><div>Look</div>
+    <div><kbd>Shift</kbd></div><div>Sprint</div>
+    <div><kbd>Space</kbd></div><div>Jump</div>
+    <div><kbd>Left click</kbd></div><div>Attack (click again to combo)</div>
+    <div><kbd>Right click</kbd></div><div>Raise shield (costs stamina)</div>
+    <div><kbd>C</kbd> / <kbd>Ctrl</kbd></div><div>Dodge roll</div>
+    <div><kbd>E</kbd></div><div>Search, talk, open</div>
+    <div><kbd>I</kbd> / <kbd>Tab</kbd></div><div>Inventory</div>
+    <div><kbd>1</kbd>–<kbd>6</kbd></div><div>Cast spells</div>
+    <div><kbd>R</kbd></div><div>Shoot longbow</div>
+    <div><kbd>V</kbd></div><div>Toggle first / third person</div>
+    <div><kbd>Wheel</kbd></div><div>Camera distance</div>
+    <div><kbd>Esc</kbd></div><div>Pause</div>
+  </div>
+  <div class="keys">
+    <div><b>Controller</b></div><div>Xbox &nbsp;/&nbsp; PlayStation</div>
+    <div>Left stick / Right stick</div><div>Move / Look</div>
+    <div><kbd>RT</kbd> <kbd>X</kbd> / <kbd>R2</kbd> <kbd>□</kbd></div><div>Attack</div>
+    <div><kbd>LT</kbd> / <kbd>L2</kbd></div><div>Shield</div>
+    <div><kbd>A</kbd> / <kbd>✕</kbd></div><div>Jump (and select in menus)</div>
+    <div><kbd>B</kbd> / <kbd>○</kbd></div><div>Dodge (and back in menus)</div>
+    <div><kbd>Y</kbd> / <kbd>△</kbd></div><div>Search, talk, open</div>
+    <div><kbd>L3</kbd> / <kbd>R3</kbd></div><div>Sprint / Toggle first person</div>
+    <div><kbd>LB</kbd> / <kbd>L1</kbd> &nbsp; <kbd>RB</kbd> / <kbd>R1</kbd></div><div>Longbow / Use item</div>
+    <div><kbd>View</kbd> / <kbd>Share</kbd></div><div>Inventory</div>
+    <div>D-pad</div><div>Spells 1–4</div>
+    <div><kbd>Menu</kbd> / <kbd>Options</kbd></div><div>Pause</div>
+  </div>
+  <div class="menu"><button data-back>Back</button></div>
+</section>
+
+<section id="dead" class="screen">
+  <h2>YOU ARE DEAD</h2>
+  <p id="deadtext"></p>
+  <div class="menu">
+    <button id="bRetry">Try Again<small>from the start of this region</small></button>
+    <button id="bDeadNew">New Game</button>
+  </div>
+</section>
+
+<section id="won" class="screen">
+  <h2>THE AMULET IS YOURS</h2>
+  <p id="wontext"></p>
+  <div class="menu"><button id="bWonNew">Play Again</button></div>
+</section>
 
 <script type="module" src="js/main.js"></script>
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});</script>
-</body></html>
+</body>
+</html>

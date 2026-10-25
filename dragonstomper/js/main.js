@@ -1,206 +1,251 @@
-// Dragonstomper 3D - boot, the main loop and moving between the three parts.
-import { ROM } from '../data.js';
-import { G, initEngine, makeHero, animateHero, updateCamera, stepWorld, save, load, wipe } from './engine.js';
-import { pollInput, take, clearQueue, bindTouch, bindButton, input } from './input.js';
-import { UI, drawText } from './ui.js';
-import { audioStart, sfx, toggleMute, isMuted, ambience } from './audio.js';
-import { fieldMenu, animateMonsters } from './play.js';
-import { Countryside } from './countryside.js';
-import { Village } from './village.js';
-import { Cave } from './cave.js';
+// Boot, menus and the main loop.
+import * as THREE from 'three';
+import { initGfx, gfx, render, settings, saveSettings, applyQuality, resize } from './core/gfx.js';
+import { input, initInput, pollInput, pressed, endFrame, lockPointer, unlockPointer } from './core/input.js';
+import { initAudio, setVolume, sfx, ambience } from './core/sound.js';
+import { progress } from './core/assets.js';
+import { HUD } from './ui/hud.js';
+import { Game } from './game/game.js';
+import { Countryside } from './areas/countryside.js';
+import { Village } from './areas/village.js';
+import { Cave } from './areas/cave.js';
 import * as R from './rules.js';
 
-const AREAS = [null, Countryside, Village, Cave];
-const TITLES = [null, ['PART 1', 'THE ENCHANTED COUNTRYSIDE'], ['PART 2', 'THE VILLAGE'], ['PART 3', 'THE DRAGON\'S CAVE']];
+const AREAS = { 1: Countryside, 2: Village, 3: Cave };
+const AREA_NAMES = { 1: 'The Countryside', 2: 'The Village', 3: 'The Dragon\'s Cave' };
+const TIPS = [
+  'Search trees, huts, rocks and lakes with E. Most hide nothing, some hide gold, a few hide monsters.',
+  'The bridge guard lets you pass if you show him your ID paper. Keep it safe.',
+  'Every blow is still decided by the 1982 dice: your DEX against the monster\'s attack.',
+  'Raise your shield with the right mouse button. Each block costs stamina.',
+  'Strength comes back slowly when nothing is hunting you.',
+  'Magic items are shuffled every game. The cross that saved you last time might poison you now.',
+  'Hired warriors fight beside you, all the way into the dragon\'s lair.',
+  'Without a sapphire, half your spells will fail against the dragon.',
+  'A ruby halves the dragon\'s fire. Buy one if you can afford it.',
+];
+
 const $ = (id) => document.getElementById(id);
+const canvas = $('view');
+const screens = ['title', 'loading', 'pause', 'settings', 'help', 'dead', 'won'];
+let current = 'title', back = 'title';
+function show(name) {
+  for (const s of screens) $(s).classList.toggle('on', s === name);
+  current = name;
+}
 
-let playing = false, busy = false, snapshot = null, regenT = 0;
+initGfx(canvas);
+initInput(canvas);
+const hud = new HUD();
+const game = new Game(hud);
+let playing = false;
 
-initEngine($('view'));
-G.ui = new UI();
-makeHero();
-bindTouch($('stickzone'), $('stickknob'), $('stickbase'));
-bindButton($('btnA'), 'A');
-bindButton($('btnB'), 'B');
+// ---------- menus ----------
+function refreshContinue() {
+  const s = Game.loadSave(), b = $('bContinue');
+  b.disabled = !s;
+  b.querySelector('small').textContent = s ? `${AREA_NAMES[s.part] || ''} · ${s.p.gold} gold · STR ${Math.max(0, s.p.str)}` : '';
+}
+refreshContinue();
 
-// ---------- title screen ----------
-function drawTitle() {
-  const cv = $('titlecv'), c = cv.getContext('2d');
-  cv.width = 160; cv.height = 70;
-  c.clearRect(0, 0, 160, 70);
-  const big = document.createElement('canvas'); big.width = 60; big.height = 7;
-  drawText(big.getContext('2d'), 'DRAGONSTOMPER', 1, 1, '#fce070');
-  c.imageSmoothingEnabled = false;
-  c.drawImage(big, 0, 0, 60, 7, -10 + 18, 2, 120, 14);
-  drawText(c, '3D', 74, 19, '#fc5454');
-  // the cast, straight from the ROM
-  const ms = ROM.part1.monsters;
-  ms.forEach((m, i) => {
-    const x = 4 + (i % 7) * 22 + (i >= 7 ? 11 : 0), y = 30 + (i >= 7 ? 20 : 0);
-    const col = m.color === '#000000' ? '#777' : m.color;
-    c.fillStyle = col;
-    m.rows.forEach((r, ry) => { for (let b = 0; b < 8; b++) if ((r >> (7 - b)) & 1) c.fillRect(x + b, y + ry, 1, 1); });
+document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { sfx('ui'); back = current; show(b.dataset.open); syncSettings(); });
+document.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { sfx('uiBack'); show(back); });
+$('bNew').onclick = () => newGame();
+$('bContinue').onclick = () => continueGame();
+$('bResume').onclick = () => resume();
+$('bQuit').onclick = () => { game.save(); stop(); refreshContinue(); show('title'); };
+$('bRetry').onclick = () => retry();
+$('bDeadNew').onclick = () => newGame();
+$('bWonNew').onclick = () => { Game.wipeSave(); refreshContinue(); newGame(); };
+
+// ---------- settings ----------
+const fields = {
+  sQuality: ['quality', v => v], sRes: ['resolution', v => v], sView: ['view', v => v],
+  sFov: ['fov', Number], sSens: ['sensitivity', Number], sInv: ['invertY', v => v === '1'], sVol: ['volume', Number],
+};
+function syncSettings() {
+  for (const [id, [key]] of Object.entries(fields)) {
+    const e = $(id), v = settings[key];
+    e.value = typeof v === 'boolean' ? (v ? '1' : '0') : String(v);
+    const o = e.parentElement.querySelector('output');
+    if (o) o.textContent = key === 'volume' ? Math.round(v * 100) + '%' : key === 'fov' ? v + '°' : v.toFixed(2);
+  }
+  const s = gfx.renderSize || {};
+  $('gpu').textContent = s.w ? `Rendering at ${s.w} × ${s.h}` + (s.w >= 3800 ? ' (4K)' : '') : '';
+}
+for (const [id, [key, conv]] of Object.entries(fields)) {
+  $(id).addEventListener('input', () => {
+    settings[key] = conv($(id).value);
+    saveSettings();
+    if (key === 'quality' || key === 'resolution') applyQuality();
+    if (key === 'fov') resize();
+    if (key === 'volume') setVolume(settings.volume);
+    if (key === 'view' && game.player) game.cam.setMode(settings.view, game.player);
+    syncSettings();
   });
 }
-drawTitle();
-function showTitle() {
+
+// ---------- flow ----------
+function startAudio() { initAudio(settings.volume); }
+
+async function load(part, areaState, from) {
+  startAudio();
   playing = false;
-  $('title').hidden = false;
-  $('continue').hidden = !load();
-  ambience(null);
-}
-
-async function newGame() {
-  wipe();
-  G.p = R.newPlayer();
-  R.seed(G.p.seed);
-  await enterArea(1, 'new');
-}
-async function continueGame() {
-  const s = load();
-  if (!s) return newGame();
-  G.p = s.p;
-  R.seed(G.p.seed ^ Date.now());
-  await enterArea(G.p.part, 'resume', s.area);
-}
-
-async function enterArea(n, from, areaState) {
-  $('title').hidden = true; $('dead').hidden = true; $('win').hidden = true;
-  G.dead = false;
-  G.area?.leaving?.();
-  G.p.part = n;
-  G.ui.setTheme(n);
-  document.body.dataset.part = n;
-  $('loading').hidden = false;
-  await new Promise(r => setTimeout(r, 30));
-  G.area = new AREAS[n](areaState || {});
-  G.area.build();
-  G.scene.add(G.hero);
-  G.area.start(from);
-  updateCamera(0, null, true);
-  $('loading').hidden = true;
-  G.ui.status(G.p);
-  snapshot = JSON.stringify({ p: G.p, area: G.area.state });
-  save({ area: G.area.state });
+  hud.show(false);
+  show('loading');
+  $('tip').textContent = TIPS[(Math.random() * TIPS.length) | 0];
+  $('loadtext').textContent = 'ENTERING ' + (AREA_NAMES[part] || '').toUpperCase();
+  const t0 = performance.now();
+  const tick = setInterval(() => {
+    const f = progress.total ? progress.done / progress.total : 0;
+    $('loadbar').querySelector('i').style.width = (f * 100).toFixed(1) + '%';
+  }, 100);
+  try { await game.enter(AREAS[part], part, areaState, from); }
+  finally { clearInterval(tick); }
+  // compile shaders before the first frame so the game doesn't hitch
+  try { await gfx.renderer.compileAsync?.(game.scene, gfx.camera); } catch (e) {}
+  $('loadbar').querySelector('i').style.width = '100%';
+  console.log(`area ${part} ready in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+  show(null);
+  hud.show(true);
   playing = true;
-  if (from !== 'resume') await partCard(n);
+  lockPointer(canvas);
+  if (from === 'new' && part === 1) hud.say(['YOUR QUEST', 'FIND THE AMULET OF THE DRAGON'], 4);
+  else hud.say([AREA_NAMES[part].toUpperCase()], 3);
 }
 
-async function partCard(n) {
-  const el = $('partcard');
-  el.querySelector('b').textContent = TITLES[n][0];
-  el.querySelector('span').textContent = TITLES[n][1];
-  el.hidden = false; el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade');
-  sfx('part');
-  setTimeout(() => { el.hidden = true; }, 2600);
-  if (n === 1 && !G.p.seenIntro) {
-    G.p.seenIntro = true;
-    await run(async () => {
-      await G.ui.say(['DRAGON', '   STOMPER', 'COPYRIGHT 82', 'STARPATH']);
-      await G.ui.say(['THE DRAGON HAS', 'STOLEN THE', 'ENCHANTED', 'AMULET']);
-      await G.ui.say(['CROSS THE LAND', 'GET PAST THE', 'BRIDGE GUARD', 'AND STOMP IT']);
-      await G.ui.say(['WALK INTO THINGS', 'TO SEARCH THEM', 'FIRE OPENS', 'THE MENU']);
-    });
-  }
+function newGame() {
+  sfx('ui');
+  Game.wipeSave();
+  game.stats = R.newPlayer();
+  R.seed(game.stats.seed);
+  game.ended = false;
+  load(1, null, 'new');
 }
-
-// run something that uses the message window, pausing the world while it does
-async function run(fn) {
-  busy = true;
-  try { await fn(); } finally { busy = false; clearQueue(); }
-  afterModal();
-}
-function afterModal() {
-  G.ui.status(G.p, G.p.fever ? 'FEVER' : '');
-  if (G.dead) return died();
-  save({ area: G.area.state });
-}
-
-function died() {
-  playing = false;
-  sfx('death');
-  $('dead').hidden = false;
-  try { localStorage.setItem('ds3d-save', JSON.stringify({ ...JSON.parse(snapshot), v: 1 })); } catch (e) {}
+function continueGame() {
+  const s = Game.loadSave();
+  if (!s) return newGame();
+  sfx('ui');
+  game.stats = s.p;
+  R.seed(s.p.seed);
+  game.ended = false;
+  load(s.part, { ...s.area, pos: s.pos || s.area?.pos }, 'resume');
 }
 function retry() {
-  const s = JSON.parse(snapshot);
-  G.p = s.p;
-  enterArea(G.p.part, 'retry', s.area);
+  sfx('ui');
+  const s = JSON.parse(game.snapshot);
+  game.stats = s.p;
+  game.stats.stuck = 0;
+  game.ended = false;
+  load(s.part, s.area, 'retry');
 }
-function won() {
-  playing = false;
-  sfx('win');
-  setTimeout(async () => {
-    busy = true;
-    await G.ui.say(['YOU KILLED', 'THE DRAGON']);
-    await G.ui.say(['YOU HAVE', 'DEFEATED', 'THE DRAGON']);
-    await G.ui.say(['THE AMULET', 'IS YOURS', 'DRAGONSTOMPER!']);
-    busy = false;
-    const p = G.p;
-    $('winstats').textContent = `Gold ${p.gold} · Strength ${p.str}/${p.maxStr} · Dexterity ${p.dex} · Monsters slain ${p.kills} · Warriors standing ${p.warriors}`;
-    $('win').hidden = false;
-    wipe();
-  }, 1600);
+function stop() { playing = false; game.paused = true; hud.show(false); unlockPointer(); ambience(null); }
+function pause() {
+  if (!playing || current === 'pause') return;
+  game.paused = true;
+  unlockPointer();
+  sfx('uiBack');
+  show('pause');
+}
+function resume() {
+  sfx('ui');
+  show(null);
+  game.paused = false;
+  lockPointer(canvas);
 }
 
-// ---------- the loop ----------
+game.onAreaExit = (n) => {
+  game.save();
+  // the next region starts fresh; your stats and warriors come with you
+  setTimeout(() => load(n, null, 'enter'), 400);
+};
+game.onDeath = () => {
+  stop();
+  const p = game.stats;
+  $('deadtext').textContent = `You slew ${p.kills} monster${p.kills === 1 ? '' : 's'} and carried ${p.gold} gold.`;
+  show('dead');
+};
+game.onVictory = () => {
+  game.ended = true;
+  sfx('victory');
+  hud.say(['YOU HAVE THE AMULET', 'THE LAND IS SAVED'], 6);
+  setTimeout(() => {
+    stop();
+    const p = game.stats;
+    $('wontext').textContent = `The dragon is dead and the amulet is yours. ${p.kills} monsters slain, ${p.gold} gold, ${p.warriors} warrior${p.warriors === 1 ? '' : 's'} at your side.`;
+    Game.wipeSave();
+    show('won');
+  }, 5000);
+};
+
+// losing pointer lock in play (Esc, alt-tab) pauses, unless a dialog took it on purpose
+input.onLockChange = (locked) => {
+  $('clickhint').classList.remove('on');
+  if (!locked && playing && !game.paused && !hud.modalOpen && !game.busy && !game.player?.dead) pause();
+};
+canvas.addEventListener('click', () => { if (playing && !game.paused && !input.locked && !hud.modalOpen) lockPointer(canvas); });
+addEventListener('keydown', (e) => {
+  if (e.code !== 'Escape') return;
+  if (current === 'pause') resume();
+  else if (current === 'settings' || current === 'help') { sfx('uiBack'); show(back); }
+});
+addEventListener('pointerdown', startAudio, { once: true });
+addEventListener('keydown', startAudio, { once: true });
+addEventListener('beforeunload', () => game.save());
+setInterval(() => { if (playing && !game.paused) game.save(); }, 15000);
+
+// ---------- controller navigation of menus and dialogs ----------
+function padMenus() {
+  const m = input.menu;
+  if (!m.size) return false;
+  const dlg = $('dialog').classList.contains('on') ? $('dialog') : null;
+  const scr = current && current !== 'loading' ? $(current) : null;
+  const root = dlg || scr;
+  if (!root) return false;
+  const btns = [...root.querySelectorAll('button:not([disabled])')];
+  if (!btns.length) return false;
+  let i = btns.indexOf(document.activeElement);
+  if (m.has('down')) { btns[(i + 1) % btns.length].focus(); sfx('ui', { vol: 0.4 }); }
+  if (m.has('up')) { btns[(i - 1 + btns.length) % btns.length].focus(); sfx('ui', { vol: 0.4 }); }
+  if (m.has('ok')) { (i >= 0 ? btns[i] : btns[0]).click(); startAudio(); }
+  if (m.has('back') || (m.has('start') && current === 'pause')) {
+    if (dlg) dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape' }));
+    else if (current === 'pause') resume();
+    else if (current === 'settings' || current === 'help') { sfx('uiBack'); show(back); }
+  }
+  return true;
+}
+
+// ---------- loop ----------
+const clock = new THREE.Clock();
+let frames = 0, fpsT = 0;
+const fpsEl = $('fps');
+if (/[?&]fps/.test(location.search)) fpsEl.classList.add('on');
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05 * (G.timeScale || 1), G.clock.getDelta() * (G.timeScale || 1));
-  G.time += dt;
+  const dt = Math.min(clock.getDelta(), 1 / 20) * (window.__timeScale || 1);
   pollInput();
-  if (playing && !busy && G.area && !G.dead) {
-    let k;
-    while ((k = take())) {
-      const boss = G.area.boss && G.area.dragonState && !['sleep', 'dead'].includes(G.area.dragonState.mode);
-      if (k === 'A') { audioStart(); if (boss) G.area.attack(); else { run(fieldMenu); break; } }
-      if (k === 'B' && boss) { run(fieldMenu); break; }
-    }
-    // holding fire keeps swinging at the dragon
-    if (!busy && input.aHeld && G.area.boss && G.area.dragonState && !['sleep', 'dead'].includes(G.area.dragonState.mode)) G.area.attack();
-    if (!busy) {
-      const r = G.area.update(dt);
-      if (r) handle(r);
-      // $FCE2: strength creeps back, one point every 256 frames
-      regenT += dt;
-      if (regenT > 256 / 60) { regenT = 0; if (!G.p.fever && G.p.str < G.p.maxStr && G.p.str >= 0) { G.p.str++; G.ui.status(G.p); } }
-    }
-  }
-  if (G.area) {
-    animateHero(dt);
-    animateMonsters(dt, G.battleMeshes, G.hero.position);
-    G.anims = G.anims.filter(f => f(dt) !== false);
-    stepWorld(dt);
-    updateCamera(dt, G.battleFocus);
-    G.renderer.render(G.scene, G.camera);
-  }
-  G.ui.tick();
+  const navved = padMenus();
+  if (playing && !navved && pressed('pause') && !hud.modalOpen && !game.busy) pause();
+  if (playing && !game.paused) game.update(dt);
+  if (gfx.scene && playing) render();
+  endFrame();
+  frames++; fpsT += dt;
+  if (fpsT > 0.5) { fpsEl.textContent = Math.round(frames / fpsT) + ' fps · ' + (gfx.renderSize?.w || 0) + '×' + (gfx.renderSize?.h || 0); frames = 0; fpsT = 0; }
 }
+// ?test drives the frames by hand (for headless screenshots)
+const TEST = /[?&]test/.test(location.search);
+if (!TEST) frame();
 
-function handle(r) {
-  if (r.goto) { const n = r.goto; playing = false; G.area.leaving?.(); enterArea(n, 'new'); return; }
-  if (r.win) { won(); return; }
-  const target = r.bump ?? r;
-  run(() => G.area.interact(target));
-}
+// test hooks
+window.__G = game;
+window.__DS = {
+  load, newGame, continueGame, show, settings, hud,
+  step(n = 1, dt = 1 / 30) {
+    for (let i = 0; i < n; i++) { pollInput(); if (!game.paused) game.update(dt); endFrame(); }
+    render();
+    const gl = gfx.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  },
+};
 
-// ---------- buttons ----------
-$('newgame').onclick = () => { audioStart(); newGame(); };
-$('continue').onclick = () => { audioStart(); continueGame(); };
-$('retry').onclick = () => { audioStart(); retry(); };
-$('deadnew').onclick = () => { audioStart(); newGame(); };
-$('winnew').onclick = () => { audioStart(); newGame(); };
-const helpOpen = () => { $('help').hidden = false; };
-$('howto').onclick = helpOpen; $('helpbtn').onclick = helpOpen;
-$('helpclose').onclick = () => { $('help').hidden = true; };
-$('mute').onclick = () => { audioStart(); $('mute').textContent = toggleMute() ? '\u{1F507}' : '\u{1F50A}'; };
-$('mute').textContent = isMuted() ? '\u{1F507}' : '\u{1F50A}';
-$('quit').onclick = () => { if (playing) { save({ area: G.area.state }); } showTitle(); };
-addEventListener('pointerdown', () => audioStart(), { once: true });
-addEventListener('keydown', () => audioStart(), { once: true });
-document.addEventListener('visibilitychange', () => { if (document.hidden && playing && G.area) save({ area: G.area.state }); });
-
-showTitle();
-requestAnimationFrame(frame);
-window.__G = G; // handy for poking at the game from the console
-window.__DS = { enterArea, newGame };
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
