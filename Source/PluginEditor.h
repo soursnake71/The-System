@@ -14,6 +14,7 @@ public:
 private:
     void timerCallback() override;
     void pickRomFolder();
+    void pickSampleFolder();
     void send (const juce::String& js);
 
     FarpProcessor& proc;

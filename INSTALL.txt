@@ -17,6 +17,18 @@ Playing
   MIDI from your DAW track plays whatever the on-screen keyboard plays: the instrument picked on the
   INSTRUMENTS screen, or the split. Mod wheel, pitch bend and the sustain pedal work.
 
+Pads
+  The PADS screen is the 16-pad sampler. MIDI channel 10 plays the pads (General MIDI drum notes: 36 kick,
+  38 snare, 42 closed hat...). RANDOM KIT (the dice button, or the KIT tab) builds a kit from your own
+  samples: choose your samples folder on the KIT tab and it puts kicks on the kick pad, snares on the snare
+  pad and so on, read from file and folder names. Lock a pad to keep its sound. Your pad sounds are saved
+  with the project.
+
+Studio rack
+  EFFECTS > STUDIO RACK: two slots of rack units on the mixer's FX send (plate/hall reverbs, PrimeTime,
+  Effectron, DP-4, Microverb, A/DA flanger, FET limiter, gated room, H910, MXR 113), in series or parallel.
+  Synced delay times follow your DAW's tempo.
+
 Vocoder
   The vocoder's voice can be the speech lines (VOICE tab) or audio sent into the plugin: route a mic or
   an audio track into the plugin's input (or sidechain), and choose "Plugin input" under SPEECH > Voice from.

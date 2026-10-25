@@ -39,6 +39,8 @@
   // the ROM folder works the way it does in the Android app
   window.__ROMBASE='/roms/';
   window.FarpAndroid={romList:()=>call('romList'),romFolder:()=>call('romFolder'),pickRomFolder:()=>{call('pickRomFolder')}};
+  // the samples folder for the pads' random kits
+  window.FarpPlugin={sampleList:()=>call('sampleList'),sampleFolder:()=>call('sampleFolder'),pickSampleFolder:()=>{call('pickSampleFolder')}};
 
   // the host sends MIDI: the page doesn't open MIDI devices itself
   try{Object.defineProperty(navigator,'requestMIDIAccess',{value:undefined,configurable:true})}catch(e){}
@@ -92,11 +94,33 @@
   // ---- the engine's messages and the host's MIDI keys ----
   window.__farpRx=pk=>{
     clockT=pk.clock||0;clockAt=performance.now();
+    if(pk.bpm>0&&Math.abs(pk.bpm-(window.__hostBpm||0))>0.01){window.__hostBpm=pk.bpm;if(window.__rackRepush)try{__rackRepush()}catch(e){}}
     if(typeof onDsp!=='function')return;
-    for(const m of pk.msgs||[]){try{if(m.t==='vli'){if(window.__vocPick)__vocPick(m.li);continue}onDsp(dec(m))}catch(e){console.warn(e)}}
+    for(const m of pk.msgs||[]){try{
+      if(m.t==='vli'){if(window.__vocPick)__vocPick(m.li);continue}
+      if(m.t==='padflash'){if(typeof flashPad==='function')flashPad(m.i);continue}
+      if(m.t==='padbuf'){restorePad(dec(m));continue}
+      onDsp(dec(m))}catch(e){console.warn(e)}}
     for(const k of pk.keys||[]){try{const n=Math.abs(k)-1;if(typeof markKey==='function')markKey(n,k>0)}catch(e){}}
     if(pk.scope)try{onDsp(pk.scope)}catch(e){}
   };
+
+  // ---- the pads: each pad's sound and settings go to the plugin's sampler ----
+  const padSent=[];let lastPads='';
+  function syncPads(){try{
+    if(typeof userBuf==='undefined'||typeof PADS==='undefined'||!window.ROMKIT)return;
+    for(let i=0;i<16;i++){
+      if(userNames[i]&&!userBuf[i])continue;                 // the plugin still holds this pad's own sample
+      const b=userBuf[i]||ROMKIT.buf[i]||kitBuf[i];if(!b||padSent[i]===b)continue;padSent[i]=b;
+      const ch=[];for(let c=0;c<Math.min(2,b.numberOfChannels);c++)ch.push(b.getChannelData(c));
+      window.__farpSend({t:'padbuf',i,fs:b.sampleRate,ch,user:!!userBuf[i],name:userBuf[i]?(userNames[i]||''):''})}
+    const st=JSON.stringify({pads:PADS,spx:SPX,lvx:LVX});if(st!==lastPads){lastPads=st;window.__farpSend({t:'pads',pads:PADS,spx:SPX,lvx:LVX})}
+  }catch(e){console.warn('pads',e)}}
+  window.__syncPads=syncPads;setInterval(syncPads,300);
+  // the project's own pad samples, handed back by the plugin when the page opens
+  function restorePad(m){try{const i=m.i,ch=m.ch||[];if(!ch.length||typeof userBuf==='undefined')return;
+    const b=new AudioBuffer({numberOfChannels:ch.length,length:Math.max(1,ch[0].length),sampleRate:m.fs||48000});ch.forEach((d,c)=>b.copyToChannel(d,c));
+    userBuf[i]=b;if(m.name)userNames[i]=m.name;padSent[i]=b;if(typeof renderPadEdit==='function')renderPadEdit()}catch(e){console.warn(e)}}
 
   // ---- the vocoder's lines, so the plugin can speak them when the host plays chords ----
   let lastCfg='';

@@ -3,6 +3,8 @@
 #include <mutex>
 #include <atomic>
 #include "dsp/Core.h"
+#include "dsp/Pads.h"
+#include "dsp/Rack.h"
 
 // The F.A.R.P. as a plugin: the C++ sound engine, driven by the page (its screens run in the editor's web view)
 // and by MIDI from the host. The page's messages are cached so the sound comes back with the project even
@@ -38,8 +40,10 @@ public:
     void fromPage (const juce::String& json);
     void setLs (const juce::String& key, const juce::String& rawJson);
     juce::String stateScript() const;          // window.__FARP_STATE for the page
-    juce::File romDir;
+    juce::File romDir, samplesDir;
     juce::String romListJson() const;
+    juce::String sampleListJson() const;
+    void pageReady();                          // the page has loaded: hand back the user's pad samples
 
     // engine -> page: filled on the audio thread, drained by the editor's timer
     struct Outbox {
@@ -47,7 +51,7 @@ public:
         std::vector<std::string> msgs;      // eng/nv replies
         float scope[1024] = {}, peaks[12] = {}; std::string state; bool scopeNew = false;
         std::vector<int> keys;              // MIDI notes to light: +note+1 on, -(note+1) off
-        double time = 0;
+        double time = 0, bpm = 0;
     } outbox;
     std::atomic<int> stateGeneration { 0 };  // bumps when the host restores a state, so the editor reloads the page
 
@@ -60,6 +64,12 @@ private:
     struct Live { int n; int inst; };
 
     std::unique_ptr<farp::FarpDSP> dsp;
+    std::unique_ptr<farp::PadSampler> pads;
+    std::unique_ptr<farp::rack::Rack> rack;
+    // the rack's return comes back one short chunk later (like the page's audio graph)
+    static constexpr int RT = 4096, RT_LAT = 64;
+    std::vector<float> rtL, rtR; int rtW = 0;
+    float padL[64] = {}, padR[64] = {}, sendBuf[64] = {}, retL[64] = {}, retR[64] = {}, rackL[64] = {}, rackR[64] = {};
     double sr = 0;
 
     // page -> audio thread
@@ -91,6 +101,7 @@ private:
 
     void applyOnAudio (const farp::Val& m);
     void routeKey (int k, int& n, int& m, int& inst) const;
+    static int padOfNote (int n);
     void midiNote (int k, double vel, bool on);
     static std::string keyOf (const farp::Val& m);
     void rebuildEngine();

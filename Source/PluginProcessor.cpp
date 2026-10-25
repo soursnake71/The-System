@@ -13,6 +13,7 @@ FarpProcessor::FarpProcessor()
     outbox.msgs.reserve (64); outbox.keys.reserve (256); outbox.state.reserve (2048);
     auto docs = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("FARP ROMs");
     romDir = docs;
+    samplesDir = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("FARP Samples");
 }
 
 bool FarpProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -30,6 +31,8 @@ std::string FarpProcessor::keyOf (const Val& m)
     const std::string& t = m["t"].str();
     if (t == "mix" || t == "p5" || t == "e2" || t == "e2z" || t == "voc" || t == "route" || t == "vin" || t == "vcfg") return t;
     if (t == "vphr") return "vphr:" + std::to_string ((int) m["id"].num());
+    if (t == "pads" || t == "rack") return t;
+    if (t == "padbuf") return "padbuf:" + std::to_string ((int) m["i"].num());
     if (t == "eng")
     {
         const std::string& op = m["op"].str();
@@ -68,7 +71,7 @@ void FarpProcessor::fromPage (const juce::String& json)
                 if (it != cache.end())
                 {
                     // the page re-sends its ROM sounds whenever the editor opens: skip what the engine already has
-                    const bool heavy = key == "e2z" || key.find (":load") != std::string::npos || key.find (":zones") != std::string::npos;
+                    const bool heavy = key == "e2z" || key.rfind ("padbuf:", 0) == 0 || key.find (":load") != std::string::npos || key.find (":zones") != std::string::npos;
                     if (heavy && it->raw == text)
                     {
                         forward = false;
@@ -125,10 +128,40 @@ juce::String FarpProcessor::romListJson() const
     return juce::JSON::toString (juce::var (arr), true);
 }
 
+juce::String FarpProcessor::sampleListJson() const
+{
+    juce::Array<juce::var> arr;
+    if (samplesDir.isDirectory())
+    {
+        int n = 0;
+        for (const auto& e : juce::RangedDirectoryIterator (samplesDir, true, "*.wav;*.wave;*.aif;*.aiff;*.mp3;*.flac;*.ogg;*.m4a", juce::File::findFiles))
+        {
+            const auto rel = e.getFile().getRelativePathFrom (samplesDir).replaceCharacter ('\\', '/');
+            if (rel.startsWithChar ('.') || rel.contains ("/.")) continue;
+            arr.add (rel);
+            if (++n >= 20000) break;
+        }
+    }
+    return juce::JSON::toString (juce::var (arr), true);
+}
+
+void FarpProcessor::pageReady()
+{
+    // the page keeps no copy of the user's own pad samples: send back what the project holds
+    std::lock_guard<std::mutex> g (cacheMutex);
+    std::lock_guard<std::mutex> o (outbox.m);
+    for (auto& c : cache)
+        if (c.key.rfind ("padbuf:", 0) == 0 && (*c.val)["user"].truthy())
+            outbox.msgs.push_back (c.raw);
+}
+
 // ---------------------------------------------------------------------------------------------
 void FarpProcessor::rebuildEngine()
 {
     dsp = std::make_unique<farp::FarpDSP> (sr);
+    pads = std::make_unique<farp::PadSampler> (sr);
+    rack = std::make_unique<farp::rack::Rack> (sr);
+    rtL.assign (RT, 0.f); rtR.assign (RT, 0.f); rtW = 0;
     dsp->post = [this] (std::string&& s) { postOut (std::move (s)); };
     dsp->onScope = [this] (const float* sc, const float* pk)
     {
@@ -203,6 +236,10 @@ void FarpProcessor::applyOnAudio (const Val& m)
     }
     if (t == "vstop") { play.stopAt = m["at"].num(); return; }
     if (t == "vfree") { phrases.erase ((int) m["id"].num()); return; }
+    if (t == "pads") { pads->setPads (m); return; }
+    if (t == "padbuf") { pads->setBuf ((int) m["i"].num(), m); return; }
+    if (t == "padtrig") { pads->trigger ((int) m["i"].num(), m["v"].num (1), m["at"].num(), farp::PadSampler::xFrom (m["x"]), dsp->time()); return; }
+    if (t == "rack") { rack->set (m); return; }
     if (t == "vin") { useInput = m["on"].truthy(); return; }
     dsp->msg (m);
 }
@@ -232,6 +269,18 @@ void FarpProcessor::vocTrigger()
         say (vcfg.ids[(size_t) vcfg.li], false, at);
     }
     else if (! play.on) say (vcfg.ids[(size_t) vcfg.li], vcfg.trig == "loop", at);
+}
+
+int FarpProcessor::padOfNote (int n)
+{
+    switch (n)
+    {
+        case 35: case 36: return 0; case 38: case 40: return 1; case 39: return 2; case 42: case 44: return 3; case 46: return 4;
+        case 41: case 43: return 5; case 45: case 47: return 6; case 48: case 50: return 7; case 37: return 8; case 56: return 9;
+        case 49: case 57: return 10; case 51: case 59: return 11; case 54: case 69: return 12; case 70: return 15;
+        case 62: case 63: case 64: return 13; case 67: case 68: return 14;
+        default: return (((n - 36) % 16) + 16) % 16;
+    }
 }
 
 void FarpProcessor::routeKey (int k, int& n, int& m, int& inst) const
@@ -296,7 +345,13 @@ void FarpProcessor::renderChunk (float* L, float* R, int n, const float* inL, co
         }
         v[i] = x;
     }
-    dsp->process (L, R, n, t0, v);
+    std::fill (padL, padL + n, 0.f); std::fill (padR, padR + n, 0.f);
+    pads->render (padL, padR, n, t0);
+    for (int i = 0; i < n; i++) { const int r = (rtW - RT_LAT + i + RT) % RT; retL[i] = rtL[(size_t) r]; retR[i] = rtR[(size_t) r]; }
+    dsp->process (L, R, n, t0, v, padL, padR, sendBuf, retL, retR);
+    std::fill (rackL, rackL + n, 0.f); std::fill (rackR, rackR + n, 0.f);
+    if (! rack->empty()) rack->process (sendBuf, rackL, rackR, n);
+    for (int i = 0; i < n; i++) { rtL[(size_t) rtW] = rackL[i]; rtR[(size_t) rtW] = rackR[i]; rtW = (rtW + 1) % RT; }
 }
 
 void FarpProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -348,6 +403,16 @@ void FarpProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     {
         const auto msg = meta.getMessage();
         renderTo (juce::jlimit (0, N, meta.samplePosition));
+        if (msg.getChannel() == 10 && (msg.isNoteOn() || msg.isNoteOff()))
+        {
+            if (msg.isNoteOn())
+            {
+                const int k = padOfNote (msg.getNoteNumber());
+                const int shown = pads->hit (k, msg.getFloatVelocity(), dsp->time(), dsp->time());
+                farp::JsonOut j; j.raw ("{\"t\":\"padflash\""); j.key ("i"); j.num (shown); j.raw ("}"); postOut (std::move (j.s));
+            }
+            continue;
+        }
         if (msg.isNoteOn()) midiNote (msg.getNoteNumber(), msg.getFloatVelocity(), true);
         else if (msg.isNoteOff()) midiNote (msg.getNoteNumber(), 0, false);
         else if (msg.isPitchWheel()) dsp->setBend ((msg.getPitchWheelValue() - 8192) / 8192.0 * 2.0);
@@ -357,14 +422,16 @@ void FarpProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             const int cc = msg.getControllerNumber(), v = msg.getControllerValue();
             if (cc == 1) dsp->setMod (v / 127.0);
             else if (cc == 64) dsp->setSus (v >= 64 ? 1 : 0);
-            else if (cc == 120 || cc == 123) { for (int k = 0; k < 128; k++) if (liveOn[k]) midiNote (k, 0, false); if (cc == 120) dsp->panic(); }
+            else if (cc == 120 || cc == 123) { for (int k = 0; k < 128; k++) if (liveOn[k]) midiNote (k, 0, false); if (cc == 120) { dsp->panic(); pads->allOff(); } }
         }
     }
     renderTo (N);
     for (int c = 2; c < outCh; c++) buffer.clear (c, 0, N);
 
+    double bpm = 0;
+    if (auto* ph = getPlayHead()) if (auto pos = ph->getPosition()) if (auto b = pos->getBpm()) bpm = *b;
     std::unique_lock<std::mutex> o (outbox.m, std::try_to_lock);
-    if (o.owns_lock()) outbox.time = dsp->time();
+    if (o.owns_lock()) { outbox.time = dsp->time(); if (bpm > 0) outbox.bpm = bpm; }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -374,7 +441,7 @@ void FarpProcessor::getStateInformation (juce::MemoryBlock& dest)
     juce::String s;
     {
         std::lock_guard<std::mutex> g (cacheMutex);
-        s << "{\"v\":1,\"romDir\":" << juce::JSON::toString (juce::var (romDir.getFullPathName())) << ",\"ls\":{";
+        s << "{\"v\":1,\"romDir\":" << juce::JSON::toString (juce::var (romDir.getFullPathName())) << ",\"samplesDir\":" << juce::JSON::toString (juce::var (samplesDir.getFullPathName())) << ",\"ls\":{";
         bool first = true;
         for (auto& kv : ls) { if (! first) s << ","; first = false; s << juce::JSON::toString (juce::var (kv.first)) << ":" << juce::JSON::toString (juce::var (kv.second)); }
         s << "},\"params\":{";
@@ -412,6 +479,7 @@ void FarpProcessor::setStateInformation (const void* data, int size)
         std::lock_guard<std::mutex> g (cacheMutex);
         ls.clear(); params.clear(); cache.clear();
         if (st["romDir"].isStr() && st["romDir"].str().size()) romDir = juce::File (juce::String (st["romDir"].str()));
+        if (st["samplesDir"].isStr() && st["samplesDir"].str().size()) samplesDir = juce::File (juce::String (st["samplesDir"].str()));
         for (auto& kv : st["ls"].o) if (kv.second.isStr()) ls[juce::String (kv.first)] = juce::String (kv.second.str());
         for (auto& kv : st["params"].o) params[kv.first] = kv.second;
     }

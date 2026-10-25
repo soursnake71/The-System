@@ -298,7 +298,8 @@ public:
     static int kf(int n) { const int pc = n % 12; int k = (96 + pc - n) / 12; return k < 1 ? 1 : (k > 7 ? 7 : k); }
 
     // oL/oR: output; vIn: the vocoder's voice (may be null); N samples. t0 = engine time of the block start (s).
-    void process(float* oL, float* oR, int N, double t0, const float* vIn) {
+    // pL/pR: the pads (mixer channel 4); sOut: the mono FX send to the studio rack; rtL/rtR: the rack's return
+    void process(float* oL, float* oR, int N, double t0, const float* vIn, const float* pL = nullptr, const float* pR = nullptr, float* sOut = nullptr, const float* rtL = nullptr, const float* rtR = nullptr) {
         const double now = t0 > 0 ? t0 : frames / fs;
         if (!q.empty()) {
             const double end = now + N / fs; std::vector<QMsg> due, keep;
@@ -445,7 +446,7 @@ public:
             double mSL = (outs[0] * 0.45 + outs[1] * 0.33 + outs[2] * 0.22) * 1.35 * vol, mSR = (outs[2] * 0.45 + outs[1] * 0.33 + outs[0] * 0.22) * 1.35 * vol;
             double mSy = (chs != 0 ? 0 : synOut) * vol, mBa = bassOut * vol; double* IO = iout; IO[4] = IO[5] = IO[6] = IO[7] = IO[8] = 0;
             for (int j = 0; j < I_N; j++) if (insActive(j)) IO[insCh[j]] += insTick(j) * vol * insG[j];
-            const double mPL = 0, mPR = 0;
+            double mPL = pL ? pL[i] : 0, mPR = pL ? (pR ? pR : pL)[i] : 0; if (!(mPL == mPL && std::abs(mPL) < 8)) mPL = 0; if (!(mPR == mPR && std::abs(mPR) < 8)) mPR = 0;
             double vcL = 0, vcR = 0; int vcCh = -2;
             if (voc.on) {
                 double vv = vIn ? vIn[i] : 0; if (!(vv == vv && std::abs(vv) < 8)) vv = 0; const int ch = voc.ch; double car;
@@ -465,6 +466,8 @@ public:
             if (vcCh > -2) { const double gg = MG[vcCh], a = vcL * gg * MBL[vcCh], b = vcR * gg * MBR[vcCh]; dL += a; dR += b; mFx += (vcL + vcR) * 0.5 * gg * MSD[vcCh]; const double pk = std::max(std::abs(a), std::abs(b)); if (pk > MPK[vcCh]) MPK[vcCh] = (float)pk; }
             double mv;
             mv = std::max(std::abs(mAL), std::abs(mAR)); if (mv > MPK[0]) MPK[0] = (float)mv; mv = std::abs(mSy * MG[1]); if (mv > MPK[1]) MPK[1] = (float)mv; mv = std::abs(mBa * MG[2]); if (mv > MPK[2]) MPK[2] = (float)mv; mv = std::max(std::abs(mEL), std::abs(mER)); if (mv > MPK[3]) MPK[3] = (float)mv;
+            if (sOut) sOut[i] = (float) mFx;
+            if (rtL) { double ra = rtL[i], rb = rtR ? rtR[i] : ra; if (!(ra == ra && std::abs(ra) < 8)) ra = 0; if (!(rb == rb && std::abs(rb) < 8)) rb = 0; ra *= MX.bus * MX.busL; rb *= MX.bus * MX.busR; dL += ra; dR += rb; mv = std::max(std::abs(ra), std::abs(rb)); if (mv > MPK[11]) MPK[11] = (float) mv; }
             double yL = dL, yR = dR;
             if (fxMix > 0) {
                 fpre += cFx * (mFx - fpre);

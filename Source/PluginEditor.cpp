@@ -17,10 +17,13 @@ FarpEditor::FarpEditor (FarpProcessor& p) : AudioProcessorEditor (p), proc (p)
                     .withResourceProvider ([this] (const juce::String& path) { return resource (path); })
                     .withEventListener ("farp", [this] (juce::var v) { proc.fromPage (v.toString()); })
                     .withEventListener ("farpLs", [this] (juce::var v) { proc.setLs (v["k"].toString(), v["v"].toString()); })
-                    .withEventListener ("farpReady", [this] (juce::var) { pageReady = true; })
+                    .withEventListener ("farpReady", [this] (juce::var) { pageReady = true; proc.pageReady(); })
                     .withNativeFunction ("romList", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { done (proc.romListJson()); })
                     .withNativeFunction ("romFolder", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { done (proc.romDir.getFullPathName()); })
-                    .withNativeFunction ("pickRomFolder", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { pickRomFolder(); done (juce::var()); });
+                    .withNativeFunction ("pickRomFolder", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { pickRomFolder(); done (juce::var()); })
+                    .withNativeFunction ("sampleList", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { done (proc.sampleListJson()); })
+                    .withNativeFunction ("sampleFolder", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { done (proc.samplesDir.getFullPathName()); })
+                    .withNativeFunction ("pickSampleFolder", [this] (const juce::Array<juce::var>&, WBC::NativeFunctionCompletion done) { pickSampleFolder(); done (juce::var()); });
     web = std::make_unique<WBC> (opts);
     addAndMakeVisible (*web);
     web->goToURL (WBC::getResourceProviderRoot());
@@ -65,6 +68,17 @@ std::optional<juce::WebBrowserComponent::Resource> FarpEditor::resource (const j
         auto s = proc.stateScript().toStdString();
         return bytes (s.data(), s.size(), "text/javascript");
     }
+    if (p.startsWith ("/samples/"))
+    {
+        // a sound inside the samples folder (sub-folders allowed, never above it)
+        auto rel = juce::URL::removeEscapeChars (p.fromFirstOccurrenceOf ("/samples/", false, false));
+        if (rel.contains ("..") || rel.containsChar (':') || rel.startsWithChar ('/') || rel.startsWithChar ('\\')) return std::nullopt;
+        auto f = proc.samplesDir.getChildFile (rel);
+        if (! f.isAChildOf (proc.samplesDir)) return std::nullopt;
+        juce::MemoryBlock mb;
+        if (! f.existsAsFile() || f.getSize() > 200 * 1024 * 1024 || ! f.loadFileAsData (mb)) return std::nullopt;
+        return bytes (mb.getData(), mb.getSize(), "application/octet-stream");
+    }
     if (p.startsWith ("/roms/"))
     {
         auto name = juce::URL::removeEscapeChars (p.fromFirstOccurrenceOf ("/roms/", false, false));
@@ -100,6 +114,19 @@ void FarpEditor::pickRomFolder()
                           });
 }
 
+void FarpEditor::pickSampleFolder()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Choose your samples folder", proc.samplesDir, "*");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              auto dir = fc.getResult();
+                              if (! dir.isDirectory()) return;
+                              proc.samplesDir = dir;
+                              send ("window.onSampleFolder&&window.onSampleFolder(" + juce::JSON::toString (juce::var (dir.getFullPathName())) + ")");
+                          });
+}
+
 static void appendNum (juce::String& s, float v)
 {
     if (! std::isfinite (v)) { s << "0"; return; }
@@ -123,7 +150,7 @@ void FarpEditor::timerCallback()
     }
     if (! pageReady) return;
 
-    std::vector<std::string> msgs; std::vector<int> keys; float scope[1024], peaks[12]; std::string state; bool haveScope = false; double t = 0;
+    std::vector<std::string> msgs; std::vector<int> keys; float scope[1024], peaks[12]; std::string state; bool haveScope = false; double t = 0, bpm = 0;
     {
         std::lock_guard<std::mutex> g (proc.outbox.m);
         msgs.swap (proc.outbox.msgs);
@@ -136,11 +163,11 @@ void FarpEditor::timerCallback()
             state = proc.outbox.state;
             proc.outbox.scopeNew = false; haveScope = true;
         }
-        t = proc.outbox.time;
+        t = proc.outbox.time; bpm = proc.outbox.bpm;
     }
     juce::String js;
     js.preallocateBytes (12000);
-    js << "window.__farpRx&&window.__farpRx({clock:" << juce::String (t, 6) << ",msgs:[";
+    js << "window.__farpRx&&window.__farpRx({clock:" << juce::String (t, 6) << ",bpm:" << juce::String (bpm, 3) << ",msgs:[";
     for (size_t i = 0; i < msgs.size(); i++) { if (i) js << ","; js << juce::String (msgs[i]); }
     js << "],keys:[";
     for (size_t i = 0; i < keys.size(); i++) { if (i) js << ","; js << keys[i]; }

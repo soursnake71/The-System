@@ -20,10 +20,23 @@ rep("ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'inte
 rep("  try{\n    const src=[WmsDsp,", "  try{if(window.FARP_PLUGIN){node=window.__fakeNode;send=window.__farpSend;}else{\n    const src=[WmsDsp,")
 rep("    send=m=>node.port.postMessage(m);\n  }catch(err){", "    send=m=>node.port.postMessage(m);\n  }}catch(err){")
 # screens: no sequencer, pads or files in the plugin
-rep("['seq','SEQUENCER'],['pads','PADS'],", "")
+rep("['seq','SEQUENCER'],['pads','PADS'],", "['pads','PADS'],")
 rep(",['file','FILES · MIDI']", "")
-rep("['seq','SEQ'],['pads','PADS'],", "")
+rep("['seq','SEQ'],['pads','PADS'],", "['pads','PADS'],")
 rep(",['file','I/O']", "")
+# pads: the plugin's sampler plays them; the project (not the web view) keeps the user's samples
+rep("Sampler.trigger=function(i,vel,at,x){\n  if(!ctx||!padBus)return;const raw=",
+    "Sampler.trigger=function(i,vel,at,x){\n  if(window.FARP_PLUGIN){if(!ctx)return;if(window.__syncPads)__syncPads();const t=Math.max(at||0,ctx.currentTime);"
+    "__farpSend({t:'padtrig',i,v:vel,at:t,x:x?{tune:x.tune,decay:x.decay,cut:x.cut,slice:x.slice,vel:x.vel}:null});"
+    "const ms=Math.max(0,(t-ctx.currentTime)*1000);setTimeout(()=>flashPad(LVX.on&&i===LVX.src&&x&&x.__k!==undefined?x.__k:i),ms);return}\n  if(!ctx||!padBus)return;const raw=")
+rep("async function loadUserSamples(){", "async function loadUserSamples(){if(window.FARP_PLUGIN)return;")
+rep("async function idbPut(i,v){", "async function idbPut(i,v){if(window.FARP_PLUGIN)return;")
+rep("||!!window.FarpAndroid;\n[pdDir,pdMulti]", "||(!!window.FarpAndroid&&!window.FARP_PLUGIN);\n[pdDir,pdMulti]")
+# the studio rack runs in the plugin: send its slots there
+rep("function wire(){if(!ready)return;", "function wire(){if(window.FARP_PLUGIN){__farpSend({t:'rack',route:RK.route,slots:RK.slots.map(s=>s.u&&RACK[s.u]?{u:s.u,cfg:cfgOf(s)}:null)});return}if(!ready)return;")
+rep("function push(i){const n=nodes[i]", "function push(i){if(window.FARP_PLUGIN){wire();return}const n=nodes[i]")
+rep("async function init(){\n  if(ready||", "async function init(){if(window.FARP_PLUGIN){ready=true;window.__rackRepush=wire;wire();return}\n  if(ready||")
+rep("+s * 60000 / (SEQ.bpm || 120)", "+s * 60000 / (window.__hostBpm || SEQ.bpm || 120)")
 # ROMs from the plugin's ROM folder
 rep("JSON.parse(FarpAndroid.romList()||'[]');romPath=FarpAndroid.romFolder()||'';",
     "JSON.parse((await FarpAndroid.romList())||'[]');romPath=(await FarpAndroid.romFolder())||'';")
@@ -41,7 +54,7 @@ s = s.replace('<meta name="claude:viewport-fit-sides" content="cover">\n', '').r
 k = s.index('</style>\n') + len('</style>\n')
 head, body = s[:k], s[k:]
 css = ('<style>html{box-sizing:border-box}body{margin:0}'
-       '.transport{display:none!important}#toRack{display:none!important}.keys-hint{display:none!important}'
+       '.transport{display:none!important}.keys-hint{display:none!important}'
        '</style>\n')
 out = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
        '<meta name="viewport" content="width=device-width,initial-scale=1">\n'

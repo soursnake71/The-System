@@ -4,3 +4,9 @@ test/out/
 test/run_cpp
 test/compile_check
 *.f32
+test/rout/
+test/rack_in.f32
+test/rack_src.js
+test/rack_defs.js
+test/rack_cases.tsv
+test/run_rack_cpp

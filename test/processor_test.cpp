@@ -23,7 +23,31 @@ static int pageLog(const char* file){
     p.fromPage("{\"t\":\"voc\",\"on\":0,\"eng\":\"clear\",\"ch\":-1}");
     int boot=(std::string(inst)=="p5r3"||std::string(inst)=="six")?180:2;run(p,boot,{},-1,-1);
     double r=run(p,120,{48,55,60,64},2,80);printf("page log -> %-5s rms %.4f\n",inst[0]?inst:"omni",r);}
+  // drums on MIDI channel 10 (GM notes): kick, snare, closed hat
+  {juce::AudioBuffer<float> b(2,512);double acc=0;size_t n=0;
+   for(int k=0;k<200;k++){b.clear();juce::MidiBuffer m;if(k%20==2){m.addEvent(juce::MidiMessage::noteOn(10,36,(juce::uint8)120),3);m.addEvent(juce::MidiMessage::noteOn(10,42,(juce::uint8)90),200);}
+     if(k%40==12)m.addEvent(juce::MidiMessage::noteOn(10,38,(juce::uint8)110),100);p.processBlock(b,m);for(int c=0;c<2;c++)for(int i=0;i<512;i++){double v=b.getSample(c,i);acc+=v*v;n++;}}
+   printf("pads from MIDI ch10 rms %.4f\n",std::sqrt(acc/n));}
+  // the rack: route everything to the FX send and compare with the rack emptied
+  auto stringsRms=[&](){return run(p,150,{48,55,60,64},2,100);};
+  p.fromPage("{\"t\":\"route\",\"keys\":\"\",\"split\":{\"on\":false},\"vr\":null}");
+  double withRack=stringsRms();
+  p.fromPage("{\"t\":\"rack\",\"route\":\"ser\",\"slots\":[null,null]}");
+  double noRack=stringsRms();
+  printf("strings with rack %.4f, rack empty %.4f\n",withRack,noRack);
+  {juce::MemoryBlock st;p.getStateInformation(st);
+   FarpProcessor A,B;for(auto* x:{&A,&B}){x->setPlayConfigDetails(2,2,48000,512);x->prepareToPlay(48000,512);x->setStateInformation(st.getData(),(int)st.getSize());}
+   const char* rk="{\"t\":\"rack\",\"route\":\"ser\",\"slots\":[{\"u\":\"lx\",\"cfg\":{\"prog\":\"hall\",\"size\":0.7,\"pre\":20,\"treble\":0.6,\"ret\":0.8}},null]}";
+   A.fromPage(rk);B.fromPage("{\"t\":\"rack\",\"route\":\"ser\",\"slots\":[null,null]}");
+   juce::AudioBuffer<float> a(2,512),b(2,512);double d=0,e=0;
+   for(int k=0;k<200;k++){a.clear();b.clear();juce::MidiBuffer m;if(k==2)for(int nn:{48,55,60,64})m.addEvent(juce::MidiMessage::noteOn(1,nn,(juce::uint8)110),5);if(k==60)for(int nn:{48,55,60,64})m.addEvent(juce::MidiMessage::noteOff(1,nn),5);
+     juce::MidiBuffer m2=m;A.processBlock(a,m);B.processBlock(b,m2);for(int c=0;c<2;c++)for(int i=0;i<512;i++){double x=a.getSample(c,i)-b.getSample(c,i);d+=x*x;e+=b.getSample(c,i)*b.getSample(c,i);}}
+   printf("rack hall return vs no rack: difference rms %.4f (dry rms %.4f)\n",std::sqrt(d/(200*1024.0)),std::sqrt(e/(200*1024.0)));}
   juce::MemoryBlock mb;p.getStateInformation(mb);printf("state %d bytes\n",(int)mb.getSize());
+  // reload the state: pads come back without the page
+  FarpProcessor q;q.setPlayConfigDetails(2,2,48000,512);q.prepareToPlay(48000,512);q.setStateInformation(mb.getData(),(int)mb.getSize());
+  {juce::AudioBuffer<float> b(2,512);double acc=0;size_t n=0;for(int k=0;k<60;k++){b.clear();juce::MidiBuffer m;if(k%20==2)m.addEvent(juce::MidiMessage::noteOn(10,36,(juce::uint8)120),3);q.processBlock(b,m);for(int c=0;c<2;c++)for(int i=0;i<512;i++){double v=b.getSample(c,i);acc+=v*v;n++;}}
+   printf("pads after state reload rms %.4f\n",std::sqrt(acc/n));}
   return 0;}
 int main(int argc,char**argv){
   juce::ScopedJuceInitialiser_GUI init;

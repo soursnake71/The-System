@@ -4,7 +4,8 @@ The F.A.R.P.'s instruments and vocoder as a Windows VST3 instrument (plus a stan
 
 - `Source/dsp/` — the sound engine in C++: the Omni / Omni-2 string machine with its synth, bass, chorus and
   DFX-84 effects, the P-5 model, E-II sampler, Prophet-5 Rev 3 and Six-Trak firmware emulation (Z80 + 8253),
-  FM-4, PD-8, the ROM PCM player, and the VX-350 and Talker vocoders. It is a line-for-line port of the web
+  FM-4, PD-8, the ROM PCM player, the VX-350 and Talker vocoders, the 16-pad sampler (`Pads.h`) and the studio
+  rack (`Rack.h`, ten units, checked bit for bit against the app's worklets). It is a line-for-line port of the web
   app's engine and is checked against it sample by sample (`test/`).
 - `Source/PluginProcessor.*` — the plugin: MIDI from the host, the vocoder's voice from the plugin input or
   the page's speech lines, and the settings saved with the project.

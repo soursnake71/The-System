@@ -46,6 +46,8 @@
   // the ROM folder works the way it does in the Android app
   window.__ROMBASE='/roms/';
   window.FarpAndroid={romList:()=>call('romList'),romFolder:()=>call('romFolder'),pickRomFolder:()=>{call('pickRomFolder')}};
+  // the samples folder for the pads' random kits
+  window.FarpPlugin={sampleList:()=>call('sampleList'),sampleFolder:()=>call('sampleFolder'),pickSampleFolder:()=>{call('pickSampleFolder')}};
 
   // the host sends MIDI: the page doesn't open MIDI devices itself
   try{Object.defineProperty(navigator,'requestMIDIAccess',{value:undefined,configurable:true})}catch(e){}
@@ -99,11 +101,33 @@
   // ---- the engine's messages and the host's MIDI keys ----
   window.__farpRx=pk=>{
     clockT=pk.clock||0;clockAt=performance.now();
+    if(pk.bpm>0&&Math.abs(pk.bpm-(window.__hostBpm||0))>0.01){window.__hostBpm=pk.bpm;if(window.__rackRepush)try{__rackRepush()}catch(e){}}
     if(typeof onDsp!=='function')return;
-    for(const m of pk.msgs||[]){try{if(m.t==='vli'){if(window.__vocPick)__vocPick(m.li);continue}onDsp(dec(m))}catch(e){console.warn(e)}}
+    for(const m of pk.msgs||[]){try{
+      if(m.t==='vli'){if(window.__vocPick)__vocPick(m.li);continue}
+      if(m.t==='padflash'){if(typeof flashPad==='function')flashPad(m.i);continue}
+      if(m.t==='padbuf'){restorePad(dec(m));continue}
+      onDsp(dec(m))}catch(e){console.warn(e)}}
     for(const k of pk.keys||[]){try{const n=Math.abs(k)-1;if(typeof markKey==='function')markKey(n,k>0)}catch(e){}}
     if(pk.scope)try{onDsp(pk.scope)}catch(e){}
   };
+
+  // ---- the pads: each pad's sound and settings go to the plugin's sampler ----
+  const padSent=[];let lastPads='';
+  function syncPads(){try{
+    if(typeof userBuf==='undefined'||typeof PADS==='undefined'||!window.ROMKIT)return;
+    for(let i=0;i<16;i++){
+      if(userNames[i]&&!userBuf[i])continue;                 // the plugin still holds this pad's own sample
+      const b=userBuf[i]||ROMKIT.buf[i]||kitBuf[i];if(!b||padSent[i]===b)continue;padSent[i]=b;
+      const ch=[];for(let c=0;c<Math.min(2,b.numberOfChannels);c++)ch.push(b.getChannelData(c));
+      window.__farpSend({t:'padbuf',i,fs:b.sampleRate,ch,user:!!userBuf[i],name:userBuf[i]?(userNames[i]||''):''})}
+    const st=JSON.stringify({pads:PADS,spx:SPX,lvx:LVX});if(st!==lastPads){lastPads=st;window.__farpSend({t:'pads',pads:PADS,spx:SPX,lvx:LVX})}
+  }catch(e){console.warn('pads',e)}}
+  window.__syncPads=syncPads;setInterval(syncPads,300);
+  // the project's own pad samples, handed back by the plugin when the page opens
+  function restorePad(m){try{const i=m.i,ch=m.ch||[];if(!ch.length||typeof userBuf==='undefined')return;
+    const b=new AudioBuffer({numberOfChannels:ch.length,length:Math.max(1,ch[0].length),sampleRate:m.fs||48000});ch.forEach((d,c)=>b.copyToChannel(d,c));
+    userBuf[i]=b;if(m.name)userNames[i]=m.name;padSent[i]=b;if(typeof renderPadEdit==='function')renderPadEdit()}catch(e){console.warn(e)}}
 
   // ---- the vocoder's lines, so the plugin can speak them when the host plays chords ----
   let lastCfg='';
@@ -141,7 +165,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;margin:0}
 [hidden]{display:none!important}
 .app,.app *{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .app{user-select:none;-webkit-user-select:none}
@@ -477,6 +501,10 @@ canvas#waveC{position:absolute;inset:0;width:100%;height:100%;touch-action:none;
 .ititle span{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .irow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .padhead #pdKit{flex:0 1 auto;min-width:0;font-size:12px;padding:3px}
+.padwrap{min-width:0;max-width:100%;box-sizing:border-box}.padwrap>*,.padedit,.padhead,.padhead .petabs,.pe-pad label,.pe-pad input[type=range]{min-width:0}.padedit{max-width:100%}.padhead .petabs{flex:0 1 auto;overflow:hidden}
+.padhead .dice{flex:none;padding:3px 6px;display:grid;place-items:center}.padhead .dice svg{width:18px;height:18px}.pe-kit .rkdir{flex:1 1 140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pad.locked::before{content:"";position:absolute;top:5px;left:5px;width:7px;height:7px;border-radius:2px;background:var(--amber);box-shadow:0 0 4px var(--amber)}
+@media (max-width:700px){.padhead{gap:5px}.padhead .petabs button{padding-left:4px;padding-right:4px;font-size:10px}.padhead #pdKit{max-width:76px}.padhead .dice{padding:2px 4px}.padhead .dice svg{width:15px;height:15px}}
+@media (max-width:420px){.padhead .petabs button{padding-left:3px;padding-right:3px;letter-spacing:0}.padhead{gap:4px}.padhead #padName{display:none}.padhead #pdKit{flex:1 1 auto;max-width:none}}
 .irow select,.ibtns select,#pdKit{background:#0e0f11;color:var(--legend);border:1px solid #000;border-radius:4px;padding:5px;font-family:var(--f-ui);font-size:13px;max-width:100%}
 .itabs{margin-left:0;flex-wrap:wrap;flex:0 1 auto;min-width:0}.ihead>*,.irow>*{min-width:0}.irow{min-width:0;max-width:100%}
 .igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;align-content:start;min-height:0}
@@ -605,7 +633,7 @@ canvas.ilcd.wide{width:200px;height:40px}
 @media (max-height:700px) and (max-width:700px){.vxfreq,.vxvt{display:none}.vxface{gap:3px}.vxtr{height:38px}.vxdial{width:24px;height:24px}.vxk>i{font-size:8px}.vxends{display:none}.vxbv{gap:4px;flex-direction:row;align-items:center}.vxtr{height:44px}}
 @media (max-height:700px) and (max-width:700px){.vxdial{width:28px;height:28px}.vxtop select{font-size:12px;padding:2px}.vxface{padding:5px;gap:4px}}
 </style>
-<style>html{box-sizing:border-box}body{margin:0}.transport{display:none!important}#toRack{display:none!important}.keys-hint{display:none!important}</style>
+<style>html{box-sizing:border-box}body{margin:0}.transport{display:none!important}.keys-hint{display:none!important}</style>
 </head>
 <body>
 <div class="app"><div class="inner">
@@ -697,8 +725,8 @@ canvas.ilcd.wide{width:200px;height:40px}
     <section class="padwrap" data-screen="pads">
       <div class="padgrid" id="padGrid"></div>
       <div class="padedit">
-        <div class="padhead"><b id="padName">KICK</b><span id="padSrc" class="lbl">Built-in kit</span><select id="pdKit" aria-label="Drum kit"><option value="farp">F.A.R.P. kit</option><option value="dmx">DMX (ROM)</option><option value="linn">LinnDrum (ROM)</option><option value="808">808 (modeled)</option><option value="909">909 (model+ROM)</option></select>
-          <div class="petabs" role="tablist"><button data-t="pad" aria-selected="true">PAD</button><button data-t="wave" aria-selected="false">WAVE</button><button data-t="lv" aria-selected="false">16 LV</button><button data-t="sp" aria-selected="false">SP</button></div></div>
+        <div class="padhead"><b id="padName">KICK</b><span id="padSrc" class="lbl">Built-in kit</span><select id="pdKit" aria-label="Drum kit"><option value="farp">F.A.R.P. kit</option><option value="dmx">DMX (ROM)</option><option value="linn">LinnDrum (ROM)</option><option value="808">808 (modeled)</option><option value="909">909 (model+ROM)</option></select><button class="btn dice" id="pdDice" title="Random kit from your samples" aria-label="Random kit from your samples"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5" cy="5" r="1.3" fill="currentColor"/><circle cx="11" cy="5" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="5" cy="11" r="1.3" fill="currentColor"/><circle cx="11" cy="11" r="1.3" fill="currentColor"/></svg></button>
+          <div class="petabs" role="tablist"><button data-t="pad" aria-selected="true">PAD</button><button data-t="wave" aria-selected="false">WAVE</button><button data-t="lv" aria-selected="false">16 LV</button><button data-t="sp" aria-selected="false">SP</button><button data-t="kit" aria-selected="false">KIT</button></div></div>
         <div class="pe pe-pad" data-pe="pad">
           <label>Level <input type="range" id="pdLevel" min="0" max="100"><span id="pdLevelV"></span></label>
           <label>Tune <input type="range" id="pdTune" min="-24" max="24"><span id="pdTuneV"></span></label>
@@ -728,6 +756,11 @@ canvas.ilcd.wide{width:200px;height:40px}
           <div class="wrow sl"><label>Ch 1 cutoff <input type="range" id="sp1c" min="0" max="100"><span id="sp1cV"></span></label><label>Ch 1 reso <input type="range" id="sp1r" min="0" max="100"><span id="sp1rV"></span></label></div>
           <div class="wrow sl"><label>Ch 2 cutoff <input type="range" id="sp2c" min="0" max="100"><span id="sp2cV"></span></label><label>Ch 2 reso <input type="range" id="sp2r" min="0" max="100"><span id="sp2rV"></span></label></div>
           <p class="hint">SP-1200 mode resamples every pad to 26.04 kHz at 12 bits with no anti-aliasing filter, pitches by skipping and repeating samples, and holds each output sample with no smoothing. Each of the 8 channels plays one sound at a time. Channels 1–2 run through a modeled SSM2044 ladder filter, 3–6 through fixed low-pass filters, and 7–8 go out raw. MPC60 mode instead converts every pad to 40 kHz at 12 bits through an anti-aliasing filter; W-30 mode to 30 kHz at 12 bits.</p>
+        </div>
+        <div class="pe pe-kit" data-pe="kit" hidden>
+          <div class="wrow"><button class="chipbtn big" id="rkGo">RANDOM KIT</button><button class="chipbtn" id="rkLock" aria-pressed="false">LOCK PAD 1</button><button class="chipbtn" id="rkFill" aria-pressed="true">FILL EVERY PAD</button></div>
+          <div class="wrow"><span class="lbl rkdir" id="rkDir">Samples folder: none yet</span><button class="btn" id="rkPick">Choose folder…</button><button class="btn" id="rkScan">Rescan</button><input type="file" id="rkFiles" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.ogg,.m4a" hidden></div>
+          <p class="hint" id="rkInfo">RANDOM KIT fills the pads from your samples folder: kicks on the kick pad, snares on the snare pad, hats, toms, claps and so on, picked at random each time. It reads file and folder names (Kicks/, snare_04.wav, OH 2.wav…). Lock a pad to keep its sound.</p>
         </div>
         <p class="hint" id="pdHint">Tap a pad to play it and edit it here. Load several fills the pads from many files at once, matching names like kick, snare and hat to their pads. Pads also play from MIDI channel 10.</p>
       </div>
@@ -2569,8 +2602,8 @@ document.getElementById('learnClr').onclick=()=>{CCMAP={...DEFCC};LS.set('farp_c
 /* ===================== Wiring ===================== */
 buildPanel();buildKbd();
 /* ===================== Screens ===================== */
-const SCREENS_WIDE=[['play','PLAY'],['panel','PANEL'],['fx','EFFECTS'],['inst','INSTRUMENTS'],['mix','MIXER']];
-const SCREENS_NARROW=[['play','PLAY'],['strings','STR'],['synth','SYN'],['bass','BASS'],['fx','FX'],['inst','INST'],['mix','MIX']];
+const SCREENS_WIDE=[['play','PLAY'],['panel','PANEL'],['fx','EFFECTS'],['pads','PADS'],['inst','INSTRUMENTS'],['mix','MIXER']];
+const SCREENS_NARROW=[['play','PLAY'],['strings','STR'],['synth','SYN'],['bass','BASS'],['fx','FX'],['pads','PADS'],['inst','INST'],['mix','MIX']];
 let wide=null,screen='play';
 function isWide(){return window.innerWidth>=1000&&window.innerHeight>=620}
 function showScreen(id){
@@ -3120,8 +3153,8 @@ let hint=t=>{const h=document.getElementById('pdHint');h.textContent=t;if(innerW
 
 // user samples, kept in this browser's IndexedDB
 function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open('farp',1);r.onupgradeneeded=()=>r.result.createObjectStore('samples');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
-async function idbPut(i,v){try{const db=await idb();await new Promise((res,rej)=>{const tx=db.transaction('samples','readwrite');v?tx.objectStore('samples').put(v,i):tx.objectStore('samples').delete(i);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}catch(e){}}
-async function loadUserSamples(){
+async function idbPut(i,v){if(window.FARP_PLUGIN)return;try{const db=await idb();await new Promise((res,rej)=>{const tx=db.transaction('samples','readwrite');v?tx.objectStore('samples').put(v,i):tx.objectStore('samples').delete(i);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}catch(e){}}
+async function loadUserSamples(){if(window.FARP_PLUGIN)return;
   try{const db=await idb();const tx=db.transaction('samples','readonly'),st=tx.objectStore('samples');
     for(let i=0;i<16;i++){if(!userNames[i])continue;const req=st.get(i);req.onsuccess=async()=>{const v=req.result;if(!v)return;try{userBuf[i]=await ctx.decodeAudioData(v.data.slice(0))}catch(e){}renderPads()}}}catch(e){}
 }
@@ -3173,11 +3206,99 @@ async function loadMany(files){
 }
 const pdDir=document.getElementById('pdDir'),pdMulti=document.getElementById('pdMulti');
 // Whole-folder picking only works in desktop browsers; phones use Load several.
-document.getElementById('pdFolder').hidden=!('webkitdirectory' in pdDir)||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||!!window.FarpAndroid;
+document.getElementById('pdFolder').hidden=!('webkitdirectory' in pdDir)||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)||(!!window.FarpAndroid&&!window.FARP_PLUGIN);
 [pdDir,pdMulti].forEach(inp=>inp.onchange=async()=>{const fs=inp.files?[...inp.files]:[];inp.value='';if(fs.length)await loadMany(fs)});
 const ra=document.getElementById('pdResetAll'),raOk=document.getElementById('pdResetAllOk');
 ra.onclick=()=>{ra.hidden=true;raOk.hidden=false;setTimeout(()=>{ra.hidden=false;raOk.hidden=true},3000)};
 raOk.onclick=()=>{for(let i=0;i<16;i++){PADS[i]={...PAD_DEF};userBuf[i]=null;delete userNames[i];idbPut(i,null)}savePads();renderPadEdit();ra.hidden=false;raOk.hidden=true;hint('All pads are back to the built-in kit.')};
+
+/* ===================== Pads: random kits from your samples folder ===================== */
+(()=>{
+const AUD=/\.(wav|wave|mp3|aif|aiff|ogg|oga|flac|m4a|aac)$/i;
+let pool=[],dirLabel='',needPerm=false,busy=false;
+let locks=LS.get('farp_rklock',[]);if(!Array.isArray(locks))locks=[];let fill=LS.get('farp_rkfill',1);
+const plug=!!(window.FarpPlugin&&FarpPlugin.sampleList);
+const canDir=!plug&&'showDirectoryPicker' in window&&!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const $=id=>document.getElementById(id);
+const info=t=>{$('rkInfo').textContent=t;hint(t)};
+const norm=s=>' '+s.toLowerCase().replace(/[_\-.()\[\]{}#,+]+/g,' ').replace(/\s+/g,' ')+' ';
+const has=(n,w)=>w.length<=3?new RegExp('(^|[^a-z0-9])'+w.trim()+'([^a-z]|$)').test(n):n.includes(w);
+const hatW=n=>['hat','hh','chh','hihat','hi hat','hi-hat'].some(w=>has(n,w));
+const tomW=n=>has(n,'tom')||n.includes('toms ');
+// which pads a name fits: the pad's own words, with hats and toms told apart
+function fits(n,i){
+  switch(i){
+    case 3:return hatW(n)&&!/open|ohh|(^|[^a-z])oh([^a-z]|$)/.test(n);
+    case 4:return (hatW(n)&&n.includes('open'))||has(n,'ohh')||has(n,'oh');
+    case 5:return tomW(n)&&/(^|[^a-z])(lo|low|floor|ft|lt)([^a-z]|$)|low/.test(n);
+    case 6:return tomW(n)&&!/(^|[^a-z])(lo|low|floor|ft|lt|hi|high|ht)([^a-z]|$)/.test(n);
+    case 7:return tomW(n)&&/(^|[^a-z])(hi|high|ht)([^a-z]|$)|high/.test(n);
+    case 1:return PAD_WORDS[1].some(w=>has(n,w))&&!/(^|[^a-z])(rim|clap)/.test(n);
+    case 0:return PAD_WORDS[0].some(w=>has(n,w))&&!/snare/.test(n);
+    default:return PAD_WORDS[i].some(w=>has(n,w))&&!hatW(n)&&!tomW(n);
+  }
+}
+// 2 = the file name says so, 1 = only its folder does
+function score(path,i){const parts=path.split('/'),file=norm(parts.pop().replace(/\.[a-z0-9]+$/i,'')),dir=norm(parts.join(' '));
+  return fits(file,i)?2:(fits(dir,i)?1:0)}
+function showDir(){$('rkDir').textContent=(dirLabel?'Samples folder: '+dirLabel:'Samples folder: none yet')+(pool.length?' · '+pool.length+' sounds':'');
+  $('rkPick').textContent=needPerm?'Allow access':(plug||canDir?'Choose folder…':'Choose files…');$('rkScan').hidden=!(plug||canDir)}
+function showLock(){$('rkLock').textContent='LOCK PAD '+(selPad+1);$('rkLock').setAttribute('aria-pressed',String(!!locks[selPad]));$('rkFill').setAttribute('aria-pressed',String(!!fill));
+  document.querySelectorAll('#padGrid .pad').forEach((el,i)=>el.classList.toggle('locked',!!locks[i]))}
+async function walk(h,pre,out,depth){for await(const [n,e] of h.entries()){if(out.length>=20000)return;
+  if(e.kind==='file'&&AUD.test(n))out.push({p:pre+n,get:async()=>(await e.getFile()).arrayBuffer()});
+  else if(e.kind==='directory'&&depth<8&&!n.startsWith('.'))await walk(e,pre+n+'/',out,depth+1)}}
+async function scan(){
+  try{
+    if(plug){const list=JSON.parse((await FarpPlugin.sampleList())||'[]');dirLabel=(await FarpPlugin.sampleFolder())||'';
+      pool=list.map(p=>({p,get:async()=>{const r=await fetch('/samples/'+p.split('/').map(encodeURIComponent).join('/'));if(!r.ok)throw new Error('read');return r.arrayBuffer()}}))}
+    else if(canDir){const h=await kvGet('sdir');if(!h){showDir();return}dirLabel=h.name;
+      if(h.queryPermission&&await h.queryPermission({mode:'read'})!=='granted'){needPerm=true;showDir();return}needPerm=false;const out=[];await walk(h,'',out,0);pool=out}
+  }catch(e){info('Couldn’t read the samples folder.')}
+  showDir()}
+async function choose(){
+  if(plug){FarpPlugin.pickSampleFolder();return}
+  if(canDir){try{let h=needPerm?await kvGet('sdir'):null;if(h&&h.requestPermission){if(await h.requestPermission({mode:'read'})==='granted'){needPerm=false;await scan();return}}
+    h=await window.showDirectoryPicker({id:'farp-samples',mode:'read'});await kvSet('sdir',h);needPerm=false;await scan();info(pool.length+' sounds found. Tap RANDOM KIT.')}catch(e){}return}
+  $('rkFiles').click()}
+window.onSampleFolder=async p=>{dirLabel=p||'';await scan();info(pool.length+' sounds found in your samples folder. Tap RANDOM KIT.')};
+$('rkFiles').onchange=async()=>{const fs=[...($('rkFiles').files||[])].filter(f=>AUD.test(f.name)||/^audio\//.test(f.type));$('rkFiles').value='';if(!fs.length)return;
+  pool=fs.map(f=>({p:f.webkitRelativePath||f.name,get:()=>readFile(f)}));dirLabel=fs.length+' chosen files';showDir();await randomKit()};
+async function randomKit(){
+  if(busy)return;
+  if(!pool.length)await scan();
+  if(!pool.length){if(plug||canDir){info('Choose your samples folder first: KIT tab, Choose folder.');showPe('kit')}else $('rkFiles').click();return}
+  busy=true;$('rkGo').textContent='LOADING…';
+  try{
+    if(!powered)await power();if(!padBus&&window.farpNode)onEngineReady(window.farpNode);
+    const used=new Set(),plan=[],idx=[...Array(16).keys()].filter(i=>!locks[i]);
+    const cand=i=>{let top=0,best=[];for(const f of pool){if(used.has(f.p))continue;const s=score(f.p,i);if(s>top){top=s;best=[]}if(s&&s===top)best.push(f)}return best};
+    // the pads with the fewest matching sounds choose first
+    idx.map(i=>[i,cand(i).length]).sort((a,b)=>a[1]-b[1]).forEach(([i])=>{const c=cand(i);const f=c.length?c[Math.random()*c.length|0]:null;if(f)used.add(f.p);plan.push([i,f])});
+    const others=pool.filter(f=>!used.has(f.p)&&!KIT.some((_,i)=>score(f.p,i)));
+    let ok=0;const miss=[];
+    for(const [i,f0] of plan){
+      let f=f0,buf=null,data=null;
+      for(let tries=0;tries<5;tries++){
+        if(!f){if(!fill||!others.length)break;f=others.splice(Math.random()*others.length|0,1)[0]}
+        try{data=await f.get();buf=await decodeAny(data.slice(0));
+          if(!f0&&buf.duration>3){buf=null;f=null;continue}break}catch(e){buf=null;if(f0){f=null;continue}f=null}}
+      if(!buf){miss.push(KIT[i].name.toLowerCase());continue}
+      if(buf.duration>12){const n=Math.floor(12*buf.sampleRate),nb=ctx.createBuffer(buf.numberOfChannels,n,buf.sampleRate);for(let c=0;c<buf.numberOfChannels;c++)nb.copyToChannel(buf.getChannelData(c).subarray(0,n),c);buf=nb}
+      userBuf[i]=buf;userNames[i]=f.p.split('/').pop().replace(/\.[^.]+$/,'').toUpperCase();PADS[i]={...PAD_DEF};
+      if(data&&data.byteLength<20*1024*1024)idbPut(i,{data});ok++}
+    savePads();renderPadEdit();
+    info('Random kit: '+ok+' pad'+(ok===1?'':'s')+' from your samples'+(miss.length?'. Nothing found for '+miss.slice(0,4).join(', ')+(miss.length>4?'…':'')+(fill?'':' (turn on FILL EVERY PAD to use anything)'):'')+'.');
+    if(ok)Sampler.trigger(0,1);
+  }finally{busy=false;$('rkGo').textContent='RANDOM KIT'}}
+$('rkGo').onclick=randomKit;$('pdDice').onclick=randomKit;
+$('rkPick').onclick=choose;$('rkScan').onclick=async()=>{await scan();info(pool.length+' sounds found.')};
+$('rkLock').onclick=()=>{locks[selPad]=locks[selPad]?0:1;LS.set('farp_rklock',locks);showLock()};
+$('rkFill').onclick=()=>{fill=fill?0:1;LS.set('farp_rkfill',fill);showLock()};
+const _rpe=renderPadEdit;renderPadEdit=function(){_rpe();showLock()};
+showDir();showLock();
+window.addEventListener('farp-power',()=>setTimeout(scan,400));
+})();
 
 /* ===================== Mixer ===================== */
 const CH=[{id:'str',name:'STRINGS',cc:'#efe6cf'},{id:'syn',name:'SYNTH',cc:'#86bde0'},{id:'bas',name:'BASS',cc:'#d9664f'},{id:'pad',name:'PADS',cc:'#c3c9cf'},{id:'p5',name:'P-5',cc:'#b48a5a'},{id:'e2',name:'SAMPLE',cc:'#7fa889'},{id:'six',name:'6-TRAK',cc:'#c98fb4'},{id:'fm',name:'FM-4',cc:'#8fa6d9'},{id:'pd',name:'PD-8',cc:'#d9c38f'}];
@@ -3473,6 +3594,7 @@ function levelLabel(k){const x=levelX(k);switch(LVX.type){
 /* -- the sampler voice -- */
 let lastHit=null;
 Sampler.trigger=function(i,vel,at,x){
+  if(window.FARP_PLUGIN){if(!ctx)return;if(window.__syncPads)__syncPads();const t=Math.max(at||0,ctx.currentTime);__farpSend({t:'padtrig',i,v:vel,at:t,x:x?{tune:x.tune,decay:x.decay,cut:x.cut,slice:x.slice,vel:x.vel}:null});const ms=Math.max(0,(t-ctx.currentTime)*1000);setTimeout(()=>flashPad(LVX.on&&i===LVX.src&&x&&x.__k!==undefined?x.__k:i),ms);return}
   if(!ctx||!padBus)return;const raw=userBuf[i]||ROMKIT.buf[i]||kitBuf[i];if(!raw)return;
   const pd=PADS[i];x=x||{};const t=Math.max(at||0,ctx.currentTime);
   if(LVX.full)vel=1;if(x.vel!==undefined)vel=x.vel;
@@ -4963,7 +5085,7 @@ registerProcessor('chipmunk', Chipmunk);
 (()=>{
 const msF = v => v >= 1000 ? (v / 1000).toFixed(2) + ' s' : (v < 10 ? v.toFixed(1) : Math.round(v)) + ' ms', pctF = v => Math.round(v * 100) + '%', hzF = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + ' Hz';
 const SYNC = [['free', 'Free (ms)'], ['0.25', '1/16'], ['0.5', '1/8'], ['0.75', 'Dotted 1/8'], ['1', '1/4'], ['1.5', 'Dotted 1/4'], ['2', '1/2'], ['0.333', '1/8 triplet']];
-const syncMs = s => s === 'free' ? 0 : +s * 60000 / (SEQ.bpm || 120);
+const syncMs = s => s === 'free' ? 0 : +s * 60000 / (window.__hostBpm || SEQ.bpm || 120);
 
 const DP_ALGS = [['off', 'Off'], ['hall', 'Hall reverb'], ['plate', 'Plate reverb'], ['room', 'Room reverb'], ['chorus', 'Chorus'], ['flange', 'Flanger'], ['phaser', 'Phaser'], ['delay', 'Stereo delay'], ['pingpong', 'Ping-pong delay'], ['pitch', 'Pitch shifter'], ['dist', 'Distortion'], ['rotary', 'Rotary speaker'], ['filter', 'Sweep filter']];
 const DP_X = {hall:'Size', plate:'Size', room:'Size', chorus:'Rate', flange:'Rate', phaser:'Rate', delay:'Time', pingpong:'Time', pitch:'Pitch', dist:'Drive', rotary:'Speed', filter:'Rate'};
@@ -5047,13 +5169,13 @@ const save=()=>LS.set('farp_rack',RK);
 let ready=false,rIn=null,rOut=null,dly=null,nodes=[null,null];
 function cfgOf(s){const d=RACK[s.u],p=Object.assign(d.def(),s.p);
   if(p.sync&&p.sync!=='free'){if(s.u==='pt')p.dA=syncMs(p.sync);else p.delay=syncMs(p.sync)}if(p.syncB&&p.syncB!=='free')p.dB=syncMs(p.syncB);return p}
-function wire(){if(!ready)return;try{rIn.disconnect()}catch(e){}nodes.forEach(n=>{if(n)try{n.disconnect()}catch(e){}});
+function wire(){if(window.FARP_PLUGIN){__farpSend({t:'rack',route:RK.route,slots:RK.slots.map(s=>s.u&&RACK[s.u]?{u:s.u,cfg:cfgOf(s)}:null)});return}if(!ready)return;try{rIn.disconnect()}catch(e){}nodes.forEach(n=>{if(n)try{n.disconnect()}catch(e){}});
   nodes=RK.slots.map((s,i)=>{if(!s.u||!RACK[s.u])return null;if(nodes[i]&&nodes[i].__u===s.u){return nodes[i]}
     const n=new AudioWorkletNode(ctx,RACK[s.u].proc,{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2],processorOptions:{cfg:cfgOf(s)}});n.__u=s.u;return n});
   const [A,B]=nodes;
   if(RK.route==='par'||!A||!B){[A,B].forEach(n=>{if(n){rIn.connect(n);n.connect(rOut)}})}else{rIn.connect(A);A.connect(B);B.connect(rOut)}}
-function push(i){const n=nodes[i],s=RK.slots[i];if(n&&s.u)n.port.postMessage({type:'cfg',cfg:cfgOf(s)})}
-async function init(){
+function push(i){if(window.FARP_PLUGIN){wire();return}const n=nodes[i],s=RK.slots[i];if(n&&s.u)n.port.postMessage({type:'cfg',cfg:cfgOf(s)})}
+async function init(){if(window.FARP_PLUGIN){ready=true;window.__rackRepush=wire;wire();return}
   if(ready||!ctx||!ctx.audioWorklet||!(window.farpNode instanceof AudioWorkletNode))return;
   try{const src=document.getElementById('rackSrc').textContent;await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src],{type:'application/javascript'})));
     rIn=ctx.createGain();rOut=ctx.createGain();dly=ctx.createDelay(0.05);dly.delayTime.value=0;
