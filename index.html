@@ -1050,6 +1050,14 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .sheettabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:6px 10px}
 .sheettabs button{padding:10px 4px;font-size:14px}
 .sheettabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+.moredlg{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--fg);padding:16px;width:min(92vw,420px)}
+.moredlg::backdrop{background:rgba(0,0,0,.55)}
+.moredlg h2{margin:0 0 10px;font-family:var(--f-display)}
+.moregrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.moregrid button{padding:14px 8px;font-size:15px}
+#moreX{width:100%}
+nav button[data-act]{color:var(--dim)}
 </style>
 
 </head>
@@ -1527,7 +1535,8 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
     <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
 
     <details id="h-easy" open><summary>Easy mode, the Start screen and Omega Vox</summary>
-      <p><b>Easy mode</b> is on when you first open the app. It shows plain tab names (Beats, Record, Mix, Keys, Song, Settings), puts a one-line tip at the top of every screen, and hides the pro tools (Chop, Wheel, Arp, Sidechain, the FX rack, automation, FIRE and the vintage machine panels). Turn it off at the top of <b>Settings</b> to get every tool back. Nothing is lost either way.</p>
+      <p><b>Easy mode</b> is on when you first open the app. It puts a one-line tip at the top of every screen, and hides the pro tools (Chop, Wheel, Arp, Sidechain, the FX rack, automation, FIRE and the vintage machine panels). Turn it off at the top of <b>Settings</b> to get every tool back. Nothing is lost either way.</p>
+      <p><b>The bottom bar</b> has six buttons: <b>Pads</b>, <b>Synth</b>, <b>Vocoder</b> (opens the vocoder), <b>Mixer</b>, <b>FX</b> (effects for the track on screen) and <b>More</b> (Record audio, Song, Settings, Chop, Wheel, Start screen and Help).</p>
       <p><b>The Start screen</b> (the ⌂ button at the top) gives you big choices: make a beat, play keys, start from a ready-made song, robot voice, use your own samples, or record audio.</p>
       <h3>Where are the notes my synth plays?</h3>
       <p>On the Keys (Synth) screen, the <b>♪ NOTES</b> box sits right above the keys. Every recorded note is a bar in it, and the white line is the playhead. While the loop plays, each note also lights up <b>green</b> on the keys, and the Keys tab glows green when notes play while you're on another screen. Tap a note in NOTES to delete it.</p>
@@ -2119,7 +2128,7 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v131</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v132</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2148,6 +2157,20 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
     <label class="st-pro"><input type="checkbox" id="stEasy" checked> Easy mode: simpler screens with a tip on each one</label>
   </div>
 </div>
+
+<dialog id="moreDlg" class="moredlg" aria-labelledby="moreT">
+  <h2 id="moreT">More</h2>
+  <div class="moregrid">
+    <button data-go="audio" class="nolearn">🎙 Record audio</button>
+    <button data-go="song" class="nolearn">🎼 Song</button>
+    <button data-go="setup" class="nolearn">⚙ Settings</button>
+    <button data-go="chop" class="nolearn">✂ Chop</button>
+    <button data-go="deck" class="nolearn">💿 Wheel</button>
+    <button data-go="start" class="nolearn">⌂ Start screen</button>
+    <button data-go="help" class="nolearn">? Help</button>
+  </div>
+  <button id="moreX" class="nolearn">Close</button>
+</dialog>
 
 <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheetTtl">
   <div class="sheet-bar"><button id="sheetBack" class="nolearn" aria-label="Back">◀ Back</button><button id="sheetPrev" class="nolearn" aria-label="Previous page">‹</button><span id="sheetTtl" class="grow"></span><button class="hundo nolearn" aria-label="Undo">↶</button><button class="hredo nolearn" aria-label="Redo">↷</button><span id="sheetPg" class="mono"></span><button id="sheetRand" class="nolearn" aria-label="Random preset" title="Random preset">🎲</button><button id="sheetHear" class="nolearn hearbtn" aria-label="Preview">▶ Hear</button><button id="sheetNext" class="nolearn" aria-label="Next page">›</button><button id="sheetX" class="nolearn" aria-label="Close" hidden>✕</button></div>
@@ -2209,10 +2232,13 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 </dialog>
 <nav id="nav">
   <button data-v="drums" class="cur">Pads</button>
-  <button data-v="audio">Audio</button>
-  <button data-v="mixer">Mixer</button>
-  <button data-v="chop">Chop</button>
   <button data-v="synth">Synth</button>
+  <button data-act="voc" id="navVoc" class="nolearn">Vocoder</button>
+  <button data-v="mixer">Mixer</button>
+  <button data-act="fx" id="navFx" class="nolearn">FX</button>
+  <button data-act="more" id="navMore" class="nolearn">More</button>
+  <button data-v="audio">Audio</button>
+  <button data-v="chop">Chop</button>
   <button data-v="deck">Wheel</button>
   <button data-v="song">Song</button>
   <button data-v="setup">Setup</button>
@@ -7326,12 +7352,13 @@ $('#arpRst').addEventListener('click', () => { const tr = curSynth(); arpClear(t
 let sheetCard = null, sheetPh = null, sheetPage = 0, sheetPages = 1, sheetT = 0;
 // each tab's sections as one row of buttons, so the screen keeps its space for pads, keys and faders
 const EASY_NAV = {drums:'🥁 Beats', audio:'🎙 Record', mixer:'🎚 Mix', synth:'🎹 Keys', song:'🎼 Song', setup:'⚙ Settings'};
-const VOX_NAV = {synth:'🤖 Vox', mixer:'🎚 Mix', setup:'⚙ Settings'};
+const VOX_NAV = {synth:'🤖 Vox', mixer:'🎚 Mixer', setup:'⚙ Settings'};
+const NAV_LABELS = {drums:'🥁 Pads', synth:'🎹 Synth', mixer:'🎚 Mixer'}, NAV_ACT = {voc:'🤖 Vocoder', fx:'✨ FX', more:'☰ More'};
 const GUIDES = {
-  drums:['Beats', 'Tap a pad to hear it. Press ● and play to record a beat. Change the sounds just below.'],
+  drums:['Pads', 'Tap a pad to hear it. Press ● and play to record a beat. Change the sounds just below.'],
   audio:['Record', 'Tap Enable input, arm a track, then press ● to record your voice or an instrument.'],
-  mixer:['Mix', 'One fader for each track. Slide up for louder. CUT silences a track, SOLO plays only that one.'],
-  synth:['Keys', 'Play the keys. Press ● to record. Your notes show in ♪ NOTES and light up green as they play.'],
+  mixer:['Mixer', 'One fader for each track. Slide up for louder. CUT silences a track, SOLO plays only that one.'],
+  synth:['Synth', 'Play the keys. Press ● to record. Your notes show in ♪ NOTES and light up green as they play.'],
   song:['Song', 'Each pattern is a loop. Make a few, then line them up here to build a whole song.'],
   setup:['Settings', 'Save projects, export WAV or MP3, connect MIDI. Easy mode is right here.'],
   chop:['Chop', 'Load a sample and slice it across the pads.'],
@@ -14523,6 +14550,7 @@ $('#fadersReset').addEventListener('click', e => {
 const wheelShown = () => { try { return localStorage.getItem('pr.wheel2') !== '0'; } catch(e){ return true; } };
 function applyWheelTab(){
   const on = wheelShown(), t = document.querySelector('#nav button[data-v="deck"]'); if (t) t.hidden = navHidden('deck');
+  if (!on && view === 'deck') setView('drums');
   const w = $('#wheelOn'); if (w){ w.textContent = on ? 'On' : 'Off'; w.classList.toggle('on', on); }
   if (!on && view === 'deck') setView('drums');
 }
@@ -14567,7 +14595,14 @@ function fxLit(){
 }
 setInterval(fxLit, 1500);
 let userNav = false;
-document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => { userNav = true; setView(b.dataset.v); }));
+document.querySelectorAll('#nav button[data-v]').forEach(b => b.addEventListener('click', () => { userNav = true; setView(b.dataset.v); }));
+// the main buttons that aren't screens: Vocoder opens the vocoder on the Synth screen, FX the effects for the track on screen
+$('#navVoc').addEventListener('click', () => { userNav = true; if (sheetCard && sheetCard.id === 'vocCard'){ sheetClose(); return; } setView('synth'); setTimeout(() => { const c = $('#vocCard'); if (c) sheetOpen(c); }, 0); });
+$('#navFx').addEventListener('click', () => { userNav = true; fxOpen(); });
+$('#navMore').addEventListener('click', () => $('#moreDlg').showModal());
+$('#moreX').addEventListener('click', () => $('#moreDlg').close());
+$('#moreDlg').addEventListener('click', e => { const b = e.target.closest('button[data-go]'); if (!b) return; $('#moreDlg').close(); userNav = true;
+  const g = b.dataset.go; if (g === 'start') startOpen(); else if (g === 'help') $('#helpBtn').click(); else setView(g); });
 document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.defaultPrevented && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){ e.preventDefault(); playing ? stop() : start(0); } });
 window.addEventListener('resize', () => { seqDirty = true; rollDirty = true; if (view === 'audio') S.audio.forEach(drawWave); });
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', () => { listDevices(); if (outPref()) applyOutput(); if (inSrc) toast('Audio devices changed. Pick the interface in Setup if needed.'); });
@@ -14597,20 +14632,20 @@ $('#helpSearch').addEventListener('input', e => {
 
 
 /* ================= Easy mode, the Start screen, a tip on every screen, and Omega Vox ================= */
+// the bottom bar is Pads, Synth, Vocoder, Mixer, FX and More; every other screen lives under More
 function navHidden(v){
   if (APP === 'vox') return !VOX_NAV[v];
-  if (v === 'chop') return isEasy();
-  if (v === 'deck') return isEasy() || !wheelShown();
-  return false;
+  return !(v === 'drums' || v === 'synth' || v === 'mixer');
 }
 function applyEasy(on){
   const r = document.documentElement;
   if (APP !== 'vox'){ r.classList.toggle('easy', !!on); try { localStorage.setItem('pr.easy', on ? '1' : '0'); } catch(e){} }
   document.querySelectorAll('#nav button').forEach(b => { if (b._full == null) b._full = b.textContent;
-    b.textContent = (APP === 'vox' ? VOX_NAV[b.dataset.v] : isEasy() && EASY_NAV[b.dataset.v]) || b._full; b.hidden = navHidden(b.dataset.v); });
+    if (!b.dataset.v){ b.hidden = APP === 'vox' && b.dataset.act !== 'fx'; b.textContent = NAV_ACT[b.dataset.act]; return; }
+    b.textContent = (APP === 'vox' ? VOX_NAV[b.dataset.v] : NAV_LABELS[b.dataset.v]) || b._full; b.hidden = navHidden(b.dataset.v); });
   const e = $('#easyOn'); if (e){ e.textContent = isEasy() ? 'On' : 'Off'; e.classList.toggle('on', isEasy()); }
   const se = $('#stEasy'); if (se) se.checked = isEasy();
-  if (navHidden(view)) setView(APP === 'vox' ? 'synth' : 'drums');
+  if (APP === 'vox' && navHidden(view)) setView('synth');
   setTimeout(fitScreen, 30);
 }
 function voxBarMount(){
@@ -14623,6 +14658,7 @@ function voxBarMount(){
 function voxTabsPaint(){
   const k = sheetCard && sheetCard.dataset.chip, on = k === 'Sound' || k === 'Speech' || k === 'Vocoder', bar = $('#sheetTabs'); if (!bar) return;
   bar.hidden = !on; bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  const nv = $('#navVoc'); if (nv){ nv.classList.toggle('cur', k === 'Vocoder'); const ns = document.querySelector('#nav button[data-v="synth"]'); if (ns && view === 'synth') ns.classList.toggle('cur', k !== 'Vocoder'); }
 }
 $('#sheetTabs').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; const c = document.querySelector(`#v-synth > .card[data-chip="${b.dataset.k}"]`); if (c) sheetOpen(c); });
 function guideMount(){
