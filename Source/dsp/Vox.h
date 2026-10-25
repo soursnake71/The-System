@@ -292,4 +292,99 @@ public:
     }
 };
 
+
+// STAR SCREAMER 350: the Omega System's vocoder (SVC-350 from the 1979 service notes) with growl and S/T noise. Port of the page's VxStar.
+class VxStar {
+public:
+    struct Q { double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, z1 = 0, z2 = 0, f = 0; };
+    struct P { double bands[10] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, cons = .8, bal = 0, harm = .5, ens = 0, hold = 0, growl = 0, sib = .7, vol = 1, clev = 0;
+        void assign(const Val& o) {
+            if (o.has("bands")) for (int b = 0; b < 10; b++) bands[b] = o["bands"][b].num();
+            auto g = [&] (const char* k, double& v) { if (o.has(k)) v = o[k].num(); };
+            g("cons", cons); g("bal", bal); g("harm", harm); g("ens", ens); g("hold", hold); g("growl", growl); g("sib", sib); g("vol", vol); g("clev", clev);
+        } } p;
+    static constexpr double TRIM = 0.22;
+    double L = 0, R = 0;
+    explicit VxStar (double fs_) : fs (fs_) {
+        const double PI = VxDsp::PI_;
+        sLpA = 1 - std::exp(-2 * PI * 2500 / fs); lLpA = 1 - std::exp(-2 * PI * 800 / fs); eAs = 1 - std::exp(-1 / (.008 * fs));
+        gA = 1 - std::exp(-2 * PI * 600 / fs); gRel = std::exp(-1 / (.05 * fs));
+        auto mfb = [&] (double R1, double R2, double R3, double C) { Q q; const double c1 = 2 / (R3 * C), c0 = (R1 + R2) / (R1 * R2 * R3 * C * C), g = -1 / (R1 * C), w0 = std::sqrt(c0), K = w0 / std::tan(w0 / (2 * fs)), d = K * K + c1 * K + c0;
+            q.b0 = g * K / d; q.b1 = 0; q.b2 = -g * K / d; q.a1 = (2 * c0 - 2 * K * K) / d; q.a2 = (K * K - c1 * K + c0) / d; q.f = w0 / (2 * PI); return q; };
+        auto lp2 = [&] (double f, double Qv) { Q q; const double w0 = 2 * PI * f, K = w0 / std::tan(w0 / (2 * fs)), d = K * K + w0 / Qv * K + w0 * w0;
+            q.b0 = w0 * w0 / d; q.b1 = 2 * w0 * w0 / d; q.b2 = w0 * w0 / d; q.a1 = (2 * w0 * w0 - 2 * K * K) / d; q.a2 = (K * K - w0 / Qv * K + w0 * w0) / d; return q; };
+        auto hp2 = [&] (double f, double Qv) { Q q; const double w0 = 2 * PI * f, K = w0 / std::tan(w0 / (2 * fs)), d = K * K + w0 / Qv * K + w0 * w0;
+            q.b0 = K * K / d; q.b1 = -2 * K * K / d; q.b2 = K * K / d; q.a1 = (2 * w0 * w0 - 2 * K * K) / d; q.a2 = (K * K - w0 / Qv * K + w0 * w0) / d; return q; };
+        auto mag = [&] (const Q& q, double f) { const double w = 2 * PI * f / fs, cr = std::cos(w), ci = -std::sin(w), c2r = std::cos(2 * w), c2i = -std::sin(2 * w);
+            const double nr = q.b0 + q.b1 * cr + q.b2 * c2r, ni = q.b1 * ci + q.b2 * c2i, dr = 1 + q.a1 * cr + q.a2 * c2r, di = q.a1 * ci + q.a2 * c2i;
+            return std::sqrt(nr * nr + ni * ni) / std::sqrt(dr * dr + di * di); };
+        const double CA[10] = {.068, .047, .033, .022, .015, .01, .0068, .0047, .0033, .0022}, CS[10] = {.056, .039, .027, .018, .012, .0082, .0056, .0039, .0027, .0018};
+        for (int k = 0; k < 10; k++) {
+            const double ca = CA[k] * 1e-6, cs = CS[k] * 1e-6;
+            A1[k] = mfb(33e3, 1.2e3, 220e3, ca); A2[k] = mfb(27e3, 1e3, 180e3, ca); S1[k] = mfb(180e3, 1.2e3, 220e3, cs); S2[k] = mfb(22e3, 1e3, 180e3, cs);
+            const double fa = std::sqrt(A1[k].f * A2[k].f), fsy = std::sqrt(S1[k].f * S2[k].f);
+            nA[k] = 1 / (mag(A1[k], fa) * mag(A2[k], fa)); nS[k] = 1 / (mag(S1[k], fsy) * mag(S2[k], fsy));
+            SK[k] = lp2(1 / (2 * PI * 1e5 * std::sqrt(.033e-6 * .022e-6)), std::sqrt(.033e-6 * .022e-6) / (2 * .022e-6));
+        }
+        relN = std::exp(-1 / (470e3 * .022e-6 * fs)); relH = std::exp(-1 / (8 * fs));
+        auto rc = [&] (double Rv) { const double RC = Rv * 2.2e-9; return RC / (RC + 1 / fs); };
+        hpA[0] = rc(4.7e3); hpA[1] = rc(12e3); hpA[2] = rc(10e3); hpA[3] = (1e4 * 1e-8) / (1e4 * 1e-8 + 1 / fs);
+        hk1 = hp2(1 / (2 * PI * 2.2e-9 * std::sqrt(12e3 * 22e3)), .5 * std::sqrt(22e3 / 12e3)); hk2 = hp2(1 / (2 * PI * 2.2e-9 * std::sqrt(6.8e3 * 47e3)), .5 * std::sqrt(47e3 / 6.8e3));
+        consLp = 1 - std::exp(-1 / (33e3 * 2.2e-9 * fs));
+        cAtk = 1 - std::exp(-1 / (.001 * fs)); cRel = std::exp(-1 / (.2 * fs));
+        detA = 1 - std::exp(-1 / (150e3 * .1e-6 * fs)); gateA = 1 - std::exp(-1 / (.004 * fs));
+        hA = 1 - std::exp(-2 * PI * 1500 / fs); eA = 1 - std::exp(-2 * PI * 7000 / fs);
+    }
+    void process (double m, double c0) {
+        const double rel = p.hold != 0 ? relH : relN, ref = .3;
+        double c = c0 * (p.clev != 0 ? std::pow(10.0, p.clev / 20) : 1);
+        if (p.growl > 0) {
+            gLp += (c - gLp) * gA; if (gLp > 0) { if (!gPos) { gPos = 1; gFF = -gFF; } } else gPos = 0;
+            const double ac = std::abs(c); gPk = ac > gPk ? ac : gPk * gRel; gSub += (gFF * gPk - gSub) * .2;
+            const double G = p.growl, drv = 1 + G * 9, pk = std::max(gPk, 1e-4); c = std::tanh((c + gSub * G) / pk * drv) / std::tanh(drv) * pk / (1 + G * 1.4);
+        }
+        const double am = std::abs(m);
+        if (p.hold == 0) { if (am > cPk) cPk += (am - cPk) * cAtk; else cPk *= cRel; gC = std::min(10.0, ref / std::max(cPk, 1e-4)); }
+        const double mc = m * gC;
+        det += (std::abs(c) - det) * detA; gate += ((det > .002 ? 1.0 : 0.0) - gate) * gateA;
+        hLp += (c - hLp) * hA; double cc = hLp + (c - hLp) * p.harm * 2;
+        if (p.sib > 0) {
+            sLp += (mc - sLp) * sLpA; lLp += (mc - lLp) * lLpA;
+            const double hf = mc - sLp; hE += (std::abs(hf) - hE) * eAs; lE += (std::abs(lLp) - lE) * eAs;
+            const double u = std::min(1.0, std::max(0.0, (hE / (lE + 1e-4) - .55) * 1.6)) * p.sib; uv += (u - uv) * .02;
+            const double nz = rnd() * 2 - 1; if (uv > .001) cc = cc * (1 - uv) + nz * std::max(det * 2.2, .02) * uv;
+        }
+        double sum = 0;
+        for (int k = 0; k < 10; k++) {
+            const double a = bq(A2[k], bq(A1[k], mc)) * nA[k], r = a > 0 ? a : 0;
+            if (r > pk[k]) pk[k] = r; else pk[k] *= rel;
+            const double e = bq(SK[k], pk[k]), vca = std::min(1.0, std::max(0.0, e * 5 - .003)) * p.bands[k];
+            sum += bq(S2[k], bq(S1[k], cc) * vca) * nS[k];
+        }
+        double x = m;
+        for (int s = 0; s < 3; s++) { const double y = hpA[s] * (hpS[s * 2] + x - hpS[s * 2 + 1]); hpS[s * 2 + 1] = x; hpS[s * 2] = y; x = y; }
+        x = bq(hk2, bq(hk1, x)); { const double y = hpA[3] * (hpS[6] + x - hpS[7]); hpS[7] = x; hpS[6] = y; x = y; }
+        consY += (x * std::min(1.0, det * 40) - consY) * consLp;
+        const double ex = std::min(2.5, cPk / ref) * gate, voc = (sum * 4 + consY * 12 * p.cons) * ex * 2.5, o = (voc * (1 - p.bal) + m * p.bal) * p.vol * TRIM;
+        if (p.ens != 0) {
+            buf[w % 4096] = (float) o; ph1 = std::fmod(ph1 + .25 / fs, 1.0); ph2 = std::fmod(ph2 + 4.5 / fs, 1.0);
+            const double tri = 1 - 4 * std::abs(ph1 - .5), sn = std::sin(2 * VxDsp::PI_ * ph2), dl = .0045 + .0018 * tri + .00035 * sn, dr = .0045 - .0018 * tri - .00035 * sn;
+            eL += (tap(dl) - eL) * eA; eR += (tap(dr) - eR) * eA; w++;
+            L = VxDsp::soft(o * .7 + eL * .7, .8); R = VxDsp::soft(o * .7 + eR * .7, .8);
+        } else { L = R = VxDsp::soft(o, .8); }
+    }
+private:
+    double fs; uint32_t seed = 0x5eed;
+    double rnd() { seed = seed * 1664525u + 1013904223u; return seed / 4294967296.0; }
+    static double bq (Q& q, double x) { const double y = q.b0 * x + q.z1; q.z1 = q.b1 * x - q.a1 * y + q.z2; q.z2 = q.b2 * x - q.a2 * y; return y; }
+    double tap (double d) const { const double r = (double) w - d * fs, fi = std::floor(r), f = r - fi; const long long i = (long long) fi, n = 4096;
+        return buf[(size_t) (((i % n) + n) % n)] * (1 - f) + buf[(size_t) ((((i + 1) % n) + n) % n)] * f; }
+    double sLp = 0, sLpA, lLp = 0, lLpA, hE = 0, lE = 0, eAs, uv = 0;
+    double gLp = 0, gA, gFF = 1, gSub = 0, gPk = 0, gRel; int gPos = 0;
+    Q A1[10], A2[10], S1[10], S2[10], SK[10]; double nA[10], nS[10], pk[10] = {};
+    double relN, relH, hpA[4], hpS[8] = {}; Q hk1, hk2; double consLp, consY = 0;
+    double cPk = 0, cAtk, cRel, gC = 1, det = 0, detA, gate = 0, gateA, hLp = 0, hA;
+    float buf[4096] = {}; long long w = 0; double ph1 = 0, ph2 = 0, eL = 0, eR = 0, eA;
+};
+
 } // namespace farp

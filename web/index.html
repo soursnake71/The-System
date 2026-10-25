@@ -629,6 +629,11 @@ canvas.ilcd.wide{width:200px;height:40px}
   .vxdial{width:28px;height:28px}.vxxlr{width:22px;height:26px}.vxxlr span{width:16px;height:16px}.vxtr{height:56px;min-height:40px}.vxface{padding:5px;gap:4px}.vxbox{padding:3px 4px}
   .ihead.vxmode .itabs button{padding:4px 6px;font-size:11px}.vxface{grid-template-columns:repeat(12,minmax(0,1fr));grid-template-areas:"mic mic mic mic mic ins ins ins ins ins ins ins" "vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc" "rem rem rem rem rem rem out out out pw pw pw"}
   .vxlmh>i{display:none}.vxout{gap:1px}.vxswb button{min-width:15px;padding:3px 2px}.vxpw{flex-direction:column;gap:1px;justify-content:center}.vxpwc{flex-direction:row;gap:3px}.vxpwc>i{font-size:7px}.vxtop label{font-size:9px;gap:3px}}
+.stface .vxins{display:flex;flex-direction:column;gap:2px}.stface .vxins>h5{margin-bottom:1px}.stface .vxmic{display:flex;flex-direction:column;gap:3px}
+.stprog{display:flex;align-items:center;gap:4px;min-width:0}.stprog>i{font-style:normal;font-size:9px}.stprog select{flex:1;min-width:0;font-size:12px;padding:2px 3px;background:#0a0a0b;color:var(--sk);border:1px solid #bdb9ad66}
+.stface{grid-template-areas:"mic mic mic ins ins ins" "vcc vcc vcc vcc vcc vcc" "rem rem rem rem pw pw"}.stface .vxplate b{letter-spacing:.04em}
+@media (min-width:1000px){.stface{grid-template-columns:auto 1fr 2.6fr 1.2fr auto;grid-template-areas:"rem mic vcc ins pw" "rem mic vcc ins pw"}}
+@media (max-width:700px){.stface{grid-template-areas:"mic mic mic mic mic mic ins ins ins ins ins ins" "vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc vcc" "rem rem rem rem rem rem rem pw pw pw pw pw"}.stprog>i{display:none}}
 @media (max-width:380px){.ihead.vxmode .ititle{display:none}}
 @media (max-height:700px) and (max-width:700px){.vxfreq,.vxvt{display:none}.vxface{gap:3px}.vxtr{height:38px}.vxdial{width:24px;height:24px}.vxk>i{font-size:8px}.vxends{display:none}.vxbv{gap:4px;flex-direction:row;align-items:center}.vxtr{height:44px}}
 @media (max-height:700px) and (max-width:700px){.vxdial{width:28px;height:28px}.vxtop select{font-size:12px;padding:2px}.vxface{padding:5px;gap:4px}}
@@ -1652,6 +1657,67 @@ class VxClear{
     const vg=Math.sin(S.bal*Math.PI/2),dg=Math.cos(S.bal*Math.PI/2);l=(l*vg+mic*dg)*S.vol;r=(r*vg+mic*dg)*S.vol;if(!P.stereo)l=r=0.5*(l+r);
     this.L=VxDsp.soft(l,0.8);this.R=VxDsp.soft(r,0.8)}
 }
+/* ---- STAR SCREAMER 350: the Omega System's vocoder (SVC-350 from the 1979 service notes) with growl, S/T noise and its presets ---- */
+class VxStar{
+  constructor(fs){this.fs=fs;
+    this.p={bands:[1,1,1,1,1,1,1,1,1,1],cons:.8,bal:0,harm:.5,ens:0,hold:0,growl:0,sib:.7,vol:1,clev:0};this.L=0;this.R=0;this.seed=0x5eed;
+    this.sLp=0;this.sLpA=1-Math.exp(-2*Math.PI*2500/fs);this.lLp=0;this.lLpA=1-Math.exp(-2*Math.PI*800/fs);
+    this.hE=0;this.lE=0;this.eAs=1-Math.exp(-1/(.008*fs));this.uv=0;
+    this.gLp=0;this.gA=1-Math.exp(-2*Math.PI*600/fs);this.gFF=1;this.gPos=0;this.gSub=0;this.gPk=0;this.gRel=Math.exp(-1/(.05*fs));
+    const mfb=(R1,R2,R3,C)=>{const c1=2/(R3*C),c0=(R1+R2)/(R1*R2*R3*C*C),g=-1/(R1*C),w0=Math.sqrt(c0),K=w0/Math.tan(w0/(2*fs)),d=K*K+c1*K+c0;
+      return {b0:g*K/d,b1:0,b2:-g*K/d,a1:(2*c0-2*K*K)/d,a2:(K*K-c1*K+c0)/d,z1:0,z2:0,f:w0/(2*Math.PI)}};
+    const lp2=(f,Q)=>{const w0=2*Math.PI*f,K=w0/Math.tan(w0/(2*fs)),d=K*K+w0/Q*K+w0*w0;return {b0:w0*w0/d,b1:2*w0*w0/d,b2:w0*w0/d,a1:(2*w0*w0-2*K*K)/d,a2:(K*K-w0/Q*K+w0*w0)/d,z1:0,z2:0}};
+    const hp2=(f,Q)=>{const w0=2*Math.PI*f,K=w0/Math.tan(w0/(2*fs)),d=K*K+w0/Q*K+w0*w0;return {b0:K*K/d,b1:-2*K*K/d,b2:K*K/d,a1:(2*w0*w0-2*K*K)/d,a2:(K*K-w0/Q*K+w0*w0)/d,z1:0,z2:0}};
+    const mag=(q,f)=>{const w=2*Math.PI*f/fs,cr=Math.cos(w),ci=-Math.sin(w),c2r=Math.cos(2*w),c2i=-Math.sin(2*w);
+      const nr=q.b0+q.b1*cr+q.b2*c2r,ni=q.b1*ci+q.b2*c2i,dr=1+q.a1*cr+q.a2*c2r,di=q.a1*ci+q.a2*c2i;return Math.sqrt(nr*nr+ni*ni)/Math.sqrt(dr*dr+di*di)};
+    const CA=[.068,.047,.033,.022,.015,.01,.0068,.0047,.0033,.0022].map(x=>x*1e-6),CS=[.056,.039,.027,.018,.012,.0082,.0056,.0039,.0027,.0018].map(x=>x*1e-6);
+    this.A1=[];this.A2=[];this.S1=[];this.S2=[];this.SK=[];this.nA=[];this.nS=[];this.pk=new Float64Array(10);
+    for(let k=0;k<10;k++){const a1=mfb(33e3,1.2e3,220e3,CA[k]),a2=mfb(27e3,1e3,180e3,CA[k]),s1=mfb(180e3,1.2e3,220e3,CS[k]),s2=mfb(22e3,1e3,180e3,CS[k]);
+      const fa=Math.sqrt(a1.f*a2.f),fsy=Math.sqrt(s1.f*s2.f);this.A1.push(a1);this.A2.push(a2);this.S1.push(s1);this.S2.push(s2);
+      this.nA.push(1/(mag(a1,fa)*mag(a2,fa)));this.nS.push(1/(mag(s1,fsy)*mag(s2,fsy)));
+      this.SK.push(lp2(1/(2*Math.PI*1e5*Math.sqrt(.033e-6*.022e-6)),Math.sqrt(.033e-6*.022e-6)/(2*.022e-6)))}
+    this.relN=Math.exp(-1/(470e3*.022e-6*fs));this.relH=Math.exp(-1/(8*fs));
+    const rc=R=>{const RC=R*2.2e-9;return RC/(RC+1/fs)};
+    this.hpA=[rc(4.7e3),rc(12e3),rc(10e3),(1e4*1e-8)/(1e4*1e-8+1/fs)];this.hpS=new Float64Array(8);
+    this.hk1=hp2(1/(2*Math.PI*2.2e-9*Math.sqrt(12e3*22e3)),.5*Math.sqrt(22e3/12e3));this.hk2=hp2(1/(2*Math.PI*2.2e-9*Math.sqrt(6.8e3*47e3)),.5*Math.sqrt(47e3/6.8e3));
+    this.consLp=1-Math.exp(-1/(33e3*2.2e-9*fs));this.consY=0;
+    this.cPk=0;this.cAtk=1-Math.exp(-1/(.001*fs));this.cRel=Math.exp(-1/(.2*fs));this.gC=1;
+    this.det=0;this.detA=1-Math.exp(-1/(150e3*.1e-6*fs));this.gate=0;this.gateA=1-Math.exp(-1/(.004*fs));
+    this.hLp=0;this.hA=1-Math.exp(-2*Math.PI*1500/fs);
+    this.buf=new Float32Array(4096);this.w=0;this.ph1=0;this.ph2=0;this.eL=0;this.eR=0;this.eA=1-Math.exp(-2*Math.PI*7000/fs)}
+  static get TRIM(){return 0.22}
+  rnd(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296}
+  static bq(q,x){const y=q.b0*x+q.z1;q.z1=q.b1*x-q.a1*y+q.z2;q.z2=q.b2*x-q.a2*y;return y}
+  tap(d){const r=this.w-d*this.fs,i=Math.floor(r),f=r-i,n=4096;return this.buf[((i%n)+n)%n]*(1-f)+this.buf[(((i+1)%n)+n)%n]*f}
+  process(m,c0){const P=this.p,bq=VxStar.bq,rel=P.hold?this.relH:this.relN,ref=.3;
+    let c=c0*(P.clev?Math.pow(10,P.clev/20):1);
+    if(P.growl>0){this.gLp+=(c-this.gLp)*this.gA;if(this.gLp>0){if(!this.gPos){this.gPos=1;this.gFF=-this.gFF}}else this.gPos=0;
+      const ac=Math.abs(c);this.gPk=ac>this.gPk?ac:this.gPk*this.gRel;this.gSub+=(this.gFF*this.gPk-this.gSub)*.2;
+      const G=P.growl,drv=1+G*9,pk=Math.max(this.gPk,1e-4);c=Math.tanh((c+this.gSub*G)/pk*drv)/Math.tanh(drv)*pk/(1+G*1.4)}
+    const am=Math.abs(m);
+    if(!P.hold){if(am>this.cPk)this.cPk+=(am-this.cPk)*this.cAtk;else this.cPk*=this.cRel;this.gC=Math.min(10,ref/Math.max(this.cPk,1e-4))}
+    const mc=m*this.gC;
+    this.det+=(Math.abs(c)-this.det)*this.detA;this.gate+=((this.det>.002?1:0)-this.gate)*this.gateA;
+    this.hLp+=(c-this.hLp)*this.hA;let cc=this.hLp+(c-this.hLp)*P.harm*2;
+    if(P.sib>0){this.sLp+=(mc-this.sLp)*this.sLpA;this.lLp+=(mc-this.lLp)*this.lLpA;
+      const hf=mc-this.sLp;this.hE+=(Math.abs(hf)-this.hE)*this.eAs;this.lE+=(Math.abs(this.lLp)-this.lE)*this.eAs;
+      const u=Math.min(1,Math.max(0,(this.hE/(this.lE+1e-4)-.55)*1.6))*P.sib;this.uv+=(u-this.uv)*.02;
+      const nz=this.rnd()*2-1;if(this.uv>.001)cc=cc*(1-this.uv)+nz*Math.max(this.det*2.2,.02)*this.uv}
+    let sum=0;
+    for(let k=0;k<10;k++){const a=bq(this.A2[k],bq(this.A1[k],mc))*this.nA[k],r=a>0?a:0;
+      if(r>this.pk[k])this.pk[k]=r;else this.pk[k]*=rel;
+      const e=bq(this.SK[k],this.pk[k]),vca=Math.min(1,Math.max(0,e*5-.003))*P.bands[k];
+      sum+=bq(this.S2[k],bq(this.S1[k],cc)*vca)*this.nS[k]}
+    let x=m;const h=this.hpS;
+    for(let s=0;s<3;s++){const y=this.hpA[s]*(h[s*2]+x-h[s*2+1]);h[s*2+1]=x;h[s*2]=y;x=y}
+    x=bq(this.hk2,bq(this.hk1,x));{const y=this.hpA[3]*(h[6]+x-h[7]);h[7]=x;h[6]=y;x=y}
+    this.consY+=(x*Math.min(1,this.det*40)-this.consY)*this.consLp;
+    const ex=Math.min(2.5,this.cPk/ref)*this.gate,voc=(sum*4+this.consY*12*P.cons)*ex*2.5,o=(voc*(1-P.bal)+m*P.bal)*P.vol*VxStar.TRIM;
+    if(P.ens){this.buf[this.w%4096]=o;this.ph1=(this.ph1+.25/this.fs)%1;this.ph2=(this.ph2+4.5/this.fs)%1;
+      const tri=1-4*Math.abs(this.ph1-.5),sn=Math.sin(2*Math.PI*this.ph2),dl=.0045+.0018*tri+.00035*sn,dr=.0045-.0018*tri-.00035*sn;
+      this.eL+=(this.tap(dl)-this.eL)*this.eA;this.eR+=(this.tap(dr)-this.eR)*this.eA;this.w++;this.L=VxDsp.soft(o*.7+this.eL*.7,.8);this.R=VxDsp.soft(o*.7+this.eR*.7,.8)}
+    else{this.L=this.R=VxDsp.soft(o,.8)}}
+}
 /* ---- VX-350 SVC circuit model ---- */
 class VxCircuit{
   constructor(fs){
@@ -1867,7 +1933,7 @@ class FarpDSP{
     if(m.t==='e2'){Object.assign(this.e2.p,m.p);return}
     if(m.t==='e2z'){this.e2.setZones(m.z);return}
     if(m.t==='voc'){const V=this.voc||(this.voc={on:0,eng:'clear',ch:-1,E:{}});Object.assign(V,{on:m.on,eng:m.eng,ch:m.ch});
-      if(m.on){const fs=this.fs;if(!V.E[m.eng])V.E[m.eng]=m.eng==='svc'?new VxCircuit(fs):m.eng==='talker'?new TalkerPedal(fs):new VxClear(fs);const E=V.E[m.eng];
+      if(m.on){const fs=this.fs;if(!V.E[m.eng])V.E[m.eng]=m.eng==='svc'?new VxCircuit(fs):m.eng==='star'?new VxStar(fs):m.eng==='talker'?new TalkerPedal(fs):new VxClear(fs);const E=V.E[m.eng];
         if(m.p&&E.p)Object.assign(E.p,m.p);if(m.tk&&E.knob){E.setMode(m.tk.mode);E.knob.mic=m.tk.mic;E.knob.inst=m.tk.inst;E.knob.out=m.tk.out}}
       return}
     if(m.t==='cap'){if(m.on){this.cap={n:0,L:[],R:[]};for(let k=0;k<11;k++){this.cap.L.push(new Float32Array(4096));this.cap.R.push(new Float32Array(4096))}}else if(this.cap){this.capFlush(true);this.cap=null}return}
@@ -2435,7 +2501,7 @@ async function powerUp(){
   kickAudio();
   let node=null;
   try{if(window.FARP_PLUGIN){node=window.__fakeNode;send=window.__farpSend;}else{
-    const src=[WmsDsp,P5Engine,E2Engine,Z80,Pit8253,P5Machine,P5Voices,P5R3Engine,SixtrakMachine,SixtrakEngine,DXEngine,CZEngine,RomPcmEngine,VxDsp,VxEnsemble,VxClear,VxCircuit,TalkerPedal,FarpDSP].map(c=>c.toString()).join("\n")+"\nclass FarpProc extends AudioWorkletProcessor{constructor(){super();this.d=new FarpDSP(sampleRate);this.port.onmessage=e=>this.d.msg(e.data);this.d.post=m=>this.port.postMessage(m);}process(i,o){const out=o[0],inp=i[0],rt=i[1],vi=i[2],so=o[1]&&o[1][0];this.d.process(out[0],out[1]||out[0],out[0].length,currentTime,inp&&inp[0],inp&&(inp[1]||inp[0]),rt&&rt[0],rt&&(rt[1]||rt[0]),so,vi&&vi[0]);return true;}}\nregisterProcessor('farp',FarpProc);";
+    const src=[WmsDsp,P5Engine,E2Engine,Z80,Pit8253,P5Machine,P5Voices,P5R3Engine,SixtrakMachine,SixtrakEngine,DXEngine,CZEngine,RomPcmEngine,VxDsp,VxEnsemble,VxClear,VxStar,VxCircuit,TalkerPedal,FarpDSP].map(c=>c.toString()).join("\n")+"\nclass FarpProc extends AudioWorkletProcessor{constructor(){super();this.d=new FarpDSP(sampleRate);this.port.onmessage=e=>this.d.msg(e.data);this.d.post=m=>this.port.postMessage(m);}process(i,o){const out=o[0],inp=i[0],rt=i[1],vi=i[2],so=o[1]&&o[1][0];this.d.process(out[0],out[1]||out[0],out[0].length,currentTime,inp&&inp[0],inp&&(inp[1]||inp[0]),rt&&rt[0],rt&&(rt[1]||rt[0]),so,vi&&vi[0]);return true;}}\nregisterProcessor('farp',FarpProc);";
     const url=URL.createObjectURL(new Blob([src],{type:'application/javascript'}));
     await ctx.audioWorklet.addModule(url);
     node=new AudioWorkletNode(ctx,'farp',{numberOfInputs:3,numberOfOutputs:2,outputChannelCount:[2,1],channelCount:2,channelCountMode:'explicit'});
@@ -4123,7 +4189,7 @@ const tlog=v=>0.001*Math.pow(10,v*4),tlogI=t=>Math.log10(Math.max(0.001,t)/0.001
 const flog=v=>20*Math.pow(1000,v),flogI=f=>Math.log(f/20)/Math.log(1000),ffmt=v=>{const f=flog(v);return f<1000?Math.round(f)+'':(f/1000).toFixed(1)+'k'};
 /* P-5 (model) */
 const P5D={aSaw:1,aPulse:0,bSaw:1,bTri:0,bPulse:0,sync:0,bLow:0,bKbd:1,aPw:.5,bPw:.5,bSemi:7,bFine:6,mixA:.8,mixB:.6,mixNoise:0,cutoff:2000,res:.2,envAmt:.5,kbdTrack:.5,fA:.005,fD:.4,fS:.3,fR:.4,aA:.005,aD:.5,aS:.8,aR:.4,pmEnv:0,pmOscB:0,pmFreqA:1,pmPwA:0,pmFilter:0,lfoRate:5,lfoFreq:0,lfoFilter:0,glide:0,slop:.3,level:.5};
-const P5PRE=[['Init',{}],['Poly Brass',{bSemi:0,bFine:8,cutoff:700,res:.15,envAmt:.55,fA:.06,fD:.6,fS:.45,fR:.3,aA:.04,aD:.5,aS:.9,aR:.3}],
+const P5PRE=[['Init',{}],['Vocoder carrier',{aSaw:1,aPulse:1,aPw:.3,bSaw:1,bSemi:0,bFine:7,mixA:.9,mixB:.8,mixNoise:.03,cutoff:16000,res:.05,envAmt:0,kbdTrack:1,fA:.001,fD:.4,fS:1,fR:.2,aA:.001,aD:.4,aS:1,aR:.18,lfoRate:4.5,lfoFreq:0}],['Poly Brass',{bSemi:0,bFine:8,cutoff:700,res:.15,envAmt:.55,fA:.06,fD:.6,fS:.45,fR:.3,aA:.04,aD:.5,aS:.9,aR:.3}],
   ['Sync Lead',{aSaw:1,bSaw:1,sync:1,bSemi:0,bFine:0,mixB:0,pmEnv:.5,pmFreqA:1,cutoff:5000,envAmt:.3,fS:.6,aS:1}],
   ['Soft Strings',{aSaw:1,aPulse:0,bSaw:1,bSemi:0,bFine:9,cutoff:1800,res:.05,envAmt:.1,aA:.6,aD:1,aS:.9,aR:1.2,lfoRate:4.5,lfoFreq:.08}],
   ['Square Bass',{aSaw:0,aPulse:1,aPw:.5,bSaw:0,bPulse:1,bSemi:-12,bFine:0,cutoff:400,res:.35,envAmt:.6,fD:.25,fS:.1,aD:.4,aS:.7,aR:.1}],
@@ -5325,16 +5391,17 @@ const FarpSpeech=(()=>{
 /* ===================== Vocoder screen: VX-350 (circuit / clear), Talker, speech and mic voices ===================== */
 (()=>{
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e};
-const D={on:0,eng:'clear',car:'keys',src:'phrase',text:'Welcome to the F.A.R.P.\nPlay a chord\nAnd I will sing it',li:0,voice:'robot',pitch:110,rate:1,trig:'say',
+const D={on:0,eng:'star',car:'keys',src:'phrase',text:'Welcome to the F.A.R.P.\nPlay a chord\nAnd I will sing it',li:0,voice:'robot',pitch:110,rate:1,trig:'say',
   vx:{micGainDb:0,instGainDb:0,guitarMode:false,harmonics:0.3,bands:[.8,.8,.8,.8,.8,.8,.8,.8,.8,.8],consonant:0.5,balance:1,ensemble:true,hold:false,stereo:true,volumeDb:0},
-  tk:{mode:0,mic:.5,inst:.5,out:.7},tab:'VOICE'};
-let V=Object.assign({},D,LS.get('farp_voc',{}));V.vx=Object.assign({},D.vx,V.vx||{});V.tk=Object.assign({},D.tk,V.tk||{});
+  tk:{mode:0,mic:.5,inst:.5,out:.7},tab:'VOICE',
+  st:{bands:[1,1,1,1,1,1,1,1,1,1],cons:.8,bal:0,harm:.5,ens:false,hold:false,growl:0,sib:.7,vol:1,clev:0,direct:false}};
+let V=Object.assign({},D,LS.get('farp_voc',{}));V.vx=Object.assign({},D.vx,V.vx||{});V.tk=Object.assign({},D.tk,V.tk||{});V.st=Object.assign({},D.st,V.st||{});V.st.bands=(V.st.bands||D.st.bands).slice();if(!V.starV){V.eng='star';V.starV=1}
 const save=()=>{LS.set('farp_voc',V);try{if(window.__vocState)__vocState(V,phrases)}catch(e){}};
 const CH={keys:null,omni:-1,str:0,syn:1,bas:2,p5:4,e2:5,six:6,dx:7,cz:8};
 const keysCh=()=>{const k=window.KEYS_INST||'';return k===''?-1:k==='p5'||k==='p5r3'?4:k==='e2'?5:k==='six'?6:k==='dx'?7:8};
 function route(){const k=window.KEYS_INST||'',c=V.car,M={omni:[7,''],str:[1,''],syn:[2,''],bas:[4,''],p5:[7,k==='p5r3'?'p5r3':'p5'],e2:[7,k==='sd1'||k==='cm'?k:'e2'],six:[7,'six'],dx:[7,'dx'],cz:[7,'cz']}[c];
   window.VOC_ROUTE=V.on&&M?{m:M[0],i:M[1]}:null;if(window.fwRun)setTimeout(fwRun,0)}
-function push(){route();if(!powered||!window.farpNode)return;if(window.panic&&push.last!==V.on+V.car)panic();push.last=V.on+V.car;const P=Object.assign({},V.vx,{volumeDb:V.vx.volumeDb+({L:-10,M:0,H:6}[V.vx.outLvl||'M']),balance:V.vx.direct?0:V.vx.balance});send({t:'voc',on:V.on?1:0,eng:V.eng,ch:V.car==='keys'?keysCh():CH[V.car],p:P,tk:V.tk});syncVoice()}
+function push(){route();if(!powered||!window.farpNode)return;if(window.panic&&push.last!==V.on+V.car)panic();push.last=V.on+V.car;const P=Object.assign({},V.vx,{volumeDb:V.vx.volumeDb+({L:-10,M:0,H:6}[V.vx.outLvl||'M']),balance:V.vx.direct?0:V.vx.balance});const T=V.st,SP={bands:T.bands,cons:T.cons,bal:T.direct?1:T.bal,harm:T.harm,ens:T.ens?1:0,hold:T.hold?1:0,growl:T.growl,sib:T.sib,vol:T.vol,clev:T.clev};send({t:'voc',on:V.on?1:0,eng:V.eng,ch:V.car==='keys'?keysCh():CH[V.car],p:V.eng==='star'?SP:P,tk:V.tk});syncVoice()}
 window.vocPush=push;
 /* ---- the voice: a phrase buffer (speech or a loaded file) or the microphone, into the processor's third input ---- */
 let vBus=null,phrase=null,phraseName='',src=null,mic=null,micStream=null,lastSay=-1,phrases=[],fileVoice=null;
@@ -5380,7 +5447,7 @@ function chip(label,get,set){const b=el('button','chipbtn',label);b.setAttribute
 let host=null;
 function refresh(){if(host)render(host)}
 function render(panel){host=panel;panel.innerHTML='';
-  const h=el('div','ihead'+(V.tab==='VOCODER'&&V.eng!=='talker'?' vxmode':''));const t=el('div','ititle');t.appendChild(el('b','','VOCODER'));t.appendChild(el('span','',V.eng==='talker'?'The Talker pedal’s six programs':'VX-350: modeled on the Roland SVC-350'+(V.eng==='svc'?' (component-level circuit)':' (clear model)')));h.appendChild(t);
+  const h=el('div','ihead'+(V.tab==='VOCODER'&&V.eng!=='talker'?' vxmode':''));const t=el('div','ititle');t.appendChild(el('b','','VOCODER'));t.appendChild(el('span','',V.eng==='talker'?'The Talker pedal’s six programs':V.eng==='star'?'STAR SCREAMER 350: the Omega System’s vocoder':'VX-350: modeled on the Roland SVC-350'+(V.eng==='svc'?' (component-level circuit)':' (clear model)')));h.appendChild(t);
   const on=el('button','chipbtn big',V.on?'VOCODER ON':'VOCODER OFF');on.setAttribute('aria-pressed',String(!!V.on));on.onclick=async()=>{if(!powered)await power();V.on=V.on?0:1;save();push();refresh();if(V.on&&V.src==='phrase'&&V.trig!=='keys')sayNow()};h.appendChild(on);
   const tabs=el('div','petabs itabs');['VOICE','SPEECH','VOCODER'].forEach(n=>{const b=el('button','',n);b.setAttribute('aria-selected',String(V.tab===n));b.onclick=()=>{V.tab=n;save();refresh()};tabs.appendChild(b)});h.appendChild(tabs);
   panel.appendChild(h);if(V.tab==='BANDS')V.tab='VOCODER';
@@ -5419,8 +5486,58 @@ function render(panel){host=panel;panel.innerHTML='';
     panel.appendChild(g)}
   else panel.appendChild(vxPanel())
 }
+
+/* ---- STAR SCREAMER 350, from the Omega System: programs, instrument level, the 11-band frequency section, voice character, remote ---- */
+const ST_LABELS=['160','230','330','500','730','1.1k','1.6k','2.3k','3.3k','5k','HF'];
+/* vocoder setups in the style of classic records (not copies of them): frequency tilt, growl, harmonics, S/T noise, ensemble, a speech line,
+   all played from a P-5 on its "Vocoder carrier" tone */
+const ST_PRESETS={
+  'Clean SVC':{growl:0,harm:.5,cons:.8,sib:.7,ens:false,bands:[1,1,1,1,1,1,1,1,1,1]},
+  'Jonzun Crew (Space Is the Place)':{growl:.35,harm:.85,cons:1,sib:.85,ens:true,bands:[1.1,1.1,1,1,1,1,1.05,1.15,1.2,1.25],tts:{text:'Space is the place.',voice:'robot',semi:-3,speed:.8}},
+  'Newcleus (Jam On It)':{growl:.7,harm:.8,cons:1,sib:.9,ens:false,bands:[1.35,1.3,1.2,1.1,1,1,1,1.1,1.15,1.2],tts:{text:'Jam on it.',voice:'robot',semi:0,speed:1}},
+  'Egyptian Lover':{growl:.6,harm:.7,cons:1.1,sib:.85,ens:false,bands:[1.4,1.3,1.2,1,1,.9,.9,1,1.1,1.2],tts:{text:'Egypt, Egypt.',voice:'robot',semi:-2,speed:.9}},
+  'Starscream':{growl:.25,harm:1,cons:1.2,sib:1,ens:true,bands:[.6,.7,.8,1,1.1,1.2,1.3,1.3,1.4,1.4],tts:{text:'I am Starscream.',voice:'high',semi:0,speed:1.1}},
+  'Mr. Roboto':{growl:.1,harm:.6,cons:.9,sib:.7,ens:false,bands:[1,1,1,1.05,1.1,1.1,1.05,1,1,1],tts:{text:'I am a robot.',voice:'robot',semi:0,speed:.9}},
+  'Cylon Warrior':{growl:.9,harm:.5,cons:.6,sib:.5,ens:true,bands:[1.5,1.5,1.35,1.15,1,.9,.8,.8,.75,.7],tts:{text:'By your command.',voice:'deep',semi:-5,speed:.7}},
+  'Fresh (Change the Beat)':{growl:.45,harm:.75,cons:1,sib:.85,ens:true,bands:[1.3,1.2,1.1,1,1,1,1,1.1,1.1,1.2],tts:{text:'Ahhhh, this stuff is really fresh.',voice:'deep',semi:-2,speed:.75}},
+  'Herbie Hancock (Rockit)':{growl:.2,harm:.95,cons:1.1,sib:.9,ens:false,bands:[.85,.9,1,1.1,1.2,1.2,1.15,1.1,1.1,1.15],tts:{text:'Rock it.',voice:'normal',semi:2,speed:1}}};
+function stProgram(name){const pr=ST_PRESETS[name];if(!pr)return;const T=V.st;
+  Object.assign(T,{growl:pr.growl,harm:pr.harm,cons:pr.cons,sib:pr.sib,ens:pr.ens,bands:pr.bands.slice()});
+  // the carrier: a P-5 on its "Vocoder carrier" tone
+  V.car='p5';try{const vc=P5PRE.find(x=>x[0]==='Vocoder carrier');if(vc&&(window.KEYS_INST||'')!=='p5r3'){P5=Object.assign({},P5D,vc[1]);LS.set('farp_p5',P5);if(typeof engSend==='function')engSend({t:'p5',p:P5})}}catch(e){}
+  if(pr.tts){const t=pr.tts,base={robot:110,deep:80,normal:120,high:170}[t.voice]||110;V.text=t.text;V.li=0;V.voice=t.voice==='normal'||t.voice==='high'?'human':'robot';
+    V.pitch=Math.round(Math.min(220,Math.max(60,base*Math.pow(2,(t.semi||0)/12))));V.rate=t.speed||1;fileVoice=null;V.src='phrase';buildPhrases()}
+  V.stProg=name;save();push();refresh();toast('Program: '+name)}
+function starPanel(){const T=V.st,R=el('div','vxrack');
+  const top=el('div','vxtop');top.appendChild(sel('ENGINE',ENG,()=>V.eng,v=>V.eng=v));top.appendChild(sel('CARRIER',CAR,()=>V.car,v=>V.car=v));R.appendChild(top);
+  const face=el('div','vxface stface');R.appendChild(face);
+  // remote: the footswitch jacks
+  const rm=box('vxrem','REMOTE');rm.appendChild(jack('VOCODER/\nDIRECT',()=>!T.direct,v=>T.direct=!v));rm.appendChild(jack('HOLD',()=>T.hold,v=>T.hold=v));rm.appendChild(jack('ENSEMBLE',()=>T.ens,v=>T.ens=v));face.appendChild(rm);
+  // program + input
+  const ip=box('vxmic');const pl=el('label','stprog');pl.appendChild(el('i','','PROGRAM'));const ps=document.createElement('select');ps.setAttribute('aria-label','Vocoder program');
+  ps.add(new Option('Choose…',''));Object.keys(ST_PRESETS).forEach(k=>ps.add(new Option(k,k)));ps.value=V.stProg&&ST_PRESETS[V.stProg]?V.stProg:'';ps.onchange=()=>{if(ps.value)stProgram(ps.value)};pl.appendChild(ps);ip.appendChild(pl);
+  const r1=el('div','vxrow');r1.appendChild(el('h5','','INST\nLEVEL'));const swb=el('div','vxswb');
+  [['−30',-30],['−15',-15],['0 dB',0]].forEach(([n,v])=>{const b=el('button','',n);b.setAttribute('aria-pressed',String((T.clev||0)===v));b.setAttribute('aria-label','Instrument level '+n);b.onclick=()=>{T.clev=v;save();push();refresh()};swb.appendChild(b)});
+  r1.appendChild(swb);r1.appendChild(el('span','vxled g'+(V.on?' on':'')));ip.appendChild(r1);face.appendChild(ip);
+  // voice character
+  const ch=box('vxins','VOICE CHARACTER');const kr=el('div','vxrow');
+  kr.appendChild(knob('HARMONICS',0,1,()=>T.harm,v=>T.harm=v,v=>Math.round(v*100)+'%'));
+  kr.appendChild(knob('GROWL',0,1,()=>T.growl,v=>T.growl=v,v=>v?Math.round(v*100)+'%':'OFF'));
+  kr.appendChild(knob('S/T NOISE',0,1,()=>T.sib,v=>T.sib=v,v=>v?Math.round(v*100)+'%':'OFF'));ch.appendChild(kr);face.appendChild(ch);
+  // frequency: 10 bands and the high consonant filter
+  const vc=box('vxvcc');const hd=el('div','vxfreq');hd.appendChild(el('span','','LOW'));hd.appendChild(el('span','','FREQUENCY'));hd.appendChild(el('span','','HIGH'));vc.appendChild(hd);
+  const fr=el('div','vxfaders');for(let i=0;i<11;i++){const f=fader(i+1,()=>(i<10?T.bands[i]:T.cons)/1.5,v=>{if(i<10)T.bands[i]=v*1.5;else T.cons=v*1.5});f.title=ST_LABELS[i]+(i<10?' Hz band':' consonant filter');f.querySelector('i').textContent=i<10?String(i+1):'HF';fr.appendChild(f)}vc.appendChild(fr);
+  vc.appendChild(el('h5','vxvt','160 · 230 · 330 · 500 · 730 · 1.1k · 1.6k · 2.3k · 3.3k · 5k · HF'));
+  const kn=el('div','vxbv');kn.appendChild(knob('BALANCE',0,1,()=>T.bal,v=>T.bal=v,v=>v?Math.round(v*100)+'% MIC':'VOCODER','','VOC','MIC'));
+  kn.appendChild(knob('MASTER',0,1.5,()=>T.vol,v=>T.vol=v,v=>Math.round(v*100)+'%'));vc.appendChild(kn);face.appendChild(vc);
+  // nameplate + power
+  const pw=box('vxpw');const plate=el('div','vxplate');plate.appendChild(el('b','','STAR SCREAMER'));plate.appendChild(el('em','','350'));pw.appendChild(plate);
+  const rk=el('button','vxrock'+(V.on?' on':''));rk.setAttribute('aria-pressed',String(!!V.on));rk.setAttribute('aria-label','Vocoder power');
+  const pc=el('div','vxpwc');pc.appendChild(el('i','','POWER'));pc.appendChild(el('span','vxled r'+(V.on?' on':'')));pc.appendChild(rk);pc.appendChild(el('i','vxonoff','■ ON  ■ OFF'));pw.appendChild(pc);
+  rk.onclick=async()=>{if(!powered)await power();V.on=V.on?0:1;save();push();refresh();if(V.on&&V.src==='phrase'&&V.trig!=='keys')sayNow()};face.appendChild(pw);
+  return R}
 /* ---- the VX-350 front panel: knobs, eleven voice-character faders, remote jacks, power rocker ---- */
-const ENG=[['clear','VX-350 Clear'],['svc','VX-350 SVC circuit'],['talker','Talker pedal']];
+const ENG=[['star','STAR SCREAMER 350 (Omega)'],['clear','VX-350 Clear'],['svc','VX-350 SVC circuit'],['talker','Talker pedal']];
 const CAR=[['keys','The keys’ instrument'],['omni','OMNI strings+synth+bass'],['str','Strings'],['syn','Synth'],['bas','Bass'],['p5','P-5 / P-5 R3'],['e2','E-II'],['six','6-TRAK'],['dx','FM-4'],['cz','PD-8']];
 let pushT=0;const live=()=>{const n=performance.now();if(n-pushT>60){pushT=n;push()}};
 function drag(elm,get,set,min,max,vertPx,onv){elm.addEventListener('pointerdown',e=>{e.preventDefault();elm.setPointerCapture(e.pointerId);const y0=e.clientY,v0=get();
@@ -5444,7 +5561,7 @@ function fader(n,get,set){const w=el('div','vxf');w.appendChild(el('i','',String
 function jack(label,get,set,cls){const w=el('div','vxj '+(cls||''));w.appendChild(el('i','',label));const b=el('button','vxjack');b.setAttribute('aria-pressed',String(!!get()));b.setAttribute('aria-label',label.replace(/\n/g,' '));
   const led=el('span','vxled'+(get()?' on':''));b.onclick=()=>{set(!get());save();push();b.setAttribute('aria-pressed',String(!!get()));led.classList.toggle('on',!!get())};w.appendChild(b);w.appendChild(led);return w}
 function box(cls,title){const b=el('div','vxbox '+cls);if(title)b.appendChild(el('h5','',title));return b}
-function vxPanel(){const X=V.vx,R=el('div','vxrack');
+function vxPanel(){if(V.eng==='star')return starPanel();const X=V.vx,R=el('div','vxrack');
   const top=el('div','vxtop');const s1=sel('ENGINE',ENG,()=>V.eng,v=>V.eng=v),s2=sel('CARRIER',CAR,()=>V.car,v=>V.car=v);top.appendChild(s1);top.appendChild(s2);R.appendChild(top);
   const face=el('div','vxface');R.appendChild(face);
   // remote

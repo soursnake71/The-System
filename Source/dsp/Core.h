@@ -109,7 +109,7 @@ public:
     double time() const { return frames / fs; }
     struct SusOff { int n; int inst; }; std::vector<SusOff> isus; bool isusSet = false;
     // vocoder
-    struct Voc { bool on = false; std::string eng = "clear"; int ch = -1; std::unique_ptr<VxClear> clear; std::unique_ptr<VxCircuit> svc; std::unique_ptr<TalkerPedal> talker; } voc; bool vocMade = false;
+    struct Voc { bool on = false; std::string eng = "clear"; int ch = -1; std::unique_ptr<VxClear> clear; std::unique_ptr<VxCircuit> svc; std::unique_ptr<VxStar> star; std::unique_ptr<TalkerPedal> talker; } voc; bool vocMade = false;
     // derived coefficients
     double cresC = 0, sustC = 0, aC = 0, dC = 0, rC = 0, gC = 0, fcBase = 0, lfoF = 0, cVl = 0, cVh = 0, cVa = 0, cCe = 0, cCh = 0, cSb = 0, cPre = 0, cPost = 0, cBass = 0, cFx = 0;
     int bits = 12; double qs = 2048, flF = 0, dlMs = 0, cDamp = 0, rvFb = 0;
@@ -169,7 +169,8 @@ public:
         if (t == "voc") {
             voc.on = m["on"].truthy(); voc.eng = m["eng"].isStr() ? m["eng"].str() : std::string("undefined"); voc.ch = (int)m["ch"].num(-1);
             if (voc.on) {
-                if (voc.eng == "svc") { if (!voc.svc) voc.svc = std::make_unique<VxCircuit>(fs); if (m.has("p")) voc.svc->p.assign(m["p"]); }
+                if (voc.eng == "star") { if (!voc.star) voc.star = std::make_unique<VxStar>(fs); if (m.has("p")) voc.star->p.assign(m["p"]); }
+                else if (voc.eng == "svc") { if (!voc.svc) voc.svc = std::make_unique<VxCircuit>(fs); if (m.has("p")) voc.svc->p.assign(m["p"]); }
                 else if (voc.eng == "talker") { if (!voc.talker) voc.talker = std::make_unique<TalkerPedal>(fs); const Val& tk = m["tk"];
                     if (tk.isObj()) { voc.talker->setMode(tk["mode"].num()); voc.talker->knob.mic = tk["mic"].num(); voc.talker->knob.inst = tk["inst"].num(); voc.talker->knob.out = tk["out"].num(); } }
                 else { if (!voc.clear) voc.clear = std::make_unique<VxClear>(fs); if (m.has("p")) voc.clear->p.assign(m["p"]); }
@@ -450,10 +451,11 @@ public:
             double vcL = 0, vcR = 0; int vcCh = -2;
             if (voc.on) {
                 double vv = vIn ? vIn[i] : 0; if (!(vv == vv && std::abs(vv) < 8)) vv = 0; const int ch = voc.ch; double car;
-                bool have = (voc.eng == "svc" && voc.svc) || (voc.eng == "talker" && voc.talker) || (voc.eng != "svc" && voc.eng != "talker" && voc.clear);
+                bool have = (voc.eng == "star" && voc.star) || (voc.eng == "svc" && voc.svc) || (voc.eng == "talker" && voc.talker) || (voc.eng != "svc" && voc.eng != "talker" && voc.eng != "star" && voc.clear);
                 if (have) {
                     if (ch < 0) { car = (mSL + mSR) * 0.5 + mSy + mBa; mSL = mSR = mSy = mBa = 0; } else if (ch == 0) { car = (mSL + mSR) * 0.5; mSL = mSR = 0; } else if (ch == 1) { car = mSy; mSy = 0; } else if (ch == 2) { car = mBa; mBa = 0; } else if (ch < 9) { car = IO[ch]; IO[ch] = 0; } else car = 0;
                     if (voc.eng == "talker") { voc.talker->process(vv, car * 2); vcL = vcR = voc.talker->L * 0.35; }
+                    else if (voc.eng == "star") { voc.star->process(vv, car); vcL = voc.star->L; vcR = voc.star->R; }
                     else if (voc.eng == "svc") { voc.svc->process(vv, car); vcL = voc.svc->L; vcR = voc.svc->R; }
                     else { voc.clear->process(vv, car); vcL = voc.clear->L; vcR = voc.clear->R; }
                     vcCh = ch < 0 ? 0 : std::min(ch, 8);
