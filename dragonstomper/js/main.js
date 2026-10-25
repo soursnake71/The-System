@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { initGfx, gfx, render, settings, saveSettings, applyQuality, resize } from './core/gfx.js';
 import { input, initInput, pollInput, pressed, endFrame, lockPointer, unlockPointer } from './core/input.js';
-import { initAudio, setVolume, sfx, ambience } from './core/sound.js';
+import { initAudio, setVolume, setMusicVolume, music, sfx, ambience } from './core/sound.js';
 import { progress } from './core/assets.js';
 import { HUD } from './ui/hud.js';
 import { Game } from './game/game.js';
@@ -53,7 +53,7 @@ document.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { sfx('u
 $('bNew').onclick = () => newGame();
 $('bContinue').onclick = () => continueGame();
 $('bResume').onclick = () => resume();
-$('bQuit').onclick = () => { game.save(); stop(); refreshContinue(); show('title'); };
+$('bQuit').onclick = () => { game.save(); stop(); music(null); refreshContinue(); show('title'); };
 $('bRetry').onclick = () => retry();
 $('bDeadNew').onclick = () => newGame();
 $('bWonNew').onclick = () => { Game.wipeSave(); refreshContinue(); newGame(); };
@@ -61,14 +61,14 @@ $('bWonNew').onclick = () => { Game.wipeSave(); refreshContinue(); newGame(); };
 // ---------- settings ----------
 const fields = {
   sQuality: ['quality', v => v], sRes: ['resolution', v => v], sView: ['view', v => v],
-  sFov: ['fov', Number], sSens: ['sensitivity', Number], sInv: ['invertY', v => v === '1'], sVol: ['volume', Number],
+  sFov: ['fov', Number], sSens: ['sensitivity', Number], sInv: ['invertY', v => v === '1'], sVol: ['volume', Number], sMusic: ['music', Number],
 };
 function syncSettings() {
   for (const [id, [key]] of Object.entries(fields)) {
     const e = $(id), v = settings[key];
     e.value = typeof v === 'boolean' ? (v ? '1' : '0') : String(v);
     const o = e.parentElement.querySelector('output');
-    if (o) o.textContent = key === 'volume' ? Math.round(v * 100) + '%' : key === 'fov' ? v + '°' : v.toFixed(2);
+    if (o) o.textContent = key === 'volume' || key === 'music' ? Math.round(v * 100) + '%' : key === 'fov' ? v + '°' : v.toFixed(2);
   }
   const s = gfx.renderSize || {};
   $('gpu').textContent = s.w ? `Rendering at ${s.w} × ${s.h}` + (s.w >= 3800 ? ' (4K)' : '') : '';
@@ -80,13 +80,14 @@ for (const [id, [key, conv]] of Object.entries(fields)) {
     if (key === 'quality' || key === 'resolution') applyQuality();
     if (key === 'fov') resize();
     if (key === 'volume') setVolume(settings.volume);
+    if (key === 'music') setMusicVolume(settings.music);
     if (key === 'view' && game.player) game.cam.setMode(settings.view, game.player);
     syncSettings();
   });
 }
 
 // ---------- flow ----------
-function startAudio() { initAudio(settings.volume); }
+function startAudio() { initAudio(settings.volume); setMusicVolume(settings.music); }
 
 async function load(part, areaState, from) {
   startAudio();
@@ -161,6 +162,7 @@ game.onAreaExit = (n) => {
 };
 game.onDeath = () => {
   stop();
+  music('defeat', { loop: false });
   const p = game.stats;
   $('deadtext').textContent = `You slew ${p.kills} monster${p.kills === 1 ? '' : 's'} and carried ${p.gold} gold.`;
   show('dead');
@@ -168,6 +170,7 @@ game.onDeath = () => {
 game.onVictory = () => {
   game.ended = true;
   sfx('victory');
+  music('victory', { loop: false });
   hud.say(['YOU HAVE THE AMULET', 'THE LAND IS SAVED'], 6);
   setTimeout(() => {
     stop();

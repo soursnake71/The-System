@@ -2,6 +2,7 @@
 // rigid armour/weapons on the bones, and code-driven animation.
 // Faces +z, stands on y = 0, about 1.85 m tall at scale 1.
 import * as THREE from 'three';
+import { Mocap, hasMocap } from './mocap.js';
 import { mats, lathe, ellipsoid, segment, hornGeo, rockGeo, mesh, longsword, axe, halberd } from './parts.js';
 import { Sculpt, skinMaterial } from './sculpt.js';
 import { heightTex, detailTex } from '../core/texgen.js';
@@ -11,6 +12,8 @@ import { ROM } from '../../data.js';
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const lerp = THREE.MathUtils.lerp;
+
+const _q = new THREE.Quaternion(), _e = new THREE.Euler();
 
 export class Humanoid {
   constructor({ legLen = 0.46, armLen = 0.3, torso = 1, hunch = 0, shoulderW = 0.2 } = {}) {
@@ -108,15 +111,22 @@ export class Humanoid {
     const run = THREE.MathUtils.smoothstep(sp, 0.2, 2), sprint = THREE.MathUtils.smoothstep(sp, 3.5, 6.5);
     const ph = this.phase;
     const amp = 0.55 * run + 0.25 * sprint;
-    L.th.rotation.x = -Math.sin(ph) * amp; R.th.rotation.x = Math.sin(ph) * amp;
-    L.sn.rotation.x = Math.max(0, Math.cos(ph)) * (0.9 * run + 0.5 * sprint) + 0.05;
-    R.sn.rotation.x = Math.max(0, -Math.cos(ph)) * (0.9 * run + 0.5 * sprint) + 0.05;
-    L.ft.rotation.x = -L.th.rotation.x * 0.3 - L.sn.rotation.x * 0.4; R.ft.rotation.x = -R.th.rotation.x * 0.3 - R.sn.rotation.x * 0.4;
-    const breathe = Math.sin(this.t * 1.8) * 0.015;
-    this.hips.position.y = this.legLen * 2 + 0.06 - Math.abs(Math.cos(ph)) * 0.05 * run - 0.03 * run - (this.hunch > 0.3 ? 0.04 : 0);
-    this.spine.rotation.set(0.12 * run + 0.12 * sprint + this.hunch, Math.sin(ph) * 0.12 * run, 0);
-    this.chest.rotation.x = breathe;
-    this.neck.rotation.x = -this.hunch * 0.8 - 0.08 * run;
+    // motion capture drives walking, running and idling when it has loaded
+    const mc = this.mocap !== false && hasMocap() ? (this.mc ||= new Mocap(this)) : null;
+    if (mc) {
+      mc.update(dt, sp);
+      if (this.hunch) { this.spine.rotateX(this.hunch); this.neck.rotateX(-this.hunch * 0.8); }
+    } else {
+      L.th.rotation.x = -Math.sin(ph) * amp; R.th.rotation.x = Math.sin(ph) * amp;
+      L.sn.rotation.x = Math.max(0, Math.cos(ph)) * (0.9 * run + 0.5 * sprint) + 0.05;
+      R.sn.rotation.x = Math.max(0, -Math.cos(ph)) * (0.9 * run + 0.5 * sprint) + 0.05;
+      L.ft.rotation.x = -L.th.rotation.x * 0.3 - L.sn.rotation.x * 0.4; R.ft.rotation.x = -R.th.rotation.x * 0.3 - R.sn.rotation.x * 0.4;
+      const breathe = Math.sin(this.t * 1.8) * 0.015;
+      this.hips.position.y = this.legLen * 2 + 0.06 - Math.abs(Math.cos(ph)) * 0.05 * run - 0.03 * run - (this.hunch > 0.3 ? 0.04 : 0);
+      this.spine.rotation.set(0.12 * run + 0.12 * sprint + this.hunch, Math.sin(ph) * 0.12 * run, 0);
+      this.chest.rotation.x = breathe;
+      this.neck.rotation.x = -this.hunch * 0.8 - 0.08 * run;
+    }
     let lUx = Math.sin(ph) * amp * 0.7, rUx = -Math.sin(ph) * amp * 0.7;
     let lUz = 0.12, rUz = -0.12, lFx = -0.25 - 0.4 * run, rFx = -0.25 - 0.4 * run, rUy = 0, lUy = 0;
     if (this.weapon) { rFx -= 0.35; rUx -= 0.1; }
@@ -124,7 +134,7 @@ export class Humanoid {
       const b = ease(s.block);
       lUx = lerp(lUx, -1.2, b); lUz = lerp(lUz, 0.2, b); lFx = lerp(lFx, -1.0, b); lUy = lerp(0, 0.7, b);
     }
-    this.chest.rotation.y = 0;
+    if (!mc) this.chest.rotation.y = 0;
     if (s.attack >= 0) {
       const a = s.attack, side = s.swingSide, k = s.attackKind;
       let ux, uz, fx, tw = 0;
@@ -148,11 +158,23 @@ export class Humanoid {
         rUy = side * (raise * 0.6 - cut * 0.6);
       }
       rUx = ux; rUz = uz; rFx = fx;
-      this.spine.rotation.y += tw;
-      this.chest.rotation.y = tw * 0.5;
+      this.spine.rotateY(tw);
+      this.chest.rotateY(tw * 0.5);
     }
-    L.up.rotation.set(lUx, lUy, lUz); R.up.rotation.set(rUx, rUy, rUz);
-    L.fo.rotation.x = lFx; R.fo.rotation.x = rFx;
+    if (!mc) {
+      L.up.rotation.set(lUx, lUy, lUz); R.up.rotation.set(rUx, rUy, rUz);
+      L.fo.rotation.x = lFx; R.fo.rotation.x = rFx;
+    } else {
+      // the mocap swings the arms; fighting takes them over
+      const both = s.attack >= 0 && (s.attackKind === 'claw' || s.attackKind === 'smash');
+      // a sword arm keeps its grip: carried forward, swinging a little with the stride
+      if (s.attack >= 0 || this.weapon) { R.up.rotation.set(rUx, rUy, rUz); R.fo.rotation.set(rFx, 0, 0); R.ha.quaternion.identity(); }
+      if (both || s.block > 0) {
+        const w = both ? 1 : ease(Math.min(1, s.block));
+        L.up.quaternion.slerp(_q.setFromEuler(_e.set(lUx, lUy, lUz)), w);
+        L.fo.quaternion.slerp(_q.setFromEuler(_e.set(lFx, 0, 0)), w);
+      }
+    }
     if (this.tail) this.tail.forEach((t, i) => { t.rotation.y = Math.sin(this.t * 2.2 - i * 0.6) * 0.18; t.rotation.x = -0.12 + Math.sin(this.t * 1.3 - i * 0.4) * 0.05; });
     if (this.cape) this.cape.rotation.x = 0.1 + run * 0.35 + sprint * 0.25 + Math.sin(this.t * 2.5) * 0.03 * (1 + run * 2);
     if (s.hit > 0) { this.spine.rotation.x -= s.hit * 0.35; this.neck.rotation.x -= s.hit * 0.2; }

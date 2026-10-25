@@ -23,7 +23,9 @@ Starpath's 1982 Supercharger adventure, reverse engineered from the original tap
 - PBR rendering: Poly Haven scanned textures and models, HDR sky lighting, ACES tone mapping, soft shadows, ambient occlusion (GTAO), bloom, SMAA, GPU grass and procedural trees. Quality presets Low to Ultra; render resolution up to 4K (3840×2160), or supersampled to 4K on a smaller screen.
 - Keyboard and mouse, or an Xbox or PlayStation controller (standard Gamepad API mapping, button prompts follow the pad you use, menus work with the d-pad).
 - Three parts as on the tapes: the Enchanted Countryside and its bridge guard, the Village (shops, hospital, warriors for hire), and the Dragon's Cave with the dragon in its lair. Saves in the browser.
-- Credits: three.js (MIT), ez-tree (MIT), textures, HDRI and models from Poly Haven (CC0).
+- Characters walk, run and idle with motion-captured animation retargeted onto their sculpted skeletons; attacks, blocks and deaths are procedural. Light shafts outdoors, a golden-hour village, torch-lit dust in the cave and a particle fire breath.
+- Recorded sound effects (footsteps on grass, stone, wood, armour and weapon impacts, coins, doors) layered with synthesised creature voices and ambience, plus music for each region, the dragon fight, death and victory.
+- Credits: three.js (MIT); ez-tree (MIT); textures, HDRIs and models from Poly Haven (CC0); locomotion clips from the three.js "Xbot" example (Mixamo); sound effects from Kenney's RPG Audio and Impact Sounds (CC0); music by RandomMind via OpenGameArt (CC0).
 - `dragonstomper/tools/` has the extractor, a small Supercharger emulator and a disassembler; `dragonstomper/REVERSE_ENGINEERING.md` has the notes. The ROM is not included: run `python3 dragonstomper/tools/extract.py <your dragonstomper.zip>` to rebuild `data.js`.
 
 ## Using a USB-C interface

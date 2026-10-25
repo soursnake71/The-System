@@ -1,6 +1,8 @@
-// Procedural sound: everything is synthesised with Web Audio (no sample files).
+// Sound: recorded effects where we have them (footsteps, impacts, coins, doors), and
+// Web Audio synthesis for everything else (creature voices, fire, magic, ambience).
+import { SAMPLES } from './samples.js';
 let ac = null, master = null, sfxBus = null, ambBus = null, verb = null, verbSend = null, noise = null;
-let volume = 0.8;
+let volume = 0.8, musicBus = null, musicVol = 0.6, cur = null;
 
 export function initAudio(vol = 0.8) {
   volume = vol;
@@ -12,6 +14,8 @@ export function initAudio(vol = 0.8) {
   const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   master.connect(comp); comp.connect(ac.destination);
   sfxBus = ac.createGain(); sfxBus.connect(master);
+  musicBus = ac.createGain(); musicBus.gain.value = musicVol; musicBus.connect(master);
+  if (pendingMusic) { const [n, o] = pendingMusic; pendingMusic = null; music(n, o); }
   ambBus = ac.createGain(); ambBus.gain.value = 0.5; ambBus.connect(master);
   // a generated reverb impulse
   verb = ac.createConvolver();
@@ -21,8 +25,25 @@ export function initAudio(vol = 0.8) {
   verbSend = ac.createGain(); verbSend.gain.value = 0.15;
   verbSend.connect(verb); verb.connect(master);
   sfxBus.connect(verbSend);
+  loadSamples();
   const n = ac.sampleRate * 2; noise = ac.createBuffer(1, n, ac.sampleRate);
   const d = noise.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+}
+// Music (RandomMind, CC0, via OpenGameArt): one track at a time, crossfaded.
+let pendingMusic = null;
+export function setMusicVolume(v) { musicVol = v; if (musicBus) musicBus.gain.value = v; }
+export function music(name, { loop = true, vol = 0.5 } = {}) {
+  if (!ac) { pendingMusic = [name, { loop, vol }]; return; }
+  if (cur && cur.name === name && !cur.el.ended) return;
+  if (cur) { const old = cur; old.g.gain.setTargetAtTime(0.0001, now(), 0.8); setTimeout(() => old.el.pause(), 3500); }
+  cur = null;
+  if (!name) return;
+  const el = new Audio(`assets/music/${name}.mp3`); el.loop = loop;
+  const g = ac.createGain(); g.gain.value = 0.0001;
+  ac.createMediaElementSource(el).connect(g); g.connect(musicBus);
+  el.play().catch(() => {});
+  g.gain.setTargetAtTime(vol, now(), 1.0);
+  cur = { name, el, g };
 }
 export function setVolume(v) { volume = v; if (master) master.gain.value = v; }
 export function setReverb(amount) { if (verbSend) verbSend.gain.setTargetAtTime(amount, ac.currentTime, 0.5); }
@@ -37,11 +58,28 @@ function panner(x = 0) { const p = ac.createStereoPanner(); p.pan.value = x; ret
 
 const R = (a, b) => a + Math.random() * (b - a);
 
+const buffers = {};
+function loadSamples() {
+  for (const [name, list] of Object.entries(SAMPLES)) {
+    buffers[name] = [];
+    for (const f of list) fetch(`assets/sfx/${f}.ogg`).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => ac.decodeAudioData(b)).then(buf => buffers[name].push(buf)).catch(() => {});
+  }
+}
+const SAMPLE_VOL = { step: 0.35, stepStone: 0.4, stepCave: 0.45, stepWood: 0.4, land: 0.7, clang: 0.8, block: 0.9, hitFlesh: 0.9, hitShell: 0.8, rock: 0.8, coin: 0.7, door: 0.8, chain: 0.7, item: 0.7, bell: 0.35, trap: 0.8, ui: 0.35 };
+
 export function sfx(name, opts = {}) {
   if (!ac || ac.state !== 'running') return;
   const t = now() + 0.005, vol = opts.vol ?? 1;
   let out = sfxBus;
   if (opts.pan != null) { out = panner(Math.max(-1, Math.min(1, opts.pan))); out.connect(sfxBus); }
+  const recorded = buffers[name];
+  if (recorded && recorded.length) {
+    const src = ac.createBufferSource(); src.buffer = recorded[(Math.random() * recorded.length) | 0];
+    src.playbackRate.value = (opts.pitch || 1) * R(0.92, 1.08) * (name === 'stepCave' ? 0.85 : 1);
+    const g = ac.createGain(); g.gain.value = vol * (SAMPLE_VOL[name] ?? 0.7);
+    src.connect(g); g.connect(out); src.start(t);
+    if (name !== 'hitFlesh') return;
+  }
   const G = (v) => { const g = ac.createGain(); g.gain.value = v * vol; g.connect(out); return g; };
   switch (name) {
     case 'step': case 'stepStone': case 'stepCave': {

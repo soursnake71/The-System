@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 export const PRESETS = {
@@ -25,7 +26,7 @@ export const RESOLUTIONS = {
 
 const loadSettings = () => { try { return JSON.parse(localStorage.getItem('ds-settings')) || {}; } catch (e) { return {}; } };
 export const settings = {
-  quality: 'high', resolution: 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, motionBlur: false,
+  quality: 'high', resolution: 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
   ...loadSettings(),
 };
 export function saveSettings() { try { localStorage.setItem('ds-settings', JSON.stringify(settings)); } catch (e) {} }
@@ -76,6 +77,12 @@ function buildComposer() {
     const b = new UnrealBloomPass(new THREE.Vector2(size.w, size.h), 0.35, 0.6, 0.92);
     c.addPass(b); gfx.passes.bloom = b;
   }
+  // light shafts: march from each pixel toward the sun, gathering the bright sky that
+  // shows between leaves and over ridges (works on the HDR image, before tone mapping)
+  if (gfx.scene.userData.godRays) {
+    const gr = new ShaderPass(GodRays);
+    c.addPass(gr); gfx.passes.godRays = gr;
+  }
   c.addPass(new OutputPass());
   const smaa = new SMAAPass(size.w, size.h);
   c.addPass(smaa);
@@ -122,7 +129,46 @@ export function applyQuality() {
   resize();
 }
 
+const GodRays = {
+  uniforms: { tDiffuse: { value: null }, sunUv: { value: new THREE.Vector2(0.5, 0.5) }, strength: { value: 0 }, aspect: { value: 1 }, tint: { value: new THREE.Color(1, 0.92, 0.8) } },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 sunUv; uniform float strength; uniform float aspect; uniform vec3 tint; varying vec2 vUv;
+    void main() {
+      vec4 base = texture2D(tDiffuse, vUv);
+      if (strength <= 0.001) { gl_FragColor = base; return; }
+      vec2 d = (sunUv - vUv) / 48.0;
+      vec2 uv = vUv; float decay = 1.0; vec3 acc = vec3(0.0);
+      float jitter = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+      uv += d * jitter;
+      for (int i = 0; i < 48; i++) {
+        uv += d;
+        vec3 c = texture2D(tDiffuse, uv).rgb;
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        acc += c * smoothstep(2.5, 9.0, l) * decay;
+        decay *= 0.965;
+      }
+      vec2 off = (vUv - sunUv) * vec2(aspect, 1.0);
+      float fall = 1.0 / (1.0 + dot(off, off) * 9.0);
+      gl_FragColor = vec4(base.rgb + acc / 48.0 * strength * fall * tint, base.a);
+    }`,
+};
+const _sv = new THREE.Vector3();
+function updateGodRays() {
+  const gr = gfx.passes.godRays;
+  if (!gr || !gfx.sun) return;
+  const cam = gfx.camera, u = gr.uniforms;
+  _sv.copy(gfx.sun.userData.dir).multiplyScalar(1000).add(cam.position).project(cam);
+  const facing = cam.getWorldDirection(new THREE.Vector3()).dot(gfx.sun.userData.dir);
+  u.sunUv.value.set(_sv.x * 0.5 + 0.5, _sv.y * 0.5 + 0.5);
+  u.aspect.value = cam.aspect;
+  const edge = Math.max(Math.abs(_sv.x), Math.abs(_sv.y));
+  u.strength.value = facing <= 0 ? 0 : THREE.MathUtils.smoothstep(facing, 0.0, 0.5) * (1 - THREE.MathUtils.smoothstep(edge, 1.2, 2.2)) * (gfx.scene.userData.godRays || 0);
+  if (gfx.scene.userData.sunTint) u.tint.value.set(gfx.scene.userData.sunTint);
+}
+
 export function render() {
+  updateGodRays();
   if (gfx.composer) gfx.composer.render();
   else gfx.renderer.render(gfx.scene, gfx.camera);
 }

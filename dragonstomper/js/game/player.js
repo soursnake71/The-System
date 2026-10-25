@@ -99,7 +99,7 @@ export class Player {
     // footsteps
     const hs = Math.hypot(this.vel.x, this.vel.z);
     s.speed = this.dodgeT >= 0 ? 4 : hs;
-    if (this.onGround && hs > 0.5) { this.stepT += dt * hs; if (this.stepT > 1.15) { this.stepT = 0; sfx(area.floor === 'stone' ? 'stepStone' : area.floor === 'cave' ? 'stepCave' : 'step'); } }
+    if (this.onGround && hs > 0.5) { this.stepT += dt * hs; if (this.stepT > 1.15) { this.stepT = 0; const fl = area.floorAt?.(this.pos.x, this.pos.z) || area.floor; sfx(fl === 'stone' ? 'stepStone' : fl === 'cave' ? 'stepCave' : fl === 'wood' ? 'stepWood' : 'step'); } }
     a.update(dt);
     // roll: tip the whole body forward through the dodge
     a.body.rotation.x = this.dodgeT >= 0 ? Math.sin(Math.min(1, this.dodgeT / 0.45) * Math.PI) * 1.2 : a.body.rotation.x;

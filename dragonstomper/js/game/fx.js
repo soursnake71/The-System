@@ -114,45 +114,108 @@ export class Trail {
   }
 }
 
-// Fire breath: a cone of big additive flame sprites from the dragon's mouth
+// Fire breath: one GPU particle system of flame (white-hot core cooling through orange
+// to dull red, in HDR so the bloom catches it) plus a layer of rolling smoke behind it.
+const FIRE_VS = `
+attribute float aLife; attribute float aSize; attribute float aRot;
+varying float vLife; varying float vRot;
+uniform float uScale;
+void main() {
+  vLife = aLife; vRot = aRot;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = aLife < 0.0 ? 0.0 : aSize * uScale / max(0.1, -mv.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FIRE_FS = `
+uniform sampler2D uMap; uniform float uSmoke;
+varying float vLife; varying float vRot;
+void main() {
+  if (vLife < 0.0) discard;
+  vec2 p = gl_PointCoord - 0.5;
+  float c = cos(vRot), s = sin(vRot);
+  p = mat2(c, -s, s, c) * p + 0.5;
+  vec4 t = texture2D(uMap, p);
+  t.a *= smoothstep(0.5, 0.15, length(gl_PointCoord - 0.5)); // round, soft edges whatever the texture
+  float l = vLife;
+  float fadeIn = smoothstep(0.0, 0.08, l);
+  if (uSmoke > 0.5) {
+    float a = t.a * fadeIn * (1.0 - l) * 0.38;
+    gl_FragColor = vec4(vec3(0.05, 0.045, 0.04) + 0.06 * (1.0 - l), a);
+  } else {
+    vec3 hot = vec3(3.2, 2.1, 0.9), mid = vec3(2.4, 0.75, 0.12), cool = vec3(0.7, 0.1, 0.02);
+    vec3 col = mix(hot, mid, smoothstep(0.0, 0.18, l));
+    col = mix(col, cool, smoothstep(0.35, 0.85, l));
+    float a = t.a * fadeIn * (1.0 - smoothstep(0.6, 1.0, l)) * 0.55;
+    gl_FragColor = vec4(col * a, a);
+  }
+}`;
+class PointPool {
+  constructor(scene, n, smoke) {
+    this.n = n; this.free = [...Array(n).keys()]; this.p = []; this.data = [];
+    const g = new THREE.BufferGeometry();
+    this.pos = new Float32Array(n * 3); this.life = new Float32Array(n).fill(-1); this.size = new Float32Array(n); this.rot = new Float32Array(n);
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aLife', new THREE.BufferAttribute(this.life, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('aRot', new THREE.BufferAttribute(this.rot, 1).setUsage(THREE.DynamicDrawUsage));
+    this.geo = g;
+    const m = new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: flame() }, uScale: { value: 600 }, uSmoke: { value: smoke ? 1 : 0 } },
+      vertexShader: FIRE_VS, fragmentShader: FIRE_FS, transparent: true, depthWrite: false,
+      blending: smoke ? THREE.NormalBlending : THREE.CustomBlending,
+    });
+    if (!smoke) { m.blendSrc = THREE.OneFactor; m.blendDst = THREE.OneFactor; } // additive, premultiplied
+    this.points = new THREE.Points(g, m); this.points.frustumCulled = false;
+    this.points.renderOrder = smoke ? 1 : 2;
+    // world-size particles: pixels per metre at unit distance for this viewport
+    const v = new THREE.Vector2();
+    this.points.onBeforeRender = (r, sc, cam) => { m.uniforms.uScale.value = r.getDrawingBufferSize(v).y * 0.5 / Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2); };
+    scene.add(this.points);
+  }
+  spawn(o) { if (!this.free.length) return; const i = this.free.pop(); o.i = i; o.t = 0; this.data.push(o); }
+  update(dt, step) {
+    for (let k = this.data.length - 1; k >= 0; k--) {
+      const f = this.data[k], i = f.i;
+      f.t += dt;
+      if (f.t >= f.life) { this.life[i] = -1; this.free.push(i); this.data.splice(k, 1); f.dead = true; continue; }
+      step(f, dt);
+      this.pos[i * 3] = f.p.x; this.pos[i * 3 + 1] = f.p.y; this.pos[i * 3 + 2] = f.p.z;
+      this.life[i] = f.t / f.life; this.size[i] = f.size; this.rot[i] = f.rot;
+    }
+    for (const a of ['position', 'aLife', 'aSize', 'aRot']) this.geo.attributes[a].needsUpdate = true;
+  }
+}
 export class FireStream {
   constructor(scene) {
-    const n = 220;
-    this.n = n; this.list = [];
-    this.mat = new THREE.SpriteMaterial({ map: flame(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, color: 0xffffff });
-    this.group = new THREE.Group(); scene.add(this.group);
-    this.pool = [];
-    for (let i = 0; i < n; i++) { const s = new THREE.Sprite(this.mat.clone()); s.visible = false; this.group.add(s); this.pool.push(s); }
+    this.fire = new PointPool(scene, 600, false);
+    this.smoke = new PointPool(scene, 300, true);
   }
   emit(origin, dir, rate, dt) {
-    let k = rate * dt;
-    while (k > 0 && this.pool.length) {
+    let k = rate * dt * 2.5;
+    while (k > 0) {
       if (k < 1 && Math.random() > k) break;
       k--;
-      const s = this.pool.pop();
-      s.visible = true;
-      const d = dir.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.25, (Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.25)).normalize();
-      this.list.push({ s, p: origin.clone(), v: d.multiplyScalar(16 + Math.random() * 6), t: 0, life: 0.7 + Math.random() * 0.35, rot: Math.random() * 6 });
+      const d = dir.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.22, (Math.random() - 0.5) * 0.16, (Math.random() - 0.5) * 0.22)).normalize();
+      this.fire.spawn({ p: origin.clone(), v: d.multiplyScalar(17 + Math.random() * 7), life: 0.55 + Math.random() * 0.4, rot: Math.random() * 6.28, spin: (Math.random() - 0.5) * 3, size: 0.5 });
     }
   }
   update(dt) {
-    for (let i = this.list.length - 1; i >= 0; i--) {
-      const f = this.list[i];
-      f.t += dt;
-      if (f.t > f.life) { f.s.visible = false; this.pool.push(f.s); this.list.splice(i, 1); continue; }
-      f.v.multiplyScalar(Math.pow(0.35, dt)); f.v.y += dt * 2.5;
+    this.fire.update(dt, (f, dt) => {
+      f.v.multiplyScalar(Math.pow(0.3, dt)); f.v.y += dt * 3;
       f.p.addScaledVector(f.v, dt);
       const k = f.t / f.life;
-      f.s.position.copy(f.p);
-      const sz = 0.6 + k * 3.2;
-      f.s.scale.set(sz, sz * 1.3, 1);
-      f.s.material.rotation = f.rot + k;
-      f.s.material.opacity = (1 - k) * (k < 0.1 ? k * 10 : 1);
-      f.s.material.color.setRGB(1 + (1 - k) * 2, 0.7 + (1 - k), 0.5 + (1 - k) * 0.5);
-    }
+      f.size = 0.5 + k * 3.6; f.rot += f.spin * dt;
+      if (k > 0.55 && !f.smoked && Math.random() < 0.5) { f.smoked = true; this.smoke.spawn({ p: f.p.clone(), v: f.v.clone().multiplyScalar(0.5).add(new THREE.Vector3(0, 1.2, 0)), life: 1.6 + Math.random(), rot: Math.random() * 6.28, spin: (Math.random() - 0.5), size: 2.5 }); }
+    });
+    this.smoke.update(dt, (f, dt) => {
+      f.v.multiplyScalar(Math.pow(0.5, dt)); f.v.y += dt * 0.8;
+      f.p.addScaledVector(f.v, dt);
+      f.size = 2.5 + (f.t / f.life) * 4; f.rot += f.spin * dt;
+    });
   }
   // points the flames have reached, for hit tests
-  get points() { return this.list.filter(f => f.t > 0.08).map(f => f.p); }
+  get points() { return this.fire.data.filter(f => f.t > 0.08 && f.t / f.life < 0.75).map(f => f.p); }
+  get list() { return this.fire.data; }
 }
 
 // Damage numbers and labels in the DOM, projected from 3D

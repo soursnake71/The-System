@@ -31,7 +31,7 @@ export class Countryside {
     this.game = game;
     this.state = { searched: [], guardGone: false, ...state };
     this.colliders = []; this.interactables = [];
-    this.ambience = 'meadow'; this.floor = 'grass';
+    this.ambience = 'meadow'; this.music = 'countryside'; this.floor = 'grass';
     this.updaters = [];
   }
 
@@ -41,7 +41,8 @@ export class Countryside {
     scene.background = sky.background; scene.environment = sky.env;
     scene.environmentIntensity = 0.75; scene.backgroundIntensity = 1;
     scene.fog = new THREE.FogExp2(0xb4c4d4, 0.0024);
-    addSun(scene, { dir: new THREE.Vector3(-0.5, 0.75, 0.42) });
+    addSun(scene, { dir: new THREE.Vector3(0.554, 0.743, 0.375) }); // where the sun is in the HDR sky
+    scene.userData.godRays = 0.55;
     const rand = mulberry(g.stats.seed);
 
     // ----- layout first: the terrain dips for lakes and swamps -----
@@ -82,7 +83,7 @@ export class Countryside {
       const side = Math.max(0, Math.abs(x) - HALF);
       h += Math.min(side, 70) ** 2 * 0.009 + side * 0.3 + Math.max(0, side - 10) * fbm(x * 0.03, z * 0.03, 7, 3) * 2.2;
       // crags and ledges on the valley walls
-      if (side > 2) { const r = 1 - Math.abs(fbm(x * 0.045, z * 0.045, 11, 4)) * 2.2; h += Math.min(side - 2, 40) * 0.14 * Math.max(0, r) * r; }
+      if (side > 2) h += Math.min(side - 2, 40) * 0.22 * fbm(x * 0.04, z * 0.04, 11, 4);
       // flatten the road
       const pd = Math.abs(x - px);
       h = THREE.MathUtils.lerp(h, h * 0.3, Math.max(0, 1 - pd / 7));
@@ -231,6 +232,7 @@ export class Countryside {
     if (from === 'resume' && this.state.pos) pl.pos.set(this.state.pos[0], 0, this.state.pos[1]);
     pl.pos.y = this.groundAt(pl.pos.x, pl.pos.z);
   }
+  floorAt = (x, z) => Math.abs(z - RIVER_Z) < 11 && Math.abs(x) < BRIDGE_HALF + 0.2 ? 'wood' : 'grass';
   groundAt = (x, z) => {
     if (Math.abs(z - RIVER_Z) < 11 && Math.abs(x) < BRIDGE_HALF + 0.2) return this.bridgeDeck(z);
     return this.heightFn(x, z);

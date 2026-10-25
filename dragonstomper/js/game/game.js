@@ -2,8 +2,9 @@
 import * as THREE from 'three';
 import { gfx, setScene, followSun, settings } from '../core/gfx.js';
 import { input, pressed, held, lockPointer, unlockPointer } from '../core/input.js';
-import { sfx, ambience } from '../core/sound.js';
+import { sfx, ambience, music } from '../core/sound.js';
 import { knight } from '../actors/humanoid.js';
+import { mocapReady } from '../actors/mocap.js';
 import { Player } from './player.js';
 import { CameraRig } from './camera.js';
 import { Monster } from './monsters.js';
@@ -36,6 +37,7 @@ export class Game {
     this.fx = new Particles(scene);
     this.trail = new Trail(scene);
     this.stats.part = part;
+    await mocapReady;
     const area = new AreaClass(this, areaState || {});
     this.area = area;
     area.fx = this.fx;
@@ -55,6 +57,7 @@ export class Game {
     setScene(scene);
     followSun(this.player.pos);
     ambience(area.ambience);
+    music(area.music || null);
     this.snapshot = JSON.stringify({ p: this.stats, area: area.state, part });
     this.save();
     this.paused = false;

@@ -8,7 +8,7 @@ import { fbm } from '../core/texgen.js';
 import { mats, mesh, rockGeo } from '../actors/parts.js';
 import { Dragon } from '../actors/dragon.js';
 import { mulberry } from '../util.js';
-import { sfx, ambience } from '../core/sound.js';
+import { sfx, ambience, music } from '../core/sound.js';
 import { FireStream, floatText, shake, hitstop } from '../game/fx.js';
 import * as R from '../rules.js';
 
@@ -81,6 +81,30 @@ export class Cave {
     this.light.castShadow = preset().shadow >= 4096;
     this.light.shadow.mapSize.set(512, 512); this.light.shadow.bias = -0.002;
     scene.add(this.light);
+    // dust hanging in the air, only visible where your light catches it
+    {
+      const n = 1800, pos = new Float32Array(n * 3), seed = new Float32Array(n);
+      for (let i = 0; i < n; i++) { pos[i * 3] = rand() * 16; pos[i * 3 + 1] = rand() * 7; pos[i * 3 + 2] = rand() * 16; seed[i] = rand(); }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+      this.dustU = { uCenter: { value: new THREE.Vector3() }, uLight: { value: new THREE.Vector3() }, uTime: { value: 0 }, uPow: { value: 1 } };
+      const m = new THREE.ShaderMaterial({
+        uniforms: this.dustU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        vertexShader: `attribute float aSeed; uniform vec3 uCenter, uLight; uniform float uTime, uPow; varying float vB;
+          void main() {
+            vec3 p = position + vec3(sin(uTime * 0.13 + aSeed * 40.0), -uTime * 0.05 * (0.3 + aSeed), cos(uTime * 0.11 + aSeed * 23.0)) * 0.6;
+            vec3 box = vec3(16.0, 7.0, 16.0);
+            vec3 w = uCenter - box * vec3(0.5, 0.3, 0.5) + mod(p - uCenter + box * vec3(0.5, 0.3, 0.5), box);
+            float d = distance(w, uLight);
+            vB = uPow * 0.9 / (1.0 + d * d * 0.5) * (0.4 + 0.6 * fract(aSeed * 7.3 + uTime * 0.2));
+            vec4 mv = modelViewMatrix * vec4(w, 1.0);
+            gl_PointSize = max(1.0, (0.008 + aSeed * 0.012) * 800.0 / max(0.5, -mv.z));
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `varying float vB; void main() { float r = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, r) * vB; gl_FragColor = vec4(vec3(1.0, 0.8, 0.6) * a, a); }`,
+      });
+      this.dust = new THREE.Points(geo, m); this.dust.frustumCulled = false; scene.add(this.dust);
+    }
     // a faint fill that travels with the camera, so you can see yourself against the torch
     this.fill = new THREE.PointLight(0xffc89a, 6, 10, 1.6);
     scene.add(this.fill);
@@ -319,6 +343,8 @@ export class Cave {
     const hand = (g.heroActor.L.ha).getWorldPosition(new THREE.Vector3());
     // held out ahead of you, so the flame doesn't blow out your own helmet
     this.light.position.copy(hand).addScaledVector(pl.forward(), 0.35).add(new THREE.Vector3(0, 0.6, 0));
+    this.dustU.uCenter.value.copy(pl.pos); this.dustU.uLight.value.copy(this.light.position); this.dustU.uTime.value = g.time;
+    this.dustU.uPow.value = p.goods.LANTERN ? 1.4 : 1;
     this.fill.position.copy(g.cam.cam.position).lerp(pl.pos, 0.35).y += 0.6;
     this.light.intensity = (p.goods.LANTERN ? 26 : 14) * (0.9 + Math.random() * 0.1 + Math.sin(g.time * 13) * 0.03);
     if (this.flameSp) { this.flameSp.scale.set(0.22 + Math.random() * 0.06, 0.38 + Math.random() * 0.1, 1); if (Math.random() < 0.2) this.fx.burst(this.flameSp.getWorldPosition(new THREE.Vector3()), 'ember', 1); }
@@ -337,7 +363,8 @@ export class Cave {
     const lairK = THREE.MathUtils.clamp((-LEN + 10 - pl.pos.z) / 14, 0, 1);
     this.hemi.intensity = (p.goods.LANTERN ? 0.12 : 0.06) + lairK * 0.35;
     g.scene.environmentIntensity = 0.15 + lairK * 0.5;
-    const want = this.boss.awake && !this.boss.dead ? 3.2 : 0;
+    const fight = this.boss.awake && !this.boss.dead;
+    const want = fight ? 4.5 : 0;
     g.cam.extraDist += (want - g.cam.extraDist) * Math.min(1, dt * 1.5);
     // pick up the amulet once the dragon is dead
     if (this.boss.dead && !this.won && pl.pos.distanceTo(this.amulet.position) < 3) { this.won = true; this.amulet.visible = false; g.onVictory?.(); }
@@ -520,7 +547,7 @@ class DragonBoss {
       d.update(dt * 0.3);
       if (pl.pos.z < -LEN - 6) {
         this.awake = true; this.mode = 'roar'; this.t = 0; s.attack = 0; s.attackKind = 'roar';
-        sfx('roar'); shake.add(1.2);
+        sfx('roar'); shake.add(1.2); music('battle');
         g.hud.say(['THE DRAGON', 'AWAKES!'], 3);
       }
       return;
@@ -646,7 +673,7 @@ class DragonBoss {
     const g = this.game;
     this.dead = true; this.cave.state.dragonDead = true;
     this.d.state.attack = -1; this.d.fireLight.intensity = 0;
-    sfx('roar'); sfx('boom'); shake.add(1.5);
+    sfx('roar'); sfx('boom'); shake.add(1.5); music(null);
     g.fx.burst(this.pos.clone().setY(this.pos.y + 3), 'blood', 120); g.fx.burst(this.pos.clone().setY(this.pos.y + 2), 'dust', 60);
     g.stats.kills++;
     g.hud.say(['YOU KILLED', 'THE DRAGON'], 4);

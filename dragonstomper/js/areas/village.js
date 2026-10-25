@@ -22,14 +22,16 @@ export class Village {
     this.game = game;
     this.state = { hired: [], ...state };
     this.colliders = []; this.interactables = [];
-    this.ambience = 'village'; this.floor = 'stone';
+    this.ambience = 'village'; this.music = 'village'; this.floor = 'stone';
   }
   async build(scene) {
     const g = this.game;
-    const sky = await loadHDR('assets/hdri/kloofendal_48d_partly_cloudy_puresky_2k.hdr');
+    // the village at golden hour
+    const sky = await loadHDR('assets/hdri/qwantani_sunset_puresky_2k.hdr');
     scene.background = sky.background; scene.environment = sky.env; scene.environmentIntensity = 0.75;
-    scene.fog = new THREE.FogExp2(0xb8c6d2, 0.004);
-    addSun(scene, { dir: new THREE.Vector3(0.45, 0.62, 0.55), intensity: 2.4, color: 0xffe2c0 });
+    scene.fog = new THREE.FogExp2(0x9a8070, 0.0022); scene.backgroundIntensity = 0.7;
+    addSun(scene, { dir: new THREE.Vector3(0.806, 0.26, 0.582), intensity: 2.2, color: 0xffb57a }); // low, along the HDR sun's bearing
+    scene.userData.godRays = 0.45; scene.userData.sunTint = 0xffc890;
     const rand = mulberry(g.stats.seed ^ 0x2222);
     const height = (x, z) => {
       const r = Math.hypot(x, z);
@@ -81,7 +83,7 @@ export class Village {
       const a = rand() * Math.PI * 2, d = 12 + rand() * 6;
       const x = Math.sin(a) * d, z = Math.cos(a) * d;
       if (Math.abs(x) < 4) continue;
-      const kind = ['Barrel_01', 'wooden_crate_01', 'Barrel_01'][i % 3];
+      const kind = ['wine_barrel_01', 'wooden_crate_01', 'wine_barrel_01'][i % 3];
       pend.push(prop(kind, 0.8 + rand() * 0.3).then(m => { m.position.set(x, 0.04, z); m.rotation.y = rand() * 6; scene.add(m); }));
       this.colliders.push({ type: 'circle', x, z, r: 0.5 });
     }

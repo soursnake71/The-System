@@ -91,7 +91,7 @@ vec4 antiTile(sampler2D t, vec2 uv) {
   vec3 an = abs(normalize(vWNorm)); tri = pow(an, vec3(4.0)); tri /= (tri.x + tri.y + tri.z);
   float slope = 1.0 - normalize(vWNorm).y;
   float macro = vnoise(vWPos.xz * 0.05) * 0.6 + vnoise(vWPos.xz * 0.17) * 0.4;
-  float rockW = smoothstep(0.18, 0.32, slope + (macro - 0.5) * 0.1);
+  float rockW = smoothstep(0.3, 0.46, slope + (macro - 0.5) * 0.16);
   vec4 dTex = antiTile(dMap, vWPos.xz / scales.y);
   float dirtW = clamp(vSplat.x + (dTex.r - 0.4) * 0.6, 0.0, 1.0) * (1.0 - rockW);
   dirtW = max(dirtW, (1.0 - smoothstep(0.0, 0.25, vSplat.y)) * (1.0 - rockW) * 0.85);
