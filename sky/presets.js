@@ -66,12 +66,12 @@
   const SCALES = ['minor', 'major', 'dorian', 'lydian', 'phrygian', 'pentatonic minor', 'pentatonic major', 'harmonic minor', 'whole tone'];
   const LANE_IDS = ['arp', 'rise', 'fall', 'drone', 'grid', 'hit'];
   // engine, MIDI channel, volume, reverb, delay, pan, gated, echo, gate (note length), rhythm
-  const DEF_LANES = {arp:['pluck', 1, 0.8, 0.25, 0.35, 0.3, 0, 0.4, 0.6, 0], rise:['glass', 2, 0.7, 0.35, 0.25, -0.35, 0, 0.3, 0.45, 0],
-    fall:['bell', 3, 0.65, 0.45, 0.3, 0.45, 0, 0.3, 0.5, 1], drone:['pad', 4, 0.75, 0.6, 0.1, -0.2, 0, 0.1, 0.5, 6],
-    grid:['bass', 5, 0.75, 0.1, 0.15, 0, 0, 0.1, 0.6, 0], hit:['perc', 10, 0.7, 0.15, 0.1, 0.1, 0.4, 0.3, 0.5, 0]};
+  const DEF_LANES = {arp:['obxa', 1, 0.8, 0.25, 0.35, 0.3, 0, 0.4, 0.6, 0], rise:['obxa', 2, 0.7, 0.35, 0.25, -0.35, 0, 0.3, 0.45, 0],
+    fall:['obxa', 3, 0.65, 0.45, 0.3, 0.45, 0, 0.3, 0.5, 1], drone:['obxa', 4, 0.75, 0.6, 0.1, -0.2, 0, 0.1, 0.5, 6],
+    grid:['obxa', 5, 0.75, 0.1, 0.15, 0, 0, 0.1, 0.6, 0], hit:['obxa', 10, 0.7, 0.15, 0.1, 0.1, 0.4, 0.3, 0.5, 0]};
   // what each lane may sound like: the generator and auto-randomize pick from these, never the same sound twice where it can help it
-  const ROLE_ENGINES = {arp:['obxa', 'pluck', 'glass', 'bell'], rise:['glass', 'lead', 'obxa', 'bell'], fall:['bell', 'obxa', 'lead', 'glass'],
-    drone:['pad', 'obxa'], grid:['bass', 'obxa'], hit:['perc', 'bell', 'obxa', 'pluck']};
+  // every lane plays an OB-Xa patch shaped for its role (or MIDI only, to drive your own synth)
+  const ROLE_ENGINES = {arp:['obxa'], rise:['obxa'], fall:['obxa'], drone:['obxa'], grid:['obxa'], hit:['obxa']};
   const ROLE_RHYTHMS = {rise:[0, 2, 3, 4, 7, 9, 11], fall:[1, 2, 4, 8, 9, 11], drone:[5, 6, 9, 11], hit:[0, 1, 3, 4, 7, 10]};
 
   // small seeded generator so a seed always gives the same preset
@@ -119,7 +119,7 @@
     const g = R(r), pre = {name, key:g.i(0, 11), scale:g.pick(['minor', 'minor', 'dorian', 'pentatonic minor', 'major', 'lydian', 'phrygian', 'harmonic minor', 'pentatonic major']),
       bpm:g.i(78, 132), delay:{mode:g.p(0.55) ? 1 : 0, mix:round(g.u(0.3, 0.65)), fb:round(g.u(0.25, 0.55)), tone:round(g.log(1800, 6000), 0)}, kit:randomKit(r), lanes:{},
       fx:{gtime:round(g.u(0.18, 0.45)), gmix:round(g.u(0.5, 0.9)), erate:round(g.u(0.15, 0.5)), emix:round(g.u(0.4, 0.8))},
-      mainBeat:g.p(0.75) ? g.pick(GROOVES) : 'none', autoBars:g.pick([4, 8, 8, 16]),
+      mainBeat:g.pick(GROOVES), autoBars:g.pick([4, 8, 8, 16]),
       drums:{vol:round(g.u(0.75, 1)), pan:0, rev:round(g.u(0.05, 0.2)), dly:round(g.u(0, 0.1)), gtd:round(g.u(0.25, 0.7)), echo:round(g.u(0, 0.25))}};
     const used = new Set(), pans = [-0.6, -0.3, 0, 0.3, 0.6];
     for (const id of LANE_IDS){
@@ -138,7 +138,7 @@
   }
   function defaultPreset(){
     const pre = {name:'Init', key:9, scale:'minor', bpm:96, delay:{mode:0, mix:0.5, fb:0.38, tone:2800}, kit:defaults(KIT), lanes:{},
-      fx:{gtime:0.3, gmix:0.7, erate:0.25, emix:0.6}, mainBeat:'none', autoBars:8, drums:{vol:0.9, pan:0, rev:0.12, dly:0.05, gtd:0.4, echo:0}};
+      fx:{gtime:0.3, gmix:0.7, erate:0.25, emix:0.6}, mainBeat:'house', autoBars:8, drums:{vol:0.9, pan:0, rev:0.12, dly:0.05, gtd:0.4, echo:0}};
     for (const id of LANE_IDS){ const [engine, ch, vol, rev, dly, pan, gtd, echo, gate, rhythm] = DEF_LANES[id];
       pre.lanes[id] = {on:true, engine, ch, vol, rev, dly, pan, mute:false, solo:false, gtd, echo, gate, rhythm, auto:true, drum:'none', dv:0.8, patch:randomPatch(id, rng(7 + id.length))}; }
     return pre;

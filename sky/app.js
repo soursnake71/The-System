@@ -10,17 +10,17 @@
     ['AMS', 'Amsterdam', 52.3105, 4.7683], ['CDG', 'Paris CDG', 49.0097, 2.5479], ['FRA', 'Frankfurt', 50.0379, 8.5622], ['MAD', 'Madrid', 40.4983, -3.5676], ['IST', 'Istanbul', 41.2753, 28.7519], ['DXB', 'Dubai', 25.2532, 55.3657],
     ['SIN', 'Singapore', 1.3644, 103.9915], ['HND', 'Tokyo Haneda', 35.5494, 139.7798], ['SYD', 'Sydney', -33.9399, 151.1753]];
   const LANES = [
-    {id:'arp', name:'Circling', to:'Arpeggio', col:'#ff5ec8', engine:'pluck', ch:1, vol:0.8, rev:0.25, dly:0.35,
+    {id:'arp', name:'Circling', to:'Arpeggio', col:'#ff5ec8', engine:'obxa', ch:1, vol:0.8, rev:0.25, dly:0.35,
       desc:'A plane that turns a full circle (a holding stack, a helicopter orbit) plays an arpeggio. Faster turn = faster notes, right turn runs up, left turn runs down, a bigger circle spans more notes, higher planes play higher.'},
-    {id:'rise', name:'Climbing', to:'Rising line', col:'#ffd23f', engine:'glass', ch:2, vol:0.7, rev:0.35, dly:0.25,
+    {id:'rise', name:'Climbing', to:'Rising line', col:'#ffd23f', engine:'obxa', ch:2, vol:0.7, rev:0.35, dly:0.25,
       desc:'Departures play a note every beat. The pitch is the plane\'s altitude, so the line climbs as the plane does. Faster climb = louder.'},
-    {id:'fall', name:'Descending', to:'Falling line', col:'#4fc3ff', engine:'bell', ch:3, vol:0.65, rev:0.45, dly:0.3,
+    {id:'fall', name:'Descending', to:'Falling line', col:'#4fc3ff', engine:'obxa', ch:3, vol:0.65, rev:0.45, dly:0.3,
       desc:'Arrivals play a note every beat on the off-beat, pitched by altitude, so the line falls as they come down to land.'},
-    {id:'drone', name:'Cruising', to:'Pad', col:'#9c8cff', engine:'pad', ch:4, vol:0.75, rev:0.6, dly:0.1,
+    {id:'drone', name:'Cruising', to:'Pad', col:'#9c8cff', engine:'obxa', ch:4, vol:0.75, rev:0.6, dly:0.1,
       desc:'High, level traffic holds a chord tone for a whole bar. Its flight level picks the note; the nearest three planes make the chord.'},
-    {id:'grid', name:'Sky grid', to:'Sequence', col:'#4dffa6', engine:'bass', ch:5, vol:0.75, rev:0.1, dly:0.15,
+    {id:'grid', name:'Sky grid', to:'Sequence', col:'#4dffa6', engine:'obxa', ch:5, vol:0.75, rev:0.1, dly:0.15,
       desc:'The area is split into 16 × 8 cells that fill up with heat as traffic passes through them. Columns are steps (west to east), rows are notes (south low, north high). Busy airways become a repeating pattern that slowly changes.'},
-    {id:'hit', name:'Low & close', to:'Percussion', col:'#ff8a3d', engine:'perc', ch:10, vol:0.7, rev:0.15, dly:0.1,
+    {id:'hit', name:'Low & close', to:'Percussion', col:'#ff8a3d', engine:'obxa', ch:10, vol:0.7, rev:0.15, dly:0.1,
       desc:'Planes low and near you play a hit every beat. Every plane that enters the area plays one hit when it arrives, pitched by the direction it came from.'},
   ];
   const KIND_COL = {arp:'#ff5ec8', rise:'#ffd23f', fall:'#4fc3ff', drone:'#9c8cff', hit:'#ff8a3d', level:'#b9c4c0', ground:'#56615d'};
@@ -28,7 +28,7 @@
 
   /* ---- settings ---- */
   const DEF = {source:Feed.native ? 'adsblol' : 'demo', place:'LHR', placeName:'London Heathrow', lat:51.47, lon:-0.4543, radius:45, localUrl:'http://192.168.1.50:8080/data/aircraft.json',
-    bpm:96, root:9, scale:'minor', window:5, thresh:0.3, labels:true, trails:true, midiOut:'', clock:false, lanes:{}, preset:'Init (classic sounds)', mine:[]};
+    bpm:96, root:9, scale:'minor', window:5, thresh:0.3, labels:true, trails:true, midiOut:'', clock:false, lanes:{}, preset:'Init', mine:[]};
   const INIT = SkyPresets.defaultPreset();
   let S, firstRun = false;
   try { const saved = localStorage.getItem('sky-seq'); firstRun = !saved; S = Object.assign({}, DEF, JSON.parse(saved || '{}')); } catch (e) { S = Object.assign({}, DEF); }
@@ -37,6 +37,9 @@
   if (S.mainBeat == null) S.mainBeat = INIT.mainBeat; if (S.autoBars == null) S.autoBars = INIT.autoBars; if (S.master == null) S.master = 0.8;
   for (const l of LANES){ const d = INIT.lanes[l.id]; S.lanes[l.id] = Object.assign({}, d, S.lanes[l.id] || {});
     S.lanes[l.id].patch = Object.assign({}, d.patch, S.lanes[l.id].patch || {}); }
+  if (firstRun){ const g = SkyPresets.generatePreset(Math.random, 'Random start'); S.lanes = g.lanes; S.kit = g.kit; S.mainBeat = g.mainBeat; S.drums = Object.assign({mute:false, solo:false}, g.drums); S.fx = g.fx; S.delay = g.delay; S.preset = g.name; }
+  for (const l of LANES) if (S.lanes[l.id].engine !== 'none') S.lanes[l.id].engine = 'obxa';
+  if (!SkyPresets.PATTERNS[S.mainBeat]) S.mainBeat = 'house';
   let PRESETS = [INIT], PATTERNS = SkyPresets.PATTERNS;
   fetch('presets.json').then(r => r.json()).then(j => { PRESETS = j.presets; PATTERNS = j.patterns || PATTERNS; if (tab === 'presets') render(); }).catch(() => {});
   const save = () => { try { localStorage.setItem('sky-seq', JSON.stringify(S)); } catch (e) {} };
@@ -168,7 +171,7 @@
     if (s16 % 2 === 0 && arrivals.length){ const a = arrivals.shift(); play('hit', 57 + Math.floor(a.bearing / 30) * 2, 0.6, t, sd * Ls.hit.gate, {x:a.x, id:null}); }
     if (arrivals.length > 6) arrivals.splice(0, arrivals.length - 6);
     // emergency squawk: an alarm figure on the bell every bar
-    if (emergency && s16 % 8 === 0) Sound.note('alert', 'bell', deg2midi(s16 ? 4 : 7, 72), 0.6, t, sd * 2, 0, {vol:0.5, rev:0.5, dly:0.4});
+    if (emergency && s16 % 8 === 0) Sound.note('alert', 'obxa', deg2midi(s16 ? 4 : 7, 72), 0.6, t, sd * 2, 0, {vol:0.5, rev:0.5, dly:0.4, patch:ALARM});
     drumStep(n, t);
   }
   /* auto-randomize: every few bars each lane that allows it drifts to a new rhythm, its OB-Xa patch moves part of the
@@ -179,8 +182,6 @@
       const L = S.lanes[l.id]; if (!L.auto) continue;
       const rh = SkyPresets.ROLE_RHYTHMS[l.id]; if (rh && g() < 0.6) L.rhythm = rh[Math.floor(g() * rh.length)];
       L.gate = +Math.max(0.15, Math.min(1, L.gate * (0.75 + g() * 0.55))).toFixed(2);
-      if (g() < 0.15){ const others = LANES.filter(o => o.id !== l.id).map(o => S.lanes[o.id].engine), opts = SkyPresets.ROLE_ENGINES[l.id].filter(e => e === 'obxa' || !others.includes(e));
-        if (opts.length) L.engine = opts[Math.floor(g() * opts.length)]; }
       L.patch = SkyPresets.mutatePatch(L.patch, l.id, 0.35);
     }
     save(); if (tab === 'lanes' && !document.querySelector('#panel :active')) render();
@@ -188,6 +189,7 @@
   /* drums: the main beat plays all the time; a lane's drum loop starts on the next bar line after the lane plays and
      keeps going while it's still playing (it stops after two quiet bars). Hits sit on the same 16th grid as the notes. */
   const lastFire = {}, loopOn = {};
+  const ALARM = Object.assign(SkyPresets.defaults(SkyPresets.PATCH), {w1:1, w2:1, pw:0.2, cut:2500, env:2, as:0.6, ar:0.1, vib:20, lfo:6});
   function hitPattern(pat, s16, v0, t){
     SkyPresets.DRUMS.forEach((d, i) => {
       const c = (pat[d] || '')[s16]; if (!c || c === '.') return;
@@ -351,7 +353,7 @@
   function renderLanes(m){
     for (const l of LANES){
       const L = S.lanes[l.id], eng = el('select'), chs = el('select');
-      for (const k in Sound.ENGINES) eng.append(opt(k, Sound.ENGINES[k].name, L.engine));
+      for (const k of ['obxa', 'none']) eng.append(opt(k, Sound.ENGINES[k].name, L.engine));
       for (let c = 1; c <= 16; c++) chs.append(opt(c, 'Ch ' + c, L.ch));
       eng.onchange = () => { L.engine = eng.value; save(); render(); }; chs.onchange = () => { L.ch = +chs.value; save(); };
       const drum = el('select'); drum.append(opt('none', 'No drum loop', L.drum)); for (const k in PATTERNS) drum.append(opt(k, PATTERNS[k].name, L.drum));
@@ -371,7 +373,7 @@
         range('Drums', 0, 1.2, 0.01, L.dv, v => Math.round(v * 100), v => L.dv = v)));
     }
     const ab = el('select'); [[0, 'Off'], [4, 'Every 4 bars'], [8, 'Every 8 bars'], [16, 'Every 16 bars']].forEach(([v, n]) => ab.append(opt(v, n, S.autoBars))); ab.onchange = () => { S.autoBars = +ab.value; save(); };
-    m.prepend(el('div', {class:'lane'}, el('div', {class:'row'}, el('label', {}, 'Auto-vary ', ab)), el('p', {class:'hint'}, 'Lanes with Auto-vary on drift to a new rhythm, note length and patch, and now and then a new sound, so the piece keeps changing. Volume, pan and effects are on the mixer (🎚 at the top).')));
+    m.prepend(el('div', {class:'lane'}, el('div', {class:'row'}, el('label', {}, 'Auto-vary ', ab)), el('p', {class:'hint'}, 'Lanes with Auto-vary on drift to a new rhythm, note length and patch, so the piece keeps changing. Volume, pan and effects are on the mixer (🎚 at the top).')));
     m.append(el('p', {class:'hint'}, '"Triggers" connects a drum loop to the lane: when the lane plays, its loop starts on the next bar and runs until the lane has been quiet for two bars. Drums use the kit on the Drums & FX tab and send MIDI on channel 10.'));
   }
   const syncTabs = () => document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.t === tab));

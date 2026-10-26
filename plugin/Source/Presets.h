@@ -51,15 +51,8 @@ struct Pattern { juce::String id, name; std::array<std::array<juce::uint8, 16>, 
 struct Rhythm { juce::String name; std::array<bool, 16> on {}; };
 
 // lane roles: which sounds and rhythms each lane may get (same as ROLE_ENGINES / ROLE_RHYTHMS in sky/presets.js)
-inline std::vector<juce::String> roleEngines (const juce::String& lane)
-{
-    if (lane == "arp") return { "obxa", "pluck", "glass", "bell" };
-    if (lane == "rise") return { "glass", "lead", "obxa", "bell" };
-    if (lane == "fall") return { "bell", "obxa", "lead", "glass" };
-    if (lane == "drone") return { "pad", "obxa" };
-    if (lane == "grid") return { "bass", "obxa" };
-    return { "perc", "bell", "obxa", "pluck" };
-}
+// every lane plays an OB-Xa patch shaped for its role (same as ROLE_ENGINES in sky/presets.js)
+inline std::vector<juce::String> roleEngines (const juce::String&) { return { "obxa" }; }
 inline std::vector<int> roleRhythms (const juce::String& lane)
 {
     if (lane == "rise") return { 0, 2, 3, 4, 7, 9, 11 };

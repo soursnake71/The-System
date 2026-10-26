@@ -7,7 +7,7 @@ const NAMES = ['Holding Stack', 'Final Approach', 'Heathrow Dawn', 'Contrails', 
   'Afterburner', 'Stratosphere', 'Landing Gear', 'Blue Hour', 'Sky Lane', 'Waypoint', 'Beacon', 'Tailwind', 'Altimeter', 'Cabin Pressure',
   'Gatwick Shuffle', 'Approach Control', 'Overhead Break', 'Sonic Boom', 'Morning Push', 'Arrivals Board', 'Terminal Five', 'Ascent', 'Descent', 'Touchdown'];
 const presets = NAMES.map((name, i) => P.generatePreset(P.rng(1000 + i * 7919), name));
-presets.unshift(Object.assign(P.defaultPreset(), {name:'Init (classic sounds)'}));
+presets.unshift(Object.assign(P.defaultPreset(), {name:'Init'}));
 const out = {version:2, patterns:P.PATTERNS, rhythms:P.RHYTHMS, drums:P.DRUMS, drumNotes:P.DRUM_NOTES, presets};
 fs.writeFileSync(path.join(__dirname, '../sky/presets.json'), JSON.stringify(out));
 console.log('wrote', presets.length, 'presets,', Object.keys(P.PATTERNS).length, 'patterns');

@@ -58,6 +58,7 @@ public:
 
     juce::AudioProcessorValueTreeState params;
     juce::ValueTree state { "SkyLocation" };
+    sky::Requests requests;   // open web requests, cancelled when the plugin closes
     sky::SkyModel model;
     sky::FeedThread feed { model };
     juce::ThreadPool lookups { 1 };   // place search and locate-me requests

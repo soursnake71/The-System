@@ -235,7 +235,7 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
         auto& rw = rows[(size_t) i]; const auto& li = laneInfo[i]; const juce::String id (li.id);
         rw.name.setText (juce::String (li.name) + juce::String::fromUTF8 (" \xe2\x86\x92 ") + li.to, juce::dontSendNotification);
         rw.name.setColour (juce::Label::textColourId, juce::Colour (li.colour)); rw.name.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        rw.engine.addItemList (sky::engineNames(), 1);
+        rw.engine.addItemList (sky::soundNames(), 1);
         for (int c = 1; c <= 16; ++c) rw.ch.addItem ("Ch " + juce::String (c), c);
         rw.drum.addItemList (sky::PresetLibrary::get().patternNames(), 1);
         rw.dvl.setText ("Drums", juce::dontSendNotification);
@@ -243,7 +243,7 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
         rw.vl.setText ("Vol", juce::dontSendNotification); rw.rl.setText ("Rev", juce::dontSendNotification); rw.dl.setText ("Dly", juce::dontSendNotification);
         for (auto* l : { &rw.vl, &rw.rl, &rw.dl, &rw.dvl }) { l->setFont (juce::FontOptions (11.0f)); l->setColour (juce::Label::textColourId, dim); }
         rw.aOn = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_on", rw.on);
-        rw.aEngine = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_engine", rw.engine);
+        rw.aEngine = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_sound", rw.engine);
         rw.aCh = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_ch", rw.ch);
         rw.rhythm.addItemList (sky::PresetLibrary::get().rhythmNames(), 1);
         rw.gl.setText ("Length", juce::dontSendNotification); rw.gl.setFont (juce::FontOptions (11.0f)); rw.gl.setColour (juce::Label::textColourId, dim);
@@ -549,9 +549,9 @@ void SkyEditor::runSearch()
     double la, lo;
     if (sky::parseCoordinates (q, la, lo)) { proc.setLocation (la, lo, {}); refreshWhere(); showMessage ("Centred on " + juce::String (la, 4) + ", " + juce::String (lo, 4)); return; }
     showMessage ("Searching..."); go.setEnabled (false);
-    proc.lookups.addJob ([q, sp = juce::Component::SafePointer<SkyEditor> (this)] {
+    proc.lookups.addJob ([q, rq = &proc.requests, sp = juce::Component::SafePointer<SkyEditor> (this)] {
         juce::String err;
-        auto res = sky::searchPlaces (q, err);
+        auto res = sky::searchPlaces (q, err, rq);
         juce::MessageManager::callAsync ([sp, res, err] {
             if (sp == nullptr) return;
             sp->go.setEnabled (true);
@@ -567,9 +567,9 @@ void SkyEditor::runSearch()
 void SkyEditor::locateMe()
 {
     showMessage ("Finding you..."); locate.setEnabled (false);
-    proc.lookups.addJob ([sp = juce::Component::SafePointer<SkyEditor> (this)] {
+    proc.lookups.addJob ([rq = &proc.requests, sp = juce::Component::SafePointer<SkyEditor> (this)] {
         sky::Place pl; juce::String err;
-        const bool ok = sky::locateByIp (pl, err);
+        const bool ok = sky::locateByIp (pl, err, rq);
         juce::MessageManager::callAsync ([sp, ok, pl, err] {
             if (sp == nullptr) return;
             sp->locate.setEnabled (true);
@@ -593,8 +593,8 @@ void SkyEditor::timerCallback()
     { auto& m = strips[7].meter; m.level = juce::jmax (proc.takeMasterPeak(), m.level * 0.8f); if (mixerPage.isVisible()) m.repaint(); }
     if (tick % 8 == 0)
     {
-        const auto names = sky::engineNames();
-        for (int c = 0; c < 6; ++c) strips[(size_t) c].sound.setText (names[(int) proc.params.getRawParameterValue (juce::String (laneInfo[c].id) + "_engine")->load()], juce::dontSendNotification);
+        const auto names = sky::soundNames();
+        for (int c = 0; c < 6; ++c) strips[(size_t) c].sound.setText (names[(int) proc.params.getRawParameterValue (juce::String (laneInfo[c].id) + "_sound")->load()], juce::dontSendNotification);
         const int mb = (int) proc.params.getRawParameterValue ("mainbeat")->load();
         strips[6].sound.setText (mb > 0 ? sky::PresetLibrary::get().patterns[(size_t) mb].name : juce::String ("Kit"), juce::dontSendNotification);
     }

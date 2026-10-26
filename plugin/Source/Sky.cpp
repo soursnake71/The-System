@@ -349,7 +349,7 @@ void FeedThread::run()
                 default: url = fs.localUrl.trim(); every = 1000; break;
             }
             int status = 0;
-            const auto text = url.isEmpty() ? juce::String() : httpGet (url, status);
+            const auto text = url.isEmpty() ? juce::String() : httpGet (url, status, 10000, requests);
             const auto j = text.isEmpty() ? juce::var() : juce::JSON::parse (text);
             if (threadShouldExit()) break;
             if (changed) continue;
@@ -374,23 +374,26 @@ void FeedThread::run()
 }
 
 /* ---------------- network helpers ---------------- */
-juce::String httpGet (const juce::String& url, int& status, int timeoutMs)
+juce::String httpGet (const juce::String& url, int& status, int timeoutMs, Requests* requests)
 {
     status = 0;
-    auto opts = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
-                    .withConnectionTimeoutMs (timeoutMs)
-                    .withExtraHeaders ("User-Agent: SkySequencer/1.0 (audio plugin; https://github.com/soursnake71/the-system)\r\nAccept: application/json")
-                    .withStatusCode (&status);
-    auto in = juce::URL (url).createInputStream (opts);
-    if (in == nullptr || status >= 400) return {};
-    return in->readEntireStreamAsString();
+    if (requests != nullptr && requests->closing) return {};
+    juce::WebInputStream in (juce::URL (url), false);
+    in.withConnectionTimeout (timeoutMs)
+      .withExtraHeaders ("User-Agent: SkySequencer/1.0 (audio plugin; https://github.com/soursnake71/the-system)\r\nAccept: application/json");
+    // registered so the plugin can cancel it when it closes
+    if (requests != nullptr) { const juce::ScopedLock sl (requests->lock); if (requests->closing) return {}; requests->active.add (&in); }
+    juce::String text;
+    if (in.connect (nullptr) && (status = in.getStatusCode()) < 400) text = in.readEntireStreamAsString();
+    if (requests != nullptr) { const juce::ScopedLock sl (requests->lock); requests->active.removeFirstMatchingValue (&in); }
+    return text;
 }
 
-std::vector<Place> searchPlaces (const juce::String& query, juce::String& error)
+std::vector<Place> searchPlaces (const juce::String& query, juce::String& error, Requests* rq)
 {
     std::vector<Place> out;
     int status = 0;
-    const auto text = httpGet ("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=" + juce::URL::addEscapeChars (query.trim(), true), status);
+    const auto text = httpGet ("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=" + juce::URL::addEscapeChars (query.trim(), true), status, 10000, rq);
     const auto j = juce::JSON::parse (text);
     if (auto* a = j.getArray())
         for (auto& r : *a) out.push_back ({ r["display_name"].toString(), num (r["lat"]), num (r["lon"]) });
@@ -399,16 +402,16 @@ std::vector<Place> searchPlaces (const juce::String& query, juce::String& error)
     return out;
 }
 
-bool locateByIp (Place& out, juce::String& error)
+bool locateByIp (Place& out, juce::String& error, Requests* rq)
 {
     int status = 0;
-    auto j = juce::JSON::parse (httpGet ("https://ipwho.is/", status));
+    auto j = juce::JSON::parse (httpGet ("https://ipwho.is/", status, 8000, rq));
     if (j.isObject() && (bool) j["success"])
     {
         out = { juce::StringArray { j["city"].toString(), j["region"].toString(), j["country"].toString() }.joinIntoString (", "), num (j["latitude"]), num (j["longitude"]) };
         return true;
     }
-    j = juce::JSON::parse (httpGet ("https://get.geojs.io/v1/ip/geo.json", status));
+    j = juce::JSON::parse (httpGet ("https://get.geojs.io/v1/ip/geo.json", status, 8000, rq));
     if (j.isObject() && has (j, "latitude"))
     {
         out = { juce::StringArray { j["city"].toString(), j["country"].toString() }.joinIntoString (", "), num (j["latitude"]), num (j["longitude"]) };

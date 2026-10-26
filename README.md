@@ -26,7 +26,7 @@ Turns live air traffic into music. Pick a place (or use your location) and it wa
 - **Sky grid**: the area is a 16 × 8 grid that collects heat as planes pass through it over a window you choose (1 to 60 minutes). It is read as a step sequencer, west to east.
 - An emergency squawk shifts the key up a fourth until it clears.
 
-Sounds: seven simple engines plus an **OB-Xa** style synth (two saw/pulse oscillators, 12/24 dB resonant filter with its own envelope, amp envelope, LFO for vibrato and pulse width), with its own patch per lane and a random-patch button.
+Sounds: every lane plays an **OB-Xa** style synth (or MIDI only, to drive your own synth); each new start gives every lane a random OB-Xa patch shaped for its role, a random kit and a main beat. The OB-Xa has two saw/pulse oscillators, 12/24 dB resonant filter with its own envelope, amp envelope, LFO for vibrato and pulse width), with its own patch per lane and a random-patch button.
 
 Drums: any lane can **trigger a drum loop** (30 patterns, from four on the floor, house, techno and disco to breakbeat, jungle, reggaeton, afrobeat, bossa nova and samba). The loop starts on the next bar line after the lane plays and stops after two quiet bars; every hit sits on the same 16th-note grid as the notes (and in the plugin, on the DAW's sample-accurate beat grid). The kit is twelve synthesized drums with a **random kit** builder. Drums go out as MIDI on channel 10.
 

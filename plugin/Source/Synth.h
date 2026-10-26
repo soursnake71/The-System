@@ -9,6 +9,8 @@ namespace sky
 enum Engine { ePluck, ePad, eBell, eBass, eGlass, eLead, ePerc, eObxa, eMidiOnly, numEngines };
 inline juce::StringArray engineNames() { return { "Pluck", "Pad", "FM Bell", "Bass", "Glass", "Lead", "Perc", "OB-Xa", "MIDI only" }; }
 inline juce::StringArray engineKeys() { return { "pluck", "pad", "bell", "bass", "glass", "lead", "perc", "obxa", "none" }; }   // names used in presets.json
+// what a lane can play: an OB-Xa patch, or nothing (MIDI only, to drive your own synth)
+inline juce::StringArray soundNames() { return { "OB-Xa", "MIDI only" }; }
 
 // OB-Xa patch, same fields as SkyPresets.PATCH in sky/presets.js
 struct Patch { float w1 = 0, w2 = 1, pw = 0.3f, mix2 = 0.7f, det = 7, int2 = 0, cut = 1800, res = 0.3f, poles = 1, env = 2.5f, fa = 0.005f, fd = 0.4f, fs = 0.3f, fr = 0.3f,

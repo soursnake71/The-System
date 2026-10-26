@@ -107,12 +107,22 @@ private:
 
 float turnRateOf (const Plane&);
 
+/** The web requests one plugin instance has open, so closing the plugin can cancel them instead of waiting them out. */
+struct Requests
+{
+    juce::CriticalSection lock;
+    juce::Array<juce::WebInputStream*> active;
+    std::atomic<bool> closing { false };
+    void cancelAll() { closing = true; const juce::ScopedLock sl (lock); for (auto* s : active) s->cancel(); }
+};
+
 /** Polls the chosen feed on its own thread and feeds the model. */
 class FeedThread : public juce::Thread
 {
 public:
     explicit FeedThread (SkyModel& m) : juce::Thread ("Sky feed"), model (m) {}
-    ~FeedThread() override { stopThread (4000); }
+    ~FeedThread() override { if (requests) requests->cancelAll(); stopThread (8000); }
+    Requests* requests = nullptr;
     void setSettings (const FeedSettings&);
     FeedSettings getSettings() { const juce::ScopedLock sl (setLock); return wanted; }
     std::atomic<bool> frozen { false };
@@ -127,13 +137,13 @@ private:
 };
 
 // network helpers (blocking; call them off the message thread)
-juce::String httpGet (const juce::String& url, int& status, int timeoutMs = 10000);
+juce::String httpGet (const juce::String& url, int& status, int timeoutMs = 10000, Requests* requests = nullptr);
 std::vector<Report> parseReadsb (const juce::var& j);
 std::vector<Report> parseOpenSky (const juce::var& j);
 
 struct Place { juce::String name; double lat, lon; };
-std::vector<Place> searchPlaces (const juce::String& query, juce::String& error);   // OpenStreetMap Nominatim
-bool locateByIp (Place& out, juce::String& error);                                   // ipwho.is, then geojs.io
+std::vector<Place> searchPlaces (const juce::String& query, juce::String& error, Requests* = nullptr);   // OpenStreetMap Nominatim
+bool locateByIp (Place& out, juce::String& error, Requests* = nullptr);                                   // ipwho.is, then geojs.io
 bool parseCoordinates (const juce::String& text, double& lat, double& lon);          // "51.47, -0.45", "51.47N 0.45W", map links
 std::vector<Place> airports();
 } // namespace sky

@@ -117,7 +117,7 @@ juce::var generatePreset (juce::Random& rr, const juce::String& name)
     juce::StringArray grooves;
     for (auto& p : PresetLibrary::get().patterns) if (p.id != "none" && p.id != "toms" && p.id != "perc" && p.id != "sparse") grooves.add (p.id);
     const auto pickGroove = [&] { return grooves.isEmpty() ? juce::String ("four") : grooves[g.i (0, grooves.size() - 1)]; };
-    const juce::String mainBeat = g.p (0.75) ? pickGroove() : juce::String ("none");
+    const juce::String mainBeat = pickGroove();
     pre->setProperty ("mainBeat", mainBeat);
     pre->setProperty ("autoBars", g.pick ({ 4, 8, 8, 16 }));
     auto* dr = obj();
