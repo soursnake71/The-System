@@ -16,7 +16,7 @@
 window.APP = new URLSearchParams(location.search).get('app') === 'vox' ? 'vox' : '';
 (function(){ const r = document.documentElement;
   if (APP === 'vox'){ r.classList.add('vox'); document.title = 'Omega Vox'; document.getElementById('manifestLink').href = 'vox.webmanifest'; return; }
-  let easy = true; try { easy = localStorage.getItem('pr.easy') !== '0'; } catch(e){} if (easy) r.classList.add('easy'); })();
+})();
 </script>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1534,8 +1534,7 @@ nav button[data-act]{color:var(--dim)}
     <input id="helpSearch" type="search" placeholder="Search help (e.g. latency, vocoder, MP3)" aria-label="Search help">
     <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
 
-    <details id="h-easy" open><summary>Easy mode, the Start screen and Omega Vox</summary>
-      <p><b>Easy mode</b> is on when you first open the app. It puts a one-line tip at the top of every screen, and hides the pro tools (Chop, Wheel, Arp, Sidechain, the FX rack, automation, FIRE and the vintage machine panels). Turn it off at the top of <b>Settings</b> to get every tool back. Nothing is lost either way.</p>
+    <details id="h-easy" open><summary>The bottom bar, the Start screen and Omega Vox</summary>
       <p><b>The bottom bar</b> has six buttons: <b>Pads</b>, <b>Synth</b>, <b>Vocoder</b> (opens the vocoder), <b>Mixer</b>, <b>FX</b> (effects for the track on screen) and <b>More</b> (Record audio, Song, Settings, Chop, Wheel, Start screen and Help).</p>
       <p><b>The Start screen</b> (the ⌂ button at the top) gives you big choices: make a beat, play keys, start from a ready-made song, robot voice, use your own samples, or record audio.</p>
       <h3>Where are the notes my synth plays?</h3>
@@ -2049,7 +2048,6 @@ nav button[data-act]{color:var(--dim)}
   <!-- SETUP -->
   <section class="view" id="v-setup" hidden>
     <div class="card keep easycard">
-      <div class="row"><span class="grow"><b>Easy mode</b><br><small class="dim">Fewer buttons, plain names and a tip on every screen. Turn it off for every pro tool.</small></span><button id="easyOn" class="pwr nolearn">On</button></div>
       <div class="row"><button id="startOpen" class="grow nolearn">⌂ Start screen</button><button id="voxOpen" class="grow nolearn">🤖 Open Omega Vox</button></div>
     </div>
     <div class="card">
@@ -2128,7 +2126,7 @@ nav button[data-act]{color:var(--dim)}
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v132</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v133</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2154,7 +2152,6 @@ nav button[data-act]{color:var(--dim)}
     </div>
     <div id="stTpl" hidden><h2>Pick a song to start from</h2><div id="stTplList"></div><p class="hint">Your current project is saved to Projects first, so nothing is lost.</p><button id="stTplBack" class="nolearn">◀ Back</button></div>
     <button id="stClose" class="nolearn">Just let me in</button>
-    <label class="st-pro"><input type="checkbox" id="stEasy" checked> Easy mode: simpler screens with a tip on each one</label>
   </div>
 </div>
 
@@ -14684,7 +14681,7 @@ function flashNote(tr, n, at, dur){
   }, d);
 }
 // Start screen: the big plain choices
-function startOpen(){ $('#stTpl').hidden = true; $('#stGrid').hidden = false; $('#start').hidden = false; $('#stEasy').checked = isEasy(); }
+function startOpen(){ $('#stTpl').hidden = true; $('#stGrid').hidden = false; $('#start').hidden = false; }
 function startClose(){ $('#start').hidden = true; try { localStorage.setItem('pr.started', '1'); } catch(e){} setTimeout(fitScreen, 30); }
 $('#stGrid').addEventListener('click', e => {
   const b = e.target.closest('button[data-go]'); if (!b) return; const go = b.dataset.go;
@@ -14702,11 +14699,9 @@ $('#stGrid').addEventListener('click', e => {
 });
 $('#stTplBack').addEventListener('click', () => { $('#stTpl').hidden = true; $('#stGrid').hidden = false; });
 $('#stClose').addEventListener('click', startClose);
-$('#stEasy').addEventListener('change', e => applyEasy(e.target.checked));
 $('#homeBtn').addEventListener('click', startOpen);
 $('#startOpen').addEventListener('click', startOpen);
 $('#voxOpen').addEventListener('click', () => { location.href = './?app=vox'; });
-$('#easyOn').addEventListener('click', () => { applyEasy(!isEasy()); toast(isEasy() ? 'Easy mode on: fewer buttons and a tip on each screen.' : 'Easy mode off: every pro tool is showing.'); });
 $('#kitPick2').addEventListener('change', e => { ensureAudio(); $('#kitPick').value = e.target.value; loadKit(e.target.value); });
 $('#rndKit2').addEventListener('click', () => $('#rndKit').click());
 $('#libBrowse2').addEventListener('click', () => $('#libBrowse').click());
