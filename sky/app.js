@@ -28,10 +28,15 @@
 
   /* ---- settings ---- */
   const DEF = {source:Feed.native ? 'adsblol' : 'demo', place:'LHR', placeName:'London Heathrow', lat:51.47, lon:-0.4543, radius:45, localUrl:'http://192.168.1.50:8080/data/aircraft.json',
-    bpm:96, root:9, scale:'minor', window:5, thresh:0.3, labels:true, trails:true, midiOut:'', clock:false, lanes:{}};
+    bpm:96, root:9, scale:'minor', window:5, thresh:0.3, labels:true, trails:true, midiOut:'', clock:false, lanes:{}, preset:'Init (classic sounds)', mine:[]};
+  const INIT = SkyPresets.defaultPreset();
   let S, firstRun = false;
   try { const saved = localStorage.getItem('sky-seq'); firstRun = !saved; S = Object.assign({}, DEF, JSON.parse(saved || '{}')); } catch (e) { S = Object.assign({}, DEF); }
-  for (const l of LANES) S.lanes[l.id] = Object.assign({on:true, engine:l.engine, ch:l.ch, vol:l.vol, rev:l.rev, dly:l.dly}, S.lanes[l.id] || {});
+  S.kit = Object.assign({}, INIT.kit, S.kit || {}); S.delay = Object.assign({}, INIT.delay, S.delay || {});
+  for (const l of LANES){ const d = INIT.lanes[l.id]; S.lanes[l.id] = Object.assign({on:true, engine:l.engine, ch:l.ch, vol:l.vol, rev:l.rev, dly:l.dly, drum:'none', dv:0.8}, S.lanes[l.id] || {});
+    S.lanes[l.id].patch = Object.assign({}, d.patch, S.lanes[l.id].patch || {}); }
+  let PRESETS = [INIT], PATTERNS = SkyPresets.PATTERNS;
+  fetch('presets.json').then(r => r.json()).then(j => { PRESETS = j.presets; PATTERNS = j.patterns || PATTERNS; if (tab === 'presets') render(); }).catch(() => {});
   const save = () => { try { localStorage.setItem('sky-seq', JSON.stringify(S)); } catch (e) {} };
 
   /* ---- tracking ---- */
@@ -104,6 +109,7 @@
   function deg2midi(deg, base){ const sc = SCALES[S.scale], L = sc.length, o = Math.floor(deg / L); return base + S.root + (emergency ? 5 : 0) + sc[((deg % L) + L) % L] + 12 * o; }
   function play(laneId, n, v, t, dur, p){
     const L = S.lanes[laneId]; if (!L.on) return;
+    lastFire[laneId] = stepN;
     const pan = p ? Math.max(-1, Math.min(1, p.x / S.radius)) : 0;
     Sound.note(laneId, L.engine, n, v, t, dur, pan, L);
     if (Sound.midiActive()) Sound.midiNote(L.ch, n, v, t, dur);
@@ -142,10 +148,31 @@
     if (arrivals.length > 6) arrivals.splice(0, arrivals.length - 6);
     // emergency squawk: an alarm figure on the bell every bar
     if (emergency && s16 % 8 === 0) Sound.note('alert', 'bell', deg2midi(s16 ? 4 : 7, 72), 0.6, t, sd * 2, 0, {vol:0.5, rev:0.5, dly:0.4});
+    drumStep(n, t);
+  }
+  /* drum loops: a lane with a pattern starts its loop on the next bar line after it plays, and keeps it going
+     while it's still playing (it stops after two quiet bars). Hits sit on the same 16th grid as the notes. */
+  const lastFire = {}, loopOn = {};
+  function drumStep(n, t){
+    const s16 = n % 16;
+    for (const l of LANES){
+      const L = S.lanes[l.id], pat = PATTERNS[L.drum];
+      if (!pat || !L.on){ loopOn[l.id] = false; continue; }
+      if (s16 === 0) loopOn[l.id] = lastFire[l.id] != null && n - lastFire[l.id] <= 32;
+      if (!loopOn[l.id]) continue;
+      SkyPresets.DRUMS.forEach((d, i) => {
+        const c = (pat[d] || '')[s16]; if (!c || c === '.') return;
+        const v = (c === 'x' ? 1 : 0.6) * L.dv, pan = d === 'ch' || d === 'oh' ? 0.25 : d === 't' ? -0.2 : d === 'p' ? 0.35 : 0;
+        Sound.drum(d, v, t, pan, S.kit);
+        if (Sound.midiActive()) Sound.midiNote(10, SkyPresets.DRUM_NOTES[i], v, t, stepDur() * 0.5);
+        if (rec) rec.push({lane:'drums', ch:10, n:SkyPresets.DRUM_NOTES[i], v, t:t - rec.t0, d:stepDur() * 0.5});
+      });
+    }
   }
   function scheduler(){
     const ctx = Sound.ctx; if (!ctx) return;
-    if (nextT < ctx.currentTime) nextT = ctx.currentTime + 0.05;
+    // if the page was held up, skip the missed steps but stay on the beat grid
+    while (nextT < ctx.currentTime){ nextT += stepDur(); stepN++; }
     while (nextT < ctx.currentTime + 0.15){
       playStep(stepN, nextT);
       if (S.clock && Sound.midiActive()) for (let k = 0; k < 6; k++) Sound.midiSend([0xF8], nextT + k * stepDur() / 6);
@@ -153,7 +180,7 @@
     }
   }
   function start(){
-    const ctx = Sound.init(); ctx.resume(); Sound.setDelayTime(S.bpm);
+    const ctx = Sound.init(); ctx.resume(); Sound.setFx(S.delay); Sound.setDelayTime(S.bpm);
     playing = true; stepN = 0; nextT = ctx.currentTime + 0.1;
     if (S.clock && Sound.midiActive()) Sound.midiSend([0xFA], nextT);
     schedTimer = setInterval(scheduler, 25); scheduler(); $('#play').classList.add('on'); $('#play').textContent = '■';
@@ -265,7 +292,7 @@
   }
   function exportMidi(r){
     if (!r.length){ toast('Nothing was recorded'); return; }
-    const tracks = LANES.map(l => ({name:l.name + ' - ' + l.to, notes:r.filter(n => n.lane === l.id && n.t >= 0)})).filter(t => t.notes.length);
+    const tracks = LANES.map(l => ({name:l.name + ' - ' + l.to, notes:r.filter(n => n.lane === l.id && n.t >= 0)})).concat([{name:'Drums', notes:r.filter(n => n.lane === 'drums' && n.t >= 0)}]).filter(t => t.notes.length);
     const bytes = Sound.smf(tracks, S.bpm), d = new Date(), name = `sky-${(S.place || S.placeName || 'here').replace(/[^\w]+/g, '-').slice(0, 24)}-${d.toISOString().slice(0, 16).replace(/[-:T]/g, '')}.mid`;
     if (window.SkyNative && SkyNative.saveFile){ let b = ''; for (const x of bytes) b += String.fromCharCode(x); toast(SkyNative.saveFile(name, btoa(b), 'audio/midi')); return; }
     const a = el('a', {href:URL.createObjectURL(new Blob([bytes], {type:'audio/midi'})), download:name}); document.body.append(a); a.click(); a.remove(); toast('Saved ' + name);
@@ -274,7 +301,8 @@
 
   function render(){
     const m = $('#panel'); m.innerHTML = '';
-    if (tab === 'lanes') renderLanes(m); else if (tab === 'sky') renderSky(m); else if (tab === 'midi') renderMidi(m); else if (tab === 'planes') renderPlanes(); else renderAbout(m);
+    const views = {lanes:renderLanes, synth:renderSynth, drums:renderDrumsFx, presets:renderPresets, sky:renderSky, midi:renderMidi, planes:renderPlanes, about:renderAbout};
+    (views[tab] || renderAbout)(m);
   }
   function range(label, min, max, step, val, fmt, on){
     const v = el('b', {}, fmt(val)), i = el('input', {type:'range', min, max, step}); i.value = val;
@@ -286,17 +314,84 @@
       const L = S.lanes[l.id], eng = el('select'), chs = el('select');
       for (const k in Sound.ENGINES) eng.append(opt(k, Sound.ENGINES[k].name, L.engine));
       for (let c = 1; c <= 16; c++) chs.append(opt(c, 'Ch ' + c, L.ch));
-      eng.onchange = () => { L.engine = eng.value; save(); }; chs.onchange = () => { L.ch = +chs.value; save(); };
+      eng.onchange = () => { L.engine = eng.value; save(); render(); }; chs.onchange = () => { L.ch = +chs.value; save(); };
+      const drum = el('select'); drum.append(opt('none', 'No drum loop', L.drum)); for (const k in PATTERNS) drum.append(opt(k, PATTERNS[k].name, L.drum));
+      drum.onchange = () => { L.drum = drum.value; save(); };
       const tog = el('button', {class:'sw' + (L.on ? ' on' : '')}, L.on ? 'On' : 'Off');
       tog.onclick = () => { L.on = !L.on; tog.classList.toggle('on', L.on); tog.textContent = L.on ? 'On' : 'Off'; save(); };
+      const edit = L.engine === 'obxa' ? el('button', {onclick:() => { synthLane = l.id; tab = 'synth'; syncTabs(); render(); }}, 'Edit OB-Xa') : '';
       m.append(el('div', {class:'lane', style:`--c:${l.col}`},
         el('div', {class:'lhead'}, el('h3', {}, l.name, el('small', {}, ' → ' + l.to)), tog),
         el('p', {class:'hint'}, l.desc),
-        el('div', {class:'row'}, el('label', {}, 'Sound ', eng), el('label', {}, 'MIDI ', chs)),
+        el('div', {class:'row'}, el('label', {}, 'Sound ', eng), el('label', {}, 'MIDI ', chs), edit),
+        el('div', {class:'row'}, el('label', {}, 'Triggers ', drum)),
         range('Volume', 0, 1.5, 0.01, L.vol, v => Math.round(v * 100), v => L.vol = v),
+        range('Drums', 0, 1.2, 0.01, L.dv, v => Math.round(v * 100), v => L.dv = v),
         range('Reverb', 0, 1, 0.01, L.rev, v => Math.round(v * 100), v => L.rev = v),
         range('Delay', 0, 1, 0.01, L.dly, v => Math.round(v * 100), v => L.dly = v)));
     }
+    m.append(el('p', {class:'hint'}, '"Triggers" connects a drum loop to the lane: when the lane plays, its loop starts on the next bar and runs until the lane has been quiet for two bars. Drums use the kit on the Drums & FX tab and send MIDI on channel 10.'));
+  }
+  const syncTabs = () => document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.t === tab));
+  // knob for a [id, label, min, max, default, curve] spec, editing obj[id]
+  function specRange(obj, [id, label, lo, hi, , curve], after){
+    if (curve === 'int'){
+      const names = {w1:['Saw', 'Pulse'], w2:['Saw', 'Pulse'], poles:['12 dB', '24 dB'], int2:['Unison', '+5th', '+Octave', '-Octave', '+4th']}[id];
+      const s = el('select'); names.forEach((n, i) => s.append(opt(i, n, obj[id]))); s.onchange = () => { obj[id] = +s.value; save(); after && after(); };
+      return el('label', {class:'ctl'}, el('span', {}, label), s, el('b'));
+    }
+    const lg = curve === 'log', to = x => lg ? Math.log(x / lo) / Math.log(hi / lo) : (x - lo) / (hi - lo), from = u => lg ? lo * Math.pow(hi / lo, u) : lo + u * (hi - lo);
+    const fmt = x => x >= 100 ? Math.round(x) : x >= 10 ? x.toFixed(1) : x >= 1 ? x.toFixed(2) : x.toFixed(3);
+    return range(label, 0, 1, 0.001, to(obj[id]), u => fmt(from(u)), u => { obj[id] = +from(u).toFixed(4); after && after(); });
+  }
+  let synthLane = 'arp';
+  function renderSynth(m){
+    const pick = el('select'); for (const l of LANES) pick.append(opt(l.id, l.name + ' → ' + l.to + (S.lanes[l.id].engine === 'obxa' ? '' : ' (not using OB-Xa)'), synthLane));
+    pick.onchange = () => { synthLane = pick.value; render(); };
+    const L = S.lanes[synthLane], lane = LANES.find(l => l.id === synthLane);
+    const use = L.engine === 'obxa' ? '' : el('button', {onclick:() => { L.engine = 'obxa'; save(); render(); }}, 'Use OB-Xa on this lane');
+    const rnd = el('button', {onclick:() => { L.patch = SkyPresets.randomPatch(synthLane); save(); render(); audition(); }}, '🎲 Random patch');
+    const audition = () => { Sound.init().resume(); const t = Sound.ctx.currentTime + 0.05; [0, 4, 7].forEach((d, i) => Sound.note(synthLane, 'obxa', 57 + S.root % 12 + d, 0.8, t + i * 0.18, 0.5, 0, L)); };
+    const groups = [['Oscillators', ['w1', 'w2', 'pw', 'mix2', 'det', 'int2']], ['Filter', ['cut', 'res', 'poles', 'env', 'fa', 'fd', 'fs', 'fr']], ['Amp', ['aa', 'ad', 'as', 'ar']], ['LFO', ['lfo', 'vib', 'pwm']]];
+    m.append(el('div', {class:'lane', style:`--c:${lane.col}`}, el('h3', {}, 'OB-Xa'), el('div', {class:'row'}, pick, use),
+      el('p', {class:'hint'}, 'Two oscillators, a 12 or 24 dB resonant filter with its own envelope, amp envelope and LFO, in the style of the Oberheim OB-Xa. Each lane has its own patch.'),
+      el('div', {class:'row'}, rnd, el('button', {onclick:audition}, '▶ Hear it'))));
+    for (const [g, ids] of groups) m.append(el('div', {class:'lane', style:`--c:${lane.col}`}, el('h3', {}, g), ...ids.map(id => specRange(L.patch, SkyPresets.PATCH.find(p => p[0] === id)))));
+  }
+  function renderDrumsFx(m){
+    const hear = () => { Sound.init().resume(); const t = Sound.ctx.currentTime + 0.05, sd = stepDur(), pat = {k:'x...x..x', s:'..x...x.', ch:'xxxxxxxx', cl:'......x.'};
+      for (const [d, s] of Object.entries(pat)) [...s].forEach((c, i) => { if (c !== '.') Sound.drum(d, 0.9, t + i * sd, 0, S.kit); }); };
+    const kitBtn = el('button', {onclick:() => { S.kit = SkyPresets.randomKit(); save(); render(); hear(); }}, '🎲 Random kit');
+    m.append(el('div', {class:'lane'}, el('h3', {}, 'Drum kit'), el('div', {class:'row'}, kitBtn, el('button', {onclick:hear}, '▶ Hear it')),
+      el('p', {class:'hint'}, 'Eight synthesized drums. Random kit builds a new one; shape it with the controls below. Connect loops to lanes on the Lanes tab.'),
+      ...SkyPresets.KIT.map(p => specRange(S.kit, p))));
+    const mode = el('select'); mode.append(opt(0, 'Simple (dotted eighth)', S.delay.mode)); mode.append(opt(1, 'Edge (U2 style: dotted eighth + quarter, modulated)', S.delay.mode));
+    const fxNow = () => Sound.setFx(S.delay);
+    mode.onchange = () => { S.delay.mode = +mode.value; save(); fxNow(); };
+    m.append(el('div', {class:'lane'}, el('h3', {}, 'Delay unit'), el('div', {class:'row'}, mode),
+      el('p', {class:'hint'}, 'Locked to the tempo. Edge mode is the guitar-rig sound from "Where the Streets Have No Name": a driven dotted-eighth echo on one side with a quarter-note tap on the other, gently modulated. Each lane\'s Delay knob sends into it.'),
+      range('Level', 0, 1, 0.01, S.delay.mix, v => Math.round(v * 100), v => { S.delay.mix = v; fxNow(); }),
+      range('Feedback', 0, 0.9, 0.01, S.delay.fb, v => Math.round(v * 100), v => { S.delay.fb = v; fxNow(); }),
+      specRange(S.delay, ['tone', 'Tone', 800, 9000, 2800, 'log'], fxNow)));
+  }
+  function applyPreset(pre){
+    const p = JSON.parse(JSON.stringify(pre));
+    S.root = p.key; S.scale = p.scale; S.bpm = p.bpm; S.delay = p.delay; S.kit = p.kit; S.preset = p.name;
+    for (const l of LANES) if (p.lanes[l.id]) S.lanes[l.id] = Object.assign({}, S.lanes[l.id], p.lanes[l.id]);
+    $('#key').value = S.root; $('#scale').value = S.scale; $('#bpm').value = S.bpm;
+    Sound.setFx(S.delay); Sound.setDelayTime(S.bpm); save(); render(); toast('Preset: ' + p.name);
+  }
+  function snapshot(name){ return {name, key:S.root, scale:S.scale, bpm:S.bpm, delay:S.delay, kit:S.kit, lanes:Object.fromEntries(LANES.map(l => [l.id, S.lanes[l.id]]))}; }
+  function renderPresets(m){
+    const gen = el('button', {onclick:() => applyPreset(SkyPresets.generatePreset(Math.random, 'Generated ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})))}, '🎲 Generate a preset');
+    const keep = el('button', {onclick:() => { const n = prompt('Name this preset', S.preset.startsWith('Generated') ? 'My sky' : S.preset); if (!n) return; S.mine = S.mine.filter(x => x.name !== n).concat([JSON.parse(JSON.stringify(snapshot(n)))]); S.preset = n; save(); render(); }}, '＋ Save current');
+    m.append(el('div', {class:'lane'}, el('h3', {}, 'Presets'), el('p', {class:'hint'}, 'Now: ' + S.preset + '. A preset sets the key, tempo, every lane\'s sound and OB-Xa patch, drum loops, kit and delay. The sky and location stay as they are.'),
+      el('div', {class:'row'}, gen, keep)));
+    const list = (title, items, del) => el('div', {class:'lane'}, el('h3', {}, title), el('div', {class:'results'}, ...items.map(p => {
+      const b = el('button', {class:'sw' + (p.name === S.preset ? ' on' : '')}, `${p.name}  ·  ${NOTE[p.key]} ${p.scale} · ${p.bpm} BPM`); b.onclick = () => applyPreset(p);
+      return del ? el('div', {class:'row'}, b, el('button', {onclick:() => { S.mine = S.mine.filter(x => x !== p); save(); render(); }}, '✕')) : b; })));
+    if (S.mine.length) m.append(list('My presets', S.mine, true));
+    m.append(list('Factory (' + PRESETS.length + ')', PRESETS));
   }
   function renderSky(m){
     const src = el('select', {id:'source'}); for (const k in Feed.SOURCES) src.append(opt(k, Feed.SOURCES[k].name, S.source));

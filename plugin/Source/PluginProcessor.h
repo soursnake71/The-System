@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Sky.h"
 #include "Synth.h"
+#include "Presets.h"
 
 struct LaneInfo { const char* id; const char* name; const char* to; juce::uint32 colour; int engine, channel; float vol, rev, dly; };
 extern const LaneInfo laneInfo[6];
@@ -25,10 +26,13 @@ public:
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 4.0; }
+    // presets live in the plugin's Presets tab, not as host programs: a host switching programs while it restores
+    // a project would overwrite the restored settings
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram (int) override {}
     const juce::String getProgramName (int) override { return {}; }
+    void loadPreset (int index);
     void changeProgramName (int, const juce::String&) override {}
     void getStateInformation (juce::MemoryBlock&) override;
     void setStateInformation (const void*, int) override;
@@ -37,6 +41,14 @@ public:
     void setLocation (double lat, double lon, const juce::String& placeName);
     void setFeed (int source, double radius, const juce::String& localUrl);
     sky::FeedSettings feedSettings() const;
+
+    // presets and generators (message thread)
+    void applyPreset (const juce::var& preset);
+    void generatePreset();
+    void randomKit();
+    void randomPatch (int lane);
+    juce::String presetName() const { return state.getProperty ("preset").toString(); }
+    juce::String patchParamId (int lane, int spec) const { return juce::String (laneInfo[lane].id) + "_" + sky::patchSpecs()[(size_t) spec].id; }
     juce::String placeName() const { return state.getProperty ("place").toString(); }
 
     juce::AudioProcessorValueTreeState params;
@@ -74,7 +86,16 @@ private:
     double sr = 48000, freePos = 0;
     juce::int64 sampleClock = 0, lastStep = -1;
     bool wasPlaying = false;
-    std::array<std::atomic<float>*, numLanes> pOn {}, pEngine {}, pCh {}, pVol {}, pRev {}, pDly {};
+    std::array<std::atomic<float>*, numLanes> pOn {}, pEngine {}, pCh {}, pVol {}, pRev {}, pDly {}, pDrum {}, pDv {};
+    std::array<std::array<std::atomic<float>*, 21>, numLanes> pPatch {};
+    std::array<std::atomic<float>*, 18> pKit {};
+    std::atomic<float> *pDMode = nullptr, *pDMix = nullptr, *pDFb = nullptr, *pDTone = nullptr;
+    std::array<juce::int64, numLanes> lastFire {}; std::array<bool, numLanes> loopOn {};
+    juce::int64 stepNow = 0;
+    juce::Random rng;
+    void setParam (const juce::String& id, float value);
+    void drumStep (juce::int64 step, int offset, juce::MidiBuffer& midi, double stepSec);
+    sky::Patch patchFor (int lane) const;
     std::atomic<float> *pKey = nullptr, *pScale = nullptr, *pBpm = nullptr, *pMode = nullptr, *pThresh = nullptr, *pWindow = nullptr, *pMaster = nullptr;
     struct Poller : juce::Timer { std::function<void()> fn; void timerCallback() override { fn(); } } poller;
     std::shared_ptr<bool> aliveFlag = std::make_shared<bool> (true);

@@ -37,10 +37,12 @@ juce_add_plugin(SkySequencer
   VST3_CATEGORIES Instrument Generator
   AU_MAIN_TYPE kAudioUnitType_MusicDevice)
 
-target_sources(SkySequencer PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/Sky.cpp)
+target_sources(SkySequencer PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/Sky.cpp Source/Presets.cpp)
+# drum patterns and the 50 factory presets, shared with the web app and APK
+juce_add_binary_data(SkyData SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../sky/presets.json)
 target_compile_definitions(SkySequencer PUBLIC
   JUCE_WEB_BROWSER=0 JUCE_VST3_CAN_REPLACE_VST2=0
   JUCE_STANDALONE_FILTER_WINDOW_USE_KIOSK_MODE=0)
 target_link_libraries(SkySequencer
-  PRIVATE juce::juce_audio_utils
+  PRIVATE juce::juce_audio_utils SkyData
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)

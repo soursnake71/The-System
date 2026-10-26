@@ -43,7 +43,7 @@ private:
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
 
     struct Page : juce::Component { std::function<void (juce::Rectangle<int>)> layout; void resized() override { if (layout) layout (getLocalBounds().reduced (10)); } };
-    Page where, lanes, music;
+    Page where, lanes, music, presets, synthPage, drumsPage;
 
     // Where
     juce::Label searchHint, msg, latLbl, lonLbl, radiusLbl, feedLbl, urlLbl, windowLbl, threshLbl, airportLbl;
@@ -56,13 +56,37 @@ private:
     // Lanes
     struct LaneRow
     {
-        juce::Label name; juce::ToggleButton on { "On" }; juce::ComboBox engine, ch; juce::Slider vol, rev, dly; juce::Label vl, rl, dl;
+        juce::Label name; juce::ToggleButton on { "On" }; juce::ComboBox engine, ch, drum; juce::Slider vol, rev, dly, dv; juce::Label vl, rl, dl, dvl;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> aOn;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> aEngine, aCh;
-        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> aVol, aRev, aDly;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> aEngine, aCh, aDrum;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> aVol, aRev, aDly, aDv;
     };
     std::array<LaneRow, numLanes> rows;
     juce::Label lanesHint;
+
+    // Presets
+    juce::Label presetHint, presetNow;
+    juce::ComboBox presetBox;
+    juce::TextButton genBtn { "Generate a preset" }, prevBtn { "<" }, nextBtn { ">" };
+
+    // OB-Xa (edits one lane's patch at a time)
+    juce::Label synthHint;
+    juce::ComboBox synthLane;
+    juce::TextButton rndPatch { "Random patch" };
+    std::array<juce::Label, 21> pLabels;
+    std::array<juce::Slider, 21> pSliders;
+    std::array<juce::ComboBox, 21> pCombos;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> patchSliderAtt;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> patchComboAtt;
+    void bindPatch (int lane);
+
+    // Drums & FX
+    juce::Label kitHint, fxHint, dmodeLbl, dmixLbl, dfbLbl, dtoneLbl;
+    juce::TextButton rndKit { "Random kit" };
+    std::array<juce::Label, 18> kLabels;
+    std::array<juce::Slider, 18> kSliders;
+    juce::ComboBox dmodeBox;
+    juce::Slider dmix, dfb, dtone;
 
     // Music
     juce::Label keyLbl, scaleLbl, modeLbl, bpmLbl, masterLbl, about;

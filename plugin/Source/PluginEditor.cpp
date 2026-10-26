@@ -150,6 +150,9 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
 
     tabs.addTab ("Where", card, &where, false);
     tabs.addTab ("Lanes", card, &lanes, false);
+    tabs.addTab ("Presets", card, &presets, false);
+    tabs.addTab ("OB-Xa", card, &synthPage, false);
+    tabs.addTab ("Drums & FX", card, &drumsPage, false);
     tabs.addTab ("Music", card, &music, false);
     tabs.setTabBarDepth (30);
 
@@ -231,20 +234,25 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
         rw.name.setColour (juce::Label::textColourId, juce::Colour (li.colour)); rw.name.setFont (juce::FontOptions (13.0f, juce::Font::bold));
         rw.engine.addItemList (sky::engineNames(), 1);
         for (int c = 1; c <= 16; ++c) rw.ch.addItem ("Ch " + juce::String (c), c);
-        for (auto* s : { &rw.vol, &rw.rev, &rw.dly }) { s->setSliderStyle (juce::Slider::LinearHorizontal); s->setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0); s->setColour (juce::Slider::thumbColourId, juce::Colour (li.colour)); }
+        rw.drum.addItemList (sky::PresetLibrary::get().patternNames(), 1);
+        rw.dvl.setText ("Drums", juce::dontSendNotification);
+        for (auto* s : { &rw.vol, &rw.rev, &rw.dly, &rw.dv }) { s->setSliderStyle (juce::Slider::LinearHorizontal); s->setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0); s->setColour (juce::Slider::thumbColourId, juce::Colour (li.colour)); }
         rw.vl.setText ("Vol", juce::dontSendNotification); rw.rl.setText ("Rev", juce::dontSendNotification); rw.dl.setText ("Dly", juce::dontSendNotification);
-        for (auto* l : { &rw.vl, &rw.rl, &rw.dl }) { l->setFont (juce::FontOptions (11.0f)); l->setColour (juce::Label::textColourId, dim); }
+        for (auto* l : { &rw.vl, &rw.rl, &rw.dl, &rw.dvl }) { l->setFont (juce::FontOptions (11.0f)); l->setColour (juce::Label::textColourId, dim); }
         rw.aOn = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_on", rw.on);
         rw.aEngine = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_engine", rw.engine);
         rw.aCh = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_ch", rw.ch);
         rw.aVol = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_vol", rw.vol);
         rw.aRev = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_rev", rw.rev);
         rw.aDly = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_dly", rw.dly);
-        addTo (lanes, { &rw.name, &rw.on, &rw.engine, &rw.ch, &rw.vol, &rw.rev, &rw.dly, &rw.vl, &rw.rl, &rw.dl });
+        rw.aDrum = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_drum", rw.drum);
+        rw.aDv = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_dv", rw.dv);
+        rw.drum.setTooltip ("Drum loop this lane triggers: it starts on the next bar after the lane plays and stops after two quiet bars");
+        addTo (lanes, { &rw.name, &rw.on, &rw.engine, &rw.ch, &rw.vol, &rw.rev, &rw.dly, &rw.vl, &rw.rl, &rw.dl, &rw.drum, &rw.dv, &rw.dvl });
     }
     lanes.layout = [this] (juce::Rectangle<int> r) {
         lanesHint.setBounds (r.removeFromTop (34)); r.removeFromTop (4);
-        const int h = juce::jmin (70, r.getHeight() / numLanes);
+        const int h = juce::jmin (88, r.getHeight() / numLanes);
         for (auto& rw : rows)
         {
             auto b = r.removeFromTop (h).reduced (0, 3);
@@ -253,11 +261,106 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
             rw.engine.setBounds (top.removeFromRight (110)); top.removeFromRight (6);
             rw.on.setBounds (top.removeFromRight (52));
             rw.name.setBounds (top);
-            b.removeFromTop (4);
+            b.removeFromTop (3);
+            { auto mid = b.removeFromTop (24); rw.drum.setBounds (mid.removeFromLeft (juce::jmin (220, mid.getWidth() / 2))); mid.removeFromLeft (10);
+              rw.dvl.setBounds (mid.removeFromLeft (40)); rw.dv.setBounds (mid.reduced (2, 0)); }
+            b.removeFromTop (3);
             const int w = b.getWidth() / 3;
             for (auto [s, l] : { std::pair { &rw.vol, &rw.vl }, std::pair { &rw.rev, &rw.rl }, std::pair { &rw.dly, &rw.dl } })
             { auto c = b.removeFromLeft (w); l->setBounds (c.removeFromLeft (30)); s->setBounds (c.reduced (2, 0)); }
         }
+    };
+
+    /* Presets */
+    const auto& lib = sky::PresetLibrary::get();
+    hint (presetHint, "A preset sets the key, scale, tempo, every lane's sound and OB-Xa patch, the drum loops, the kit and the delay. Your location and feed stay as they are. "
+                      "Everything is saved with your project.");
+    for (int i = 0; i < lib.presets.size(); ++i) presetBox.addItem (juce::String (i + 1) + ". " + lib.presets[i]["name"].toString(), i + 1);
+    presetBox.setTextWhenNothingSelected ("Pick a preset");
+    presetBox.onChange = [this] { const int i = presetBox.getSelectedItemIndex(); if (i >= 0) proc.loadPreset (i); };
+    prevBtn.onClick = [this] { presetBox.setSelectedItemIndex (juce::jmax (0, presetBox.getSelectedItemIndex() - 1)); };
+    nextBtn.onClick = [this] { presetBox.setSelectedItemIndex (juce::jmin (presetBox.getNumItems() - 1, presetBox.getSelectedItemIndex() + 1)); };
+    genBtn.onClick = [this] { proc.generatePreset(); presetBox.setSelectedId (0, juce::dontSendNotification); };
+    presetNow.setFont (juce::FontOptions (14.0f, juce::Font::bold)); presetNow.setColour (juce::Label::textColourId, acc);
+    addTo (presets, { &presetHint, &presetNow, &presetBox, &prevBtn, &nextBtn, &genBtn });
+    presets.layout = [this] (juce::Rectangle<int> r) {
+        presetHint.setBounds (r.removeFromTop (48)); r.removeFromTop (6);
+        presetNow.setBounds (r.removeFromTop (24)); r.removeFromTop (6);
+        { auto x = r.removeFromTop (28); nextBtn.setBounds (x.removeFromRight (34)); x.removeFromRight (4); prevBtn.setBounds (x.removeFromRight (34)); x.removeFromRight (6); presetBox.setBounds (x); }
+        r.removeFromTop (10); genBtn.setBounds (r.removeFromTop (30).removeFromLeft (200));
+    };
+
+    /* OB-Xa */
+    hint (synthHint, "Two oscillators, a 12 or 24 dB resonant filter with its own envelope, an amp envelope and an LFO, in the style of the Oberheim OB-Xa. "
+                     "Each lane has its own patch; set the lane's sound to OB-Xa on the Lanes tab.");
+    for (int i = 0; i < numLanes; ++i) synthLane.addItem (juce::String (laneInfo[i].name) + juce::String::fromUTF8 (" \xe2\x86\x92 ") + laneInfo[i].to, i + 1);
+    synthLane.onChange = [this] { bindPatch (synthLane.getSelectedItemIndex()); };
+    rndPatch.onClick = [this] { proc.randomPatch (juce::jmax (0, synthLane.getSelectedItemIndex())); };
+    addTo (synthPage, { &synthHint, &synthLane, &rndPatch });
+    for (int k = 0; k < 21; ++k)
+    {
+        const auto& s = sky::patchSpecs()[(size_t) k];
+        pLabels[(size_t) k].setText (s.label, juce::dontSendNotification); pLabels[(size_t) k].setFont (juce::FontOptions (12.0f)); pLabels[(size_t) k].setColour (juce::Label::textColourId, dim);
+        pSliders[(size_t) k].setSliderStyle (juce::Slider::LinearHorizontal); pSliders[(size_t) k].setTextBoxStyle (juce::Slider::TextBoxRight, false, 48, 18);
+        pSliders[(size_t) k].setNumDecimalPlacesToDisplay (s.hi >= 100 ? 0 : s.hi >= 10 ? 1 : 3);
+        pCombos[(size_t) k].addItemList (sky::choiceLabels (s.id), 1);
+        synthPage.addAndMakeVisible (pLabels[(size_t) k]);
+        synthPage.addChildComponent (s.integer ? (juce::Component&) pCombos[(size_t) k] : (juce::Component&) pSliders[(size_t) k]);
+        if (s.integer) pCombos[(size_t) k].setVisible (true); else pSliders[(size_t) k].setVisible (true);
+    }
+    synthLane.setSelectedItemIndex (0, juce::sendNotificationSync);
+    synthPage.layout = [this] (juce::Rectangle<int> r) {
+        synthHint.setBounds (r.removeFromTop (34)); r.removeFromTop (4);
+        { auto x = r.removeFromTop (28); rndPatch.setBounds (x.removeFromRight (130)); x.removeFromRight (8); synthLane.setBounds (x); }
+        r.removeFromTop (8);
+        const int colW = (r.getWidth() - 12) / 2, rowH = juce::jmin (26, r.getHeight() / 11);
+        for (int k = 0; k < 21; ++k)
+        {
+            const int col = k < 11 ? 0 : 1, row = k < 11 ? k : k - 11;
+            juce::Rectangle<int> c (r.getX() + col * (colW + 12), r.getY() + row * rowH, colW, rowH - 3);
+            pLabels[(size_t) k].setBounds (c.removeFromLeft (88));
+            (sky::patchSpecs()[(size_t) k].integer ? (juce::Component&) pCombos[(size_t) k] : (juce::Component&) pSliders[(size_t) k]).setBounds (c);
+        }
+    };
+
+    /* Drums & FX */
+    hint (kitHint, "Eight synthesized drums. Random kit builds a new one. Lanes trigger drum loops (Lanes tab); every hit lands on the 16th-note grid and is sent as MIDI on channel 10.");
+    rndKit.onClick = [this] { proc.randomKit(); };
+    addTo (drumsPage, { &kitHint, &rndKit });
+    for (int k = 0; k < 18; ++k)
+    {
+        const auto& s = sky::kitSpecs()[(size_t) k];
+        kLabels[(size_t) k].setText (s.label, juce::dontSendNotification); kLabels[(size_t) k].setFont (juce::FontOptions (12.0f)); kLabels[(size_t) k].setColour (juce::Label::textColourId, dim);
+        kSliders[(size_t) k].setSliderStyle (juce::Slider::LinearHorizontal); kSliders[(size_t) k].setTextBoxStyle (juce::Slider::TextBoxRight, false, 48, 18);
+        kSliders[(size_t) k].setNumDecimalPlacesToDisplay (s.hi >= 100 ? 0 : 2);
+        sliderAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, juce::String ("kit_") + s.id, kSliders[(size_t) k]));
+        kSliders[(size_t) k].textFromValueFunction = [dec = s.hi >= 100 ? 0 : 2] (double v) { return juce::String (v, dec); };
+        kSliders[(size_t) k].updateText();
+        addTo (drumsPage, { &kLabels[(size_t) k], &kSliders[(size_t) k] });
+    }
+    hint (fxHint, "Delay unit, locked to the tempo. Edge mode is the U2 guitar-rig echo: a driven, gently modulated dotted eighth on one side and a quarter-note tap on the other. Each lane's Dly knob sends into it.");
+    dmodeLbl.setText ("Delay", juce::dontSendNotification); dmixLbl.setText ("Level", juce::dontSendNotification); dfbLbl.setText ("Feedback", juce::dontSendNotification); dtoneLbl.setText ("Tone", juce::dontSendNotification);
+    dmodeBox.addItemList ({ "Simple (dotted eighth)", "Edge (U2 style)" }, 1);
+    comboAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, "dmode", dmodeBox));
+    for (auto [s, id] : { std::pair { &dmix, "dmix" }, std::pair { &dfb, "dfb" }, std::pair { &dtone, "dtone" } })
+    { s->setSliderStyle (juce::Slider::LinearHorizontal); s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 56, 18); sliderAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id, *s));
+      s->textFromValueFunction = [] (double v) { return v >= 100 ? juce::String ((int) v) + " Hz" : juce::String (v, 2); }; s->updateText(); }
+    addTo (drumsPage, { &fxHint, &dmodeLbl, &dmodeBox, &dmixLbl, &dmix, &dfbLbl, &dfb, &dtoneLbl, &dtone });
+    drumsPage.layout = [this] (juce::Rectangle<int> r) {
+        kitHint.setBounds (r.removeFromTop (34));
+        rndKit.setBounds (r.removeFromTop (28).removeFromLeft (130)); r.removeFromTop (6);
+        const int colW = (r.getWidth() - 12) / 2, rowH = 24;
+        for (int k = 0; k < 18; ++k)
+        {
+            juce::Rectangle<int> c (r.getX() + (k % 2) * (colW + 12), r.getY() + (k / 2) * rowH, colW, rowH - 3);
+            kLabels[(size_t) k].setBounds (c.removeFromLeft (100)); kSliders[(size_t) k].setBounds (c);
+        }
+        r.removeFromTop (9 * rowH + 8);
+        fxHint.setBounds (r.removeFromTop (34));
+        { auto x = r.removeFromTop (26); dmodeLbl.setBounds (x.removeFromLeft (70)); dmodeBox.setBounds (x.removeFromLeft (240)); }
+        r.removeFromTop (4);
+        for (auto [s, l] : { std::pair { &dmix, &dmixLbl }, std::pair { &dfb, &dfbLbl }, std::pair { &dtone, &dtoneLbl } })
+        { auto x = r.removeFromTop (24); l->setBounds (x.removeFromLeft (70)); s->setBounds (x); }
     };
 
     /* Music */
@@ -297,6 +400,26 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
 }
 
 SkyEditor::~SkyEditor() { setLookAndFeel (nullptr); }
+
+void SkyEditor::bindPatch (int lane)
+{
+    if (lane < 0) return;
+    patchSliderAtt.clear(); patchComboAtt.clear();
+    for (int k = 0; k < 21; ++k)
+    {
+        const auto id = proc.patchParamId (lane, k);
+        if (sky::patchSpecs()[(size_t) k].integer) patchComboAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id, pCombos[(size_t) k]));
+        else
+        {
+            auto& sl = pSliders[(size_t) k];
+            patchSliderAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id, sl));
+            const int dec = sl.getNumDecimalPlacesToDisplay();
+            sl.textFromValueFunction = [dec] (double v) { return juce::String (v, dec); };   // the attachment's own text has too many digits
+            sl.updateText();
+        }
+        pSliders[(size_t) k].setColour (juce::Slider::thumbColourId, juce::Colour (laneInfo[lane].colour));
+    }
+}
 
 void SkyEditor::refreshWhere()
 {
@@ -362,6 +485,7 @@ void SkyEditor::timerCallback()
     st << "  -  " << (proc.running ? juce::String ((int) std::round (proc.currentBpm.load())) + " BPM" : juce::String ("press play in your DAW"));
     status.setText (st, juce::dontSendNotification);
     status.setColour (juce::Label::textColourId, ok ? acc : bad);
+    presetNow.setText ("Now: " + proc.presetName(), juce::dontSendNotification);
     placeLbl.setText (proc.placeName().isNotEmpty() ? proc.placeName() : juce::String ("Finding your location..."), juce::dontSendNotification);
     if (! latEd.hasKeyboardFocus (true) && ! lonEd.hasKeyboardFocus (true)) refreshWhere();
 }

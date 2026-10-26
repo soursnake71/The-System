@@ -26,6 +26,14 @@ Turns live air traffic into music. Pick a place (or use your location) and it wa
 - **Sky grid**: the area is a 16 × 8 grid that collects heat as planes pass through it over a window you choose (1 to 60 minutes). It is read as a step sequencer, west to east.
 - An emergency squawk shifts the key up a fourth until it clears.
 
+Sounds: seven simple engines plus an **OB-Xa** style synth (two saw/pulse oscillators, 12/24 dB resonant filter with its own envelope, amp envelope, LFO for vibrato and pulse width), with its own patch per lane and a random-patch button.
+
+Drums: any lane can **trigger a drum loop** (14 patterns: four on the floor, house, breakbeat, electro, half-time, drum & bass, boom bap, trap, shuffle, motorik, tribal, toms, percussion, sparse). The loop starts on the next bar line after the lane plays and stops after two quiet bars; every hit sits on the same 16th-note grid as the notes (and in the plugin, on the DAW's sample-accurate beat grid). The kit is eight synthesized drums with a **random kit** builder. Drums go out as MIDI on channel 10.
+
+Delay unit: simple dotted eighth, or **Edge (U2 style)**: a driven, modulated dotted eighth on one side and a quarter-note tap on the other, locked to the tempo.
+
+Presets: **50 factory presets** plus Init, a **preset generator** (key, tempo, sounds, OB-Xa patches, drum loops, kit and delay), and your own saved presets (app). The factory set lives in `sky/presets.json`, shared by the app, the APK and the plugin; regenerate it with `node tools/make-sky-presets.js`.
+
 Each lane has its own sound and MIDI channel, so every behaviour can drive a different synth (USB MIDI in the Android app, Web MIDI in Chrome). Record to a .mid file with one track per lane.
 
 Where: it finds you from your internet connection the first time it opens. You can also use GPS (phone), search any place, address or airport by name (OpenStreetMap), type coordinates (`51.47, -0.45` or `51.47N 0.45W`), paste a Google or Apple Maps link, or pick a busy airport.

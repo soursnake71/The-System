@@ -3,7 +3,7 @@
 name: Sky Sequencer plugin
 on:
   push:
-    paths: ['plugin/**', '.github/workflows/sky-plugin.yml']
+    paths: ['plugin/**', 'sky/presets.json', '.github/workflows/sky-plugin.yml']
   workflow_dispatch:
 permissions:
   contents: write
