@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="retro">
+<html lang="en" class="retro hw">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -1058,6 +1058,87 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .moregrid button{padding:14px 8px;font-size:15px}
 #moreX{width:100%}
 nav button[data-act]{color:var(--dim)}
+
+/* ================= Hardware sampler look (html.hw): gunmetal chassis, brushed-aluminium deck, backlit rubber buttons, RGB pads ================= */
+html.hw{--hw-ink:#e9ecf2;--hw-dim:#8f96a4;--hw-blue:#2fa4ff;--hw-org:#ff8a2a;--hw-rub:#1b1d22;--hw-rub2:#121317;
+  --brushed:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,rgba(0,0,0,.045) 1px 2px,rgba(255,255,255,.03) 2px 4px),linear-gradient(180deg,#d3d6db,#a9adb4 55%,#9a9ea6)}
+html.hw.retro body{background:#0b0c0f}
+html.hw.retro main{background:linear-gradient(180deg,#1d2026,#14161a)}
+/* top strip: dark panel with a blue light bar along the edge */
+html.hw.retro .transport{--fg:var(--hw-ink);--dim:var(--hw-dim);background:linear-gradient(180deg,#2a2d33,#18191d);border-bottom:2px solid #000;box-shadow:inset 0 2px 0 #2fa4ff99,0 2px 10px #000a}
+html.hw.retro .brand{color:#f2f4f8}
+html.hw.retro .brand span{color:#8f96a4}
+html.hw.retro .transport .label{color:#9aa1ae}
+html.hw.retro .transport button,html.hw.retro nav button,html.hw .hw-fbtns button,html.hw .hw-soft button,html.hw .hw-trans button,html.hw.retro #v-drums .chipbar button,html.hw.retro #v-drums .scenebar button{
+  background:linear-gradient(180deg,#2b2e35,var(--hw-rub2));color:#d9dde6;border:1px solid #000;border-radius:7px;box-shadow:0 2px 0 #000,inset 0 1px 0 #ffffff1a;font-family:var(--f-display);letter-spacing:.06em}
+html.hw.retro .transport button.on,html.hw.retro nav button.cur,html.hw .hw-fbtns button.on,html.hw .hw-trans button.on,html.hw.retro #v-drums .chipbar button.on,html.hw.retro #v-drums .scenebar button.on{color:#1a0d02;background:linear-gradient(180deg,#ffb35a,#ff7a1a);box-shadow:0 0 12px #ff8a2a99,0 2px 0 #000,inset 0 1px 0 #fff7}
+html.hw.retro .transport select{background:#121317;color:#e9ecf2;border:1px solid #000}
+html.hw.retro .pos,html.hw.retro .bpm input{color:#7fe6ff;background:linear-gradient(180deg,#071822,#0b2230);border:2px solid #000;box-shadow:inset 0 0 14px #2fa4ff44,0 1px 0 #ffffff14;text-shadow:0 0 6px #4fe3ff99}
+html.hw.retro nav{background:linear-gradient(180deg,#24272d,#141518);border-top:2px solid #000;box-shadow:inset 0 1px 0 #2fa4ff66}
+html.hw.retro nav button{padding:16px 0 8px}
+html.hw.retro nav button::before{background:#16324a}
+html.hw.retro nav button.cur::before{background:var(--hw-blue);box-shadow:0 0 8px var(--hw-blue)}
+html.hw.retro nav button.cur{color:#fff;background:linear-gradient(180deg,#2b2e35,#121317);box-shadow:0 0 0 1px #2fa4ff88,0 2px 0 #000}
+/* the deck: brushed aluminium with the screen, knobs, buttons, pads and wheel on it */
+html.hw.retro #v-drums{background:var(--brushed);border-radius:14px;padding:10px;box-shadow:inset 0 1px 0 #fff9,inset 0 -2px 0 #0004,0 4px 18px #000c;border:1px solid #6d7179;margin-top:6px}
+html:not(.hw) .hw-screen,html:not(.hw) .hw-knobs,html:not(.hw) .hw-fbtns,html:not(.hw) .hw-deck{display:none}
+html.hw #v-drums > .row.perf,html.hw #kitPlate{display:none!important}
+.hw-screen{background:#050608;border-radius:10px;padding:6px;border:2px solid #000;box-shadow:0 0 0 3px #3a3d44,inset 0 0 0 1px #ffffff10;margin-bottom:8px}
+.hw-lcdtop{display:flex;gap:6px;align-items:center;font:600 11px/1.2 var(--f-mono);color:#7fe6ff;text-shadow:0 0 6px #4fe3ff88;padding:2px 4px 4px}
+.hw-lcdtop span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hw-lcdtop #hwKit{color:#ffb35a;text-shadow:0 0 6px #ff8a2a88}
+.hw-lcdtop #hwPadT{flex:1}
+html.hw.retro .hw-lcdtop button{font:600 11px/1 var(--f-mono);color:#071822;background:#7fe6ff;border:0;border-radius:3px;padding:3px 6px;box-shadow:0 0 8px #4fe3ff88;white-space:nowrap}
+#hwWave{display:block;width:100%;height:84px;background:radial-gradient(120% 140% at 50% 0%,#0d2a3a,#061017);border-radius:6px}
+.hw-soft{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:5px}
+html.hw .hw-soft button{padding:6px 0;font-size:10px;border-radius:4px}
+html.hw.retro #v-drums .scenebar{margin-bottom:6px}
+.hw-knobs{display:grid!important;grid-template-columns:repeat(4,1fr);gap:4px;justify-items:center;margin-bottom:6px}
+html.hw .hw-knobs .klab{color:#2b2d31;text-shadow:0 1px 0 #fff8;font-weight:700}
+html.hw .hw-knobs .kval{color:#0b2230;background:#ffffffaa;border:1px solid #0003;font:600 11px/1.2 var(--f-mono);border-radius:3px}
+html.hw .hw-knobs .kcap{box-shadow:0 0 0 3px #2fa4ff,0 0 12px #2fa4ffaa,0 3px 6px #000a}
+.hw-fbtns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+html.hw .hw-fbtns button{padding:8px 0;font-size:11px;color:#ffb35a;text-shadow:0 0 6px #ff8a2a99}
+html.hw .hw-fbtns button.on{color:#1a0d02;text-shadow:none}
+/* RGB pads: black rubber, lit from underneath in each pad's colour, numbered 1 to 16 */
+html.hw.retro #pads{max-width:none!important;width:100%!important;margin:0!important;background:linear-gradient(180deg,#26282d,#141518);border:2px solid #000;border-radius:10px;padding:10px;gap:10px;box-shadow:inset 0 2px 8px #000,0 1px 0 #fff8}
+html.hw.retro #pads .pad{background:linear-gradient(180deg,#24262b,#101114)!important;border:1px solid #000;border-radius:9px;color:var(--hwc,#2f8cff);
+  box-shadow:0 0 0 2px var(--hwc,#2f8cff),0 0 14px color-mix(in srgb,var(--hwc,#2f8cff) 60%,transparent),inset 0 1px 0 #ffffff14,0 3px 0 #000;padding:6px;flex-direction:column;justify-content:space-between;align-items:flex-start;overflow:hidden}
+html.hw.retro #pads .pad::before,html.hw.retro #pads .pad::after{display:none}
+html.hw.retro #pads .pad .num{position:static;font:700 18px/1 var(--f-display);color:#f4f6fa;text-shadow:0 0 8px var(--hwc,#2f8cff)}
+html.hw.retro #pads .pad .num::before{content:attr(data-n)}
+html.hw.retro #pads .pad .num{font-size:0}
+html.hw.retro #pads .pad .num::before{font-size:18px}
+html.hw.retro #pads .pad .nm{font:700 9.5px/1.1 var(--f-display);letter-spacing:.06em;color:color-mix(in srgb,var(--hwc,#2f8cff) 70%,#fff);text-transform:uppercase;max-width:100%}
+html.hw.retro #pads .pad.sel{box-shadow:0 0 0 3px #fff,0 0 18px var(--hwc,#2f8cff),0 3px 0 #000}
+html.hw.retro #pads .pad.hit,html.hw.retro #pads .pad:active{background:radial-gradient(120% 120% at 50% 40%,color-mix(in srgb,var(--hwc,#2f8cff) 85%,#fff),var(--hwc,#2f8cff))!important;transform:translateY(1px)}
+html.hw.retro #pads .pad.hit .num::before,html.hw.retro #pads .pad:active .num::before{color:#111;text-shadow:none}
+html.hw.retro #pads .pad.empty{opacity:.55}
+/* jog wheel and transport */
+.hw-deck{display:flex;gap:12px;align-items:center;margin-top:10px}
+.hw-jogwrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}
+.hw-jogwrap span{font:700 9px/1 var(--f-display);letter-spacing:.14em;color:#2b2d31}
+.hw-jog{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#3a3d44 0 36%,#1a1c20 37% 60%,#0c0d10 61%);box-shadow:0 0 0 4px #2b2d33,0 6px 12px #000c,inset 0 2px 3px #ffffff22;position:relative;touch-action:none;cursor:grab}
+.hw-jog i{position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 0deg,#ffffff10 0 4deg,transparent 4deg 8deg)}
+.hw-jog i::after{content:"";position:absolute;left:50%;top:8px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#7fe6ff;box-shadow:0 0 6px #4fe3ff}
+.hw-trans{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+html.hw .hw-trans button{padding:10px 0;font-size:11px}
+html.hw .hw-trans .tplay{color:#36e07a;font-size:18px}
+html.hw .hw-trans .tstop{color:#cfd3dc;font-size:16px}
+html.hw .hw-trans .trec{color:#ff3b4a;font-size:18px}
+html.hw .hw-trans .tplay.on{background:linear-gradient(180deg,#5cf2a0,#21b85f);color:#062}
+html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);color:#fff;box-shadow:0 0 12px #ff3b4aaa}
+@media (min-width:900px){
+  html.hw.retro #v-drums{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px);column-gap:20px;align-items:start;max-width:1280px;margin-left:auto;margin-right:auto}
+  html.hw.retro #v-drums > *{grid-column:1 / -1}
+  html.hw.retro #v-drums > #hwScreen{grid-column:1;grid-row:1}
+  html.hw.retro #v-drums > #sceneBar{grid-column:1;grid-row:2}
+  html.hw.retro #v-drums > #hwKnobs{grid-column:1;grid-row:3}
+  html.hw.retro #v-drums > .hw-fbtns{grid-column:1;grid-row:4}
+  html.hw.retro #v-drums > #pads{grid-column:2;grid-row:1 / span 4}
+  html.hw.retro #v-drums > .hw-deck{grid-column:2;grid-row:5}
+  #hwWave{height:150px}
+}
 </style>
 
 </head>
@@ -1096,7 +1177,30 @@ nav button[data-act]{color:var(--dim)}
 <main>
   <!-- DRUMS -->
   <section class="view" id="v-drums">
+    <div class="hw-screen" id="hwScreen">
+      <div class="hw-lcdtop"><span id="hwKit">KIT</span><span id="hwPadT">PAD 1</span><button id="hwJogT" class="nolearn" title="What the VALUE/DATA wheel changes. Tap for tempo.">BPM 92</button></div>
+      <canvas id="hwWave" aria-label="Waveform of the selected pad, and the level of every pad"></canvas>
+      <div class="hw-soft">
+        <button id="hwKitPrev" class="nolearn" title="Previous drum machine">◀ KIT</button>
+        <button id="hwKitNext" class="nolearn" title="Next drum machine">KIT ▶</button>
+        <button id="hwLoad" class="nolearn" title="Load a file onto the selected pad">LOAD</button>
+        <button id="hwSample" class="nolearn" title="Sample the input onto the selected pad">SAMPLE</button>
+        <button id="hwChop" class="nolearn" title="Chop the selected pad's sound">CHOP</button>
+        <button id="hwRnd" class="nolearn" title="Random kit from your samples">🎲 RND</button>
+      </div>
+    </div>
     <div class="scenebar" id="sceneBar" role="group" aria-label="Patterns"></div>
+    <div class="hw-knobs svc-knobs" id="hwKnobs"></div>
+    <div class="hw-fbtns">
+      <button id="hwBrowse" class="nolearn">BROWSE</button>
+      <button id="hwStore" class="nolearn">STORE</button>
+      <button id="hwRpt" class="nolearn" data-mirror="repeat">NOTE RPT</button>
+      <button id="hwErase" class="nolearn" data-mirror="erase">ERASE</button>
+      <button id="hw16" class="nolearn" data-mirror="lvl16">16 LVL</button>
+      <button id="hwFull" class="nolearn" data-mirror="fullLvl">FULL LVL</button>
+      <button id="hwUndo" class="nolearn">UNDO</button>
+      <button id="hwEdit" class="nolearn" data-mirror="padEdit">EDIT</button>
+    </div>
     <div class="row perf">
         <button id="odub" class="grow">Overdub</button>
         <button id="repeat" class="grow">Repeat</button>
@@ -1112,6 +1216,19 @@ nav button[data-act]{color:var(--dim)}
     <div class="easyrow" id="easyPads"><select id="kitPick2" class="grow" aria-label="Drum machine"></select><button id="rndKit2" class="nolearn" aria-label="Random kit">🎲 Random</button><button id="libBrowse2" class="nolearn" aria-label="My samples">📁 Mine</button></div>
     <div class="kitplate" id="kitPlate" hidden><b></b><i></i></div>
     <div class="pads" id="pads"></div>
+    <div class="hw-deck">
+      <div class="hw-jogwrap"><div class="hw-jog" id="hwJog" role="slider" aria-label="Value / data wheel" tabindex="0"><i></i></div><span>VALUE/DATA</span></div>
+      <div class="hw-trans">
+        <button id="hwPrev" class="nolearn" title="Previous pattern">◀◀</button>
+        <button id="hwNext" class="nolearn" title="Next pattern">▶▶</button>
+        <button id="hwOdub" class="nolearn" data-mirror="odub">OVERDUB</button>
+        <button id="hwTap" class="nolearn">TAP</button>
+        <button id="hwPlay" class="nolearn tplay" aria-label="Play">▶</button>
+        <button id="hwStop" class="nolearn tstop" aria-label="Stop">■</button>
+        <button id="hwRec" class="nolearn trec" aria-label="Record">●</button>
+        <button id="hwClick" class="nolearn" data-mirror="metro">CLICK</button>
+      </div>
+    </div>
     <div class="card" data-title="Sequencer">
       <canvas id="seq" aria-label="Recorded hits for every pad across the loop. Tap a hit to delete it, or tap a row to select that pad."></canvas>
       <div class="row"><button class="grow nolearn" onclick="$('#impAnyFile').click()">Import…</button><button class="grow nolearn" onclick="$('#midiExp').click()">Export MIDI</button></div>
@@ -2126,7 +2243,7 @@ nav button[data-act]{color:var(--dim)}
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v133</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v134</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7469,7 +7586,8 @@ window.addEventListener('resize', () => { clearTimeout(sheetT); sheetT = setTime
 function fitScreen(){
   const m = document.querySelector('main'); if (!m) return;
   const over = () => m.scrollHeight - m.clientHeight;
-  if (view === 'drums'){
+  if (view === 'drums' && document.documentElement.classList.contains('hw')){ const pads = $('#pads'); pads.style.maxWidth = ''; pads.style.width = '100%'; pads.style.margin = ''; }
+  else if (view === 'drums'){
     const pads = $('#pads'); pads.style.maxWidth = ''; pads.style.width = '100%'; pads.style.margin = '';
     const o = over(); if (o > 0){ const h = pads.offsetHeight, w = pads.offsetWidth, nh = Math.max(200, h - o - 2); pads.style.maxWidth = Math.floor(w * nh / h) + 'px'; pads.style.margin = '0 auto'; pads.style.alignSelf = 'center'; }
     { const pl = $('#kitPlate'); if (pl){ pl.style.maxWidth = pads.style.maxWidth; pl.style.margin = pads.style.maxWidth ? '0 auto -2px' : ''; pl.style.width = pads.style.maxWidth ? '100%' : ''; } }
@@ -8394,10 +8512,10 @@ function skinPads(){
 function renderPads(){
   const box = $('#pads');
   if (!box.children.length){
-    const order = [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3];
+    const order = document.documentElement.classList.contains('hw') ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] : [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3];
     order.forEach(i => {
       const b = document.createElement('button'); b.className = 'pad'; b.dataset.i = i;
-      b.innerHTML = `<span class="num">${padLabel(i)}</span><span class="nm"></span>`;
+      b.innerHTML = `<span class="num" data-n="${i + 1}">${padLabel(i)}</span><span class="nm"></span>`; b.style.setProperty('--hwc', HW_PADC[i]);
       b.addEventListener('pointerdown', e => {
         e.preventDefault();
         if (padEditOn){ selPad = i; renderPads(); renderPadEditor(); padMenuOpen(i); return; }
@@ -10269,6 +10387,7 @@ function auditionSlice(i){
   if (chopSeqT){ clearTimeout(chopSeqT); chopSeqT = 0; }
   // straight to the master, so a muted or soloed drum track never silences the preview
   const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .9; src.buffer = chop.buf; src.connect(g).connect(live.master.bus);
+  if (b <= a) return;   // a slice with no length (markers crossed): nothing to play
   src.start(ctx.currentTime + .003, a / sr, (b - a) / sr); chop.src = src;
   flashSlice(i);
 }
@@ -14712,6 +14831,97 @@ function voxFresh(st){
   st.kbMode = 'piano'; st.tts = {text:'I am the Omega Vox.\nType your words here.', voice:'robot', semi:0, speed:1, timing:'bar'};
   delete st.tplName; return st;
 }
+
+
+/* ================= The hardware front panel (Pads screen): LCD, Q-knobs, function buttons, jog wheel, transport ================= */
+const HW_PADC = ['#2f8cff', '#2f8cff', '#2fa4ff', '#3ec8ff', '#2f8cff', '#a24dff', '#ff3b5c', '#b04dff', '#2f9cff', '#a24dff', '#ff3b5c', '#24e08a', '#3ee0d0', '#ff3b5c', '#24e08a', '#24e08a'];
+const hwLev = new Float32Array(16);
+let hwJogTarget = null;   // a knob's hidden range input, or null for the tempo
+function hwKnobs(){
+  const box = $('#hwKnobs'); if (!box) return; box.innerHTML = '';
+  const p = S.drum.pads[selPad]; if (!p) return;
+  const up = () => { syncSteppers(); seqDirty = true; };
+  knob(box, 'TUNE', p, 'pitch', -24, 24, 1, v => (v > 0 ? '+' : '') + v + ' st', up, 'white');
+  knob(box, 'LENGTH', p, 'decay', .05, 1, .01, v => v >= 1 ? 'Full' : Math.round(v * 100) + '%', up, 'white');
+  knob(box, 'LEVEL', p, 'vol', 0, 1, .01, v => fmtDb(v * v * 1.2) + ' dB', up, 'black');
+  knob(box, 'SWING', S, 'swing', 0, 60, 1, v => v + '%', () => { $('#swing').value = S.swing; $('#swingV').textContent = S.swing + '%'; }, 'black');
+}
+function hwJogLabel(){
+  const t = hwJogTarget, b = $('#hwJogT'); if (!b) return;
+  if (t && t.isConnected && t._knob){ const lab = t._knob.querySelector('.klab').textContent, sel = t._knob.querySelector('.kval'); b.textContent = lab + ' ' + (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : t.value); }
+  else { hwJogTarget = null; b.textContent = 'BPM ' + (+S.bpm).toFixed(S.bpm % 1 ? 1 : 0); }
+}
+function hwJogStep(d){
+  const t = hwJogTarget;
+  if (t && t.isConnected){ const st = +t.step || .01, v = clamp(+t.value + d * st, +t.min, +t.max); t.value = v; t.dispatchEvent(new Event('input')); }
+  else setBpm(clamp(Math.round((S.bpm + d) * 10) / 10, 40, 240));
+  hwJogLabel();
+}
+function hwPaint(){
+  const k = KITS[S.drum.kit] || null, p = S.drum.pads[selPad];
+  $('#hwKit').textContent = (k ? k.name : 'Kit').replace(/\s*\(.*\)$/, '').toUpperCase();
+  $('#hwPadT').textContent = 'PAD ' + (selPad + 1) + ' · ' + (p ? p.name : '').toUpperCase();
+  hwJogLabel();
+  // lit function buttons follow the switches they press
+  document.querySelectorAll('#v-drums [data-mirror]').forEach(b => { const o = document.getElementById(b.dataset.mirror); if (o) b.classList.toggle('on', o.classList.contains('on')); });
+  $('#hwPlay').classList.toggle('on', playing); $('#hwRec').classList.toggle('on', !!drumRec || $('#rec').classList.contains('on'));
+}
+// the screen: the selected pad's waveform, and a level bar for every pad
+function hwDraw(){
+  const cv = $('#hwWave'); if (!cv || view !== 'drums' || !cv.offsetWidth) return;
+  const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
+  const wh = h * .62, p = S.drum.pads[selPad], buf = p && p.sample ? buffers.get(p.sample) : null;
+  g.strokeStyle = '#123a4a'; g.lineWidth = 1; for (let x = 0; x < w; x += w / 16){ g.beginPath(); g.moveTo(x, 0); g.lineTo(x, wh); g.stroke(); }
+  if (buf){
+    const d = buf.getChannelData(0), n = d.length, step = Math.max(1, Math.floor(n / w));
+    g.fillStyle = '#4fe3ff'; g.shadowColor = '#4fe3ff'; g.shadowBlur = 6 * dpr;
+    for (let x = 0; x < w; x++){ let mn = 0, mx = 0; const o = Math.floor(x / w * n); for (let i = 0; i < step && o + i < n; i += Math.max(1, step >> 4)){ const v = d[o + i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+      g.fillRect(x, wh / 2 - mx * wh * .46, 1, Math.max(1, (mx - mn) * wh * .46)); }
+    g.shadowBlur = 0;
+  } else { g.fillStyle = '#4fe3ff88'; g.font = `${12 * dpr}px "JetBrains Mono", monospace`; g.textAlign = 'center'; g.fillText('EMPTY PAD · LOAD OR SAMPLE', w / 2, wh / 2); }
+  const bw = w / 16;
+  for (let i = 0; i < 16; i++){ hwLev[i] *= .9; const lv = Math.max(.04, hwLev[i]), bh = (h - wh - 6 * dpr) * lv;
+    g.fillStyle = i === selPad ? '#ffb347' : '#ff8a2a'; g.globalAlpha = i === selPad ? 1 : .75; g.fillRect(i * bw + bw * .2, h - bh, bw * .6, bh); }
+  g.globalAlpha = 1;
+}
+(function hwLoop(){ try { if (view === 'drums'){ hwDraw(); } } catch(e){} requestAnimationFrame(hwLoop); })();
+setInterval(() => { if (view === 'drums') try { hwPaint(); } catch(e){} }, 250);
+{ const _pd = padDown; padDown = function(i, ev, v){ hwLev[i] = Math.max(hwLev[i], v || 1); return _pd.apply(this, arguments); }; }
+{ const _fp = flashPad; flashPad = function(i, t){ const r = _fp.apply(this, arguments); const d = ctx ? Math.max(0, (t - ctx.currentTime) * 1000) : 0; setTimeout(() => { hwLev[i] = 1; }, d); return r; }; }
+{ const _rpe = renderPadEditor; renderPadEditor = function(){ const r = _rpe.apply(this, arguments); try { hwKnobs(); hwPaint(); } catch(e){} return r; }; }
+// any knob touched becomes what the wheel turns
+document.addEventListener('pointerdown', e => { const k = e.target.closest && e.target.closest('.knob'); if (k && k._inp){ hwJogTarget = k._inp; hwJogLabel(); } }, true);
+$('#hwJogT').addEventListener('click', () => { hwJogTarget = null; hwJogLabel(); toast('The VALUE/DATA wheel sets the tempo. Touch any knob to make the wheel turn that instead.'); });
+(() => {
+  const j = $('#hwJog'); let a0 = null, acc = 0, rot = 0;
+  const ang = e => { const r = j.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
+  j.addEventListener('pointerdown', e => { e.preventDefault(); try { j.setPointerCapture(e.pointerId); } catch(_){} a0 = ang(e); });
+  j.addEventListener('pointermove', e => { if (a0 == null) return; let a = ang(e), d = a - a0; if (d > 180) d -= 360; if (d < -180) d += 360; a0 = a; acc += d; rot += d; j.querySelector('i').style.transform = `rotate(${rot}deg)`;
+    while (Math.abs(acc) >= 12){ const s = Math.sign(acc); acc -= s * 12; hwJogStep(s); } });
+  const end = () => { a0 = null; acc = 0; }; j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end);
+  j.addEventListener('wheel', e => { e.preventDefault(); hwJogStep(e.deltaY < 0 ? 1 : -1); rot += e.deltaY < 0 ? 12 : -12; j.querySelector('i').style.transform = `rotate(${rot}deg)`; }, {passive:false});
+  j.addEventListener('keydown', e => { if (e.key === 'ArrowUp' || e.key === 'ArrowRight'){ e.preventDefault(); hwJogStep(1); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft'){ e.preventDefault(); hwJogStep(-1); } });
+})();
+const hwClick = (id, fn) => $(id).addEventListener('click', fn);
+const kitIds = () => Object.keys(KITS);
+hwClick('#hwKitPrev', () => { ensureAudio(); const ks = kitIds(), i = ks.indexOf(S.drum.kit || 'pocket'); const k = ks[(i - 1 + ks.length) % ks.length]; $('#kitPick').value = k; loadKit(k); renderKitPick(); hwPaint(); });
+hwClick('#hwKitNext', () => { ensureAudio(); const ks = kitIds(), i = ks.indexOf(S.drum.kit || 'pocket'); const k = ks[(i + 1) % ks.length]; $('#kitPick').value = k; loadKit(k); renderKitPick(); hwPaint(); });
+hwClick('#hwLoad', () => $('#loadSample').click());
+hwClick('#hwSample', () => $('#sampleIn').click());
+hwClick('#hwChop', () => $('#chopPad').click());
+hwClick('#hwRnd', () => $('#rndKit').click());
+hwClick('#hwBrowse', () => $('#libBrowse').click());
+hwClick('#hwStore', () => { const b = $('#projSave'); if (b) b.click(); });
+hwClick('#hwUndo', () => $('#undo').click());
+document.querySelectorAll('#v-drums [data-mirror]').forEach(b => b.addEventListener('click', () => { const o = document.getElementById(b.dataset.mirror); if (o) o.click(); setTimeout(hwPaint, 30); }));
+hwClick('#hwPrev', () => { if (S.scenes.length > 1) launchScene((S.cur - 1 + S.scenes.length) % S.scenes.length); });
+hwClick('#hwNext', () => { if (S.scenes.length > 1) launchScene((S.cur + 1) % S.scenes.length); else toast('Only one pattern. Tap + next to the pattern name to add one.'); });
+hwClick('#hwTap', () => $('#tap').click());
+hwClick('#hwPlay', () => { if (!playing) $('#play').click(); setTimeout(hwPaint, 30); });
+hwClick('#hwStop', () => { if (playing) $('#play').click(); else allStop(); setTimeout(hwPaint, 30); });
+hwClick('#hwRec', () => { $('#rec').click(); setTimeout(hwPaint, 30); });
 
 /* ================= boot ================= */
 (async function boot(){
