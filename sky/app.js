@@ -340,7 +340,7 @@
 
   function render(){
     const m = $('#panel'); m.innerHTML = '';
-    const views = {mixer:renderMixer, lanes:renderLanes, synth:renderSynth, drums:renderDrumsFx, presets:renderPresets, sky:renderSky, midi:renderMidi, planes:renderPlanes, about:renderAbout};
+    const views = {lanes:renderLanes, synth:renderSynth, drums:renderDrumsFx, presets:renderPresets, sky:renderSky, midi:renderMidi, planes:renderPlanes, about:renderAbout};
     (views[tab] || renderAbout)(m);
   }
   function range(label, min, max, step, val, fmt, on){
@@ -371,7 +371,7 @@
         range('Drums', 0, 1.2, 0.01, L.dv, v => Math.round(v * 100), v => L.dv = v)));
     }
     const ab = el('select'); [[0, 'Off'], [4, 'Every 4 bars'], [8, 'Every 8 bars'], [16, 'Every 16 bars']].forEach(([v, n]) => ab.append(opt(v, n, S.autoBars))); ab.onchange = () => { S.autoBars = +ab.value; save(); };
-    m.prepend(el('div', {class:'lane'}, el('div', {class:'row'}, el('label', {}, 'Auto-vary ', ab)), el('p', {class:'hint'}, 'Lanes with Auto-vary on drift to a new rhythm, note length and patch, and now and then a new sound, so the piece keeps changing. Volume, pan and effects are on the Mixer tab.')));
+    m.prepend(el('div', {class:'lane'}, el('div', {class:'row'}, el('label', {}, 'Auto-vary ', ab)), el('p', {class:'hint'}, 'Lanes with Auto-vary on drift to a new rhythm, note length and patch, and now and then a new sound, so the piece keeps changing. Volume, pan and effects are on the mixer (🎚 at the top).')));
     m.append(el('p', {class:'hint'}, '"Triggers" connects a drum loop to the lane: when the lane plays, its loop starts on the next bar and runs until the lane has been quiet for two bars. Drums use the kit on the Drums & FX tab and send MIDI on channel 10.'));
   }
   const syncTabs = () => document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.t === tab));
@@ -420,34 +420,66 @@
       range('Feedback', 0, 0.9, 0.01, S.delay.fb, v => Math.round(v * 100), v => { S.delay.fb = v; fxNow(); }),
       specRange(S.delay, ['tone', 'Tone', 800, 9000, 2800, 'log'], fxNow)));
   }
-  /* mixer tab: a strip per lane and one for the drums, then the master and the space effects */
-  function renderMixer(m){
-    const chans = LANES.map(l => [l.id, l.name, l.col, S.lanes[l.id]]).concat([['drums', 'Drums', '#e8e8e8', S.drums]]);
-    for (const [id, name, col, C] of chans){
-      const mt = el('button', {class:'sw' + (C.mute ? ' on' : '')}, 'M'), so = el('button', {class:'sw' + (C.solo ? ' on' : '')}, 'S');
+  /* the mixer: a full-screen console, a strip per lane, one for the drums and a master strip. Knobs drag up and down
+     (double-tap resets), faders are vertical, meters show each channel's peak. */
+  function knob(label, lo, hi, val, def, fmt, on, col){
+    const k = el('div', {class:'knob', style:`--c:${col}`}), cap = el('span', {}, label), out = el('b', {}, fmt(val));
+    const draw = () => k.style.setProperty('--a', (-135 + 270 * (val - lo) / (hi - lo)) + 'deg');
+    const set = v => { val = Math.max(lo, Math.min(hi, v)); draw(); out.textContent = fmt(val); on(val); };
+    let y0 = 0, v0 = 0, lastTap = 0;
+    k.onpointerdown = e => { k.setPointerCapture(e.pointerId); y0 = e.clientY; v0 = val; const now = Date.now(); if (now - lastTap < 300) set(def); lastTap = now; };
+    k.onpointermove = e => { if (k.hasPointerCapture(e.pointerId)) set(v0 + (y0 - e.clientY) / 150 * (hi - lo)); };
+    k.onpointerup = () => save();
+    draw();
+    return el('div', {class:'kwrap'}, k, cap, out);
+  }
+  const dB = v => v > 0.0001 ? (20 * Math.log10(v)).toFixed(1) : '-∞';
+  // vertical fader, 0 to 1.5 (about +3.5 dB); drag the cap or tap the track, double-tap for 0 dB
+  function fader(val, on){
+    const cap = el('i'), f = el('div', {class:'fader'}, el('span'), cap), out = el('b', {class:'db'}, dB(val)), max = 1.5;
+    const draw = () => { cap.style.bottom = `calc(${val / max * 100}% - 9px)`; out.textContent = dB(val); };
+    const fromY = y => { const r = f.getBoundingClientRect(); return Math.max(0, Math.min(max, (r.bottom - y) / r.height * max)); };
+    let lastTap = 0;
+    f.onpointerdown = e => { f.setPointerCapture(e.pointerId); const now = Date.now(); val = now - lastTap < 300 ? 1 : fromY(e.clientY); lastTap = now; draw(); on(val); };
+    f.onpointermove = e => { if (f.hasPointerCapture(e.pointerId)){ val = fromY(e.clientY); draw(); on(val); } };
+    f.onpointerup = () => save();
+    draw();
+    return [f, out];
+  }
+  function openConsole(){
+    const desk = $('#desk'); desk.innerHTML = '';
+    const ENG = Sound.ENGINES, pct = v => Math.round(v * 100), pan = v => Math.abs(v) < 0.02 ? 'C' : (v < 0 ? 'L' : 'R') + pct(Math.abs(v));
+    const chans = LANES.map(l => [l.id, l.name, l.col, S.lanes[l.id], (ENG[S.lanes[l.id].engine] || {}).name || '']).concat([['drums', 'Drums', '#e8e8e8', S.drums, PATTERNS[S.mainBeat] ? PATTERNS[S.mainBeat].name : 'Kit']]);
+    for (const [id, name, col, C, sound] of chans){
+      const mt = el('button', {class:'sw mute' + (C.mute ? ' on' : '')}, 'M'), so = el('button', {class:'sw solo' + (C.solo ? ' on' : '')}, 'S');
       mt.onclick = () => { C.mute = !C.mute; mt.classList.toggle('on', C.mute); save(); applyMix(); };
       so.onclick = () => { C.solo = !C.solo; so.classList.toggle('on', C.solo); save(); applyMix(); };
       const set = k => v => { C[k] = v; applyMix(); };
-      m.append(el('div', {class:'lane strip', style:`--c:${col}`},
-        el('div', {class:'lhead'}, el('h3', {}, name), el('div', {class:'row'}, mt, so)), el('div', {class:'meter'}, el('i', {'data-m':id})),
-        range('Fader', 0, 1.5, 0.01, C.vol, v => v ? (20 * Math.log10(v)).toFixed(1) + ' dB' : '-∞', set('vol')),
-        range('Pan', -1, 1, 0.01, C.pan, v => Math.abs(v) < 0.02 ? 'C' : (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 100), set('pan')),
-        range('Reverb', 0, 1, 0.01, C.rev, v => Math.round(v * 100), set('rev')),
-        range('Delay', 0, 1, 0.01, C.dly, v => Math.round(v * 100), set('dly')),
-        range('Gated rev', 0, 1, 0.01, C.gtd, v => Math.round(v * 100), set('gtd')),
-        range('Echoes', 0, 1, 0.01, C.echo, v => Math.round(v * 100), set('echo'))));
+      const [f, db] = fader(C.vol, set('vol'));
+      desk.append(el('div', {class:'cstrip', style:`--c:${col}`},
+        el('div', {class:'cname'}, name), el('div', {class:'csound'}, sound), el('div', {class:'cms'}, mt, so),
+        knob('Pan', -1, 1, C.pan, 0, pan, set('pan'), col), knob('Reverb', 0, 1, C.rev, 0, pct, set('rev'), col), knob('Delay', 0, 1, C.dly, 0, pct, set('dly'), col),
+        knob('Gated', 0, 1, C.gtd, 0, pct, set('gtd'), col), knob('Echo', 0, 1, C.echo, 0, pct, set('echo'), col),
+        el('div', {class:'cfader'}, el('div', {class:'vmeter'}, el('i', {'data-m':id})), f), db));
     }
     const fx = k => v => { S.fx[k] = v; applyMix(); };
-    m.append(el('div', {class:'lane'}, el('h3', {}, 'Master & space'),
-      range('Master', 0, 1.5, 0.01, S.master, v => v ? (20 * Math.log10(v)).toFixed(1) + ' dB' : '-∞', v => { S.master = v; applyMix(); }),
-      range('Gate time', 0.08, 0.7, 0.01, S.fx.gtime, v => Math.round(v * 1000) + ' ms', fx('gtime')),
-      range('Gated level', 0, 1, 0.01, S.fx.gmix, v => Math.round(v * 100), fx('gmix')),
-      range('Echo rate', 0, 1, 0.01, S.fx.erate, v => Math.round(v * 100) + '%', fx('erate')),
-      range('Echo level', 0, 1, 0.01, S.fx.emix, v => Math.round(v * 100), fx('emix')),
-      el('p', {class:'hint'}, 'Gated reverb is the big 80s drum room that stops dead after the gate time. Random echoes throw some notes into tempo-locked echoes (8th triplet, quarter or dotted quarter): Echo rate sets how often, each channel\'s Echoes knob how much. Pan adds to each plane\'s own position in the sky.')));
-    const tick = () => { if (tab !== 'mixer') return; document.querySelectorAll('[data-m]').forEach(i => { const v = Sound.level(i.dataset.m); i.style.width = Math.min(100, Math.sqrt(v) * 100) + '%'; i.style.background = v > 0.9 ? '#ff5e5e' : ''; }); requestAnimationFrame(tick); };
-    if (Sound.ctx) requestAnimationFrame(tick);
+    const [mf, mdb] = fader(S.master, v => { S.master = v; applyMix(); });
+    desk.append(el('div', {class:'cstrip master', style:'--c:#4dffa6'},
+      el('div', {class:'cname'}, 'Master'), el('div', {class:'csound'}, 'space'), el('div', {class:'cms'}),
+      knob('Gate time', 0.08, 0.7, S.fx.gtime, 0.3, v => Math.round(v * 1000) + 'ms', fx('gtime'), '#4dffa6'),
+      knob('Gated lvl', 0, 1, S.fx.gmix, 0.7, pct, fx('gmix'), '#4dffa6'),
+      knob('Echo rate', 0, 1, S.fx.erate, 0.25, v => pct(v) + '%', fx('erate'), '#4dffa6'),
+      knob('Echo lvl', 0, 1, S.fx.emix, 0.6, pct, fx('emix'), '#4dffa6'),
+      knob('Delay', 0, 1, S.delay.mix, 0.5, pct, v => { S.delay.mix = v; Sound.setFx(S.delay); }, '#4dffa6'),
+      el('div', {class:'cfader'}, el('div', {class:'vmeter'}, el('i', {'data-m':'master'})), mf), mdb));
+    $('#console').hidden = false;
+    const tick = () => { if ($('#console').hidden) return;
+      document.querySelectorAll('#desk [data-m]').forEach(i => { const v = Sound.level(i.dataset.m); i.style.height = Math.min(100, Math.sqrt(v) * 100) + '%'; i.classList.toggle('clip', v > 0.95); });
+      requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
   }
+  $('#mixBtn').onclick = openConsole;
+  $('#closeMix').onclick = () => { $('#console').hidden = true; };
   function applyPreset(pre){
     const p = JSON.parse(JSON.stringify(pre));
     S.root = p.key; S.scale = p.scale; S.bpm = p.bpm; S.delay = p.delay; S.kit = Object.assign({}, INIT.kit, p.kit); S.preset = p.name;

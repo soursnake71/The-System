@@ -150,7 +150,6 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
 
     tabs.addTab ("Where", card, &where, false);
     tabs.addTab ("Lanes", card, &lanes, false);
-    tabs.addTab ("Mixer", card, &mixerPage, false);
     tabs.addTab ("Presets", card, &presets, false);
     tabs.addTab ("OB-Xa", card, &synthPage, false);
     tabs.addTab ("Drums & FX", card, &drumsPage, false);
@@ -382,77 +381,92 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
         { auto x = r.removeFromTop (24); l->setBounds (x.removeFromLeft (70)); s->setBounds (x); }
     };
 
-    /* Mixer */
+    /* Mixer: a full-window console. Six lanes, the drums and a master strip (master fader, gated reverb, echoes, delay) */
     {
         const char* ids[7] = { "arp", "rise", "fall", "drone", "grid", "hit", "drm" };
-        static const char* knobNames[5] = { "Pan", "Rev", "Dly", "Gated", "Echo" };
-        for (int c = 0; c < 7; ++c)
+        static const char* knobNames[5] = { "Pan", "Reverb", "Delay", "Gated", "Echo" };
+        static const char* masterIds[5] = { "gtime", "gmix", "erate", "emix", "dmix" };
+        static const char* masterNames[5] = { "Gate time", "Gated lvl", "Echo rate", "Echo lvl", "Delay" };
+        for (int c = 0; c < 8; ++c)
         {
             auto& st = strips[(size_t) c];
-            const juce::String id (ids[c]);
-            const auto col = c < 6 ? juce::Colour (laneInfo[c].colour) : juce::Colour (0xffe8e8e8);
-            st.name.setText (c < 6 ? juce::String (laneInfo[c].name) : juce::String ("Drums"), juce::dontSendNotification);
-            st.name.setFont (juce::FontOptions (11.0f, juce::Font::bold)); st.name.setColour (juce::Label::textColourId, col); st.name.setJustificationType (juce::Justification::centred);
+            const bool isMaster = c == 7;
+            const juce::String id (isMaster ? "" : ids[c]);
+            const auto col = c < 6 ? juce::Colour (laneInfo[c].colour) : isMaster ? acc : juce::Colour (0xffe8e8e8);
+            st.name.setText (c < 6 ? juce::String (laneInfo[c].name) : isMaster ? juce::String ("Master") : juce::String ("Drums"), juce::dontSendNotification);
+            st.name.setFont (juce::FontOptions (13.0f, juce::Font::bold)); st.name.setColour (juce::Label::textColourId, col); st.name.setJustificationType (juce::Justification::centred);
+            st.sound.setFont (juce::FontOptions (11.0f)); st.sound.setColour (juce::Label::textColourId, dim); st.sound.setJustificationType (juce::Justification::centred);
+            if (isMaster) st.sound.setText ("space", juce::dontSendNotification);
             st.meter.colour = col;
-            st.fader.setSliderStyle (juce::Slider::LinearVertical); st.fader.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 52, 16); st.fader.setColour (juce::Slider::thumbColourId, col);
-            st.att.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_vol", st.fader));
+            st.fader.setSliderStyle (juce::Slider::LinearVertical); st.fader.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 18);
+            st.fader.setColour (juce::Slider::thumbColourId, col); st.fader.setColour (juce::Slider::trackColourId, col.withAlpha (0.45f));
+            st.att.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, isMaster ? juce::String ("master") : id + "_vol", st.fader));
             st.fader.textFromValueFunction = [] (double v) { return v > 0.0001 ? juce::String (20 * std::log10 (v), 1) + " dB" : juce::String ("-inf"); };
             st.fader.updateText();
-            int k = 0;
-            for (auto [s, suffix] : { std::pair { &st.pan, "_pan" }, std::pair { &st.rev, "_rev" }, std::pair { &st.dly, "_dly" }, std::pair { &st.gtd, "_gtd" }, std::pair { &st.echo, "_echo" } })
-            {
-                s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag); s->setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
-                s->setColour (juce::Slider::rotarySliderFillColourId, col); s->setColour (juce::Slider::thumbColourId, col);
-                st.att.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + suffix, *s));
-                st.knobLabels[(size_t) k].setText (knobNames[k], juce::dontSendNotification); st.knobLabels[(size_t) k].setFont (juce::FontOptions (10.0f));
-                st.knobLabels[(size_t) k].setColour (juce::Label::textColourId, dim); st.knobLabels[(size_t) k].setJustificationType (juce::Justification::centred);
-                s->setPopupDisplayEnabled (true, true, nullptr);
-                mixerPage.addAndMakeVisible (st.knobLabels[(size_t) k++]); mixerPage.addAndMakeVisible (s);
-            }
-            st.pan.setDoubleClickReturnValue (true, 0);
-            for (auto* b : { &st.mute, &st.solo }) { b->setClickingTogglesState (true); mixerPage.addAndMakeVisible (b); }
-            st.mute.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffff8a3d)); st.solo.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffd23f));
-            st.aMute = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_mute", st.mute);
-            st.aSolo = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_solo", st.solo);
-            addTo (mixerPage, { &st.name, &st.meter, &st.fader });
-        }
-        const char* mids[5] = { "master", "gtime", "gmix", "erate", "emix" };
-        const char* mnames[5] = { "Master", "Gate time", "Gated level", "Echo rate", "Echo level" };
-        for (int k = 0; k < 5; ++k)
-        {
-            masterLbls[(size_t) k].setText (mnames[k], juce::dontSendNotification); masterLbls[(size_t) k].setFont (juce::FontOptions (12.0f));
-            masterSliders[(size_t) k].setSliderStyle (juce::Slider::LinearHorizontal); masterSliders[(size_t) k].setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18);
-            sliderAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, mids[k], masterSliders[(size_t) k]));
-            addTo (mixerPage, { &masterLbls[(size_t) k], &masterSliders[(size_t) k] });
-        }
-        masterSliders[1].textFromValueFunction = [] (double v) { return juce::String ((int) std::round (v * 1000)) + " ms"; }; masterSliders[1].updateText();
-        masterSliders[1].setTooltip ("Gated reverb: the big 80s drum room that stops dead after this time");
-        masterSliders[3].setTooltip ("Random echoes: how often notes get thrown into a tempo echo (each channel's Echo knob scales it)");
-    }
-    mixerPage.layout = [this] (juce::Rectangle<int> r) {
-        auto masterArea = r.removeFromBottom (5 * 22);
-        r.removeFromBottom (6);
-        const int w = r.getWidth() / 7;
-        for (auto& st : strips)
-        {
-            auto c = r.removeFromLeft (w).reduced (2, 0);
-            st.name.setBounds (c.removeFromTop (16));
-            { auto ms = c.removeFromTop (20); st.mute.setBounds (ms.removeFromLeft (ms.getWidth() / 2).reduced (1, 0)); st.solo.setBounds (ms.reduced (1, 0)); }
-            c.removeFromTop (4);
-            const int knob = juce::jmin (44, c.getWidth() - 2), knobs = 5 * (knob + 10);
-            auto faderArea = c.removeFromTop (juce::jmax (90, c.getHeight() - knobs));
-            st.meter.setBounds (faderArea.removeFromLeft (6).withTrimmedBottom (18));
-            st.fader.setBounds (faderArea);
+            st.fader.setDoubleClickReturnValue (true, isMaster ? 0.8 : 1.0);
             const std::array<juce::Slider*, 5> ks { &st.pan, &st.rev, &st.dly, &st.gtd, &st.echo };
             for (int k = 0; k < 5; ++k)
             {
-                auto kc = c.removeFromTop (knob + 10);
-                st.knobLabels[(size_t) k].setBounds (kc.removeFromBottom (11));
+                auto* s = ks[(size_t) k];
+                s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag); s->setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+                s->setColour (juce::Slider::rotarySliderFillColourId, col); s->setColour (juce::Slider::thumbColourId, col);
+                st.att.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, isMaster ? juce::String (masterIds[k]) : id + "_" + juce::StringArray { "pan", "rev", "dly", "gtd", "echo" }[k], *s));
+                auto& kl = st.knobLabels[(size_t) k];
+                kl.setText (isMaster ? masterNames[k] : knobNames[k], juce::dontSendNotification); kl.setFont (juce::FontOptions (10.5f));
+                kl.setColour (juce::Label::textColourId, dim); kl.setJustificationType (juce::Justification::centred);
+                s->setPopupDisplayEnabled (true, true, nullptr);
+                mixerPage.addAndMakeVisible (kl); mixerPage.addAndMakeVisible (s);
+            }
+            if (isMaster)
+            {
+                st.pan.textFromValueFunction = [] (double v) { return juce::String ((int) std::round (v * 1000)) + " ms"; };
+                st.pan.setTooltip ("Gated reverb: the big 80s drum room that stops dead after this time");
+                st.dly.setTooltip ("Random echoes: how often notes get thrown into a tempo echo (each channel's Echo knob scales it)");
+            }
+            else
+            {
+                st.pan.setDoubleClickReturnValue (true, 0);
+                for (auto* b : { &st.mute, &st.solo }) { b->setClickingTogglesState (true); mixerPage.addAndMakeVisible (b); }
+                st.mute.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffff8a3d)); st.solo.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffd23f));
+                st.aMute = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_mute", st.mute);
+                st.aSolo = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_solo", st.solo);
+            }
+            addTo (mixerPage, { &st.name, &st.sound, &st.meter, &st.fader });
+        }
+        hint (mixHint, "Drag knobs up and down (double-click resets). Double-click a fader for 0 dB. M mutes, S solos; both also stop that channel's MIDI.");
+        mixerPage.addAndMakeVisible (mixHint);
+    }
+    mixerPage.layout = [this] (juce::Rectangle<int> r) {
+        mixHint.setBounds (r.removeFromTop (20)); r.removeFromTop (6);
+        const int w = juce::jmin (150, r.getWidth() / 8);
+        r = r.withSizeKeepingCentre (w * 8, r.getHeight());
+        for (auto& st : strips)
+        {
+            auto c = r.removeFromLeft (w).reduced (3, 0);
+            st.name.setBounds (c.removeFromTop (18));
+            st.sound.setBounds (c.removeFromTop (15));
+            { auto ms = c.removeFromTop (24).reduced (4, 0); st.mute.setBounds (ms.removeFromLeft (ms.getWidth() / 2).reduced (2, 0)); st.solo.setBounds (ms.reduced (2, 0)); }
+            c.removeFromTop (6);
+            const int knob = juce::jlimit (30, 56, juce::jmin (c.getWidth() - 16, (c.getHeight() - 200) / 5 - 14));
+            const std::array<juce::Slider*, 5> ks { &st.pan, &st.rev, &st.dly, &st.gtd, &st.echo };
+            for (int k = 0; k < 5; ++k)
+            {
+                auto kc = c.removeFromTop (knob + 14);
+                st.knobLabels[(size_t) k].setBounds (kc.removeFromBottom (13));
                 ks[(size_t) k]->setBounds (kc.withSizeKeepingCentre (knob, knob));
             }
+            c.removeFromTop (6);
+            auto fa = c.withSizeKeepingCentre (juce::jmin (c.getWidth(), 70), c.getHeight());
+            st.meter.setBounds (fa.removeFromLeft (10).withTrimmedBottom (22).withTrimmedTop (6));
+            st.fader.setBounds (fa);
         }
-        for (int k = 0; k < 5; ++k) { auto x = masterArea.removeFromTop (22); masterLbls[(size_t) k].setBounds (x.removeFromLeft (90)); masterSliders[(size_t) k].setBounds (x); }
     };
+    mixerPage.setVisible (false);
+    addChildComponent (mixerPage);
+    mixBtn.setClickingTogglesState (true);
+    mixBtn.setTooltip ("Open the mixer");
+    mixBtn.onClick = [this] { showMixer (mixBtn.getToggleState()); };
+    addAndMakeVisible (mixBtn);
 
     /* Music */
     keyLbl.setText ("Key", juce::dontSendNotification); scaleLbl.setText ("Scale", juce::dontSendNotification);
@@ -574,7 +588,15 @@ void SkyEditor::timerCallback()
     {
         auto& m = strips[(size_t) c].meter;
         m.level = juce::jmax (proc.takePeak (c < 6 ? c : 7), m.level * 0.8f);
-        if (tabs.getCurrentContentComponent() == &mixerPage) m.repaint();
+        if (mixerPage.isVisible()) m.repaint();
+    }
+    { auto& m = strips[7].meter; m.level = juce::jmax (proc.takeMasterPeak(), m.level * 0.8f); if (mixerPage.isVisible()) m.repaint(); }
+    if (tick % 8 == 0)
+    {
+        const auto names = sky::engineNames();
+        for (int c = 0; c < 6; ++c) strips[(size_t) c].sound.setText (names[(int) proc.params.getRawParameterValue (juce::String (laneInfo[c].id) + "_engine")->load()], juce::dontSendNotification);
+        const int mb = (int) proc.params.getRawParameterValue ("mainbeat")->load();
+        strips[6].sound.setText (mb > 0 ? sky::PresetLibrary::get().patterns[(size_t) mb].name : juce::String ("Kit"), juce::dontSendNotification);
     }
     if (++tick % 8 != 0) return;
     juce::String st; bool ok;
@@ -591,12 +613,22 @@ void SkyEditor::timerCallback()
 
 void SkyEditor::paint (juce::Graphics& g) { g.fillAll (bg); }
 
+void SkyEditor::showMixer (bool on)
+{
+    mixBtn.setToggleState (on, juce::dontSendNotification);
+    mixBtn.setButtonText (on ? "BACK TO SKY" : "MIXER");
+    for (auto* c : { (juce::Component*) &radar, (juce::Component*) &status, (juce::Component*) &tabs }) c->setVisible (! on);
+    mixerPage.setVisible (on);
+    resized();
+}
+
 void SkyEditor::resized()
 {
     auto r = getLocalBounds().reduced (10);
     auto top = r.removeFromTop (26);
-    title.setBounds (top.removeFromLeft (200)); placeLbl.setBounds (top);
+    title.setBounds (top.removeFromLeft (200)); mixBtn.setBounds (top.removeFromRight (120)); top.removeFromRight (10); placeLbl.setBounds (top);
     r.removeFromTop (6);
+    if (mixerPage.isVisible()) { mixerPage.setBounds (r); return; }
     const int side = juce::jmin (r.getHeight() - 26, r.getWidth() - 400);
     auto left = r.removeFromLeft (side);
     radar.setBounds (left.removeFromTop (side));

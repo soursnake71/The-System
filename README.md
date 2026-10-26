@@ -30,7 +30,7 @@ Sounds: seven simple engines plus an **OB-Xa** style synth (two saw/pulse oscill
 
 Drums: any lane can **trigger a drum loop** (30 patterns, from four on the floor, house, techno and disco to breakbeat, jungle, reggaeton, afrobeat, bossa nova and samba). The loop starts on the next bar line after the lane plays and stops after two quiet bars; every hit sits on the same 16th-note grid as the notes (and in the plugin, on the DAW's sample-accurate beat grid). The kit is twelve synthesized drums with a **random kit** builder. Drums go out as MIDI on channel 10.
 
-Mixer: a strip per lane plus a drum channel, each with fader, pan, mute, solo, a meter and sends to reverb, delay, **gated reverb** (the 80s drum room that stops dead after the gate time) and **random echoes** (notes thrown into tempo-locked 8th-triplet, quarter or dotted-quarter echoes; Echo rate sets how often).
+Mixer (full-screen console: the 🎚 button in the app, MIXER in the plugin): a strip per lane plus a drum channel and a master strip, each with fader, pan, mute, solo, a meter and sends to reverb, delay, **gated reverb** (the 80s drum room that stops dead after the gate time) and **random echoes** (notes thrown into tempo-locked 8th-triplet, quarter or dotted-quarter echoes; Echo rate sets how often).
 
 Lanes: each has its own register, rhythm (12 rhythms), note length and MIDI channel; lane notes vary a little in length. **Auto-vary** (every 4, 8 or 16 bars) drifts lanes to new rhythms, lengths and OB-Xa patches, and sometimes a new sound no other lane is using. The generator also gives every lane a different sound.
 

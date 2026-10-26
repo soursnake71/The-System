@@ -1,6 +1,6 @@
 /* Sound engines (Web Audio), MIDI out (Web MIDI or the Android app's USB MIDI) and MIDI file export. */
 const Sound = (() => {
-  let ctx = null, master = null, verbIn = null, delayIn = null;
+  let ctx = null, master = null, verbIn = null, delayIn = null, masterMeter = null, masterData = null;
   const lanes = {};   // lane id -> {gain}
   const mtof = n => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -9,6 +9,7 @@ const Sound = (() => {
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
     master = ctx.createGain(); master.gain.value = 0.8; master.connect(comp); comp.connect(ctx.destination);
+    masterMeter = ctx.createAnalyser(); masterMeter.fftSize = 512; comp.connect(masterMeter); masterData = new Float32Array(512);
     // reverb: generated decaying-noise impulse
     const len = ctx.sampleRate * 3.2, ir = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let c = 0; c < 2; c++){ const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
@@ -83,7 +84,9 @@ const Sound = (() => {
   function setBus(id, m){ if (!ctx) return; const l = bus(id), t = ctx.currentTime;
     l.gain.gain.setTargetAtTime(m.vol, t, 0.02); l.rev.gain.setTargetAtTime(m.rev, t, 0.02); l.dly.gain.setTargetAtTime(m.dly, t, 0.02); l.gtd.gain.setTargetAtTime(m.gtd || 0, t, 0.02); }
   // peak level of a bus, 0..1
-  function level(id){ const l = lanes[id]; if (!l) return 0; l.meter.getFloatTimeDomainData(l.data); let p = 0; for (const x of l.data) p = Math.max(p, Math.abs(x)); return p; }
+  function level(id){
+    if (id === 'master'){ if (!masterMeter) return 0; masterMeter.getFloatTimeDomainData(masterData); let p = 0; for (const x of masterData) p = Math.max(p, Math.abs(x)); return p; }
+    const l = lanes[id]; if (!l) return 0; l.meter.getFloatTimeDomainData(l.data); let p = 0; for (const x of l.data) p = Math.max(p, Math.abs(x)); return p; }
   // send a copy of one note into an echo line
   function throwEcho(src, amt, line){ if (!amt || !echoes.length) return; const g = ctx.createGain(); g.gain.value = amt; src.connect(g); g.connect(echoes[line % echoes.length].input); }
 

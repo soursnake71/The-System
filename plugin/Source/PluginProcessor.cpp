@@ -416,6 +416,7 @@ void SkyProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuf
 
     synth.render (buffer, n);
     buffer.applyGain (0, n, pMaster->load());
+    masterPeak = juce::jmax (masterPeak.load(), buffer.getMagnitude (0, n));
     for (int c = 2; c < buffer.getNumChannels(); ++c) buffer.clear (c, 0, n);
     sampleClock += n;
 }

@@ -53,6 +53,8 @@ public:
     void autoVary();
     // mixer meters: peak since the last call, for lanes 0-5 and the drums (7)
     float takePeak (int channel) { return synth.peaks[(size_t) juce::jlimit (0, 7, channel)].exchange (0.0f); }
+    float takeMasterPeak() { return masterPeak.exchange (0.0f); }
+    std::atomic<float> masterPeak { 0 };
 
     juce::AudioProcessorValueTreeState params;
     juce::ValueTree state { "SkyLocation" };

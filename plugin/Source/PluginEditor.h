@@ -86,14 +86,15 @@ private:
     // Mixer: six lanes and the drums, then master and the space effects
     struct Strip
     {
-        juce::Label name; Meter meter; juce::Slider fader, pan, rev, dly, gtd, echo; juce::TextButton mute { "M" }, solo { "S" };
+        juce::Label name, sound; Meter meter; juce::Slider fader, pan, rev, dly, gtd, echo; juce::TextButton mute { "M" }, solo { "S" };
         std::array<juce::Label, 5> knobLabels;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> aMute, aSolo;
         std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> att;
     };
-    std::array<Strip, 7> strips;
-    std::array<juce::Label, 5> masterLbls;
-    std::array<juce::Slider, 5> masterSliders;
+    std::array<Strip, 8> strips;   // six lanes, drums, master
+    juce::TextButton mixBtn { "MIXER" };
+    juce::Label mixHint;
+    void showMixer (bool);
     int tick = 0;
 
     // Presets

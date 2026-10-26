@@ -23,6 +23,23 @@ main{max-width:1100px;margin:0 auto;padding:10px 10px calc(30px + env(safe-area-
 .results{display:flex;flex-direction:column;gap:4px;margin:4px 0}.results button{text-align:left;font-size:12.5px}
 .meter{height:6px;background:#0b1f15;border-radius:3px;overflow:hidden;margin:2px 0 6px}.meter i{display:block;height:100%;width:0;background:var(--c,var(--acc));transition:width .05s}
 .strip .lhead .row{margin:0}.strip .sw{min-width:38px}
+#console{position:fixed;inset:0;z-index:20;background:#020805;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#console[hidden]{display:none}
+.chead{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}.chead b{font:800 14px ui-monospace,monospace;letter-spacing:.16em;color:var(--acc)}.chead .hint{flex:1;margin:0}
+#desk{flex:1;display:flex;gap:6px;overflow-x:auto;padding:10px;align-items:stretch;justify-content:safe center}
+.cstrip{flex:1 0 86px;max-width:150px;display:flex;flex-direction:column;align-items:center;gap:4px;background:linear-gradient(180deg,#0c1f16,#07130d);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:10px;padding:8px 4px}
+.cstrip.master{flex-basis:96px;background:linear-gradient(180deg,#10281c,#08160f)}
+.cname{font-weight:700;font-size:12px;color:var(--c);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.csound{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cms{display:flex;gap:4px;min-height:30px}.cms .sw{min-width:34px;min-height:28px;padding:2px 6px}.cms .mute.on{background:#ff8a3d;border-color:#ff8a3d}.cms .solo.on{background:#ffd23f;border-color:#ffd23f}
+.kwrap{display:flex;flex-direction:column;align-items:center;font-size:10px;color:var(--dim);line-height:1.1}.kwrap b{font:10px ui-monospace,monospace;color:var(--ink)}
+.knob{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#2a4a3a,#0e2219 70%);border:2px solid #234836;position:relative;touch-action:none;cursor:ns-resize;margin-bottom:2px}
+.knob::after{content:'';position:absolute;left:50%;top:3px;width:3px;height:13px;margin-left:-1.5px;border-radius:2px;background:var(--c);transform-origin:50% 16px;transform:rotate(var(--a))}
+.cfader{flex:1;display:flex;gap:6px;align-items:stretch;min-height:150px;width:100%;justify-content:center;padding-top:4px}
+.vmeter{width:8px;background:#0b1f15;border-radius:4px;position:relative;overflow:hidden}.vmeter i{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--c)}.vmeter i.clip{background:#ff5e5e}
+.fader{position:relative;width:34px;flex:0 0 34px;touch-action:none;cursor:ns-resize}.fader span{position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;background:#1d3a2d;border-radius:2px}
+.fader i{position:absolute;left:2px;right:2px;height:18px;border-radius:4px;background:linear-gradient(180deg,#d9e4de,#8a9a92);border:1px solid #445;box-shadow:inset 0 -2px 0 var(--c)}
+.db{font:11px ui-monospace,monospace;color:var(--ink)}
 #sel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px}#sel span{color:var(--dim)}
 #tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:8px}#tabs::-webkit-scrollbar{display:none}#tabs button{flex:none}
 .lane{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--c,var(--line));border-radius:12px;padding:10px 12px;margin-bottom:8px}
@@ -43,6 +60,7 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}th{text-align:left;co
   <span class="logo">✈ SKY SEQUENCER</span>
   <button id="play" title="Play / stop (space)">▶</button>
   <button id="rec" title="Record to a MIDI file">●</button>
+  <button id="mixBtn" title="Mixer">🎚</button>
   <label>BPM <input id="bpm" type="number" min="40" max="220"></label>
   <label>Key <select id="key"></select></label>
   <select id="scale" aria-label="Scale"></select>
@@ -57,11 +75,15 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}th{text-align:left;co
   </section>
   <section>
     <div id="tabs">
-      <button data-t="lanes" class="on">Lanes</button><button data-t="mixer">Mixer</button><button data-t="presets">Presets</button><button data-t="synth">OB-Xa</button><button data-t="drums">Drums &amp; FX</button><button data-t="sky">Sky</button><button data-t="midi">MIDI</button><button data-t="planes">Planes</button><button data-t="about">About</button>
+      <button data-t="lanes" class="on">Lanes</button><button data-t="presets">Presets</button><button data-t="synth">OB-Xa</button><button data-t="drums">Drums &amp; FX</button><button data-t="sky">Sky</button><button data-t="midi">MIDI</button><button data-t="planes">Planes</button><button data-t="about">About</button>
     </div>
     <div id="panel"></div>
   </section>
 </main>
+<div id="console" hidden>
+  <div class="chead"><b>MIXER</b><span class="hint">Drag knobs up and down, double-tap to reset. Double-tap a fader for 0 dB.</span><button id="closeMix">Done</button></div>
+  <div id="desk"></div>
+</div>
 <div id="toast" hidden></div>
 <script src="presets.js"></script><script src="feed.js"></script><script src="sound.js"></script><script src="app.js"></script>
 </body></html>
