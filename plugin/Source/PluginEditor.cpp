@@ -307,6 +307,21 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
     synthLane.onChange = [this] { bindPatch (synthLane.getSelectedItemIndex()); };
     rndPatch.onClick = [this] { proc.randomPatch (juce::jmax (0, synthLane.getSelectedItemIndex())); };
     addTo (synthPage, { &synthHint, &synthLane, &rndPatch });
+    {
+        // patch library, grouped by category
+        const auto& patches = sky::PresetLibrary::get().library;
+        juce::String cat;
+        for (int i = 0; i < (int) patches.size(); ++i)
+        {
+            if (patches[(size_t) i].cat != cat) { cat = patches[(size_t) i].cat; libraryBox.addSectionHeading (cat); }
+            libraryBox.addItem (patches[(size_t) i].name, i + 1);
+        }
+        libraryBox.setTextWhenNothingSelected ("Patch library (" + juce::String ((int) patches.size()) + ")");
+        libraryBox.onChange = [this] { if (libraryBox.getSelectedId() > 0) loadLibraryPatch (libraryBox.getSelectedId() - 1); };
+        libPrev.onClick = [this] { const int n = (int) sky::PresetLibrary::get().library.size(); if (n > 0) libraryBox.setSelectedId ((libraryBox.getSelectedId() - 2 + n) % n + 1); };
+        libNext.onClick = [this] { const int n = (int) sky::PresetLibrary::get().library.size(); if (n > 0) libraryBox.setSelectedId (libraryBox.getSelectedId() % n + 1); };
+        addTo (synthPage, { &libraryBox, &libPrev, &libNext });
+    }
     for (int k = 0; k < 21; ++k)
     {
         const auto& s = sky::patchSpecs()[(size_t) k];
@@ -322,6 +337,8 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
     synthPage.layout = [this] (juce::Rectangle<int> r) {
         synthHint.setBounds (r.removeFromTop (34)); r.removeFromTop (4);
         { auto x = r.removeFromTop (28); rndPatch.setBounds (x.removeFromRight (130)); x.removeFromRight (8); synthLane.setBounds (x); }
+        r.removeFromTop (6);
+        { auto x = r.removeFromTop (28); libNext.setBounds (x.removeFromRight (34)); x.removeFromRight (4); libPrev.setBounds (x.removeFromRight (34)); x.removeFromRight (8); libraryBox.setBounds (x); }
         r.removeFromTop (8);
         const int colW = (r.getWidth() - 12) / 2, rowH = juce::jmin (26, r.getHeight() / 11);
         for (int k = 0; k < 21; ++k)
@@ -505,6 +522,21 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
 }
 
 SkyEditor::~SkyEditor() { setLookAndFeel (nullptr); }
+
+// put a named library patch on the lane being edited (and make sure the lane plays the OB-Xa)
+void SkyEditor::loadLibraryPatch (int index)
+{
+    const auto& lib = sky::PresetLibrary::get().library;
+    const int lane = juce::jmax (0, synthLane.getSelectedItemIndex());
+    if (index < 0 || index >= (int) lib.size()) return;
+    for (int k = 0; k < 21; ++k)
+    {
+        const auto& spec = sky::patchSpecs()[(size_t) k];
+        if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (proc.params.getParameter (proc.patchParamId (lane, k))))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) lib[(size_t) index].patch.getProperty (spec.id, spec.def)));
+    }
+    if (auto* p = proc.params.getParameter (juce::String (laneInfo[lane].id) + "_sound")) p->setValueNotifyingHost (0.0f);
+}
 
 void SkyEditor::bindPatch (int lane)
 {

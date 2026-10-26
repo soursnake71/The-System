@@ -56,7 +56,101 @@
     toms:      {name:'Tom rolls', k:'x.......x.......', t:'x.o.x.o.....x.xo'},
     perc:      {name:'Percussion', p:'x..o..x..o..x.o.', r:'..x...x...x...x.', cl:'.......x......x.', sh:'xoxoxoxoxoxoxoxo'},
     sparse:    {name:'Sparse', k:'x...............', p:'.......o........', oh:'........x.......'},
+    electrofunk:{name:'Electro funk', k:'x.....x...x.x...', s:'....x.......x...', cl:'....x.......x...', ch:'x.x.x.x.x.x.x.xx', p:'..o.......o.....'},
+    miami:     {name:'Miami bass', k:'x......x..x.....', s:'....x.......x...', ch:'xoxoxoxoxoxoxoxo', cl:'....x..x....x...'},
+    hiphop90s: {name:'90s hip hop', k:'x.....x...x..x..', s:'....x.......x...', ch:'x.x.x.x.x.xox.x.', oh:'...............o'},
+    drill:     {name:'Drill', k:'x.........x..x..', s:'........x.......', ch:'x..x..x.x..x..x.', r:'...o......o....o'},
+    dancehall: {name:'Dancehall', k:'x..x....x..x....', s:'...x..x....x..x.', ch:'x.x.x.x.x.x.x.x.', p:'..x...x...x...x.'},
+    soca:      {name:'Soca', k:'x...x...x...x...', s:'..x...x...x...x.', ch:'xoxoxoxoxoxoxoxo', tb:'x.x.x.x.x.x.x.x.'},
+    cumbia:    {name:'Cumbia', k:'x.......x.......', cg:'..x..x..x..x..x.', sh:'xoxoxoxoxoxoxoxo', r:'....x.......x...'},
+    baile:     {name:'Baile funk', k:'x..x..x...x..x..', s:'...x..x....x..x.', cl:'...x......x.....', ch:'x.x.x.x.x.x.x.x.'},
+    amapiano:  {name:'Amapiano', k:'x...x...x...x...', r:'..x...x.x..x..x.', sh:'xoxoxoxoxoxoxoxo', p:'.......x.......x', cg:'....x.......x...'},
+    gqom:      {name:'Gqom', k:'x..x..x...x..x..', t:'..x....x..x....x', cl:'....x.......x...', sh:'xoxoxoxoxoxoxoxo'},
+    dubstep:   {name:'Dubstep', k:'x.........x.....', s:'........x.......', ch:'x.x.x.x.x.x.x.x.', oh:'......x.......x.'},
+    liquid:    {name:'Liquid', k:'x.........x.....', s:'....x.......x...', ch:'xoxoxoxoxoxoxoxo', sh:'..o...o...o...o.', r:'.......o.......o'},
+    rollers:   {name:'Rollers', k:'x.........x.x...', s:'....x..o....x...', ch:'xoxxxoxxxoxxxoxx'},
+    trance:    {name:'Trance', k:'x...x...x...x...', oh:'..x...x...x...x.', cl:'....x.......x...', ch:'xoxoxoxoxoxoxoxo'},
+    hardstyle: {name:'Hard dance', k:'x...x...x...x...', cl:'....x.......x...', oh:'..x...x...x...x.', cy:'x...............'},
+    techhouse: {name:'Tech house', k:'x...x...x...x...', cl:'....x.......x...', oh:'..x...x...x...x.', sh:'xoxoxoxoxoxoxoxo', r:'.......o......o.'},
+    minimal:   {name:'Minimal', k:'x...x...x...x...', r:'...o.....o....o.', ch:'..o...o...o...o.', p:'.o..........o...'},
+    afrohouse: {name:'Afro house', k:'x...x...x...x...', cg:'..x..x...x..x...', sh:'xoxoxoxoxoxoxoxo', r:'...x......x.....', cl:'....x.......x...'},
+    ebm:       {name:'EBM', k:'x.x.x.x.x.x.x.x.', s:'....x.......x...', ch:'..x...x...x...x.'},
+    synthpop:  {name:'Synth pop', k:'x.......x.......', s:'....x.......x...', ch:'x.x.x.x.x.x.x.x.', cl:'....x.......x...', t:'..............xx'},
+    newwave:   {name:'New wave', k:'x...x...x...x...', s:'....x.......x...', ch:'xoxoxoxoxoxoxoxo'},
+    postpunk:  {name:'Post-punk', k:'x.x...x.x.x.....', t:'x..x..x...x..x..', s:'....x.......x...', ch:'x.x.x.x.x.x.x.x.'},
+    motown:    {name:'Motown', k:'x.......x.......', s:'x...x...x...x...', tb:'....x.......x...', ch:'x.x.x.x.x.x.x.x.'},
+    rocknroll: {name:'Rock and roll', k:'x.....x.x.......', s:'....x.......x...', ch:'x.x.x.x.x.x.x.x.', cy:'x...............'},
+    garagerock:{name:'Garage rock', k:'x.x.....x.x.....', s:'....x.......x...', oh:'x.x.x.x.x.x.x.x.'},
+    swing:     {name:'Swing', k:'o.......o.......', cy:'x...x..xx...x..x', ch:'....x.......x...', s:'...........o....'},
+    steppers:  {name:'Steppers', k:'x...x...x...x...', r:'....x.......x...', ch:'..x...x...x...x.', sh:'xoxoxoxoxoxoxoxo'},
+    breakstep: {name:'Breakstep', k:'x.........x.....', s:'....x.......x...', ch:'..x...x.x.x...x.', t:'.............x.x'},
+    idm:       {name:'Glitch', k:'x..x...x.x....x.', s:'...x.x....x..x..', ch:'x.xxx..x.xx.x.xx', r:'.x.....x...x....'},
+    ballad:    {name:'Ballad', k:'x.......x.x.....', s:'....x.......x...', ch:'x.x.x.x.x.x.x.x.', cy:'x...............'},
   };
+  // the OB-Xa patch library: [name, category, settings that differ from the defaults]
+  const P_ = (name, cat, o) => [name, cat, o];
+  const LIBRARY = [
+    P_('Sub Bass', 'Bass', {w1:0, w2:1, mix2:0.4, int2:3, cut:220, res:0.2, env:1.5, fd:0.2, fs:0.2, ad:0.4, as:0.8, ar:0.08}),
+    P_('Acid Saw', 'Bass', {w1:0, w2:0, mix2:0.3, cut:180, res:0.75, env:4.5, fd:0.18, fs:0, ad:0.25, as:0.5, ar:0.05}),
+    P_('Fat Unison Bass', 'Bass', {w1:0, w2:0, det:14, cut:350, res:0.3, env:3, fd:0.25, fs:0.15, ad:0.5, as:0.7, ar:0.08}),
+    P_('Pulse Bass', 'Bass', {w1:1, w2:1, pw:0.25, int2:3, cut:400, res:0.25, env:2.5, fd:0.15, as:0.6, ar:0.06}),
+    P_('Rubber Bass', 'Bass', {w1:1, w2:0, pw:0.4, cut:150, res:0.6, env:5, fd:0.12, fs:0.05, ad:0.3, as:0.4, ar:0.05}),
+    P_('Octave Bass', 'Bass', {w1:0, w2:0, int2:2, mix2:0.6, cut:500, res:0.2, env:2, fd:0.2, as:0.7, ar:0.07}),
+    P_('Funk Bass', 'Bass', {w1:1, w2:0, pw:0.3, cut:260, res:0.5, env:4, fd:0.09, fs:0.1, ad:0.2, as:0.3, ar:0.04}),
+    P_('Deep Pluck Bass', 'Bass', {w1:0, w2:1, cut:120, res:0.4, env:5.5, fd:0.1, fs:0, ad:0.3, as:0, ar:0.1}),
+    P_('Fifth Lead', 'Lead', {w1:0, w2:0, int2:1, det:4, cut:3000, res:0.3, env:2, fd:0.4, fs:0.5, aa:0.005, ad:0.5, as:0.7, ar:0.2, vib:8, lfo:5.5}),
+    P_('Square Lead', 'Lead', {w1:1, w2:1, pw:0.5, det:6, cut:2500, res:0.2, env:1.5, fd:0.3, fs:0.6, ad:0.4, as:0.8, ar:0.15, vib:10}),
+    P_('Screaming Lead', 'Lead', {w1:0, w2:0, det:10, cut:1800, res:0.65, env:3, fd:0.5, fs:0.5, ad:0.6, as:0.8, ar:0.2, vib:12}),
+    P_('Flute Lead', 'Lead', {w1:1, w2:1, pw:0.15, mix2:0.4, cut:1200, res:0.1, env:1, aa:0.05, ad:0.4, as:0.7, ar:0.2, vib:14, lfo:5}),
+    P_('Whistle', 'Lead', {w1:1, w2:1, pw:0.08, mix2:0.2, cut:4000, res:0.5, env:0.5, as:0.9, ar:0.15, vib:18, lfo:6}),
+    P_('Mono Lead', 'Lead', {w1:0, w2:1, pw:0.35, det:8, cut:1500, res:0.45, env:3.5, fd:0.25, fs:0.3, as:0.7, ar:0.12}),
+    P_('Bright Saw Lead', 'Lead', {w1:0, w2:0, det:12, int2:2, cut:5000, res:0.15, env:1, as:0.8, ar:0.2, vib:6}),
+    P_('Big Brass', 'Brass', {w1:0, w2:0, det:9, cut:900, res:0.15, env:2.8, fa:0.06, fd:0.5, fs:0.55, aa:0.02, ad:0.6, as:0.85, ar:0.25}),
+    P_('Stab Brass', 'Brass', {w1:0, w2:0, det:12, cut:1000, res:0.2, env:3.2, fa:0.01, fd:0.25, fs:0.2, aa:0.005, ad:0.3, as:0.3, ar:0.12}),
+    P_('Soft Horns', 'Brass', {w1:0, w2:1, pw:0.4, det:7, cut:700, res:0.1, env:2, fa:0.15, fd:0.7, fs:0.5, aa:0.08, ad:0.8, as:0.8, ar:0.35}),
+    P_('Sweep Brass', 'Brass', {w1:0, w2:0, det:10, cut:400, res:0.3, env:4, fa:0.4, fd:1, fs:0.6, aa:0.1, ad:1, as:0.8, ar:0.4}),
+    P_('Fanfare', 'Brass', {w1:0, w2:0, int2:1, det:8, cut:1100, res:0.2, env:2.6, fa:0.03, fd:0.4, fs:0.5, aa:0.02, ad:0.5, as:0.8, ar:0.25}),
+    P_('Funk Stab', 'Brass', {w1:1, w2:0, pw:0.3, det:10, cut:1300, res:0.35, env:3, fa:0.005, fd:0.15, fs:0.1, ad:0.2, as:0.1, ar:0.08}),
+    P_('Warm Pad', 'Pad', {w1:0, w2:0, det:14, cut:900, res:0.1, env:1, fa:0.8, fd:1.5, fs:0.6, aa:0.8, ad:1, as:0.9, ar:1.2, vib:3}),
+    P_('Glassy Pad', 'Pad', {w1:1, w2:1, pw:0.3, det:9, cut:2200, res:0.3, env:0.8, fa:0.5, fd:1.2, fs:0.7, aa:0.6, ad:1, as:0.85, ar:1.2, pwm:0.25, lfo:0.4}),
+    P_('Dark Pad', 'Pad', {w1:0, w2:1, pw:0.45, det:16, cut:450, res:0.25, env:1.5, fa:1.2, fd:2, fs:0.5, aa:1.2, ad:1.5, as:0.9, ar:1.5}),
+    P_('PWM Pad', 'Pad', {w1:1, w2:1, pw:0.35, det:6, cut:1500, res:0.15, env:0.6, aa:0.5, as:0.9, ar:1, pwm:0.35, lfo:0.6}),
+    P_('Choir Pad', 'Pad', {w1:1, w2:0, pw:0.2, det:12, int2:2, cut:1200, res:0.45, env:0.5, aa:0.7, ad:1, as:0.85, ar:1.3, vib:4, lfo:4.5}),
+    P_('Sweep Pad', 'Pad', {w1:0, w2:0, det:18, cut:300, res:0.55, env:3, fa:1.5, fd:2.5, fs:0.4, aa:0.6, ad:1.5, as:0.9, ar:1.5}),
+    P_('Fifths Pad', 'Pad', {w1:0, w2:0, int2:1, det:10, cut:1000, res:0.2, env:1, aa:0.9, as:0.9, ar:1.4}),
+    P_('Space Pad', 'Pad', {w1:1, w2:0, pw:0.25, det:22, int2:3, cut:1800, res:0.35, env:1.2, fa:1, fd:2, fs:0.6, aa:1, as:0.85, ar:1.5, vib:6, lfo:0.3}),
+    P_('OB Strings', 'Strings', {w1:0, w2:0, det:16, cut:2500, res:0.05, env:0.4, aa:0.3, ad:0.8, as:0.9, ar:0.8, vib:5, lfo:5}),
+    P_('Slow Strings', 'Strings', {w1:0, w2:0, det:20, cut:1600, res:0.1, env:0.5, aa:1.2, ad:1, as:0.9, ar:1.2, vib:4}),
+    P_('Pizzicato', 'Strings', {w1:0, w2:0, det:8, cut:1800, res:0.1, env:2, fd:0.12, fs:0, ad:0.2, as:0, ar:0.15}),
+    P_('String Machine', 'Strings', {w1:1, w2:0, pw:0.45, det:18, int2:2, cut:3000, res:0.05, env:0.3, aa:0.25, as:0.95, ar:0.9, pwm:0.2, lfo:0.7}),
+    P_('Poly Keys', 'Keys', {w1:0, w2:1, pw:0.4, det:6, cut:1400, res:0.2, env:2, fd:0.5, fs:0.3, ad:0.7, as:0.4, ar:0.3}),
+    P_('Clav', 'Keys', {w1:1, w2:1, pw:0.15, cut:2200, res:0.4, env:3, fd:0.1, fs:0.1, ad:0.2, as:0.1, ar:0.06}),
+    P_('Harp', 'Keys', {w1:1, w2:0, pw:0.45, cut:1800, res:0.2, env:2.5, fd:0.2, fs:0, ad:0.5, as:0, ar:0.4}),
+    P_('Wooden Keys', 'Keys', {w1:1, w2:1, pw:0.5, int2:2, mix2:0.3, cut:900, res:0.5, env:3, fd:0.08, fs:0, ad:0.2, as:0, ar:0.15}),
+    P_('Electric Piano', 'Keys', {w1:1, w2:1, pw:0.5, int2:2, mix2:0.25, cut:1600, res:0.1, env:1.5, fd:0.6, fs:0.2, ad:1, as:0.2, ar:0.4, vib:3, lfo:4}),
+    P_('Organ', 'Keys', {w1:1, w2:1, pw:0.5, int2:2, mix2:0.6, cut:4000, res:0, env:0, aa:0.003, as:1, ar:0.05}),
+    P_('Muted Keys', 'Keys', {w1:0, w2:1, cut:600, res:0.2, env:3, fd:0.07, fs:0, ad:0.15, as:0, ar:0.08}),
+    P_('Hollow Keys', 'Keys', {w1:1, w2:1, pw:0.5, int2:4, cut:1800, res:0.2, env:1.2, fd:0.4, fs:0.3, ad:0.8, as:0.3, ar:0.4}),
+    P_('Arp Blip', 'Arp', {w1:1, w2:1, pw:0.3, int2:2, cut:2500, res:0.3, env:2, fd:0.06, fs:0, ad:0.1, as:0, ar:0.05}),
+    P_('Arp Saw', 'Arp', {w1:0, w2:0, det:7, cut:1200, res:0.5, env:3.5, fd:0.09, fs:0.05, ad:0.15, as:0.1, ar:0.06}),
+    P_('Arp Fifth', 'Arp', {w1:1, w2:0, pw:0.2, int2:1, cut:3000, res:0.4, env:2, fd:0.15, fs:0.1, ad:0.3, as:0.1, ar:0.2}),
+    P_('Arp Resonant', 'Arp', {w1:0, w2:1, cut:500, res:0.8, env:4.5, fd:0.1, fs:0.05, ad:0.18, as:0.1, ar:0.08}),
+    P_('Arp Bright', 'Arp', {w1:0, w2:0, det:5, cut:1500, res:0.35, env:4, fd:0.12, fs:0, ad:0.25, as:0.05, ar:0.15}),
+    P_('Arp Sparkle', 'Arp', {w1:1, w2:1, pw:0.5, int2:2, cut:5000, res:0.1, env:1, fd:0.3, fs:0, ad:0.6, as:0, ar:0.5}),
+    P_('Laser', 'FX', {w1:1, w2:1, pw:0.1, cut:3000, res:0.6, env:5, fd:0.05, fs:0, ad:0.3, as:0, ar:0.1, vib:40, lfo:11}),
+    P_('Siren', 'FX', {w1:0, w2:1, cut:2000, res:0.3, env:1, as:0.9, ar:0.3, vib:50, lfo:0.8}),
+    P_('Wind Sweep', 'FX', {w1:1, w2:1, pw:0.05, det:30, cut:200, res:0.9, env:6, fa:0.5, fd:1, fs:0.3, aa:0.2, as:0.7, ar:0.6}),
+    P_('Detuned Chaos', 'FX', {w1:0, w2:1, det:30, int2:3, cut:800, res:0.5, env:3, fd:0.3, fs:0.4, as:0.6, ar:0.3, pwm:0.4, lfo:3}),
+    P_('Vowel', 'FX', {w1:0, w2:1, pw:0.3, cut:900, res:0.85, env:1, fa:0.1, fd:0.6, fs:0.4, as:0.8, ar:0.3, vib:6}),
+    P_('Rave Stab', 'FX', {w1:0, w2:0, int2:1, det:14, cut:1400, res:0.4, env:3, fd:0.15, fs:0.1, ad:0.25, as:0.15, ar:0.1}),
+    P_('Big Hoover', 'FX', {w1:1, w2:0, pw:0.35, det:25, int2:3, cut:1500, res:0.3, env:2, fd:0.4, fs:0.5, as:0.8, ar:0.3, pwm:0.4, lfo:5, vib:10}),
+    P_('Sub Drop', 'FX', {w1:0, w2:1, int2:3, cut:300, res:0.3, env:4, fd:0.5, fs:0, ad:0.6, as:0, ar:0.2}),
+    P_('Zap', 'FX', {w1:0, w2:0, int2:2, cut:6000, res:0.7, env:6, fd:0.04, fs:0, ad:0.08, as:0, ar:0.05}),
+  ];
+  // which lanes each category suits
+  const CAT_ROLES = {Bass:['grid'], Lead:['rise', 'fall'], Brass:['rise', 'fall', 'drone'], Pad:['drone'], Strings:['drone', 'fall'], Keys:['arp', 'hit', 'rise'], Arp:['arp', 'hit'], FX:['hit', 'rise', 'fall']};
+  const libraryPatch = i => Object.assign({}, Object.fromEntries(PATCH.map(p => [p[0], p[4]])), LIBRARY[i][2]);
+  const libraryFor = role => LIBRARY.map((p, i) => i).filter(i => (CAT_ROLES[LIBRARY[i][1]] || []).includes(role));
   // which 16th steps a lane plays on (climbing, descending, cruising and low & close lanes)
   const RHYTHMS = [
     ['Quarters', 'x...x...x...x...'], ['Off-beats', '..x...x...x...x.'], ['Dotted 8ths', 'x..x..x..x..x...'], ['8ths', 'x.x.x.x.x.x.x.x.'],
@@ -130,6 +224,8 @@
         pan:id === 'grid' ? 0 : round(g.pick(pans) + g.u(-0.1, 0.1), 2), mute:false, solo:false, gtd:id === 'hit' ? round(g.u(0.2, 0.6)) : g.p(0.2) ? round(g.u(0.05, 0.3)) : 0,
         echo:round(Math.min(1, echo * g.u(0.5, 2))), gate:round(Math.min(1, gate * g.u(0.6, 1.4))), rhythm:ROLE_RHYTHMS[id] ? g.pick(ROLE_RHYTHMS[id]) : rhy, auto:true,
         drum:'none', dv:round(g.u(0.6, 0.95)), patch:randomPatch(id, r)};
+      const lib = libraryFor(id);
+      if (lib.length && g.p(0.7)){ const i = g.pick(lib); pre.lanes[id].patch = mutatePatch(libraryPatch(i), id, 0.12, r); pre.lanes[id].patchName = LIBRARY[i][0]; }
     }
     // one lane may add a second groove or fills on top of the main beat
     if (g.p(0.6)) pre.lanes[g.pick(['grid', 'drone', 'arp', 'hit', 'rise'])].drum = g.pick(['perc', 'toms', 'sparse', 'tribal', 'latin', 'afrobeat', 'dub']);
@@ -143,7 +239,7 @@
       pre.lanes[id] = {on:true, engine, ch, vol, rev, dly, pan, mute:false, solo:false, gtd, echo, gate, rhythm, auto:true, drum:'none', dv:0.8, patch:randomPatch(id, rng(7 + id.length))}; }
     return pre;
   }
-  const api = {PATCH, INTERVALS, KIT, DRUMS, DRUM_NAMES, DRUM_NOTES, PATTERNS, RHYTHMS, SCALES, LANE_IDS, DEF_LANES, ROLE_ENGINES, ROLE_RHYTHMS,
+  const api = {LIBRARY, CAT_ROLES, libraryPatch, libraryFor, PATCH, INTERVALS, KIT, DRUMS, DRUM_NAMES, DRUM_NOTES, PATTERNS, RHYTHMS, SCALES, LANE_IDS, DEF_LANES, ROLE_ENGINES, ROLE_RHYTHMS,
     rng, randomPatch, mutatePatch, randomKit, generatePreset, defaultPreset, defaults};
   if (typeof module !== 'undefined') module.exports = api; else root.SkyPresets = api;
 })(typeof window !== 'undefined' ? window : globalThis);

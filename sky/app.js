@@ -394,13 +394,21 @@
     pick.onchange = () => { synthLane = pick.value; render(); };
     const L = S.lanes[synthLane], lane = LANES.find(l => l.id === synthLane);
     const use = L.engine === 'obxa' ? '' : el('button', {onclick:() => { L.engine = 'obxa'; save(); render(); }}, 'Use OB-Xa on this lane');
-    const rnd = el('button', {onclick:() => { L.patch = SkyPresets.randomPatch(synthLane); save(); render(); audition(); }}, '🎲 Random patch');
+    const rnd = el('button', {onclick:() => { L.patch = SkyPresets.randomPatch(synthLane); L.patchName = ''; save(); render(); audition(); }}, '🎲 Random patch');
     const audition = () => { Sound.init().resume(); const t = Sound.ctx.currentTime + 0.05; [0, 4, 7].forEach((d, i) => Sound.note(synthLane, 'obxa', 57 + S.root % 12 + d, 0.8, t + i * 0.18, 0.5, 0, L)); };
     const groups = [['Oscillators', ['w1', 'w2', 'pw', 'mix2', 'det', 'int2']], ['Filter', ['cut', 'res', 'poles', 'env', 'fa', 'fd', 'fs', 'fr']], ['Amp', ['aa', 'ad', 'as', 'ar']], ['LFO', ['lfo', 'vib', 'pwm']]];
+    // patch library: pick a named sound for this lane
+    const lib = el('select'); lib.append(opt('', L.patchName ? 'Patch: ' + L.patchName : 'Patch library (' + SkyPresets.LIBRARY.length + ')', ''));
+    const cats = [...new Set(SkyPresets.LIBRARY.map(x => x[1]))];
+    for (const c of cats){ const og = el('optgroup', {label:c}); SkyPresets.LIBRARY.forEach((x, i) => { if (x[1] === c) og.append(opt(i, x[0], -1)); }); lib.append(og); }
+    lib.onchange = () => { if (lib.value === '') return; const i = +lib.value; L.patch = SkyPresets.libraryPatch(i); L.patchName = SkyPresets.LIBRARY[i][0]; if (L.engine !== 'obxa') L.engine = 'obxa'; save(); render(); audition(); };
+    const step = d => () => { const n = SkyPresets.LIBRARY.length, cur = SkyPresets.LIBRARY.findIndex(x => x[0] === L.patchName), i = ((cur < 0 ? 0 : cur + d) % n + n) % n;
+      L.patch = SkyPresets.libraryPatch(i); L.patchName = SkyPresets.LIBRARY[i][0]; save(); render(); audition(); };
     m.append(el('div', {class:'lane', style:`--c:${lane.col}`}, el('h3', {}, 'OB-Xa'), el('div', {class:'row'}, pick, use),
+      el('div', {class:'row'}, lib, el('button', {onclick:step(-1)}, '◀'), el('button', {onclick:step(1)}, '▶')),
       el('p', {class:'hint'}, 'Two oscillators, a 12 or 24 dB resonant filter with its own envelope, amp envelope and LFO, in the style of the Oberheim OB-Xa. Each lane has its own patch.'),
       el('div', {class:'row'}, rnd, el('button', {onclick:audition}, '▶ Hear it'))));
-    for (const [g, ids] of groups) m.append(el('div', {class:'lane', style:`--c:${lane.col}`}, el('h3', {}, g), ...ids.map(id => specRange(L.patch, SkyPresets.PATCH.find(p => p[0] === id)))));
+    for (const [g, ids] of groups) m.append(el('div', {class:'lane', style:`--c:${lane.col}`}, el('h3', {}, g), ...ids.map(id => specRange(L.patch, SkyPresets.PATCH.find(p => p[0] === id), () => { if (L.patchName && !L.patchName.endsWith('*')) L.patchName += '*'; }))));
   }
   function renderDrumsFx(m){
     const hear = () => { Sound.init().resume(); const t = Sound.ctx.currentTime + 0.05, sd = stepDur(), pat = {k:'x...x..x', s:'..x...x.', ch:'xxxxxxxx', cl:'......x.'};

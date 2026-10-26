@@ -68,6 +68,9 @@ public:
     static PresetLibrary& get() { static PresetLibrary lib; return lib; }
     std::vector<Pattern> patterns;      // index 0 is "No drum loop"
     std::vector<Rhythm> rhythms;
+    struct LibraryPatch { juce::String name, cat; juce::var patch; };
+    std::vector<LibraryPatch> library;   // named OB-Xa patches
+    std::vector<int> libraryFor (const juce::String& lane) const;
     juce::StringArray rhythmNames() const { juce::StringArray s; for (auto& r : rhythms) s.add (r.name); if (s.isEmpty()) s.add ("Quarters"); return s; }
     juce::Array<juce::var> presets;
     juce::StringArray patternNames() const { juce::StringArray s; for (auto& p : patterns) s.add (p.name); return s; }

@@ -19,6 +19,8 @@ PresetLibrary::PresetLibrary()
             patterns.push_back (p);
         }
     if (auto* a = j["presets"].getArray()) presets = *a;
+    if (auto* a = j["library"].getArray())
+        for (auto& p : *a) library.push_back ({ p["name"].toString(), p["cat"].toString(), p["patch"] });
     if (auto* a = j["rhythms"].getArray())
         for (auto& r : *a)
         {
@@ -41,6 +43,25 @@ struct G
     template <typename T> T pick (std::initializer_list<T> l) { return *(l.begin() + r.nextInt ((int) l.size())); }
 };
 double rd (double x, int d = 3) { const double m = std::pow (10.0, d); return std::round (x * m) / m; }
+}
+
+// library patches whose category suits the lane (same as CAT_ROLES in sky/presets.js)
+std::vector<int> PresetLibrary::libraryFor (const juce::String& lane) const
+{
+    auto suits = [&lane] (const juce::String& cat) {
+        if (cat == "Bass") return lane == "grid";
+        if (cat == "Lead") return lane == "rise" || lane == "fall";
+        if (cat == "Brass") return lane == "rise" || lane == "fall" || lane == "drone";
+        if (cat == "Pad") return lane == "drone";
+        if (cat == "Strings") return lane == "drone" || lane == "fall";
+        if (cat == "Keys") return lane == "arp" || lane == "hit" || lane == "rise";
+        if (cat == "Arp") return lane == "arp" || lane == "hit";
+        if (cat == "FX") return lane == "hit" || lane == "rise" || lane == "fall";
+        return false;
+    };
+    std::vector<int> out;
+    for (int i = 0; i < (int) library.size(); ++i) if (suits (library[(size_t) i].cat)) out.push_back (i);
+    return out;
 }
 
 juce::var randomPatch (const juce::String& role, juce::Random& rr)
@@ -147,6 +168,14 @@ juce::var generatePreset (juce::Random& rr, const juce::String& name)
         l->setProperty ("rhythm", rh.empty() ? 0 : rh[(size_t) g.i (0, (int) rh.size() - 1)]);
         l->setProperty ("auto", true); l->setProperty ("drum", "none"); l->setProperty ("dv", rd (g.u (0.6, 0.95)));
         l->setProperty ("patch", randomPatch (id, rr));
+        // most lanes start from a named library patch, nudged a little
+        const auto lib = PresetLibrary::get().libraryFor (id);
+        if (! lib.empty() && g.p (0.7))
+        {
+            const auto& lp = PresetLibrary::get().library[(size_t) lib[(size_t) g.i (0, (int) lib.size() - 1)]];
+            l->setProperty ("patch", mutatePatch (lp.patch, id, 0.12f, rr));
+            l->setProperty ("patchName", lp.name);
+        }
         ls->setProperty (id, juce::var (l));
     }
     // one lane may add a second groove or fills on top of the main beat

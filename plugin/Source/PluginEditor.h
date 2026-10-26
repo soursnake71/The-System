@@ -105,7 +105,9 @@ private:
     // OB-Xa (edits one lane's patch at a time)
     juce::Label synthHint;
     juce::ComboBox synthLane;
-    juce::TextButton rndPatch { "Random patch" };
+    juce::TextButton rndPatch { "Random patch" }, libPrev { "<" }, libNext { ">" };
+    juce::ComboBox libraryBox;
+    void loadLibraryPatch (int index);
     std::array<juce::Label, 21> pLabels;
     std::array<juce::Slider, 21> pSliders;
     std::array<juce::ComboBox, 21> pCombos;
