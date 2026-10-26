@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'com.thesystem.dragonstomper'
+  compileSdk 35
+  defaultConfig {
+    applicationId 'com.thesystem.dragonstomper'
+    minSdk 26
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+  }
+  // the whole web game ships inside the APK, so it plays offline
+  sourceSets { main { assets.srcDirs = ["$buildDir/gameAssets"] } }
+  // sideloaded builds are signed with the debug key; no store key needed
+  buildTypes { release { minifyEnabled false; signingConfig signingConfigs.debug } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.12.1' }
+
+// copy the game (minus the desktop/Android wrappers and the ROM tools) into the APK's assets
+tasks.register('stageGame', Sync) {
+  from(rootProject.file('..')) { exclude 'android/**', 'desktop/**', 'tools/**', '**/*.md', 'sw.js' }
+  into "$buildDir/gameAssets/game"
+}
+preBuild.dependsOn stageGame

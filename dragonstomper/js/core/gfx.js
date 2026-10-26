@@ -26,7 +26,8 @@ export const RESOLUTIONS = {
 
 const loadSettings = () => { try { return JSON.parse(localStorage.getItem('ds-settings')) || {}; } catch (e) { return {}; } };
 export const settings = {
-  quality: 'high', resolution: 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
+  // phones and TVs (the Android app) start lighter; desktops start on High
+  quality: /Android/.test(navigator.userAgent) ? 'medium' : 'high', resolution: /Android/.test(navigator.userAgent) ? '75' : 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
   ...loadSettings(),
 };
 export function saveSettings() { try { localStorage.setItem('ds-settings', JSON.stringify(settings)); } catch (e) {} }

@@ -194,6 +194,24 @@ addEventListener('keydown', (e) => {
   if (current === 'pause') resume();
   else if (current === 'settings' || current === 'help') { sfx('uiBack'); show(back); }
 });
+// the Android app: its Back button, and pausing when the app goes to the background
+addEventListener('ds-pause', () => pause());
+addEventListener('ds-back', () => {
+  if (hud.modalOpen) dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape' }));
+  else if (current === 'pause') resume();
+  else if (current === 'settings' || current === 'help') { sfx('uiBack'); show(back); }
+  else if (current === 'dead' || current === 'won') { show('title'); refreshContinue(); }
+  else pause();
+});
+// no controller on a phone or TV: say how to play
+if (/Android/.test(navigator.userAgent)) {
+  const hint = () => {
+    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+    document.querySelector('#title .foot').textContent = pads.length ? 'Controller connected · press A / ✕ to start'
+      : 'Connect an Xbox or PlayStation controller (Bluetooth or USB) to play';
+  };
+  hint(); addEventListener('gamepadconnected', hint); addEventListener('gamepaddisconnected', hint);
+}
 addEventListener('pointerdown', startAudio, { once: true });
 addEventListener('keydown', startAudio, { once: true });
 addEventListener('beforeunload', () => game.save());
