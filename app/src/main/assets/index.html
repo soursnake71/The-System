@@ -493,6 +493,53 @@ canvas.ilcd.wide{width:200px;height:40px}
 @media (max-width:380px){.ihead.vxmode .ititle{display:none}}
 @media (max-height:700px) and (max-width:700px){.vxfreq,.vxvt{display:none}.vxface{gap:3px}.vxtr{height:38px}.vxdial{width:24px;height:24px}.vxk>i{font-size:8px}.vxends{display:none}.vxbv{gap:4px;flex-direction:row;align-items:center}.vxtr{height:44px}}
 @media (max-height:700px) and (max-width:700px){.vxdial{width:28px;height:28px}.vxtop select{font-size:12px;padding:2px}.vxface{padding:5px;gap:4px}}
+
+/* ===== Omni-style skin: black panel, cream end cheeks, colored section outlines and fader caps, cream key-cap buttons ===== */
+:root{--wood:#e9e3d0;--wood-dk:#9f998a;--panel:#1d1d1f;--panel-dk:#121214;--groove:#0b0b0c;--legend:#f1ece0;--dim:#aaa69c;
+  --amber:#f08a32;--o:#e8742a;--b:#3d97d3;--g:#3fae5a;--y:#e2a338;--cream:#ece6d3;
+  --tab-str:#ece6d3;--tab-syn:#3d97d3;--tab-bass:#3fae5a;--tab-fx:#d8d2c0;--rack:#18181a;--rack-hi:#2a2a2c}
+body{background:radial-gradient(ellipse at 50% 0,#3b2a1d,#1a120c 70%)}
+.app{background:linear-gradient(90deg,#7f7a6d 0,#d8d1bd 3px,#f3eee1 8px,#e7e0cc 14px,#b9b2a0 17px,#3a3833 18px,transparent 18px calc(100% - 18px),#3a3833 calc(100% - 18px),#b9b2a0 calc(100% - 17px),#e7e0cc calc(100% - 14px),#f3eee1 calc(100% - 8px),#d8d1bd calc(100% - 3px),#7f7a6d 100%),#121214;padding:0 18px;border-radius:12px}
+@media (max-width:600px){.app{background:linear-gradient(90deg,#8c8678 0,#efe9da 3px,#d9d2be 5px,#3a3833 6px,transparent 6px calc(100% - 6px),#3a3833 calc(100% - 6px),#d9d2be calc(100% - 5px),#efe9da calc(100% - 3px),#8c8678 100%),#121214;padding:0 6px}}
+.inner{border:0;background:
+  radial-gradient(circle at 7px 7px,#8a8a8a 0 1.5px,#2a2a2a 2px 3px,transparent 3.5px),radial-gradient(circle at calc(100% - 7px) 7px,#8a8a8a 0 1.5px,#2a2a2a 2px 3px,transparent 3.5px),
+  linear-gradient(180deg,#232325,#151517 55%,#101012)}
+/* nameplate */
+.top h1{border:2px solid var(--o);border-radius:7px;padding:5px 10px 4px;background:#0f0f10;color:var(--cream);box-shadow:inset 0 0 0 1px #000,0 1px 0 #ffffff14;font-size:clamp(15px,2vw,22px)}
+/* key-cap buttons */
+nav.screens button{background:linear-gradient(180deg,#f4efe1,#d6cfba);color:#1b1a17;border:1px solid #000;border-radius:3px;box-shadow:0 3px 0 #000,inset 0 1px 0 #fff;margin-bottom:3px}
+nav.screens button[aria-selected="true"]{background:linear-gradient(180deg,#f7a25a,#d9661f);color:#1b0f05;transform:translateY(2px);box-shadow:0 1px 0 #000,inset 0 1px 0 #ffd2a8}
+.seg button[aria-pressed="true"]{background:linear-gradient(180deg,#f7a25a,#d9661f);color:#1b0f05}
+.tab{border-radius:2px;filter:brightness(.68) saturate(.8)}
+.tab.syn,.tab.bas{color:#08131c}
+/* sections: outlined boxes with colored legends */
+.sec{background:transparent;border:1.5px solid var(--sc,#555);border-radius:12px}
+.sec h2{border-bottom:1px solid color-mix(in srgb,var(--sc,#555) 70%,transparent);color:var(--sc,var(--dim))}
+.sec h2 span{color:var(--legend);font-size:14px;letter-spacing:.16em}
+#sec-strings{--sc:var(--o);--c1:var(--o);--c2:var(--b)}
+#sec-synth{--sc:var(--b);--c1:var(--g);--c2:#eeeae0;--c3:var(--b)}
+#sec-bass{--sc:var(--g);--c1:var(--g);--c2:var(--o)}
+#sec-mod{--sc:var(--y);--c1:#eeeae0;--c2:var(--o)}
+#sec-master{border-color:transparent;--sc:transparent}#sec-master h2{border-color:transparent}
+#sec-master .faders{flex-direction:column;align-items:center;justify-content:space-around;gap:10px}
+#sec-master .ctl.knob{width:76px}#sec-master .knob .dial{width:52px;height:52px}#sec-master .ctl label{white-space:normal;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+#sec-master{flex:0 0 86px}#sec-master .ctl:last-child{order:-1}.wide #sec-mod{flex:.6}
+@media (max-width:600px){#sec-master{flex:0 0 70px;padding:6px 2px}#sec-master .ctl.knob{width:64px}}
+/* faders: thin black slots, small colored plastic caps */
+.fader .slot{width:4px;margin-left:-2px;background:#000}
+.fader .ticks{background:repeating-linear-gradient(180deg,#ffffff38 0 1px,transparent 1px 10%)}
+.fader .cap{--cc:var(--c1,#ddd);left:24%;right:24%;border-radius:2px;border:1px solid #000;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--cc) 55%,#fff) 0,var(--cc) 35%,color-mix(in srgb,var(--cc) 72%,#000) 100%);box-shadow:0 3px 3px #000c}
+.fader .cap::after{left:1px;right:1px;top:10px;height:1px;background:#0006}
+.ctl.fader:nth-child(even) .cap{--cc:var(--c2,var(--c1,#ddd))}
+#sec-strings .ctl.fader:nth-child(4n+1) .cap,#sec-strings .ctl.fader:nth-child(4n+2) .cap{--cc:var(--o)}
+#sec-strings .ctl.fader:nth-child(4n+3) .cap,#sec-strings .ctl.fader:nth-child(4n) .cap{--cc:var(--b)}
+#sec-synth .ctl.fader:nth-child(3n+1) .cap{--cc:var(--g)}#sec-synth .ctl.fader:nth-child(3n+2) .cap{--cc:#eeeae0}#sec-synth .ctl.fader:nth-child(3n) .cap{--cc:var(--b)}
+/* knobs: black knurled with a white line */
+.knob .dial{background:radial-gradient(circle at 40% 32%,#4a4a4c 0,#1b1b1c 46%,#0b0b0b 62%,transparent 63%),repeating-conic-gradient(#050505 0 7deg,#2e2e30 7deg 14deg);border:1px solid #000;box-shadow:0 3px 6px #000c,0 0 0 3px #ffffff0d}
+.knob .dial::after{background:#f3efe4;width:2px;margin-left:-1px}
+/* ivory keys */
+.wk{background:linear-gradient(180deg,#f4efe0,#ddd5c0)}
 </style>
 
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{box-sizing:border-box}body{margin:0}</style>
@@ -543,10 +590,11 @@ canvas.ilcd.wide{width:200px;height:40px}
       </div>
       <p class="hint">Tap POWER, then play. Split sends each half of the keyboard to the sections you pick, with its own octave.</p>
     </section>
+    <section class="sec" id="sec-master" data-screen="bass"><h2><span>MASTER</span></h2><div class="tabs"></div><div class="faders"></div></section>
     <section class="sec" id="sec-strings" data-screen="strings"><h2><span>STRINGS</span>CHORUS PHASER</h2><div class="tabs"></div><div class="faders"></div></section>
     <section class="sec" id="sec-synth" data-screen="synth"><h2><span>SYNTHESIZER</span>4-POLE VCF · ADSR</h2><div class="tabs"></div><div class="faders"></div></section>
     <section class="sec" id="sec-bass" data-screen="bass"><h2><span>BASS</span>LOW-NOTE</h2><div class="tabs"></div><div class="faders"></div></section>
-    <section class="sec" id="sec-mod" data-screen="bass"><h2><span>LFO · MASTER</span></h2><div class="tabs"></div><div class="faders"></div></section>
+    <section class="sec" id="sec-mod" data-screen="bass"><h2><span>LFO</span>VIBRATO</h2><div class="tabs"></div><div class="faders"></div></section>
     <section class="rack" data-screen="fx">
       <button class="btn torack" id="toRack">STUDIO RACK ▸</button>
       <div class="id">DFX-84<small>12-BIT DIGITAL EFFECTS</small></div>
@@ -2106,7 +2154,7 @@ const CTL={
   bass:{l:'Bass On',t:'tab',s:'bass',c:'bas'},stac:{l:'Staccato',t:'tab',s:'bass',c:'bas',mk2:1},bassLv:{l:'Level',t:'fader',s:'bass',f:pct},
   // mod / master
   lrate:{l:'LFO Rate',t:'fader',s:'mod',f:v=>(0.3*Math.pow(40,v)).toFixed(1)},vib:{l:'Vibrato',t:'fader',s:'mod',f:pct},
-  tune:{l:'Tune',t:'fader',s:'mod',f:v=>{const c=Math.round((v-.5)*100);return (c>0?'+':'')+c+'¢'}},vol:{l:'Volume',t:'fader',s:'mod',f:pct},
+  tune:{l:'Tuning',t:'knob',s:'master',f:v=>{const c=Math.round((v-.5)*100);return (c>0?'+':'')+c+'¢'}},vol:{l:'Master Volume',t:'knob',s:'master',f:pct},
   // fx
   flRate:{l:'Rate',t:'knob',s:'fl',f:v=>(0.05*Math.pow(100,v)).toFixed(2),seg:v=>'Fr'+(0.05*Math.pow(100,v)).toFixed(1)},
   flDep:{l:'Depth',t:'knob',s:'fl',f:pct,seg:v=>'Fd '+pct(v)},flFb:{l:'Regen',t:'knob',s:'fl',f:pct,seg:v=>'Fb '+pct(v)},
@@ -2268,10 +2316,10 @@ function makeCtl(id,parent){
     e.preventDefault();setP(id,denorm(id,norm(id,S[id])+d))});
 }
 function buildPanel(){
-  const map={strings:'#sec-strings',synth:'#sec-synth',bass:'#sec-bass',mod:'#sec-mod'};
+  const map={strings:'#sec-strings',synth:'#sec-synth',bass:'#sec-bass',mod:'#sec-mod',master:'#sec-master'};
   for(const id in CTL){const c=CTL[id];if(!map[c.s])continue;const sec=document.querySelector(map[c.s]);
     makeCtl(id,sec.querySelector(c.t==='tab'?'.tabs':'.faders'))}
-  document.querySelector('#sec-mod .tabs').remove();
+  document.querySelector('#sec-mod .tabs').remove();document.querySelector('#sec-master .tabs').remove();
   // FX groups
   const fg=document.getElementById('fxgroups');
   [['fl','FLANGE','flOn'],['dl','DELAY','dlOn'],['rv','REVERB','rvOn']].forEach(([g,name,onId])=>{
