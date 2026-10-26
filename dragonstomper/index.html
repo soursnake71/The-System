@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dragonstomper</title>
 <meta name="description" content="Starpath's 1982 Dragonstomper, reverse engineered from the Supercharger tapes and rebuilt as a realistic third and first person 3D game.">
 <link rel="manifest" href="manifest.webmanifest">
@@ -28,7 +28,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
 /* ---------- HUD ---------- */
 #hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s; }
 #hud.on { opacity: 1; }
-#vitals { position: absolute; left: 36px; bottom: 34px; width: 340px; }
+#vitals { position: absolute; left: calc(36px + env(safe-area-inset-left)); bottom: calc(34px + env(safe-area-inset-bottom)); width: 340px; }
 .bar { position: relative; height: 14px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); margin-bottom: 6px; }
 .bar > div { position: absolute; inset: 1px auto 1px 1px; transition: width .25s; }
 #hpfill { background: linear-gradient(#d84a3a, #8a1e16); width: 100%; }
@@ -38,7 +38,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
 #statline { font: 600 13px var(--title); letter-spacing: .1em; color: var(--ink-dim); text-shadow: 0 1px 3px #000; display: flex; gap: 18px; }
 #gold::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff2b0, #c79a2c 60%, #6a4a0c); margin-right: 6px; }
 #status { color: #e4785a; }
-#spells { position: absolute; right: 36px; bottom: 34px; display: flex; gap: 6px; }
+#spells { position: absolute; right: calc(36px + env(safe-area-inset-right)); bottom: calc(34px + env(safe-area-inset-bottom)); display: flex; gap: 6px; }
 .slot { width: 74px; padding: 6px 4px; background: var(--panel); border: 1px solid var(--edge); text-align: center; font: 600 10px var(--title); letter-spacing: .08em; }
 .slot b { display: block; color: var(--gold); font-size: 12px; }
 .slot i { display: block; font-style: normal; color: var(--ink-dim); }
@@ -52,7 +52,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
 #prompt.on { opacity: 1; }
 #subtitles { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: 70vw; padding: 8px 22px; background: rgba(0,0,0,.55); font: 600 20px var(--title); letter-spacing: .12em; text-align: center; opacity: 0; transition: opacity .3s; }
 #subtitles.on { opacity: 1; }
-#toasts { position: absolute; right: 36px; top: 80px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+#toasts { position: absolute; right: calc(36px + env(safe-area-inset-right)); top: 80px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .toast { padding: 8px 16px; background: var(--panel); border-left: 2px solid var(--gold); font-size: 17px; transition: opacity .6s, transform .6s; }
 .toast.out { opacity: 0; transform: translateX(20px); }
 #boss { position: absolute; left: 50%; bottom: 96px; width: 620px; margin-left: -310px; opacity: 0; transition: opacity .5s; }
@@ -193,7 +193,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
     <label for="sQuality">Graphics quality</label>
     <select id="sQuality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select>
     <label for="sRes">Render resolution</label>
-    <select id="sRes"><option value="50">50%</option><option value="75">75%</option><option value="native">Native</option><option value="4k">4K (3840 × 2160)</option></select>
+    <select id="sRes"><option value="50">50%</option><option value="75">75%</option><option value="native">Native</option><option value="4k">4K (3840 × 2160)</option><option value="auto">Dynamic (keeps it smooth)</option></select>
     <label for="sView">Camera</label>
     <select id="sView"><option value="third">Third person</option><option value="first">First person</option></select>
     <label for="sFov">Field of view</label>

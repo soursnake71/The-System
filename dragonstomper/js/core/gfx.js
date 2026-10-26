@@ -22,17 +22,18 @@ export const PRESETS = {
 export const RESOLUTIONS = {
   '50': { label: '50%', scale: 0.5 }, '75': { label: '75%', scale: 0.75 }, native: { label: 'Native', scale: 1 },
   '4k': { label: '4K (3840x2160)', target: 3840 },
+  auto: { label: 'Dynamic', dynamic: true }, // follows the frame rate (see adaptResolution)
 };
 
 const loadSettings = () => { try { return JSON.parse(localStorage.getItem('ds-settings')) || {}; } catch (e) { return {}; } };
 export const settings = {
   // phones and TVs (the Android app) start lighter; desktops start on High
-  quality: /Android/.test(navigator.userAgent) ? 'medium' : 'high', resolution: /Android/.test(navigator.userAgent) ? '75' : 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
+  quality: /Android/.test(navigator.userAgent) ? 'medium' : 'high', resolution: /Android/.test(navigator.userAgent) ? 'auto' : 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
   ...loadSettings(),
 };
 export function saveSettings() { try { localStorage.setItem('ds-settings', JSON.stringify(settings)); } catch (e) {} }
 
-export const gfx = { renderer: null, composer: null, camera: null, scene: null, sun: null, passes: {}, time: 0 };
+export const gfx = { renderer: null, composer: null, camera: null, scene: null, sun: null, passes: {}, time: 0, dynScale: 0.8, gpu: '' };
 
 export function initGfx(canvas) {
   const r = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -42,6 +43,10 @@ export function initGfx(canvas) {
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
   gfx.renderer = r;
+  // which GPU: on Android, flagship chips (Galaxy S23's Adreno 740 and the like) start on High
+  try { const ext = r.getContext().getExtension('WEBGL_debug_renderer_info'); gfx.gpu = ext ? r.getContext().getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; } catch (e) {}
+  if (/Android/.test(navigator.userAgent) && !loadSettings().quality)
+    settings.quality = /Adreno[^0-9]*(7[3-9]\d|8\d\d)|Xclipse 9|Immortalis|Mali-G7[1-9]/i.test(gfx.gpu) ? 'high' : 'medium';
   gfx.camera = new THREE.PerspectiveCamera(settings.fov, 16 / 9, 0.05, 2500);
   gfx.pmrem = new THREE.PMREMGenerator(r);
   addEventListener('resize', () => resize());
@@ -93,7 +98,7 @@ function buildComposer() {
 export function renderSize() {
   const w = innerWidth, h = innerHeight;
   const res = RESOLUTIONS[settings.resolution] || RESOLUTIONS.native;
-  let scale = res.target ? res.target / w : (res.scale || 1) * Math.min(devicePixelRatio || 1, 2);
+  let scale = res.target ? res.target / w : (res.dynamic ? gfx.dynScale : res.scale || 1) * Math.min(devicePixelRatio || 1, 2);
   // never go above 4K wide, so a big supersample can't eat all the video memory
   scale = Math.min(scale, 3840 / w);
   return { w: Math.max(320, Math.round(w * scale)), h: Math.max(180, Math.round(h * scale)), scale };
@@ -115,6 +120,20 @@ export function resize() {
     for (const p of Object.values(gfx.passes)) p.setSize?.(s.w, s.h);
   }
   gfx.renderSize = s;
+}
+
+// Dynamic resolution: every couple of seconds, step the render scale down when frames run
+// slow and back up when there's headroom (keeps phones smooth in heavy scenes like dragon fire)
+let dynT = 0, dynFrames = 0;
+export function adaptResolution(dt) {
+  if (settings.resolution !== 'auto' || !gfx.composer) return;
+  dynT += dt; dynFrames++;
+  if (dynT < 2) return;
+  const fps = dynFrames / dynT; dynT = 0; dynFrames = 0;
+  const old = gfx.dynScale;
+  if (fps < 48) gfx.dynScale = Math.max(0.5, gfx.dynScale * 0.88);
+  else if (fps > 57) gfx.dynScale = Math.min(1, gfx.dynScale * 1.06);
+  if (Math.abs(gfx.dynScale - old) > 0.01) resize();
 }
 
 export function applyQuality() {

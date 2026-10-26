@@ -1,6 +1,6 @@
 // Boot, menus and the main loop.
 import * as THREE from 'three';
-import { initGfx, gfx, render, settings, saveSettings, applyQuality, resize } from './core/gfx.js';
+import { initGfx, gfx, render, settings, saveSettings, applyQuality, resize, adaptResolution } from './core/gfx.js';
 import { input, initInput, pollInput, pressed, endFrame, lockPointer, unlockPointer } from './core/input.js';
 import { initAudio, setVolume, setMusicVolume, music, sfx, ambience } from './core/sound.js';
 import { progress } from './core/assets.js';
@@ -251,7 +251,7 @@ function frame() {
   const navved = padMenus();
   if (playing && !navved && pressed('pause') && !hud.modalOpen && !game.busy) pause();
   if (playing && !game.paused) game.update(dt);
-  if (gfx.scene && playing) render();
+  if (gfx.scene && playing) { render(); adaptResolution(dt); }
   endFrame();
   frames++; fpsT += dt;
   if (fpsT > 0.5) { fpsEl.textContent = Math.round(frames / fpsT) + ' fps · ' + (gfx.renderSize?.w || 0) + '×' + (gfx.renderSize?.h || 0); frames = 0; fpsT = 0; }
