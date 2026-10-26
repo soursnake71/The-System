@@ -5,6 +5,7 @@ import { input, initInput, pollInput, pressed, endFrame, lockPointer, unlockPoin
 import { initAudio, setVolume, setMusicVolume, music, sfx, ambience } from './core/sound.js';
 import { progress } from './core/assets.js';
 import { HUD } from './ui/hud.js';
+import { initTouch } from './ui/touch.js';
 import { Game } from './game/game.js';
 import { Countryside } from './areas/countryside.js';
 import { Village } from './areas/village.js';
@@ -38,6 +39,7 @@ initGfx(canvas);
 initInput(canvas);
 const hud = new HUD();
 const game = new Game(hud);
+initTouch(() => !!game.stats?.goods?.LONGBOW);
 let playing = false;
 
 // ---------- menus ----------
@@ -208,7 +210,7 @@ if (/Android/.test(navigator.userAgent)) {
   const hint = () => {
     const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
     document.querySelector('#title .foot').textContent = pads.length ? 'Controller connected · press A / ✕ to start'
-      : 'Connect an Xbox or PlayStation controller (Bluetooth or USB) to play';
+      : 'Tap to play with touch controls, or connect an Xbox or PlayStation controller';
   };
   hint(); addEventListener('gamepadconnected', hint); addEventListener('gamepaddisconnected', hint);
 }

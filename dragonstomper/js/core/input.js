@@ -65,6 +65,16 @@ export function pollInput() {
   const s = 0.0022 * settings.sensitivity;
   let lx = input.mouseDX * s, ly = input.mouseDY * s * (settings.invertY ? -1 : 1);
   input.mouseDX = input.mouseDY = 0;
+  // on-screen touch controls (ui/touch.js)
+  const t = input.touch;
+  if (t) {
+    mx += t.mx; my += t.my;
+    const ts = 0.0042 * settings.sensitivity;
+    lx += t.lookDX * ts; ly += t.lookDY * ts * (settings.invertY ? -1 : 1);
+    t.lookDX = t.lookDY = 0;
+    if (t.sprint) input.held.add('sprint'); else if (t.wasSprint) input.held.delete('sprint');
+    t.wasSprint = t.sprint;
+  }
   input.gamepad = false;
   for (const gp of navigator.getGamepads ? navigator.getGamepads() : []) {
     if (!gp) continue;
@@ -98,6 +108,7 @@ export const pressed = (a) => input.pressed.has(a);
 export const held = (a) => input.held.has(a);
 export function endFrame() { input.pressed.clear(); input.menu.clear(); input.wheel = 0; }
 export const glyph = (action) => {
+  if (!input.usingPad && document.body.classList.contains('touchmode')) return { interact: 'USE', inventory: 'BAG', potion: 'BOW' }[action] || action;
   if (!input.usingPad) return { interact: 'E', inventory: 'I', potion: 'R' }[action] || action;
   const ps = input.padType === 'ps';
   return { interact: ps ? '△' : 'Y', inventory: ps ? 'Share' : 'View', potion: ps ? 'L1' : 'LB' }[action] || action;

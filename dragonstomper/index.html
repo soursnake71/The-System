@@ -132,6 +132,35 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
 #clickhint.on { display: block; }
 #fps { position: fixed; right: 8px; top: 6px; font: 12px monospace; color: #9f9; display: none; }
 #fps.on { display: block; }
+
+/* ---------- touch controls ---------- */
+#touch { position: fixed; inset: 0; display: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#touch.on { display: block; }
+#touch .stick { position: absolute; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 50%; border: 2px solid rgba(231,199,122,.45); background: radial-gradient(circle, rgba(0,0,0,.15), rgba(0,0,0,.35)); opacity: 0; pointer-events: none; transition: opacity .12s; }
+#touch .stick.on { opacity: 1; }
+#touch .stick i { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(231,199,122,.55); box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+.tb { position: absolute; border-radius: 50%; border: 2px solid rgba(231,199,122,.5); background: rgba(12,11,9,.45); color: var(--ink); font: 700 11px var(--title); letter-spacing: .06em; touch-action: none; -webkit-tap-highlight-color: transparent; backdrop-filter: blur(2px); }
+.tb.down { background: rgba(231,199,122,.45); color: #120e08; }
+.tb-attack { width: 96px; height: 96px; right: calc(28px + env(safe-area-inset-right)); bottom: 34px; font-size: 13px; border-color: rgba(220,90,60,.8); }
+.tb-block { width: 70px; height: 70px; right: calc(140px + env(safe-area-inset-right)); bottom: 24px; }
+.tb-jump { width: 64px; height: 64px; right: calc(118px + env(safe-area-inset-right)); bottom: 112px; }
+.tb-dodge { width: 64px; height: 64px; right: calc(40px + env(safe-area-inset-right)); bottom: 146px; }
+.tb-use { width: 64px; height: 64px; right: calc(216px + env(safe-area-inset-right)); bottom: 96px; border-color: rgba(120,200,255,.7); }
+.tb-bow { width: 58px; height: 58px; right: calc(196px + env(safe-area-inset-right)); bottom: 172px; }
+.tb-bag, .tb-view, .tb-pause { width: 50px; height: 50px; top: 14px; font-size: 9px; border-radius: 12px; }
+.tb-pause { right: calc(14px + env(safe-area-inset-right)); font-size: 14px; }
+.tb-bag { right: calc(72px + env(safe-area-inset-right)); }
+.tb-view { right: calc(130px + env(safe-area-inset-right)); }
+/* the HUD moves out of the thumbs' way */
+body.touchmode #vitals { bottom: auto; top: 14px; left: calc(16px + env(safe-area-inset-left)); width: 240px; }
+body.touchmode #spells { right: auto; bottom: auto; left: 50%; top: 56px; transform: translateX(-50%) scale(.85); }
+body.touchmode #toasts { top: 76px; }
+body.touchmode #prompt { top: 54%; }
+body.touchmode #subtitles { bottom: auto; top: 18%; font-size: 16px; }
+body.touchmode #boss { bottom: auto; top: 96px; width: 50vw; margin-left: -25vw; }
+#rotate { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; text-align: center; padding: 30px; background: #07080c; font: 600 20px var(--title); letter-spacing: .1em; color: var(--gold); }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+@media (max-height: 500px) { .card { min-width: 0; max-width: 92vw; max-height: 90vh; overflow-y: auto; padding: 18px 22px; } .opts button { padding: 8px 12px; font-size: 17px; } .form { grid-template-columns: 140px 220px; gap: 8px 14px; } #title h1 { font-size: 44px; } #title .sub { margin-bottom: 18px; } .menu button { padding: 6px 20px; font-size: 17px; } }
 </style>
 </head>
 <body>
@@ -157,6 +186,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
 <div id="dialog"></div>
 <div id="clickhint">Click to continue</div>
 <div id="fps"></div>
+<div id="rotate">Turn your phone sideways to play</div>
 
 <section id="title" class="screen on">
   <h1>DRAGONSTOMPER</h1>
@@ -242,6 +272,14 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border: 1px sol
     <div><kbd>View</kbd> / <kbd>Share</kbd></div><div>Inventory</div>
     <div>D-pad</div><div>Spells 1–4</div>
     <div><kbd>Menu</kbd> / <kbd>Options</kbd></div><div>Pause</div>
+  <div class="keys">
+    <div><b>Touch</b></div><div>Phones and tablets, held sideways</div>
+    <div>Left thumb</div><div>Move (push to the edge to sprint)</div>
+    <div>Right thumb</div><div>Drag to look</div>
+    <div>ATTACK · BLOCK · JUMP · DODGE</div><div>Fight (hold BLOCK to keep the shield up)</div>
+    <div>USE · BAG · BOW</div><div>Search and talk · inventory and spells · longbow</div>
+    <div>1ST/3RD · ❚❚</div><div>Camera view · pause</div>
+  </div>
   </div>
   <div class="menu"><button data-back>Back</button></div>
 </section>
