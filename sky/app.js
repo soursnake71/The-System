@@ -33,7 +33,9 @@
   let S, firstRun = false;
   try { const saved = localStorage.getItem('sky-seq'); firstRun = !saved; S = Object.assign({}, DEF, JSON.parse(saved || '{}')); } catch (e) { S = Object.assign({}, DEF); }
   S.kit = Object.assign({}, INIT.kit, S.kit || {}); S.delay = Object.assign({}, INIT.delay, S.delay || {});
-  for (const l of LANES){ const d = INIT.lanes[l.id]; S.lanes[l.id] = Object.assign({on:true, engine:l.engine, ch:l.ch, vol:l.vol, rev:l.rev, dly:l.dly, drum:'none', dv:0.8}, S.lanes[l.id] || {});
+  S.fx = Object.assign({}, INIT.fx, S.fx || {}); S.drums = Object.assign({mute:false, solo:false}, INIT.drums, S.drums || {});
+  if (S.mainBeat == null) S.mainBeat = INIT.mainBeat; if (S.autoBars == null) S.autoBars = INIT.autoBars; if (S.master == null) S.master = 0.8;
+  for (const l of LANES){ const d = INIT.lanes[l.id]; S.lanes[l.id] = Object.assign({}, d, S.lanes[l.id] || {});
     S.lanes[l.id].patch = Object.assign({}, d.patch, S.lanes[l.id].patch || {}); }
   let PRESETS = [INIT], PATTERNS = SkyPresets.PATTERNS;
   fetch('presets.json').then(r => r.json()).then(j => { PRESETS = j.presets; PATTERNS = j.patterns || PATTERNS; if (tab === 'presets') render(); }).catch(() => {});
@@ -107,11 +109,26 @@
   const flashes = [];   // {t, id, col} for the radar
   const stepDur = () => 60 / S.bpm / 4;
   function deg2midi(deg, base){ const sc = SCALES[S.scale], L = sc.length, o = Math.floor(deg / L); return base + S.root + (emergency ? 5 : 0) + sc[((deg % L) + L) % L] + 12 * o; }
+  /* mixer: mute and solo silence a channel (and its MIDI); the fader, pan and sends shape what's left */
+  const soloOn = () => LANES.some(l => S.lanes[l.id].solo) || S.drums.solo;
+  const muted = c => c.mute || (soloOn() && !c.solo);
+  function applyMix(){
+    if (!Sound.ctx) return;
+    for (const l of LANES){ const L = S.lanes[l.id]; Sound.setBus(l.id, {vol:muted(L) ? 0 : L.vol, rev:L.rev, dly:L.dly, gtd:L.gtd}); }
+    const D = S.drums; Sound.setBus('drums', {vol:muted(D) ? 0 : D.vol, rev:D.rev, dly:D.dly, gtd:D.gtd});
+    Sound.setSpace(S.fx); Sound.setMaster && Sound.setMaster(S.master);
+  }
+  // random echoes: a channel's Echo knob sets how often (with the global rate) and how loud its notes get thrown
+  const echoFor = amt => amt > 0 && Math.random() < S.fx.erate * amt ? [amt * (0.6 + 0.4 * Math.random()), Math.floor(Math.random() * 3)] : [0, 0];
+  const human = () => 0.8 + Math.random() * 0.4;   // note lengths vary a little
+  const RH = SkyPresets.RHYTHMS, maskOf = L => (RH[L.rhythm] || RH[0])[1];
+  const gapAfter = (m, s) => { for (let k = 1; k <= 16; k++) if (m[(s + k) % 16] === 'x') return k; return 16; };
   function play(laneId, n, v, t, dur, p){
-    const L = S.lanes[laneId]; if (!L.on) return;
+    const L = S.lanes[laneId]; if (!L.on || muted(L)) return;
     lastFire[laneId] = stepN;
-    const pan = p ? Math.max(-1, Math.min(1, p.x / S.radius)) : 0;
-    Sound.note(laneId, L.engine, n, v, t, dur, pan, L);
+    const pan = Math.max(-1, Math.min(1, L.pan + (p ? p.x / S.radius : 0) * 0.5)), [ea, el] = echoFor(L.echo);
+    dur *= human();
+    Sound.note(laneId, L.engine, n, v, t, dur, pan, L, ea, el);
     if (Sound.midiActive()) Sound.midiNote(L.ch, n, v, t, dur);
     if (rec) rec.push({lane:laneId, ch:L.ch, n:Math.round(n), v, t:t - rec.t0, d:dur});
     flashes.push({t, id:p ? p.id : null, col:LANES.find(l => l.id === laneId).col, cell:p && p.cell});
@@ -120,53 +137,75 @@
   const near = (list, k) => list.sort((a, b) => a.dist - b.dist).slice(0, k);
   const loud = p => 0.45 + 0.55 * Math.max(0, 1 - p.dist / S.radius);
   const ARP_CHORD = [0, 3, 4, 5, 2, 6, 1, 4];   // chord degree by the compass sector the plane circles in
+  // a lane with a rhythm plays plane p on this step? (each plane's rhythm is shifted so several planes interlock)
+  const onBeat = (L, p, s16) => maskOf(L)[(s16 + (p.ph % 4) * 2) % 16] === 'x';
+  const lenOf = (L, p, s16, sd) => gapAfter(maskOf(L), (s16 + (p.ph % 4) * 2) % 16) * sd * L.gate;
   function playStep(n, t){
-    const sd = stepDur(), s16 = n % 16, all = [...planes.values()].filter(p => p.seenAt > Date.now() - 30e3);
+    const sd = stepDur(), s16 = n % 16, all = [...planes.values()].filter(p => p.seenAt > Date.now() - 30e3), Ls = S.lanes;
     const by = k => all.filter(p => p.kind === k);
+    if (s16 === 0 && n > 0 && S.autoBars && (n / 16) % S.autoBars === 0) autoVary();
     // circling -> arpeggio
     for (const p of near(by('arp'), 4)){
       const rate = Math.abs(turnRate(p)), every = rate >= 2.5 ? 1 : rate >= 1.2 ? 2 : 4;
       if ((n + p.ph) % every) continue;
       const span = p.orbitR < 3 ? 4 : p.orbitR < 7 ? 6 : 8, sector = Math.floor(((Math.atan2(p.x, p.y) * 180 / Math.PI + 360) % 360) / 45);
-      const i = p.arpI++ % span, idx = turnRate(p) >= 0 ? i : span - 1 - i, octave = p.alt < 3000 ? 48 : p.alt < 12000 ? 60 : 72;
-      play('arp', deg2midi(ARP_CHORD[sector] + idx * 2, octave), loud(p) * (i === 0 ? 1 : 0.8), t, sd * every * 0.85, p);
+      const i = p.arpI++ % span, idx = turnRate(p) >= 0 ? i : span - 1 - i, octave = p.alt < 3000 ? 60 : p.alt < 12000 ? 72 : 84;
+      play('arp', deg2midi(ARP_CHORD[sector] + idx * 2, octave), loud(p) * (i === 0 ? 1 : 0.8), t, sd * every * Ls.arp.gate * 1.4, p);
     }
-    // climbing / descending -> pitch follows altitude
-    for (const p of near(by('rise'), 4)) if ((n + p.ph) % 4 === 0) play('rise', deg2midi(Math.min(21, Math.floor(p.alt / 1500)), 55), Math.min(1, 0.45 + p.vr / 6000), t, sd * 2.5, p);
-    for (const p of near(by('fall'), 4)) if ((n + p.ph) % 4 === 2) play('fall', deg2midi(Math.min(21, Math.floor(p.alt / 1200)), 50), Math.min(1, 0.45 - p.vr / 6000), t, sd * 3, p);
-    // cruising -> one sustained chord tone per plane per bar
-    if (s16 === 0){ const tones = [0, 2, 4, 6, 7, 9];
-      near(by('drone'), 3).forEach(p => play('drone', deg2midi(tones[Math.floor(p.alt / 3000) % tones.length], 48), loud(p) * 0.9, t, sd * 16, p)); }
-    // heat grid column -> notes
+    // climbing / descending: pitch follows altitude, on the lane's rhythm
+    for (const p of near(by('rise'), 4)) if (onBeat(Ls.rise, p, s16)) play('rise', deg2midi(Math.min(21, Math.floor(p.alt / 1500)), 62), Math.min(1, 0.45 + p.vr / 6000), t, lenOf(Ls.rise, p, s16, sd), p);
+    for (const p of near(by('fall'), 4)) if (onBeat(Ls.fall, p, s16)) play('fall', deg2midi(Math.min(21, Math.floor(p.alt / 1200)), 55), Math.min(1, 0.45 - p.vr / 6000), t, lenOf(Ls.fall, p, s16, sd), p);
+    // cruising: chord tones from flight level, low and wide, on the lane's rhythm
+    { const tones = [0, 2, 4, 6, 7, 9];
+      near(by('drone'), 3).forEach(p => { if (onBeat(Ls.drone, p, s16)) play('drone', deg2midi(tones[Math.floor(p.alt / 3000) % tones.length], 43), loud(p) * 0.9, t, lenOf(Ls.drone, p, s16, sd), p); }); }
+    // heat grid column -> bass notes
     let mx = 0; for (const h of heat) mx = Math.max(mx, h);
     if (mx > 0){ const col = s16, hits = [];
       for (let r = 0; r < ROWS; r++){ const v = heat[r * COLS + col] / mx; if (v >= S.thresh) hits.push([r, v]); }
-      hits.sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([r, v]) => play('grid', deg2midi(r, 36), 0.35 + 0.65 * v, t, sd * 0.9, {x:((col + 0.5) / COLS * 2 - 1) * S.radius, id:null, cell:r * COLS + col})); }
-    // low & close -> a hit each beat; arrivals -> one hit
-    for (const p of near(by('hit'), 3)) if ((n + p.ph) % 4 === 0) play('hit', 38 + hash(p.type || p.id) % 14, loud(p), t, sd, p);
-    if (s16 % 2 === 0 && arrivals.length){ const a = arrivals.shift(); play('hit', 45 + Math.floor(a.bearing / 30) * 2, 0.6, t, sd, {x:a.x, id:null}); }
+      hits.sort((a, b) => b[1] - a[1]).slice(0, 2).forEach(([r, v]) => play('grid', deg2midi(r, 31), 0.35 + 0.65 * v, t, sd * Ls.grid.gate * 1.5, {x:((col + 0.5) / COLS * 2 - 1) * S.radius, id:null, cell:r * COLS + col})); }
+    // low & close -> hits on the lane's rhythm; arrivals -> one hit
+    for (const p of near(by('hit'), 3)) if (onBeat(Ls.hit, p, s16)) play('hit', 50 + hash(p.type || p.id) % 14, loud(p), t, lenOf(Ls.hit, p, s16, sd), p);
+    if (s16 % 2 === 0 && arrivals.length){ const a = arrivals.shift(); play('hit', 57 + Math.floor(a.bearing / 30) * 2, 0.6, t, sd * Ls.hit.gate, {x:a.x, id:null}); }
     if (arrivals.length > 6) arrivals.splice(0, arrivals.length - 6);
     // emergency squawk: an alarm figure on the bell every bar
     if (emergency && s16 % 8 === 0) Sound.note('alert', 'bell', deg2midi(s16 ? 4 : 7, 72), 0.6, t, sd * 2, 0, {vol:0.5, rev:0.5, dly:0.4});
     drumStep(n, t);
   }
-  /* drum loops: a lane with a pattern starts its loop on the next bar line after it plays, and keeps it going
-     while it's still playing (it stops after two quiet bars). Hits sit on the same 16th grid as the notes. */
+  /* auto-randomize: every few bars each lane that allows it drifts to a new rhythm, its OB-Xa patch moves part of the
+     way to a fresh one, its note length changes, and now and then it swaps to another sound no other lane is using */
+  function autoVary(){
+    const g = Math.random;
+    for (const l of LANES){
+      const L = S.lanes[l.id]; if (!L.auto) continue;
+      const rh = SkyPresets.ROLE_RHYTHMS[l.id]; if (rh && g() < 0.6) L.rhythm = rh[Math.floor(g() * rh.length)];
+      L.gate = +Math.max(0.15, Math.min(1, L.gate * (0.75 + g() * 0.55))).toFixed(2);
+      if (g() < 0.15){ const others = LANES.filter(o => o.id !== l.id).map(o => S.lanes[o.id].engine), opts = SkyPresets.ROLE_ENGINES[l.id].filter(e => e === 'obxa' || !others.includes(e));
+        if (opts.length) L.engine = opts[Math.floor(g() * opts.length)]; }
+      L.patch = SkyPresets.mutatePatch(L.patch, l.id, 0.35);
+    }
+    save(); if (tab === 'lanes' && !document.querySelector('#panel :active')) render();
+  }
+  /* drums: the main beat plays all the time; a lane's drum loop starts on the next bar line after the lane plays and
+     keeps going while it's still playing (it stops after two quiet bars). Hits sit on the same 16th grid as the notes. */
   const lastFire = {}, loopOn = {};
+  function hitPattern(pat, s16, v0, t){
+    SkyPresets.DRUMS.forEach((d, i) => {
+      const c = (pat[d] || '')[s16]; if (!c || c === '.') return;
+      const v = (c === 'x' ? 1 : 0.6) * v0, pan = S.drums.pan + ({ch:0.25, oh:0.3, t:-0.25, p:0.35, sh:-0.35, cg:-0.3, tb:0.4, cy:-0.15}[d] || 0), [ea, el] = echoFor(S.drums.echo);
+      Sound.drum(d, v, t, pan, S.kit, 1, ea, el);
+      if (Sound.midiActive()) Sound.midiNote(10, SkyPresets.DRUM_NOTES[i], v, t, stepDur() * 0.5);
+      if (rec) rec.push({lane:'drums', ch:10, n:SkyPresets.DRUM_NOTES[i], v, t:t - rec.t0, d:stepDur() * 0.5});
+    });
+  }
   function drumStep(n, t){
     const s16 = n % 16;
+    if (muted(S.drums)) return;
+    if (PATTERNS[S.mainBeat]) hitPattern(PATTERNS[S.mainBeat], s16, 0.9, t);
     for (const l of LANES){
       const L = S.lanes[l.id], pat = PATTERNS[L.drum];
       if (!pat || !L.on){ loopOn[l.id] = false; continue; }
       if (s16 === 0) loopOn[l.id] = lastFire[l.id] != null && n - lastFire[l.id] <= 32;
-      if (!loopOn[l.id]) continue;
-      SkyPresets.DRUMS.forEach((d, i) => {
-        const c = (pat[d] || '')[s16]; if (!c || c === '.') return;
-        const v = (c === 'x' ? 1 : 0.6) * L.dv, pan = d === 'ch' || d === 'oh' ? 0.25 : d === 't' ? -0.2 : d === 'p' ? 0.35 : 0;
-        Sound.drum(d, v, t, pan, S.kit);
-        if (Sound.midiActive()) Sound.midiNote(10, SkyPresets.DRUM_NOTES[i], v, t, stepDur() * 0.5);
-        if (rec) rec.push({lane:'drums', ch:10, n:SkyPresets.DRUM_NOTES[i], v, t:t - rec.t0, d:stepDur() * 0.5});
-      });
+      if (loopOn[l.id]) hitPattern(pat, s16, L.dv, t);
     }
   }
   function scheduler(){
@@ -180,7 +219,7 @@
     }
   }
   function start(){
-    const ctx = Sound.init(); ctx.resume(); Sound.setFx(S.delay); Sound.setDelayTime(S.bpm);
+    const ctx = Sound.init(); ctx.resume(); Sound.setFx(S.delay); Sound.setDelayTime(S.bpm); applyMix();
     playing = true; stepN = 0; nextT = ctx.currentTime + 0.1;
     if (S.clock && Sound.midiActive()) Sound.midiSend([0xFA], nextT);
     schedTimer = setInterval(scheduler, 25); scheduler(); $('#play').classList.add('on'); $('#play').textContent = '■';
@@ -301,7 +340,7 @@
 
   function render(){
     const m = $('#panel'); m.innerHTML = '';
-    const views = {lanes:renderLanes, synth:renderSynth, drums:renderDrumsFx, presets:renderPresets, sky:renderSky, midi:renderMidi, planes:renderPlanes, about:renderAbout};
+    const views = {mixer:renderMixer, lanes:renderLanes, synth:renderSynth, drums:renderDrumsFx, presets:renderPresets, sky:renderSky, midi:renderMidi, planes:renderPlanes, about:renderAbout};
     (views[tab] || renderAbout)(m);
   }
   function range(label, min, max, step, val, fmt, on){
@@ -319,17 +358,20 @@
       drum.onchange = () => { L.drum = drum.value; save(); };
       const tog = el('button', {class:'sw' + (L.on ? ' on' : '')}, L.on ? 'On' : 'Off');
       tog.onclick = () => { L.on = !L.on; tog.classList.toggle('on', L.on); tog.textContent = L.on ? 'On' : 'Off'; save(); };
+      const rhythm = SkyPresets.ROLE_RHYTHMS[l.id] ? (() => { const r = el('select'); RH.forEach(([n], i) => r.append(opt(i, n, L.rhythm))); r.onchange = () => { L.rhythm = +r.value; save(); }; return el('label', {}, 'Rhythm ', r); })() : null;
+      const auto = el('button', {class:'sw' + (L.auto ? ' on' : '')}, 'Auto-vary'); auto.onclick = () => { L.auto = !L.auto; auto.classList.toggle('on', L.auto); save(); };
       const edit = L.engine === 'obxa' ? el('button', {onclick:() => { synthLane = l.id; tab = 'synth'; syncTabs(); render(); }}, 'Edit OB-Xa') : '';
       m.append(el('div', {class:'lane', style:`--c:${l.col}`},
         el('div', {class:'lhead'}, el('h3', {}, l.name, el('small', {}, ' → ' + l.to)), tog),
         el('p', {class:'hint'}, l.desc),
         el('div', {class:'row'}, el('label', {}, 'Sound ', eng), el('label', {}, 'MIDI ', chs), edit),
-        el('div', {class:'row'}, el('label', {}, 'Triggers ', drum)),
-        range('Volume', 0, 1.5, 0.01, L.vol, v => Math.round(v * 100), v => L.vol = v),
-        range('Drums', 0, 1.2, 0.01, L.dv, v => Math.round(v * 100), v => L.dv = v),
-        range('Reverb', 0, 1, 0.01, L.rev, v => Math.round(v * 100), v => L.rev = v),
-        range('Delay', 0, 1, 0.01, L.dly, v => Math.round(v * 100), v => L.dly = v)));
+        el('div', {class:'row'}, el('label', {}, 'Triggers ', drum), rhythm || ''),
+        el('div', {class:'row'}, auto),
+        range('Note length', 0.1, 1, 0.01, L.gate, v => Math.round(v * 100) + '%', v => L.gate = v),
+        range('Drums', 0, 1.2, 0.01, L.dv, v => Math.round(v * 100), v => L.dv = v)));
     }
+    const ab = el('select'); [[0, 'Off'], [4, 'Every 4 bars'], [8, 'Every 8 bars'], [16, 'Every 16 bars']].forEach(([v, n]) => ab.append(opt(v, n, S.autoBars))); ab.onchange = () => { S.autoBars = +ab.value; save(); };
+    m.prepend(el('div', {class:'lane'}, el('div', {class:'row'}, el('label', {}, 'Auto-vary ', ab)), el('p', {class:'hint'}, 'Lanes with Auto-vary on drift to a new rhythm, note length and patch, and now and then a new sound, so the piece keeps changing. Volume, pan and effects are on the Mixer tab.')));
     m.append(el('p', {class:'hint'}, '"Triggers" connects a drum loop to the lane: when the lane plays, its loop starts on the next bar and runs until the lane has been quiet for two bars. Drums use the kit on the Drums & FX tab and send MIDI on channel 10.'));
   }
   const syncTabs = () => document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.t === tab));
@@ -362,6 +404,10 @@
     const hear = () => { Sound.init().resume(); const t = Sound.ctx.currentTime + 0.05, sd = stepDur(), pat = {k:'x...x..x', s:'..x...x.', ch:'xxxxxxxx', cl:'......x.'};
       for (const [d, s] of Object.entries(pat)) [...s].forEach((c, i) => { if (c !== '.') Sound.drum(d, 0.9, t + i * sd, 0, S.kit); }); };
     const kitBtn = el('button', {onclick:() => { S.kit = SkyPresets.randomKit(); save(); render(); hear(); }}, '🎲 Random kit');
+    const mb = el('select'); mb.append(opt('none', 'None', S.mainBeat)); for (const k in PATTERNS) mb.append(opt(k, PATTERNS[k].name, S.mainBeat)); mb.onchange = () => { S.mainBeat = mb.value; save(); };
+    const rndBeat = el('button', {onclick:() => { const ks = Object.keys(PATTERNS); S.mainBeat = ks[Math.floor(Math.random() * ks.length)]; save(); render(); }}, '🎲');
+    m.append(el('div', {class:'lane'}, el('h3', {}, 'Main beat'), el('div', {class:'row'}, mb, rndBeat),
+      el('p', {class:'hint'}, 'Plays all the time while the sky plays, under any loops the lanes trigger. ' + Object.keys(PATTERNS).length + ' patterns.')));
     m.append(el('div', {class:'lane'}, el('h3', {}, 'Drum kit'), el('div', {class:'row'}, kitBtn, el('button', {onclick:hear}, '▶ Hear it')),
       el('p', {class:'hint'}, 'Eight synthesized drums. Random kit builds a new one; shape it with the controls below. Connect loops to lanes on the Lanes tab.'),
       ...SkyPresets.KIT.map(p => specRange(S.kit, p))));
@@ -374,14 +420,45 @@
       range('Feedback', 0, 0.9, 0.01, S.delay.fb, v => Math.round(v * 100), v => { S.delay.fb = v; fxNow(); }),
       specRange(S.delay, ['tone', 'Tone', 800, 9000, 2800, 'log'], fxNow)));
   }
+  /* mixer tab: a strip per lane and one for the drums, then the master and the space effects */
+  function renderMixer(m){
+    const chans = LANES.map(l => [l.id, l.name, l.col, S.lanes[l.id]]).concat([['drums', 'Drums', '#e8e8e8', S.drums]]);
+    for (const [id, name, col, C] of chans){
+      const mt = el('button', {class:'sw' + (C.mute ? ' on' : '')}, 'M'), so = el('button', {class:'sw' + (C.solo ? ' on' : '')}, 'S');
+      mt.onclick = () => { C.mute = !C.mute; mt.classList.toggle('on', C.mute); save(); applyMix(); };
+      so.onclick = () => { C.solo = !C.solo; so.classList.toggle('on', C.solo); save(); applyMix(); };
+      const set = k => v => { C[k] = v; applyMix(); };
+      m.append(el('div', {class:'lane strip', style:`--c:${col}`},
+        el('div', {class:'lhead'}, el('h3', {}, name), el('div', {class:'row'}, mt, so)), el('div', {class:'meter'}, el('i', {'data-m':id})),
+        range('Fader', 0, 1.5, 0.01, C.vol, v => v ? (20 * Math.log10(v)).toFixed(1) + ' dB' : '-∞', set('vol')),
+        range('Pan', -1, 1, 0.01, C.pan, v => Math.abs(v) < 0.02 ? 'C' : (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 100), set('pan')),
+        range('Reverb', 0, 1, 0.01, C.rev, v => Math.round(v * 100), set('rev')),
+        range('Delay', 0, 1, 0.01, C.dly, v => Math.round(v * 100), set('dly')),
+        range('Gated rev', 0, 1, 0.01, C.gtd, v => Math.round(v * 100), set('gtd')),
+        range('Echoes', 0, 1, 0.01, C.echo, v => Math.round(v * 100), set('echo'))));
+    }
+    const fx = k => v => { S.fx[k] = v; applyMix(); };
+    m.append(el('div', {class:'lane'}, el('h3', {}, 'Master & space'),
+      range('Master', 0, 1.5, 0.01, S.master, v => v ? (20 * Math.log10(v)).toFixed(1) + ' dB' : '-∞', v => { S.master = v; applyMix(); }),
+      range('Gate time', 0.08, 0.7, 0.01, S.fx.gtime, v => Math.round(v * 1000) + ' ms', fx('gtime')),
+      range('Gated level', 0, 1, 0.01, S.fx.gmix, v => Math.round(v * 100), fx('gmix')),
+      range('Echo rate', 0, 1, 0.01, S.fx.erate, v => Math.round(v * 100) + '%', fx('erate')),
+      range('Echo level', 0, 1, 0.01, S.fx.emix, v => Math.round(v * 100), fx('emix')),
+      el('p', {class:'hint'}, 'Gated reverb is the big 80s drum room that stops dead after the gate time. Random echoes throw some notes into tempo-locked echoes (8th triplet, quarter or dotted quarter): Echo rate sets how often, each channel\'s Echoes knob how much. Pan adds to each plane\'s own position in the sky.')));
+    const tick = () => { if (tab !== 'mixer') return; document.querySelectorAll('[data-m]').forEach(i => { const v = Sound.level(i.dataset.m); i.style.width = Math.min(100, Math.sqrt(v) * 100) + '%'; i.style.background = v > 0.9 ? '#ff5e5e' : ''; }); requestAnimationFrame(tick); };
+    if (Sound.ctx) requestAnimationFrame(tick);
+  }
   function applyPreset(pre){
     const p = JSON.parse(JSON.stringify(pre));
-    S.root = p.key; S.scale = p.scale; S.bpm = p.bpm; S.delay = p.delay; S.kit = p.kit; S.preset = p.name;
-    for (const l of LANES) if (p.lanes[l.id]) S.lanes[l.id] = Object.assign({}, S.lanes[l.id], p.lanes[l.id]);
+    S.root = p.key; S.scale = p.scale; S.bpm = p.bpm; S.delay = p.delay; S.kit = Object.assign({}, INIT.kit, p.kit); S.preset = p.name;
+    if (p.fx) S.fx = Object.assign({}, INIT.fx, p.fx); if (p.drums) S.drums = Object.assign({mute:false, solo:false}, INIT.drums, p.drums);
+    if (p.mainBeat != null) S.mainBeat = p.mainBeat; if (p.autoBars != null) S.autoBars = p.autoBars;
+    for (const l of LANES) if (p.lanes[l.id]) S.lanes[l.id] = Object.assign({}, INIT.lanes[l.id], S.lanes[l.id], p.lanes[l.id]);
+    applyMix();
     $('#key').value = S.root; $('#scale').value = S.scale; $('#bpm').value = S.bpm;
     Sound.setFx(S.delay); Sound.setDelayTime(S.bpm); save(); render(); toast('Preset: ' + p.name);
   }
-  function snapshot(name){ return {name, key:S.root, scale:S.scale, bpm:S.bpm, delay:S.delay, kit:S.kit, lanes:Object.fromEntries(LANES.map(l => [l.id, S.lanes[l.id]]))}; }
+  function snapshot(name){ return {name, key:S.root, scale:S.scale, bpm:S.bpm, delay:S.delay, kit:S.kit, fx:S.fx, drums:S.drums, mainBeat:S.mainBeat, autoBars:S.autoBars, lanes:Object.fromEntries(LANES.map(l => [l.id, S.lanes[l.id]]))}; }
   function renderPresets(m){
     const gen = el('button', {onclick:() => applyPreset(SkyPresets.generatePreset(Math.random, 'Generated ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})))}, '🎲 Generate a preset');
     const keep = el('button', {onclick:() => { const n = prompt('Name this preset', S.preset.startsWith('Generated') ? 'My sky' : S.preset); if (!n) return; S.mine = S.mine.filter(x => x.name !== n).concat([JSON.parse(JSON.stringify(snapshot(n)))]); S.preset = n; save(); render(); }}, '＋ Save current');

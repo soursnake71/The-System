@@ -29,8 +29,31 @@ const Sound = (() => {
     eB.connect(eLpB); eLpB.connect(eFbB); eFbB.connect(eB); eLpB.connect(tapB); tapB.connect(panB); panB.connect(edgeOut);
     edgeOut.connect(master); edgeOut.connect(verbIn);
     fx = {dl, fb, dlf, simpleOut, eA, eB, eFb, eFbB, eLp, eLpB, edgeOut};
-    setFx(fxState);
+    // gated reverb (80s drums): a dense, flat-topped impulse that stops dead, so the room cuts off after the gate time
+    gatedIn = ctx.createGain(); gatedConv = ctx.createConvolver(); gatedOut = ctx.createGain();
+    gatedIn.connect(gatedConv); gatedConv.connect(gatedOut); gatedOut.connect(master);
+    // random echoes: three tempo-locked echo lines that individual notes get thrown into
+    echoOut = ctx.createGain(); echoOut.connect(master); const eRev = ctx.createGain(); eRev.gain.value = 0.25; echoOut.connect(eRev); eRev.connect(verbIn);
+    echoes = [-0.7, 0.7, 0].map(pan => { const input = ctx.createGain(), d = ctx.createDelay(3), f = ctx.createGain(), lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 3800; hp.type = 'highpass'; hp.frequency.value = 220; f.gain.value = 0.48;
+      const pn = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain(); if (pn.pan) pn.pan.value = pan;
+      input.connect(d); d.connect(lp); lp.connect(hp); hp.connect(f); f.connect(d); hp.connect(pn); pn.connect(echoOut); return {input, d}; });
+    setFx(fxState); setSpace(spaceState);
     return ctx;
+  }
+  let gatedIn = null, gatedConv = null, gatedOut = null, echoOut = null, echoes = [], spaceState = {gtime:0.3, gmix:0.7, emix:0.6}, gatedLen = 0;
+  function gatedImpulse(len){
+    const n = Math.floor(ctx.sampleRate * (len + 0.02)), ir = ctx.createBuffer(2, n, ctx.sampleRate), cut = Math.floor(ctx.sampleRate * len);
+    for (let c = 0; c < 2; c++){ const d = ir.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * 0.5 * (i < cut ? 0.85 + 0.15 * i / cut : Math.max(0, 1 - (i - cut) / (n - cut))); }
+    return ir;
+  }
+  function setMaster(v){ if (master) master.gain.setTargetAtTime(v, ctx.currentTime, 0.02); }
+  // gated reverb time and level, echo level
+  function setSpace(s){
+    spaceState = Object.assign({}, spaceState, s); if (!gatedIn) return;
+    if (Math.abs(spaceState.gtime - gatedLen) > 0.005){ gatedLen = spaceState.gtime; gatedConv.buffer = gatedImpulse(gatedLen); }
+    gatedOut.gain.setTargetAtTime(spaceState.gmix * 0.9, ctx.currentTime, 0.05); echoOut.gain.setTargetAtTime(spaceState.emix, ctx.currentTime, 0.05);
+    setDelayTime(fxBpm);
   }
   let fx = null, fxState = {mode:0, mix:0.5, fb:0.38, tone:2800}, fxBpm = 96;
   // the delay unit: mode 0 = simple dotted eighth, 1 = Edge (dotted eighth + quarter, modulated, driven)
@@ -46,12 +69,23 @@ const Sound = (() => {
   function setDelayTime(bpm){
     fxBpm = bpm; if (!fx) return; const t = ctx.currentTime, beat = 60 / bpm;
     fx.dl.delayTime.setTargetAtTime(Math.min(1.9, beat * 0.75), t, 0.05); fx.eA.delayTime.setTargetAtTime(Math.min(1.9, beat * 0.75), t, 0.05); fx.eB.delayTime.setTargetAtTime(Math.min(1.9, beat), t, 0.05);
+    [1 / 3, 1, 1.5].forEach((b, i) => echoes[i] && echoes[i].d.delayTime.setTargetAtTime(Math.min(2.9, beat * b), t, 0.05));   // 8th triplet, quarter, dotted quarter
   }
-  function lane(id, vol, rev, dly){
+  /* mixer: one bus per lane and one for the drums: fader, sends to reverb / delay / gated reverb, and a meter */
+  function bus(id){
     let l = lanes[id];
-    if (!l){ l = lanes[id] = {gain:ctx.createGain(), rev:ctx.createGain(), dly:ctx.createGain()}; l.gain.connect(master); l.gain.connect(l.rev); l.gain.connect(l.dly); l.rev.connect(verbIn); l.dly.connect(delayIn); }
-    l.gain.gain.value = vol; l.rev.gain.value = rev; l.dly.gain.value = dly; return l;
+    if (!l){ l = lanes[id] = {gain:ctx.createGain(), rev:ctx.createGain(), dly:ctx.createGain(), gtd:ctx.createGain(), meter:ctx.createAnalyser()};
+      l.gain.connect(master); l.gain.connect(l.rev); l.gain.connect(l.dly); l.gain.connect(l.gtd); l.rev.connect(verbIn); l.dly.connect(delayIn); l.gtd.connect(gatedIn);
+      l.meter.fftSize = 512; l.gain.connect(l.meter); l.data = new Float32Array(512); }
+    return l;
   }
+  // m = {vol (already including mute / solo), rev, dly, gtd}
+  function setBus(id, m){ if (!ctx) return; const l = bus(id), t = ctx.currentTime;
+    l.gain.gain.setTargetAtTime(m.vol, t, 0.02); l.rev.gain.setTargetAtTime(m.rev, t, 0.02); l.dly.gain.setTargetAtTime(m.dly, t, 0.02); l.gtd.gain.setTargetAtTime(m.gtd || 0, t, 0.02); }
+  // peak level of a bus, 0..1
+  function level(id){ const l = lanes[id]; if (!l) return 0; l.meter.getFloatTimeDomainData(l.data); let p = 0; for (const x of l.data) p = Math.max(p, Math.abs(x)); return p; }
+  // send a copy of one note into an echo line
+  function throwEcho(src, amt, line){ if (!amt || !echoes.length) return; const g = ctx.createGain(); g.gain.value = amt; src.connect(g); g.connect(echoes[line % echoes.length].input); }
 
   function env(g, t, a, peak, d, sus, rel, end){
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a);
@@ -124,21 +158,15 @@ const Sound = (() => {
     node.connect(g); g.connect(out);
   }
 
-  /* ---- drum kit: eight synthesized voices; the kit is a set of numbers (see SkyPresets.KIT) ---- */
-  let drumBus = null;
-  function drums(){
-    if (drumBus) return drumBus;
-    drumBus = {gain:ctx.createGain(), rev:ctx.createGain(), dly:ctx.createGain()};
-    drumBus.gain.connect(master); drumBus.gain.connect(drumBus.rev); drumBus.gain.connect(drumBus.dly); drumBus.rev.connect(verbIn); drumBus.dly.connect(delayIn);
-    drumBus.rev.gain.value = 0.12; drumBus.dly.gain.value = 0.05; return drumBus;
-  }
+  /* ---- drum kit: twelve synthesized voices; the kit is a set of numbers (see SkyPresets.KIT) ---- */
   function decayGain(t, peak, d){ const g = ctx.createGain(); g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); return g; }
   function filtered(src, type, f, q = 0.7){ const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; src.connect(b); return b; }
-  function drum(inst, v, t, pan, K, vol = 1){
+  function drum(inst, v, t, pan, K, vol = 1, echoAmt = 0, echoLine = 0){
     if (!ctx) return;
-    const bus = drums(); bus.gain.gain.value = K.lvl;
-    let out = bus.gain; if (ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = pan || 0; p.connect(bus.gain); out = p; }
-    const a = v * vol;
+    const b = bus('drums');
+    let out = b.gain; if (ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); p.connect(b.gain); out = p; }
+    throwEcho(out, echoAmt, echoLine);
+    const a = v * vol * K.lvl;
     if (inst === 'k'){ const o = osc('sine', K.kp, t, t + K.kd + 0.1); o.frequency.exponentialRampToValueAtTime(K.kf, t + 0.045); const g = decayGain(t, 0.9 * a, K.kd); o.connect(g); g.connect(out);
       if (K.kc > 0){ const c = filtered(noise(t, t + 0.02), 'highpass', 2500), cg = decayGain(t, 0.35 * K.kc * a, 0.012); c.connect(cg); cg.connect(out); } }
     else if (inst === 's'){ for (const m of [1, 1.47]){ const o = osc('triangle', K.sf * m, t, t + 0.25), g = decayGain(t, 0.32 * a / m, 0.11); o.connect(g); g.connect(out); }
@@ -149,15 +177,28 @@ const Sound = (() => {
       g.gain.setValueAtTime(0.4 * a, t + 0.033); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.033 + K.cd); nz.connect(g); g.connect(out); }
     else if (inst === 't'){ const o = osc('sine', K.tf * 1.3, t, t + K.td + 0.1); o.frequency.exponentialRampToValueAtTime(K.tf, t + 0.06); const g = decayGain(t, 0.6 * a, K.td); o.connect(g); g.connect(out); }
     else if (inst === 'r'){ const o = osc('square', K.rf, t, t + 0.06), g = decayGain(t, 0.22 * a, 0.03), h = filtered(o, 'highpass', K.rf * 0.8); h.connect(g); g.connect(out); }
-    else if (inst === 'p'){ for (const m of [1, K.pr]){ const o = osc('square', K.pf * m, t, t + K.pd + 0.05), g = decayGain(t, 0.14 * a, K.pd), b = filtered(o, 'bandpass', K.pf * m, 2); b.connect(g); g.connect(out); } }
+    else if (inst === 'p'){ for (const m of [1, K.pr]){ const o = osc('square', K.pf * m, t, t + K.pd + 0.05), g = decayGain(t, 0.14 * a, K.pd), bp = filtered(o, 'bandpass', K.pf * m, 2); bp.connect(g); g.connect(out); } }
+    // cymbal: six detuned squares (the 808 trick) plus bright noise
+    else if (inst === 'cy'){ const g = decayGain(t, 0.16 * a, K.cy), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = K.ct;
+      for (const m of [1, 1.342, 1.2312, 1.6532, 1.9523, 2.1523]){ const o = osc('square', K.ct / 13 * m, t, t + K.cy + 0.05); o.connect(hp); }
+      const nz = filtered(noise(t, t + K.cy + 0.05), 'highpass', K.ct * 1.2), ng = ctx.createGain(); ng.gain.value = 0.6; nz.connect(ng); ng.connect(hp); hp.connect(g); g.connect(out); }
+    else if (inst === 'sh'){ const nz = filtered(noise(t, t + K.shd + 0.05), 'highpass', 6000), g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * a, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + K.shd); nz.connect(g); g.connect(out); }
+    else if (inst === 'cg'){ const o = osc('sine', K.cgf * 1.12, t, t + K.cgd + 0.1); o.frequency.exponentialRampToValueAtTime(K.cgf, t + 0.03); const g = decayGain(t, 0.55 * a, K.cgd); o.connect(g); g.connect(out);
+      const h = osc('sine', K.cgf * 2.7, t, t + 0.05), hg = decayGain(t, 0.1 * a, 0.03); h.connect(hg); hg.connect(out); }
+    else if (inst === 'tb'){ const nz = filtered(filtered(noise(t, t + K.tbd + 0.05), 'highpass', 7000), 'peaking', 9500, 4), g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t); for (const k of [0, 0.006, 0.013]){ g.gain.setValueAtTime(0.22 * a, t + k); g.gain.exponentialRampToValueAtTime(0.06 * a, t + k + 0.005); }
+      g.gain.setValueAtTime(0.18 * a, t + 0.018); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.018 + K.tbd); nz.connect(g); g.connect(out); }
   }
 
   // pan: -1 (west) .. 1 (east)
-  function note(laneId, engine, n, v, t, dur, pan, l){
+  // l = {patch} plus, for buses the app hasn't set up, {vol, rev, dly}; echoAmt > 0 throws this note into echo line echoLine
+  function note(laneId, engine, n, v, t, dur, pan, l, echoAmt = 0, echoLine = 0){
     const e = ENGINES[engine]; if (!e || engine === 'none' || !ctx) return;
     n = Math.max(12, Math.min(115, n));
-    const out = lane(laneId, l.vol, l.rev, l.dly); let dest = out.gain;
-    if (ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); p.connect(out.gain); dest = p; }
+    const b = lanes[laneId] ? lanes[laneId] : (setBus(laneId, {vol:l.vol, rev:l.rev, dly:l.dly, gtd:0}), lanes[laneId]); let dest = b.gain;
+    if (ctx.createStereoPanner){ const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); p.connect(b.gain); dest = p; }
+    throwEcho(dest, echoAmt, echoLine);
     e.play(n, v, t, dur, dest, l.patch);
   }
 
@@ -215,5 +256,5 @@ const Sound = (() => {
     return new Uint8Array(out);
   }
 
-  return {init, get ctx(){ return ctx; }, ENGINES, note, drum, setFx, midi, midiInit, midiRefresh, midiSelect, midiSend, midiNote, midiActive, smf, setDelayTime};
+  return {init, get ctx(){ return ctx; }, ENGINES, note, drum, setFx, setSpace, setBus, setMaster, level, midi, midiInit, midiRefresh, midiSelect, midiSend, midiNote, midiActive, smf, setDelayTime};
 })();

@@ -36,19 +36,46 @@ inline const std::vector<ParamSpec>& kitSpecs()
         { "ss", "Snare snap", 0.3f, 1, 0.7f, false, false }, { "hd", "Closed hat decay", 0.02f, 0.15f, 0.05f, true, false }, { "ho", "Open hat decay", 0.15f, 0.9f, 0.4f, true, false },
         { "ht", "Hat tone", 4000, 11000, 7000, true, false }, { "cd", "Clap decay", 0.08f, 0.45f, 0.2f, true, false }, { "tf", "Tom pitch", 70, 240, 120, true, false },
         { "td", "Tom decay", 0.12f, 0.6f, 0.3f, true, false }, { "rf", "Rim pitch", 350, 1900, 900, true, false }, { "pf", "Perc pitch", 300, 1300, 560, true, false },
-        { "pr", "Perc ratio", 1.2f, 2.6f, 1.48f, false, false }, { "pd", "Perc decay", 0.04f, 0.45f, 0.15f, true, false }, { "lvl", "Kit level", 0, 1.5f, 0.9f, false, false } };
+        { "pr", "Perc ratio", 1.2f, 2.6f, 1.48f, false, false }, { "pd", "Perc decay", 0.04f, 0.45f, 0.15f, true, false },
+        { "cy", "Cymbal decay", 0.4f, 2.5f, 1.2f, true, false }, { "ct", "Cymbal tone", 3000, 9000, 5500, true, false }, { "shd", "Shaker decay", 0.03f, 0.15f, 0.06f, true, false },
+        { "cgf", "Conga pitch", 150, 420, 250, true, false }, { "cgd", "Conga decay", 0.08f, 0.4f, 0.18f, true, false }, { "tbd", "Tambourine decay", 0.05f, 0.3f, 0.12f, true, false },
+        { "lvl", "Kit level", 0, 1.5f, 0.9f, false, false } };
     return s;
 }
-inline const char* drumKeys[8] = { "k", "s", "ch", "oh", "cl", "t", "r", "p" };
-inline const int drumNotes[8] = { 36, 38, 42, 46, 39, 45, 37, 56 };   // General MIDI, channel 10
+constexpr int numDrumVoices = 12;
+inline const char* drumKeys[numDrumVoices] = { "k", "s", "ch", "oh", "cl", "t", "r", "p", "cy", "sh", "cg", "tb" };
+inline const int drumNotes[numDrumVoices] = { 36, 38, 42, 46, 39, 45, 37, 56, 49, 70, 63, 54 };   // General MIDI, channel 10
+inline const float drumPans[numDrumVoices] = { 0, 0, 0.25f, 0.3f, 0, -0.25f, 0, 0.35f, -0.15f, -0.35f, -0.3f, 0.4f };
 
-struct Pattern { juce::String id, name; std::array<std::array<juce::uint8, 16>, 8> hits {}; };   // 0 rest, 1 soft, 2 accent
+struct Pattern { juce::String id, name; std::array<std::array<juce::uint8, 16>, numDrumVoices> hits {}; };   // 0 rest, 1 soft, 2 accent
+struct Rhythm { juce::String name; std::array<bool, 16> on {}; };
+
+// lane roles: which sounds and rhythms each lane may get (same as ROLE_ENGINES / ROLE_RHYTHMS in sky/presets.js)
+inline std::vector<juce::String> roleEngines (const juce::String& lane)
+{
+    if (lane == "arp") return { "obxa", "pluck", "glass", "bell" };
+    if (lane == "rise") return { "glass", "lead", "obxa", "bell" };
+    if (lane == "fall") return { "bell", "obxa", "lead", "glass" };
+    if (lane == "drone") return { "pad", "obxa" };
+    if (lane == "grid") return { "bass", "obxa" };
+    return { "perc", "bell", "obxa", "pluck" };
+}
+inline std::vector<int> roleRhythms (const juce::String& lane)
+{
+    if (lane == "rise") return { 0, 2, 3, 4, 7, 9, 11 };
+    if (lane == "fall") return { 1, 2, 4, 8, 9, 11 };
+    if (lane == "drone") return { 5, 6, 9, 11 };
+    if (lane == "hit") return { 0, 1, 3, 4, 7, 10 };
+    return {};
+}
 
 class PresetLibrary
 {
 public:
     static PresetLibrary& get() { static PresetLibrary lib; return lib; }
     std::vector<Pattern> patterns;      // index 0 is "No drum loop"
+    std::vector<Rhythm> rhythms;
+    juce::StringArray rhythmNames() const { juce::StringArray s; for (auto& r : rhythms) s.add (r.name); if (s.isEmpty()) s.add ("Quarters"); return s; }
     juce::Array<juce::var> presets;
     juce::StringArray patternNames() const { juce::StringArray s; for (auto& p : patterns) s.add (p.name); return s; }
     int patternIndex (const juce::String& id) const { for (int i = 0; i < (int) patterns.size(); ++i) if (patterns[(size_t) i].id == id) return i; return 0; }
@@ -58,6 +85,7 @@ private:
 
 // generators: same rules as sky/presets.js (randomPatch, randomKit, generatePreset)
 juce::var randomPatch (const juce::String& role, juce::Random&);
+juce::var mutatePatch (const juce::var& patch, const juce::String& role, float amount, juce::Random&);
 juce::var randomKit (juce::Random&);
 juce::var generatePreset (juce::Random&, const juce::String& name);
 } // namespace sky

@@ -50,6 +50,9 @@ public:
     juce::String presetName() const { return state.getProperty ("preset").toString(); }
     juce::String patchParamId (int lane, int spec) const { return juce::String (laneInfo[lane].id) + "_" + sky::patchSpecs()[(size_t) spec].id; }
     juce::String placeName() const { return state.getProperty ("place").toString(); }
+    void autoVary();
+    // mixer meters: peak since the last call, for lanes 0-5 and the drums (7)
+    float takePeak (int channel) { return synth.peaks[(size_t) juce::jlimit (0, 7, channel)].exchange (0.0f); }
 
     juce::AudioProcessorValueTreeState params;
     juce::ValueTree state { "SkyLocation" };
@@ -88,7 +91,16 @@ private:
     bool wasPlaying = false;
     std::array<std::atomic<float>*, numLanes> pOn {}, pEngine {}, pCh {}, pVol {}, pRev {}, pDly {}, pDrum {}, pDv {};
     std::array<std::array<std::atomic<float>*, 21>, numLanes> pPatch {};
-    std::array<std::atomic<float>*, 18> pKit {};
+    std::array<std::atomic<float>*, 24> pKit {};
+    std::array<std::atomic<float>*, numLanes> pPan {}, pMute {}, pSolo {}, pGtd {}, pEcho {}, pGate {}, pRhythm {}, pAuto {};
+    std::atomic<float> *dVol = nullptr, *dPan = nullptr, *dMute = nullptr, *dSolo = nullptr, *dRev = nullptr, *dDly = nullptr, *dGtd = nullptr, *dEcho = nullptr;
+    std::atomic<float> *pGTime = nullptr, *pGMix = nullptr, *pERate = nullptr, *pEMix = nullptr, *pAutoBars = nullptr, *pMainBeat = nullptr;
+    std::atomic<bool> autoPending { false };
+    juce::Random audioRng;   // the audio thread's own, so it never shares one with the message thread
+    bool anySolo() const;
+    bool muted (int lane) const;
+    void echoFor (float amount, float& amt, int& line);
+    void hitPattern (const sky::Pattern& pat, int s16, float level, int off, juce::MidiBuffer& midi, double sd);
     std::atomic<float> *pDMode = nullptr, *pDMix = nullptr, *pDFb = nullptr, *pDTone = nullptr;
     std::array<juce::int64, numLanes> lastFire {}; std::array<bool, numLanes> loopOn {};
     juce::int64 stepNow = 0;

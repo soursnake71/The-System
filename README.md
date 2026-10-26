@@ -28,7 +28,13 @@ Turns live air traffic into music. Pick a place (or use your location) and it wa
 
 Sounds: seven simple engines plus an **OB-Xa** style synth (two saw/pulse oscillators, 12/24 dB resonant filter with its own envelope, amp envelope, LFO for vibrato and pulse width), with its own patch per lane and a random-patch button.
 
-Drums: any lane can **trigger a drum loop** (14 patterns: four on the floor, house, breakbeat, electro, half-time, drum & bass, boom bap, trap, shuffle, motorik, tribal, toms, percussion, sparse). The loop starts on the next bar line after the lane plays and stops after two quiet bars; every hit sits on the same 16th-note grid as the notes (and in the plugin, on the DAW's sample-accurate beat grid). The kit is eight synthesized drums with a **random kit** builder. Drums go out as MIDI on channel 10.
+Drums: any lane can **trigger a drum loop** (30 patterns, from four on the floor, house, techno and disco to breakbeat, jungle, reggaeton, afrobeat, bossa nova and samba). The loop starts on the next bar line after the lane plays and stops after two quiet bars; every hit sits on the same 16th-note grid as the notes (and in the plugin, on the DAW's sample-accurate beat grid). The kit is twelve synthesized drums with a **random kit** builder. Drums go out as MIDI on channel 10.
+
+Mixer: a strip per lane plus a drum channel, each with fader, pan, mute, solo, a meter and sends to reverb, delay, **gated reverb** (the 80s drum room that stops dead after the gate time) and **random echoes** (notes thrown into tempo-locked 8th-triplet, quarter or dotted-quarter echoes; Echo rate sets how often).
+
+Lanes: each has its own register, rhythm (12 rhythms), note length and MIDI channel; lane notes vary a little in length. **Auto-vary** (every 4, 8 or 16 bars) drifts lanes to new rhythms, lengths and OB-Xa patches, and sometimes a new sound no other lane is using. The generator also gives every lane a different sound.
+
+Drums: 12 voices (adds cymbal, shaker, conga, tambourine), 30 patterns, and a **main beat** that plays all the time under the lane-triggered loops.
 
 Delay unit: simple dotted eighth, or **Edge (U2 style)**: a driven, modulated dotted eighth on one side and a quarter-note tap on the other, locked to the tempo.
 

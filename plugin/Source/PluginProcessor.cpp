@@ -19,6 +19,11 @@ const std::vector<int>& scaleSteps (int i)
     return s[(size_t) juce::jlimit (0, (int) s.size() - 1, i)];
 }
 
+// mixer and rhythm defaults per lane (same as DEF_LANES in sky/presets.js)
+static const float lanePanDef[6] = { 0.3f, -0.35f, 0.45f, -0.2f, 0, 0.1f }, laneGtdDef[6] = { 0, 0, 0, 0, 0, 0.4f };
+static const float laneEchoDef[6] = { 0.4f, 0.3f, 0.3f, 0.1f, 0.1f, 0.3f }, laneGateDef[6] = { 0.6f, 0.45f, 0.5f, 0.5f, 0.6f, 0.5f };
+static const int laneRhythmDef[6] = { 0, 0, 1, 6, 0, 0 };
+
 juce::AudioProcessorValueTreeState::ParameterLayout SkyProcessor::layout()
 {
     using namespace juce;
@@ -41,7 +46,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout SkyProcessor::layout()
         l.add (std::make_unique<AudioParameterFloat> (ParameterID { id + "_dly", 1 }, nm + " delay", NormalisableRange<float> (0, 1, 0.01f), ln.dly));
         l.add (std::make_unique<AudioParameterChoice> (ParameterID { id + "_drum", 1 }, nm + " drum loop", sky::PresetLibrary::get().patternNames(), 0));
         l.add (std::make_unique<AudioParameterFloat> (ParameterID { id + "_dv", 1 }, nm + " drum level", NormalisableRange<float> (0, 1.2f, 0.01f), 0.8f));
+        const int k = (int) (&ln - laneInfo);
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { id + "_pan", 1 }, nm + " pan", NormalisableRange<float> (-1, 1, 0.01f), lanePanDef[k]));
+        l.add (std::make_unique<AudioParameterBool> (ParameterID { id + "_mute", 1 }, nm + " mute", false));
+        l.add (std::make_unique<AudioParameterBool> (ParameterID { id + "_solo", 1 }, nm + " solo", false));
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { id + "_gtd", 1 }, nm + " gated reverb", NormalisableRange<float> (0, 1, 0.01f), laneGtdDef[k]));
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { id + "_echo", 1 }, nm + " echoes", NormalisableRange<float> (0, 1, 0.01f), laneEchoDef[k]));
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { id + "_gate", 1 }, nm + " note length", NormalisableRange<float> (0.1f, 1, 0.01f), laneGateDef[k]));
+        l.add (std::make_unique<AudioParameterChoice> (ParameterID { id + "_rhythm", 1 }, nm + " rhythm", sky::PresetLibrary::get().rhythmNames(), laneRhythmDef[k]));
+        l.add (std::make_unique<AudioParameterBool> (ParameterID { id + "_auto", 1 }, nm + " auto-vary", true));
     }
+    // drum channel on the mixer
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drm_vol", 1 }, "Drums volume", NormalisableRange<float> (0, 1.5f, 0.01f), 0.9f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drm_pan", 1 }, "Drums pan", NormalisableRange<float> (-1, 1, 0.01f), 0));
+    l.add (std::make_unique<AudioParameterBool> (ParameterID { "drm_mute", 1 }, "Drums mute", false));
+    l.add (std::make_unique<AudioParameterBool> (ParameterID { "drm_solo", 1 }, "Drums solo", false));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drm_rev", 1 }, "Drums reverb", NormalisableRange<float> (0, 1, 0.01f), 0.12f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drm_dly", 1 }, "Drums delay", NormalisableRange<float> (0, 1, 0.01f), 0.05f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drm_gtd", 1 }, "Drums gated reverb", NormalisableRange<float> (0, 1, 0.01f), 0.4f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drm_echo", 1 }, "Drums echoes", NormalisableRange<float> (0, 1, 0.01f), 0));
+    // gated reverb, random echoes, auto-vary, main beat
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "gtime", 1 }, "Gate time", NormalisableRange<float> (0.08f, 0.7f, 0.01f), 0.3f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "gmix", 1 }, "Gated reverb level", NormalisableRange<float> (0, 1, 0.01f), 0.7f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "erate", 1 }, "Echo rate", NormalisableRange<float> (0, 1, 0.01f), 0.25f));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "emix", 1 }, "Echo level", NormalisableRange<float> (0, 1, 0.01f), 0.6f));
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "autobars", 1 }, "Auto-vary", StringArray { "Off", "Every 4 bars", "Every 8 bars", "Every 16 bars" }, 2));
+    { auto names = sky::PresetLibrary::get().patternNames(); names.set (0, "None");
+      l.add (std::make_unique<AudioParameterChoice> (ParameterID { "mainbeat", 1 }, "Main beat", names, 0)); }
     // ranges for patch and kit numbers; log ones are skewed so the middle of the knob is the geometric middle
     auto range = [] (const sky::ParamSpec& s) {
         NormalisableRange<float> r (s.lo, s.hi, s.integer ? 1.0f : 0.0f);
@@ -75,9 +106,17 @@ SkyProcessor::SkyProcessor()
         pRev[(size_t) i] = params.getRawParameterValue (id + "_rev"); pDly[(size_t) i] = params.getRawParameterValue (id + "_dly");
         pDrum[(size_t) i] = params.getRawParameterValue (id + "_drum"); pDv[(size_t) i] = params.getRawParameterValue (id + "_dv");
         for (int k = 0; k < 21; ++k) pPatch[(size_t) i][(size_t) k] = params.getRawParameterValue (patchParamId (i, k));
+        pPan[(size_t) i] = params.getRawParameterValue (id + "_pan"); pMute[(size_t) i] = params.getRawParameterValue (id + "_mute");
+        pSolo[(size_t) i] = params.getRawParameterValue (id + "_solo"); pGtd[(size_t) i] = params.getRawParameterValue (id + "_gtd");
+        pEcho[(size_t) i] = params.getRawParameterValue (id + "_echo"); pGate[(size_t) i] = params.getRawParameterValue (id + "_gate");
+        pRhythm[(size_t) i] = params.getRawParameterValue (id + "_rhythm"); pAuto[(size_t) i] = params.getRawParameterValue (id + "_auto");
         lastFire[(size_t) i] = -1000;
     }
-    for (int k = 0; k < 18; ++k) pKit[(size_t) k] = params.getRawParameterValue (juce::String ("kit_") + sky::kitSpecs()[(size_t) k].id);
+    for (int k = 0; k < 24; ++k) pKit[(size_t) k] = params.getRawParameterValue (juce::String ("kit_") + sky::kitSpecs()[(size_t) k].id);
+    dVol = params.getRawParameterValue ("drm_vol"); dPan = params.getRawParameterValue ("drm_pan"); dMute = params.getRawParameterValue ("drm_mute"); dSolo = params.getRawParameterValue ("drm_solo");
+    dRev = params.getRawParameterValue ("drm_rev"); dDly = params.getRawParameterValue ("drm_dly"); dGtd = params.getRawParameterValue ("drm_gtd"); dEcho = params.getRawParameterValue ("drm_echo");
+    pGTime = params.getRawParameterValue ("gtime"); pGMix = params.getRawParameterValue ("gmix"); pERate = params.getRawParameterValue ("erate"); pEMix = params.getRawParameterValue ("emix");
+    pAutoBars = params.getRawParameterValue ("autobars"); pMainBeat = params.getRawParameterValue ("mainbeat");
     pDMode = params.getRawParameterValue ("dmode"); pDMix = params.getRawParameterValue ("dmix"); pDFb = params.getRawParameterValue ("dfb"); pDTone = params.getRawParameterValue ("dtone");
     state.setProperty ("preset", "Init (classic sounds)", nullptr);
     pKey = params.getRawParameterValue ("key"); pScale = params.getRawParameterValue ("scale"); pBpm = params.getRawParameterValue ("bpm");
@@ -96,8 +135,8 @@ SkyProcessor::SkyProcessor()
     feed.startThread();
 
     // the grid window can be automated, so it's picked up here on the message thread rather than in processBlock
-    poller.fn = [this] { pushSettings(); };
-    poller.startTimer (500);
+    poller.fn = [this] { pushSettings(); if (autoPending.exchange (false)) autoVary(); };
+    poller.startTimer (100);
 
     // first run: find the listener from their internet connection (they can search or type a place any time)
     lookups.addJob ([this] {
@@ -170,14 +209,31 @@ sky::Patch SkyProcessor::patchFor (int lane) const
     return p;
 }
 
+bool SkyProcessor::anySolo() const
+{
+    for (int i = 0; i < numLanes; ++i) if (pSolo[(size_t) i]->load() > 0.5f) return true;
+    return dSolo->load() > 0.5f;
+}
+bool SkyProcessor::muted (int lane) const { return pMute[(size_t) lane]->load() > 0.5f || (anySolo() && pSolo[(size_t) lane]->load() < 0.5f); }
+
+// random echoes: a channel's Echoes knob (with the global rate) sets how often its notes get thrown, and how loud
+void SkyProcessor::echoFor (float amount, float& amt, int& line)
+{
+    amt = 0; line = 0;
+    if (amount > 0 && audioRng.nextFloat() < pERate->load() * amount) { amt = amount * (0.6f + 0.4f * audioRng.nextFloat()); line = audioRng.nextInt (3); }
+}
+
 void SkyProcessor::play (int lane, int note, float vel, double dur, float pan, int offset, juce::MidiBuffer& midi, juce::uint32 hash, int cell)
 {
-    if (pOn[(size_t) lane]->load() < 0.5f) return;
+    if (pOn[(size_t) lane]->load() < 0.5f || muted (lane)) return;
     lastFire[(size_t) lane] = stepNow;
     note = juce::jlimit (0, 127, note);
+    dur *= 0.8 + 0.4 * audioRng.nextDouble();   // note lengths vary a little
+    pan = juce::jlimit (-1.0f, 1.0f, pPan[(size_t) lane]->load() + pan * 0.5f);
+    float ea; int el; echoFor (pEcho[(size_t) lane]->load(), ea, el);
     const int engine = (int) pEngine[(size_t) lane]->load();
     const auto patch = patchFor (lane);
-    synth.noteOn (engine, lane, note, vel, dur, pan, offset, engine == sky::eObxa ? &patch : nullptr);
+    synth.noteOn (engine, lane, note, vel, dur, pan, offset, engine == sky::eObxa ? &patch : nullptr, ea, el);
     const int ch = juce::jlimit (1, 16, (int) pCh[(size_t) lane]->load());
     midi.addEvent (juce::MidiMessage::noteOn (ch, note, (juce::uint8) juce::jlimit (1, 127, (int) std::round (vel * 127))), offset);
     if (numOffs < (int) offs.size()) offs[(size_t) numOffs++] = { sampleClock + offset + juce::jmax ((juce::int64) 1, (juce::int64) (dur * sr)), ch, note };
@@ -195,8 +251,21 @@ void SkyProcessor::playStep (juce::int64 n, int off, juce::MidiBuffer& midi, dou
     const int s16 = pmod (n, 16);
     currentStep = s16;
     stepNow = n;
+    // auto-vary on the bar line every few bars (the change itself happens on the message thread)
+    static const int autoEvery[4] = { 0, 4, 8, 16 };
+    const int ab = autoEvery[juce::jlimit (0, 3, (int) pAutoBars->load())];
+    if (s16 == 0 && n > 0 && ab > 0 && pmod (n / 16, ab) == 0) autoPending = true;
+
     auto loud = [this] (const MusicPlane& p) { return 0.45f + 0.55f * juce::jmax (0.0f, 1.0f - p.dist / (float) snap.radius); };
     auto each = [this] (int kind, int k, auto fn) { int c = 0; for (int i = 0; i < snap.numPlanes && c < k; ++i) if (snap.planes[(size_t) i].kind == kind) { fn (snap.planes[(size_t) i]); ++c; } };
+    // a lane's rhythm: which steps it plays on; each plane's copy is shifted so several planes interlock
+    const auto& rhythms = PresetLibrary::get().rhythms;
+    auto mask = [&] (int lane) -> const std::array<bool, 16>& { static const std::array<bool, 16> quarters { true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false };
+                                                               const int r = (int) pRhythm[(size_t) lane]->load(); return r >= 0 && r < (int) rhythms.size() ? rhythms[(size_t) r].on : quarters; };
+    auto onBeat = [&] (int lane, const MusicPlane& p) { return mask (lane)[(size_t) ((s16 + (p.phase % 4) * 2) % 16)]; };
+    auto lenOf = [&] (int lane, const MusicPlane& p) { const auto& m = mask (lane); const int st = (s16 + (p.phase % 4) * 2) % 16; int gap = 16;
+                                                       for (int k = 1; k <= 16; ++k) if (m[(size_t) ((st + k) % 16)]) { gap = k; break; }
+                                                       return gap * sd * pGate[(size_t) lane]->load(); };
 
     // circling -> arpeggio: turn rate sets speed, direction sets up/down, orbit size sets the span, altitude the octave
     static const int chord[8] = { 0, 3, 4, 5, 2, 6, 1, 4 };   // chord degree by the compass sector the plane circles in
@@ -208,60 +277,65 @@ void SkyProcessor::playStep (juce::int64 n, int off, juce::MidiBuffer& midi, dou
         if (slot.hash != p.hash) slot = { p.hash, 0 };
         const int span = p.orbitR < 3 ? 4 : p.orbitR < 7 ? 6 : 8, i = slot.i++ % span, idx = p.turnRate >= 0 ? i : span - 1 - i;
         const int sector = juce::jlimit (0, 7, (int) (p.bearing / 45.0f));
-        const int octave = p.alt < 3000 ? 48 : p.alt < 12000 ? 60 : 72;
-        play (lArp, degToMidi (chord[sector] + idx * 2, octave), loud (p) * (i == 0 ? 1.0f : 0.8f), sd * every * 0.85, p.x, off, midi, p.hash);
+        const int octave = p.alt < 3000 ? 60 : p.alt < 12000 ? 72 : 84;
+        play (lArp, degToMidi (chord[sector] + idx * 2, octave), loud (p) * (i == 0 ? 1.0f : 0.8f), sd * every * pGate[lArp]->load() * 1.4, p.x, off, midi, p.hash);
     });
-    // climbing / descending: pitch follows altitude
-    each (kRise, 4, [&] (const MusicPlane& p) { if (pmod (n + p.phase, 4) == 0) play (lRise, degToMidi (juce::jmin (21, (int) (p.alt / 1500)), 55), juce::jmin (1.0f, 0.45f + p.vr / 6000), sd * 2.5, p.x, off, midi, p.hash); });
-    each (kFall, 4, [&] (const MusicPlane& p) { if (pmod (n + p.phase, 4) == 2) play (lFall, degToMidi (juce::jmin (21, (int) (p.alt / 1200)), 50), juce::jmin (1.0f, 0.45f - p.vr / 6000), sd * 3, p.x, off, midi, p.hash); });
-    // cruising: one sustained chord tone per plane per bar
-    if (s16 == 0)
+    // climbing / descending: pitch follows altitude, on the lane's rhythm
+    each (kRise, 4, [&] (const MusicPlane& p) { if (onBeat (lRise, p)) play (lRise, degToMidi (juce::jmin (21, (int) (p.alt / 1500)), 62), juce::jmin (1.0f, 0.45f + p.vr / 6000), lenOf (lRise, p), p.x, off, midi, p.hash); });
+    each (kFall, 4, [&] (const MusicPlane& p) { if (onBeat (lFall, p)) play (lFall, degToMidi (juce::jmin (21, (int) (p.alt / 1200)), 55), juce::jmin (1.0f, 0.45f - p.vr / 6000), lenOf (lFall, p), p.x, off, midi, p.hash); });
+    // cruising: chord tones from flight level, low and wide, on the lane's rhythm
     {
         static const int tones[6] = { 0, 2, 4, 6, 7, 9 };
-        each (kDrone, 3, [&] (const MusicPlane& p) { play (lDrone, degToMidi (tones[(int) (p.alt / 3000) % 6], 48), loud (p) * 0.9f, sd * 16, p.x, off, midi, p.hash); });
+        each (kDrone, 3, [&] (const MusicPlane& p) { if (onBeat (lDrone, p)) play (lDrone, degToMidi (tones[(int) (p.alt / 3000) % 6], 43), loud (p) * 0.9f, lenOf (lDrone, p), p.x, off, midi, p.hash); });
     }
-    // heat grid column -> up to three notes
+    // heat grid column -> up to two bass notes
     float mx = 0; for (auto h : snap.heat) mx = juce::jmax (mx, h);
     if (mx > 0)
     {
         std::array<std::pair<int, float>, gridRows> hits; int nh = 0;
         for (int r = 0; r < gridRows; ++r) { const float v = snap.heat[(size_t) (r * gridCols + s16)] / mx; if (v >= pThresh->load()) hits[(size_t) nh++] = { r, v }; }
         std::sort (hits.begin(), hits.begin() + nh, [] (auto& a, auto& b) { return a.second > b.second; });
-        for (int k = 0; k < juce::jmin (3, nh); ++k)
-            play (lGrid, degToMidi (hits[(size_t) k].first, 36), 0.35f + 0.65f * hits[(size_t) k].second, sd * 0.9, ((s16 + 0.5f) / gridCols) * 2 - 1, off, midi, 0, hits[(size_t) k].first * gridCols + s16);
+        for (int k = 0; k < juce::jmin (2, nh); ++k)
+            play (lGrid, degToMidi (hits[(size_t) k].first, 31), 0.35f + 0.65f * hits[(size_t) k].second, sd * pGate[lGrid]->load() * 1.5, ((s16 + 0.5f) / gridCols) * 2 - 1, off, midi, 0, hits[(size_t) k].first * gridCols + s16);
     }
-    // low & close: a hit every beat; arrivals: one hit, pitched by the direction they came from
-    each (kHit, 3, [&] (const MusicPlane& p) { if (pmod (n + p.phase, 4) == 0) play (lHit, 38 + (int) (p.typeHash % 14), loud (p), sd, p.x, off, midi, p.hash); });
-    float ax, ab;
-    if (s16 % 2 == 0 && model.popArrival (ax, ab)) play (lHit, 45 + (int) (ab / 30) * 2, 0.6f, sd, ax, off, midi, 0);
+    // low & close: hits on the lane's rhythm; arrivals: one hit, pitched by the direction they came from
+    each (kHit, 3, [&] (const MusicPlane& p) { if (onBeat (lHit, p)) play (lHit, 50 + (int) (p.typeHash % 14), loud (p), lenOf (lHit, p), p.x, off, midi, p.hash); });
+    float ax, ab2;
+    if (s16 % 2 == 0 && model.popArrival (ax, ab2)) play (lHit, 57 + (int) (ab2 / 30) * 2, 0.6f, sd * pGate[lHit]->load(), ax, off, midi, 0);
     // emergency squawk: an alarm figure on the bell (audio only)
     if (snap.emergency && s16 % 8 == 0) synth.noteOn (eBell, 6, degToMidi (s16 ? 4 : 7, 72), 0.6f, sd * 2, 0, off);
     drumStep (n, off, midi, sd);
 }
 
-/* drum loops: a lane with a pattern starts its loop on the next bar line after it plays and keeps it going while
-   it's still playing (it stops after two quiet bars). Hits use the same sample offset as the step, so they land on the grid. */
+void SkyProcessor::hitPattern (const sky::Pattern& pat, int s16, float level, int off, juce::MidiBuffer& midi, double sd)
+{
+    for (int d = 0; d < sky::numDrumVoices; ++d)
+    {
+        const int h = pat.hits[(size_t) d][(size_t) s16];
+        if (h == 0) continue;
+        const float v = (h == 2 ? 1.0f : 0.6f) * level;
+        float ea; int el; echoFor (dEcho->load(), ea, el);
+        synth.drumOn (d, v, juce::jlimit (-1.0f, 1.0f, dPan->load() + sky::drumPans[d]), off, ea, el);
+        midi.addEvent (juce::MidiMessage::noteOn (10, sky::drumNotes[d], (juce::uint8) juce::jlimit (1, 127, (int) (v * 127))), off);
+        if (numOffs < (int) offs.size()) offs[(size_t) numOffs++] = { sampleClock + off + (juce::int64) (sd * 0.5 * sr), 10, sky::drumNotes[d] };
+    }
+}
+
+/* drums: the main beat plays all the time; a lane's drum loop starts on the next bar line after the lane plays and keeps
+   going while it's still playing (it stops after two quiet bars). Hits use the step's sample offset, so they land on the grid. */
 void SkyProcessor::drumStep (juce::int64 n, int off, juce::MidiBuffer& midi, double sd)
 {
     const auto& lib = sky::PresetLibrary::get();
     const int s16 = pmod (n, 16);
+    if (dMute->load() > 0.5f || (anySolo() && dSolo->load() < 0.5f)) return;
+    const int mb = (int) pMainBeat->load();
+    if (mb > 0 && mb < (int) lib.patterns.size()) hitPattern (lib.patterns[(size_t) mb], s16, 0.9f, off, midi, sd);
     for (int l = 0; l < numLanes; ++l)
     {
         const int pi = (int) pDrum[(size_t) l]->load();
         if (pi <= 0 || pi >= (int) lib.patterns.size() || pOn[(size_t) l]->load() < 0.5f) { loopOn[(size_t) l] = false; continue; }
         if (s16 == 0) loopOn[(size_t) l] = n - lastFire[(size_t) l] <= 32;
-        if (! loopOn[(size_t) l]) continue;
-        const auto& pat = lib.patterns[(size_t) pi];
-        for (int d = 0; d < 8; ++d)
-        {
-            const int h = pat.hits[(size_t) d][(size_t) s16];
-            if (h == 0) continue;
-            const float v = (h == 2 ? 1.0f : 0.6f) * pDv[(size_t) l]->load();
-            const float pan = d == sky::dClosedHat || d == sky::dOpenHat ? 0.25f : d == sky::dTom ? -0.2f : d == sky::dPerc ? 0.35f : 0.0f;
-            synth.drumOn (d, v, pan, off);
-            midi.addEvent (juce::MidiMessage::noteOn (10, sky::drumNotes[d], (juce::uint8) juce::jlimit (1, 127, (int) (v * 127))), off);
-            if (numOffs < (int) offs.size()) offs[(size_t) numOffs++] = { sampleClock + off + (juce::int64) (sd * 0.5 * sr), 10, sky::drumNotes[d] };
-        }
+        if (loopOn[(size_t) l]) hitPattern (lib.patterns[(size_t) pi], s16, pDv[(size_t) l]->load(), off, midi, sd);
     }
 }
 
@@ -298,10 +372,16 @@ void SkyProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuf
     for (int i = 0; i < numLanes; ++i) { synth.laneVol[(size_t) i] = pVol[(size_t) i]->load(); synth.laneRev[(size_t) i] = pRev[(size_t) i]->load(); synth.laneDly[(size_t) i] = pDly[(size_t) i]->load(); }
     synth.laneVol[6] = 0.5f; synth.laneRev[6] = 0.5f; synth.laneDly[6] = 0.4f;
     {
-        static float sky::Kit::* const kf[18] = { &sky::Kit::kp, &sky::Kit::kf, &sky::Kit::kd, &sky::Kit::kc, &sky::Kit::sf, &sky::Kit::sd, &sky::Kit::ss, &sky::Kit::hd, &sky::Kit::ho,
-            &sky::Kit::ht, &sky::Kit::cd, &sky::Kit::tf, &sky::Kit::td, &sky::Kit::rf, &sky::Kit::pf, &sky::Kit::pr, &sky::Kit::pd, &sky::Kit::lvl };
-        for (int k = 0; k < 18; ++k) synth.kit.*kf[k] = pKit[(size_t) k]->load();
+        static float sky::Kit::* const kf[24] = { &sky::Kit::kp, &sky::Kit::kf, &sky::Kit::kd, &sky::Kit::kc, &sky::Kit::sf, &sky::Kit::sd, &sky::Kit::ss, &sky::Kit::hd, &sky::Kit::ho,
+            &sky::Kit::ht, &sky::Kit::cd, &sky::Kit::tf, &sky::Kit::td, &sky::Kit::rf, &sky::Kit::pf, &sky::Kit::pr, &sky::Kit::pd, &sky::Kit::cy, &sky::Kit::ct, &sky::Kit::shd,
+            &sky::Kit::cgf, &sky::Kit::cgd, &sky::Kit::tbd, &sky::Kit::lvl };
+        for (int k = 0; k < 24; ++k) synth.kit.*kf[k] = pKit[(size_t) k]->load();
         synth.fx = { (int) pDMode->load(), pDMix->load(), pDFb->load(), pDTone->load() };
+        synth.space = { pGTime->load(), pGMix->load(), pEMix->load() };
+        // mixer: mute and solo silence a channel straight away (ringing notes too)
+        for (int i = 0; i < numLanes; ++i) { if (muted (i)) synth.laneVol[(size_t) i] = 0; synth.laneGtd[(size_t) i] = pGtd[(size_t) i]->load(); }
+        const bool drumsMuted = dMute->load() > 0.5f || (anySolo() && dSolo->load() < 0.5f);
+        synth.drumVol = drumsMuted ? 0.0f : dVol->load(); synth.drumRev = dRev->load(); synth.drumDly = dDly->load(); synth.drumGtd = dGtd->load();
     }
 
     // timing: lock to the DAW's beat grid while it plays; otherwise run on our own tempo if asked to
@@ -387,7 +467,18 @@ void SkyProcessor::applyPreset (const juce::var& pre)
         setParam (id + "_drum", (float) lib.patternIndex (L["drum"].toString()));
         setParam (id + "_dv", (float) L["dv"]);
         for (int k = 0; k < 21; ++k) { const auto* key = sky::patchSpecs()[(size_t) k].id; if (L["patch"].hasProperty (key)) setParam (patchParamId (l, k), (float) L["patch"][key]); }
+        for (auto key : { "pan", "gtd", "echo", "gate" }) if (L.hasProperty (key)) setParam (id + "_" + key, (float) L[key]);
+        for (auto key : { "mute", "solo", "auto" }) if (L.hasProperty (key)) setParam (id + "_" + key, (bool) L[key] ? 1.0f : 0.0f);
+        if (L.hasProperty ("rhythm")) setParam (id + "_rhythm", (float) (int) L["rhythm"]);
     }
+    if (const auto& D = pre["drums"]; D.isObject())
+    {
+        for (auto key : { "vol", "pan", "rev", "dly", "gtd", "echo" }) if (D.hasProperty (key)) setParam (juce::String ("drm_") + key, (float) D[key]);
+        for (auto key : { "mute", "solo" }) setParam (juce::String ("drm_") + key, D.hasProperty (key) && (bool) D[key] ? 1.0f : 0.0f);
+    }
+    if (const auto& F = pre["fx"]; F.isObject()) for (auto key : { "gtime", "gmix", "erate", "emix" }) if (F.hasProperty (key)) setParam (key, (float) F[key]);
+    if (pre.hasProperty ("mainBeat")) setParam ("mainbeat", (float) lib.patternIndex (pre["mainBeat"].toString()));
+    if (pre.hasProperty ("autoBars")) { const int b = pre["autoBars"]; setParam ("autobars", b >= 16 ? 3.0f : b >= 8 ? 2.0f : b >= 4 ? 1.0f : 0.0f); }
     state.setProperty ("preset", pre["name"].toString(), nullptr);
 }
 void SkyProcessor::loadPreset (int i)
@@ -401,6 +492,36 @@ void SkyProcessor::randomKit()
     const auto k = sky::randomKit (rng);
     for (auto& s : sky::kitSpecs()) setParam (juce::String ("kit_") + s.id, (float) k[s.id]);
 }
+/* auto-vary: lanes that allow it drift to a new rhythm, their note length changes, their OB-Xa patch moves part of the
+   way to a fresh one, and now and then they swap to a sound no other lane is using */
+void SkyProcessor::autoVary()
+{
+    const auto keys = sky::engineKeys();
+    for (int l = 0; l < numLanes; ++l)
+    {
+        if (pAuto[(size_t) l]->load() < 0.5f) continue;
+        const juce::String id (laneInfo[l].id);
+        const auto rh = sky::roleRhythms (id);
+        if (! rh.empty() && rng.nextFloat() < 0.6f) setParam (id + "_rhythm", (float) rh[(size_t) rng.nextInt ((int) rh.size())]);
+        setParam (id + "_gate", juce::jlimit (0.15f, 1.0f, pGate[(size_t) l]->load() * (0.75f + rng.nextFloat() * 0.55f)));
+        if (rng.nextFloat() < 0.15f)
+        {
+            std::vector<juce::String> opts;
+            for (auto& e : sky::roleEngines (id))
+            {
+                bool taken = false;
+                for (int o = 0; o < numLanes; ++o) if (o != l && keys[(int) pEngine[(size_t) o]->load()] == e) taken = true;
+                if (e == "obxa" || ! taken) opts.push_back (e);
+            }
+            if (! opts.empty()) setParam (id + "_engine", (float) keys.indexOf (opts[(size_t) rng.nextInt ((int) opts.size())]));
+        }
+        auto* cur = new juce::DynamicObject();
+        for (int k = 0; k < 21; ++k) cur->setProperty (sky::patchSpecs()[(size_t) k].id, pPatch[(size_t) l][(size_t) k]->load());
+        const auto next = sky::mutatePatch (juce::var (cur), id, 0.35f, rng);
+        for (int k = 0; k < 21; ++k) setParam (patchParamId (l, k), (float) next[sky::patchSpecs()[(size_t) k].id]);
+    }
+}
+
 void SkyProcessor::randomPatch (int lane)
 {
     const auto p = sky::randomPatch (laneInfo[lane].id, rng);

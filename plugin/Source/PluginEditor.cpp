@@ -150,6 +150,7 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
 
     tabs.addTab ("Where", card, &where, false);
     tabs.addTab ("Lanes", card, &lanes, false);
+    tabs.addTab ("Mixer", card, &mixerPage, false);
     tabs.addTab ("Presets", card, &presets, false);
     tabs.addTab ("OB-Xa", card, &synthPage, false);
     tabs.addTab ("Drums & FX", card, &drumsPage, false);
@@ -225,8 +226,11 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
     };
 
     /* Lanes */
-    hint (lanesHint, "Each behaviour is a lane with its own sound and MIDI channel. Set a lane to \"MIDI only\" and route that channel to any instrument in your DAW.");
-    lanes.addAndMakeVisible (lanesHint);
+    hint (lanesHint, "Each behaviour is a lane with its own sound, rhythm, note length and MIDI channel. Auto-vary keeps lanes changing every few bars. Volume, pan and effects are on the Mixer.");
+    autoLbl.setText ("Auto-vary", juce::dontSendNotification);
+    autoBox.addItemList ({ "Off", "Every 4 bars", "Every 8 bars", "Every 16 bars" }, 1);
+    comboAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, "autobars", autoBox));
+    lanes.addAndMakeVisible (lanesHint); lanes.addAndMakeVisible (autoLbl); lanes.addAndMakeVisible (autoBox);
     for (int i = 0; i < numLanes; ++i)
     {
         auto& rw = rows[(size_t) i]; const auto& li = laneInfo[i]; const juce::String id (li.id);
@@ -242,17 +246,25 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
         rw.aOn = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_on", rw.on);
         rw.aEngine = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_engine", rw.engine);
         rw.aCh = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_ch", rw.ch);
-        rw.aVol = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_vol", rw.vol);
-        rw.aRev = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_rev", rw.rev);
-        rw.aDly = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_dly", rw.dly);
+        rw.rhythm.addItemList (sky::PresetLibrary::get().rhythmNames(), 1);
+        rw.gl.setText ("Length", juce::dontSendNotification); rw.gl.setFont (juce::FontOptions (11.0f)); rw.gl.setColour (juce::Label::textColourId, dim);
+        rw.gate.setSliderStyle (juce::Slider::LinearHorizontal); rw.gate.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0); rw.gate.setColour (juce::Slider::thumbColourId, juce::Colour (li.colour));
+        rw.aRhythm = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_rhythm", rw.rhythm);
+        rw.aGate = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_gate", rw.gate);
+        rw.aAuto = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_auto", rw.autoBtn);
+        rw.rhythm.setTooltip ("Which 16th steps this lane plays on"); rw.gate.setTooltip ("Note length");
+        // the arpeggio and the grid keep their own timing (turn rate, grid columns), so only the others get a rhythm
+        rw.rhythm.setEnabled (sky::roleRhythms (id).size() > 0);
         rw.aDrum = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, id + "_drum", rw.drum);
         rw.aDv = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_dv", rw.dv);
         rw.drum.setTooltip ("Drum loop this lane triggers: it starts on the next bar after the lane plays and stops after two quiet bars");
-        addTo (lanes, { &rw.name, &rw.on, &rw.engine, &rw.ch, &rw.vol, &rw.rev, &rw.dly, &rw.vl, &rw.rl, &rw.dl, &rw.drum, &rw.dv, &rw.dvl });
+        addTo (lanes, { &rw.name, &rw.on, &rw.engine, &rw.ch, &rw.drum, &rw.dv, &rw.dvl, &rw.rhythm, &rw.gate, &rw.gl, &rw.autoBtn });
     }
     lanes.layout = [this] (juce::Rectangle<int> r) {
-        lanesHint.setBounds (r.removeFromTop (34)); r.removeFromTop (4);
-        const int h = juce::jmin (88, r.getHeight() / numLanes);
+        lanesHint.setBounds (r.removeFromTop (34));
+        { auto x = r.removeFromTop (26); autoLbl.setBounds (x.removeFromLeft (70)); autoBox.setBounds (x.removeFromLeft (150)); }
+        r.removeFromTop (4);
+        const int h = juce::jmin (84, r.getHeight() / numLanes);
         for (auto& rw : rows)
         {
             auto b = r.removeFromTop (h).reduced (0, 3);
@@ -265,9 +277,8 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
             { auto mid = b.removeFromTop (24); rw.drum.setBounds (mid.removeFromLeft (juce::jmin (220, mid.getWidth() / 2))); mid.removeFromLeft (10);
               rw.dvl.setBounds (mid.removeFromLeft (40)); rw.dv.setBounds (mid.reduced (2, 0)); }
             b.removeFromTop (3);
-            const int w = b.getWidth() / 3;
-            for (auto [s, l] : { std::pair { &rw.vol, &rw.vl }, std::pair { &rw.rev, &rw.rl }, std::pair { &rw.dly, &rw.dl } })
-            { auto c = b.removeFromLeft (w); l->setBounds (c.removeFromLeft (30)); s->setBounds (c.reduced (2, 0)); }
+            { auto low = b.removeFromTop (24); rw.rhythm.setBounds (low.removeFromLeft (juce::jmin (220, low.getWidth() / 2))); low.removeFromLeft (10);
+              rw.autoBtn.setBounds (low.removeFromRight (92)); rw.gl.setBounds (low.removeFromLeft (40)); rw.gate.setBounds (low.reduced (2, 0)); }
         }
     };
 
@@ -327,7 +338,13 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
     hint (kitHint, "Eight synthesized drums. Random kit builds a new one. Lanes trigger drum loops (Lanes tab); every hit lands on the 16th-note grid and is sent as MIDI on channel 10.");
     rndKit.onClick = [this] { proc.randomKit(); };
     addTo (drumsPage, { &kitHint, &rndKit });
-    for (int k = 0; k < 18; ++k)
+    mainBeatLbl.setText ("Main beat", juce::dontSendNotification);
+    { auto names = sky::PresetLibrary::get().patternNames(); names.set (0, "None"); mainBeatBox.addItemList (names, 1); }
+    comboAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.params, "mainbeat", mainBeatBox));
+    mainBeatBox.setTooltip ("Plays all the time, under any loops the lanes trigger");
+    rndBeat.onClick = [this] { mainBeatBox.setSelectedItemIndex (1 + juce::Random::getSystemRandom().nextInt (juce::jmax (1, mainBeatBox.getNumItems() - 1))); };
+    addTo (drumsPage, { &mainBeatLbl, &mainBeatBox, &rndBeat });
+    for (int k = 0; k < 24; ++k)
     {
         const auto& s = sky::kitSpecs()[(size_t) k];
         kLabels[(size_t) k].setText (s.label, juce::dontSendNotification); kLabels[(size_t) k].setFont (juce::FontOptions (12.0f)); kLabels[(size_t) k].setColour (juce::Label::textColourId, dim);
@@ -348,19 +365,93 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
     addTo (drumsPage, { &fxHint, &dmodeLbl, &dmodeBox, &dmixLbl, &dmix, &dfbLbl, &dfb, &dtoneLbl, &dtone });
     drumsPage.layout = [this] (juce::Rectangle<int> r) {
         kitHint.setBounds (r.removeFromTop (34));
-        rndKit.setBounds (r.removeFromTop (28).removeFromLeft (130)); r.removeFromTop (6);
-        const int colW = (r.getWidth() - 12) / 2, rowH = 24;
-        for (int k = 0; k < 18; ++k)
+        { auto x = r.removeFromTop (26); rndKit.setBounds (x.removeFromLeft (110)); x.removeFromLeft (14); mainBeatLbl.setBounds (x.removeFromLeft (70));
+          rndBeat.setBounds (x.removeFromRight (70)); x.removeFromRight (6); mainBeatBox.setBounds (x); }
+        r.removeFromTop (6);
+        const int colW = (r.getWidth() - 12) / 2, rowH = 21;
+        for (int k = 0; k < 24; ++k)
         {
             juce::Rectangle<int> c (r.getX() + (k % 2) * (colW + 12), r.getY() + (k / 2) * rowH, colW, rowH - 3);
             kLabels[(size_t) k].setBounds (c.removeFromLeft (100)); kSliders[(size_t) k].setBounds (c);
         }
-        r.removeFromTop (9 * rowH + 8);
+        r.removeFromTop (12 * rowH + 6);
         fxHint.setBounds (r.removeFromTop (34));
         { auto x = r.removeFromTop (26); dmodeLbl.setBounds (x.removeFromLeft (70)); dmodeBox.setBounds (x.removeFromLeft (240)); }
         r.removeFromTop (4);
         for (auto [s, l] : { std::pair { &dmix, &dmixLbl }, std::pair { &dfb, &dfbLbl }, std::pair { &dtone, &dtoneLbl } })
         { auto x = r.removeFromTop (24); l->setBounds (x.removeFromLeft (70)); s->setBounds (x); }
+    };
+
+    /* Mixer */
+    {
+        const char* ids[7] = { "arp", "rise", "fall", "drone", "grid", "hit", "drm" };
+        static const char* knobNames[5] = { "Pan", "Rev", "Dly", "Gated", "Echo" };
+        for (int c = 0; c < 7; ++c)
+        {
+            auto& st = strips[(size_t) c];
+            const juce::String id (ids[c]);
+            const auto col = c < 6 ? juce::Colour (laneInfo[c].colour) : juce::Colour (0xffe8e8e8);
+            st.name.setText (c < 6 ? juce::String (laneInfo[c].name) : juce::String ("Drums"), juce::dontSendNotification);
+            st.name.setFont (juce::FontOptions (11.0f, juce::Font::bold)); st.name.setColour (juce::Label::textColourId, col); st.name.setJustificationType (juce::Justification::centred);
+            st.meter.colour = col;
+            st.fader.setSliderStyle (juce::Slider::LinearVertical); st.fader.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 52, 16); st.fader.setColour (juce::Slider::thumbColourId, col);
+            st.att.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + "_vol", st.fader));
+            st.fader.textFromValueFunction = [] (double v) { return v > 0.0001 ? juce::String (20 * std::log10 (v), 1) + " dB" : juce::String ("-inf"); };
+            st.fader.updateText();
+            int k = 0;
+            for (auto [s, suffix] : { std::pair { &st.pan, "_pan" }, std::pair { &st.rev, "_rev" }, std::pair { &st.dly, "_dly" }, std::pair { &st.gtd, "_gtd" }, std::pair { &st.echo, "_echo" } })
+            {
+                s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag); s->setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+                s->setColour (juce::Slider::rotarySliderFillColourId, col); s->setColour (juce::Slider::thumbColourId, col);
+                st.att.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, id + suffix, *s));
+                st.knobLabels[(size_t) k].setText (knobNames[k], juce::dontSendNotification); st.knobLabels[(size_t) k].setFont (juce::FontOptions (10.0f));
+                st.knobLabels[(size_t) k].setColour (juce::Label::textColourId, dim); st.knobLabels[(size_t) k].setJustificationType (juce::Justification::centred);
+                s->setPopupDisplayEnabled (true, true, nullptr);
+                mixerPage.addAndMakeVisible (st.knobLabels[(size_t) k++]); mixerPage.addAndMakeVisible (s);
+            }
+            st.pan.setDoubleClickReturnValue (true, 0);
+            for (auto* b : { &st.mute, &st.solo }) { b->setClickingTogglesState (true); mixerPage.addAndMakeVisible (b); }
+            st.mute.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffff8a3d)); st.solo.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffffd23f));
+            st.aMute = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_mute", st.mute);
+            st.aSolo = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.params, id + "_solo", st.solo);
+            addTo (mixerPage, { &st.name, &st.meter, &st.fader });
+        }
+        const char* mids[5] = { "master", "gtime", "gmix", "erate", "emix" };
+        const char* mnames[5] = { "Master", "Gate time", "Gated level", "Echo rate", "Echo level" };
+        for (int k = 0; k < 5; ++k)
+        {
+            masterLbls[(size_t) k].setText (mnames[k], juce::dontSendNotification); masterLbls[(size_t) k].setFont (juce::FontOptions (12.0f));
+            masterSliders[(size_t) k].setSliderStyle (juce::Slider::LinearHorizontal); masterSliders[(size_t) k].setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18);
+            sliderAtt.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.params, mids[k], masterSliders[(size_t) k]));
+            addTo (mixerPage, { &masterLbls[(size_t) k], &masterSliders[(size_t) k] });
+        }
+        masterSliders[1].textFromValueFunction = [] (double v) { return juce::String ((int) std::round (v * 1000)) + " ms"; }; masterSliders[1].updateText();
+        masterSliders[1].setTooltip ("Gated reverb: the big 80s drum room that stops dead after this time");
+        masterSliders[3].setTooltip ("Random echoes: how often notes get thrown into a tempo echo (each channel's Echo knob scales it)");
+    }
+    mixerPage.layout = [this] (juce::Rectangle<int> r) {
+        auto masterArea = r.removeFromBottom (5 * 22);
+        r.removeFromBottom (6);
+        const int w = r.getWidth() / 7;
+        for (auto& st : strips)
+        {
+            auto c = r.removeFromLeft (w).reduced (2, 0);
+            st.name.setBounds (c.removeFromTop (16));
+            { auto ms = c.removeFromTop (20); st.mute.setBounds (ms.removeFromLeft (ms.getWidth() / 2).reduced (1, 0)); st.solo.setBounds (ms.reduced (1, 0)); }
+            c.removeFromTop (4);
+            const int knob = juce::jmin (44, c.getWidth() - 2), knobs = 5 * (knob + 10);
+            auto faderArea = c.removeFromTop (juce::jmax (90, c.getHeight() - knobs));
+            st.meter.setBounds (faderArea.removeFromLeft (6).withTrimmedBottom (18));
+            st.fader.setBounds (faderArea);
+            const std::array<juce::Slider*, 5> ks { &st.pan, &st.rev, &st.dly, &st.gtd, &st.echo };
+            for (int k = 0; k < 5; ++k)
+            {
+                auto kc = c.removeFromTop (knob + 10);
+                st.knobLabels[(size_t) k].setBounds (kc.removeFromBottom (11));
+                ks[(size_t) k]->setBounds (kc.withSizeKeepingCentre (knob, knob));
+            }
+        }
+        for (int k = 0; k < 5; ++k) { auto x = masterArea.removeFromTop (22); masterLbls[(size_t) k].setBounds (x.removeFromLeft (90)); masterSliders[(size_t) k].setBounds (x); }
     };
 
     /* Music */
@@ -396,7 +487,7 @@ SkyEditor::SkyEditor (SkyProcessor& p) : AudioProcessorEditor (&p), proc (p), ra
     setResizable (true, true);
     setResizeLimits (860, 600, 2000, 1400);
     setSize (1060, 680);
-    startTimerHz (2);
+    startTimerHz (15);
 }
 
 SkyEditor::~SkyEditor() { setLookAndFeel (nullptr); }
@@ -478,6 +569,14 @@ void SkyEditor::locateMe()
 
 void SkyEditor::timerCallback()
 {
+    // meters every tick, the rest twice a second
+    for (int c = 0; c < 7; ++c)
+    {
+        auto& m = strips[(size_t) c].meter;
+        m.level = juce::jmax (proc.takePeak (c < 6 ? c : 7), m.level * 0.8f);
+        if (tabs.getCurrentContentComponent() == &mixerPage) m.repaint();
+    }
+    if (++tick % 8 != 0) return;
     juce::String st; bool ok;
     juce::int64 last;
     { const juce::ScopedLock sl (proc.model.lock); st = proc.model.status; ok = proc.model.statusOk; last = proc.model.lastUpdate; }

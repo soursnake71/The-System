@@ -21,6 +21,8 @@ main{max-width:1100px;margin:0 auto;padding:10px 10px calc(30px + env(safe-area-
 #legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--dim);margin:4px 2px}#legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:4px}#legend b{color:var(--ink);font-weight:600}
 #where{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:2px 2px 6px;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .results{display:flex;flex-direction:column;gap:4px;margin:4px 0}.results button{text-align:left;font-size:12.5px}
+.meter{height:6px;background:#0b1f15;border-radius:3px;overflow:hidden;margin:2px 0 6px}.meter i{display:block;height:100%;width:0;background:var(--c,var(--acc));transition:width .05s}
+.strip .lhead .row{margin:0}.strip .sw{min-width:38px}
 #sel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px}#sel span{color:var(--dim)}
 #tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-bottom:8px}#tabs::-webkit-scrollbar{display:none}#tabs button{flex:none}
 .lane{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--c,var(--line));border-radius:12px;padding:10px 12px;margin-bottom:8px}
@@ -55,7 +57,7 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}th{text-align:left;co
   </section>
   <section>
     <div id="tabs">
-      <button data-t="lanes" class="on">Lanes</button><button data-t="presets">Presets</button><button data-t="synth">OB-Xa</button><button data-t="drums">Drums &amp; FX</button><button data-t="sky">Sky</button><button data-t="midi">MIDI</button><button data-t="planes">Planes</button><button data-t="about">About</button>
+      <button data-t="lanes" class="on">Lanes</button><button data-t="mixer">Mixer</button><button data-t="presets">Presets</button><button data-t="synth">OB-Xa</button><button data-t="drums">Drums &amp; FX</button><button data-t="sky">Sky</button><button data-t="midi">MIDI</button><button data-t="planes">Planes</button><button data-t="about">About</button>
     </div>
     <div id="panel"></div>
   </section>
