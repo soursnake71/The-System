@@ -86,3 +86,57 @@ endforeach()
 
 # a plain C++ test runner for the DSP engines (no JUCE), used by tools/check
 add_executable(omega_dsp_test tools/dsp_test.cpp)
+
+# Omega Twelve: the 12-bit sampler emulator (twelve/ in the app). Two builds from one source: an effect that also
+# plays samples from MIDI (plus a standalone app), and an instrument for hosts that only send MIDI to instruments.
+foreach(variant "Twelve|Omega Twelve|Otw1|0" "TwelveInst|Omega Twelve Instrument|Otw2|1")
+  string(REPLACE "|" ";" f "${variant}")
+  list(GET f 0 tgt)
+  list(GET f 1 pname)
+  list(GET f 2 pcode)
+  list(GET f 3 inst)
+  if(OMEGA_ONLY AND NOT tgt IN_LIST OMEGA_ONLY)
+    continue()
+  endif()
+  set(fmts ${OMEGA_FORMATS})
+  if(inst)
+    set(cats Instrument Sampler)
+    set(ausub kAudioUnitType_MusicDevice)
+  else()
+    list(APPEND fmts Standalone)
+    set(cats Fx Sampler)
+    set(ausub kAudioUnitType_MusicEffect)
+  endif()
+  juce_add_plugin(Omega${tgt}
+    PRODUCT_NAME "${pname}"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.${tgt}"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE ${pcode}
+    FORMATS ${fmts}
+    IS_SYNTH ${inst}
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES ${cats}
+    AU_MAIN_TYPE ${ausub}
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(Omega${tgt} PRIVATE twelve/TwelvePlugin.cpp twelve/TwelveEditor.cpp)
+  target_compile_definitions(Omega${tgt} PUBLIC TWELVE_INSTRUMENT=${inst} JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1 JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
+  target_link_libraries(Omega${tgt} PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endforeach()
+
+# Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
+add_executable(twelve_test twelve/test.cpp)
+
+# drives the Twelve processor directly (sampler, MIDI, exports, analysis): <build>/twelve_proc_test <dir>
+if(TARGET OmegaTwelve)
+  juce_add_console_app(twelve_proc_test PRODUCT_NAME "twelve_proc_test")
+  target_sources(twelve_proc_test PRIVATE twelve/proctest.cpp twelve/TwelvePlugin.cpp twelve/TwelveEditor.cpp)
+  target_compile_definitions(twelve_proc_test PRIVATE TWELVE_INSTRUMENT=0 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Twelve"
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()

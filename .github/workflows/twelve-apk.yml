@@ -1,0 +1,31 @@
+# Builds the Omega Twelve Android app (the 'twelve' flavor: the /twelve/ web app full screen) and attaches the APK to
+# the "twelve-latest" release. Debug-signed, so it installs on your own phone without the private release key.
+name: Omega Twelve APK
+on:
+  push:
+    branches: [main]
+    paths: ['twelve/**', 'android/**', '.github/workflows/twelve-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          # the runner image ships with the Android SDK; point Gradle at it
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android assembleTwelveDebug --no-daemon
+      - name: Publish
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          cp android/app/build/outputs/apk/twelve/debug/app-twelve-debug.apk omega-twelve.apk
+          gh release view twelve-latest >/dev/null 2>&1 || gh release create twelve-latest --title "Omega Twelve (latest)" --notes "Omega Twelve, the 12-bit sampler emulator, for Android. Download omega-twelve.apk on your phone and open it to install (allow installs from your browser when Android asks). The VST3 plugins are in the vst3-latest release."
+          gh release upload twelve-latest omega-twelve.apk --clobber

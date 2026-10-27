@@ -4,7 +4,7 @@ name: Omega VST3 plugins
 on:
   push:
     branches: [main]
-    paths: ['plugins/**', '.github/workflows/vst3.yml']
+    paths: ['plugins/**', 'twelve/engine.js', 'twelve/tools/compare.mjs', '.github/workflows/vst3.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -27,11 +27,16 @@ jobs:
         run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release --parallel 4
+      - name: Test Omega Twelve (C++ engine against the app's engine.js)
+        if: runner.os == 'Linux'
+        run: node twelve/tools/compare.mjs build/twelve_test "$RUNNER_TEMP"
       - name: Collect
         shell: bash
         run: |
           mkdir -p out
           find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          # Omega Twelve also runs on its own (no DAW needed)
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega Twelve' -o -name 'Omega Twelve.exe' -o -name 'Omega Twelve.app' \) -exec cp -R {} out/ \;
           if [ "$RUNNER_OS" = macOS ]; then
             find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
             for b in out/*; do codesign --force --deep -s - "$b"; done
@@ -50,5 +55,5 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls dl
-          gh release view vst3-latest >/dev/null 2>&1 || gh release create vst3-latest --title "Omega plugins (latest)" --notes "The Omega System instruments and effects as VST3 plugins (AU too on Mac). Download the zip for your computer, unzip, and copy the .vst3 files into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 (and the .component files into /Library/Audio/Plug-Ins/Components), Linux ~/.vst3. On a Mac, if your DAW refuses them, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
+          gh release view vst3-latest >/dev/null 2>&1 || gh release create vst3-latest --title "Omega plugins (latest)" --notes "The Omega System instruments and effects as VST3 plugins (AU too on Mac). Download the zip for your computer, unzip, and copy the .vst3 files into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 (and the .component files into /Library/Audio/Plug-Ins/Components), Linux ~/.vst3. Omega Twelve also comes as a standalone app in the same zip. On a Mac, if your DAW refuses them, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
           gh release upload vst3-latest dl/*.zip --clobber

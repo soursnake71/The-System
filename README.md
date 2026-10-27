@@ -17,6 +17,17 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
+## Omega Twelve (`/twelve/`): 12-bit sampler emulator
+A vintage sampler in your phone or your DAW. Import any audio or video file, pick part of it, and run it through a model of the E-mu SP-1200's audio path (26.04 kHz clock, 7th-order input filter, truncating 12-bit converter, drop/repeat pitch with E-mu's semitone table, SSM2044 outputs 1-2, fixed filters 3-6, unfiltered 7-8), or the SP-12, MPC60, S950, S612, Mirage or a clean path.
+- 500 presets in 25 families, plus a random settings generator and your own presets.
+- Tuning (semitones, cents, A4 reference, transpose to a key), lo-fi (vinyl crackle, tape hiss, wow, flutter, tape saturation, vinyl age, mains hum).
+- Tempo and key detection, warp to a BPM (stretch keeping pitch, or speed it like the hardware), timestretch with grain size.
+- Select, zoom, truncate, normalize, reverse, undo, resample (bounce what you hear back in, no export needed), 16 multi-pitch pads and MIDI, STOP ALL.
+- Master out: EQ matching to a reference track (or a typical mix), 5-band parametric EQ, compressor, gain, look-ahead limiter, Auto master to a loudness target.
+- Export WAV (16/24/32-bit float), AIFF, FLAC, MP3, and Opus/OGG/M4A via the device codec.
+- Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
+- VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
