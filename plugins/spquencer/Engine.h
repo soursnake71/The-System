@@ -180,7 +180,7 @@ public:
     struct Pos { bool playing = false; int mode = 0, seg = 0, tick = 0, idx = -1; };   // mode 1 segment, 2 song
 
     void prepare(double sampleRate) {
-        sr = sampleRate; for (auto& v : voices) v.kind = Voice::None; pendingOff.clear(); internal = false; trigNote = -1;
+        sr = sampleRate; for (auto& v : voices) v.kind = Voice::None; pendingOff.clear(); internal = false; trigNote = -1; trigOffAt = -1;
         pendingOff.reserve(512); trig.reserve(2048); auditions.reserve(64);
     }
     void setProject(const Project* p) {
@@ -197,7 +197,7 @@ public:
         else if (!proj->seg[iseg].used) return;
         internal = true;
     }
-    void stop() { internal = false; trigNote = -1; }
+    void stop() { internal = false; trigNote = -1; trigOffAt = -1; }
     void audition(int s, int l, int u) { auditions.push_back({s, l, u}); }
     Pos position() const { return pos; }
 
@@ -217,14 +217,17 @@ public:
             for (auto& m : midiIn) {
                 const int st = m.b[0] & 0xF0, ch = (m.b[0] & 15) + 1;
                 if (ch != p.trigCh || m.b[1] >= NSEG) continue;
-                if (st == 0x90 && m.b[2] > 0) { trigNote = m.b[1]; trigAt = m.offset; trigStarted = false; }
-                else if ((st == 0x80 || (st == 0x90 && m.b[2] == 0)) && m.b[1] == trigNote) { trigNote = -1; trigOffAt = m.offset; }
+                if (st == 0x90 && m.b[2] > 0) { trigNote = m.b[1]; trigAt = m.offset; trigStarted = false; trigOffAt = -1; }
+                else if ((st == 0x80 || (st == 0x90 && m.b[2] == 0)) && m.b[1] == trigNote) trigOffAt = m.offset;
             }
         }
 
         pos = {};
         if (hostDrives) runHost(p, n, host, midiOut);
-        else if (p.hostMode == "notes" && trigNote >= 0) runTrigger(p, n, host, midiOut);
+        else if (p.hostMode == "notes" && trigNote >= 0) {
+            runTrigger(p, trigOffAt >= 0 ? clampv(trigOffAt, 0, n) : n, host, midiOut);
+            if (trigOffAt >= 0) { trigNote = -1; trigOffAt = -1; }
+        }
         else if (internal) runInternal(p, n, midiOut);
 
         // note offs
@@ -315,12 +318,13 @@ private:
         }
     }
 
-    void runTrigger(const Project& p, int n, const Host& h, std::vector<MidiMsg>& midiOut) {
-        const int seg = trigNote;
+    // plays the triggered segment up to sample `end` of this block (the block length, or where the note was released)
+    void runTrigger(const Project& p, int end, const Host& h, std::vector<MidiMsg>& midiOut) {
+        const int seg = trigNote, n = end;
         const Segment& g = p.seg[seg];
         if (!g.used || g.ticks() <= 0) return;
         int i = 0;
-        if (!trigStarted) { trigStarted = true; ttick = 0; tacc = 0; i = clampv(trigAt, 0, n - 1); }
+        if (!trigStarted) { trigStarted = true; ttick = 0; tacc = 0; i = std::max(0, trigAt); }
         const double tempo = h.bpm > 0 ? h.bpm : g.tempo;
         while (i < n) {
             if (tacc <= 0) {
@@ -392,7 +396,7 @@ private:
     std::vector<Aud> auditions;
     Pos pos;
     bool internal = false; int imode = 1, iseg = 1, isong = 1, ili = 0, itick = 0; double iacc = 0;
-    int trigNote = -1, trigAt = 0, trigOffAt = 0, ttick = 0; bool trigStarted = false; double tacc = 0;
+    int trigNote = -1, trigAt = 0, trigOffAt = -1, ttick = 0; bool trigStarted = false; double tacc = 0;
 };
 
 } // namespace spq

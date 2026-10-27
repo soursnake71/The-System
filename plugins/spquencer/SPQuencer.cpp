@@ -17,10 +17,11 @@ public:
         engine.setProject(project.get());
     }
 
-    void prepareToPlay(double sampleRate, int) override {
+    void prepareToPlay(double sampleRate, int maxBlock) override {
         const juce::SpinLock::ScopedLockType l(lock);
         engine.prepare(sampleRate);
         midiIn.reserve(1024); midiOut.reserve(4096);
+        scratchBuf.resize((size_t) juce::jmax(maxBlock, 4096));   // mono hosts: sized here, not on the audio thread
     }
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout& l) const override {
@@ -70,8 +71,9 @@ public:
     void changeProgramName(int, const juce::String&) override {}
 
     // ---- project: the page sends everything but sample data as JSON, and each sample on its own ----
-    void setMeta(const juce::String& json) { meta = json; rebuild(); }
-    void setSample(int i, double rate, const juce::String& b64) { decode(i, rate, b64); rebuild(); }
+    // meta and slots are shared by the editor (message thread) and the host saving or loading state (any thread)
+    void setMeta(const juce::String& json) { const juce::ScopedLock sl(stateLock); meta = json; rebuild(); }
+    void setSample(int i, double rate, const juce::String& b64) { const juce::ScopedLock sl(stateLock); decode(i, rate, b64); rebuild(); }
     void decode(int i, double rate, const juce::String& b64) {
         if (i < 0 || i >= spq::NSND) return;
         auto& s = slots[(size_t) i];
@@ -92,6 +94,7 @@ public:
     }
     // the whole project as the page saves it (samples included)
     juce::String fullJson() const {
+        const juce::ScopedLock sl(stateLock);
         if (meta.isEmpty()) return {};
         auto v = juce::JSON::parse(meta);
         if (auto* sounds = v["sounds"].getArray())
@@ -131,6 +134,7 @@ public:
     void loadFull(const juce::String& json) {
         auto v = juce::JSON::parse(json);
         if (!v.isObject()) return;
+        const juce::ScopedLock sl(stateLock);
         if (auto* sounds = v["sounds"].getArray())
             for (int i = 0; i < sounds->size() && i < spq::NSND; ++i) {
                 const auto smp = (*sounds)[i]["sample"];
@@ -211,6 +215,7 @@ private:
     }
 
     juce::SpinLock lock;
+    juce::CriticalSection stateLock;
     spq::Engine engine;
     std::unique_ptr<spq::Project> project;
     std::array<SampleSlot, spq::NSND> slots;

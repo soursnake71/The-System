@@ -31,4 +31,5 @@ Mac, WebKitGTK on Linux); `spquencer/Engine.h` plays it in time with the DAW. In
 MIDI track, then on a second MIDI track set **MIDI From** to that track / SPQuencer1200 and **MIDI To** the interface
 port your SP-1200 is on, with monitoring In. Set the SP channel and notes in the plugin's MIDI / Hardware tab.
 `tools/hosttest/spq_test.cpp` loads the built plugin like a host and checks the MIDI timing in each sync mode.
+`tools/spq_engine_test.cpp` checks the engine alone (play button, songs with sub-songs and links, notes mode, note mapping).
 Linux builds need `libwebkit2gtk-4.1-dev libgtk-3-dev`; Windows builds need the Microsoft.Web.WebView2 NuGet package (see the workflow).

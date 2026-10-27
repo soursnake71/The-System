@@ -37,6 +37,7 @@ jobs:
       - name: Test SPQuencer1200 in a host
         if: runner.os == 'Linux'
         run: |
+          g++ -std=c++17 -O2 -Iplugins/spquencer plugins/tools/spq_engine_test.cpp -o spq_engine_test && ./spq_engine_test
           cmake -S plugins/tools/hosttest -B hostbuild -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR=$(pwd)/build/_deps/juce-src
           cmake --build hostbuild --target spq_test --parallel 4
           hostbuild/spq_test_artefacts/Release/spq_test build/SPQuencer1200_artefacts/Release/VST3/SPQuencer1200.vst3
