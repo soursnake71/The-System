@@ -14,7 +14,9 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
 | SPQuencer1200 | instrument with MIDI out: the SP-1200 sequencer (`../spquencer`) in a web view, played with the DAW |
 
-Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
+Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, and `SPQuencer1200-Setup-<version>.exe`, a Windows
+installer that puts SPQuencer1200.vst3 in `C:\Program Files\Common Files\VST3` (built from `installer/SPQuencer1200.iss`
+by `.github/workflows/vst3.yml`; it is not code-signed, so SmartScreen asks once: More info, then Run anyway).
 
 Build yourself: `cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release`.
 Parameter tables come from the app: `node plugins/tools/gen.mjs` regenerates `gen/tables.inc`.

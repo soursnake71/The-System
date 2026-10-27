@@ -53,6 +53,19 @@ jobs:
           cd out && 7z a -tzip "../Omega-Plugins-${{ matrix.name }}.zip" . >/dev/null
       - uses: actions/upload-artifact@v4
         with: {name: 'Omega-Plugins-${{ matrix.name }}', path: 'Omega-Plugins-${{ matrix.name }}.zip'}
+      # Inno Setup (installed if the runner image lacks it)
+      - name: SPQuencer1200 Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Qp "/DSrcDir=$pwd\out" "/DAppVersion=1.0.0" "/O$pwd" plugins\installer\SPQuencer1200.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem SPQuencer1200-Setup-*.exe
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with: {name: 'SPQuencer1200-Setup', path: 'SPQuencer1200-Setup-*.exe'}
   publish:
     needs: build
     if: github.ref == 'refs/heads/main'
@@ -65,4 +78,4 @@ jobs:
         run: |
           ls dl
           gh release view vst3-latest >/dev/null 2>&1 || gh release create vst3-latest --title "Omega plugins (latest)" --notes "The Omega System instruments and effects, and the SPQuencer1200 sequencer, as VST3 plugins (AU too on Mac). Download the zip for your computer, unzip, and copy the .vst3 files into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 (and the .component files into /Library/Audio/Plug-Ins/Components), Linux ~/.vst3. On a Mac, if your DAW refuses them, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
-          gh release upload vst3-latest dl/*.zip --clobber
+          gh release upload vst3-latest dl/*.zip dl/*.exe --clobber
