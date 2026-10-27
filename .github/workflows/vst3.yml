@@ -1,10 +1,10 @@
-# Builds the Omega plugins (VST3, plus AU on macOS) for Windows, macOS and Linux and attaches a zip for each
+# Builds the Omega plugins and SPQuencer1200 (VST3, plus AU on macOS) for Windows, macOS and Linux and attaches a zip for each
 # to the "vst3-latest" release.
 name: Omega VST3 plugins
 on:
   push:
     branches: [main]
-    paths: ['plugins/**', '.github/workflows/vst3.yml']
+    paths: ['plugins/**', 'spquencer/**', '.github/workflows/vst3.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -22,11 +22,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Linux libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libwebkit2gtk-4.1-dev libgtk-3-dev
+      # SPQuencer1200's editor is a web view; on Windows JUCE links WebView2 statically from this NuGet package
+      - name: WebView2 SDK
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Register-PackageSource -ProviderName NuGet -Name nugetRepository -Location https://www.nuget.org/api/v2 -Trusted -Force -ErrorAction SilentlyContinue
+          Install-Package Microsoft.Web.WebView2 -Scope CurrentUser -RequiredVersion 1.0.1901.177 -Source nugetRepository -Force
       - name: Configure
         run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release --parallel 4
+      - name: Test SPQuencer1200 in a host
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S plugins/tools/hosttest -B hostbuild -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR=$(pwd)/build/_deps/juce-src
+          cmake --build hostbuild --target spq_test --parallel 4
+          hostbuild/spq_test_artefacts/Release/spq_test build/SPQuencer1200_artefacts/Release/VST3/SPQuencer1200.vst3
       - name: Collect
         shell: bash
         run: |
@@ -42,6 +55,7 @@ jobs:
         with: {name: 'Omega-Plugins-${{ matrix.name }}', path: 'Omega-Plugins-${{ matrix.name }}.zip'}
   publish:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -50,5 +64,5 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls dl
-          gh release view vst3-latest >/dev/null 2>&1 || gh release create vst3-latest --title "Omega plugins (latest)" --notes "The Omega System instruments and effects as VST3 plugins (AU too on Mac). Download the zip for your computer, unzip, and copy the .vst3 files into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 (and the .component files into /Library/Audio/Plug-Ins/Components), Linux ~/.vst3. On a Mac, if your DAW refuses them, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
+          gh release view vst3-latest >/dev/null 2>&1 || gh release create vst3-latest --title "Omega plugins (latest)" --notes "The Omega System instruments and effects, and the SPQuencer1200 sequencer, as VST3 plugins (AU too on Mac). Download the zip for your computer, unzip, and copy the .vst3 files into your VST3 folder: Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 (and the .component files into /Library/Audio/Plug-Ins/Components), Linux ~/.vst3. On a Mac, if your DAW refuses them, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
           gh release upload vst3-latest dl/*.zip --clobber

@@ -17,14 +17,14 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
-## SP-24 Sequence Editor (`/sp24/`)
-A 24 PPQ sequence editor for E-mu SP-12 / SP-1200 style segments. Open `https://<your-username>.github.io/<repo>/sp24/` in Chrome or Edge (desktop works best).
+## SPQuencer1200 (`/spquencer/` and a VST3 / AU plugin)
+A 24 PPQ sequencer for the E-mu SP-1200 and the Rossum SP-1200. Open `https://<your-username>.github.io/<repo>/spquencer/` in Chrome or Edge, or load the **SPQuencer1200** plugin in Ableton Live or any VST3 / AU host (download: the `vst3-latest` release, see `plugins/`).
 - Piano roll on the SP's own event data: every note has a tick (24 PPQ, 96 per 4/4 bar), one of 32 sounds (bank 1–4, pad 1–8), a level (0–31) and a tune (−8 to +7, a decay offset on sounds in Decay mode). Bars follow each segment's time signature (3/4, 6/8, 7/8, …).
-- Segment swing is drawn and previewed where the SP plays it (54–71 % on the 2nd 8th of each beat, restarting at every bar). Selective swing moves only the selected notes, at the SP's 8th amounts or as 16th swing (58 / 67 / 75 %) without the double-tempo trick.
-- Songs (segments, repeats, tempo and mix changes, sub-songs, links, with bars and playing time per step), eight mixes, sounds with sample-accurate start / end / loop and WAV export.
-- Web MIDI: playhead follows the SP's MIDI clock (24 PPQ, so one clock = one tick), preview notes and clock out, SysEx capture and replay byte for byte, Standard MIDI File export and import per segment.
-- Projects save to a file and to the browser, with automatic backups.
-- Not included: the SP-12 disk-over-MIDI transfer and the SP-1200 OS patch. Those need the native protocol, which this version does not decode.
+- Segment swing is drawn and played where the SP plays it (54–71 % on the 2nd 8th of each beat, restarting at every bar). Selective swing moves only the selected notes, at the SP's 8th amounts or as 16th swing (58 / 67 / 75 %) without the double-tempo trick.
+- Songs (segments, repeats, tempo and mix changes, sub-songs, links, with bars and playing time per step), eight mixes, sounds with sample-accurate start / end / loop and WAV export, a MIDI note per pad to match the SP's MIDI setup.
+- In the plugin: loops the current segment with the DAW, plays the current song from bar 1, or lets MIDI notes pick segments (note number = segment, held while the note is held). Every note goes to the plugin's MIDI output for the SP-1200, and preview sounds to its audio output. The project is saved with the DAW set.
+- In the browser: Web MIDI playhead sync to the SP's MIDI clock, preview notes and clock out, SysEx capture and replay, Standard MIDI File export and import per segment, project files with automatic backups.
+- Not included: reading or writing the SP-1200's memory in its native format, or patching its OS. Segments reach the SP by playing it over MIDI.
 
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.

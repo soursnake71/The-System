@@ -1,5 +1,6 @@
 'use strict';
-/* SP-24: a 24 PPQ sequence editor for E-mu SP-12 / SP-1200 style segments, songs, mixes and sounds.
+/* SPQuencer1200: a 24 PPQ sequence editor for the E-mu and Rossum SP-1200: segments, songs, mixes and sounds.
+   Runs in a browser, and inside the SPQuencer1200 plugin (JUCE web view), where the C++ engine plays it with the DAW.
    Events are kept the way the SP keeps them: tick (24 PPQ), sound 0-31, level 0-31, tune -8..+7. */
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -13,14 +14,19 @@ const DEFAULT_NAMES = ['Kick', 'Snare', 'Hat cl', 'Hat op', 'Clap', 'Rim', 'Tom 
   'Kick 3', 'Snare 3', 'Hat 3', 'Tamb', 'Clave', 'Tom mid', 'Perc', 'Stab',
   'Kick 4', 'Snare 4', 'Hat 4', 'Snap', 'Wood', 'Tom 4', 'Zap', 'Hit'];
 const sndLabel = i => `${(i >> 3) + 1}-${(i & 7) + 1}`;
+// the MIDI note the SP-1200 plays a sound on: its own note, or First note + sound number
+const noteOf = i => { const n = P.sounds[i].note; return clamp(n === null || n === undefined || n === '' ? P.midi.base + i : n, 0, 127); };
+const soundOfNote = n => { for (let i = 0; i < NSND; i++) if (noteOf(i) === n) return i; return -1; };
+// inside the SPQuencer1200 plugin the page talks to the C++ engine through JUCE's web view bridge
+const JB = window.__JUCE__ && window.__JUCE__.backend, inPlugin = !!JB;
 const toast = msg => { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 1800); };
 
 /* ================= project model ================= */
 let P;
-function newSound(i){ return {name:DEFAULT_NAMES[i], mode:'tune', tune:0, decay:31, sample:null, start:0, end:0, loop:-1}; }
+function newSound(i){ return {name:DEFAULT_NAMES[i], mode:'tune', tune:0, decay:31, note:null, sample:null, start:0, end:0, loop:-1}; }
 function newSegment(){ return {len:2, num:4, den:4, tempo:90, swing:12, events:[]}; }
 function newProject(){
-  const p = {v:1, name:'Untitled', model:'SP-1200', sounds:[], segments:Array(NSEG).fill(null), songs:Array(NSONG).fill(null), mixes:[]};
+  const p = {v:1, name:'Untitled', model:'SP-1200', midi:{ch:1, base:36}, host:{mode:'seg', trigCh:16, audio:true}, cur:{seg:1, song:1, mix:0}, sounds:[], segments:Array(NSEG).fill(null), songs:Array(NSONG).fill(null), mixes:[]};
   for (let i = 0; i < NSND; i++) p.sounds.push(newSound(i));
   for (let m = 0; m < NMIX; m++) p.mixes.push(Array(NSND).fill(24));
   // a starter beat so there is something to hear
@@ -74,7 +80,7 @@ function redo(){ if (!redoStack.length) return; undoStack.push(snapshot()); rest
 const DB = (() => {
   let p;
   const open = () => p || (p = new Promise((res, rej) => {
-    const r = indexedDB.open('sp24', 1);
+    const r = indexedDB.open('spquencer1200', 1);
     r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('backups', {keyPath:'id', autoIncrement:true}); };
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   }));
@@ -102,12 +108,13 @@ function b64ToF32(b){
   const i16 = new Int16Array(u8.buffer), f = new Float32Array(i16.length); for (let i = 0; i < f.length; i++) f[i] = i16[i] / 32768;
   return f;
 }
-const serialize = () => JSON.stringify({...P, sounds:P.sounds.map(s => ({...s, sample:s.sample ? {rate:s.sample.rate, b64:f32ToB64(s.sample.data)} : null}))});
+const serialize = () => JSON.stringify({...P, cur:{seg:ui.seg, song:ui.song, mix:ui.mix}, sounds:P.sounds.map(s => ({...s, sample:s.sample ? {rate:s.sample.rate, b64:f32ToB64(s.sample.data)} : null}))});
 function deserialize(json){
   const d = JSON.parse(json);
-  if (!d || !Array.isArray(d.segments) || !Array.isArray(d.sounds)) throw new Error('Not an SP-24 project');
+  if (!d || !Array.isArray(d.segments) || !Array.isArray(d.sounds)) throw new Error('Not an SPQuencer1200 project');
   const p = newProject();
-  p.name = d.name || 'Untitled'; p.model = d.model || 'SP-1200';
+  p.name = d.name || 'Untitled'; p.model = d.model === 'Rossum SP-1200' ? d.model : 'SP-1200';
+  p.midi = {...p.midi, ...(d.midi || {})}; p.host = {...p.host, ...(d.host || {})}; p.cur = {...p.cur, ...(d.cur || {})};
   for (let i = 0; i < NSEG; i++) p.segments[i] = d.segments[i] || null;
   for (let i = 0; i < NSONG; i++) p.songs[i] = (d.songs || [])[i] || null;
   for (let m = 0; m < NMIX; m++) if (d.mixes && d.mixes[m]) p.mixes[m] = d.mixes[m].slice(0, NSND);
@@ -116,6 +123,7 @@ function deserialize(json){
 }
 let saveTimer = 0, lastBackup = 0;
 function changed(){
+  if (inPlugin) sendToPlugin();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const json = serialize();
@@ -497,6 +505,7 @@ function synthVoice(name, out, t, gain, rate, dec){
   else { tone(out, t, .15 * dec, 400 * rate, 300 * rate, .5, 'triangle'); noise(out, t, .05, 'bandpass', 3000, 1, .3); }
 }
 function audition(i, level, val){
+  if (inPlugin){ JB.emitEvent('spqAudition', {s:i, l:level, u:val}); return; }
   if (!ac) ensureAudio();
   voice(i, level, val, ac.currentTime + .005);
   midiNote(i, level, performance.now());
@@ -527,6 +536,10 @@ function songSequence(n, depth = 0, state = null){
   return out;
 }
 function start(mode){
+  if (inPlugin){
+    if (mode === 'song' && !songSequence(ui.song).length){ toast('This song has no segments to play'); return; }
+    sendToPlugin(true); JB.emitEvent('spqTransport', {play:mode, seg:ui.seg, song:ui.song, from:mode === 'seg' ? ui.cursor : 0}); return;
+  }
   ensureAudio(); stop(true);
   if (mode === 'song'){
     play.list = songSequence(ui.song);
@@ -539,6 +552,7 @@ function start(mode){
   requestAnimationFrame(frame);
 }
 function stop(quiet){
+  if (inPlugin){ JB.emitEvent('spqTransport', {play:''}); return; }
   if (play.on && $('#clkOut').checked) midiSend([0xFC]);
   clearInterval(play.timer); play.on = false; ui.playTick = -1; ui.step = -1;
   $('#playSeg').classList.remove('on'); $('#playSong').classList.remove('on');
@@ -593,7 +607,7 @@ function renderSegBar(){
   const g = curSeg();
   $('#segLen').value = g.len; $('#segNum').value = g.num; $('#segDen').value = g.den; $('#segTempo').value = g.tempo; $('#segSwing').value = g.swing;
 }
-function selectSegment(n){ ui.seg = n; ui.sel.clear(); ui.cursor = 0; renderSegBar(); refreshSel(); layoutRoll(); updateLcd(); }
+function selectSegment(n){ ui.seg = n; ui.sel.clear(); ui.cursor = 0; renderSegBar(); refreshSel(); layoutRoll(); updateLcd(); if (inPlugin) sendToPlugin(); }
 $('#segSwing').innerHTML = SWINGS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 $('#segSel').onchange = e => { if (play.on && play.mode === 'seg') stop(); selectSegment(Number(e.target.value)); };
 function segField(id, fn){ $(id).addEventListener('change', e => { pushUndo(); fn(curSeg(), e.target.value); const g = curSeg(); g.events = g.events.filter(ev => ev.t < segTicks(g)); dedupe(g); renderSegBar(); refreshSel(); layoutRoll(); updateLcd(); changed(); }); }
@@ -654,7 +668,7 @@ function renderSong(){
   });
   $('#songTotal').textContent = `${bars} bars · ${fmtTime(secs)}`;
 }
-$('#songSel').onchange = e => { ui.song = Number(e.target.value); ui.stepIns = undefined; renderSong(); };
+$('#songSel').onchange = e => { ui.song = Number(e.target.value); ui.stepIns = undefined; renderSong(); if (inPlugin) sendToPlugin(); };
 $('#songName').onchange = e => { pushUndo(); curSong().name = e.target.value.slice(0, 16); renderSong(); changed(); };
 $('#songTempo').onchange = e => { pushUndo(); curSong().tempo = clamp(Number(e.target.value) || 90, 30, 250); renderSong(); changed(); };
 $('#stepKind').onchange = e => { const k = e.target.value; $('#stepVal').value = k === 'seg' ? ui.seg : k === 'tempo' ? curSong().tempo : k === 'rep' ? 2 : 1; $('#stepVal').disabled = k === 'rend' || k === 'end'; };
@@ -693,7 +707,7 @@ function renderMix(){
     grid.appendChild(d);
   }
 }
-$('#mixSel').onchange = e => { ui.mix = Number(e.target.value); renderMix(); };
+$('#mixSel').onchange = e => { ui.mix = Number(e.target.value); renderMix(); if (inPlugin) sendToPlugin(); };
 $('#mixBank').onchange = e => { ui.mixBank = Number(e.target.value); renderMix(); };
 $('#mixCopy').onclick = () => { const to = Number($('#mixTo').value); if (to === ui.mix) return; pushUndo(); P.mixes[to] = P.mixes[ui.mix].slice(); changed(); toast(`Mix ${ui.mix + 1} copied to mix ${to + 1}`); };
 $('#mixSndCopy').onclick = () => { const s = Number($('#mixSnd').value), to = Number($('#mixSndTo').value); pushUndo(); P.mixes[to][s] = P.mixes[ui.mix][s]; changed(); toast(`${sndLabel(s)} level copied to mix ${to + 1}`); };
@@ -713,7 +727,7 @@ function renderSound(){
   renderPads();
   const s = P.sounds[ui.sound];
   $('#sndTitle').textContent = sndLabel(ui.sound);
-  $('#sndName').value = s.name; $('#sndMode').value = s.mode; $('#sndTune').value = s.tune; $('#sndDecay').value = s.decay;
+  $('#sndName').value = s.name; $('#sndMode').value = s.mode; $('#sndTune').value = s.tune; $('#sndDecay').value = s.decay; $('#sndNote').value = s.note ?? ''; $('#sndNote').placeholder = P.midi.base + ui.sound;
   const n = s.sample ? s.sample.data.length : 0;
   ['#sStart', '#sEnd', '#sLoop', '#sndWav', '#sndClear'].forEach(id => $(id).disabled = !n);
   $('#sStart').value = n ? s.start : ''; $('#sEnd').value = n ? s.end : ''; $('#sLoop').value = n ? s.loop : '';
@@ -763,6 +777,7 @@ sndField('#sndName', (s, v) => s.name = v.slice(0, 12) || DEFAULT_NAMES[ui.sound
 sndField('#sndMode', (s, v) => s.mode = v);
 sndField('#sndTune', (s, v) => s.tune = clamp(Math.round(v), -8, 7));
 sndField('#sndDecay', (s, v) => s.decay = clamp(Math.round(v), 0, 31));
+sndField('#sndNote', (s, v) => s.note = v === '' ? null : clamp(Math.round(v), 0, 127));
 sndField('#sStart', (s, v) => s.start = clamp(Math.round(v), 0, s.end - 1));
 sndField('#sEnd', (s, v) => s.end = clamp(Math.round(v), s.start + 1, s.sample.data.length));
 sndField('#sLoop', (s, v) => s.loop = Number(v) < 0 ? -1 : clamp(Math.round(v), s.start, s.end - 1));
@@ -824,7 +839,7 @@ $('#midiOn').onclick = midiEnable; $('#midiIn').onchange = pickIn; $('#midiOut')
 function midiSend(bytes, at){ if (midi.out) try { midi.out.send(bytes, at); } catch {} }
 function midiNote(i, level, at){
   if (!midi.out || !$('#noteOut').checked) return;
-  const ch = clamp(Number($('#midiCh').value) - 1, 0, 15), note = clamp(Number($('#midiBase').value) + i, 0, 127), vel = clamp(Math.round(level / 31 * 126) + 1, 1, 127);
+  const ch = clamp(P.midi.ch - 1, 0, 15), note = noteOf(i), vel = clamp(Math.round(level / 31 * 126) + 1, 1, 127);
   midiSend([0x90 | ch, note, vel], at); midiSend([0x80 | ch, note, 0], at + 60);
 }
 function onMidi(m){
@@ -841,7 +856,7 @@ function onMidi(m){
   if (st === 0xF2 && $('#followClk').checked){ midi.clk = (d[1] | (d[2] << 7)) * 6; extPlayhead(); log('Song position ' + (d[1] | (d[2] << 7))); return; }
   const k = st & 0xF0;
   if (k === 0x90 && d[2] > 0){
-    const i = d[1] - Number($('#midiBase').value);
+    const i = soundOfNote(d[1]);
     log(`Note ${d[1]} vel ${d[2]} ch ${(st & 15) + 1}${i >= 0 && i < NSND ? ' → ' + sndLabel(i) : ''}`);
   }
 }
@@ -869,9 +884,9 @@ $('#sxFile').onchange = async e => {
 /* ================= Standard MIDI files ================= */
 function vlq(n){ const b = [n & 0x7F]; while ((n >>= 7)) b.unshift((n & 0x7F) | 0x80); return b; }
 function exportMidi(){
-  const g = curSeg(), ch = clamp(Number($('#midiCh').value) - 1, 0, 15), base = Number($('#midiBase').value), us = Math.round(60e6 / g.tempo);
+  const g = curSeg(), ch = clamp(P.midi.ch - 1, 0, 15), us = Math.round(60e6 / g.tempo);
   const evs = [];
-  for (const e of g.events){ const t = playedTick(g, e.t), n = clamp(base + e.s, 0, 127), v = clamp(Math.round(e.l / 31 * 126) + 1, 1, 127); evs.push([t, 1, [0x90 | ch, n, v]], [t + 6, 0, [0x80 | ch, n, 0]]); }
+  for (const e of g.events){ const t = playedTick(g, e.t), n = noteOf(e.s), v = clamp(Math.round(e.l / 31 * 126) + 1, 1, 127); evs.push([t, 1, [0x90 | ch, n, v]], [t + 6, 0, [0x80 | ch, n, 0]]); }
   evs.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const trk = [0, 0xFF, 0x51, 3, us >> 16 & 255, us >> 8 & 255, us & 255, 0, 0xFF, 0x58, 4, g.num, Math.log2(g.den), 24, 8];
   const name = [...`SEG ${String(ui.seg).padStart(2, '0')}`].map(c => c.charCodeAt(0)); trk.push(0, 0xFF, 0x03, name.length, ...name);
@@ -906,9 +921,9 @@ $('#midExp').onclick = exportMidi;
 $('#midImp').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
-    const m = parseMidi(await f.arrayBuffer()), base = Number($('#midiBase').value), g = curSeg();
-    const evs = m.notes.map(o => ({t:Math.round(o.t), s:o.n - base, l:clamp(Math.round(o.v / 127 * 31), 0, 31), u:0})).filter(o => o.s >= 0 && o.s < NSND);
-    if (!evs.length) return toast(`No notes in the range ${base}–${base + 31}; set First note in MIDI / Hardware`);
+    const m = parseMidi(await f.arrayBuffer()), g = curSeg();
+    const evs = m.notes.map(o => ({t:Math.round(o.t), s:soundOfNote(o.n), l:clamp(Math.round(o.v / 127 * 31), 0, 31), u:0})).filter(o => o.s >= 0 && o.s < NSND);
+    if (!evs.length) return toast('No notes match the SP notes; set First note in MIDI / Hardware');
     pushUndo();
     if ([4, 8, 16].includes(m.den)){ g.num = clamp(m.num, 1, 16); g.den = m.den; }
     if (m.tempo) g.tempo = clamp(Math.round(m.tempo * 10) / 10, 30, 250);
@@ -925,17 +940,19 @@ function refreshAll(){
   renderSegBar(); refreshSel(); layoutRoll(); updateLcd();
   renderSong(); renderMix(); renderSound();
   $('#projName').value = P.name; $('#projModel').value = P.model;
+  $('#midiCh').value = P.midi.ch; $('#midiBase').value = P.midi.base;
+  $('#hostMode').value = P.host.mode; $('#hostTrigCh').value = P.host.trigCh; $('#hostAudio').checked = P.host.audio;
   bufCache.clear();
 }
 function loadProject(p, reason){
   stop(true); P = p; ui.sel.clear(); undoStack.length = redoStack.length = 0;
-  ui.seg = P.segments.findIndex(g => g && g.events.length); if (ui.seg < 0) ui.seg = 1;
+  pickCurrent();
   refreshAll(); changed(); if (reason) backup(reason);
 }
 $('#projName').onchange = e => { P.name = e.target.value || 'Untitled'; changed(); };
 $('#projModel').onchange = e => { P.model = e.target.value; changed(); };
 $('#pNew').onclick = () => { if (confirm('Start a new project? The current one stays in the backups.')){ backup('Before new project').then(() => loadProject(newProject(), null)); } };
-$('#pSave').onclick = () => { const json = serialize(); download((P.name || 'project') + '.sp24', json, 'application/json'); backup('Saved', json); };
+$('#pSave').onclick = () => { const json = serialize(); download((P.name || 'project') + '.spq', json, 'application/json'); backup('Saved', json); };
 $('#pOpen').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { loadProject(deserialize(await f.text()), 'Opened ' + f.name); toast('Opened ' + f.name); } catch (err){ toast(err.message || 'Could not open that file'); }
@@ -956,6 +973,59 @@ async function renderBackups(){
   }
 }
 
+function pickCurrent(){
+  const c = P.cur || {};
+  ui.seg = P.segments[c.seg] ? c.seg : P.segments.findIndex(g => g && g.events.length); if (ui.seg < 0) ui.seg = 1;
+  ui.song = clamp(c.song ?? 1, 0, NSONG - 1); ui.mix = clamp(c.mix ?? 0, 0, NMIX - 1);
+}
+$('#midiCh').onchange = e => { P.midi.ch = clamp(Math.round(e.target.value) || 1, 1, 16); e.target.value = P.midi.ch; changed(); };
+$('#midiBase').onchange = e => { P.midi.base = clamp(Math.round(e.target.value) || 0, 0, 96); e.target.value = P.midi.base; changed(); };
+$('#hostMode').onchange = e => { P.host.mode = e.target.value; changed(); };
+$('#hostTrigCh').onchange = e => { P.host.trigCh = clamp(Math.round(e.target.value) || 16, 1, 16); e.target.value = P.host.trigCh; changed(); };
+$('#hostAudio').onchange = e => { P.host.audio = e.target.checked; changed(); };
+
+/* ================= plugin bridge =================
+   page -> engine: spqReady, spqProject {json} (everything but sample data), spqSample {i, rate, b64}, spqTransport, spqAudition
+   engine -> page: spqLoad {json} (the saved project, samples included), spqPos {playing, seg, tick, idx} */
+let sentSamples = [], metaTimer = 0, posDraw = 0;
+function sendToPlugin(now){
+  clearTimeout(metaTimer);
+  const go = () => {
+    P.sounds.forEach((s, i) => {
+      if (sentSamples[i] === s.sample) return;
+      sentSamples[i] = s.sample;
+      JB.emitEvent('spqSample', s.sample ? {i, rate:s.sample.rate, b64:f32ToB64(s.sample.data)} : {i, rate:0, b64:''});
+    });
+    JB.emitEvent('spqProject', {json:JSON.stringify({...P, cur:{seg:ui.seg, song:ui.song, mix:ui.mix}, sounds:P.sounds.map(s => ({...s, sample:s.sample ? {rate:s.sample.rate} : null}))})});
+  };
+  now ? go() : (metaTimer = setTimeout(go, 150));
+}
+function pluginInit(){
+  document.documentElement.classList.add('in-plugin');
+  $('#hostCard').hidden = false; $('#midiTitle').textContent = 'MIDI out to the SP-1200';
+  let loaded = false;
+  const load = json => {
+    if (loaded) return; loaded = true;
+    try { P = json ? deserialize(json) : newProject(); } catch { P = newProject(); }
+    sentSamples = json ? P.sounds.map(s => s.sample) : [];
+    pickCurrent(); refreshAll(); sendToPlugin(true);
+  };
+  JB.addEventListener('spqLoad', d => load(d && d.json));
+  JB.addEventListener('spqPos', p => {
+    if (!P) return;
+    const on = !!p.playing;
+    play.on = on;
+    $('#playSeg').classList.toggle('on', on && p.mode === 'seg'); $('#playSong').classList.toggle('on', on && p.mode === 'song');
+    if (on && p.mode === 'song' && p.seg !== ui.seg && P.segments[p.seg]) selectSegment(p.seg);
+    ui.playTick = on && p.seg === ui.seg ? p.tick : -1;
+    const step = on && p.mode === 'song' ? p.idx : -1;
+    if (step !== ui.step){ ui.step = step; if ($('#v-song').classList.contains('on')) renderSong(); }
+    if (!posDraw) posDraw = requestAnimationFrame(() => { posDraw = 0; drawRoll(); updateLcd(); });
+  });
+  JB.emitEvent('spqReady', {});
+  setTimeout(() => load(''), 2500); // engine never answered: start fresh
+}
+
 /* ================= tabs, theme, start ================= */
 $$('#tabs button').forEach(b => b.onclick = () => {
   $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
@@ -966,18 +1036,19 @@ $$('#tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.v === 'snd') renderSound();
   if (b.dataset.v === 'proj') renderBackups();
 });
-function setTheme(t){ document.documentElement.dataset.theme = t; $('#theme').value = t; try { localStorage.setItem('sp24-theme', t); } catch {} readColors(); drawRoll(); drawWave(); }
+function setTheme(t){ document.documentElement.dataset.theme = t; $('#theme').value = t; try { localStorage.setItem('spq-theme', t); } catch {} readColors(); drawRoll(); drawWave(); }
 $('#theme').onchange = e => setTheme(e.target.value);
 
 (async function init(){
-  let theme = 'classic'; try { theme = localStorage.getItem('sp24-theme') || theme; } catch {}
+  let theme = 'classic'; try { theme = localStorage.getItem('spq-theme') || theme; } catch {}
   document.documentElement.dataset.theme = theme; $('#theme').value = theme;
+  if (inPlugin){ pluginInit(); return; }
   let p = null;
   try { const j = await DB.get('current'); if (j) p = deserialize(j); } catch {}
   P = p || newProject();
-  ui.seg = P.segments.findIndex(g => g && g.events.length); if (ui.seg < 0) ui.seg = 1;
+  pickCurrent();
   refreshAll(); renderBackups();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 // for tests and the console
-window.SP24 = {get project(){ return P; }, ui, playedTick, swingTick, straightTick, songSequence, segTicks, parseMidi, fmtPos, parsePos};
+window.SPQ = {get project(){ return P; }, ui, playedTick, swingTick, straightTick, songSequence, segTicks, parseMidi, fmtPos, parsePos};

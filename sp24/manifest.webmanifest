@@ -1,2 +1,0 @@
-{"name":"SP-24 Sequence Editor","short_name":"SP-24","description":"24 PPQ segment, song, mix and sound editor for E-mu SP-12 and SP-1200 style sequences.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#1b1c1e","theme_color":"#1b1c1e",
- "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

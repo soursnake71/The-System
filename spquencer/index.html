@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en" data-theme="classic"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>SP-24 Sequence Editor</title><meta name="theme-color" content="#1b1c1e">
+<title>SPQuencer1200</title><meta name="theme-color" content="#1b1c1e">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg">
 <style>
 :root,[data-theme=classic]{--bg:#1b1c1e;--panel:#26272a;--panel2:#303135;--ink:#ecebe6;--dim:#9a9a94;--line:#45464b;--acc:#d8352a;--acc2:#f2f0e8;--ok:#8fd694;--lcd:#9fbf3a;--lcdbg:#1d2410;
   --roll:#202124;--rollAlt:#25262a;--grid:#34353a;--beat:#44464c;--bar:#8a8c92;--note:#e9e6dc;--sel:#ff6a4d;--swing:#f2b84b}
 [data-theme=studio]{--bg:#0f141b;--panel:#18202b;--panel2:#212b38;--ink:#dfe7f1;--dim:#8796aa;--line:#2f3b4b;--acc:#3fa7ff;--acc2:#dfe7f1;--ok:#6fe0b0;--lcd:#7fd3ff;--lcdbg:#0b1a26;
   --roll:#121922;--rollAlt:#161e28;--grid:#222c39;--beat:#2e3a4a;--bar:#6c7f96;--note:#7fd3ff;--sel:#ffcf4d;--swing:#c58cff}
+:root{color-scheme:dark}option,optgroup{background:var(--panel2);color:var(--ink)}
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13.5px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 body{display:flex;flex-direction:column;overflow:hidden}
 button,select,input{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 9px;min-height:32px}
@@ -23,6 +24,7 @@ header{background:var(--panel);border-bottom:2px solid var(--acc);padding:calc(6
 nav{display:flex;gap:2px;overflow-x:auto;margin-top:6px;scrollbar-width:none}nav::-webkit-scrollbar{display:none}
 nav button{border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--dim);padding:7px 14px;flex:none}nav button.on{background:var(--acc);color:#fff}
 main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.in-plugin .webmidi{display:none!important}
 .view{display:none;flex:1;overflow:auto;padding:10px}.view.on{display:flex;flex-direction:column}
 #v-seq{padding:0;overflow:hidden}
 .bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--line)}
@@ -57,7 +59,7 @@ td.n{font:12px ui-monospace,monospace;color:var(--dim);white-space:nowrap}
 <body>
 <header>
   <div class="top">
-    <div class="logo">SP<b>-24</b><small>24 PPQ sequence editor</small></div>
+    <div class="logo">SPQuencer<b>1200</b><small>for E-mu &amp; Rossum SP-1200</small></div>
     <button id="playSeg" title="Play this segment (Space)">▶ Segment</button>
     <button id="playSong" title="Play the selected song">▶ Song</button>
     <button id="stopBtn" title="Stop">■</button>
@@ -171,6 +173,7 @@ td.n{font:12px ui-monospace,monospace;color:var(--dim);white-space:nowrap}
       <label>Mode <select id="sndMode"><option value="tune">Tune</option><option value="decay">Decay</option></select></label>
       <label>Tune <input type="number" id="sndTune" min="-8" max="7"></label>
       <label>Decay <input type="number" id="sndDecay" min="0" max="31"></label>
+      <label>MIDI note <input type="number" id="sndNote" min="0" max="127" title="Note the SP-1200 plays this pad on; empty = First note + pad"></label>
       <button id="sndPlay">▶ Play</button>
     </div>
     <canvas id="wave"></canvas>
@@ -192,23 +195,37 @@ td.n{font:12px ui-monospace,monospace;color:var(--dim);white-space:nowrap}
 
 <!-- ===== MIDI / Hardware ===== -->
 <section class="view" id="v-hw">
-  <div class="card">
-    <h2>MIDI</h2>
-    <div class="row"><button id="midiOn">Enable MIDI</button><span class="badge" id="midiState">off</span></div>
+  <div class="card" id="hostCard" hidden>
+    <h2>DAW</h2>
     <div class="row">
+      <label>Sync <select id="hostMode">
+        <option value="seg">Loop the current segment with the DAW</option>
+        <option value="song">Play the current song from bar 1</option>
+        <option value="notes">MIDI notes pick segments (note number = segment)</option>
+        <option value="off">Off (only the buttons above)</option></select></label>
+      <label>Trigger channel <input type="number" id="hostTrigCh" min="1" max="16" value="16"></label>
+    </div>
+    <label><input type="checkbox" id="hostAudio" checked> Play the preview sounds through the plugin's audio output</label>
+    <p class="hint">The plugin sends every note to its MIDI output on the channel and notes set below. In Ableton Live, make a MIDI track with <b>MIDI From</b> set to this track and <b>SPQuencer1200</b>, and <b>MIDI To</b> your SP-1200's interface port. In notes mode, a note on the trigger channel starts that segment from its first tick and holds it while the note is held.</p>
+  </div>
+  <div class="card">
+    <h2 id="midiTitle">MIDI</h2>
+    <div class="row webmidi"><button id="midiOn">Enable MIDI</button><span class="badge" id="midiState">off</span>
       <label>Input <select id="midiIn"></select></label>
       <label>Output <select id="midiOut"></select></label>
-      <label>Channel <input type="number" id="midiCh" min="1" max="16" value="1"></label>
-      <label>First note <input type="number" id="midiBase" min="0" max="96" value="36" title="MIDI note of sound 1-1; the 32 sounds follow chromatically"></label>
     </div>
     <div class="row">
+      <label>SP channel <input type="number" id="midiCh" min="1" max="16" value="1"></label>
+      <label>First note <input type="number" id="midiBase" min="0" max="96" value="36" title="MIDI note of sound 1-1; the 32 sounds follow chromatically unless a sound has its own MIDI note"></label>
+    </div>
+    <div class="row webmidi">
       <label><input type="checkbox" id="followClk" checked> Follow the SP's MIDI clock (playhead sync)</label>
       <label><input type="checkbox" id="noteOut"> Send preview notes to the SP</label>
       <label><input type="checkbox" id="clkOut"> Send MIDI clock while previewing</label>
     </div>
-    <p class="hint">The SP's MIDI clock runs at 24 PPQ, the same resolution as its sequencer, so each clock moves the playhead one tick. Start, Continue, Stop and Song Position are followed. Set the SP to send MIDI clock (SP-1200: Sync = MIDI out; SP-12: MIDI setup).</p>
+    <p class="hint">Set the channel and notes to match the SP-1200's MIDI setup (each pad can have its own note in Sounds). <span class="webmidi">The SP's MIDI clock runs at 24 PPQ, the same resolution as its sequencer, so each clock moves the playhead one tick. Start, Continue, Stop and Song Position are followed. Set the SP-1200 to send MIDI clock from its MIDI setup (E-mu and Rossum alike).</span></p>
   </div>
-  <div class="card">
+  <div class="card webmidi">
     <h2>SysEx capture</h2>
     <div class="row">
       <label><input type="checkbox" id="sxCap" checked> Capture incoming SysEx</label>
@@ -216,7 +233,7 @@ td.n{font:12px ui-monospace,monospace;color:var(--dim);white-space:nowrap}
       <label class="badge" style="cursor:pointer">Send .syx file… <input type="file" id="sxFile" accept=".syx,.bin" hidden></label>
       <button id="sxClear">Clear</button><span class="badge" id="sxInfo">0 messages</span>
     </div>
-    <p class="hint">Any SysEx the SP sends is kept byte for byte and can be saved and sent back unchanged. This web version does not decode or emulate the SP-12 disk-over-MIDI protocol or patch the SP-1200 OS; segments move between the SP and this editor as Standard MIDI Files (Project tab) or by playing the SP from here over MIDI.</p>
+    <p class="hint">Any SysEx the SP sends is kept byte for byte and can be saved and sent back unchanged. SPQuencer1200 does not decode the SP-1200's native memory format or patch its OS; segments reach the SP by playing its pads over MIDI (from here, or from the plugin in your DAW), and come back as Standard MIDI Files recorded from the SP (Project tab).</p>
     <pre id="log"></pre>
   </div>
 </section>
@@ -227,11 +244,11 @@ td.n{font:12px ui-monospace,monospace;color:var(--dim);white-space:nowrap}
     <h2>Project</h2>
     <div class="row">
       <label>Name <input type="text" id="projName" maxlength="32"></label>
-      <label>Model <select id="projModel"><option>SP-1200</option><option>SP-12</option></select></label>
+      <label>Machine <select id="projModel"><option value="SP-1200">E-mu SP-1200</option><option value="Rossum SP-1200">Rossum SP-1200</option></select></label>
     </div>
     <div class="row">
       <button id="pNew">New</button>
-      <label class="badge" style="cursor:pointer">Open project… <input type="file" id="pOpen" accept=".sp24,.json" hidden></label>
+      <label class="badge" style="cursor:pointer">Open project… <input type="file" id="pOpen" accept=".spq,.sp24,.json" hidden></label>
       <button id="pSave">Save project</button>
     </div>
     <div class="row">
@@ -250,12 +267,14 @@ td.n{font:12px ui-monospace,monospace;color:var(--dim);white-space:nowrap}
 <!-- ===== Help ===== -->
 <section class="view" id="v-help">
   <div class="card">
-    <h2>How the SP sequencer is modelled</h2>
+    <h2>SPQuencer1200</h2>
+    <p>A 24 PPQ sequence editor for the E-mu SP-1200 and the Rossum SP-1200. It runs in a browser and as a VST3 / AU plugin in Ableton Live and other DAWs, where it plays your segments in time with the DAW and sends them to the SP over MIDI.</p>
+    <h3>How the SP sequencer is modelled</h3>
     <p>In SP terms a pattern is a <b>segment</b>. A segment holds the notes recorded into it; a <b>song</b> chains segments. Each note is an <b>event</b>: its position at 24 PPQ (24 ticks per quarter note, 96 in a 4/4 bar), the sound it plays (one of 32: bank 1–4, pad 1–8), its <b>level</b> (0–31) and its <b>tune</b> (−8 to +7). On a sound in Decay mode the tune value is a decay offset instead.</p>
     <p><b>Swing</b> on the SP is a setting of the whole segment: every note exactly on the second 8th of a beat plays later by the same amount (54, 58, 63, 67 or 71 % = 13–17 ticks instead of 12), a chord moves as one, and the swing restarts at every bar line. The roll draws those notes where they play (a faint outline marks the stored position) and the preview plays them there.</p>
     <p><b>Selective swing</b> moves only the selected notes, at the SP's 8th amounts or as 16th swing (58, 67 or 75 % = 7, 8 or 9 ticks instead of 6) without the double-tempo trick.</p>
     <p>Preview audio is an approximation: loaded samples are pitched with the SP-1200 semitone table (from libmd12, MIT), other pads use simple synth voices.</p>
-    <p class="hint">SP-12 and SP-1200 are trademarks of their owners, mentioned only to describe compatibility. Not affiliated with E-mu or Rossum Electro-Music. No E-mu software is included.</p>
+    <p class="hint">SP-1200 is a trademark of its owners, mentioned only to describe compatibility. Not affiliated with E-mu or Rossum Electro-Music. No E-mu software is included.</p>
   </div>
 </section>
 </main>
