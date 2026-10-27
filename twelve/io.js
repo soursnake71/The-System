@@ -187,7 +187,7 @@ function windowTv(){
   TV.on = true; paintTv(); toast('TV window open: drag it to the TV screen and press F11 for full screen.', 5000);
 }
 function stopTv(){ if (window.AndroidTv) AndroidTv.close(); if (TV.conn) try { TV.conn.terminate(); } catch (e) {} if (TV.win && !TV.win.closed) TV.win.close(); TV.conn = TV.win = null; paintTv(); }
-function paintTv(){ const live = (TV.conn && TV.conn.state !== 'closed') || (TV.win && !TV.win.closed) || (window.AndroidTv && AndroidTv.connected()); $('#tvBtn').classList.toggle('on', !!live); $('#tvState').textContent = live ? 'On the TV now' : ''; }
+function paintTv(){ const live = (TV.conn && TV.conn.state !== 'closed') || (TV.win && !TV.win.closed) || (window.AndroidTv && AndroidTv.connected()); $('#tvBtn').style.boxShadow = live ? '0 0 0 2px #2bd35c inset' : ''; $('#tvState').textContent = live ? 'On the TV now' : ''; }
 
 /* ---------------- hooks into app.js ---------------- */
 const _setParam = setParam;
@@ -216,7 +216,6 @@ function remoteKeys(){
   document.querySelectorAll('.pad').forEach(el => { el.tabIndex = 0; el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); hitPad(+el.dataset.s); } }); });
 }
 
-$('#tvBtn').onclick = () => $('#tvCard').scrollIntoView({behavior:'smooth'});
 $('#castBtn').onclick = castTv; $('#tvWinBtn').onclick = windowTv; $('#tvStopBtn').onclick = stopTv;
 if (window.AndroidTv){ $('#castState').textContent = 'Uses a second screen: HDMI / USB-C or a wireless display'; $('#tvWinBtn').hidden = true; }
 else if (window.PresentationRequest){

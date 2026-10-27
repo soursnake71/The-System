@@ -83,7 +83,9 @@ public class TwelveActivity extends Activity {
 
   WebView makeWeb(Context c) {
     WebView w = new WebView(c);
-    w.setHapticFeedbackEnabled(false);
+    w.setHapticFeedbackEnabled(false);   // no buzz on long presses (the page also cancels them on pads and knobs)
+    w.setLongClickable(false);
+    w.setOnLongClickListener(v -> true);
     WebSettings s = w.getSettings();
     s.setJavaScriptEnabled(true);
     s.setDomStorageEnabled(true);

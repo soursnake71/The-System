@@ -161,6 +161,7 @@ async function prerenderPads(id){
 async function hitPad(semis, vel){
   if (!src){ toast('Import a sample first'); return; }
   audio();
+  if (mainSrc) stopMain();   // touching a pad stops Play right away, even before the pad's sound is ready
   const el = document.querySelector(`.pad[data-s="${semis}"]`);
   if (el){ el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 120); }
   try {
@@ -366,7 +367,7 @@ function setupWave(){
   const idx = x => { const r = el.getBoundingClientRect(), [v0, v1] = view(); return Math.round(TW.clamp(v0 + (x - r.left) / r.width * (v1 - v0), 0, src.chs[0].length)); };
   const px = i => { const r = el.getBoundingClientRect(), [v0, v1] = view(); return r.left + (i - v0) / (v1 - v0) * r.width; };
   el.addEventListener('pointerdown', e => {
-    if (!src) { $('#fileIn').click(); return; }
+    if (!src) { mode = 'import'; return; }
     el.setPointerCapture(e.pointerId); startX = e.clientX; startI = idx(e.clientX);
     if (Math.abs(e.clientX - px(S.sel[0])) < 14) mode = 'a';
     else if (Math.abs(e.clientX - px(S.sel[1])) < 14) mode = 'b';
@@ -381,6 +382,7 @@ function setupWave(){
     drawWave();
   });
   el.addEventListener('pointerup', e => {
+    if (mode === 'import'){ mode = null; $('#fileIn').click(); return; }   // on finger-up: Android counts that as a tap
     if (!mode) return;
     const moved = Math.abs(e.clientX - startX) > 4; mode = null;
     if (moved){ requestRender(); }
@@ -647,7 +649,7 @@ function wire(){
   $('#matchBtn').onclick = matchEq; $('#clearMatchBtn').onclick = () => { S.match = new Array(10).fill(0); S.p.match = 0; paintAll(); commit(); };
   $('#autoBtn').onclick = autoMaster; $('#flatBtn').onclick = flatMaster;
   $('#pPrev').onclick = () => stepPreset(-1); $('#pNext').onclick = () => stepPreset(1); $('#pRand').onclick = randomize; $('#pSave').onclick = savePreset;
-  $('#pName').onclick = openPresets; $('#pClose').onclick = () => $('#presetDlg').close(); $('#pSearch').oninput = listPresets;
+  $('#pName').onclick = openPresets; $('#pList2').onclick = openPresets; $('#pClose').onclick = () => $('#presetDlg').close(); $('#pSearch').oninput = listPresets;
   $('#helpBtn').onclick = () => $('#helpDlg').showModal(); $('#helpClose').onclick = () => $('#helpDlg').close();
   $('#exportBtn').onclick = doExport; $('#fmt').onchange = save;
   $('#shareBtn').onclick = () => lastFile && navigator.share({files:[lastFile], title:lastFile.name}).catch(() => {});
@@ -663,5 +665,27 @@ function wire(){
   addEventListener('pointerdown', () => audio(), {once:true});
 }
 
-buildControls(); buildPads(); buildFormats(); load(); wire(); setupWave(); paintAll(); drawWave();   // MIDI and TV: io.js
+/* ---------------- one screen, no scrolling: mode buttons switch the lower panel, which shrinks to fit ---------------- */
+function fitPanel(){
+  const pane = document.querySelector('.panel.on'); if (!pane) return;
+  const inner = pane.querySelector('.fit'); if (!inner || pane.id === 'pane-pads') return;
+  inner.style.transform = ''; inner.style.width = '';
+  const k = Math.min(1, pane.clientHeight / inner.scrollHeight);
+  if (k < .999){ inner.style.transform = `scale(${k})`; inner.style.width = (100 / k) + '%'; }
+}
+function setMode(m){
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'pane-' + m));
+  try { localStorage.setItem(STORE + '-mode', m); } catch (e) {}
+  fitPanel(); drawEq(); drawWave();
+}
+document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+addEventListener('resize', fitPanel);
+// long presses: Android buzzes when a long press starts its gesture, so cancel the touch on everything played by
+// pointer events (pads, knobs, waveform). Nothing is selectable, and only the mouse's right-click menu is blocked.
+document.addEventListener('touchstart', e => { const t = e.target; if (t.closest && t.closest('.pad, .knob, #wave')) e.preventDefault(); }, {capture:true, passive:false});
+document.addEventListener('contextmenu', e => { if (e.pointerType !== 'touch' && !(e.target.closest && e.target.closest('input, textarea'))) e.preventDefault(); }, {capture:true});
+
+buildControls(); buildPads(); buildFormats(); load(); wire(); setupWave(); paintAll(); drawWave();
+try { setMode(localStorage.getItem(STORE + '-mode') || 'pads'); } catch (e) { setMode('pads'); }   // MIDI and TV: io.js
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidTwelve) navigator.serviceWorker.register('sw.js').catch(() => {});
