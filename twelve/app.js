@@ -163,13 +163,6 @@ function buildPads(){
     box.appendChild(b);
   }
 }
-function setupMidi(){
-  if (!navigator.requestMIDIAccess) return;
-  navigator.requestMIDIAccess().then(m => {
-    const hook = () => { let n = 0; m.inputs.forEach(i => { n++; i.onmidimessage = ev => { const [st, no, vel] = ev.data; if ((st & 0xf0) === 0x90 && vel > 0) hitPad(no - 60, vel / 127); }; }); $('#midiInfo').textContent = n ? `MIDI: ${n} in` : ''; };
-    hook(); m.onstatechange = hook;
-  }).catch(() => {});
-}
 
 /* ---------------- knobs ---------------- */
 const knobs = new Map();
@@ -267,10 +260,10 @@ function setMachine(m){
 
 function buildControls(){
   const add = (box, ids) => ids.forEach(id => { const p = PBYID[id]; if (p.choices) makeSelect(id, box); else if (p.toggle) makeToggle(id, box); else makeKnob(id, box); });
-  add($('#kSampler'), ['machine', 'bits', 'rate', 'alias', 'drive', 'mono']);
+  add($('#kSampler'), ['machine', 'calib', 'bits', 'rate', 'alias', 'drive', 'rpm', 'mono']);
   add($('#kFilter'), ['ftype', 'cutoff', 'res', 'fenv', 'mix', 'retrig']);
   add($('#kTune'), ['semis', 'cents', 'a4']);
-  add($('#kTime'), ['stretch', 'grain']);
+  add($('#kTime'), ['smode', 'stretch', 'grain']);
   add($('#kLofi'), ['crackle', 'hiss', 'wow', 'flutter', 'tape', 'age', 'hum', 'humHz']);
   add($('#kIo'), ['input', 'output']);
   add($('#kMaster'), ['lsF', 'lsG', 'p1F', 'p1G', 'p1Q', 'p2F', 'p2G', 'p2Q', 'p3F', 'p3G', 'p3Q', 'hsF', 'hsG', 'match', 'cThr', 'cRat', 'cAtk', 'cRel', 'cMake', 'mGain', 'lim']);
@@ -644,5 +637,5 @@ function wire(){
   addEventListener('pointerdown', () => audio(), {once:true});
 }
 
-buildControls(); buildPads(); buildFormats(); load(); wire(); setupWave(); setupMidi(); paintAll(); drawWave();
+buildControls(); buildPads(); buildFormats(); load(); wire(); setupWave(); paintAll(); drawWave();   // MIDI and TV: io.js
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

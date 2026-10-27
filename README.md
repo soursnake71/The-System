@@ -18,7 +18,8 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
 ## Omega Twelve (`/twelve/`): 12-bit sampler emulator
-A vintage sampler in your phone or your DAW. Import any audio or video file, pick part of it, and run it through a model of the E-mu SP-1200's audio path (26.04 kHz clock, 7th-order input filter, truncating 12-bit converter, drop/repeat pitch with E-mu's semitone table, SSM2044 outputs 1-2, fixed filters 3-6, unfiltered 7-8), or the SP-12, MPC60, S950, S612, Mirage or a clean path.
+A vintage sampler in your phone or your DAW. Import any audio or video file, pick part of it, and run it through the E-mu SP-1200 or SP-12 simulated at circuit level (the service-manual circuits for the anti-alias filter, outputs 3-6, the SSM2044 and the network that sweeps it, plus the 8-channel DAC timing and the 7-bit pitch counter), checked against recordings of a real SP-12 (`twelve/VALIDATION.md`), or the MPC60, S950, S612, Mirage or a clean path.
+- Full MIDI (notes, velocity, pitch bend, program change, MIDI learn for every control, clock), and a live TV screen (Cast, or a TV window).
 - 500 presets in 25 families, plus a random settings generator and your own presets.
 - Tuning (semitones, cents, A4 reference, transpose to a key), lo-fi (vinyl crackle, tape hiss, wow, flutter, tape saturation, vinyl age, mains hum).
 - Tempo and key detection, warp to a BPM (stretch keeping pitch, or speed it like the hardware), timestretch with grain size.

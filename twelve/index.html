@@ -83,6 +83,8 @@ dialog::backdrop{background:#000a}
 .plist button:hover, .plist button.cur{background:#2f3a33; color:var(--glow)}
 .dlg input[type=search]{background:#111; border:1px solid #444; color:#eee; border-radius:6px; padding:8px}
 .help p, .help li{font-size:13px; color:#ccc}
+.learnable.arm{outline:2px dashed var(--accent); outline-offset:2px; border-radius:8px}
+.knob:focus-visible, .pad:focus-visible, .btn:focus-visible, select:focus-visible{outline:3px solid #2f7dff; outline-offset:2px; border-radius:8px}
 .busy{position:fixed; top:10px; right:12px; background:#111; color:var(--glow); font:11px ui-monospace, monospace; padding:4px 8px; border-radius:4px; opacity:0; transition:opacity .15s; z-index:20}
 .busy.show{opacity:1}
 </style>
@@ -97,6 +99,7 @@ dialog::backdrop{background:#000a}
       <button class="btn" id="pNext" aria-label="Next preset">▶</button>
       <button class="btn" id="pRand" title="Random settings">🎲 Random</button>
       <button class="btn" id="pSave" title="Save these settings as your own preset">Save</button>
+      <button class="btn" id="tvBtn" title="Show the app on a TV">📺 TV</button>
       <button class="btn" id="helpBtn" aria-label="Help">?</button>
     </div>
   </header>
@@ -191,6 +194,38 @@ dialog::backdrop{background:#000a}
       </div>
     </section>
 
+    <section class="card">
+      <h2>MIDI <span class="led" id="midiLed"></span><span class="sp"></span><span class="meter" id="midiClock"></span></h2>
+      <div class="row" style="margin-top:0">
+        <label class="field">Input<select id="midiIn"><option>All inputs</option></select></label>
+        <label class="field">Channel<select id="midiCh"></select></label>
+        <label class="field">Notes<select id="midiMode"><option value="chromatic">Chromatic (middle C = original)</option><option value="pads">16 pads from note 36</option></select></label>
+        <label class="field">Output (pads you tap)<select id="midiOutSel"><option value="">None</option></select></label>
+      </div>
+      <div class="row">
+        <button class="btn" id="midiLearnBtn">MIDI learn</button>
+        <button class="btn" id="midiResetBtn">Default map</button>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="midiFollow"> Follow MIDI clock start / stop</label>
+        <button class="btn" id="midiClockWarp">Warp to clock tempo</button>
+      </div>
+      <p class="note">Velocity sets the level, pitch bend is ±2 semitones, program change picks a preset (bank select for 129-500), all notes off stops everything. Every knob and menu can be learned: tap MIDI learn, tap the control, move your controller. <span id="midiState"></span></p>
+      <p class="note">Map: <span id="midiMap"></span></p>
+      <p class="note">Last: <span id="midiLast">—</span></p>
+    </section>
+
+    <section class="card" id="tvCard">
+      <h2>TV screen <span class="sp"></span><span class="meter" id="tvState"></span></h2>
+      <div class="row" style="margin-top:0">
+        <button class="btn pri" id="castBtn">Cast to TV</button>
+        <button class="btn" id="tvWinBtn">TV window</button>
+        <button class="btn" id="tvStopBtn">Stop</button>
+        <span class="meter" id="castState"></span>
+      </div>
+      <p class="note"><b>Cast to TV</b> sends a big live screen to a Chromecast, Android / Google TV or cast-capable smart TV on your Wi-Fi: the display, waveform and playhead, every setting, the knob you're turning, pads and master EQ. Keep working here and watch it there.</p>
+      <p class="note"><b>TV window</b> is for a TV plugged into a computer: drag the window onto the TV, press F11.</p>
+      <p class="note">To put the whole app itself on the TV, use your phone's screen mirroring (Android: Quick settings → Cast or Smart View). On an Android / Google TV, install the Omega Twelve app there and use the remote: arrows move between controls, Shift + arrows or up / down turn a knob, OK plays a pad.</p>
+    </section>
+
     <section class="card span2">
       <h2>Export</h2>
       <div class="row" style="margin-top:0">
@@ -224,6 +259,8 @@ dialog::backdrop{background:#000a}
     <li><b>Warp</b>: Detect finds tempo and key. Stretch keeps the pitch; Speed changes pitch with tempo like the original machine.</li>
     <li><b>Truncate</b> keeps only the selection. <b>Resample</b> bounces what you hear back in as the new sample and resets the effects so nothing is applied twice.</li>
     <li><b>Master out</b>: EQ match to a reference track (or a typical mix), a 5-band parametric EQ, compressor, gain and a look-ahead limiter. <b>Auto master</b> sets all of it for the loudness target.</li>
+    <li><b>The SP engine</b>: the SP-1200 and SP-12 run their actual circuits (anti-alias filter, output filters 3-6, the SSM2044 and the capacitor network that sweeps it after each hit), simulated from the service-manual parts, and the hardware's 8-channel DAC timing and 7-bit pitch counter. <b>Calibration</b>: Measured SP-12 matches a real machine's part tolerances; Service manual uses the parts as drawn. <b>45 rpm trick</b>: sample sped up, played back down, so only the grit changes.</li>
+    <li><b>MIDI</b>: notes, velocity, pitch bend, program change, MIDI learn for every control, clock start / stop. <b>TV</b>: Cast the live screen to a TV, or open a TV window.</li>
     <li><b>STOP ALL</b> stops every sound right away.</li>
   </ul>
   <p>SP-1200 converter and filter data from libmd12 (MIT). SP-1200, SP-12, MPC60, S950, S612 and Mirage are trademarks of their owners, named only to describe the sound; not affiliated.</p>
@@ -237,5 +274,6 @@ dialog::backdrop{background:#000a}
 <script src="engine.js"></script>
 <script src="codecs.js"></script>
 <script src="app.js"></script>
+<script src="io.js"></script>
 </body>
 </html>

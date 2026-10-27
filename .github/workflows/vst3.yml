@@ -4,7 +4,7 @@ name: Omega VST3 plugins
 on:
   push:
     branches: [main]
-    paths: ['plugins/**', 'twelve/engine.js', 'twelve/tools/compare.mjs', '.github/workflows/vst3.yml']
+    paths: ['plugins/**', 'twelve/engine.js', 'twelve/sp1200.js', 'twelve/tools/compare.mjs', '.github/workflows/vst3.yml']
   workflow_dispatch:
 permissions:
   contents: write
