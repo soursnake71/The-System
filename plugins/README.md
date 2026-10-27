@@ -17,6 +17,10 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, and `SPQuencer1200-Setup-<version>.exe`, a Windows
 installer that puts SPQuencer1200.vst3 in `C:\Program Files\Common Files\VST3` (built from `installer/SPQuencer1200.iss`
 by `.github/workflows/vst3.yml`; it is not code-signed, so SmartScreen asks once: More info, then Run anyway).
+For Mac there is `SPQuencer1200-<version>.pkg` (from `installer/make-mac-pkg.sh`), which installs the VST3 into
+`/Library/Audio/Plug-Ins/VST3` and the Audio Unit into `/Library/Audio/Plug-Ins/Components`. It is not signed or notarized
+with an Apple Developer ID, so the first time macOS blocks it: open System Settings > Privacy & Security and click
+**Open Anyway** next to the SPQuencer1200 message (on macOS 14 and older, right-click the .pkg and choose Open).
 
 Build yourself: `cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release`.
 Parameter tables come from the app: `node plugins/tools/gen.mjs` regenerates `gen/tables.inc`.
