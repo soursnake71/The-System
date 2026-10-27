@@ -1,0 +1,64 @@
+# Builds Dragonstomper for Windows (Electron installer) and Android (APK).
+# Pull requests get it as a downloadable artifact; pushes to main also attach it to the
+# "dragonstomper-latest" release.
+name: Dragonstomper Windows + Android
+on:
+  push:
+    branches: [main]
+    paths: ['dragonstomper/**', '.github/workflows/dragonstomper-apps.yml']
+  pull_request:
+    paths: ['dragonstomper/**', '.github/workflows/dragonstomper-apps.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: dragonstomper/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Build
+        run: |
+          npm ci --no-audit --no-fund
+          npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dragonstomper-Setup
+          path: dragonstomper/desktop/dist/Dragonstomper-Setup-*.exe
+          compression-level: 0
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view dragonstomper-latest >/dev/null 2>&1 || gh release create dragonstomper-latest --title "Dragonstomper for Windows (latest)" --notes "Download Dragonstomper-Setup.exe and run it. Windows may warn that the app is from an unknown publisher (it isn't code-signed): choose More info, then Run anyway."
+          cp dist/Dragonstomper-Setup-*.exe dist/Dragonstomper-Setup.exe
+          gh release upload dragonstomper-latest dist/Dragonstomper-Setup.exe --clobber
+
+  # The Android app (offline, played with a controller); debug-signed for sideloading
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > dragonstomper/android/local.properties
+          gradle -p dragonstomper/android assembleRelease --no-daemon
+          cp dragonstomper/android/app/build/outputs/apk/release/app-release.apk Dragonstomper.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: Dragonstomper-APK, path: Dragonstomper.apk, compression-level: 0}
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view dragonstomper-latest >/dev/null 2>&1 || gh release create dragonstomper-latest --title "Dragonstomper (latest)" --notes "Windows: Dragonstomper-Setup.exe. Android: Dragonstomper.apk (needs an Xbox or PlayStation controller)."
+          gh release upload dragonstomper-latest Dragonstomper.apk --clobber

@@ -1,0 +1,70 @@
+{
+  "name": "dragonstomper",
+  "productName": "Dragonstomper",
+  "version": "1.0.0",
+  "description": "Starpath's 1982 Dragonstomper, reverse engineered and rebuilt as a realistic 3D game.",
+  "author": "The System",
+  "license": "MIT",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "stage": "node stage.js",
+    "start": "node stage.js && electron .",
+    "dist": "node stage.js && electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8",
+    "resedit": "2.0.3"
+  },
+  "build": {
+    "appId": "com.thesystem.dragonstomper",
+    "productName": "Dragonstomper",
+    "copyright": "Game rebuilt from Starpath's 1982 Dragonstomper",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "game/**/*",
+      "!game/tools/**",
+      "!game/desktop/**",
+      "!game/**/*.md"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "afterPack": "./after-pack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dragonstomper",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "artifactName": "Dragonstomper-Setup-${version}.exe",
+      "runAfterFinish": true
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soursnake71/The-System.git"
+  }
+}
