@@ -22,18 +22,18 @@ export const PRESETS = {
 export const RESOLUTIONS = {
   '50': { label: '50%', scale: 0.5 }, '75': { label: '75%', scale: 0.75 }, native: { label: 'Native', scale: 1 },
   '4k': { label: '4K (3840x2160)', target: 3840 },
-  auto: { label: 'Dynamic', dynamic: true }, // follows the frame rate (see adaptResolution)
+  auto: { label: 'Dynamic', dynamic: true }, // follows the frame rate (see adapt)
 };
 
 const loadSettings = () => { try { return JSON.parse(localStorage.getItem('ds-settings')) || {}; } catch (e) { return {}; } };
 export const settings = {
-  // phones and TVs (the Android app) start lighter; desktops start on High
-  quality: /Android/.test(navigator.userAgent) ? 'medium' : 'high', resolution: /Android/.test(navigator.userAgent) ? 'auto' : 'native', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
+  // Auto: picked for this device at start-up, then adjusted while you play (see autoConfigure/adapt)
+  quality: 'auto', resolution: 'auto', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
   ...loadSettings(),
 };
 export function saveSettings() { try { localStorage.setItem('ds-settings', JSON.stringify(settings)); } catch (e) {} }
 
-export const gfx = { renderer: null, composer: null, camera: null, scene: null, sun: null, passes: {}, time: 0, dynScale: 0.8, gpu: '' };
+export const gfx = { renderer: null, composer: null, camera: null, scene: null, sun: null, passes: {}, time: 0, dynScale: 0.8, gpu: '', autoLevel: 1, autoWhy: '', onAutoChange: null };
 
 export function initGfx(canvas) {
   const r = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -45,19 +45,57 @@ export function initGfx(canvas) {
   gfx.renderer = r;
   // which GPU: on Android, flagship chips (Galaxy S23's Adreno 740 and the like) start on High
   try { const ext = r.getContext().getExtension('WEBGL_debug_renderer_info'); gfx.gpu = ext ? r.getContext().getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; } catch (e) {}
-  if (/Android/.test(navigator.userAgent) && !loadSettings().quality)
-    settings.quality = /Adreno[^0-9]*(7[3-9]\d|8\d\d)|Xclipse 9|Immortalis|Mali-G7[1-9]/i.test(gfx.gpu) ? 'high' : 'medium';
+  autoConfigure();
   gfx.camera = new THREE.PerspectiveCamera(settings.fov, 16 / 9, 0.05, 2500);
   gfx.pmrem = new THREE.PMREMGenerator(r);
   addEventListener('resize', () => resize());
   return r;
 }
 
-export const preset = () => PRESETS[settings.quality] || PRESETS.high;
+export const LEVELS = ['low', 'medium', 'high', 'ultra'];
+export const qualityName = () => settings.quality === 'auto' ? LEVELS[gfx.autoLevel] : settings.quality;
+export const preset = () => PRESETS[qualityName()] || PRESETS.high;
+
+// ---------- auto configuration ----------
+// A first guess from the graphics chip and the device, refined by what the frame rate says
+// while you play. What it learns is remembered for this GPU, so the next launch starts there.
+const AUTO_KEY = 'ds-auto';
+let ceiling = 3;
+function guessLevel() {
+  const g = gfx.gpu || '', ua = navigator.userAgent;
+  const mobile = /Android|iPhone|iPad|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+  const mem = navigator.deviceMemory || 8, cores = navigator.hardwareConcurrency || 4;
+  let lvl, why;
+  if (/SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(g)) { lvl = 0; why = 'software rendering'; }
+  else if (mobile) {
+    if (/Adreno[^0-9]*(7[3-9]\d|8\d\d)|Xclipse 9|Immortalis|Mali-G7[1-9]/i.test(g)) { lvl = 2; why = 'flagship phone GPU'; }
+    else if (/Adreno[^0-9]*(6[4-9]\d|7[0-2]\d)|Mali-G(5[7-9]|6\d)|Xclipse|Apple GPU/i.test(g)) { lvl = 1; why = 'phone or tablet GPU'; }
+    else { lvl = 0; why = 'entry-level phone GPU'; }
+  } else {
+    if (/RTX|RX ?[6-9]\d{3}|Radeon Pro W|Apple M\d (Pro|Max|Ultra)/i.test(g)) { lvl = 3; why = 'high-end graphics card'; }
+    else if (/GTX|Radeon RX|RX ?\d{3,4}|Arc\(TM\) A|Arc A|Quadro|Apple M\d|Radeon Pro/i.test(g)) { lvl = 2; why = 'dedicated graphics'; }
+    else if (/Iris|Radeon(\(TM\))? (Graphics|Vega)|Radeon 7\d0M|Intel.*Arc/i.test(g)) { lvl = 1; why = 'integrated graphics'; }
+    else if (/Intel.*(UHD|HD)/i.test(g)) { lvl = mem >= 8 && cores >= 8 ? 1 : 0; why = 'basic integrated graphics'; }
+    else { lvl = mem >= 8 && cores >= 8 ? 2 : 1; why = 'unrecognised GPU'; }
+  }
+  // little memory caps it, whatever the GPU says
+  if (mem <= 2) lvl = 0; else if (mem <= 4) lvl = Math.min(lvl, 1);
+  return { lvl, why };
+}
+function loadAuto() { try { const a = JSON.parse(localStorage.getItem(AUTO_KEY)); return a && a.gpu === gfx.gpu ? a : null; } catch (e) { return null; } }
+function saveAuto() { try { localStorage.setItem(AUTO_KEY, JSON.stringify({ gpu: gfx.gpu, level: gfx.autoLevel, ceiling })); } catch (e) {} }
+export function autoConfigure() {
+  const g = guessLevel(), learned = loadAuto();
+  gfx.autoLevel = learned ? learned.level : g.lvl;
+  ceiling = learned ? learned.ceiling : Math.min(3, g.lvl + 1);
+  gfx.autoWhy = learned ? 'tuned on this device' : g.why;
+  gfx.dynScale = gfx.autoLevel >= 2 && !/Android|iPhone|iPad/i.test(navigator.userAgent) ? 1 : 0.8;
+}
 
 // Build the post-processing chain for a scene
 export function setScene(scene) {
   gfx.scene = scene;
+  settle = 4; // shaders compile and textures upload for a few seconds after an area starts
   buildComposer();
   resize();
 }
@@ -122,18 +160,38 @@ export function resize() {
   gfx.renderSize = s;
 }
 
-// Dynamic resolution: every couple of seconds, step the render scale down when frames run
-// slow and back up when there's headroom (keeps phones smooth in heavy scenes like dragon fire)
-let dynT = 0, dynFrames = 0;
-export function adaptResolution(dt) {
-  if (settings.resolution !== 'auto' || !gfx.composer) return;
-  dynT += dt; dynFrames++;
-  if (dynT < 2) return;
-  const fps = dynFrames / dynT; dynT = 0; dynFrames = 0;
-  const old = gfx.dynScale;
-  if (fps < 48) gfx.dynScale = Math.max(0.5, gfx.dynScale * 0.88);
-  else if (fps > 57) gfx.dynScale = Math.min(1, gfx.dynScale * 1.06);
-  if (Math.abs(gfx.dynScale - old) > 0.01) resize();
+// While you play: every two seconds, look at the frame rate. Dynamic resolution moves first
+// (down when slow, up with headroom); if that's at its floor and it's still slow, Auto quality
+// drops a level, and with lasting headroom at full resolution it climbs back (never above a
+// level it has had to leave). Loading hitches right after an area starts are ignored.
+let winT = 0, winFrames = 0, slow = 0, fast = 0, settle = 0;
+export function adapt(dt) {
+  if (!gfx.composer) return;
+  if (settle > 0) { settle -= dt; return; }
+  winT += dt; winFrames++;
+  if (winT < 2) return;
+  const fps = winFrames / winT; winT = 0; winFrames = 0;
+  const dyn = settings.resolution === 'auto';
+  if (dyn) {
+    const old = gfx.dynScale;
+    if (fps < 48) gfx.dynScale = Math.max(0.5, gfx.dynScale * 0.88);
+    else if (fps > 57) gfx.dynScale = Math.min(1, gfx.dynScale * 1.06);
+    if (Math.abs(gfx.dynScale - old) > 0.01) resize();
+  }
+  if (settings.quality !== 'auto') return;
+  slow = fps < 40 && (!dyn || gfx.dynScale <= 0.55) ? slow + 1 : 0;
+  fast = fps > 58 && (!dyn || gfx.dynScale >= 0.99) ? fast + 1 : 0;
+  let lvl = gfx.autoLevel;
+  if (slow >= 2 && lvl > 0) { lvl--; ceiling = lvl; }
+  else if (fast >= 6 && lvl < ceiling) lvl++;
+  if (lvl === gfx.autoLevel) return;
+  // a cheaper level can afford more pixels again
+  if (dyn && lvl < gfx.autoLevel) gfx.dynScale = 0.75;
+  slow = fast = 0; gfx.autoLevel = lvl;
+  saveAuto();
+  applyQuality();
+  settle = 3;
+  gfx.onAutoChange?.(LEVELS[lvl]);
 }
 
 export function applyQuality() {

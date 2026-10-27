@@ -1,6 +1,6 @@
 // Boot, menus and the main loop.
 import * as THREE from 'three';
-import { initGfx, gfx, render, settings, saveSettings, applyQuality, resize, adaptResolution } from './core/gfx.js';
+import { initGfx, gfx, render, settings, saveSettings, applyQuality, resize, adapt, autoConfigure, qualityName } from './core/gfx.js';
 import { input, initInput, pollInput, pressed, endFrame, lockPointer, unlockPointer } from './core/input.js';
 import { initAudio, setVolume, setMusicVolume, music, sfx, ambience } from './core/sound.js';
 import { progress } from './core/assets.js';
@@ -40,6 +40,7 @@ initInput(canvas);
 const hud = new HUD();
 const game = new Game(hud);
 initTouch(() => !!game.stats?.goods?.LONGBOW);
+gfx.onAutoChange = (lvl) => hud.toast(`Graphics set to ${lvl[0].toUpperCase() + lvl.slice(1)} to keep the game smooth`);
 let playing = false;
 
 // ---------- menus ----------
@@ -75,12 +76,15 @@ function syncSettings() {
     if (o) o.textContent = key === 'volume' || key === 'music' ? Math.round(v * 100) + '%' : key === 'fov' ? v + '°' : v.toFixed(2);
   }
   const s = gfx.renderSize || {};
-  $('gpu').textContent = s.w ? `Rendering at ${s.w} × ${s.h}` + (s.w >= 3800 ? ' (4K)' : '') : '';
+  const q = qualityName(), Q = q[0].toUpperCase() + q.slice(1);
+  $('gpu').textContent = (settings.quality === 'auto' ? `Auto chose ${Q} (${gfx.autoWhy})` : `${Q} quality`)
+    + (s.w ? ` · rendering at ${s.w} × ${s.h}` + (s.w >= 3800 ? ' (4K)' : '') : '');
 }
 for (const [id, [key, conv]] of Object.entries(fields)) {
   $(id).addEventListener('input', () => {
     settings[key] = conv($(id).value);
     saveSettings();
+    if (key === 'quality' && settings.quality === 'auto') autoConfigure();
     if (key === 'quality' || key === 'resolution') applyQuality();
     if (key === 'fov') resize();
     if (key === 'volume') setVolume(settings.volume);
@@ -253,7 +257,7 @@ function frame() {
   const navved = padMenus();
   if (playing && !navved && pressed('pause') && !hud.modalOpen && !game.busy) pause();
   if (playing && !game.paused) game.update(dt);
-  if (gfx.scene && playing) { render(); adaptResolution(dt); }
+  if (gfx.scene && playing) { render(); adapt(dt); }
   endFrame();
   frames++; fpsT += dt;
   if (fpsT > 0.5) { fpsEl.textContent = Math.round(frames / fpsT) + ' fps · ' + (gfx.renderSize?.w || 0) + '×' + (gfx.renderSize?.h || 0); frames = 0; fpsT = 0; }
