@@ -6,6 +6,27 @@
    phone's own screen mirroring; tv.html draws the app's live state big. */
 'use strict';
 
+/* ---------------- Android app: native MIDI shaped like Web MIDI ---------------- */
+if (window.AndroidMidi && AndroidMidi.available()){
+  const access = {inputs:new Map(), outputs:new Map(), onstatechange:null, sysexEnabled:false};
+  const scan = () => {
+    const seen = new Set();
+    for (const d of JSON.parse(AndroidMidi.list())){
+      seen.add(d.id);
+      if (d.kind === 'input' && !access.inputs.has(d.id)){
+        const port = {id:d.id, name:d.name, type:'input', _h:null};
+        Object.defineProperty(port, 'onmidimessage', {get(){ return this._h; }, set(h){ this._h = h; if (h) AndroidMidi.listen(d.id); }});
+        access.inputs.set(d.id, port);
+      } else if (d.kind === 'output' && !access.outputs.has(d.id)) access.outputs.set(d.id, {id:d.id, name:d.name, type:'output', send:bytes => AndroidMidi.send(d.id, Array.from(bytes).join(','))});
+    }
+    for (const m of [access.inputs, access.outputs]) for (const id of [...m.keys()]) if (!seen.has(id)) m.delete(id);
+  };
+  window.__twMidi = (id, bytes) => { const p = access.inputs.get(id); if (p && p._h) p._h({data:Uint8Array.from(bytes), target:p}); };
+  window.__twMidiChanged = () => { scan(); if (access.onstatechange) access.onstatechange({}); };
+  scan();
+  navigator.requestMIDIAccess = () => Promise.resolve(access);
+}
+
 /* ---------------- MIDI ---------------- */
 const MSTORE = 'omega-twelve-midi';
 const DEFAULT_CC = {1:'cutoff', 74:'cutoff', 71:'res', 73:'fenv', 72:'drive', 7:'output', 91:'crackle', 93:'wow', 94:'hiss', 95:'bits'};
@@ -121,6 +142,7 @@ function tvSend(msg){
   if (TV.conn && TV.conn.state === 'connected') try { TV.conn.send(s); } catch (e) {}
   if (TV.win && !TV.win.closed) TV.win.postMessage(msg, location.origin);
   if (TV.bc) TV.bc.postMessage(msg);
+  if (window.AndroidTv && AndroidTv.connected()) AndroidTv.post(s);
 }
 function tvState(){
   if (!TV.on) return;
@@ -140,6 +162,12 @@ function tvPosLoop(){
   requestAnimationFrame(tvPosLoop);
 }
 async function castTv(){
+  if (window.AndroidTv){
+    const r = AndroidTv.open();
+    if (r.startsWith('display')){ TV.on = true; setTimeout(tvFull, 800); toast('TV screen on ' + r.slice(8) + '. Keep working here.'); }
+    else toast('No second screen yet: in Cast settings pick your TV (or plug in HDMI / USB-C), then tap Cast to TV again. Screen mirroring shows the whole app on the TV.', 7000);
+    setTimeout(paintTv, 900); return;
+  }
   if (!window.PresentationRequest){ toast('Casting needs Chrome. Use "TV window" with a TV plugged into a computer, or your phone\'s Screen cast / Smart View.', 6000); return; }
   try {
     TV.req = TV.req || new PresentationRequest(['tv.html']);
@@ -151,13 +179,15 @@ async function castTv(){
     paintTv(); toast('Casting to the TV. Everything you do here shows there live.');
   } catch (e){ if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') toast('No TV found to cast to (' + e.name + '). Check the TV is on the same Wi-Fi.', 5000); }
 }
+window.__twTvClosed = () => paintTv();
 function windowTv(){
+  if (window.AndroidTv){ castTv(); return; }
   TV.win = window.open('tv.html', 'omega-twelve-tv', 'popup,width=1280,height=720');
   if (!TV.win){ toast('The browser blocked the window: allow pop-ups for this site'); return; }
   TV.on = true; paintTv(); toast('TV window open: drag it to the TV screen and press F11 for full screen.', 5000);
 }
-function stopTv(){ if (TV.conn) try { TV.conn.terminate(); } catch (e) {} if (TV.win && !TV.win.closed) TV.win.close(); TV.conn = TV.win = null; paintTv(); }
-function paintTv(){ const live = (TV.conn && TV.conn.state !== 'closed') || (TV.win && !TV.win.closed); $('#tvBtn').classList.toggle('on', !!live); $('#tvState').textContent = live ? 'On the TV now' : ''; }
+function stopTv(){ if (window.AndroidTv) AndroidTv.close(); if (TV.conn) try { TV.conn.terminate(); } catch (e) {} if (TV.win && !TV.win.closed) TV.win.close(); TV.conn = TV.win = null; paintTv(); }
+function paintTv(){ const live = (TV.conn && TV.conn.state !== 'closed') || (TV.win && !TV.win.closed) || (window.AndroidTv && AndroidTv.connected()); $('#tvBtn').classList.toggle('on', !!live); $('#tvState').textContent = live ? 'On the TV now' : ''; }
 
 /* ---------------- hooks into app.js ---------------- */
 const _setParam = setParam;
@@ -188,7 +218,8 @@ function remoteKeys(){
 
 $('#tvBtn').onclick = () => $('#tvCard').scrollIntoView({behavior:'smooth'});
 $('#castBtn').onclick = castTv; $('#tvWinBtn').onclick = windowTv; $('#tvStopBtn').onclick = stopTv;
-if (window.PresentationRequest){
+if (window.AndroidTv){ $('#castState').textContent = 'Uses a second screen: HDMI / USB-C or a wireless display'; $('#tvWinBtn').hidden = true; }
+else if (window.PresentationRequest){
   try { new PresentationRequest(['tv.html']).getAvailability().then(a => { const f = () => { $('#castBtn').disabled = false; $('#castState').textContent = a.value ? 'TV found on your network' : 'No cast TV found yet (same Wi-Fi?)'; }; f(); a.onchange = f; }).catch(() => {}); } catch (e) {}
 }
 setupMidiFull(); remoteKeys(); requestAnimationFrame(tvPosLoop);

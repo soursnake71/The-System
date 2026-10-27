@@ -577,6 +577,13 @@ async function doExport(){
       blob = new Blob([r.bytes], {type:r.mime}); name = base + '.' + r.ext;
     }
     lastFile = new File([blob], name, {type:blob.type});
+    if (window.AndroidTwelve){
+      // the Android app: no browser downloads, so hand the file to the app, which puts it in Downloads
+      const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(blob); });
+      const where = AndroidTwelve.save(b64, name, blob.type || 'application/octet-stream');
+      if (where.startsWith('error')) throw new Error(where.slice(7));
+      toast(`Saved to ${where} (${(blob.size / 1048576).toFixed(2)} MB)`, 5000); return;
+    }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
     $('#shareBtn').hidden = !(navigator.canShare && navigator.canShare({files:[lastFile]}));
@@ -638,4 +645,4 @@ function wire(){
 }
 
 buildControls(); buildPads(); buildFormats(); load(); wire(); setupWave(); paintAll(); drawWave();   // MIDI and TV: io.js
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidTwelve) navigator.serviceWorker.register('sw.js').catch(() => {});
