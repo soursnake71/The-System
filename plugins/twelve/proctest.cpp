@@ -63,6 +63,35 @@ int main(int argc, char** argv) {
     check(proc->resample().startsWith("Resampled"), "resample");
     check((int) proc->snapshot()[pid::machine] == 6 && proc->snapshot()[pid::mOn] < .5, "resample resets effects and master");
     check(proc->undo() == "Undone", "undo");
+    // MIDI: a default CC (74 = cutoff), program change, learn, panic
+    {
+        juce::AudioBuffer<float> b(2, block); juce::MidiBuffer m;
+        m.addEvent(juce::MidiMessage::controllerEvent(1, 74, 127), 0);
+        m.addEvent(juce::MidiMessage::programChange(1, 41), 1);
+        proc->processBlock(b, m); juce::MessageManager::getInstance()->runDispatchLoopUntil(200);
+        check(std::abs(proc->snapshot()[pid::cutoff] - 20000) < 1 && proc->getCurrentProgram() == 41, "MIDI CC 74 -> cutoff " + juce::String(proc->snapshot()[pid::cutoff], 0) + " Hz, program change -> " + proc->getProgramName(41));
+        proc->learnParam = pid::crackle; m.clear(); m.addEvent(juce::MidiMessage::controllerEvent(1, 21, 64), 0); b.clear(); proc->processBlock(b, m);
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(200);
+        check(proc->ccMap[21].load() == pid::crackle && std::abs(proc->snapshot()[pid::crackle] - 64 / 127.0) < .01, "MIDI learn: CC 21 -> crackle " + juce::String(proc->snapshot()[pid::crackle], 3));
+        auto [r5, p5, n5] = run(.3, {60, 64}, false); (void) p5; (void) n5;
+        m.clear(); m.addEvent(juce::MidiMessage::controllerEvent(1, 123, 0), 0); b.clear(); proc->processBlock(b, m);
+        auto [r6, p6, n6] = run(.2, {}, false); (void) p6; (void) n6;
+        check(r5 > 1e-3 && r6 < 1e-4, "MIDI all notes off silences (" + juce::String(r5, 4) + " -> " + juce::String(r6, 6) + ")");
+    }
+    // live input through the circuit-level SP path
+    {
+        proc->setCurrentProgram(0); proc->apvts.getParameter("live")->setValueNotifyingHost(1);
+        double rms = 0; int n = 0;
+        for (int pos = 0; pos < (int) sr; pos += block) {
+            juce::AudioBuffer<float> b(2, block); juce::MidiBuffer m;
+            for (int c = 0; c < 2; ++c) for (int i = 0; i < block; ++i) b.setSample(c, i, (float) (std::sin(6.2831853 * 220 * (pos + i) / sr) * .5));
+            proc->processBlock(b, m);
+            for (int i = 0; i < block; ++i) { rms += b.getSample(0, i) * b.getSample(0, i); n++; }
+        }
+        rms = std::sqrt(rms / n);
+        check(rms > .05 && rms < 1, "live input through the SP circuits: rms " + juce::String(rms, 4));
+        proc->apvts.getParameter("live")->setValueNotifyingHost(0);
+    }
     proc->analyze();
     if (auto* ed = proc->createEditor()) {
         juce::Thread::sleep(200);

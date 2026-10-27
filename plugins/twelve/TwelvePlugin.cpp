@@ -54,10 +54,34 @@ TwelveProcessor::TwelveProcessor()
 #if TWELVE_INSTRUMENT
     apvts.getParameter("live")->setValueNotifyingHost(0);
 #endif
+    resetCCMap();
+    for (auto& c : ccVal) c = 0;
+    ccDirty[0] = 0; ccDirty[1] = 0;
     startThread();
+    startTimerHz(30);
 }
 
-TwelveProcessor::~TwelveProcessor() { stopThread(4000); pool.removeAllJobs(true, 4000); }
+// sensible defaults so a controller works before anything is learned (General MIDI sound-controller numbers)
+void TwelveProcessor::resetCCMap() {
+    for (auto& c : ccMap) c = -1;
+    ccMap[1] = pid::cutoff; ccMap[74] = pid::cutoff; ccMap[71] = pid::res; ccMap[73] = pid::fenv; ccMap[72] = pid::drive;
+    ccMap[7] = pid::output; ccMap[91] = pid::crackle; ccMap[93] = pid::wow; ccMap[94] = pid::hiss; ccMap[95] = pid::bits;
+}
+void TwelveProcessor::timerCallback() {
+    const int prog = pendingProgram.exchange(-1);
+    if (prog >= 0) setCurrentProgram(prog % kPresets);
+    for (int w = 0; w < 2; ++w) {
+        uint64_t bits = ccDirty[w].exchange(0);
+        for (int b = 0; b < 64 && bits; ++b) {
+            if (!(bits & (1ull << b))) continue;
+            bits &= ~(1ull << b);
+            const int cc = w * 64 + b, id = ccMap[(size_t) cc].load();
+            if (id >= 0) if (auto* prm = apvts.getParameter(PARAMS[id].id)) prm->setValueNotifyingHost(ccVal[(size_t) cc].load());
+        }
+    }
+}
+
+TwelveProcessor::~TwelveProcessor() { stopTimer(); stopThread(4000); pool.removeAllJobs(true, 4000); }
 
 bool TwelveProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
     const auto out = l.getMainOutputChannelSet();
@@ -90,8 +114,9 @@ void TwelveProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     hostFs = sampleRate;
     for (int c = 0; c < 2; ++c) { conv[c] = Converter(sampleRate); filt[c] = OutFilter(sampleRate); dc[c] = 0; }
     lofi = Lofi(sampleRate, 4321); master = Master(sampleRate);
+    for (auto& s2 : spl) s2 = sp::SPLive(sampleRate);
     primed = false; lbuf.assign((size_t) juce::jmax(512, maxBlock), 0.f); rbuf = lbuf;
-    setLatencySamples(master.latency());
+    setLatencySamples(master.latency() + sp::SPLive(sampleRate).latency());
     for (auto& v : voices) v = Voice();
 }
 
@@ -107,7 +132,17 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     bool chLive = !primed, chLofi = !primed, chMaster = !primed;
     for (int i = 0; i < pid::count; ++i) if (p[i] != lastP[i]) { const char g = PARAMS[i].group[0]; if (g == 'm') chMaster = true; else if (g == 'l') chLofi = true; else chLive = true; }
     lastP = p; primed = true;
-    if (chLive) for (int c = 0; c < 2; ++c) { conv[c].setup(p); filt[c].setup(p); }
+    if (chLive) {
+        for (int c = 0; c < 2; ++c) { conv[c].setup(p); filt[c].setup(p); }
+        // SP-1200 / SP-12: live input through the circuit-level path (SP1200.h)
+        spMode = MACHINES[(int) clampd(p[pid::machine], 0, 6)].pitch == 0;
+        if (spMode) {
+            sp::SPLive::Settings s2; const int ft = (int) p[pid::ftype];
+            s2.clock = p[pid::rate]; s2.level = driveGain(p); s2.bits = p[pid::bits]; s2.rpm = p[pid::rpm]; s2.rest = p[pid::cutoff]; s2.res = p[pid::res];
+            s2.depth = p[pid::fenv]; s2.output = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7; s2.measured = p[pid::calib] > .5; s2.sp12 = (int) p[pid::machine] == 1;
+            for (auto& x : spl) x.setup(s2);
+        }
+    }
     if (chLofi) lofi.setup(p);
     std::array<float, 10> m; double md[10];
     for (int i = 0; i < 10; ++i) { m[(size_t) i] = matchG[(size_t) i].load(); md[i] = m[(size_t) i]; }
@@ -117,6 +152,7 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
         for (auto& v : voices) v.active = false;
         for (auto& q : pend) q.used = false;
         master.reset(); for (int c = 0; c < 2; ++c) { filt[c].reset(); conv[c].reset(); }
+        bend = 0;
         mainPlaying = false;
     }
     if (playRequest.exchange(false)) {
@@ -132,8 +168,20 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
             const int off = msg.getNoteNumber() - 60;
             if (off < -24 || off > 24) continue;
             for (auto& q : pend) if (!q.used) { q.used = true; q.note = msg.getNoteNumber(); q.off = off; q.vel = msg.getFloatVelocity(); q.age = 0; break; }
-        } else if (msg.isAllNotesOff() || msg.isAllSoundOff()) {
+            if (spMode) for (auto& x : spl) x.trigger();   // a note fires the SSM2044 envelope on live input, like a pad hit
+        } else if (msg.isAllNotesOff() || msg.isAllSoundOff() || (msg.isController() && (msg.getControllerNumber() == 120 || msg.getControllerNumber() == 123))) {
             for (auto& v : voices) v.active = false;
+            for (auto& q : pend) q.used = false;
+        } else if (msg.isPitchWheel()) {
+            bend = (msg.getPitchWheelValue() - 8192) / 8192.0 * 2;   // +-2 semitones
+        } else if (msg.isProgramChange()) {
+            pendingProgram = msg.getProgramChangeNumber() + 128 * (bankMsb.load() & 3);
+        } else if (msg.isController()) {
+            const int cc = msg.getControllerNumber(), learn = learnParam.load();
+            if (cc == 0) { bankMsb = msg.getControllerValue(); continue; }
+            lastCC = cc;
+            if (learn >= 0) { for (auto& c : ccMap) if (c.load() == learn) c = -1; ccMap[(size_t) cc] = learn; learnParam = -1; }
+            ccVal[(size_t) cc] = msg.getControllerValue() / 127.f; ccDirty[cc >> 6].fetch_or(1ull << (cc & 63));
         }
     }
     for (auto& q : pend) {
@@ -156,9 +204,14 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
         double yl = 0, yr = 0;
         if (live && inL) {
             const double xl = mono ? (inL[i] + inR[i]) * .5 : inL[i], xr = mono ? xl : inR[i];
-            double a = conv[0].process(xl); dc[0] += (a - dc[0]) * (6 / fs); a = filt[0].process(a - dc[0]) / dv;
-            double b;
-            if (mono) b = a; else { b = conv[1].process(xr); dc[1] += (b - dc[1]) * (6 / fs); b = filt[1].process(b - dc[1]) / dv; }
+            double a, b;
+            if (spMode) {
+                a = spl[0].process((float) xl); dc[0] += (a - dc[0]) * (6 / fs); a = (a - dc[0]) / dv;
+                if (mono) b = a; else { b = spl[1].process((float) xr); dc[1] += (b - dc[1]) * (6 / fs); b = (b - dc[1]) / dv; }
+            } else {
+                a = conv[0].process(xl); dc[0] += (a - dc[0]) * (6 / fs); a = filt[0].process(a - dc[0]) / dv;
+                if (mono) b = a; else { b = conv[1].process(xr); dc[1] += (b - dc[1]) * (6 / fs); b = filt[1].process(b - dc[1]) / dv; }
+            }
             yl = a * mix + xl * inGain * (1 - mix); yr = b * mix + xr * inGain * (1 - mix);
             lofi.process(yl, yr); yl *= outGain; yr *= outGain;
         }
@@ -168,12 +221,12 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     bool anyMain = false;
     for (auto& v : voices) {
         if (!v.active) continue;
-        const auto& b = *v.buf; const double len = (double) b[0].size();
+        const auto& b = *v.buf; const double len = (double) b[0].size(), rate = v.main ? 1.0 : std::pow(2.0, bend.load() / 12);
         for (int i = 0; i < n; ++i) {
-            if (v.pos >= len) { if (v.main && loop) v.pos = 0; else { v.active = false; break; } }
-            const size_t k = (size_t) v.pos;
-            l[(size_t) i] += (float) (b[0][k] * v.gain); r[(size_t) i] += (float) (b[1][k] * v.gain);
-            v.pos += 1;
+            if (v.pos >= len - 1) { if (v.main && loop) v.pos = 0; else { v.active = false; break; } }
+            const size_t k = (size_t) v.pos; const float f = (float) (v.pos - (double) k);
+            l[(size_t) i] += (b[0][k] + (b[0][k + 1] - b[0][k]) * f) * (float) v.gain; r[(size_t) i] += (b[1][k] + (b[1][k + 1] - b[1][k]) * f) * (float) v.gain;
+            v.pos += rate;
         }
         if (v.main && v.active) { anyMain = true; mainFrac = v.pos / len; }
     }
@@ -428,6 +481,8 @@ void TwelveProcessor::getStateInformation(juce::MemoryBlock& dest) {
     juce::ValueTree x("TWELVE");
     x.setProperty("name", presetName(), nullptr); x.setProperty("program", program, nullptr); x.setProperty("loop", loop, nullptr);
     juce::String m; for (auto& g : matchG) m << juce::String(g.load(), 3) << " "; x.setProperty("match", m.trim(), nullptr);
+    juce::String cm; for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() >= 0) cm << c << ":" << PARAMS[ccMap[(size_t) c].load()].id << " ";
+    x.setProperty("ccmap", cm.trim(), nullptr);
     {
         const juce::ScopedLock l(srcLock);
         // the sample itself goes into the project (FLAC, up to 10 minutes) so it comes back when the song is opened
@@ -455,6 +510,12 @@ void TwelveProcessor::setStateInformation(const void* data, int size) {
     if (!x.isValid()) return;
     setPresetName(x.getProperty("name", "Init").toString()); program = x.getProperty("program", 0); loop = x.getProperty("loop", false);
     juce::StringArray m; m.addTokens(x.getProperty("match").toString(), " ", ""); for (int i = 0; i < 10 && i < m.size(); ++i) matchG[(size_t) i] = m[i].getFloatValue();
+    if (x.hasProperty("ccmap")) {
+        for (auto& c : ccMap) c = -1;
+        juce::StringArray cm; cm.addTokens(x.getProperty("ccmap").toString(), " ", "");
+        for (auto& e : cm) { const int cc = e.upToFirstOccurrenceOf(":", false, false).getIntValue(); const auto id = e.fromFirstOccurrenceOf(":", false, false);
+            for (int i = 0; i < pid::count; ++i) if (id == PARAMS[i].id && cc >= 0 && cc < 128) ccMap[(size_t) cc] = i; }
+    }
     juce::MemoryBlock mb;
     if (mb.fromBase64Encoding(x.getProperty("sample").toString()) && mb.getSize() > 0) {
         juce::FlacAudioFormat flac;

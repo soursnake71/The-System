@@ -12,6 +12,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "SP1200.h"
 
 namespace twelve {
 
@@ -21,7 +22,6 @@ static constexpr double PI = 3.14159265358979323846;
 
 struct ParamInfo { const char* id; const char* name; double min, max, def, step; const char* unit; const char* group; bool log, toggle; std::vector<const char*> choices; };
 #include "Params.inc"
-static constexpr int kSound = 27;
 struct PresetInfo { const char* name; const char* family; double v[kSound]; };
 #include "Presets.inc"
 
@@ -47,7 +47,7 @@ inline const Proto& proto(int which) {   // 0 input, 3..6 outputs
 }
 struct Machine { const char* name; double rate; int bits, pitch, ftype; double cutoff, res; };
 static const Machine MACHINES[7] = {
-    {"SP-1200", SP_SR, 12, 0, 0, 1700, .15}, {"SP-12", 27500, 12, 0, 0, 1900, .12}, {"MPC60", 40000, 12, 2, 5, 16000, 0},
+    {"SP-1200", SP_SR, 12, 0, 0, 1000, .3}, {"SP-12", 27500, 12, 0, 0, 1300, .3}, {"MPC60", 40000, 12, 2, 5, 16000, 0},
     {"S950", 31250, 12, 1, 6, 11000, 0}, {"S612", 32000, 12, 1, 7, 9000, .1}, {"Mirage", 29411, 8, 1, 7, 7000, .25}, {"Clean", 48000, 16, 3, 5, 20000, 0}};
 static const double MATCH_BANDS[10] = {31.25, 62.5, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
 static const double TARGET_CURVE[10] = {-6, -2, 0, 0, -1, -2, -3, -4.5, -7, -12};
@@ -372,8 +372,26 @@ private:
 };
 
 /* ---------------- timestretch (WSOLA) ---------------- */
-inline Chans stretch(const Chans& chs, double factor, double sr, double grainMs) {
+inline Chans cyclicStretch(const Chans& chs, double factor, double sr, double grainMs) {
+    const long len = (long) chs[0].size(), G = std::max(16L, std::lround(grainMs / 1000 * sr)), X = std::min(std::lround(.002 * sr), G >> 1);
+    const long outLen = std::max(1L, std::lround(len * factor));
+    Chans r;
+    for (auto& c : chs) {
+        Buf o((size_t) outLen, 0.f);
+        for (long op = 0, k = 0; op < outLen; op += G, ++k) {
+            const long ip = (long) std::floor(op / factor);
+            for (long i = 0; i < G + X && op + i < outLen; ++i) {
+                const double v = ip + i < len ? c[(size_t) (ip + i)] : 0.0, w = i < X ? (double) i / X : i >= G ? 1 - (double) (i - G) / X : 1;
+                o[(size_t) (op + i)] += (float) (v * (k == 0 && i < X ? 1 : w));
+            }
+        }
+        r.push_back(std::move(o));
+    }
+    return r;
+}
+inline Chans stretch(const Chans& chs, double factor, double sr, double grainMs, bool cyclic = false) {
     if (std::fabs(factor - 1) < 1e-4) return chs;
+    if (cyclic) return cyclicStretch(chs, factor, sr, grainMs);
     const long len = (long) chs[0].size(), N = std::max(64L, 2 * std::lround(grainMs / 1000 * sr / 2)), Hs = N / 2, tol = std::lround(N / 4.0);
     const double Ha = Hs / factor;
     const long outLen = std::max(1L, std::lround(len * factor));
@@ -406,7 +424,7 @@ inline Chans prepareSource(const Chans& chs, const Params& p, double sr) {
     Chans src;
     if (p[pid::mono] > .5 && chs.size() > 1) { Buf m(chs[0].size()); for (size_t i = 0; i < m.size(); ++i) m[i] = (chs[0][i] + chs[1][i]) * .5f; src.push_back(m); }
     else for (size_t c = 0; c < std::min<size_t>(2, chs.size()); ++c) src.push_back(chs[c]);
-    if (p[pid::stretch] != 1) src = stretch(src, p[pid::stretch], sr, p[pid::grain]);
+    if (p[pid::stretch] != 1) src = stretch(src, p[pid::stretch], sr, p[pid::grain], p[pid::smode] > .5);
     return src;
 }
 
@@ -417,6 +435,21 @@ inline Chans renderPre(const Chans& src, double sr, const Params& p, double fs, 
     const double cents = totalCents(p, extraSemis), inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output]), mix = p[pid::mix];
     Chans res;
     for (auto& s : src) {
+        if (mach.pitch == 0) {
+            // the SP-1200 / SP-12 through the circuit-level engine (SP1200.h); 6-pole and 4-pole menu entries run
+            // output 7-8 into those filters
+            const int ft = (int) p[pid::ftype], out = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7;
+            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = driveGain(p); so.bits = p[pid::bits];
+            const auto codes = sp::codesFor(s, sr, so, p[pid::rpm]);
+            sp::PlayOpts po; po.clock = p[pid::rate]; po.sp12 = (int) p[pid::machine] == 1; po.cents = cents - p[pid::rpm] * 100; po.output = out;
+            po.rest = p[pid::cutoff]; po.res = p[pid::res]; po.depth = p[pid::fenv]; po.retrigger = p[pid::retrig] > .5; po.measured = p[pid::calib] > .5;
+            Buf wet = sp::playChannel(codes, po, fs);
+            if (ft >= 6) { OutFilter f(fs); f.setup(p); f.trigger(); for (auto& v : wet) v = (float) f.process(v); }
+            for (auto& v : wet) v = (float) (v / (1 + p[pid::drive] * 3));
+            if (mix < 1) { const Buf dry = playDry(s, sr, fs, cents, wet.size()); for (size_t i = 0; i < wet.size(); ++i) wet[i] = (float) (wet[i] * mix + dry[i] * inGain * (1 - mix)); }
+            res.push_back(std::move(wet));
+            continue;
+        }
         const Buf base = sampleBase(s, sr, p);
         Buf wet = playBase(base, p, fs, mach.pitch, cents);
         Buf dry; if (mix < 1) dry = playDry(s, sr, fs, cents, wet.size());

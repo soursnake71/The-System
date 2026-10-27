@@ -22,8 +22,8 @@ const PROTO = {
 
 // pitch: 0 SP drop/repeat counter, 1 zero-order hold (variable clock), 2 linear, 3 cubic (clean)
 const MACHINES = [
-  {name:'SP-1200', rate:SP_SR, bits:12, pitch:0, ftype:0, cutoff:1700, res:.15},
-  {name:'SP-12',   rate:27500, bits:12, pitch:0, ftype:0, cutoff:1900, res:.12},
+  {name:'SP-1200', rate:SP_SR, bits:12, pitch:0, ftype:0, cutoff:1000, res:.3},
+  {name:'SP-12',   rate:27500, bits:12, pitch:0, ftype:0, cutoff:1300, res:.3},
   {name:'MPC60',   rate:40000, bits:12, pitch:2, ftype:5, cutoff:16000, res:0},
   {name:'S950',    rate:31250, bits:12, pitch:1, ftype:6, cutoff:11000, res:0},
   {name:'S612',    rate:32000, bits:12, pitch:1, ftype:7, cutoff:9000, res:.1},
@@ -41,10 +41,12 @@ const PARAMS = [
   P('alias', 'Alias', 0, 1, 0, 0, '%', 'sampler'),
   P('drive', 'Drive', 0, 1, .2, 0, '%', 'sampler'),
   P('mono', 'Mono', 0, 1, 1, 1, '', 'sampler', {toggle:1}),
+  P('rpm', '45 rpm trick', 0, 16, 0, 1, 'st', 'sampler'),
+  P('calib', 'Calibration', 0, 1, 1, 1, '', 'sampler', {choices:['Service manual', 'Measured SP-12']}),
   P('ftype', 'Filter', 0, 7, 0, 1, '', 'filter', {choices:FILTERS}),
-  P('cutoff', 'Cutoff', 100, 20000, 1700, 0, 'Hz', 'filter', {log:1}),
-  P('res', 'Resonance', 0, 1, .15, 0, '%', 'filter'),
-  P('fenv', 'Filter env', 0, 1, .8, 0, '%', 'filter'),
+  P('cutoff', 'Cutoff', 100, 20000, 1000, 0, 'Hz', 'filter', {log:1}),
+  P('res', 'Resonance', 0, 1, .3, 0, '%', 'filter'),
+  P('fenv', 'Filter env', 0, 1, 1, 0, '%', 'filter'),
   P('retrig', 'Retrigger', 0, 1, 1, 1, '', 'filter', {toggle:1}),
   P('mix', 'Mix', 0, 1, 1, 0, '%', 'filter'),
   P('semis', 'Tune', -24, 24, 0, 1, 'st', 'tune'),
@@ -52,6 +54,7 @@ const PARAMS = [
   P('a4', 'A4 ref', 415, 466, 440, .1, 'Hz', 'tune'),
   P('stretch', 'Stretch', .25, 4, 1, 0, 'x', 'time', {log:1}),
   P('grain', 'Grain', 10, 200, 60, 1, 'ms', 'time'),
+  P('smode', 'Stretch mode', 0, 1, 0, 1, '', 'time', {choices:['Smooth', 'Cyclic (S950)']}),
   P('crackle', 'Crackle', 0, 1, 0, 0, '%', 'lofi'),
   P('hiss', 'Tape hiss', 0, 1, 0, 0, '%', 'lofi'),
   P('wow', 'Wow', 0, 1, 0, 0, '%', 'lofi'),
@@ -376,8 +379,9 @@ class Master {
 }
 
 /* ---------------- timestretch (WSOLA), pitch kept ---------------- */
-function stretch(chs, factor, sr, grainMs){
+function stretch(chs, factor, sr, grainMs, cyclic){
   if (Math.abs(factor - 1) < 1e-4) return chs;
+  if (cyclic) return cyclicStretch(chs, factor, sr, grainMs);
   const len = chs[0].length, N = Math.max(64, 2 * Math.round(grainMs / 1000 * sr / 2)), Hs = N / 2, Ha = Hs / factor, tol = Math.round(N / 4);
   const outLen = Math.max(1, Math.round(len * factor)), mono = new Float32Array(len);
   for (const c of chs) for (let i = 0; i < len; i++) mono[i] += c[i] / chs.length;
@@ -403,6 +407,24 @@ function stretch(chs, factor, sr, grainMs){
   return out.map(o => { const r = new Float32Array(outLen); for (let i = 0; i < outLen; i++) r[i] = o[i] / Math.max(norm[i], .5); return r; });
 }
 
+// the S950 / S1000 way: fixed cycles laid end to end with no search for a good join, just a short crossfade,
+// which gives the stuttery, metallic sound of hardware timestretch
+function cyclicStretch(chs, factor, sr, grainMs){
+  const len = chs[0].length, G = Math.max(16, Math.round(grainMs / 1000 * sr)), X = Math.min(Math.round(.002 * sr), G >> 1);
+  const outLen = Math.max(1, Math.round(len * factor));
+  return chs.map(c => {
+    const o = new Float32Array(outLen);
+    for (let op = 0, k = 0; op < outLen; op += G, k++){
+      const ip = Math.floor(op / factor);
+      for (let i = 0; i < G + X && op + i < outLen; i++){
+        const v = ip + i < len ? c[ip + i] : 0, w = i < X ? i / X : i >= G ? 1 - (i - G) / X : 1;
+        o[op + i] += v * (k === 0 && i < X ? 1 : w);
+      }
+    }
+    return o;
+  });
+}
+
 /* ---------------- offline render: the whole chain for the sampler ---------------- */
 // chs: source channels at sr; returns {pre:[L,R] before master, fs}
 function renderPre(chs, sr, p, fs, opts){
@@ -411,11 +433,26 @@ function renderPre(chs, sr, p, fs, opts){
   let src = opts.stretched;
   if (!src){
     src = p.mono > .5 && chs.length > 1 ? [chs[0].map((v, i) => (v + chs[1][i]) * .5)] : chs.slice(0, 2);
-    if (p.stretch !== 1) src = stretch(src, p.stretch, sr, p.grain);
+    if (p.stretch !== 1) src = stretch(src, p.stretch, sr, p.grain, p.smode > .5);
   }
   const cents = totalCents(p, opts.semis), inGain = dbToGain(p.input), outGain = dbToGain(p.output);
+  const SPE = typeof TWSP !== 'undefined' ? TWSP : (typeof require === 'function' ? require('./sp1200.js') : null);
   const res = src.map(s => {
-    const base = sampleBase(s, sr, p), wet = playBase(base, p, fs, mach.pitch, cents);
+    let wet;
+    if (mach.pitch === 0 && SPE){
+      // the SP-1200 / SP-12: circuit-level engine (sp1200.js). Output 1-2, 3-6 or 7-8 by the Filter menu; the
+      // 6-pole and 4-pole menu entries run output 7-8 into those filters.
+      const ft = p.ftype | 0, out = ft === 0 ? 1 : ft <= 4 ? ft + 2 : 7;
+      const codes = SPE.codesFor(s, sr, {clock:p.rate, level:driveGain(p), bits:p.bits, rpm:p.rpm});
+      wet = SPE.playChannel(codes, {clock:p.rate, sp12:(p.machine | 0) === 1, cents:cents - p.rpm * 100, output:out, rest:p.cutoff, res:p.res,
+        depth:p.fenv, retrigger:p.retrig > .5, calib:p.calib > .5 ? 'measured' : 'manual'}, fs);
+      if (ft >= 6){ const f = new OutFilter(fs); f.setup(p); f.trigger(); for (let i = 0; i < wet.length; i++) wet[i] = f.process(wet[i]); }
+      for (let i = 0; i < wet.length; i++) wet[i] /= 1 + p.drive * 3;
+      const dry = p.mix < 1 ? playDry(s, sr, fs, cents, wet.length) : null;
+      if (dry) for (let i = 0; i < wet.length; i++) wet[i] = wet[i] * p.mix + dry[i] * inGain * (1 - p.mix);
+      return wet;
+    }
+    const base = sampleBase(s, sr, p); wet = playBase(base, p, fs, mach.pitch, cents);
     const dry = p.mix < 1 ? playDry(s, sr, fs, cents, wet.length) : null;
     const f = new OutFilter(fs); f.setup(p); f.trigger();
     let dc = 0;

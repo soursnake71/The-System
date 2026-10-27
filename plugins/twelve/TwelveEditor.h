@@ -37,6 +37,8 @@ public:
     void resized() override;
 private:
     void timerCallback() override;
+    void mouseDown(const juce::MouseEvent&) override;
+    bool learnArmed = false; int learning = -1;
     void toast(const juce::String& s) { msg = s; msgUntil = juce::Time::getMillisecondCounter() + 4000; repaint(); }
     void job(std::function<juce::String()> f) { proc.runJob(f, [this](juce::String r) { toast(r); }); }
     void addKnob(int id, juce::String section);

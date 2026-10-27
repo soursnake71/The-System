@@ -16,6 +16,9 @@ const cases = [
   ['MPC60 linear, stretch 1.3, lo-fi', {machine:2, rate:40000, ftype:6, cutoff:6000, stretch:1.3, crackle:.6, hiss:.4, wow:.5, flutter:.5, tape:.5, age:.5, hum:.3, mix:.6, mono:0}],
   ['S950 zoh, Mirage ladder, alias', {machine:5, rate:29411, bits:8, ftype:7, cutoff:3000, res:.5, alias:.8, drive:.7, semis:7}],
   ['Clean cubic + match EQ', {machine:6, rate:48000, bits:16, ftype:5, semis:-3, match:1, mOn:1}],
+  ['SP-1200 45 rpm trick 7 st, out 6, manual parts', {rpm:7, ftype:4, calib:0}],
+  ['SP-12 out 1-2 retrigger, cyclic stretch', {machine:1, rate:27500, retrig:1, stretch:1.4, smode:1, grain:40, cutoff:1300}],
+  ['SP-1200 6-pole on out 7-8, 8 bits, mix 0.5', {ftype:6, cutoff:5000, bits:8, mix:.5}],
 ];
 const match = [3, 2, 1, 0, -1, -2, 1, 3, 2, -4];
 let fail = 0;

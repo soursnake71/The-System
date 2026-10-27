@@ -135,7 +135,7 @@ add_executable(twelve_test twelve/test.cpp)
 if(TARGET OmegaTwelve)
   juce_add_console_app(twelve_proc_test PRODUCT_NAME "twelve_proc_test")
   target_sources(twelve_proc_test PRIVATE twelve/proctest.cpp twelve/TwelvePlugin.cpp twelve/TwelveEditor.cpp)
-  target_compile_definitions(twelve_proc_test PRIVATE TWELVE_INSTRUMENT=0 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Twelve"
+  target_compile_definitions(twelve_proc_test PRIVATE TWELVE_INSTRUMENT=0 JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Twelve"
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)

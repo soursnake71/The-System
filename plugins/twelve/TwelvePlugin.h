@@ -12,7 +12,7 @@ namespace twelve {
 
 juce::String fmtVal(int id, double v);
 
-class TwelveProcessor : public juce::AudioProcessor, private juce::Thread {
+class TwelveProcessor : public juce::AudioProcessor, private juce::Thread, private juce::Timer {
 public:
     TwelveProcessor();
     ~TwelveProcessor() override;
@@ -86,8 +86,14 @@ public:
     std::array<std::atomic<float>, 10> matchG;
     juce::String lufsText() const { const juce::ScopedLock l(infoLock); return outText; }
 
+    // MIDI: CC numbers mapped to parameters (learned or default), MIDI learn, the last controller seen
+    std::array<std::atomic<int>, 128> ccMap;
+    std::atomic<int> learnParam { -1 }, lastCC { -1 };
+    void resetCCMap();
+
 private:
     void run() override;
+    void timerCallback() override;   // applies MIDI CCs and program changes on the message thread
     std::vector<double> soundKey(const Params& p);
     std::shared_ptr<const Chans> prepared(const Params& p, Chans& srcCopy, double& sr);
     void renderOffset(const Params& p, int off, bool main);
@@ -130,6 +136,11 @@ private:
     std::atomic<bool> playRequest { false }, stopRequest { false }, mainPlaying { false };
     std::atomic<double> playFrom { 0 }, mainFrac { 0 };
     Converter conv[2]; OutFilter filt[2]; Lofi lofi; Master master;
+    sp::SPLive spl[2]; bool spMode = false;
+    std::array<std::atomic<float>, 128> ccVal; std::atomic<uint64_t> ccDirty[2];
+    std::atomic<int> pendingProgram { -1 };
+    std::atomic<double> bend { 0 };   // semitones
+    std::atomic<int> bankMsb { 0 };
     double dc[2] {0, 0};
     Params lastP; bool primed = false;
     std::vector<float> lbuf, rbuf;

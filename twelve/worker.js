@@ -1,5 +1,5 @@
 /* Omega Twelve render worker: holds the source, renders the chain off the main thread, analyses and encodes. */
-importScripts('engine.js', 'codecs.js');
+importScripts('sp1200.js', 'engine.js', 'codecs.js');
 const LAME = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
 
 let src = null, sr = 44100;
@@ -11,11 +11,11 @@ function slice(sel){
   return src.map(c => c.subarray(a, b));
 }
 function stretched(p, sel){
-  const k = JSON.stringify([sel, p.mono, p.stretch, p.grain]);
+  const k = JSON.stringify([sel, p.mono, p.stretch, p.grain, p.smode]);
   if (k !== cache.stretchKey){
     let chs = slice(sel);
     if (p.mono > .5 && chs.length > 1){ const m = new Float32Array(chs[0].length); for (let i = 0; i < m.length; i++) m[i] = (chs[0][i] + chs[1][i]) * .5; chs = [m]; }
-    cache.stretched = TW.stretch(chs, p.stretch, sr, p.grain); cache.stretchKey = k;
+    cache.stretched = TW.stretch(chs, p.stretch, sr, p.grain, p.smode > .5); cache.stretchKey = k;
   }
   return cache.stretched;
 }

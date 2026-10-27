@@ -195,14 +195,21 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
     button("Reverse", [this] { toast(proc.reverse()); });
     button("Undo", [this] { toast(proc.undo()); });
     button("Resample", [this] { job([this] { return proc.resample(); }); });
+    button("MIDI learn", [this] {
+        learnArmed = !learnArmed; proc.learnParam = -1;
+        toast(learnArmed ? "MIDI learn: click a control, then move a knob or fader on your controller" : "MIDI learn off");
+    });
 
     for (int id : {pid::machine}) addCombo(id, "Sampler");
     for (int id : {pid::bits, pid::rate, pid::alias, pid::drive}) addKnob(id, "Sampler");
     addToggle(pid::mono, "Sampler");
+    addKnob(pid::rpm, "Sampler");
+    addCombo(pid::calib, "Sampler");
     addCombo(pid::ftype, "Filter");
     for (int id : {pid::cutoff, pid::res, pid::fenv, pid::mix}) addKnob(id, "Filter");
     addToggle(pid::retrig, "Filter");
     for (int id : {pid::semis, pid::cents, pid::a4}) addKnob(id, "Tuning");
+    addCombo(pid::smode, "Time / IO");
     for (int id : {pid::stretch, pid::grain, pid::input, pid::output}) addKnob(id, "Time / IO");
     for (int id : {pid::crackle, pid::hiss, pid::wow, pid::flutter, pid::tape, pid::age, pid::hum}) addKnob(id, "Lo-fi");
     addCombo(pid::humHz, "Lo-fi");
@@ -256,12 +263,27 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
     }).setName("pri");
 
     for (auto& b : buttons) if (b->getName() == "pri" || b->getName() == "stop") { b->setColour(juce::TextButton::textColourOffId, juce::Colours::white); b->setColour(juce::TextButton::textColourOnId, juce::Colours::white); }
-    setSize(1180, 820);
+    for (auto& c : ctls) c.comp->addMouseListener(this, true);
+    setSize(1180, 884);
     startTimerHz(15);
 }
 TwelveEditor::~TwelveEditor() { setLookAndFeel(nullptr); }
 
+void TwelveEditor::mouseDown(const juce::MouseEvent& e) {
+    if (!learnArmed) return;
+    for (auto& c : ctls) if (e.eventComponent == c.comp.get() || c.comp->isParentOf(e.eventComponent)) {
+        proc.learnParam = c.id; learning = c.id;
+        toast(juce::String("Now move a control on your MIDI controller for ") + PARAMS[c.id].name);
+        return;
+    }
+}
+
 void TwelveEditor::timerCallback() {
+    if (learning >= 0 && proc.learnParam.load() < 0) {
+        int cc = -1; for (int i = 0; i < 128; ++i) if (proc.ccMap[(size_t) i].load() == learning) cc = i;
+        toast(juce::String(PARAMS[learning].name) + " is on CC " + juce::String(cc)); learning = -1; learnArmed = false;
+    }
+    btn["MIDI learn"]->setToggleState(learnArmed, juce::dontSendNotification);
     btn["Loop"]->setToggleState(proc.loop, juce::dontSendNotification);
     btn["Play"]->setToggleState(proc.isPlaying(), juce::dontSendNotification);
     btn["Zoom"]->setToggleState(lcd.zoom, juce::dontSendNotification);
@@ -305,6 +327,7 @@ void TwelveEditor::resized() {
     liveBtn.setBounds(x + 6, 356, 110, 30);
     x = 10;
     for (auto* n : {"Select all", "Zoom", "Truncate", "Normalize", "Reverse", "Undo", "Resample"}) { btn[n]->setBounds(x, 392, 92, 28); x += 98; }
+    btn["MIDI learn"]->setBounds(596, 356, 110, 30);
     // tempo/key/warp and export on the right
     auto rr = juce::Rectangle<int>(720, 50, 450, 180); sections["Tempo / key / warp"] = rr;
     btn["Detect tempo & key"]->setBounds(730, 74, 150, 28); srcBpm.setBounds(888, 74, 70, 28); tgtBpm.setBounds(966, 74, 70, 28);
@@ -329,16 +352,16 @@ void TwelveEditor::resized() {
             ++i;
         }
     };
-    place("Sampler", {10, 428, 470, 96}, 8);
-    place("Filter", {486, 428, 470, 96}, 8);
-    place("Tuning", {962, 428, 208, 96}, 3);
-    place("Time / IO", {10, 530, 250, 96}, 4);
-    place("Lo-fi", {266, 530, 530, 96}, 9);
+    place("Sampler", {10, 428, 640, 96}, 11);
+    place("Filter", {656, 428, 514, 96}, 8);
+    place("Tuning", {10, 530, 190, 96}, 3);
+    place("Time / IO", {206, 530, 360, 96}, 6);
+    place("Lo-fi", {572, 530, 598, 96}, 9);
     // master: two rows of knobs and its buttons
-    place("Master", {10, 632, 1160, 178}, 15);
-    sections["Master tools"] = {802, 530, 368, 96};
-    btn["Load reference"]->setBounds(810, 552, 120, 28); btn["Match EQ"]->setBounds(934, 552, 112, 28); btn["Clear match"]->setBounds(1050, 552, 112, 28);
-    lufs.setBounds(810, 588, 120, 28); btn["Auto master"]->setBounds(934, 588, 112, 28); btn["Reset master"]->setBounds(1050, 588, 112, 28);
+    place("Master", {10, 696, 1160, 178}, 15);
+    sections["Master tools"] = {10, 632, 1160, 58};
+    btn["Load reference"]->setBounds(20, 654, 130, 28); btn["Match EQ"]->setBounds(156, 654, 112, 28); btn["Clear match"]->setBounds(274, 654, 112, 28);
+    lufs.setBounds(406, 654, 120, 28); btn["Auto master"]->setBounds(532, 654, 112, 28); btn["Reset master"]->setBounds(650, 654, 112, 28);
 }
 
 }  // namespace twelve
