@@ -44,7 +44,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DSrc=$PWD\out" "/DVer=$env:VERSION" /O"$PWD" plugins\installer\twelve.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBuildDir=$PWD\out" "/DAppVer=$env:VERSION" /O"$PWD" plugins\installer\twelve.iss
           Get-ChildItem Omega-Twelve-Setup-Windows.exe
       - name: Mac installer
         if: runner.os == 'macOS'
