@@ -1,6 +1,7 @@
 // The dragon: a sculpted, skinned body on a ~40-bone skeleton, with membranous wings,
 // teeth, horns and back spikes, and code-driven animation. Faces +z; about 12 m nose to tail.
 import * as THREE from 'three';
+import { lite } from '../core/gfx.js';
 import { mats, mesh, hornGeo } from './parts.js';
 import { Sculpt, skinMaterial } from './sculpt.js';
 import { heightTex, detailTex } from '../core/texgen.js';
@@ -165,7 +166,7 @@ export class Dragon {
     g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
     g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
     g.setIndex(idx); g.computeVertexNormals();
-    const m = new THREE.MeshPhysicalMaterial({ color: 0x3a2018, roughness: 0.55, side: THREE.DoubleSide, sheen: 0.6, sheenColor: new THREE.Color(0xa05030), transmission: 0, emissive: 0x200805, emissiveIntensity: 0.4 });
+    const m = lite(new THREE.MeshPhysicalMaterial({ color: 0x3a2018, roughness: 0.55, side: THREE.DoubleSide, sheen: 0.6, sheenColor: new THREE.Color(0xa05030), transmission: 0, emissive: 0x200805, emissiveIntensity: 0.4 }));
     const sm = new THREE.SkinnedMesh(g, m);
     sm.castShadow = sm.receiveShadow = true; sm.frustumCulled = false;
     sm.bind(skel);

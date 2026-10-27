@@ -66,13 +66,13 @@ if (window.desktop) { $('bExit').hidden = false; $('bExit').onclick = () => { ga
 // ---------- settings ----------
 const fields = {
   sQuality: ['quality', v => v], sRes: ['resolution', v => v], sView: ['view', v => v],
-  sFov: ['fov', Number], sSens: ['sensitivity', Number], sInv: ['invertY', v => v === '1'], sVol: ['volume', Number], sMusic: ['music', Number],
+  sFov: ['fov', Number], sSens: ['sensitivity', Number], sInv: ['invertY', v => v === '1'], sFps: ['showFps', v => v === '1'], sVol: ['volume', Number], sMusic: ['music', Number],
 };
 function syncSettings() {
   for (const [id, [key]] of Object.entries(fields)) {
     const e = $(id), v = settings[key];
     e.value = typeof v === 'boolean' ? (v ? '1' : '0') : String(v);
-    const o = e.parentElement.querySelector('output');
+    const o = e.parentElement.classList.contains('row') ? e.parentElement.querySelector('output') : null;
     if (o) o.textContent = key === 'volume' || key === 'music' ? Math.round(v * 100) + '%' : key === 'fov' ? v + '°' : v.toFixed(2);
   }
   const s = gfx.renderSize || {};
@@ -89,6 +89,7 @@ for (const [id, [key, conv]] of Object.entries(fields)) {
     if (key === 'fov') resize();
     if (key === 'volume') setVolume(settings.volume);
     if (key === 'music') setMusicVolume(settings.music);
+    if (key === 'showFps') $('fps').classList.toggle('on', settings.showFps);
     if (key === 'view' && game.player) game.cam.setMode(settings.view, game.player);
     syncSettings();
   });
@@ -249,18 +250,18 @@ function padMenus() {
 const clock = new THREE.Clock();
 let frames = 0, fpsT = 0;
 const fpsEl = $('fps');
-if (/[?&]fps/.test(location.search)) fpsEl.classList.add('on');
+if (/[?&]fps/.test(location.search) || settings.showFps) fpsEl.classList.add('on');
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(clock.getDelta(), 1 / 20) * (window.__timeScale || 1);
+  const raw = clock.getDelta(), dt = Math.min(raw, 1 / 20) * (window.__timeScale || 1);
   pollInput();
   const navved = padMenus();
   if (playing && !navved && pressed('pause') && !hud.modalOpen && !game.busy) pause();
   if (playing && !game.paused) game.update(dt);
-  if (gfx.scene && playing) { render(); adapt(dt); }
+  if (gfx.scene && playing) { render(); adapt(Math.min(raw, 0.5)); }
   endFrame();
-  frames++; fpsT += dt;
-  if (fpsT > 0.5) { fpsEl.textContent = Math.round(frames / fpsT) + ' fps · ' + (gfx.renderSize?.w || 0) + '×' + (gfx.renderSize?.h || 0); frames = 0; fpsT = 0; }
+  frames++; fpsT += raw;
+  if (fpsT > 0.5) { fpsEl.textContent = Math.round(frames / fpsT) + ' fps · ' + qualityName() + ' · ' + (gfx.renderSize?.w || 0) + '×' + (gfx.renderSize?.h || 0); frames = 0; fpsT = 0; }
 }
 // ?test drives the frames by hand (for headless screenshots)
 const TEST = /[?&]test/.test(location.search);

@@ -2,6 +2,7 @@
 // ellipsoids), polygonising them with marching cubes into one seamless mesh, and skinning
 // that mesh to a skeleton. Gives continuous, organic bodies instead of jointed mannequins.
 import * as THREE from 'three';
+import { lite } from '../core/gfx.js';
 import { edgeTable, triTable } from 'three/addons/objects/MarchingCubes.js';
 import { fbm } from '../core/texgen.js';
 
@@ -175,7 +176,7 @@ const _ba = new V(), _pa = new V();
 // Skin material: PBR with fine detail bump-mapped from a triplanar height texture sampled in the
 // rest pose (so the pores, scales or fur stay put as the body moves).
 export function skinMaterial({ color = 0xffffff, map = null, height, scale = 12, bump = 1, roughness = 0.6, sheen = 0, sheenColor = 0xffffff, clearcoat = 0, metalness = 0, emissive = 0x000000, emissiveIntensity = 1, transmission = 0, thickness = 0 } = {}) {
-  const m = new THREE.MeshPhysicalMaterial({ color, roughness, metalness, sheen, sheenColor: new THREE.Color(sheenColor), sheenRoughness: 0.5, clearcoat, clearcoatRoughness: 0.3, emissive, emissiveIntensity, transmission, thickness });
+  const m = lite(new THREE.MeshPhysicalMaterial({ color, roughness, metalness, sheen, sheenColor: new THREE.Color(sheenColor), sheenRoughness: 0.5, clearcoat, clearcoatRoughness: 0.3, emissive, emissiveIntensity, transmission, thickness }));
   const u = { hTex: { value: height }, aTex: { value: map }, tScale: { value: scale }, tBump: { value: bump } };
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);

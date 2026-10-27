@@ -13,10 +13,11 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 export const PRESETS = {
-  low: { shadow: 1024, ao: false, bloom: true, grass: 50000, shadowDist: 40, aniso: 2, treeDensity: 0.5 },
-  medium: { shadow: 2048, ao: false, bloom: true, grass: 110000, shadowDist: 55, aniso: 4, treeDensity: 0.75 },
-  high: { shadow: 4096, ao: true, bloom: true, grass: 220000, shadowDist: 70, aniso: 8, treeDensity: 1 },
-  ultra: { shadow: 4096, ao: true, bloom: true, grass: 380000, shadowDist: 90, aniso: 16, treeDensity: 1.25 },
+  // physical: glass/sheen/clear-coat materials · shadowEvery: redraw shadows every Nth frame
+  low: { shadow: 1024, ao: false, bloom: false, smaa: false, godRays: false, physical: false, shadowEvery: 3, grass: 40000, shadowDist: 35, aniso: 2, treeDensity: 0.5 },
+  medium: { shadow: 2048, ao: false, bloom: true, smaa: true, godRays: false, physical: false, shadowEvery: 2, grass: 90000, shadowDist: 50, aniso: 4, treeDensity: 0.75 },
+  high: { shadow: 4096, ao: true, bloom: true, smaa: true, godRays: true, physical: true, shadowEvery: 1, grass: 220000, shadowDist: 70, aniso: 8, treeDensity: 1 },
+  ultra: { shadow: 4096, ao: true, bloom: true, smaa: true, godRays: true, physical: true, shadowEvery: 1, grass: 380000, shadowDist: 90, aniso: 16, treeDensity: 1.25 },
 };
 // render resolution: a multiple of the screen's own pixels, or a fixed 4K target
 export const RESOLUTIONS = {
@@ -28,7 +29,7 @@ export const RESOLUTIONS = {
 const loadSettings = () => { try { return JSON.parse(localStorage.getItem('ds-settings')) || {}; } catch (e) { return {}; } };
 export const settings = {
   // Auto: picked for this device at start-up, then adjusted while you play (see autoConfigure/adapt)
-  quality: 'auto', resolution: 'auto', fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
+  quality: 'auto', resolution: 'auto', showFps: false, fov: 70, sensitivity: 1, invertY: false, view: 'third', volume: 0.8, music: 0.6, motionBlur: false,
   ...loadSettings(),
 };
 export function saveSettings() { try { localStorage.setItem('ds-settings', JSON.stringify(settings)); } catch (e) {} }
@@ -42,6 +43,7 @@ export function initGfx(canvas) {
   r.toneMappingExposure = 0.85;
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
+  r.shadowMap.autoUpdate = false; // redrawn every Nth frame (see render)
   gfx.renderer = r;
   // which GPU: on Android, flagship chips (Galaxy S23's Adreno 740 and the like) start on High
   try { const ext = r.getContext().getExtension('WEBGL_debug_renderer_info'); gfx.gpu = ext ? r.getContext().getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; } catch (e) {}
@@ -68,8 +70,8 @@ function guessLevel() {
   let lvl, why;
   if (/SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(g)) { lvl = 0; why = 'software rendering'; }
   else if (mobile) {
-    if (/Adreno[^0-9]*(7[3-9]\d|8\d\d)|Xclipse 9|Immortalis|Mali-G7[1-9]/i.test(g)) { lvl = 2; why = 'flagship phone GPU'; }
-    else if (/Adreno[^0-9]*(6[4-9]\d|7[0-2]\d)|Mali-G(5[7-9]|6\d)|Xclipse|Apple GPU/i.test(g)) { lvl = 1; why = 'phone or tablet GPU'; }
+    if (/Adreno[^0-9]*(7[3-9]\d|8\d\d)|Xclipse 9|Immortalis|Mali-G7[1-9]/i.test(g)) { lvl = 1; why = 'flagship phone GPU'; }
+    else if (/Adreno[^0-9]*(6[4-9]\d|7[0-2]\d)|Mali-G(5[7-9]|6\d)|Xclipse|Apple GPU/i.test(g)) { lvl = 0; why = 'phone or tablet GPU'; }
     else { lvl = 0; why = 'entry-level phone GPU'; }
   } else {
     if (/RTX|RX ?[6-9]\d{3}|Radeon Pro W|Apple M\d (Pro|Max|Ultra)/i.test(g)) { lvl = 3; why = 'high-end graphics card'; }
@@ -89,7 +91,7 @@ export function autoConfigure() {
   gfx.autoLevel = learned ? learned.level : g.lvl;
   ceiling = learned ? learned.ceiling : Math.min(3, g.lvl + 1);
   gfx.autoWhy = learned ? 'tuned on this device' : g.why;
-  gfx.dynScale = gfx.autoLevel >= 2 && !/Android|iPhone|iPad/i.test(navigator.userAgent) ? 1 : 0.8;
+  gfx.dynScale = gfx.autoLevel >= 2 && !/Android|iPhone|iPad/i.test(navigator.userAgent) ? 1 : 0.7;
 }
 
 // Build the post-processing chain for a scene
@@ -123,13 +125,12 @@ function buildComposer() {
   }
   // light shafts: march from each pixel toward the sun, gathering the bright sky that
   // shows between leaves and over ridges (works on the HDR image, before tone mapping)
-  if (gfx.scene.userData.godRays) {
+  if (gfx.scene.userData.godRays && p.godRays) {
     const gr = new ShaderPass(GodRays);
     c.addPass(gr); gfx.passes.godRays = gr;
   }
   c.addPass(new OutputPass());
-  const smaa = new SMAAPass(size.w, size.h);
-  c.addPass(smaa);
+  if (p.smaa) c.addPass(new SMAAPass(size.w, size.h));
   gfx.composer = c;
 }
 
@@ -174,15 +175,15 @@ export function adapt(dt) {
   const dyn = settings.resolution === 'auto';
   if (dyn) {
     const old = gfx.dynScale;
-    if (fps < 48) gfx.dynScale = Math.max(0.5, gfx.dynScale * 0.88);
+    if (fps < 48) gfx.dynScale = Math.max(0.5, gfx.dynScale * (fps < 35 ? 0.78 : 0.88));
     else if (fps > 57) gfx.dynScale = Math.min(1, gfx.dynScale * 1.06);
     if (Math.abs(gfx.dynScale - old) > 0.01) resize();
   }
   if (settings.quality !== 'auto') return;
-  slow = fps < 40 && (!dyn || gfx.dynScale <= 0.55) ? slow + 1 : 0;
+  slow = fps < 45 && (!dyn || gfx.dynScale <= 0.6) ? slow + 1 : 0;
   fast = fps > 58 && (!dyn || gfx.dynScale >= 0.99) ? fast + 1 : 0;
   let lvl = gfx.autoLevel;
-  if (slow >= 2 && lvl > 0) { lvl--; ceiling = lvl; }
+  if (slow >= (fps < 30 ? 1 : 2) && lvl > 0) { lvl--; ceiling = lvl; }
   else if (fast >= 6 && lvl < ceiling) lvl++;
   if (lvl === gfx.autoLevel) return;
   // a cheaper level can afford more pixels again
@@ -245,8 +246,19 @@ function updateGodRays() {
   if (gfx.scene.userData.sunTint) u.tint.value.set(gfx.scene.userData.sunTint);
 }
 
+// glass, sheen and clear-coat are costly (glass makes the GPU draw the scene twice): the
+// lighter levels get plain transparent or matte versions of the same materials
+export function lite(m) {
+  if (preset().physical || !m.isMeshPhysicalMaterial) return m;
+  if (m.transmission > 0) { m.transparent = true; m.opacity = Math.min(0.85, 0.35 + (1 - m.transmission) * 0.6); m.depthWrite = false; m.transmission = 0; }
+  m.sheen = 0; m.clearcoat = 0;
+  return m;
+}
+
+let frameNo = 0;
 export function render() {
   updateGodRays();
+  gfx.renderer.shadowMap.needsUpdate = frameNo++ % preset().shadowEvery === 0;
   if (gfx.composer) gfx.composer.render();
   else gfx.renderer.render(gfx.scene, gfx.camera);
 }

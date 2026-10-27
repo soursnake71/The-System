@@ -1,6 +1,7 @@
 // Non-humanoid monsters: insects with chitin plates and walking legs, a skinned snake, a jelly slime.
 // They share the Humanoid interface: root, state, update(dt), tipWorld(), kind.
 import * as THREE from 'three';
+import { lite } from '../core/gfx.js';
 import { mats, ellipsoid, hornGeo, mesh } from './parts.js';
 import { Sculpt, skinMaterial } from './sculpt.js';
 import { heightTex, detailTex } from '../core/texgen.js';
@@ -260,7 +261,7 @@ export function snake() {
 export function slime() {
   const b = new Beast();
   const geo = new THREE.SphereGeometry(0.75, 64, 40);
-  const mat = new THREE.MeshPhysicalMaterial({ color: 0x40b0a0, roughness: 0.05, metalness: 0, transmission: 0.92, thickness: 1.4, ior: 1.35, attenuationColor: new THREE.Color(0x10806a), attenuationDistance: 0.5, clearcoat: 1, clearcoatRoughness: 0.05 });
+  const mat = lite(new THREE.MeshPhysicalMaterial({ color: 0x40b0a0, roughness: 0.05, metalness: 0, transmission: 0.92, thickness: 1.4, ior: 1.35, attenuationColor: new THREE.Color(0x10806a), attenuationDistance: 0.5, clearcoat: 1, clearcoatRoughness: 0.05 }));
   const u = { uT: { value: 0 }, uSquash: { value: 0 } };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);

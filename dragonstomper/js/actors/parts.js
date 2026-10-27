@@ -1,5 +1,6 @@
 // Materials and geometry helpers for the characters.
 import * as THREE from 'three';
+import { lite } from '../core/gfx.js';
 import { steel, chainmail, cloth, skin, fur, scales } from '../core/texgen.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -44,7 +45,7 @@ export const mats = {
   dark: () => once('dark', () => new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1 })),
   wood: () => once('wood', () => new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.7 })),
   glow: (color = 0xffaa30, k = 6) => once('gl' + color + k, () => new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: k })),
-  jelly: (color = 0x48c070) => once('jel' + color, () => new THREE.MeshPhysicalMaterial({ color, roughness: 0.08, metalness: 0, transmission: 0.85, thickness: 1.2, ior: 1.33, attenuationColor: new THREE.Color(color), attenuationDistance: 0.6, clearcoat: 1 })),
+  jelly: (color = 0x48c070) => once('jel' + color, () => lite(new THREE.MeshPhysicalMaterial({ color, roughness: 0.08, metalness: 0, transmission: 0.85, thickness: 1.2, ior: 1.33, attenuationColor: new THREE.Color(color), attenuationDistance: 0.6, clearcoat: 1 }))),
 };
 
 // ---------- geometry ----------

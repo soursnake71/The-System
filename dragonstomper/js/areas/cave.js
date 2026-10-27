@@ -66,7 +66,7 @@ export class Cave {
     spikes.castShadow = spikes.receiveShadow = true;
     scene.add(spikes);
     // glowing crystals in the walls
-    const crystalM = new THREE.MeshPhysicalMaterial({ color: 0x103040, emissive: 0x2a8aa8, emissiveIntensity: 1.3, roughness: 0.1, transmission: 0.4, thickness: 0.5 });
+    const crystalM = new THREE.MeshStandardMaterial({ color: 0x103040, emissive: 0x2a8aa8, emissiveIntensity: 1.3, roughness: 0.1, metalness: 0.2 });
     const cg = new THREE.OctahedronGeometry(0.25, 0); cg.scale(0.6, 1.8, 0.6);
     const crystals = new THREE.InstancedMesh(cg, crystalM, 90);
     for (let i = 0; i < 90; i++) {

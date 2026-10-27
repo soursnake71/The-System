@@ -17,7 +17,10 @@ const CYCLE = { walk: 1.45, run: 2.9 };
 const WALK = 1.3, RUN = 3.4;
 
 const find = (root, n) => root.getObjectByName('mixamorig' + n) || root.getObjectByName('mixamorig:' + n);
-const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _m = new THREE.Matrix4();
+const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
+// read from matrices already updated this frame (getWorldPosition/Quaternion would recompute every ancestor)
+const wpos = (o, out) => out.setFromMatrixPosition(o.matrixWorld);
+const wquat = (o, out) => { o.matrixWorld.decompose(_p, out, _s); return out; };
 
 export class Mocap {
   constructor(h) {
@@ -63,7 +66,7 @@ export class Mocap {
     // torso: copy the change from rest, in rig space, down the chain
     const parentQ = new THREE.Quaternion(); // world rotation of the bone we're about to set's parent (relative to body)
     const setDelta = (mine, theirs, pq) => {
-      const d = theirs.getWorldQuaternion(_q).multiply(_q2.copy(this.rest.get(theirs)).invert());
+      const d = wquat(theirs, _q).multiply(_q2.copy(this.rest.get(theirs)).invert());
       mine.quaternion.copy(pq).invert().multiply(d);
       return d.clone();
     };
@@ -72,13 +75,13 @@ export class Mocap {
     const chestQ = setDelta(h.chest, s.chest, spineQ);
     const neckQ = setDelta(h.neck, s.neck, chestQ);
     setDelta(h.head, s.head, neckQ);
-    h.hips.position.y = this.myHipY * (s.hips.getWorldPosition(_v).y / this.restHipY);
+    h.hips.position.y = this.myHipY * (wpos(s.hips, _v).y / this.restHipY);
 
     // limbs: point each segment the way the source's segment points
     const aim = (mine, a, b, pq) => {
-      const dir = b.getWorldPosition(_v2).sub(a.getWorldPosition(_v)).normalize();
+      const dir = wpos(b, _v2).sub(wpos(a, _v)).normalize();
       const local = dir.applyQuaternion(_q.copy(pq).invert());
-      const rest = mine.children.find(c => c.isBone)?.position.clone().normalize() || new THREE.Vector3(0, -1, 0);
+      const rest = mine.userData.restDir || (mine.userData.restDir = mine.children.find(c => c.isBone)?.position.clone().normalize() || new THREE.Vector3(0, -1, 0));
       mine.quaternion.setFromUnitVectors(rest, local);
       return pq.clone().multiply(mine.quaternion);
     };

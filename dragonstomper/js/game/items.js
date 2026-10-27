@@ -1,13 +1,14 @@
 // 3D pickups for loot (items from the ROM's list, and gold), plus their inventory icons
 // drawn from the original 8-pixel sprites.
 import * as THREE from 'three';
+import { lite } from '../core/gfx.js';
 import { mats, mesh, lathe, axe } from '../actors/parts.js';
 import { model } from '../core/assets.js';
 import { ROM } from '../../data.js';
 import { softDot } from '../core/texgen.js';
 
-const glassM = () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transmission: 0.95, thickness: 0.05, ior: 1.5, clearcoat: 1 });
-const liquid = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.1, emissive: c, emissiveIntensity: 0.6, transmission: 0.3, thickness: 0.05 });
+const glassM = () => lite(new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transmission: 0.95, thickness: 0.05, ior: 1.5, clearcoat: 1 }));
+const liquid = (c) => lite(new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.1, emissive: c, emissiveIntensity: 0.6, transmission: 0.3, thickness: 0.05 }));
 
 export function itemModel(name) {
   const g = new THREE.Group();
@@ -38,7 +39,7 @@ export function itemModel(name) {
     }
     case 'RING': case 'SAPPHIRE': case 'RUBY': {
       if (name === 'RING') g.add(mesh(new THREE.TorusGeometry(0.035, 0.008, 10, 24), mats.gold(), 0, 0.04, 0));
-      const gem = new THREE.MeshPhysicalMaterial({ color: name === 'SAPPHIRE' ? 0x2040ff : name === 'RUBY' ? 0xff1030 : 0x30ff90, roughness: 0, transmission: 0.8, thickness: 0.05, ior: 1.77, emissive: name === 'SAPPHIRE' ? 0x0a1060 : 0x500010, emissiveIntensity: 0.5 });
+      const gem = lite(new THREE.MeshPhysicalMaterial({ color: name === 'SAPPHIRE' ? 0x2040ff : name === 'RUBY' ? 0xff1030 : 0x30ff90, roughness: 0, transmission: 0.8, thickness: 0.05, ior: 1.77, emissive: name === 'SAPPHIRE' ? 0x0a1060 : 0x500010, emissiveIntensity: 0.5 }));
       g.add(mesh(new THREE.OctahedronGeometry(name === 'RING' ? 0.016 : 0.045, 0), gem, 0, name === 'RING' ? 0.08 : 0.05, 0));
       break;
     }
