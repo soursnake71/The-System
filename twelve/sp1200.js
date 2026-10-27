@@ -174,16 +174,18 @@ function decimate(y, n){   // y at OS*fs -> n samples at fs
 // manual: the parts as drawn. measured: part tolerances fitted to Nolting's SP-12 with twelve/tools/sp-fit.mjs and
 // sp-sweep.mjs: output 3-6 capacitors 6-9 % under nominal (each output then within 0.26 dB rms of the real one from
 // 2 to 15 kHz), C111 15 % under (the filter sweep after a hit then within 0.24 octave rms), the dynamic filter's stage
-// frequency at rest 925 Hz with feedback 0.3 (1.4 dB rms). rest is the RT6 trimmer.
+// frequency at rest 925 Hz with feedback 0.3 (1.4 dB rms); anti-alias filter capacitors 9.5 % under (input tones
+// folding back from 14.8 to 16 kHz then within 0.86 dB of the real machine, which lets ~25 dB more through there
+// than the parts as drawn). rest is the RT6 trimmer.
 const CALIB = {
-  manual:  {fixedCap:[1, 1, 1, 1], rest:1000, res:.3, dynCap:1, gain12:1},
-  measured:{fixedCap:[.925, .94, .92, .91], rest:925, res:.3, dynCap:.85, gain12:1}
+  manual:  {aaCap:1, fixedCap:[1, 1, 1, 1], rest:1000, res:.3, dynCap:1, gain12:1},
+  measured:{aaCap:.905, fixedCap:[.925, .94, .92, .91], rest:925, res:.3, dynCap:.85, gain12:1}
 };
 
 /* ---------------- the machine ---------------- */
 // sample a recording the way the machine does: preamp level, anti-alias circuit, sample-and-hold, 12-bit codes
 function sampleCodes(src, sr, o){
-  const fo = sr * OS, aa = new Circuit(NETS.aa, Math.max(fo, CLOCK * 4)), foA = Math.max(fo, CLOCK * 4);
+  const fo = sr * OS, foA = Math.max(fo, CLOCK * 4), aa = new Circuit(NETS.aa, foA, CALIB[o.calib || 'manual'].aaCap);
   const aaDc = aa.dc(), clock = o.clock || CLOCK, gain = (o.level == null ? 1 : o.level) / aaDc;
   const n = src.length, dur = n / sr, frames = Math.min(o.maxFrames || 1 << 20, Math.floor(dur * clock));
   const codes = new Uint16Array(frames + 10).fill(0x800);   // five silent codes at the start, five spare at the end
@@ -209,7 +211,7 @@ function sampleCodes(src, sr, o){
 // rpm: the 45 rpm trick, the source played that many semitones fast into the sampler (played back down again later)
 const codeCache = [];
 function codesFor(src, sr, o){
-  const key = [src.length, sr, o.clock, o.level, o.bits, o.rpm || 0, o.adcOffset].join('|');
+  const key = [src.length, sr, o.clock, o.level, o.bits, o.rpm || 0, o.adcOffset, o.calib].join('|');
   for (const c of codeCache) if (c.src === src && c.key === key) return c.codes;
   let s = src, rate = sr;
   if (o.rpm) rate = sr * Math.pow(2, o.rpm / 12);   // same samples, faster clock in = sped up

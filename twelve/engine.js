@@ -443,7 +443,7 @@ function renderPre(chs, sr, p, fs, opts){
       // the SP-1200 / SP-12: circuit-level engine (sp1200.js). Output 1-2, 3-6 or 7-8 by the Filter menu; the
       // 6-pole and 4-pole menu entries run output 7-8 into those filters.
       const ft = p.ftype | 0, out = ft === 0 ? 1 : ft <= 4 ? ft + 2 : 7;
-      const codes = SPE.codesFor(s, sr, {clock:p.rate, level:driveGain(p), bits:p.bits, rpm:p.rpm});
+      const codes = SPE.codesFor(s, sr, {clock:p.rate, level:driveGain(p), bits:p.bits, rpm:p.rpm, calib:p.calib > .5 ? 'measured' : 'manual'});
       wet = SPE.playChannel(codes, {clock:p.rate, sp12:(p.machine | 0) === 1, cents:cents - p.rpm * 100, output:out, rest:p.cutoff, res:p.res,
         depth:p.fenv, retrigger:p.retrig > .5, calib:p.calib > .5 ? 'measured' : 'manual'}, fs);
       if (ft >= 6){ const f = new OutFilter(fs); f.setup(p); f.trigger(); for (let i = 0; i < wet.length; i++) wet[i] = f.process(wet[i]); }

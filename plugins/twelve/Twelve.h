@@ -439,7 +439,7 @@ inline Chans renderPre(const Chans& src, double sr, const Params& p, double fs, 
             // the SP-1200 / SP-12 through the circuit-level engine (SP1200.h); 6-pole and 4-pole menu entries run
             // output 7-8 into those filters
             const int ft = (int) p[pid::ftype], out = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7;
-            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = driveGain(p); so.bits = p[pid::bits];
+            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = driveGain(p); so.bits = p[pid::bits]; so.measured = p[pid::calib] > .5;
             const auto codes = sp::codesFor(s, sr, so, p[pid::rpm]);
             sp::PlayOpts po; po.clock = p[pid::rate]; po.sp12 = (int) p[pid::machine] == 1; po.cents = cents - p[pid::rpm] * 100; po.output = out;
             po.rest = p[pid::cutoff]; po.res = p[pid::res]; po.depth = p[pid::fenv]; po.retrigger = p[pid::retrig] > .5; po.measured = p[pid::calib] > .5;
