@@ -116,7 +116,9 @@ class Envelope {
 public:
     Envelope(double fs = 192000, double capScale = 1) : h(1 / fs), Cc(10e-6 * capScale) {
         gsum = 1 / 15e3 + 1 / 390.0 + 1 / 39e3 + 1 / 220e3;
-        const long n = (long) std::ceil(1.5 / h); for (long i = 0; i < n; ++i) step();
+        // at rest (GAIN high, D9 off) the capacitor sits where R135's current equals what R125 draws: solve it exactly
+        const double a = 1 / (15e3 * gsum), b = 15 / 39e3 / gsum;
+        v = (15 / 30e3 - b / 15e3) / (1 / 30e3 + (1 - a) / 15e3);
         v13rest = pin13();
     }
     double gain = 5;

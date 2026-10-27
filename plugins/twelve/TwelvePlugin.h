@@ -129,7 +129,8 @@ private:
     std::atomic<double> hostFs { 48000 };
 
     // audio thread
-    struct Voice { std::shared_ptr<const Chans> buf; double pos = 0, gain = 1; int note = -1; bool main = false, active = false; };
+    struct Voice { std::shared_ptr<const Chans> buf; double pos = 0, gain = 1; int note = -1, fade = 0; bool main = false, active = false; };
+    void cutVoices();   // mono: a new sound cuts the one playing (3 ms fade)
     std::array<Voice, 24> voices;
     struct Pending { int note = 0, off = 0; float vel = 0; double age = 0; bool used = false; };
     std::array<Pending, 32> pend;

@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
     juce::Thread::sleep(1500);
     auto [r1, p1, n1] = run(1, {60}, false); check(r1 > 1e-3 && !n1 && p1 <= 1, "MIDI middle C: rms " + juce::String(r1, 4));
     auto [r2, p2, n2] = run(1, {67, 53}, false); check(r2 > 1e-3 && !n2 && p2 <= 1, "MIDI pitched notes: rms " + juce::String(r2, 4));
+    proc->stopAll(); run(.05, {}, false);
     auto [r3, p3, n3] = run(1, {}, true); check(r3 > 1e-3 && proc->isPlaying(), "transport play: rms " + juce::String(r3, 4));
     proc->stopAll(); auto [r4, p4, n4] = run(.3, {}, false); check(r4 < 1e-4, "STOP ALL silences: rms " + juce::String(r4, 6));
     proc->setCurrentProgram(260); juce::Thread::sleep(1200);

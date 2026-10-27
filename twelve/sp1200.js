@@ -115,8 +115,9 @@ class Envelope {
     this.h = 1 / fs; this.C = 10e-6 * (capScale || 1); this.v = 0; this.gain = 5;
     this.Is = 2.52e-9; this.nVt = 1.752 * VT;
     this.gsum = 1 / 15e3 + 1 / 390 + 1 / 39e3 + 1 / 220e3;
-    // settle to rest with the GAIN line high (time constant ~0.1 s)
-    const n = Math.ceil(1.5 / this.h); for (let i = 0; i < n; i++) this.step();
+    // at rest (GAIN high, D9 off) the capacitor sits where R135's current equals what R125 draws: solve it exactly
+    const a = 1 / (15e3 * this.gsum), b = 15 / 39e3 / this.gsum;
+    this.v = (15 / 30e3 - b / 15e3) / (1 / 30e3 + (1 - a) / 15e3);
     this.v13rest = this.pin13();
   }
   pin13(){ return (this.v / 15e3 - 15 / 39e3) / this.gsum; }   // trimmer contribution is folded into the rest cutoff

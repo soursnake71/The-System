@@ -50,17 +50,20 @@ const FS = () => (ctx ? ctx.sampleRate : 48000);
 
 /* ---------------- worker ---------------- */
 const worker = new Worker('worker.js');
+// pads render on their own workers, one per spare CPU core, so all 16 are ready quickly
+const padWorkers = Array.from({length:Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1))}, () => new Worker('worker.js'));
 let wid = 0;
 const waiting = new Map();
-worker.onmessage = e => {
+const onWorker = e => {
   const d = e.data, cb = waiting.get(d.id);
-  if (cb){ waiting.delete(d.id); busy(-1); d.type === 'error' ? cb.reject(new Error(d.msg)) : cb.resolve(d); }
+  if (cb){ waiting.delete(d.id); if (!cb.quiet) busy(-1); d.type === 'error' ? cb.reject(new Error(d.msg)) : cb.resolve(d); }
 };
-function ask(msg, transfer){
-  const id = ++wid; busy(1);
-  return new Promise((resolve, reject) => { waiting.set(id, {resolve, reject}); worker.postMessage(Object.assign({id}, msg), transfer || []); });
+worker.onmessage = onWorker; padWorkers.forEach(w => w.onmessage = onWorker);
+function ask(msg, transfer, w, quiet){
+  const id = ++wid; if (!quiet) busy(1);
+  return new Promise((resolve, reject) => { waiting.set(id, {resolve, reject, quiet}); (w || worker).postMessage(Object.assign({id}, msg), transfer || []); });
 }
-function sendSource(){ worker.postMessage({type:'source', chs:src.chs.map(c => c.slice()), sr:src.sr}); padCache.clear(); }
+function sendSource(){ for (const w of [worker, ...padWorkers]) w.postMessage({type:'source', chs:src.chs.map(c => c.slice()), sr:src.sr}); padCache.clear(); }
 
 /* ---------------- rendering ---------------- */
 let renderT = 0, renderId = 0;
@@ -80,6 +83,7 @@ async function doRender(){
     $('#mMeter').textContent = `${r.lufs} LUFS · peak ${r.peak} dB`;
     if (was !== null) startMain(was);
     drawWave();
+    prerenderPads(my);
   } catch (e){ toast('Render failed: ' + e.message); }
 }
 function toBuffer(chs, fs){
@@ -99,8 +103,9 @@ function srcBuffer(){
 function startMain(frac){
   stopMain(true);
   const buf = S.bypass ? srcBuffer() : out; if (!buf) return;
-  const c = audio(), s = c.createBufferSource();
-  s.buffer = buf; s.loop = S.loop; s.connect(bus);
+  const c = audio(), s = c.createBufferSource(), g = c.createGain();
+  cutVoices();
+  s.buffer = buf; s.loop = S.loop; s._g = g; s.connect(g).connect(bus);
   playDur = buf.duration; playOff = (frac || 0) * playDur;
   s.start(0, playOff); playT0 = c.currentTime;
   s.onended = () => { if (mainSrc === s){ mainSrc = null; playing = false; $('#playBtn').classList.remove('on'); } };
@@ -108,7 +113,7 @@ function startMain(frac){
   requestAnimationFrame(tick);
 }
 function stopMain(quiet){
-  if (mainSrc){ try { mainSrc.onended = null; mainSrc.stop(); } catch (e) {} mainSrc = null; }
+  if (mainSrc){ fadeStop(mainSrc); mainSrc.onended = null; mainSrc = null; }
   playing = false; if (!quiet) $('#playBtn').classList.remove('on');
 }
 function playPos(){
@@ -136,9 +141,22 @@ const PAD_SEMIS = [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
 const padCache = new Map();
 async function padBuffer(semis){
   if (padCache.has(semis)) return padCache.get(semis);
-  const pr = ask({type:'pad', p:S.p, match:S.match, sel:S.sel, fs:FS(), semis}).then(r => toBuffer(r.out, r.fs));
+  const w = padWorkers[(PAD_SEMIS.indexOf(semis) + 16) % padWorkers.length];
+  const pr = ask({type:'pad', p:S.p, match:S.match, sel:S.sel, fs:FS(), semis}, null, w, true).then(r => toBuffer(r.out, r.fs));
   padCache.set(semis, pr);
   return pr;
+}
+// mono, like each of the hardware's channels: a new sound cuts the one playing, with a 3 ms fade so it doesn't click
+function fadeStop(src){
+  try { const t = ctx.currentTime; if (src._g){ src._g.gain.cancelScheduledValues(t); src._g.gain.setValueAtTime(src._g.gain.value, t); src._g.gain.linearRampToValueAtTime(0, t + .003); } src.stop(t + .004); } catch (e) {}
+}
+function cutVoices(){ for (const v of voices) fadeStop(v); voices.clear(); }
+// after each render, get every pad ready in the background (nearest pitches first) so a hit plays at once
+async function prerenderPads(id){
+  // one queue per pad worker, nearest pitches first; each stops as soon as the settings change
+  const order = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, -8], queues = padWorkers.map(() => []);
+  for (const s of order) queues[(PAD_SEMIS.indexOf(s) + 16) % padWorkers.length].push(s);
+  await Promise.all(queues.map(async q => { for (const s of q){ if (id !== renderId || !src) return; try { await padBuffer(s); } catch (e) { return; } } }));
 }
 async function hitPad(semis, vel){
   if (!src){ toast('Import a sample first'); return; }
@@ -148,7 +166,8 @@ async function hitPad(semis, vel){
   try {
     const buf = await padBuffer(semis), s = ctx.createBufferSource(), g = ctx.createGain();
     g.gain.value = vel == null ? 1 : vel;
-    s.buffer = buf; s.connect(g).connect(bus); s.start();
+    cutVoices(); if (mainSrc) stopMain();
+    s.buffer = buf; s._g = g; s.connect(g).connect(bus); s.start();
     voices.add(s); s.onended = () => voices.delete(s);
   } catch (e){ toast(e.message); }
 }

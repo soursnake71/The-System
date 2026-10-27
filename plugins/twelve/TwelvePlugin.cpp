@@ -156,7 +156,7 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
         mainPlaying = false;
     }
     if (playRequest.exchange(false)) {
-        for (auto& v : voices) if (v.main) v.active = false;
+        cutVoices();
         if (auto b = noteBuffer(0, false)) {
             for (auto& v : voices) if (!v.active) { v = Voice(); v.buf = b; v.main = true; v.active = true; v.pos = playFrom.load() * (double) b->at(0).size(); break; }
         }
@@ -187,11 +187,11 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     for (auto& q : pend) {
         if (!q.used) continue;
         if (auto b = noteBuffer(q.off, false)) {
-            // one voice per note: a new hit cuts the old one, like the hardware's channels
-            for (auto& v : voices) if (v.active && v.note == q.note && !v.main) v.active = false;
+            // mono, like each of the hardware's channels: a new hit cuts whatever is playing
+            cutVoices();
             for (auto& v : voices) if (!v.active) { v = Voice(); v.buf = b; v.note = q.note; v.gain = q.vel; v.active = true; break; }
             q.used = false;
-        } else { requestNote(q.off); q.age += n / fs; if (q.age > 3) q.used = false; }
+        } else { requestNote(q.off); q.age += n / fs; if (q.age > .5) q.used = false; }   // a note this late would be out of time: drop it
     }
 
     const float* inL = nIn > 0 ? buf.getReadPointer(0) : nullptr;
@@ -222,13 +222,16 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     for (auto& v : voices) {
         if (!v.active) continue;
         const auto& b = *v.buf; const double len = (double) b[0].size(), rate = v.main ? 1.0 : std::pow(2.0, bend.load() / 12);
+        const int fadeLen = juce::jmax(1, (int) (fs * .003));
         for (int i = 0; i < n; ++i) {
             if (v.pos >= len - 1) { if (v.main && loop) v.pos = 0; else { v.active = false; break; } }
+            if (v.fade > 0 && --v.fade == 0) { v.active = false; break; }
+            const float fg = v.fade > 0 ? (float) v.fade / (float) fadeLen : 1.f;
             const size_t k = (size_t) v.pos; const float f = (float) (v.pos - (double) k);
-            l[(size_t) i] += (b[0][k] + (b[0][k + 1] - b[0][k]) * f) * (float) v.gain; r[(size_t) i] += (b[1][k] + (b[1][k + 1] - b[1][k]) * f) * (float) v.gain;
+            l[(size_t) i] += (b[0][k] + (b[0][k + 1] - b[0][k]) * f) * (float) v.gain * fg; r[(size_t) i] += (b[1][k] + (b[1][k + 1] - b[1][k]) * f) * (float) v.gain * fg;
             v.pos += rate;
         }
-        if (v.main && v.active) { anyMain = true; mainFrac = v.pos / len; }
+        if (v.main && v.active && v.fade == 0) { anyMain = true; mainFrac = v.pos / len; }
     }
     mainPlaying = anyMain;
     for (int i = 0; i < n; ++i) {
@@ -241,6 +244,11 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     else if (nOut == 1) { auto* o = buf.getWritePointer(0); for (int i = 0; i < n; ++i) o[i] = (l[(size_t) i] + r[(size_t) i]) * .5f; }
     for (int c = 2; c < nOut; ++c) buf.clear(c, 0, n);
     midi.clear();
+}
+
+void TwelveProcessor::cutVoices() {
+    const int fadeLen = juce::jmax(1, (int) (hostFs.load() * .003));
+    for (auto& v : voices) if (v.active && v.fade == 0) v.fade = fadeLen;
 }
 
 std::shared_ptr<const Chans> TwelveProcessor::noteBuffer(int off, bool blocking) {
@@ -306,6 +314,16 @@ void TwelveProcessor::run() {
             if (!noteBuffer(i - 24, true)) { rendering = true; renderOffset(p, i - 24, false); rendering = false; }
             if (soundKey(snapshot()) != renderedKey) break;
         }
+        if (bits) continue;
+        // nothing asked for: get the notes an octave either side ready, nearest first, so MIDI plays at once
+        if ((double) (selection().second - selection().first) / sourceSr() <= 60)
+            for (int d = 1; d <= 12; ++d) {
+                int off = 0;
+                if (!noteBuffer(d, true)) off = d; else if (!noteBuffer(-d, true)) off = -d;
+                if (off == 0) continue;
+                rendering = true; renderOffset(p, off, false); rendering = false;
+                break;   // one at a time, so a new request or a change is picked up quickly
+            }
     }
 }
 
