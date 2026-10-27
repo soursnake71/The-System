@@ -1,0 +1,2 @@
+{"name":"Omega Twelve","short_name":"Twelve","description":"12-bit vintage sampler emulator: SP-1200 audio path, 500 presets, lo-fi, timestretch, tempo and key detection, mastering and export.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#1b1d1c","theme_color":"#1b1d1c",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

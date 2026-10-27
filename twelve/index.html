@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Omega Twelve</title>
+<meta name="description" content="12-bit vintage sampler emulator: SP-1200 audio path, 500 presets, lo-fi, timestretch, tempo and key detection, mastering and export.">
+<meta name="theme-color" content="#1b1d1c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --panel:#c7c9cb; --panel2:#b9bbbe; --ink:#1d1f22; --mute:#55595f; --line:#9da0a5;
+  --lcd:#0b0e0d; --lcdline:#1f2a25; --glow:#7dffb0; --glowdim:#3d8a62; --hi:#5ff2a0;
+  --cap:#f1efea; --accent:#e2a83a; --stop:#d8402f; --led:#2bd35c; --card:#d3d5d7;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; background:#1b1d1c; color:var(--ink); font:14px/1.35 "Helvetica Neue", Helvetica, Arial, sans-serif}
+body{padding:max(10px, env(safe-area-inset-top)) 10px calc(16px + env(safe-area-inset-bottom))}
+button, select, input{font:inherit; color:inherit}
+.unit{max-width:1180px; margin:0 auto; background:linear-gradient(180deg, #d4d6d8, var(--panel) 40%, var(--panel2)); border-radius:10px; padding:14px; box-shadow:0 20px 40px #0008, inset 0 1px 0 #fff8}
+header{display:flex; align-items:flex-end; gap:12px; margin-bottom:10px; flex-wrap:wrap}
+.brand{font:700 26px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing:-1px}
+.brand small{display:block; font:500 10px/1.2 Arial, sans-serif; letter-spacing:0; color:var(--mute)}
+.presetbar{margin-left:auto; display:flex; gap:6px; align-items:center; flex:1 1 320px; max-width:520px}
+.presetname{flex:1; min-width:0; background:var(--lcd); color:var(--glow); border-radius:5px; padding:8px 10px; font:12px/1.2 ui-monospace, Menlo, monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; border:0; text-align:left}
+.btn{background:linear-gradient(#f6f5f2, #dcdbd6); border:1px solid #8f9297; border-radius:6px; padding:8px 11px; cursor:pointer; box-shadow:0 1px 0 #fff inset, 0 2px 3px #0003; white-space:nowrap; font-size:13px}
+.btn:active{transform:translateY(1px); box-shadow:0 1px 1px #0003}
+.btn.on{background:linear-gradient(#ffd27a, var(--accent)); border-color:#a77418}
+.btn.stop{background:linear-gradient(#f0675a, var(--stop)); color:#fff; border-color:#8d2015; font-weight:700}
+.btn.pri{background:linear-gradient(#3c3f44, #222428); color:#fff; border-color:#111}
+.btn:disabled{opacity:.45}
+.grid{display:grid; gap:12px; grid-template-columns:1fr}
+@media (min-width:900px){ .grid{grid-template-columns:1.25fr 1fr} .span2{grid-column:1 / -1} }
+/* LCD */
+.lcd{background:var(--lcd); border-radius:6px; padding:10px 12px; color:var(--glow); font-family:ui-monospace, Menlo, Consolas, monospace; box-shadow:inset 0 0 0 2px #000, inset 0 0 22px #000; border:6px solid #2a2c2e}
+.lcdtop{display:flex; justify-content:space-between; font-size:10px; color:var(--glowdim); margin-bottom:6px; gap:8px}
+.lcdtop b{color:var(--lcd); background:var(--glow); padding:0 6px; border-radius:2px; font-weight:700}
+.lcdrow{display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:6px; margin-bottom:6px}
+.lcdcell span{display:block; font-size:9px; color:var(--glowdim); letter-spacing:.5px}
+.lcdcell b{font-size:20px; font-weight:400; line-height:1.15; white-space:nowrap}
+.lcdcell select{background:var(--glow); color:#0b0e0d; border:0; border-radius:2px; font:20px/1.1 ui-monospace, Menlo, monospace; padding:0 2px; width:100%; appearance:none; -webkit-appearance:none}
+.lcdinfo{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:11px; color:var(--glowdim); border-top:1px solid var(--lcdline); padding-top:6px}
+.lcdinfo i{font-style:normal; color:var(--glow)}
+.wave{position:relative; margin-top:8px; height:120px; border:1px solid var(--lcdline); border-radius:3px; touch-action:none}
+.wave canvas{width:100%; height:100%; display:block}
+.drop{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--glowdim); font-size:12px; pointer-events:none; padding:10px}
+/* controls */
+.row{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:10px}
+.row .grow{flex:1}
+.card{background:var(--card); border-radius:8px; padding:10px 10px 12px; box-shadow:inset 0 1px 0 #fff9, 0 1px 2px #0002}
+.card h2{font:700 11px/1 Arial, sans-serif; letter-spacing:1.5px; text-transform:uppercase; margin:0 0 8px; color:#3b3e43; display:flex; align-items:center; gap:8px}
+.card h2 .sp{flex:1}
+.knobs{display:grid; grid-template-columns:repeat(auto-fill, minmax(74px, 1fr)); gap:6px 4px}
+.knob{display:flex; flex-direction:column; align-items:center; user-select:none; touch-action:none; cursor:ns-resize}
+.knob svg{width:52px; height:52px; filter:drop-shadow(0 3px 2px #0004)}
+.knob .kl{font-size:10px; color:var(--mute); margin-top:1px; text-align:center}
+.knob .kv{font:11px ui-monospace, Menlo, monospace; color:var(--ink)}
+.field{display:flex; flex-direction:column; gap:3px; font-size:10px; color:var(--mute)}
+.knobs .field{grid-column:span 2}
+.knobs .btn{align-self:center; justify-self:center}
+.field select, .field input{background:#f4f3f0; border:1px solid #8f9297; border-radius:5px; padding:6px 7px; font-size:13px; color:var(--ink); min-width:0}
+.led{width:10px; height:10px; border-radius:50%; background:#5b5f5c; box-shadow:inset 0 1px 2px #0008}
+.led.on{background:var(--led); box-shadow:0 0 8px var(--led)}
+.pads{display:grid; grid-template-columns:repeat(4, 1fr); gap:8px}
+.pad{aspect-ratio:1.35; border-radius:7px; border:1px solid #5e6166; background:linear-gradient(#5a5d62, #36383c); color:#ddd; font:600 12px Arial, sans-serif; display:flex; align-items:flex-end; justify-content:flex-start; padding:6px; touch-action:none; user-select:none; box-shadow:0 3px 0 #1e2023, inset 0 1px 0 #ffffff22}
+.pad.hit{background:linear-gradient(#ffcc6a, var(--accent)); color:#222; transform:translateY(2px); box-shadow:0 1px 0 #1e2023}
+.eqc{width:100%; height:110px; background:var(--lcd); border-radius:5px; display:block}
+.meter{font:12px ui-monospace, Menlo, monospace; color:var(--mute)}
+.note{font-size:11px; color:var(--mute); margin:6px 0 0}
+.toast{position:fixed; left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#111; color:#e9ffe9; padding:10px 14px; border-radius:8px; font-size:13px; max-width:92vw; box-shadow:0 6px 20px #000a; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30}
+.toast.show{opacity:1}
+dialog{border:0; border-radius:10px; padding:0; width:min(640px, 94vw); max-height:86vh; background:#202224; color:#e8e8e8}
+dialog::backdrop{background:#000a}
+.dlg{padding:14px; display:flex; flex-direction:column; gap:10px; max-height:86vh}
+.dlg h3{margin:0; font-size:16px}
+.chips{display:flex; gap:6px; overflow-x:auto; padding-bottom:4px}
+.chip{background:#33363a; border:1px solid #4a4e53; border-radius:14px; padding:5px 10px; font-size:12px; white-space:nowrap; cursor:pointer}
+.chip.on{background:var(--glow); color:#111; border-color:var(--glow)}
+.plist{overflow:auto; flex:1; display:flex; flex-direction:column; gap:2px; min-height:200px}
+.plist button{background:none; border:0; text-align:left; padding:8px; border-radius:5px; color:#ddd; cursor:pointer; font-size:13px}
+.plist button:hover, .plist button.cur{background:#2f3a33; color:var(--glow)}
+.dlg input[type=search]{background:#111; border:1px solid #444; color:#eee; border-radius:6px; padding:8px}
+.help p, .help li{font-size:13px; color:#ccc}
+.busy{position:fixed; top:10px; right:12px; background:#111; color:var(--glow); font:11px ui-monospace, monospace; padding:4px 8px; border-radius:4px; opacity:0; transition:opacity .15s; z-index:20}
+.busy.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="unit">
+  <header>
+    <div class="brand">OMEGA TWELVE<small>12-bit vintage sampler emulator · SP-1200 audio path</small></div>
+    <div class="presetbar">
+      <button class="btn" id="pPrev" aria-label="Previous preset">◀</button>
+      <button class="presetname" id="pName">Init</button>
+      <button class="btn" id="pNext" aria-label="Next preset">▶</button>
+      <button class="btn" id="pRand" title="Random settings">🎲 Random</button>
+      <button class="btn" id="pSave" title="Save these settings as your own preset">Save</button>
+      <button class="btn" id="helpBtn" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section>
+      <div class="lcd">
+        <div class="lcdtop"><span>⊙ OMEGA SYSTEM · TWELVE</span><b id="lcdPreset">DEFAULT</b></div>
+        <div class="lcdrow">
+          <div class="lcdcell"><span>SAMPLER</span><select id="lcdMachine"></select></div>
+          <div class="lcdcell"><span>BITS</span><b id="lcdBits">12</b></div>
+          <div class="lcdcell"><span>RATE</span><b id="lcdRate">26.0k</b></div>
+          <div class="lcdcell"><span>TUNE</span><b id="lcdTune">0</b></div>
+        </div>
+        <div class="lcdrow">
+          <div class="lcdcell"><span>FILTER</span><select id="lcdFilter"></select></div>
+          <div class="lcdcell"><span>CUTOFF</span><b id="lcdCut">1.7k</b></div>
+          <div class="lcdcell"><span>RESONANCE</span><b id="lcdRes">15%</b></div>
+          <div class="lcdcell"><span>MIX</span><b id="lcdMix">100%</b></div>
+        </div>
+        <div class="lcdinfo"><span>FILE <i id="iName">—</i></span><span>LEN <i id="iLen">—</i></span><span>SEL <i id="iSel">—</i></span><span>BPM <i id="iBpm">—</i></span><span>KEY <i id="iKey">—</i></span><span>OUT <i id="iOut">—</i></span></div>
+        <div class="wave" id="wave"><canvas id="waveC"></canvas><div class="drop" id="dropHint">Import a sample (any audio or video file), or drop one here</div></div>
+      </div>
+      <div class="row">
+        <button class="btn pri" id="importBtn">Import</button>
+        <button class="btn" id="playBtn">▶ Play</button>
+        <button class="btn" id="loopBtn">Loop</button>
+        <button class="btn stop" id="stopBtn">■ STOP ALL</button>
+        <span class="grow"></span>
+        <button class="btn" id="bypassBtn" title="Hear the source without the sampler and effects">Bypass</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="allBtn">Select all</button>
+        <button class="btn" id="zoomBtn">Zoom</button>
+        <button class="btn" id="truncBtn">Truncate</button>
+        <button class="btn" id="normBtn">Normalize</button>
+        <button class="btn" id="revBtn">Reverse</button>
+        <button class="btn" id="undoBtn">Undo</button>
+        <button class="btn" id="resampleBtn" title="Bounce what you hear back into the sampler">Resample</button>
+      </div>
+      <input type="file" id="fileIn" hidden accept="audio/*,video/*,.wav,.wave,.aif,.aiff,.aifc,.flac,.mp3,.ogg,.oga,.opus,.m4a,.aac,.mp4,.webm,.caf,.weba">
+      <input type="file" id="refIn" hidden accept="audio/*,video/*,.wav,.aif,.aiff,.aifc,.flac,.mp3,.ogg,.opus,.m4a,.aac,.mp4,.webm">
+    </section>
+
+    <section class="card">
+      <h2>Pads · multi-pitch <span class="sp"></span><span class="meter" id="midiInfo"></span></h2>
+      <div class="pads" id="pads"></div>
+      <p class="note">Each pad plays the selection at a different pitch, the way the original sampler does it (a coarser playback counter for higher notes, repeated samples for lower ones). MIDI keyboards work too: middle C is the pad marked 0.</p>
+    </section>
+
+    <section class="card"><h2>Sampler</h2><div class="knobs" id="kSampler"></div></section>
+    <section class="card"><h2>Filter</h2><div class="knobs" id="kFilter"></div></section>
+    <section class="card">
+      <h2>Tuning</h2><div class="knobs" id="kTune"></div>
+      <div class="row">
+        <label class="field">Transpose to key<select id="toKey"></select></label>
+        <button class="btn" id="toKeyBtn">Transpose</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Tempo · key · warp</h2>
+      <div class="row" style="margin-top:0">
+        <button class="btn pri" id="detectBtn">Detect tempo &amp; key</button>
+        <label class="field">Sample BPM<input id="srcBpm" type="number" min="20" max="400" step="0.1" style="width:90px"></label>
+        <button class="btn" id="halfBtn">½</button><button class="btn" id="dblBtn">×2</button>
+      </div>
+      <div class="row">
+        <label class="field">Target BPM<input id="tgtBpm" type="number" min="20" max="400" step="0.1" value="90" style="width:90px"></label>
+        <label class="field">Mode<select id="warpMode"><option value="stretch">Stretch (keep pitch)</option><option value="speed">Speed (pitch moves, like the hardware)</option></select></label>
+        <button class="btn pri" id="warpBtn">Warp</button>
+      </div>
+      <div class="knobs" id="kTime" style="margin-top:8px"></div>
+    </section>
+    <section class="card"><h2>Lo-fi</h2><div class="knobs" id="kLofi"></div></section>
+    <section class="card"><h2>Input / output</h2><div class="knobs" id="kIo"></div></section>
+
+    <section class="card span2">
+      <h2>Master out <span class="led" id="mLed"></span><span class="sp"></span><span class="meter" id="mMeter"></span></h2>
+      <canvas class="eqc" id="eqC"></canvas>
+      <div class="knobs" id="kMaster" style="margin-top:8px"></div>
+      <div class="row">
+        <button class="btn" id="mOnBtn">Master on</button>
+        <button class="btn" id="refBtn">Load reference…</button>
+        <button class="btn" id="matchBtn">Match EQ</button>
+        <button class="btn" id="clearMatchBtn">Clear match</button>
+        <span class="meter" id="refName"></span>
+      </div>
+      <div class="row">
+        <label class="field">Loudness target<select id="lufsTgt"><option value="-9">−9 LUFS (loud)</option><option value="-12">−12 LUFS</option><option value="-14" selected>−14 LUFS (streaming)</option><option value="-16">−16 LUFS</option><option value="-20">−20 LUFS (quiet)</option></select></label>
+        <button class="btn pri" id="autoBtn">Auto master</button>
+        <button class="btn" id="flatBtn">Reset master</button>
+      </div>
+    </section>
+
+    <section class="card span2">
+      <h2>Export</h2>
+      <div class="row" style="margin-top:0">
+        <label class="field">Format<select id="fmt"></select></label>
+        <label class="field">Sample rate<select id="expSr"><option value="44100">44.1 kHz</option><option value="48000" selected>48 kHz</option><option value="96000">96 kHz</option><option value="32000">32 kHz</option><option value="26041">26.04 kHz (SP clock)</option></select></label>
+        <label class="field">Range<select id="expRange"><option value="sel">Selection</option><option value="all">Whole file</option></select></label>
+        <button class="btn pri" id="exportBtn">Export</button>
+        <button class="btn" id="shareBtn" hidden>Share…</button>
+      </div>
+      <p class="note">WAV, AIFF and FLAC are written here on the device. MP3 uses the LAME encoder (downloaded the first time). The device-codec formats (Opus, OGG, M4A/AAC, whichever your phone offers) are recorded in real time, so they take as long as the audio.</p>
+    </section>
+  </div>
+</div>
+
+<dialog id="presetDlg"><div class="dlg">
+  <h3>Presets <span class="meter" id="pCount"></span></h3>
+  <input type="search" id="pSearch" placeholder="Search 500 presets">
+  <div class="chips" id="pFams"></div>
+  <div class="plist" id="pList"></div>
+  <div class="row" style="margin-top:0"><span class="grow"></span><button class="btn" id="pClose">Close</button></div>
+</div></dialog>
+
+<dialog id="helpDlg"><div class="dlg help">
+  <h3>Omega Twelve</h3>
+  <div style="overflow:auto">
+  <p>Import any sample or song, pick part of it, and run it through a model of a vintage sampler. Turn knobs by dragging up and down; double-tap a knob to reset it.</p>
+  <ul>
+    <li><b>Sampler</b>: SP-1200 (26.04 kHz, 12-bit, drop-sample pitch with E-mu's semitone table), SP-12, MPC60, S950, S612, Mirage, Clean. Picking one sets bits, rate and filter to that machine; change them after if you like. <b>Alias</b> lets more of the unfiltered input through the converter. <b>Drive</b> pushes the converter harder.</li>
+    <li><b>Filter</b>: SSM2044 is the SP-1200's outputs 1-2 (opens on each hit, then closes), fixed 3-6 are its other outputs, None is outputs 7-8. <b>Retrigger</b> reopens the SSM2044 on each hit inside a loop.</li>
+    <li><b>Tuning</b>: Tune in semitones (the hardware's own range is −16 to +15; past that is extended), Fine in cents, A4 sets the reference pitch (432, 415 for baroque, and so on).</li>
+    <li><b>Warp</b>: Detect finds tempo and key. Stretch keeps the pitch; Speed changes pitch with tempo like the original machine.</li>
+    <li><b>Truncate</b> keeps only the selection. <b>Resample</b> bounces what you hear back in as the new sample and resets the effects so nothing is applied twice.</li>
+    <li><b>Master out</b>: EQ match to a reference track (or a typical mix), a 5-band parametric EQ, compressor, gain and a look-ahead limiter. <b>Auto master</b> sets all of it for the loudness target.</li>
+    <li><b>STOP ALL</b> stops every sound right away.</li>
+  </ul>
+  <p>SP-1200 converter and filter data from libmd12 (MIT). SP-1200, SP-12, MPC60, S950, S612 and Mirage are trademarks of their owners, named only to describe the sound; not affiliated.</p>
+  </div>
+  <div class="row" style="margin-top:0"><span class="grow"></span><button class="btn" id="helpClose">Close</button></div>
+</div></dialog>
+
+<div class="toast" id="toast"></div>
+<div class="busy" id="busy">RENDERING…</div>
+<script src="engine.js"></script>
+<script src="codecs.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
