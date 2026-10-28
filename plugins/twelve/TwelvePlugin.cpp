@@ -115,6 +115,7 @@ void TwelveProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     for (int c = 0; c < 2; ++c) { conv[c] = Converter(sampleRate); filt[c] = OutFilter(sampleRate); dc[c] = 0; }
     lofi = Lofi(sampleRate, 4321); master = Master(sampleRate);
     for (auto& s2 : spl) s2 = sp::SPLive(sampleRate);
+    stretcher.prepare(sampleRate);
     primed = false; lbuf.assign((size_t) juce::jmax(512, maxBlock), 0.f); rbuf = lbuf;
     setLatencySamples(master.latency() + sp::SPLive(sampleRate).latency());
     for (auto& v : voices) v = Voice();
@@ -125,7 +126,7 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     juce::ScopedNoDenormals nd;
     const int n = buf.getNumSamples(), nIn = getTotalNumInputChannels(), nOut = getTotalNumOutputChannels();
     const double fs = hostFs;
-    const Params p = snapshot();
+    const Params p = effective(snapshot());
     const bool live = liveRaw->load() > .5;
 
     // set up whatever changed (compared group by group, no allocation)
@@ -138,7 +139,7 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
         spMode = MACHINES[(int) clampd(p[pid::machine], 0, 6)].pitch == 0;
         if (spMode) {
             sp::SPLive::Settings s2; const int ft = (int) p[pid::ftype];
-            s2.clock = p[pid::rate]; s2.level = driveGain(p); s2.bits = p[pid::bits]; s2.rpm = p[pid::rpm]; s2.rest = p[pid::cutoff]; s2.res = p[pid::res];
+            s2.clock = p[pid::rate]; s2.level = 1;   // input gain and preamp are applied before it, below s2.bits = p[pid::bits]; s2.rpm = p[pid::rpm]; s2.rest = p[pid::cutoff]; s2.res = p[pid::res];
             s2.depth = p[pid::fenv]; s2.output = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7; s2.measured = p[pid::calib] > .5; s2.sp12 = (int) p[pid::machine] == 1;
             for (auto& x : spl) x.setup(s2);
         }
@@ -196,18 +197,38 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
 
     const float* inL = nIn > 0 ? buf.getReadPointer(0) : nullptr;
     const float* inR = nIn > 1 ? buf.getReadPointer(1) : inL;
+    // meters and bypass: bypass passes the input through untouched
+    {
+        float pk = 0; for (int c = 0; c < nIn; ++c) pk = juce::jmax(pk, buf.getMagnitude(c, 0, n));
+        meterIn = juce::jmax(pk, meterIn.load() * .9f);
+    }
+    if (p[pid::bypass] > .5) {
+        for (int c = nIn; c < nOut; ++c) buf.clear(c, 0, n);
+        float pk = 0; for (int c = 0; c < nOut; ++c) pk = juce::jmax(pk, buf.getMagnitude(c, 0, n));
+        meterOut = juce::jmax(pk, meterOut.load() * .9f); midi.clear(); return;
+    }
+    // host tempo for the Classic timestretch's bar sync
+    double bar = 0, sinceBar = -1;
+    if (auto* ph = getPlayHead()) if (auto pos = ph->getPosition()) {
+        if (auto bpm = pos->getBpm()) { const double spb = 60.0 / *bpm * fs; int num = 4; if (auto ts = pos->getTimeSignature()) num = ts->numerator; bar = spb * num;
+            if (auto ppq = pos->getPpqPosition()) { double lastBar = 0; if (auto lb = pos->getPpqPositionOfLastBarStart()) lastBar = *lb; sinceBar = (*ppq - lastBar) * spb; } }
+    }
+    const double preG = driveGain(p); const bool preOn = p[pid::pre] > .5;
     if ((int) lbuf.size() < n) { lbuf.resize((size_t) n); rbuf.resize((size_t) n); }
     float* l = lbuf.data(); float* r = rbuf.data();
-    const double inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output]), mix = p[pid::mix], dv = 1 + p[pid::drive] * 3;
+    const double inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output] - (p[pid::link] > .5 ? p[pid::input] : 0)), mix = p[pid::mix], dv = 1 + p[pid::drive] * 3;
     const bool mono = p[pid::mono] > .5;
     for (int i = 0; i < n; ++i) {
         double yl = 0, yr = 0;
         if (live && inL) {
-            const double xl = mono ? (inL[i] + inR[i]) * .5 : inL[i], xr = mono ? xl : inR[i];
+            float sl = mono ? (inL[i] + inR[i]) * .5f : inL[i], sr2 = mono ? sl : inR[i];
+            stretcher.process(sl, sr2, p[pid::stretch], (int) p[pid::smode], p[pid::grain], bar, sinceBar >= 0 ? sinceBar + i : -1);
+            const double xl = sl, xr = sr2;
             double a, b;
             if (spMode) {
-                a = spl[0].process((float) xl); dc[0] += (a - dc[0]) * (6 / fs); a = (a - dc[0]) / dv;
-                if (mono) b = a; else { b = spl[1].process((float) xr); dc[1] += (b - dc[1]) * (6 / fs); b = (b - dc[1]) / dv; }
+                const double pl = preOn ? preamp(xl * preG) : xl * preG, pr = preOn ? preamp(xr * preG) : xr * preG;
+                a = spl[0].process((float) pl); dc[0] += (a - dc[0]) * (6 / fs); a = (a - dc[0]) / dv;
+                if (mono) b = a; else { b = spl[1].process((float) pr); dc[1] += (b - dc[1]) * (6 / fs); b = (b - dc[1]) / dv; }
             } else {
                 a = conv[0].process(xl); dc[0] += (a - dc[0]) * (6 / fs); a = filt[0].process(a - dc[0]) / dv;
                 if (mono) b = a; else { b = conv[1].process(xr); dc[1] += (b - dc[1]) * (6 / fs); b = filt[1].process(b - dc[1]) / dv; }
@@ -239,6 +260,7 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
         if (master.enabled()) master.process(a, b);
         l[(size_t) i] = (float) a; r[(size_t) i] = (float) b;
     }
+    { float pk = 0; for (int i = 0; i < n; ++i) pk = juce::jmax(pk, std::fabs(l[(size_t) i]), std::fabs(r[(size_t) i])); meterOut = juce::jmax(pk, meterOut.load() * .9f); }
     if (nOut > 0) buf.copyFrom(0, 0, l, n);
     if (nOut > 1) buf.copyFrom(1, 0, r, n);
     else if (nOut == 1) { auto* o = buf.getWritePointer(0); for (int i = 0; i < n; ++i) o[i] = (l[(size_t) i] + r[(size_t) i]) * .5f; }

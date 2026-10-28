@@ -42,11 +42,23 @@ function audio(){
   if (!ctx){
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
     bus = ctx.createGain(); bus.connect(ctx.destination);
+    meterNode = ctx.createAnalyser(); meterNode.fftSize = 1024; bus.connect(meterNode); requestAnimationFrame(meterTick);
   }
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
 const FS = () => (ctx ? ctx.sampleRate : 48000);
+// output level meter on the display (peak, falling back slowly; red past 0 dBFS)
+let meterNode = null, meterPk = 0;
+function meterTick(){
+  if (meterNode){
+    const d = new Float32Array(meterNode.fftSize); meterNode.getFloatTimeDomainData(d);
+    let pk = 0; for (const v of d) pk = Math.max(pk, Math.abs(v)); meterPk = Math.max(pk, meterPk * .9);
+    const db = 20 * Math.log10(meterPk + 1e-9), el = document.getElementById('vu');
+    if (el){ el.style.width = Math.max(0, Math.min(100, (db + 48) / 48 * 100)) + '%'; el.style.background = db > -.1 ? '#ff5040' : db > -6 ? '#e2a83a' : '#7dffb0'; }
+  }
+  requestAnimationFrame(meterTick);
+}
 
 /* ---------------- worker ---------------- */
 const worker = new Worker('worker.js');
@@ -130,7 +142,7 @@ function stopAll(){
   if (recorder && recorder.state !== 'inactive'){ recorderCancelled = true; recorder.stop(); }
   if (ctx && bus){
     // cut anything still sounding: swap in a fresh output bus
-    bus.disconnect(); bus = ctx.createGain(); bus.connect(ctx.destination);
+    bus.disconnect(); bus = ctx.createGain(); bus.connect(ctx.destination); if (meterNode) bus.connect(meterNode);
   }
   document.querySelectorAll('.pad.hit').forEach(p => p.classList.remove('hit'));
   drawWave();
@@ -280,12 +292,12 @@ function setMachine(m){
 
 function buildControls(){
   const add = (box, ids) => ids.forEach(id => { const p = PBYID[id]; if (p.choices) makeSelect(id, box); else if (p.toggle) makeToggle(id, box); else makeKnob(id, box); });
-  add($('#kSampler'), ['machine', 'calib', 'bits', 'rate', 'alias', 'drive', 'rpm', 'mono']);
-  add($('#kFilter'), ['ftype', 'cutoff', 'res', 'fenv', 'mix', 'retrig']);
+  add($('#kSampler'), ['machine', 'calib', 'bits', 'rate', 'rpm', 'drive', 'alias', 'pre', 'mono']);
+  add($('#kFilter'), ['ftype', 'cutoff', 'res', 'fenv', 'mix', 'fOn', 'retrig']);
   add($('#kTune'), ['semis', 'cents', 'a4']);
   add($('#kTime'), ['smode', 'stretch', 'grain']);
   add($('#kLofi'), ['crackle', 'hiss', 'wow', 'flutter', 'tape', 'age', 'hum', 'humHz']);
-  add($('#kIo'), ['input', 'output']);
+  add($('#kIo'), ['input', 'output', 'link']);
   add($('#kMaster'), ['lsF', 'lsG', 'p1F', 'p1G', 'p1Q', 'p2F', 'p2G', 'p2Q', 'p3F', 'p3G', 'p3Q', 'hsF', 'hsG', 'match', 'cThr', 'cRat', 'cAtk', 'cRel', 'cMake', 'mGain', 'lim']);
   TW.MACHINES.forEach((m, i) => $('#lcdMachine').add(new Option(m.name, i)));
   TW.FILTERS.forEach((f, i) => $('#lcdFilter').add(new Option(f.replace(/ \(.*/, '').replace('6-pole Butterworth', '6-POLE').replace('4-pole resonant', '4-POLE').replace('SSM2044', 'SSM2044').replace('Fixed', 'FIX ' + (i + 2)).replace('None', 'NONE'), i)));

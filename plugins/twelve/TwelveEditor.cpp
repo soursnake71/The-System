@@ -76,17 +76,31 @@ void Lcd::paint(juce::Graphics& g) {
         g.setFont(mono(19)); g.drawText(val, c.translated(3, 0), juce::Justification::centredLeft, true);
     };
     const int w = in.getWidth();
-    auto row = [&](const juce::String (&lab)[4], const juce::String (&val)[4]) {
+    cells.clear();
+    auto row = [&](const juce::String (&lab)[4], const juce::String (&val)[4], const int (&ids)[4]) {
         auto rr = in.removeFromTop(38); const int cw[4] = { w * 32 / 100, w * 22 / 100, w * 24 / 100, w * 22 / 100 };
-        for (int i = 0; i < 4; ++i) cell(rr.removeFromLeft(cw[i]), lab[i], val[i], i == 0);
+        for (int i = 0; i < 4; ++i) { auto c = rr.removeFromLeft(cw[i]); cells.push_back({c, ids[i]}); cell(c, lab[i], val[i], i == 0); }
     };
     const int ft = (int) p[pid::ftype];
     const double st = p[pid::semis] + p[pid::cents] / 100;
-    row({"SAMPLER", "BITS", "RATE", "TUNE"}, {fmtVal(pid::machine, p[pid::machine]), juce::String((int) p[pid::bits]), juce::String(p[pid::rate] / 1000, 1) + "k", (st > 0 ? "+" : "") + juce::String(st, p[pid::cents] != 0 ? 2 : 0)});
+    row({"SAMPLER", "BITS", "RATE", "TUNE"}, {fmtVal(pid::machine, p[pid::machine]), juce::String((int) p[pid::bits]), juce::String(p[pid::rate] / 1000, 1) + "k", (st > 0 ? "+" : "") + juce::String(st, p[pid::cents] != 0 ? 2 : 0)}, {pid::machine, pid::bits, pid::rate, pid::semis});
     juce::String fname = fmtVal(pid::ftype, ft).upToFirstOccurrenceOf(" (", false, false);
-    row({"FILTER", "CUTOFF", "RESONANCE", "MIX"}, {fname, ft >= 1 && ft <= 5 ? juce::String("FIXED") : fmtVal(pid::cutoff, p[pid::cutoff]), fmtVal(pid::res, p[pid::res]), fmtVal(pid::mix, p[pid::mix])});
+    row({"FILTER", "CUTOFF", "RESONANCE", "MIX"}, {fname, ft >= 1 && ft <= 5 ? juce::String("FIXED") : fmtVal(pid::cutoff, p[pid::cutoff]), fmtVal(pid::res, p[pid::res]), fmtVal(pid::mix, p[pid::mix])}, {pid::ftype, pid::cutoff, pid::res, pid::mix});
     g.setColour(juce::Colour(0xff1f2a25)); g.drawHorizontalLine(in.getY() + 2, (float) in.getX(), (float) in.getRight());
-    g.setFont(mono(11)); g.setColour(kGlow); g.drawText(info, in.removeFromTop(20).translated(0, 4), juce::Justification::left, true);
+    auto infoR = in.removeFromTop(20).translated(0, 4);
+    // VU meters: 12 segments each, the top two red when the level goes over 0 dBFS
+    auto meter = [&](juce::Rectangle<int> m, const char* lab, float lv) {
+        g.setFont(mono(9)); g.setColour(kGlowDim); g.drawText(lab, m.removeFromLeft(26), juce::Justification::centredLeft);
+        const float db = 20 * std::log10(lv + 1e-9f); const int segs = 12; const float sw = m.getWidth() / (float) segs;
+        for (int k = 0; k < segs; ++k) {
+            const float th = -36 + k * 3.f; const bool on = db >= th, red = k >= segs - 2;
+            g.setColour((red ? juce::Colour(0xffff5040) : kGlow).withAlpha(on ? 1.f : .15f));
+            g.fillRect(juce::Rectangle<float>(m.getX() + k * sw + 1, (float) m.getY() + 4, sw - 2, (float) m.getHeight() - 8));
+        }
+    };
+    meter(infoR.removeFromRight(150), "OUT", proc.meterOut.load()); infoR.removeFromRight(8);
+    meter(infoR.removeFromRight(150), "IN", proc.meterIn.load());
+    g.setFont(mono(11)); g.setColour(kGlow); g.drawText(info, infoR, juce::Justification::left, true);
     // waveform
     const auto wa = waveArea(); g.setColour(juce::Colour(0xff1f2a25)); g.drawRect(wa);
     if (!proc.hasSource()) { g.setColour(kGlowDim); g.setFont(mono(12)); g.drawText("Import a sample (WAV, AIFF, FLAC, OGG, MP3...) or drop one here", wa, juce::Justification::centred); return; }
@@ -106,6 +120,7 @@ void Lcd::paint(juce::Graphics& g) {
     if (proc.isRendering()) { g.setColour(kGlow); g.setFont(mono(10)); g.drawText("RENDERING", wa.reduced(4), juce::Justification::topRight); }
 }
 void Lcd::mouseDown(const juce::MouseEvent& e) {
+    for (auto& c : cells) if (c.r.contains(e.getPosition())) { mode = 0; if (onEdit) onEdit(c.id); return; }
     if (!proc.hasSource() || !waveArea().contains(e.getPosition())) { mode = 0; return; }
     const auto s = proc.selection(); const auto wa = waveArea(); const auto v = view(); const double span = (double) juce::jmax<int64_t>(1, v.second - v.first);
     auto X = [&](int64_t i) { return wa.getX() + (int) ((double) (i - v.first) / span * wa.getWidth()); };
@@ -130,7 +145,7 @@ void Lcd::mouseUp(const juce::MouseEvent& e) {
 
 /* ---------------- editor ---------------- */
 juce::TextButton& TwelveEditor::button(const juce::String& text, std::function<void()> f) {
-    auto b = std::make_unique<juce::TextButton>(text); b->onClick = f; addAndMakeVisible(*b);
+    auto b = std::make_unique<juce::TextButton>(text); b->onClick = f; content.addAndMakeVisible(*b);
     b->getProperties().set("btn", true);
     auto& ref = *b; btn[text] = b.get(); buttons.push_back(std::move(b)); return ref;
 }
@@ -139,27 +154,27 @@ void TwelveEditor::addKnob(int id, juce::String section) {
     s->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 64, 14);
     s->setRotaryParameters(juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
     s->setDoubleClickReturnValue(true, (double) PARAMS[id].def);
-    addAndMakeVisible(*s);
+    content.addAndMakeVisible(*s);
     sAtt.push_back(std::make_unique<juce::SliderParameterAttachment>(*proc.apvts.getParameter(PARAMS[id].id), *s));
-    auto l = std::make_unique<juce::Label>("", PARAMS[id].name); l->setFont(font(10)); l->setJustificationType(juce::Justification::centred); l->setColour(juce::Label::textColourId, kMute); addAndMakeVisible(*l);
+    auto l = std::make_unique<juce::Label>("", PARAMS[id].name); l->setFont(font(10)); l->setJustificationType(juce::Justification::centred); l->setColour(juce::Label::textColourId, kMute); content.addAndMakeVisible(*l);
     ctls.push_back({id, section, std::move(s), std::move(l)});
 }
 void TwelveEditor::addCombo(int id, juce::String section) {
-    auto c = std::make_unique<juce::ComboBox>(); addAndMakeVisible(*c);
+    auto c = std::make_unique<juce::ComboBox>(); content.addAndMakeVisible(*c);
     int k = 1; for (auto* s : PARAMS[id].choices) c->addItem(juce::CharPointer_UTF8(s), k++);
     cAtt.push_back(std::make_unique<juce::ComboBoxParameterAttachment>(*proc.apvts.getParameter(PARAMS[id].id), *c));
-    auto l = std::make_unique<juce::Label>("", PARAMS[id].name); l->setFont(font(10)); l->setColour(juce::Label::textColourId, kMute); addAndMakeVisible(*l);
+    auto l = std::make_unique<juce::Label>("", PARAMS[id].name); l->setFont(font(10)); l->setColour(juce::Label::textColourId, kMute); content.addAndMakeVisible(*l);
     ctls.push_back({id, section, std::move(c), std::move(l)});
 }
 void TwelveEditor::addToggle(int id, juce::String section) {
-    auto b = std::make_unique<juce::TextButton>(PARAMS[id].name); b->setClickingTogglesState(true); addAndMakeVisible(*b);
+    auto b = std::make_unique<juce::TextButton>(PARAMS[id].name); b->setClickingTogglesState(true); content.addAndMakeVisible(*b);
     bAtt.push_back(std::make_unique<juce::ButtonParameterAttachment>(*proc.apvts.getParameter(PARAMS[id].id), *b));
     ctls.push_back({id, section, std::move(b), nullptr});
 }
 
 TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p), lcd(p) {
     setLookAndFeel(&look);
-    addAndMakeVisible(lcd);
+    content.addAndMakeVisible(lcd);
     lcd.onSelection = [] {};
     // presets: 25 families of 20, as submenus
     {
@@ -171,9 +186,9 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
         }
         root->addSubMenu(fam, sub);
     }
-    presets.setTextWhenNothingSelected("Presets (500)");
+    presets.setTextWhenNothingSelected("Presets (" + juce::String(kPresets) + ")");
     presets.onChange = [this] { const int id = presets.getSelectedId(); if (id > 0) proc.setCurrentProgram(id - 1); };
-    addAndMakeVisible(presets);
+    content.addAndMakeVisible(presets);
     button(juce::String::fromUTF8("\xe2\x97\x80"), [this] { proc.setCurrentProgram((proc.getCurrentProgram() + kPresets - 1) % kPresets); presets.setSelectedId(proc.getCurrentProgram() + 1, juce::dontSendNotification); });
     button(juce::String::fromUTF8("\xe2\x96\xb6"), [this] { proc.setCurrentProgram((proc.getCurrentProgram() + 1) % kPresets); presets.setSelectedId(proc.getCurrentProgram() + 1, juce::dontSendNotification); });
     button("Random", [this] { proc.randomize(); presets.setSelectedId(0, juce::dontSendNotification); toast("Random: " + proc.presetName()); });
@@ -186,7 +201,7 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
     button("Play", [this] { if (proc.isPlaying()) proc.stopAll(); else proc.play(0); });
     button("Loop", [this] { proc.loop = !proc.loop; });
     button("STOP ALL", [this] { proc.stopAll(); }).setName("stop");
-    liveBtn.setTooltip("Run the plugin's audio input through the sampler model"); addAndMakeVisible(liveBtn);
+    liveBtn.setTooltip("Run the plugin's audio input through the sampler model"); content.addAndMakeVisible(liveBtn);
     liveAtt = std::make_unique<juce::ButtonParameterAttachment>(*proc.apvts.getParameter("live"), liveBtn);
     button("Select all", [this] { proc.setSelection(0, proc.sourceLength()); lcd.zoom = false; });
     button("Zoom", [this] { lcd.zoom = !lcd.zoom; });
@@ -203,14 +218,18 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
     for (int id : {pid::machine}) addCombo(id, "Sampler");
     for (int id : {pid::bits, pid::rate, pid::alias, pid::drive}) addKnob(id, "Sampler");
     addToggle(pid::mono, "Sampler");
+    addToggle(pid::pre, "Sampler");
     addKnob(pid::rpm, "Sampler");
     addCombo(pid::calib, "Sampler");
     addCombo(pid::ftype, "Filter");
     for (int id : {pid::cutoff, pid::res, pid::fenv, pid::mix}) addKnob(id, "Filter");
     addToggle(pid::retrig, "Filter");
+    addToggle(pid::fOn, "Filter");
     for (int id : {pid::semis, pid::cents, pid::a4}) addKnob(id, "Tuning");
     addCombo(pid::smode, "Time / IO");
     for (int id : {pid::stretch, pid::grain, pid::input, pid::output}) addKnob(id, "Time / IO");
+    addToggle(pid::link, "Time / IO");
+    addToggle(pid::bypass, "Time / IO");
     for (int id : {pid::crackle, pid::hiss, pid::wow, pid::flutter, pid::tape, pid::age, pid::hum}) addKnob(id, "Lo-fi");
     addCombo(pid::humHz, "Lo-fi");
     for (int id : {pid::lsF, pid::lsG, pid::p1F, pid::p1G, pid::p1Q, pid::p2F, pid::p2G, pid::p2Q, pid::p3F, pid::p3G, pid::p3Q, pid::hsF, pid::hsG, pid::match,
@@ -223,13 +242,13 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
     }
 
     // tempo / key / warp
-    for (auto* l : {&srcBpm, &tgtBpm}) { l->setEditable(true); l->setColour(juce::Label::backgroundColourId, juce::Colour(0xfff4f3f0)); l->setColour(juce::Label::outlineColourId, juce::Colour(0xff8f9297)); l->setFont(font(13)); addAndMakeVisible(*l); }
+    for (auto* l : {&srcBpm, &tgtBpm}) { l->setEditable(true); l->setColour(juce::Label::backgroundColourId, juce::Colour(0xfff4f3f0)); l->setColour(juce::Label::outlineColourId, juce::Colour(0xff8f9297)); l->setFont(font(13)); content.addAndMakeVisible(*l); }
     tgtBpm.setText("90", juce::dontSendNotification);
     button("Detect tempo & key", [this] { job([this] { auto r = proc.analyze(); juce::MessageManager::callAsync([this] { if (proc.tempo > 0) srcBpm.setText(juce::String(proc.tempo, 1), juce::dontSendNotification); if (proc.key.root >= 0) toKey.setSelectedItemIndex(proc.key.root, juce::dontSendNotification); }); return r; }); }).setName("pri");
-    warpMode.addItem("Stretch (keep pitch)", 1); warpMode.addItem("Speed (pitch moves)", 2); warpMode.setSelectedId(1); addAndMakeVisible(warpMode);
+    warpMode.addItem("Stretch (keep pitch)", 1); warpMode.addItem("Speed (pitch moves)", 2); warpMode.setSelectedId(1); content.addAndMakeVisible(warpMode);
     button("Warp", [this] { toast(proc.warp(srcBpm.getText().getDoubleValue(), tgtBpm.getText().getDoubleValue(), warpMode.getSelectedId() == 1)); });
     for (int i = 0; i < 12; ++i) toKey.addItem(NOTE_NAMES[i], i + 1);
-    toKey.setSelectedId(1); addAndMakeVisible(toKey);
+    toKey.setSelectedId(1); content.addAndMakeVisible(toKey);
     button("Transpose", [this] { toast(proc.transposeTo(toKey.getSelectedItemIndex())); });
 
     // master
@@ -237,16 +256,16 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
     button("Match EQ", [this] { job([this] { return proc.matchEq(); }); });
     button("Clear match", [this] { proc.clearMatch(); toast("EQ match cleared"); });
     for (auto [t, id] : std::vector<std::pair<const char*, int>>{{"-9 LUFS", 1}, {"-12 LUFS", 2}, {"-14 LUFS", 3}, {"-16 LUFS", 4}, {"-20 LUFS", 5}}) lufs.addItem(t, id);
-    lufs.setSelectedId(3); addAndMakeVisible(lufs);
+    lufs.setSelectedId(3); content.addAndMakeVisible(lufs);
     button("Auto master", [this] { const double t = lufs.getText().getDoubleValue(); job([this, t] { return proc.autoMasterNow(t); }); }).setName("pri");
     button("Reset master", [this] { proc.resetMaster(); toast("Master reset"); });
 
     // export
     int k = 1;
     for (auto* t : {"WAV 16-bit", "WAV 24-bit", "WAV 32-bit float", "AIFF 16-bit", "AIFF 24-bit", "FLAC 16-bit", "FLAC 24-bit", "OGG Vorbis (high)", "OGG Vorbis (medium)"}) fmt.addItem(t, k++);
-    fmt.setSelectedId(2); addAndMakeVisible(fmt);
-    expSr.addItem("44.1 kHz", 44100); expSr.addItem("48 kHz", 48000); expSr.addItem("88.2 kHz", 88200); expSr.addItem("96 kHz", 96000); expSr.addItem("26.04 kHz (SP clock)", 26041); expSr.setSelectedId(48000); addAndMakeVisible(expSr);
-    expRange.addItem("Selection", 1); expRange.addItem("Whole file", 2); expRange.setSelectedId(1); addAndMakeVisible(expRange);
+    fmt.setSelectedId(2); content.addAndMakeVisible(fmt);
+    expSr.addItem("44.1 kHz", 44100); expSr.addItem("48 kHz", 48000); expSr.addItem("88.2 kHz", 88200); expSr.addItem("96 kHz", 96000); expSr.addItem("26.04 kHz (SP clock)", 26041); expSr.setSelectedId(48000); content.addAndMakeVisible(expSr);
+    expRange.addItem("Selection", 1); expRange.addItem("Whole file", 2); expRange.setSelectedId(1); content.addAndMakeVisible(expRange);
     button("Export", [this] {
         static const char* codes[] = {"wav:16", "wav:24", "wav:32", "aiff:16", "aiff:24", "flac:16", "flac:24", "ogg:9", "ogg:5"};
         static const char* exts[] = {".wav", ".wav", ".wav", ".aif", ".aif", ".flac", ".flac", ".ogg", ".ogg"};
@@ -264,7 +283,15 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
 
     for (auto& b : buttons) if (b->getName() == "pri" || b->getName() == "stop") { b->setColour(juce::TextButton::textColourOffId, juce::Colours::white); b->setColour(juce::TextButton::textColourOnId, juce::Colours::white); }
     for (auto& c : ctls) c.comp->addMouseListener(this, true);
-    setSize(1180, 884);
+    addAndMakeVisible(content);
+    content.draw = [this](juce::Graphics& g) { drawContent(g); };
+    // double-click the logo to go back to the original size
+    content.doubleClick = [this](const juce::MouseEvent& e) { if (e.y < 48 && e.x < 300) setSize(BW * 9 / 10, BH * 9 / 10); };
+    lcd.onEdit = [this](int id) { editValue(id); };
+    setResizable(true, true);
+    setResizeLimits(BW / 2, BH / 2, BW * 2, BH * 2);
+    if (auto* c = getConstrainer()) c->setFixedAspectRatio((double) BW / BH);
+    setSize(BW * 9 / 10, BH * 9 / 10);
     startTimerHz(15);
 }
 TwelveEditor::~TwelveEditor() { setLookAndFeel(nullptr); }
@@ -279,6 +306,7 @@ void TwelveEditor::mouseDown(const juce::MouseEvent& e) {
 }
 
 void TwelveEditor::timerCallback() {
+    content.repaint(0, BH - 60, BW, 60);
     if (learning >= 0 && proc.learnParam.load() < 0) {
         int cc = -1; for (int i = 0; i < 128; ++i) if (proc.ccMap[(size_t) i].load() == learning) cc = i;
         toast(juce::String(PARAMS[learning].name) + " is on CC " + juce::String(cc)); learning = -1; learnArmed = false;
@@ -296,11 +324,39 @@ void TwelveEditor::timerCallback() {
         info << "   OUT " << proc.lufsText();
     }
     lcd.info = info;
-    if (msg.isNotEmpty() && juce::Time::getMillisecondCounter() > msgUntil) { msg.clear(); repaint(); }
+    if (msg.isNotEmpty() && juce::Time::getMillisecondCounter() > msgUntil) { msg.clear(); content.repaint(); }
 }
 
-void TwelveEditor::paint(juce::Graphics& g) {
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xffd4d6d8), 0, 0, juce::Colour(0xffb9bbbe), 0, (float) getHeight(), false));
+void TwelveEditor::paint(juce::Graphics& g) { g.fillAll(juce::Colour(0xffb9bbbe)); }
+void TwelveEditor::resized() {
+    content.setBounds(0, 0, BW, BH);
+    content.setTransform(juce::AffineTransform::scale((float) getWidth() / BW));
+    layout();
+}
+// typing a value for a parameter clicked on the display; menus for the sampler and filter
+void TwelveEditor::editValue(int id) {
+    const auto& pi = PARAMS[id];
+    if (!pi.choices.empty()) {
+        juce::PopupMenu m; int k = 1; const int cur = (int) proc.snapshot()[id];
+        for (auto* c : pi.choices) { m.addItem(k, juce::CharPointer_UTF8(c), true, k - 1 == cur); ++k; }
+        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&lcd), [this, id](int r) { if (r > 0) { proc.setParam(id, r - 1); if (id == pid::machine) { Params q = proc.snapshot(); setMachine(q, r - 1); for (int j : {pid::rate, pid::bits, pid::ftype, pid::cutoff, pid::res}) proc.setParam(j, q[j]); } } });
+        return;
+    }
+    auto* w = new juce::AlertWindow(pi.name, juce::String("Type a value (") + juce::String(pi.min) + " to " + juce::String(pi.max) + " " + pi.unit + ")", juce::MessageBoxIconType::NoIcon, this);
+    w->addTextEditor("v", fmtVal(id, proc.snapshot()[id]));
+    w->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey)); w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    w->enterModalState(true, juce::ModalCallbackFunction::create([this, w, id](int r) {
+        if (r != 1) return;
+        auto t = w->getTextEditorContents("v").trim().toLowerCase();
+        double v = t.getDoubleValue();
+        if (t.containsChar('k')) v *= 1000;                       // 6k, 26.04k
+        if (std::string(PARAMS[id].unit) == "%") v /= 100;          // typed as a percentage
+        proc.setParam(id, clampd(v, PARAMS[id].min, PARAMS[id].max));
+    }), true);
+}
+
+void TwelveEditor::drawContent(juce::Graphics& g) {
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xffd4d6d8), 0, 0, juce::Colour(0xffb9bbbe), 0, (float) BH, false));
     g.fillAll();
     g.setColour(kInk); g.setFont(font(24, true)); g.drawText("OMEGA TWELVE", 14, 8, 260, 28, juce::Justification::left);
     g.setColour(kMute); g.setFont(font(10)); g.drawText(juce::String::fromUTF8("12-bit vintage sampler emulator \xc2\xb7 SP-1200 audio path \xc2\xb7 MIDI: middle C = original pitch"), 14, 34, 500, 12, juce::Justification::left);
@@ -309,13 +365,13 @@ void TwelveEditor::paint(juce::Graphics& g) {
         g.setColour(juce::Colour(0xff3b3e43)); g.setFont(font(10, true)); g.drawText(name.toUpperCase(), r.reduced(10, 6).removeFromTop(12), juce::Justification::left);
     }
     if (msg.isNotEmpty()) {
-        auto r = juce::Rectangle<int>(0, 0, juce::jmin(getWidth() - 40, 40 + msg.length() * 7), 34).withCentre({getWidth() / 2, getHeight() - 30});
+        auto r = juce::Rectangle<int>(0, 0, juce::jmin(BW - 40, 40 + msg.length() * 7), 34).withCentre({BW / 2, BH - 30});
         g.setColour(juce::Colour(0xee111111)); g.fillRoundedRectangle(r.toFloat(), 8);
         g.setColour(juce::Colour(0xffe9ffe9)); g.setFont(font(13)); g.drawText(msg, r.reduced(10, 0), juce::Justification::centred, true);
     }
 }
 
-void TwelveEditor::resized() {
+void TwelveEditor::layout() {
     sections.clear();
     const juce::String L = juce::String::fromUTF8("\xe2\x97\x80"), R = juce::String::fromUTF8("\xe2\x96\xb6");
     // top bar
@@ -352,16 +408,16 @@ void TwelveEditor::resized() {
             ++i;
         }
     };
-    place("Sampler", {10, 428, 640, 96}, 11);
-    place("Filter", {656, 428, 514, 96}, 8);
-    place("Tuning", {10, 530, 190, 96}, 3);
-    place("Time / IO", {206, 530, 360, 96}, 6);
-    place("Lo-fi", {572, 530, 598, 96}, 9);
+    place("Sampler", {10, 428, 1160, 96}, 13);
+    place("Filter", {10, 530, 760, 96}, 10);
+    place("Tuning", {776, 530, 394, 96}, 3);
+    place("Time / IO", {10, 632, 640, 96}, 10);
+    place("Lo-fi", {656, 632, 514, 96}, 9);
     // master: two rows of knobs and its buttons
-    place("Master", {10, 696, 1160, 178}, 15);
-    sections["Master tools"] = {10, 632, 1160, 58};
-    btn["Load reference"]->setBounds(20, 654, 130, 28); btn["Match EQ"]->setBounds(156, 654, 112, 28); btn["Clear match"]->setBounds(274, 654, 112, 28);
-    lufs.setBounds(406, 654, 120, 28); btn["Auto master"]->setBounds(532, 654, 112, 28); btn["Reset master"]->setBounds(650, 654, 112, 28);
+    place("Master", {10, 798, 1160, 178}, 15);
+    sections["Master tools"] = {10, 734, 1160, 58};
+    btn["Load reference"]->setBounds(20, 756, 130, 28); btn["Match EQ"]->setBounds(156, 756, 112, 28); btn["Clear match"]->setBounds(274, 756, 112, 28);
+    lufs.setBounds(406, 756, 120, 28); btn["Auto master"]->setBounds(532, 756, 112, 28); btn["Reset master"]->setBounds(650, 756, 112, 28);
 }
 
 }  // namespace twelve

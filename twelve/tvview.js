@@ -5,7 +5,7 @@
 'use strict';
 const $ = s => document.querySelector(s);
 const PBY = Object.fromEntries(TW.PARAMS.map(p => [p.id, p]));
-const GROUPS = [['Sampler', ['machine', 'bits', 'rate', 'alias', 'drive', 'rpm', 'calib', 'mono']], ['Filter', ['ftype', 'cutoff', 'res', 'fenv', 'mix', 'retrig']],
+const GROUPS = [['Sampler', ['machine', 'bits', 'rate', 'rpm', 'drive', 'pre', 'calib', 'mono']], ['Filter', ['ftype', 'fOn', 'cutoff', 'res', 'fenv', 'mix']],
   ['Tuning · time', ['semis', 'cents', 'a4', 'stretch', 'grain', 'smode']], ['Lo-fi', ['crackle', 'hiss', 'wow', 'flutter', 'tape', 'age', 'hum']],
   ['Master EQ', ['lsG', 'p1F', 'p1G', 'p2F', 'p2G', 'p3F', 'p3G', 'hsG', 'match']], ['Master dynamics', ['mOn', 'cThr', 'cRat', 'cMake', 'mGain', 'lim', 'input', 'output']]];
 let st = null, peaks = null, pos = null, focusId = null, focusT = 0;

@@ -138,6 +138,10 @@ private:
     std::atomic<double> playFrom { 0 }, mainFrac { 0 };
     Converter conv[2]; OutFilter filt[2]; Lofi lofi; Master master;
     sp::SPLive spl[2]; bool spMode = false;
+    LiveStretch stretcher;
+public:
+    std::atomic<float> meterIn { 0 }, meterOut { 0 };   // peak levels for the editor's VU meters
+private:
     std::array<std::atomic<float>, 128> ccVal; std::atomic<uint64_t> ccDirty[2];
     std::atomic<int> pendingProgram { -1 };
     std::atomic<double> bend { 0 };   // semitones

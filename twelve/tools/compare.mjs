@@ -19,6 +19,12 @@ const cases = [
   ['SP-1200 45 rpm trick 7 st, out 6, manual parts', {rpm:7, ftype:4, calib:0}],
   ['SP-12 out 1-2 retrigger, cyclic stretch', {machine:1, rate:27500, retrig:1, stretch:1.4, smode:1, grain:40, cutoff:1300}],
   ['SP-1200 6-pole on out 7-8, 8 bits, mix 0.5', {ftype:6, cutoff:5000, bits:8, mix:.5}],
+  ['MPC3000 2-pole, alias 5.4 st, hot preamp, link', {machine:7, rate:44100, bits:16, ftype:8, cutoff:6000, res:.5, rpm:5.4, input:14, link:1}],
+  ['S1000 3-pole, cyclic Warp 2x, 20-sample grain', {machine:8, rate:44100, bits:16, ftype:9, cutoff:9000, res:.3, stretch:2, smode:2, grain:.5, mono:0}],
+  ['Emax ladder, DSS-1 rate clamp, Classic 1.5x', {machine:11, rate:60000, bits:12, ftype:13, cutoff:3000, res:.6, stretch:1.5, smode:1, grain:30}],
+  ['EPS 13-bit, SU700 4-pole, filter off, preamp off', {machine:12, rate:31250, bits:13, ftype:15, fOn:0, pre:0}],
+  ['SK-1 8-bit, S-550 2-pole clamp, SP alias 9 st', {machine:10, rate:9380, bits:8, ftype:14, cutoff:15000, res:.8}],
+  ['SP-12 alias 9.5 st, preamp hot, Mirage 4-pole on out 7-8', {machine:1, rate:27500, rpm:9.5, input:10, ftype:12, cutoff:4000, res:.4}],
 ];
 const match = [3, 2, 1, 0, -1, -2, 1, 3, 2, -4];
 let fail = 0;

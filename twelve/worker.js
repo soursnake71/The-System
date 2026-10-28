@@ -15,7 +15,7 @@ function stretched(p, sel){
   if (k !== cache.stretchKey){
     let chs = slice(sel);
     if (p.mono > .5 && chs.length > 1){ const m = new Float32Array(chs[0].length); for (let i = 0; i < m.length; i++) m[i] = (chs[0][i] + chs[1][i]) * .5; chs = [m]; }
-    cache.stretched = TW.stretch(chs, p.stretch, sr, p.grain, p.smode > .5); cache.stretchKey = k;
+    cache.stretched = TW.stretch(chs, p.stretch, sr, p.grain, p.smode | 0); cache.stretchKey = k;
   }
   return cache.stretched;
 }

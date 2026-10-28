@@ -185,7 +185,7 @@ inline const Calib& calib(bool measured) {
 }
 
 /* ---------------- the machine ---------------- */
-struct SampleOpts { double clock = CLOCK, level = 1, bits = 12, adcOffset = .5; bool measured = false; };
+struct SampleOpts { double clock = CLOCK, level = 1, bits = 12, adcOffset = .5; bool measured = false; double preGain = 1; bool preOn = false; };
 inline std::vector<uint16_t> sampleCodes(const std::vector<float>& src, double sr, const SampleOpts& o) {
     const double fo = sr * OS, foA = std::max(fo, CLOCK * 4);
     Circuit aa(net("aa"), foA, calib(o.measured).aaCap);
@@ -214,16 +214,19 @@ inline std::vector<uint16_t> sampleCodes(const std::vector<float>& src, double s
 }
 // the last few samplings, keyed by the source buffer and the settings that matter
 inline std::vector<uint16_t> codesFor(const std::vector<float>& src, double sr, const SampleOpts& o, double rpm) {
-    struct Entry { const float* data; size_t len; double key[7]; std::shared_ptr<std::vector<uint16_t>> codes; };
+    struct Entry { const float* data; size_t len; double key[9]; std::shared_ptr<std::vector<uint16_t>> codes; };
     static std::mutex mu; static std::vector<Entry> cache;
-    const double key[7] = { sr, o.clock, o.level, o.bits, rpm, o.adcOffset, o.measured ? 1.0 : 0.0 };
+    const double key[9] = { sr, o.clock, o.level, o.bits, rpm, o.adcOffset, o.measured ? 1.0 : 0.0, o.preGain, o.preOn ? 1.0 : 0.0 };
     {
         std::lock_guard<std::mutex> l(mu);
         for (auto& e : cache) if (e.data == src.data() && e.len == src.size() && std::memcmp(e.key, key, sizeof key) == 0) return *e.codes;
     }
-    auto c = std::make_shared<std::vector<uint16_t>>(sampleCodes(src, rpm != 0 ? sr * std::pow(2.0, rpm / 12) : sr, o));
+    // the input gain and preamp (twelve::preamp, repeated here to keep this header standalone)
+    std::vector<float> in(src.size());
+    for (size_t i = 0; i < src.size(); ++i) { const double x = src[i] * o.preGain, y = x + .12 * x * x; in[i] = (float) (o.preOn ? (y >= 0 ? std::tanh(y) : std::tanh(1.4 * y) / 1.4) : x); }
+    auto c = std::make_shared<std::vector<uint16_t>>(sampleCodes(in, rpm != 0 ? sr * std::pow(2.0, rpm / 12) : sr, o));
     std::lock_guard<std::mutex> l(mu);
-    cache.insert(cache.begin(), Entry{ src.data(), src.size(), { key[0], key[1], key[2], key[3], key[4], key[5], key[6] }, c });
+    cache.insert(cache.begin(), Entry{ src.data(), src.size(), { key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8] }, c });
     if (cache.size() > 4) cache.pop_back();
     return *c;
 }

@@ -91,6 +91,29 @@ int main(int argc, char** argv) {
         }
         rms = std::sqrt(rms / n);
         check(rms > .05 && rms < 1, "live input through the SP circuits: rms " + juce::String(rms, 4));
+        // live timestretch, bypass and link
+        auto liveRms = [&](std::vector<std::pair<int, double>> set) {
+            for (auto [id, v] : set) proc->setParam(id, v);
+            double e = 0, pk = 0; int cnt = 0; bool bad = false;
+            for (int pos = 0; pos < (int) sr * 2; pos += block) {
+                juce::AudioBuffer<float> b(2, block); juce::MidiBuffer m;
+                for (int c = 0; c < 2; ++c) for (int i = 0; i < block; ++i) { const double t = (pos + i) / sr, ph = std::fmod(t, .5); b.setSample(c, i, (float) (std::sin(6.2831853 * 110 * t) * std::exp(-ph * 8) * .4)); }
+                proc->processBlock(b, m);
+                for (int i = 0; i < block; ++i) { const float x = b.getSample(0, i); bad |= !std::isfinite(x); e += x * x; pk = juce::jmax(pk, (double) std::abs(x)); cnt++; }
+            }
+            return std::make_pair(bad ? -1.0 : std::sqrt(e / cnt), pk);
+        };
+        auto w = liveRms({{pid::stretch, 2.0}, {pid::smode, 2}, {pid::grain, 20}});
+        check(w.first > .02 && w.second < 2, "live cyclic Warp 2x: rms " + juce::String(w.first, 4));
+        auto c = liveRms({{pid::stretch, 3.0}, {pid::smode, 1}, {pid::grain, 40}});
+        check(c.first > .02 && c.second < 2, "live cyclic Classic 3x: rms " + juce::String(c.first, 4));
+        proc->setParam(pid::stretch, 1);
+        auto byp = liveRms({{pid::bypass, 1}});
+        check(std::abs(byp.second - .4) < .01, "bypass passes the input untouched: peak " + juce::String(byp.second, 3));
+        proc->setParam(pid::bypass, 0);
+        auto a0 = liveRms({{pid::input, 12}, {pid::link, 0}}), a1 = liveRms({{pid::link, 1}});
+        check(a1.first < a0.first * .5, "link pulls the output down by the input gain: " + juce::String(a0.first, 3) + " -> " + juce::String(a1.first, 3));
+        proc->setParam(pid::input, 0); proc->setParam(pid::link, 0);
         proc->apvts.getParameter("live")->setValueNotifyingHost(0);
     }
     proc->analyze();

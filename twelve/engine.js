@@ -21,29 +21,47 @@ const PROTO = {
 };
 
 // pitch: 0 SP drop/repeat counter, 1 zero-order hold (variable clock), 2 linear, 3 cubic (clean)
+// lo / hi: the machine's own sample-rate range (published specs); the Rate knob is held inside it
 const MACHINES = [
-  {name:'SP-1200', rate:SP_SR, bits:12, pitch:0, ftype:0, cutoff:1000, res:.3},
-  {name:'SP-12',   rate:27500, bits:12, pitch:0, ftype:0, cutoff:1300, res:.3},
-  {name:'MPC60',   rate:40000, bits:12, pitch:2, ftype:5, cutoff:16000, res:0},
-  {name:'S950',    rate:31250, bits:12, pitch:1, ftype:6, cutoff:11000, res:0},
-  {name:'S612',    rate:32000, bits:12, pitch:1, ftype:7, cutoff:9000, res:.1},
-  {name:'Mirage',  rate:29411, bits:8,  pitch:1, ftype:7, cutoff:7000, res:.25},
-  {name:'Clean',   rate:48000, bits:16, pitch:3, ftype:5, cutoff:20000, res:0}
+  {name:'SP-1200',  rate:SP_SR, bits:12, pitch:0, ftype:0,  cutoff:1000,  res:.3,  lo:4000,  hi:SP_SR},
+  {name:'SP-12',    rate:27500, bits:12, pitch:0, ftype:0,  cutoff:1300,  res:.3,  lo:4000,  hi:27500},
+  {name:'MPC60',    rate:40000, bits:12, pitch:2, ftype:5,  cutoff:16000, res:0,   lo:4000,  hi:40000},
+  {name:'S950',     rate:31250, bits:12, pitch:1, ftype:6,  cutoff:11000, res:0,   lo:7500,  hi:48000},
+  {name:'S612',     rate:32000, bits:12, pitch:1, ftype:7,  cutoff:9000,  res:.1,  lo:4000,  hi:32000},
+  {name:'Mirage',   rate:29411, bits:8,  pitch:1, ftype:12, cutoff:7000,  res:.25, lo:10000, hi:33000},
+  {name:'Clean',    rate:48000, bits:16, pitch:3, ftype:5,  cutoff:20000, res:0,   lo:4000,  hi:52100},
+  {name:'MPC3000',  rate:44100, bits:16, pitch:2, ftype:8,  cutoff:18000, res:0,   lo:4000,  hi:44100},
+  {name:'S1000',    rate:44100, bits:16, pitch:3, ftype:9,  cutoff:18000, res:0,   lo:22050, hi:44100},
+  {name:'RZ-1',     rate:20000, bits:8,  pitch:1, ftype:5,  cutoff:20000, res:0,   lo:4000,  hi:20000},
+  {name:'SK-1',     rate:9380,  bits:8,  pitch:1, ftype:5,  cutoff:20000, res:0,   lo:4000,  hi:9380},
+  {name:'Emax',     rate:27778, bits:12, pitch:1, ftype:10, cutoff:12000, res:.1,  lo:10000, hi:42000},
+  {name:'EPS',      rate:31250, bits:13, pitch:2, ftype:11, cutoff:16000, res:0,   lo:6250,  hi:52100},
+  {name:'EPS 16+',  rate:44600, bits:16, pitch:2, ftype:11, cutoff:18000, res:0,   lo:11200, hi:44600},
+  {name:'DSS-1',    rate:48000, bits:12, pitch:1, ftype:13, cutoff:12000, res:.15, lo:16000, hi:48000},
+  {name:'S-550',    rate:30000, bits:12, pitch:2, ftype:14, cutoff:10000, res:0,   lo:15000, hi:30000},
+  {name:'SU700',    rate:44100, bits:16, pitch:2, ftype:15, cutoff:18000, res:0,   lo:11025, hi:44100},
+  {name:'TX16W',    rate:33333, bits:12, pitch:1, ftype:5,  cutoff:20000, res:0,   lo:16700, hi:50000}
 ];
-const FILTERS = ['SSM2044 (out 1-2)', 'Fixed (out 3)', 'Fixed (out 4)', 'Fixed (out 5)', 'Fixed (out 6)', 'None (out 7-8)', '6-pole Butterworth', '4-pole resonant'];
+const FILTERS = ['SSM2044 (out 1-2)', 'Fixed (out 3)', 'Fixed (out 4)', 'Fixed (out 5)', 'Fixed (out 6)', 'None (out 7-8)', 'S950 6-pole', 'S612 4-pole',
+  'MPC3000 2-pole', 'S1000 3-pole', 'Emax 4-pole', 'EPS 4-pole', 'Mirage 4-pole', 'DSS-1 4-pole', 'S-550 2-pole', 'SU700 4-pole'];
+// each filter's cutoff range (the hardware's, from service manuals and data sheets where published)
+const FILTER_RANGE = [[250, 14000], [20, 20000], [20, 20000], [20, 20000], [20, 20000], [20, 20000], [350, 16000], [50, 16000],
+  [70, 20000], [20, 20000], [40, 16000], [20, 20000], [50, 14000], [30, 16000], [100, 10000], [20, 20000]];
 
 // id, name, min, max, default, step, unit, group; choices for menus; log for frequency-like knobs
 const P = (id, name, min, max, def, step, unit, group, extra) => Object.assign({id, name, min, max, def, step, unit, group}, extra || {});
 const PARAMS = [
   P('machine', 'Sampler', 0, 6, 0, 1, '', 'sampler', {choices:MACHINES.map(m => m.name)}),
   P('bits', 'Bits', 2, 16, 12, 1, 'bit', 'sampler'),
-  P('rate', 'Rate', 4000, 48000, SP_SR, 0, 'Hz', 'sampler', {log:1}),
-  P('alias', 'Alias', 0, 1, 0, 0, '%', 'sampler'),
+  P('rate', 'Rate', 4000, 52100, SP_SR, 0, 'Hz', 'sampler', {log:1}),
+  P('alias', 'Unfiltered', 0, 1, 0, 0, '%', 'sampler'),
   P('drive', 'Drive', 0, 1, .2, 0, '%', 'sampler'),
   P('mono', 'Mono', 0, 1, 1, 1, '', 'sampler', {toggle:1}),
-  P('rpm', '45 rpm trick', 0, 16, 0, 1, 'st', 'sampler'),
+  P('rpm', 'Alias', 0, 30, 0, .1, 'st', 'sampler'),
+  P('pre', 'Preamp', 0, 1, 1, 1, '', 'sampler', {toggle:1}),
   P('calib', 'Calibration', 0, 1, 1, 1, '', 'sampler', {choices:['Service manual', 'Measured SP-12']}),
-  P('ftype', 'Filter', 0, 7, 0, 1, '', 'filter', {choices:FILTERS}),
+  P('ftype', 'Filter', 0, 15, 0, 1, '', 'filter', {choices:FILTERS}),
+  P('fOn', 'Filter on', 0, 1, 1, 1, '', 'filter', {toggle:1}),
   P('cutoff', 'Cutoff', 100, 20000, 1000, 0, 'Hz', 'filter', {log:1}),
   P('res', 'Resonance', 0, 1, .3, 0, '%', 'filter'),
   P('fenv', 'Filter env', 0, 1, 1, 0, '%', 'filter'),
@@ -52,9 +70,9 @@ const PARAMS = [
   P('semis', 'Tune', -24, 24, 0, 1, 'st', 'tune'),
   P('cents', 'Fine', -100, 100, 0, 1, 'ct', 'tune'),
   P('a4', 'A4 ref', 415, 466, 440, .1, 'Hz', 'tune'),
-  P('stretch', 'Stretch', .25, 4, 1, 0, 'x', 'time', {log:1}),
-  P('grain', 'Grain', 10, 200, 60, 1, 'ms', 'time'),
-  P('smode', 'Stretch mode', 0, 1, 0, 1, '', 'time', {choices:['Smooth', 'Cyclic (S950)']}),
+  P('stretch', 'Stretch', .25, 5, 1, 0, 'x', 'time', {log:1}),
+  P('grain', 'Grain', .5, 200, 60, 0, 'ms', 'time', {log:1}),
+  P('smode', 'Stretch mode', 0, 2, 0, 1, '', 'time', {choices:['Smooth', 'Cyclic Classic', 'Cyclic Warp']}),
   P('crackle', 'Crackle', 0, 1, 0, 0, '%', 'lofi'),
   P('hiss', 'Tape hiss', 0, 1, 0, 0, '%', 'lofi'),
   P('wow', 'Wow', 0, 1, 0, 0, '%', 'lofi'),
@@ -65,6 +83,8 @@ const PARAMS = [
   P('humHz', 'Mains', 0, 1, 1, 1, '', 'lofi', {choices:['50 Hz', '60 Hz']}),
   P('input', 'Input', -24, 24, 0, .1, 'dB', 'io'),
   P('output', 'Output', -24, 24, 0, .1, 'dB', 'io'),
+  P('link', 'Link in/out', 0, 1, 0, 1, '', 'io', {toggle:1}),
+  P('bypass', 'Bypass', 0, 1, 0, 1, '', 'io', {toggle:1}),
   P('mOn', 'Master', 0, 1, 1, 1, '', 'master', {toggle:1}),
   P('lsF', 'Low freq', 20, 500, 90, 0, 'Hz', 'master', {log:1}),
   P('lsG', 'Low', -12, 12, 0, .1, 'dB', 'master'),
@@ -143,10 +163,31 @@ function quantize(v, bits){
 // input filter for a machine: the SP-1200 prototype, scaled to the machine's clock
 function inputFilter(rate, fs){ return sDesign(PROTO.input, fs, rate / SP_SR); }
 function driveGain(p){ return dbToGain(p.input) * (1 + p.drive * 3); }
+// the input preamp, after the S950's: driven hard it adds second harmonic and clips softly, more on one side.
+// Unity gain for small signals.
+function preamp(x){ const y = x + .12 * x * x; return y >= 0 ? Math.tanh(y) : Math.tanh(1.4 * y) / 1.4; }
+// what the machine actually does with the knobs: its rate range, the filter's cutoff range, the filter switch
+function effective(p){
+  const M = MACHINES[p.machine | 0] || MACHINES[0], q = Object.assign({}, p);
+  q.rate = clamp(p.rate, M.lo, M.hi);
+  if (p.fOn != null && p.fOn < .5) q.ftype = 5;
+  const R = FILTER_RANGE[q.ftype | 0] || FILTER_RANGE[0]; q.cutoff = clamp(p.cutoff, R[0], R[1]);
+  return q;
+}
+// the source through the input gain, drive and (if on) the preamp, ready for the converter at unity level
+const preCache = [];
+function preamped(src, p){
+  const g = driveGain(p), on = p.pre > .5;
+  for (const c of preCache) if (c.src === src && c.g === g && c.on === on) return c.out;
+  const out = new Float32Array(src.length);
+  for (let i = 0; i < src.length; i++){ const x = src[i] * g; out[i] = on ? preamp(x) : x; }
+  preCache.unshift({src, g, on, out}); if (preCache.length > 4) preCache.pop();
+  return out;
+}
 
 // the sampler's stored sample: filter, sample at `rate`, quantize (one channel)
-function sampleBase(src, sr, p){
-  const rate = p.rate, aa = inputFilter(rate, sr), a = p.alias, g = driveGain(p);
+function sampleBase(src, sr, p, unity){
+  const rate = p.rate, aa = inputFilter(rate, sr), a = p.alias, g = unity ? 1 : driveGain(p);
   const m = new Float32Array(src.length);
   for (let i = 0; i < src.length; i++){ const x = src[i] * g, f = chainRun(aa, x); m[i] = f + (x - f) * a; }
   const n = Math.max(1, Math.floor(src.length * rate / sr)), out = new Float32Array(n), step = sr / rate;
@@ -161,11 +202,13 @@ function sampleBase(src, sr, p){
 class Converter {
   constructor(fs){ this.fs = fs; this.ph = 1; this.prev = 0; this.hold = 0; this.aa = []; this.rate = 0; }
   setup(p){
-    if (p.rate !== this.rate){ this.rate = p.rate; this.aa = inputFilter(p.rate, this.fs); }
-    this.inc = Math.min(1, p.rate / this.fs); this.alias = p.alias; this.bits = p.bits; this.g = driveGain(p);
+    // the alias trick on live input: sampled as if sped up, so the converter runs slower by that ratio
+    const r = p.rate / Math.pow(2, (p.rpm || 0) / 12);
+    if (r !== this.rate){ this.rate = r; this.aa = inputFilter(r, this.fs); }
+    this.inc = Math.min(1, r / this.fs); this.alias = p.alias; this.bits = p.bits; this.g = driveGain(p); this.pre = p.pre > .5;
   }
   process(x){
-    x *= this.g;
+    x *= this.g; if (this.pre) x = preamp(x);
     const f = chainRun(this.aa, x), v = f + (x - f) * this.alias;
     this.ph += this.inc;
     if (this.ph >= 1){ this.ph -= 1; const t = 1 - this.ph / this.inc; this.hold = quantize(this.prev + (v - this.prev) * clamp(t, 0, 1), this.bits); }
@@ -215,6 +258,7 @@ function playDry(src, sr, fs, cents, n){
 }
 
 /* ---------------- output filters ---------------- */
+function onePoleLp(fs, f){ const K = Math.tan(Math.PI * clamp(f, 1, fs * .49) / fs); return bq(K / (1 + K), K / (1 + K), 0, (K - 1) / (K + 1), 0); }
 class OutFilter {
   constructor(fs){ this.fs = fs; this.type = -1; this.age = 1e9; this.lad = [0, 0, 0, 0]; this.secs = []; this.fe = 0; this.fs2 = 0; this.ss = 0; this.last = 0; this.cut = 0; this.resv = 0; }
   setup(p){
@@ -225,19 +269,24 @@ class OutFilter {
       else if (t === 6) this.secs = [.5176, .7071, 1.9319].map(q => rbj('lp', fs, p.cutoff, q));
       else this.secs = [];
     }
+    // the digital filters: resonance raises the last section's Q
+    if (t === 8 || t === 14) this.secs = [rbj('lp', fs, p.cutoff, .7071 + p.res * 9)];
+    else if (t === 9) this.secs = [onePoleLp(fs, p.cutoff), rbj('lp', fs, p.cutoff, 1 + p.res * 8)];
+    else if (t === 11 || t === 15) this.secs = [rbj('lp', fs, p.cutoff, .5412), rbj('lp', fs, p.cutoff, 1.3066 + p.res * (t === 15 ? 10 : 7))];
+    this.drive = t === 10 ? 1 : t === 12 ? .9 : t === 13 ? 1.25 : .7;
     this.resv = p.res; this.env = p.fenv; this.retrig = p.retrig > .5;
     this.tau = Math.exp(-1 / (.075 * fs)); this.trigLen = .0094 * fs;
   }
   trigger(){ this.age = 0; }
   // SSM2044 / resonant ladder: nonlinear 4-pole transistor ladder, 2x oversampled
   ladder(x, fc){
-    const fo = this.fs * 2, g = 1 - Math.exp(-2 * Math.PI * Math.min(fc, .45 * fo) / fo), l = this.lad, r = this.resv;
+    const fo = this.fs * 2, g = 1 - Math.exp(-2 * Math.PI * Math.min(fc, .45 * fo) / fo), l = this.lad, r = this.resv, dr = this.drive;
     for (let o = 0; o < 2; o++){
-      const u = Math.tanh(x * .7 - 4 * r * l[3]);
+      const u = Math.tanh(x * dr - 4 * r * l[3]);
       const t0 = Math.tanh(l[0]), t1 = Math.tanh(l[1]), t2 = Math.tanh(l[2]);
       l[0] += g * (u - t0); l[1] += g * (t0 - t1); l[2] += g * (t1 - t2); l[3] += g * (t2 - Math.tanh(l[3]));
     }
-    return l[3] / .7 * (1 + 2 * r);
+    return l[3] / dr * (1 + 2 * r);
   }
   // transient detector for retriggering on hits inside a loop or a live input
   detect(x){
@@ -259,6 +308,8 @@ class OutFilter {
       else fc = this.cut * Math.pow(2, this.env * 3 * open);
       return this.ladder(x, fc);
     }
+    // the other analog 4-poles (Emax, Mirage, DSS-1): the same nonlinear ladder, each with its own drive, no sweep
+    if (t === 10 || t === 12 || t === 13) return this.ladder(x, this.cut);
     return chainRun(this.secs, x);
   }
 }
@@ -379,9 +430,12 @@ class Master {
 }
 
 /* ---------------- timestretch (WSOLA), pitch kept ---------------- */
-function stretch(chs, factor, sr, grainMs, cyclic){
+// mode 0 smooth (WSOLA), 1 cyclic Classic (longer), 2 cyclic Warp (the cycles, played back at the original length)
+function stretch(chs, factor, sr, grainMs, mode){
   if (Math.abs(factor - 1) < 1e-4) return chs;
-  if (cyclic) return cyclicStretch(chs, factor, sr, grainMs);
+  if (mode === true) mode = 1;
+  if (mode === 2) return cyclicStretch(chs, factor, sr, grainMs).map(c => resampleTo(c, chs[0].length));
+  if (mode) return cyclicStretch(chs, factor, sr, grainMs);
   const len = chs[0].length, N = Math.max(64, 2 * Math.round(grainMs / 1000 * sr / 2)), Hs = N / 2, Ha = Hs / factor, tol = Math.round(N / 4);
   const outLen = Math.max(1, Math.round(len * factor)), mono = new Float32Array(len);
   for (const c of chs) for (let i = 0; i < len; i++) mono[i] += c[i] / chs.length;
@@ -407,6 +461,11 @@ function stretch(chs, factor, sr, grainMs, cyclic){
   return out.map(o => { const r = new Float32Array(outLen); for (let i = 0; i < outLen; i++) r[i] = o[i] / Math.max(norm[i], .5); return r; });
 }
 
+function resampleTo(c, n){
+  const o = new Float32Array(n), step = (c.length - 1) / Math.max(1, n - 1);
+  for (let i = 0; i < n; i++){ const x = i * step, k = Math.floor(x), f = x - k; o[i] = c[k] * (1 - f) + (c[k + 1] || 0) * f; }
+  return o;
+}
 // the S950 / S1000 way: fixed cycles laid end to end with no search for a good join, just a short crossfade,
 // which gives the stuttery, metallic sound of hardware timestretch
 function cyclicStretch(chs, factor, sr, grainMs){
@@ -427,15 +486,16 @@ function cyclicStretch(chs, factor, sr, grainMs){
 
 /* ---------------- offline render: the whole chain for the sampler ---------------- */
 // chs: source channels at sr; returns {pre:[L,R] before master, fs}
-function renderPre(chs, sr, p, fs, opts){
+function renderPre(chs, sr, p0, fs, opts){
   opts = opts || {};
+  const p = effective(p0);
   const mach = MACHINES[p.machine | 0] || MACHINES[0];
   let src = opts.stretched;
   if (!src){
     src = p.mono > .5 && chs.length > 1 ? [chs[0].map((v, i) => (v + chs[1][i]) * .5)] : chs.slice(0, 2);
-    if (p.stretch !== 1) src = stretch(src, p.stretch, sr, p.grain, p.smode > .5);
+    if (p.stretch !== 1) src = stretch(src, p.stretch, sr, p.grain, p.smode | 0);
   }
-  const cents = totalCents(p, opts.semis), inGain = dbToGain(p.input), outGain = dbToGain(p.output);
+  const cents = totalCents(p, opts.semis), inGain = dbToGain(p.input), outGain = dbToGain(p.output - (p.link > .5 ? p.input : 0));
   const SPE = typeof TWSP !== 'undefined' ? TWSP : (typeof require === 'function' ? require('./sp1200.js') : null);
   const res = src.map(s => {
     let wet;
@@ -443,7 +503,7 @@ function renderPre(chs, sr, p, fs, opts){
       // the SP-1200 / SP-12: circuit-level engine (sp1200.js). Output 1-2, 3-6 or 7-8 by the Filter menu; the
       // 6-pole and 4-pole menu entries run output 7-8 into those filters.
       const ft = p.ftype | 0, out = ft === 0 ? 1 : ft <= 4 ? ft + 2 : 7;
-      const codes = SPE.codesFor(s, sr, {clock:p.rate, level:driveGain(p), bits:p.bits, rpm:p.rpm, calib:p.calib > .5 ? 'measured' : 'manual'});
+      const codes = SPE.codesFor(preamped(s, p), sr, {clock:p.rate, level:1, bits:p.bits, rpm:p.rpm, calib:p.calib > .5 ? 'measured' : 'manual'});
       wet = SPE.playChannel(codes, {clock:p.rate, sp12:(p.machine | 0) === 1, cents:cents - p.rpm * 100, output:out, rest:p.cutoff, res:p.res,
         depth:p.fenv, retrigger:p.retrig > .5, calib:p.calib > .5 ? 'measured' : 'manual'}, fs);
       if (ft >= 6){ const f = new OutFilter(fs); f.setup(p); f.trigger(); for (let i = 0; i < wet.length; i++) wet[i] = f.process(wet[i]); }
@@ -452,7 +512,8 @@ function renderPre(chs, sr, p, fs, opts){
       if (dry) for (let i = 0; i < wet.length; i++) wet[i] = wet[i] * p.mix + dry[i] * inGain * (1 - p.mix);
       return wet;
     }
-    const base = sampleBase(s, sr, p); wet = playBase(base, p, fs, mach.pitch, cents);
+    // the alias trick on any machine: sampled sped up by rpm semitones, played back down again
+    const base = sampleBase(preamped(s, p), sr * Math.pow(2, p.rpm / 12), p, true); wet = playBase(base, p, fs, mach.pitch, cents - p.rpm * 100);
     const dry = p.mix < 1 ? playDry(s, sr, fs, cents, wet.length) : null;
     const f = new OutFilter(fs); f.setup(p); f.trigger();
     let dc = 0;
@@ -654,17 +715,30 @@ const FAMILIES = [
   ['Basement Boom Bap', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2]), semis:-Math.round(lerp(r, 0, 5)), crackle:lerp(r, .05, .3), tape:lerp(r, .1, .4), drive:lerp(r, .2, .5)})],
   ['Lo-Fi Keys', r => ({...machinePatch(pick(r, [3, 4, 6])), wow:lerp(r, .2, .5), flutter:lerp(r, .1, .3), crackle:lerp(r, .1, .3), hiss:lerp(r, .1, .3), age:lerp(r, .2, .5), mono:0})],
   ['Drum Break', r => ({...machinePatch(pick(r, [0, 1, 2])), ftype:pick(r, [0, 2, 3, 5]), drive:lerp(r, .2, .6), crackle:lerp(r, 0, .2), retrig:1})],
-  ['Clean Character', r => ({...machinePatch(6), tape:lerp(r, 0, .3), age:lerp(r, 0, .15), mono:0})]
+  ['Clean Character', r => ({...machinePatch(6), tape:lerp(r, 0, .3), age:lerp(r, 0, .15), mono:0})],
+  ['Classic Samplers', r => { const m = 7 + Math.floor(r() * 11); const M = MACHINES[m]; return {...machinePatch(m), rate:lerp(r, Math.max(M.lo, M.hi * .6), M.hi), cutoff:M.cutoff * lerp(r, .4, 1), res:lerp(r, 0, .4), rpm:r() < .4 ? Math.round(lerp(r, 1, 8) * 10) / 10 : 0, drive:lerp(r, 0, .4)}; }],
+  ['Styles', (r, k) => { const [name, m, o] = STYLES[k]; return {...machinePatch(m), ...o, _name:name}; }]
+];
+// 20 named sounds: [name, machine, settings]
+const STYLES = [
+  ['Dusty Chop', 0, {ftype:1, rpm:5.4, drive:.3}], ['45 Flip', 0, {ftype:0, rpm:12, cutoff:1400}], ['Bright Footwork', 0, {ftype:5, rpm:2}],
+  ['Dark Motor', 0, {ftype:0, cutoff:500, res:.6}], ['Clean Swing', 7, {}], ['Heavy Dub', 3, {cutoff:3000}],
+  ['Grain Fog', 13, {stretch:4, smode:1, grain:30}], ['Rot', 5, {bits:4, rate:10000}], ['Punch Break', 3, {rate:40000, cutoff:14000}],
+  ['Plastic Bite', 16, {res:.7, cutoff:3000}], ['Amen Smear', 8, {stretch:2, smode:2, grain:25}], ['Box Kit', 9, {}],
+  ['Ring Tone', 8, {stretch:2, smode:2, grain:1}], ['Mono Phone', 10, {ftype:14, cutoff:1800, res:.6, mono:1}], ['Grit 13', 13, {bits:13}],
+  ['Analog Res', 14, {res:.55, cutoff:2500}], ['Freeze', 6, {stretch:5, smode:1, grain:150}], ['Toy', 10, {bits:8, fOn:0}],
+  ['Smoke Break', 8, {stretch:1.5, smode:1, grain:3}], ['Submerged', 11, {cutoff:400, res:.7}]
 ];
 function makePresets(){
   const out = [], base = defaults();
   FAMILIES.forEach(([fam, fn], fi) => {
     const r = rng(1200 + fi * 97);
     for (let k = 0; k < 20; k++){
-      const v = Object.assign({}, base, {semis:0, cents:0, a4:440}, fn(r));
-      delete v.pitchMode;
+      const v = Object.assign({}, base, {semis:0, cents:0, a4:440}, fn(r, k)), named = v._name;
+      delete v.pitchMode; delete v._name;
       const vals = {}; for (const id of SOUND_IDS) vals[id] = round4(clampParam(id, v[id]));
-      out.push({name:`${fam} ${String(k + 1).padStart(2, '0')} ${ADJ[Math.floor(r() * ADJ.length)]}`, family:fam, values:vals});
+      const adj = ADJ[Math.floor(r() * ADJ.length)];
+      out.push({name:named || `${fam} ${String(k + 1).padStart(2, '0')} ${adj}`, family:fam, values:vals});
     }
   });
   return out;
@@ -673,16 +747,16 @@ const round4 = v => Math.round(v * 1e4) / 1e4;
 function clampParam(id, v){ const p = PARAMS.find(q => q.id === id); v = clamp(v, p.min, p.max); return p.step >= 1 ? Math.round(v) : v; }
 // random settings that still sound like a sampler (a family, then everything nudged)
 function randomPatch(seed){
-  const r = rng(seed), fam = FAMILIES[Math.floor(r() * FAMILIES.length)], v = Object.assign({}, defaults(), fn0(fam[1], r));
+  const r = rng(seed), fam = FAMILIES[Math.floor(r() * (FAMILIES.length - 1))], v = Object.assign({}, defaults(), fn0(fam[1], r));
   v.semis = r() < .35 ? Math.round(lerp(r, -7, 5)) : 0;
   for (const id of ['crackle', 'hiss', 'wow', 'flutter', 'tape', 'age']) if (r() < .3) v[id] = clamp(v[id] + lerp(r, 0, .35), 0, 1);
   v.drive = clamp(v.drive + lerp(r, -.1, .2), 0, 1);
   const vals = {}; for (const id of SOUND_IDS) vals[id] = round4(clampParam(id, v[id]));
   return {name:'Random · ' + fam[0], values:vals};
 }
-function fn0(fn, r){ const o = fn(r); delete o.pitchMode; return o; }
+function fn0(fn, r){ const o = fn(r, 0); delete o.pitchMode; delete o._name; return o; }
 
-const api = {SP_SR, SP_TUNE, PROTO, MACHINES, FILTERS, PARAMS, MASTER_IDS, SOUND_IDS, MATCH_BANDS, TARGET_CURVE, NOTE_NAMES,
+const api = {FILTER_RANGE, preamp, effective, preamped, resampleTo, onePoleLp, SP_SR, SP_TUNE, PROTO, MACHINES, FILTERS, PARAMS, MASTER_IDS, SOUND_IDS, MATCH_BANDS, TARGET_CURVE, NOTE_NAMES,
   defaults, rng, rbj, sDesign, quantize, sampleBase, Converter, spInc, playBase, OutFilter, Lofi, Master, stretch, renderPre, renderMaster,
   fft, bandSpectrum, matchGains, loudness, peakDb, autoMaster, detectTempo, detectKey, makePresets, randomPatch, totalCents, clamp, dbToGain};
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TW = api;

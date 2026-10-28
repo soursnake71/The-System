@@ -25,6 +25,6 @@ const key = TW.detectKey([L, R], sr); ok(key.name === 'A minor' || key.name === 
 t0 = Date.now(); const am = TW.autoMaster(r.pre, 48000, null, -14); const mo = TW.renderMaster(r.pre, {...p, ...am.params}, am.match, 48000);
 const lu = TW.loudness(mo, 48000), pk = TW.peakDb(mo);
 ok(Math.abs(lu + 14) < 1.5 && pk <= -0.99, `auto master: ${lu.toFixed(1)} LUFS, peak ${pk.toFixed(2)} dB, gain ${am.params.mGain} (${Date.now() - t0} ms)`);
-const pr = TW.makePresets(); ok(pr.length === 500 && new Set(pr.map(x => x.name)).size === 500, `500 unique presets (${pr[0].name}, ${pr[499].name})`);
+const pr = TW.makePresets(); ok(pr.length === 540 && new Set(pr.map(x => x.name)).size === 540, `540 unique presets (${pr[0].name}, ${pr[499].name})`);
 const rp = TW.randomPatch(42); ok(Object.keys(rp.values).length === TW.SOUND_IDS.length, 'random patch: ' + rp.name);
 const c = new TW.Converter(48000); c.setup(p); let s = 0; for (let i = 0; i < 48000; i++) s += Math.abs(c.process(Math.sin(i / 10))); ok(s > 1000, 'live converter');

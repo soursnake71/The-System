@@ -45,10 +45,16 @@ inline const Proto& proto(int which) {   // 0 input, 3..6 outputs
     static const Proto o6 {{{-6.0667642111e4,4.8266457976e4},{-2.5641025641e4,7.6923076923e4},{-9.5952540933e4,0}}, {}};
     switch (which) { case 3: return o3; case 4: return o4; case 5: return o5; case 6: return o6; default: return input; }
 }
-struct Machine { const char* name; double rate; int bits, pitch, ftype; double cutoff, res; };
-static const Machine MACHINES[7] = {
-    {"SP-1200", SP_SR, 12, 0, 0, 1000, .3}, {"SP-12", 27500, 12, 0, 0, 1300, .3}, {"MPC60", 40000, 12, 2, 5, 16000, 0},
-    {"S950", 31250, 12, 1, 6, 11000, 0}, {"S612", 32000, 12, 1, 7, 9000, .1}, {"Mirage", 29411, 8, 1, 7, 7000, .25}, {"Clean", 48000, 16, 3, 5, 20000, 0}};
+struct Machine { const char* name; double rate; int bits, pitch, ftype; double cutoff, res, lo, hi; };
+static const Machine MACHINES[18] = {
+    {"SP-1200", SP_SR, 12, 0, 0, 1000, .3, 4000, SP_SR}, {"SP-12", 27500, 12, 0, 0, 1300, .3, 4000, 27500}, {"MPC60", 40000, 12, 2, 5, 16000, 0, 4000, 40000},
+    {"S950", 31250, 12, 1, 6, 11000, 0, 7500, 48000}, {"S612", 32000, 12, 1, 7, 9000, .1, 4000, 32000}, {"Mirage", 29411, 8, 1, 12, 7000, .25, 10000, 33000},
+    {"Clean", 48000, 16, 3, 5, 20000, 0, 4000, 52100}, {"MPC3000", 44100, 16, 2, 8, 18000, 0, 4000, 44100}, {"S1000", 44100, 16, 3, 9, 18000, 0, 22050, 44100},
+    {"RZ-1", 20000, 8, 1, 5, 20000, 0, 4000, 20000}, {"SK-1", 9380, 8, 1, 5, 20000, 0, 4000, 9380}, {"Emax", 27778, 12, 1, 10, 12000, .1, 10000, 42000},
+    {"EPS", 31250, 13, 2, 11, 16000, 0, 6250, 52100}, {"EPS 16+", 44600, 16, 2, 11, 18000, 0, 11200, 44600}, {"DSS-1", 48000, 12, 1, 13, 12000, .15, 16000, 48000},
+    {"S-550", 30000, 12, 2, 14, 10000, 0, 15000, 30000}, {"SU700", 44100, 16, 2, 15, 18000, 0, 11025, 44100}, {"TX16W", 33333, 12, 1, 5, 20000, 0, 16700, 50000}};
+static const double FILTER_RANGE[16][2] = {{250, 14000}, {20, 20000}, {20, 20000}, {20, 20000}, {20, 20000}, {20, 20000}, {350, 16000}, {50, 16000},
+    {70, 20000}, {20, 20000}, {40, 16000}, {20, 20000}, {50, 14000}, {30, 16000}, {100, 10000}, {20, 20000}};
 static const double MATCH_BANDS[10] = {31.25, 62.5, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
 static const double TARGET_CURVE[10] = {-6, -2, 0, 0, -1, -2, -3, -4.5, -7, -12};
 static const char* NOTE_NAMES[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
@@ -116,9 +122,24 @@ inline double quantize(double v, double bits) {
 }
 inline Chain inputFilter(double rate, double fs) { return sDesign(proto(0), fs, rate / SP_SR); }
 inline double driveGain(const Params& p) { return dbToGain(p[pid::input]) * (1 + p[pid::drive] * 3); }
+// the input preamp, after the S950's: second harmonic and an asymmetric soft clip when driven; unity for small signals
+inline double preamp(double x) { const double y = x + .12 * x * x; return y >= 0 ? std::tanh(y) : std::tanh(1.4 * y) / 1.4; }
+// what the machine does with the knobs: its rate range, the filter's cutoff range, the filter switch
+inline Params effective(const Params& p) {
+    const Machine& M = MACHINES[(int) clampd(p[pid::machine], 0, 17)]; Params q = p;
+    q[pid::rate] = clampd(p[pid::rate], M.lo, M.hi);
+    if (p[pid::fOn] < .5) q[pid::ftype] = 5;
+    const int ft = (int) clampd(q[pid::ftype], 0, 15); q[pid::cutoff] = clampd(p[pid::cutoff], FILTER_RANGE[ft][0], FILTER_RANGE[ft][1]);
+    return q;
+}
+inline Buf preamped(const Buf& src, const Params& p) {
+    const double g = driveGain(p); const bool on = p[pid::pre] > .5; Buf out(src.size());
+    for (size_t i = 0; i < src.size(); ++i) { const double x = src[i] * g; out[i] = (float) (on ? preamp(x) : x); }
+    return out;
+}
 
-inline Buf sampleBase(const Buf& src, double sr, const Params& p) {
-    const double rate = p[pid::rate], a = p[pid::alias], g = driveGain(p);
+inline Buf sampleBase(const Buf& src, double sr, const Params& p, bool unity = false) {
+    const double rate = p[pid::rate], a = p[pid::alias], g = unity ? 1 : driveGain(p);
     Chain aa = inputFilter(rate, sr);
     Buf m(src.size());
     for (size_t i = 0; i < src.size(); ++i) { const double x = src[i] * g, f = chainRun(aa, x); m[i] = (float) (f + (x - f) * a); }
@@ -136,11 +157,13 @@ class Converter {
 public:
     explicit Converter(double sampleRate = 48000) : fs(sampleRate) {}
     void setup(const Params& p) {
-        if (p[pid::rate] != rate) { rate = p[pid::rate]; aa = inputFilter(rate, fs); }
-        inc = std::min(1.0, rate / fs); alias = p[pid::alias]; bits = p[pid::bits]; g = driveGain(p);
+        // the alias trick on live input: sampled as if sped up, so the converter runs slower by that ratio
+        const double r = p[pid::rate] / std::pow(2.0, p[pid::rpm] / 12);
+        if (r != rate) { rate = r; aa = inputFilter(rate, fs); }
+        inc = std::min(1.0, rate / fs); alias = p[pid::alias]; bits = p[pid::bits]; g = driveGain(p); pre = p[pid::pre] > .5;
     }
     double process(double x) {
-        x *= g;
+        x *= g; if (pre) x = preamp(x);
         const double f = chainRun(aa, x), v = f + (x - f) * alias;
         ph += inc;
         if (ph >= 1) { ph -= 1; const double t = 1 - ph / inc; hold = quantize(prev + (v - prev) * clampd(t, 0, 1), bits); }
@@ -149,7 +172,7 @@ public:
     }
     void reset() { for (auto& s : aa) s.z1 = s.z2 = 0; ph = 1; prev = hold = 0; }
 private:
-    double fs, rate = 0, inc = 1, alias = 0, bits = 12, g = 1, ph = 1, prev = 0, hold = 0;
+    double fs, rate = 0, inc = 1, alias = 0, bits = 12, g = 1, ph = 1, prev = 0, hold = 0; bool pre = true;
     Chain aa;
 };
 
@@ -195,6 +218,7 @@ inline Buf playDry(const Buf& src, double sr, double fs, double cents, size_t n)
 }
 
 /* ---------------- output filters ---------------- */
+inline Bq onePoleLp(double fs, double f) { const double K = std::tan(PI * clampd(f, 1, fs * .49) / fs); Bq b; b.b0 = b.b1 = K / (1 + K); b.b2 = 0; b.a1 = (K - 1) / (K + 1); b.a2 = 0; return b; }
 class OutFilter {
 public:
     explicit OutFilter(double sampleRate = 48000) : fs(sampleRate) {}
@@ -206,6 +230,12 @@ public:
             else if (t == 6) secs = {rbj(Rbj::lp, fs, cut, .5176), rbj(Rbj::lp, fs, cut, .7071), rbj(Rbj::lp, fs, cut, 1.9319)};
             else secs.clear();
         }
+        // the digital filters: resonance raises the last section's Q
+        const double rs = p[pid::res];
+        if (t == 8 || t == 14) secs = {rbj(Rbj::lp, fs, p[pid::cutoff], .7071 + rs * 9)};
+        else if (t == 9) secs = {onePoleLp(fs, p[pid::cutoff]), rbj(Rbj::lp, fs, p[pid::cutoff], 1 + rs * 8)};
+        else if (t == 11 || t == 15) secs = {rbj(Rbj::lp, fs, p[pid::cutoff], .5412), rbj(Rbj::lp, fs, p[pid::cutoff], 1.3066 + rs * (t == 15 ? 10 : 7))};
+        drive = t == 10 ? 1 : t == 12 ? .9 : t == 13 ? 1.25 : .7;
         resv = p[pid::res]; env = p[pid::fenv]; retrig = p[pid::retrig] > .5;
         tau = std::exp(-1 / (.075 * fs)); trigLen = .0094 * fs;
     }
@@ -222,18 +252,19 @@ public:
             else fc = cut * std::pow(2.0, env * 3 * open);
             return ladder(x, fc);
         }
+        if (t == 10 || t == 12 || t == 13) return ladder(x, cut);   // Emax, Mirage, DSS-1: the ladder with its own drive, no sweep
         return chainRun(secs, x);
     }
 private:
     double ladder(double x, double fc) {
-        const double fo = fs * 2, g = 1 - std::exp(-2 * PI * std::min(fc, .45 * fo) / fo), r = resv;
+        const double fo = fs * 2, g = 1 - std::exp(-2 * PI * std::min(fc, .45 * fo) / fo), r = resv, dr = drive;
         auto& l = lad;
         for (int o = 0; o < 2; ++o) {
-            const double u = std::tanh(x * .7 - 4 * r * l[3]);
+            const double u = std::tanh(x * dr - 4 * r * l[3]);
             const double t0 = std::tanh(l[0]), t1 = std::tanh(l[1]), t2 = std::tanh(l[2]);
             l[0] += g * (u - t0); l[1] += g * (t0 - t1); l[2] += g * (t1 - t2); l[3] += g * (t2 - std::tanh(l[3]));
         }
-        return l[3] / .7 * (1 + 2 * r);
+        return l[3] / dr * (1 + 2 * r);
     }
     bool detect(double x) {
         const double a = std::fabs(x);
@@ -243,6 +274,7 @@ private:
         if (fe > .05 && fe > ss * 4 && since > .08 * fs) { since = 0; return true; }
         return false;
     }
+    double drive = .7;
     double fs; int type = -1; double cut = 0, resv = 0, env = 0, tau = 0, trigLen = 0, age = 1e9, fe = 0, ss = 0, since = 1e9; bool retrig = false;
     std::array<double, 4> lad {0, 0, 0, 0};
     Chain secs;
@@ -389,9 +421,16 @@ inline Chans cyclicStretch(const Chans& chs, double factor, double sr, double gr
     }
     return r;
 }
-inline Chans stretch(const Chans& chs, double factor, double sr, double grainMs, bool cyclic = false) {
+inline Buf resampleTo(const Buf& c, size_t n) {
+    Buf o(n); const double step = (double) (c.size() - 1) / (double) std::max<size_t>(1, n - 1);
+    for (size_t i = 0; i < n; ++i) { const double x = i * step; const size_t k = (size_t) std::floor(x); const double f = x - k; o[i] = (float) (c[k] * (1 - f) + (k + 1 < c.size() ? c[k + 1] : 0.f) * f); }
+    return o;
+}
+// mode 0 smooth (WSOLA), 1 cyclic Classic (longer), 2 cyclic Warp (the cycles, played back at the original length)
+inline Chans stretch(const Chans& chs, double factor, double sr, double grainMs, int mode = 0) {
     if (std::fabs(factor - 1) < 1e-4) return chs;
-    if (cyclic) return cyclicStretch(chs, factor, sr, grainMs);
+    if (mode == 2) { Chans c = cyclicStretch(chs, factor, sr, grainMs); for (auto& x : c) x = resampleTo(x, chs[0].size()); return c; }
+    if (mode) return cyclicStretch(chs, factor, sr, grainMs);
     const long len = (long) chs[0].size(), N = std::max(64L, 2 * std::lround(grainMs / 1000 * sr / 2)), Hs = N / 2, tol = std::lround(N / 4.0);
     const double Ha = Hs / factor;
     const long outLen = std::max(1L, std::lround(len * factor));
@@ -424,22 +463,63 @@ inline Chans prepareSource(const Chans& chs, const Params& p, double sr) {
     Chans src;
     if (p[pid::mono] > .5 && chs.size() > 1) { Buf m(chs[0].size()); for (size_t i = 0; i < m.size(); ++i) m[i] = (chs[0][i] + chs[1][i]) * .5f; src.push_back(m); }
     else for (size_t c = 0; c < std::min<size_t>(2, chs.size()); ++c) src.push_back(chs[c]);
-    if (p[pid::stretch] != 1) src = stretch(src, p[pid::stretch], sr, p[pid::grain], p[pid::smode] > .5);
+    if (p[pid::stretch] != 1) src = stretch(src, p[pid::stretch], sr, p[pid::grain], (int) p[pid::smode]);
     return src;
 }
 
+/* ---------------- live timestretch (cyclic, S950 / S1000 style) ---------------- */
+// Warp: each grain is played faster by the factor so the audio keeps its timing and only the cycles are heard.
+// Classic: the input slowed by the factor, cycle by cycle, restarting on the bar so it stays on the grid; it reads
+// from a ring of the last ~87 s. Grains get 2 ms fades at their edges, which is part of the stuttery sound.
+class LiveStretch {
+public:
+    void prepare(double sampleRate) { fs = sampleRate; for (auto& b : ring) b.assign(N, 0.f); w = 0; t = 0; chunk = 0; segStart = 0; }
+    // bar: samples per bar from the host tempo; sinceBar: samples since the last bar line (or -1 without a transport)
+    void process(float& l, float& r, double factor, int mode, double grainMs, double bar, double sinceBar) {
+        ring[0][(size_t) (w & M)] = l; ring[1][(size_t) (w & M)] = r; w++;
+        if (factor <= 1.0001 || mode == 0) { t = 0; return; }
+        const double G = std::max(16.0, grainMs / 1000 * fs), X = std::min(.002 * fs, G / 2);
+        double pos, k;
+        if (mode == 2) {
+            const double C = std::max(1.0, G / factor);
+            if (chunk >= C) { chunk = 0; chunkStart = (double) w; }
+            pos = chunkStart - G + chunk * factor; k = chunk * factor; chunk += 1;
+            const double e = std::min(1.0, std::min(k, G - k) / X);
+            l = (float) (read(0, pos) * e); r = (float) (read(1, pos) * e);
+            return;
+        }
+        const double seg = bar > 0 ? bar : 2 * fs;
+        if (t >= factor * seg || t == 0) { segStart = (double) w - (sinceBar >= 0 ? std::fmod(sinceBar, seg) : 0); t = 0; }
+        const double g = std::floor(t / G), inG = t - g * G;
+        pos = segStart - G + g * G / factor + inG; t += 1;
+        const double e = std::min(1.0, std::min(inG, G - inG) / X);
+        l = (float) (read(0, pos) * e); r = (float) (read(1, pos) * e);
+    }
+private:
+    double read(int c, double pos) const {
+        pos = std::max(pos, (double) w - (double) N + 4);
+        const long i = (long) std::floor(pos); const double f = pos - i;
+        return ring[(size_t) c][(size_t) (i & M)] * (1 - f) + ring[(size_t) c][(size_t) ((i + 1) & M)] * f;
+    }
+    static constexpr long N = 1L << 22, M = N - 1;
+    std::array<std::vector<float>, 2> ring;
+    double fs = 48000, t = 0, chunk = 1e18, chunkStart = 0, segStart = 0; long w = 0;
+};
+
 /* ---------------- offline render ---------------- */
 // `src` is already mono-mixed and stretched (prepareSource); returns two channels at fs, before the master
-inline Chans renderPre(const Chans& src, double sr, const Params& p, double fs, double extraSemis = 0) {
-    const Machine& mach = MACHINES[(int) clampd(p[pid::machine], 0, 6)];
-    const double cents = totalCents(p, extraSemis), inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output]), mix = p[pid::mix];
+inline Chans renderPre(const Chans& src, double sr, const Params& p0, double fs, double extraSemis = 0) {
+    const Params p = effective(p0);
+    const Machine& mach = MACHINES[(int) clampd(p[pid::machine], 0, 17)];
+    const double cents = totalCents(p, extraSemis), inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output] - (p[pid::link] > .5 ? p[pid::input] : 0)), mix = p[pid::mix];
     Chans res;
     for (auto& s : src) {
         if (mach.pitch == 0) {
             // the SP-1200 / SP-12 through the circuit-level engine (SP1200.h); 6-pole and 4-pole menu entries run
             // output 7-8 into those filters
             const int ft = (int) p[pid::ftype], out = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7;
-            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = driveGain(p); so.bits = p[pid::bits]; so.measured = p[pid::calib] > .5;
+            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = 1; so.bits = p[pid::bits]; so.measured = p[pid::calib] > .5;
+            so.preGain = driveGain(p); so.preOn = p[pid::pre] > .5;
             const auto codes = sp::codesFor(s, sr, so, p[pid::rpm]);
             sp::PlayOpts po; po.clock = p[pid::rate]; po.sp12 = (int) p[pid::machine] == 1; po.cents = cents - p[pid::rpm] * 100; po.output = out;
             po.rest = p[pid::cutoff]; po.res = p[pid::res]; po.depth = p[pid::fenv]; po.retrigger = p[pid::retrig] > .5; po.measured = p[pid::calib] > .5;
@@ -450,8 +530,9 @@ inline Chans renderPre(const Chans& src, double sr, const Params& p, double fs, 
             res.push_back(std::move(wet));
             continue;
         }
-        const Buf base = sampleBase(s, sr, p);
-        Buf wet = playBase(base, p, fs, mach.pitch, cents);
+        // the alias trick on any machine: sampled sped up by rpm semitones, played back down again
+        const Buf base = sampleBase(preamped(s, p), sr * std::pow(2.0, p[pid::rpm] / 12), p, true);
+        Buf wet = playBase(base, p, fs, mach.pitch, cents - p[pid::rpm] * 100);
         Buf dry; if (mix < 1) dry = playDry(s, sr, fs, cents, wet.size());
         OutFilter f(fs); f.setup(p); f.trigger();
         double dc = 0;
@@ -631,7 +712,8 @@ inline Key detectKey(const Chans& chs, double sr) {
 /* ---------------- presets and random ---------------- */
 static constexpr int kPresets = (int) (sizeof(PRESETS) / sizeof(PRESETS[0]));
 inline void applyPreset(Params& p, int i) { for (int k = 0; k < kSound; ++k) p[SOUND_IDS[k]] = PRESETS[i].v[k]; }
-inline void setMachine(Params& p, int m) { const Machine& M = MACHINES[m]; p[pid::machine] = m; p[pid::rate] = M.rate; p[pid::bits] = M.bits; p[pid::ftype] = M.ftype; p[pid::cutoff] = M.cutoff; p[pid::res] = M.res; }
+inline void setMachine(Params& p, int m) {
+    m = (int) clampd(m, 0, 17); const Machine& M = MACHINES[m]; p[pid::machine] = m; p[pid::rate] = M.rate; p[pid::bits] = M.bits; p[pid::ftype] = M.ftype; p[pid::cutoff] = M.cutoff; p[pid::res] = M.res; }
 // random settings: a preset family's sound, then nudged (the app's randomPatch draws from the same families)
 inline std::string randomPatch(Params& p, uint32_t seed) {
     Rng r(seed);

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Omega Twelve</title>
-<meta name="description" content="12-bit vintage sampler emulator: SP-1200 audio path, 500 presets, lo-fi, timestretch, tempo and key detection, mastering and export.">
+<meta name="description" content="12-bit vintage sampler emulator: SP-1200 audio path, 18 samplers, 540 presets, lo-fi, timestretch, tempo and key detection, mastering and export.">
 <meta name="theme-color" content="#1b1d1c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -121,7 +121,7 @@ dialog::backdrop{background:#000a}
       <div class="lcdcell"><span>TUNE</span><b id="lcdTune">0</b></div>
     </div>
     <div class="lcdinfo"><span>CUT <i id="lcdCut">1.0k</i></span><span>RES <i id="lcdRes">30%</i></span><span>MIX <i id="lcdMix">100%</i></span><span>BPM <i id="iBpm">—</i></span><span>KEY <i id="iKey">—</i></span><span class="tag" id="lcdPreset">INIT</span></div>
-    <div class="lcdinfo"><span class="clip"><i id="iName">—</i></span><span>LEN <i id="iLen">—</i></span><span>SEL <i id="iSel">—</i></span><span>OUT <i id="iOut">—</i></span></div>
+    <div class="lcdinfo"><span class="clip"><i id="iName">—</i></span><span>LEN <i id="iLen">—</i></span><span>SEL <i id="iSel">—</i></span><span>OUT <i id="iOut">—</i></span><span style="flex:1;min-width:40px;max-width:90px;height:7px;align-self:center;background:#12301f;border-radius:2px;overflow:hidden"><i id="vu" style="display:block;height:100%;width:0;background:#7dffb0"></i></span></div>
     <div class="wave" id="wave"><canvas id="waveC"></canvas><div class="drop" id="dropHint">Tap here or Import to load a sample (any audio or video file)</div></div>
   </div>
   <div class="transport">
@@ -203,7 +203,7 @@ dialog::backdrop{background:#000a}
       </div>
       <div class="card"><h2>Presets · help</h2>
         <div class="knobs" style="grid-template-columns:repeat(3, minmax(0, 1fr))">
-          <button class="btn" id="pList2">All 500 presets</button><button class="btn" id="pSave">Save mine</button><button class="btn" id="helpBtn">Help</button>
+          <button class="btn" id="pList2">All 540 presets</button><button class="btn" id="pSave">Save mine</button><button class="btn" id="helpBtn">Help</button>
         </div>
       </div>
     </div></section>
@@ -236,7 +236,7 @@ dialog::backdrop{background:#000a}
 
 <dialog id="presetDlg"><div class="dlg">
   <h3>Presets <span class="meter" id="pCount"></span></h3>
-  <input type="search" id="pSearch" placeholder="Search 500 presets">
+  <input type="search" id="pSearch" placeholder="Search 540 presets">
   <div class="chips" id="pFams"></div>
   <div class="plist" id="pList"></div>
   <div class="row" style="margin-top:0"><span class="grow"></span><button class="btn" id="pClose">Close</button></div>
@@ -255,6 +255,8 @@ dialog::backdrop{background:#000a}
     <li><b>Master out</b>: EQ match to a reference track (or a typical mix), a 5-band parametric EQ, compressor, gain and a look-ahead limiter. <b>Auto master</b> sets all of it for the loudness target.</li>
     <li><b>The SP engine</b>: the SP-1200 and SP-12 run their actual circuits (anti-alias filter, output filters 3-6, the SSM2044 and the capacitor network that sweeps it after each hit), simulated from the service-manual parts, and the hardware's 8-channel DAC timing and 7-bit pitch counter. <b>Calibration</b>: Measured SP-12 matches a real machine's part tolerances; Service manual uses the parts as drawn. <b>45 rpm trick</b>: sample sped up, played back down, so only the grit changes.</li>
     <li><b>MIDI</b>: notes, velocity, pitch bend, program change, MIDI learn for every control, clock start / stop. <b>TV</b>: Cast the live screen to a TV, or open a TV window.</li>
+    <li><b>18 samplers and 16 filters</b>: SP-1200, SP-12, MPC60, MPC3000, S612, S950, S1000, RZ-1, SK-1, Emax, EPS, EPS 16+, Mirage, DSS-1, S-550, SU700, TX16W and Clean, each held to its own sample-rate range; any filter on any sampler. <b>Alias</b> (semitones) is the 45 rpm trick on any machine; <b>Preamp</b> adds second harmonic and soft clipping when the input is pushed; <b>Filter on</b> off hears the raw converter; <b>Link</b> turns the output down as the input goes up.</li>
+    <li><b>Stretch mode</b>: Smooth keeps the sound clean; Cyclic Classic stretches it S950 / S1000 style; Cyclic Warp keeps the length and pitches the cycles up, for the metallic sound. Grain goes down to half a millisecond.</li>
     <li><b>STOP ALL</b> stops every sound right away.</li>
   </ul>
   <p>SP-1200 converter and filter data from libmd12 (MIT). SP-1200, SP-12, MPC60, S950, S612 and Mirage are trademarks of their owners, named only to describe the sound; not affiliated.</p>
