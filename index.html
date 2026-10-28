@@ -1469,6 +1469,8 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
       <div class="ctl" id="chopEqualRow"><label class="label" for="chopN">Slices</label><select id="chopN"><option>2</option><option>4</option><option>8</option><option>12</option><option>16</option></select><span></span></div>
       <div class="ctl" id="chopSensRow"><label class="label" for="chopSens">Sensitivity</label><input id="chopSens" type="range" min="0" max="100" step="1"><span class="v mono" id="chopSensV"></span></div>
       <div class="row" id="chopManualRow">
+        <button id="chopIn" class="nolearn" title="Drop a marker where the cursor is: a slice starts here">◆ IN</button>
+        <button id="chopOut" class="nolearn" title="Drop a marker where the cursor is: the slice ends here">OUT ◆</button>
         <button id="chopSplit" class="grow">Split slice</button>
         <button id="chopMerge" class="grow">Remove marker</button>
       </div>
@@ -2297,7 +2299,7 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v137</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v138</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -6386,7 +6388,7 @@ function playPad(rig, pad, t, vel, dur, pi, held){
   const src = c.createBufferSource(), g = c.createGain(), p = c.createStereoPanner();
   src.buffer = buf; src.playbackRate.value = rate; p.pan.value = pad.pan;
   if (loop){ src.loop = true; src.loopStart = off + clamp(pad.lstart || 0, 0, .98) * seg; src.loopEnd = segEnd; }
-  const v = vel * pad.vol * pad.vol * 1.2;
+  const v = vel * 1.2, lv = c.createGain(); lv.gain.value = sp ? pad.vol * pad.vol : pad.vol * pad.vol;   // level lives on its own gain so the knob moves sounding notes too
   // how long the "key" is down
   let gate = gated ? (dur != null ? dur : held ? Infinity : loop ? 16 * stepDur() : L) : L;
   if (!loop) gate = Math.min(gate, L);
@@ -6411,7 +6413,7 @@ function playPad(rig, pad, t, vel, dur, pi, held){
   }
   if (!sp && pad.s950f != null && pad.s950f < 99) node = s950Filter(c, node, pad.s950f);
   const ch = pad.spOut || 3;
-  node.connect(g).connect(p).connect(!sp ? rig.strips.get('drums').input : ch <= 2 ? spDynamic(rig, t) : spFixed(rig, ch));
+  node.connect(g).connect(lv).connect(p).connect(!sp ? rig.strips.get('drums').input : ch <= 2 ? spDynamic(rig, t) : spFixed(rig, ch));
   const endT = isFinite(stopAt) ? stopAt : t + 3600;
   if (pad.choke){
     rig.voices = rig.voices.filter(vo => vo.end > t);
@@ -6430,8 +6432,16 @@ function playPad(rig, pad, t, vel, dur, pi, held){
   }
   src.start(t, off);
   if (isFinite(stopAt)) src.stop(stopAt);
-  if (rig === live){ const ent = {src, g}; (live.padAll ||= new Set()).add(ent); src.addEventListener('ended', () => live.padAll && live.padAll.delete(ent)); }
+  if (rig === live){ const ent = {src, g, lv, p, pad, sp, fit:pad.fit || 1}; (live.padAll ||= new Set()).add(ent); src.addEventListener('ended', () => live.padAll && live.padAll.delete(ent)); }
   return src;
+}
+// turning a pad's TUNE, LEVEL or PAN changes the notes already sounding (and the ones queued), not just the next hit
+function padLive(pad){
+  if (!live || !live.padAll || !ctx || !S.drum.pads.includes(pad)) return;
+  const now = ctx.currentTime;
+  for (const e of live.padAll){ if (e.pad !== pad) continue;
+    if (!e.sp) e.src.playbackRate.setTargetAtTime(Math.pow(2, pad.pitch / 12) * e.fit, now, .008);
+    e.lv.gain.setTargetAtTime(pad.vol * pad.vol, now, .008); e.p.pan.setTargetAtTime(pad.pan, now, .008); }
 }
 function drawPadWave(cv, p){
   const buf = buffers.get(p.sample); const dpr = devicePixelRatio || 1, w = Math.round((cv.clientWidth || 300) * dpr), h = Math.round((cv.clientHeight || 64) * dpr);
@@ -8706,7 +8716,7 @@ function ctl(box, label, obj, key, min, max, step, fmt, after){
   const inp = row.querySelector('input'), v = row.querySelector('.v');
   inp.value = obj[key]; v.textContent = fmt(obj[key]);
   const lp = learnPath(obj); if (lp) inp.dataset.lp = lp + '|' + key;
-  inp.addEventListener('input', () => { obj[key] = +inp.value; v.textContent = fmt(obj[key]); after && after(); if (obj.id && trackById(obj.id)) autoTouch(obj, key); save(); });
+  inp.addEventListener('input', () => { obj[key] = +inp.value; v.textContent = fmt(obj[key]); padLive(obj); after && after(); if (obj.id && trackById(obj.id)) autoTouch(obj, key); save(); });
   box.appendChild(row); stepify(inp, fmt); return inp;
 }
 /* MPC-style value entry: [-] [value menu] [+]. The range input stays (hidden) as the model, so its listeners, MIDI learn
@@ -8768,7 +8778,7 @@ function knob(box, label, obj, key, min, max, step, fmt, after, kind = 'black'){
     const list = opts.includes(v) ? opts : [...opts, v].sort((a, b) => a - b);
     sel.innerHTML = list.map(x => `<option value="${x}">${fmt(x)}</option>`).join(''); sel.value = String(v);
   };
-  inp.addEventListener('input', () => { obj[key] = +inp.value; draw(); after && after(); save(); });
+  inp.addEventListener('input', () => { obj[key] = +inp.value; draw(); padLive(obj); after && after(); save(); });
   inp.addEventListener('stp-sync', draw);
   sel.addEventListener('change', () => { inp.value = sel.value; inp.dispatchEvent(new Event('input')); });
   let y0 = null, v0 = 0;
@@ -10412,7 +10422,7 @@ function frame(){
 }
 
 /* ================= chop ================= */
-const chop = {buf:null, name:'', markers:[0], sel:0, mode:'equal', n:8, sens:55, start:0, pattern:false, bars:1, rec:null, src:null, peaks:null, drag:null};
+const chop = {buf:null, name:'', markers:[0], sel:0, cursor:null, mode:'manual', n:8, sens:55, start:0, pattern:false, bars:1, rec:null, src:null, peaks:null, drag:null};
 const slices = () => { const L = chop.buf ? chop.buf.length : 0; return chop.markers.map((m, i) => [m, chop.markers[i + 1] ?? L]); };
 const monoCache = new WeakMap();
 function monoAt(buf){
@@ -10504,6 +10514,7 @@ function drawChop(){
     if (i){ g.beginPath(); g.moveTo(X(m) - 7 * dpr, h); g.lineTo(X(m) + 7 * dpr, h); g.lineTo(X(m), h - 10 * dpr); g.fill(); }
     g.fillText(String(i + 1), X(m) + 4 * dpr, 4 * dpr);
   });
+  if (chop.mode === 'manual' && chop.cursor != null){ g.fillStyle = '#fff'; g.fillRect(Math.round(X(chop.cursor)), 0, Math.max(1, dpr), h); }
 }
 function renderChop(){
   const has = !!chop.buf;
@@ -10756,9 +10767,27 @@ cw.addEventListener('pointerdown', e => {
   const r = cw.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, f = Math.round(x * chop.buf.length);
   const near = chop.markers.findIndex((m, i) => i > 0 && Math.abs(m / chop.buf.length - x) * r.width < 16);
   if (near > 0){ chop.drag = near; chop.sel = near; try { cw.setPointerCapture(e.pointerId); } catch(_){} renderChop(); return; }
+  // Manual: the tap only moves the cursor and plays from there; IN / OUT drop the markers where you want them
+  if (chop.mode === 'manual'){ chop.cursor = f; chopHearFrom(f); drawChop(); return; }
   const i = slices().findIndex(([a, b]) => f >= a && f < b);
   if (i >= 0){ chop.sel = i; auditionSlice(i); renderChop(); }
 });
+function chopHearFrom(f){
+  if (!chop.buf || !ctx) return; ensureAudio();
+  try { if (chop.src) chop.src.stop(); } catch(e){}
+  const src = ctx.createBufferSource(), g = ctx.createGain(); g.gain.value = .9; src.buffer = chop.buf; src.connect(g).connect(live.master.bus);
+  src.start(ctx.currentTime + .003, f / chop.buf.sampleRate, Math.min(2, chop.buf.duration - f / chop.buf.sampleRate)); chop.src = src;
+}
+function chopMark(kind){
+  if (!chop.buf){ toast('Load a sample to chop first.'); return; }
+  if (chop.cursor == null){ toast('Tap the waveform where you want it, then press IN or OUT.'); return; }
+  const f = toZero(monoAt(chop.buf), clamp(chop.cursor, 0, chop.buf.length - 1));
+  if (chop.markers.some(m => Math.abs(m - f) < 256)){ toast('There is already a marker there.'); return; }
+  chop.mode = 'manual'; chop.markers.push(f); chop.markers.sort((a, b) => a - b); chop.sel = Math.max(0, chop.markers.indexOf(f) - (kind === 'out' ? 1 : 0));
+  saveChop(); renderChop();
+}
+$('#chopIn').addEventListener('click', () => chopMark('in'));
+$('#chopOut').addEventListener('click', () => chopMark('out'));
 cw.addEventListener('pointermove', e => {
   if (chop.drag == null) return;
   const r = cw.getBoundingClientRect(), i = chop.drag, L = chop.buf.length;
@@ -15035,6 +15064,8 @@ hwClick('#hwRec', () => { $('#rec').click(); setTimeout(hwPaint, 30); });
   loadScene(S.cur);
   if (S.chop){
     Object.assign(chop, S.chop);
+    // Chop now waits for your own in/out points (once: keep the markers you had, stop slicing on its own)
+    try { if (localStorage.getItem('pr.chopman') !== '1'){ chop.mode = 'manual'; localStorage.setItem('pr.chopman', '1'); } } catch(e){}
     const a = await DB.get('audio', 'chop:src');
     if (a){ chop.buf = makeBuffer(a.ch, a.sr); if (!chop.markers.length || chop.markers[chop.markers.length - 1] >= chop.buf.length) remark(); }
     else chop.markers = [0];
