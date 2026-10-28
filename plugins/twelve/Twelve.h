@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <deque>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 #include "SP1200.h"
@@ -226,7 +227,7 @@ class OutFilter {
 public:
     explicit OutFilter(double sampleRate = 48000) : fs(sampleRate) {}
     void setup(const Params& p) {
-        const int t = (int) p[pid::ftype];
+        const int t = (int) p[pid::ftype]; const Chain old = secs;
         if (t != type || p[pid::cutoff] != cut) {
             type = t; cut = p[pid::cutoff];
             if (t >= 1 && t <= 4) secs = sDesign(proto(t + 2), fs);
@@ -238,6 +239,8 @@ public:
         if (t == 8 || t == 14) secs = {rbj(Rbj::lp, fs, p[pid::cutoff], .7071 + rs * 9)};
         else if (t == 9) secs = {onePoleLp(fs, p[pid::cutoff]), rbj(Rbj::lp, fs, p[pid::cutoff], 1 + rs * 8)};
         else if (t == 11 || t == 15) secs = {rbj(Rbj::lp, fs, p[pid::cutoff], .5412), rbj(Rbj::lp, fs, p[pid::cutoff], 1.3066 + rs * (t == 15 ? 10 : 7))};
+        // settings changing while it plays: the filter carries on from where it was
+        for (size_t k = 0; k < std::min(old.size(), secs.size()); ++k) { secs[k].z1 = old[k].z1; secs[k].z2 = old[k].z2; }
         drive = t == 10 ? 1 : t == 12 ? .9 : t == 13 ? 1.25 : .7;
         resv = p[pid::res]; env = p[pid::fenv]; retrig = p[pid::retrig] > .5;
         tau = std::exp(-1 / (.075 * fs)); trigLen = .0094 * fs;
@@ -291,10 +294,11 @@ public:
     }
     void setup(const Params& pp) {
         p = pp;
+        auto keep = [](Bq& f, const Bq& n) { const double z1 = f.z1, z2 = f.z2; f = n; f.z1 = z1; f.z2 = z2; };   // filter state carries on
         for (int c = 0; c < 2; ++c) {
-            ageHp[c] = rbj(Rbj::hp, fs, 20 + p[pid::age] * 140, .707); ageLp[c] = rbj(Rbj::lp, fs, 19000 - p[pid::age] * 13500, .707);
-            tapeLp[c] = rbj(Rbj::lp, fs, 20000 - p[pid::tape] * 9000, .6); bump[c] = rbj(Rbj::peak, fs, 90, 1, p[pid::tape] * 3);
-            hissF[c] = rbj(Rbj::hp, fs, 1800, .5);
+            keep(ageHp[c], rbj(Rbj::hp, fs, 20 + p[pid::age] * 140, .707)); keep(ageLp[c], rbj(Rbj::lp, fs, 19000 - p[pid::age] * 13500, .707));
+            keep(tapeLp[c], rbj(Rbj::lp, fs, 20000 - p[pid::tape] * 9000, .6)); keep(bump[c], rbj(Rbj::peak, fs, 90, 1, p[pid::tape] * 3));
+            keep(hissF[c], rbj(Rbj::hp, fs, 1800, .5));
         }
         on = p[pid::crackle] + p[pid::hiss] + p[pid::wow] + p[pid::flutter] + p[pid::tape] + p[pid::age] + p[pid::hum] > 0;
     }
@@ -509,42 +513,208 @@ private:
     double fs = 48000, t = 0, chunk = 1e18, chunkStart = 0, segStart = 0; long w = 0;
 };
 
+/* ---------------- streaming playback: one channel of a sound, every setting live (engine.js ChanVoice) ---------------- */
+// Decay, 0-31 like the hardware's slider (31: none): the 8-bit level steps down once every so many 1.2288 ms ticks,
+// fading a sound out in 50 ms at 0 up to about 9 s at 30. Returns the SP engine's decay setting (ticks / 400).
+static const double DECAY_TICK = 1.2288e-3;
+inline double decayOpt(double d) { return d >= 31 ? 1 : .05 * std::pow(2.0, d / 4) / (255 * DECAY_TICK) / 400; }
+
+// the stored sample of the machines without a circuit model (see sampleBase), made as playback reaches it
+class BaseSampler {
+public:
+    BaseSampler(const float* src, size_t len, double sr, const Params& p, long from, bool ring)
+        : src(src), len(len), sr(sr), alias(p[pid::alias]), bits(p[pid::bits]) {
+        const double rate = p[pid::rate];
+        aa = inputFilter(rate, sr); n = std::max(1L, (long) std::floor(len * rate / sr)); step = sr / rate;
+        M = ring ? 4095 : ~(size_t) 0;
+        m.assign(ring ? 4096 : len, 0.f); base.assign(ring ? 4096 : (size_t) n, 0.f);
+        k0 = bk = std::min(n, from); m0 = mi = std::max(0L, (long) std::floor(bk * step) - 8);
+    }
+    void setShape(double g, bool on) { preGain = g; preOn = on; }
+    double at(long k) {
+        if (k < k0 || k >= n) return 0;
+        while (bk <= k) { const double x = bk * step; const long i = (long) std::floor(x); const double f = x - i; base[(size_t) bk & M] = (float) quantize(mAt(i) * (1 - f) + mAt(i + 1) * f, bits); bk++; }
+        return base[(size_t) k & M];
+    }
+    long n = 0, k0 = 0; double alias = 0, bits = 12;
+private:
+    double mAt(long i) {
+        if (i >= (long) len || i < m0) return 0;
+        while (mi <= i) { const double s0 = src[(size_t) mi] * preGain, x = (float) (preOn ? preamp(s0) : s0), f = chainRun(aa, x); m[(size_t) mi & M] = (float) (f + (x - f) * alias); mi++; }
+        return m[(size_t) i & M];
+    }
+    const float* src; size_t len; double sr, step = 1, preGain = 1; bool preOn = false;
+    long bk = 0, mi = 0, m0 = 0; size_t M = ~(size_t) 0; Chain aa; Buf m, base;
+};
+inline double cubicAt(BaseSampler& b, long k, double f) {
+    const double y0 = b.at(k - 1), y1 = b.at(k), y2 = b.at(k + 1), y3 = b.at(k + 2);
+    const double c1 = .5 * (y2 - y0), c2 = y0 - 2.5 * y1 + 2 * y2 - .5 * y3, c3 = .5 * (y3 - y0) + 1.5 * (y1 - y2);
+    return ((c3 * f + c2) * f + c1) * f + y1;
+}
+
+// one channel of a sound through the whole sampler: converter, pitch, output filter, drive make-up, dry mix.
+// src: one channel of the source after timestretch, at sr. cut: stop where a whole-buffer render does (n is the length).
+class ChanVoice {
+public:
+    explicit ChanVoice(double sampleRate = 48000) : fs(sampleRate) {}
+    void start(const Buf* s, double sampleRate, const Params& p, double semisOff, double from, bool cutAtEnd) {
+        d = s; sr = sampleRate; semis = semisOff; cut = cutAtEnd;
+        build(p, from, true);
+    }
+    // settings changed while it plays
+    void setup(const Params& p) { setupImpl(p, false); }
+    double next() {
+        ++i;
+        if (sp) {
+            double w = (float) v->next();
+            if (of) w = (float) of->process(w);
+            w = (float) (w / dv);
+            if (mix < 1) { const double dr = dry(); w = (float) (w * mix + dr * inGain * (1 - mix)); } else dpos += dstep;
+            return w;
+        }
+        BaseSampler& b = *bs; double wet;
+        if (mode == 0) { const long idx = ((long) std::floor(kp) * inc) >> 7; wet = idx < b.n ? b.at(idx) : 0; kp += stepR; }
+        else {
+            const long k = (long) std::floor(pos); const double f = pos - k;
+            wet = mode == 1 ? b.at(k) : mode == 2 ? b.at(k) * (1 - f) + b.at(k + 1) * f : cubicAt(b, k, f);
+            pos += step;
+        }
+        double y = (float) wet; dc += (y - dc) * (6 / fs); y = of->process(y - dc); y /= dv;
+        if (decayTicks) { dt += 1 / fs; while (dt >= DECAY_TICK) { dt -= DECAY_TICK; if (++ticks % decayTicks == 0) lvl = std::max(0.0, lvl - 1 / 255.0); } y *= lvl; }
+        if (mix < 1) { const double dr = dry(); return (float) (y * mix + dr * inGain * (1 - mix)); }
+        dpos += dstep;
+        return (float) y;
+    }
+    double pos01() const {
+        if (sp) return std::min(1.0, (double) (v->pos128 / 128) / std::max(1L, smp->frames));
+        return std::min(1.0, (mode == 0 ? (double) (((long) std::floor(kp) * inc) >> 7) : pos) / bs->n);
+    }
+    bool ended() const { return cut ? i >= n : sp ? v->ended() : pos01() >= 1; }
+    long n = 0; double semis = 0;
+private:
+    static int outOf(int ft) { return ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7; }
+    sp::PlayOpts spOpts(const Params& p, double cents) const {
+        sp::PlayOpts o; o.clock = p[pid::rate]; o.sp12 = (int) p[pid::machine] == 1; o.cents = cents - p[pid::rpm] * 100; o.output = outOf((int) p[pid::ftype]);
+        o.rest = p[pid::cutoff]; o.res = p[pid::res]; o.depth = p[pid::fenv]; o.retrigger = p[pid::retrig] > .5; o.measured = p[pid::calib] > .5; o.decay = decayOpt(p[pid::decay]);
+        return o;
+    }
+    std::array<double, 4> keyOf(const Params& p) const { return {(double) (int) p[pid::machine], p[pid::rate], p[pid::rpm], p[pid::calib] > .5 ? 1.0 : 0.0}; }
+    void build(const Params& p, double from, bool fresh) {
+        const Machine& mach = MACHINES[(int) clampd(p[pid::machine], 0, 17)]; const bool ring = !cut;
+        sp = mach.pitch == 0; mode = mach.pitch;
+        srIn = p[pid::rpm] != 0 ? sr * std::pow(2.0, p[pid::rpm] / 12) : sr;
+        key = keyOf(p);
+        const double cents = totalCents(p, semis), g = driveGain(p); const bool on = p[pid::pre] > .5;
+        const size_t len = d->size();
+        if (sp) {
+            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = 1; so.bits = p[pid::bits]; so.measured = p[pid::calib] > .5; so.preGain = g; so.preOn = on;
+            auto s = std::make_unique<sp::SPSampler>(d->data(), len, srIn, so, (long) std::floor(from * std::floor(len / srIn * p[pid::rate])), ring);
+            if (cut) s->all();   // offline: the length comes from the whole sample
+            const bool nv = !v; if (nv) v = std::make_unique<sp::SPVoice>(fs);
+            v->setup(spOpts(p, cents));
+            if (fresh || nv) { v->start(s.get(), s->k0, cut); for (int q = 0; q < sp::LAT; ++q) v->next(); }
+            else v->retarget(s.get(), s->k0);
+            if (cut) n = v->n;
+            smp = std::move(s); bs.reset();
+        } else {
+            v.reset(); smp.reset();
+            bs = std::make_unique<BaseSampler>(d->data(), len, srIn, p, (long) std::floor(from * std::max(1L, (long) std::floor(len * p[pid::rate] / srIn))), ring);
+            bs->setShape(g, on); pos = (double) bs->k0; kp = 0;
+            if (fresh || !hasDc) { dc = 0; of.reset(); hasDc = true; }
+            setPitch(p, cents);
+            if (cut) {
+                if (mode == 0) { const long fr = (long) std::floor((double) bs->n * 128 / inc); n = std::max(1L, (long) std::ceil(fr * fs / p[pid::rate])); }
+                else n = std::max(1L, (long) std::ceil(bs->n / step));
+            }
+        }
+        if (fresh) { dpos = from * len; i = 0; lvl = 1; dt = 0; ticks = 0; }
+        setupImpl(p, true);
+    }
+    void setPitch(const Params& p, double cents) { const double c = cents - p[pid::rpm] * 100; inc = spInc(c); stepR = p[pid::rate] / fs; step = p[pid::rate] * std::pow(2.0, c / 1200) / fs; }
+    void setupImpl(const Params& p, bool built) {
+        const double cents = totalCents(p, semis);
+        if (!built) {
+            const Machine& mach = MACHINES[(int) clampd(p[pid::machine], 0, 17)];
+            if (keyOf(p) != key || (mach.pitch == 0) != sp) { build(p, pos01(), false); return; }
+            const double g = driveGain(p); const bool on = p[pid::pre] > .5;
+            if (sp) { smp->setShape(g, on); smp->setBits(p[pid::bits]); v->setup(spOpts(p, cents)); }
+            else { bs->setShape(g, on); bs->bits = p[pid::bits]; bs->alias = p[pid::alias]; setPitch(p, cents); }
+        }
+        const int ft = (int) p[pid::ftype];
+        if (sp ? ft >= 6 : true) { if (!of) { of = std::make_unique<OutFilter>(fs); of->setup(p); of->trigger(); } else of->setup(p); }
+        else of.reset();
+        mix = p[pid::mix]; inGain = dbToGain(p[pid::input]); dv = 1 + p[pid::drive] * 1.5;
+        const double dk = decayOpt(p[pid::decay]); decayTicks = dk >= 1 ? 0 : std::max(1, (int) std::lround(dk * 400));
+        dstep = sr / fs * std::pow(2.0, cents / 1200);
+    }
+    double dry() {
+        const Buf& s = *d; const double p0 = dpos; const long k = (long) std::floor(p0); dpos += dstep;
+        return (float) (k + 2 < (long) s.size() ? cubicAt(s, k, p0 - k) : (k >= 0 && k < (long) s.size() ? s[(size_t) k] : 0.f));
+    }
+    double fs, sr = 44100, srIn = 44100, pos = 0, kp = 0, step = 1, stepR = 1, dc = 0, mix = 1, inGain = 1, dv = 1, dpos = 0, dstep = 1, lvl = 1, dt = 0;
+    const Buf* d = nullptr; bool cut = false, sp = false, hasDc = false; int mode = 0, decayTicks = 0; long inc = 128, i = 0, ticks = 0;
+    std::array<double, 4> key {};
+    std::unique_ptr<sp::SPSampler> smp; std::unique_ptr<sp::SPVoice> v; std::unique_ptr<BaseSampler> bs; std::unique_ptr<OutFilter> of;
+};
+
+// the plugin's sampler voices: one at a time, like each of the hardware's channels (a new one cuts the last with a
+// 3 ms fade). The sum goes on to the lo-fi stage, output level and master with the live input.
+class LivePlayer {
+public:
+    void prepare(double sampleRate) { fs = sampleRate; fadeN = std::max(1, (int) std::lround(fs * .003)); for (auto& v : vs) v = V(); }
+    void setSource(std::shared_ptr<const Chans> chs, double sampleRate) {
+        src = std::move(chs); sr = sampleRate;
+        for (auto& v : vs) if (v.on && !v.fading) startVoice(v, voicePos(v));
+    }
+    void setParams(const Params& p) { P = p; hasP = true; for (auto& v : vs) if (v.on) for (auto& c : v.ch) c->setup(p); }
+    void play(double semis, double vel, double from, bool loop, bool main) {
+        if (!src || src->empty() || !hasP) return;
+        for (auto& v : vs) if (v.on && !v.fading) v.fading = fadeN;
+        V* slot = nullptr; for (auto& v : vs) if (!v.on) { slot = &v; break; }
+        if (!slot) { slot = &vs[0]; for (auto& v : vs) if (v.fading && v.fading < slot->fading) slot = &v; }
+        *slot = V(); slot->semis = semis; slot->gain = vel; slot->loop = loop; slot->main = main; slot->on = true;
+        startVoice(*slot, from);
+    }
+    void stop(int main = -1) { for (auto& v : vs) if (v.on && !v.fading && (main < 0 || v.main == (main == 1))) v.fading = fadeN; }
+    void stopNow() { for (auto& v : vs) v = V(); }
+    void setLoop(bool on) { for (auto& v : vs) if (v.main) v.loop = on; }
+    void setBend(double st) { if (st == bend) return; bend = st; for (auto& v : vs) if (v.on) for (auto& c : v.ch) { c->semis = v.semis + st; c->setup(P); } }
+    double pos() const { for (auto& v : vs) if (v.on && v.main && !v.fading) return std::min(1.0, voicePos(v)); return -1; }
+    bool active() const { for (auto& v : vs) if (v.on) return true; return false; }
+    // adds the voices' next sample
+    void process(double& l, double& r) {
+        for (auto& v : vs) {
+            if (!v.on) continue;
+            double a = v.ch[0]->next(), b = v.ch.size() > 1 ? v.ch[1]->next() : a; bool done = false;
+            if (v.ch[0]->ended()) { if (v.loop) startVoice(v, 0); else done = true; }
+            double g = v.gain;
+            if (v.fading) { g *= (double) v.fading / fadeN; if (--v.fading == 0) done = true; }
+            l += a * g; r += b * g;
+            if (done) v = V();
+        }
+    }
+private:
+    struct V { std::vector<std::unique_ptr<ChanVoice>> ch; std::shared_ptr<const Chans> data; double semis = 0, gain = 1; bool loop = false, main = false, on = false; int fading = 0; };
+    void startVoice(V& v, double from) {
+        v.data = src; v.ch.clear();
+        for (auto& s : *src) { auto c = std::make_unique<ChanVoice>(fs); c->start(&s, sr, P, v.semis + bend, from, false); v.ch.push_back(std::move(c)); }
+    }
+    static double voicePos(const V& v) { return v.ch.empty() ? 0 : v.ch[0]->pos01(); }
+    std::array<V, 4> vs; std::shared_ptr<const Chans> src; Params P; bool hasP = false;
+    double fs = 48000, sr = 44100, bend = 0; int fadeN = 144;
+};
+
 /* ---------------- offline render ---------------- */
 // `src` is already mono-mixed and stretched (prepareSource); returns two channels at fs, before the master
 inline Chans renderPre(const Chans& src, double sr, const Params& p0, double fs, double extraSemis = 0) {
     const Params p = effective(p0);
-    const Machine& mach = MACHINES[(int) clampd(p[pid::machine], 0, 17)];
-    const double cents = totalCents(p, extraSemis), inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output] - (p[pid::link] > .5 ? p[pid::input] : 0)), mix = p[pid::mix];
+    const double outGain = dbToGain(p[pid::output] - (p[pid::link] > .5 ? p[pid::input] : 0));
+    // each channel through the same streaming voice that plays live, start to end
     Chans res;
     for (auto& s : src) {
-        if (mach.pitch == 0) {
-            // the SP-1200 / SP-12 through the circuit-level engine (SP1200.h); 6-pole and 4-pole menu entries run
-            // output 7-8 into those filters
-            const int ft = (int) p[pid::ftype], out = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7;
-            sp::SampleOpts so; so.clock = p[pid::rate]; so.level = 1; so.bits = p[pid::bits]; so.measured = p[pid::calib] > .5;
-            so.preGain = driveGain(p); so.preOn = p[pid::pre] > .5;
-            const auto codes = sp::codesFor(s, sr, so, p[pid::rpm]);
-            sp::PlayOpts po; po.clock = p[pid::rate]; po.sp12 = (int) p[pid::machine] == 1; po.cents = cents - p[pid::rpm] * 100; po.output = out;
-            po.rest = p[pid::cutoff]; po.res = p[pid::res]; po.depth = p[pid::fenv]; po.retrigger = p[pid::retrig] > .5; po.measured = p[pid::calib] > .5;
-            Buf wet = sp::playChannel(codes, po, fs);
-            if (ft >= 6) { OutFilter f(fs); f.setup(p); f.trigger(); for (auto& v : wet) v = (float) f.process(v); }
-            for (auto& v : wet) v = (float) (v / (1 + p[pid::drive] * 1.5));
-            if (mix < 1) { const Buf dry = playDry(s, sr, fs, cents, wet.size()); for (size_t i = 0; i < wet.size(); ++i) wet[i] = (float) (wet[i] * mix + dry[i] * inGain * (1 - mix)); }
-            res.push_back(std::move(wet));
-            continue;
-        }
-        // the alias trick on any machine: sampled sped up by rpm semitones, played back down again
-        const Buf base = sampleBase(preamped(s, p), sr * std::pow(2.0, p[pid::rpm] / 12), p, true);
-        Buf wet = playBase(base, p, fs, mach.pitch, cents - p[pid::rpm] * 100);
-        Buf dry; if (mix < 1) dry = playDry(s, sr, fs, cents, wet.size());
-        OutFilter f(fs); f.setup(p); f.trigger();
-        double dc = 0;
-        for (size_t i = 0; i < wet.size(); ++i) {
-            double y = wet[i]; dc += (y - dc) * (6 / fs); y = f.process(y - dc);
-            y /= 1 + p[pid::drive] * 1.5;
-            wet[i] = (float) (mix < 1 ? y * mix + dry[i] * inGain * (1 - mix) : y);
-        }
-        res.push_back(std::move(wet));
+        ChanVoice v(fs); v.start(&s, sr, p, extraSemis, 0, true);
+        Buf w((size_t) v.n); for (auto& x : w) x = (float) v.next();
+        res.push_back(std::move(w));
     }
     if (res.size() == 1) res.push_back(res[0]);
     Lofi lo(fs, 777); lo.setup(p);

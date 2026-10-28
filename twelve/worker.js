@@ -3,7 +3,7 @@ importScripts('sp1200.js', 'engine.js', 'codecs.js');
 const LAME = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
 
 let src = null, sr = 44100;
-const cache = {stretchKey:'', stretched:null, preKey:'', pre:null, preFs:0, pads:new Map()};
+const cache = {stretchKey:'', stretched:null, preKey:'', pre:null, preFs:0};
 const soundKey = (p, sel) => JSON.stringify([sel, TW.SOUND_IDS.map(id => p[id])]);
 
 function slice(sel){
@@ -21,7 +21,7 @@ function stretched(p, sel){
 }
 function pre(p, sel, fs){
   const k = soundKey(p, sel) + fs;
-  if (k !== cache.preKey){ cache.pre = TW.renderPre(null, sr, p, fs, {stretched:stretched(p, sel)}).pre; cache.preKey = k; cache.preFs = fs; cache.pads.clear(); }
+  if (k !== cache.preKey){ cache.pre = TW.renderPre(null, sr, p, fs, {stretched:stretched(p, sel)}).pre; cache.preKey = k; cache.preFs = fs; }
   return cache.pre;
 }
 function stats(out, fs){ return {lufs:Math.round(TW.loudness(out, fs) * 10) / 10, peak:Math.round(TW.peakDb(out) * 10) / 10}; }
@@ -29,21 +29,15 @@ function stats(out, fs){ return {lufs:Math.round(TW.loudness(out, fs) * 10) / 10
 onmessage = e => {
   const d = e.data;
   try {
-    if (d.type === 'source'){ src = d.chs; sr = d.sr; cache.stretchKey = cache.preKey = ''; cache.pads.clear(); return; }
+    if (d.type === 'source'){ src = d.chs; sr = d.sr; cache.stretchKey = cache.preKey = ''; return; }
     if (!src) return postMessage({type:'error', id:d.id, msg:'No sample loaded'});
     if (d.type === 'render'){
       const p = d.p, out = TW.renderMaster(pre(p, d.sel, d.fs), p, d.match, d.fs);
       postMessage({type:'rendered', id:d.id, out, fs:d.fs, ...stats(out, d.fs)}, out.map(c => c.buffer));
-    } else if (d.type === 'pad'){
-      const p = d.p, base = pre(p, d.sel, d.fs), k = d.semis;
-      let out = cache.pads.get(k);
-      if (!out){
-        const q = Object.assign({}, p, {semis:p.semis + k});
-        out = TW.renderMaster(TW.renderPre(null, sr, q, d.fs, {stretched:stretched(p, d.sel)}).pre, p, d.match, d.fs);
-        cache.pads.set(k, out);
-      }
-      void base;
-      postMessage({type:'pad', id:d.id, semis:k, out:out.map(c => c.slice()), fs:d.fs});
+    } else if (d.type === 'prep'){
+      // the selection, mono-mixed and timestretched, for the live player
+      const chs = stretched(d.p, d.sel).map(c => c.slice());
+      postMessage({type:'prepped', id:d.id, chs}, chs.map(c => c.buffer));
     } else if (d.type === 'analyze'){
       const chs = slice(d.sel);
       postMessage({type:'analyzed', id:d.id, bpm:TW.detectTempo(chs, sr), key:TW.detectKey(chs, sr)});

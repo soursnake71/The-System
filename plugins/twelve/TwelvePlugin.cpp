@@ -55,6 +55,7 @@ TwelveProcessor::TwelveProcessor()
     apvts.getParameter("live")->setValueNotifyingHost(0);
 #endif
     resetCCMap();
+    for (int i = 0; i < 32; ++i) padTune[(size_t) i] = (float) (i < 8 ? i : i < 16 ? i - 16 : i < 24 ? i - 8 : i - 32);
     for (auto& c : ccVal) c = 0;
     ccDirty[0] = 0; ccDirty[1] = 0;
     startThread();
@@ -118,7 +119,8 @@ void TwelveProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     stretcher.prepare(sampleRate);
     primed = false; lbuf.assign((size_t) juce::jmax(512, maxBlock), 0.f); rbuf = lbuf;
     setLatencySamples(master.latency() + sp::SPLive(sampleRate).latency());
-    for (auto& v : voices) v = Voice();
+    player.prepare(sampleRate); ppPrimed = false;
+    { const juce::SpinLock::ScopedLockType l(readyLock); if (readySrc) readyNew = true; }
 }
 
 /* ---------------- audio ---------------- */
@@ -136,10 +138,11 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     if (chLive) {
         for (int c = 0; c < 2; ++c) { conv[c].setup(p); filt[c].setup(p); }
         // SP-1200 / SP-12: live input through the circuit-level path (SP1200.h)
-        spMode = MACHINES[(int) clampd(p[pid::machine], 0, 6)].pitch == 0;
+        spMode = MACHINES[(int) clampd(p[pid::machine], 0, 17)].pitch == 0;
         if (spMode) {
             sp::SPLive::Settings s2; const int ft = (int) p[pid::ftype];
-            s2.clock = p[pid::rate]; s2.level = 1;   // input gain and preamp are applied before it, below s2.bits = p[pid::bits]; s2.rpm = p[pid::rpm]; s2.rest = p[pid::cutoff]; s2.res = p[pid::res];
+            s2.clock = p[pid::rate]; s2.level = 1;   // input gain and preamp are applied before it, below
+            s2.bits = p[pid::bits]; s2.rpm = p[pid::rpm]; s2.rest = p[pid::cutoff]; s2.res = p[pid::res];
             s2.depth = p[pid::fenv]; s2.output = ft == 0 ? 1 : ft <= 4 ? ft + 2 : 7; s2.measured = p[pid::calib] > .5; s2.sp12 = (int) p[pid::machine] == 1;
             for (auto& x : spl) x.setup(s2);
         }
@@ -149,32 +152,38 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     for (int i = 0; i < 10; ++i) { m[(size_t) i] = matchG[(size_t) i].load(); md[i] = m[(size_t) i]; }
     if (chMaster || m != lastMatch) { master.setup(p, md); lastMatch = m; }
 
+    // the sampler: new selection, settings, requests
+    {
+        const juce::SpinLock::ScopedTryLockType l(readyLock);
+        if (l.isLocked() && readyNew) { player.setSource(readySrc, readySr); readyNew = false; }
+    }
+    {
+        bool ch = !ppPrimed; for (int i = 0; i < pid::count && !ch; ++i) if (!isMaster(i) && p[i] != lastPP[i]) ch = true;
+        if (ch) { player.setParams(p); lastPP = p; ppPrimed = true; }
+    }
+    if (loop != lastLoop) { player.setLoop(loop); lastLoop = loop; }
     if (stopRequest.exchange(false)) {
-        for (auto& v : voices) v.active = false;
-        for (auto& q : pend) q.used = false;
+        player.stopNow();
         master.reset(); for (int c = 0; c < 2; ++c) { filt[c].reset(); conv[c].reset(); }
-        bend = 0;
+        bend = 0; player.setBend(0);
         mainPlaying = false;
     }
-    if (playRequest.exchange(false)) {
-        cutVoices();
-        if (auto b = noteBuffer(0, false)) {
-            for (auto& v : voices) if (!v.active) { v = Voice(); v.buf = b; v.main = true; v.active = true; v.pos = playFrom.load() * (double) b->at(0).size(); break; }
-        }
-    }
-    // MIDI: middle C plays the sample at its own pitch
+    if (stopMainRequest.exchange(false)) player.stop(1);
+    if (playRequest.exchange(false)) player.play(0, 1, playFrom.load(), loop, true);
+    for (const int w = padW.load(); padR != w; ++padR) { const auto& q = padQ[(size_t) (padR & 63)]; player.play(q.semis, q.vel, 0, false, false); }
+    // MIDI: middle C plays the sample at its own pitch; the sound starts in this block
     for (const auto meta : midi) {
         const auto msg = meta.getMessage();
         if (msg.isNoteOn()) {
             const int off = msg.getNoteNumber() - 60;
             if (off < -24 || off > 24) continue;
-            for (auto& q : pend) if (!q.used) { q.used = true; q.note = msg.getNoteNumber(); q.off = off; q.vel = msg.getFloatVelocity(); q.age = 0; break; }
+            player.play(off, msg.getFloatVelocity(), 0, false, false);
             if (spMode) for (auto& x : spl) x.trigger();   // a note fires the SSM2044 envelope on live input, like a pad hit
         } else if (msg.isAllNotesOff() || msg.isAllSoundOff() || (msg.isController() && (msg.getControllerNumber() == 120 || msg.getControllerNumber() == 123))) {
-            for (auto& v : voices) v.active = false;
-            for (auto& q : pend) q.used = false;
+            player.stopNow();
         } else if (msg.isPitchWheel()) {
             bend = (msg.getPitchWheelValue() - 8192) / 8192.0 * 2;   // +-2 semitones
+            player.setBend(bend);
         } else if (msg.isProgramChange()) {
             pendingProgram = msg.getProgramChangeNumber() + 128 * (bankMsb.load() & 3);
         } else if (msg.isController()) {
@@ -184,15 +193,6 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
             if (learn >= 0) { for (auto& c : ccMap) if (c.load() == learn) c = -1; ccMap[(size_t) cc] = learn; learnParam = -1; }
             ccVal[(size_t) cc] = msg.getControllerValue() / 127.f; ccDirty[cc >> 6].fetch_or(1ull << (cc & 63));
         }
-    }
-    for (auto& q : pend) {
-        if (!q.used) continue;
-        if (auto b = noteBuffer(q.off, false)) {
-            // mono, like each of the hardware's channels: a new hit cuts whatever is playing
-            cutVoices();
-            for (auto& v : voices) if (!v.active) { v = Voice(); v.buf = b; v.note = q.note; v.gain = q.vel; v.active = true; break; }
-            q.used = false;
-        } else { requestNote(q.off); q.age += n / fs; if (q.age > .5) q.used = false; }   // a note this late would be out of time: drop it
     }
 
     const float* inL = nIn > 0 ? buf.getReadPointer(0) : nullptr;
@@ -234,27 +234,16 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
                 if (mono) b = a; else { b = conv[1].process(xr); dc[1] += (b - dc[1]) * (6 / fs); b = filt[1].process(b - dc[1]) / dv; }
             }
             yl = a * mix + xl * inGain * (1 - mix); yr = b * mix + xr * inGain * (1 - mix);
-            lofi.process(yl, yr); yl *= outGain; yr *= outGain;
         }
+        // the sampler's voices join the live input before the lo-fi stage and the output level; the lo-fi noises
+        // (crackle, hiss, hum) only sound while something plays
+        const bool sounding = player.active() || (live && inL);
+        player.process(yl, yr);
+        if (sounding) lofi.process(yl, yr);
+        yl *= outGain; yr *= outGain;
         l[(size_t) i] = (float) yl; r[(size_t) i] = (float) yr;
     }
-    // sampler voices (their renders already include the filter, lo-fi and output level)
-    bool anyMain = false;
-    for (auto& v : voices) {
-        if (!v.active) continue;
-        const auto& b = *v.buf; const double len = (double) b[0].size(), rate = v.main ? 1.0 : std::pow(2.0, bend.load() / 12);
-        const int fadeLen = juce::jmax(1, (int) (fs * .003));
-        for (int i = 0; i < n; ++i) {
-            if (v.pos >= len - 1) { if (v.main && loop) v.pos = 0; else { v.active = false; break; } }
-            if (v.fade > 0 && --v.fade == 0) { v.active = false; break; }
-            const float fg = v.fade > 0 ? (float) v.fade / (float) fadeLen : 1.f;
-            const size_t k = (size_t) v.pos; const float f = (float) (v.pos - (double) k);
-            l[(size_t) i] += (b[0][k] + (b[0][k + 1] - b[0][k]) * f) * (float) v.gain * fg; r[(size_t) i] += (b[1][k] + (b[1][k + 1] - b[1][k]) * f) * (float) v.gain * fg;
-            v.pos += rate;
-        }
-        if (v.main && v.active && v.fade == 0) { anyMain = true; mainFrac = v.pos / len; }
-    }
-    mainPlaying = anyMain;
+    { const double fr = player.pos(); mainPlaying = fr >= 0; if (fr >= 0) mainFrac = fr; }
     for (int i = 0; i < n; ++i) {
         double a = l[(size_t) i], b = r[(size_t) i];
         if (master.enabled()) master.process(a, b);
@@ -268,85 +257,35 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     midi.clear();
 }
 
-void TwelveProcessor::cutVoices() {
-    const int fadeLen = juce::jmax(1, (int) (hostFs.load() * .003));
-    for (auto& v : voices) if (v.active && v.fade == 0) v.fade = fadeLen;
-}
-
-std::shared_ptr<const Chans> TwelveProcessor::noteBuffer(int off, bool blocking) {
-    std::shared_ptr<const Chans> b;
-    if (blocking) { const juce::SpinLock::ScopedLockType l(notesLock); auto it = notes.find(off); if (it != notes.end()) b = it->second; }
-    else { const juce::SpinLock::ScopedTryLockType l(notesLock); if (l.isLocked()) { auto it = notes.find(off); if (it != notes.end()) b = it->second; } }
-    return b;
-}
-
-/* ---------------- background renders ---------------- */
-std::vector<double> TwelveProcessor::soundKey(const Params& p) {
-    std::vector<double> k;
-    for (int i = 0; i < pid::count; ++i) if (!isMaster(i)) k.push_back(p[i]);
-    const juce::ScopedLock l(srcLock);
-    k.push_back((double) selA); k.push_back((double) selB); k.push_back(version.load()); k.push_back(hostFs.load());
-    return k;
-}
-std::shared_ptr<const Chans> TwelveProcessor::prepared(const Params& p, Chans&, double& sr) {
-    std::vector<double> k { p[pid::mono], p[pid::stretch], p[pid::grain] };
-    Chans sel;
-    {
-        const juce::ScopedLock l(srcLock);
-        if (src.empty()) return nullptr;
-        k.push_back((double) selA); k.push_back((double) selB); k.push_back(version.load());
-        sr = srcSr;
-        if (prep && k == prepKey) return prep;
-        for (auto& c : src) sel.emplace_back(c.begin() + selA, c.begin() + selB);
-    }
-    prep = std::make_shared<const Chans>(prepareSource(sel, p, sr)); prepKey = k; prepSr = sr;
-    return prep;
-}
-void TwelveProcessor::renderOffset(const Params& p, int off, bool mainRender) {
-    Chans dummy; double sr = 44100;
-    auto ps = prepared(p, dummy, sr);
-    if (!ps) return;
-    const double fs = hostFs;
-    auto out = std::make_shared<const Chans>(renderPre(*ps, sr, p, fs, off));
-    if (mainRender) {
-        Params mp = snapshot(); double md[10]; for (int i = 0; i < 10; ++i) md[i] = matchG[(size_t) i].load();
-        const auto mo = renderMaster(*out, mp, md, fs);
-        const juce::ScopedLock l(infoLock);
-        outText = juce::String(loudness(mo, fs), 1) + " LUFS  peak " + juce::String(peakDb(mo), 1) + " dB";
-    }
-    const juce::SpinLock::ScopedLockType l(notesLock);
-    if (mainRender) notes.clear();
-    notes[off] = out;
-}
+/* ---------------- background: the selection, mono-mixed and timestretched, for the player ---------------- */
 void TwelveProcessor::run() {
     while (!threadShouldExit()) {
-        wait(25);
-        if (!hasSource()) continue;
+        wait(15);
         const Params p = snapshot();
-        const auto k = soundKey(p);
-        const double now = juce::Time::getMillisecondCounterHiRes();
-        if (k != renderedKey) {
-            if (k != pendingKey) { pendingKey = k; pendingSince = now; continue; }
-            if (now - pendingSince < 70) continue;
-            rendering = true; renderOffset(p, 0, true); renderedKey = k; rendering = false;
-            continue;
+        Chans sel; double sr = 44100; std::vector<double> k { p[pid::mono], p[pid::stretch], p[pid::grain], p[pid::smode] };
+        {
+            const juce::ScopedLock l(srcLock);
+            k.push_back((double) selA); k.push_back((double) selB); k.push_back(version.load());
+            if (k == prepKey) continue;
+            if (!src.empty()) for (auto& c : src) sel.emplace_back(c.begin() + selA, c.begin() + selB);
+            sr = srcSr;
         }
-        const uint64_t bits = noteBits.exchange(0);
-        for (int i = 0; i < 49 && !threadShouldExit(); ++i) if (bits & (1ull << i)) {
-            if (!noteBuffer(i - 24, true)) { rendering = true; renderOffset(p, i - 24, false); rendering = false; }
-            if (soundKey(snapshot()) != renderedKey) break;
-        }
-        if (bits) continue;
-        // nothing asked for: get the notes an octave either side ready, nearest first, so MIDI plays at once
-        if ((double) (selection().second - selection().first) / sourceSr() <= 60)
-            for (int d = 1; d <= 12; ++d) {
-                int off = 0;
-                if (!noteBuffer(d, true)) off = d; else if (!noteBuffer(-d, true)) off = -d;
-                if (off == 0) continue;
-                rendering = true; renderOffset(p, off, false); rendering = false;
-                break;   // one at a time, so a new request or a change is picked up quickly
-            }
+        prepKey = k;
+        if (sel.empty()) continue;
+        rendering = true;
+        auto c = std::make_shared<const Chans>(prepareSource(sel, p, sr));
+        { const juce::SpinLock::ScopedLockType l(readyLock); readySrc = c; readySr = sr; readyNew = true; }
+        rendering = false;
     }
+}
+Chans TwelveProcessor::renderSelection(bool withMaster, double& fs) {
+    Chans c; double sr;
+    { const juce::ScopedLock l(srcLock); if (src.empty()) return {}; for (auto& x : src) c.emplace_back(x.begin() + selA, x.begin() + selB); sr = srcSr; }
+    fs = hostFs; const Params p = snapshot();
+    Chans out = renderPre(prepareSource(c, p, sr), sr, p, fs);
+    if (withMaster) { double md[10]; for (int i = 0; i < 10; ++i) md[i] = matchG[(size_t) i].load(); out = renderMaster(out, p, md, fs); }
+    const juce::ScopedLock l(infoLock); outText = juce::String(loudness(out, fs), 1) + " LUFS  peak " + juce::String(peakDb(out), 1) + " dB";
+    return out;
 }
 
 /* ---------------- source editing ---------------- */
@@ -417,13 +356,11 @@ juce::String TwelveProcessor::undo() {
     return "Undone";
 }
 juce::String TwelveProcessor::resample() {
-    auto b = noteBuffer(0, true);
-    if (!b) return "Nothing rendered yet";
-    Params p = snapshot(); double md[10]; for (int i = 0; i < 10; ++i) md[i] = matchG[(size_t) i].load();
-    Chans out = renderMaster(*b, p, md, hostFs);
+    double fs = 48000; Chans out = renderSelection(true, fs);
+    if (out.empty()) return "Load a sample first";
     {
         const juce::ScopedLock l(srcLock);
-        pushUndo(); src = std::move(out); srcSr = hostFs; srcName = srcName.upToLastOccurrenceOf(" (resampled)", false, false) + " (resampled)"; afterSourceChange(true);
+        pushUndo(); src = std::move(out); srcSr = fs; srcName = srcName.upToLastOccurrenceOf(" (resampled)", false, false) + " (resampled)"; afterSourceChange(true);
     }
     // the sound is in the sample now: reset the effects so nothing is applied twice
     Params q; setMachine(q, 6); q[pid::mono] = 0; q[pid::fenv] = 0; q[pid::retrig] = 0; q[pid::drive] = 0; q[pid::cutoff] = 20000; q[pid::res] = 0;
@@ -468,8 +405,8 @@ juce::String TwelveProcessor::loadReference(const juce::File& f) {
     return "Reference loaded: " + refName;
 }
 juce::String TwelveProcessor::matchEq() {
-    auto b = noteBuffer(0, true); if (!b) return "Load a sample first";
-    std::array<double, 10> ref {}; const auto cur = bandSpectrum(*b, hostFs);
+    double fs = 48000; const Chans b = renderSelection(false, fs); if (b.empty()) return "Load a sample first";
+    std::array<double, 10> ref {}; const auto cur = bandSpectrum(b, fs);
     if (hasRef) ref = refBands; else for (int i = 0; i < 10; ++i) ref[(size_t) i] = TARGET_CURVE[i];
     const auto g = matchGains(ref, cur);
     for (int i = 0; i < 10; ++i) matchG[(size_t) i] = (float) g[(size_t) i];
@@ -478,8 +415,8 @@ juce::String TwelveProcessor::matchEq() {
     return hasRef ? "EQ matched to " + refName : juce::String("EQ matched to a typical finished mix (load a reference to match a track)");
 }
 juce::String TwelveProcessor::autoMasterNow(double target) {
-    auto b = noteBuffer(0, true); if (!b) return "Load a sample first";
-    const auto r = autoMaster(*b, hostFs, hasRef ? &refBands : nullptr, target);
+    double fs = 48000; const Chans b = renderSelection(false, fs); if (b.empty()) return "Load a sample first";
+    const auto r = autoMaster(b, fs, hasRef ? &refBands : nullptr, target);
     for (int i = 0; i < pid::count; ++i) if (isMaster(i)) setParam(i, r.params[i]);
     for (int i = 0; i < 10; ++i) matchG[(size_t) i] = (float) r.match[(size_t) i];
     return "Auto master: compressor at " + juce::String(r.params[pid::cThr], 1) + " dB, gain " + juce::String(r.params[pid::mGain], 1) + " dB, ceiling -1 dB";
@@ -523,6 +460,7 @@ void TwelveProcessor::getStateInformation(juce::MemoryBlock& dest) {
     juce::String m; for (auto& g : matchG) m << juce::String(g.load(), 3) << " "; x.setProperty("match", m.trim(), nullptr);
     juce::String cm; for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() >= 0) cm << c << ":" << PARAMS[ccMap[(size_t) c].load()].id << " ";
     x.setProperty("ccmap", cm.trim(), nullptr);
+    juce::String pt; for (auto& t : padTune) pt << juce::String((int) std::lround(t.load())) << " "; x.setProperty("pads", pt.trim(), nullptr);
     {
         const juce::ScopedLock l(srcLock);
         // the sample itself goes into the project (FLAC, up to 10 minutes) so it comes back when the song is opened
@@ -550,6 +488,7 @@ void TwelveProcessor::setStateInformation(const void* data, int size) {
     if (!x.isValid()) return;
     setPresetName(x.getProperty("name", "Init").toString()); program = x.getProperty("program", 0); loop = x.getProperty("loop", false);
     juce::StringArray m; m.addTokens(x.getProperty("match").toString(), " ", ""); for (int i = 0; i < 10 && i < m.size(); ++i) matchG[(size_t) i] = m[i].getFloatValue();
+    if (x.hasProperty("pads")) { juce::StringArray pt; pt.addTokens(x.getProperty("pads").toString(), " ", ""); for (int i = 0; i < 32 && i < pt.size(); ++i) padTune[(size_t) i] = (float) pt[i].getIntValue(); }
     if (x.hasProperty("ccmap")) {
         for (auto& c : ccMap) c = -1;
         juce::StringArray cm; cm.addTokens(x.getProperty("ccmap").toString(), " ", "");

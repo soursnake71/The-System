@@ -2,270 +2,261 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Omega Twelve</title>
-<meta name="description" content="12-bit vintage sampler emulator: SP-1200 audio path, 18 samplers, 540 presets, lo-fi, timestretch, tempo and key detection, mastering and export.">
-<meta name="theme-color" content="#1b1d1c">
+<meta name="description" content="12-bit sampling percussion: SP-1200 audio path run live, 18 samplers, 540 presets, lo-fi, timestretch, tempo and key detection, mastering and export.">
+<meta name="theme-color" content="#3a3c3f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{
-  --panel:#c7c9cb; --panel2:#b9bbbe; --ink:#1d1f22; --mute:#55595f;
-  --lcd:#0b0e0d; --lcdline:#1f2a25; --glow:#7dffb0; --glowdim:#3d8a62;
-  --accent:#e2a83a; --stop:#d8402f; --led:#2bd35c; --card:#d3d5d7; --k:40px;
+  --case:#3a3c3f; --face:#5e6165; --face2:#575a5e; --strip:#d6d6d2; --print:#eef0f1; --dim:#b8bcc0; --rule:#4f93e6;
+  --cream:#efe9d3; --cream2:#d9d2b8; --creamEdge:#9d977f; --red:#d4342c; --red2:#a8231d;
+  --led:#ff3b2c; --ledOff:#2c2a2a; --lcd:#b7c38b; --lcd2:#a9b67c; --lcdInk:#1b2310; --lcdDim:#5d6a3c; --pad:#161616;
+  --cond:"sans-serif-condensed", "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --mono:"Courier New", ui-monospace, Menlo, Consolas, monospace;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
-html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:#1b1d1c; color:var(--ink); font:13px/1.3 "Helvetica Neue", Helvetica, Arial, sans-serif;
-  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation}
-input, select{-webkit-user-select:text; user-select:text}
-button, select, input{font:inherit; color:inherit}
-/* one screen: fixed parts on top, the chosen mode fills the rest; nothing ever scrolls */
-.unit{height:100dvh; max-width:620px; margin:0 auto; display:flex; flex-direction:column; gap:5px;
-  padding:max(5px, env(safe-area-inset-top)) 6px max(5px, env(safe-area-inset-bottom));
-  background:linear-gradient(180deg, #d4d6d8, var(--panel) 40%, var(--panel2))}
-.modes{display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; flex:none}
-.mode{border:1px solid #8f9297; border-radius:6px; background:linear-gradient(#f6f5f2, #dcdbd6); padding:7px 0; font:700 9.5px/1 Arial, sans-serif; letter-spacing:.3px; cursor:pointer}
-.mode.on{background:linear-gradient(#3c3f44, #222428); color:var(--glow); border-color:#111}
-.presetbar{display:flex; gap:4px; align-items:center; flex:none}
-.presetname{flex:1; min-width:0; background:var(--lcd); color:var(--glow); border-radius:5px; padding:7px 8px; font:12px/1.2 ui-monospace, Menlo, monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; border:0; text-align:left}
-.btn{background:linear-gradient(#f6f5f2, #dcdbd6); border:1px solid #8f9297; border-radius:6px; padding:6px 9px; cursor:pointer; box-shadow:0 1px 0 #fff inset, 0 2px 3px #0003; white-space:nowrap; font-size:12px}
-.btn:active{transform:translateY(1px); box-shadow:0 1px 1px #0003}
-.btn.on{background:linear-gradient(#ffd27a, var(--accent)); border-color:#a77418}
-.btn.stop{background:linear-gradient(#f0675a, var(--stop)); color:#fff; border-color:#8d2015; font-weight:700}
-.btn.pri{background:linear-gradient(#3c3f44, #222428); color:#fff; border-color:#111}
-.btn:disabled{opacity:.45}
-/* display */
-.lcd{flex:none; background:var(--lcd); border-radius:6px; padding:5px 7px 6px; color:var(--glow); font-family:ui-monospace, Menlo, Consolas, monospace; box-shadow:inset 0 0 0 2px #000; border:4px solid #2a2c2e}
-.lcdrow{display:grid; grid-template-columns:1.25fr .9fr 1.25fr .8fr; gap:4px; align-items:end}
-.lcdcell span{display:block; font-size:8px; color:var(--glowdim); letter-spacing:.4px}
-.lcdcell b{font-size:13px; font-weight:400; white-space:nowrap}
-.lcdcell select{background:var(--glow); color:#0b0e0d; border:0; border-radius:2px; font:12px/1.2 ui-monospace, Menlo, monospace; padding:1px 2px; width:100%; appearance:none; -webkit-appearance:none}
-.lcdinfo{display:flex; gap:2px 9px; font-size:9.5px; color:var(--glowdim); margin-top:4px; white-space:nowrap; overflow:hidden}
-.lcdinfo i{font-style:normal; color:var(--glow)}
-.lcdinfo .tag{margin-left:auto; color:var(--lcd); background:var(--glow); padding:0 4px; border-radius:2px; max-width:40%; overflow:hidden; text-overflow:ellipsis}
-.wave{position:relative; margin-top:4px; height:clamp(64px, 12dvh, 120px); border:1px solid var(--lcdline); border-radius:3px; touch-action:none}
-.wave canvas{width:100%; height:100%; display:block}
-.drop{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--glowdim); font-size:11px; pointer-events:none; padding:6px}
-.transport{display:grid; grid-template-columns:1fr 1fr 1fr 1.3fr; gap:4px; flex:none}
-.transport .btn{padding:8px 0}
-/* the mode panels */
-.panels{flex:1; min-height:0; position:relative}
-.panel{position:absolute; inset:0; display:none; overflow:hidden}
-.panel.on{display:block}
-.fit{transform-origin:top left; display:flex; flex-direction:column; gap:6px}
-.card{background:var(--card); border-radius:7px; padding:6px 6px 7px; box-shadow:inset 0 1px 0 #fff9, 0 1px 2px #0002}
-.card h2{font:700 9.5px/1 Arial, sans-serif; letter-spacing:1.3px; text-transform:uppercase; margin:0 0 5px; color:#3b3e43; display:flex; align-items:center; gap:6px}
-.card h2 .sp{flex:1}
-.row{display:flex; gap:4px; flex-wrap:wrap; align-items:flex-end}
-.row .grow{flex:1}
-.knobs{display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:3px 2px; align-items:end}
-.knobs .field{grid-column:span 2}
-.knobs .btn{align-self:center; padding:6px 2px; font-size:11px}
-.knob{display:flex; flex-direction:column; align-items:center; touch-action:none; cursor:ns-resize; min-width:0}
-.knob svg{width:var(--k); height:var(--k); filter:drop-shadow(0 2px 1px #0004)}
-.knob .kl{font-size:8.5px; color:var(--mute); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
-.knob .kv{font:9.5px ui-monospace, Menlo, monospace; color:var(--ink); white-space:nowrap}
-.field{display:flex; flex-direction:column; gap:2px; font-size:9px; color:var(--mute); min-width:0}
-.field input[type=checkbox]{width:auto; flex:none}
-.field select, .field input:not([type=checkbox]){background:#f4f3f0; border:1px solid #8f9297; border-radius:5px; padding:5px 4px; font-size:12px; color:var(--ink); min-width:0; width:100%}
-.led{width:9px; height:9px; border-radius:50%; background:#5b5f5c; box-shadow:inset 0 1px 2px #0008}
-.led.on{background:var(--led); box-shadow:0 0 8px var(--led)}
-/* pads mode: the tuning knobs and the pads together */
-#pane-pads .fit{height:100%}
-#pane-pads .padcard{flex:1; display:flex; flex-direction:column; min-height:0}
-.pads{flex:1; display:grid; grid-template-columns:repeat(4, 1fr); grid-template-rows:repeat(4, 1fr); gap:5px; min-height:0}
-.pad{border-radius:7px; border:1px solid #5e6166; background:linear-gradient(#5a5d62, #36383c); color:#ddd; font:600 12px Arial, sans-serif; display:flex; align-items:flex-end; padding:5px; touch-action:none; box-shadow:0 3px 0 #1e2023, inset 0 1px 0 #ffffff22; min-height:0}
-.pad.hit{background:linear-gradient(#ffcc6a, var(--accent)); color:#222; transform:translateY(2px); box-shadow:0 1px 0 #1e2023}
-.eqc{width:100%; height:56px; background:var(--lcd); border-radius:5px; display:block}
-.meter{font:10px ui-monospace, Menlo, monospace; color:var(--mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.note{font-size:10px; color:var(--mute); margin:4px 0 0; line-height:1.3}
-.clip{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.toast{position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#111; color:#e9ffe9; padding:9px 12px; border-radius:8px; font-size:12px; width:max-content; max-width:92vw; box-shadow:0 6px 20px #000a; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30}
+html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:var(--case); touch-action:none;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; font-family:var(--cond)}
+button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:none; cursor:pointer}
+/* the whole panel is laid out at one size and scaled to the screen: nothing ever scrolls */
+#stage{position:fixed; inset:0; overflow:hidden}
+.sp{position:absolute; left:0; top:0; transform-origin:0 0; display:grid; background:var(--case); border-radius:22px}
+.face{background:linear-gradient(180deg, var(--face), var(--face2)); border-radius:6px}
+.strip{background:linear-gradient(#e1e1dd, var(--strip)); display:flex; align-items:center; border-radius:4px; color:#121212; overflow:hidden; white-space:nowrap}
+.logo{font:700 44px/1 var(--cond); letter-spacing:-1.5px; transform:scaleY(1.12)}
+.logo small{font-size:.62em; letter-spacing:0}
+.tag{font:400 9px/1 Arial, sans-serif; letter-spacing:7.5px; margin:14px 0 0 30px}
+.maker{font:400 30px/1 var(--cond); letter-spacing:-.5px; transform:scaleY(1.08)}
+.sec{position:relative; color:var(--print); min-width:0; min-height:0}
+.sec h2{margin:0; font:700 19px/1 var(--cond); letter-spacing:-.2px; padding-bottom:5px; border-bottom:3px solid var(--rule); white-space:nowrap; transform:scaleY(1.08); transform-origin:0 100%}
+/* cream keys, the red ones, LEDs */
+.key{display:block; width:34px; height:34px; border-radius:3px; background:linear-gradient(160deg, #fbf7ea, var(--cream) 45%, var(--cream2)); box-shadow:0 0 0 1px var(--creamEdge), 0 3px 0 #2d2e30, 0 4px 5px #0007, inset 0 1px 0 #fff;}
+.key:active, .key.dn{transform:translateY(2px); box-shadow:0 0 0 1px var(--creamEdge), 0 1px 0 #2d2e30, inset 0 1px 0 #fff}
+.key.red{background:linear-gradient(160deg, #ef5a4f, var(--red) 45%, var(--red2)); box-shadow:0 0 0 1px #6e1a14, 0 3px 0 #2d2e30, 0 4px 5px #0007, inset 0 1px 0 #ff9a90}
+.key.blk{background:linear-gradient(160deg, #3a3a3a, #1b1b1b 50%, #101010); box-shadow:0 0 0 1px #000, 0 3px 0 #2a2a2a, 0 4px 5px #0008, inset 0 1px 0 #555}
+.led{display:inline-block; width:9px; height:9px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #5a4c4c, var(--ledOff)); box-shadow:0 0 0 1.5px #1c1c1c}
+.led.on{background:radial-gradient(circle at 40% 35%, #ffb3a8, var(--led) 60%); box-shadow:0 0 0 1.5px #1c1c1c, 0 0 8px var(--led)}
+.lbl{font:400 9.5px/1.1 var(--cond); color:var(--print); text-align:center; white-space:nowrap}
+.list{list-style:none; margin:0; padding:0; font:400 10px/1.25 var(--cond); color:var(--print); white-space:nowrap}
+.list li{cursor:pointer; border-radius:2px; padding:0 2px}
+.list li:active, .list li.on{background:#ffffff26}
+/* knobs */
+.knob{display:flex; flex-direction:column; align-items:center; gap:4px; touch-action:none; cursor:ns-resize}
+.knob .cap{width:46px; height:46px; border-radius:50%; position:relative; background:radial-gradient(circle at 50% 50%, #2a2a2a 0 55%, #111 56% 60%, #3a3a3a 61% 64%, #0d0d0d 65%);
+  box-shadow:0 3px 5px #000a, 0 0 0 2px #1a1a1a}
+.knob .cap::before{content:""; position:absolute; inset:3px; border-radius:50%; background:repeating-conic-gradient(#161616 0 6deg, #2b2b2b 6deg 12deg); z-index:0}
+.knob .cap::after{content:""; position:absolute; inset:9px; border-radius:50%; background:radial-gradient(circle at 40% 30%, #3b3b3b, #121212); z-index:1}
+.knob .ptr{position:absolute; left:50%; top:4px; width:3px; height:16px; margin-left:-1.5px; background:#f2f2f2; border-radius:2px; transform-origin:50% 19px; z-index:2}
+/* the display */
+.lcdbox{background:#1e2022; border-radius:4px; padding:7px; box-shadow:inset 0 2px 4px #000, 0 1px 0 #ffffff22}
+.lcd{background:linear-gradient(180deg, var(--lcd), var(--lcd2)); border-radius:2px; color:var(--lcdInk); font:700 13px/1.1 var(--mono); padding:4px 6px 4px; display:flex; flex-direction:column; gap:2px; height:100%;
+  box-shadow:inset 0 0 8px #6a7843, inset 0 0 0 1px #8b9a62; overflow:hidden}
+.lcd .ln{display:flex; justify-content:space-between; gap:8px; white-space:nowrap; overflow:hidden; min-height:1.1em}
+.lcd .ln span{overflow:hidden; text-overflow:clip}
+.lcd .ln .r{flex:0 1 auto; text-align:right}
+.lcd .big{font-size:15px}
+.lcd .info{font-size:10px; font-weight:400; color:var(--lcdDim); gap:6px}
+.lcd .info b{color:var(--lcdInk); font-weight:700}
+.wavebox{position:relative; flex:1; min-height:0; border-top:1px solid #7f8d57; border-bottom:1px solid #7f8d57; touch-action:none}
+.wavebox canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+.menu{position:absolute; inset:0; display:none; grid-template-columns:1fr 1fr; grid-auto-rows:1fr; gap:0 6px; padding:2px 0; background:linear-gradient(180deg, var(--lcd), var(--lcd2))}
+.menu.on{display:grid}
+.menu button{text-align:left; font:700 11px/1 var(--mono); color:var(--lcdInk); white-space:nowrap; overflow:hidden; padding:0 3px; border-radius:2px}
+.menu button:active, .menu button.sel{background:var(--lcdInk); color:var(--lcd)}
+.menu button i{font-style:normal; color:var(--lcdDim); font-weight:400}
+.menu button.sel i{color:var(--lcd)}
+.vu{display:inline-block; width:56px; height:7px; background:#9aa86d; box-shadow:inset 0 0 0 1px #7f8d57; vertical-align:middle; position:relative; overflow:hidden}
+.vu b{position:absolute; left:0; top:0; bottom:0; width:0; background:var(--lcdInk)}
+/* master control keys, keypad, transport */
+.mbtns{display:flex; justify-content:space-between; align-items:flex-start; padding:0 4px}
+.cell{display:flex; flex-direction:column; align-items:center; gap:6px}
+.keypad{display:grid; justify-items:center; align-items:center}
+.keypad .cell{gap:3px}
+.trans{display:flex; justify-content:space-around; align-items:flex-end}
+/* programming */
+.prog .row{display:flex; align-items:center; gap:0; margin-top:10px}
+.shift{display:flex; align-items:center; gap:10px; margin-right:12px}
+.shift .ledcol{display:flex; flex-direction:column; justify-content:space-between; height:100%; gap:10px}
+.shift .ledcol div{display:flex; align-items:center; gap:4px; font:400 9.5px var(--cond)}
+.pbtns{flex:1; display:grid; grid-template-columns:repeat(8, 1fr); justify-items:center}
+.pbtns .cell{gap:5px}
+.pbtns .lbl{height:22px; display:flex; align-items:center; white-space:normal; line-height:1; max-width:76px}
+.pbtns .lbl.off{opacity:.45}
+/* performance: page select and the eight faders */
+.perf .row{display:flex; gap:14px; margin-top:8px; height:calc(100% - 34px)}
+.modes{display:flex; align-items:center; gap:10px}
+.modes .ledcol{display:flex; flex-direction:column; gap:2px}
+.modes .ledcol button{display:flex; align-items:center; gap:5px; font:400 10px/1.25 var(--cond); color:var(--print); white-space:nowrap; text-align:left}
+.faders{flex:1; display:grid; grid-template-columns:repeat(8, 1fr); min-width:0}
+.fader{position:relative; display:flex; flex-direction:column; align-items:center; touch-action:none; cursor:ns-resize; min-width:0}
+.fader .val{font:400 9px/1 var(--mono); color:var(--dim); height:11px; white-space:nowrap}
+.fader .track{position:relative; flex:1; width:100%; margin:4px 0}
+.fader .ticks{position:absolute; left:6%; right:6%; top:6%; bottom:6%; background:repeating-linear-gradient(180deg, #c9cccf 0 1px, transparent 1px 100%); background-size:100% 12.5%; opacity:.75}
+.fader .slot{position:absolute; left:50%; top:2%; bottom:2%; width:6px; margin-left:-3px; background:#050505; border-radius:3px; box-shadow:inset 0 1px 2px #000, 0 0 0 1px #2a2a2a}
+.fader .fcap{position:absolute; left:50%; width:38px; height:20px; margin:-10px 0 0 -19px; border-radius:2px; background:linear-gradient(180deg, #3a3a3a, #121212 45%, #050505 55%, #2c2c2c); box-shadow:0 3px 4px #000b, 0 0 0 1px #000}
+.fader .fcap::after{content:""; position:absolute; left:3px; right:3px; top:50%; height:2px; margin-top:-1px; background:#f0f0f0; transform:skewX(-20deg)}
+.fader .num{font:400 10px/1 var(--cond); color:var(--print)}
+.fader .nm{font:700 9px/1.1 var(--cond); color:var(--print); white-space:nowrap; overflow:hidden; max-width:100%; letter-spacing:.2px}
+/* pads */
+.padsec{display:flex; align-items:center; gap:14px; color:var(--print)}
+.bank{display:flex; align-items:center; gap:10px}
+.bank .ledcol{display:flex; flex-direction:column; gap:6px}
+.bank .ledcol div{display:flex; align-items:center; gap:4px; font:400 9.5px var(--cond)}
+.pads{flex:1; display:grid; grid-template-columns:repeat(8, 1fr); justify-items:center; align-items:center}
+.pad{display:flex; flex-direction:column; align-items:center; gap:6px; touch-action:none}
+.pad .pk{width:54px; height:52px; border-radius:4px; background:linear-gradient(160deg, #3d3d3d, #191919 30%, var(--pad) 70%, #2a2a2a); box-shadow:0 0 0 2px #454545, 0 0 0 4px #1d1d1d, 0 4px 6px #000a, inset 0 0 0 5px #0b0b0b, inset 0 0 0 6px #2f2f2f}
+.pad.hit .pk{transform:translateY(2px); box-shadow:0 0 0 2px #6a6a6a, 0 0 0 4px #1d1d1d, 0 1px 2px #000a, inset 0 0 0 5px #0b0b0b, inset 0 0 0 6px #555}
+.pad .pn{font:400 10px/1 var(--cond)}
+/* the two layouts */
+.sp.wide{width:1200px; height:1000px; padding:16px 36px 20px; gap:8px 16px;
+  grid-template-columns:205px 205px 120px 215px 1fr; grid-template-rows:62px 196px 60px 128px 292px 120px 46px;
+  grid-template-areas:"hdr hdr hdr hdr hdr" "setup disk sync sample mc" "setup disk sync sample mbtn" "prog prog prog prog knobs" "perf perf perf perf keypad" "pads pads pads pads trans" "ftr ftr ftr ftr ftr"}
+.wide .hdr{grid-area:hdr; padding:0 26px} .wide .ftr{grid-area:ftr; padding:0 26px}
+.wide .facebg{grid-area:2 / 1 / 7 / 6; margin:-6px -14px}
+.wide .setup{grid-area:setup} .wide .disk{grid-area:disk} .wide .sync{grid-area:sync} .wide .sample{grid-area:sample}
+.wide .mc{grid-area:mc; display:flex; flex-direction:column; gap:8px} .wide .mc .lcdbox{flex:1}
+.wide .mbtn{grid-area:mbtn} .wide .knobs{grid-area:knobs; display:flex; justify-content:space-around; align-items:center}
+.wide .keypad{grid-area:keypad; grid-template-columns:repeat(3, 1fr); grid-template-rows:repeat(4, 1fr); padding:8px 40px}
+.wide .prog{grid-area:prog} .wide .perf{grid-area:perf} .wide .padsec{grid-area:pads} .wide .trans{grid-area:trans; padding:0 10px 8px}
+.wide .sec .btnrow{display:flex; align-items:flex-start; gap:12px; margin-top:14px}
+.wide .sec .btnrow .led{margin-top:-2px}
+.wide .sec .keycol{display:flex; flex-direction:column; align-items:center; gap:8px}
+.wide .sample .gain{position:absolute; right:6px; top:46px}
+.wide .sync .list, .wide .sample .list{margin-top:8px}
+.wide .modes .ledcol button{font-size:11px; line-height:1.35}
+
+.sp.tall{width:400px; height:842px; padding:8px 10px 8px; gap:5px 6px;
+  grid-template-columns:repeat(4, 1fr); grid-template-rows:36px 198px 50px 36px 62px 90px 198px 62px 44px 14px;
+  grid-template-areas:"hdr hdr hdr hdr" "mc mc mc mc" "mbtn mbtn knobs knobs" "keypad keypad keypad keypad" "setup disk sync sample" "prog prog prog prog" "perf perf perf perf" "pads pads pads pads" "trans trans trans trans" "ftr ftr ftr ftr"}
+.tall .hdr{grid-area:hdr; padding:0 12px} .tall .ftr{grid-area:ftr; padding:0 12px; background:none; color:var(--dim)}
+.tall .facebg{grid-area:2 / 1 / 10 / 5; margin:-3px -5px}
+.tall .logo{font-size:28px} .tall .tag{font-size:6.5px; letter-spacing:4px; margin:8px 0 0 12px} .tall .maker{font-size:11px; font-family:var(--cond)}
+.tall .sec h2{font-size:12.5px; padding-bottom:3px; border-bottom-width:2px}
+.tall .list, .tall .sec .lsthide{display:none}
+.tall .mc{grid-area:mc; display:flex; flex-direction:column} .tall .mc h2{display:none} .tall .mc .lcdbox{flex:1; padding:5px}
+.tall .lcd{font-size:13px} .tall .lcd .big{font-size:15px}
+.tall .mbtn{grid-area:mbtn; padding:0} .tall .knobs{grid-area:knobs; display:flex; justify-content:space-around; align-items:center}
+.tall .knob .cap{width:32px; height:32px} .tall .knob .ptr{height:11px; transform-origin:50% 13px; top:3px} .tall .knob .cap::after{inset:6px} .tall .knob{gap:2px}
+.tall .key{width:28px; height:26px} .tall .lbl{font-size:8.5px} .tall .cell{gap:3px}
+.tall .keypad{grid-area:keypad; grid-template-columns:repeat(12, 1fr)} .tall .keypad .key{width:26px; height:24px}
+.tall .setup{grid-area:setup} .tall .disk{grid-area:disk} .tall .sync{grid-area:sync} .tall .sample{grid-area:sample}
+.tall .sec .btnrow{display:flex; align-items:center; gap:7px; margin-top:6px}
+.tall .sec .keycol{display:contents}
+.tall .sample .gain{position:absolute; right:0; top:15px} .tall .sample .btnrow{gap:5px}
+.tall .prog{grid-area:prog} .tall .prog .row{margin-top:5px} .tall .shift{gap:4px; margin-right:4px} .tall .shift .ledcol{gap:9px} .tall .shift .ledcol div{font-size:8px}
+.tall .pbtns .lbl{height:17px; font-size:7.5px; max-width:44px}
+.tall .perf{grid-area:perf} .tall .perf .row{gap:4px; margin-top:4px; height:calc(100% - 22px)}
+.tall .modes{gap:4px} .tall .modes .ledcol button{font-size:8px; line-height:1.4; gap:3px} .tall .modes .ledcol .led{width:7px; height:7px}
+.tall .fader .fcap{width:28px; height:15px; margin:-7.5px 0 0 -14px} .tall .fader .nm{font-size:7.5px} .tall .fader .val{font-size:7.5px; height:9px} .tall .fader .num{font-size:8px}
+.tall .padsec{grid-area:pads; gap:6px} .tall .bank{gap:4px} .tall .bank .ledcol{gap:2px} .tall .bank .ledcol div{font-size:7.5px; gap:2px} .tall .bank .led{width:7px; height:7px}
+.tall .pad{gap:2px} .tall .pad .pk{width:35px; height:36px; box-shadow:0 0 0 1.5px #454545, 0 0 0 3px #1d1d1d, 0 3px 4px #000a, inset 0 0 0 4px #0b0b0b, inset 0 0 0 5px #2f2f2f} .tall .pad .pn{font-size:8px}
+.tall .trans{grid-area:trans; justify-content:space-around; align-items:center}
+.tall .trans .cell{flex-direction:row; gap:6px}
+/* messages and dialogs */
+.toast{position:fixed; left:50%; top:calc(8px + env(safe-area-inset-top)); transform:translateX(-50%); background:#121414; color:#dfe8c4; padding:9px 12px; border-radius:6px; font:12px/1.3 Arial, sans-serif; width:max-content; max-width:92vw; box-shadow:0 6px 20px #000a; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30}
 .toast.show{opacity:1}
-dialog{border:0; border-radius:10px; padding:0; width:min(560px, 94vw); max-height:86dvh; background:#202224; color:#e8e8e8}
-dialog::backdrop{background:#000a}
-.dlg{padding:12px; display:flex; flex-direction:column; gap:8px; max-height:86dvh}
-.dlg h3{margin:0; font-size:15px}
-.chips{display:flex; gap:5px; flex-wrap:wrap; max-height:76px; overflow:hidden}
-.chip{background:#33363a; border:1px solid #4a4e53; border-radius:12px; padding:4px 8px; font-size:11px; white-space:nowrap; cursor:pointer; color:#ddd}
-.chip.on{background:var(--glow); color:#111; border-color:var(--glow)}
-.plist{overflow:auto; flex:1; display:flex; flex-direction:column; gap:1px; min-height:120px}
-.plist button{background:none; border:0; text-align:left; padding:7px; border-radius:5px; color:#ddd; cursor:pointer; font-size:13px}
-.plist button:hover, .plist button.cur{background:#2f3a33; color:var(--glow)}
-.dlg input[type=search]{background:#111; border:1px solid #444; color:#eee; border-radius:6px; padding:7px}
-.help p, .help li{font-size:12px; color:#ccc}
-.busy{position:fixed; top:4px; right:8px; background:#111; color:var(--glow); font:10px ui-monospace, monospace; padding:3px 6px; border-radius:4px; opacity:0; transition:opacity .15s; z-index:20; pointer-events:none}
-.busy.show{opacity:1}
-.learnable.arm{outline:2px dashed var(--accent); outline-offset:1px; border-radius:8px}
-.knob:focus-visible, .pad:focus-visible, .btn:focus-visible, .mode:focus-visible, select:focus-visible{outline:3px solid #2f7dff; outline-offset:1px; border-radius:8px}
-@media (min-height:820px){ :root{--k:46px} .lcdcell b{font-size:15px} .mode{padding:9px 0; font-size:10.5px} }
+dialog{border:0; border-radius:8px; padding:0; width:min(560px, 94vw); background:#202224; color:#e8e8e8; font:13px/1.35 Arial, sans-serif}
+dialog::backdrop{background:#000b}
+.dlg{padding:12px; display:flex; flex-direction:column; gap:8px}
+.dlg h3{margin:0; font-size:15px; display:flex; gap:8px; align-items:baseline}
+.dlg h3 span{font-size:11px; color:#999; font-weight:400}
+.chips{display:flex; gap:4px; flex-wrap:wrap}
+.chip{background:#33363a; border:1px solid #4a4e53; border-radius:12px; padding:4px 8px; font-size:11px; white-space:nowrap; color:#ddd}
+.chip.on{background:var(--lcd); color:#111; border-color:var(--lcd)}
+.plist{display:grid; grid-template-columns:1fr 1fr; gap:2px}
+.plist button{text-align:left; padding:7px; border-radius:4px; color:#ddd; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:#2a2c2f}
+.plist button.cur{background:var(--lcd); color:#111}
+.dlg .row{display:flex; gap:6px; align-items:center}
+.dlg .row .grow{flex:1}
+.dlg input[type=search]{background:#111; border:1px solid #444; color:#eee; border-radius:6px; padding:7px; font-size:13px; -webkit-user-select:text; user-select:text}
+.dbtn{background:#3a3d41; border-radius:5px; padding:7px 12px; color:#eee}
+.help{font-size:12px; color:#ccc} .help p{margin:0 0 6px} .help b{color:#fff}
+.help .cols{columns:2; column-gap:16px}
 </style>
 </head>
 <body>
-<div class="unit">
-  <nav class="modes" id="modes">
-    <button class="mode on" data-mode="pads">PADS</button><button class="mode" data-mode="edit">EDIT</button><button class="mode" data-mode="sound">SOUND</button><button class="mode" data-mode="lofi">LO-FI</button><button class="mode" data-mode="master">MASTER</button><button class="mode" data-mode="file">FILE</button><button class="mode" data-mode="midi" id="tvBtn">MIDI·TV</button>
-  </nav>
-  <div class="presetbar">
-    <button class="btn" id="pPrev" aria-label="Previous preset">◀</button>
-    <button class="presetname" id="pName">Init</button>
-    <button class="btn" id="pNext" aria-label="Next preset">▶</button>
-    <button class="btn" id="pRand" title="Random settings">🎲</button>
-  </div>
-  <div class="lcd">
-    <div class="lcdrow">
-      <div class="lcdcell"><span>SAMPLER</span><select id="lcdMachine"></select></div>
-      <div class="lcdcell"><span>BITS · RATE</span><b><span id="lcdBits" style="display:inline;font-size:inherit;color:inherit">12</span>·<span id="lcdRate" style="display:inline;font-size:inherit;color:inherit">26.0k</span></b></div>
-      <div class="lcdcell"><span>FILTER</span><select id="lcdFilter"></select></div>
-      <div class="lcdcell"><span>TUNE</span><b id="lcdTune">0</b></div>
-    </div>
-    <div class="lcdinfo"><span>CUT <i id="lcdCut">1.0k</i></span><span>RES <i id="lcdRes">30%</i></span><span>MIX <i id="lcdMix">100%</i></span><span>BPM <i id="iBpm">—</i></span><span>KEY <i id="iKey">—</i></span><span class="tag" id="lcdPreset">INIT</span></div>
-    <div class="lcdinfo"><span class="clip"><i id="iName">—</i></span><span>LEN <i id="iLen">—</i></span><span>SEL <i id="iSel">—</i></span><span>OUT <i id="iOut">—</i></span><span style="flex:1;min-width:40px;max-width:90px;height:7px;align-self:center;background:#12301f;border-radius:2px;overflow:hidden"><i id="vu" style="display:block;height:100%;width:0;background:#7dffb0"></i></span></div>
-    <div class="wave" id="wave"><canvas id="waveC"></canvas><div class="drop" id="dropHint">Tap here or Import to load a sample (any audio or video file)</div></div>
-  </div>
-  <div class="transport">
-    <button class="btn pri" id="importBtn">Import</button>
-    <button class="btn" id="playBtn">▶ Play</button>
-    <button class="btn" id="loopBtn">Loop</button>
-    <button class="btn stop" id="stopBtn">■ STOP ALL</button>
-  </div>
-  <input type="file" id="fileIn" hidden accept="audio/*,video/*,.wav,.wave,.aif,.aiff,.aifc,.flac,.mp3,.ogg,.oga,.opus,.m4a,.aac,.mp4,.webm,.caf,.weba">
-  <input type="file" id="refIn" hidden accept="audio/*,video/*,.wav,.aif,.aiff,.aifc,.flac,.mp3,.ogg,.opus,.m4a,.aac,.mp4,.webm">
+<div id="stage"><div class="sp wide" id="sp">
+  <div class="facebg face"></div>
+  <header class="strip hdr"><span class="logo">OMEGA <small>12</small></span><span class="tag">SAMPLING PERCUSSION</span></header>
 
-  <div class="panels">
-    <section class="panel on" id="pane-pads"><div class="fit">
-      <div class="card"><h2>Tuning <span class="sp"></span><span class="meter" id="midiInfo"></span></h2>
-        <div class="knobs" id="kTune"></div>
-      </div>
-      <div class="card padcard"><h2>Pads · multi-pitch <span class="sp"></span><span class="meter">tap = play at that pitch</span></h2><div class="pads" id="pads"></div></div>
-    </div></section>
+  <section class="sec setup"><h2>Set-up</h2>
+    <div class="btnrow"><div class="keycol"><i class="led" id="ledSetup"></i><button class="key" id="kSetup" aria-label="Set-up"></button></div><ol class="list" id="lSetup"></ol></div></section>
+  <section class="sec disk"><h2>Disk</h2>
+    <div class="btnrow"><div class="keycol"><i class="led" id="ledDisk"></i><button class="key" id="kDisk" aria-label="Disk"></button></div><ol class="list" id="lDisk"></ol></div></section>
+  <section class="sec sync"><h2>Sync</h2>
+    <div class="btnrow"><div class="keycol"><i class="led" id="ledSync"></i><button class="key" id="kSync" aria-label="Sync"></button></div></div><ol class="list" id="lSync"></ol></section>
+  <section class="sec sample"><h2>Sample</h2>
+    <div class="btnrow"><div class="keycol"><i class="led" id="ledSample"></i><button class="key red" id="kSample" aria-label="Sample"></button></div></div><ol class="list" id="lSample"></ol>
+    <div class="gain" id="gainKnob"></div></section>
 
-    <section class="panel" id="pane-edit"><div class="fit">
-      <div class="card"><h2>Edit the sample</h2>
-        <div class="knobs" style="grid-template-columns:repeat(4, minmax(0, 1fr))">
-          <button class="btn" id="allBtn">Select all</button><button class="btn" id="zoomBtn">Zoom</button><button class="btn" id="truncBtn">Truncate</button><button class="btn" id="normBtn">Normalize</button>
-          <button class="btn" id="revBtn">Reverse</button><button class="btn" id="undoBtn">Undo</button><button class="btn" id="resampleBtn">Resample</button><button class="btn" id="bypassBtn">Bypass</button>
-        </div>
-      </div>
-      <div class="card"><h2>Tempo · key · warp</h2>
-        <div class="row">
-          <button class="btn pri" id="detectBtn">Detect</button>
-          <label class="field" style="width:70px">Sample BPM<input id="srcBpm" type="number" min="20" max="400" step="0.1"></label>
-          <button class="btn" id="halfBtn">½</button><button class="btn" id="dblBtn">×2</button>
-          <label class="field" style="width:70px">Target BPM<input id="tgtBpm" type="number" min="20" max="400" step="0.1" value="90"></label>
-        </div>
-        <div class="row" style="margin-top:5px">
-          <label class="field grow">Warp mode<select id="warpMode"><option value="stretch">Stretch (keep pitch)</option><option value="speed">Speed (pitch moves, like the hardware)</option></select></label>
-          <button class="btn pri" id="warpBtn">Warp</button>
-        </div>
-        <div class="row" style="margin-top:5px">
-          <label class="field grow">Transpose to key<select id="toKey"></select></label>
-          <button class="btn" id="toKeyBtn">Transpose</button>
-        </div>
-      </div>
-      <div class="card"><h2>Timestretch</h2><div class="knobs" id="kTime"></div></div>
-    </div></section>
+  <section class="sec mc"><h2>Master Control</h2>
+    <div class="lcdbox"><div class="lcd" id="lcd">
+      <div class="ln"><span id="l1a">OMEGA TWELVE</span><span class="r" id="l1b"></span></div>
+      <div class="ln big"><span id="l2">LOAD A SAMPLE</span><span class="r" id="l2b"></span></div>
+      <div class="wavebox" id="wave"><canvas id="waveC"></canvas><div class="menu" id="menuGrid"></div></div>
+      <div class="ln info"><span id="info"></span><span class="r"><i class="vu"><b id="vu"></b></i></span></div>
+    </div></div>
+  </section>
+  <section class="mbtn mbtns">
+    <div class="cell"><button class="key" id="kTempo" aria-label="Tempo"></button><span class="lbl">Tempo</span></div>
+    <div class="cell"><button class="key" id="kLeft" aria-label="Left"></button><span class="lbl">◀</span></div>
+    <div class="cell"><button class="key" id="kRight" aria-label="Right"></button><span class="lbl">▶</span></div>
+    <div class="cell"><button class="key" id="kEnter" aria-label="Enter"></button><span class="lbl">Enter</span></div>
+  </section>
+  <section class="knobs" id="knobs"></section>
+  <section class="keypad" id="keypad"></section>
 
-    <section class="panel" id="pane-sound"><div class="fit">
-      <div class="card"><h2>Sampler</h2><div class="knobs" id="kSampler"></div></div>
-      <div class="card"><h2>Filter / output</h2><div class="knobs" id="kFilter"></div></div>
-      <div class="card"><h2>Input / output level</h2><div class="knobs" id="kIo"></div></div>
-    </div></section>
+  <section class="sec prog"><h2>Programming</h2>
+    <div class="row"><div class="shift"><button class="key" id="kShift" aria-label="Edit or Master functions"></button><div class="ledcol"><div><i class="led" id="ledEdit"></i>Edit</div><div><i class="led" id="ledMaster"></i>Master</div></div></div>
+      <div class="pbtns" id="pbtns"></div></div></section>
 
-    <section class="panel" id="pane-lofi"><div class="fit">
-      <div class="card"><h2>Lo-fi</h2><div class="knobs" id="kLofi"></div></div>
-    </div></section>
+  <section class="sec perf"><h2>Performance</h2>
+    <div class="row"><div class="modes"><button class="key" id="kPage" aria-label="Fader page"></button><div class="ledcol" id="pageList"></div></div>
+      <div class="faders" id="faders"></div></div></section>
 
-    <section class="panel" id="pane-master"><div class="fit">
-      <div class="card"><h2>Master out <span class="led" id="mLed"></span><span class="sp"></span><span class="meter" id="mMeter"></span></h2>
-        <canvas class="eqc" id="eqC"></canvas>
-        <div class="knobs" id="kMaster" style="margin-top:4px"></div>
-      </div>
-      <div class="card">
-        <div class="knobs" style="grid-template-columns:repeat(3, minmax(0, 1fr))">
-          <button class="btn" id="mOnBtn">Master on</button><button class="btn" id="refBtn">Reference…</button><button class="btn" id="matchBtn">Match EQ</button>
-          <button class="btn" id="clearMatchBtn">Clear match</button><button class="btn" id="flatBtn">Reset</button><button class="btn pri" id="autoBtn">Auto master</button>
-        </div>
-        <div class="row" style="margin-top:4px"><label class="field grow">Loudness target<select id="lufsTgt"><option value="-9">−9 LUFS (loud)</option><option value="-12">−12 LUFS</option><option value="-14" selected>−14 LUFS (streaming)</option><option value="-16">−16 LUFS</option><option value="-20">−20 LUFS (quiet)</option></select></label><span class="meter grow" id="refName"></span></div>
-      </div>
-    </div></section>
+  <section class="padsec">
+    <div class="bank"><button class="key" id="kBank" aria-label="Pad bank"></button><div class="ledcol" id="bankLeds"></div></div>
+    <div class="pads" id="pads"></div>
+  </section>
+  <section class="trans">
+    <div class="cell"><i class="led" id="ledLoop"></i><button class="key blk" id="kLoop" aria-label="Repeat"></button><span class="lbl">Tap/Repeat</span></div>
+    <div class="cell"><i class="led" id="ledRun"></i><button class="key blk" id="kRun" aria-label="Run or stop"></button><span class="lbl">Run/Stop</span></div>
+    <div class="cell"><i class="led" id="ledStop"></i><button class="key red" id="kStop" aria-label="Stop all"></button><span class="lbl">Stop All</span></div>
+  </section>
+  <footer class="strip ftr"><span class="maker">Omega Twelve</span></footer>
+</div></div>
 
-    <section class="panel" id="pane-file"><div class="fit">
-      <div class="card"><h2>Export</h2>
-        <div class="row"><label class="field grow">Format<select id="fmt"></select></label></div>
-        <div class="row" style="margin-top:5px">
-          <label class="field grow">Sample rate<select id="expSr"><option value="44100">44.1 kHz</option><option value="48000" selected>48 kHz</option><option value="96000">96 kHz</option><option value="32000">32 kHz</option><option value="26041">26.04 kHz (SP clock)</option></select></label>
-          <label class="field grow">Range<select id="expRange"><option value="sel">Selection</option><option value="all">Whole file</option></select></label>
-        </div>
-        <div class="row" style="margin-top:6px"><button class="btn pri grow" id="exportBtn">Export</button><button class="btn" id="shareBtn" hidden>Share…</button></div>
-        <p class="note">WAV, AIFF and FLAC are made on the device; MP3 downloads its encoder the first time; the device-codec formats record in real time.</p>
-      </div>
-      <div class="card"><h2>Presets · help</h2>
-        <div class="knobs" style="grid-template-columns:repeat(3, minmax(0, 1fr))">
-          <button class="btn" id="pList2">All 540 presets</button><button class="btn" id="pSave">Save mine</button><button class="btn" id="helpBtn">Help</button>
-        </div>
-      </div>
-    </div></section>
-
-    <section class="panel" id="pane-midi"><div class="fit">
-      <div class="card"><h2>MIDI <span class="led" id="midiLed"></span><span class="sp"></span><span class="meter" id="midiClock"></span></h2>
-        <div class="knobs" style="grid-template-columns:repeat(2, minmax(0, 1fr))">
-          <label class="field" style="grid-column:auto">Input<select id="midiIn"><option>All inputs</option></select></label>
-          <label class="field" style="grid-column:auto">Channel<select id="midiCh"></select></label>
-          <label class="field" style="grid-column:auto">Notes<select id="midiMode"><option value="chromatic">Chromatic (C3 = original)</option><option value="pads">16 pads from note 36</option></select></label>
-          <label class="field" style="grid-column:auto">Output<select id="midiOutSel"><option value="">None</option></select></label>
-        </div>
-        <div class="knobs" style="grid-template-columns:repeat(3, minmax(0, 1fr)); margin-top:4px">
-          <button class="btn" id="midiLearnBtn">MIDI learn</button><button class="btn" id="midiResetBtn">Default map</button><button class="btn" id="midiClockWarp">Warp to clock</button>
-        </div>
-        <label class="field" style="flex-direction:row;align-items:center;gap:5px;margin-top:5px"><input type="checkbox" id="midiFollow"> Follow MIDI clock start / stop</label>
-        <p class="note clip">Map: <span id="midiMap"></span></p>
-        <p class="note clip">Last: <span id="midiLast">—</span> <span id="midiState"></span></p>
-      </div>
-      <div class="card" id="tvCard"><h2>TV screen <span class="sp"></span><span class="meter" id="tvState"></span></h2>
-        <div class="knobs" style="grid-template-columns:repeat(3, minmax(0, 1fr))">
-          <button class="btn pri" id="castBtn">Cast to TV</button><button class="btn" id="tvWinBtn">TV window</button><button class="btn" id="tvStopBtn">Stop</button>
-        </div>
-        <p class="note clip" id="castState"></p>
-        <p class="note">Shows the display, waveform, every setting and the knob you're turning, live, while you work here. Whole-app mirroring: your phone's Smart View / Cast screen.</p>
-      </div>
-    </div></section>
-  </div>
-</div>
+<input type="file" id="fileIn" hidden accept="audio/*,video/*,.wav,.wave,.aif,.aiff,.aifc,.flac,.mp3,.ogg,.oga,.opus,.m4a,.aac,.mp4,.webm,.caf,.weba">
+<input type="file" id="refIn" hidden accept="audio/*,video/*,.wav,.aif,.aiff,.aifc,.flac,.mp3,.ogg,.opus,.m4a,.aac,.mp4,.webm">
 
 <dialog id="presetDlg"><div class="dlg">
-  <h3>Presets <span class="meter" id="pCount"></span></h3>
-  <input type="search" id="pSearch" placeholder="Search 540 presets">
+  <h3>Presets <span id="pCount"></span></h3>
+  <div class="row"><input type="search" id="pSearch" class="grow" placeholder="Search presets"></div>
   <div class="chips" id="pFams"></div>
   <div class="plist" id="pList"></div>
-  <div class="row" style="margin-top:0"><span class="grow"></span><button class="btn" id="pClose">Close</button></div>
+  <div class="row"><button class="dbtn" id="pPrevPg">◀</button><span class="grow" id="pPage" style="text-align:center;color:#aaa"></span><button class="dbtn" id="pNextPg">▶</button><button class="dbtn" id="pClose">Close</button></div>
 </div></dialog>
 
 <dialog id="helpDlg"><div class="dlg help">
   <h3>Omega Twelve</h3>
-  <div style="overflow:auto">
-  <p>Import any sample or song, pick part of it, and run it through a model of a vintage sampler. Turn knobs by dragging up and down; double-tap a knob to reset it.</p>
-  <ul>
-    <li><b>Sampler</b>: SP-1200 (26.04 kHz, 12-bit, drop-sample pitch with E-mu's semitone table), SP-12, MPC60, S950, S612, Mirage, Clean. Picking one sets bits, rate and filter to that machine; change them after if you like. <b>Alias</b> lets more of the unfiltered input through the converter. <b>Drive</b> pushes the converter harder.</li>
-    <li><b>Filter</b>: SSM2044 is the SP-1200's outputs 1-2 (opens on each hit, then closes), fixed 3-6 are its other outputs, None is outputs 7-8. <b>Retrigger</b> reopens the SSM2044 on each hit inside a loop.</li>
-    <li><b>Tuning</b>: Tune in semitones (the hardware's own range is −16 to +15; past that is extended), Fine in cents, A4 sets the reference pitch (432, 415 for baroque, and so on).</li>
-    <li><b>Warp</b>: Detect finds tempo and key. Stretch keeps the pitch; Speed changes pitch with tempo like the original machine.</li>
-    <li><b>Truncate</b> keeps only the selection. <b>Resample</b> bounces what you hear back in as the new sample and resets the effects so nothing is applied twice.</li>
-    <li><b>Master out</b>: EQ match to a reference track (or a typical mix), a 5-band parametric EQ, compressor, gain and a look-ahead limiter. <b>Auto master</b> sets all of it for the loudness target.</li>
-    <li><b>The SP engine</b>: the SP-1200 and SP-12 run their actual circuits (anti-alias filter, output filters 3-6, the SSM2044 and the capacitor network that sweeps it after each hit), simulated from the service-manual parts, and the hardware's 8-channel DAC timing and 7-bit pitch counter. <b>Calibration</b>: Measured SP-12 matches a real machine's part tolerances; Service manual uses the parts as drawn. <b>45 rpm trick</b>: sample sped up, played back down, so only the grit changes.</li>
-    <li><b>MIDI</b>: notes, velocity, pitch bend, program change, MIDI learn for every control, clock start / stop. <b>TV</b>: Cast the live screen to a TV, or open a TV window.</li>
-    <li><b>18 samplers and 16 filters</b>: SP-1200, SP-12, MPC60, MPC3000, S612, S950, S1000, RZ-1, SK-1, Emax, EPS, EPS 16+, Mirage, DSS-1, S-550, SU700, TX16W and Clean, each held to its own sample-rate range; any filter on any sampler. <b>Alias</b> (semitones) is the 45 rpm trick on any machine; <b>Preamp</b> adds second harmonic and soft clipping when the input is pushed; <b>Filter on</b> off hears the raw converter; <b>Link</b> turns the output down as the input goes up.</li>
-    <li><b>Stretch mode</b>: Smooth keeps the sound clean; Cyclic Classic stretches it S950 / S1000 style; Cyclic Warp keeps the length and pitches the cycles up, for the metallic sound. Grain goes down to half a millisecond.</li>
-    <li><b>STOP ALL</b> stops every sound right away.</li>
-  </ul>
-  <p>SP-1200 converter and filter data from libmd12 (MIT). SP-1200, SP-12, MPC60, S950, S612 and Mirage are trademarks of their owners, named only to describe the sound; not affiliated.</p>
+  <div class="cols">
+  <p><b>Pads</b> play the sample at the pitch set for each pad: Bank A is 0 to +7 semitones, B −8 to −1, C +8 to +15, D −16 to −9. Set any pad's pitch on the <b>Multi Mode</b> fader page.</p>
+  <p><b>Faders</b> control the page lit beside them. <b>Performance</b> steps through the pages; tap a page name to go straight to it. Double-tap a fader to reset it.</p>
+  <p><b>Display</b>: tap the waveform to put the cursor there, drag to move it. Drag the <b>IN</b> and <b>OUT</b> flags, or press <b>Set In</b> / <b>Set Out</b> to put them at the cursor. Nothing is selected for you.</p>
+  <p><b>Set-up, Disk, Sync, Sample, Tempo</b> open their menus on the display: tap an item or press its number. Choices change with ◀ ▶; numbers are typed on the keypad and confirmed with <b>Yes</b>.</p>
+  <p>With no menu open, ◀ ▶ change preset, the keypad types a preset number (Yes loads it) and <b>Enter</b> opens the preset list.</p>
+  <p><b>Programming</b>: the keys do the Edit functions, or the Master functions when the Master light is on.</p>
+  <p><b>Run/Stop</b> plays the selection (from the cursor if it's inside), <b>Tap/Repeat</b> loops it, <b>Stop All</b> stops everything.</p>
+  <p>Everything is played live: turn anything and you hear it at once. The SP-1200 and SP-12 run their circuits (anti-alias filter, outputs 1-8, the SSM2044 and its envelope) from the service-manual parts.</p>
+  <p>SP-1200, SP-12, MPC and the other machine names are trademarks of their owners, named only to describe the sound. Not affiliated.</p>
   </div>
-  <div class="row" style="margin-top:0"><span class="grow"></span><button class="btn" id="helpClose">Close</button></div>
+  <div class="row"><span class="grow"></span><button class="dbtn" id="helpClose">Close</button></div>
 </div></dialog>
 
 <div class="toast" id="toast"></div>
-<div class="busy" id="busy">RENDERING…</div>
 <script src="sp1200.js"></script>
 <script src="engine.js"></script>
 <script src="codecs.js"></script>

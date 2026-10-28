@@ -48,7 +48,17 @@ inline double val(const std::string& s) {
 class Circuit {
 public:
     Circuit() = default;
-    Circuit(const std::string& text, double fs, double capScale = 1) { compile(text, fs, capScale); }
+    Circuit(const std::string& text, double fs, double capScale = 1) {
+        // compiled circuits are kept: voices start often and the matrices only depend on these three
+        struct Entry { std::string text; double fs, cap; int n; std::vector<double> A, B, C; double D; };
+        static std::mutex mu; static std::vector<Entry> cache;
+        {
+            std::lock_guard<std::mutex> l(mu);
+            for (auto& e : cache) if (e.fs == fs && e.cap == capScale && e.text == text) { n = e.n; A = e.A; B = e.B; C = e.C; D = e.D; s.assign((size_t) n, 0.0); t = s; return; }
+        }
+        compile(text, fs, capScale);
+        std::lock_guard<std::mutex> l(mu); cache.push_back({text, fs, capScale, n, A, B, C, D}); if (cache.size() > 64) cache.erase(cache.begin());
+    }
     double process(double u) {
         double y = D * u;
         for (int k = 0; k < n; ++k) y += C[(size_t) k] * s[(size_t) k];
@@ -158,6 +168,8 @@ public:
         return v[3];
     }
     void reset() { v = {0, 0, 0, 0}; }
+    void setRes(double r) { k = r; }
+    double res() const { return k; }
 private:
     double h, k; std::array<double, 4> v {0, 0, 0, 0}; std::array<double, 4> ratio {1, 1, 1, .01e-6 / 820e-12};
 };
@@ -185,53 +197,67 @@ inline const Calib& calib(bool measured) {
 }
 
 /* ---------------- the machine ---------------- */
+// Both halves stream, as in sp1200.js: the sampler makes codes as playback reaches them and the voice plays them one
+// output sample at a time, so settings can change while a sound plays. Run start to end with fixed settings they give
+// exactly what a whole-buffer render would.
 struct SampleOpts { double clock = CLOCK, level = 1, bits = 12, adcOffset = .5; bool measured = false; double preGain = 1; bool preOn = false; };
-inline std::vector<uint16_t> sampleCodes(const std::vector<float>& src, double sr, const SampleOpts& o) {
-    const double fo = sr * OS, foA = std::max(fo, CLOCK * 4);
-    Circuit aa(net("aa"), foA, calib(o.measured).aaCap);
-    const double aaDc = aa.dc(), gain = o.level / aaDc;
-    const size_t n = src.size(); const double dur = n / sr;
-    const size_t frames = std::min<size_t>(1u << 20, (size_t) std::floor(dur * o.clock));
-    std::vector<uint16_t> codes(frames + 10, 0x800);
-    const int drop = 12 - std::max(1, std::min(12, (int) o.bits));
-    double prev = 0, tNext = 0; size_t k = 0;
-    const long steps = (long) std::ceil(dur * foA);
-    auto at = [&](long i) { return i >= 0 && i < (long) n ? (double) src[(size_t) i] : 0.0; };
-    for (long i = 0; i < steps && k < frames; ++i) {
+// the anti-alias circuit's gain at DC, by rate and calibration
+inline double aaDcOf(double foA, double cap) {
+    static std::mutex mu; static std::vector<std::array<double, 3>> cache;
+    { std::lock_guard<std::mutex> l(mu); for (auto& e : cache) if (e[0] == foA && e[1] == cap) return e[2]; }
+    const double d = Circuit(net("aa"), foA, cap).dc();
+    std::lock_guard<std::mutex> l(mu); cache.push_back({foA, cap, d}); return d;
+}
+// the input preamp (twelve::preamp, repeated here to keep this header standalone)
+inline double preampSP(double x) { const double a = std::fabs(x), k = x >= 0 ? .9 : .85; if (a <= k) return x; const double h = 1 - k; return (x < 0 ? -1 : 1) * (k + h * std::tanh((a - k) / h)); }
+
+// sample a recording the way the machine does: anti-alias circuit, sample-and-hold, 12-bit codes, after the input gain
+// and preamp. The codes start with five silent ones. from: start at this frame; ring: keep only the last 8192 codes.
+class SPSampler {
+public:
+    SPSampler(const float* src, size_t n, double sr, const SampleOpts& o, long from = 0, bool ring = false) : src(src), n(n), sr(sr) {
+        const double fo = sr * OS, cap = calib(o.measured).aaCap; foA = std::max(fo, CLOCK * 4);
+        aa = Circuit(net("aa"), foA, cap); clock = o.clock; gain = o.level / aaDcOf(foA, cap);
+        const double dur = n / sr;
+        frames = (long) std::min<double>(1 << 20, std::floor(dur * clock)); steps = (long) std::ceil(dur * foA);
+        mask = ring ? 8191 : ~(size_t) 0; codes.assign(ring ? 8192 : (size_t) frames + 10, 0x800);
+        off = o.adcOffset; setBits(o.bits); setShape(o.preGain, o.preOn);
+        k0 = k = std::min(frames, from); tNext = k / clock; i = k ? (long) std::floor(tNext * foA) : 0;
+    }
+    // a finished code array (five silent codes, the sound, five spare)
+    explicit SPSampler(std::vector<uint16_t> c) : codes(std::move(c)) { k = frames = (long) codes.size() - 10; steps = 0; fixed = true; }
+    void setBits(double bits) { drop = 12 - std::max(1, std::min(12, (int) bits)); }
+    void setShape(double g, bool on) { preGain = g; preOn = on; }
+    bool done() const { return fixed || k >= frames || i >= steps; }
+    double val(long idx) {
+        const long f = idx - 5;
+        if (f < k0) return 0;
+        while (k <= f && !done()) step();
+        return f < k ? (codes[(size_t) idx & mask] - 2048) / 2048.0 : 0.0;
+    }
+    std::vector<uint16_t> all() { while (!done()) step(); return std::vector<uint16_t>(codes.begin(), codes.begin() + 5 + k + 5); }
+    long k = 0, k0 = 0, frames = 0;
+private:
+    double sv(long j) const { if (j >= (long) n) return 0; const double x = src[(size_t) j] * preGain; return (float) (preOn ? preampSP(x) : x); }
+    void step() {
         const double t = i / foA, x = t * sr; const long j = (long) std::floor(x); const double f = x - j;
-        const double y = aa.process((at(j) * (1 - f) + at(j + 1) * f) * gain);
+        const double y = aa.process((sv(j) * (1 - f) + sv(j + 1) * f) * gain);
         while (k < frames && tNext <= t) {
             const double a = 1 - (t - tNext) * foA, held = prev + (y - prev) * std::max(0.0, std::min(1.0, a));
-            int c = (int) std::floor(held * 2048 + 2048 + o.adcOffset - .5);
+            int c = (int) std::floor(held * 2048 + 2048 + off - .5);
             c = std::max(0, std::min(4095, c));
             if (drop) c = (c >> drop) << drop;
-            codes[5 + k] = (uint16_t) c; k++; tNext = k / o.clock;
+            codes[(size_t) (5 + k) & mask] = (uint16_t) c; k++; tNext = k / clock;
         }
-        prev = y;
+        prev = y; i++;
     }
-    codes.resize(5 + k + 5);
-    return codes;
-}
-// the last few samplings, keyed by the source buffer and the settings that matter
+    const float* src = nullptr; size_t n = 0; double sr = 1, foA = 1, clock = CLOCK, gain = 1, off = .5, preGain = 1, prev = 0, tNext = 0;
+    bool preOn = false, fixed = false; int drop = 0; long i = 0, steps = 0; size_t mask = ~(size_t) 0;
+    Circuit aa; std::vector<uint16_t> codes;
+};
+inline std::vector<uint16_t> sampleCodes(const std::vector<float>& src, double sr, const SampleOpts& o) { return SPSampler(src.data(), src.size(), sr, o).all(); }
 inline std::vector<uint16_t> codesFor(const std::vector<float>& src, double sr, const SampleOpts& o, double rpm) {
-    struct Entry { const float* data; size_t len; double key[9]; std::shared_ptr<std::vector<uint16_t>> codes; };
-    static std::mutex mu; static std::vector<Entry> cache;
-    const double key[9] = { sr, o.clock, o.level, o.bits, rpm, o.adcOffset, o.measured ? 1.0 : 0.0, o.preGain, o.preOn ? 1.0 : 0.0 };
-    {
-        std::lock_guard<std::mutex> l(mu);
-        for (auto& e : cache) if (e.data == src.data() && e.len == src.size() && std::memcmp(e.key, key, sizeof key) == 0) return *e.codes;
-    }
-    // the input gain and preamp (twelve::preamp, repeated here to keep this header standalone)
-    std::vector<float> in(src.size());
-    for (size_t i = 0; i < src.size(); ++i) {
-        const double x = src[i] * o.preGain, a = std::fabs(x), k = x >= 0 ? .9 : .85, h = 1 - k;
-        in[i] = (float) (o.preOn && a > k ? (x < 0 ? -1 : 1) * (k + h * std::tanh((a - k) / h)) : x);
-    }
-    auto c = std::make_shared<std::vector<uint16_t>>(sampleCodes(in, rpm != 0 ? sr * std::pow(2.0, rpm / 12) : sr, o));
-    std::lock_guard<std::mutex> l(mu);
-    cache.insert(cache.begin(), Entry{ src.data(), src.size(), { key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8] }, c });
-    if (cache.size() > 4) cache.pop_back();
-    return *c;
+    return sampleCodes(src, rpm != 0 ? sr * std::pow(2.0, rpm / 12) : sr, o);
 }
 inline int spStep(double cents, bool sp12) {
     const double st = cents / 100;
@@ -239,51 +265,89 @@ inline int spStep(double cents, bool sp12) {
     return (int) std::max(1.0, std::min(1024.0, std::round(128 * std::pow(2.0, cents / 1200))));
 }
 struct PlayOpts { double clock = CLOCK, cents = 0, rest = 0, res = -1, depth = 1, trigger = .0094, velocity = 1, decay = 1; bool sp12 = false, retrigger = false, measured = true; int output = 7, channel = 0; };
-inline std::vector<long> onsetsOf(const std::vector<double>& y, double fo) {
-    std::vector<long> out; double fe = 0, ss = 0; long last = -1000000000L;
-    for (size_t i = 0; i < y.size(); ++i) {
-        const double a = std::fabs(y[i]); fe = a > fe ? a : fe * (1 - 30 / fo); ss += (a - ss) * (2 / fo);
-        if (fe > .05 && fe > ss * 4 && (long) i - last > .08 * fo) { if (i) out.push_back((long) i); last = (long) i; }
+
+// one channel playing: the 7-bit pitch counter reading codes, the 8-bit level DAC, the shared DAC's staircase in this
+// channel's time slot (box-filtered into the 4x grid), the output circuit, back down to fs. Output comes LAT samples
+// after its input (the decimation filter is centred).
+static const int LAT = (int) std::ceil(((127 - 1) / 2.0 - (OS - 1)) / OS);
+class SPVoice {
+public:
+    explicit SPVoice(double fs = 48000) : fo(fs * OS) { ring.fill(0); }
+    void setup(const PlayOpts& o) {
+        const Calib& cal = calib(o.measured); const int out = o.output; const double clk = o.clock;
+        step = spStep(o.cents, o.sp12);
+        if (clock > 0 && clk != clock) { tBase = tk - slot; kBase = k; }
+        clock = clk; slot = o.channel * SLOT;
+        level = std::max(0.0, std::min(255.0, std::round(o.velocity * 255))) / 255;
+        decayTicks = o.decay >= 1 ? 0 : std::max(1, (int) std::lround(o.decay * 400));
+        if (out != outN || &cal != cal_) {
+            outN = out; cal_ = &cal;
+            hasCirc = out >= 3 && out <= 6; if (hasCirc) circ = Circuit(net("out" + std::to_string(out)), fo, cal.fixedCap[out - 3]);
+            if (out <= 2) { env = Envelope(fo, cal.dynCap); ssm = SSM2044(fo, cal.res); io = Circuit(net("dynout"), fo); hasEnv = true; }
+        }
+        if (hasEnv) ssm.setRes(o.res < 0 ? cal.res : o.res);
+        rest = o.rest > 0 ? o.rest : cal.rest; trig = std::lround(o.trigger * fo); depth = o.depth;
+        retrigger = o.retrigger; ioNorm = -3.3e3 / 15e3 * cal.gain12;
     }
-    return out;
-}
-inline std::vector<float> playChannel(const std::vector<uint16_t>& codes, const PlayOpts& o, double fs) {
-    const double fo = fs * OS; const int step = spStep(o.cents, o.sp12);
-    const long last = (long) codes.size() - 5, frames = (long) std::floor((double) (last - 5) * 128 / step) + 5;
-    const size_t len = (size_t) std::ceil((frames / o.clock + .02) * fo);
-    std::vector<double> y(len);
-    const double level = std::max(0.0, std::min(255.0, std::round(o.velocity * 255))) / 255;
-    const double tick = 1.2288e-3; const int decayTicks = o.decay >= 1 ? 0 : std::max(1, (int) std::lround(o.decay * 400));
-    const Calib& cal = calib(o.measured); const double slot = o.channel * SLOT;
-    double held = 0, tk = slot, lvl = level, nextTick = tick; long k = 0, ticks = 0;
-    auto val = [&](long idx) { return idx < last ? (codes[(size_t) idx] - 2048) / 2048.0 : 0.0; };
-    for (size_t i = 0; i < len; ++i) {
-        const double t0 = i / fo, t1 = (i + 1) / fo; double acc = 0, tp = t0;
+    // start playing src from frame `from`; cut: stop the 4x signal where a whole-buffer render does (offline)
+    void start(SPSampler* s, long from, bool cut) {
+        src = s; pos128 = (long long) from * 128; k = 0; tBase = 0; kBase = 0; tk = slot; held = 0;
+        lvl = level; nextTick = 1.2288e-3; ticks = 0; i = 0; J = 0; ring.fill(0);
+        tEnd = trig; fe = 0; ss = 0; lastOn = -1000000000L;
+        if (hasEnv) { const double r = ssm.res(); env = Envelope(fo, cal_->dynCap); ssm = SSM2044(fo, r); io = Circuit(net("dynout"), fo); }
+        if (hasCirc) circ.reset();
+        len = -1;
+        if (cut) { const long last = src->k + 5, frames = (long) std::floor((double) (last - 5) * 128 / step) + 5; len = (long) std::ceil((frames / clock + .02) * fo); n = (long) std::ceil(len / (double) OS); }
+    }
+    bool ended() const { return src->done() && 5 + (long) (pos128 / 128) >= src->k + 5 && held == 0; }
+    double pos() const { return std::min(1.0, (double) (pos128 / 128) / std::max(1L, src->frames)); }
+    // the next output sample at fs
+    double next() {
+        for (int p = 0; p < OS; ++p) sub();
+        const long o = J++ - LAT, c = o * OS - 63; double s = 0;
+        if (o < 0) return 0;
+        for (int q = 0; q < 127; ++q) { const long j = c + q; s += decimFir()[(size_t) q] * (j >= 0 ? ring[(size_t) (j & 127)] : 0.0); }
+        return s;
+    }
+    void retarget(SPSampler* s, long frame) { src = s; pos128 = (long long) frame * 128; }
+    long n = 0; long long pos128 = 0;
+private:
+    void sub() {
+        const double t1 = (i + 1) / fo; double acc = 0, tp = i / fo;
         while (tk < t1) {
             acc += held * (tk - tp); tp = tk;
-            if (decayTicks) while (nextTick <= tk) { nextTick += tick; if (++ticks % decayTicks == 0) lvl = std::max(0.0, lvl - 1 / 255.0); }
-            held = k < frames ? val(5 + ((k * step) >> 7)) * lvl : 0;
-            k++; tk = slot + k / o.clock;
+            if (decayTicks) while (nextTick <= tk) { nextTick += 1.2288e-3; if (++ticks % decayTicks == 0) lvl = std::max(0.0, lvl - 1 / 255.0); }
+            held = src->val(5 + (long) (pos128 / 128)) * lvl;
+            pos128 += step; k++; tk = slot + (tBase + (k - kBase) / clock);
         }
-        acc += held * (t1 - tp); y[i] = acc * fo;
-    }
-    const int out = o.output;
-    if (out >= 3 && out <= 6) { Circuit c(net("out" + std::to_string(out)), fo, cal.fixedCap[out - 3]); for (auto& v : y) v = c.process(v); }
-    else if (out <= 2) {
-        Envelope env(fo, cal.dynCap); SSM2044 ssm(fo, o.res < 0 ? cal.res : o.res); Circuit io(net("dynout"), fo);
-        const double rest = o.rest > 0 ? o.rest : cal.rest; const long trig = std::lround(o.trigger * fo);
-        const double pin1 = 5 * 200 / (33e3 + 200), ioNorm = -3.3e3 / 15e3 * cal.gain12;
-        const auto onsets = o.retrigger ? onsetsOf(y, fo) : std::vector<long>();
-        size_t next = 0; long tEnd = trig;
-        for (size_t i = 0; i < len; ++i) {
-            if (next < onsets.size() && onsets[next] == (long) i) { tEnd = (long) i + trig; next++; }
-            env.gain = (long) i < tEnd ? 0 : 5; env.step();
-            const double fc = std::min(rest * std::pow(2.0, o.depth * env.octaves()), fo * .45);
-            const double s = ssm.process(y[i] * pin1, fc) / pin1;
-            y[i] = io.process(s * ioNorm);
+        acc += held * (t1 - tp);
+        double y = acc * fo;
+        if (len >= 0 && i >= len) y = 0;
+        else if (hasCirc) y = circ.process(y);
+        else if (outN <= 2) {
+            if (retrigger) {
+                const double a = std::fabs(y); fe = a > fe ? a : fe * (1 - 30 / fo); ss += (a - ss) * (2 / fo);
+                if (fe > .05 && fe > ss * 4 && i - lastOn > .08 * fo) { if (i) tEnd = i + trig; lastOn = i; }
+            }
+            // full-scale hold output taken as 5 V; R114 33k / R117 200 divide it into pin 1
+            env.gain = i < tEnd ? 0 : 5; env.step();
+            const double fc = std::min(rest * std::pow(2.0, depth * env.octaves()), fo * .45), pin1 = 5 * 200 / (33e3 + 200);
+            y = io.process(ssm.process(y * pin1, fc) / pin1 * ioNorm);
         }
+        ring[(size_t) (i & 127)] = y; i++;
     }
-    return decimate(y, (size_t) std::ceil(len / (double) OS));
+    double fo, clock = 0, slot = 0, level = 1, lvl = 1, nextTick = 0, held = 0, tk = 0, tBase = 0, rest = 1000, depth = 1, ioNorm = 0, fe = 0, ss = 0;
+    long k = 0, kBase = 0, ticks = 0, i = 0, J = 0, tEnd = 0, trig = 0, lastOn = 0, len = -1; int step = 128, decayTicks = 0, outN = -1;
+    bool retrigger = false, hasCirc = false, hasEnv = false; const Calib* cal_ = nullptr;
+    SPSampler* src = nullptr; Circuit circ, io; Envelope env; SSM2044 ssm; std::array<double, 128> ring;
+};
+// play codes on one channel and run its output: returns the sound at fs
+inline std::vector<float> playChannel(const std::vector<uint16_t>& codes, const PlayOpts& o, double fs) {
+    SPSampler s(codes); SPVoice v(fs); v.setup(o); v.start(&s, 0, true);
+    std::vector<float> out((size_t) v.n);
+    for (int i = 0; i < LAT; ++i) v.next();
+    for (auto& x : out) x = (float) v.next();
+    return out;
 }
 
 /* ---------------- live input through the same path ---------------- */

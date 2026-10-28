@@ -51,7 +51,7 @@ const FILTER_RANGE = [[250, 14000], [20, 20000], [20, 20000], [20, 20000], [20, 
 // id, name, min, max, default, step, unit, group; choices for menus; log for frequency-like knobs
 const P = (id, name, min, max, def, step, unit, group, extra) => Object.assign({id, name, min, max, def, step, unit, group}, extra || {});
 const PARAMS = [
-  P('machine', 'Sampler', 0, 6, 0, 1, '', 'sampler', {choices:MACHINES.map(m => m.name)}),
+  P('machine', 'Sampler', 0, 17, 0, 1, '', 'sampler', {choices:MACHINES.map(m => m.name)}),
   P('bits', 'Bits', 2, 16, 12, 1, 'bit', 'sampler'),
   P('rate', 'Rate', 4000, 52100, SP_SR, 0, 'Hz', 'sampler', {log:1}),
   P('alias', 'Unfiltered', 0, 1, 0, 0, '%', 'sampler'),
@@ -70,6 +70,7 @@ const PARAMS = [
   P('semis', 'Tune', -24, 24, 0, 1, 'st', 'tune'),
   P('cents', 'Fine', -100, 100, 0, 1, 'ct', 'tune'),
   P('a4', 'A4 ref', 415, 466, 440, .1, 'Hz', 'tune'),
+  P('decay', 'Decay', 0, 31, 31, 1, '', 'tune'),
   P('stretch', 'Stretch', .25, 5, 1, 0, 'x', 'time', {log:1}),
   P('grain', 'Grain', .5, 200, 60, 0, 'ms', 'time', {log:1}),
   P('smode', 'Stretch mode', 0, 2, 0, 1, '', 'time', {choices:['Smooth', 'Cyclic Classic', 'Cyclic Warp']}),
@@ -257,11 +258,12 @@ function playDry(src, sr, fs, cents, n){
 }
 
 /* ---------------- output filters ---------------- */
+function keepState(from, to){ if (from && from !== to) for (let k = 0; k < Math.min(from.length, to.length); k++){ to[k].z1 = from[k].z1; to[k].z2 = from[k].z2; } }
 function onePoleLp(fs, f){ const K = Math.tan(Math.PI * clamp(f, 1, fs * .49) / fs); return bq(K / (1 + K), K / (1 + K), 0, (K - 1) / (K + 1), 0); }
 class OutFilter {
   constructor(fs){ this.fs = fs; this.type = -1; this.age = 1e9; this.lad = [0, 0, 0, 0]; this.secs = []; this.fe = 0; this.fs2 = 0; this.ss = 0; this.last = 0; this.cut = 0; this.resv = 0; }
   setup(p){
-    const t = p.ftype | 0, fs = this.fs;
+    const t = p.ftype | 0, fs = this.fs, old = this.secs;
     if (t !== this.type || p.cutoff !== this.cut){
       this.type = t; this.cut = p.cutoff;
       if (t >= 1 && t <= 4) this.secs = sDesign(PROTO[t + 2], fs);
@@ -272,6 +274,7 @@ class OutFilter {
     if (t === 8 || t === 14) this.secs = [rbj('lp', fs, p.cutoff, .7071 + p.res * 9)];
     else if (t === 9) this.secs = [onePoleLp(fs, p.cutoff), rbj('lp', fs, p.cutoff, 1 + p.res * 8)];
     else if (t === 11 || t === 15) this.secs = [rbj('lp', fs, p.cutoff, .5412), rbj('lp', fs, p.cutoff, 1.3066 + p.res * (t === 15 ? 10 : 7))];
+    keepState(old, this.secs);   // settings changing while it plays: the filter carries on from where it was
     this.drive = t === 10 ? 1 : t === 12 ? .9 : t === 13 ? 1.25 : .7;
     this.resv = p.res; this.env = p.fenv; this.retrig = p.retrig > .5;
     this.tau = Math.exp(-1 / (.075 * fs)); this.trigLen = .0094 * fs;
@@ -323,13 +326,14 @@ class Lofi {
     this.sat = [0, 0]; this.t = 0;
   }
   setup(p){
-    const fs = this.fs;
+    const fs = this.fs, old = this.ageHp ? [this.ageHp, this.ageLp, this.tapeLp, this.bump, this.hissF] : null;
     this.p = p;
     this.ageHp = [0, 1].map(() => rbj('hp', fs, 20 + p.age * 140, .707));
     this.ageLp = [0, 1].map(() => rbj('lp', fs, 19000 - p.age * 13500, .707));
     this.tapeLp = [0, 1].map(() => rbj('lp', fs, 20000 - p.tape * 9000, .6));
     this.bump = [0, 1].map(() => rbj('peak', fs, 90, 1, p.tape * 3));
     this.hissF = [0, 1].map(() => rbj('hp', fs, 1800, .5));
+    if (old) [this.ageHp, this.ageLp, this.tapeLp, this.bump, this.hissF].forEach((f, i) => keepState(old[i], f));
     this.on = p.crackle + p.hiss + p.wow + p.flutter + p.tape + p.age + p.hum > 0;
   }
   noise(){ return this.r() * 2 - 1; }
@@ -483,6 +487,209 @@ function cyclicStretch(chs, factor, sr, grainMs){
   });
 }
 
+/* ---------------- streaming playback: one channel of a sound, every setting live ---------------- */
+// Decay, 0-31 like the hardware's slider (31: none): the 8-bit level steps down once every so many 1.2288 ms ticks,
+// fading a sound out in 50 ms at 0 up to about 9 s at 30. Returns the SP engine's decay setting (ticks / 400).
+const DECAY_TICK = 1.2288e-3;
+function decayOpt(d){ return d >= 31 ? 1 : .05 * Math.pow(2, d / 4) / (255 * DECAY_TICK) / 400; }
+const SPE = () => typeof TWSP !== 'undefined' ? TWSP : (typeof require === 'function' ? require('./sp1200.js') : null);
+const f32 = Math.fround;
+// the input gain, drive and preamp in front of a converter, one sample at a time (as `preamped` does to a buffer)
+function shaper(p){ const g = driveGain(p), on = p.pre > .5; return x => f32(on ? preamp(x * g) : x * g); }
+
+// the stored sample of the machines without a circuit model (see sampleBase), made as playback reaches it.
+// ring: keep only the last 4096 values (live); from: start at this stored sample
+class BaseSampler {
+  constructor(src, sr, p, shape, from, ring){
+    this.src = src; this.sr = sr; this.rate = p.rate; this.alias = p.alias; this.bits = p.bits; this.shape = shape || null;
+    this.aa = inputFilter(p.rate, sr); this.n = Math.max(1, Math.floor(src.length * p.rate / sr)); this.step = sr / p.rate;
+    this.M = ring ? 4095 : -1;
+    this.m = new Float32Array(ring ? 4096 : src.length); this.base = new Float32Array(ring ? 4096 : this.n);
+    this.k0 = this.bk = Math.min(this.n, from || 0); this.m0 = this.mi = Math.max(0, Math.floor(this.bk * this.step) - 8);
+  }
+  mAt(i){
+    const src = this.src;
+    if (i >= src.length || i < this.m0) return 0;
+    while (this.mi <= i){ const s = src[this.mi], x = this.shape ? this.shape(s) : s * 1, f = chainRun(this.aa, x); this.m[this.mi & this.M] = f + (x - f) * this.alias; this.mi++; }
+    return this.m[i & this.M];
+  }
+  at(k){
+    if (k < this.k0 || k >= this.n) return 0;
+    while (this.bk <= k){ const x = this.bk * this.step, i = Math.floor(x), f = x - i; this.base[this.bk & this.M] = quantize(this.mAt(i) * (1 - f) + this.mAt(i + 1) * f, this.bits); this.bk++; }
+    return this.base[k & this.M];
+  }
+}
+
+// one channel of a sound through the whole sampler: converter, pitch, output filter, drive make-up, dry mix.
+// d: {src (one channel of the source, after timestretch), sr}; p: effective settings; o: {semis, from (0-1), cut}.
+// cut: stop where a whole-buffer render does (offline); n is then the length.
+class ChanVoice {
+  constructor(fs){ this.fs = fs; }
+  start(d, p, o){
+    o = o || {}; this.d = d; this.semis = o.semis || 0; this.cut = !!o.cut;
+    this.build(p, o.from || 0, true);
+  }
+  // (re)build the converter for these settings, from a point in the sound (0-1)
+  build(p, from, fresh){
+    const fs = this.fs, d = this.d, mach = MACHINES[p.machine | 0] || MACHINES[0], E = SPE(), ring = !this.cut;
+    this.sp = mach.pitch === 0 && !!E; this.mode = mach.pitch;
+    this.srIn = p.rpm ? d.sr * Math.pow(2, p.rpm / 12) : d.sr;
+    this.key = [p.machine | 0, p.rate, p.rpm, p.calib > .5].join('|');
+    const shape = shaper(p), cents = totalCents(p, this.semis);
+    if (this.sp){
+      const smp = new E.SPSampler(d.src, this.srIn, {clock:p.rate, level:1, bits:p.bits, calib:p.calib > .5 ? 'measured' : 'manual'}, shape, Math.floor(from * Math.floor(d.src.length / this.srIn * p.rate)), ring);
+      if (this.cut) smp.all();   // offline: the length comes from the whole sample
+      const nv = !this.v; if (nv) this.v = new E.SPVoice(fs);
+      this.v.setup(this.spOpts(p, cents));
+      if (fresh || nv){ this.v.start(smp, smp.k0, this.cut); for (let i = 0; i < E.LAT; i++) this.v.next(); }
+      else { this.v.src = smp; this.v.acc = smp.k0 * 128; }
+      if (this.cut) this.n = this.v.n;
+      this.smp = smp;
+    } else {
+      this.v = null;
+      const b = new BaseSampler(d.src, this.srIn, p, shape, Math.floor(from * Math.max(1, Math.floor(d.src.length * p.rate / this.srIn))), ring);
+      this.smp = b; this.pos = b.k0; this.kp = 0;
+      if (fresh || this.dc == null){ this.dc = 0; this.of = null; }
+      this.setPitch(p, cents);
+      if (this.cut){
+        if (this.mode === 0){ const fr = Math.floor(b.n * 128 / this.inc); this.n = Math.max(1, Math.ceil(fr * fs / p.rate)); }
+        else this.n = Math.max(1, Math.ceil(b.n / this.step));
+      }
+    }
+    if (fresh){ this.dpos = from * d.src.length; this.i = 0; this.lvl = 1; this.dt = 0; this.ticks = 0; }
+    this.setup(p, true);
+  }
+  spOpts(p, cents){
+    const ft = p.ftype | 0;
+    return {clock:p.rate, sp12:(p.machine | 0) === 1, cents:cents - p.rpm * 100, output:ft === 0 ? 1 : ft <= 4 ? ft + 2 : 7, rest:p.cutoff, res:p.res,
+      depth:p.fenv, retrigger:p.retrig > .5, calib:p.calib > .5 ? 'measured' : 'manual', decay:decayOpt(p.decay == null ? 31 : p.decay)};
+  }
+  setPitch(p, cents){
+    const c = cents - p.rpm * 100;
+    this.inc = spInc(c); this.stepR = p.rate / this.fs; this.step = p.rate * Math.pow(2, c / 1200) / this.fs;
+  }
+  // settings changed while it plays
+  setup(p, built){
+    const cents = totalCents(p, this.semis), mach = MACHINES[p.machine | 0] || MACHINES[0];
+    if (!built){
+      const key = [p.machine | 0, p.rate, p.rpm, p.calib > .5].join('|');
+      if (key !== this.key || (mach.pitch === 0) !== this.sp){ this.build(p, this.pos01(), false); return; }
+      this.smp.setShape ? this.smp.setShape(shaper(p)) : (this.smp.shape = shaper(p));
+      if (this.smp.setBits) this.smp.setBits(p.bits); else { this.smp.bits = p.bits; this.smp.alias = p.alias; }
+      if (this.sp) this.v.setup(this.spOpts(p, cents)); else this.setPitch(p, cents);
+    }
+    const ft = p.ftype | 0;
+    if (this.sp ? ft >= 6 : true){ if (!this.of){ this.of = new OutFilter(this.fs); this.of.setup(p); this.of.trigger(); } else this.of.setup(p); }
+    else this.of = null;
+    this.mix = p.mix; this.inGain = dbToGain(p.input); this.dv = 1 + p.drive * 1.5;
+    const dk = decayOpt(p.decay == null ? 31 : p.decay); this.decayTicks = dk >= 1 ? 0 : Math.max(1, Math.round(dk * 400));
+    this.dstep = this.d.sr / this.fs * Math.pow(2, cents / 1200);
+  }
+  pos01(){
+    if (this.sp) return Math.min(1, Math.floor(this.v.acc / 128) / Math.max(1, this.smp.frames));
+    return Math.min(1, (this.mode === 0 ? ((Math.floor(this.kp) * this.inc) >> 7) : this.pos) / this.smp.n);
+  }
+  get ended(){
+    if (this.cut) return this.i >= this.n;
+    return this.sp ? this.v.ended : this.pos01() >= 1;
+  }
+  dry(){
+    const s = this.d.src, pos = this.dpos, k = Math.floor(pos); this.dpos += this.dstep;
+    return f32(k + 2 < s.length ? cubic(s, k, pos - k) : (s[k] || 0));
+  }
+  next(){
+    this.i++;
+    if (this.sp){
+      let w = f32(this.v.next());
+      if (this.of) w = f32(this.of.process(w));
+      w = f32(w / this.dv);
+      if (this.mix < 1){ const dr = this.dry(); w = f32(w * this.mix + dr * this.inGain * (1 - this.mix)); } else this.dpos += this.dstep;
+      return w;
+    }
+    const b = this.smp; let wet;
+    if (this.mode === 0){ const idx = (Math.floor(this.kp) * this.inc) >> 7; wet = idx < b.n ? b.at(idx) : 0; this.kp += this.stepR; }
+    else {
+      const pos = this.pos, k = Math.floor(pos), f = pos - k;
+      wet = this.mode === 1 ? b.at(k) : this.mode === 2 ? b.at(k) * (1 - f) + b.at(k + 1) * f : cubicAt(b, k, f);
+      this.pos += this.step;
+    }
+    let y = f32(wet); this.dc += (y - this.dc) * (6 / this.fs); y = this.of.process(y - this.dc); y /= this.dv;
+    if (this.decayTicks){ this.dt += 1 / this.fs; while (this.dt >= DECAY_TICK){ this.dt -= DECAY_TICK; if (++this.ticks % this.decayTicks === 0) this.lvl = Math.max(0, this.lvl - 1 / 255); } y *= this.lvl; }
+    if (this.mix < 1){ const dr = this.dry(); return f32(y * this.mix + dr * this.inGain * (1 - this.mix)); }
+    this.dpos += this.dstep;
+    return f32(y);
+  }
+}
+function cubicAt(b, k, f){
+  const y0 = b.at(k - 1), y1 = b.at(k), y2 = b.at(k + 1), y3 = b.at(k + 2);
+  const c1 = .5 * (y2 - y0), c2 = y0 - 2.5 * y1 + 2 * y2 - .5 * y3, c3 = .5 * (y3 - y0) + 1.5 * (y1 - y2);
+  return ((c3 * f + c2) * f + c1) * f + y1;
+}
+
+
+/* ---------------- the live player ---------------- */
+// Voices one at a time, like each of the hardware's channels (a new one cuts the last with a 3 ms fade), into the lo-fi
+// stage, the output level and the master. Every setting reaches the sound that's playing.
+class Player {
+  constructor(fs){ this.fs = fs; this.voices = []; this.lofi = new Lofi(fs, 777); this.master = new Master(fs); this.src = null; this.p = null; this.bend = 0; this.fadeN = Math.max(1, Math.round(fs * .003)); this.outGain = 1; }
+  // chs: the selection (mono-mixed and timestretched as set), at sr
+  setSource(chs, sr){
+    this.src = {chs, sr};
+    for (const v of this.voices) if (!v.fading) this.startVoice(v, this.voicePos(v));
+  }
+  setParams(p0, match){
+    const p = this.p = effective(p0);
+    this.lofi.setup(p); this.master.setup(p, match); this.outGain = dbToGain(p.output - (p.link > .5 ? p.input : 0));
+    for (const v of this.voices) if (v.chans) for (const c of v.chans) c.setup(p);
+  }
+  // o: {semis, vel, from (0-1), loop, main, raw (the selection as it is, nothing applied)}
+  play(o){
+    if (!this.src || !this.p) return;
+    for (const v of this.voices) if (!v.fading) v.fading = this.fadeN;
+    const v = {semis:o.semis || 0, gain:o.vel == null ? 1 : o.vel, loop:!!o.loop, main:!!o.main, raw:!!o.raw, fading:0, chans:null};
+    this.startVoice(v, o.from || 0); this.voices.push(v);
+  }
+  startVoice(v, from){
+    const {chs, sr} = this.src;
+    if (v.raw){ v.rpos = from * chs[0].length; v.chans = null; return; }
+    v.chans = chs.map(s => { const c = new ChanVoice(this.fs); c.start({src:s, sr}, this.p, {semis:v.semis + this.bend, from}); return c; });
+  }
+  voicePos(v){ return v.raw ? v.rpos / this.src.chs[0].length : v.chans ? v.chans[0].pos01() : 0; }
+  stop(main){ for (const v of this.voices) if (!v.fading && (main == null || v.main === !!main)) v.fading = this.fadeN; }
+  setLoop(on){ for (const v of this.voices) if (v.main) v.loop = on; }
+  setBend(st){ this.bend = st; for (const v of this.voices) if (v.chans) for (const c of v.chans){ c.semis = v.semis + st; c.setup(this.p); } }
+  // the main voice (Play): where it is, 0-1, or -1 when it isn't playing
+  pos(){ for (const v of this.voices) if (v.main && !v.fading) return Math.min(1, this.voicePos(v)); return -1; }
+  get active(){ return this.voices.length > 0; }
+  process(L, R, n){
+    const vs = this.voices, lofi = this.lofi, master = this.master, g0 = this.outGain;
+    for (let i = 0; i < n; i++){
+      let l = 0, r = 0;
+      for (let k = vs.length - 1; k >= 0; k--){
+        const v = vs[k]; let a, b, done = false;
+        if (v.raw){
+          const c = this.src.chs, pos = v.rpos, j = Math.floor(pos), f = pos - j, len = c[0].length;
+          a = (c[0][j] || 0) * (1 - f) + (c[0][j + 1] || 0) * f; b = c[1] ? (c[1][j] || 0) * (1 - f) + (c[1][j + 1] || 0) * f : a;
+          v.rpos += this.src.sr / this.fs;
+          if (v.rpos >= len){ if (v.loop) v.rpos -= len; else done = true; }
+        } else {
+          const c = v.chans; a = c[0].next(); b = c[1] ? c[1].next() : a;
+          if (c[0].ended){ if (v.loop) this.startVoice(v, 0); else done = true; }
+        }
+        let g = v.gain;
+        if (v.fading){ g *= v.fading / this.fadeN; if (--v.fading === 0) done = true; }
+        l += a * g; r += b * g;
+        if (done) vs.splice(k, 1);
+      }
+      // the lo-fi noises (crackle, hiss, hum) only sound while something plays
+      if (lofi.on && vs.length){ const o = lofi.process(l, r); l = o[0]; r = o[1]; }
+      l *= g0; r *= g0;
+      if (master.on){ const o = master.process(l, r); l = o[0]; r = o[1]; }
+      L[i] = l; R[i] = r;
+    }
+  }
+}
+
 /* ---------------- offline render: the whole chain for the sampler ---------------- */
 // chs: source channels at sr; returns {pre:[L,R] before master, fs}
 function renderPre(chs, sr, p0, fs, opts){
@@ -495,34 +702,11 @@ function renderPre(chs, sr, p0, fs, opts){
     if (p.stretch !== 1) src = stretch(src, p.stretch, sr, p.grain, p.smode | 0);
   }
   const cents = totalCents(p, opts.semis), inGain = dbToGain(p.input), outGain = dbToGain(p.output - (p.link > .5 ? p.input : 0));
-  const SPE = typeof TWSP !== 'undefined' ? TWSP : (typeof require === 'function' ? require('./sp1200.js') : null);
+  // each channel through the same streaming voice that plays live, start to end
   const res = src.map(s => {
-    let wet;
-    if (mach.pitch === 0 && SPE){
-      // the SP-1200 / SP-12: circuit-level engine (sp1200.js). Output 1-2, 3-6 or 7-8 by the Filter menu; the
-      // 6-pole and 4-pole menu entries run output 7-8 into those filters.
-      const ft = p.ftype | 0, out = ft === 0 ? 1 : ft <= 4 ? ft + 2 : 7;
-      const codes = SPE.codesFor(preamped(s, p), sr, {clock:p.rate, level:1, bits:p.bits, rpm:p.rpm, calib:p.calib > .5 ? 'measured' : 'manual'});
-      wet = SPE.playChannel(codes, {clock:p.rate, sp12:(p.machine | 0) === 1, cents:cents - p.rpm * 100, output:out, rest:p.cutoff, res:p.res,
-        depth:p.fenv, retrigger:p.retrig > .5, calib:p.calib > .5 ? 'measured' : 'manual'}, fs);
-      if (ft >= 6){ const f = new OutFilter(fs); f.setup(p); f.trigger(); for (let i = 0; i < wet.length; i++) wet[i] = f.process(wet[i]); }
-      for (let i = 0; i < wet.length; i++) wet[i] /= 1 + p.drive * 1.5;
-      const dry = p.mix < 1 ? playDry(s, sr, fs, cents, wet.length) : null;
-      if (dry) for (let i = 0; i < wet.length; i++) wet[i] = wet[i] * p.mix + dry[i] * inGain * (1 - p.mix);
-      return wet;
-    }
-    // the alias trick on any machine: sampled sped up by rpm semitones, played back down again
-    const base = sampleBase(preamped(s, p), sr * Math.pow(2, p.rpm / 12), p, true); wet = playBase(base, p, fs, mach.pitch, cents - p.rpm * 100);
-    const dry = p.mix < 1 ? playDry(s, sr, fs, cents, wet.length) : null;
-    const f = new OutFilter(fs); f.setup(p); f.trigger();
-    let dc = 0;
-    for (let i = 0; i < wet.length; i++){
-      let y = wet[i]; dc += (y - dc) * (6 / fs); y = f.process(y - dc);
-      // drive pushes the converter; take it back out so drive changes the sound, not the level
-      y /= 1 + p.drive * 1.5;
-      wet[i] = dry ? y * p.mix + dry[i] * inGain * (1 - p.mix) : y;
-    }
-    return wet;
+    const v = new ChanVoice(fs); v.start({src:s, sr}, p, {semis:opts.semis, cut:true});
+    const w = new Float32Array(v.n); for (let i = 0; i < w.length; i++) w[i] = v.next();
+    return w;
   });
   const L = res[0], R = res[1] || res[0].slice(), lo = new Lofi(fs, 777); lo.setup(p);
   for (let i = 0; i < L.length; i++){ const o = lo.process(L[i], R[i]); L[i] = o[0] * outGain; R[i] = o[1] * outGain; }
@@ -756,7 +940,7 @@ function randomPatch(seed){
 function fn0(fn, r){ const o = fn(r, 0); delete o.pitchMode; delete o._name; return o; }
 
 const api = {FILTER_RANGE, preamp, effective, preamped, resampleTo, onePoleLp, SP_SR, SP_TUNE, PROTO, MACHINES, FILTERS, PARAMS, MASTER_IDS, SOUND_IDS, MATCH_BANDS, TARGET_CURVE, NOTE_NAMES,
-  defaults, rng, rbj, sDesign, quantize, sampleBase, Converter, spInc, playBase, OutFilter, Lofi, Master, stretch, renderPre, renderMaster,
+  defaults, rng, rbj, sDesign, quantize, sampleBase, Converter, ChanVoice, BaseSampler, shaper, Player, decayOpt, spInc, playBase, OutFilter, Lofi, Master, stretch, renderPre, renderMaster,
   fft, bandSpectrum, matchGains, loudness, peakDb, autoMaster, detectTempo, detectKey, makePresets, randomPatch, totalCents, clamp, dbToGain};
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TW = api;
-})(typeof self !== 'undefined' ? self : this);
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

@@ -1,5 +1,6 @@
 // Omega Twelve as a plugin: live input through the sampler model, plus a sampler you load files into and play from
-// MIDI (middle C = original pitch) or the transport. Renders happen on a background thread with Twelve.h.
+// MIDI (middle C = original pitch), the pads or the transport. Sounds are made as they play (Twelve.h LivePlayer), so
+// every knob is heard at once; a background thread only prepares the selection (mono mix, timestretch).
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -64,7 +65,12 @@ public:
     int srcVersion() const { return version.load(); }
 
     void play(double fromFraction);
+    void stopMain() { stopMainRequest = true; }
     void stopAll() { stopRequest = true; }
+    // a pad or the on-screen keys: plays at once, semitones from the sample's own pitch
+    void hitPad(double semis, float vel = 1) { const int w = padW.load(); padQ[(size_t) (w & 63)] = {semis, vel}; padW = w + 1; }
+    // the pitch of each pad: four banks of eight (Multi Mode)
+    std::array<std::atomic<float>, 32> padTune;
     bool isPlaying() const { return mainPlaying.load(); }
     double playFraction() const { return mainFrac.load(); }
     bool isRendering() const { return rendering.load(); }
@@ -94,13 +100,9 @@ public:
 private:
     void run() override;
     void timerCallback() override;   // applies MIDI CCs and program changes on the message thread
-    std::vector<double> soundKey(const Params& p);
-    std::shared_ptr<const Chans> prepared(const Params& p, Chans& srcCopy, double& sr);
-    void renderOffset(const Params& p, int off, bool main);
     void pushUndo();
     void afterSourceChange(bool selectAll);
-    void requestNote(int off) { if (off >= -24 && off <= 24) noteBits.fetch_or(1ull << (off + 24)); }
-    std::shared_ptr<const Chans> noteBuffer(int off, bool blocking);
+    Chans renderSelection(bool withMaster, double& fs);   // the selection with the current settings, offline
 
     std::array<std::atomic<float>*, pid::count> raw {};
     std::atomic<float>* liveRaw = nullptr;
@@ -118,23 +120,17 @@ private:
     juce::AudioFormatManager formats;
     juce::ThreadPool pool { 1 };
 
-    // renders
-    juce::SpinLock notesLock;
-    std::map<int, std::shared_ptr<const Chans>> notes;
-    std::vector<double> renderedKey, pendingKey;
-    double pendingSince = 0;
-    std::shared_ptr<const Chans> prep; std::vector<double> prepKey; double prepSr = 44100;
-    std::atomic<uint64_t> noteBits { 0 };
+    // the selection prepared for the player (background thread -> audio thread)
+    juce::SpinLock readyLock; std::shared_ptr<const Chans> readySrc; double readySr = 44100; bool readyNew = false;
+    std::vector<double> prepKey;
     std::atomic<bool> rendering { false };
     std::atomic<double> hostFs { 48000 };
 
     // audio thread
-    struct Voice { std::shared_ptr<const Chans> buf; double pos = 0, gain = 1; int note = -1, fade = 0; bool main = false, active = false; };
-    void cutVoices();   // mono: a new sound cuts the one playing (3 ms fade)
-    std::array<Voice, 24> voices;
-    struct Pending { int note = 0, off = 0; float vel = 0; double age = 0; bool used = false; };
-    std::array<Pending, 32> pend;
-    std::atomic<bool> playRequest { false }, stopRequest { false }, mainPlaying { false };
+    LivePlayer player; Params lastPP; bool ppPrimed = false; bool lastLoop = false;
+    struct PadReq { double semis = 0; float vel = 1; };
+    std::array<PadReq, 64> padQ; std::atomic<int> padW { 0 }; int padR = 0;
+    std::atomic<bool> playRequest { false }, stopRequest { false }, stopMainRequest { false }, mainPlaying { false };
     std::atomic<double> playFrom { 0 }, mainFrac { 0 };
     Converter conv[2]; OutFilter filt[2]; Lofi lofi; Master master;
     sp::SPLive spl[2]; bool spMode = false;

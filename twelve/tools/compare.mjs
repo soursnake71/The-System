@@ -25,6 +25,9 @@ const cases = [
   ['EPS 13-bit, SU700 4-pole, filter off, preamp off', {machine:12, rate:31250, bits:13, ftype:15, fOn:0, pre:0}],
   ['SK-1 8-bit, S-550 2-pole clamp, SP alias 9 st', {machine:10, rate:9380, bits:8, ftype:14, cutoff:15000, res:.8}],
   ['SP-12 alias 9.5 st, preamp hot, Mirage 4-pole on out 7-8', {machine:1, rate:27500, rpm:9.5, input:10, ftype:12, cutoff:4000, res:.4}],
+  ['SP-1200 decay 8 on out 3', {ftype:1, decay:8}],
+  ['MPC60 decay 12, -7 st', {machine:2, rate:40000, ftype:6, cutoff:9000, decay:12, semis:-7}],
+  ['SP-1200 out 1-2 decay 4', {ftype:0, decay:4, semis:3}],
 ];
 const match = [3, 2, 1, 0, -1, -2, 1, 3, 2, -4];
 let fail = 0;

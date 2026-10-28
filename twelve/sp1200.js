@@ -184,39 +184,70 @@ const CALIB = {
 };
 
 /* ---------------- the machine ---------------- */
-// sample a recording the way the machine does: preamp level, anti-alias circuit, sample-and-hold, 12-bit codes
-function sampleCodes(src, sr, o){
-  const fo = sr * OS, foA = Math.max(fo, CLOCK * 4), aa = new Circuit(NETS.aa, foA, CALIB[o.calib || 'manual'].aaCap);
-  const aaDc = aa.dc(), clock = o.clock || CLOCK, gain = (o.level == null ? 1 : o.level) / aaDc;
-  const n = src.length, dur = n / sr, frames = Math.min(o.maxFrames || 1 << 20, Math.floor(dur * clock));
-  const codes = new Uint16Array(frames + 10).fill(0x800);   // five silent codes at the start, five spare at the end
-  const bits = o.bits || 12, drop = 12 - Math.max(1, Math.min(12, bits)), off = o.adcOffset == null ? .5 : o.adcOffset;
-  let prev = 0, k = 0, tNext = 0;
-  const steps = Math.ceil(dur * foA);
-  for (let i = 0; i < steps && k < frames; i++){
-    const t = i / foA, x = t * sr, j = Math.floor(x), f = x - j;
-    const u = ((src[j] || 0) * (1 - f) + (src[j + 1] || 0) * f) * gain;
-    const y = aa.process(u);
-    while (k < frames && tNext <= t){
-      const a = 1 - (t - tNext) * foA, held = prev + (y - prev) * Math.max(0, Math.min(1, a));
-      let c = Math.floor(held * 2048 + 2048 + off - .5);
-      c = Math.max(0, Math.min(4095, c));
-      if (drop) c = (c >> drop) << drop;
-      codes[5 + k] = c; k++; tNext = k / clock;
-    }
-    prev = y;
+// Both halves stream: the sampler makes codes as playback reaches them and the voice plays them one output sample at a
+// time, so every setting can change while a sound plays. Run start to end with fixed settings they give exactly what a
+// whole-buffer render would.
+
+// the anti-alias circuit's gain at DC, by rate and calibration (it takes a while to settle, so keep it)
+const dcCache = new Map();
+function aaDcOf(foA, cap){ const k = foA + '|' + cap; if (!dcCache.has(k)) dcCache.set(k, new Circuit(NETS.aa, foA, cap).dc()); return dcCache.get(k); }
+
+// sample a recording the way the machine does: anti-alias circuit, sample-and-hold, 12-bit codes. src: one channel at
+// sr; shape(x): the input gain and preamp in front of the converter (rounded to float, as a stored buffer would be).
+// The codes start with five silent ones, like the hardware's. from: start at this frame (a sampler rebuilt in the
+// middle of a sound). ring: keep only the last 8192 codes (playing live: codes are made just before they're played).
+class SPSampler {
+  constructor(src, sr, o, shape, from, ring){
+    const fo = sr * OS, foA = Math.max(fo, CLOCK * 4), cap = CALIB[o.calib || 'manual'].aaCap;
+    this.src = src; this.sr = sr; this.foA = foA; this.aa = new Circuit(NETS.aa, foA, cap);
+    this.clock = o.clock || CLOCK; this.gain = (o.level == null ? 1 : o.level) / aaDcOf(foA, cap);
+    const dur = src.length / sr;
+    this.frames = Math.min(o.maxFrames || 1 << 20, Math.floor(dur * this.clock)); this.steps = Math.ceil(dur * foA);
+    this.mask = ring ? 8191 : -1; this.codes = new Uint16Array(ring ? 8192 : this.frames + 10).fill(0x800);
+    this.off = o.adcOffset == null ? .5 : o.adcOffset; this.setBits(o.bits); this.shape = shape || null;
+    this.prev = 0; this.k0 = this.k = Math.min(this.frames, from || 0); this.tNext = this.k / this.clock; this.i = this.k ? Math.floor(this.tNext * foA) : 0;
   }
-  return codes.subarray(0, 5 + k + 5);
+  setBits(bits){ this.drop = 12 - Math.max(1, Math.min(12, bits || 12)); }
+  setShape(shape){ this.shape = shape; }
+  sv(j){ const s = this.src; return j < s.length ? (this.shape ? this.shape(s[j]) : s[j]) : 0; }
+  get done(){ return this.k >= this.frames || this.i >= this.steps; }
+  // one step of the anti-alias circuit; the converter takes its samples on the way
+  step(){
+    const foA = this.foA, t = this.i / foA, x = t * this.sr, j = Math.floor(x), f = x - j;
+    const u = (this.sv(j) * (1 - f) + this.sv(j + 1) * f) * this.gain;
+    const y = this.aa.process(u), prev = this.prev, frames = this.frames;
+    while (this.k < frames && this.tNext <= t){
+      const a = 1 - (t - this.tNext) * foA, held = prev + (y - prev) * Math.max(0, Math.min(1, a));
+      let c = Math.floor(held * 2048 + 2048 + this.off - .5);
+      c = Math.max(0, Math.min(4095, c));
+      if (this.drop) c = (c >> this.drop) << this.drop;
+      this.codes[(5 + this.k) & this.mask] = c; this.k++; this.tNext = this.k / this.clock;
+    }
+    this.prev = y; this.i++;
+  }
+  // the DAC value at code index idx (0 before the sound's first code and after its end)
+  val(idx){
+    const f = idx - 5;
+    if (f < this.k0) return 0;
+    while (this.k <= f && !this.done) this.step();
+    return f < this.k ? (this.codes[idx & this.mask] - 2048) / 2048 : 0;
+  }
+  all(){ while (!this.done) this.step(); return this.codes.subarray(0, 5 + this.k + 5); }
 }
-// sampling is the slow part and doesn't depend on pitch or the output, so keep the last few results.
+// a finished code array behaves like a sampler that has run to the end
+class CodeSource {
+  constructor(codes){ this.codes = codes; this.k = codes.length - 10; this.frames = this.k; }
+  get done(){ return true; }
+  val(idx){ return idx >= 5 && idx < this.codes.length - 5 ? (this.codes[idx] - 2048) / 2048 : 0; }
+}
+function sampleCodes(src, sr, o){ return new SPSampler(src, sr, o).all(); }
 // rpm: the 45 rpm trick, the source played that many semitones fast into the sampler (played back down again later)
 const codeCache = [];
 function codesFor(src, sr, o){
   const key = [src.length, sr, o.clock, o.level, o.bits, o.rpm || 0, o.adcOffset, o.calib].join('|');
   for (const c of codeCache) if (c.src === src && c.key === key) return c.codes;
-  let s = src, rate = sr;
-  if (o.rpm) rate = sr * Math.pow(2, o.rpm / 12);   // same samples, faster clock in = sped up
-  const codes = sampleCodes(s, rate, o);
+  const rate = o.rpm ? sr * Math.pow(2, o.rpm / 12) : sr;   // same samples, faster clock in = sped up
+  const codes = sampleCodes(src, rate, o);
   codeCache.unshift({src, key, codes}); if (codeCache.length > 4) codeCache.pop();
   return codes;
 }
@@ -225,55 +256,89 @@ function spStep(cents, sp12){
   if (Math.abs(st - Math.round(st)) < 1e-6 && st >= -16 && st <= 15){ const b = TABLE[Math.round(st) + 16]; return sp12 ? ((b | 1) + 1) : b + 1; }
   return Math.max(1, Math.min(1024, Math.round(128 * Math.pow(2, cents / 1200))));
 }
+
+// one channel playing: the 7-bit pitch counter reading codes, the 8-bit level DAC, the shared DAC's staircase in this
+// channel's time slot (box-filtered into the 4x grid), the output circuit it's wired to, back down to fs.
+// The decimation filter is centred, so a voice's output comes LAT samples after its input.
+const LAT = Math.ceil(((DECIM.length - 1) / 2 - (OS - 1)) / OS);
+class SPVoice {
+  constructor(fs){ this.fs = fs; this.fo = fs * OS; this.ring = new Float64Array(128); this.out = -1; this.cal = null; }
+  // settings that can change while it plays
+  setup(o){
+    const fo = this.fo, cal = CALIB[o.calib || 'manual'], out = o.output | 0, clock = o.clock || CLOCK;
+    this.step = spStep(o.cents || 0, o.sp12);
+    if (this.clock && clock !== this.clock){ this.tBase = this.tk - this.slot; this.kBase = this.k; }
+    this.clock = clock; this.slot = (o.channel | 0) * SLOT;
+    this.level = Math.max(0, Math.min(255, Math.round((o.velocity == null ? 1 : o.velocity) * 255))) / 255;
+    this.decayTicks = o.decay == null || o.decay >= 1 ? 0 : Math.max(1, Math.round(o.decay * 400));
+    if (out !== this.out || cal !== this.cal){
+      this.out = out; this.cal = cal;
+      this.circ = out >= 3 && out <= 6 ? new Circuit(NETS['out' + out], fo, cal.fixedCap[out - 3]) : null;
+      if (out <= 2){ this.env = new Envelope(fo, cal.dynCap); this.ssm = new SSM2044(fo, cal.res); this.io = new Circuit(NETS.dynout, fo); }
+    }
+    if (this.ssm) this.ssm.k = o.res == null ? cal.res : o.res;
+    this.rest = o.rest || cal.rest; this.trig = Math.round((o.trigger || .0094) * fo); this.depth = o.depth == null ? 1 : o.depth;
+    this.retrigger = !!o.retrigger; this.ioNorm = -3.3e3 / 15e3 * cal.gain12;
+  }
+  // start playing src (an SPSampler or CodeSource) from frame `from`; cut: stop the 4x signal at the length a
+  // whole-buffer render gives (for offline renders)
+  start(src, from, cut){
+    this.src = src; this.acc = (from || 0) * 128; this.k = 0; this.tBase = 0; this.kBase = 0; this.tk = this.slot; this.held = 0;
+    this.lvl = this.level; this.nextTick = 1.2288e-3; this.ticks = 0; this.i = 0; this.J = 0; this.ring.fill(0);
+    this.tEnd = this.trig; this.fe = 0; this.ss = 0; this.lastOn = -1e9;
+    if (this.env){ const cal = this.cal; this.env = new Envelope(this.fo, cal.dynCap); const k = this.ssm.k; this.ssm = new SSM2044(this.fo, k); this.io = new Circuit(NETS.dynout, this.fo); }
+    if (this.circ) this.circ.reset();
+    this.len = Infinity;
+    if (cut){ const last = src.k + 5, frames = Math.floor((last - 5) * 128 / this.step) + 5; this.len = Math.ceil((frames / this.clock + .02) * this.fo); this.n = Math.ceil(this.len / OS); }
+  }
+  // past the last code (and the output has had time to ring out)
+  get ended(){ return this.src.done && 5 + Math.floor(this.acc / 128) >= this.src.k + 5 && this.held === 0; }
+  // where in the sound it is, 0-1
+  get pos(){ const f = this.src.frames || 1; return Math.min(1, Math.floor(this.acc / 128) / f); }
+  sub(){
+    const fo = this.fo, i = this.i, t1 = (i + 1) / fo, src = this.src; let acc = 0, tp = i / fo;
+    while (this.tk < t1){
+      acc += this.held * (this.tk - tp); tp = this.tk;
+      if (this.decayTicks) while (this.nextTick <= this.tk){ this.nextTick += 1.2288e-3; if (++this.ticks % this.decayTicks === 0) this.lvl = Math.max(0, this.lvl - 1 / 255); }
+      this.held = src.val(5 + Math.floor(this.acc / 128)) * this.lvl;
+      this.acc += this.step; this.k++; this.tk = this.slot + (this.tBase + (this.k - this.kBase) / this.clock);
+    }
+    acc += this.held * (t1 - tp);
+    let y = acc * fo;
+    if (i >= this.len) y = 0;
+    else if (this.circ) y = this.circ.process(y);
+    else if (this.out <= 2){
+      if (this.retrigger){
+        const a = Math.abs(y); this.fe = a > this.fe ? a : this.fe * (1 - 30 / fo); this.ss += (a - this.ss) * (2 / fo);
+        if (this.fe > .05 && this.fe > this.ss * 4 && i - this.lastOn > .08 * fo){ if (i) this.tEnd = i + this.trig; this.lastOn = i; }
+      }
+      // full-scale hold output taken as 5 V; R114 33k / R117 200 divide it into pin 1, so loud sounds reach the
+      // tanh region of the transconductance stages (about +-30 mV against 2 Vt = 52 mV)
+      const env = this.env; env.gain = i < this.tEnd ? 0 : 5; env.step();
+      const fc = Math.min(this.rest * Math.pow(2, this.depth * env.octaves()), fo * .45), pin1 = 5 * 200 / (33e3 + 200);
+      // I/V stage: the current through R141 3.3k and the 10 uF into the 15k || 470 pF inverting stage
+      y = this.io.process(this.ssm.process(y * pin1, fc) / pin1 * this.ioNorm);
+    }
+    this.ring[i & 127] = y; this.i++;
+  }
+  // the next output sample at fs (LAT samples behind the 4x signal)
+  next(){
+    for (let p = 0; p < OS; p++) this.sub();
+    const o = this.J++ - LAT, c = o * OS - (DECIM.length - 1) / 2, r = this.ring; let s = 0;
+    if (o < 0) return 0;
+    for (let k = 0; k < DECIM.length; k++){ const j = c + k; s += DECIM[k] * (j >= 0 ? r[j & 127] : 0); }
+    return s;
+  }
+}
 // play codes on one channel (0-7) and run its output: returns Float32Array at fs
 function playChannel(codes, o, fs){
-  const fo = fs * OS, clock = o.clock || CLOCK, step = spStep(o.cents || 0, o.sp12), ch = o.channel | 0;
-  const last = codes.length - 5, frames = Math.floor((last - 5) * 128 / step) + 5;
-  const len = Math.ceil((frames / clock + .02) * fo), y = new Float64Array(len);
-  const level = Math.max(0, Math.min(255, Math.round((o.velocity == null ? 1 : o.velocity) * 255))) / 255;
-  const tick = 1.2288e-3, decayTicks = o.decay == null || o.decay >= 1 ? 0 : Math.max(1, Math.round(o.decay * 400));
-  const cal = CALIB[o.calib || 'manual'], slot = ch * SLOT;
-  // the held DAC output with its steps at their true times, box-filtered into the 4x grid
-  let held = 0, k = 0, tk = slot, lvl = level, nextTick = tick, ticks = 0;
-  const val = idx => idx < last ? (codes[idx] - 2048) / 2048 : 0;
-  for (let i = 0; i < len; i++){
-    const t0 = i / fo, t1 = (i + 1) / fo; let acc = 0, tp = t0;
-    while (tk < t1){
-      acc += held * (tk - tp); tp = tk;
-      if (decayTicks) while (nextTick <= tk){ nextTick += tick; if (++ticks % decayTicks === 0) lvl = Math.max(0, lvl - 1 / 255); }
-      held = k < frames ? val(5 + ((k * step) >> 7)) * lvl : 0;
-      k++; tk = slot + k / clock;
-    }
-    acc += held * (t1 - tp); y[i] = acc * fo;
-  }
-  // the output this channel is wired to
-  const out = o.output | 0;
-  if (out >= 3 && out <= 6){ const c = new Circuit(NETS['out' + out], fo, cal.fixedCap[out - 3]); for (let i = 0; i < len; i++) y[i] = c.process(y[i]); }
-  else if (out <= 2){
-    const env = new Envelope(fo, cal.dynCap), ssm = new SSM2044(fo, o.res == null ? cal.res : o.res), io = new Circuit(NETS.dynout, fo);
-    const rest = o.rest || cal.rest, trig = Math.round((o.trigger || .0094) * fo), depth = o.depth == null ? 1 : o.depth;
-    // full-scale hold output taken as 5 V; R114 33k / R117 200 divide it into pin 1, so loud sounds reach the
-    // tanh region of the transconductance stages (about +-30 mV against 2 Vt = 52 mV)
-    const pin1 = 5 * 200 / (33e3 + 200), ioNorm = -3.3e3 / 15e3 * cal.gain12;
-    const onsets = o.retrigger ? onsetsOf(y, fo) : [];
-    let next = 0, tEnd = trig;
-    for (let i = 0; i < len; i++){
-      if (next < onsets.length && onsets[next] === i){ tEnd = i + trig; next++; }
-      env.gain = i < tEnd ? 0 : 5; env.step();
-      const fc = Math.min(rest * Math.pow(2, depth * env.octaves()), fo * .45);
-      const s = ssm.process(y[i] * pin1, fc) / pin1;
-      // I/V stage: the current through R141 3.3k and the 10 uF into the 15k || 470 pF inverting stage
-      y[i] = io.process(s * ioNorm);
-    }
-  }
-  return decimate(y, Math.ceil(len / OS));
-}
-function onsetsOf(y, fo){   // pad-hit stand-ins inside a loop: sharp rises, at least 80 ms apart
-  const out = []; let fe = 0, ss = 0, last = -1e9;
-  for (let i = 0; i < y.length; i++){ const a = Math.abs(y[i]); fe = a > fe ? a : fe * (1 - 30 / fo); ss += (a - ss) * (2 / fo); if (fe > .05 && fe > ss * 4 && i - last > .08 * fo){ if (i) out.push(i); last = i; } }
+  const v = new SPVoice(fs); v.setup(o); v.start(codes.subarray ? new CodeSource(codes) : codes, 0, true);
+  const out = new Float32Array(v.n);
+  for (let i = 0; i < LAT; i++) v.next();
+  for (let i = 0; i < v.n; i++) out[i] = v.next();
   return out;
 }
 
-const api = {CLOCK, SLOT, TABLE, NETS, CALIB, Circuit, Envelope, SSM2044, compile, sampleCodes, codesFor, playChannel, spStep, decimate, lowpassFir, OS};
+const api = {CLOCK, SLOT, TABLE, NETS, CALIB, Circuit, Envelope, SSM2044, compile, sampleCodes, codesFor, playChannel, spStep, decimate, lowpassFir, OS, LAT, SPSampler, SPVoice, CodeSource};
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TWSP = api;
-})(typeof self !== 'undefined' ? self : this);
+})(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
