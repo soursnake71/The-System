@@ -59,6 +59,9 @@ let msgT = 0, lcdMsg = null;
 function say(text, ms){ lcdMsg = text; clearTimeout(msgT); msgT = setTimeout(() => { lcdMsg = null; paintLcd(); }, ms || 1800); paintLcd(); }
 
 /* ---------------- audio: the live player ---------------- */
+// inside the Omega System: it goes quiet when you leave and picks up when you come back
+window.twelveSuspend = () => { if (ctx) ctx.suspend(); };
+window.twelveResume = () => { if (ctx) ctx.resume(); };
 let ctx = null, node = null, local = null, audioReady = null, meterPk = 0, playing = false, playFrac = -1;
 function audio(){
   if (!audioReady) audioReady = (async () => {

@@ -1270,6 +1270,13 @@ html.sp[data-view="drums"] main{padding:0!important;overflow:hidden!important;ba
 .sp12.port .sprow4{justify-content:flex-start;gap:22px;padding-left:4px}
 .sp12.port .spknob{width:28px;height:28px}
 html.hw #spBanner{display:none!important}
+/* Omega Twelve: the SP-1200 section, full screen */
+#twelveWrap{position:fixed; inset:0; z-index:9000; background:#3a3c3f; display:flex; flex-direction:column; padding-top:env(safe-area-inset-top)}
+#twelveWrap[hidden]{display:none}
+#twelveWrap .tw-bar{flex:0 0 34px; display:flex; align-items:center; gap:10px; padding:0 8px; background:#2b2c2f; color:#d6d6d2; font:700 12px/1 "Barlow Condensed", Arial, sans-serif; letter-spacing:1px}
+#twelveWrap .tw-bar button{background:#d4342c; color:#fff; border:0; border-radius:4px; padding:7px 10px; font:inherit; letter-spacing:.5px}
+#twelveWrap iframe{flex:1; width:100%; border:0; display:block; background:#3a3c3f}
+html.tw-on, html.tw-on body{overflow:hidden}
 </style>
 
 </head>
@@ -1365,7 +1372,7 @@ html.hw #spBanner{display:none!important}
         <button id="hwSample" class="nolearn" title="Sample the input onto the selected pad">SAMPLE</button>
         <button id="hwChop" class="nolearn" title="Chop the selected pad's sound">CHOP</button>
         <button id="hwRnd" class="nolearn" title="Random kit from your samples">🎲 RND</button>
-        <button id="hwSp" class="nolearn" title="SP-1200 mode: the SP-1200 panel and its 12-bit, 26 kHz sound">SP-1200</button>
+        <button id="hwSp" class="nolearn" title="Omega Twelve: the SP-1200 sampler">SP-1200</button>
       </div>
     </div>
     <div class="scenebar" id="sceneBar" role="group" aria-label="Patterns"></div>
@@ -2299,7 +2306,7 @@ html.hw #spBanner{display:none!important}
         <li><b>A/DA Flanger</b> (FX rack): the 1977 flanger's bucket-brigade line, compander and 40:1 sweep (0.25–10 ms). Manual sets the delay, Range how far the sweep goes, Speed the LFO, Enhance the regeneration (Even / Odd sets its phase), Threshold a noise gate in front. Long delays get the BBD's grainy, darker sound.</li>
         <li><b>Microverb</b> (FX rack): the Alesis Microverb's 16 programs (halls, rooms, plates, gated, reverse).</li>
         <li><b>Resonance tamer + clipper</b> (FX → Master): finds harsh peaks and turns them down as they happen; the clipper adds drive and holds a ceiling.</li>
-        <li><b>SP-1200</b> (Pads → SP-1200): the E-mu faceplate: SP mode, banks A / B, eight faders for Tune, Decay or Mix, and eight pads.</li>
+        <li><b>SP-1200</b> (Pads → SP-1200): opens Omega Twelve, the full 12-bit sampler. ◀ OMEGA SYSTEM at the top (or Back) returns to the Pads.</li>
         <li><b>Ensoniq DP/4</b> (FX rack): four effect units (reverbs, chorus, flanger, phaser, delays, pitch shift, distortion, rotary, sweep filter) in Parallel, Series or 2 × 2, with presets. Send any track to it with its DP/4 send.</li>
         <li><b>Yamaha DX1</b> (Synth → instrument): two DX7 voices played Single, Dual (layered, B detuned) or Split. <b>Load .syx</b> (or Import) takes DX7 32-voice banks and single voices. Modeled on the DX7 chips: 49,096 Hz operator chip with log-sine and exponential ROMs, 14-bit operators, the EGS envelope, 32 algorithms, the floating-point 12-bit DAC and 16 kHz output filter. Edit the algorithm, feedback and each operator's level, ratio and decay.</li>
         <li><b>ARP Omni-2</b> (Synth → instrument): built from the service manual. Strings: Violin 4′, Viola 8′, and single-note Cello 8′ / Bass 16′ on the lowest 20 keys, through three bucket-brigade “phasers” and a shared attack. Synthesizer: 4′ / 8′ through the ARP 4075 24 dB filter with an ADSR, LFO, Single trigger. Bass Voices 8′ / 16′ with Staccato. Hollow changes the waveform; Chorus Phaser sends the synth through the string phasers.</li>
@@ -2535,6 +2542,7 @@ html.hw #spBanner{display:none!important}
   </div>
   <div class="row"><button id="sbxPhone" class="nolearn sbx-phone grow">From phone…</button><button id="sbxImport" class="nolearn sbx-phone grow">Import my samples folder</button></div>
 </dialog>
+<div id="twelveWrap" hidden><div class="tw-bar"><button id="twelveBack" class="nolearn">◀ OMEGA SYSTEM</button><b>OMEGA TWELVE</b></div><iframe id="twelveFrame" title="Omega Twelve" allow="autoplay; microphone; midi; fullscreen; clipboard-write"></iframe></div>
 <nav id="nav">
   <button data-v="drums" class="cur">Pads</button>
   <button data-v="synth">Synth</button>
@@ -7711,7 +7719,7 @@ function chipBar(v){
   if (bar._key !== key){
     bar._key = key; bar.innerHTML = '';
     cards.forEach(c => { const b = document.createElement('button'); b.className = 'nolearn'; b.textContent = c.dataset.chip || sheetTitle(c) || 'More'; b._card = c; if (ADV_CHIPS.has(b.textContent)) b.classList.add('adv'); if (VOX_CHIPS[c.dataset.chip]){ b.classList.add('voxok'); if (window.APP === 'vox') b.textContent = VOX_CHIPS[c.dataset.chip]; }
-      b.addEventListener('click', () => { if (sheetCard === c) sheetClose(); else sheetOpen(c); }); bar.appendChild(b); });
+      b.addEventListener('click', () => { if (c.id === 'spCard') return twelveOpen(); if (sheetCard === c) sheetClose(); else sheetOpen(c); }); bar.appendChild(b); });
     bar.insertAdjacentHTML('afterbegin', '<span class="hgrp"><button class="hundo nolearn hbtn" aria-label="Undo">↶</button><button class="hredo nolearn hbtn" aria-label="Redo">↷</button></span>'); histPaint();
   }
   bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b._card === sheetCard));
@@ -11987,7 +11995,7 @@ $('#ppgPreset').addEventListener('change', e => { const tr = curSynth(); if (!PP
 let spBank = 0, spFader = 'tune';
 function spBanner(){
   // SP-1200 mode brings up the SP-1200 front panel; off goes back to the normal Pads screen
-  const r = document.documentElement; if (r.classList.contains('sp') !== !!S.sp){ r.classList.toggle('sp', !!S.sp); setTimeout(() => { try { fitScreen(); } catch(e){} }, 30); }
+  const r = document.documentElement; if (r.classList.contains('sp')){ r.classList.remove('sp'); setTimeout(() => { try { fitScreen(); } catch(e){} }, 30); }
   let b = $('#spBanner'); const host = $('#v-drums'); if (!host) return;
   if (!S.sp){ if (b) b.remove(); return; }
   if (!b){ b = document.createElement('div'); b.id = 'spBanner'; b.className = 'spbanner'; b.innerHTML = '<span class="grow">SP-1200 MODE IS ON · every pad plays 12-bit 26 kHz</span><button class="pwr on nolearn" id="spBannerOff">SP ON</button>';
@@ -15162,8 +15170,26 @@ hwClick('#hwLoad', () => $('#loadSample').click());
 hwClick('#hwSample', () => $('#sampleIn').click());
 hwClick('#hwChop', () => $('#chopPad').click());
 hwClick('#hwRnd', () => $('#rndKit').click());
-hwClick('#hwSp', () => $('#spMode').click());
-$('#spExit').addEventListener('click', () => $('#spMode').click());
+/* the SP-1200 section is Omega Twelve (twelve/): opened full screen, kept loaded so it keeps its state */
+function twelveOpen(){
+  const w = $('#twelveWrap'), f = $('#twelveFrame');
+  try { if (typeof sheetCard !== 'undefined' && sheetCard) sheetClose(); } catch(e){}
+  if (!f.src) f.src = 'twelve/?in=omega';
+  else try { f.contentWindow.twelveResume && f.contentWindow.twelveResume(); } catch(e){}
+  w.hidden = false; document.documentElement.classList.add('tw-on');
+  try { history.pushState({tw:1}, ''); } catch(e){}
+  setTimeout(() => { try { f.contentWindow.dispatchEvent(new Event('resize')); f.focus(); } catch(e){} }, 60);
+}
+function twelveClose(fromPop){
+  const w = $('#twelveWrap'); if (w.hidden) return;
+  try { const cw = $('#twelveFrame').contentWindow; cw.twelveSuspend && cw.twelveSuspend(); } catch(e){}
+  w.hidden = true; document.documentElement.classList.remove('tw-on');
+  if (!fromPop) try { if (history.state && history.state.tw) history.back(); } catch(e){}
+}
+window.addEventListener('popstate', () => twelveClose(true));
+$('#twelveBack').addEventListener('click', () => twelveClose());
+hwClick('#hwSp', twelveOpen);
+$('#spExit').addEventListener('click', () => { S.sp = false; save(); spBanner(); });
 hwClick('#hwBrowse', () => $('#libBrowse').click());
 hwClick('#hwStore', () => { const b = $('#projSave'); if (b) b.click(); });
 hwClick('#hwUndo', () => $('#undo').click());
