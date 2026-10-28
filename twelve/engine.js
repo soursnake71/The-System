@@ -55,7 +55,7 @@ const PARAMS = [
   P('bits', 'Bits', 2, 16, 12, 1, 'bit', 'sampler'),
   P('rate', 'Rate', 4000, 52100, SP_SR, 0, 'Hz', 'sampler', {log:1}),
   P('alias', 'Unfiltered', 0, 1, 0, 0, '%', 'sampler'),
-  P('drive', 'Drive', 0, 1, .2, 0, '%', 'sampler'),
+  P('drive', 'Drive', 0, 1, 0, 0, '%', 'sampler'),
   P('mono', 'Mono', 0, 1, 1, 1, '', 'sampler', {toggle:1}),
   P('rpm', 'Alias', 0, 30, 0, .1, 'st', 'sampler'),
   P('pre', 'Preamp', 0, 1, 1, 1, '', 'sampler', {toggle:1}),
@@ -162,10 +162,9 @@ function quantize(v, bits){
 }
 // input filter for a machine: the SP-1200 prototype, scaled to the machine's clock
 function inputFilter(rate, fs){ return sDesign(PROTO.input, fs, rate / SP_SR); }
-function driveGain(p){ return dbToGain(p.input) * (1 + p.drive * 3); }
-// the input preamp, after the S950's: driven hard it adds second harmonic and clips softly, more on one side.
-// Unity gain for small signals.
-function preamp(x){ const y = x + .12 * x * x; return y >= 0 ? Math.tanh(y) : Math.tanh(1.4 * y) / 1.4; }
+function driveGain(p){ return dbToGain(p.input) * (1 + p.drive * 1.5); }
+// the input preamp: clean up to its knee, then a soft clip that comes in a little earlier on the negative side
+function preamp(x){ const a = Math.abs(x), k = x >= 0 ? .9 : .85; if (a <= k) return x; const h = 1 - k; return Math.sign(x) * (k + h * Math.tanh((a - k) / h)); }
 // what the machine actually does with the knobs: its rate range, the filter's cutoff range, the filter switch
 function effective(p){
   const M = MACHINES[p.machine | 0] || MACHINES[0], q = Object.assign({}, p);
@@ -507,7 +506,7 @@ function renderPre(chs, sr, p0, fs, opts){
       wet = SPE.playChannel(codes, {clock:p.rate, sp12:(p.machine | 0) === 1, cents:cents - p.rpm * 100, output:out, rest:p.cutoff, res:p.res,
         depth:p.fenv, retrigger:p.retrig > .5, calib:p.calib > .5 ? 'measured' : 'manual'}, fs);
       if (ft >= 6){ const f = new OutFilter(fs); f.setup(p); f.trigger(); for (let i = 0; i < wet.length; i++) wet[i] = f.process(wet[i]); }
-      for (let i = 0; i < wet.length; i++) wet[i] /= 1 + p.drive * 3;
+      for (let i = 0; i < wet.length; i++) wet[i] /= 1 + p.drive * 1.5;
       const dry = p.mix < 1 ? playDry(s, sr, fs, cents, wet.length) : null;
       if (dry) for (let i = 0; i < wet.length; i++) wet[i] = wet[i] * p.mix + dry[i] * inGain * (1 - p.mix);
       return wet;
@@ -520,7 +519,7 @@ function renderPre(chs, sr, p0, fs, opts){
     for (let i = 0; i < wet.length; i++){
       let y = wet[i]; dc += (y - dc) * (6 / fs); y = f.process(y - dc);
       // drive pushes the converter; take it back out so drive changes the sound, not the level
-      y /= 1 + p.drive * 3;
+      y /= 1 + p.drive * 1.5;
       wet[i] = dry ? y * p.mix + dry[i] * inGain * (1 - p.mix) : y;
     }
     return wet;
@@ -691,16 +690,16 @@ function machinePatch(m){ const M = MACHINES[m]; return {machine:m, rate:M.rate,
 const lerp = (r, a, b) => a + (b - a) * r();
 const pick = (r, a) => a[Math.floor(r() * a.length) % a.length];
 const FAMILIES = [
-  ['SP-1200 Classic', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2, 3]), cutoff:lerp(r, 1200, 2600), fenv:lerp(r, .6, 1), drive:lerp(r, .1, .4)})],
+  ['SP-1200 Classic', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2, 3]), cutoff:lerp(r, 1200, 2600), fenv:lerp(r, .6, 1), drive:lerp(r, .05, .2)})],
   ['SP-1200 Out 1-2', r => ({...machinePatch(0), ftype:0, cutoff:lerp(r, 500, 3000), res:lerp(r, 0, .45), fenv:lerp(r, .3, 1)})],
-  ['SP-1200 Out 3', r => ({...machinePatch(0), ftype:1, drive:lerp(r, 0, .5)})],
-  ['SP-1200 Out 4', r => ({...machinePatch(0), ftype:2, drive:lerp(r, 0, .5)})],
-  ['SP-1200 Out 5-6', r => ({...machinePatch(0), ftype:pick(r, [3, 4]), drive:lerp(r, 0, .5)})],
-  ['SP-1200 Raw 7-8', r => ({...machinePatch(0), ftype:5, alias:lerp(r, 0, .6), drive:lerp(r, 0, .6)})],
-  ['SP-1200 Pitched Down', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2]), semis:-Math.round(lerp(r, 3, 12)), drive:lerp(r, .1, .4)})],
+  ['SP-1200 Out 3', r => ({...machinePatch(0), ftype:1, drive:lerp(r, 0, .25)})],
+  ['SP-1200 Out 4', r => ({...machinePatch(0), ftype:2, drive:lerp(r, 0, .25)})],
+  ['SP-1200 Out 5-6', r => ({...machinePatch(0), ftype:pick(r, [3, 4]), drive:lerp(r, 0, .25)})],
+  ['SP-1200 Raw 7-8', r => ({...machinePatch(0), ftype:5, alias:lerp(r, 0, .6), drive:lerp(r, 0, .3)})],
+  ['SP-1200 Pitched Down', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2]), semis:-Math.round(lerp(r, 3, 12)), drive:lerp(r, .05, .2)})],
   ['SP-1200 Pitched Up', r => ({...machinePatch(0), ftype:pick(r, [2, 3, 4, 5]), semis:Math.round(lerp(r, 2, 12))})],
-  ['SP-12 Crunch', r => ({...machinePatch(1), ftype:pick(r, [0, 2, 5]), drive:lerp(r, .3, .8), alias:lerp(r, 0, .4)})],
-  ['MPC60 Swing', r => ({...machinePatch(2), cutoff:lerp(r, 9000, 16000), ftype:pick(r, [5, 6]), drive:lerp(r, 0, .3)})],
+  ['SP-12 Crunch', r => ({...machinePatch(1), ftype:pick(r, [0, 2, 5]), drive:lerp(r, .15, .4), alias:lerp(r, 0, .4)})],
+  ['MPC60 Swing', r => ({...machinePatch(2), cutoff:lerp(r, 9000, 16000), ftype:pick(r, [5, 6]), drive:lerp(r, 0, .15)})],
   ['MPC60 Dusty', r => ({...machinePatch(2), ftype:6, cutoff:lerp(r, 5000, 10000), crackle:lerp(r, .1, .4), age:lerp(r, .1, .4)})],
   ['S950 Filtered', r => ({...machinePatch(3), cutoff:lerp(r, 2500, 9000)})],
   ['S950 Low Rate', r => ({...machinePatch(3), rate:pick(r, [15000, 22050, 20000]), cutoff:lerp(r, 3000, 7000)})],
@@ -712,16 +711,16 @@ const FAMILIES = [
   ['AM Radio', r => ({...machinePatch(6), rate:lerp(r, 8000, 11025), bits:Math.round(lerp(r, 9, 12)), ftype:6, cutoff:lerp(r, 2800, 4500), age:lerp(r, .7, 1), hiss:lerp(r, .2, .4), hum:lerp(r, .1, .3), mono:1})],
   ['Bitcrushed', r => ({...machinePatch(6), bits:Math.round(lerp(r, 3, 8)), rate:lerp(r, 4000, 16000), pitchMode:1, ftype:5, alias:lerp(r, .5, 1)})],
   ['Phone Line', r => ({...machinePatch(6), rate:8000, bits:Math.round(lerp(r, 8, 10)), ftype:6, cutoff:3400, age:1, tape:lerp(r, .3, .6), mono:1})],
-  ['Basement Boom Bap', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2]), semis:-Math.round(lerp(r, 0, 5)), crackle:lerp(r, .05, .3), tape:lerp(r, .1, .4), drive:lerp(r, .2, .5)})],
+  ['Basement Boom Bap', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2]), semis:-Math.round(lerp(r, 0, 5)), crackle:lerp(r, .05, .3), tape:lerp(r, .1, .4), drive:lerp(r, .1, .25)})],
   ['Lo-Fi Keys', r => ({...machinePatch(pick(r, [3, 4, 6])), wow:lerp(r, .2, .5), flutter:lerp(r, .1, .3), crackle:lerp(r, .1, .3), hiss:lerp(r, .1, .3), age:lerp(r, .2, .5), mono:0})],
-  ['Drum Break', r => ({...machinePatch(pick(r, [0, 1, 2])), ftype:pick(r, [0, 2, 3, 5]), drive:lerp(r, .2, .6), crackle:lerp(r, 0, .2), retrig:1})],
+  ['Drum Break', r => ({...machinePatch(pick(r, [0, 1, 2])), ftype:pick(r, [0, 2, 3, 5]), drive:lerp(r, .1, .3), crackle:lerp(r, 0, .2), retrig:1})],
   ['Clean Character', r => ({...machinePatch(6), tape:lerp(r, 0, .3), age:lerp(r, 0, .15), mono:0})],
-  ['Classic Samplers', r => { const m = 7 + Math.floor(r() * 11); const M = MACHINES[m]; return {...machinePatch(m), rate:lerp(r, Math.max(M.lo, M.hi * .6), M.hi), cutoff:M.cutoff * lerp(r, .4, 1), res:lerp(r, 0, .4), rpm:r() < .4 ? Math.round(lerp(r, 1, 8) * 10) / 10 : 0, drive:lerp(r, 0, .4)}; }],
+  ['Classic Samplers', r => { const m = 7 + Math.floor(r() * 11); const M = MACHINES[m]; return {...machinePatch(m), rate:lerp(r, Math.max(M.lo, M.hi * .6), M.hi), cutoff:M.cutoff * lerp(r, .4, 1), res:lerp(r, 0, .4), rpm:r() < .4 ? Math.round(lerp(r, 1, 8) * 10) / 10 : 0, drive:lerp(r, 0, .2)}; }],
   ['Styles', (r, k) => { const [name, m, o] = STYLES[k]; return {...machinePatch(m), ...o, _name:name}; }]
 ];
 // 20 named sounds: [name, machine, settings]
 const STYLES = [
-  ['Dusty Chop', 0, {ftype:1, rpm:5.4, drive:.3}], ['45 Flip', 0, {ftype:0, rpm:12, cutoff:1400}], ['Bright Footwork', 0, {ftype:5, rpm:2}],
+  ['Dusty Chop', 0, {ftype:1, rpm:5.4, drive:.15}], ['45 Flip', 0, {ftype:0, rpm:12, cutoff:1400}], ['Bright Footwork', 0, {ftype:5, rpm:2}],
   ['Dark Motor', 0, {ftype:0, cutoff:500, res:.6}], ['Clean Swing', 7, {}], ['Heavy Dub', 3, {cutoff:3000}],
   ['Grain Fog', 13, {stretch:4, smode:1, grain:30}], ['Rot', 5, {bits:4, rate:10000}], ['Punch Break', 3, {rate:40000, cutoff:14000}],
   ['Plastic Bite', 16, {res:.7, cutoff:3000}], ['Amen Smear', 8, {stretch:2, smode:2, grain:25}], ['Box Kit', 9, {}],
@@ -750,7 +749,7 @@ function randomPatch(seed){
   const r = rng(seed), fam = FAMILIES[Math.floor(r() * (FAMILIES.length - 1))], v = Object.assign({}, defaults(), fn0(fam[1], r));
   v.semis = r() < .35 ? Math.round(lerp(r, -7, 5)) : 0;
   for (const id of ['crackle', 'hiss', 'wow', 'flutter', 'tape', 'age']) if (r() < .3) v[id] = clamp(v[id] + lerp(r, 0, .35), 0, 1);
-  v.drive = clamp(v.drive + lerp(r, -.1, .2), 0, 1);
+  v.drive = clamp(v.drive + lerp(r, -.1, .1), 0, 1);
   const vals = {}; for (const id of SOUND_IDS) vals[id] = round4(clampParam(id, v[id]));
   return {name:'Random · ' + fam[0], values:vals};
 }

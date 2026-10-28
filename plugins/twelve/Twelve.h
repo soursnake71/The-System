@@ -121,9 +121,12 @@ inline double quantize(double v, double bits) {
     return clampd(std::floor(v * q), -q, q - 1) / q;
 }
 inline Chain inputFilter(double rate, double fs) { return sDesign(proto(0), fs, rate / SP_SR); }
-inline double driveGain(const Params& p) { return dbToGain(p[pid::input]) * (1 + p[pid::drive] * 3); }
-// the input preamp, after the S950's: second harmonic and an asymmetric soft clip when driven; unity for small signals
-inline double preamp(double x) { const double y = x + .12 * x * x; return y >= 0 ? std::tanh(y) : std::tanh(1.4 * y) / 1.4; }
+inline double driveGain(const Params& p) { return dbToGain(p[pid::input]) * (1 + p[pid::drive] * 1.5); }
+// the input preamp: clean up to its knee, then a soft clip that comes in a little earlier on the negative side
+inline double preamp(double x) {
+    const double a = std::fabs(x), k = x >= 0 ? .9 : .85; if (a <= k) return x;
+    const double h = 1 - k; return (x < 0 ? -1 : 1) * (k + h * std::tanh((a - k) / h));
+}
 // what the machine does with the knobs: its rate range, the filter's cutoff range, the filter switch
 inline Params effective(const Params& p) {
     const Machine& M = MACHINES[(int) clampd(p[pid::machine], 0, 17)]; Params q = p;
@@ -525,7 +528,7 @@ inline Chans renderPre(const Chans& src, double sr, const Params& p0, double fs,
             po.rest = p[pid::cutoff]; po.res = p[pid::res]; po.depth = p[pid::fenv]; po.retrigger = p[pid::retrig] > .5; po.measured = p[pid::calib] > .5;
             Buf wet = sp::playChannel(codes, po, fs);
             if (ft >= 6) { OutFilter f(fs); f.setup(p); f.trigger(); for (auto& v : wet) v = (float) f.process(v); }
-            for (auto& v : wet) v = (float) (v / (1 + p[pid::drive] * 3));
+            for (auto& v : wet) v = (float) (v / (1 + p[pid::drive] * 1.5));
             if (mix < 1) { const Buf dry = playDry(s, sr, fs, cents, wet.size()); for (size_t i = 0; i < wet.size(); ++i) wet[i] = (float) (wet[i] * mix + dry[i] * inGain * (1 - mix)); }
             res.push_back(std::move(wet));
             continue;
@@ -538,7 +541,7 @@ inline Chans renderPre(const Chans& src, double sr, const Params& p0, double fs,
         double dc = 0;
         for (size_t i = 0; i < wet.size(); ++i) {
             double y = wet[i]; dc += (y - dc) * (6 / fs); y = f.process(y - dc);
-            y /= 1 + p[pid::drive] * 3;
+            y /= 1 + p[pid::drive] * 1.5;
             wet[i] = (float) (mix < 1 ? y * mix + dry[i] * inGain * (1 - mix) : y);
         }
         res.push_back(std::move(wet));

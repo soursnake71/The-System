@@ -223,7 +223,10 @@ inline std::vector<uint16_t> codesFor(const std::vector<float>& src, double sr, 
     }
     // the input gain and preamp (twelve::preamp, repeated here to keep this header standalone)
     std::vector<float> in(src.size());
-    for (size_t i = 0; i < src.size(); ++i) { const double x = src[i] * o.preGain, y = x + .12 * x * x; in[i] = (float) (o.preOn ? (y >= 0 ? std::tanh(y) : std::tanh(1.4 * y) / 1.4) : x); }
+    for (size_t i = 0; i < src.size(); ++i) {
+        const double x = src[i] * o.preGain, a = std::fabs(x), k = x >= 0 ? .9 : .85, h = 1 - k;
+        in[i] = (float) (o.preOn && a > k ? (x < 0 ? -1 : 1) * (k + h * std::tanh((a - k) / h)) : x);
+    }
     auto c = std::make_shared<std::vector<uint16_t>>(sampleCodes(in, rpm != 0 ? sr * std::pow(2.0, rpm / 12) : sr, o));
     std::lock_guard<std::mutex> l(mu);
     cache.insert(cache.begin(), Entry{ src.data(), src.size(), { key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8] }, c });

@@ -216,7 +216,7 @@ void TwelveProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuff
     const double preG = driveGain(p); const bool preOn = p[pid::pre] > .5;
     if ((int) lbuf.size() < n) { lbuf.resize((size_t) n); rbuf.resize((size_t) n); }
     float* l = lbuf.data(); float* r = rbuf.data();
-    const double inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output] - (p[pid::link] > .5 ? p[pid::input] : 0)), mix = p[pid::mix], dv = 1 + p[pid::drive] * 3;
+    const double inGain = dbToGain(p[pid::input]), outGain = dbToGain(p[pid::output] - (p[pid::link] > .5 ? p[pid::input] : 0)), mix = p[pid::mix], dv = 1 + p[pid::drive] * 1.5;
     const bool mono = p[pid::mono] > .5;
     for (int i = 0; i < n; ++i) {
         double yl = 0, yr = 0;

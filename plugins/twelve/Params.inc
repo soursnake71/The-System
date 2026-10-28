@@ -6,7 +6,7 @@ static const ParamInfo PARAMS[] = {
   {"bits", "Bits", 2.0, 16.0, 12.0, 1.0, "bit", "sampler", false, false, {}},
   {"rate", "Rate", 4000.0, 52100.0, 26041.666666666668, 0.0, "Hz", "sampler", true, false, {}},
   {"alias", "Unfiltered", 0.0, 1.0, 0.0, 0.0, "%", "sampler", false, false, {}},
-  {"drive", "Drive", 0.0, 1.0, 0.2, 0.0, "%", "sampler", false, false, {}},
+  {"drive", "Drive", 0.0, 1.0, 0.0, 0.0, "%", "sampler", false, false, {}},
   {"mono", "Mono", 0.0, 1.0, 1.0, 1.0, "", "sampler", false, true, {}},
   {"rpm", "Alias", 0.0, 30.0, 0.0, 0.1, "st", "sampler", false, false, {}},
   {"pre", "Preamp", 0.0, 1.0, 1.0, 1.0, "", "sampler", false, true, {}},
