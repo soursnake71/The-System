@@ -2431,7 +2431,7 @@ html.sp[data-view="drums"] main{padding:0!important;overflow:hidden!important;ba
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v139</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v140</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2574,7 +2574,7 @@ function defaultState(){
   return {
     v:2, bpm:92, bars:1, swing:18, metro:false, countIn:true, autoLat:true, latMs:40,
     inCh:'L', device:'', monitor:false,
-    quant:24, repRate:24, fullLevel:true, tapMs:20, bt:false, btMs:180, repeat:false, erase:false, spRest:1200, spRes:.15,
+    quant:24, repRate:24, fullLevel:true, tapMs:20, bt:false, btMs:180, repeat:false, erase:false, sp:true, spRest:1200, spRes:.15,
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0, padMap:'chrom',
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
@@ -5289,12 +5289,21 @@ class SP1200 extends AudioWorkletProcessor{
       if (d.type === 'sample') this.samples.set(d.key, d.data);
       else if (d.type === 'ev'){ this.q.push(d.ev); this.q.sort((a, b) => a.f - b.f); }
       else if (d.type === 'cfg'){ this.rest = d.rest; this.res = d.res; }
+      else if (d.type === 'tune'){
+        // a fader moved while the sound plays: re-pitch from where it is (still drop-sample), new level and pan
+        const k = Math.floor(currentFrame * SPR / this.fs);
+        for (const c of this.ch) if (c.data && c.key === d.key){
+          const idx = Math.max(0, ((k - c.k0) * c.inc) >> 7); c.inc = d.inc; c.k0 = k - Math.floor(idx * 128 / d.inc);
+          c.lvl = Math.round(Math.min(1, c.vel * d.vol * d.vol * 1.2 / 1.5) * 255) / 255 * 1.5;
+          const a = (d.pan + 1) * Math.PI / 4; c.pl = Math.cos(a); c.pr = Math.sin(a); }
+        for (const ev of this.q) if (ev.key === d.key){ ev.inc = d.inc; ev.lvl = Math.min(1.5, ev.vel * d.vol * d.vol * 1.2); ev.pan = d.pan; }
+      }
     };
   }
   trig(ev, frame){
     const c = this.ch[ev.ch - 1], data = this.samples.get(ev.key); if (!data) return;
     if (ev.choke) for (const o of this.ch) if (o !== c && o.choke === ev.choke && o.data) o.cut = 1;
-    c.data = data; c.inc = ev.inc; c.k0 = Math.ceil(frame * SPR / this.fs + 1e-9);
+    c.data = data; c.key = ev.key; c.vel = ev.vel == null ? 1 : ev.vel; c.inc = ev.inc; c.k0 = Math.ceil(frame * SPR / this.fs + 1e-9);
     c.lvl = Math.round(Math.min(1, ev.lvl / 1.5) * 255) / 255 * 1.5;   // 8-bit level DAC
     const a = (ev.pan + 1) * Math.PI / 4; c.pl = Math.cos(a); c.pr = Math.sin(a);
     c.f0 = frame; c.fa = ev.fa; c.fb = ev.fb; c.choke = ev.choke; c.cut = 0; c.tr = 0;
@@ -6459,7 +6468,7 @@ function spEngine(rig){
 function spTrigger(rig, pad, t, vel){
   const st = clamp(Math.round(pad.pitch), -16, 15), inc = SP_TUNE[st + 16] + 1, base = spBase(pad.sample), fs = rig.c.sampleRate;
   const L = base.length * 128 / inc / SP_SR * pad.decay;
-  const ev = {f:Math.round(t * fs), ch:pad.spOut || 3, key:pad.sample, inc, lvl:clamp(vel * pad.vol * pad.vol * 1.2, 0, 1.5), pan:pad.pan,
+  const ev = {f:Math.round(t * fs), ch:pad.spOut || 3, key:pad.sample, inc, vel, lvl:clamp(vel * pad.vol * pad.vol * 1.2, 0, 1.5), pan:pad.pan,
     fa:pad.decay < 1 ? Math.round(L * .6 * fs) : -1, fb:Math.round(L * fs), choke:pad.choke || 0};
   if (rig === live){
     const n = spEngine(live); if (!n) return false;
@@ -6569,7 +6578,9 @@ function playPad(rig, pad, t, vel, dur, pi, held){
 }
 // turning a pad's TUNE, LEVEL or PAN changes the notes already sounding (and the ones queued), not just the next hit
 function padLive(pad){
-  if (!live || !live.padAll || !ctx || !S.drum.pads.includes(pad)) return;
+  if (!live || !ctx || !S.drum.pads.includes(pad)) return;
+  if (S.sp && live.spNode && pad.sample){ const st = clamp(Math.round(pad.pitch), -16, 15); live.spNode.port.postMessage({type:'tune', key:pad.sample, inc:SP_TUNE[st + 16] + 1, vol:pad.vol, pan:pad.pan}); }
+  if (!live.padAll) return;
   const now = ctx.currentTime;
   for (const e of live.padAll){ if (e.pad !== pad) continue;
     if (!e.sp) e.src.playbackRate.setTargetAtTime(Math.pow(2, pad.pitch / 12) * e.fit, now, .008);
@@ -15311,6 +15322,8 @@ function spEnter(){
   S.synths.forEach(t => { t.notes = t.notes || []; t.patch = Object.assign({...PRESETS.Bass}, t.patch); t.voc = Object.assign(VOC_DEFAULT(), t.voc); if (!t.inst || t.inst === 'synth'){ t.inst = 'prophet'; if (/^Synth \d+$/.test(t.name)) t.name = 'Prophet ' + t.id.slice(1); } t.sol = Object.assign(SOL_DEFAULT(), t.sol); t.p5 = Object.assign(P5_DEFAULT(), t.p5); t.ob = Object.assign(OB_DEFAULT(), t.ob); t.tb = Object.assign(TB_DEFAULT(), t.tb); t.tau = Object.assign(TAU_DEFAULT(), t.tau); });
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
+  // the Pads screen is an SP-1200, so it sounds like one: 12-bit, 26.04 kHz, drop-sample tuning (once; Disk > SP-1200 mode turns it off)
+  try { if (localStorage.getItem('pr.spmode1') !== '1'){ S.sp = true; localStorage.setItem('pr.spmode1', '1'); } } catch(e){}
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
   // turntables never start by themselves when the app opens or reloads
