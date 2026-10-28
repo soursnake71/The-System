@@ -1,0 +1,36 @@
+# Builds the iPhone / iPad apps (The Omega System and Omega Vox: the web app full screen) on a Mac, unsigned,
+# and attaches the .ipa files to the "ios-latest" release. Install them with AltStore or Sideloadly, which sign
+# them with your own Apple ID.
+name: iOS apps
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Project
+        run: brew install xcodegen && cd ios && xcodegen generate
+      - name: Build
+        run: |
+          cd ios
+          for s in Omega Vox; do
+            xcodebuild -project OmegaSystem.xcodeproj -scheme $s -configuration Release -sdk iphoneos -derivedDataPath build \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -5
+          done
+          ls build/Build/Products/Release-iphoneos
+      - name: Package
+        run: |
+          cd ios
+          for a in OmegaSystem OmegaVox; do rm -rf Payload; mkdir Payload; cp -R build/Build/Products/Release-iphoneos/$a.app Payload/; zip -qr ../$a.ipa Payload; done
+          ls -la ../*.ipa
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release view ios-latest >/dev/null 2>&1 || gh release create ios-latest --title "iPhone / iPad apps (latest)" --notes "The Omega System and Omega Vox for iPhone and iPad. Unsigned: install with AltStore (altstore.io) or Sideloadly (sideloadly.io), which sign the .ipa with your Apple ID. Or skip the install: open https://soursnake71.github.io/The-System/ in Safari, tap Share, then Add to Home Screen."
+          gh release upload ios-latest OmegaSystem.ipa OmegaVox.ipa --clobber

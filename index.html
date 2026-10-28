@@ -1090,7 +1090,7 @@ html.hw #v-drums > .row.perf,html.hw #kitPlate{display:none!important}
 .hw-lcdtop #hwPadT{flex:1}
 html.hw.retro .hw-lcdtop button{font:600 11px/1 var(--f-mono);color:#071822;background:#7fe6ff;border:0;border-radius:3px;padding:3px 6px;box-shadow:0 0 8px #4fe3ff88;white-space:nowrap}
 #hwWave{display:block;width:100%;height:84px;background:radial-gradient(120% 140% at 50% 0%,#0d2a3a,#061017);border-radius:6px}
-.hw-soft{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:5px}
+.hw-soft{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:5px}
 html.hw .hw-soft button{padding:6px 0;font-size:10px;border-radius:4px}
 html.hw.retro #v-drums .scenebar{margin-bottom:6px}
 .hw-knobs{display:grid!important;grid-template-columns:repeat(4,1fr);gap:4px;justify-items:center;margin-bottom:6px}
@@ -1206,6 +1206,7 @@ html.sp[data-view="drums"] main{padding:0!important;overflow:hidden!important;ba
   color:var(--ink);font-family:"Barlow Condensed","Arial Narrow",sans-serif;display:grid;gap:8px 18px;user-select:none}
 .sp12 h4{margin:0 0 4px;font:600 15px/1 "Barlow Condensed",sans-serif;letter-spacing:.01em;color:#fff;border-bottom:2px solid var(--line);padding-bottom:3px}
 .sp-top,.sp-bot{background:linear-gradient(180deg,#e2e3e4,#cfd0d2);border-radius:4px;color:#1d1f22;display:flex;align-items:baseline;gap:22px;padding:6px 18px}
+.sp-top button{margin-left:auto;align-self:center;font:700 10px/1 Barlow,sans-serif;letter-spacing:.08em;color:#1d1f22!important;background:#c4c5c7!important;border:1px solid #8a8c90!important;border-radius:3px;padding:5px 8px;box-shadow:none!important}
 .sp-top b{font:700 30px/1 "Barlow Condensed",sans-serif;letter-spacing:-.01em}
 .sp-top span{font:600 9px/1 Barlow,sans-serif;letter-spacing:.55em}
 .sp-bot b{font:500 22px/1 "Barlow Condensed",sans-serif;letter-spacing:-.01em}
@@ -1308,7 +1309,7 @@ html.hw #spBanner{display:none!important}
   <!-- DRUMS -->
   <section class="view" id="v-drums">
     <div class="sp-wrap" id="spWrap"><div class="sp12" id="spPanel">
-      <div class="sp-top"><b>SP 1200</b><span>SAMPLING PERCUSSION</span></div>
+      <div class="sp-top"><b>SP 1200</b><span>SAMPLING PERCUSSION</span><button id="spExit" class="nolearn" title="Leave SP-1200 mode (back to the normal Pads screen)">EXIT SP-1200</button></div>
       <div class="sp-secs">
         <div class="spsec"><h4>Set-up</h4><i class="spled" id="spLedSetup"></i><button class="spbtn nolearn" data-act="setup" aria-label="Set-up"></button><small>Settings · MIDI · export</small></div>
         <div class="spsec"><h4>Disk</h4><i class="spled" id="spLedDisk"></i><button class="spbtn nolearn" data-act="disk" aria-label="Disk"></button><small>Load sounds · kits · packs</small></div>
@@ -1364,6 +1365,7 @@ html.hw #spBanner{display:none!important}
         <button id="hwSample" class="nolearn" title="Sample the input onto the selected pad">SAMPLE</button>
         <button id="hwChop" class="nolearn" title="Chop the selected pad's sound">CHOP</button>
         <button id="hwRnd" class="nolearn" title="Random kit from your samples">🎲 RND</button>
+        <button id="hwSp" class="nolearn" title="SP-1200 mode: the SP-1200 panel and its 12-bit, 26 kHz sound">SP-1200</button>
       </div>
     </div>
     <div class="scenebar" id="sceneBar" role="group" aria-label="Patterns"></div>
@@ -2432,7 +2434,7 @@ html.hw #spBanner{display:none!important}
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v142</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v143</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -2575,7 +2577,7 @@ function defaultState(){
   return {
     v:2, bpm:92, bars:1, swing:18, metro:false, countIn:true, autoLat:true, latMs:40,
     inCh:'L', device:'', monitor:false,
-    quant:24, repRate:24, fullLevel:true, tapMs:20, bt:false, btMs:180, repeat:false, erase:false, sp:true, spRest:1200, spRes:.15,
+    quant:24, repRate:24, fullLevel:true, tapMs:20, bt:false, btMs:180, repeat:false, erase:false, sp:false, spRest:1200, spRes:.15,
     root:0, scale:'Minor', oct:1, midiTarget:'drums',
     midiInName:'', midiOutName:'', midiMap:[], midiClock:'off', midiOffMs:0, midiNotes:true, midiBase:36, midiCh:0, padMap:'chrom',
     master:{vol:.9, glue:0, rev:2.2, dlyDiv:.75, dlyFb:.35},
@@ -11984,6 +11986,8 @@ $('#ppgPreset').addEventListener('change', e => { const tr = curSynth(); if (!PP
 /* ================= E-mu SP-1200 faceplate: SP mode, banks, 8 faders in slider mode, 8 pads ================= */
 let spBank = 0, spFader = 'tune';
 function spBanner(){
+  // SP-1200 mode brings up the SP-1200 front panel; off goes back to the normal Pads screen
+  const r = document.documentElement; if (r.classList.contains('sp') !== !!S.sp){ r.classList.toggle('sp', !!S.sp); setTimeout(() => { try { fitScreen(); } catch(e){} }, 30); }
   let b = $('#spBanner'); const host = $('#v-drums'); if (!host) return;
   if (!S.sp){ if (b) b.remove(); return; }
   if (!b){ b = document.createElement('div'); b.id = 'spBanner'; b.className = 'spbanner'; b.innerHTML = '<span class="grow">SP-1200 MODE IS ON · every pad plays 12-bit 26 kHz</span><button class="pwr on nolearn" id="spBannerOff">SP ON</button>';
@@ -15158,6 +15162,8 @@ hwClick('#hwLoad', () => $('#loadSample').click());
 hwClick('#hwSample', () => $('#sampleIn').click());
 hwClick('#hwChop', () => $('#chopPad').click());
 hwClick('#hwRnd', () => $('#rndKit').click());
+hwClick('#hwSp', () => $('#spMode').click());
+$('#spExit').addEventListener('click', () => $('#spMode').click());
 hwClick('#hwBrowse', () => $('#libBrowse').click());
 hwClick('#hwStore', () => { const b = $('#projSave'); if (b) b.click(); });
 hwClick('#hwUndo', () => $('#undo').click());
@@ -15324,7 +15330,8 @@ function spEnter(){
   S.auto = S.auto || {}; S.autoOff = S.autoOff || [];
   if (S.spRest == null){ S.spRest = 1200; S.spRes = .15; }
   // the Pads screen is an SP-1200, so it sounds like one: 12-bit, 26.04 kHz, drop-sample tuning (once; Disk > SP-1200 mode turns it off)
-  try { if (localStorage.getItem('pr.spmode1') !== '1'){ S.sp = true; localStorage.setItem('pr.spmode1', '1'); } } catch(e){}
+  // SP-1200 mode is your switch now (it brings up the SP-1200 panel); start on the normal Pads screen once
+  try { if (localStorage.getItem('pr.spmode2') !== '1'){ S.sp = false; localStorage.setItem('pr.spmode2', '1'); } } catch(e){}
   allTracks().forEach(t => { for (const k in FX_DEFAULTS) if (t[k] == null) t[k] = FX_DEFAULTS[k]; });
   if (!S.scenes || !S.scenes.length){ S.scenes = []; S.cur = 0; storeScene(); }
   // turntables never start by themselves when the app opens or reloads
