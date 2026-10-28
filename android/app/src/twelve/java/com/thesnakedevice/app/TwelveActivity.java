@@ -77,7 +77,18 @@ public class TwelveActivity extends Activity {
         return true;
       }
     });
-    setContentView(web);
+    // Android 15 draws apps under the status and navigation bars: keep the panel between them so nothing is cut off
+    final android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+    root.setBackgroundColor(0xff3a3c3f);
+    root.addView(web, new android.widget.FrameLayout.LayoutParams(-1, -1));
+    root.setOnApplyWindowInsetsListener((v, ins) -> {
+      if (Build.VERSION.SDK_INT >= 30) {
+        android.graphics.Insets bars = ins.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+        v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+      } else v.setPadding(ins.getSystemWindowInsetLeft(), ins.getSystemWindowInsetTop(), ins.getSystemWindowInsetRight(), ins.getSystemWindowInsetBottom());
+      return ins;
+    });
+    setContentView(root);
     if (b != null) web.restoreState(b); else web.loadUrl(HOME);
   }
 
