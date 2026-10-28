@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="retro hw">
+<html lang="en" class="retro hw sp">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -1193,6 +1193,81 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
   #hwWave{height:30px}
   html.hw .hw-knobs .kcap{width:28px;height:28px}
 }
+
+/* ================= SP-1200 front panel (html.sp): the Pads screen is the machine itself, scaled to fit, no scrolling ================= */
+html:not(.sp) .sp-wrap{display:none}
+html.sp #v-drums > :not(.sp-wrap):not(.card.sheeted){display:none!important}
+html.sp.hw.retro #v-drums:not([hidden]){display:block!important;background:none!important;border:0!important;box-shadow:none!important;padding:0!important;margin:0!important;max-width:none!important}
+html.sp[data-view="drums"] header.transport{display:none}
+html.sp[data-view="drums"] main{padding:0!important;overflow:hidden!important;background:#3f4247}
+.sp-wrap{width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:hidden}
+.sp12{--case:#5f646a;--face:#686d73;--cream:#efe8d6;--line:#3f93dd;--ink:#f3f3f1;flex:none;transform-origin:top left;position:relative;
+  background:linear-gradient(180deg,#6c7177,#62676d);border-radius:14px;padding:10px;box-shadow:inset 0 2px 0 #ffffff22,inset 0 -3px 0 #0003,0 6px 18px #000a;
+  color:var(--ink);font-family:"Barlow Condensed","Arial Narrow",sans-serif;display:grid;gap:8px 18px;user-select:none}
+.sp12 h4{margin:0 0 4px;font:600 15px/1 "Barlow Condensed",sans-serif;letter-spacing:.01em;color:#fff;border-bottom:2px solid var(--line);padding-bottom:3px}
+.sp-top,.sp-bot{background:linear-gradient(180deg,#e2e3e4,#cfd0d2);border-radius:4px;color:#1d1f22;display:flex;align-items:baseline;gap:22px;padding:6px 18px}
+.sp-top b{font:700 30px/1 "Barlow Condensed",sans-serif;letter-spacing:-.01em}
+.sp-top span{font:600 9px/1 Barlow,sans-serif;letter-spacing:.55em}
+.sp-bot b{font:500 22px/1 "Barlow Condensed",sans-serif;letter-spacing:-.01em}
+.spbtn{width:30px;height:30px;padding:0;border-radius:3px;border:1px solid #0006!important;background:linear-gradient(180deg,#fbf7ec,#e6dfcc)!important;box-shadow:0 3px 0 #2c2f33,0 4px 5px #0008,inset 0 1px 0 #fff!important;color:transparent!important}
+.spbtn:active,.spbtn.dn{transform:translateY(2px);box-shadow:0 1px 0 #2c2f33,0 2px 3px #0008,inset 0 1px 0 #fff!important}
+.spbtn.red{background:linear-gradient(180deg,#ff4a3e,#d8241c)!important}
+.spbtn.blk{width:42px;height:42px;background:linear-gradient(180deg,#2a2b2d,#141516)!important;box-shadow:0 3px 0 #0b0c0d,0 4px 6px #0009,inset 0 0 0 4px #1d1e20,inset 0 1px 0 #ffffff22!important}
+.spled{display:inline-block;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#5b3633,#2b1716);box-shadow:inset 0 1px 2px #000;vertical-align:middle}
+.spled.on{background:radial-gradient(circle at 40% 35%,#ffb0a0,#ff2a1a 55%,#a0100a);box-shadow:0 0 8px #ff3b1f}
+.spcell{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.sptop,.spbot{font:500 9px/1.1 Barlow,sans-serif;color:#f1f1ef;text-align:center;min-height:10px}
+.sp-secs{display:flex;gap:14px;align-items:flex-start}
+.spsec{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
+.spsec h4{align-self:stretch}
+.spsec small{font:500 8.5px/1.15 Barlow,sans-serif;color:#e8e8e6;text-align:center}
+.spknob{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 45% 35%,#3a3c40,#0d0e10 70%);box-shadow:0 0 0 3px #222427,0 4px 6px #000a;position:relative;touch-action:none;cursor:ns-resize}
+.spknob i{position:absolute;left:50%;top:3px;width:3px;height:12px;margin-left:-1.5px;background:#f4f4f2;border-radius:1px;transform-origin:50% 14px}
+.sp-master{display:flex;flex-direction:column;gap:10px}
+.splcd{align-self:center;background:linear-gradient(180deg,#a9b878,#c4cf8f);border:6px solid #1c1d1f;border-radius:4px;box-shadow:inset 0 0 10px #4d5a1f88,0 0 0 2px #0006;padding:6px 10px;width:220px;font:400 21px/1 VT323,monospace;color:#1f2a10;white-space:pre;overflow:hidden}
+.sprow4,.spknobs{display:flex;justify-content:space-around}
+.sp-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;justify-items:center}
+.sp-prog h4,.sp-perf h4{margin-bottom:8px}
+.sprowp{display:flex;align-items:flex-start;gap:10px}
+.sprowp .spcell:not(.spsel){flex:1}
+.spsel{flex-direction:row!important;align-items:center;gap:8px}
+.spleds{font:500 8.5px/1.25 Barlow,sans-serif;color:#eee;white-space:nowrap}
+.spleds .spled{width:7px;height:7px;margin-right:3px}
+.sprowf{display:flex;align-items:center;gap:12px;margin-top:6px}
+.spfaders,.sppads{flex:1;display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.spfad{display:flex;flex-direction:column;align-items:center;gap:4px;touch-action:none}
+.spslot{position:relative;width:100%;height:150px;background:repeating-linear-gradient(180deg,transparent 0 17px,#d9dad8 17px 18px);border-radius:2px}
+.spslot::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:5px;margin-left:-2.5px;background:#0d0e0f;border-radius:2px}
+.spslot i{position:absolute;left:50%;width:38px;height:18px;margin-left:-19px;bottom:0;background:linear-gradient(180deg,#2c2d30,#0c0d0e);border-radius:3px;box-shadow:0 3px 4px #000a;transform:translateY(50%)}
+.spslot i::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:3px;background:#f1f1ef;transform:skewY(-4deg)}
+.spfad b,.sppadw b{font:500 9px/1 Barlow,sans-serif;color:#eee}
+.sppadw{display:flex;flex-direction:column;align-items:center;gap:5px}
+.sppad{width:46px;height:46px;padding:0;border-radius:4px;border:2px solid #050505!important;background:radial-gradient(120% 120% at 50% 30%,#2b2c2e,#0f1011)!important;box-shadow:0 0 0 3px #1e1f21,0 4px 6px #000b,inset 0 0 0 5px #151617!important}
+.sppad.dn{background:radial-gradient(120% 120% at 50% 30%,#4a4c50,#202124)!important;transform:translateY(2px)}
+.sppad.sel{box-shadow:0 0 0 3px #ff3b1f,0 4px 6px #000b,inset 0 0 0 5px #151617!important}
+.sp-trans{display:flex;justify-content:space-between;align-items:flex-end;border-top:2px solid var(--line);padding-top:10px}
+/* landscape (the real layout): sections over programming over performance, master control on the right */
+.sp12.land{width:1080px;grid-template-columns:690px 1fr;grid-template-areas:"top top" "secs master" "prog master" "perf keys" "perf trans" "bot bot"}
+.sp12.land .sp-top{grid-area:top}.sp12.land .sp-secs{grid-area:secs}.sp12.land .sp-master{grid-area:master}.sp12.land .sp-keys{grid-area:keys;align-self:center}
+.sp12.land .sp-prog{grid-area:prog}.sp12.land .sp-perf{grid-area:perf}.sp12.land .sp-trans{grid-area:trans;align-self:end}.sp12.land .sp-bot{grid-area:bot}
+/* portrait (phones): the same parts stacked */
+.sp12.port{width:410px;grid-template-columns:1fr;gap:7px;padding:8px;grid-template-areas:"top" "master" "secs" "prog" "perf" "keys" "trans" "bot"}
+.sp12.port .sp-top{grid-area:top;padding:4px 10px;gap:12px}.sp12.port .sp-top b{font-size:24px}.sp12.port .sp-top span{letter-spacing:.32em;font-size:8px}
+.sp12.port .sp-master{grid-area:master;gap:6px}.sp12.port .splcd{width:100%;font-size:20px;padding:4px 8px}
+.sp12.port .sp-secs{grid-area:secs;gap:6px}.sp12.port .sp-prog{grid-area:prog}.sp12.port .sp-perf{grid-area:perf}
+.sp12.port .sp-keys{grid-area:keys;grid-template-columns:repeat(6,1fr);gap:6px 4px}
+.sp12.port .sp-trans{grid-area:trans;padding-top:6px}.sp12.port .sp-bot{grid-area:bot;padding:4px 10px}.sp12.port .sp-bot b{font-size:16px}
+.sp12.port .sprowp{gap:3px}.sp12.port .sprowp .spbtn{width:26px;height:26px}
+.sp12.port .sptop,.sp12.port .spbot{font-size:7.5px}
+.sp12.port .spsel{gap:4px}.sp12.port .spleds{font-size:7.5px}
+.sp12.port .spslot{height:118px}.sp12.port .spslot i{width:30px;margin-left:-15px}
+.sp12.port .sppad{width:38px;height:38px}
+.sp12.port .sprowf{gap:6px}.sp12.port .spsel .spbtn{width:28px;height:28px}
+.sp12.port .spfaders,.sp12.port .sppads{gap:3px}
+.sp12.port .spsec small{font-size:7.5px}.sp12.port .spsec h4{font-size:13px}.sp12.port h4{font-size:13px}
+.sp12.port .spknobs{position:absolute;right:12px;top:52px;gap:14px}
+.sp12.port .sprow4{justify-content:flex-start;gap:22px;padding-left:4px}
+.sp12.port .spknob{width:28px;height:28px}
 </style>
 
 </head>
@@ -1231,6 +1306,53 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
 <main>
   <!-- DRUMS -->
   <section class="view" id="v-drums">
+    <div class="sp-wrap" id="spWrap"><div class="sp12" id="spPanel">
+      <div class="sp-top"><b>SP 1200</b><span>SAMPLING PERCUSSION</span></div>
+      <div class="sp-secs">
+        <div class="spsec"><h4>Set-up</h4><i class="spled" id="spLedSetup"></i><button class="spbtn nolearn" data-act="setup" aria-label="Set-up"></button><small>Settings · MIDI · export</small></div>
+        <div class="spsec"><h4>Disk</h4><i class="spled" id="spLedDisk"></i><button class="spbtn nolearn" data-act="disk" aria-label="Disk"></button><small>Load sounds · kits · packs</small></div>
+        <div class="spsec"><h4>Sync</h4><i class="spled" id="spLedSync"></i><button class="spbtn nolearn" data-act="sync" aria-label="Sync"></button><small id="spSyncL">1 Internal</small></div>
+        <div class="spsec"><h4>Sample</h4><i class="spled" id="spLedSample"></i><button class="spbtn red nolearn" data-act="sample" aria-label="Sample"></button><small>Sample onto pad</small></div>
+        <div class="spsec spgain"><h4>&nbsp;</h4><div class="spknob" id="spGain" data-k="gain"><i></i></div><small>Gain</small></div>
+      </div>
+      <div class="sp-master">
+        <h4>Master Control</h4>
+        <div class="splcd"><div id="spL1">TEMPO  92.0 BPM</div><div id="spL2">PATTERN 01 A</div></div>
+        <div class="sprow4">
+          <div class="spcell"><button class="spbtn nolearn" data-act="tempo" aria-label="Tempo"></button><span class="spbot">Tempo</span></div>
+          <div class="spcell"><button class="spbtn nolearn" data-act="left" aria-label="Left"></button><span class="spbot">◀</span></div>
+          <div class="spcell"><button class="spbtn nolearn" data-act="right" aria-label="Right"></button><span class="spbot">▶</span></div>
+          <div class="spcell"><button class="spbtn nolearn" data-act="enter" aria-label="Enter"></button><span class="spbot">Enter</span></div>
+        </div>
+        <div class="spknobs">
+          <div class="spcell"><div class="spknob" id="spMixVol" data-k="mix"><i></i></div><span class="spbot">Mix<br>Volume</span></div>
+          <div class="spcell"><div class="spknob" id="spMetVol" data-k="met"><i></i></div><span class="spbot">Metronome<br>Volume</span></div>
+        </div>
+      </div>
+      <div class="sp-keys"><div class="spcell"><button class="spbtn nolearn" data-key="1" aria-label="1"></button><span class="spbot">1</span></div><div class="spcell"><button class="spbtn nolearn" data-key="2" aria-label="2"></button><span class="spbot">2</span></div><div class="spcell"><button class="spbtn nolearn" data-key="3" aria-label="3"></button><span class="spbot">3</span></div><div class="spcell"><button class="spbtn nolearn" data-key="4" aria-label="4"></button><span class="spbot">4</span></div><div class="spcell"><button class="spbtn nolearn" data-key="5" aria-label="5"></button><span class="spbot">5</span></div><div class="spcell"><button class="spbtn nolearn" data-key="6" aria-label="6"></button><span class="spbot">6</span></div><div class="spcell"><button class="spbtn nolearn" data-key="7" aria-label="7"></button><span class="spbot">7</span></div><div class="spcell"><button class="spbtn nolearn" data-key="8" aria-label="8"></button><span class="spbot">8</span></div><div class="spcell"><button class="spbtn nolearn" data-key="9" aria-label="9"></button><span class="spbot">9</span></div><div class="spcell"><button class="spbtn nolearn" data-key="no" aria-label="no"></button><span class="spbot">No</span></div><div class="spcell"><button class="spbtn nolearn" data-key="0" aria-label="0"></button><span class="spbot">0</span></div><div class="spcell"><button class="spbtn nolearn" data-key="yes" aria-label="yes"></button><span class="spbot">Yes</span></div></div>
+      <div class="sp-prog"><h4>Programming</h4>
+        <div class="sprowp">
+          <div class="spcell spsel"><button class="spbtn nolearn" data-act="songseg" aria-label="Song / Segment"></button><span class="spleds"><i class="spled" id="spLedSong"></i>Song<br><br><i class="spled" id="spLedSeg"></i>Segment</span></div>
+          <div class="spcell"><span class="sptop">Trigger</span><button class="spbtn nolearn" data-act="metro" aria-label="Trigger / Metronome"></button><span class="spbot">Metronome</span></div><div class="spcell"><span class="sptop">Repeat</span><button class="spbtn nolearn" data-act="repeat" aria-label="Repeat / Swing"></button><span class="spbot">Swing</span></div><div class="spcell"><span class="sptop">Subsong</span><button class="spbtn nolearn" data-act="copy" aria-label="Subsong / Copy"></button><span class="spbot">Copy</span></div><div class="spcell"><span class="sptop">End</span><button class="spbtn nolearn" data-act="bars" aria-label="End / Time Signature"></button><span class="spbot">Time<br>Signature</span></div><div class="spcell"><span class="sptop">Insert</span><button class="spbtn nolearn" data-act="newpat" aria-label="Insert / Segment Length"></button><span class="spbot">Segment<br>Length</span></div><div class="spcell"><span class="sptop">Delete</span><button class="spbtn nolearn" data-act="erase" aria-label="Delete / Erase"></button><span class="spbot">Erase</span></div><div class="spcell"><span class="sptop">Tempo<br>Change</span><button class="spbtn nolearn" data-act="quant" aria-label="Tempo Change / Auto Correct"></button><span class="spbot">Auto<br>Correct</span></div><div class="spcell"><span class="sptop">Mix<br>Change</span><button class="spbtn nolearn" data-act="step" aria-label="Mix Change / Step Program"></button><span class="spbot">Step<br>Program</span></div>
+        </div>
+      </div>
+      <div class="sp-perf"><h4>Performance</h4>
+        <div class="sprowf">
+          <div class="spcell spsel"><button class="spbtn nolearn" data-act="mode" aria-label="Fader mode"></button><span class="spleds"><i class="spled" id="spLedTune"></i>Tune/Decay<br><i class="spled" id="spLedMix"></i>Mix<br><i class="spled" id="spLedMulti"></i>Multi Mode</span></div>
+          <div class="spfaders"><div class="spfad" data-i="0"><div class="spslot"><i></i></div><b>1</b></div><div class="spfad" data-i="1"><div class="spslot"><i></i></div><b>2</b></div><div class="spfad" data-i="2"><div class="spslot"><i></i></div><b>3</b></div><div class="spfad" data-i="3"><div class="spslot"><i></i></div><b>4</b></div><div class="spfad" data-i="4"><div class="spslot"><i></i></div><b>5</b></div><div class="spfad" data-i="5"><div class="spslot"><i></i></div><b>6</b></div><div class="spfad" data-i="6"><div class="spslot"><i></i></div><b>7</b></div><div class="spfad" data-i="7"><div class="spslot"><i></i></div><b>8</b></div></div>
+        </div>
+        <div class="sprowf">
+          <div class="spcell spsel"><button class="spbtn nolearn" data-act="bank" aria-label="Bank"></button><span class="spleds" id="spBanks"><i class="spled"></i>A<br><i class="spled"></i>B<br><i class="spled"></i>C<br><i class="spled"></i>D</span></div>
+          <div class="sppads"><div class="sppadw"><button class="sppad nolearn" data-n="0" aria-label="Pad 1"></button><b>1</b></div><div class="sppadw"><button class="sppad nolearn" data-n="1" aria-label="Pad 2"></button><b>2</b></div><div class="sppadw"><button class="sppad nolearn" data-n="2" aria-label="Pad 3"></button><b>3</b></div><div class="sppadw"><button class="sppad nolearn" data-n="3" aria-label="Pad 4"></button><b>4</b></div><div class="sppadw"><button class="sppad nolearn" data-n="4" aria-label="Pad 5"></button><b>5</b></div><div class="sppadw"><button class="sppad nolearn" data-n="5" aria-label="Pad 6"></button><b>6</b></div><div class="sppadw"><button class="sppad nolearn" data-n="6" aria-label="Pad 7"></button><b>7</b></div><div class="sppadw"><button class="sppad nolearn" data-n="7" aria-label="Pad 8"></button><b>8</b></div></div>
+        </div>
+      </div>
+      <div class="sp-trans">
+        <div class="spcell"><button class="spbtn blk nolearn" data-act="tap" aria-label="Tap / Repeat"></button><span class="spbot">Tap/Repeat</span></div>
+        <div class="spcell"><i class="spled" id="spLedRun"></i><button class="spbtn blk nolearn" data-act="run" aria-label="Run / Stop"></button><span class="spbot">Run/Stop</span></div>
+        <div class="spcell"><i class="spled" id="spLedRec"></i><button class="spbtn red nolearn" data-act="rec" aria-label="Record / Edit"></button><span class="spbot">Record/Edit</span></div>
+      </div>
+      <div class="sp-bot"><b>The Omega System</b></div>
+    </div></div>
     <div class="hw-screen" id="hwScreen">
       <div class="hw-lcdtop"><span id="hwKit">KIT</span><span id="hwPadT">PAD 1</span><button id="hwJogT" class="nolearn" title="What the VALUE/DATA wheel changes. Tap for tempo.">BPM 92</button></div>
       <canvas id="hwWave" aria-label="Waveform of the selected pad, and the level of every pad"></canvas>
@@ -1707,6 +1829,16 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
     <input id="helpSearch" type="search" placeholder="Search help (e.g. latency, vocoder, MP3)" aria-label="Search help">
     <p class="hint" id="helpNone" hidden>Nothing matches. Try a shorter word.</p>
 
+    <details id="h-sp1200" open><summary>The SP-1200 panel (Pads screen)</summary>
+      <p>The Pads screen is laid out like an E-mu SP-1200 and scales to fit any screen, so nothing scrolls. Every control works:</p>
+      <ul>
+        <li><b>Set-up</b> opens Settings. <b>Disk</b> opens Pad sound (load sounds, drum machines, packs). <b>Sync</b> steps through internal clock, MIDI clock out and MIDI clock in. <b>Sample</b> (red) samples the input onto the selected pad. <b>Gain</b> is the Pads channel level.</li>
+        <li><b>Master Control</b>: the LCD shows tempo, segment (pattern) and position, or what you just did. <b>Tempo</b> then ◀ ▶ changes the tempo, or type it on the keypad and press <b>Enter</b> / <b>Yes</b>. Without Tempo, ◀ ▶ and the keypad pick the segment. <b>No</b> cancels. <b>Mix Volume</b> is the master level, <b>Metronome Volume</b> the click.</li>
+        <li><b>Programming</b>: Song/Segment switches song mode. Then Metronome, Repeat (note repeat), Copy (copies the segment), Segment Length (1, 2, 4, 8 bars), Insert (new segment), Erase, Auto Correct (timing correction) and Step Program (opens the sequencer).</li>
+        <li><b>Performance</b>: the left button sets what the 8 faders do (Tune, Mix, or Multi Mode, where the pads play one sound at 16 pitches and the faders set decay). Faders change sounding notes straight away. The bank button switches the 8 pads between bank A (pads 1 to 8) and B (9 to 16).</li>
+        <li><b>Tap/Repeat</b> taps the tempo, <b>Run/Stop</b> plays and stops, <b>Record/Edit</b> records.</li>
+      </ul>
+    </details>
     <details id="h-easy" open><summary>The bottom bar, the Start screen and Omega Vox</summary>
       <p><b>The bottom bar</b> has six buttons: <b>Pads</b>, <b>Synth</b>, <b>Vocoder</b> (opens the vocoder), <b>Mixer</b>, <b>FX</b> (effects for the track on screen) and <b>More</b> (Record audio, Song, Settings, Chop, Wheel, Start screen and Help).</p>
       <p><b>The Start screen</b> (the ⌂ button at the top) gives you big choices: make a beat, play keys, start from a ready-made song, robot voice, use your own samples, or record audio.</p>
@@ -2299,7 +2431,7 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v138</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v139</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7763,7 +7895,7 @@ $('#sheetHear').addEventListener('click', () => { const b = $('#sheetHear'); if 
 document.addEventListener('contextmenu', e => { if (e.pointerType !== 'touch' && !(e.target.closest && e.target.closest('input[type=text], input[type=search], input:not([type]), textarea'))) e.preventDefault(); }, {capture:true});
 // the pads, keys, knobs and wheel are played with pointer events; cancelling the touch there stops Android's
 // long-press gesture (and its buzz) from ever starting
-document.addEventListener('touchstart', e => { const t = e.target; if (t.closest && t.closest('#pads .pad, #keys .key, #piano, .rig-kb, .kcap, #hwJog')) e.preventDefault(); }, {capture:true, passive:false});
+document.addEventListener('touchstart', e => { const t = e.target; if (t.closest && t.closest('#pads .pad, #keys .key, #piano, .rig-kb, .kcap, #hwJog, .sppad, .spfad, .spknob')) e.preventDefault(); }, {capture:true, passive:false});
 
 /* ---- audio decoding: the browser's formats (WAV, MP3, OGG, FLAC, M4A/AAC, Opus, WebM) plus AIFF/AIFC and MPC2000/XL .SND ---- */
 function aiffDecode(ab){
@@ -10328,7 +10460,7 @@ function renderPlat(){
   stepify($('#ttTpr'), v => v + ' steps'); stepify($('#ttVol'), v => Math.round(v * 100) + '%');
 })();
 function setView(v){
-  view = v; sheetClose(); setTimeout(fitScreen, 60); if (v === "setup") setTimeout(renderBt, 0);
+  view = v; document.documentElement.dataset.view = v; sheetClose(); setTimeout(fitScreen, 60); if (v === "setup") setTimeout(renderBt, 0);
   document.querySelectorAll('.view[id^="v-"]').forEach(s => s.hidden = s.id !== 'v-' + v);
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('cur', b.dataset.v === v));
   if (v === 'drums') seqDirty = true;
@@ -15024,6 +15156,129 @@ hwClick('#hwTap', () => $('#tap').click());
 hwClick('#hwPlay', () => { if (!playing) $('#play').click(); setTimeout(hwPaint, 30); });
 hwClick('#hwStop', () => { if (playing) $('#play').click(); else allStop(); setTimeout(hwPaint, 30); });
 hwClick('#hwRec', () => { $('#rec').click(); setTimeout(hwPaint, 30); });
+
+
+/* ================= The SP-1200 front panel (Pads screen): every button, fader, knob and pad does its job ================= */
+const SPX = {bank:0, mode:'tune', field:null, buf:'', msg:null, msgT:0};
+const spPadI = n => SPX.bank * 8 + n;
+const lcdPad = (s, n) => (s + ' '.repeat(n)).slice(0, n);
+function spSay(l1, l2){ SPX.msg = [l1, l2 || '']; SPX.msgT = performance.now(); spLcd(); }
+function spLcd(){
+  let l1, l2;
+  if (SPX.field){ l1 = SPX.field === 'tempo' ? 'TEMPO ' + (+S.bpm).toFixed(1) : 'PATTERN ' + String(S.cur + 1).padStart(2, '0'); l2 = SPX.buf ? 'ENTER: ' + SPX.buf + '_' : '<  >  OR TYPE NUMBER'; }
+  else if (SPX.msg && performance.now() - SPX.msgT < 2200){ [l1, l2] = SPX.msg; }
+  else {
+    l1 = 'SEG ' + String(S.cur + 1).padStart(2, '0') + ' TEMPO ' + String(Math.round(S.bpm)).padStart(3, '0');
+    const q = playing ? heardStep() : null;
+    if (q && q.i >= 0){ const st = ((q.i - org) % (S.bars * 16) + S.bars * 16) % (S.bars * 16); l2 = 'BAR ' + (Math.floor(st / 16) + 1) + ' BEAT ' + (Math.floor(st % 16 / 4) + 1) + '.' + (st % 4 + 1); }
+    else { const p = S.drum.pads[selPad]; l2 = 'ABCD'[Math.floor(selPad / 8)] + (selPad % 8 + 1) + ' ' + (p ? p.name : '').toUpperCase(); }
+  }
+  $('#spL1').textContent = lcdPad(l1, 16); $('#spL2').textContent = lcdPad(l2, 16);
+}
+function spFaderVal(pad){ return SPX.mode === 'tune' ? (pad.pitch + 12) / 24 : SPX.mode === 'mix' ? pad.vol : (pad.decay - .05) / .95; }
+function spPaint(){
+  const P = $('#spPanel'); if (!P) return;
+  P.querySelectorAll('.spfad').forEach(f => { const pad = S.drum.pads[spPadI(+f.dataset.i)]; f.querySelector('i').style.bottom = (clamp(spFaderVal(pad), 0, 1) * 100) + '%'; });
+  P.querySelectorAll('.sppad').forEach(b => b.classList.toggle('sel', spPadI(+b.dataset.n) === selPad));
+  const led = (id, on) => { const e = document.getElementById(id); if (e) e.classList.toggle('on', !!on); };
+  led('spLedRun', playing); led('spLedRec', drumRec || !!rec); led('spLedSync', S.midiClock && S.midiClock !== 'off'); led('spLedSample', !!sampling);
+  led('spLedSong', S.songMode); led('spLedSeg', !S.songMode); led('spLedTune', SPX.mode === 'tune'); led('spLedMix', SPX.mode === 'mix'); led('spLedMulti', SPX.mode === 'multi');
+  $('#spBanks').querySelectorAll('.spled').forEach((e, k) => e.classList.toggle('on', k === SPX.bank));
+  $('#spSyncL').textContent = {off:'1 Internal', out:'2 MIDI out', in:'2 MIDI in'}[S.midiClock || 'off'] || '1 Internal';
+  const kn = (id, v) => { const k = $(id); if (k) k.querySelector('i').style.transform = `rotate(${-135 + clamp(v, 0, 1) * 270}deg)`; };
+  const dr = trackById('drums'); kn('#spGain', dr ? dr.vol : .8); kn('#spMixVol', S.master.vol); kn('#spMetVol', (S.clickVol == null ? 1 : S.clickVol) / 4);
+  spLcd();
+}
+// the panel keeps its proportions and scales to the screen: the real layout on wide screens, stacked on phones
+function spFit(){
+  const w = $('#spWrap'), P = $('#spPanel'), m = document.querySelector('main'); if (!w || !P || view !== 'drums' || !m.clientWidth) return;
+  const land = innerWidth > innerHeight * 1.05; P.classList.toggle('land', land); P.classList.toggle('port', !land);
+  P.style.transform = 'none'; w.style.height = 'auto'; const W = P.offsetWidth, H = P.offsetHeight;
+  const aw = m.clientWidth - 8, ah = m.clientHeight - 8, sc = Math.min(aw / W, ah / H);
+  P.style.transform = `scale(${sc})`; w.style.height = Math.floor(H * sc + 4) + 'px'; P.style.marginLeft = Math.max(0, (aw - W * sc) / 2) + 'px'; w.style.justifyContent = 'flex-start'; w.style.paddingTop = '4px';
+}
+window.addEventListener('resize', () => setTimeout(spFit, 50));
+{ const _fs = fitScreen; fitScreen = function(){ const r = _fs.apply(this, arguments); try { spFit(); spPaint(); } catch(e){} return r; }; }
+setInterval(() => { if (view === 'drums') try { spPaint(); } catch(e){} }, 120);
+const spClick = id => { const b = $(id); if (b) b.click(); };
+const spCard = t => { const c = [...document.querySelectorAll('#v-drums > .card, #sheetBody > .card')].find(x => x.dataset.title === t); if (c) sheetOpen(c); };
+const spAct = {
+  setup:() => setView('setup'),
+  disk:() => { spCard('Pad sound'); spSay('LOAD SOUNDS', 'KITS, FILES, PACKS'); },
+  sync:() => { const order = ['off', 'out', 'in'], i = order.indexOf(S.midiClock || 'off'), nx = order[(i + 1) % 3]; const b = document.querySelector(`#clockSeg button[data-c="${nx}"]`); if (b) b.click(); else { S.midiClock = nx; save(); } spSay('SYNC', {off:'1 INTERNAL', out:'2 MIDI OUT', in:'2 MIDI IN'}[nx]); },
+  sample:() => { spClick('#sampleIn'); spSay('SAMPLE', 'PAD ' + 'ABCD'[Math.floor(selPad / 8)] + (selPad % 8 + 1)); },
+  songseg:() => { spClick('#songMode'); spSay(S.songMode ? 'SONG MODE' : 'SEGMENT MODE', ''); },
+  metro:() => { spClick('#metro'); spSay('METRONOME', S.metro ? 'ON' : 'OFF'); },
+  repeat:() => { spClick('#repeat'); spSay('REPEAT', $('#repeat').classList.contains('on') ? 'ON: HOLD A PAD' : 'OFF'); },
+  copy:() => { dupScene(); spSay('COPY SEGMENT', 'TO ' + String(S.cur + 1).padStart(2, '0')); },
+  bars:() => { const sel = $('#bars'), o = [...sel.options].map(x => x.value), i = o.indexOf(sel.value); sel.value = o[(i + 1) % o.length]; sel.dispatchEvent(new Event('change')); spSay('SEGMENT LENGTH', sel.value + ' BAR' + (sel.value === '1' ? '' : 'S')); },
+  newpat:() => { newScene(); spSay('NEW SEGMENT', String(S.cur + 1).padStart(2, '0')); },
+  erase:() => { spClick('#erase'); spSay('ERASE', $('#erase').classList.contains('on') ? 'HOLD PADS TO ERASE' : 'OFF'); },
+  quant:() => { const sel = $('#quant'), i = sel.selectedIndex; sel.selectedIndex = (i + 1) % sel.options.length; sel.dispatchEvent(new Event('change')); spSay('AUTO CORRECT', sel.options[sel.selectedIndex].text.toUpperCase()); },
+  step:() => { spCard('Sequencer'); spSay('STEP PROGRAM', ''); },
+  mode:() => { SPX.mode = SPX.mode === 'tune' ? 'mix' : SPX.mode === 'mix' ? 'multi' : 'tune';
+    if ((SPX.mode === 'multi') !== lvl16.on) spClick('#lvl16');
+    spSay('FADERS', SPX.mode === 'tune' ? 'TUNE' : SPX.mode === 'mix' ? 'MIX' : 'MULTI: DECAY'); },
+  bank:() => { SPX.bank = (SPX.bank + 1) % 2; spSay('BANK ' + 'AB'[SPX.bank], 'PADS ' + (SPX.bank * 8 + 1) + '-' + (SPX.bank * 8 + 8)); },
+  tempo:() => { SPX.field = SPX.field === 'tempo' ? null : 'tempo'; SPX.buf = ''; },
+  left:() => { if (SPX.field === 'tempo') setBpm(Math.max(40, Math.round(S.bpm) - 1)); else if (S.scenes.length > 1) launchScene((S.cur - 1 + S.scenes.length) % S.scenes.length); },
+  right:() => { if (SPX.field === 'tempo') setBpm(Math.min(240, Math.round(S.bpm) + 1)); else if (S.scenes.length > 1) launchScene((S.cur + 1) % S.scenes.length); else spSay('ONE SEGMENT', 'INSERT ADDS ONE'); },
+  enter:() => spEnter(),
+  tap:() => spClick('#tap'),
+  run:() => spClick('#play'),
+  rec:() => spClick('#rec')
+};
+function spEnter(){
+  const n = parseFloat(SPX.buf);
+  if (SPX.buf && isFinite(n)){
+    if (SPX.field === 'tempo') setBpm(clamp(n, 40, 240));
+    else { const k = Math.round(n) - 1; if (k >= 0 && k < S.scenes.length) launchScene(k); else spSay('NO SEGMENT ' + Math.round(n), ''); }
+  }
+  SPX.buf = ''; SPX.field = null;
+}
+(() => {
+  const P = $('#spPanel'); if (!P) return;
+  P.addEventListener('click', e => {
+    const b = e.target.closest('.spbtn'); if (!b) return;
+    if (b.dataset.act && spAct[b.dataset.act]){ ensureAudio(); spAct[b.dataset.act](); }
+    const k = b.dataset.key;
+    if (k){ if (k === 'yes') spEnter(); else if (k === 'no'){ SPX.buf = ''; SPX.field = null; spSay('CANCEL', ''); }
+      else { if (!SPX.field) SPX.field = 'pattern'; SPX.buf = (SPX.buf + k).slice(-5); } }
+    spPaint();
+  });
+  P.addEventListener('pointerdown', e => { const b = e.target.closest('.spbtn'); if (b){ b.classList.add('dn'); setTimeout(() => b.classList.remove('dn'), 140); } });
+  // pads: velocity from where you hit (higher = harder), like the app's other pads
+  P.querySelectorAll('.sppad').forEach(b => {
+    b.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); try { b.setPointerCapture(e.pointerId); } catch(_){}
+      const i = spPadI(+b.dataset.n), r = b.getBoundingClientRect(), v = S.fullLevel ? 1 : clamp(1.05 - (e.clientY - r.top) / r.height * .8, .25, 1);
+      b.classList.add('dn'); b._i = i; padDown(i, e, v); });
+    const up = () => { if (b._i == null) return; b.classList.remove('dn'); padUp(b._i); b._i = null; };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+  });
+  // faders: tune, level or decay of the bank's eight pads, live on the notes that are sounding
+  P.querySelectorAll('.spfad').forEach(f => {
+    const slot = f.querySelector('.spslot');
+    const set = e => { const r = slot.getBoundingClientRect(), v = clamp(1 - (e.clientY - r.top) / r.height, 0, 1), pad = S.drum.pads[spPadI(+f.dataset.i)];
+      if (SPX.mode === 'tune') pad.pitch = Math.round(v * 24 - 12); else if (SPX.mode === 'mix') pad.vol = Math.round(v * 100) / 100; else pad.decay = Math.round((.05 + v * .95) * 100) / 100;
+      padLive(pad); seqDirty = true; spSay((SPX.mode === 'tune' ? 'TUNE ' : SPX.mode === 'mix' ? 'MIX ' : 'DECAY ') + 'ABCD'[SPX.bank] + (+f.dataset.i + 1),
+        SPX.mode === 'tune' ? (pad.pitch > 0 ? '+' : '') + pad.pitch + ' SEMITONES' : SPX.mode === 'mix' ? Math.round(pad.vol * 100) + '%' : pad.decay >= 1 ? 'FULL' : Math.round(pad.decay * 100) + '%'); spPaint(); };
+    f.addEventListener('pointerdown', e => { e.preventDefault(); try { f.setPointerCapture(e.pointerId); } catch(_){} f._d = true; set(e); });
+    f.addEventListener('pointermove', e => { if (f._d) set(e); });
+    const end = () => { if (f._d){ f._d = false; save(); syncSteppers(); } }; f.addEventListener('pointerup', end); f.addEventListener('pointercancel', end);
+  });
+  // knobs: drag up / down
+  P.querySelectorAll('.spknob').forEach(k => {
+    let y0 = null, v0 = 0;
+    const get = () => k.dataset.k === 'gain' ? (trackById('drums') || {}).vol || 0 : k.dataset.k === 'mix' ? S.master.vol : (S.clickVol == null ? 1 : S.clickVol) / 4;
+    const put = v => { if (k.dataset.k === 'gain'){ const d = trackById('drums'); if (d) d.vol = v; spSay('PADS LEVEL', fmtDb(v * v * 1.4) + ' DB'); }
+      else if (k.dataset.k === 'mix'){ S.master.vol = v; spSay('MIX VOLUME', Math.round(v * 100) + '%'); }
+      else { S.clickVol = v * 4; const cv = $('#clickVol'); if (cv) cv.value = S.clickVol; applyClick(); spSay('METRONOME VOL', Math.round(v * 100) + '%'); }
+      applyAll(); if (live) applyMaster(ctx, live.master); spPaint(); };
+    k.addEventListener('pointerdown', e => { e.preventDefault(); try { k.setPointerCapture(e.pointerId); } catch(_){} y0 = e.clientY; v0 = get(); });
+    k.addEventListener('pointermove', e => { if (y0 == null) return; put(clamp(v0 + (y0 - e.clientY) / 160, 0, 1)); });
+    const end = () => { if (y0 != null){ y0 = null; save(); } }; k.addEventListener('pointerup', end); k.addEventListener('pointercancel', end);
+  });
+})();
 
 /* ================= boot ================= */
 (async function boot(){
