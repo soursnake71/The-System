@@ -6,11 +6,11 @@ android {
     applicationId 'com.thesnakedevice.app'
     minSdk 24
     targetSdk 35
-    versionCode 19
-    versionName '19.0'
+    versionCode 24
+    versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // two apps from one project: the full Omega System, and Omega Vox (Prophet-5 + vocoder + talking machine)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -24,6 +24,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/?app=vox']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/?app=vox"'
     }
+    twelve {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.twelve'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
+    }
   }
   signingConfigs {
     release {
@@ -36,4 +42,16 @@ android {
   buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
   compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
-dependencies { implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0' }
+dependencies {
+  implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+  twelveImplementation 'androidx.webkit:webkit:1.12.1'
+}
+
+// Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
+def twelveAssets = layout.buildDirectory.dir('twelveAssets')
+tasks.register('copyTwelveWeb', Copy) {
+  from('../../twelve') { exclude 'tools/**', '*.md' }
+  into twelveAssets.map { it.dir('twelve') }
+}
+android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }

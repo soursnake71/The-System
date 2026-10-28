@@ -1,0 +1,132 @@
+// Drives the Omega Twelve processor directly (linked with the plugin's code): load a file, select, analyse, play from
+// MIDI and the transport, auto master, export every format, resample, truncate, and restore a project with the sample in it.
+#include "TwelvePlugin.h"
+using namespace twelve;
+
+static bool ok = true;
+static void check(bool c, const juce::String& m) { std::printf("%s %s\n", c ? "ok  " : "FAIL", m.toRawUTF8()); ok &= c; }
+
+int main(int argc, char** argv) {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const juce::File dir(argc > 1 ? juce::String::fromUTF8(argv[1]) : juce::File::getCurrentWorkingDirectory().getFullPathName());
+    const double sr = 48000; const int block = 256;
+    // a 2-bar 96 BPM loop with an A minor pad, as a WAV file
+    const juce::File wav = dir.getChildFile("twelve-loop.wav");
+    {
+        const int n = (int) (44100 * 5); juce::AudioBuffer<float> s(2, n);
+        for (int i = 0; i < n; ++i) { const double t = i / 44100.0, b = std::fmod(t, .625);
+            const double v = std::sin(6.2831853 * (50 + 120 * std::exp(-b * 30)) * b) * std::exp(-b * 9) * .7 + (std::sin(6.2831853 * 220 * t) + std::sin(6.2831853 * 261.63 * t) + std::sin(6.2831853 * 329.63 * t)) * .06;
+            s.setSample(0, i, (float) v); s.setSample(1, i, (float) v); }
+        wav.deleteFile(); juce::WavAudioFormat f; auto os = wav.createOutputStream();
+        std::unique_ptr<juce::AudioFormatWriter> w(f.createWriterFor(os.get(), 44100, 2, 24, {}, 0)); os.release(); w->writeFromAudioSampleBuffer(s, 0, n);
+    }
+    auto proc = std::make_unique<TwelveProcessor>();
+    proc->prepareToPlay(sr, block);
+    proc->setParam(pid::mOn, 1);
+    proc->apvts.getParameter("live")->setValueNotifyingHost(0);
+    check(proc->loadFile(wav).isEmpty(), "load WAV");
+    const auto res = proc->analyze(); check(std::abs(proc->tempo - 96) < 1.5, "detect: " + res);
+    auto run = [&](double secs, std::vector<int> notes, bool play) {
+        double rms = 0, pk = 0; bool nan = false; const int n = (int) (secs * sr);
+        if (play) proc->play(0);
+        for (int pos = 0; pos < n; pos += block) {
+            juce::AudioBuffer<float> b(2, block); b.clear(); juce::MidiBuffer m;
+            if (pos == 0) for (int k : notes) m.addEvent(juce::MidiMessage::noteOn(1, k, (juce::uint8) 100), 0);
+            proc->processBlock(b, m);
+            for (int c = 0; c < 2; ++c) for (int i = 0; i < block; ++i) { const float x = b.getSample(c, i); nan |= !std::isfinite(x); rms += x * x; pk = juce::jmax(pk, (double) std::abs(x)); }
+            juce::Thread::sleep(3);
+        }
+        return std::make_tuple(std::sqrt(rms / (2.0 * n)), pk, nan);
+    };
+    juce::Thread::sleep(1500);
+    auto [r1, p1, n1] = run(1, {60}, false); check(r1 > 1e-3 && !n1 && p1 <= 1, "MIDI middle C: rms " + juce::String(r1, 4));
+    auto [r2, p2, n2] = run(1, {67, 53}, false); check(r2 > 1e-3 && !n2 && p2 <= 1, "MIDI pitched notes: rms " + juce::String(r2, 4));
+    proc->stopAll(); run(.05, {}, false);
+    auto [r3, p3, n3] = run(1, {}, true); check(r3 > 1e-3 && proc->isPlaying(), "transport play: rms " + juce::String(r3, 4));
+    proc->stopAll(); auto [r4, p4, n4] = run(.3, {}, false); check(r4 < 1e-4, "STOP ALL silences: rms " + juce::String(r4, 6));
+    proc->setCurrentProgram(260); juce::Thread::sleep(1200);
+    check(proc->autoMasterNow(-14).startsWith("Auto master"), "auto master");
+    juce::Thread::sleep(1200);
+    check(proc->lufsText().getDoubleValue() > -15.5 && proc->lufsText().getDoubleValue() < -12.5, "loudness after auto master: " + proc->lufsText());
+    const bool warped = proc->warp(96, 90, true).startsWith("Warped");
+    check(warped && std::abs(proc->snapshot()[pid::stretch] - 96.0 / 90) < 1e-3, "warp 96 -> 90 BPM, stretch " + juce::String(proc->snapshot()[pid::stretch], 4));
+    juce::Thread::sleep(1500);
+    for (auto [code, ext] : std::vector<std::pair<const char*, const char*>>{{"wav:16", ".wav"}, {"wav:24", ".wav"}, {"wav:32", ".wav"}, {"aiff:16", ".aif"}, {"aiff:24", ".aif"}, {"flac:16", ".flac"}, {"flac:24", ".flac"}, {"ogg:9", ".ogg"}}) {
+        const auto f = dir.getChildFile(juce::String("twelve-export-") + juce::String(code).replace(":", "") + ext);
+        const auto r = proc->exportTo(f, code, 44100, false);
+        juce::AudioFormatManager fm; fm.registerBasicFormats(); std::unique_ptr<juce::AudioFormatReader> rd(fm.createReaderFor(f));
+        check(rd && rd->lengthInSamples > 44100 && (int) rd->sampleRate == 44100, juce::String("export ") + code + ": " + r + (rd ? " (" + juce::String(rd->lengthInSamples) + " frames, " + juce::String(rd->bitsPerSample) + "-bit)" : ""));
+    }
+    proc->setSelection(0, (int64_t) (44100 * 1.25));
+    const bool cut = proc->truncate().startsWith("Truncated");
+    check(cut && proc->sourceLength() == 55125, "truncate to the first bar: " + juce::String(proc->sourceLength() / 44100.0, 3) + " s");
+    juce::Thread::sleep(1500);
+    check(proc->resample().startsWith("Resampled"), "resample");
+    check((int) proc->snapshot()[pid::machine] == 6 && proc->snapshot()[pid::mOn] < .5, "resample resets effects and master");
+    check(proc->undo() == "Undone", "undo");
+    // MIDI: a default CC (74 = cutoff), program change, learn, panic
+    {
+        juce::AudioBuffer<float> b(2, block); juce::MidiBuffer m;
+        m.addEvent(juce::MidiMessage::controllerEvent(1, 74, 127), 0);
+        m.addEvent(juce::MidiMessage::programChange(1, 41), 1);
+        proc->processBlock(b, m); juce::MessageManager::getInstance()->runDispatchLoopUntil(200);
+        check(std::abs(proc->snapshot()[pid::cutoff] - 20000) < 1 && proc->getCurrentProgram() == 41, "MIDI CC 74 -> cutoff " + juce::String(proc->snapshot()[pid::cutoff], 0) + " Hz, program change -> " + proc->getProgramName(41));
+        proc->learnParam = pid::crackle; m.clear(); m.addEvent(juce::MidiMessage::controllerEvent(1, 21, 64), 0); b.clear(); proc->processBlock(b, m);
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(200);
+        check(proc->ccMap[21].load() == pid::crackle && std::abs(proc->snapshot()[pid::crackle] - 64 / 127.0) < .01, "MIDI learn: CC 21 -> crackle " + juce::String(proc->snapshot()[pid::crackle], 3));
+        auto [r5, p5, n5] = run(.3, {60, 64}, false); (void) p5; (void) n5;
+        m.clear(); m.addEvent(juce::MidiMessage::controllerEvent(1, 123, 0), 0); b.clear(); proc->processBlock(b, m);
+        auto [r6, p6, n6] = run(.2, {}, false); (void) p6; (void) n6;
+        check(r5 > 1e-3 && r6 < 1e-4, "MIDI all notes off silences (" + juce::String(r5, 4) + " -> " + juce::String(r6, 6) + ")");
+    }
+    // live input through the circuit-level SP path
+    {
+        proc->setCurrentProgram(0); proc->apvts.getParameter("live")->setValueNotifyingHost(1);
+        double rms = 0; int n = 0;
+        for (int pos = 0; pos < (int) sr; pos += block) {
+            juce::AudioBuffer<float> b(2, block); juce::MidiBuffer m;
+            for (int c = 0; c < 2; ++c) for (int i = 0; i < block; ++i) b.setSample(c, i, (float) (std::sin(6.2831853 * 220 * (pos + i) / sr) * .5));
+            proc->processBlock(b, m);
+            for (int i = 0; i < block; ++i) { rms += b.getSample(0, i) * b.getSample(0, i); n++; }
+        }
+        rms = std::sqrt(rms / n);
+        check(rms > .05 && rms < 1, "live input through the SP circuits: rms " + juce::String(rms, 4));
+        // live timestretch, bypass and link
+        auto liveRms = [&](std::vector<std::pair<int, double>> set) {
+            for (auto [id, v] : set) proc->setParam(id, v);
+            double e = 0, pk = 0; int cnt = 0; bool bad = false;
+            for (int pos = 0; pos < (int) sr * 2; pos += block) {
+                juce::AudioBuffer<float> b(2, block); juce::MidiBuffer m;
+                for (int c = 0; c < 2; ++c) for (int i = 0; i < block; ++i) { const double t = (pos + i) / sr, ph = std::fmod(t, .5); b.setSample(c, i, (float) (std::sin(6.2831853 * 110 * t) * std::exp(-ph * 8) * .4)); }
+                proc->processBlock(b, m);
+                for (int i = 0; i < block; ++i) { const float x = b.getSample(0, i); bad |= !std::isfinite(x); e += x * x; pk = juce::jmax(pk, (double) std::abs(x)); cnt++; }
+            }
+            return std::make_pair(bad ? -1.0 : std::sqrt(e / cnt), pk);
+        };
+        auto w = liveRms({{pid::stretch, 2.0}, {pid::smode, 2}, {pid::grain, 20}});
+        check(w.first > .02 && w.second < 2, "live cyclic Warp 2x: rms " + juce::String(w.first, 4));
+        auto c = liveRms({{pid::stretch, 3.0}, {pid::smode, 1}, {pid::grain, 40}});
+        check(c.first > .02 && c.second < 2, "live cyclic Classic 3x: rms " + juce::String(c.first, 4));
+        proc->setParam(pid::stretch, 1);
+        auto byp = liveRms({{pid::bypass, 1}});
+        check(std::abs(byp.second - .4) < .01, "bypass passes the input untouched: peak " + juce::String(byp.second, 3));
+        proc->setParam(pid::bypass, 0);
+        auto a0 = liveRms({{pid::input, 12}, {pid::link, 0}}), a1 = liveRms({{pid::link, 1}});
+        check(a1.first < a0.first * .5, "link pulls the output down by the input gain: " + juce::String(a0.first, 3) + " -> " + juce::String(a1.first, 3));
+        proc->setParam(pid::input, 0); proc->setParam(pid::link, 0);
+        proc->apvts.getParameter("live")->setValueNotifyingHost(0);
+    }
+    proc->analyze();
+    if (auto* ed = proc->createEditor()) {
+        juce::Thread::sleep(200);
+        auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        const auto f = dir.getChildFile("twelve-editor.png"); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo);
+        check(img.getWidth() == ed->getWidth(), "editor picture " + f.getFullPathName()); delete ed;
+    }
+    juce::MemoryBlock st; proc->getStateInformation(st);
+    auto p2b = std::make_unique<TwelveProcessor>(); p2b->setStateInformation(st.getData(), (int) st.getSize());
+    check(p2b->hasSource() && p2b->sourceLength() == proc->sourceLength(), "project restores the sample (" + juce::String((int) st.getSize()) + " bytes of state)");
+    p2b.reset(); proc.reset();
+    std::puts(ok ? "PASS" : "FAIL");
+    return ok ? 0 : 1;
+}

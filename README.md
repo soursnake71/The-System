@@ -17,6 +17,18 @@ A separate app with the gear from Newcleus's *Jam On Revenge*: TR-808, Oberheim 
 - Pictures for the About screen go in `jamon/art/` (cover.jpg, band.jpg).
 - Band centres for the vocoder are the published EH-0300 list; 808 voice frequencies follow published circuit analyses (Werner, Abel & Smith, DAFx-14, and others).
 
+## Omega Twelve (`/twelve/`): 12-bit sampler emulator
+A vintage sampler in your phone or your DAW. Import any audio or video file, pick part of it, and run it through the E-mu SP-1200 or SP-12 simulated at circuit level (the service-manual circuits for the anti-alias filter, outputs 3-6, the SSM2044 and the network that sweeps it, plus the 8-channel DAC timing and the 7-bit pitch counter), checked against recordings of a real SP-12 (`twelve/VALIDATION.md`), or 16 other samplers (MPC60, MPC3000, S612, S950, S1000, RZ-1, SK-1, Emax, EPS, EPS 16+, Mirage, DSS-1, S-550, SU700, TX16W, Clean) with 16 filter models, a driven preamp, alias in semitones on any machine, filter on/off, input/output link, bypass and VU meters.
+- Full MIDI (notes, velocity, pitch bend, program change, MIDI learn for every control, clock), and a live TV screen (Cast, or a TV window).
+- 540 presets in 27 families, plus a random settings generator and your own presets.
+- Tuning (semitones, cents, A4 reference, transpose to a key), lo-fi (vinyl crackle, tape hiss, wow, flutter, tape saturation, vinyl age, mains hum).
+- Tempo and key detection, warp to a BPM (stretch keeping pitch, or speed it like the hardware), timestretch: smooth, or cyclic S950 / S1000 style in Classic (stretched, synced to the bar in the plugin) or Warp (length kept, cycles pitched up), with grain down to half a millisecond; the plugin does it live on its input too.
+- Select, zoom, truncate, normalize, reverse, undo, resample (bounce what you hear back in, no export needed), 16 multi-pitch pads and MIDI, STOP ALL.
+- Master out: EQ matching to a reference track (or a typical mix), 5-band parametric EQ, compressor, gain, look-ahead limiter, Auto master to a loudness target.
+- Export WAV (16/24/32-bit float), AIFF, FLAC, MP3, and Opus/OGG/M4A via the device codec.
+- Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
+- VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
