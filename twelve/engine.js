@@ -23,8 +23,8 @@ const PROTO = {
 // pitch: 0 SP drop/repeat counter, 1 zero-order hold (variable clock), 2 linear, 3 cubic (clean)
 // lo / hi: the machine's own sample-rate range (published specs); the Rate knob is held inside it
 const MACHINES = [
-  {name:'SP-1200',  rate:SP_SR, bits:12, pitch:0, ftype:0,  cutoff:1000,  res:.3,  lo:4000,  hi:SP_SR},
-  {name:'SP-12',    rate:27500, bits:12, pitch:0, ftype:0,  cutoff:1300,  res:.3,  lo:4000,  hi:27500},
+  {name:'SP-1200',  rate:SP_SR, bits:12, pitch:0, ftype:5,  cutoff:1000,  res:.3,  lo:4000,  hi:SP_SR},
+  {name:'SP-12',    rate:27500, bits:12, pitch:0, ftype:5,  cutoff:1300,  res:.3,  lo:4000,  hi:27500},
   {name:'MPC60',    rate:40000, bits:12, pitch:2, ftype:5,  cutoff:16000, res:0,   lo:4000,  hi:40000},
   {name:'S950',     rate:31250, bits:12, pitch:1, ftype:6,  cutoff:11000, res:0,   lo:7500,  hi:48000},
   {name:'S612',     rate:32000, bits:12, pitch:1, ftype:7,  cutoff:9000,  res:.1,  lo:4000,  hi:32000},
@@ -60,7 +60,7 @@ const PARAMS = [
   P('rpm', 'Alias', 0, 30, 0, .1, 'st', 'sampler'),
   P('pre', 'Preamp', 0, 1, 1, 1, '', 'sampler', {toggle:1}),
   P('calib', 'Calibration', 0, 1, 1, 1, '', 'sampler', {choices:['Service manual', 'Measured SP-12']}),
-  P('ftype', 'Filter', 0, 15, 0, 1, '', 'filter', {choices:FILTERS}),
+  P('ftype', 'Filter', 0, 15, 5, 1, '', 'filter', {choices:FILTERS}),
   P('fOn', 'Filter on', 0, 1, 1, 1, '', 'filter', {toggle:1}),
   P('cutoff', 'Cutoff', 100, 20000, 1000, 0, 'Hz', 'filter', {log:1}),
   P('res', 'Resonance', 0, 1, .3, 0, '%', 'filter'),
@@ -690,13 +690,13 @@ function machinePatch(m){ const M = MACHINES[m]; return {machine:m, rate:M.rate,
 const lerp = (r, a, b) => a + (b - a) * r();
 const pick = (r, a) => a[Math.floor(r() * a.length) % a.length];
 const FAMILIES = [
-  ['SP-1200 Classic', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2, 3]), cutoff:lerp(r, 1200, 2600), fenv:lerp(r, .6, 1), drive:lerp(r, .05, .2)})],
+  ['SP-1200 Classic', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 3, 5, 5]), cutoff:lerp(r, 1200, 2600), fenv:lerp(r, .6, 1), drive:lerp(r, .05, .2)})],
   ['SP-1200 Out 1-2', r => ({...machinePatch(0), ftype:0, cutoff:lerp(r, 500, 3000), res:lerp(r, 0, .45), fenv:lerp(r, .3, 1)})],
   ['SP-1200 Out 3', r => ({...machinePatch(0), ftype:1, drive:lerp(r, 0, .25)})],
   ['SP-1200 Out 4', r => ({...machinePatch(0), ftype:2, drive:lerp(r, 0, .25)})],
   ['SP-1200 Out 5-6', r => ({...machinePatch(0), ftype:pick(r, [3, 4]), drive:lerp(r, 0, .25)})],
   ['SP-1200 Raw 7-8', r => ({...machinePatch(0), ftype:5, alias:lerp(r, 0, .6), drive:lerp(r, 0, .3)})],
-  ['SP-1200 Pitched Down', r => ({...machinePatch(0), ftype:pick(r, [0, 1, 2]), semis:-Math.round(lerp(r, 3, 12)), drive:lerp(r, .05, .2)})],
+  ['SP-1200 Pitched Down', r => ({...machinePatch(0), ftype:pick(r, [1, 3, 5, 5]), semis:-Math.round(lerp(r, 3, 12)), drive:lerp(r, .05, .2)})],
   ['SP-1200 Pitched Up', r => ({...machinePatch(0), ftype:pick(r, [2, 3, 4, 5]), semis:Math.round(lerp(r, 2, 12))})],
   ['SP-12 Crunch', r => ({...machinePatch(1), ftype:pick(r, [0, 2, 5]), drive:lerp(r, .15, .4), alias:lerp(r, 0, .4)})],
   ['MPC60 Swing', r => ({...machinePatch(2), cutoff:lerp(r, 9000, 16000), ftype:pick(r, [5, 6]), drive:lerp(r, 0, .15)})],

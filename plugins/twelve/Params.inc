@@ -11,7 +11,7 @@ static const ParamInfo PARAMS[] = {
   {"rpm", "Alias", 0.0, 30.0, 0.0, 0.1, "st", "sampler", false, false, {}},
   {"pre", "Preamp", 0.0, 1.0, 1.0, 1.0, "", "sampler", false, true, {}},
   {"calib", "Calibration", 0.0, 1.0, 1.0, 1.0, "", "sampler", false, false, {"Service manual", "Measured SP-12"}},
-  {"ftype", "Filter", 0.0, 15.0, 0.0, 1.0, "", "filter", false, false, {"SSM2044 (out 1-2)", "Fixed (out 3)", "Fixed (out 4)", "Fixed (out 5)", "Fixed (out 6)", "None (out 7-8)", "S950 6-pole", "S612 4-pole", "MPC3000 2-pole", "S1000 3-pole", "Emax 4-pole", "EPS 4-pole", "Mirage 4-pole", "DSS-1 4-pole", "S-550 2-pole", "SU700 4-pole"}},
+  {"ftype", "Filter", 0.0, 15.0, 5.0, 1.0, "", "filter", false, false, {"SSM2044 (out 1-2)", "Fixed (out 3)", "Fixed (out 4)", "Fixed (out 5)", "Fixed (out 6)", "None (out 7-8)", "S950 6-pole", "S612 4-pole", "MPC3000 2-pole", "S1000 3-pole", "Emax 4-pole", "EPS 4-pole", "Mirage 4-pole", "DSS-1 4-pole", "S-550 2-pole", "SU700 4-pole"}},
   {"fOn", "Filter on", 0.0, 1.0, 1.0, 1.0, "", "filter", false, true, {}},
   {"cutoff", "Cutoff", 100.0, 20000.0, 1000.0, 0.0, "Hz", "filter", true, false, {}},
   {"res", "Resonance", 0.0, 1.0, 0.3, 0.0, "%", "filter", false, false, {}},
