@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="retro hw sp">
+<html lang="en" class="retro hw">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -1268,6 +1268,7 @@ html.sp[data-view="drums"] main{padding:0!important;overflow:hidden!important;ba
 .sp12.port .spknobs{position:absolute;right:12px;top:52px;gap:14px}
 .sp12.port .sprow4{justify-content:flex-start;gap:22px;padding-left:4px}
 .sp12.port .spknob{width:28px;height:28px}
+html.hw #spBanner{display:none!important}
 </style>
 
 </head>
@@ -2431,7 +2432,7 @@ html.sp[data-view="drums"] main{padding:0!important;overflow:hidden!important;ba
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v141</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v142</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -15104,7 +15105,7 @@ function hwJogStep(d){
 }
 function hwPaint(){
   const k = KITS[S.drum.kit] || null, p = S.drum.pads[selPad];
-  $('#hwKit').textContent = (k ? k.name : 'Kit').replace(/\s*\(.*\)$/, '').toUpperCase();
+  $('#hwKit').textContent = (k ? k.name : 'Kit').replace(/\s*\(.*\)$/, '').toUpperCase() + (S.sp ? ' · SP-1200' : '');
   $('#hwPadT').textContent = 'PAD ' + (selPad + 1) + ' · ' + (p ? p.name : '').toUpperCase();
   hwJogLabel();
   // lit function buttons follow the switches they press
