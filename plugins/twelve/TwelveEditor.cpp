@@ -70,6 +70,17 @@ void PanelKey::paintButton(juce::Graphics& g, bool, bool down) {
     g.setGradientFill(juce::ColourGradient(a, r.getX(), r.getY(), b, r.getRight(), r.getBottom(), false));
     g.fillRoundedRectangle(r, 3);
     g.setColour(edge); g.drawRoundedRectangle(r, 3, 1);
+    if (armed) { g.setColour(kLed.withAlpha(.85f)); g.fillRoundedRectangle(r.reduced(2), 3); }
+    const auto c = r.getCentre(); const float u = r.getWidth() / 24.f;
+    g.setColour(juce::Colour(0xff1b1b1b));
+    if (icon == 1) {   // five pips
+        for (auto [x, y] : std::initializer_list<std::pair<float, float>>{{-5, -5}, {5, -5}, {0, 0}, {-5, 5}, {5, 5}}) g.fillEllipse(c.x + x * u - 2 * u, c.y + y * u - 2 * u, 4 * u, 4 * u);
+    } else if (icon == 2) {   // a circular arrow
+        juce::Path a; a.addCentredArc(c.x, c.y, 6.5f * u, 6.5f * u, 0, -juce::MathConstants<float>::pi * .25f, juce::MathConstants<float>::pi * 1.55f, true);
+        g.strokePath(a, juce::PathStrokeType(2.2f * u, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        juce::Path h; h.startNewSubPath(c.x - 8 * u, c.y - 8 * u); h.lineTo(c.x - 8 * u, c.y - 2.5f * u); h.lineTo(c.x - 2.5f * u, c.y - 2.5f * u);
+        g.strokePath(h, juce::PathStrokeType(2.2f * u, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
 }
 void Pad::paint(juce::Graphics& g) {
     auto r = getLocalBounds().toFloat().reduced(4);
@@ -302,6 +313,9 @@ TwelveEditor::TwelveEditor(TwelveProcessor& p) : AudioProcessorEditor(p), proc(p
         if (proc.isPlaying()) { proc.stopMain(); return; }
         const auto s = proc.selection(); proc.play(cursor > s.first && cursor < s.second ? (double) (cursor - s.first) / (double) (s.second - s.first) : 0); });
     addKey("Stop", PanelKey::red, {R_TRANS.getX() + 266 - 18, 836, 36, 38}, [this] { proc.stopAll(); say("STOP ALL"); });
+    // in the name strip: a random preset, and everything back to default
+    addKey("Dice", PanelKey::cream, {1040, 20, 40, 42}, [this] { proc.randomize(); say(proc.presetName().toUpperCase()); }).icon = 1;
+    addKey("Reset", PanelKey::cream, {1100, 20, 40, 42}, [this] { resetAll(); }).icon = 2;
     // knobs: Gain (input), Mix Volume (output), Master Volume (master gain)
     const std::pair<int, juce::Rectangle<int>> kn[3] = {{pid::input, {R_SAMPLE.getRight() - 62, 128, 60, 60}}, {pid::output, {R_KNOBS.getX() + 50, 384, 64, 64}}, {pid::mGain, {R_KNOBS.getX() + 205, 384, 64, 64}}};
     for (auto& [id, r] : kn) {
@@ -334,6 +348,7 @@ void TwelveEditor::timerCallback() {
         say(shortName(learning) + " ON CC " + juce::String(cc), 2500); learning = -1;
     }
     if (msg.isNotEmpty() && juce::Time::getMillisecondCounter() > msgUntil) msg.clear();
+    if (auto* k = keyAt("Reset")) if (k->armed && juce::Time::getMillisecondCounter() - resetArm > 2000) { k->armed = false; k->repaint(); }
     lcd.repaint();
     // LEDs and faders follow the host and MIDI
     content.repaint(); for (auto& f : faders) f->repaint();
@@ -444,6 +459,17 @@ void TwelveEditor::enter() {
     if (menu >= 0) { openMenu(menu); return; }
     showPresets();
 }
+// everything back to how it starts: all settings, the EQ match and the pad pitches (the sample stays). The first press
+// asks, the second within two seconds does it.
+void TwelveEditor::resetAll() {
+    const uint32_t now = juce::Time::getMillisecondCounter();
+    auto* k = keyAt("Reset");
+    if (now - resetArm > 2000) { resetArm = now; if (k) { k->armed = true; k->repaint(); } say("PRESS RESET AGAIN", 2000); return; }
+    resetArm = 0; if (k) { k->armed = false; k->repaint(); }
+    Params d; proc.applyValues(d, false); proc.clearMatch(); proc.setParam(pid::match, d[pid::match]);
+    for (int i = 0; i < 32; ++i) proc.padTune[(size_t) i] = (float) BANK_DEF[i];
+    proc.setPresetName("Init"); touched = -1; touchedName.clear(); say("RESET TO DEFAULT");
+}
 void TwelveEditor::setIn() {
     if (!proc.hasSource()) { say("LOAD A R_SAMPLE"); return; }
     const auto s = proc.selection(); const int64_t c = cursor < 0 ? 0 : cursor;
@@ -504,6 +530,7 @@ void TwelveEditor::drawContent(juce::Graphics& g) {
     g.setFont(font(32, true)); g.drawText("12", 222, 30, 60, 44, juce::Justification::centredLeft);
     g.setFont(font(10)); g.drawText("S  A  M  P  L  I  N  G      P  E  R  C  U  S  S  I  O  N", 300, 46, 420, 14, juce::Justification::centredLeft);
     g.setFont(font(32)); g.drawText("Omega Twelve", 62, 926, 400, 42, juce::Justification::centredLeft);
+    g.setFont(font(10, true)); g.drawText("RANDOM", 1030, 63, 60, 12, juce::Justification::centred); g.drawText("RESET", 1090, 63, 60, 12, juce::Justification::centred);
     // section titles with the blue rule
     auto title = [&](juce::Rectangle<int> r, const juce::String& t) { g.setColour(kPrint); g.setFont(font(22, true)); g.drawText(t, r.getX(), r.getY(), r.getWidth(), 26, juce::Justification::bottomLeft); g.setColour(kRule); g.fillRect(r.getX(), r.getY() + 29, r.getWidth(), 3); };
     title(R_SETUP, "Set-up"); title(R_DISK, "Disk"); title(R_SYNC, "Sync"); title(R_SAMPLE, "Sample"); title(R_MC, "Master Control"); title(R_PROG, "Programming"); title(R_PERF, "Performance");

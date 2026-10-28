@@ -295,6 +295,7 @@ function buildPanel(){
   tap('#kBank', () => { S.bank = (S.bank + 1) % 4; paintLeds(); paintFaders(); say(`BANK ${'ABCD'[S.bank]}  ${fmtSt(S.pads[S.bank * 8])}..${fmtSt(S.pads[S.bank * 8 + 7])}`, 1200); save(); });
   tap('#kLoop', () => { S.loop = !S.loop; send({type:'loop', on:S.loop}); paintLeds(); save(); say(S.loop ? 'REPEAT ON' : 'REPEAT OFF', 900); });
   tap('#kRun', run); tap('#kStop', stopAll);
+  tap('#kDice', randomize); tap('#kReset', resetAll);
 }
 // the menus printed beside their keys
 function fillLists(){
@@ -538,6 +539,16 @@ function applyValues(vals, name, idx){ Object.assign(S.p, vals); S.presetName = 
 function loadPreset(i){ const n = PRESETS.length; i = (i + n) % n; const p = PRESETS[i]; applyValues(p.values, p.name, i); say('P' + (i + 1) + ' LOADED', 900); }
 function stepPreset(d){ if (S.preset >= 0) loadPreset(S.preset + d); else loadPreset(d > 0 ? 0 : PRESETS.length - 1); }
 function randomize(){ const r = TW.randomPatch((Math.random() * 2 ** 32) >>> 0); applyValues(r.values, r.name, -1); say('RANDOM ' + r.name.replace('Random · ', '').toUpperCase()); }
+// everything back to how it starts: all settings, the EQ match and the pad pitches (the sample stays). The first
+// press asks, the second within two seconds does it.
+let resetArm = 0;
+function resetAll(){
+  const now = Date.now();
+  if (now - resetArm > 2000){ resetArm = now; $('#kReset').classList.add('arm'); setTimeout(() => $('#kReset').classList.remove('arm'), 2000); say('PRESS RESET AGAIN', 2000); return; }
+  resetArm = 0; $('#kReset').classList.remove('arm');
+  S.match = new Array(10).fill(0); S.pads = BANK_DEF.flat(); S.bypass = false;
+  applyValues(TW.defaults(), 'Init', -1); say('RESET TO DEFAULT');
+}
 function initSound(){ const keep = {}; TW.MASTER_IDS.forEach(id => keep[id] = S.p[id]); applyValues(Object.assign(TW.defaults(), keep), 'Init', -1); }
 function savePreset(){
   const name = prompt('Name this preset', S.presetName.replace(/\*$/, '') + ' (mine)'); if (!name) return;

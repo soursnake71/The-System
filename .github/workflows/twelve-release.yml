@@ -80,6 +80,8 @@ jobs:
         with: {name: twelve-Android, path: omega-twelve.apk, if-no-files-found: error}
   publish:
     needs: [plugins, apk]
+    # publish whatever built: a Mac runner that never starts shouldn't hold back the Windows, Linux and Android files
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

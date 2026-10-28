@@ -29,6 +29,12 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .logo{font:700 44px/1 var(--cond); letter-spacing:-1.5px; transform:scaleY(1.12)}
 .logo small{font-size:.62em; letter-spacing:0}
 .tag{font:400 9px/1 Arial, sans-serif; letter-spacing:7.5px; margin:14px 0 0 30px}
+/* random preset and reset, at the right of the name strip */
+.hbtns{margin-left:auto; display:flex; gap:10px; align-items:center}
+.hbtn{display:flex; flex-direction:column; align-items:center; gap:2px; font:700 9px/1 var(--cond); color:#222; letter-spacing:.3px; text-transform:uppercase}
+.hbtn svg{width:34px; height:34px; display:block; fill:#1b1b1b; border-radius:6px; filter:drop-shadow(0 2px 1px #0005)}
+.hbtn:active svg{transform:translateY(1px); filter:none}
+.hbtn.arm svg{background:var(--led); border-radius:7px}
 .maker{font:400 30px/1 var(--cond); letter-spacing:-.5px; transform:scaleY(1.08)}
 .sec{position:relative; color:var(--print); min-width:0; min-height:0}
 .sec h2{margin:0; font:700 19px/1 var(--cond); letter-spacing:-.2px; padding-bottom:5px; border-bottom:3px solid var(--rule); white-space:nowrap; transform:scaleY(1.08); transform-origin:0 100%}
@@ -133,7 +139,7 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
   grid-template-areas:"hdr hdr hdr hdr" "mc mc mc mc" "mbtn mbtn knobs knobs" "keypad keypad keypad keypad" "setup disk sync sample" "prog prog prog prog" "perf perf perf perf" "pads pads pads pads" "trans trans trans trans" "ftr ftr ftr ftr"}
 .tall .hdr{grid-area:hdr; padding:0 12px} .tall .ftr{grid-area:ftr; padding:0 12px; background:none; color:var(--dim)}
 .tall .facebg{grid-area:2 / 1 / 10 / 5; margin:-3px -5px}
-.tall .logo{font-size:28px} .tall .tag{font-size:6.5px; letter-spacing:4px; margin:8px 0 0 12px} .tall .maker{font-size:11px; font-family:var(--cond)}
+.tall .logo{font-size:28px} .tall .tag{font-size:5.5px; letter-spacing:2.5px; margin:8px 0 0 8px} .tall .hbtns{gap:6px} .tall .hbtn svg{width:22px; height:22px} .tall .hbtn{font-size:6.5px; gap:1px} .tall .maker{font-size:11px; font-family:var(--cond)}
 .tall .sec h2{font-size:12.5px; padding-bottom:3px; border-bottom-width:2px}
 .tall .list, .tall .sec .lsthide{display:none}
 .tall .mc{grid-area:mc; display:flex; flex-direction:column} .tall .mc h2{display:none} .tall .mc .lcdbox{flex:1; padding:5px}
@@ -180,7 +186,11 @@ dialog::backdrop{background:#000b}
 <body>
 <div id="stage"><div class="sp wide" id="sp">
   <div class="facebg face"></div>
-  <header class="strip hdr"><span class="logo">OMEGA <small>12</small></span><span class="tag">SAMPLING PERCUSSION</span></header>
+  <header class="strip hdr"><span class="logo">OMEGA <small>12</small></span><span class="tag">SAMPLING PERCUSSION</span>
+    <span class="hbtns">
+      <button class="hbtn" id="kDice" aria-label="Random preset" title="Random preset"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" fill="#fbf7ea" stroke="#1b1b1b" stroke-width="1.8"/><circle cx="8" cy="8" r="1.8"/><circle cx="16" cy="8" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="8" cy="16" r="1.8"/><circle cx="16" cy="16" r="1.8"/></svg><span>Random</span></button>
+      <button class="hbtn" id="kReset" aria-label="Reset to default" title="Reset to default"><svg viewBox="0 0 24 24"><path d="M5.5 12a6.5 6.5 0 1 0 2-4.7" fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round"/><path d="M3.8 3.8v5.4h5.4" fill="none" stroke="#1b1b1b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Reset</span></button>
+    </span></header>
 
   <section class="sec setup"><h2>Set-up</h2>
     <div class="btnrow"><div class="keycol"><i class="led" id="ledSetup"></i><button class="key" id="kSetup" aria-label="Set-up"></button></div><ol class="list" id="lSetup"></ol></div></section>

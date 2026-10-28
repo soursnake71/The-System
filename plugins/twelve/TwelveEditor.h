@@ -12,6 +12,8 @@ struct TwelveLook : juce::LookAndFeel_V4 {
 // a square key: cream, red or black
 struct PanelKey : juce::Button {
     enum Kind { cream, red, black } kind;
+    int icon = 0;   // 1: a die (random preset), 2: a circular arrow (reset)
+    bool armed = false;
     explicit PanelKey(Kind k = cream) : juce::Button({}), kind(k) {}
     void paintButton(juce::Graphics&, bool over, bool down) override;
 };
@@ -123,7 +125,8 @@ private:
     int page = 0, bank = 0, shift = 0, learning = -1;
     int fmtIdx = 1, srIdx = 1, lufsIdx = 2, toKey = 9; bool wholeFile = false, stretchWarp = true;
     double srcBpm = 0, tgtBpm = 90;
-    juce::String msg; uint32_t msgUntil = 0;
+    juce::String msg; uint32_t msgUntil = 0, resetArm = 0;
+    void resetAll();
     bool wasPlaying = false;
 };
 

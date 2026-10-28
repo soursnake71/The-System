@@ -6,8 +6,8 @@ android {
     applicationId 'com.thesnakedevice.app'
     minSdk 24
     targetSdk 35
-    versionCode 22
-    versionName '22.0'
+    versionCode 23
+    versionName '23.0'
   }
   buildFeatures { buildConfig true }
   // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
