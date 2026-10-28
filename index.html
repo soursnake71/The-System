@@ -1139,6 +1139,60 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
   html.hw.retro #v-drums > .hw-deck{grid-column:2;grid-row:5}
   #hwWave{height:150px}
 }
+
+/* ================= Phone: the whole Pads screen fits without scrolling (same look, tighter) ================= */
+@media (max-width:899px){
+  html.hw.retro .transport{row-gap:4px;padding-bottom:6px}
+  html.hw.retro .transport .tbtn{width:40px!important;height:34px!important}
+  html.hw.retro .transport .pos{font-size:18px!important;padding:3px 6px!important}
+  html.hw.retro .transport .bpm input{font-size:17px;width:46px;padding:3px 1px}
+  html.hw.retro .transport .bpm button{padding:6px 9px;min-height:0}
+  html.hw.retro #fxBtn{display:none}
+  html.hw.retro .trow2{gap:4px!important}
+  html.hw.retro .trow2 > *{font-size:10.5px!important;padding:6px 6px!important;min-height:0!important;height:auto}
+  html.hw.retro .trow2 select{padding:5px 2px!important;max-width:64px}
+  html.hw.retro .trow2 .label,html.hw.retro #inBadge{display:none}
+  html.hw.retro #fire i{display:none}
+  html.hw.retro #v-drums{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:5px;padding:7px;margin-top:2px;align-items:start}
+  html.hw.retro #v-drums > *{grid-column:1 / -1;margin:0!important}
+  html.hw.retro #v-drums > #pads{grid-column:1;justify-self:center}
+  html.hw.retro #v-drums > .hw-deck{grid-column:2;flex-direction:column;align-items:stretch;gap:6px}
+  .hw-screen{padding:4px}
+  .hw-lcdtop{padding:0 3px 3px;font-size:10px}
+  #hwWave{height:clamp(34px,7vh,64px)}
+  .hw-soft{margin-top:4px;gap:3px}
+  html.hw .hw-soft button{padding:4px 0;font-size:9px}
+  html.hw.retro #v-drums .scenebar button{padding:5px 10px;font-size:13px;min-height:0}
+  .hw-knobs{gap:2px}
+  html.hw .hw-knobs .knob{gap:1px}
+  html.hw .hw-knobs .kcap{width:34px;height:34px}
+  html.hw .hw-knobs .klab{font-size:9px;margin-top:2px}
+  html.hw .hw-knobs .kval{font-size:10px;padding:0 2px;height:auto}
+  .hw-fbtns{grid-template-columns:repeat(8,1fr);gap:3px}
+  html.hw .hw-fbtns button{padding:6px 0;font-size:8.5px;letter-spacing:0;border-radius:5px}
+  html.hw.retro #pads{padding:6px;gap:6px;grid-template-columns:repeat(4,minmax(0,1fr))}
+  html.hw.retro #pads .pad{min-width:0;aspect-ratio:1;height:auto}
+  html.hw.retro #pads .pad{padding:4px;border-radius:7px}
+  html.hw.retro #pads .pad .num::before{font-size:14px}
+  html.hw.retro #pads .pad .nm{font-size:7.5px}
+  .hw-jogwrap span{font-size:7px}
+  .hw-jog{width:64px;height:64px;margin:0 auto}
+  .hw-trans{grid-template-columns:repeat(2,52px);gap:4px}
+  html.hw .hw-trans button{padding:6px 0;font-size:9px}
+  html.hw .hw-trans .tplay,html.hw .hw-trans .trec{font-size:14px}
+  html.hw .hw-trans .tstop{font-size:12px}
+  html.hw.retro #v-drums .chipbar{gap:3px}
+  html.hw.retro #v-drums .chipbar button{padding:5px 6px;font-size:10px;flex:1 1 auto}
+}
+
+@media (max-width:899px) and (max-height:720px){
+  .hw-jog{width:46px;height:46px}
+  .hw-jogwrap span{display:none}
+  .hw-trans{grid-template-columns:repeat(2,46px);gap:3px}
+  html.hw .hw-trans button{padding:4px 0}
+  #hwWave{height:30px}
+  html.hw .hw-knobs .kcap{width:28px;height:28px}
+}
 </style>
 
 </head>
@@ -2243,7 +2297,7 @@ html.hw .hw-trans .trec.on{background:linear-gradient(180deg,#ff6b72,#e0202e);co
       <div class="status" id="expStatus">Files go to your Downloads folder. Share sends the last export to another app.</div>
     </div>
     <div class="card">
-      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v136</span></div>
+      <div class="row"><h2 class="grow">Projects</h2><span class="badge" id="appVer">v137</span></div>
       <div class="row"><input id="projName" class="grow" maxlength="40" placeholder="Project name" aria-label="Project name"><button id="projSave" class="nolearn">Save</button><button id="projSaveNew" class="nolearn">Save as new</button></div>
       <div class="row"><select id="projList" class="grow" aria-label="Saved projects"></select><button id="projOpen" class="nolearn">Open</button></div>
       <div class="row"><button id="projExport" class="grow nolearn">Export project file</button><button id="projImport" class="grow nolearn">Import project file</button><button id="projDel" class="nolearn" aria-label="Delete saved project">✕</button></div>
@@ -7592,7 +7646,17 @@ window.addEventListener('resize', () => { clearTimeout(sheetT); sheetT = setTime
 function fitScreen(){
   const m = document.querySelector('main'); if (!m) return;
   const over = () => m.scrollHeight - m.clientHeight;
-  if (view === 'drums' && document.documentElement.classList.contains('hw')){ const pads = $('#pads'); pads.style.maxWidth = ''; pads.style.width = '100%'; pads.style.margin = ''; }
+  if (view === 'drums' && document.documentElement.classList.contains('hw')){
+    const pads = $('#pads'); pads.style.margin = '';
+    if (innerWidth >= 900){ pads.style.maxWidth = ''; pads.style.removeProperty('width'); }
+    else {
+      // the pads take whatever is left beside the wheel and below the rest, so nothing scrolls
+      const v = $('#v-drums'), deck = v.querySelector('.hw-deck'), cs = getComputedStyle(v);
+      const inner = v.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - deck.offsetWidth - 8;
+      pads.style.maxWidth = 'none'; pads.style.setProperty('width', Math.floor(inner) + 'px', 'important');
+      for (let k = 0; k < 4; k++){ const o = over(); if (o <= 0) break; pads.style.setProperty('width', Math.max(130, Math.floor(pads.offsetWidth - o - 2)) + 'px', 'important'); }
+    }
+  }
   else if (view === 'drums'){
     const pads = $('#pads'); pads.style.maxWidth = ''; pads.style.width = '100%'; pads.style.margin = '';
     const o = over(); if (o > 0){ const h = pads.offsetHeight, w = pads.offsetWidth, nh = Math.max(200, h - o - 2); pads.style.maxWidth = Math.floor(w * nh / h) + 'px'; pads.style.margin = '0 auto'; pads.style.alignSelf = 'center'; }
