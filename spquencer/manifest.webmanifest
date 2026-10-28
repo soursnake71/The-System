@@ -1,0 +1,2 @@
+{"name":"SPQuencer1200","short_name":"SPQuencer","description":"24 PPQ segment, song, mix and sound editor for the E-mu and Rossum SP-1200.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#1b1c1e","theme_color":"#1b1c1e",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
