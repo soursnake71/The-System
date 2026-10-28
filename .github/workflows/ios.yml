@@ -11,7 +11,7 @@ permissions:
   contents: write
 jobs:
   ipa:
-    runs-on: macos-14
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - name: Project
