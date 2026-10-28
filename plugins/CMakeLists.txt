@@ -2,6 +2,8 @@
 # Build: cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release
 cmake_minimum_required(VERSION 3.22)
 project(OmegaPlugins VERSION 1.0.0 LANGUAGES C CXX)
+# Windows: link the Visual C++ runtime into each plugin, so a PC without the VC++ redistributable can still load it
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(APPLE)

@@ -13,8 +13,11 @@ AppName=SPQuencer1200
 AppVersion={#AppVersion}
 AppPublisher=The Omega System
 AppComments=24 PPQ sequencer for the E-mu and Rossum SP-1200, as a VST3 plugin
-DefaultDirName={commoncf64}\VST3\SPQuencer1200.vst3
+; the uninstaller lives here; the plugin itself goes to the VST3 folder (see [Files]), so nothing extra sits in its bundle
+DefaultDirName={commonpf64}\SPQuencer1200
 DisableDirPage=yes
+; don't reuse the 1.0.0 test installers' folder, which was inside the plugin bundle
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -28,7 +31,14 @@ MinVersion=10.0
 
 [Files]
 ; the whole .vst3 bundle folder goes into the standard VST3 folder, C:\Program Files\Common Files\VST3
-Source: "{#SrcDir}\SPQuencer1200.vst3\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SrcDir}\SPQuencer1200.vst3\*"; DestDir: "{commoncf64}\VST3\SPQuencer1200.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+; an uninstaller left inside the bundle by an earlier installer
+Type: files; Name: "{commoncf64}\VST3\SPQuencer1200.vst3\unins000.*"
+
+[UninstallDelete]
+Type: dirifempty; Name: "{commoncf64}\VST3\SPQuencer1200.vst3"
 
 [Messages]
 FinishedLabel=SPQuencer1200 is installed in C:\Program Files\Common Files\VST3.%n%nIn Ableton Live, rescan plugins (Settings > Plug-Ins > Rescan) and find SPQuencer1200 under Plug-Ins > VST3 > The Omega System.
@@ -49,7 +59,8 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var code: Integer;
 begin
   if (CurStep = ssPostInstall) and not WebView2Installed() then
-    if MsgBox('SPQuencer1200''s window needs the Microsoft Edge WebView2 Runtime, which is not on this PC.' + #13#10 +
-              'Open the download page now?', mbConfirmation, MB_YESNO) = IDYES then
+    // SuppressibleMsgBox: a silent install (/SUPPRESSMSGBOXES) answers No instead of waiting for a click
+    if SuppressibleMsgBox('SPQuencer1200''s window needs the Microsoft Edge WebView2 Runtime, which is not on this PC.' + #13#10 +
+              'Open the download page now?', mbConfirmation, MB_YESNO, IDNO) = IDYES then
       ShellExec('open', 'https://developer.microsoft.com/microsoft-edge/webview2/', '', '', SW_SHOWNORMAL, ewNoWait, code);
 end;
