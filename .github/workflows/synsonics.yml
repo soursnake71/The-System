@@ -1,0 +1,88 @@
+# Omega Synsonics (Mattel Synsonics Drums circuit model, stock + Circuitbenders mods), all C++:
+# the Android app (APK) and the VST3 plugin (AU too on Mac, plus a standalone app) for Windows, Mac and Linux,
+# attached to the "synsonics-latest" release.
+name: Omega Synsonics
+on:
+  push:
+    branches: [main]
+    paths: ['synsonics/**', '.github/workflows/synsonics.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Circuit model and panel tests
+        run: |
+          cmake -S synsonics -B build-test -DSYN_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-test --parallel 4
+          mkdir -p out
+          build-test/syn_engine_test out
+          build-test/syn_panel_snapshot out
+  apk:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > synsonics/android/local.properties
+          gradle -p synsonics/android assembleRelease --no-daemon
+          cp synsonics/android/app/build/outputs/apk/release/app-release.apk omega-synsonics.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: omega-synsonics-apk, path: omega-synsonics.apk}
+  plugin:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev
+      - name: Configure
+        run: cmake -S synsonics -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel 4 --target OmegaSynsonics_VST3 OmegaSynsonics_Standalone
+      - name: Build AU
+        if: runner.os == 'macOS'
+        run: cmake --build build --config Release --parallel 4 --target OmegaSynsonics_AU
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega Synsonics' -o -name 'Omega Synsonics.exe' -o -name 'Omega Synsonics.app' \) -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls out
+          cd out && 7z a -tzip "../Omega-Synsonics-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'Omega-Synsonics-${{ matrix.name }}', path: 'Omega-Synsonics-${{ matrix.name }}.zip'}
+  publish:
+    needs: [apk, plugin]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls dl
+          gh release view synsonics-latest >/dev/null 2>&1 || gh release create synsonics-latest --title "Omega Synsonics (latest)" --notes "Mattel Synsonics Drums circuit model, stock and Circuitbenders-modded, in one app. Android: download omega-synsonics.apk on your phone and open it (allow installs from your browser when asked). Desktop: unzip the zip for your computer and copy Omega Synsonics.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3); the standalone app is in the same zip. On a Mac, if your DAW refuses it, run: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
+          gh release upload synsonics-latest dl/* --clobber
