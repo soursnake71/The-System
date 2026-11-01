@@ -1,7 +1,7 @@
 // Copy the web game into ./game for packaging (everything except build tooling).
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..'), dst = path.join(__dirname, 'game');
-const SKIP = new Set(['desktop', 'tools', 'sw.js']);
+const SKIP = new Set(['desktop', 'android', 'tools', 'sw.js']);
 fs.rmSync(dst, { recursive: true, force: true });
 fs.mkdirSync(dst);
 for (const f of fs.readdirSync(src)) {
