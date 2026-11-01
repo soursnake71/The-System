@@ -127,7 +127,7 @@ export class Monster {
       const cost = 14 + this.stats.dmg * 3;
       pl.stamina -= cost; pl.staminaDelay = 0.9;
       sfx('block'); shake.add(0.25);
-      g.fx.burst(pl.pos.clone().add(new THREE.Vector3(0, 1.3, 0)).addScaledVector(pf, 0.5), 'spark', 24);
+      g.sparkAt(pl.pos.clone().add(new THREE.Vector3(0, 1.3, 0)).addScaledVector(pf, 0.5), 28, 1.2);
       if (pl.stamina > 0) { floatText(pl.pos.clone().setY(pl.pos.y + 2.1), 'BLOCKED', 'miss'); return; }
       pl.stamina = 0; floatText(pl.pos.clone().setY(pl.pos.y + 2.1), 'GUARD BROKEN', 'bad');
     }
@@ -137,6 +137,8 @@ export class Monster {
       const txt = r.msg.join(' ').includes('NO EFFECT') ? 'NO EFFECT' : r.msg.join(' ').includes('CANNOT SEE') ? 'BLINDED' : 'MISSED';
       floatText(pl.pos.clone().setY(pl.pos.y + 2.1), txt, 'miss'); sfx('miss', { vol: 0.6 }); return;
     }
+    // armed monsters strike sparks off your armour
+    if (this.actor.weapon) g.sparkAt(this.actor.tipWorld().lerp(pl.pos.clone().setY(pl.pos.y + 1.2), 0.5), 14, 0.7);
     g.playerHurt(r.dmg, this);
   }
   // you hit it

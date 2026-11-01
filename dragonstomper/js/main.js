@@ -254,6 +254,8 @@ function frame() {
   const raw = clock.getDelta(), dt = Math.min(raw, 1 / 20) * (window.__timeScale || 1);
   pollInput();
   const navved = padMenus();
+  // the d-pad was steering a menu: don't also zoom, sheathe or open things
+  if (navved) for (const k of ['zoom', 'sheathe', 'view', 'inventory', 'spell1', 'spell3']) input.pressed.delete(k);
   if (playing && !navved && pressed('pause') && !hud.modalOpen && !game.busy) pause();
   if (playing && !game.paused) game.update(dt);
   if (gfx.scene && playing) { render(); adapt(Math.min(raw, 0.5)); }

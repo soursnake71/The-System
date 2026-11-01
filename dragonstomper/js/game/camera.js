@@ -22,6 +22,8 @@ export class CameraRig {
     this.yaw -= input.lookX; this.pitch += input.lookY;
     this.pitch = THREE.MathUtils.clamp(this.pitch, this.mode === 'first' ? -1.4 : -0.5, this.mode === 'first' ? 1.4 : 1.2);
     if (input.wheel) this.wantDist = THREE.MathUtils.clamp(this.wantDist + input.wheel * 0.6, 2.2, 9);
+    // controller d-pad ↑ steps through near / normal / far
+    if (input.pressed.has('zoom')) this.wantDist = this.wantDist < 3.4 ? 4.2 : this.wantDist < 5.5 ? 6.8 : 2.6;
     const p = player.pos;
     // f: where the camera looks (pitch > 0 looks down)
     const f = new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), -Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch));

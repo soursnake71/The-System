@@ -36,6 +36,8 @@ export class Game {
     this.scene = scene;
     this.fx = new Particles(scene);
     this.trail = new Trail(scene);
+    // one light for sword-strike flashes (always present, so lighting never recompiles)
+    this.flash = new THREE.PointLight(0xffc070, 0, 7, 2); scene.add(this.flash);
     this.stats.part = part;
     await mocapReady;
     const area = new AreaClass(this, areaState || {});
@@ -113,7 +115,10 @@ export class Game {
     if (this.heroActor.weapon) {
       const base = this.heroActor.R.ha.getWorldPosition(new THREE.Vector3()), tip = this.heroActor.tipWorld();
       this.trail.update(pl.attacking && pl.attackT > 0.3 && pl.attackT < 0.7, base, tip);
+      // sparks glitter off the edge through the cut
+      if (pl.attacking && pl.attackT > 0.28 && pl.attackT < 0.66) this.fx.burst(base.lerp(tip, 0.55 + Math.random() * 0.45), 'glint', 3);
     }
+    this.flash.intensity *= Math.exp(-dt * 16);
     this.fx.update(dt);
     windUniform.value += dt;
     this.cam.update(dtReal, pl, area, null);
@@ -147,15 +152,26 @@ export class Game {
       const d = to.length() - (m.radius || 0.5);
       if (d > reach || fwd.angleTo(to) > arc) continue;
       any = true;
-      if (m.onHitByPlayer) { m.onHitByPlayer(combo); continue; }
+      // where the blade meets the target
+      const h = m.type?.height ?? 3, contact = this.heroActor.tipWorld().lerp(m.pos.clone().setY(m.pos.y + h * 0.55), 0.45);
+      const hard = !m.type || m.type.metal || m.type.shell || m.type.stone;
+      if (m.onHitByPlayer) { this.sparkAt(contact, 34, 1); m.onHitByPlayer(combo); continue; }
       // the ROM's roll ($FC6A): contest(monster attack, your DEX), damage randBelow(weapon) + bonus
       const r = R.playerAttack(p, m.stats);
-      if (!r.hit) { floatText(m.pos.clone().setY(m.pos.y + m.type.height * 0.8), 'MISS', 'miss'); sfx('miss'); continue; }
+      // a miss glances off: a scrape of sparks, no damage
+      if (!r.hit) { this.sparkAt(contact, 10, 0.5); floatText(m.pos.clone().setY(m.pos.y + h * 0.8), 'MISS', 'miss'); sfx(hard ? 'clang' : 'miss', { vol: 0.5 }); continue; }
+      this.sparkAt(contact, hard ? 40 : 18, hard ? 1 : 0.6);
       const dmg = r.dmg + (combo === 2 && !r.killed ? 0 : 0);
       m.takeHit(dmg, pl.pos, combo);
       if (r.killed) this.kill(m);
     }
     if (!any) sfx('miss', { vol: 0.4 });
+  }
+  // a burst of sparks with a flash of light that briefly lights the surroundings
+  sparkAt(pos, n = 16, power = 1) {
+    this.fx.burst(pos, 'spark', n);
+    this.flash.position.copy(pos);
+    this.flash.intensity = Math.max(this.flash.intensity, 14 * power);
   }
   kill(m) {
     m.die();

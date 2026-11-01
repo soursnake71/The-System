@@ -64,7 +64,7 @@ export class Player {
     let d = face - this.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
     this.yaw += d * Math.min(1, dt * (fighting ? 18 : 10));
     // jump and gravity
-    if (canAct && pressed('jump') && this.onGround && this.stamina > 10) { this.vy = 5.2; this.onGround = false; this.stamina -= 10; this.staminaDelay = 0.5; sfx('jump'); }
+    if (canAct && pressed('jump') && this.onGround && this.stamina > 10) { this.vy = 7.4; this.onGround = false; this.stamina -= 10; this.staminaDelay = 0.5; sfx('jump'); }
     this.vy -= 18 * dt;
     let [nx, nz] = move(this.pos.x, this.pos.z, this.vel.x * dt, this.vel.z * dt, this.radius, area.colliders);
     if (area.clamp) [nx, nz] = area.clamp(nx, nz, this);

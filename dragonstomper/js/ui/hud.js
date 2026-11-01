@@ -31,7 +31,7 @@ export class HUD {
     $('gold').textContent = p.gold;
     $('status').textContent = [p.fever ? 'FEVER' : '', p.protect > 0 ? 'PROTECTED' : '', p.stuck ? 'STUCK' : ''].filter(Boolean).join('  ');
     const sp = $('spells'); let html = '';
-    ['BLAST', 'FLASH', 'STUN', 'UNLOCK', 'VISION', 'PROTECT'].forEach((n, i) => { if (p.spells[n]) html += `<div class="slot"><b>${i + 1}</b>${n}<i>${p.spells[n]}</i></div>`; });
+    ['BLAST', 'FLASH', 'STUN', 'UNLOCK', 'VISION', 'PROTECT'].forEach((n, i) => { if (p.spells[n]) html += `<div class="slot"><b>${glyph('spell' + (i + 1))}</b>${n}<i>${p.spells[n]}</i></div>`; });
     if (p.goods.LONGBOW) html += `<div class="slot"><b>${glyph('potion')}</b>BOW</div>`;
     if (sp.innerHTML !== html) sp.innerHTML = html;
     if (extra.heading != null) {

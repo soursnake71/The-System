@@ -36,7 +36,9 @@ export class Particles {
       const P = { x: pos.x, y: pos.y, z: pos.z, vx: 0, vy: 0, vz: 0, life: 1, t: 0, size: 0.1, g: 0, drag: 0.98, add: true, r: 1, gg: 1, b: 1, a: 1, grow: 0, fade: 1 };
       const sp = (s) => { P.vx = v.x * s; P.vy = v.y * s; P.vz = v.z * s; if (dir) { P.vx = P.vx * spread + dir.x * s; P.vy = P.vy * spread + dir.y * s; P.vz = P.vz * spread + dir.z * s; } };
       switch (kind) {
-        case 'spark': sp(4 + Math.random() * 6); P.life = 0.25 + Math.random() * 0.35; P.size = 0.05; P.g = 9; P.r = 1; P.gg = 0.75; P.b = 0.35; P.a = 1; P.bright = 5; break;
+        case 'spark': sp(5 + Math.random() * 9); P.life = 0.2 + Math.random() * 0.4; P.size = 0.07 + Math.random() * 0.05; P.g = 9; P.drag = 0.95; P.r = 1; P.gg = 0.7 + Math.random() * 0.2; P.b = 0.3; P.a = 1; P.bright = 9; break;
+        // the glitter that trails a blade through a swing
+        case 'glint': sp(0.4 + Math.random() * 0.8); P.life = 0.15 + Math.random() * 0.2; P.size = 0.05 + Math.random() * 0.03; P.g = 3; P.r = 1; P.gg = 0.9; P.b = 0.65; P.a = 1; P.bright = 7; break;
         case 'blood': sp(1.5 + Math.random() * 3); P.life = 0.5 + Math.random() * 0.4; P.size = 0.06 + Math.random() * 0.05; P.g = 9.8; P.add = false; P.r = 0.35; P.gg = 0.02; P.b = 0.02; P.a = 0.9; break;
         case 'ichor': sp(1.5 + Math.random() * 3); P.life = 0.6; P.size = 0.07; P.g = 9.8; P.add = false; P.r = 0.2; P.gg = 0.45; P.b = 0.1; P.a = 0.9; break;
         case 'dust': sp(0.5 + Math.random()); P.vy = Math.abs(P.vy) * 0.5 + 0.3; P.life = 0.9 + Math.random() * 0.8; P.size = 0.35 + Math.random() * 0.3; P.grow = 0.8; P.add = false; P.r = 0.55; P.gg = 0.5; P.b = 0.42; P.a = 0.35; P.drag = 0.92; break;
