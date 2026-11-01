@@ -4,7 +4,7 @@ import { settings } from './gfx.js';
 const KEYMAP = {
   KeyW: 'fwd', ArrowUp: 'fwd', KeyS: 'back', ArrowDown: 'back', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
   ShiftLeft: 'sprint', ShiftRight: 'sprint', Space: 'jump', KeyE: 'interact', KeyF: 'interact', KeyV: 'view', KeyQ: 'use',
-  KeyI: 'inventory', Tab: 'inventory', Escape: 'pause', KeyC: 'dodge', ControlLeft: 'dodge', KeyR: 'potion',
+  KeyI: 'inventory', Tab: 'inventory', Escape: 'pause', KeyC: 'dodge', ControlLeft: 'dodge', KeyR: 'potion', KeyH: 'sheathe',
   Digit1: 'spell1', Digit2: 'spell2', Digit3: 'spell3', Digit4: 'spell4', Digit5: 'spell5', Digit6: 'spell6', Enter: 'confirm',
 };
 
@@ -65,16 +65,6 @@ export function pollInput() {
   const s = 0.0022 * settings.sensitivity;
   let lx = input.mouseDX * s, ly = input.mouseDY * s * (settings.invertY ? -1 : 1);
   input.mouseDX = input.mouseDY = 0;
-  // on-screen touch controls (ui/touch.js)
-  const t = input.touch;
-  if (t) {
-    mx += t.mx; my += t.my;
-    const ts = 0.0042 * settings.sensitivity;
-    lx += t.lookDX * ts; ly += t.lookDY * ts * (settings.invertY ? -1 : 1);
-    t.lookDX = t.lookDY = 0;
-    if (t.sprint) input.held.add('sprint'); else if (t.wasSprint) input.held.delete('sprint');
-    t.wasSprint = t.sprint;
-  }
   input.gamepad = false;
   for (const gp of navigator.getGamepads ? navigator.getGamepads() : []) {
     if (!gp) continue;
@@ -88,7 +78,7 @@ export function pollInput() {
     lx += rx * 0.045 * settings.sensitivity; ly += ry * 0.035 * settings.sensitivity * (settings.invertY ? -1 : 1);
     const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
     const map = { attack: b(7) || b(2), block: b(6), jump: b(0), interact: b(3), dodge: b(1), sprint: b(10), view: b(11), inventory: b(8), pause: b(9), use: b(5), potion: b(4),
-      spell1: b(12), spell2: b(15), spell3: b(13), spell4: b(14) };
+      spell1: b(12), spell2: b(15), sheathe: b(13), spell4: b(14) };
     if (gp.buttons.some(x => x.pressed) || ax || ay || rx || ry) input.usingPad = true;
     // menu navigation edges
     const nav = { up: b(12) || ay < -0.6, down: b(13) || ay > 0.6, ok: b(0), back: b(1), start: b(9) };
@@ -108,7 +98,6 @@ export const pressed = (a) => input.pressed.has(a);
 export const held = (a) => input.held.has(a);
 export function endFrame() { input.pressed.clear(); input.menu.clear(); input.wheel = 0; }
 export const glyph = (action) => {
-  if (!input.usingPad && document.body.classList.contains('touchmode')) return { interact: 'USE', inventory: 'BAG', potion: 'BOW' }[action] || action;
   if (!input.usingPad) return { interact: 'E', inventory: 'I', potion: 'R' }[action] || action;
   const ps = input.padType === 'ps';
   return { interact: ps ? '△' : 'Y', inventory: ps ? 'Share' : 'View', potion: ps ? 'L1' : 'LB' }[action] || action;

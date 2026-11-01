@@ -12,7 +12,7 @@ import { Pickup } from './items.js';
 import { Particles, Trail, floatText, updateFloats, clearFloats, shake, hitstop } from './fx.js';
 import { inventoryPanel } from '../ui/hud.js';
 import { windUniform } from '../world/trees.js';
-import { resolve } from './physics.js';
+import { move } from './physics.js';
 import * as R from '../rules.js';
 
 const MAGIC_FX = ['Protection', 'Dexterity up', 'Dexterity down', 'Poison', 'Full strength, max +2'];
@@ -367,8 +367,7 @@ class Ally {
     const d = to.length();
     let speed = 0;
     if (d > 0.6) { speed = Math.min(d * 2, foe ? 4.5 : (d > 6 ? 6.5 : 3.4)); to.normalize(); }
-    let nx = this.pos.x + to.x * speed * dt, nz = this.pos.z + to.z * speed * dt;
-    [nx, nz] = resolve(nx, nz, this.radius, area.colliders);
+    let [nx, nz] = move(this.pos.x, this.pos.z, to.x * speed * dt, to.z * speed * dt, this.radius, area.colliders);
     this.pos.x = nx; this.pos.z = nz;
     if (area.clamp) [this.pos.x, this.pos.z] = area.clamp(this.pos.x, this.pos.z, this);
     this.pos.y = area.groundAt(this.pos.x, this.pos.z);

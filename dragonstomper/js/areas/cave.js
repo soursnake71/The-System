@@ -17,6 +17,15 @@ const LAIR_Z = -LEN - LAIR_R + 4;
 const cx = (z) => { const k = THREE.MathUtils.clamp((-z - 10) / 30, 0, 1) * THREE.MathUtils.clamp((LEN + z) / 25, 0, 1); return k * (12 * Math.sin(z * 0.017) + 6 * Math.sin(z * 0.043 + 1)); };
 const hw = (z) => 5.5 + 2.2 * Math.sin(z * 0.031 + 2) + 1.2 * Math.sin(z * 0.09);
 const hh = (z) => 6.5 + 2 * Math.sin(z * 0.023) + Math.max(0, (-z - LEN + 30) / 30) * 8;
+// where the tunnel's rock actually is, at body height (1 m above the floor), on one side
+// (the mesh pushes the arch in and out with noise; see buildTunnel)
+const wallNoise = (x, y, z) => fbm(x * 0.25, y * 0.25, z * 0.25, 4) * 2.2 + fbm(x * 0.9, y * 0.9, z * 0.9, 2) * 0.45;
+function wallX(side, z) {
+  const c = cx(z), h = hh(z), y0 = floorY(z);
+  const a = Math.asin(THREE.MathUtils.clamp(1.6 / h, 0, 1)), ca = Math.cos(a), y = y0 + Math.sin(a) * h - 0.6;
+  const x0 = c + side * ca * (hw(z) + 1.5); // the mesh samples its noise at the undisplaced point
+  return c + side * ca * (hw(z) + 1.5 + wallNoise(x0, y, z));
+}
 const floorY = (z) => Math.max(-LEN, Math.min(0, z)) * 0.07;
 const DRAGON = { hp: 60, atk: 25, dmg: 9 };
 
@@ -327,11 +336,12 @@ export class Cave {
   ceiling = (x, z) => z < -LEN + 6 ? floorY(-LEN) + 16 : floorY(z) + this.ceilAt(x, z);
   clamp = (x, z, who) => {
     z = Math.min(6, z);
+    const r = (who?.radius ?? 0.5) + 0.25;
     if (z > -LEN + 2) {
       const c = cx(z), w = hw(z) - 0.4;
-      x = THREE.MathUtils.clamp(x, c - w, c + w);
+      x = THREE.MathUtils.clamp(x, Math.max(c - w, wallX(-1, z) + r), Math.min(c + w, wallX(1, z) - r));
     } else {
-      const dx = x, dz = z - LAIR_Z, d = Math.hypot(dx, dz), m = LAIR_R - 3;
+      const dx = x, dz = z - LAIR_Z, d = Math.hypot(dx, dz), m = LAIR_R - 3.5;
       if (d > m && !(z > LAIR_Z + LAIR_R - 8 && Math.abs(x) < hw(-LEN))) { x = dx / d * m; z = LAIR_Z + dz / d * m; }
     }
     return [x, z];

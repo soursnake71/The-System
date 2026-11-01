@@ -19,6 +19,13 @@ export function resolve(x, z, r, colliders) {
   }
   return [x, z];
 }
+// Move from (x, z) by (dx, dz) in steps no longer than half the radius, resolving each step,
+// so fast movement (sprint, dodge, a long frame) can't carry a body through a thin wall
+export function move(x, z, dx, dz, r, colliders) {
+  const n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (r * 0.5)));
+  for (let i = 0; i < n; i++) [x, z] = resolve(x + dx / n, z + dz / n, r, colliders);
+  return [x, z];
+}
 // does the segment a->b (2D) pass through a collider? returns fraction 0..1 of the first hit, or 1
 export function segmentHit(ax, az, bx, bz, colliders, pad = 0.2) {
   let best = 1;

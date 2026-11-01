@@ -1,19 +1,19 @@
 // The hero: movement, stamina, jumping, dodging, sword combos and blocking.
 import * as THREE from 'three';
 import { input, pressed, held } from '../core/input.js';
-import { resolve } from './physics.js';
+import { move } from './physics.js';
 import { sfx } from '../core/sound.js';
 
 export class Player {
   constructor(actor, stats) {
     this.actor = actor; this.p = stats;
     this.pos = new THREE.Vector3(); this.vel = new THREE.Vector3();
-    this.yaw = Math.PI; this.radius = 0.42;
+    this.yaw = Math.PI; this.radius = 0.5; // shoulders, shield and cape
     this.onGround = true; this.vy = 0;
     this.stamina = 100; this.staminaDelay = 0;
     this.attackT = -1; this.combo = 0; this.queued = false; this.struck = false;
     this.dodgeT = -1; this.dodgeDir = new THREE.Vector3();
-    this.iframes = 0; this.hitT = 0; this.frozen = false; this.dead = false; this.deadT = 0;
+    this.iframes = 0; this.hitT = 0; this.drawT = -1; this.frozen = false; this.dead = false; this.deadT = 0;
     this.stepT = 0;
     this.onStrike = null; // set by the game: called at the moment a swing lands
   }
@@ -66,8 +66,7 @@ export class Player {
     // jump and gravity
     if (canAct && pressed('jump') && this.onGround && this.stamina > 10) { this.vy = 5.2; this.onGround = false; this.stamina -= 10; this.staminaDelay = 0.5; sfx('jump'); }
     this.vy -= 18 * dt;
-    let nx = this.pos.x + this.vel.x * dt, nz = this.pos.z + this.vel.z * dt;
-    [nx, nz] = resolve(nx, nz, this.radius, area.colliders);
+    let [nx, nz] = move(this.pos.x, this.pos.z, this.vel.x * dt, this.vel.z * dt, this.radius, area.colliders);
     if (area.clamp) [nx, nz] = area.clamp(nx, nz, this);
     this.pos.x = nx; this.pos.z = nz;
     const gy = area.groundAt(nx, nz);
@@ -77,9 +76,22 @@ export class Player {
       this.pos.y = gy; this.vy = 0; this.onGround = true;
     } else if (this.pos.y - gy > 0.3) this.onGround = false;
     else if (this.vy <= 0) { this.pos.y = gy; this.vy = 0; this.onGround = true; }
+    // sheathe / draw (H, d-pad down); attacking or blocking with the sword away draws it first
+    const armed = !!a.weapon || !!a.shield;
+    if (armed && canAct && this.drawT < 0 && !this.attacking) {
+      if (pressed('sheathe')) this.beginDraw(!a.sheathed);
+      else if (a.sheathed && (pressed('attack') || held('block'))) { this.beginDraw(false); this.attackAfterDraw = pressed('attack'); }
+    }
+    if (this.drawT >= 0) {
+      const prev = this.drawT;
+      this.drawT += dt / 0.45;
+      if (prev < 0.5 && this.drawT >= 0.5) { a.setSheathed(this.toSheathe); sfx(this.toSheathe ? 'sheathe' : 'draw', { vol: 0.8 }); }
+      if (this.drawT >= 1) { this.drawT = -1; if (this.attackAfterDraw && this.stamina > 5) this.startSwing(); this.attackAfterDraw = false; }
+    }
+    s.draw = this.drawT;
     // attacks: three-hit combo, each swing commits for a moment
     const swingLen = 0.6;
-    if (canAct && pressed('attack') && this.dodgeT < 0) {
+    if (canAct && pressed('attack') && this.dodgeT < 0 && !a.sheathed && this.drawT < 0) {
       if (!this.attacking && this.stamina > 5) this.startSwing();
       else if (this.attacking && this.attackT > 0.35) this.queued = true;
     }
@@ -94,7 +106,7 @@ export class Player {
     }
     s.attack = this.attackT; s.attackKind = this.combo === 2 ? 'thrust' : 'slash'; s.swingSide = this.combo % 2 ? -1 : 1;
     // block with the shield
-    const wantBlock = canAct && held('block') && this.dodgeT < 0 && !this.attacking;
+    const wantBlock = canAct && held('block') && this.dodgeT < 0 && !this.attacking && !a.sheathed && this.drawT < 0;
     s.block = THREE.MathUtils.clamp(s.block + (wantBlock ? dt * 7 : -dt * 5), 0, 1);
     // footsteps
     const hs = Math.hypot(this.vel.x, this.vel.z);
@@ -106,6 +118,7 @@ export class Player {
     a.body.position.y = this.dodgeT >= 0 ? -Math.sin(Math.min(1, this.dodgeT / 0.45) * Math.PI) * 0.5 : a.body.position.y;
     this.place(area);
   }
+  beginDraw(sheathe) { this.drawT = 0; this.toSheathe = sheathe; this.attackAfterDraw = false; }
   startSwing(chained = false) {
     this.attackT = 0; this.struck = false; this.queued = false;
     if (!chained) this.combo = 0;

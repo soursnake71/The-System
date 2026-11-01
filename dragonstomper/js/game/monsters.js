@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import * as H from '../actors/humanoid.js';
 import * as B from '../actors/beasts.js';
 import * as R from '../rules.js';
-import { resolve } from './physics.js';
+import { move } from './physics.js';
 import { sfx } from '../core/sound.js';
 import { floatText, shake, hitstop } from './fx.js';
 
@@ -92,8 +92,7 @@ export class Monster {
     if (speed > 0) {
       const dir = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
       if (dist < ty.reach * 1.2 && this.cool > 0) dir.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)).multiplyScalar(Math.sin(this.t * 0.7 + this.pos.x) > 0 ? 1 : -1);
-      let nx = this.pos.x + dir.x * speed * dt, nz = this.pos.z + dir.z * speed * dt;
-      [nx, nz] = resolve(nx, nz, this.radius, area.colliders);
+      let [nx, nz] = move(this.pos.x, this.pos.z, dir.x * speed * dt, dir.z * speed * dt, this.radius, area.colliders);
       // keep apart from each other and from the hero
       for (const o of this.game.monsters) if (o !== this && o.alive) { const dx = nx - o.pos.x, dz = nz - o.pos.z, dd = Math.hypot(dx, dz), m = this.radius + o.radius; if (dd < m && dd > 1e-4) { nx = o.pos.x + dx / dd * m; nz = o.pos.z + dz / dd * m; } }
       const dp = Math.hypot(nx - player.pos.x, nz - player.pos.z), mp = this.radius + player.radius;

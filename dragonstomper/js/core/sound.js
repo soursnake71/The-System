@@ -65,7 +65,7 @@ function loadSamples() {
     for (const f of list) fetch(`assets/sfx/${f}.ogg`).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => ac.decodeAudioData(b)).then(buf => buffers[name].push(buf)).catch(() => {});
   }
 }
-const SAMPLE_VOL = { step: 0.35, stepStone: 0.4, stepCave: 0.45, stepWood: 0.4, land: 0.7, clang: 0.8, block: 0.9, hitFlesh: 0.9, hitShell: 0.8, rock: 0.8, coin: 0.7, door: 0.8, chain: 0.7, item: 0.7, bell: 0.35, trap: 0.8, ui: 0.35 };
+const SAMPLE_VOL = { step: 0.35, stepStone: 0.4, stepCave: 0.45, stepWood: 0.4, land: 0.7, clang: 0.8, block: 0.9, hitFlesh: 0.9, hitShell: 0.8, rock: 0.8, coin: 0.7, door: 0.8, chain: 0.7, item: 0.7, bell: 0.35, trap: 0.8, ui: 0.35, draw: 0.8, sheathe: 0.8 };
 
 export function sfx(name, opts = {}) {
   if (!ac || ac.state !== 'running') return;

@@ -40,7 +40,7 @@ export class Humanoid {
     this.J = J;
     this.hunch = hunch; this.legLen = legLen; this.armLen = armLen;
     this.phase = 0; this.t = Math.random() * 10;
-    this.state = { speed: 0, attack: -1, attackKind: 'slash', block: 0, hit: 0, dead: 0, swingSide: 1 };
+    this.state = { speed: 0, attack: -1, attackKind: 'slash', block: 0, hit: 0, dead: 0, swingSide: 1, draw: -1 };
     this.hideInFirstPerson = [];
   }
   add(bone, obj) { bone.add(obj); return obj; }
@@ -168,7 +168,14 @@ export class Humanoid {
       // the mocap swings the arms; fighting takes them over
       const both = s.attack >= 0 && (s.attackKind === 'claw' || s.attackKind === 'smash');
       // a sword arm keeps its grip: carried forward, swinging a little with the stride
-      if (s.attack >= 0 || this.weapon) { R.up.rotation.set(rUx, rUy, rUz); R.fo.rotation.set(rFx, 0, 0); R.ha.quaternion.identity(); }
+      if (s.attack >= 0 || (this.weapon && !this.sheathed)) { R.up.rotation.set(rUx, rUy, rUz); R.fo.rotation.set(rFx, 0, 0); R.ha.quaternion.identity(); }
+      // drawing or sheathing: the right hand reaches across to the left hip and back
+      if (s.draw >= 0) {
+        const k = Math.sin(Math.min(1, s.draw) * Math.PI);
+        R.up.quaternion.slerp(_q.setFromEuler(_e.set(-0.35, 0.5, 0.75)), k);
+        R.fo.quaternion.slerp(_q.setFromEuler(_e.set(-1.5, 0, 0)), k);
+        this.chest.rotateY(0.25 * k);
+      }
       if (both || s.block > 0) {
         const w = both ? 1 : ease(Math.min(1, s.block));
         L.up.quaternion.slerp(_q.setFromEuler(_e.set(lUx, lUy, lUz)), w);
@@ -185,6 +192,20 @@ export class Humanoid {
       this.body.position.z = -d * 0.35;
       for (const q of [L, R]) { q.up.rotation.x = lerp(q.up.rotation.x, -2.4, d); q.up.rotation.z = (q === L ? 1 : -1) * lerp(0.12, 0.9, d); q.sn.rotation.x = lerp(q.sn.rotation.x, 0.25, d); }
     } else { this.body.rotation.x = 0; this.body.position.set(0, 0, 0); }
+  }
+  // Put the sword in its scabbard on the left hip and sling the shield on the back, or take
+  // them back in hand. (Moved between bones; the Player times this to its draw gesture.)
+  setSheathed(on) {
+    if (!!on === !!this.sheathed) return;
+    this.sheathed = !!on;
+    const swap = (o, home, away) => {
+      if (!o) return;
+      if (!o.userData.home) o.userData.home = { parent: o.parent, pos: o.position.clone(), rot: o.rotation.clone() };
+      const t = on ? away : o.userData.home;
+      t.parent.add(o); o.position.copy(t.pos); o.rotation.copy(t.rot);
+    };
+    swap(this.weapon, null, { parent: this.hips, pos: V(0.2, 0.04, 0.03), rot: new THREE.Euler(Math.PI + 0.45, 0, -0.12) });
+    swap(this.shield, null, { parent: this.chest, pos: V(0, 0.14, -0.2), rot: new THREE.Euler(0.08, Math.PI, 0) });
   }
   tipWorld(out = new THREE.Vector3()) {
     if (!this.weapon) return this.R.ha.getWorldPosition(out);
@@ -304,6 +325,7 @@ export function knight({ steelTint = 0xd0d2d8, cloth = '#1d2f6e', emblem = true,
       wrap.rotation.set(0, Math.PI / 2, 0);
       wrap.position.set(0.075, -0.14, 0.02);
       h.add(h.L.fo, wrap); h.shield = wrap;
+      if (h.sheathed) { h.sheathed = false; h.setSheathed(true); } // loaded after it was put away
     });
   }
   h.root.scale.setScalar(scale);
