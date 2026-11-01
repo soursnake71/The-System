@@ -130,11 +130,36 @@ struct App {
           insetTop = env->CallIntMethod(ins, env->GetMethodID(ic, "getSystemWindowInsetTop", "()I"));
           insetBottom = env->CallIntMethod(ins, env->GetMethodID(ic, "getSystemWindowInsetBottom", "()I"));
         }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        noHaptics(env, decor);
       }
     }
     if (env->ExceptionCheck()) env->ExceptionClear();
     vm->DetachCurrentThread();
     panel.setInsets(insetTop, insetBottom);
+  }
+
+  // Holding a finger down is how this app is played, but Android treats it as a long press and buzzes (Samsung
+  // phones do this on the NativeActivity's content view). Turn haptics and long-press off on every view in the window.
+  // These only set flags on the views, so they're safe from this thread.
+  static void noHaptics(JNIEnv* env, jobject view) {
+    jclass vc = env->FindClass("android/view/View");
+    jclass gc = env->FindClass("android/view/ViewGroup");
+    if (!vc || !gc) { env->ExceptionClear(); return; }
+    env->CallVoidMethod(view, env->GetMethodID(vc, "setHapticFeedbackEnabled", "(Z)V"), JNI_FALSE);
+    env->CallVoidMethod(view, env->GetMethodID(vc, "setLongClickable", "(Z)V"), JNI_FALSE);
+    if (env->ExceptionCheck()) { env->ExceptionClear(); return; }
+    if (env->IsInstanceOf(view, gc)) {
+      jint n = env->CallIntMethod(view, env->GetMethodID(gc, "getChildCount", "()I"));
+      jmethodID at = env->GetMethodID(gc, "getChildAt", "(I)Landroid/view/View;");
+      for (jint i = 0; i < n; ++i) {
+        jobject child = env->CallObjectMethod(view, at, i);
+        if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+        if (child) { noHaptics(env, child); env->DeleteLocalRef(child); }
+      }
+    }
+    env->DeleteLocalRef(vc);
+    env->DeleteLocalRef(gc);
   }
 
   void draw(bool force) {
