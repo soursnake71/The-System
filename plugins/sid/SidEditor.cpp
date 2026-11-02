@@ -50,62 +50,63 @@ void SidEditor::timerCallback() {
         std::memcpy(row, px.data() + y * ScreenUI::W, sizeof(uint32_t) * ScreenUI::W);
     }
     const float s = (float) getWidth() / BW;
-    repaint(juce::Rectangle<float>(200, 60, 600, 400).transformedBy(juce::AffineTransform::scale(s)).getSmallestIntegerContainer());
+    repaint(juce::Rectangle<float>(40, 30, 920, 600).transformedBy(juce::AffineTransform::scale(s)).getSmallestIntegerContainer());
 }
 
 void SidEditor::paint(juce::Graphics& g) {
     g.addTransform(juce::AffineTransform::scale((float) getWidth() / BW));
     // the room: a dark wall and a wooden desk
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff2e2925), 0, 0, juce::Colour(0xff1b1714), 0, 560, false));
-    g.fillRect(0, 0, BW, 580);
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff5a3d29), 0, 580, juce::Colour(0xff3a281b), 0, BH, false));
-    g.fillRect(0, 580, BW, BH - 580);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff2e2925), 0, 0, juce::Colour(0xff1b1714), 0, 700, false));
+    g.fillRect(0, 0, BW, 708);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff5a3d29), 0, 700, juce::Colour(0xff3a281b), 0, BH, false));
+    g.fillRect(0, 700, BW, BH - 700);
     drawMonitor(g);
     drawKeyboard(g);
 }
 
+// the monitor fills the width: the screen is the instrument's main surface
+static const juce::Rectangle<float> tubeRect(52, 44, 896, 576);
 void SidEditor::drawMonitor(juce::Graphics& g) {
-    const juce::Rectangle<float> body(150, 18, 700, 532);
-    g.setColour(juce::Colours::black.withAlpha(0.4f)); g.fillRoundedRectangle(body.translated(6, 10), 16);
-    // stand
-    g.setColour(juce::Colour(0xff222222)); g.fillRect(250.f, 548.f, 500.f, 14.f); g.fillRect(230.f, 560.f, 540.f, 10.f);
+    const juce::Rectangle<float> body(18, 10, 964, 690);
+    g.setColour(juce::Colours::black.withAlpha(0.4f)); g.fillRoundedRectangle(body.translated(6, 10), 18);
     g.setGradientFill(juce::ColourGradient(beige.brighter(0.08f), 0, body.getY(), beigeDark, 0, body.getBottom(), false));
-    g.fillRoundedRectangle(body, 16);
-    g.setColour(beigeLine); g.drawRoundedRectangle(body.reduced(6), 12, 1.5f);
-    g.drawLine(body.getX() + 8, 470, body.getRight() - 8, 470, 1.5f);
+    g.fillRoundedRectangle(body, 18);
+    g.setColour(beigeLine); g.drawRoundedRectangle(body.reduced(6), 14, 1.5f);
+    g.drawLine(body.getX() + 8, 646, body.getRight() - 8, 646, 1.5f);
     // bezel, recess and tube
-    g.setColour(bezel); g.fillRoundedRectangle(184, 44, 632, 418, 10);
-    g.setColour(recess); g.fillRoundedRectangle(198, 58, 604, 390, 8);
-    juce::Path tube; tube.addRoundedRectangle(212.f, 70.f, 576.f, 366.f, 34.f);
+    g.setColour(bezel); g.fillRoundedRectangle(34, 26, 932, 612, 12);
+    g.setColour(recess); g.fillRoundedRectangle(44, 36, 912, 592, 9);
+    juce::Path tube; tube.addRoundedRectangle(tubeRect, 40.f);
     g.setColour(juce::Colour(PALETTE[LBLUE])); g.fillPath(tube);   // the C64's light-blue border
     g.saveState();
     g.reduceClipRegion(tube);
     g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
     g.drawImage(screen, juce::Rectangle<float>(SX, SY, ScreenUI::W * SS, ScreenUI::H * SS), juce::RectanglePlacement::stretchToFit);
-    // scanlines, a little bloom at the edges, the glass
-    g.setColour(juce::Colours::black.withAlpha(0.13f));
-    for (float y = 70; y < 436; y += SS) g.fillRect(212.f, y + SS * 0.55f, 576.f, SS * 0.45f);
-    g.setGradientFill(juce::ColourGradient(juce::Colours::transparentBlack, 500, 253, juce::Colours::black.withAlpha(0.42f), 212, 70, true));
+    // scanlines, darker edges, the glass
+    g.setColour(juce::Colours::black.withAlpha(0.12f));
+    for (float y = tubeRect.getY(); y < tubeRect.getBottom(); y += SS) g.fillRect(tubeRect.getX(), y + SS * 0.6f, tubeRect.getWidth(), SS * 0.4f);
+    g.setGradientFill(juce::ColourGradient(juce::Colours::transparentBlack, 500, 332, juce::Colours::black.withAlpha(0.38f), 52, 44, true));
     g.fillPath(tube);
-    g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(0.10f), 250, 80, juce::Colours::transparentWhite, 420, 230, false));
-    g.fillEllipse(200, 60, 360, 200);
+    g.setGradientFill(juce::ColourGradient(juce::Colours::white.withAlpha(0.08f), 120, 60, juce::Colours::transparentWhite, 420, 330, false));
+    g.fillEllipse(40, 30, 600, 320);
     g.restoreState();
     // the badge strip: name plate with the rainbow, the model label, the power light
-    g.setColour(juce::Colour(0xff3b3d3a)); g.fillRoundedRectangle(382, 482, 236, 34, 3);
+    g.setColour(juce::Colour(0xff3b3d3a)); g.fillRoundedRectangle(382, 656, 236, 34, 3);
     g.setColour(juce::Colours::white.withAlpha(0.92f)); g.setFont(juce::FontOptions(18.f, juce::Font::bold));
-    g.drawText("omega", 392, 482, 110, 34, juce::Justification::centredLeft);
-    rainbow(g, { 500, 488, 76, 22 });
-    g.setColour(juce::Colour(0xff2a2a28)); g.fillRect(582.f, 486.f, 28.f, 26.f);
-    g.setColour(juce::Colour(0xff8ee05a)); g.fillRect(589.f, 493.f, 14.f, 4.f);
-    g.setColour(juce::Colour(0xff6e6458)); g.drawRect(660.f, 486.f, 130.f, 26.f, 1.5f);
+    g.drawText("omega", 392, 656, 110, 34, juce::Justification::centredLeft);
+    rainbow(g, { 500, 662, 76, 22 });
+    g.setColour(juce::Colour(0xff2a2a28)); g.fillRect(582.f, 660.f, 28.f, 26.f);
+    g.setColour(juce::Colour(0xff8ee05a)); g.fillRect(589.f, 667.f, 14.f, 4.f);
+    g.setColour(juce::Colour(0xff6e6458)); g.drawRect(760.f, 660.f, 130.f, 26.f, 1.5f);
     g.setFont(juce::FontOptions(10.f, juce::Font::bold));
-    g.drawText("VIDEO MONITOR", 666, 487, 120, 12, juce::Justification::centredLeft);
-    g.drawText("MODEL 6581", 666, 498, 120, 12, juce::Justification::centredLeft);
-    g.setColour(juce::Colour(0xff4c4640)); g.fillRect(800.f, 486.f, 26.f, 26.f);
-    g.setColour(juce::Colour(0xff6e6458)); g.drawText("POWER", 786, 516, 54, 12, juce::Justification::centred);
+    g.drawText("VIDEO MONITOR", 766, 661, 120, 12, juce::Justification::centredLeft);
+    g.drawText("MODEL 6581", 766, 672, 120, 12, juce::Justification::centredLeft);
+    g.setColour(juce::Colour(0xff4c4640)); g.fillRect(912.f, 660.f, 26.f, 26.f);
 }
 
 void SidEditor::drawKeyboard(juce::Graphics& g) {
+    juce::Graphics::ScopedSaveState keep(g);
+    g.addTransform(juce::AffineTransform::translation(0, KDY));
     // the breadbin
     juce::Path bin;
     bin.startNewSubPath(60, 596); bin.lineTo(940, 596); bin.quadraticTo(968, 600, 972, 640);
@@ -166,6 +167,7 @@ void SidEditor::drawKeyboard(juce::Graphics& g) {
 juce::Point<float> SidEditor::toScreen(juce::Point<float> d) const { return { (d.x - SX) / SS, (d.y - SY) / SS }; }
 
 int SidEditor::noteAt(juce::Point<float> d) const {
+    d.y -= KDY;
     if (!kWell.contains(d)) return -1;
     // sharps first (they sit on top)
     int wi = 0;
@@ -182,7 +184,7 @@ int SidEditor::noteAt(juce::Point<float> d) const {
     }
     return -1;
 }
-int SidEditor::fkeyAt(juce::Point<float> d) const { for (int i = 0; i < 4; ++i) if (fkeyRect(i).contains(d)) return i; return -1; }
+int SidEditor::fkeyAt(juce::Point<float> d) const { d.y -= KDY; for (int i = 0; i < 4; ++i) if (fkeyRect(i).contains(d)) return i; return -1; }
 
 void SidEditor::fkey(int k) {
     Synth& s = proc.synth();
@@ -198,7 +200,7 @@ void SidEditor::fkey(int k) {
 void SidEditor::mouseDown(const juce::MouseEvent& e) {
     const auto d = toDesign(e.position);
     const int src = e.source.getIndex();
-    if (juce::Rectangle<float>(212, 70, 576, 366).contains(d)) {
+    if (tubeRect.contains(d)) {
         const auto sp = toScreen(d); ui.down(sp.x, sp.y); sourceOnScreen[src] = true; return;
     }
     const int f = fkeyAt(d);
@@ -229,7 +231,7 @@ void SidEditor::mouseUp(const juce::MouseEvent& e) {
 }
 void SidEditor::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) {
     const auto d = toDesign(e.position);
-    if (!juce::Rectangle<float>(212, 70, 576, 366).contains(d)) return;
+    if (!tubeRect.contains(d)) return;
     const auto sp = toScreen(d);
     ui.wheel(sp.x, sp.y, w.deltaY > 0 ? 1.f : w.deltaY < 0 ? -1.f : 0.f);
 }

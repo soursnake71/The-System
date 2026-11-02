@@ -8,7 +8,7 @@ namespace sid {
 // function keys. Everything is drawn at one size (BW x BH) and scaled to the window.
 class SidEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
-    static constexpr int BW = 1000, BH = 900;
+    static constexpr int BW = 1000, BH = 1012;
     explicit SidEditor(SidProcessor&);
     ~SidEditor() override;
     void paint(juce::Graphics&) override;
@@ -43,7 +43,8 @@ private:
     std::array<bool, 128> down {};
     std::map<int, int> qwertyHeld;          // key code -> note
     int fkeyDown = -1; int lastVersion = -1;
-    static constexpr float SX = 244, SY = 99, SS = 1.6f;   // where the 320 x 200 screen sits, and its scale
+    static constexpr float SX = 68, SY = 62, SS = 2.7f;    // where the 320 x 200 screen sits, and its scale
+    static constexpr float KDY = 119;                      // the keyboard is drawn 119 units below its own coordinates
 };
 
 }  // namespace sid
