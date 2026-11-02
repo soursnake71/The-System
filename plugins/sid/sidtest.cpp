@@ -113,10 +113,68 @@ int main(int argc, char** argv) {
         s->initPatch();
     }
 
+    // the sampler: a 220 Hz sine sampled in, played back by each method on each chip, at the root and an octave up
+    {
+        std::vector<float> sine((size_t) fs);
+        for (size_t i = 0; i < sine.size(); ++i) sine[i] = (float) std::sin(2 * kPi * 220 * i / fs);
+        const char* names[5] = { "", "$D418 4-BIT", "MAHONEY 8-BIT", "PWM 8-BIT", "DIGIMAX 8-BIT" };
+        for (int model = 0; model < 2; ++model)
+            for (int m = 1; m <= 4; ++m) {
+                s->panic(); s->initPatch();
+                s->set(P::model, (float) model); s->set(P::o1on, 0); s->set(P::dmode, (float) m); s->set(P::drate, 4);   // 7.8 kHz
+                s->setSource(sine, fs, "SINE"); s->pollSample();
+                double hz[2], rms = 0;
+                for (int k = 0; k < 2; ++k) {
+                    auto o = run(*s, fs, 0.6, [&](Synth& x, int b) { if (b == 0) x.noteOn(60 + 12 * k, 1); });
+                    // low-pass first: the PWM carrier and the sample-rate steps are above it
+                    std::vector<float> f = o.l; double a = 0, b2 = 0;
+                    for (auto& x : f) { a += 0.05 * (x - a); b2 += 0.05 * (a - b2); x = (float) b2; }
+                    // the strongest frequency near the expected one (a DFT scan): steady on stepped 4-bit audio
+                    const double want = 220.0 * (1 << k); double best = 0, bestHz = 0;
+                    for (double fq = want * 0.85; fq < want * 1.15; fq += 0.25) {
+                        double re = 0, im = 0;
+                        for (int i = fs / 10; i < fs / 2; ++i) { re += f[(size_t) i] * std::cos(2 * kPi * fq * i / fs); im += f[(size_t) i] * std::sin(2 * kPi * fq * i / fs); }
+                        if (re * re + im * im > best) { best = re * re + im * im; bestHz = fq; }
+                    }
+                    hz[k] = bestHz;
+                    if (k == 0) rms = o.rms;
+                    s->noteOff(60 + 12 * k); run(*s, fs, 0.3, [](Synth&, int) {});
+                }
+                std::printf("%s %-14s rms %.4f  root %.1f Hz  +12 %.1f Hz\n", model ? "8580" : "6581", names[m], rms, hz[0], hz[1]);
+                const bool quietOk = model == 1 && m == 1;   // the 8580's volume register barely leaks: a quiet digi is right
+                CHECK(quietOk || rms > 0.01, "%s %s silent", model ? "8580" : "6581", names[m]);
+                if (!quietOk) {
+                    CHECK(std::fabs(hz[0] - 220) < 4, "%s %s root pitch %.1f", model ? "8580" : "6581", names[m], hz[0]);
+                    CHECK(std::fabs(hz[1] - 440) < 8, "%s %s octave pitch %.1f", model ? "8580" : "6581", names[m], hz[1]);
+                }
+            }
+        // the 8580 needs the boost for a $D418 digi
+        double q[2];
+        for (int b = 0; b < 2; ++b) {
+            s->panic(); s->initPatch(); s->set(P::model, 1); s->set(P::o1on, 0); s->set(P::dmode, 1); s->set(P::dboost, (float) b); s->pollSample();
+            q[b] = run(*s, fs, 0.4, [](Synth& x, int bl) { if (bl == 0) x.noteOn(60, 1); }).rms;
+            s->noteOff(60); run(*s, fs, 0.2, [](Synth&, int) {});
+        }
+        std::printf("8580 $D418 digi: %.4f plain, %.4f boosted\n", q[0], q[1]);
+        CHECK(q[1] > q[0] * 4, "8580 digi boost does nothing");
+        // 4-bit really is 16 levels, 8-bit up to 256; the RAM limit holds 60K bytes (4-bit: two per byte)
+        {
+            std::vector<float> longer((size_t) (fs * 12)); for (size_t i = 0; i < longer.size(); ++i) longer[i] = (float) std::sin(i * 0.01);
+            SampleSource src; src.set(longer, fs, "X");
+            std::unique_ptr<SampleData> a(src.convert(22050, 4, true)), b(src.convert(22050, 8, true)), c(src.convert(22050, 8, false));
+            std::vector<int> lv4(256, 0), lv8(256, 0); for (auto x : a->d) lv4[x] = 1; for (auto x : b->d) lv8[x] = 1;
+            int n4 = 0, n8 = 0; for (int i = 0; i < 256; ++i) { n4 += lv4[(size_t) i]; n8 += lv8[(size_t) i]; }
+            std::printf("conversion: 4-bit %d levels, 8-bit %d levels; 64K limit %zu / %zu samples (4 / 8-bit), unlimited %zu\n", n4, n8, a->d.size(), b->d.size(), c->d.size());
+            CHECK(n4 <= 16 && n8 > 200, "quantisation wrong");
+            CHECK(a->d.size() == 2 * 60 * 1024 && b->d.size() == 60 * 1024 && c->d.size() > b->d.size(), "RAM limit wrong");
+        }
+        s->panic(); s->initPatch();
+    }
+
     // every preset: a chord, held then released
     int quiet = 0, loud = 0;
     for (int i = 0; i < presetCount(); ++i) {
-        s->panic(); s->applyPreset(i);
+        s->panic(); s->applyPreset(i); s->pollSample();
         const bool drum = std::string(PRESETS[i].cat) == "DRUM";
         auto o = run(*s, fs, 1.4, [&](Synth& x, int b) {
             if (b == 0) { x.noteOn(drum ? 60 : 57, 0.9f); if (!drum) { x.noteOn(64, 0.8f); } }

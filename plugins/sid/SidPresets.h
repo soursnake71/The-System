@@ -390,6 +390,25 @@ static const PresetDef PRESETS[] = {
     { "8580", "8580 PLUCKER",        "model=8580 w1=P p1=20 e1=0760 flt=1 cut=100 res=14 fenv=1300 fd=100" },
     { "8580", "8580 ARP",            "model=8580 arp=UP chord=MIN7 aoct=2 aspd=2 w1=S e1=09A6 flt=1 cut=250 res=13 flfo=200 lrate=0.2" },
 
+    // ------------------------------------------------------------------ DIGI (samples played by the chip; dsmp = a built-in)
+    { "DIGI", "4-BIT KICK",          "w1=- dmode=1 dsmp=KICK drate=7.8K" },
+    { "DIGI", "4-BIT SNARE",         "w1=- dmode=1 dsmp=SNARE drate=7.8K" },
+    { "DIGI", "LO-FI CLAP 3.9K",     "w1=- dmode=1 dsmp=CLAP drate=3.9K" },
+    { "DIGI", "4-BIT TOM",           "w1=- dmode=1 dsmp=TOM drate=6.3K" },
+    { "DIGI", "MAHONEY KICK",        "w1=- dmode=2 dsmp=KICK drate=11K" },
+    { "DIGI", "MAHONEY ORCH HIT",    "w1=- dmode=2 dsmp=ORCH_HIT drate=11K" },
+    { "DIGI", "MAHONEY COWBELL",     "w1=- dmode=2 dsmp=COWBELL drate=10K" },
+    { "DIGI", "MAHONEY OPEN HAT",    "w1=- dmode=2 dsmp=OPEN_HAT drate=16K" },
+    { "DIGI", "PWM VOX AH",          "w1=- dmode=3 dsmp=VOX_AH drate=7.8K" },
+    { "DIGI", "PWM ZAP",             "w1=- dmode=3 dsmp=ZAP drate=8K" },
+    { "DIGI", "DIGIMAX ORCH",        "w1=- dmode=4 dsmp=ORCH_HIT drate=16K" },
+    { "DIGI", "DIGIMAX HAT",         "w1=- dmode=4 dsmp=HIHAT drate=16K" },
+    { "DIGI", "DIGIMAX VOX LOOP",    "w1=- dmode=4 dsmp=VOX_OH drate=11K dloop=1 dgate=1 dstart=0.2 dend=0.7" },
+    { "DIGI", "4-BIT VOX LOOP",      "w1=- dmode=1 dsmp=VOX_AH drate=6.3K dloop=1 dgate=1 dstart=0.15 dend=0.7" },
+    { "DIGI", "DIGI BASS + SID",     "dmode=1 dsmp=BASS drate=5.5K w1=P p1=40 e1=0A84 flt=1 cut=600 res=6 mode=MONO" },
+    { "DIGI", "8580 BOOSTED DIGI",   "model=8580 dboost=1 w1=- dmode=1 dsmp=SNARE drate=7.8K" },
+    { "DIGI", "DIGI VOX ARP",        "w1=- dmode=4 dsmp=VOX_AH drate=11K dloop=1 dgate=1 dstart=0.2 dend=0.6 arp=UP chord=MAJOR aspd=3" },
+
     // ------------------------------------------------------------------ 6581 (chip character)
     { "6581", "6581 GRIT",           "w1=S w2=S c2=-12 flt=1 cut=900 res=15 drive=1 curve=-0.2 e=09A6" },
     { "6581", "6581 DARK CHIP",      "w1=S w2=P flt=1 cut=900 res=8 curve=-1 e=09A6" },

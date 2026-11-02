@@ -23,6 +23,13 @@ struct AppHost : ScreenUI::Host {
     void initPatch() override { s.initPatch(); }
     void randomize() override { s.randomize((uint32_t) std::rand() | 1u); }
     bool isPlugin() const override { return false; }
+    // the file picker and the microphone live on the Java side: ask it (SidView polls these each frame)
+    std::atomic<int> request { 0 };            // 1 open a file, 2 start recording, 3 stop recording
+    std::atomic<bool> rec { false }; std::atomic<float> recSec { 0 };
+    void loadSampleFile() override { request = 1; }
+    void setRecording(bool on) override { request = on ? 2 : 3; }
+    bool recording() override { return rec.load(); }
+    float recordedSeconds() override { return recSec.load(); }
 };
 
 std::unique_ptr<AppHost> host;
@@ -111,6 +118,7 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_render(JNIEnv* env, jc
     if (!ui) return;
     const int prog = pendingProgram.exchange(-1);
     if (prog >= 0) { host->s.applyPreset(prog); ui->showPreset(prog); }
+    host->s.pollSample();
     jint* p = env->GetIntArrayElements(px, nullptr);
     ui->render(reinterpret_cast<uint32_t*>(p));
     env->ReleaseIntArrayElements(px, p, 0);
@@ -126,6 +134,23 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_seqToggle(JNIEnv*, jcl
     if (host) host->s.post(host->s.seqPlay.load() ? Synth::EV_SEQ_STOP : Synth::EV_SEQ_PLAY, 0, 0);
 }
 JNIEXPORT jboolean JNICALL Java_com_thesnakedevice_sid_Native_seqRunning(JNIEnv*, jclass) { return host && host->s.seqPlay.load(); }
+JNIEXPORT jint JNICALL Java_com_thesnakedevice_sid_Native_pollRequest(JNIEnv*, jclass) { return host ? host->request.exchange(0) : 0; }
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setRecordingState(JNIEnv*, jclass, jboolean on, jfloat secs) {
+    if (host) { host->rec = on; host->recSec = secs; }
+}
+// a sound sampled or decoded on the Java side (UI thread): it becomes the source and is converted for the C64
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setSample(JNIEnv* env, jclass, jfloatArray data, jint rate, jstring name) {
+    if (!host || !data) return;
+    const jsize n = env->GetArrayLength(data);
+    std::vector<float> v((size_t) n);
+    env->GetFloatArrayRegion(data, 0, n, v.data());
+    const char* c = env->GetStringUTFChars(name, nullptr);
+    std::string nm = c ? c : "SAMPLE"; env->ReleaseStringUTFChars(name, c);
+    host->s.setSource(std::move(v), rate, nm);
+    if (host->s.get(P::dmode) < .5f) host->s.set(P::dmode, DIGI_VOL4);
+    host->s.pollSample();
+    if (ui) ui->message("SAMPLED: " + nm);
+}
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_panic(JNIEnv*, jclass) { if (host) host->s.post(Synth::EV_PANIC, 0, 0); }
 // raw MIDI bytes (USB / Bluetooth devices): notes, bend, mod wheel, sustain, program change
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_midi(JNIEnv* env, jclass, jbyteArray data, jint off, jint len) {

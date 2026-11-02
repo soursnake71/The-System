@@ -23,6 +23,7 @@ import java.util.List;
  *  Bluetooth MIDI) play it too. The patch, patterns and sequencer settings are kept between launches. */
 public class SidActivity extends Activity {
     private SidView view;
+    private Sampling sampling;
     private MidiManager midi;
     private final List<MidiDevice> openDevices = new ArrayList<>();
     private final List<MidiOutputPort> openPorts = new ArrayList<>();
@@ -35,7 +36,8 @@ public class SidActivity extends Activity {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Native.init(prefs().getString("state", ""));
-        view = new SidView(this);
+        sampling = new Sampling(this);
+        view = new SidView(this, sampling);
         setContentView(view);
         hideBars();
         if (getPackageManager().hasSystemFeature("android.software.midi")) {
@@ -83,6 +85,14 @@ public class SidActivity extends Activity {
         prefs().edit().putString("state", Native.saveState()).apply();
         Native.stop();
         super.onPause();
+    }
+    @Override protected void onActivityResult(int req, int res, android.content.Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == Sampling.PICK && res == RESULT_OK && data != null) sampling.onPicked(data.getData());
+    }
+    @Override public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(req, perms, results);
+        if (req == Sampling.PERMISSION) sampling.onPermission(results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
     }
     @Override public void onWindowFocusChanged(boolean focus) { super.onWindowFocusChanged(focus); if (focus) hideBars(); }
     @Override protected void onDestroy() {

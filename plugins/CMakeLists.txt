@@ -157,9 +157,12 @@ if(NOT OMEGA_ONLY OR "Sid" IN_LIST OMEGA_ONLY)
     IS_MIDI_EFFECT FALSE
     VST3_CATEGORIES Instrument Synth
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT "Omega SID 64 samples from the microphone into its C64."
     COPY_PLUGIN_AFTER_BUILD FALSE)
   target_sources(OmegaSid PRIVATE sid/SidPlugin.cpp sid/SidEditor.cpp)
-  target_compile_definitions(OmegaSid PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_compile_definitions(OmegaSid PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1 JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
   target_link_libraries(OmegaSid PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endif()
 # the engine's own checks (no JUCE): <build>/sid_test

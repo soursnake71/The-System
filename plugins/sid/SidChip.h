@@ -232,13 +232,47 @@ public:
     float fgain = 1, fpl = .7071f, fpr = .7071f;
     float vpk[3] {}, fpk = 0;
 
+    // ---- digi playback: what C64 code does in its NMI handler, at a timer period counted in cycles ----
+    // method 1: write the sample (4 bits) to the master volume; the mixer's DC offset makes it audible
+    // method 2: write a $D418 value (volume + filter mode bits) from a table, with the voices held at DC (Mahoney)
+    // method 3: reset oscillator 1 and set its pulse width from the sample (pulse-width modulation)
+    // method 4: an external 8-bit DAC on the expansion port (Digimax)
+    const uint8_t* digi = nullptr; const uint8_t* mahoney = nullptr;
+    int digiStart = 0, digiEnd = 0, digiIdx = 0, digiMethod = 0;
+    bool digiActive = false, digiLoop = false, digiGate = false, digiOneShot = true;
+    double nmiPeriod = 126, nmiCount = 0;
+    float mixDC = 0, digiLevel = 1;
+    uint8_t baseVol = 15, baseMode = 0x10, digiVol = 15, digiMode = 0x10; int dmx = 128, pwmMax = 4095;
+    void startDigi(const uint8_t* data, int a, int b, int method, bool loop, bool oneShot) {
+        digi = data; digiStart = a; digiEnd = b; digiIdx = a; digiMethod = method; digiLoop = loop; digiOneShot = oneShot;
+        digiGate = true; digiActive = data != nullptr && b > a; nmiCount = 0; dmx = 128;
+        digiVol = vol; digiMode = mode;
+    }
+    void stopDigi() {
+        // the voices a Mahoney or PWM digi held at full level go quiet, rather than ringing out as a note
+        if (digiActive && (digiMethod == 2 || digiMethod == 3))
+            for (int i = 0; i < (digiMethod == 2 ? 3 : 1); ++i) { v[i].env.level = 0; v[i].env.holdZero = true; v[i].env.gate = false; v[i].env.state = Envelope::RELEASE; }
+        digiActive = false; vol = baseVol; mode = baseMode; dmx = 128;
+    }
+    void releaseDigi() { digiGate = false; if (!digiOneShot) stopDigi(); }
+    // PWM: the synth rewrites the patch's pulse width every tick; keep the one the digi set
+    uint16_t pwmPw = 0;
+    uint16_t digiPwm(uint16_t) const { return pwmPw; }
+    // after the synth writes the patch's registers: the digi keeps the registers it owns
+    void keepDigiRegs() {
+        if (!digiActive) return;
+        if (digiMethod == 1) vol = digiVol;
+        else if (digiMethod == 2) { vol = digiVol; mode = digiMode; }
+    }
+
     void setRate(double internalRate) { fsI = internalRate; cyclesPerTick = clock / fsI; updateFilter(); }
     void setClock(double c) { clock = c; setRate(fsI); }
     void reset() {
         for (auto& x : v) { x.acc = 0; x.lfsr = 0x7FFFFF; x.env.gate = false; x.env.state = Envelope::RELEASE; x.env.level = 0; x.env.holdZero = true; }
-        s1 = s2 = 0; lastHp = lastBp = 0;
+        s1 = s2 = 0; lastHp = lastBp = 0; digiActive = false; dmx = 128;
     }
     bool silent() const {
+        if (digiActive) return false;
         for (auto& x : v) if (x.env.level || x.env.gate) return false;
         return std::fabs(s1) + std::fabs(s2) < 1e-6;
     }
@@ -271,6 +305,10 @@ public:
             if ((v[i].ctrl & SYNC) && s.msbRise && !(v[i].ctrl & TEST)) v[i].acc = v[i].freq * cyc * s.riseFrac;
         }
         for (auto& x : v) x.env.clock(whole);
+        if (digiActive) {
+            nmiCount -= cyclesPerTick;
+            while (nmiCount <= 0 && digiActive) { nmiCount += nmiPeriod; digiStep(); }
+        }
 
         const Tables& T = Tables::get();
         const int m = model;
@@ -308,11 +346,29 @@ public:
         fpk = std::max(fpk, (float) std::fabs(outF));
         // master volume: a 4-bit multiplying DAC (the stereo split is the mixer's; the chip's output is mono)
         const double outG = vol / 15.0 * 0.72 * 1.41421356;
-        L = (float) ((dl * 0.6 + outF * fpl) * outG);
-        R = (float) ((dr * 0.6 + outF * fpr) * outG);
+        // the mixer's DC offset moves with the volume register (that's what makes $D418 digis audible); the part that
+        // doesn't move is taken out, as the output capacitor would, so chips waking up don't thump
+        const double dc = mixDC * digiLevel * ((int) vol - (int) baseVol) / 15.0 * 0.72;
+        const double ext = digiActive && digiMethod == 4 ? (dmx - 128) / 128.0 * 0.5 * digiLevel : 0.0;
+        L = (float) ((dl * 0.6 + outF * fpl) * outG + dc + ext);
+        R = (float) ((dr * 0.6 + outF * fpr) * outG + dc + ext);
     }
 
 private:
+    void digiStep() {
+        if (digiIdx >= digiEnd) {
+            if (digiLoop && digiGate) digiIdx = digiStart;
+            else { stopDigi(); return; }
+        }
+        const uint8_t smp = digi[digiIdx++];
+        switch (digiMethod) {
+            case 1: vol = digiVol = (uint8_t) (smp >> 4); break;
+            case 2: { const uint8_t r = mahoney ? mahoney[smp] : smp; vol = digiVol = r & 15; mode = digiMode = r & 0xF0; break; }
+            case 3: v[0].acc = 0; v[0].pw = pwmPw = (uint16_t) (pwmMax - smp * pwmMax / 255); break;   // high for longer = louder
+            case 4: dmx = smp; break;
+            default: break;
+        }
+    }
     double fsI = 192000, cyclesPerTick = 5, cycAcc = 0;
     double g = 0.1, q = 0.707;
     double s1 = 0, s2 = 0, lastHp = 0, lastBp = 0;
@@ -346,5 +402,35 @@ private:
         return y;
     }
 };
+
+// The Mahoney table for one chip model, measured on the model itself: hold all three voices at DC (TEST + pulse,
+// envelope at full), route voices 1 and 2 through the filter at its lowest cutoff, and for every $D418 value
+// (volume + LP / BP / HP / 3OFF) let the circuit settle and read the output. Each 8-bit sample value then gets the
+// $D418 value whose level is closest. It's only as linear as the chip is.
+inline const uint8_t* mahoneyTable(int model) {
+    struct T { uint8_t t[2][256]; T() {
+        for (int m = 0; m < 2; ++m) {
+            double lvl[256];
+            for (int r = 0; r < 256; ++r) {
+                Chip c; c.model = m ? MOS8580 : MOS6581; c.setRate(192000);
+                c.mixDC = m ? 0.06f : 0.5f; c.baseVol = 0;
+                for (auto& x : c.v) { x.ctrl = TEST | PULSE | GATE; x.env.gate = true; x.env.level = 255; x.env.state = Envelope::DECAY_SUSTAIN; x.env.sustain = 15; x.env.holdZero = false; }
+                c.filt = 3; c.fc = 0; c.res = 0; c.updateFilter();
+                c.vol = (uint8_t) (r & 15); c.mode = (uint8_t) (r & 0xF0);
+                float L = 0, R = 0; double acc = 0;
+                for (int k = 0; k < 2400; ++k) { c.tick(L, R); if (k >= 2000) acc += L; }
+                lvl[r] = acc / 400;
+            }
+            double lo = 1e9, hi = -1e9; for (double x : lvl) { lo = std::min(lo, x); hi = std::max(hi, x); }
+            for (int s = 0; s < 256; ++s) {
+                const double want = lo + (hi - lo) * s / 255.0; int best = 0; double bd = 1e9;
+                for (int r = 0; r < 256; ++r) { const double d = std::fabs(lvl[r] - want); if (d < bd) { bd = d; best = r; } }
+                t[m][s] = (uint8_t) best;
+            }
+        }
+    } };
+    static const T table;
+    return table.t[model ? 1 : 0];
+}
 
 }  // namespace sid

@@ -9,6 +9,7 @@
 // a single chip with one note per oscillator, like a C64.
 #pragma once
 #include "SidChip.h"
+#include "SidSampler.h"
 #include <atomic>
 #include <cctype>
 #include <cstdio>
@@ -113,6 +114,17 @@ struct ParamInfo {
     X(m3solo, "OSC 3 SOLO",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
     X(mfsolo, "FILTER SOLO",   "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
     X(emute,  "ECHO MUTE",     "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(dmode,  "SAMPLER",       "SMP", 0, 4, 0, CHOICE, "OFF|$D418 4-BIT|MAHONEY 8-BIT|PWM 8-BIT|DIGIMAX 8-BIT", 1, "", 1) \
+    X(drate,  "SAMPLE RATE",   "SMP", 0, 9, 4, CHOICE, "3.9K|4K|5.5K|6.3K|7.8K|8K|10K|11K|16K|22K", 1, "", 1) \
+    X(droot,  "ROOT KEY",      "SMP", 24, 96, 60, INT, "", 1, "", 1) \
+    X(dstart, "START",         "SMP", 0, 1, 0, CONT, "", 1, "", 1) \
+    X(dend,   "END",           "SMP", 0, 1, 1, CONT, "", 1, "", 1) \
+    X(dloop,  "LOOP",          "SMP", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(dgate,  "PLAY",          "SMP", 0, 1, 0, CHOICE, "ONE SHOT|GATED", 1, "", 1) \
+    X(dtrack, "KEY TRACK",     "SMP", 0, 1, 1, TOGGLE, "", 1, "", 1) \
+    X(dlevel, "DIGI LEVEL",    "SMP", 0, 1, 0.8f, CONT, "", 1, "", 1) \
+    X(dram,   "64K RAM LIMIT", "SMP", 0, 1, 1, TOGGLE, "", 1, "", 1) \
+    X(dboost, "8580 DIGI BOOST","SMP", 0, 1, 0, TOGGLE, "", 1, "", 1) \
     X(bpm,    "TEMPO",         "SEQ", 40, 240, 120, CONT, "", 1, "BPM", 0) \
     X(srate,  "STEP RATE",     "SEQ", 0, 3, 1, CHOICE, "1/8|1/16|1/16T|1/32", 1, "", 0) \
     X(swing,  "SWING",         "SEQ", 0, 0.75f, 0, CONT, "", 1, "", 0) \
@@ -166,6 +178,8 @@ inline std::string formatValue(int id, float v) {
     if (p.kind == TOGGLE) return v > 0.5f ? "ON" : "OFF";
     if (p.kind == CHOICE) { auto c = choiceList(id); int i = std::clamp((int) std::lround(v), 0, (int) c.size() - 1); return c[(size_t) i]; }
     if (id == P::cut) { std::snprintf(b, sizeof b, "$%03X", (int) std::lround(v)); return b; }
+    if (id == P::droot) { static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" }; const int n = (int) std::lround(v); std::snprintf(b, sizeof b, "%s%d", nm[n % 12], n / 12 - 1); return b; }
+    if (id == P::dstart || id == P::dend || id == P::dlevel) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
     if (p.kind == INT) {
         if (std::string(p.section).rfind("OSC", 0) == 0 && (int) p.max == 15) { std::snprintf(b, sizeof b, "%X", (int) std::lround(v)); return b; }
         std::snprintf(b, sizeof b, "%s%d%s%s", (p.min < 0 && v > 0) ? "+" : "", (int) std::lround(v), *p.unit ? " " : "", p.unit); return b;
@@ -266,12 +280,17 @@ public:
         for (int i = 0; i < 16 && i < patternPresetCount(); ++i) loadPatternPreset(i, i);
         for (auto& s : scope) s.store(0);
         for (auto& m : meters) m.store(0);
+        source.loadBuiltin(0);
+        for (auto& r : retired) r.store(nullptr);
         for (auto& r : regs) r.store(0);
     }
+
+    ~Synth() { delete cur; delete incoming.exchange(nullptr); collectRetired(); }
 
     // ---- setup (call before rendering, not on the audio thread while it runs) ----
     void prepare(double sampleRate) {
         fs = sampleRate;
+        recBuf.assign((size_t) (fs * 20), 0.f); recPos = 0; recOn = false;
         echoL.assign((size_t) (fs * 2.1) + 8, 0.f); echoR.assign(echoL.size(), 0.f); echoW = 0;
         for (int q = 0; q < 3; ++q) designFir(q);
         firBuf[0].assign(4096, 0.f); firBuf[1].assign(4096, 0.f); firPos = 0;
@@ -292,6 +311,17 @@ public:
         for (int k = 0; k < NP; ++k) if (params()[k].preset) set(k, params()[k].def);
         applyDiff(PRESETS[i].diff);
         program = i; presetName = PRESETS[i].name;
+        const int b = presetBuiltin(i); if (b >= 0) { source.loadBuiltin(b); ++sourceVersion; }
+    }
+    // the built-in sample a preset asks for (dsmp=NAME), or -1
+    static int presetBuiltin(int i) {
+        if (i < 0 || i >= presetCount()) return -1;
+        const std::string d = PRESETS[i].diff; const size_t k = d.find("dsmp=");
+        if (k == std::string::npos) return -1;
+        size_t e = d.find(' ', k); std::string nm = d.substr(k + 5, e == std::string::npos ? std::string::npos : e - k - 5);
+        for (char& c : nm) if (c == '_') c = ' ';
+        for (int b = 0; b < builtin::count; ++b) if (nm == builtin::names()[b]) return b;
+        return -1;
     }
     void initPatch() { for (int k = 0; k < NP; ++k) if (params()[k].preset) set(k, params()[k].def); presetName = "INIT"; }
     // a random but playable patch
@@ -363,7 +393,7 @@ public:
     void allNotesOff() {
         held.clear(); sustained.clear(); transposeKeys.clear(); arpOn = false;
         for (auto& v : voices) for (auto& s : v.s) { s.gate = false; s.key = -1; }
-        for (auto& v : voices) writeRegs(v);
+        for (auto& v : voices) { v.chip.stopDigi(); writeRegs(v); }
     }
     void panic() { allNotesOff(); for (auto& v : voices) v.chip.reset(); std::fill(echoL.begin(), echoL.end(), 0.f); std::fill(echoR.begin(), echoR.end(), 0.f); }
 
@@ -374,6 +404,40 @@ public:
         qW.store(w + 1, std::memory_order_release);
     }
     enum { EV_ON, EV_OFF, EV_PANIC, EV_SEQ_PLAY, EV_SEQ_STOP, EV_BEND, EV_WHEEL, EV_ALLOFF };
+
+    // ---- the sampler (UI thread, except recordInput) ----
+    SampleSource source;          // what's been sampled; only the UI thread touches it
+    int sourceVersion = 0;
+    std::atomic<int> digiShown { -1 };     // where the newest digi is playing, for the screen
+    std::atomic<bool> recOn { false }; std::atomic<int> recPos { 0 };
+    // audio thread: the input to record from
+    void recordInput(const float* l, const float* r, int n) {
+        if (!recOn.load(std::memory_order_relaxed) || recBuf.empty()) return;
+        int p = recPos.load(std::memory_order_relaxed);
+        for (int i = 0; i < n && p < (int) recBuf.size(); ++i) recBuf[(size_t) p++] = r ? 0.5f * (l[i] + r[i]) : l[i];
+        recPos.store(p, std::memory_order_relaxed);
+        if (p >= (int) recBuf.size()) recOn = false;
+    }
+    void startRecording() { recPos = 0; recOn = true; }
+    // stop and take what was recorded as the source
+    void stopRecording() {
+        recOn = false;
+        const int n = recPos.load();
+        if (n > (int) (fs * 0.05)) { source.set(std::vector<float>(recBuf.begin(), recBuf.begin() + n), fs, "RECORDING"); ++sourceVersion; }
+    }
+    void setSource(std::vector<float> mono, double rate, const std::string& name) { source.set(std::move(mono), rate, name); ++sourceVersion; }
+    void loadBuiltin(int i) { source.loadBuiltin(i); ++sourceVersion; }
+    // convert again when the source, the rate, the method's bit depth or the RAM limit changes (call from the UI)
+    void pollSample() {
+        collectRetired();
+        const int bits = iv(P::dmode) == DIGI_VOL4 ? 4 : 8;
+        const int sig = sourceVersion * 1000 + iv(P::drate) * 10 + (bits == 4 ? 1 : 0) + (on(P::dram) ? 2 : 0);
+        if (sig == lastSig) return;
+        lastSig = sig;
+        SampleData* d = source.convert(digiRates()[std::clamp(iv(P::drate), 0, 9)], bits, on(P::dram));
+        delete incoming.exchange(d);
+    }
+    double effectiveRate(double rate) const { const double clk = on(P::clock) ? NTSC_CLOCK : PAL_CLOCK; return clk / std::max(1.0, std::round(clk / rate)); }
 
     // ---- sequencer ----
     std::atomic<uint32_t> pat[kPatterns][kSteps];
@@ -420,6 +484,7 @@ public:
         std::string s = "omega-sid 1\n";
         for (int i = 0; i < NP; ++i) { char b[64]; std::snprintf(b, sizeof b, "%s=%.6g\n", params()[i].key, get(i)); s += b; }
         s += "name=" + presetName + "\nprogram=" + std::to_string(program.load()) + "\n";
+        if (!source.empty()) s += "smpname=" + source.name + "\nsmp=" + source.save() + "\n";
         for (int p = 0; p < kPatterns; ++p) {
             s += "pat" + std::to_string(p) + "=";
             for (int i = 0; i < kSteps; ++i) s += std::to_string(pat[p][i].load()) + (i < kSteps - 1 ? "," : "");
@@ -428,6 +493,7 @@ public:
         return s;
     }
     void loadState(const std::string& st) {
+        std::string smpName = "SAMPLE";
         size_t i = 0;
         while (i < st.size()) {
             size_t j = st.find('\n', i); if (j == std::string::npos) j = st.size();
@@ -435,6 +501,8 @@ public:
             const size_t eq = line.find('='); if (eq == std::string::npos) continue;
             const std::string k = line.substr(0, eq), v = line.substr(eq + 1);
             if (k == "name") presetName = v;
+            else if (k == "smpname") smpName = v;
+            else if (k == "smp") { source.load(v, smpName); ++sourceVersion; }
             else if (k == "program") program = std::atoi(v.c_str());
             else if (k.rfind("pat", 0) == 0 && k.size() > 3 && std::isdigit((unsigned char) k[3])) {
                 const int p = std::atoi(k.c_str() + 3); if (p < 0 || p >= kPatterns) continue;
@@ -446,6 +514,7 @@ public:
 
     // ---- audio ----
     void render(float* L, float* R, int n) {
+        adoptSample();
         drainQueue();
         configure();
         int pos = 0;
@@ -467,7 +536,7 @@ private:
         int progPos = 0; double vibTime = 0; uint64_t age = 0;
     };
     struct NVoice {
-        Chip chip; Slot s[3]; double fenv = 0; int fstage = 3; float level = 1; float panL = .707f, panR = .707f;
+        Chip chip; Slot s[3]; double fenv = 0; int fstage = 3; float level = 1; float panL = .707f, panR = .707f; int dslot = 0;
         bool asleep = true; uint64_t age = 0; bool anyGate() const { return s[0].gate || s[1].gate || s[2].gate; }
     };
     NVoice voices[kChips];
@@ -476,6 +545,10 @@ private:
     uint64_t ageCounter = 0;
     std::atomic<float> values[NP];
     uint32_t rng = 12345;
+    SampleData* cur = nullptr; std::atomic<SampleData*> incoming { nullptr };
+    std::array<std::atomic<SampleData*>, 8> retired;
+    std::vector<float> recBuf; int lastSig = -1;
+    void collectRetired() { for (auto& r : retired) delete r.exchange(nullptr); }
     float rnd01() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return (rng & 0xFFFFFF) / 16777216.0f; }
 
     static int osc(int o) { return P::o1on + o * (P::o2on - P::o1on); }
@@ -560,19 +633,23 @@ private:
         (void) fromSeq;
         held.erase(std::remove(held.begin(), held.end(), note), held.end());
         if (iv(P::arp) > 0 || arpOn) {
-            if (held.empty()) { arpOn = false; for (auto& s : voices[0].s) s.gate = false; writeRegs(voices[0]); arpNote = -1; }
+            if (held.empty()) { arpOn = false; for (auto& s : voices[0].s) s.gate = false; voices[0].chip.releaseDigi(); writeRegs(voices[0]); arpNote = -1; }
             return;
         }
         const int mode = iv(P::mode);
         if (mode == 1 || mode == 2) {
-            if (held.empty()) { for (auto& s : voices[0].s) s.gate = false; voices[0].fstage = 3; writeRegs(voices[0]); }
+            if (held.empty()) { for (auto& s : voices[0].s) s.gate = false; voices[0].fstage = 3; voices[0].chip.releaseDigi(); writeRegs(voices[0]); }
             else monoTo(held.back(), heldVel, false);
             return;
         }
         for (auto& v : voices) {
             bool hit = false;
             for (auto& s : v.s) if (s.key == note && s.gate) { s.gate = false; hit = true; }
-            if (hit) { if (!v.anyGate()) v.fstage = 3; writeRegs(v); }
+            if (hit) {
+                if (!v.anyGate()) v.fstage = 3;
+                if (!v.s[v.dslot].gate) v.chip.releaseDigi();
+                writeRegs(v);
+            }
         }
     }
     void retrig(NVoice& v, int oscMask) {
@@ -590,6 +667,25 @@ private:
         if (v.asleep) { v.asleep = false; for (auto& s : v.s) s.pitch = -1; }
         v.fenv = 0; v.fstage = 0; v.level = 1 - get(P::vellvl) * (1 - vel); v.age = ++ageCounter;
     }
+    // the sampler: start this chip's digi for a note (slot = the oscillator slot whose pitch it follows)
+    // audio thread: take a new conversion (stopping anything still playing the old one)
+    void adoptSample() {
+        SampleData* in = incoming.exchange(nullptr);
+        if (!in) return;
+        for (auto& v : voices) if (v.chip.digiActive) v.chip.stopDigi();
+        if (cur) for (auto& r : retired) { SampleData* e = nullptr; if (r.compare_exchange_strong(e, cur)) { cur = nullptr; break; } }
+        cur = in;   // (if every retired slot were full the old one would be left alone rather than freed here)
+    }
+    void startDigi(NVoice& v, int slot) {
+        adoptSample();
+        const int m = iv(P::dmode);
+        if (m == DIGI_OFF || !cur || cur->d.empty()) return;
+        const int n = (int) cur->d.size();
+        int a = (int) (get(P::dstart) * n), b = (int) (get(P::dend) * n);
+        if (b <= a) b = std::min(n, a + 1);
+        v.dslot = slot;
+        v.chip.startDigi(cur->d.data(), a, b, m, on(P::dloop), iv(P::dgate) == 0);
+    }
     void startVoice(int key, int note, float vel) {
         const int nv = nVoices();
         int best = -1; uint64_t bestAge = UINT64_MAX; bool bestFree = false;
@@ -602,6 +698,7 @@ private:
         retrig(v, 7);
         wake(v, vel);
         for (auto& s : v.s) begin(s, key, note, vel);
+        startDigi(v, 0);
         updateVoice(v, 0); writeRegs(v);
     }
     void startSlot(int key, int note, float vel) {
@@ -617,6 +714,7 @@ private:
         retrig(v, 1 << best);
         if (!v.anyGate()) wake(v, vel); else { v.asleep = false; v.fenv = 0; v.fstage = 0; }
         begin(v.s[best], key, note, vel);
+        startDigi(v, best);
         updateVoice(v, 0); writeRegs(v);
     }
     void monoTo(int note, float vel, bool retrigger) {
@@ -624,6 +722,7 @@ private:
         if (retrigger || !v.anyGate()) {
             retrig(v, 7); wake(v, vel);
             for (auto& s : v.s) { const double keep = s.pitch; begin(s, note, note, vel); if (keep >= 0 && get(P::glide) >= 1) s.pitch = keep; }
+            startDigi(v, 0);
         } else {
             for (auto& s : v.s) { s.key = note; s.note = note; s.target = note; if (get(P::glide) < 1) s.pitch = note; }
         }
@@ -655,6 +754,7 @@ private:
         if (first || !v.anyGate()) {
             retrig(v, 7); wake(v, vel);
             for (auto& s : v.s) begin(s, -2, note, vel);
+            startDigi(v, 0);
         } else for (auto& s : v.s) { s.note = note; s.target = note; if (get(P::glide) < 1) s.pitch = note; }
         arpNote = note;
         updateVoice(v, 0); writeRegs(v);
@@ -790,6 +890,27 @@ private:
         c.vol = (uint8_t) std::clamp(iv(P::vol), 0, 15);
         c.updateFilter();
         applyMixer(c);
+        // the digi: the NMI timer period follows the note (rounded to whole cycles, as the timer is), and the
+        // registers it owns stay as it last wrote them
+        c.baseVol = c.vol; c.baseMode = c.mode;
+        c.mixDC = c.model == MOS6581 || on(P::dboost) ? 0.5f : 0.06f;
+        c.digiLevel = get(P::dlevel);
+        c.mahoney = mahoneyTable(c.model);
+        if (c.digiActive && cur) {
+            double rate = cur->rate;
+            if (on(P::dtrack)) rate *= std::pow(2.0, (v.s[v.dslot].pitch + bendNorm * get(P::bend) - get(P::droot)) / 12.0);
+            c.nmiPeriod = std::clamp(std::round(c.clock / rate), 30.0, 4000.0);
+            c.pwmMax = (int) std::min(4095.0, 65535.0 * c.nmiPeriod / 4096.0);
+            if (c.digiMethod == DIGI_MAHONEY) {
+                for (auto& x : c.v) { x.ctrl = TEST | PULSE | GATE; x.env.attack = 0; x.env.decay = 0; x.env.sustain = 15; x.env.release = 0; x.env.setGate(true); }
+                c.filt = 3; c.fc = 0; c.res = 0; c.updateFilter();
+            } else if (c.digiMethod == DIGI_PWM) {
+                Voice& x = c.v[0]; const uint16_t pw = x.pw;
+                x.freq = 0xFFFF; x.ctrl = PULSE | GATE; x.env.attack = 0; x.env.decay = 0; x.env.sustain = 15; x.env.release = 0; x.env.setGate(true);
+                x.pw = c.digiPwm(pw);
+            }
+            c.keepDigiRegs();
+        }
     }
 
 
@@ -963,6 +1084,11 @@ private:
             pkEcho = pkL = pkR = 0;
             const float fall = std::exp(-(float) n / (float) (fs * 0.3));
             for (int i = 0; i < M_COUNT; ++i) meters[(size_t) i].store(std::max(pk[i], meters[(size_t) i].load(std::memory_order_relaxed) * fall), std::memory_order_relaxed);
+        }
+        {
+            int shown = -1; uint64_t a = 0;
+            for (auto& v : voices) if (v.chip.digiActive && v.age >= a) { a = v.age; shown = v.chip.digiIdx; }
+            digiShown.store(shown, std::memory_order_relaxed);
         }
         // chips that have finished go to sleep
         for (auto& v : voices) if (!v.asleep && !v.anyGate() && v.chip.silent()) { v.asleep = true; v.chip.reset(); }

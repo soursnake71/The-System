@@ -1,6 +1,7 @@
 // Omega SID 64: the C64 screen. A 40 x 25 text screen at 320 x 200 pixels in the C64's 16 colours, shared by the
 // plugin and the Android app (each draws the monitor and the keyboard around it and passes pointer events in
-// screen pixels). Pages: PRG (presets), OS1-OS3, FLT, MOD, ARP (arp + echo), CHP (chip), MIX (mixer + scope), SEQ (tracker).
+// screen pixels). Pages: PRG (presets), OS1-OS3, FLT, MOD, ARP (arp + echo), SMP (sampler), MIX (mixer + scope),
+// SEQ (tracker), and CHP (chip) from the button on the info line.
 //
 // Touch: tap a tab, a preset, a toggle. Drag along a bar to set it; drag on a name or value for fine changes;
 // tap a choice to step it (drag to scroll through). Double-tap a value for its default. In the sequencer, tap a
@@ -30,6 +31,12 @@ public:
         virtual void initPatch() = 0;
         virtual void randomize() = 0;
         virtual bool isPlugin() const = 0;
+        // sampling: open a file (the platform's picker), record from the input / microphone
+        virtual bool canLoadFiles() const { return true; }
+        virtual void loadSampleFile() {}
+        virtual void setRecording(bool on) { if (on) synth().startRecording(); else synth().stopRecording(); }
+        virtual bool recording() { return synth().recOn.load(); }
+        virtual float recordedSeconds() { return synth().recPos.load() / 48000.f; }
     };
 
     ScreenUI(Host& h) : host(h) {
@@ -155,7 +162,8 @@ private:
     static constexpr int LIST_ROWS = 17;
 
     enum Btn { B_PREV = 1, B_NEXT, B_INIT, B_RAND, B_UP, B_DN, B_PLAY, B_STOP, B_PAT_DN, B_PAT_UP, B_LEN_DN, B_LEN_UP, B_LOAD, B_CLEAR,
-               B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE };
+               B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE,
+               B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT };
     std::vector<Step> clip;
 
     int curPat() { return std::clamp((int) std::lround(host.get(P::spat)) - 1, 0, kPatterns - 1); }
@@ -191,6 +199,9 @@ private:
             put(r, 28, v > .5f ? "[{]" : "[ ]", v > .5f ? YELLOW : GREY);
             zone(r, 18, 39, Z_PVAL, id);
             return;
+        }
+        if (p.kind == CHOICE && val.size() > 9) {   // a long name takes the whole row; tap / drag still steps it
+            put(r, 18, pad(val, 21), YELLOW); zone(r, 18, 39, Z_PVAL, id); return;
         }
         put(r, 18, pad(val, 10), p.kind == CHOICE ? YELLOW : WHITE);
         zone(r, 18, 27, Z_PVAL, id);
@@ -229,12 +240,18 @@ private:
         std::snprintf(info, sizeof info, " %s %s  %d SID%s  %s  %3.0f BPM", model ? "8580" : "6581", host.get(P::clock) > .5f ? "NTSC" : "PAL ",
                       chips, chips > 1 ? "S" : " ", choiceList(P::mode)[(size_t) std::clamp(mode, 0, 3)].c_str(), host.get(P::bpm));
         put(1, 0, info, LBLUE);
+        put(1, 37, "CHP", page == 7 ? WHITE : LBLUE, page == 7); zone(1, 36, 39, Z_TAB, 7);
         put(2, 0, "READY.", LBLUE);
         if ((frame / 20) % 2 == 0) put(2, 6, "{", LBLUE);
         if (s.seqRunning()) put(2, 30, "{ RUNNING", LGREEN);
         // tabs
-        static const char* tabs[10] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "CHP", "MIX", "SEQ" };
-        for (int t = 0; t < 10; ++t) { put(3, t * 4, tabs[t], t == page ? BLUE : LBLUE, false); if (t == page) for (int k = 0; k < 3; ++k) { cell[3][t * 4 + k].inv = true; cell[3][t * 4 + k].fg = WHITE; } zone(3, t * 4, t * 4 + 3, Z_TAB, t); }
+        static const char* tabs[10] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "SEQ" };
+        static const int tabPage[10] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 9 };
+        for (int t = 0; t < 10; ++t) {
+            const bool sel = tabPage[t] == page;
+            put(3, t * 4, tabs[t], sel ? WHITE : LBLUE, sel);
+            zone(3, t * 4, t * 4 + 3, Z_TAB, tabPage[t]);
+        }
         switch (page) {
             case 0: pagePresets(); break;
             case 1: case 2: case 3: pageOsc(page - 1); break;
@@ -243,13 +260,14 @@ private:
             case 6: pageArp(); break;
             case 7: pageChip(); break;
             case 8: pageMix(); break;
-            default: if (patList) pagePatterns(); else pageSeq(); break;
+            case 9: if (patList) pagePatterns(); else pageSeq(); break;
+            default: pageSample(); break;
         }
         // help / messages
         if (page == 9 && !patList) return;   // the tracker uses the whole screen
         {
             if (frame < msgUntil) put(23, 0, pad(msg, 40), WHITE);
-            else put(23, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
+            else put(23, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
         }
         // the preset line
         char pl[64];
@@ -346,8 +364,7 @@ private:
     }
     void pageChip() {
         int r = 5;
-        for (int id : { P::model, P::curve, P::drive, P::clock, P::adsrbug, P::vol, P::quality, P::spread, P::gain }) paramRow(r++, id);
-        ++r;
+        for (int id : { P::model, P::curve, P::drive, P::clock, P::adsrbug, P::vol, P::quality, P::spread, P::gain, P::dboost }) paramRow(r++, id);
         regDump(r);
         button(22, 1, "PANIC: ALL NOTES OFF", B_PANIC, LRED, true);
     }
@@ -411,6 +428,51 @@ private:
         }
         for (int r = 6; r < 6 + LIST_ROWS; ++r) zones.insert(zones.begin(), Zone { r, 0, 39, Z_PATLIST, 0 });
     }
+    // ---------------- the sampler ----------------
+    std::string sampleHelp() {
+        if (host.recording()) { char b[48]; std::snprintf(b, sizeof b, "RECORDING %.1f S. TAP STOP.", host.recordedSeconds()); return b; }
+        return host.get(P::dmode) < .5f ? "PICK A METHOD TO PLAY THE SAMPLE." : "NOTES PLAY THE SAMPLE (ROOT = ORIGINAL).";
+    }
+    void pageSample() {
+        Synth& s = host.synth(); const SampleSource& src = s.source;
+        const int m = (int) std::lround(host.get(P::dmode));
+        const double rate = s.effectiveRate(digiRates()[std::clamp((int) std::lround(host.get(P::drate)), 0, 9)]);
+        const size_t n = src.preview.size();
+        const size_t bytes = src.previewBits == 4 ? (n + 1) / 2 : n;
+        char b[64];
+        std::snprintf(b, sizeof b, "%.0f HZ %dBIT %.1fK %.2fS", rate, src.previewBits, bytes / 1024.0, n / std::max(1.0, src.previewRate));
+        put(5, 0, pad(src.name.empty() ? "NO SAMPLE" : src.name, 13), WHITE);
+        put(5, 14, b, GREY);
+        // the waveform as the C64 holds it: its levels, the start / end, and where it's playing
+        const int x0 = 4, w = W - 8, y0 = 6 * 8 + 1, h = 6 * 8 - 2;
+        rects.push_back({ x0, y0, w, h, DIM });
+        rects.push_back({ x0, y0 + h / 2, w, 1, 0xFF1A1450 });
+        const float st = host.get(P::dstart), en = host.get(P::dend);
+        for (int x = 0; x < w && n > 0; ++x) {
+            const size_t a0 = (size_t) ((double) x / w * n), a1 = std::max(a0 + 1, (size_t) ((double) (x + 1) / w * n));
+            int lo = 255, hi = 0;
+            for (size_t i = a0; i < a1 && i < n; ++i) { lo = std::min(lo, (int) src.preview[i]); hi = std::max(hi, (int) src.preview[i]); }
+            const int ya = y0 + h - 1 - hi * (h - 1) / 255, yb = y0 + h - 1 - lo * (h - 1) / 255;
+            const float fx = (float) x / w; const bool in = fx >= st && fx <= en;
+            rects.push_back({ x0 + x, ya, 1, std::max(1, yb - ya + 1), in ? PALETTE[LGREEN] : PALETTE[GREY] });
+        }
+        rects.push_back({ x0 + (int) (st * (w - 1)), y0, 1, h, PALETTE[YELLOW] });
+        rects.push_back({ x0 + (int) (en * (w - 1)), y0, 1, h, PALETTE[LRED] });
+        const int at = s.digiShown.load();
+        if (at >= 0 && n > 0) rects.push_back({ x0 + (int) ((double) at / n * (w - 1)), y0, 1, h, PALETTE[WHITE] });
+        // where it comes from
+        if (host.canLoadFiles()) button(12, 0, "LOAD", B_SMP_LOAD, YELLOW, true);
+        const bool rec = host.recording();
+        button(12, 5, rec ? "{STOP}" : "{REC}", B_SMP_REC, rec ? WHITE : LRED, true);
+        if (rec && (frame / 10) % 2 == 0) put(12, 5, "{", LRED, true);
+        button(12, 12, "<", B_SMP_PREV, WHITE, true);
+        put(12, 14, pad(src.builtinIndex >= 0 ? src.name : "BUILT-IN", 10), CYAN);
+        button(12, 25, ">", B_SMP_NEXT, WHITE, true);
+        put(12, 28, m == DIGI_PWM ? "OSC1=CARRIER" : m == DIGI_MAHONEY ? "VOICES=DC" : "", DGREY);
+        int r = 13;
+        for (int id : { P::dmode, P::drate, P::droot, P::dstart, P::dend, P::dloop, P::dgate, P::dtrack, P::dlevel, P::dram }) paramRow(r++, id);
+    }
+
     // ---------------- the mixer ----------------
     void setFromFader(int id, float y) {
         host.set(id, fromNorm(id, (FADER_BOT - y) / (float) (FADER_BOT - FADER_TOP)));
@@ -588,6 +650,16 @@ private:
             case B_COPY: clip.clear(); for (int i = 0; i < kSteps; ++i) clip.push_back(s.step(p, i)); message("PATTERN COPIED"); break;
             case B_PASTE: if (!clip.empty()) { for (int i = 0; i < kSteps; ++i) s.setStep(p, i, clip[(size_t) i]); message("PATTERN PASTED"); } break;
             case B_PANIC: s.post(Synth::EV_PANIC, 0, 0); message("ALL NOTES OFF"); break;
+            case B_SMP_LOAD: host.loadSampleFile(); break;
+            case B_SMP_REC:
+                if (host.recording()) { host.setRecording(false); message("SAMPLED: " + s.source.name); }
+                else { host.setRecording(true); }
+                break;
+            case B_SMP_PREV: case B_SMP_NEXT: {
+                const int b = s.source.builtinIndex < 0 ? 0 : s.source.builtinIndex + (id == B_SMP_NEXT ? 1 : -1);
+                s.loadBuiltin(b); if (host.get(P::dmode) < .5f) host.set(P::dmode, DIGI_VOL4);
+                message("LOAD\"" + s.source.name + "\",8,1"); break;
+            }
             default: break;
         }
     }

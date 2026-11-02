@@ -3,11 +3,12 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include "ScreenUI.h"
 
 namespace sid {
 
-class SidProcessor : public juce::AudioProcessor, public ScreenUI::Host, private juce::AsyncUpdater {
+class SidProcessor : public juce::AudioProcessor, public ScreenUI::Host, private juce::AsyncUpdater, private juce::Timer {
 public:
     SidProcessor();
     ~SidProcessor() override = default;
@@ -42,12 +43,18 @@ public:
     void initPatch() override;
     void randomize() override;
     bool isPlugin() const override { return !juce::JUCEApplicationBase::isStandaloneApp(); }
+    void loadSampleFile() override;
+    float recordedSeconds() override { return (float) (engine.recPos.load() / std::max(1.0, getSampleRate())); }
+    juce::String loadSampleFrom(const juce::File& f);   // "" when it worked
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<int> uiPresetVersion { 0 };   // bumped when a preset loads, so the editor's screen follows
 
 private:
     void handleAsyncUpdate() override;   // program changes from MIDI
+    void timerCallback() override { engine.pollSample(); }   // converts the sample again when its settings change
+    juce::AudioFormatManager formats;
+    std::unique_ptr<juce::FileChooser> chooser;
     void applyValues(const std::array<float, NP>& v);
     Synth engine;
     std::array<std::atomic<float>*, NP> raw {};

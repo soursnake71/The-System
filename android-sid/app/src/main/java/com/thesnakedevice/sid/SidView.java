@@ -44,8 +44,11 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private final SparseIntArray pointerKind = new SparseIntArray();   // 1 screen, 2 keys, 3 function key
     private int fkeyDown = -1;
 
-    public SidView(Context c) {
+    private final Sampling sampling;
+
+    public SidView(Context c, Sampling s) {
         super(c);
+        sampling = s;
         crisp.setFilterBitmap(false);
         crisp.setAntiAlias(false);
         p.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
@@ -60,6 +63,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         if (!running) return;
         if ((frame++ & 1) == 0) {   // 30 frames a second is plenty for a C64
             Native.render(px);
+            sampling.poll();
             screen.setPixels(px, 0, SW, 0, 0, SW, SH);
             invalidate();
         }

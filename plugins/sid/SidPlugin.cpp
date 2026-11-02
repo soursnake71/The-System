@@ -26,16 +26,46 @@ static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout() {
     return l;
 }
 
+// an audio input to sample from: on in the standalone app (the microphone / interface), optional in a DAW
+static bool loadedStandalone() { return juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone; }
+
 SidProcessor::SidProcessor()
-    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)
+                                      .withInput("Sample In", juce::AudioChannelSet::stereo(), loadedStandalone())),
       apvts(*this, nullptr, "STATE", makeLayout()) {
     for (int i = 0; i < NP; ++i) raw[(size_t) i] = apvts.getRawParameterValue(params()[i].key);
+    formats.registerBasicFormats();
     setCurrentProgram(0);
+    engine.pollSample();
+    startTimerHz(8);
+}
+
+void SidProcessor::loadSampleFile() {
+    chooser = std::make_unique<juce::FileChooser>("Sample into the C64", juce::File(), formats.getWildcardForAllFormats());
+    chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) {
+        const auto f = fc.getResult();
+        if (f.existsAsFile()) loadSampleFrom(f);
+    });
+}
+juce::String SidProcessor::loadSampleFrom(const juce::File& f) {
+    std::unique_ptr<juce::AudioFormatReader> r(formats.createReaderFor(f));
+    if (!r) return "can't read " + f.getFileName();
+    const int n = (int) std::min<juce::int64>(r->lengthInSamples, (juce::int64) (r->sampleRate * 60));
+    juce::AudioBuffer<float> b((int) r->numChannels, n);
+    r->read(&b, 0, n, 0, true, true);
+    std::vector<float> mono((size_t) n, 0.f);
+    for (int c = 0; c < b.getNumChannels(); ++c) for (int i = 0; i < n; ++i) mono[(size_t) i] += b.getSample(c, i) / (float) b.getNumChannels();
+    engine.setSource(std::move(mono), r->sampleRate, f.getFileNameWithoutExtension().toUpperCase().substring(0, 13).toStdString());
+    if (get(P::dmode) < .5f) set(P::dmode, DIGI_VOL4);
+    engine.pollSample();
+    return {};
 }
 
 bool SidProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
-    const auto o = l.getMainOutputChannelSet();
-    return o == juce::AudioChannelSet::stereo() || o == juce::AudioChannelSet::mono();
+    const auto o = l.getMainOutputChannelSet(), in = l.getMainInputChannelSet();
+    const bool outOk = o == juce::AudioChannelSet::stereo() || o == juce::AudioChannelSet::mono();
+    const bool inOk = in.isDisabled() || in == juce::AudioChannelSet::stereo() || in == juce::AudioChannelSet::mono();
+    return outOk && inOk;
 }
 
 void SidProcessor::prepareToPlay(double sampleRate, int maxBlock) {
@@ -53,6 +83,9 @@ void SidProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffer&
             engine.hostTransport(pos->getIsPlaying(), pos->getPpqPosition().orFallback(0.0), bpm);
         }
     const int n = buf.getNumSamples();
+    // recording: the input comes in on the same buffer, before the synth writes its output over it
+    if (getTotalNumInputChannels() > 0 && engine.recOn.load(std::memory_order_relaxed))
+        engine.recordInput(buf.getReadPointer(0), getTotalNumInputChannels() > 1 ? buf.getReadPointer(1) : nullptr, n);
     if (tmp.getNumSamples() < n) tmp.setSize(2, n, false, false, true);
     float* L = tmp.getWritePointer(0); float* R = tmp.getWritePointer(1);
     // split the block at each MIDI event so notes land on time
@@ -103,6 +136,7 @@ void SidProcessor::setCurrentProgram(int i) {
     s->applyPreset(i);
     std::array<float, NP> v {}; for (int k = 0; k < NP; ++k) v[(size_t) k] = s->get(k);
     engine.program = i; engine.presetName = PRESETS[i].name;
+    if (const int b = Synth::presetBuiltin(i); b >= 0) engine.loadBuiltin(b);
     applyValues(v);
 }
 const juce::String SidProcessor::getProgramName(int i) {
