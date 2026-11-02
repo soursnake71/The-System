@@ -46,7 +46,15 @@ int main(int argc, char** argv) {
     // state round trip
     juce::MemoryBlock st; inst->getStateInformation(st); inst->setStateInformation(st.getData(), (int) st.getSize());
     std::printf("  state %d bytes restored\n", (int) st.getSize());
-    if (auto* ed = inst->createEditorIfNeeded()) { std::printf("  editor %dx%d\n", ed->getWidth(), ed->getHeight()); delete ed; }
+    if (auto* ed = inst->createEditorIfNeeded()) {
+        std::printf("  editor %dx%d\n", ed->getWidth(), ed->getHeight());
+        // let its timers draw, then save a picture of the window
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(400);
+        const auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        juce::FileOutputStream os(out.getChildFile(found[0]->name.removeCharacters(" ") + ".png"));
+        if (os.openedOk()) { os.setPosition(0); os.truncate(); juce::PNGImageFormat().writeImageToStream(img, os); }
+        delete ed;
+    }
     inst->releaseResources(); inst.reset();
     std::puts(ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;

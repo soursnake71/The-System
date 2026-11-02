@@ -140,3 +140,27 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega SID 64: the SID chip (6581 / 8580) circuit model as a synth with a sequencer and the C64 screen.
+# One instrument plus a standalone app; the engine (sid/SidSynth.h) is shared with the Android app.
+if(NOT OMEGA_ONLY OR "Sid" IN_LIST OMEGA_ONLY)
+  juce_add_plugin(OmegaSid
+    PRODUCT_NAME "Omega SID 64"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.sid64"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Osid
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Synth
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaSid PRIVATE sid/SidPlugin.cpp sid/SidEditor.cpp)
+  target_compile_definitions(OmegaSid PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaSid PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+# the engine's own checks (no JUCE): <build>/sid_test
+add_executable(sid_test sid/sidtest.cpp)
