@@ -1,3 +1,8 @@
 *.apk
 *.zip
 /Omega-Twelve-Setup-*.exe
+android-sid/local.properties
+android-sid/.gradle/
+android-sid/app/build/
+android-sid/app/.cxx/
+android-sid/build/

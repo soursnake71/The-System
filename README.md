@@ -29,10 +29,20 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## Omega SID 64 (`plugins/sid/`, `android-sid/`): the C64's SID chip as a synth
+A circuit-level C++ model of the MOS 6581 and 8580, played from a C64: the controls are a 40 x 25 C64 screen in a 1701-style monitor, above a breadbin keyboard with brown keys and the f1-f7 function keys.
+- The chip: 24-bit oscillators with triangle, saw, pulse, noise and the combined waveforms; hard sync and ring mod; the envelope's rate counter (and the optional ADSR bug); the uneven R-2R DACs of the 6581; the filter's two-integrator loop with the 6581's signal-dependent FET resistors and its cutoff curve (with chip-to-chip variation), or the 8580's linear one; voice 3 off; the C64's output filters. PAL or NTSC clock.
+- The synth: poly over up to 8 SIDs, mono / legato with glide, or one chip with a note per oscillator like a C64; modulation at the frame rate (50 / 60 Hz, or faster) the way C64 music players do it: arpeggios and chords, vibrato, pulse-width sweeps, a filter envelope, attack programs (per-frame waveform / pitch tables for drums, plucks and zaps); echo.
+- A 32-step sequencer (tracker style) with 16 patterns, accent, slide, swing and 41 pattern presets; it follows the DAW's transport, and held keys transpose it.
+- 366 presets in 15 groups (bass, lead, pad, keys, pluck, arp, chord, brass, drums, FX, sync, ring, classic, 8580, 6581), a random patch, MIDI (bend, mod wheel, sustain, CC 74, program change) and a QWERTY keyboard on desktop.
+- Android: the `omega-sid` release (`omega-sid-64.apk`, native, low-latency AAudio, USB / Bluetooth MIDI). Desktop: VST3 (and AU on Mac) plus a standalone app in the same release, built by `.github/workflows/sid-release.yml`.
+- Tests: `sid_test` (tuning, filter, every preset, sequencer and host sync, state).
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
 ## Credits
+- SID chip behaviour from published analyses of the 6581 / 8580 (die shots and measurements of the oscillators, envelope rate table, DAC ladders and filter); the original playsid.library (Per Håkan Sundell and Ron Birk) for the idea. Omega SID 64's code is its own.
 - SP-1200 audio path data (filter prototypes, pitch table, converter behaviour) from [libmd12](https://github.com/Mudb0y/libmd12) (MIT).
 - SVC-350 vocoder modeled from the Roland SVC-350 service notes (Dec. 8, 1979), [archive.org](https://archive.org/details/roland_SVC-350_SERVICE_NOTES).
 - Solina String Ensemble modeled from the Eminent/ARP Solina schematic set, [archive.org](https://archive.org/details/ARP_Solina_Schematics).

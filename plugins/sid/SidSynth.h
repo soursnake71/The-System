@@ -10,6 +10,7 @@
 #pragma once
 #include "SidChip.h"
 #include <atomic>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -277,7 +278,8 @@ public:
     void initPatch() { for (int k = 0; k < NP; ++k) if (params()[k].preset) set(k, params()[k].def); presetName = "INIT"; }
     // a random but playable patch
     void randomize(uint32_t seed) {
-        rng = seed ? seed : 1;
+        uint32_t lr = seed ? seed : 1;   // its own generator: the audio thread uses rng
+        auto rnd01 = [&lr]() { lr ^= lr << 13; lr ^= lr >> 17; lr ^= lr << 5; return (float) (lr & 0xFFFFFF) / 16777216.0f; };
         initPatch();
         auto r = [&](float a, float b) { return a + (b - a) * rnd01(); };
         auto ri = [&](int a, int b) { return (int) std::lround(r((float) a, (float) b)); };

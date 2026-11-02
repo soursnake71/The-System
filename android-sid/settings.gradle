@@ -1,0 +1,6 @@
+// Omega SID 64 for Android: a native app (C++ engine over JNI, AAudio output). Kept apart from ../android
+// (the web-app shells) so each builds on its own.
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+rootProject.name = 'OmegaSid64'
+include ':app'

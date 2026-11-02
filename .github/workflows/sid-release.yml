@@ -1,0 +1,83 @@
+# Omega SID 64: the VST3 (plus AU and a standalone app on Mac, standalone on Windows / Linux) for each desktop and
+# the Android APK, attached to the "omega-sid" release. Runs on main and on work branches so builds can be tried
+# before merging.
+name: Omega SID 64 release
+on:
+  push:
+    branches: [main, 'claude/**', 'ccr-**']
+    paths: ['plugins/sid/**', 'plugins/CMakeLists.txt', 'android-sid/**', '.github/workflows/sid-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  plugins:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release "-DOMEGA_ONLY=Sid"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test the engine (tuning, filter, every preset, sequencer, state)
+        shell: bash
+        run: |
+          t=$(find build -name 'sid_test' -o -name 'sid_test.exe' | head -1)
+          "$t"
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega SID 64' -o -name 'Omega SID 64.exe' -o -name 'Omega SID 64.app' \) -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls -la out
+          cd out && 7z a -tzip "../Omega-SID-64-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'sid-${{ matrix.name }}', path: 'Omega-SID-64-${{ matrix.name }}.zip', if-no-files-found: error}
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android-sid/local.properties
+          gradle -p android-sid assembleDebug --no-daemon
+          cp android-sid/app/build/outputs/apk/debug/app-debug.apk omega-sid-64.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: sid-Android, path: omega-sid-64.apk, if-no-files-found: error}
+  publish:
+    needs: [plugins, apk]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls -la dl
+          notes="Omega SID 64 (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the C64's SID chip (6581 and 8580) as a synth, with a step sequencer, an arpeggiator, 366 presets and a C64 screen.
+
+          - Android: open omega-sid-64.apk on the phone and allow installing from your browser or files app. USB and Bluetooth MIDI keyboards play it.
+          - Windows / Mac / Linux: unzip, copy Omega SID 64.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3, Linux ~/.vst3); on Mac the .component goes in /Library/Audio/Plug-Ins/Components. The standalone app runs without a DAW. On a Mac, if it's refused: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
+          gh release view omega-sid >/dev/null 2>&1 || gh release create omega-sid --title "Omega SID 64 (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit omega-sid --notes "$notes"
+          gh release upload omega-sid dl/* --clobber

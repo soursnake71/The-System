@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+android {
+  namespace 'com.thesnakedevice.sid'
+  compileSdk 35
+  ndkVersion '27.2.12479018'
+  defaultConfig {
+    applicationId 'com.thesnakedevice.sid'
+    minSdk 26          // AAudio
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+    externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_static'; cppFlags '-std=c++17 -O3' } }
+    ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+  }
+  externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+  signingConfigs {
+    release {
+      storeFile file(System.getenv('SNAKE_KEYSTORE') ?: 'missing.jks')
+      storePassword System.getenv('SNAKE_KEYPASS') ?: ''
+      keyAlias 'snake'
+      keyPassword System.getenv('SNAKE_KEYPASS') ?: ''
+    }
+  }
+  buildTypes {
+    debug { jniDebuggable false; externalNativeBuild { cmake { arguments '-DCMAKE_BUILD_TYPE=Release' } } }
+    release { minifyEnabled false; signingConfig signingConfigs.release }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
