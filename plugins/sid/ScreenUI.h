@@ -19,7 +19,12 @@ enum Col { BLACK, WHITE, RED, CYAN, PURPLE, GREEN, BLUE, YELLOW, ORANGE, BROWN, 
 
 class ScreenUI {
 public:
-    static constexpr int W = 320, H = 200, COLS = 40, ROWS = 25;
+    // 40 columns always; 25 rows on a C64 (and in the plugin). A tall phone screen gets more rows (up to 64), so the
+    // screen can fill the app with square pixels (up to 80 rows): lists, the tracker, the faders and the scope use them.
+    static constexpr int W = 320, H = 200, COLS = 40, ROWS = 25, MAXROWS = 80;
+    int rows = ROWS;
+    int height() const { return rows * 8; }
+    void setRows(int r) { rows = std::clamp(r, ROWS, MAXROWS); }
 
     // what the screen needs from the platform
     struct Host {
@@ -54,7 +59,7 @@ public:
         ++frame;
         build();
         const uint32_t bg = PALETTE[BLUE];
-        for (int r = 0; r < ROWS; ++r) for (int c = 0; c < COLS; ++c) {
+        for (int r = 0; r < rows; ++r) for (int c = 0; c < COLS; ++c) {
             const Cell& cl = cell[r][c];
             const int code = (unsigned char) cl.ch; const uint8_t* g = FONT[(code < 32 || code > 127) ? 0 : code - 32];
             const uint32_t f = PALETTE[cl.fg & 15];
@@ -75,9 +80,9 @@ public:
             }
         }
         for (const Rect& q : rects)
-            for (int y = std::max(0, q.y); y < std::min(H, q.y + q.h); ++y)
+            for (int y = std::max(0, q.y); y < std::min(height(), q.y + q.h); ++y)
                 for (int x = std::max(0, q.x); x < std::min(W, q.x + q.w); ++x) px[y * W + x] = q.col;
-        if (page == 8) drawScope(px, 21 * 8 + 1, 15);
+        if (page == 8) { const int sr = mixPanRow() + 3; drawScope(px, sr * 8 + 1, (rows - 2 - sr) * 8 - 1); }
     }
 
     // ---- pointer, in screen pixels ----
@@ -112,8 +117,8 @@ public:
                 s.note = std::clamp((int) std::lround(startVal - dy / 4.f), 0, 127); s.on = true;
                 host.synth().setStep(curPat(), hit.a, s); break;
             }
-            case Z_LIST: case Z_PRESET: listScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, catSize() - LIST_ROWS)); break;
-            case Z_PATLIST: case Z_PATITEM: patScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, patternPresetCount() - 2 * LIST_ROWS)); break;
+            case Z_LIST: case Z_PRESET: listScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, catSize() - listRows())); break;
+            case Z_PATLIST: case Z_PATITEM: patScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, patternPresetCount() - 2 * listRows())); break;
             default: break;
         }
     }
@@ -129,7 +134,7 @@ public:
             const ParamInfo& p = params()[z.a];
             if (p.kind == CONT) host.set(z.a, fromNorm(z.a, toNorm(z.a, host.get(z.a)) + steps * 0.01f));
             else host.set(z.a, std::clamp(host.get(z.a) + (steps > 0 ? 1.f : -1.f), p.min, p.max));
-        } else if (z.kind == Z_LIST || z.kind == Z_PRESET) listScroll = std::clamp(listScroll - (int) steps, 0, std::max(0, catSize() - LIST_ROWS));
+        } else if (z.kind == Z_LIST || z.kind == Z_PRESET) listScroll = std::clamp(listScroll - (int) steps, 0, std::max(0, catSize() - listRows()));
         else if (z.kind == Z_STEP_NOTE) {
             Step s = host.synth().step(curPat(), z.a); s.note = std::clamp(s.note + (steps > 0 ? 1 : -1), 0, 127); host.synth().setStep(curPat(), z.a, s);
         }
@@ -140,26 +145,29 @@ public:
         const std::string c = PRESETS[i].cat;
         for (int k = 0; k < (int) cats.size(); ++k) if (cats[(size_t) k] == c) cat = k;
         int idx = 0; for (int k = 0; k < i; ++k) if (PRESETS[k].cat == c) ++idx;
-        if (idx < listScroll || idx >= listScroll + LIST_ROWS) listScroll = std::max(0, idx - LIST_ROWS / 2);
+        if (idx < listScroll || idx >= listScroll + listRows()) listScroll = std::max(0, idx - listRows() / 2);
     }
 
 private:
     Host& host;
     struct Cell { char ch = ' '; uint8_t fg = LBLUE; bool inv = false; };
-    Cell cell[ROWS][COLS];
+    Cell cell[MAXROWS][COLS];
     enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER };
     struct Zone { int r = -1, c0 = 0, c1 = 0, kind = Z_NONE, a = -1; };
     struct Bar { int r, c0, c1; float frac; uint8_t col; bool center; };
     struct Rect { int x, y, w, h; uint32_t col; };
     std::vector<Zone> zones; std::vector<Bar> bars; std::vector<Rect> rects;
-    static constexpr int FADER_TOP = 7 * 8, FADER_BOT = 18 * 8;   // the mixer's faders, in pixels
+    // the mixer: faders from row 7 down to the pan row; extra rows go two thirds to the faders, a third to the scope
+    int mixPanRow() const { const int ex = rows - ROWS; return 18 + ex - ex / 3; }
+    int faderTop() const { return 7 * 8; }
+    int faderBot() const { return mixPanRow() * 8; }
     static constexpr uint32_t DIM = 0xFF2A2066;
     std::vector<std::string> cats;
     int cat = 0, listScroll = 0, patScroll = 0; bool patList = false;
     uint64_t frame = 0, msgUntil = 0; std::string msg;
     Zone hit; float downX = 0, downY = 0, lastX = 0, lastY = 0, startNorm = 0, startVal = 0; bool moved = false;
     uint64_t lastTapFrame = 0; int lastTapParam = -1;
-    static constexpr int LIST_ROWS = 17;
+    int listRows() const { return rows - 8; }
 
     enum Btn { B_PREV = 1, B_NEXT, B_INIT, B_RAND, B_UP, B_DN, B_PLAY, B_STOP, B_PAT_DN, B_PAT_UP, B_LEN_DN, B_LEN_UP, B_LOAD, B_CLEAR,
                B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE,
@@ -172,7 +180,7 @@ private:
     // ---------------- text ----------------
     void clear() { for (auto& r : cell) for (auto& c : r) c = Cell {}; zones.clear(); bars.clear(); rects.clear(); }
     void put(int r, int c, const std::string& s, uint8_t col = LBLUE, bool inv = false) {
-        if (r < 0 || r >= ROWS) return;
+        if (r < 0 || r >= rows) return;
         for (size_t i = 0; i < s.size() && c + (int) i < COLS; ++i) if (c + (int) i >= 0) cell[r][c + (int) i] = { s[i], col, inv };
     }
     void zone(int r, int c0, int c1, int kind, int a) { zones.push_back({ r, c0, c1, kind, a }); }
@@ -266,17 +274,18 @@ private:
         // help / messages
         if (page == 9 && !patList) return;   // the tracker uses the whole screen
         {
-            if (frame < msgUntil) put(23, 0, pad(msg, 40), WHITE);
-            else put(23, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
+            if (frame < msgUntil) put(rows - 2, 0, pad(msg, 40), WHITE);
+            else put(rows - 2, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
         }
         // the preset line
         char pl[64];
         std::snprintf(pl, sizeof pl, "%03d %s", s.program.load() + 1, s.presetName.c_str());
-        button(24, 0, "<", B_PREV, WHITE, true);
-        put(24, 2, pad(pl, 31), YELLOW);
-        button(24, 34, ">", B_NEXT, WHITE, true);
-        button(24, 36, "INI", B_INIT, LBLUE);
-        zone(24, 2, 32, Z_TAB, 0);
+        const int last = rows - 1;
+        button(last, 0, "<", B_PREV, WHITE, true);
+        put(last, 2, pad(pl, 31), YELLOW);
+        button(last, 34, ">", B_NEXT, WHITE, true);
+        button(last, 36, "INI", B_INIT, LBLUE);
+        zone(last, 2, 32, Z_TAB, 0);
     }
 
     void pagePresets() {
@@ -287,7 +296,7 @@ private:
         int idx = 0, row = 0; const int cur = host.synth().program.load();
         for (int i = 0; i < presetCount(); ++i) {
             if (cats[(size_t) cat] != PRESETS[i].cat) continue;
-            if (idx >= listScroll && row < LIST_ROWS) {
+            if (idx >= listScroll && row < listRows()) {
                 const bool sel = i == cur;
                 put(5 + row, 10, pad(std::string(sel ? "{" : " ") + PRESETS[i].name, 30), sel ? WHITE : LBLUE);
                 zone(5 + row, 10, 39, Z_PRESET, i);
@@ -296,14 +305,14 @@ private:
             ++idx;
         }
         // the list scrolls when dragged anywhere in it (presets also take taps)
-        for (int r = 5; r < 5 + LIST_ROWS; ++r) zones.insert(zones.begin(), Zone { r, 10, 39, Z_LIST, 0 });
+        for (int r = 5; r < 5 + listRows(); ++r) zones.insert(zones.begin(), Zone { r, 10, 39, Z_LIST, 0 });
         const int n = catSize();
-        if (n > LIST_ROWS) {
-            char b[32]; std::snprintf(b, sizeof b, "%d-%d OF %d", listScroll + 1, std::min(n, listScroll + LIST_ROWS), n);
-            put(22, 10, b, GREY);
-            button(22, 26, " ^ ", B_UP, WHITE, true); button(22, 30, " v ", B_DN, WHITE, true);
+        if (n > listRows()) {
+            char b[32]; std::snprintf(b, sizeof b, "%d-%d OF %d", listScroll + 1, std::min(n, listScroll + listRows()), n);
+            put(rows - 3, 10, b, GREY);
+            button(rows - 3, 26, " ^ ", B_UP, WHITE, true); button(rows - 3, 30, " v ", B_DN, WHITE, true);
         }
-        button(22, 34, "RND", B_RAND, LGREEN, true);
+        button(rows - 3, 34, "RND", B_RAND, LGREEN, true);
     }
     void pageOsc(int o) {
         const int b = P::o1on + o * (P::o2on - P::o1on);
@@ -366,7 +375,7 @@ private:
         int r = 5;
         for (int id : { P::model, P::curve, P::drive, P::clock, P::adsrbug, P::vol, P::quality, P::spread, P::gain, P::dboost }) paramRow(r++, id);
         regDump(r);
-        button(22, 1, "PANIC: ALL NOTES OFF", B_PANIC, LRED, true);
+        button(rows - 3, 1, "PANIC: ALL NOTES OFF", B_PANIC, LRED, true);
     }
     void regDump(int r) {
         Synth& s = host.synth();
@@ -404,7 +413,8 @@ private:
         put(8, 29, "DRAG=PITCH", DGREY);
         const int playing = s.seqStepShown.load();
         for (int i = 0; i < kSteps; ++i) {
-            const int r = 9 + (i % 16), c = i < 16 ? 0 : 20;
+            const bool oneCol = rows >= 9 + kSteps;
+            const int r = oneCol ? 9 + i : 9 + (i % 16), c = oneCol || i < 16 ? 0 : 20;
             const Step st = s.step(p, i);
             const bool inLen = i < len;
             const uint8_t dim = inLen ? LBLUE : DGREY;
@@ -420,13 +430,13 @@ private:
     void pagePatterns() {
         put(5, 0, "LOAD A PATTERN INTO PAT " + num(curPat() + 1, 2), WHITE);
         button(5, 34, "BACK", B_BACK, WHITE, true);
-        for (int k = 0; k < 2 * LIST_ROWS; ++k) {
+        for (int k = 0; k < 2 * listRows(); ++k) {
             const int i = patScroll + k; if (i >= patternPresetCount()) break;
-            const int r = 6 + (k % LIST_ROWS), c = k < LIST_ROWS ? 0 : 20;
+            const int r = 6 + (k % listRows()), c = k < listRows() ? 0 : 20;
             put(r, c, pad(PATTERNS[i].name, 19), LBLUE);
             zone(r, c, c + 19, Z_PATITEM, i);
         }
-        for (int r = 6; r < 6 + LIST_ROWS; ++r) zones.insert(zones.begin(), Zone { r, 0, 39, Z_PATLIST, 0 });
+        for (int r = 6; r < 6 + listRows(); ++r) zones.insert(zones.begin(), Zone { r, 0, 39, Z_PATLIST, 0 });
     }
     // ---------------- the sampler ----------------
     std::string sampleHelp() {
@@ -444,7 +454,8 @@ private:
         put(5, 0, pad(src.name.empty() ? "NO SAMPLE" : src.name, 13), WHITE);
         put(5, 14, b, GREY);
         // the waveform as the C64 holds it: its levels, the start / end, and where it's playing
-        const int x0 = 4, w = W - 8, y0 = 6 * 8 + 1, h = 6 * 8 - 2;
+        const int grow = (rows - ROWS) / 2;   // extra rows: half to the waveform
+        const int x0 = 4, w = W - 8, y0 = 6 * 8 + 1, h = (6 + grow) * 8 - 2;
         rects.push_back({ x0, y0, w, h, DIM });
         rects.push_back({ x0, y0 + h / 2, w, 1, 0xFF1A1450 });
         const float st = host.get(P::dstart), en = host.get(P::dend);
@@ -461,21 +472,22 @@ private:
         const int at = s.digiShown.load();
         if (at >= 0 && n > 0) rects.push_back({ x0 + (int) ((double) at / n * (w - 1)), y0, 1, h, PALETTE[WHITE] });
         // where it comes from
-        if (host.canLoadFiles()) button(12, 0, "LOAD", B_SMP_LOAD, YELLOW, true);
+        const int br = 12 + grow;
+        if (host.canLoadFiles()) button(br, 0, "LOAD", B_SMP_LOAD, YELLOW, true);
         const bool rec = host.recording();
-        button(12, 5, rec ? "{STOP}" : "{REC}", B_SMP_REC, rec ? WHITE : LRED, true);
-        if (rec && (frame / 10) % 2 == 0) put(12, 5, "{", LRED, true);
-        button(12, 12, "<", B_SMP_PREV, WHITE, true);
-        put(12, 14, pad(src.builtinIndex >= 0 ? src.name : "BUILT-IN", 10), CYAN);
-        button(12, 25, ">", B_SMP_NEXT, WHITE, true);
-        put(12, 28, m == DIGI_PWM ? "OSC1=CARRIER" : m == DIGI_MAHONEY ? "VOICES=DC" : "", DGREY);
-        int r = 13;
+        button(br, 5, rec ? "{STOP}" : "{REC}", B_SMP_REC, rec ? WHITE : LRED, true);
+        if (rec && (frame / 10) % 2 == 0) put(br, 5, "{", LRED, true);
+        button(br, 12, "<", B_SMP_PREV, WHITE, true);
+        put(br, 14, pad(src.builtinIndex >= 0 ? src.name : "BUILT-IN", 10), CYAN);
+        button(br, 25, ">", B_SMP_NEXT, WHITE, true);
+        put(br, 28, m == DIGI_PWM ? "OSC1=CARRIER" : m == DIGI_MAHONEY ? "VOICES=DC" : "", DGREY);
+        int r = br + 1;
         for (int id : { P::dmode, P::drate, P::droot, P::dstart, P::dend, P::dloop, P::dgate, P::dtrack, P::dlevel, P::dram }) paramRow(r++, id);
     }
 
     // ---------------- the mixer ----------------
     void setFromFader(int id, float y) {
-        host.set(id, fromNorm(id, (FADER_BOT - y) / (float) (FADER_BOT - FADER_TOP)));
+        host.set(id, fromNorm(id, (faderBot() - y) / (float) (faderBot() - faderTop())));
     }
     static std::string dbText(float v) {
         char b[16];
@@ -489,25 +501,25 @@ private:
     }
     // a vertical fader in pixel columns x..x+w
     void fader(int x, int w, int id, uint8_t fill) {
-        const int h = FADER_BOT - FADER_TOP, pos = (int) std::lround(toNorm(id, host.get(id)) * (h - 3));
-        rects.push_back({ x, FADER_TOP, w, h, DIM });
-        rects.push_back({ x + w / 2 - 1, FADER_TOP + 1, 2, h - 2, 0xFF1A1450 });   // the slot
+        const int h = faderBot() - faderTop(), pos = (int) std::lround(toNorm(id, host.get(id)) * (h - 3));
+        rects.push_back({ x, faderTop(), w, h, DIM });
+        rects.push_back({ x + w / 2 - 1, faderTop() + 1, 2, h - 2, 0xFF1A1450 });   // the slot
         // 0 dB mark for the level faders
         const ParamInfo& p = params()[id];
-        if (p.min < 0 && p.max > 0) { const int z = FADER_BOT - 2 - (int) std::lround(toNorm(id, 0) * (h - 3)); rects.push_back({ x - 2, z, 2, 1, PALETTE[GREY] }); }
-        rects.push_back({ x + 1, FADER_BOT - 1 - pos, w - 2, pos, PALETTE[fill] });
-        rects.push_back({ x, FADER_BOT - 3 - pos, w, 3, PALETTE[WHITE] });            // the cap
+        if (p.min < 0 && p.max > 0) { const int z = faderBot() - 2 - (int) std::lround(toNorm(id, 0) * (h - 3)); rects.push_back({ x - 2, z, 2, 1, PALETTE[GREY] }); }
+        rects.push_back({ x + 1, faderBot() - 1 - pos, w - 2, pos, PALETTE[fill] });
+        rects.push_back({ x, faderBot() - 3 - pos, w, 3, PALETTE[WHITE] });            // the cap
     }
     // a peak meter as LED segments: green, yellow from -6 dB, red from -1 dB
     void meter(int x, int w, float peak) {
         const float db = peak > 1e-6f ? 20.f * std::log10(peak) : -100.f;
         const float frac = std::clamp((db + 48.f) / 54.f, 0.f, 1.f);
-        const int h = FADER_BOT - FADER_TOP, lit = (int) std::lround(frac * h);
+        const int h = faderBot() - faderTop(), lit = (int) std::lround(frac * h);
         for (int y = 0; y + 2 <= h; y += 3) {
             const float at = (y + 1.f) / h;
             const float dbAt = at * 54.f - 48.f;
             const uint32_t on = dbAt > -1 ? PALETTE[LRED] : dbAt > -6 ? PALETTE[YELLOW] : PALETTE[LGREEN];
-            rects.push_back({ x, FADER_BOT - y - 2, w, 2, y < lit ? on : DIM });
+            rects.push_back({ x, faderBot() - y - 2, w, 2, y < lit ? on : DIM });
         }
     }
     void strip(int c, const char* name, int lvl, int pan, int mute, int solo, int meterIdx) {
@@ -520,18 +532,19 @@ private:
         fader(x + 2, 14, lvl, LBLUE);
         if (meterIdx == Synth::M_OUTL) { meter(x + 20, 7, s.meters[Synth::M_OUTL].load()); meter(x + 29, 7, s.meters[Synth::M_OUTR].load()); }
         else meter(x + 22, 10, s.meters[(size_t) meterIdx].load());
-        for (int r = 7; r < 18; ++r) zone(r, c, c + 2, Z_VFADER, lvl);
+        const int pr = mixPanRow();
+        for (int r = 7; r < pr; ++r) zone(r, c, c + 2, Z_VFADER, lvl);
         if (pan >= 0) {
             // the pan: a little track with the position marked
             const float pv = host.get(pan);
-            rects.push_back({ x + 2, 18 * 8 + 2, 36, 4, DIM });
-            rects.push_back({ x + 19, 18 * 8 + 1, 2, 6, PALETTE[GREY] });
-            rects.push_back({ x + 2 + (int) std::lround((pv + 1) * 0.5f * 32), 18 * 8, 4, 8, PALETTE[CYAN] });
-            put(19, c + 1, panText(pv), CYAN);
-            zone(18, c, c + 4, Z_PVAL, pan); zone(19, c, c + 4, Z_PVAL, pan);
+            rects.push_back({ x + 2, pr * 8 + 2, 36, 4, DIM });
+            rects.push_back({ x + 19, pr * 8 + 1, 2, 6, PALETTE[GREY] });
+            rects.push_back({ x + 2 + (int) std::lround((pv + 1) * 0.5f * 32), pr * 8, 4, 8, PALETTE[CYAN] });
+            put(pr + 1, c + 1, panText(pv), CYAN);
+            zone(pr, c, c + 4, Z_PVAL, pan); zone(pr + 1, c, c + 4, Z_PVAL, pan);
         }
-        if (mute >= 0) { const bool m = host.get(mute) > .5f; put(20, c + 1, "M", m ? LRED : GREY, m); zone(20, c, c + 1, Z_PVAL, mute); }
-        if (solo >= 0) { const bool so = host.get(solo) > .5f; put(20, c + 3, "S", so ? YELLOW : GREY, so); zone(20, c + 3, c + 4, Z_PVAL, solo); }
+        if (mute >= 0) { const bool m = host.get(mute) > .5f; put(pr + 2, c + 1, "M", m ? LRED : GREY, m); zone(pr + 2, c, c + 1, Z_PVAL, mute); }
+        if (solo >= 0) { const bool so = host.get(solo) > .5f; put(pr + 2, c + 3, "S", so ? YELLOW : GREY, so); zone(pr + 2, c + 3, c + 4, Z_PVAL, solo); }
     }
     void pageMix() {
         strip(0, "OSC1", P::m1lvl, P::m1pan, P::m1mute, P::m1solo, Synth::M_OSC1);
@@ -540,11 +553,12 @@ private:
         strip(18, "FILT", P::mflvl, P::mfpan, P::mfmute, P::mfsolo, Synth::M_FILTER);
         strip(26, "ECHO", P::emix, -1, P::emute, -1, Synth::M_ECHO);
         strip(33, "MAIN", P::gain, -1, -1, -1, Synth::M_OUTL);
-        put(19, 26, "RET", GREY); put(19, 33, "L R", GREY);
+        const int pr = mixPanRow();
+        put(pr + 1, 26, "RET", GREY); put(pr + 1, 33, "L R", GREY);
         // the channels that aren't sounding: an oscillator that's off, the filter with nothing routed into it
         for (int o = 0; o < 3; ++o) if (host.get(P::o1on + o * (P::o2on - P::o1on)) < .5f) for (int k = 0; k < 4; ++k) cell[5][o * 6 + k].fg = DGREY;
-        if (!(host.get(P::o1flt) > .5f || host.get(P::o2flt) > .5f || host.get(P::o3flt) > .5f)) put(19, 19, " -- ", DGREY);
-        for (int r = 5; r <= 20; ++r) { put(r, 24, "|", DGREY); put(r, 31, "|", DGREY); }
+        if (!(host.get(P::o1flt) > .5f || host.get(P::o2flt) > .5f || host.get(P::o3flt) > .5f)) put(pr + 1, 19, " -- ", DGREY);
+        for (int r = 5; r <= pr + 2; ++r) { put(r, 24, "|", DGREY); put(r, 31, "|", DGREY); }
     }
     void drawScope(uint32_t* px, int y0, int h) {
         Synth& s = host.synth();
@@ -619,8 +633,8 @@ private:
             case B_NEXT: stepPresetBy(1); break;
             case B_INIT: host.initPatch(); message("NEW"); if (onPresetChanged) onPresetChanged(); break;
             case B_RAND: host.randomize(); message("RANDOM PATCH"); if (onPresetChanged) onPresetChanged(); break;
-            case B_UP: listScroll = std::max(0, listScroll - LIST_ROWS); break;
-            case B_DN: listScroll = std::clamp(listScroll + LIST_ROWS, 0, std::max(0, catSize() - LIST_ROWS)); break;
+            case B_UP: listScroll = std::max(0, listScroll - listRows()); break;
+            case B_DN: listScroll = std::clamp(listScroll + listRows(), 0, std::max(0, catSize() - listRows())); break;
             case B_PLAY: s.post(Synth::EV_SEQ_PLAY, 0, 0); break;
             case B_STOP: s.post(Synth::EV_SEQ_STOP, 0, 0); break;
             case B_PAT_DN: host.set(P::spat, (float) std::max(1, p)); break;

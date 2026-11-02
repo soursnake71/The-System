@@ -7,7 +7,9 @@ final class Native {
     static native void start();
     static native void stop();
     static native String saveState();
-    /** Draws the 320 x 200 C64 screen into px (ARGB). */
+    /** How many text rows the screen has (25 on a C64; more on a tall phone). */
+    static native void setRows(int rows);
+    /** Draws the C64 screen, 320 x (rows x 8), into px (ARGB). */
     static native void render(int[] px);
     /** action 0 down, 1 move, 2 up; x, y in C64 screen pixels. */
     static native void touch(int action, float x, float y);

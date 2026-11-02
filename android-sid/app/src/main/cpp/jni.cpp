@@ -119,6 +119,7 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_render(JNIEnv* env, jc
     const int prog = pendingProgram.exchange(-1);
     if (prog >= 0) { host->s.applyPreset(prog); ui->showPreset(prog); }
     host->s.pollSample();
+    if (env->GetArrayLength(px) < ScreenUI::W * ui->height()) return;   // a too-small array: draw nothing rather than overrun
     jint* p = env->GetIntArrayElements(px, nullptr);
     ui->render(reinterpret_cast<uint32_t*>(p));
     env->ReleaseIntArrayElements(px, p, 0);
@@ -134,6 +135,8 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_seqToggle(JNIEnv*, jcl
     if (host) host->s.post(host->s.seqPlay.load() ? Synth::EV_SEQ_STOP : Synth::EV_SEQ_PLAY, 0, 0);
 }
 JNIEXPORT jboolean JNICALL Java_com_thesnakedevice_sid_Native_seqRunning(JNIEnv*, jclass) { return host && host->s.seqPlay.load(); }
+// how many text rows the phone's screen shows (25 to 80): the pixel array passed to render holds 320 x rows x 8
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setRows(JNIEnv*, jclass, jint rows) { if (ui) ui->setRows(rows); }
 JNIEXPORT jint JNICALL Java_com_thesnakedevice_sid_Native_pollRequest(JNIEnv*, jclass) { return host ? host->request.exchange(0) : 0; }
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setRecordingState(JNIEnv*, jclass, jboolean on, jfloat secs) {
     if (host) { host->rec = on; host->recSec = secs; }

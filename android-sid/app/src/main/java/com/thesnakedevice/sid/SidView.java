@@ -15,27 +15,30 @@ import android.view.Choreographer;
 import android.view.MotionEvent;
 import android.view.View;
 
-/** The whole app in one view: a 1701-style monitor with the C64 screen (drawn by the native side) and the breadbin
- *  keyboard: brown keys, raised sharps, and the four function keys (f1 play / stop, f3 / f5 octave, f7 panic).
- *  Laid out at 1000 units wide (the same drawing as the plugin); on a tall screen the extra height goes to the keys. */
+/** The whole app in one view: a 1701-style monitor that takes almost all of it, and a slim breadbin keyboard strip.
+ *  The monitor's screen is the C64 screen drawn by the native side; on a tall phone it gets more text rows (square
+ *  pixels, up to 80 rows) rather than stretched ones. Laid out 1000 units wide; the height follows the phone. */
 public class SidView extends View implements Choreographer.FrameCallback {
-    private static final int SW = 320, SH = 200;
-    private static final float SX = 68, SY = 62, SS = 2.7f;    // where the screen sits in design units: it fills the width
-    private static final float KDY = 119;                      // the keyboard is drawn this far below its own coordinates
-    private static final int WHITE_KEYS = 15;                  // two octaves and a top C: big enough for fingers
+    private static final int SW = 320, MAX_ROWS = 80;
+    private float CASE_H = 250;                                // the keyboard strip, in design units (slimmer sideways)
+    private float PANEL_H = 150;                               // the monitor's badge strip + jack panel (badge only sideways)
+    private static final int WHITE_KEYS = 15;                  // two octaves and a top C
     private static final int[] STRIPES = { 0xffd8342b, 0xffef8a2c, 0xfff2d23a, 0xff4aa64a, 0xff2f74c0 };
-    private static final int BEIGE = 0xffcbbfad, BEIGE_DARK = 0xffb3a691, BEIGE_LINE = 0xff9c8f7b;
+    private static final int BEIGE_LINE = 0xff9c8f7b;
     private static final int KEY_BROWN = 0xff3f322b, KEY_BROWN_TOP = 0xff574639, KEY_TAUPE = 0xff7d7067, KEY_TAUPE_TOP = 0xff978a80;
     private static final String[] FKEY = { "PLAY", "OCT-", "OCT+", "PANIC" };
 
-    private final int[] px = new int[SW * SH];
-    private final Bitmap screen = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888);
+    private final int[] px = new int[SW * MAX_ROWS * 8];
+    private Bitmap screen = Bitmap.createBitmap(SW, 200, Bitmap.Config.ARGB_8888);
+    private int rows = 25;
     private Bitmap backdrop;          // everything that doesn't move
-    private float scale = 1, offX = 0, offY = 0, dh = 1012;
+    private float scale = 1, offX = 0, offY = 0, T = 1030;
+    // the screen: where the C64 pixels go (design units) and their size; KDY moves the keyboard to the bottom
+    private float SX = 112, SY = 104, SS = 2.425f, SSY = 2.425f, KDY = 0;
+    private final RectF tubeRect = new RectF(), screenArea = new RectF();
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG), crisp = new Paint();
-    private final Path tube = new Path();
+    private final Path tube = new Path(), glass = new Path();
     private final RectF r = new RectF();
-    private final RectF screenRect = new RectF(52, 44, 52 + 896, 44 + 576);
     private boolean running;
     private int frame;
     private int base = 48;                                     // lowest key: C3
@@ -43,7 +46,6 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private final SparseIntArray pointerNote = new SparseIntArray();   // pointer id -> note (or -1)
     private final SparseIntArray pointerKind = new SparseIntArray();   // 1 screen, 2 keys, 3 function key
     private int fkeyDown = -1;
-
     private final Sampling sampling;
 
     public SidView(Context c, Sampling s) {
@@ -52,7 +54,6 @@ public class SidView extends View implements Choreographer.FrameCallback {
         crisp.setFilterBitmap(false);
         crisp.setAntiAlias(false);
         p.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        tube.addRoundRect(new RectF(52, 44, 948, 620), 40, 40, Path.Direction.CW);
         setKeepScreenOn(true);
     }
 
@@ -62,9 +63,10 @@ public class SidView extends View implements Choreographer.FrameCallback {
     @Override public void doFrame(long t) {
         if (!running) return;
         if ((frame++ & 1) == 0) {   // 30 frames a second is plenty for a C64
+            Native.setRows(rows);
             Native.render(px);
             sampling.poll();
-            screen.setPixels(px, 0, SW, 0, 0, SW, SH);
+            screen.setPixels(px, 0, SW, 0, 0, SW, rows * 8);
             invalidate();
         }
         Choreographer.getInstance().postFrameCallback(this);
@@ -72,40 +74,58 @@ public class SidView extends View implements Choreographer.FrameCallback {
 
     // ---------------- layout ----------------
     @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
-        final float sw = w / 1000f, sh = h / 1012f;
-        if (sw <= sh) { scale = sw; dh = Math.min(h / scale, 1500); offX = 0; offY = (h - dh * scale) / 2; }
-        else { scale = sh; dh = 1012; offX = (w - 1000 * scale) / 2; offY = 0; }
+        final boolean sideways = w > h;
+        CASE_H = sideways ? 205 : 250; PANEL_H = sideways ? 62 : 150;
+        scale = Math.min(w / 1000f, h / (sideways ? 900f : 1030f));
+        T = h / scale;
+        offX = (w - 1000 * scale) / 2; offY = 0;
+        // the monitor fills everything above the keyboard strip
+        final float monBottom = T - CASE_H - 6, panelTop = monBottom - PANEL_H, tubeBottom = panelTop - 40;
+        tubeRect.set(84, 76, 916, tubeBottom);
+        tube.reset(); tube.addRoundRect(tubeRect, 54, 54, Path.Direction.CW);
+        // a thick light-blue border, then the screen: 40 columns across, as many rows as fit with square pixels
+        final float border = 28;
+        SX = tubeRect.left + border; SS = (tubeRect.width() - 2 * border) / SW;
+        final float avail = tubeRect.height() - 2 * border;
+        rows = Math.max(25, Math.min(MAX_ROWS, (int) Math.floor(avail / (8 * SS))));
+        SSY = avail / (rows * 8f); SY = tubeRect.top + border;
+        screenArea.set(SX, SY, SX + SW * SS, SY + rows * 8 * SSY);
+        glass.reset(); glass.addRoundRect(screenArea, 22, 22, Path.Direction.CW);
+        screen = Bitmap.createBitmap(SW, rows * 8, Bitmap.Config.ARGB_8888);
+        KDY = T - CASE_H - 596;
         backdrop = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         final Canvas c = new Canvas(backdrop);
         c.drawColor(0xff1b1714);
         c.translate(offX, offY);
         c.scale(scale, scale);
         drawRoom(c);
-        drawMonitor(c);
+        drawMonitor(c, monBottom, panelTop);
         c.save(); c.translate(0, KDY); drawCase(c); c.restore();
     }
-    private RectF kWell() { return new RectF(40, 668, 40 + 772, dh - KDY - 30); }
-    private RectF fWell() { return new RectF(842, 668, 842 + 118, dh - KDY - 30); }
+    // keyboard parts, in the case's own coordinates (its top edge at 596)
+    private RectF kWell() { return new RectF(40, 664, 40 + 772, 596 + CASE_H - 26); }
+    private RectF fWell() { return new RectF(842, 664, 842 + 118, 596 + CASE_H - 26); }
     private RectF whiteRect(int i) {
         final RectF k = kWell(); final float w = (k.width() - 16) / WHITE_KEYS;
-        return new RectF(k.left + 8 + i * w, k.top + 8, k.left + 8 + i * w + w - 4, k.bottom - 8);
+        return new RectF(k.left + 8 + i * w, k.top + 6, k.left + 8 + i * w + w - 4, k.bottom - 6);
     }
     private RectF blackRect(int whiteIndexLeft) {
         final RectF a = whiteRect(whiteIndexLeft); final float w = a.width();
-        return new RectF(a.right - w * 0.3f, a.top - 2, a.right - w * 0.3f + w * 0.62f, a.top - 2 + a.height() * 0.58f);
+        return new RectF(a.right - w * 0.3f, a.top - 2, a.right - w * 0.3f + w * 0.62f, a.top - 2 + a.height() * 0.6f);
     }
-    private RectF fkeyRect(int i) {
-        final RectF f = fWell(); final float h = (f.height() - 16) / 4;
-        return new RectF(f.left + 10, f.top + 8 + i * h, f.right - 10, f.top + 8 + i * h + h - 8);
+    private RectF fkeyRect(int i) {   // two by two
+        final RectF f = fWell(); final float hw = (f.width() - 18) / 2, hh = (f.height() - 18) / 2;
+        final int cx = i % 2, cy = i / 2;
+        return new RectF(f.left + 6 + cx * (hw + 6), f.top + 6 + cy * (hh + 6), f.left + 6 + cx * (hw + 6) + hw, f.top + 6 + cy * (hh + 6) + hh);
     }
     private static boolean isBlack(int n) { final int k = n % 12; return k == 1 || k == 3 || k == 6 || k == 8 || k == 10; }
 
     // ---------------- drawing ----------------
     private void drawRoom(Canvas c) {
-        p.setShader(new LinearGradient(0, 0, 0, 700, 0xff2e2925, 0xff1b1714, Shader.TileMode.CLAMP));
-        c.drawRect(-2000, -2000, 3000, 708, p);
-        p.setShader(new LinearGradient(0, 700, 0, dh, 0xff5a3d29, 0xff3a281b, Shader.TileMode.CLAMP));
-        c.drawRect(-2000, 700, 3000, dh + 2000, p);
+        p.setShader(new LinearGradient(0, 0, 0, T - CASE_H, 0xff2e2925, 0xff1b1714, Shader.TileMode.CLAMP));
+        c.drawRect(-2000, -2000, 3000, T - CASE_H + 4, p);
+        p.setShader(new LinearGradient(0, T - CASE_H, 0, T, 0xff5a3d29, 0xff3a281b, Shader.TileMode.CLAMP));
+        c.drawRect(-2000, T - CASE_H, 3000, T + 2000, p);
         p.setShader(null);
     }
     private void rainbow(Canvas c, float x, float y, float w, float h) {
@@ -115,46 +135,71 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private void text(Canvas c, String s, float x, float y, float size, int color, Paint.Align a) {
         p.setTextSize(size); p.setColor(color); p.setTextAlign(a); c.drawText(s, x, y, p);
     }
-    private void drawMonitor(Canvas c) {
-        p.setColor(0x66000000); r.set(24, 20, 988, 710); c.drawRoundRect(r, 18, 18, p);
-        p.setShader(new LinearGradient(0, 10, 0, 700, 0xffd8cdbc, BEIGE_DARK, Shader.TileMode.CLAMP));
-        r.set(18, 10, 982, 700); c.drawRoundRect(r, 18, 18, p); p.setShader(null);
-        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.5f); p.setColor(BEIGE_LINE);
-        r.set(24, 16, 976, 694); c.drawRoundRect(r, 14, 14, p); c.drawLine(26, 646, 974, 646, p);
-        p.setStyle(Paint.Style.FILL);
-        p.setColor(0xff42484a); r.set(34, 26, 966, 638); c.drawRoundRect(r, 12, 12, p);
-        p.setColor(0xff262624); r.set(44, 36, 956, 628); c.drawRoundRect(r, 9, 9, p);
-        p.setColor(0xff6c5eb5); c.drawPath(tube, p);   // the light-blue border
-        // badge strip
-        p.setColor(0xff3b3d3a); r.set(382, 656, 618, 690); c.drawRoundRect(r, 3, 3, p);
-        text(c, "omega", 392, 680, 18, 0xebffffff, Paint.Align.LEFT);
-        rainbow(c, 500, 662, 76, 22);
-        p.setColor(0xff2a2a28); c.drawRect(582, 660, 610, 686, p);
-        p.setColor(0xff8ee05a); c.drawRect(589, 667, 603, 671, p);
-        p.setStyle(Paint.Style.STROKE); p.setColor(0xff6e6458); c.drawRect(760, 660, 890, 686, p); p.setStyle(Paint.Style.FILL);
-        text(c, "VIDEO MONITOR", 766, 671, 10, 0xff6e6458, Paint.Align.LEFT);
-        text(c, "MODEL 6581", 766, 682, 10, 0xff6e6458, Paint.Align.LEFT);
-        p.setColor(0xff4c4640); c.drawRect(912, 660, 938, 686, p);
+    private void rrect(Canvas c, float l, float t, float rr, float b, float rad, int col) { p.setColor(col); r.set(l, t, rr, b); c.drawRoundRect(r, rad, rad, p); }
+    private void stroke(Canvas c, float l, float t, float rr, float b, float rad, int col, float w) {
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(w); p.setColor(col); r.set(l, t, rr, b); c.drawRoundRect(r, rad, rad, p); p.setStyle(Paint.Style.FILL);
+    }
+    // the 1701: beige case, stepped grey bezels, the tube with its light-blue border, the badge strip and the jacks
+    private void drawMonitor(Canvas c, float mb, float pt) {
+        rrect(c, 24, 18, 988, mb + 8, 12, 0x66000000);
+        p.setShader(new LinearGradient(0, 10, 0, mb, 0xffd3c8b8, 0xffbcb1a1, Shader.TileMode.CLAMP));
+        r.set(18, 10, 982, mb); c.drawRoundRect(r, 10, 10, p); p.setShader(null);
+        stroke(c, 28, 20, 972, pt - 6, 12, 0xff8f8274, 2);
+        final float bb = pt - 14;                                  // bottom of the bezel stack
+        rrect(c, 38, 30, 962, bb, 12, 0xff454a49);                 // outer bezel
+        rrect(c, 54, 46, 946, bb - 16, 8, 0xff282826);             // dark step
+        rrect(c, 64, 56, 936, bb - 26, 6, 0xff454a49);             // inner grey ring
+        rrect(c, 74, 66, 926, tubeRect.bottom + 10, 26, 0xff2a2726);   // the recess round the tube
+        p.setColor(0xff6c5eb5); c.drawPath(tube, p);               // the light-blue border
+        p.setColor(0xff352879); c.drawPath(glass, p);
+        // the badge strip
+        final float sy = pt + 4;
+        p.setColor(0xff8f8274); c.drawRect(18, sy - 2, 982, sy, p); c.drawRect(18, sy + 54, 982, sy + 56, p);
+        c.drawRect(380, sy, 382, sy + 54, p); c.drawRect(632, sy, 634, sy + 54, p);
+        rrect(c, 392, sy + 8, 622, sy + 46, 2, 0xff3f413e);
+        text(c, "omega", 404, sy + 34, 20, 0xf0ffffff, Paint.Align.LEFT);
+        rainbow(c, 506, sy + 13, 74, 26);
+        rrect(c, 586, sy + 10, 616, sy + 44, 1, 0xff2a2a28);
+        p.setColor(0xff8ee05a); c.drawRect(594, sy + 18, 608, sy + 22, p);
+        text(c, "POWER", 601, sy + 38, 6, 0xffbbbbbb, Paint.Align.CENTER);
+        stroke(c, 700, sy + 12, 860, sy + 42, 1, 0xff6e6458, 1.5f);
+        text(c, "VIDEO MONITOR", 708, sy + 25, 11, 0xff5d544a, Paint.Align.LEFT);
+        text(c, "MODEL 6581", 708, sy + 37, 11, 0xff5d544a, Paint.Align.LEFT);
+        rrect(c, 892, sy + 12, 930, sy + 42, 1, 0xff4c4640);
+        // the lower panel with the jacks (when there's room for it)
+        if (PANEL_H < 120) return;
+        final float jy = sy + 56;
+        p.setColor(0xff8f8274); c.drawRect(800, jy, 802, mb - 6, p);
+        for (int k = 0; k < 2; ++k) {
+            final float cx = 846 + k * 66, cy = jy + 36;
+            p.setColor(0xffa79c8c); c.drawCircle(cx, cy, 20, p);
+            p.setColor(0xffd9d1c4); c.drawCircle(cx, cy, 15, p);
+            p.setColor(0xff2a2a28); c.drawCircle(cx, cy, 9, p);
+            p.setColor(k == 0 ? 0xfff2d23a : 0xfff4f4f4); c.drawCircle(cx, cy, 4.5f, p);
+            text(c, k == 0 ? "VIDEO" : "AUDIO", cx, cy + 34, 10, 0xff5d544a, Paint.Align.CENTER);
+        }
+        text(c, "POWER", 911, sy + 52, 9, 0xff5d544a, Paint.Align.CENTER);
     }
     private void drawCase(Canvas c) {
-        final float b = dh - KDY - 8;
+        final float b = 596 + CASE_H - 8;
         final Path bin = new Path();
-        bin.moveTo(30, 596); bin.lineTo(970, 596); bin.quadTo(992, 600, 994, 640);
-        bin.lineTo(996, b - 24); bin.quadTo(996, b, 972, b); bin.lineTo(28, b); bin.quadTo(4, b, 4, b - 24);
-        bin.lineTo(6, 640); bin.quadTo(8, 600, 30, 596); bin.close();
-        p.setColor(0x73000000); c.save(); c.translate(4, 8); c.drawPath(bin, p); c.restore();
+        bin.moveTo(30, 596); bin.lineTo(970, 596); bin.quadTo(992, 600, 994, 630);
+        bin.lineTo(996, b - 20); bin.quadTo(996, b, 976, b); bin.lineTo(24, b); bin.quadTo(4, b, 4, b - 20);
+        bin.lineTo(6, 630); bin.quadTo(8, 600, 30, 596); bin.close();
+        p.setColor(0x73000000); c.save(); c.translate(4, 6); c.drawPath(bin, p); c.restore();
         p.setShader(new LinearGradient(0, 596, 0, b, 0xffd2c7b6, 0xffaa9d88, Shader.TileMode.CLAMP)); c.drawPath(bin, p); p.setShader(null);
         p.setStrokeWidth(1.6f);
-        for (int i = 0; i < 5; ++i) { p.setColor(BEIGE_LINE); c.drawLine(440, 606 + i * 9, 960, 606 + i * 9, p); p.setColor(0xffe0d6c8); c.drawLine(440, 608 + i * 9, 960, 608 + i * 9, p); }
-        p.setColor(0xff8e8576); r.set(40, 610, 340, 644); c.drawRoundRect(r, 17, 17, p);
-        p.setColor(0xff595249); r.set(44, 613, 336, 641); c.drawRoundRect(r, 14, 14, p);
-        text(c, "omega", 62, 633, 17, 0xffded4c4, Paint.Align.LEFT);
-        rainbow(c, 160, 617, 90, 20);
-        text(c, "SID 64", 256, 633, 17, 0xffded4c4, Paint.Align.LEFT);
-        p.setColor(0xff595249); r.set(842, 640, 960, 658); c.drawRoundRect(r, 9, 9, p);
-        text(c, "POWER", 856, 653, 10, 0xffded4c4, Paint.Align.LEFT);
-        p.setColor(0xffe0241a); c.drawCircle(940, 649, 6, p);
-        p.setColor(0xff7d7262); r.set(kWell()); r.inset(-3, -3); c.drawRoundRect(r, 6, 6, p); r.set(fWell()); r.inset(-3, -3); c.drawRoundRect(r, 6, 6, p);
+        for (int i = 0; i < 4; ++i) { p.setColor(BEIGE_LINE); c.drawLine(440, 606 + i * 9, 820, 606 + i * 9, p); p.setColor(0xffe0d6c8); c.drawLine(440, 608 + i * 9, 820, 608 + i * 9, p); }
+        rrect(c, 40, 606, 340, 640, 17, 0xff8e8576);
+        rrect(c, 44, 609, 336, 637, 14, 0xff595249);
+        text(c, "omega", 62, 629, 17, 0xffded4c4, Paint.Align.LEFT);
+        rainbow(c, 160, 613, 90, 20);
+        text(c, "SID 64", 256, 629, 17, 0xffded4c4, Paint.Align.LEFT);
+        rrect(c, 842, 612, 960, 632, 10, 0xff595249);
+        text(c, "POWER", 856, 626, 10, 0xffded4c4, Paint.Align.LEFT);
+        p.setColor(0xffe0241a); c.drawCircle(940, 622, 6, p);
+        r.set(kWell()); r.inset(-3, -3); p.setColor(0xff7d7262); c.drawRoundRect(r, 6, 6, p);
+        r.set(fWell()); r.inset(-3, -3); c.drawRoundRect(r, 6, 6, p);
         p.setColor(0xff2c2622); c.drawRoundRect(kWell(), 5, 5, p); c.drawRoundRect(fWell(), 5, 5, p);
     }
     private void keycap(Canvas c, RectF k, int base, int top, boolean pressed) {
@@ -163,11 +208,9 @@ public class SidView extends View implements Choreographer.FrameCallback {
         p.setColor(base); c.drawRoundRect(a, 5, 5, p);
         final float ix = a.width() * 0.12f;
         r.set(a.left + ix, a.top + 3, a.right - ix, a.bottom - 3 - a.height() * 0.10f);
-        p.setShader(new LinearGradient(0, r.top, 0, r.bottom, pressed ? top : brighten(top), darken(top), Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(0, r.top, 0, r.bottom, pressed ? top : mix(top, 0xffffffff, 0.12f), mix(top, 0xff000000, 0.15f), Shader.TileMode.CLAMP));
         c.drawRoundRect(r, 4, 4, p); p.setShader(null);
     }
-    private static int brighten(int c) { return mix(c, 0xffffffff, 0.12f); }
-    private static int darken(int c) { return mix(c, 0xff000000, 0.15f); }
     private static int mix(int a, int b, float t) {
         final int ra = a >> 16 & 255, ga = a >> 8 & 255, ba = a & 255, rb = b >> 16 & 255, gb = b >> 8 & 255, bb = b & 255;
         return 0xff000000 | (int) (ra + (rb - ra) * t) << 16 | (int) (ga + (gb - ga) * t) << 8 | (int) (ba + (bb - ba) * t);
@@ -179,17 +222,19 @@ public class SidView extends View implements Choreographer.FrameCallback {
         c.save();
         c.translate(offX, offY);
         c.scale(scale, scale);
-        // the screen: crisp pixels, scanlines, the tube's darker edges and a reflection
+        // the screen: crisp pixels, scanlines, a little darkening at the tube's edges, the glass
+        c.save();
+        c.clipPath(glass);
+        c.drawBitmap(screen, null, screenArea, crisp);
+        p.setColor(0x1c000000);
+        for (float y = screenArea.top; y < screenArea.bottom; y += SSY) c.drawRect(screenArea.left, y + SSY * 0.62f, screenArea.right, y + SSY, p);
+        c.restore();
         c.save();
         c.clipPath(tube);
-        r.set(SX, SY, SX + SW * SS, SY + SH * SS);
-        c.drawBitmap(screen, null, r, crisp);
-        p.setColor(0x21000000);
-        p.setColor(0x1f000000);
-        for (float y = 44; y < 620; y += SS) c.drawRect(52, y + SS * 0.6f, 948, y + SS, p);
-        p.setShader(new RadialGradient(500, 332, 560, 0x00000000, 0x61000000, Shader.TileMode.CLAMP)); c.drawPath(tube, p);
-        p.setShader(new LinearGradient(120, 60, 420, 330, 0x14ffffff, 0x00ffffff, Shader.TileMode.CLAMP));
-        r.set(40, 30, 640, 350); c.drawOval(r, p); p.setShader(null);
+        final float cx = tubeRect.centerX(), cy = tubeRect.centerY(), rad = Math.max(tubeRect.width(), tubeRect.height()) * 0.62f;
+        p.setShader(new RadialGradient(cx, cy, rad, 0x00000000, 0x55000000, Shader.TileMode.CLAMP)); c.drawPath(tube, p);
+        p.setShader(new LinearGradient(tubeRect.left, tubeRect.top, tubeRect.left + 400, tubeRect.top + 500, 0x16ffffff, 0x00ffffff, Shader.TileMode.CLAMP));
+        r.set(tubeRect.left - 40, tubeRect.top - 40, tubeRect.left + 560, tubeRect.top + 420); c.drawOval(r, p); p.setShader(null);
         c.restore();
         c.save(); c.translate(0, KDY); drawKeys(c); c.restore();
         c.restore();
@@ -200,19 +245,19 @@ public class SidView extends View implements Choreographer.FrameCallback {
             if (isBlack(n)) continue;
             final RectF k = whiteRect(wi++);
             keycap(c, k, KEY_BROWN, KEY_BROWN_TOP, down[n]);
-            if (n % 12 == 0) text(c, "C" + (n / 12 - 1), k.centerX(), k.bottom - 12, 13, 0xccffffff, Paint.Align.CENTER);
+            if (n % 12 == 0) text(c, "C" + (n / 12 - 1), k.centerX(), k.bottom - 10, 12, 0xccffffff, Paint.Align.CENTER);
         }
         wi = 0;
         for (int n = base; wi < WHITE_KEYS; ++n) {
             if (!isBlack(n)) { ++wi; continue; }
-            keycap(c, blackRect(wi - 1), darken(darken(KEY_TAUPE)), KEY_TAUPE_TOP, down[n]);
+            keycap(c, blackRect(wi - 1), mix(KEY_TAUPE, 0xff000000, 0.3f), KEY_TAUPE_TOP, down[n]);
         }
         final boolean playing = Native.seqRunning();
         for (int i = 0; i < 4; ++i) {
             final RectF k = fkeyRect(i);
             keycap(c, k, KEY_TAUPE, KEY_TAUPE_TOP, fkeyDown == i);
-            text(c, "f" + (i * 2 + 1), k.centerX(), k.centerY() - 2, 15, 0xddffffff, Paint.Align.CENTER);
-            text(c, i == 0 && playing ? "STOP" : FKEY[i], k.centerX(), k.centerY() + 16, 11, 0xddffffff, Paint.Align.CENTER);
+            text(c, "f" + (i * 2 + 1), k.centerX(), k.centerY() - 3, 13, 0xddffffff, Paint.Align.CENTER);
+            text(c, i == 0 && playing ? "STOP" : FKEY[i], k.centerX(), k.centerY() + 12, 9, 0xddffffff, Paint.Align.CENTER);
         }
     }
 
@@ -251,25 +296,27 @@ public class SidView extends View implements Choreographer.FrameCallback {
         }
     }
     private void releaseAll() { for (int n = 0; n < 128; ++n) if (down[n]) { down[n] = false; Native.noteOff(n); } pointerNote.clear(); }
+    private float scrX(float x) { return (x - SX) / SS; }
+    private float scrY(float y) { return (y - SY) / SSY; }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
         final int action = e.getActionMasked();
         for (int i = 0; i < e.getPointerCount(); ++i) {
             final int id = e.getPointerId(i);
-            final float x = (e.getX(i) - offX) / scale, y = (e.getY(i) - offY) / scale;
+            final float x = (e.getX(i) - offX) / scale, y = (e.getY(i) - offY) / scale, ky = y - KDY;
             final boolean isThis = e.getActionIndex() == i;
             if ((action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) && isThis) {
-                if (screenRect.contains(x, y)) { pointerKind.put(id, 1); Native.touch(0, (x - SX) / SS, (y - SY) / SS); }
-                else if (fkeyAt(x, y - KDY) >= 0) { pointerKind.put(id, 3); fkeyDown = fkeyAt(x, y - KDY); fkey(fkeyDown); }
-                else { pointerKind.put(id, 2); setNote(id, noteAt(x, y - KDY), y - KDY); }
+                if (tubeRect.contains(x, y)) { pointerKind.put(id, 1); Native.touch(0, scrX(x), scrY(y)); }
+                else if (fkeyAt(x, ky) >= 0) { pointerKind.put(id, 3); fkeyDown = fkeyAt(x, ky); fkey(fkeyDown); }
+                else { pointerKind.put(id, 2); setNote(id, noteAt(x, ky), ky); }
             } else if (action == MotionEvent.ACTION_MOVE) {
                 final int kind = pointerKind.get(id, 0);
-                if (kind == 1) Native.touch(1, (x - SX) / SS, (y - SY) / SS);
-                else if (kind == 2) setNote(id, noteAt(x, y - KDY), y - KDY);   // slide across the keys
+                if (kind == 1) Native.touch(1, scrX(x), scrY(y));
+                else if (kind == 2) setNote(id, noteAt(x, ky), ky);   // slide across the keys
             } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP || action == MotionEvent.ACTION_CANCEL) && (isThis || action == MotionEvent.ACTION_CANCEL)) {
                 final int kind = pointerKind.get(id, 0);
-                if (kind == 1) Native.touch(2, (x - SX) / SS, (y - SY) / SS);
-                else if (kind == 2) { setNote(id, -1, y); pointerNote.delete(id); }
+                if (kind == 1) Native.touch(2, scrX(x), scrY(y));
+                else if (kind == 2) { setNote(id, -1, ky); pointerNote.delete(id); }
                 else if (kind == 3) fkeyDown = -1;
                 pointerKind.delete(id);
             }
@@ -280,7 +327,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
     @Override public boolean onGenericMotionEvent(MotionEvent e) {
         if (e.getAction() == MotionEvent.ACTION_SCROLL) {
             final float x = (e.getX() - offX) / scale, y = (e.getY() - offY) / scale;
-            if (screenRect.contains(x, y)) { Native.wheel((x - SX) / SS, (y - SY) / SS, e.getAxisValue(MotionEvent.AXIS_VSCROLL)); return true; }
+            if (tubeRect.contains(x, y)) { Native.wheel(scrX(x), scrY(y), e.getAxisValue(MotionEvent.AXIS_VSCROLL)); return true; }
         }
         return super.onGenericMotionEvent(e);
     }
