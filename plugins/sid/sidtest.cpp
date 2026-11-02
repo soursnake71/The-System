@@ -86,6 +86,33 @@ int main(int argc, char** argv) {
         CHECK(lvl[1] > lvl[0] * 8, "%s filter barely changes the sound", model ? "8580" : "6581");
     }
 
+    // the mixer: mute, solo, level and pan
+    {
+        auto level = [&](const std::function<void(Synth&)>& setup, double& l, double& r) {
+            s->panic(); s->initPatch();
+            s->set(P::o2on, 1); s->set(P::o2saw, 0); s->set(P::o2pul, 1); s->set(P::o2s, 15);
+            s->set(P::o1s, 15); s->set(P::o2flt, 1); s->set(P::mode, 1);
+            setup(*s);
+            auto o = run(*s, fs, 0.5, [](Synth& x, int b) { if (b == 0) x.noteOn(57, 1); });
+            l = r = 0; for (int i = fs / 5; i < fs / 2; ++i) { l += o.l[(size_t) i] * o.l[(size_t) i]; r += o.r[(size_t) i] * o.r[(size_t) i]; }
+            s->noteOff(57); run(*s, fs, 0.4, [](Synth&, int) {});
+        };
+        double l0, r0, l1, r1, l2, r2, l3, r3, l4, r4;
+        level([](Synth&) {}, l0, r0);
+        level([](Synth& x) { x.set(P::m1mute, 1); x.set(P::mfmute, 1); }, l1, r1);
+        level([](Synth& x) { x.set(P::m1pan, -1); x.set(P::mfmute, 1); }, l2, r2);
+        level([](Synth& x) { x.set(P::m1lvl, -12); x.set(P::mfmute, 1); }, l3, r3);
+        level([](Synth& x) { x.set(P::mfsolo, 1); }, l4, r4);
+        double l5, r5; level([](Synth& x) { x.set(P::mfmute, 1); }, l5, r5);
+        std::printf("mixer: all %.4f, muted %.6f, osc 1 panned left L/R %.4f/%.6f, -12 dB %.2f dB, filter solo %.4f\n",
+                    l0 + r0, l1 + r1, l2, r2, 10 * std::log10((l3 + r3) / (l5 + r5)), l4 + r4);
+        CHECK(l1 + r1 < (l0 + r0) * 1e-4, "mute leaves sound");
+        CHECK(r2 < l2 * 1e-3, "hard-left pan leaks right");
+        CHECK(std::fabs(10 * std::log10((l3 + r3) / (l5 + r5)) + 12) < 0.5, "-12 dB fader is off");
+        CHECK(l4 + r4 > 0 && l4 + r4 < (l0 + r0) * 0.9, "filter solo should drop the direct oscillator");
+        s->initPatch();
+    }
+
     // every preset: a chord, held then released
     int quiet = 0, loud = 0;
     for (int i = 0; i < presetCount(); ++i) {

@@ -1,6 +1,6 @@
 // Omega SID 64: the C64 screen. A 40 x 25 text screen at 320 x 200 pixels in the C64's 16 colours, shared by the
 // plugin and the Android app (each draws the monitor and the keyboard around it and passes pointer events in
-// screen pixels). Pages: PRG (presets), OS1-OS3, FLT, MOD, ARP (arp + echo), CHP (chip), SEQ (tracker), SCP (scope).
+// screen pixels). Pages: PRG (presets), OS1-OS3, FLT, MOD, ARP (arp + echo), CHP (chip), MIX (mixer + scope), SEQ (tracker).
 //
 // Touch: tap a tab, a preset, a toggle. Drag along a bar to set it; drag on a name or value for fine changes;
 // tap a choice to step it (drag to scroll through). Double-tap a value for its default. In the sequencer, tap a
@@ -67,7 +67,10 @@ public:
                 px[(y0 + y) * W + x0 + x] = fill ? on : (y == 0 || y == 5 || x == 0 || x == w - 1) ? off : bg;
             }
         }
-        if (page == 9) drawScope(px);
+        for (const Rect& q : rects)
+            for (int y = std::max(0, q.y); y < std::min(H, q.y + q.h); ++y)
+                for (int x = std::max(0, q.x); x < std::min(W, q.x + q.w); ++x) px[y * W + x] = q.col;
+        if (page == 8) drawScope(px, 21 * 8 + 1, 15);
     }
 
     // ---- pointer, in screen pixels ----
@@ -75,8 +78,10 @@ public:
         downX = lastX = x; downY = lastY = y; moved = false;
         hit = zoneAt(x, y);
         if (hit.kind == Z_PBAR) setFromBar(hit, x);
-        startNorm = hit.a >= 0 && hit.kind >= Z_PNAME && hit.kind <= Z_PBAR ? toNorm(hit.a, host.get(hit.a)) : 0;
-        startVal = hit.a >= 0 && hit.kind >= Z_PNAME && hit.kind <= Z_PBAR ? host.get(hit.a) : 0;
+        if (hit.kind == Z_VFADER) setFromFader(hit.a, y);
+        const bool isParam = hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER);
+        startNorm = isParam ? toNorm(hit.a, host.get(hit.a)) : 0;
+        startVal = isParam ? host.get(hit.a) : 0;
         if (hit.kind == Z_STEP_NOTE) { Step s = host.synth().step(curPat(), hit.a); startVal = (float) s.note; }
         if (hit.kind == Z_LIST || hit.kind == Z_PRESET) startVal = (float) listScroll;
         if (hit.kind == Z_PATLIST || hit.kind == Z_PATITEM) startVal = (float) patScroll;
@@ -88,6 +93,7 @@ public:
         const float dx = x - downX, dy = y - downY;
         switch (hit.kind) {
             case Z_PBAR: setFromBar(hit, x); break;
+            case Z_VFADER: setFromFader(hit.a, y); break;
             case Z_PNAME: case Z_PVAL: {
                 const ParamInfo& p = params()[hit.a];
                 if (p.kind == CHOICE || (p.kind == INT && p.max - p.min <= 32)) host.set(hit.a, std::clamp(std::round(startVal + dx / 12.f), p.min, p.max));
@@ -134,10 +140,13 @@ private:
     Host& host;
     struct Cell { char ch = ' '; uint8_t fg = LBLUE; bool inv = false; };
     Cell cell[ROWS][COLS];
-    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM };
+    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER };
     struct Zone { int r = -1, c0 = 0, c1 = 0, kind = Z_NONE, a = -1; };
     struct Bar { int r, c0, c1; float frac; uint8_t col; bool center; };
-    std::vector<Zone> zones; std::vector<Bar> bars;
+    struct Rect { int x, y, w, h; uint32_t col; };
+    std::vector<Zone> zones; std::vector<Bar> bars; std::vector<Rect> rects;
+    static constexpr int FADER_TOP = 7 * 8, FADER_BOT = 18 * 8;   // the mixer's faders, in pixels
+    static constexpr uint32_t DIM = 0xFF2A2066;
     std::vector<std::string> cats;
     int cat = 0, listScroll = 0, patScroll = 0; bool patList = false;
     uint64_t frame = 0, msgUntil = 0; std::string msg;
@@ -153,7 +162,7 @@ private:
     int catSize() { int n = 0; for (int i = 0; i < presetCount(); ++i) if (cats[(size_t) cat] == PRESETS[i].cat) ++n; return n; }
 
     // ---------------- text ----------------
-    void clear() { for (auto& r : cell) for (auto& c : r) c = Cell {}; zones.clear(); bars.clear(); }
+    void clear() { for (auto& r : cell) for (auto& c : r) c = Cell {}; zones.clear(); bars.clear(); rects.clear(); }
     void put(int r, int c, const std::string& s, uint8_t col = LBLUE, bool inv = false) {
         if (r < 0 || r >= ROWS) return;
         for (size_t i = 0; i < s.size() && c + (int) i < COLS; ++i) if (c + (int) i >= 0) cell[r][c + (int) i] = { s[i], col, inv };
@@ -224,7 +233,7 @@ private:
         if ((frame / 20) % 2 == 0) put(2, 6, "{", LBLUE);
         if (s.seqRunning()) put(2, 30, "{ RUNNING", LGREEN);
         // tabs
-        static const char* tabs[10] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "CHP", "SEQ", "SCP" };
+        static const char* tabs[10] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "CHP", "MIX", "SEQ" };
         for (int t = 0; t < 10; ++t) { put(3, t * 4, tabs[t], t == page ? BLUE : LBLUE, false); if (t == page) for (int k = 0; k < 3; ++k) { cell[3][t * 4 + k].inv = true; cell[3][t * 4 + k].fg = WHITE; } zone(3, t * 4, t * 4 + 3, Z_TAB, t); }
         switch (page) {
             case 0: pagePresets(); break;
@@ -233,14 +242,14 @@ private:
             case 5: pageMod(); break;
             case 6: pageArp(); break;
             case 7: pageChip(); break;
-            case 8: if (patList) pagePatterns(); else pageSeq(); break;
-            default: pageScope(); break;
+            case 8: pageMix(); break;
+            default: if (patList) pagePatterns(); else pageSeq(); break;
         }
         // help / messages
-        if (page == 8 && !patList) return;   // the tracker uses the whole screen
+        if (page == 9 && !patList) return;   // the tracker uses the whole screen
         {
             if (frame < msgUntil) put(23, 0, pad(msg, 40), WHITE);
-            else put(23, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 9 ? "THE FIRST PLAYING SID, LIVE." : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
+            else put(23, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
         }
         // the preset line
         char pl[64];
@@ -402,14 +411,82 @@ private:
         }
         for (int r = 6; r < 6 + LIST_ROWS; ++r) zones.insert(zones.begin(), Zone { r, 0, 39, Z_PATLIST, 0 });
     }
-    void pageScope() {
-        put(5, 1, "OUTPUT", GREY);
-        regDump(17);
-        put(22, 1, "PATCH: " + host.synth().presetName, GREY);
+    // ---------------- the mixer ----------------
+    void setFromFader(int id, float y) {
+        host.set(id, fromNorm(id, (FADER_BOT - y) / (float) (FADER_BOT - FADER_TOP)));
     }
-    void drawScope(uint32_t* px) {
+    static std::string dbText(float v) {
+        char b[16];
+        if (v <= -47.9f) return "-INF";
+        std::snprintf(b, sizeof b, std::fabs(v) < 9.95f ? "%+.1f" : "%+.0f", v); return b;
+    }
+    static std::string panText(float v) {
+        char b[16]; const int p = (int) std::lround(v * 100);
+        if (std::abs(p) < 2) return " C";
+        std::snprintf(b, sizeof b, "%c%d", p < 0 ? 'L' : 'R', std::abs(p)); return b;
+    }
+    // a vertical fader in pixel columns x..x+w
+    void fader(int x, int w, int id, uint8_t fill) {
+        const int h = FADER_BOT - FADER_TOP, pos = (int) std::lround(toNorm(id, host.get(id)) * (h - 3));
+        rects.push_back({ x, FADER_TOP, w, h, DIM });
+        rects.push_back({ x + w / 2 - 1, FADER_TOP + 1, 2, h - 2, 0xFF1A1450 });   // the slot
+        // 0 dB mark for the level faders
+        const ParamInfo& p = params()[id];
+        if (p.min < 0 && p.max > 0) { const int z = FADER_BOT - 2 - (int) std::lround(toNorm(id, 0) * (h - 3)); rects.push_back({ x - 2, z, 2, 1, PALETTE[GREY] }); }
+        rects.push_back({ x + 1, FADER_BOT - 1 - pos, w - 2, pos, PALETTE[fill] });
+        rects.push_back({ x, FADER_BOT - 3 - pos, w, 3, PALETTE[WHITE] });            // the cap
+    }
+    // a peak meter as LED segments: green, yellow from -6 dB, red from -1 dB
+    void meter(int x, int w, float peak) {
+        const float db = peak > 1e-6f ? 20.f * std::log10(peak) : -100.f;
+        const float frac = std::clamp((db + 48.f) / 54.f, 0.f, 1.f);
+        const int h = FADER_BOT - FADER_TOP, lit = (int) std::lround(frac * h);
+        for (int y = 0; y + 2 <= h; y += 3) {
+            const float at = (y + 1.f) / h;
+            const float dbAt = at * 54.f - 48.f;
+            const uint32_t on = dbAt > -1 ? PALETTE[LRED] : dbAt > -6 ? PALETTE[YELLOW] : PALETTE[LGREEN];
+            rects.push_back({ x, FADER_BOT - y - 2, w, 2, y < lit ? on : DIM });
+        }
+    }
+    void strip(int c, const char* name, int lvl, int pan, int mute, int solo, int meterIdx) {
         Synth& s = host.synth();
-        const int y0 = 6 * 8, h = 10 * 8, x0 = 8, w = W - 16;
+        put(5, c, name, WHITE);
+        const ParamInfo& lp = params()[lvl];
+        put(6, c, lp.unit[0] == 'D' ? dbText(host.get(lvl)) : std::to_string((int) std::lround(host.get(lvl) * 100)) + "%", YELLOW);
+        zone(6, c, c + 4, Z_PVAL, lvl);
+        const int x = c * 8;
+        fader(x + 2, 14, lvl, LBLUE);
+        if (meterIdx == Synth::M_OUTL) { meter(x + 20, 7, s.meters[Synth::M_OUTL].load()); meter(x + 29, 7, s.meters[Synth::M_OUTR].load()); }
+        else meter(x + 22, 10, s.meters[(size_t) meterIdx].load());
+        for (int r = 7; r < 18; ++r) zone(r, c, c + 2, Z_VFADER, lvl);
+        if (pan >= 0) {
+            // the pan: a little track with the position marked
+            const float pv = host.get(pan);
+            rects.push_back({ x + 2, 18 * 8 + 2, 36, 4, DIM });
+            rects.push_back({ x + 19, 18 * 8 + 1, 2, 6, PALETTE[GREY] });
+            rects.push_back({ x + 2 + (int) std::lround((pv + 1) * 0.5f * 32), 18 * 8, 4, 8, PALETTE[CYAN] });
+            put(19, c + 1, panText(pv), CYAN);
+            zone(18, c, c + 4, Z_PVAL, pan); zone(19, c, c + 4, Z_PVAL, pan);
+        }
+        if (mute >= 0) { const bool m = host.get(mute) > .5f; put(20, c + 1, "M", m ? LRED : GREY, m); zone(20, c, c + 1, Z_PVAL, mute); }
+        if (solo >= 0) { const bool so = host.get(solo) > .5f; put(20, c + 3, "S", so ? YELLOW : GREY, so); zone(20, c + 3, c + 4, Z_PVAL, solo); }
+    }
+    void pageMix() {
+        strip(0, "OSC1", P::m1lvl, P::m1pan, P::m1mute, P::m1solo, Synth::M_OSC1);
+        strip(6, "OSC2", P::m2lvl, P::m2pan, P::m2mute, P::m2solo, Synth::M_OSC2);
+        strip(12, "OSC3", P::m3lvl, P::m3pan, P::m3mute, P::m3solo, Synth::M_OSC3);
+        strip(18, "FILT", P::mflvl, P::mfpan, P::mfmute, P::mfsolo, Synth::M_FILTER);
+        strip(26, "ECHO", P::emix, -1, P::emute, -1, Synth::M_ECHO);
+        strip(33, "MAIN", P::gain, -1, -1, -1, Synth::M_OUTL);
+        put(19, 26, "RET", GREY); put(19, 33, "L R", GREY);
+        // the channels that aren't sounding: an oscillator that's off, the filter with nothing routed into it
+        for (int o = 0; o < 3; ++o) if (host.get(P::o1on + o * (P::o2on - P::o1on)) < .5f) for (int k = 0; k < 4; ++k) cell[5][o * 6 + k].fg = DGREY;
+        if (!(host.get(P::o1flt) > .5f || host.get(P::o2flt) > .5f || host.get(P::o3flt) > .5f)) put(19, 19, " -- ", DGREY);
+        for (int r = 5; r <= 20; ++r) { put(r, 24, "|", DGREY); put(r, 31, "|", DGREY); }
+    }
+    void drawScope(uint32_t* px, int y0, int h) {
+        Synth& s = host.synth();
+        const int x0 = 8, w = W - 16;
         const uint32_t grid = 0xFF2A2066, line = PALETTE[LGREEN];
         for (int x = x0; x < x0 + w; x += 2) px[(y0 + h / 2) * W + x] = grid;
         // trigger on a rising zero crossing so the wave stands still
@@ -440,12 +517,12 @@ private:
                 if (pz.kind == Z_PRESET) { host.loadPreset(pz.a); message("LOAD\"" + std::string(PRESETS[pz.a].name) + "\",8,1"); if (onPresetChanged) onPresetChanged(); }
                 break;
             }
-            case Z_PNAME: case Z_PVAL: case Z_PBAR: {
+            case Z_PNAME: case Z_PVAL: case Z_PBAR: case Z_VFADER: {
                 const ParamInfo& p = params()[z.a];
                 if (lastTapParam == z.a && frame - lastTapFrame < 12 && p.kind != TOGGLE) { host.set(z.a, p.def); lastTapParam = -1; break; }
                 lastTapParam = z.a; lastTapFrame = frame;
                 if (p.kind == TOGGLE) host.set(z.a, host.get(z.a) > .5f ? 0.f : 1.f);
-                else if (p.kind == CHOICE && z.kind != Z_PBAR) { const float n = host.get(z.a) + 1; host.set(z.a, n > p.max ? p.min : n); }
+                else if (p.kind == CHOICE && z.kind != Z_PBAR && z.kind != Z_VFADER) { const float n = host.get(z.a) + 1; host.set(z.a, n > p.max ? p.min : n); }
                 break;
             }
             case Z_STEP_NOTE: { Step st = s.step(curPat(), z.a); st.on = !st.on; s.setStep(curPat(), z.a, st); break; }

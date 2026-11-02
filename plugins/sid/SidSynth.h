@@ -96,6 +96,23 @@ struct ParamInfo {
     X(ediv,   "ECHO DIVISION", "ECHO", 0, 5, 2, CHOICE, "1/4|1/8.|1/8|1/8T|1/16|1/16.", 1, "", 1) \
     X(efb,    "ECHO FEEDBACK", "ECHO", 0, 0.9f, 0.35f, CONT, "", 1, "", 1) \
     X(etone,  "ECHO TONE",     "ECHO", 0, 1, 0.5f, CONT, "", 1, "", 1) \
+    X(m1lvl,  "OSC 1 LEVEL",   "MIX", -48, 6, 0, CONT, "", 1, "DB", 1) \
+    X(m2lvl,  "OSC 2 LEVEL",   "MIX", -48, 6, 0, CONT, "", 1, "DB", 1) \
+    X(m3lvl,  "OSC 3 LEVEL",   "MIX", -48, 6, 0, CONT, "", 1, "DB", 1) \
+    X(mflvl,  "FILTER LEVEL",  "MIX", -48, 6, 0, CONT, "", 1, "DB", 1) \
+    X(m1pan,  "OSC 1 PAN",     "MIX", -1, 1, 0, CONT, "", 1, "", 1) \
+    X(m2pan,  "OSC 2 PAN",     "MIX", -1, 1, 0, CONT, "", 1, "", 1) \
+    X(m3pan,  "OSC 3 PAN",     "MIX", -1, 1, 0, CONT, "", 1, "", 1) \
+    X(mfpan,  "FILTER PAN",    "MIX", -1, 1, 0, CONT, "", 1, "", 1) \
+    X(m1mute, "OSC 1 MUTE",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(m2mute, "OSC 2 MUTE",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(m3mute, "OSC 3 MUTE",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(mfmute, "FILTER MUTE",   "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(m1solo, "OSC 1 SOLO",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(m2solo, "OSC 2 SOLO",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(m3solo, "OSC 3 SOLO",    "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(mfsolo, "FILTER SOLO",   "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(emute,  "ECHO MUTE",     "MIX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
     X(bpm,    "TEMPO",         "SEQ", 40, 240, 120, CONT, "", 1, "BPM", 0) \
     X(srate,  "STEP RATE",     "SEQ", 0, 3, 1, CHOICE, "1/8|1/16|1/16T|1/32", 1, "", 0) \
     X(swing,  "SWING",         "SEQ", 0, 0.75f, 0, CONT, "", 1, "", 0) \
@@ -248,6 +265,7 @@ public:
         for (auto& p : pat) for (auto& s : p) s.store(packStep(Step {}));
         for (int i = 0; i < 16 && i < patternPresetCount(); ++i) loadPatternPreset(i, i);
         for (auto& s : scope) s.store(0);
+        for (auto& m : meters) m.store(0);
         for (auto& r : regs) r.store(0);
     }
 
@@ -393,6 +411,9 @@ public:
     std::array<std::atomic<float>, 512> scope; std::atomic<int> scopeW { 0 };
     std::array<std::atomic<int>, 25> regs;   // the first chip's registers, $D400-$D418
     std::atomic<int> activeVoices { 0 };
+    // mixer meters (peak, linear, falling back over ~300 ms): OSC 1-3, FILTER, ECHO return, OUT L, OUT R
+    enum { M_OSC1, M_OSC2, M_OSC3, M_FILTER, M_ECHO, M_OUTL, M_OUTR, M_COUNT };
+    std::array<std::atomic<float>, M_COUNT> meters;
 
     // ---- state ----
     std::string saveState() const {
@@ -768,6 +789,30 @@ private:
         c.mode = (uint8_t) ((on(P::lp) ? 0x10 : 0) | (on(P::bp) ? 0x20 : 0) | (on(P::hp) ? 0x40 : 0) | (on(P::off3) ? 0x80 : 0));
         c.vol = (uint8_t) std::clamp(iv(P::vol), 0, 15);
         c.updateFilter();
+        applyMixer(c);
+    }
+
+
+    // the mixer's gains for one chip. Solo: only soloed channels are heard; soloing the filter keeps the voices
+    // routed into it feeding it (their direct paths go quiet), and soloing a filtered voice keeps the filter open.
+    void applyMixer(Chip& c) {
+        static const int lvl[3] = { P::m1lvl, P::m2lvl, P::m3lvl }, pan[3] = { P::m1pan, P::m2pan, P::m3pan };
+        static const int mute[3] = { P::m1mute, P::m2mute, P::m3mute }, solo[3] = { P::m1solo, P::m2solo, P::m3solo };
+        const bool soloF = on(P::mfsolo);
+        bool anySolo = soloF, soloRouted = false;
+        for (int i = 0; i < 3; ++i) if (on(solo[i])) { anySolo = true; if (c.filt >> i & 1) soloRouted = true; }
+        auto db = [](float d) { return d <= -47.9f ? 0.f : std::pow(10.f, d / 20.f); };
+        auto panGains = [](float p, float& l, float& r) { const float a = (p + 1) * 0.25f * (float) kPi; l = std::cos(a); r = std::sin(a); };
+        for (int i = 0; i < 3; ++i) {
+            const bool routed = c.filt >> i & 1;
+            const bool heard = !on(mute[i]) && (!anySolo || on(solo[i]) || (soloF && routed));
+            c.vgain[i] = heard ? db(get(lvl[i])) : 0.f;
+            // soloing the filter silences the direct paths of voices that aren't routed into it
+            panGains(get(pan[i]), c.vpl[i], c.vpr[i]);
+        }
+        const bool fHeard = !on(P::mfmute) && (!anySolo || soloF || soloRouted);
+        c.fgain = fHeard ? db(get(P::mflvl)) : 0.f;
+        panGains(get(P::mfpan), c.fpl, c.fpr);
     }
 
     // ---------------- sequencer ----------------
@@ -832,7 +877,7 @@ private:
     std::vector<float> firCoef[3]; std::vector<float> firBuf[2]; int firPos = 0;
     double extHp[2] {}, extLp[2] {}, extHpA = 0.999, extLpA = 0.5, extIn[2] {};
     std::vector<float> echoL, echoR; int echoW = 0; float echoLpL = 0, echoLpR = 0;
-    float outGain = 1;
+    float pkEcho = 0, pkL = 0, pkR = 0;
 
     void designFir(int q) {
         const int os = 2 << q, taps = 24 * os;
@@ -870,8 +915,8 @@ private:
                 for (int i = 0; i < nv; ++i) {
                     NVoice& v = voices[i];
                     if (v.asleep) continue;
-                    const float y = v.chip.tick() * v.level;
-                    l += y * v.panL; r += y * v.panR;
+                    float cl, cr; v.chip.tick(cl, cr);
+                    l += cl * v.level * v.panL * 1.41421356f; r += cr * v.level * v.panR * 1.41421356f;
                 }
                 // C64 board: 10 uF / 1 k high-pass, 10 k / 1 nF low-pass on the audio output
                 float ch[2] = { l, r };
@@ -895,11 +940,29 @@ private:
             echoL[(size_t) echoW] = yl + echoLpR * efb;     // ping-pong
             echoR[(size_t) echoW] = yr + echoLpL * efb;
             if (++echoW >= (int) echoL.size()) echoW = 0;
-            yl += emix * echoLpL; yr += emix * echoLpR;
+            const float ret = on(P::emute) ? 0.f : emix;
+            yl += ret * echoLpL; yr += ret * echoLpR;
+            pkEcho = std::max(pkEcho, std::max(std::fabs(ret * echoLpL), std::fabs(ret * echoLpR)));
             yl = ftanh(yl * g * 1.6f) / 1.6f * 1.f; yr = ftanh(yr * g * 1.6f) / 1.6f;
             L[k] = yl; R[k] = yr;
+            pkL = std::max(pkL, std::fabs(yl)); pkR = std::max(pkR, std::fabs(yr));
             const int w = scopeW.load(std::memory_order_relaxed);
             scope[(size_t) (w & 511)].store(0.5f * (yl + yr), std::memory_order_relaxed); scopeW.store(w + 1, std::memory_order_relaxed);
+        }
+        // meters: the loudest chip for each channel, with a ~300 ms fall
+        {
+            float pk[M_COUNT] {};
+            for (auto& v : voices) {
+                for (int i = 0; i < 3; ++i) { pk[i] = std::max(pk[i], v.chip.vpk[i] * v.level); v.chip.vpk[i] = 0; }
+                pk[M_FILTER] = std::max(pk[M_FILTER], v.chip.fpk * v.level); v.chip.fpk = 0;
+            }
+            // voice and filter peaks are inside the chip, before its volume and output scaling
+            const float chipScale = (float) (iv(P::vol) / 15.0 * 0.72) * g;
+            for (int i = 0; i <= M_FILTER; ++i) pk[i] *= chipScale;
+            pk[M_ECHO] = pkEcho * g; pk[M_OUTL] = pkL; pk[M_OUTR] = pkR;
+            pkEcho = pkL = pkR = 0;
+            const float fall = std::exp(-(float) n / (float) (fs * 0.3));
+            for (int i = 0; i < M_COUNT; ++i) meters[(size_t) i].store(std::max(pk[i], meters[(size_t) i].load(std::memory_order_relaxed) * fall), std::memory_order_relaxed);
         }
         // chips that have finished go to sleep
         for (auto& v : voices) if (!v.asleep && !v.anyGate() && v.chip.silent()) { v.asleep = true; v.chip.reset(); }

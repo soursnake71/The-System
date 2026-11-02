@@ -226,6 +226,11 @@ public:
     double curve = 0;      // 6581 chip-to-chip cutoff variation: -1 dark ... +1 bright
     double drive = 0.4;    // how much the signal moves the filter's FET resistors (6581) / op-amp clipping
     double clock = PAL_CLOCK;
+    // the mixer (outside the chip): each voice's level before it reaches the filter, the pan of its direct path,
+    // and the filter output's level and pan (equal-power gains, 0.707 each at centre); peaks for the meters
+    float vgain[3] { 1, 1, 1 }, vpl[3] { .7071f, .7071f, .7071f }, vpr[3] { .7071f, .7071f, .7071f };
+    float fgain = 1, fpl = .7071f, fpr = .7071f;
+    float vpk[3] {}, fpk = 0;
 
     void setRate(double internalRate) { fsI = internalRate; cyclesPerTick = clock / fsI; updateFilter(); }
     void setClock(double c) { clock = c; setRate(fsI); }
@@ -254,8 +259,8 @@ public:
         g = std::tan(kPi * hz / fsI);
     }
 
-    // one internal sample: advance every part of the chip by cyclesPerTick and return the audio output
-    float tick() {
+    // one internal sample: advance every part of the chip by cyclesPerTick; the stereo output goes to L / R
+    void tick(float& L, float& R) {
         cycAcc += cyclesPerTick;
         const int whole = (int) cycAcc; cycAcc -= whole;
         const double cyc = cyclesPerTick;
@@ -270,7 +275,7 @@ public:
         const Tables& T = Tables::get();
         const int m = model;
         const double zero = m == MOS6581 ? T.wave[0][0x380] : 0.5;
-        double direct = 0, fin = 0;
+        double dl = 0, dr = 0, fin = 0;
         for (int i = 0; i < 3; ++i) {
             Voice& x = v[i];
             const uint32_t w = x.wave12(m, (uint32_t) v[(i + 2) % 3].acc);
@@ -287,9 +292,11 @@ public:
                     y += 0.5 * polyBlep(p2, dt);
                 }
             }
-            const double out = (y - zero) * T.env[m][x.env.level];
+            const double out = (y - zero) * T.env[m][x.env.level] * vgain[i];
             if (filt >> i & 1) fin += out;
-            else if (!(i == 2 && (mode & 0x80))) direct += out;
+            else if (!(i == 2 && (mode & 0x80))) { dl += out * vpl[i]; dr += out * vpr[i]; }
+            else continue;
+            vpk[i] = std::max(vpk[i], (float) std::fabs(out));
         }
         // the summing node in front of the filter: resistive mixing, and on the 6581 an op-amp that runs out of swing
         fin *= 0.6;
@@ -297,10 +304,12 @@ public:
         double outF = 0;
         if (filt & 7) outF = filterTick(fin);
         else { s1 *= 0.999; s2 *= 0.999; }
-        double mix = direct * 0.6 + outF;
-        // master volume: a 4-bit multiplying DAC
-        mix *= vol / 15.0;
-        return (float) (mix * 0.72);
+        outF *= fgain;
+        fpk = std::max(fpk, (float) std::fabs(outF));
+        // master volume: a 4-bit multiplying DAC (the stereo split is the mixer's; the chip's output is mono)
+        const double outG = vol / 15.0 * 0.72 * 1.41421356;
+        L = (float) ((dl * 0.6 + outF * fpl) * outG);
+        R = (float) ((dr * 0.6 + outF * fpr) * outG);
     }
 
 private:
