@@ -15,9 +15,8 @@ import android.view.Choreographer;
 import android.view.MotionEvent;
 import android.view.View;
 
-/** The whole app in one view: a 1701-style monitor that takes almost all of it, and a slim breadbin keyboard strip.
- *  The monitor's screen is the C64 screen drawn by the native side; on a tall phone it gets more text rows (square
- *  pixels, up to 80 rows) rather than stretched ones. Laid out 1000 units wide; the height follows the phone. */
+/** The whole app in one view: a 1701 monitor on a desk with a slim breadbin keyboard strip in front of it.
+ *  The monitor's screen is the C64 screen (25 rows, drawn by the native side) in a 4:3 tube, as on a 1701. */
 public class SidView extends View implements Choreographer.FrameCallback {
     private static final int SW = 320, MAX_ROWS = 80;
     private float CASE_H = 250;                                // the keyboard strip, in design units (slimmer sideways)
@@ -73,26 +72,30 @@ public class SidView extends View implements Choreographer.FrameCallback {
     }
 
     // ---------------- layout ----------------
+    // The set as on a desk: a 1701 (nearly square, a 4:3 tube showing the C64's 25 rows and its border) with the
+    // breadbin strip in front, scaled to fit and centred. Design units: 1000 wide.
+    private static final float TUBE_W = 832, TUBE_H = 624, MON_BOTTOM = 890;
     @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
         final boolean sideways = w > h;
-        CASE_H = sideways ? 205 : 250; PANEL_H = sideways ? 62 : 150;
-        scale = Math.min(w / 1000f, h / (sideways ? 900f : 1030f));
-        T = h / scale;
-        offX = (w - 1000 * scale) / 2; offY = 0;
-        // the monitor fills everything above the keyboard strip
-        final float monBottom = T - CASE_H - 6, panelTop = monBottom - PANEL_H, tubeBottom = panelTop - 40;
-        tubeRect.set(84, 76, 916, tubeBottom);
+        CASE_H = sideways ? 205 : 250; PANEL_H = 150;
+        final float contentH = MON_BOTTOM + 6 + CASE_H;
+        scale = Math.min(w / 1000f, h / contentH);
+        T = contentH;
+        offX = (w - 1000 * scale) / 2; offY = (h - contentH * scale) / 2;
+        final float monBottom = MON_BOTTOM, panelTop = monBottom - PANEL_H, tubeBottom = panelTop - 40;
+        tubeRect.set(84, tubeBottom - TUBE_H, 84 + TUBE_W, tubeBottom);
         tube.reset(); tube.addRoundRect(tubeRect, 54, 54, Path.Direction.CW);
-        // a thick light-blue border, then the screen: 40 columns across, as many rows as fit with square pixels
-        final float border = 28;
-        SX = tubeRect.left + border; SS = (tubeRect.width() - 2 * border) / SW;
-        final float avail = tubeRect.height() - 2 * border;
-        rows = Math.max(25, Math.min(MAX_ROWS, (int) Math.floor(avail / (8 * SS))));
-        SSY = avail / (rows * 8f); SY = tubeRect.top + border;
-        screenArea.set(SX, SY, SX + SW * SS, SY + rows * 8 * SSY);
+        // the C64's border round the 320 x 200 picture, which the tube shows a little taller than square pixels
+        rows = 25;
+        final float side = 28;
+        SX = tubeRect.left + side; SS = (TUBE_W - 2 * side) / SW;
+        SSY = SS * 1.06f;
+        final float picH = rows * 8 * SSY;
+        SY = tubeRect.top + (TUBE_H - picH) / 2;
+        screenArea.set(SX, SY, SX + SW * SS, SY + picH);
         glass.reset(); glass.addRoundRect(screenArea, 22, 22, Path.Direction.CW);
         screen = Bitmap.createBitmap(SW, rows * 8, Bitmap.Config.ARGB_8888);
-        KDY = T - CASE_H - 596;
+        KDY = monBottom + 6 - 596;
         backdrop = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         final Canvas c = new Canvas(backdrop);
         c.drawColor(0xff1b1714);
@@ -122,10 +125,11 @@ public class SidView extends View implements Choreographer.FrameCallback {
 
     // ---------------- drawing ----------------
     private void drawRoom(Canvas c) {
-        p.setShader(new LinearGradient(0, 0, 0, T - CASE_H, 0xff2e2925, 0xff1b1714, Shader.TileMode.CLAMP));
-        c.drawRect(-2000, -2000, 3000, T - CASE_H + 4, p);
-        p.setShader(new LinearGradient(0, T - CASE_H, 0, T, 0xff5a3d29, 0xff3a281b, Shader.TileMode.CLAMP));
-        c.drawRect(-2000, T - CASE_H, 3000, T + 2000, p);
+        final float desk = MON_BOTTOM - 40;   // the monitor stands on the desk; the keyboard sits in front
+        p.setShader(new LinearGradient(0, -400, 0, desk, 0xff2e2925, 0xff1b1714, Shader.TileMode.CLAMP));
+        c.drawRect(-3000, -3000, 4000, desk, p);
+        p.setShader(new LinearGradient(0, desk, 0, desk + 900, 0xff5a3d29, 0xff3a281b, Shader.TileMode.CLAMP));
+        c.drawRect(-3000, desk, 4000, desk + 4000, p);
         p.setShader(null);
     }
     private void rainbow(Canvas c, float x, float y, float w, float h) {
