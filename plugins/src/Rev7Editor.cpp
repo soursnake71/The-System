@@ -115,6 +115,31 @@ public:
     }
 };
 
+// the dice in the display window: click for a random preset, shift-click or right-click for new random settings
+class Dice : public juce::Component, public juce::SettableTooltipClient {
+public:
+    std::function<void(bool settings)> onRoll;
+    int face = 5; double rollUntil = 0;
+    void paint(juce::Graphics& g) override {
+        const bool rolling = rollUntil > juce::Time::getMillisecondCounterHiRes();
+        auto r = getLocalBounds().toFloat().reduced(3);
+        g.addTransform(juce::AffineTransform::rotation(rolling ? (float) ((face % 3) - 1) * .18f : -.08f, r.getCentreX(), r.getCentreY()));
+        g.setColour(juce::Colour(0x66000000)); g.fillRoundedRectangle(r.translated(1.5f, 2), 6);
+        g.setGradientFill(juce::ColourGradient(juce::Colour(0xfff4f1e8), r.getX(), r.getY(), juce::Colour(0xffcfc9ba), r.getRight(), r.getBottom(), false));
+        g.fillRoundedRectangle(r, 6); g.setColour(juce::Colour(0xff6d6a62)); g.drawRoundedRectangle(r, 6, 1.f);
+        static const int pips[7][6][2] = {{}, {{1, 1}}, {{0, 0}, {2, 2}}, {{0, 0}, {1, 1}, {2, 2}}, {{0, 0}, {2, 0}, {0, 2}, {2, 2}},
+                                          {{0, 0}, {2, 0}, {1, 1}, {0, 2}, {2, 2}}, {{0, 0}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {2, 2}}};
+        const float cell = r.getWidth() / 3.6f, pr = cell * .26f;
+        g.setColour(face == 1 ? juce::Colour(0xffc81e1e) : juce::Colour(0xff16161a));
+        for (int i = 0; i < face; ++i) {
+            const float cx = r.getCentreX() + (pips[face][i][0] - 1) * cell, cy = r.getCentreY() + (pips[face][i][1] - 1) * cell;
+            g.fillEllipse(cx - pr, cy - pr, pr * 2, pr * 2);
+        }
+    }
+    void mouseDown(const juce::MouseEvent& e) override { if (onRoll) onRoll(e.mods.isShiftDown() || e.mods.isPopupMenu()); }
+    void mouseEnter(const juce::MouseEvent&) override { setMouseCursor(juce::MouseCursor::PointingHandCursor); }
+};
+
 class Panel : public juce::Component, private juce::Timer {
 public:
     explicit Panel(Processor& p) : proc(p), st(p.state()) {
@@ -173,6 +198,8 @@ public:
         key(new Key("BYPASS"), out, top + 3 * dy, [tog] { tog("bypass"); }, [on] { return on("bypass"); });
         for (auto* k : keys) k->setWantsKeyboardFocus(false);
         setWantsKeyboardFocus(true);
+        dice.setBounds(158, 32, 44, 44); dice.setTooltip("Dice: click for a random preset, shift-click or right-click for new random settings (keys: R / Shift+R)"); addAndMakeVisible(dice);
+        dice.onRoll = [this](bool settings) { roll(settings); };
         startTimerHz(30);
     }
     ~Panel() override { setLookAndFeel(nullptr); }
@@ -213,6 +240,8 @@ public:
         // labels under the display
         g.setColour(kDim); g.setFont(juce::FontOptions(8.f, juce::Font::bold));
         auto lab = [&](const juce::String& t, int x, int y, int w = 60) { g.drawFittedText(t, x - w / 2, y, w, 18, juce::Justification::centred, 2); };
+        g.setColour(kDim); g.setFont(juce::FontOptions(7.5f, juce::Font::bold)); g.drawText("RANDOM", 150, 78, 60, 10, juce::Justification::centred);
+        g.setFont(juce::FontOptions(8.f, juce::Font::bold));
         lab("POWER", 62, 128); lab("VINTAGE", 96, 132); lab("MONO\nSTEREO", 140, 128); lab("EQ\nON/OFF", 226, 128);
         lab("LO", 290, 128); lab("MID", 378, 128); lab("HI", 466, 128);
         g.setColour(kDim.withAlpha(.6f));
@@ -236,6 +265,7 @@ public:
         if ((c >= '0' && c <= '9') || c == '.') { type(juce::String::charToString(c)); return true; }
         if (k == juce::KeyPress::returnKey) { enter(false); return true; }
         if (k == juce::KeyPress::backspaceKey || k == juce::KeyPress::escapeKey) { type("CLEAR"); return true; }
+        if (c == 'r' || c == 'R') { roll(k.getModifiers().isShiftDown()); return true; }
         if (c == '+' || c == '=') { step(1); return true; } if (c == '-') { step(-1); return true; }
         return false;
     }
@@ -351,6 +381,39 @@ private:
                                              {x, y + hh, t, hh - t}, {x, y + t, t, hh - t}, {x + t, y + hh - t / 2, w - 2 * t, t}};
         for (int i = 0; i < 7; ++i) { g.setColour(s >> i & 1 ? kRed : juce::Colour(0xff2a0806)); g.fillRoundedRectangle(r[i].translated(-(r[i].getY() - y) * .08f + 2, 0), 1.f); }
     }
+    // the dice: a random preset from all of them, or (settings) a random program with new settings, kept musical
+    void roll(bool settings) {
+        dice.face = rng.nextInt({1, 7}); dice.rollUntil = juce::Time::getMillisecondCounterHiRes() + 450;
+        edit = {}; entry.clear(); userSlot = 0;
+        const int n = proc.getNumPrograms();
+        if (!settings) {
+            int i = rng.nextInt(n); if (n > 1) while (i == proc.getCurrentProgram()) i = rng.nextInt(n);
+            proc.setCurrentProgram(i);
+            juce::String nm = proc.getProgramName(i); if (nm.contains(" / ")) nm = nm.fromFirstOccurrenceOf(" / ", false, false);
+            lcdMsg("DICE: " + nm.toUpperCase().substring(0, 14), 2.0); return;
+        }
+        const int prog = rng.nextInt({1, 31});
+        proc.setCurrentProgram(prog - 1);   // its factory values first, then roll the ones that matter for its type
+        auto r = [this](double a, double b) { return a + (b - a) * rng.nextDouble(); };
+        auto rl = [this](double a, double b) { return a * std::pow(b / a, rng.nextDouble()); };   // log-spread
+        switch (kind()) {
+            case K::REV: setVal("rt", rl(.5, 5)); setVal("hi", r(.2, .8)); setVal("lo", r(.6, 1.8)); setVal("diff", std::round(r(3, 10))); setVal("idly", rl(1, 70)); break;
+            case K::ER: setVal("live", std::round(r(1, 9))); setVal("mode", rng.nextInt({1, 7})); setVal("size", rl(.6, 5)); setVal("diff", std::round(r(2, 9))); setVal("idly", rl(1, 35)); break;
+            case K::DLY: setVal("dlyL", rl(40, 600)); setVal("dlyR", rl(40, 600)); setVal("dlev", r(.4, .9)); break;
+            case K::ECHO: { const double d = rl(80, 450); setVal("fb", r(.15, .65)); setVal("dlyL", d); setVal("dlyR", juce::jlimit(.1, 450.0, d * r(.7, 1.4))); setVal("hdamp", std::round(r(2, 9))); break; }
+            case K::FLANGE: setVal("fb", r(.1, .8)); setVal("mfreq", rl(.1, 3)); setVal("mdep", r(.3, 1)); setVal("mdly", rl(.5, 4)); break;
+            case K::RFLANGE: setVal("rt", rl(1, 4)); setVal("mfreq", rl(.1, 2)); setVal("mdep", r(.3, 1)); setVal("mdly", rl(.5, 4)); break;
+            case K::CHORUS: setVal("mfreq", rl(.1, 2)); setVal("mdep", r(.2, .9)); setVal("amdep", r(0, .5)); break;
+            case K::PHASE: setVal("mfreq", rl(.1, 3)); setVal("mdep", r(.3, 1)); setVal("mdly", rl(.5, 6)); break;
+            case K::TREM: setVal("mfreq", r(2, 8)); setVal("mdep", r(.2, .7)); break;
+            case K::SYMPH: setVal("mfreq", rl(.2, 1.5)); setVal("mdep", r(.3, .9)); break;
+        }
+        if (rng.nextDouble() < .3) { setVal("fdly", rl(5, 60)); setVal("flev", r(.2, .6)); }
+        setVal("omix", r(.2, .45));
+        userDirty = true;
+        lcdMsg(juce::String("DICE: ") + rev7Name(prog) + " *", 2.0);
+    }
+
     void timerCallback() override {
         lvl = proc.engineLevel(); blink = (juce::Time::getMillisecondCounter() / 350) % 2 == 0;
         // leave a user slot shown only until something is changed by hand
@@ -364,6 +427,7 @@ private:
     juce::OwnedArray<juce::Slider> knobs; juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> kat;
     juce::OwnedArray<Switch> switches; juce::OwnedArray<juce::AudioProcessorValueTreeState::ButtonAttachment> bat;
     juce::OwnedArray<Key> keys;
+    Dice dice; juce::Random rng;
     std::vector<Lab> labels;
     const juce::Rectangle<float> lcdArea { 330, 34, 244, 62 };
     juce::String edit, entry, msg; double msgUntil = 0;
@@ -381,6 +445,7 @@ public:
     void resized() override { panel.setTransform(juce::AffineTransform::scale((float) getWidth() / W)); }
 private:
     Panel panel;
+    juce::TooltipWindow tips { this, 600 };
 };
 
 }  // namespace

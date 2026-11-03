@@ -55,6 +55,9 @@ A model of the Yamaha REV7 digital reverberator (1985), built from its service m
   INITIAL DELAY, 1ST REF and F1-F3 pick a parameter, and what F1-F3 do depends on the program type, as on the unit.
   Change it with -/+, the mouse wheel on the LCD, or by typing a value and pressing ENTER. Click the LCD for the full
   preset menu. MUTE, OUT PHASE (inverts the wet signal) and BYPASS all work. The window resizes.
+  The **dice** in the display window rolls a random preset from all 144. Shift-click or right-click it to roll new
+  settings instead: a random program (1-30) whose parameters are rolled within useful ranges for its type. The keys
+  are R and Shift+R. `rev7_shot` rolls it 200 times with audio running as a test.
 - **Not from the unit**: the DSP coefficients and the reflection patterns. Yamaha's microcode and preset data live in
   the unit's 16 KB EPROM, and this model does not use or include that firmware. These values are this model's own,
   written to match the manual's descriptions. The REV TIME values for presets 16-18 are estimates, since the chart has
