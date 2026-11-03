@@ -41,11 +41,15 @@ A model of the Yamaha REV7 digital reverberator (1985), built from its service m
   the six modes (small hall, large hall, random, reverse, plate, spring), liveness and room size. Then Delay, Echo (feedback
   plus high damp), Stereo Flange, Reverb Flange, Chorus A/B (DM + AM), Stereo Phasing, Tremolo and Symphonic. Every program
   has the centre 1st reflection. Measured decay is within about 8% of REV TIME.
-- **Presets**: the 30 factory programs, with the values from the manual's ROM contents chart, plus 14 artist presets.
+- **Presets (144)**: the 30 factory programs, with the values from the manual's ROM contents chart (program 15 is SYMPHONIC,
+  checked by `rev7_test`), 14 artist presets, and a library of 100 in `src/Rev7Library.inc`: 2 Live Crew (a Miami bass
+  set for "Throw the D"), Symphonic (10 built on program 15), Drums, Vocals, Keys, Guitar & Bass, Electro & Hip-Hop,
+  Spaces and Special FX. These presets are this plugin's own settings and were not matched against recordings. The LCD
+  menu shows one submenu per category. The artist presets:
   The artist presets are this plugin's own settings, based on what these musicians and engineers have said about using a
   REV7 (gear lists and interviews collected on [Equipboard](https://equipboard.com/items/yamaha-rev-7)):
   Jean-Michel Jarre, Rick Wakeman, Tony Banks, The Prodigy, Graham Massey, Charlie Burchill, Martyn Ware,
-  Daniel Miller, Paul Hardcastle and Minoru Mukaiya. They are not those artists' own stored programs.
+  Daniel Miller, Paul Hardcastle and Minoru Mukaiya. They are not those artists' own stored programs. The same goes for the 2 Live Crew set, which follows the record's style.
 - **Panel** (`src/Rev7Editor.cpp`): REV1-4 / E/R1-2 recall 1-6. Type a number and press RECALL for 1-30, or 31-90 for
   user memories. Type 31-90 and press STORE to save there; user memories are saved with your project. REV TIME,
   INITIAL DELAY, 1ST REF and F1-F3 pick a parameter, and what F1-F3 do depends on the program type, as on the unit.

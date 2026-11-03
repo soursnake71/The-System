@@ -279,7 +279,7 @@ private:
         if (isUserSlot()) return "USER " + juce::String(userSlot) + " " + rev7Name(shownProg());
         const int pi = proc.getCurrentProgram(); const auto& ps = proc.spec().presets;
         if (pi >= 30 && pi < (int) ps.size()) {   // an artist preset, while its program is still selected
-            for (const auto& [id, x] : ps[(size_t) pi].values) if (id == "prog" && (int) x == shownProg()) return juce::String(ps[(size_t) pi].name).toUpperCase().substring(0, 20);
+            for (const auto& [id, x] : ps[(size_t) pi].values) if (id == "prog" && (int) x == shownProg()) { juce::String nm(ps[(size_t) pi].name); if (nm.contains(" / ")) nm = nm.fromFirstOccurrenceOf(" / ", false, false); return nm.toUpperCase().substring(0, 20); }
         }
         return rev7Name(shownProg());
     }
@@ -326,12 +326,20 @@ private:
         if (entry.isNotEmpty()) recall(entry.getIntValue());
     }
     void presetMenu() {
-        juce::PopupMenu m, fac, art, usr; const auto& ps = proc.spec().presets;
-        for (int i = 0; i < (int) ps.size(); ++i) (i < 30 ? fac : art).addItem(i + 1, ps[(size_t) i].name, true, i == proc.getCurrentProgram());
+        juce::PopupMenu m, fac, usr; const auto& ps = proc.spec().presets;
+        std::vector<std::pair<juce::String, juce::PopupMenu>> cats;   // one submenu per "Category / Name" group, in order
+        for (int i = 0; i < (int) ps.size(); ++i) {
+            const juce::String full = ps[(size_t) i].name; const bool sel = i == proc.getCurrentProgram();
+            if (i < 30) { fac.addItem(i + 1, full, true, sel); continue; }
+            const juce::String cat = full.upToFirstOccurrenceOf(" / ", false, false), nm = full.fromFirstOccurrenceOf(" / ", false, false);
+            auto it = std::find_if(cats.begin(), cats.end(), [&](const auto& c) { return c.first == cat; });
+            if (it == cats.end()) { cats.push_back({cat, {}}); it = cats.end() - 1; }
+            it->second.addItem(i + 1, nm.isEmpty() ? full : nm, true, sel);
+        }
         auto mems = st.state.getChildWithName("REV7USER");
         for (int n = 31; n <= 90; ++n) if (mems.getChildWithName("M" + juce::String(n)).isValid()) usr.addItem(1000 + n, "USER " + juce::String(n));
         if (usr.getNumItems() == 0) usr.addItem(-1, "(type 31-90, then STORE)", false);
-        m.addSubMenu("Factory 1-30", fac); m.addSubMenu("Artists", art); m.addSubMenu("User memory 31-90", usr);
+        m.addSubMenu("Factory 1-30", fac); for (auto& [c, sub] : cats) m.addSubMenu(c, sub); m.addSubMenu("User memory 31-90", usr);
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this).withTargetScreenArea(localAreaToGlobal(lcdArea.toNearestInt())),
                         [this](int r) { if (r >= 1000) recall(r - 1000); else if (r > 0) { edit = {}; entry.clear(); proc.setCurrentProgram(r - 1); userSlot = 0; } });
     }

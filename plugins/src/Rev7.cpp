@@ -99,7 +99,7 @@ Spec makeSpec() {
     P(30, er(5, 20, 0, 2, 2.5, 5));
 
     // artists who have talked about using a REV7 (see README for where); settings are this plugin's interpretation
-    auto A = [&](const std::string& name, int n, V v) { v.insert(v.begin(), {"prog", (double) n}); s.preset(name, v); };
+    auto A = [&](const std::string& name, int n, V v) { v.insert(v.begin(), {"prog", (double) n}); s.preset("Artists / " + name, v); };
     A("Jean-Michel Jarre - synth hall", 1, {{"rt", 5.5}, {"idly", 40}, {"hi", .45}, {"lo", 1.4}, {"diff", 8}, {"omix", .45}});
     A("Rick Wakeman - cathedral keys", 1, {{"rt", 8.5}, {"idly", 60}, {"hi", .35}, {"lo", 1.6}, {"diff", 9}, {"omix", .45}});
     A("Tony Banks - reverb flange pads", 10, {{"rt", 3.2}, {"mfreq", .4}, {"mdep", .6}, {"mdly", 2.5}, {"omix", .4}});
@@ -114,6 +114,10 @@ Spec makeSpec() {
     A("Daniel Miller - electronic perc plate", 4, {{"rt", 1.2}, {"idly", 5}, {"hi", .6}, {"lo", .8}, {"diff", 6}, {"omix", .3}});
     A("Paul Hardcastle - vocal plate", 3, {{"rt", 1.8}, {"idly", 30}, {"hi", .45}, {"diff", 6}, {"omix", .3}});
     A("Minoru Mukaiya (Casiopea) - fusion keys", 18, {{"rt", 2.0}, {"idly", 18}, {"hi", .4}, {"omix", .3}});
+
+    // the library: 100 more, "Category / Name"
+    auto L = [&](const std::string& cat, const std::string& name, int n, V v) { v.insert(v.begin(), {"prog", (double) n}); s.preset(cat + " / " + name, v); };
+#include "Rev7Library.inc"
 
     s.make = [](const Spec& sp) { return std::unique_ptr<Engine>(new dsp::Rev7(sp)); };
     return s;

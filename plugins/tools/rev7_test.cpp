@@ -30,12 +30,17 @@ int main(int argc, char** argv) {
         double peak = 0, rms = 0, tail = 0; bool nan = false;
         for (int i = 0; i < n; ++i) { const double a = std::max(std::fabs(L[(size_t) i]), std::fabs(R[(size_t) i])); if (!std::isfinite(a)) nan = true; peak = std::max(peak, a); if (i < 2.5 * sr) rms += a * a; if (i > 7.5 * sr) tail = std::max(tail, a); }
         rms = std::sqrt(rms / (2.5 * sr));
-        const bool longTail = pr.name.find("cathedral") != std::string::npos || pr.name.find("synth hall") != std::string::npos;
+        // presets meant to ring past the 8 s render (long REV TIME, near-infinite feedback) skip the tail check
+        auto pv = [&](const char* id) { return vals[(size_t) s.index(id)]; };
+        const bool longTail = pv("rt") * std::max(1.0, pv("lo")) >= 3.9 || pv("fb") >= .7;
         const bool bad = nan || peak > 2.5 || rms < 1e-3 || (!longTail && tail > .02);
         if (bad || sr == 48000) std::printf("%s %6d  %-48s peak %.3f rms %.4f tail %.5f\n", bad ? "FAIL" : "ok  ", sr, pr.name.c_str(), peak, rms, tail);
         if (bad) fails++;
         if (!out.empty() && sr == 48000) { std::string f = pr.name; for (char& c : f) if (!std::isalnum((unsigned char) c)) c = '_'; wav(out + "/rev7_" + f + ".wav", L, R, sr); }
     }
+    // program 15 is SYMPHONIC, as on the unit
+    if (s.presets.size() < 30 || s.presets[14].name != "15 SYMPHONIC") { std::puts("FAIL program 15 is not SYMPHONIC"); fails++; }
+    std::printf("%d presets\n", (int) s.presets.size());
     std::printf(fails ? "%d failed\n" : "all good\n", fails);
     return fails ? 1 : 0;
 }
