@@ -1,0 +1,95 @@
+# Omega REV7: installers for Windows (setup .exe), macOS (.pkg) and Linux (.deb), a zip of the plugin bundles for each,
+# and the source zip, all attached to the "omega-rev7" release. Runs on main and on work branches so builds can be
+# tried before merging.
+name: Omega REV7 release
+on:
+  push:
+    branches: [main, 'claude/**', 'ccr-**']
+    paths: ['plugins/dsp/Rev7.h', 'plugins/src/Rev7*', 'plugins/common/**', 'plugins/tools/rev7*', 'plugins/CMakeLists.txt',
+            'plugins/installer/rev7.iss', 'plugins/installer/make-rev7-*', '.github/workflows/rev7-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  VERSION: '1.0.${{ github.run_number }}'
+jobs:
+  plugin:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=Rev7
+      - name: Build
+        run: cmake --build build --config Release --parallel 4 --target OmegaRev7_All rev7_test
+      - name: Test (every preset rendered and checked; the panel drawn and its dice rolled 200 times)
+        if: runner.os == 'Linux'
+        run: |
+          build/rev7_test
+          cmake --build build --config Release --parallel 4 --target rev7_shot
+          xvfb-run -a "$(find build -name rev7_shot -type f -perm -u+x | head -1)" rev7-panel.png 2
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \; ; fi
+          ls -la out
+          (cd out && 7z a -tzip "../Omega-REV7-VST3-${{ matrix.name }}.zip" . >/dev/null)
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBuildDir=$PWD\out" "/DAppVer=$env:VERSION" /O"$PWD" plugins\installer\rev7.iss
+          Get-ChildItem Omega-REV7-Setup-Windows.exe
+      - name: Mac installer
+        if: runner.os == 'macOS'
+        run: bash plugins/installer/make-rev7-pkg-mac.sh out "$VERSION" Omega-REV7-Mac.pkg
+      - name: Linux package and source
+        if: runner.os == 'Linux'
+        run: |
+          bash plugins/installer/make-rev7-deb.sh out "$VERSION" omega-rev7_amd64.deb
+          sudo dpkg -i omega-rev7_amd64.deb && ls /usr/lib/vst3
+          bash plugins/installer/make-rev7-source.sh Omega-REV7-Source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rev7-${{ matrix.name }}
+          path: |
+            Omega-REV7-Setup-Windows.exe
+            Omega-REV7-Mac.pkg
+            omega-rev7_amd64.deb
+            Omega-REV7-VST3-*.zip
+            Omega-REV7-Source.zip
+            rev7-panel.png
+          if-no-files-found: error
+  publish:
+    needs: plugin
+    # publish whatever built: a Mac runner that never starts shouldn't hold back the Windows and Linux files
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls -la dl
+          notes="Omega REV7 $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a Yamaha REV7 model with 144 presets, a front panel like the unit's and a preset dice.
+
+          - Windows: Omega-REV7-Setup-Windows.exe installs the VST3 into C:\\Program Files\\Common Files\\VST3. Windows may warn about an unknown publisher: More info > Run anyway.
+          - Mac: Omega-REV7-Mac.pkg installs the VST3 and the Audio Unit. It isn't notarized: right-click the .pkg > Open, or allow it in System Settings > Privacy & Security.
+          - Linux: sudo apt install ./omega-rev7_amd64.deb (VST3 in /usr/lib/vst3).
+          - No installer wanted: Omega-REV7-VST3-<system>.zip has the plugin bundle to copy into your VST3 folder.
+          - Source: Omega-REV7-Source.zip (build steps in BUILD.md)."
+          gh release view omega-rev7 >/dev/null 2>&1 || gh release create omega-rev7 --title "Omega REV7 (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit omega-rev7 --notes "$notes"
+          gh release upload omega-rev7 dl/* --clobber
