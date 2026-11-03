@@ -1,0 +1,87 @@
+# Omega CMI: the VST3 instrument (AU too on Mac) and standalone app for Windows, macOS and Linux, and the native
+# Android app (the same C++ engine through AAudio), all attached to the "omega-cmi" release.
+name: Omega CMI release
+on:
+  push:
+    branches: [main, 'claude/**', 'ccr-**']
+    paths: ['plugins/cmi/**', 'plugins/CMakeLists.txt', 'android-cmi/**', '.github/workflows/cmi-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  plugins:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev xvfb
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=CMI
+      - name: Build
+        run: cmake --build build --config Release --parallel 3 --target OmegaCMI_All cmi_test
+      - name: Test the engine (card maths, every sound, Page R)
+        if: runner.os == 'Linux'
+        run: mkdir -p wavs && ./build/cmi_test wavs
+      - name: Test the plugin (MIDI, Page R, sampling, state, every page of the screen)
+        if: runner.os == 'Linux'
+        run: |
+          cmake --build build --config Release --target cmi_snapshot --parallel 3
+          mkdir -p shots && xvfb-run -a ./build/cmi_snapshot_artefacts/Release/cmi_snapshot shots
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega CMI' -o -name 'Omega CMI.exe' -o -name 'Omega CMI.app' \) -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls out
+          cd out && 7z a -tzip "../Omega-CMI-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'cmi-${{ matrix.name }}', path: 'Omega-CMI-${{ matrix.name }}.zip', if-no-files-found: error}
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android-cmi/local.properties
+          # use the newest NDK the runner has (falls back to downloading the one in app/build.gradle)
+          NDK=$(ls "$ANDROID_HOME/ndk" 2>/dev/null | sort -V | tail -1)
+          gradle -p android-cmi assembleDebug --no-daemon ${NDK:+-PcmiNdk=$NDK}
+          cp android-cmi/app/build/outputs/apk/debug/app-debug.apk omega-cmi.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: cmi-Android, path: omega-cmi.apk, if-no-files-found: error}
+  publish:
+    needs: [plugins, apk]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls -la dl
+          notes="Omega CMI (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the Fairlight CMI Series II channel cards, with Page R and a synthesised library of the famous sounds.
+
+          - Windows / Mac / Linux: unzip Omega-CMI-<system>.zip and copy Omega CMI.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). The standalone app is in the same zip. On a Mac, if the DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
+          - Android: open omega-cmi.apk on the phone and allow installing from your browser or files app. Plays from the screen keyboard or a USB / Bluetooth MIDI keyboard."
+          gh release view omega-cmi >/dev/null 2>&1 || gh release create omega-cmi --title "Omega CMI (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit omega-cmi --notes "$notes"
+          gh release upload omega-cmi dl/* --clobber

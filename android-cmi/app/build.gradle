@@ -1,0 +1,19 @@
+// Omega CMI for Android: the same C++ engine as the VST3 (plugins/cmi/core), running natively through AAudio.
+plugins { id 'com.android.application' }
+android {
+  namespace 'com.thesnakedevice.cmi'
+  compileSdk 35
+  ndkVersion project.findProperty('cmiNdk') ?: '27.2.12479018'
+  defaultConfig {
+    applicationId 'com.thesnakedevice.cmi'
+    minSdk 27
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+    externalNativeBuild { cmake { cppFlags '-std=c++17 -O2'; arguments '-DANDROID_STL=c++_static' } }
+    ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+  }
+  externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+  buildTypes { release { minifyEnabled false } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
