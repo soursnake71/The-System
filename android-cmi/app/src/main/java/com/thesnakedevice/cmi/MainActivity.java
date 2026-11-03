@@ -3,6 +3,9 @@ package com.thesnakedevice.cmi;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -20,7 +23,9 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
@@ -31,7 +36,6 @@ import java.util.List;
 
 /** Omega CMI: the screen, MIDI in (USB and Bluetooth), the audio engine's life cycle, sampling from files. */
 public class MainActivity extends Activity {
-    static final int PICK = 41;
     private CmiView view;
     private final List<MidiDevice> devices = new ArrayList<>();
     private final List<MidiOutputPort> ports = new ArrayList<>();
@@ -111,35 +115,107 @@ public class MainActivity extends Activity {
         }, ui);
     }
 
-    // ---- Page 8: decode any audio file the system can read, into a user voice ----
-    void pickSample(int slot) {
-        pickSlot = slot;
+    // ---- Page 8: your own sounds, one file, many files or a whole folder ----
+    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43;
+    void pickSample(int slot) { pickSlot = slot; startActivityForResult(audioIntent(false), PICK_ONE); }
+    void importFiles() { startActivityForResult(audioIntent(true), PICK_MANY); }
+    void importFolder() { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER); }
+    private Intent audioIntent(boolean many) {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("audio/*");
-        startActivityForResult(i, PICK);
+        i.setType("*/*");
+        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "audio/*", "application/octet-stream" });
+        if (many) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        return i;
     }
+
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
-        if (req != PICK || res != RESULT_OK || data == null || data.getData() == null) return;
-        final Uri uri = data.getData();
-        final int slot = pickSlot, root = view.rootKey; final boolean loop = view.loopSample;
-        view.status("SAMPLING...");
+        if (res != RESULT_OK || data == null) return;
+        final List<Uri> uris = new ArrayList<>();
+        final List<String> names = new ArrayList<>();
+        if (req == PICK_FOLDER && data.getData() != null) {
+            listFolder(data.getData(), DocumentsContract.getTreeDocumentId(data.getData()), uris, names, 0);
+        } else if (data.getClipData() != null) {
+            for (int i = 0; i < data.getClipData().getItemCount(); ++i) { Uri u = data.getClipData().getItemAt(i).getUri(); uris.add(u); names.add(displayName(u)); }
+        } else if (data.getData() != null) { uris.add(data.getData()); names.add(displayName(data.getData())); }
+        if (uris.isEmpty()) { view.status("NO AUDIO FILES FOUND"); return; }
+        // name order, like a disk directory
+        final List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < uris.size(); ++i) order.add(i);
+        java.util.Collections.sort(order, (x, y) -> names.get(x).compareToIgnoreCase(names.get(y)));
+        final int single = req == PICK_ONE ? pickSlot : -1;
+        final int root = view.rootKey; final boolean loop = view.loopSample;
+        view.status("IMPORTING...");
         new Thread(() -> {
-            String msg;
-            try {
-                int[] rate = new int[1];
-                float[] mono = decode(uri, rate, 10.0);
-                String name = uri.getLastPathSegment();
-                if (name == null) name = "SAMPLE";
-                int slash = name.lastIndexOf('/'); if (slash >= 0) name = name.substring(slash + 1);
-                int dot = name.lastIndexOf('.'); if (dot > 0) name = name.substring(0, dot);
-                String err = Native.loadSample(mono, rate[0], name, slot, root, loop);
-                msg = err.isEmpty() ? "SAMPLED INTO USER" + (slot + 1) : err;
-            } catch (Exception e) { msg = "CAN'T READ FILE"; }
-            final String m = msg;
-            ui.post(() -> view.status(m));
+            int ok = 0, bad = 0, first = -1; String last = "";
+            for (int idx : order) {
+                int slot = single >= 0 ? single : Native.firstFreeUser();
+                if (slot < 0) { last = "USER VOICES FULL"; break; }
+                String err = importOne(uris.get(idx), names.get(idx), slot, root, loop);
+                if (err.isEmpty()) { ++ok; if (first < 0) first = slot; } else { ++bad; last = err; }
+                final int done = ok + bad;
+                ui.post(() -> view.status("IMPORTING " + done + " / " + order.size()));
+                if (single >= 0) break;
+            }
+            if (first >= 0) Native.loadSound(Native.userSlot(first));
+            final String m = ok + " IMPORTED" + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
+            ui.post(() -> { view.status(m); saveState(); });
         }).start();
+    }
+
+    private String importOne(Uri uri, String name, int slot, int root, boolean loop) {
+        String base = name; int dot = base.lastIndexOf('.'); if (dot > 0) base = base.substring(0, dot);
+        try {
+            if (name.toLowerCase().endsWith(".wav")) {
+                byte[] b = readAll(uri, 64 << 20);
+                String err = Native.loadWav(b, base, slot, root, loop);
+                if (err.isEmpty()) return err;   // otherwise let the system decoder try (compressed WAVs)
+            }
+            int[] rate = new int[1];
+            float[] mono = decode(uri, rate, 12.0);
+            if (mono.length == 0) return "EMPTY FILE";
+            return Native.loadSample(mono, rate[0], base, slot, root, loop, -1, -1);
+        } catch (Exception e) { return "CAN'T READ " + name; }
+    }
+
+    private byte[] readAll(Uri uri, int max) throws Exception {
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new Exception("no stream");
+            ByteArrayOutputStream o = new ByteArrayOutputStream();
+            byte[] buf = new byte[65536]; int r;
+            while ((r = in.read(buf)) > 0 && o.size() < max) o.write(buf, 0, r);
+            return o.toByteArray();
+        }
+    }
+
+    private String displayName(Uri u) {
+        try (Cursor c = getContentResolver().query(u, new String[] { OpenableColumns.DISPLAY_NAME }, null, null, null)) {
+            if (c != null && c.moveToFirst() && c.getString(0) != null) return c.getString(0);
+        } catch (Exception ignored) {}
+        String s = u.getLastPathSegment(); if (s == null) return "SAMPLE";
+        int slash = s.lastIndexOf('/'); return slash >= 0 ? s.substring(slash + 1) : s;
+    }
+
+    // a folder picked with the system's folder picker, and its sub-folders
+    private void listFolder(Uri tree, String docId, List<Uri> uris, List<String> names, int depth) {
+        if (depth > 6) return;
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId);
+        String[] cols = { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE };
+        try (Cursor c = getContentResolver().query(children, cols, null, null, null)) {
+            if (c == null) return;
+            while (c.moveToNext()) {
+                String id = c.getString(0), name = c.getString(1), mime = c.getString(2);
+                if (name == null) continue;
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) { listFolder(tree, id, uris, names, depth + 1); continue; }
+                String n = name.toLowerCase();
+                boolean audio = (mime != null && mime.startsWith("audio/")) || n.endsWith(".wav") || n.endsWith(".aif") || n.endsWith(".aiff") || n.endsWith(".flac")
+                        || n.endsWith(".mp3") || n.endsWith(".ogg");
+                if (!audio) continue;
+                uris.add(DocumentsContract.buildDocumentUriUsingTree(tree, id));
+                names.add(name);
+            }
+        } catch (Exception ignored) {}
     }
 
     private float[] decode(Uri uri, int[] rateOut, double maxSec) throws Exception {

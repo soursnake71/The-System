@@ -204,21 +204,43 @@ FN(void, channelEnv)(JNIEnv* env, jclass, jintArray out) {
     env->SetIntArrayRegion(out, 0, std::min<jsize>(NCH, env->GetArrayLength(out)), v);
 }
 
-// Page 8: mono float samples from a decoded file
-FN(jstring, loadSample)(JNIEnv* env, jclass, jfloatArray data, jint rate, jstring name, jint slot, jint root, jboolean loop) {
+// Page 8: mono float samples from a decoded file (loop points in samples, -1: none)
+FN(jstring, loadSample)(JNIEnv* env, jclass, jfloatArray data, jint rate, jstring name, jint slot, jint root, jboolean loop, jint loopStart, jint loopEnd) {
     const jsize n = env->GetArrayLength(data);
     if (n <= 0 || rate <= 0) return env->NewStringUTF("EMPTY FILE");
+    if (slot < 0 || slot >= Library::USER_SLOTS) return env->NewStringUTF("USER VOICES FULL");
     std::vector<float> x((size_t) n);
     env->GetFloatArrayRegion(data, 0, n, x.data());
     const char* nm = env->GetStringUTFChars(name, nullptr);
-    Sound s = sampleToCmi(x, rate, nm, root, loop);
+    Sound s = sampleToCmi(x, rate, nm, root, loop, loopStart, loopEnd);
     env->ReleaseStringUTFChars(name, nm);
     app()->kit.setUser(slot, std::move(s));
-    app()->loadSound(app()->kit.userSlot(slot));
+    return env->NewStringUTF("");
+}
+// a whole WAV file: its own root key and loop (smpl chunk) win over root / loop
+FN(jstring, loadWav)(JNIEnv* env, jclass, jbyteArray data, jstring name, jint slot, jint root, jboolean loop) {
+    if (slot < 0 || slot >= Library::USER_SLOTS) return env->NewStringUTF("USER VOICES FULL");
+    const jsize n = env->GetArrayLength(data);
+    std::vector<uint8_t> b((size_t) n);
+    env->GetByteArrayRegion(data, 0, n, (jbyte*) b.data());
+    WavData w = parseWav(b.data(), b.size());
+    if (!w.err.empty()) return env->NewStringUTF(w.err.c_str());
+    if (w.mono.empty()) return env->NewStringUTF("EMPTY FILE");
+    const char* nm = env->GetStringUTFChars(name, nullptr);
+    Sound s = sampleToCmi(w.mono, w.rate, nm, w.root >= 0 ? w.root : root, loop, w.loopStart, w.loopEnd);
+    env->ReleaseStringUTFChars(name, nm);
+    app()->kit.setUser(slot, std::move(s));
     return env->NewStringUTF("");
 }
 FN(jboolean, userLoaded)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k); }
 FN(jint, userSlot)(JNIEnv*, jclass, jint k) { return app()->kit.userSlot(k); }
+FN(jint, firstFreeUser)(JNIEnv*, jclass) { return app()->kit.firstFree(); }
+FN(jint, userCount)(JNIEnv*, jclass) { return app()->kit.loadedCount(); }
+FN(void, clearUser)(JNIEnv*, jclass, jint k) {
+    auto* a = app();
+    if (a->sound.load() == a->kit.userSlot(k)) a->loadSound(Library::get().find("ORCHHIT"));
+    a->kit.clearUser(k);
+}
 
 // state: parameters, Page R, user voices
 FN(jbyteArray, saveState)(JNIEnv* env, jclass) {

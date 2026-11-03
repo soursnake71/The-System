@@ -18,6 +18,7 @@ public:
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
     char page = 'R';
+    int rootKey = 60; bool loopIt = false;
     juce::String status = "READY";
 
 private:
@@ -41,7 +42,7 @@ private:
     void command(const juce::String& cmd);
 
     CmiEditor& ed;
-    int wavePage = 0, selTrack = 0; const Sound* waveSound = nullptr;
+    int wavePage = 0, selTrack = 0, libScroll = 0, userPage = 0, dragRoot = 60; const Sound* waveSound = nullptr;
     bool songEditor = false;
     friend class CmiEditor;
 };

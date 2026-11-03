@@ -128,8 +128,48 @@ int main(int argc, char** argv) {
         std::vector<float> s(44100 * 2); for (size_t i = 0; i < s.size(); ++i) s[i] = (float) std::sin(2 * PI * 261.63 * i / 44100.0) * 0.5f;
         Sound u = sampleToCmi(s, 44100, "test tone.wav", 60, true);
         CHECK(u.ram.size() <= (size_t) RAM_SIZE && u.rate >= 4000 && u.rate <= 32000, "sampled: %zu bytes at %.0f Hz", u.ram.size(), u.rate);
-        lib.setUser(0, u);
-        CHECK(lib.sound(lib.userSlot(0))->name == "TESTTONE", "user slot name %s", lib.sound(lib.userSlot(0))->name.c_str());
+        Kit k0; k0.setUser(0, u);
+        CHECK(k0.user(0)->name == "TESTTONE" && k0.userLoaded(0), "user slot name %s", k0.user(0)->name.c_str());
+    }
+
+    // ---- importing real CMI sounds: a 16-bit WAV at 25 kHz with a smpl chunk (root A3, a loop on pages 40-99) ----
+    {
+        const int sr = 25000, n = 128 * 110;
+        std::vector<int16_t> pcm((size_t) n);
+        for (int i = 0; i < n; ++i) pcm[(size_t) i] = (int16_t) std::lround(20000 * std::sin(2 * PI * 220.0 * i / sr) * std::exp(-i / 20000.0));
+        std::vector<uint8_t> f;
+        auto u32 = [&](uint32_t v) { for (int k = 0; k < 4; ++k) f.push_back((uint8_t) (v >> (8 * k))); };
+        auto u16 = [&](uint16_t v) { f.push_back((uint8_t) v); f.push_back((uint8_t) (v >> 8)); };
+        auto tag = [&](const char* t) { f.insert(f.end(), t, t + 4); };
+        tag("RIFF"); u32(0); tag("WAVE");
+        tag("fmt "); u32(16); u16(1); u16(1); u32(sr); u32(sr * 2); u16(2); u16(16);
+        tag("smpl"); u32(36 + 24); u32(0); u32(0); u32(1000000000u / sr); u32(57); u32(0); u32(0); u32(0); u32(1); u32(0);
+        u32(0); u32(0); u32(40 * 128); u32(100 * 128 - 1); u32(0); u32(0);
+        tag("data"); u32((uint32_t) n * 2); for (int16_t v : pcm) u16((uint16_t) v);
+        WavData w = parseWav(f.data(), f.size());
+        CHECK(w.err.empty() && w.rate == sr && (int) w.mono.size() == n, "wav parse: %s rate %.0f frames %zu", w.err.c_str(), w.rate, w.mono.size());
+        CHECK(w.root == 57 && w.loopStart == 40 * 128 && w.loopEnd == 100 * 128 - 1, "smpl chunk: root %d loop %ld-%ld", w.root, w.loopStart, w.loopEnd);
+        Sound u = sampleToCmi(w.mono, w.rate, "ORCH5", w.root, false, w.loopStart, w.loopEnd);
+        CHECK(u.rate == sr, "kept at its own rate (%.0f)", u.rate);
+        CHECK(u.loopStart == 40 && u.loopEnd == 99, "loop kept on pages %d-%d", u.loopStart, u.loopEnd);
+        CHECK(u.root == 57 && u.name == "ORCH5", "root %d name %s", u.root, u.name.c_str());
+        // sample for sample (to 8 bits): the loop seam is not crossfaded
+        int worst = 0;
+        double pk = 0; for (int16_t v : pcm) pk = std::max(pk, std::fabs(v / 32768.0));
+        for (int i = 0; i < n; i += 7) worst = std::max(worst, std::abs((int) u.ram[(size_t) i] - (int) std::lround(pcm[(size_t) i] / 32768.0 / pk * 126.0) - 128));
+        CHECK(worst <= 1, "kept sample for sample (worst %d LSB)", worst);
+        // a long 44.1 kHz file is resampled to fit
+        std::vector<float> longf(44100 * 3, 0.1f);
+        Sound l = sampleToCmi(longf, 44100, "long", 60, false);
+        CHECK(l.ram.size() <= (size_t) RAM_SIZE && l.rate < 6000, "long file resampled to %.0f Hz", l.rate);
+        // slots
+        Kit kit;
+        CHECK(kit.firstFree() == 0 && kit.loadedCount() == 0, "kit starts empty");
+        for (int k = 0; k < 3; ++k) kit.setUser(kit.firstFree(), u);
+        CHECK(kit.loadedCount() == 3 && kit.firstFree() == 3, "three imported");
+        kit.clearUser(1);
+        CHECK(kit.firstFree() == 1 && kit.loadedCount() == 2, "clear a slot");
+        CHECK(Library::USER_SLOTS == 64 && lib.size() <= MAX_SOUNDS, "64 user voices fit the bank (%d)", lib.size());
     }
 
     // ---- speed: 16 voices for one second ----

@@ -78,12 +78,15 @@ public:
     void set(const char* id, float v);
     void loadSound(int index);                   // a sound and the controls it was saved with
     juce::String loadSample(const juce::File& f, int slot, int root, bool loop);   // "" or the error
+    juce::String importFiles(const juce::Array<juce::File>& filesOrFolders, int root, bool loop, int& imported);   // a summary
+    std::atomic<bool> showFactory { true };   // Page 2: the synthesised voices too, or only yours
     void preview(int track) { previewReq = track; }
     void seqPlay(bool on) { engine.seqRun = on; }
     std::atomic<float> meter { 0 };
 
 private:
     void timerCallback() override;
+    juce::String makeSound(const juce::File& f, int root, bool loop, Sound& out);
     Controls controlsNow() const;
     void writeSeq(juce::XmlElement&) const;
     void readSeq(const juce::XmlElement&);

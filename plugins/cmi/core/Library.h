@@ -172,7 +172,9 @@ inline void drive(Vec& x, double g) { for (auto& v : x) v = (float) std::tanh(v 
 inline double peakOf(const Vec& x) { double p = 0; for (float v : x) p = std::max(p, (double) std::fabs(v)); return p; }
 
 // ---- into CMI memory ----
-inline Sound sampled(const char* name, const char* title, const char* cat, double fs, int root, Vec x, double loopFrom, double loopTo, Controls c) {
+// crossfade: smooth the loop seam (the synthesised voices); off for loops a file brings with it, which are kept exactly
+inline Sound sampled(const char* name, const char* title, const char* cat, double fs, int root, Vec x, double loopFrom, double loopTo, Controls c,
+                     bool crossfade = true, bool normalize = true) {
     Sound s; s.name = name; s.title = title; s.category = cat; s.mode = Mode::Sample; s.rate = fs; s.root = root; s.ctl = c;
     if (x.size() > (size_t) RAM_SIZE) x.resize((size_t) RAM_SIZE);
     // remove DC
@@ -182,11 +184,11 @@ inline Sound sampled(const char* name, const char* title, const char* cat, doubl
     x.resize(pagesN * PAGE, 0.f);
     if (loopFrom >= 0) {
         int ls = (int) std::lround(loopFrom * fs / PAGE), le = (int) std::floor(loopTo * fs / PAGE) - 1;
-        le = std::min(le, (int) pagesN - 1); ls = clampi(ls, 1, std::max(1, le));
-        if (le > ls) {
+        le = std::min(le, (int) pagesN - 1); ls = clampi(ls, crossfade ? 1 : 0, std::max(crossfade ? 1 : 0, le));
+        if (le > ls || (!crossfade && le >= ls)) {
             s.loopStart = ls; s.loopEnd = le;
             const int span = (le - ls + 1) * PAGE;
-            const int C = std::min({ 2048, ls * PAGE, span / 2 });
+            const int C = crossfade ? std::min({ 2048, ls * PAGE, span / 2 }) : 0;
             const int endI = (le + 1) * PAGE, preI = ls * PAGE;
             for (int i = 0; i < C; ++i) {
                 const double w = (double) (i + 1) / C;
@@ -199,7 +201,7 @@ inline Sound sampled(const char* name, const char* title, const char* cat, doubl
         const size_t f = std::min<size_t>(x.size(), 256);
         for (size_t i = 0; i < f; ++i) x[x.size() - 1 - i] *= (float) (i / (double) f);
     }
-    const double p = std::max(1e-9, peakOf(x));
+    const double p = normalize ? std::max(1e-9, peakOf(x)) : 1.0;
     s.ram.resize(x.size());
     for (size_t i = 0; i < x.size(); ++i) s.ram[i] = (uint8_t) clampi((int) std::lround(x[i] / p * 126.0) + 128, 1, 255);
     return s;
@@ -781,7 +783,7 @@ public:
 
     // user slots (loaded samples): replace the sound in a slot, keeping the old one alive
     int userSlot(int k) const { return builtIn + k; }
-    static constexpr int USER_SLOTS = 8;
+    static constexpr int USER_SLOTS = 64;
     void setUser(int k, Sound s) {
         if (k < 0 || k >= USER_SLOTS) return;
         auto p = std::make_unique<Sound>(std::move(s));
@@ -818,6 +820,7 @@ public:
     }
 
     int builtIn = 0;
+    std::vector<const Sound*> blank;   // the empty user voices
 
     // copies the library into another bank (each plugin instance or app has its own, for its own user samples)
     void fill(Bank& b) const { const int n = size(); for (int i = 0; i < n; ++i) b.slot[(size_t) i].store(bank.at(i)); b.count = n; }
@@ -837,9 +840,9 @@ private:
         builtIn = i;
         // empty user slots: a soft sine until something is loaded
         for (int k = 0; k < USER_SLOTS; ++k) {
-            Sound s = gen::waveform(("USER" + std::to_string(k + 1)).c_str(), "Empty: load a sample (Page 8)", "User",
+            Sound s = gen::waveform(("USER" + std::to_string(k + 1)).c_str(), "Empty: load or import samples (Page 8)", "User",
                                     [](int, double* a, double*) { a[0] = 1; }, 0, 127, Controls());
-            auto p = std::make_unique<Sound>(std::move(s)); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p));
+            auto p = std::make_unique<Sound>(std::move(s)); blank.push_back(p.get()); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p));
         }
         bank.count = i;
     }
@@ -860,34 +863,102 @@ public:
         std::lock_guard<std::mutex> g(lock); owned.push_back(std::move(p));
     }
     const Sound* user(int k) const { return bank.at(userSlot(k)); }
+    void clearUser(int k) { if (k >= 0 && k < Library::USER_SLOTS) bank.slot[(size_t) userSlot(k)].store(Library::get().blank[(size_t) k]); }
+    int firstFree(int from = 0) const { for (int k = std::max(0, from); k < Library::USER_SLOTS; ++k) if (!userLoaded(k)) return k; return -1; }
+    int loadedCount() const { int n = 0; for (int k = 0; k < Library::USER_SLOTS; ++k) n += userLoaded(k); return n; }
     bool userLoaded(int k) const { const Sound* s = user(k); return s && s->category == "User" && s->title.rfind("Empty", 0) != 0; }
 private:
     std::vector<std::unique_ptr<Sound>> owned; std::mutex lock;
 };
 
-// Turns any audio (mono floats at srcRate) into a CMI sound: like Page 8 sampling, at the highest CMI rate that fits
-// the 16 KB (never above 32 kHz), with an anti-alias filter, 8-bit, and a loop over the last part if asked.
-inline Sound sampleToCmi(const std::vector<float>& in, double srcRate, const std::string& name, int root, bool loop) {
+// Turns any audio (mono floats at srcRate) into a CMI sound, like Page 8 sampling.
+//  - A sound that already fits a channel card (at most 32 kHz and 16 KB, as the CMI library's own sounds are) is
+//    kept sample for sample at its own rate.
+//  - Anything else is resampled to the highest CMI rate that fits 16 KB (never above 32 kHz), anti-aliased first.
+//  - fileLoopStart / fileLoopEnd (samples at srcRate, end inclusive): a loop the file brings (WAV "smpl" chunk, AIFF
+//    markers); it's kept exactly, snapped to whole pages as the card needs. Without one, loop = loop the last 45%.
+inline Sound sampleToCmi(const std::vector<float>& in, double srcRate, const std::string& name, int root, bool loop,
+                         long fileLoopStart = -1, long fileLoopEnd = -1) {
     using namespace gen;
+    const bool fileLoop = fileLoopStart >= 0 && fileLoopEnd > fileLoopStart && fileLoopStart < (long) in.size();
+    // what has to fit: with a loop, everything up to its end
+    const double need = (fileLoop ? std::min<double>((double) in.size(), fileLoopEnd + 1.0) : (double) in.size()) / srcRate;
+    double rate;
+    const bool native = srcRate <= 32000.5 && srcRate >= 4000 && need * srcRate <= RAM_SIZE;
+    if (native) rate = srcRate;
+    else rate = clampd(std::min({ 32000.0, srcRate, (double) RAM_SIZE / std::max(need, 1e-3) }), 4000.0, 32000.0);
     const double dur = in.size() / srcRate;
-    double rate = std::min(32000.0, (double) RAM_SIZE / std::max(dur, 1e-3));
-    rate = std::max(rate, 4000.0);
-    const size_t n = (size_t) std::min<double>(RAM_SIZE, std::floor(dur * rate));
-    // anti-alias: two passes of a low-pass at 0.45 of the new rate, then linear interpolation
-    std::vector<float> f = in;
-    if (rate < srcRate) { BQ a = BQ::lp(srcRate, rate * 0.45, 0.54), b = BQ::lp(srcRate, rate * 0.45, 1.3); for (auto& v : f) v = (float) b.run(a.run(v)); }
+    const size_t n = (size_t) std::min<double>(RAM_SIZE, std::floor(dur * rate + 1e-6));
     Vec y(n);
-    for (size_t i = 0; i < n; ++i) {
-        const double p = i * srcRate / rate; const size_t k = (size_t) p; const double fr = p - k;
-        const float a = k < f.size() ? f[k] : 0.f, b = k + 1 < f.size() ? f[k + 1] : a;
-        y[i] = (float) (a + (b - a) * fr);
+    if (native) { for (size_t i = 0; i < n; ++i) y[i] = in[i]; }
+    else {
+        std::vector<float> f = in;
+        if (rate < srcRate) { BQ a = BQ::lp(srcRate, rate * 0.45, 0.54), b = BQ::lp(srcRate, rate * 0.45, 1.3); for (auto& v : f) v = (float) b.run(a.run(v)); }
+        for (size_t i = 0; i < n; ++i) {
+            const double p = i * srcRate / rate; const size_t k = (size_t) p; const double fr = p - k;
+            const float a = k < f.size() ? f[k] : 0.f, b = k + 1 < f.size() ? f[k + 1] : a;
+            y[i] = (float) (a + (b - a) * fr);
+        }
     }
     std::string nm = name; for (auto& c : nm) c = (char) std::toupper((unsigned char) c);
     nm.erase(std::remove_if(nm.begin(), nm.end(), [](char c) { return !std::isalnum((unsigned char) c); }), nm.end());
     if (nm.size() > 8) nm.resize(8);
     if (nm.empty()) nm = "SAMPLE";
     const double secs = n / rate;
-    return gen::sampled(nm.c_str(), ("Sampled: " + name).c_str(), "User", rate, root, y, loop ? secs * 0.55 : -1, secs, Controls());
+    const std::string title = "Sampled: " + name;
+    if (fileLoop) {
+        const double ls = fileLoopStart / srcRate, le = (fileLoopEnd + 1.0) / srcRate;
+        // page-aligned already (sounds from a CMI): kept exactly; otherwise the seam is smoothed
+        const double lsP = ls * rate / PAGE, leP = le * rate / PAGE;
+        const bool aligned = std::fabs(lsP - std::round(lsP)) < 0.02 && std::fabs(leP - std::round(leP)) < 0.02;
+        return gen::sampled(nm.c_str(), title.c_str(), "User", rate, root, y, ls, std::min(le, secs), Controls(), !aligned, true);
+    }
+    return gen::sampled(nm.c_str(), title.c_str(), "User", rate, root, y, loop ? secs * 0.55 : -1, secs, Controls());
+}
+
+// A WAV file in memory: PCM 8/16/24/32-bit or float, any channels (mixed to mono), its "smpl" chunk (root key and
+// first loop). Used where there's no audio library (the Android app).
+struct WavData { std::vector<float> mono; double rate = 0; int root = -1; long loopStart = -1, loopEnd = -1; std::string err; };
+inline WavData parseWav(const uint8_t* d, size_t n, size_t maxFrames = 32000 * 12) {
+    WavData w;
+    auto u16 = [&](size_t o) { return o + 2 <= n ? (uint32_t) (d[o] | d[o + 1] << 8) : 0u; };
+    auto u32 = [&](size_t o) { return o + 4 <= n ? (uint32_t) (d[o] | d[o + 1] << 8 | d[o + 2] << 16 | (uint32_t) d[o + 3] << 24) : 0u; };
+    if (n < 12 || std::memcmp(d, "RIFF", 4) || std::memcmp(d + 8, "WAVE", 4)) { w.err = "NOT A WAV FILE"; return w; }
+    int fmt = 0, ch = 0, bits = 0; size_t dataOff = 0, dataLen = 0;
+    for (size_t o = 12; o + 8 <= n;) {
+        const uint32_t len = u32(o + 4); const size_t body = o + 8;
+        if (!std::memcmp(d + o, "fmt ", 4)) {
+            fmt = (int) u16(body); ch = (int) u16(body + 2); w.rate = u32(body + 4); bits = (int) u16(body + 14);
+            if (fmt == 0xFFFE && len >= 26) fmt = (int) u16(body + 24);   // extensible: the sub-format's first word
+        } else if (!std::memcmp(d + o, "data", 4)) { dataOff = body; dataLen = std::min<size_t>(len, n - body); }
+        else if (!std::memcmp(d + o, "smpl", 4) && len >= 36) {
+            const uint32_t unity = u32(body + 12), loops = u32(body + 28);
+            if (unity > 0 && unity < 128) w.root = (int) unity;
+            if (loops > 0 && len >= 36 + 24) { w.loopStart = (long) u32(body + 36 + 8); w.loopEnd = (long) u32(body + 36 + 12); }
+        }
+        o = body + len + (len & 1);
+    }
+    if (!dataOff || ch <= 0 || w.rate <= 0) { w.err = "NO AUDIO IN WAV"; return w; }
+    if (!(fmt == 1 || fmt == 3) || !(bits == 8 || bits == 16 || bits == 24 || bits == 32) || (fmt == 3 && bits != 32)) { w.err = "UNSUPPORTED WAV FORMAT"; return w; }
+    const size_t bps = (size_t) bits / 8, frames = std::min(maxFrames, dataLen / (bps * (size_t) ch));
+    w.mono.resize(frames);
+    for (size_t f = 0; f < frames; ++f) {
+        double s = 0;
+        for (int c = 0; c < ch; ++c) {
+            const uint8_t* p = d + dataOff + (f * (size_t) ch + (size_t) c) * bps;
+            double v;
+            if (fmt == 3) { float x; std::memcpy(&x, p, 4); v = x; }
+            else if (bits == 8) v = (p[0] - 128) / 128.0;
+            else if (bits == 16) v = (int16_t) (p[0] | p[1] << 8) / 32768.0;
+            else if (bits == 24) { int32_t x = p[0] | p[1] << 8 | p[2] << 16; if (x & 0x800000) x |= ~0xFFFFFF; v = x / 8388608.0; }
+            else { int32_t x; std::memcpy(&x, p, 4); v = x / 2147483648.0; }
+            s += v;
+        }
+        w.mono[f] = (float) (s / ch);
+    }
+    if (w.loopEnd >= (long) frames) w.loopEnd = (long) frames - 1;
+    if (w.loopStart >= w.loopEnd) w.loopStart = w.loopEnd = -1;
+    return w;
 }
 
 }  // namespace cmi

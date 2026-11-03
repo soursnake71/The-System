@@ -71,20 +71,58 @@ const juce::String CmiProcessor::getProgramName(int i) {
     return s ? juce::String(s->name) + " - " + juce::String(s->title) : juce::String();
 }
 
-juce::String CmiProcessor::loadSample(const juce::File& f, int slot, int root, bool loop) {
+// one file as a CMI voice: its own root key and loop when the file has them (WAV smpl chunk)
+juce::String CmiProcessor::makeSound(const juce::File& f, int root, bool loop, Sound& out) {
     std::unique_ptr<juce::AudioFormatReader> r(formats.createReaderFor(f));
     if (!r) return "Can't read " + f.getFileName();
-    const int64_t maxLen = (int64_t) (r->sampleRate * 8);   // more than 16 KB can hold at the lowest rate
+    const int64_t maxLen = (int64_t) (r->sampleRate * 12);
     const int n = (int) std::min<int64_t>(r->lengthInSamples, maxLen);
-    if (n <= 0) return "Empty file";
+    if (n <= 0) return "Empty file " + f.getFileName();
     juce::AudioBuffer<float> b((int) r->numChannels, n);
     r->read(&b, 0, n, 0, true, true);
     std::vector<float> mono((size_t) n, 0.f);
     for (int c = 0; c < b.getNumChannels(); ++c) { auto* p = b.getReadPointer(c); for (int i = 0; i < n; ++i) mono[(size_t) i] += p[i] / (float) b.getNumChannels(); }
-    Sound s = sampleToCmi(mono, r->sampleRate, f.getFileNameWithoutExtension().toStdString(), root, loop);
+    const auto& md = r->metadataValues;
+    const int unity = md.getValue("MidiUnityNote", "-1").getIntValue();
+    if (unity > 0 && unity < 128) root = unity;
+    long ls = -1, le = -1;
+    if (md.getValue("NumSampleLoops", "0").getIntValue() > 0) { ls = md.getValue("Loop0Start", "-1").getLargeIntValue(); le = md.getValue("Loop0End", "-1").getLargeIntValue(); }
+    out = sampleToCmi(mono, r->sampleRate, f.getFileNameWithoutExtension().toStdString(), root, loop, ls, le);
+    return {};
+}
+
+juce::String CmiProcessor::loadSample(const juce::File& f, int slot, int root, bool loop) {
+    Sound s;
+    const auto err = makeSound(f, root, loop, s);
+    if (err.isNotEmpty()) return err;
     kit.setUser(slot, std::move(s));
     loadSound(kit.userSlot(slot));
     return {};
+}
+
+// files and folders (searched inside) into the free user voices, in name order
+juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int root, bool loop, int& imported) {
+    juce::Array<juce::File> files;
+    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg";
+    for (const auto& it : items) {
+        if (it.isDirectory()) for (const auto& e : juce::RangedDirectoryIterator(it, true, exts, juce::File::findFiles)) files.add(e.getFile());
+        else if (it.existsAsFile()) files.add(it);
+    }
+    struct ByName { static int compareElements(const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()); } } cmp;
+    files.sort(cmp);
+    imported = 0; int failed = 0, first = -1;
+    for (const auto& f : files) {
+        const int slot = kit.firstFree();
+        if (slot < 0) return juce::String(imported) + " IMPORTED, USER VOICES FULL";
+        Sound s;
+        if (makeSound(f, root, loop, s).isNotEmpty()) { ++failed; continue; }
+        kit.setUser(slot, std::move(s));
+        if (first < 0) first = slot;
+        ++imported;
+    }
+    if (first >= 0) loadSound(kit.userSlot(first));
+    if (files.isEmpty()) return "NO AUDIO FILES FOUND";
+    return juce::String(imported) + " IMPORTED" + (failed ? ", " + juce::String(failed) + " UNREADABLE" : juce::String());
 }
 
 void CmiProcessor::timerCallback() {
@@ -195,6 +233,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
     auto st = apvts.copyState();
     std::unique_ptr<juce::XmlElement> x(st.createXml());
     x->setAttribute("program", program);
+    x->setAttribute("showFactory", showFactory.load());
     const Sound* cur = kit.bank.at(juce::roundToInt(get("sound")));
     if (cur) x->setAttribute("soundName", juce::String(cur->name));
     writeSeq(*x);
@@ -225,6 +264,7 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
     }
     readSeq(*x);
     program = x->getIntAttribute("program", 0);
+    showFactory = x->getBoolAttribute("showFactory", true);
     const juce::String sn = x->getStringAttribute("soundName");
     if (x->hasTagName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*x));
     // the library may have grown: find the sound by name

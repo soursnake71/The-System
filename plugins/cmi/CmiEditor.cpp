@@ -77,19 +77,39 @@ void Screen::drawHeader(juce::Graphics& g) {
 void Screen::drawLibrary(juce::Graphics& g) {
     auto& kit = ed.proc.kit;
     const int n = kit.bank.count.load(), cur = juce::roundToInt(ed.proc.get("sound"));
-    g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("DISK DIRECTORY:  OMEGA.LIB      " + juce::String(n) + " VOICES    CLICK TO LOAD THE KEYBOARD", 20, 58, W - 40, 20, juce::Justification::centredLeft);
-    g.drawHorizontalLine(80, 20, (float) W - 20);
-    const int rows = 23, colW = 320;
+    const bool all = ed.proc.showFactory.load();
+    std::vector<int> list;
     for (int i = 0; i < n; ++i) {
+        const bool user = i >= Library::get().builtIn;
+        if (user ? kit.userLoaded(i - Library::get().builtIn) : all) list.push_back(i);
+    }
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("DISK DIRECTORY:  " + juce::String((int) list.size()) + " VOICES    CLICK TO LOAD THE KEYBOARD", 20, 58, 640, 20, juce::Justification::centredLeft);
+    button(g, { 680, 56, 140, 22 }, "ALL", all, [this] { ed.proc.showFactory = true; libScroll = 0; });
+    button(g, { 830, 56, 140, 22 }, "MINE ONLY", !all, [this] { ed.proc.showFactory = false; libScroll = 0; });
+    g.drawHorizontalLine(82, 20, (float) W - 20);
+    const int rows = 22, colW = 320, per = rows * 3;
+    const int pages = std::max(1, ((int) list.size() + per - 1) / per);
+    libScroll = juce::jlimit(0, pages - 1, libScroll);
+    if (list.empty()) {
+        g.setColour(kDim); g.drawText("No user voices yet: import your sounds on Page 8.", 20, 120, W - 40, 20, juce::Justification::centredLeft);
+    }
+    for (int k = 0; k < per && libScroll * per + k < (int) list.size(); ++k) {
+        const int i = list[(size_t) (libScroll * per + k)];
         const Sound* s = kit.bank.at(i); if (!s) continue;
-        const int c = i / rows, r = i % rows;
-        juce::Rectangle<float> rr(20.f + c * colW, 86.f + r * 20.f, (float) colW - 12, 19);
+        const int c = k / rows, r = k % rows;
+        juce::Rectangle<float> rr(20.f + c * colW, 88.f + r * 20.f, (float) colW - 12, 19);
         if (i == cur) { g.setColour(kInk); g.fillRect(rr); g.setColour(kBg); } else g.setColour(kInk);
         g.setFont(mono(16));
         juce::String cat(s->category); cat = cat.substring(0, 10);
-        g.drawText(juce::String(i + 1).paddedLeft('0', 2) + " " + juce::String(s->name).paddedRight(' ', 9) + (s->mode == Mode::Waveform ? ".WF " : ".VC ") + cat, rr.reduced(4, 0), juce::Justification::centredLeft);
+        g.drawText(juce::String(i + 1).paddedLeft('0', 3) + " " + juce::String(s->name).paddedRight(' ', 9) + (s->mode == Mode::Waveform ? ".WF " : ".VC ") + cat, rr.reduced(4, 0), juce::Justification::centredLeft);
         hit(rr, [this, i](const juce::MouseEvent&) { ed.proc.loadSound(i); status = "LOADED"; });
+    }
+    if (pages > 1) {
+        button(g, { (float) W - 160, (float) H - 104, 40, 20 }, "<", false, [this] { libScroll = juce::jmax(0, libScroll - 1); });
+        g.setColour(kInk); g.setFont(mono(15));
+        g.drawText(juce::String(libScroll + 1) + "/" + juce::String(pages), W - 116, H - 104, 52, 20, juce::Justification::centred);
+        button(g, { (float) W - 60, (float) H - 104, 40, 20 }, ">", false, [this, pages] { libScroll = juce::jmin(pages - 1, libScroll + 1); });
     }
     if (const Sound* s = kit.bank.at(cur)) {
         g.setColour(kDim); g.drawHorizontalLine(H - 82, 20, (float) W - 20);
@@ -230,35 +250,56 @@ void Screen::drawWave(juce::Graphics& g) {
 // ---- Page 8: sampling into the user voices ----
 void Screen::drawSampling(juce::Graphics& g) {
     auto& kit = ed.proc.kit;
+    constexpr int per = 16;
+    const int pages = Library::USER_SLOTS / per;
+    userPage = juce::jlimit(0, pages - 1, userPage);
     g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("SAMPLING    ADC: 8 BITS, UP TO 32 kHz, 16384 BYTES PER VOICE", 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    g.drawText("SAMPLING   " + juce::String(kit.loadedCount()) + " OF " + juce::String(Library::USER_SLOTS) + " USER VOICES   8 BITS, UP TO 32 kHz, 16 KB EACH", 20, 58, W - 40, 20,
+               juce::Justification::centredLeft);
     g.drawHorizontalLine(80, 20, (float) W - 20);
-    g.setColour(kDim); g.setFont(mono(15));
-    g.drawText("Load or drop any WAV / AIFF / FLAC / MP3. The rate is the highest that fits 16 KB; loop = the last 45%.", 20, 86, W - 40, 18, juce::Justification::centredLeft);
-    static int rootKey = 60; static bool loopIt = false;
-    for (int k = 0; k < Library::USER_SLOTS; ++k) {
-        const float y = 120.f + k * 44.f;
+    g.setColour(kDim); g.setFont(mono(14));
+    g.drawText("Your own CMI sounds: import files or a whole folder (or drop them here). A sound that fits a channel card is kept sample for sample;",
+               20, 84, W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("a WAV's root key and loop (smpl chunk) are used. Others go in at the highest rate that fits 16 KB.", 20, 100, W - 40, 16, juce::Justification::centredLeft);
+    auto launch = [this](bool folder, int slot) {
+        const int flags = juce::FileBrowserComponent::openMode | (folder ? juce::FileBrowserComponent::canSelectDirectories
+                                                                          : juce::FileBrowserComponent::canSelectFiles | (slot < 0 ? juce::FileBrowserComponent::canSelectMultipleItems : 0));
+        ed.chooser = std::make_unique<juce::FileChooser>(folder ? "Import a folder of sounds" : slot < 0 ? "Import sounds" : "Sample into USER" + juce::String(slot + 1),
+                                                         juce::File(), folder ? juce::String() : juce::String("*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg"));
+        ed.chooser->launchAsync(flags, [this, slot](const juce::FileChooser& fc) {
+            const auto res = fc.getResults(); if (res.isEmpty()) return;
+            if (slot >= 0) { const auto err = ed.proc.loadSample(res[0], slot, rootKey, loopIt); status = err.isEmpty() ? "SAMPLED" : err.toUpperCase(); }
+            else { int n = 0; status = ed.proc.importFiles(res, rootKey, loopIt, n); }
+            repaint();
+        });
+    };
+    button(g, { 20, 122, 200, 24 }, "IMPORT FILES", false, [launch] { launch(false, -1); });
+    button(g, { 230, 122, 200, 24 }, "IMPORT FOLDER", false, [launch] { launch(true, -1); });
+    button(g, { 440, 122, 160, 24 }, "CLEAR ALL", false, [this] { for (int k = 0; k < Library::USER_SLOTS; ++k) ed.proc.kit.clearUser(k); status = "USER VOICES CLEARED"; });
+    for (int r = 0; r < per; ++r) {
+        const int k = userPage * per + r;
+        const float y = 156.f + r * 24.f;
         const Sound* s = kit.user(k);
         const bool loaded = kit.userLoaded(k);
-        g.setColour(kInk); g.setFont(mono(17));
-        g.drawText("USER" + juce::String(k + 1), 20, (int) y, 80, 30, juce::Justification::centredLeft);
-        g.drawText(loaded && s ? juce::String(s->name).paddedRight(' ', 9) + juce::String(juce::roundToInt(s->rate)) + " Hz  " + juce::String(s->ram.size() / s->rate, 2) + " s  root " + noteName(s->root)
-                               : juce::String("-- EMPTY --"), 110, (int) y, 520, 30, juce::Justification::centredLeft);
-        button(g, { 640, y + 3, 120, 24 }, "LOAD", false, [this, k] {
-            ed.chooser = std::make_unique<juce::FileChooser>("Sample into USER" + juce::String(k + 1), juce::File(), "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
-            ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this, k](const juce::FileChooser& fc) {
-                const auto f = fc.getResult(); if (!f.existsAsFile()) return;
-                const auto err = ed.proc.loadSample(f, k, rootKey, loopIt);
-                status = err.isEmpty() ? "SAMPLED" : err.toUpperCase(); repaint();
-            });
-        });
-        button(g, { 780, y + 3, 190, 24 }, "PLAY ON KEYS", false, [this, k] { ed.proc.loadSound(ed.proc.kit.userSlot(k)); status = "LOADED"; });
+        g.setColour(loaded ? kInk : kDim); g.setFont(mono(15));
+        g.drawText("USER" + juce::String(k + 1).paddedLeft('0', 2), 20, (int) y, 80, 22, juce::Justification::centredLeft);
+        g.drawText(loaded && s ? juce::String(s->name).paddedRight(' ', 9) + juce::String(juce::roundToInt(s->rate)).paddedLeft(' ', 5) + " Hz  " + juce::String(s->ram.size() / s->rate, 2) +
+                                     " s  root " + noteName(s->root) + "  loop " + (s->loopStart >= 0 ? juce::String(s->loopStart + 1) + "-" + juce::String(s->loopEnd + 1) : juce::String("-"))
+                               : juce::String("--"), 110, (int) y, 560, 22, juce::Justification::centredLeft);
+        button(g, { 680, y + 1, 90, 20 }, "LOAD", false, [launch, k] { launch(false, k); });
+        button(g, { 778, y + 1, 90, 20 }, "PLAY", false, [this, k] { ed.proc.loadSound(ed.proc.kit.userSlot(k)); status = "LOADED"; });
+        button(g, { 876, y + 1, 90, 20 }, "CLEAR", false, [this, k] { ed.proc.kit.clearUser(k); });
     }
-    g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("ROOT KEY: " + noteName(rootKey) + "   (wheel or drag)", 20, 482, 400, 24, juce::Justification::centredLeft);
-    auto& h = hit({ 20, 482, 400, 24 }, [](const juce::MouseEvent&) {}, [](const juce::MouseEvent& e) { rootKey = juce::jlimit(24, 96, 60 - e.getDistanceFromDragStartY() / 6); });
-    h.wheel = [](float dy) { rootKey = juce::jlimit(24, 96, rootKey + (dy > 0 ? 1 : -1)); };
-    button(g, { 440, 482, 200, 24 }, loopIt ? "LOOP: ON" : "LOOP: OFF", loopIt, [] { loopIt = !loopIt; });
+    const float by = 156.f + per * 24.f + 4;
+    button(g, { 20, by, 40, 22 }, "<", false, [this] { userPage = juce::jmax(0, userPage - 1); });
+    g.setColour(kInk); g.setFont(mono(15));
+    g.drawText(juce::String(userPage * per + 1) + "-" + juce::String((userPage + 1) * per), 64, (int) by, 90, 22, juce::Justification::centred);
+    button(g, { 158, by, 40, 22 }, ">", false, [this, pages] { userPage = juce::jmin(pages - 1, userPage + 1); });
+    g.drawText("ROOT KEY: " + noteName(rootKey) + " (wheel/drag; a WAV's own wins)", 230, (int) by, 470, 22, juce::Justification::centredLeft);
+    auto& h = hit({ 230, by, 470, 22 }, [this](const juce::MouseEvent&) { dragRoot = rootKey; },
+                  [this](const juce::MouseEvent& e) { rootKey = juce::jlimit(24, 96, dragRoot - e.getDistanceFromDragStartY() / 6); });
+    h.wheel = [this](float dy) { rootKey = juce::jlimit(24, 96, rootKey + (dy > 0 ? 1 : -1)); };
+    button(g, { 760, by, 206, 22 }, loopIt ? "AUTO LOOP: ON" : "AUTO LOOP: OFF", loopIt, [this] { loopIt = !loopIt; });
 }
 
 // ---- Page R ----
@@ -502,18 +543,14 @@ void CmiEditor::resized() {
 void CmiEditor::timerCallback() { screen.repaint(); }
 
 bool CmiEditor::isInterestedInFileDrag(const juce::StringArray& files) {
-    for (auto& f : files) if (juce::File(f).hasFileExtension("wav;aif;aiff;flac;mp3;ogg")) return true;
+    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg")) return true; }
     return false;
 }
 
 void CmiEditor::filesDropped(const juce::StringArray& files, int, int) {
-    int slot = 0;
-    while (slot < Library::USER_SLOTS - 1 && proc.kit.userLoaded(slot)) ++slot;
-    for (auto& f : files) {
-        const auto err = proc.loadSample(juce::File(f), slot, 60, false);
-        screen.status = err.isEmpty() ? "SAMPLED INTO USER" + juce::String(slot + 1) : err.toUpperCase();
-        if (err.isEmpty()) break;
-    }
+    juce::Array<juce::File> items; for (auto& f : files) items.add(juce::File(f));
+    int n = 0;
+    screen.status = proc.importFiles(items, screen.rootKey, screen.loopIt, n);
     screen.page = '8'; screen.repaint();
 }
 

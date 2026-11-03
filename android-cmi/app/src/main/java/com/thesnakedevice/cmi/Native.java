@@ -8,7 +8,7 @@ final class Native {
     // parameter indices (native.cpp)
     static final int LEVEL = 0, FILTER = 1, ATTACK = 2, DAMP = 3, SUSTAIN = 4, VIB = 5, VIBRATE = 6, VIBDELAY = 7, PORTA = 8, VELVOL = 9, VELFILT = 10,
             TRANSPOSE = 11, FINE = 12, LOOP = 13, SEG = 14, POLY = 15, BEND = 16, MASTER = 17, HISS = 18, SPREAD = 19, TEMPO = 20, SWING = 21, SONGMODE = 22;
-    static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 8, NCH = 16;
+    static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 64, NCH = 16;
 
     static native void start();
     static native void stop();
@@ -50,7 +50,12 @@ final class Native {
     static native void setSongAt(int i, int p);
     static native void channelEnv(int[] out);
 
-    static native String loadSample(float[] mono, int rate, String name, int slot, int root, boolean loop);
+    static native String loadSample(float[] mono, int rate, String name, int slot, int root, boolean loop, int loopStart, int loopEnd);
+    /** a WAV file's bytes: its smpl chunk's root key and loop are used */
+    static native String loadWav(byte[] wav, String name, int slot, int root, boolean loop);
+    static native int firstFreeUser();
+    static native int userCount();
+    static native void clearUser(int k);
     static native boolean userLoaded(int k);
     static native int userSlot(int k);
 

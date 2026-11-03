@@ -38,10 +38,31 @@ int main(int argc, char** argv) {
         const auto err = p.loadSample(wav, 0, 57, true);
         std::printf("sample: %s\n", err.isEmpty() ? "loaded" : err.toRawUTF8()); ok &= err.isEmpty();
     }
+    // a folder of sounds: three WAVs, one with a root key and a loop in its smpl chunk
+    {
+        juce::File dir = out.getChildFile("import"); dir.deleteRecursively(); dir.createDirectory();
+        for (int k = 0; k < 3; ++k) {
+            juce::File wav = dir.getChildFile(juce::String("SND") + juce::String(k + 1) + ".wav");
+            juce::StringPairArray md;
+            if (k == 1) { md.set("MidiUnityNote", "45"); md.set("NumSampleLoops", "1"); md.set("Loop0Type", "0"); md.set("Loop0Start", "5120"); md.set("Loop0End", "12799"); }
+            juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::OutputStream> os(wav.createOutputStream().release());
+            std::unique_ptr<juce::AudioFormatWriter> w(fmt.createWriterFor(os.get(), 25000, 1, 16, md, 0));
+            if (!w) { ok = false; break; }
+            os.release();
+            juce::AudioBuffer<float> b(1, 14000); for (int i = 0; i < 14000; ++i) b.setSample(0, i, 0.4f * (float) std::sin(i * 0.05 * (k + 1)));
+            w->writeFromAudioSampleBuffer(b, 0, 14000);
+        }
+        int n = 0;
+        const auto msg = p.importFiles({ dir }, 60, false, n);
+        const cmi::Sound* s2 = p.kit.user(2);   // slot 1 holds the tone above, so SND2 is in slot 3
+        std::printf("folder import: %s; SND2 root %d loop %d-%d rate %.0f\n", msg.toRawUTF8(), s2 ? s2->root : -1, s2 ? s2->loopStart : -1, s2 ? s2->loopEnd : -1, s2 ? s2->rate : 0);
+        ok &= n == 3 && s2 && s2->name == "SND2" && s2->root == 45 && s2->loopStart == 40 && s2->loopEnd == 99 && s2->rate == 25000;
+    }
     // state round trip keeps Page R and the user sample
     juce::MemoryBlock st; p.getStateInformation(st);
     cmi::CmiProcessor q; q.setStateInformation(st.getData(), (int) st.getSize());
-    const bool same = std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0);
+    const bool same = std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0) && q.kit.loadedCount() == 4 && q.kit.user(2)->ram == p.kit.user(2)->ram;
     std::printf("state %d bytes, Page R and user voice restored: %s\n", (int) st.getSize(), same ? "yes" : "NO"); ok &= same;
     // pictures
     p.loadSound(cmi::Library::get().find("CHOIRAAH"));

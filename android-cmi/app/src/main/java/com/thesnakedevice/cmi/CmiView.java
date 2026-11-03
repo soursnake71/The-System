@@ -121,28 +121,36 @@ public class CmiView extends View {
     }
 
     // ---- Page 2 ----
+    private boolean mineOnly = false;
     private void library(Canvas c, RectF b) {
-        final int n = Native.soundCount(), cur = Native.getSound();
+        final int n = Native.soundCount(), cur = Native.getSound(), built = Native.builtInCount();
+        final List<Integer> list = new ArrayList<>();
+        for (int i = 0; i < n; ++i) { boolean user = i >= built; if (user ? Native.userLoaded(i - built) : !mineOnly) list.add(i); }
+        button(c, new RectF(b.left, b.top, b.left + dp(70), b.top + dp(22)), "ALL", !mineOnly, () -> { mineOnly = false; libScroll = 0; });
+        button(c, new RectF(b.left + dp(76), b.top, b.left + dp(176), b.top + dp(22)), "MINE ONLY", mineOnly, () -> { mineOnly = true; libScroll = 0; });
+        text(c, list.size() + " VOICES", b.left + dp(186), b.top + dp(16), 11, DIM);
+        final RectF lb = new RectF(b.left, b.top + dp(28), b.right, b.bottom - dp(22));
         final float rowH = dp(24);
-        final int rows = Math.max(1, (int) ((b.height() - dp(20)) / rowH));
+        final int rows = Math.max(1, (int) (lb.height() / rowH));
         final float colW = dp(170);
-        final int cols = Math.max(1, (int) (b.width() / colW));
+        final int cols = Math.max(1, (int) (lb.width() / colW));
         final int perPage = rows * cols;
-        libScroll = Math.max(0, Math.min(libScroll, Math.max(0, n - perPage)));
-        for (int k = 0; k < perPage && libScroll + k < n; ++k) {
-            final int i = libScroll + k;
+        libScroll = Math.max(0, Math.min(libScroll, Math.max(0, list.size() - 1) / perPage * perPage));
+        if (list.isEmpty()) text(c, "No voices of your own yet: import them on Page 8.", lb.left, lb.top + dp(16), 12, DIM);
+        for (int k = 0; k < perPage && libScroll + k < list.size(); ++k) {
+            final int i = list.get(libScroll + k);
             String[] f = info(i);
-            RectF r = new RectF(b.left + (k / rows) * colW, b.top + (k % rows) * rowH, b.left + (k / rows + 1) * colW - dp(6), b.top + (k % rows + 1) * rowH - dp(2));
+            RectF r = new RectF(lb.left + (k / rows) * colW, lb.top + (k % rows) * rowH, lb.left + (k / rows + 1) * colW - dp(6), lb.top + (k % rows + 1) * rowH - dp(2));
             if (i == cur) fill(c, r, INK);
-            text(c, String.format("%02d %-8s %s", i + 1, f[0], f[2].length() > 6 ? f[2].substring(0, 6) : f[2]), r.left + dp(3), r.bottom - dp(6), 12, i == cur ? BG : INK);
+            text(c, String.format("%03d %-8s %s", i + 1, f[0], f[2].length() > 6 ? f[2].substring(0, 6) : f[2]), r.left + dp(3), r.bottom - dp(6), 12, i == cur ? BG : INK);
             hit(r, (x, y) -> { Native.loadSound(i); status = "LOADED " + info(i)[0]; });
         }
-        if (n > perPage) {
-            button(c, new RectF(b.right - dp(90), b.bottom - dp(20), b.right - dp(50), b.bottom), "<", false, () -> libScroll = Math.max(0, libScroll - rows));
-            button(c, new RectF(b.right - dp(44), b.bottom - dp(20), b.right, b.bottom), ">", false, () -> libScroll += rows);
+        if (list.size() > perPage) {
+            button(c, new RectF(b.right - dp(90), b.bottom - dp(20), b.right - dp(50), b.bottom), "<", false, () -> libScroll = Math.max(0, libScroll - perPage));
+            button(c, new RectF(b.right - dp(44), b.bottom - dp(20), b.right, b.bottom), ">", false, () -> libScroll += perPage);
         }
         String[] f = info(cur);
-        if (f.length > 3) text(c, f[0] + ": " + f[1], b.left, b.bottom - dp(4), 11, DIM);
+        if (f.length > 3) text(c, f[0] + ": " + (f[1].length() > 40 ? f[1].substring(0, 40) : f[1]), b.left, b.bottom - dp(4), 11, DIM);
     }
 
     // ---- Page 7 ----
@@ -250,25 +258,48 @@ public class CmiView extends View {
     }
 
     // ---- Page 8 ----
+    private int userPage = 0;
     private void sampling(Canvas c, RectF b) {
-        text(c, "SAMPLING  8 BITS, UP TO 32 kHz, 16 KB PER VOICE", b.left, b.top + dp(12), 12, INK);
-        final float rh = portrait ? Math.min(dp(52), (b.height() - dp(56)) / 8) : Math.min(dp(30), (b.height() - dp(56)) / 8);
-        for (int k = 0; k < Native.USER_SLOTS; ++k) {
-            final int slot = k;
-            float y = b.top + dp(20) + k * rh;
-            boolean has = Native.userLoaded(k);
-            String[] f = info(Native.userSlot(k));
+        text(c, "SAMPLING  " + Native.userCount() + " OF " + Native.USER_SLOTS + " USER VOICES", b.left, b.top + dp(12), 12, INK);
+        text(c, "Files that fit a card are kept as they are; a WAV's root and loop are used.", b.left, b.top + dp(28), 9, DIM);
+        float y0 = b.top + dp(36);
+        float bw = (b.width() - dp(12)) / 3;
+        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(26)), "IMPORT FILES", false, act::importFiles);
+        button(c, new RectF(b.left + bw + dp(6), y0, b.left + 2 * bw + dp(6), y0 + dp(26)), "IMPORT FOLDER", false, act::importFolder);
+        button(c, new RectF(b.left + 2 * bw + dp(12), y0, b.right, y0 + dp(26)), "CLEAR ALL", false, () -> {
+            new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Clear all user voices?")
+                    .setPositiveButton("Clear", (d2, w) -> { for (int k = 0; k < Native.USER_SLOTS; ++k) Native.clearUser(k); status("USER VOICES CLEARED"); act.saveState(); })
+                    .setNegativeButton("Cancel", null).show();
+        });
+        final float top = y0 + dp(32), bottom = b.bottom - dp(30);
+        final float rh = portrait ? dp(46) : dp(28);
+        final int per = Math.max(1, (int) ((bottom - top) / rh));
+        final int pages = (Native.USER_SLOTS + per - 1) / per;
+        userPage = Math.max(0, Math.min(pages - 1, userPage));
+        for (int r = 0; r < per; ++r) {
+            final int slot = userPage * per + r;
+            if (slot >= Native.USER_SLOTS) break;
+            float y = top + r * rh;
+            boolean has = Native.userLoaded(slot);
+            String[] f = info(Native.userSlot(slot));
+            String line = String.format("USER%02d ", slot + 1) + (has ? f[0] + "  " + f[3] + "Hz  " + noteName(Integer.parseInt(f[4])) + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : "") : "--");
             final float ty = portrait ? y + dp(14) : y + rh * 0.65f;
-            text(c, "USER" + (k + 1) + "  " + (has ? f[0] + "  " + f[3] + " Hz  root " + noteName(Integer.parseInt(f[4])) : "-- EMPTY --"), b.left, ty, 12, has ? INK : DIM);
-            final float btop = portrait ? y + dp(20) : y + dp(2);
-            button(c, new RectF(b.right - dp(200), btop, b.right - dp(110), y + rh - dp(3)), "LOAD", false, () -> act.pickSample(slot));
-            button(c, new RectF(b.right - dp(104), btop, b.right, y + rh - dp(3)), "PLAY", false, () -> { Native.loadSound(Native.userSlot(slot)); status = "LOADED"; });
+            text(c, line, b.left, ty, 12, has ? INK : DIM);
+            final float btop = portrait ? y + dp(19) : y + dp(2), bh = portrait ? rh - dp(3) : rh - dp(3);
+            final float w3 = portrait ? (b.width() - dp(12)) / 3 : dp(64);
+            final float bx = portrait ? b.left : b.right - 3 * w3 - dp(12);
+            button(c, new RectF(bx, btop, bx + w3, y + bh), "LOAD", false, () -> act.pickSample(slot));
+            button(c, new RectF(bx + w3 + dp(6), btop, bx + 2 * w3 + dp(6), y + bh), "PLAY", false, () -> { Native.loadSound(Native.userSlot(slot)); status = "LOADED"; });
+            button(c, new RectF(bx + 2 * w3 + dp(12), btop, bx + 3 * w3 + dp(12), y + bh), "CLEAR", false, () -> { Native.clearUser(slot); act.saveState(); });
         }
-        float y = b.bottom - dp(26);
-        text(c, "ROOT " + noteName(rootKey), b.left, y + dp(16), 12, INK);
-        button(c, new RectF(b.left + dp(90), y, b.left + dp(124), y + dp(22)), "-", false, () -> rootKey = Math.max(24, rootKey - 1));
-        button(c, new RectF(b.left + dp(128), y, b.left + dp(162), y + dp(22)), "+", false, () -> rootKey = Math.min(96, rootKey + 1));
-        button(c, new RectF(b.left + dp(180), y, b.left + dp(280), y + dp(22)), loopSample ? "LOOP ON" : "LOOP OFF", loopSample, () -> loopSample = !loopSample);
+        float y = b.bottom - dp(24);
+        button(c, new RectF(b.left, y, b.left + dp(34), y + dp(22)), "<", false, () -> userPage = Math.max(0, userPage - 1));
+        textC(c, (userPage * per + 1) + "-" + Math.min(Native.USER_SLOTS, (userPage + 1) * per), new RectF(b.left + dp(34), y, b.left + dp(96), y + dp(22)), 11, INK);
+        button(c, new RectF(b.left + dp(96), y, b.left + dp(130), y + dp(22)), ">", false, () -> userPage = Math.min(pages - 1, userPage + 1));
+        text(c, "ROOT " + noteName(rootKey), b.left + dp(140), y + dp(16), 11, INK);
+        button(c, new RectF(b.left + dp(200), y, b.left + dp(230), y + dp(22)), "-", false, () -> rootKey = Math.max(24, rootKey - 1));
+        button(c, new RectF(b.left + dp(234), y, b.left + dp(264), y + dp(22)), "+", false, () -> rootKey = Math.min(96, rootKey + 1));
+        button(c, new RectF(b.left + dp(272), y, Math.min(b.right, b.left + dp(372)), y + dp(22)), loopSample ? "LOOP ON" : "LOOP OFF", loopSample, () -> loopSample = !loopSample);
     }
 
     // ---- Page R ----
