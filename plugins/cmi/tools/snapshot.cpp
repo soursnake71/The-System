@@ -79,6 +79,29 @@ int main(int argc, char** argv) {
         std::printf("song %s: beat %.1f, peak %.3f\n", p.engine.song.load()->name.c_str(), p.engine.songBeat.load(), pk);
         ok &= pk > 0.05;
     }
+    // MIDI control: CC 74 moves the filter (a default), MIDI learn puts the attack on CC 21, program change picks a voice
+    {
+        auto cc = [&](int c, int v) { run(2, [c, v](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::controllerEvent(1, c, v), 0); }); juce::MessageManager::getInstance()->runDispatchLoopUntil(80); };
+        cc(74, 0);
+        const float f = p.get("filter");
+        p.learnParam = cmi::paramIndex("attack");
+        cc(21, 127); cc(21, 64);
+        const float at = p.get("attack");
+        run(2, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::programChange(1, 1), 0); }); juce::MessageManager::getInstance()->runDispatchLoopUntil(80);
+        const int snd = juce::roundToInt(p.get("sound"));
+        std::printf("MIDI control: CC74 0 -> filter %.0f; learned CC21 -> attack %.1f; program 2 -> %s\n", f, at, p.kit.bank.at(snd)->name.c_str());
+        ok &= f < 1 && at > 14 && at < 17 && p.kit.bank.at(snd)->name == "CHOIRAAH";
+    }
+    // exports: the song as WAV and as MIDI
+    if (p.engine.song.load()) {
+        juce::File wav = out.getChildFile("song.wav"), mid = out.getChildFile("song.mid"); wav.deleteFile(); mid.deleteFile();
+        juce::String got;
+        p.exportAudio(wav, false, [&](juce::String m) { got = m; });
+        for (int i = 0; i < 600 && got.isEmpty(); ++i) juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
+        p.exportMidi(mid, [&](juce::String m) { got += " / " + m; });
+        std::printf("export: %s (wav %lld bytes, mid %lld bytes)\n", got.toRawUTF8(), (long long) wav.getSize(), (long long) mid.getSize());
+        ok &= wav.getSize() > 1000000 && mid.getSize() > 100;
+    }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
     for (char pg : { 'R', '2', '7', 'D', '8' }) {
@@ -88,6 +111,12 @@ int main(int argc, char** argv) {
         juce::File f = out.getChildFile(juce::String("page_") + pg + ".png"); f.deleteFile();
         juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
         std::printf("wrote %s\n", f.getFullPathName().toRawUTF8());
+    }
+    if (p.engine.song.load()) {
+        ce->showPage('R'); ce->showSongGrid(true, 0);
+        auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        juce::File f = out.getChildFile("page_R_grid.png"); f.deleteFile();
+        juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
     }
     ed.reset();
     std::puts(ok ? "PASS" : "FAIL");

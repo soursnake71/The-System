@@ -313,6 +313,7 @@ public class CmiView extends View {
         items.add((cur < 0 ? "> " : "   ") + "Page R patterns");
         for (int k = 0; k < n; ++k) items.add((cur == k ? "> " : "   ") + Native.songName(k));
         items.add("   Import MIDI file...");
+        items.add("   New empty song (for the grid)");
         if (cur >= 0) items.add("   Remove this song");
         new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Songs")
@@ -320,6 +321,7 @@ public class CmiView extends View {
                     if (w == 0) Native.selectSongAt(-1);
                     else if (w <= n) Native.selectSongAt(w - 1);
                     else if (w == n + 1) act.importMidi();
+                    else if (w == n + 2) { Native.newSong(); grid = true; selTrack = 0; vStart = 0; act.saveState(); }
                     else { Native.removeSong(); act.saveState(); }
                     invalidate();
                 }).show();
@@ -335,61 +337,185 @@ public class CmiView extends View {
                 .show();
     }
     private int[] notesCache = new int[0]; private String notesFor = "";
+    // the editing grid (one track as a piano roll)
+    private boolean grid = false, gridActive = false;
+    private double vStart = 0, vBeats = 16, snapB = 0.25; private int pLow = 48, gridTrack = -1, selNote = -1;
+    private int[] gNotes = new int[0]; private boolean gStale = true; private String gridFor = "";
+    private RectF gridRect = new RectF();
+    private int gIdx = -1, gMode = 0; private float gDownX, gDownY; private boolean gMoved, gLong; private double gStartV; private int gStartP; private int[] gOrig = new int[5];
+    private final Runnable gLongPress = () -> { if (!gMoved && gIdx >= 0) { removeNote(gIdx); gIdx = -1; gLong = true; invalidate(); } };
 
-    // a MIDI song on Page R: the tracks, their voices, the whole song at a glance
+    private void commitNotes() { Native.setSongNoteList(gNotes); gStale = true; notesFor = ""; act.saveState(); }
+    private void removeNote(int i) { int[] n = new int[gNotes.length - 5]; System.arraycopy(gNotes, 0, n, 0, i * 5); System.arraycopy(gNotes, i * 5 + 5, n, i * 5, gNotes.length - i * 5 - 5); gNotes = n; commitNotes(); }
+
+    private float gx() { return gridRect.left + dp(28); }
+    private float rowH() { return gridRect.height() / 24f; }
+    private double beatAt(float x) { return vStart + (x - gx()) / (gridRect.right - gx()) * vBeats; }
+    private int pitchAt(float y) { return pLow + (int) ((gridRect.bottom - y) / rowH()); }
+    private float xOfBeat(double b) { return gx() + (float) ((b - vStart) / vBeats) * (gridRect.right - gx()); }
+    private int noteAt(float x, float y) {
+        final double b = beatAt(x); final int p = pitchAt(y);
+        for (int i = 0; i + 4 < gNotes.length; i += 5) {
+            if (gNotes[i] != selTrack || gNotes[i + 3] != p) continue;
+            final double st = gNotes[i + 1] / 480.0, ln = Math.max(gNotes[i + 2] / 480.0, snapB);
+            if (b >= st && b <= st + ln) return i / 5;
+        }
+        return -1;
+    }
+    private boolean gridTouch(MotionEvent e, int a, float x, float y) {
+        if (a == MotionEvent.ACTION_DOWN) {
+            gDownX = x; gDownY = y; gMoved = false; gLong = false; gStartV = vStart; gStartP = pLow;
+            gIdx = noteAt(x, y);
+            if (gIdx >= 0) { System.arraycopy(gNotes, gIdx * 5, gOrig, 0, 5); final double end = (gOrig[1] + gOrig[2]) / 480.0; gMode = x > xOfBeat(end) - (xOfBeat(end) - xOfBeat(gOrig[1] / 480.0)) * 0.3f ? 1 : 0; selNote = gIdx; }
+            else gMode = 2;
+            postDelayed(gLongPress, 500);
+            return true;
+        }
+        if (a == MotionEvent.ACTION_MOVE) {
+            if (!gMoved && Math.hypot(x - gDownX, y - gDownY) > dp(8)) { gMoved = true; removeCallbacks(gLongPress); }
+            if (!gMoved || gLong) return true;
+            if (gMode == 2) {
+                vStart = Math.max(0, gStartV - (x - gDownX) / (gridRect.right - gx()) * vBeats);
+                pLow = Math.max(0, Math.min(103, gStartP + Math.round((y - gDownY) / rowH())));
+            } else if (gIdx >= 0 && gIdx * 5 + 4 < gNotes.length) {
+                final double db = Math.round((beatAt(x) - beatAt(gDownX)) / snapB) * snapB;
+                if (gMode == 0) {
+                    gNotes[gIdx * 5 + 1] = (int) Math.max(0, Math.round((gOrig[1] / 480.0 + db) * 480));
+                    gNotes[gIdx * 5 + 3] = Math.max(0, Math.min(127, gOrig[3] + pitchAt(y) - pitchAt(gDownY)));
+                } else gNotes[gIdx * 5 + 2] = (int) Math.round(Math.max(snapB, Math.round((gOrig[2] / 480.0 + db) / snapB) * snapB) * 480);
+            }
+            invalidate(); return true;
+        }
+        if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+            removeCallbacks(gLongPress);
+            if (gLong || a == MotionEvent.ACTION_CANCEL) { gIdx = -1; return true; }
+            if (gMoved) { if (gMode != 2 && gIdx >= 0) commitNotes(); }
+            else if (gIdx < 0) {   // a tap on an empty place: a new note
+                final double st = Math.max(0, Math.floor(beatAt(x) / snapB) * snapB);
+                int[] n = new int[gNotes.length + 5]; System.arraycopy(gNotes, 0, n, 0, gNotes.length);
+                n[gNotes.length] = selTrack; n[gNotes.length + 1] = (int) Math.round(st * 480); n[gNotes.length + 2] = (int) Math.round(Math.max(snapB, 0.5) * 480);
+                n[gNotes.length + 3] = Math.max(0, Math.min(127, pitchAt(y))); n[gNotes.length + 4] = 100;
+                gNotes = n; selNote = gNotes.length / 5 - 1; commitNotes();
+            }
+            gIdx = -1; invalidate(); return true;
+        }
+        return true;
+    }
+
+    private void drawGrid(Canvas c, RectF r, double beat, double barBeats, String key) {
+        gridRect = r;
+        if (gStale || !key.equals(gridFor)) { gNotes = Native.songNoteList(); gStale = false; gridFor = key; }
+        if (selTrack != gridTrack) {
+            gridTrack = selTrack; selNote = -1;
+            int sum = 0, cnt = 0; for (int i = 0; i + 4 < gNotes.length; i += 5) if (gNotes[i] == selTrack) { sum += gNotes[i + 3]; ++cnt; }
+            if (cnt > 0) pLow = Math.max(0, Math.min(103, sum / cnt - 12));
+        }
+        if (Native.songRunning() && gIdx < 0 && (beat < vStart || beat > vStart + vBeats)) vStart = Math.floor(beat / 4) * 4;
+        final float rh = rowH(), gx = gx();
+        for (int row = 0; row < 24; ++row) {
+            final int pt = pLow + row, k = pt % 12; final float y = r.bottom - (row + 1) * rh;
+            final boolean black = k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
+            fill(c, new RectF(gx, y, r.right, y + rh), black ? 0xff031208 : BG);
+            fill(c, new RectF(r.left, y, gx - dp(2), y + rh - 1), black ? 0xff0d2a1c : FAINT);
+            if (k == 0) text(c, noteName(pt), r.left + dp(1), y + rh - dp(2), 8, INK);
+        }
+        for (double b = Math.ceil(vStart / snapB) * snapB; b <= vStart + vBeats; b += snapB) {
+            final boolean bar = Math.abs(b / barBeats - Math.rint(b / barBeats)) < 1e-6, bt = Math.abs(b - Math.rint(b)) < 1e-6;
+            if (!bt && vBeats > 32) continue;
+            p.setColor(bar ? DIM : bt ? FAINT : 0xff08200f); c.drawRect(xOfBeat(b), r.top, xOfBeat(b) + (bar ? dp(1.2f) : dp(0.6f)), r.bottom, p);
+            if (bar) text(c, "" + (1 + Math.round(b / barBeats)), xOfBeat(b) + dp(2), r.top + dp(9), 8, DIM);
+        }
+        for (int pass = 0; pass < 2; ++pass)
+            for (int i = 0; i + 4 < gNotes.length; i += 5) {
+                if ((gNotes[i] == selTrack) != (pass == 1)) continue;
+                final double st = gNotes[i + 1] / 480.0, ln = gNotes[i + 2] / 480.0; final int pt = gNotes[i + 3];
+                if (st + ln < vStart || st > vStart + vBeats || pt < pLow || pt >= pLow + 24) continue;
+                final float y = r.bottom - (pt - pLow + 1) * rh, x0 = Math.max(gx, xOfBeat(st)), x1 = Math.min(r.right, xOfBeat(st + ln));
+                if (pass == 0) { fill(c, new RectF(x0, y + rh * 0.35f, Math.max(x0 + 1, x1), y + rh * 0.65f), FAINT); continue; }
+                final int alpha = 110 + gNotes[i + 4];
+                fill(c, new RectF(x0, y + 1, Math.max(x0 + dp(2), x1 - 1), y + rh - 1), (Math.min(255, alpha) << 24) | (INK & 0xffffff));
+                if (i / 5 == selNote) frame(c, new RectF(x0, y + 1, Math.max(x0 + dp(2), x1 - 1), y + rh - 1), Color.WHITE);
+            }
+        if (beat >= vStart && beat <= vStart + vBeats) { p.setColor(Color.WHITE); c.drawRect(xOfBeat(beat), r.top, xOfBeat(beat) + dp(1.5f), r.bottom, p); }
+        frame(c, r, INK);
+    }
+
+    // a MIDI song on Page R: sixteen tracks, their voices, the whole song at a glance, or one track on the grid
     private void songView(Canvas c, RectF b) {
-        final String[] si = Native.songInfo().split("\t", -1);
+        final String[] si = Native.songInfo().split("\\t", -1);
         if (si.length < 6) return;
         final double len = Math.max(1, Double.parseDouble(si[4])), beat = Double.parseDouble(si[5]);
         final int num = Integer.parseInt(si[2]), den = Integer.parseInt(si[3]);
         final double barBeats = num * 4.0 / den;
         final boolean running = Native.songRunning(), loop = Native.songLoop();
         float x = b.left;
-        text(c, si[0].length() > 18 ? si[0].substring(0, 18) : si[0], x, b.top + dp(17), 13, INK);
+        text(c, si[0].length() > 16 ? si[0].substring(0, 16) : si[0], x, b.top + dp(17), 13, INK);
         button(c, new RectF(b.right - dp(76), b.top, b.right, b.top + dp(22)), "SONGS", false, this::songsDialog);
+        button(c, new RectF(b.right - dp(158), b.top, b.right - dp(82), b.top + dp(22)), "EXPORT", false, this::exportDialog);
         final float t0 = b.top + dp(26);
         button(c, new RectF(x, t0, x + dp(56), t0 + dp(22)), "PLAY", running, () -> Native.songPlay(true)); x += dp(60);
         button(c, new RectF(x, t0, x + dp(56), t0 + dp(22)), "STOP", !running, () -> Native.songPlay(false)); x += dp(60);
-        button(c, new RectF(x, t0, x + dp(64), t0 + dp(22)), loop ? "LOOP" : "ONCE", loop, () -> Native.setSongLoop(!loop)); x += dp(70);
+        button(c, new RectF(x, t0, x + dp(60), t0 + dp(22)), loop ? "LOOP" : "ONCE", loop, () -> Native.setSongLoop(!loop)); x += dp(66);
         text(c, String.format("%s BPM %d/%d  BAR %d/%d", si[1], num, den, 1 + (int) (beat / barBeats), (int) Math.ceil(len / barBeats)), x, t0 + dp(16), 10, DIM);
 
-        final float footH = portrait ? dp(50) : dp(22);
-        final float by = b.bottom - footH;
-        final String[] tr = Native.songTrack(selTrack).split("\t", -1);
+        // the footer
+        final float footH = dp(50), by = b.bottom - footH;
+        final String[] tr = Native.songTrack(selTrack).split("\\t", -1);
         final boolean muted = tr.length > 3 && tr[3].equals("1");
-        final String[] lbl = { muted ? "MUTED" : "AUDIBLE", "VOICE", "GM VOICES", "PATTERNS" };
-        final Runnable[] fns = { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack), () -> { Native.gmVoices(); act.saveState(); },
-                () -> Native.selectSongAt(-1) };
-        float bw = (b.width() - dp(18)) / 4;
-        for (int i = 0; i < 4; ++i) { float rx = b.left + i * (bw + dp(6)); button(c, new RectF(rx, by, rx + bw, by + dp(22)), lbl[i], i == 0 && !muted, fns[i]); }
-        if (portrait) text(c, "tap a track to pick it, hold it for its voice", b.left, by + dp(42), 9, DIM);
+        final String[] lbl; final Runnable[] fns;
+        if (!grid) {
+            lbl = new String[] { muted ? "MUTED" : "AUDIBLE", "VOICE", "AUTO MATCH", "EDIT GRID", "NEW SONG", "PATTERNS" };
+            fns = new Runnable[] { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack), () -> { Native.gmVoices(); status("VOICES MATCHED"); act.saveState(); },
+                    () -> grid = true, () -> { Native.newSong(); grid = true; selTrack = 0; vStart = 0; act.saveState(); }, () -> Native.selectSongAt(-1) };
+        } else {
+            final String sn = snapB >= 1 ? "1/4" : snapB >= 0.5 ? "1/8" : snapB >= 0.25 ? "1/16" : "1/32";
+            lbl = new String[] { "UNDO", "SNAP " + sn, "ZOOM-", "ZOOM+", "VEL", "TRACKS" };
+            fns = new Runnable[] { () -> { if (Native.undoSongEdit()) { gStale = true; status("UNDONE"); act.saveState(); } }, () -> snapB = snapB >= 1 ? 0.125 : snapB * 2,
+                    () -> vBeats = Math.min(256, vBeats * 1.5), () -> vBeats = Math.max(2, vBeats / 1.5),
+                    () -> { if (selNote >= 0 && selNote * 5 + 4 < gNotes.length) { int v = gNotes[selNote * 5 + 4]; gNotes[selNote * 5 + 4] = v >= 120 ? 64 : v >= 90 ? 127 : 100; commitNotes(); } },
+                    () -> grid = false };
+        }
+        final float bw = (b.width() - dp(12)) / 3;
+        for (int i = 0; i < lbl.length; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = by + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 0 && !grid && !muted, fns[i]); }
 
         RectF g = new RectF(b.left, t0 + dp(28), b.right, by - dp(6));
-        final float nameW = Math.min(dp(120), g.width() * 0.3f), rh = g.height() / Native.TRACKS;
-        final float gx = g.left + nameW + dp(6), gw = g.right - gx;
-        for (int t = 0; t < Native.TRACKS; ++t) {
+        final int nT = Native.SONG_TRK;
+        final float nameW = grid ? Math.min(dp(84), g.width() * 0.22f) : Math.min(dp(120), g.width() * 0.3f), rh = g.height() / nT;
+        for (int t = 0; t < nT; ++t) {
             final int tk = t;
-            final String[] f = Native.songTrack(t).split("\t", -1);
+            final String[] f = Native.songTrack(t).split("\\t", -1);
             if (f.length < 4) continue;
             final boolean used = f[2].equals("1"), mute = f[3].equals("1");
             final int v = Integer.parseInt(f[1]);
             RectF nr = new RectF(g.left, g.top + t * rh, g.left + nameW, g.top + (t + 1) * rh);
             if (t == selTrack) fill(c, nr, FAINT);
-            text(c, used ? (v == Native.GM_KIT ? "DRUM KIT" : info(v)[0]) : "--", nr.left + dp(3), nr.top + rh * 0.45f, 12, used && !mute ? INK : DIM);
-            text(c, (f[0].length() > 14 ? f[0].substring(0, 14) : f[0]) + (mute ? " MUTE" : ""), nr.left + dp(3), nr.top + rh * 0.8f, 8, DIM);
+            text(c, (t + 1) + " " + (used ? (v == Native.GM_KIT ? "DRUMKIT" : info(v)[0]) : "--"), nr.left + dp(2), nr.top + rh * 0.72f, Math.min(11, rh / d * 0.62f), used && !mute ? INK : DIM);
+            if (!grid && rh > dp(20)) text(c, f[0].length() > 12 ? f[0].substring(0, 12) : f[0], nr.left + dp(70), nr.top + rh * 0.72f, 8, DIM);
             Hit h = hit(nr, (xx, yy) -> selTrack = tk);
             h.longPress = true; h.hold = (xx, yy) -> { selTrack = tk; songVoiceDialog(tk); };
-            p.setColor(FAINT); c.drawLine(gx, nr.bottom, g.right, nr.bottom, p);
         }
-        frame(c, new RectF(gx, g.top, g.right, g.bottom), DIM);
-        if (!notesFor.equals(si[0] + si[4])) { notesCache = Native.songNotes(); notesFor = si[0] + si[4]; }
+        final RectF area = new RectF(g.left + nameW + dp(4), g.top, g.right, g.bottom);
+        if (grid) { drawGrid(c, area, beat, barBeats, si[0] + si[4] + "g"); return; }
+        gridRect = new RectF();
+        if (!notesFor.equals(si[0] + si[4])) { notesCache = Native.songNotes(); notesFor = si[0] + si[4]; gStale = true; }
+        for (int t = 0; t < nT; ++t) { if (t == selTrack) fill(c, new RectF(area.left, area.top + t * rh, area.right, area.top + (t + 1) * rh), FAINT); }
+        final float gw = area.width();
         for (int i = 0; i + 3 < notesCache.length; i += 4) {
             final int t = notesCache[i];
-            final float y = g.top + t * rh + dp(3) + (rh - dp(6)) * (1 - notesCache[i + 3] / 1000f);
-            final float x0 = gx + gw * notesCache[i + 1] / 10000f, x1 = gx + gw * notesCache[i + 2] / 10000f;
-            p.setColor(DIM); c.drawRect(x0, y - dp(1), Math.max(x0 + dp(1), x1), y + dp(1), p);
+            final float y = area.top + t * rh + dp(1) + (rh - dp(2)) * (1 - notesCache[i + 3] / 1000f);
+            final float x0 = area.left + gw * notesCache[i + 1] / 10000f, x1 = area.left + gw * notesCache[i + 2] / 10000f;
+            p.setColor(DIM); c.drawRect(x0, y - dp(0.7f), Math.max(x0 + dp(1), x1), y + dp(0.7f), p);
         }
-        p.setColor(Color.WHITE); final float px = gx + gw * (float) (beat / len); c.drawRect(px, g.top, px + dp(1.5f), g.bottom, p);
+        frame(c, area, DIM);
+        p.setColor(Color.WHITE); final float px = area.left + gw * (float) (beat / len); c.drawRect(px, area.top, px + dp(1.5f), area.bottom, p);
+        hit(area, (xx, yy) -> selTrack = Math.max(0, Math.min(nT - 1, (int) ((yy - area.top) / rh))));
+    }
+
+    private void exportDialog() {
+        final boolean song = Native.currentSong() >= 0;
+        final String[] items = song ? new String[] { "Song as a WAV file", "Stems: a WAV file per track (pick a folder)", "Song as a MIDI file" } : new String[] { "Page R song as a WAV file" };
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Export")
+                .setItems(items, (dlg, w) -> act.export(w)).show();
     }
 
     private void composer(Canvas c, RectF b) {
@@ -571,6 +697,10 @@ public class CmiView extends View {
     private final Runnable[] holdTimers = new Runnable[16];
     @Override public boolean onTouchEvent(MotionEvent e) {
         final int a = e.getActionMasked();
+        if (grid && page == 'R' && !gridRect.isEmpty() && e.getPointerCount() == 1 && (gridActive || (a == MotionEvent.ACTION_DOWN && gridRect.contains(e.getX(), e.getY())))) {
+            gridActive = a != MotionEvent.ACTION_UP && a != MotionEvent.ACTION_CANCEL;
+            return gridTouch(e, a, e.getX(), e.getY());
+        }
         if (a == MotionEvent.ACTION_DOWN || a == MotionEvent.ACTION_POINTER_DOWN) {
             final int i = e.getActionIndex(), id = e.getPointerId(i);
             final float x = e.getX(i), y = e.getY(i);

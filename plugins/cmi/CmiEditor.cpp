@@ -22,10 +22,10 @@ void Screen::mouseDown(const juce::MouseEvent& e) {
     repaint();
 }
 void Screen::mouseDrag(const juce::MouseEvent& e) { if (active >= 0 && active < (int) hits.size() && hits[(size_t) active].drag) { hits[(size_t) active].drag(e); repaint(); } }
-void Screen::mouseUp(const juce::MouseEvent&) { active = -1; }
+void Screen::mouseUp(const juce::MouseEvent& e) { if (active >= 0 && active < (int) hits.size() && hits[(size_t) active].up) hits[(size_t) active].up(e); active = -1; repaint(); }
 void Screen::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) {
     for (int i = (int) hits.size() - 1; i >= 0; --i)
-        if (hits[(size_t) i].r.contains(e.position) && hits[(size_t) i].wheel) { hits[(size_t) i].wheel(w.deltaY); repaint(); return; }
+        if (hits[(size_t) i].r.contains(e.position) && hits[(size_t) i].wheel) { wheelMods = e.mods; hits[(size_t) i].wheel(w.deltaY); repaint(); return; }
 }
 
 void Screen::button(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& text, bool inverse, std::function<void()> fn) {
@@ -128,8 +128,14 @@ void Screen::bar(juce::Graphics& g, juce::Rectangle<float> r, const char* id, co
     if (!d) return;
     const float v = ed.proc.get(id), u = (v - d->min) / (d->max - d->min);
     const bool toggle = d->step == 1 && d->min == 0 && d->max == 1;
-    g.setColour(kInk); g.setFont(mono(16));
+    const int pi = paramIndex(id), cc = ed.proc.ccFor(pi);
+    const bool learning = ed.proc.learnParam.load() == pi;
+    g.setColour(learning ? juce::Colours::white : kInk); g.setFont(mono(16));
     g.drawText(label, r.withWidth(170), juce::Justification::centredLeft);
+    g.setColour(learning ? juce::Colours::white : kDim); g.setFont(mono(11));
+    g.drawText(learning ? "LEARN" : cc >= 0 ? "CC" + juce::String(cc) : "", r.withX(r.getX() + 130).withWidth(44), juce::Justification::centredRight);
+    g.setFont(mono(16)); g.setColour(kInk);
+    hit(r.withWidth(170), [this, id](const juce::MouseEvent&) { learnMenu(id); });
     auto tr = r.withTrimmedLeft(175).withTrimmedRight(90).reduced(0, 3);
     if (toggle) {
         auto box = tr.withWidth(70);
@@ -177,13 +183,14 @@ void Screen::drawControls(juce::Graphics& g) {
         { "poly", "VOICES", fi }, { "bend", "BEND RANGE", fi }, { "master", "MASTER", f2 }, { "hiss", "NOISE FLOOR", f2 }, { "spread", "SPREAD", f2 },
         { "multi", "MULTI MIDI", {} }, { "sync", "SYNC EXT", {} }, { "tempo", "SPEED", [](float v) { return juce::String(v, 1); } },
         { "swing", "SWING", [](float v) { return juce::String(juce::roundToInt(v * 200)) + "%"; } }, { "songMode", "SONG MODE", {} },
+        { "songLevel", "SONG LEVEL", [](float v) { return juce::String(juce::roundToInt(v * 100)) + "%"; } },
     };
     for (size_t i = 0; i < left.size(); ++i) bar(g, { 20.f, 88.f + i * 30.f, 470, 26 }, left[i].id, left[i].label, left[i].fmt);
     for (size_t i = 0; i < right.size(); ++i) bar(g, { 510.f, 88.f + i * 30.f, 470, 26 }, right[i].id, right[i].label, right[i].fmt);
     g.setColour(kDim); g.setFont(mono(14));
     g.drawMultiLineText("Filter: the SSM2045 latch; the card adds the octave\nregister, so it follows the keyboard octave by octave.\n"
                         "Attack / damping: the envelope counter's clock.\nSegment: waveform voices step one segment per time.\n"
-                        "Multi MIDI: channels 2-9 play Page R tracks 1-8.", 520, 412, 460);
+                        "Multi MIDI: channels 2-9 play Page R tracks 1-8.\nClick a name: MIDI learn (move a controller).", 520, 442, 460);
     button(g, { 520, 540, 220, 24 }, "RESET TO VOICE", false, [this] { ed.proc.loadSound(juce::roundToInt(ed.proc.get("sound"))); });
 }
 
@@ -323,14 +330,16 @@ void Screen::songMenu() {
     juce::PopupMenu m;
     const int cur = ed.proc.currentSong();
     m.addItem(1, "Page R patterns", true, cur < 0);
-    for (int i = 0; i < ed.proc.songs.size(); ++i) if (const SongEntry* e = ed.proc.songs.at(i)) m.addItem(100 + i, juce::String(e->song.name), true, cur == i);
+    for (int i = 0; i < ed.proc.songs.size(); ++i) if (const SongEntry* e = ed.proc.songs.at(i)) m.addItem(100 + i, juce::String(e->song->name), true, cur == i);
     m.addSeparator();
     m.addItem(2, "Import MIDI file...");
+    m.addItem(4, "New empty song (8 bars, for the grid)");
     if (cur >= 0) m.addItem(3, "Remove this song");
     m.showMenuAsync(juce::PopupMenu::Options(), [this](int r) {
         if (r == 1) ed.proc.chooseSong(-1);
         else if (r >= 100) ed.proc.chooseSong(r - 100);
         else if (r == 3) { const int c = ed.proc.currentSong(); ed.proc.chooseSong(-1); ed.proc.songs.remove(c); }
+        else if (r == 4) { ed.proc.chooseSong(ed.proc.songs.add(emptySong("NEW SONG " + std::to_string(ed.proc.songs.count() + 1)), ed.proc.kit.bank)); songGrid = true; selTrack = 0; viewStart = 0; }
         else if (r == 2) {
             ed.chooser = std::make_unique<juce::FileChooser>("Import a MIDI song", juce::File(), "*.mid;*.midi");
             ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
@@ -343,17 +352,144 @@ void Screen::songMenu() {
     });
 }
 
-// a MIDI song on Page R: its eight tracks, their CMI voices, the whole song at a glance
+void Screen::exportMenu() {
+    juce::PopupMenu m;
+    const bool song = ed.proc.currentSong() >= 0;
+    m.addItem(1, song ? "Song as a WAV file (24-bit)..." : "Page R song as a WAV file (24-bit)...");
+    if (song) { m.addItem(2, "Stems: a WAV file per track..."); m.addItem(3, "Song as a MIDI file (with your edits)..."); }
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, song](int r) {
+        if (r <= 0) return;
+        const SongEntry* e = ed.proc.songs.at(ed.proc.currentSong());
+        const juce::String base = song && e ? juce::String(e->song->name) : juce::String("PAGE R");
+        const bool midi = r == 3;
+        ed.chooser = std::make_unique<juce::FileChooser>(midi ? "Export MIDI" : "Export audio", juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile(base + (midi ? ".mid" : ".wav")),
+                                                         midi ? "*.mid" : "*.wav");
+        ed.chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
+                                [this, r, midi](const juce::FileChooser& fc) {
+                                    juce::File f = fc.getResult(); if (f == juce::File()) return;
+                                    f = f.withFileExtension(midi ? "mid" : "wav");
+                                    auto done = [this](juce::String msg) { status = msg.toUpperCase(); repaint(); };
+                                    if (midi) ed.proc.exportMidi(f, done);
+                                    else { status = "RENDERING..."; ed.proc.exportAudio(f, r == 2, done); }
+                                    repaint();
+                                });
+    });
+}
+
+void Screen::learnMenu(const char* id) {
+    const int pi = paramIndex(id); if (pi < 0) return;
+    const int cc = ed.proc.ccFor(pi);
+    juce::PopupMenu m;
+    m.addItem(1, "MIDI learn: move a controller");
+    if (cc >= 0) m.addItem(2, "Forget CC " + juce::String(cc));
+    m.addItem(3, "Reset every control to the default CCs");
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, pi, cc](int r) {
+        if (r == 1) { ed.proc.learnParam = pi; status = "MOVE A CONTROLLER FOR " + juce::String(paramDefs()[(size_t) pi].name).toUpperCase(); }
+        else if (r == 2) ed.proc.ccMap[(size_t) cc] = -1;
+        else if (r == 3) ed.proc.resetCCMap();
+        repaint();
+    });
+}
+
+// the grid: one track's notes as a piano roll; click to add, drag to move, drag the end to lengthen,
+// right-click to delete, double-click for loud / soft; wheel scrolls, shift-wheel moves the octaves, ctrl-wheel zooms
+void Screen::drawGrid(juce::Graphics& g, juce::Rectangle<float> a) {
+    auto& eng = ed.proc.engine;
+    SongEntry* e = ed.proc.songs.at(ed.proc.currentSong());
+    if (!e) return;
+    const MidiSong& s = *e->song;
+    if (dragIdx < 0) work = notesOf(s);
+    const int rows = 24;
+    // a new track on the grid: show its notes
+    if (selTrack != gridTrack) {
+        gridTrack = selTrack;
+        std::vector<int> ps; for (const auto& n : work) if (n.track == selTrack) ps.push_back(n.pitch);
+        if (!ps.empty()) { std::nth_element(ps.begin(), ps.begin() + (long) ps.size() / 2, ps.end()); pitchLow = juce::jlimit(0, 103, ps[ps.size() / 2] - 12); }
+    }
+    const float keyW = 34, gx = a.getX() + keyW, gw = a.getWidth() - keyW, rh = a.getHeight() / rows;
+    const double beatNow = eng.songBeat.load();
+    if (eng.songRun.load() && dragIdx < 0 && (beatNow < viewStart || beatNow > viewStart + viewBeats)) viewStart = std::floor(beatNow / 4) * 4;
+    auto xOf = [&](double b) { return gx + (float) ((b - viewStart) / viewBeats) * gw; };
+    auto beatAt = [&](float x) { return viewStart + (x - gx) / gw * viewBeats; };
+    auto pitchAt = [&](float y) { return pitchLow + (int) ((a.getBottom() - y) / rh); };
+    auto snapTo = [&](double b) { return std::round(b / snap) * snap; };
+    // rows: the keyboard down the side
+    for (int r = 0; r < rows; ++r) {
+        const int p = pitchLow + r; const float y = a.getBottom() - (r + 1) * rh;
+        const int k = p % 12; const bool black = k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
+        g.setColour(black ? juce::Colour(0xff031208) : kBg); g.fillRect(gx, y, gw, rh);
+        g.setColour(black ? juce::Colour(0xff0d2a1c) : kFaint); g.fillRect(a.getX(), y, keyW - 2, rh - 1);
+        if (k == 0) { g.setColour(kInk); g.setFont(mono(11)); g.drawText(noteName(p), (int) a.getX() + 2, (int) y, (int) keyW, (int) rh, juce::Justification::centredLeft); g.setColour(kFaint); g.drawHorizontalLine((int) (y + rh), gx, gx + gw); }
+    }
+    // beats and bars
+    const double barBeats = s.num * 4.0 / s.den;
+    for (double b = std::ceil(viewStart / snap) * snap; b <= viewStart + viewBeats; b += snap) {
+        const bool bar = std::fmod(b + 1e-6, barBeats) < 2e-6, beat = std::fmod(b + 1e-6, 1.0) < 2e-6;
+        if (!beat && viewBeats > 48) continue;
+        g.setColour(bar ? kDim : beat ? kFaint : juce::Colour(0xff08200f)); g.fillRect(xOf(b), a.getY(), bar ? 1.5f : 1.f, a.getHeight());
+        if (bar) { g.setColour(kDim); g.setFont(mono(11)); g.drawText(juce::String(1 + (int) std::round(b / barBeats)), (int) xOf(b) + 2, (int) a.getY() - 14, 40, 13, juce::Justification::centredLeft); }
+    }
+    // the other tracks, faintly; then this one
+    for (int pass = 0; pass < 2; ++pass)
+        for (size_t i = 0; i < work.size(); ++i) {
+            const auto& n = work[i];
+            if ((n.track == selTrack) != (pass == 1)) continue;
+            if (n.start + n.len < viewStart || n.start > viewStart + viewBeats || n.pitch < pitchLow || n.pitch >= pitchLow + rows) continue;
+            const float y = a.getBottom() - (n.pitch - pitchLow + 1) * rh, x0 = std::max(gx, xOf(n.start)), x1 = std::min(gx + gw, xOf(n.start + n.len));
+            if (pass == 0) { g.setColour(kFaint.brighter(0.2f)); g.fillRect(x0, y + rh * 0.35f, std::max(1.f, x1 - x0), rh * 0.3f); continue; }
+            g.setColour(kInk.withAlpha(0.45f + 0.55f * n.vel / 127.f)); g.fillRect(x0, y + 1, std::max(2.f, x1 - x0 - 1), rh - 2);
+            g.setColour((int) i == dragIdx ? juce::Colours::white : kBg); g.drawRect(x0, y + 1, std::max(2.f, x1 - x0 - 1), rh - 2, 1.f);
+        }
+    g.setColour(juce::Colours::white); if (beatNow >= viewStart && beatNow <= viewStart + viewBeats) g.fillRect(xOf(beatNow), a.getY(), 1.5f, a.getHeight());
+    g.setColour(kInk); g.drawRect(a, 1.f);
+
+    juce::Rectangle<float> ga(gx, a.getY(), gw, a.getHeight());
+    auto& h = hit(ga, [this, beatAt, pitchAt, snapTo, xOf](const juce::MouseEvent& m) {
+        const double b = beatAt(m.position.x); const int p = pitchAt(m.position.y);
+        int idx = -1;
+        for (size_t i = 0; i < work.size(); ++i) { const auto& n = work[i]; if (n.track == selTrack && n.pitch == p && b >= n.start && b <= n.start + std::max(n.len, snap * 0.5)) idx = (int) i; }
+        if (m.mods.isPopupMenu()) { if (idx >= 0) { work.erase(work.begin() + idx); dirty = true; } dragIdx = -1; if (dirty) { editSong(ed.proc.engine, ed.proc.songs.at(ed.proc.currentSong()), work); dirty = false; } return; }
+        if (idx >= 0 && m.getNumberOfClicks() > 1) { auto& n = work[(size_t) idx]; n.vel = n.vel >= 120 ? 64 : n.vel >= 90 ? 127 : 100; editSong(ed.proc.engine, ed.proc.songs.at(ed.proc.currentSong()), work); dirty = false; dragIdx = -1; return; }
+        if (idx >= 0) {
+            dragIdx = idx; dragOrig = work[(size_t) idx];
+            dragMode = m.position.x > xOf(dragOrig.start + dragOrig.len) - 6 ? 1 : 0;
+        } else {
+            const double st = std::max(0.0, std::floor(b / snap) * snap);
+            work.push_back({ selTrack, st, std::max(snap, 0.5), p, 100 });
+            dragIdx = (int) work.size() - 1; dragOrig = work.back(); dragMode = 1; dirty = true;
+        }
+        grabBeat = b; grabPitch = p;
+    }, [this, beatAt, pitchAt, snapTo](const juce::MouseEvent& m) {
+        if (dragIdx < 0 || dragIdx >= (int) work.size()) return;
+        auto& n = work[(size_t) dragIdx];
+        const double b = beatAt(m.position.x); const int p = pitchAt(m.position.y);
+        if (dragMode == 0) { n.start = std::max(0.0, dragOrig.start + snapTo(b - grabBeat)); n.pitch = juce::jlimit(0, 127, dragOrig.pitch + (p - grabPitch)); }
+        else n.len = std::max(snap, snapTo(b - n.start));
+        dirty = true;
+    });
+    h.up = [this](const juce::MouseEvent&) {
+        if (dirty) editSong(ed.proc.engine, ed.proc.songs.at(ed.proc.currentSong()), work);
+        dirty = false; dragIdx = -1;
+    };
+    h.wheel = [this](float dy) {
+        if (wheelMods.isShiftDown()) pitchLow = juce::jlimit(0, 103, pitchLow + (dy > 0 ? 2 : -2));
+        else if (wheelMods.isCommandDown() || wheelMods.isCtrlDown()) viewBeats = juce::jlimit(2.0, 512.0, viewBeats * (dy > 0 ? 0.8 : 1.25));
+        else viewStart = std::max(0.0, viewStart + (dy > 0 ? -1 : 1) * viewBeats / 8);
+    };
+}
+
+// a MIDI song on Page R: its sixteen tracks, their CMI voices, the whole song at a glance or one track on the grid
 void Screen::drawMidiSong(juce::Graphics& g) {
     auto& eng = ed.proc.engine; auto& kit = ed.proc.kit;
     const MidiSong* s = eng.song.load();
-    if (!s) return;
+    SongEntry* entry = ed.proc.songs.at(ed.proc.currentSong());
+    if (!s || !entry) return;
     const bool ext = ed.proc.get("sync") > 0.5f;
     const double beat = eng.songBeat.load(), bpm = s->bpmAt(beat);
     const double barBeats = s->num * 4.0 / s->den;
     g.setColour(kInk); g.setFont(mono(17));
     g.drawRect(20.f, 54.f, (float) W - 40, 46.f, 1.f);
-    g.drawText("SONG: " + juce::String(s->name), 28, 56, 300, 20, juce::Justification::centredLeft);
+    g.drawText("SONG: " + juce::String(s->name).substring(0, 22), 28, 56, 300, 20, juce::Justification::centredLeft);
     g.fillRect(330.f, 57.f, 240.f, 19.f); g.setColour(kBg); g.drawText("REAL-TIME COMPOSER", 330, 57, 240, 19, juce::Justification::centred); g.setColour(kInk);
     g.drawText("Songs: " + juce::String(ed.proc.songs.count()), 640, 56, 340, 20, juce::Justification::centredRight);
     g.drawText("Speed: " + juce::String(bpm, 1), 28, 78, 180, 20, juce::Justification::centredLeft);
@@ -361,72 +497,87 @@ void Screen::drawMidiSong(juce::Graphics& g) {
     hit({ 230, 78, 120, 20 }, [this, ext](const juce::MouseEvent&) { ed.proc.set("sync", ext ? 0.f : 1.f); });
     g.drawText("Bar: " + juce::String(1 + (int) (beat / barBeats)) + " / " + juce::String((int) std::ceil(s->length / barBeats)), 380, 78, 220, 20, juce::Justification::centredLeft);
     g.drawText("Time: " + juce::String(s->num) + "/" + juce::String(s->den), 640, 78, 340, 20, juce::Justification::centredRight);
-    g.setFont(mono(30)); g.drawText(juce::String(s->name), 28, 104, 560, 40, juce::Justification::centredLeft);
+    g.setFont(mono(26)); g.drawText(juce::String(s->name).substring(0, 30), 28, 106, 520, 36, juce::Justification::centredLeft);
     g.setFont(mono(17));
     const bool loop = eng.songLoop.load();
-    button(g, { 640, 112, 150, 24 }, loop ? "LOOP ON" : "LOOP OFF", loop, [&eng, loop] { eng.songLoop = !loop; });
-    button(g, { 800, 112, 170, 24 }, "SONGS...", false, [this] { songMenu(); });
+    button(g, { 560, 112, 110, 24 }, loop ? "LOOP" : "ONCE", loop, [&eng, loop] { eng.songLoop = !loop; });
+    button(g, { 680, 112, 140, 24 }, "EXPORT...", false, [this] { exportMenu(); });
+    button(g, { 830, 112, 140, 24 }, "SONGS...", false, [this] { songMenu(); });
 
-    const float gx = 410, gw = 565, gy = 152, rh = 46;
-    g.drawRect(25.f, gy - 2, 360.f, rh * TRACKS + 32, 1.f);
-    // note range per track, for the lanes
-    int lo[TRACKS], hi[TRACKS]; for (int t = 0; t < TRACKS; ++t) { lo[t] = 127; hi[t] = 0; }
-    for (const auto& e : s->ev) if ((e.status & 0xF0) == 0x90 && e.d2) { lo[e.track] = std::min(lo[e.track], (int) e.d1); hi[e.track] = std::max(hi[e.track], (int) e.d1); }
-    for (int t = 0; t < TRACKS; ++t) {
+    const float gy = 152, rh = 23, listW = 360;
+    const int nT = SONG_TRK;
+    g.drawRect(25.f, gy - 2, listW, rh * nT + 4, 1.f);
+    for (int t = 0; t < nT; ++t) {
         const float y = gy + t * rh;
         const bool used = s->used[t], muted = eng.songMute[t];
-        if (t == selTrack) { g.setColour(kFaint); g.fillRect(26.f, y, 358.f, rh); }
+        if (t == selTrack) { g.setColour(kFaint); g.fillRect(26.f, y, listW - 2, rh); }
         const int v = eng.songVoice[t];
         const Sound* snd = v == GM_KIT ? nullptr : kit.bank.at(v);
-        g.setColour(used && !muted ? kInk : kDim); g.setFont(mono(17));
-        g.drawText(used ? juce::String(snd ? snd->name : std::string("DRUM KIT")) : juce::String("--"), 40, (int) y + 2, 200, 22, juce::Justification::centredLeft);
+        g.setColour(used && !muted ? kInk : kDim); g.setFont(mono(15));
+        g.drawText(juce::String(t + 1).paddedLeft('0', 2) + " " + (used ? juce::String(snd ? snd->name : std::string("DRUM KIT")).paddedRight(' ', 9) : juce::String("--       ")), 32, (int) y, 180, (int) rh,
+                   juce::Justification::centredLeft);
         g.setFont(mono(12)); g.setColour(kDim);
-        g.drawText(juce::String(s->trackName[t]).substring(0, 22) + (muted ? "  MUTE" : ""), 40, (int) y + 24, 340, 16, juce::Justification::centredLeft);
-        hit({ 26, y, 358, rh }, [this, t](const juce::MouseEvent& e) {
+        g.drawText(juce::String(s->trackName[t]).substring(0, 18) + (muted ? " MUTE" : ""), 200, (int) y, 180, (int) rh, juce::Justification::centredLeft);
+        hit({ 26, y, listW - 2, rh }, [this, t](const juce::MouseEvent& m) {
             selTrack = t;
-            if (e.mods.isPopupMenu() || e.getNumberOfClicks() > 1) soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); });
+            if (m.mods.isPopupMenu() || m.getNumberOfClicks() > 1) soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); });
         });
-        g.setColour(kInk); g.setFont(mono(34));
-        g.drawText(juce::String(t + 1), 385, (int) y, 24, (int) rh, juce::Justification::centred);
-        g.setColour(kFaint); g.drawHorizontalLine((int) (y + rh), gx, gx + gw);
     }
-    g.setColour(kInk); g.drawRect(gx, gy - 2, gw, rh * TRACKS + 2, 1.f);
-    // the notes, the whole song across the grid
-    const double len = std::max(1.0, s->length);
-    for (size_t i = 0; i < s->ev.size(); ++i) {
-        const auto& e = s->ev[i];
-        if ((e.status & 0xF0) != 0x90 || !e.d2) continue;
-        double end = e.beat + 0.25;
-        for (size_t k = i + 1; k < s->ev.size() && k < i + 400; ++k) { const auto& o = s->ev[k]; if (o.track == e.track && o.d1 == e.d1 && ((o.status & 0xF0) == 0x80 || ((o.status & 0xF0) == 0x90 && !o.d2))) { end = o.beat; break; } }
-        const int t = e.track;
-        const float span = (float) std::max(1, hi[t] - lo[t]);
-        const float y = gy + t * rh + 6 + (rh - 12) * (1.f - (e.d1 - lo[t]) / span);
-        const float x0 = gx + (float) (e.beat / len) * gw, x1 = gx + (float) (std::min(end, len) / len) * gw;
-        g.setColour(eng.songMute[t] ? kFaint : kDim);
-        g.fillRect(x0, y - 1.5f, std::max(1.5f, x1 - x0), 3.f);
+    juce::Rectangle<float> area(410, gy, 565, rh * nT);
+    if (songGrid) drawGrid(g, area);
+    else {
+        // the whole song: a lane per track
+        const float gx = area.getX(), gw = area.getWidth();
+        int lo[SONG_TRK], hi[SONG_TRK]; for (int t = 0; t < SONG_TRK; ++t) { lo[t] = 127; hi[t] = 0; }
+        for (const auto& e : s->ev) if ((e.status & 0xF0) == 0x90 && e.d2) { lo[e.track] = std::min(lo[e.track], (int) e.d1); hi[e.track] = std::max(hi[e.track], (int) e.d1); }
+        const double len = std::max(1.0, s->length);
+        for (int t = 0; t < nT; ++t) { if (t == selTrack) { g.setColour(kFaint); g.fillRect(gx, gy + t * rh, gw, rh); } g.setColour(kFaint); g.drawHorizontalLine((int) (gy + (t + 1) * rh), gx, gx + gw); }
+        for (const auto& n : notesOf(*s)) {
+            const int t = n.track; const float span = (float) std::max(1, hi[t] - lo[t]);
+            const float y = gy + t * rh + 3 + (rh - 6) * (1.f - (n.pitch - lo[t]) / span);
+            g.setColour(eng.songMute[t] ? kFaint : kDim);
+            g.fillRect(gx + (float) (n.start / len) * gw, y - 1, std::max(1.f, (float) (n.len / len) * gw), 2.f);
+        }
+        g.setColour(juce::Colours::white); g.fillRect(gx + (float) (beat / len) * gw, gy, 1.5f, rh * nT);
+        g.setColour(kInk); g.drawRect(area, 1.f);
+        hit(area, [this, gy, rh](const juce::MouseEvent& m) { selTrack = juce::jlimit(0, SONG_TRK - 1, (int) ((m.position.y - gy) / rh)); if (m.getNumberOfClicks() > 1) songGrid = true; });
     }
-    const float px = gx + (float) (beat / len) * gw;
-    g.setColour(juce::Colours::white); g.fillRect(px, gy - 2, 1.5f, rh * TRACKS + 2);
-    for (int b = 0; b * barBeats < len; b += 8) { const float x = gx + (float) (b * barBeats / len) * gw; g.setColour(kInk); g.setFont(mono(11)); g.drawText(juce::String(b + 1), (int) x + 2, (int) (gy + rh * TRACKS + 2), 40, 14, juce::Justification::centredLeft); }
-    g.setFont(mono(17)); g.setColour(kInk);
-    g.drawText("Voices", 48, (int) (gy + rh * TRACKS + 4), 200, 24, juce::Justification::centredLeft);
 
     const float by = (float) H - 92;
-    const bool mute = eng.songMute[selTrack];
-    g.drawText(juce::String("Audible: ") + (mute ? "OFF" : "ON"), 28, (int) by, 170, 22, juce::Justification::centredLeft);
-    hit({ 28, by, 170, 22 }, [this, mute](const juce::MouseEvent&) { ed.proc.setSongMute(selTrack, !mute); });
-    button(g, { 230, by, 200, 22 }, "VOICE...", false, [this] { const int t = selTrack; soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); }); });
-    button(g, { 440, by, 200, 22 }, "GM VOICES", false, [this] {
-        if (auto* e = ed.proc.songs.at(ed.proc.currentSong())) { defaultSongVoices(e->song, ed.proc.kit.bank, e->voice); ed.proc.chooseSong(ed.proc.currentSong()); }
-    });
-    g.setColour(kDim); g.setFont(mono(13));
-    g.drawText("double-click a track: its voice", 660, (int) by - 2, 320, 26, juce::Justification::centredLeft);
+    g.setFont(mono(17)); g.setColour(kInk);
+    if (!songGrid) {
+        const bool mute = eng.songMute[selTrack];
+        button(g, { 28, by, 130, 22 }, mute ? "MUTED" : "AUDIBLE", !mute, [this, mute] { ed.proc.setSongMute(selTrack, !mute); });
+        button(g, { 168, by, 130, 22 }, "VOICE...", false, [this] { const int t = selTrack; soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); }); });
+        button(g, { 308, by, 150, 22 }, "AUTO MATCH", false, [this, entry] { autoSongVoices(*entry->song, ed.proc.kit.bank, entry->voice, entry->why); ed.proc.chooseSong(ed.proc.currentSong()); status = "VOICES MATCHED"; });
+        button(g, { 468, by, 130, 22 }, "EDIT GRID", false, [this] { songGrid = true; });
+        g.setColour(kDim); g.setFont(mono(12));
+        g.drawText(juce::String(entry->why[selTrack]).substring(0, 48), 610, (int) by, 360, 22, juce::Justification::centredLeft);
+    } else {
+        button(g, { 28, by, 110, 22 }, "UNDO", false, [this, entry] { if (undoSong(ed.proc.engine, entry)) status = "UNDONE"; });
+        const char* sn = snap >= 1 ? "1/4" : snap >= 0.5 ? "1/8" : snap >= 0.25 ? "1/16" : "1/32";
+        button(g, { 148, by, 130, 22 }, juce::String("SNAP ") + sn, false, [this] { snap = snap >= 1 ? 0.125 : snap * 2; });
+        button(g, { 288, by, 80, 22 }, "ZOOM-", false, [this] { viewBeats = std::min(512.0, viewBeats * 1.5); });
+        button(g, { 378, by, 80, 22 }, "ZOOM+", false, [this] { viewBeats = std::max(2.0, viewBeats / 1.5); });
+        button(g, { 468, by, 130, 22 }, "QUANTIZE", false, [this, entry] {
+            auto n = notesOf(*entry->song); for (auto& x : n) if (x.track == selTrack) x.start = std::round(x.start / snap) * snap;
+            editSong(ed.proc.engine, entry, n); status = "QUANTIZED";
+        });
+        button(g, { 608, by, 130, 22 }, "CLEAR TRACK", false, [this, entry] {
+            auto n = notesOf(*entry->song); n.erase(std::remove_if(n.begin(), n.end(), [this](const SongNote& x) { return x.track == selTrack; }), n.end());
+            editSong(ed.proc.engine, entry, n); status = "TRACK CLEARED (UNDO TO BRING BACK)";
+        });
+        button(g, { 748, by, 52, 22 }, "<", false, [this] { viewStart = std::max(0.0, viewStart - viewBeats); });
+        button(g, { 806, by, 52, 22 }, ">", false, [this] { viewStart += viewBeats; });
+        button(g, { 868, by, 102, 22 }, "TRACKS", false, [this] { songGrid = false; });
+    }
     const float by2 = (float) H - 60;
     const bool running = eng.songRun.load();
     button(g, { 28, by2, 100, 24 }, "PLAY", running && !ext, [this, &eng] { ed.proc.set("sync", 0.f); eng.songRun = true; });
     button(g, { 140, by2, 100, 24 }, "STOP", !running, [&eng] { eng.songRun = false; });
-    button(g, { 775, by2, 195, 24 }, "PAGE R PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
     if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
+    else if (songGrid) { g.setColour(kDim); g.setFont(mono(12)); g.drawText("click add, drag move, drag end lengthen, right-click delete, double-click loud/soft", 250, (int) by2, 520, 24, juce::Justification::centredLeft); }
+    button(g, { 775, by2, 195, 24 }, "PAGE R PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
 }
 
 void Screen::drawComposer(juce::Graphics& g) {
@@ -559,6 +710,7 @@ void Screen::drawComposer(juce::Graphics& g) {
     button(g, { 655, by2, 110, 24 }, "PATTERN", !songEditor, [this] { songEditor = false; });
     button(g, { 775, by2, 90, 24 }, "SONG", songEditor, [this] { songEditor = true; });
     button(g, { 875, by2, 95, 24 }, "MIDI...", false, [this] { songMenu(); });
+    button(g, { 655, (float) H - 122, 150, 24 }, "EXPORT WAV", false, [this] { exportMenu(); });
     if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
 }
 

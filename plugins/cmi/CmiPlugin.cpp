@@ -27,7 +27,10 @@ CmiProcessor::CmiProcessor()
     engine.kitVoice = kitLookup(kit.bank);
     Library::factorySeq(engine.seq, Library::get());
     loadSound(Library::get().find("ORCHHIT"));
-    startTimerHz(20);
+    resetCCMap();
+    for (auto& v : ccVal) v = 0;
+    ccDirty[0] = ccDirty[1] = 0;
+    startTimerHz(40);
 }
 
 bool CmiProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
@@ -186,9 +189,76 @@ juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int
     return m;
 }
 
+void CmiProcessor::resetCCMap() {
+    for (auto& c : ccMap) c = -1;
+    for (const auto& d : defaultCCs()) ccMap[(size_t) d.first] = paramIndex(d.second);
+}
+
+// controllers and program changes from the audio thread, applied here (parameters notify the host)
 void CmiProcessor::timerCallback() {
     const int p = pendingProgram.exchange(-1);
-    if (p >= 0) setCurrentProgram(p);
+    if (p >= 0) {
+        // the voice list: the factory voices, then the voices you loaded; bank select (CC 0) pages through it
+        int n = 0, pick = -1;
+        for (int i = 0; i < kit.bank.count.load() && pick < 0; ++i) {
+            const bool user = i >= Library::get().builtIn;
+            if (user && !kit.userLoaded(i - Library::get().builtIn)) continue;
+            if (n++ == p) pick = i;
+        }
+        if (pick >= 0) loadSound(pick);
+    }
+    for (int w = 0; w < 2; ++w) {
+        uint64_t bits = ccDirty[w].exchange(0);
+        for (int b = 0; b < 64 && bits; ++b) {
+            if (!(bits & (1ull << b))) continue;
+            bits &= ~(1ull << b);
+            const int cc = w * 64 + b, pi = ccMap[(size_t) cc].load();
+            if (pi < 0 || pi >= (int) paramDefs().size()) continue;
+            const PDef& d = paramDefs()[(size_t) pi];
+            const float u = ccVal[(size_t) cc].load();
+            float v = d.min + u * (d.max - d.min);
+            if (d.step == 1 && d.min == 0 && d.max == 1) v = u >= 0.5f ? 1.f : 0.f; else if (d.step == 1) v = std::round(v);
+            set(d.id, v);
+        }
+    }
+}
+
+void CmiProcessor::exportAudio(const juce::File& f, bool stems, std::function<void(juce::String)> done) {
+    if (exporting.exchange(true)) return;
+    const int si = currentSong();
+    const double fs = std::max(44100.0, getSampleRate() > 0 ? getSampleRate() : 48000.0);
+    const double master = get("master"), hiss = get("hiss"), spread = get("spread"), bpm = get("tempo");
+    const SeqData seq = engine.seq;
+    pool.addJob([this, f, stems, si, fs, master, hiss, spread, bpm, seq, done] {
+        juce::String msg;
+        const SongEntry* e = songs.at(si);
+        auto write = [&](const juce::File& out, const Rendered& r) { const auto b = wavBytes(r, 24); return out.replaceWithData(b.data(), b.size()); };
+        if (!e) {
+            msg = write(f, renderPageR(kit.bank, seq, bpm, fs, master, hiss, spread)) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+        } else if (!stems) {
+            msg = write(f, renderSong(kit.bank, *e, fs, -1, master, hiss, spread)) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+        } else {
+            int n = 0;
+            for (int t = 0; t < SONG_TRK; ++t) {
+                if (!e->song->used[t] || e->mute[t]) continue;
+                juce::String nm = juce::String(e->song->trackName[t]).retainCharacters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _-").trim();
+                const juce::File out = f.getSiblingFile(f.getFileNameWithoutExtension() + " " + juce::String(t + 1).paddedLeft('0', 2) + (nm.isEmpty() ? "" : " " + nm) + ".wav");
+                n += write(out, renderSong(kit.bank, *e, fs, t, master, hiss, spread)) ? 1 : 0;
+            }
+            msg = "EXPORTED " + juce::String(n) + " STEMS";
+        }
+        exporting = false;
+        juce::MessageManager::callAsync([done, msg] { if (done) done(msg); });
+    });
+}
+
+void CmiProcessor::exportMidi(const juce::File& f, std::function<void(juce::String)> done) {
+    const SongEntry* e = songs.at(currentSong());
+    if (!e) { if (done) done("NO SONG SELECTED"); return; }
+    std::string names[SONG_TRK];
+    for (int t = 0; t < SONG_TRK; ++t) { const Sound* s = kit.bank.at(e->voice[t]); names[t] = e->voice[t] == GM_KIT ? "DRUM KIT" : s ? s->name : ""; }
+    const auto b = writeSmf(*e->song, names);
+    if (done) done(f.replaceWithData(b.data(), b.size()) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName());
 }
 
 void CmiProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
@@ -205,6 +275,7 @@ void CmiProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuff
     engine.tempo = get("tempo");
     engine.seq.swing = get("swing");
     engine.songMode = get("songMode") > 0.5f;
+    engine.songGain = get("songLevel");
 
     const int pv = previewReq.exchange(-1);
     if (pv >= 0) engine.trackNote(pv, 0, 0.9f);
@@ -230,7 +301,18 @@ void CmiProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuff
     for (const auto m : midi) {
         renderTo(juce::jlimit(0, n, m.samplePosition));
         const auto msg = m.getMessage();
-        if (msg.isProgramChange()) { pendingProgram = msg.getProgramChangeNumber(); continue; }
+        if (msg.isProgramChange()) { pendingProgram = bankMsb.load() * 128 + msg.getProgramChangeNumber(); continue; }
+        if (msg.isController()) {
+            const int cc = msg.getControllerNumber(), v = msg.getControllerValue();
+            if (cc == 0) { bankMsb = v; continue; }
+            lastCC = cc;
+            const int learn = learnParam.load();
+            if (learn >= 0) { for (auto& m : ccMap) if (m.load() == learn) m = -1; ccMap[(size_t) cc] = learn; learnParam = -1; }
+            if (ccMap[(size_t) cc].load() >= 0) { ccVal[(size_t) cc] = v / 127.f; ccDirty[cc >> 6].fetch_or(1ull << (cc & 63)); continue; }
+        }
+        // MIDI start / continue / stop: the selected song, or Page R
+        if (msg.isMidiStart() || msg.isMidiContinue()) { if (engine.song.load()) engine.songRun = true; else engine.seqRun = true; continue; }
+        if (msg.isMidiStop()) { engine.songRun = false; engine.seqRun = false; continue; }
         engine.midi(msg.getRawData(), msg.getRawDataSize());
     }
     renderTo(n);
@@ -295,6 +377,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
     std::unique_ptr<juce::XmlElement> x(st.createXml());
     x->setAttribute("program", program);
     x->setAttribute("showFactory", showFactory.load());
+    { juce::String m; for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() >= 0) m << c << ":" << paramDefs()[(size_t) ccMap[(size_t) c].load()].id << " "; x->setAttribute("ccMap", m.trim()); }
     const Sound* cur = kit.bank.at(juce::roundToInt(get("sound")));
     if (cur) x->setAttribute("soundName", juce::String(cur->name));
     writeSeq(*x);
@@ -312,10 +395,10 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
     for (int i = 0; i < songs.size(); ++i) {
         const SongEntry* e = songs.at(i); if (!e) continue;
         auto* el = sg->createNewChildElement("Song");
-        el->setAttribute("index", i); el->setAttribute("name", juce::String(e->song.name));
-        juce::String v, m; for (int t = 0; t < TRACKS; ++t) { v << e->voice[t] << " "; m << (e->mute[t] ? 1 : 0) << " "; }
+        el->setAttribute("index", i); el->setAttribute("name", juce::String(e->song->name));
+        juce::String v, m; for (int t = 0; t < SONG_TRK; ++t) { v << e->voice[t] << " "; m << (e->mute[t] ? 1 : 0) << " "; }
         el->setAttribute("voices", v.trim()); el->setAttribute("mutes", m.trim());
-        el->setAttribute("midi", juce::MemoryBlock(e->song.raw.data(), e->song.raw.size()).toBase64Encoding());
+        el->setAttribute("midi", juce::MemoryBlock(e->song->raw.data(), e->song->raw.size()).toBase64Encoding());
     }
     copyXmlToBinary(*x, dest);
 }
@@ -343,13 +426,20 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
             if (!parseSmf((const uint8_t*) mb.getData(), mb.getSize(), el->getStringAttribute("name").toStdString(), ms, err)) continue;
             const int i = songs.add(std::move(ms), kit.bank);
             auto vs = juce::StringArray::fromTokens(el->getStringAttribute("voices"), " ", ""), mu = juce::StringArray::fromTokens(el->getStringAttribute("mutes"), " ", "");
-            if (auto* e = songs.at(i)) for (int t = 0; t < TRACKS; ++t) { if (t < vs.size()) e->voice[t] = vs[t].getIntValue(); if (t < mu.size()) e->mute[t] = mu[t].getIntValue() != 0; }
+            if (auto* e = songs.at(i)) for (int t = 0; t < SONG_TRK; ++t) { if (t < vs.size()) e->voice[t] = vs[t].getIntValue(); if (t < mu.size()) e->mute[t] = mu[t].getIntValue() != 0; }
             if (el->getIntAttribute("index", -2) == want) pick = i;
         }
         chooseSong(pick);
     }
     program = x->getIntAttribute("program", 0);
     showFactory = x->getBoolAttribute("showFactory", true);
+    if (x->hasAttribute("ccMap")) {
+        for (auto& c : ccMap) c = -1;
+        for (auto& tok : juce::StringArray::fromTokens(x->getStringAttribute("ccMap"), " ", "")) {
+            const int cc = tok.upToFirstOccurrenceOf(":", false, false).getIntValue(), pi = paramIndex(tok.fromFirstOccurrenceOf(":", false, false).toRawUTF8());
+            if (cc >= 0 && cc < 128 && pi >= 0) ccMap[(size_t) cc] = pi;
+        }
+    }
     const juce::String sn = x->getStringAttribute("soundName");
     if (x->hasTagName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*x));
     // the library may have grown: find the sound by name

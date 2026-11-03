@@ -84,6 +84,17 @@ final class Native {
     static native void setSongLoop(boolean on);
     /** four ints per note: track, start, end (1/10000 of the song), pitch in the track's range (0..1000) */
     static native int[] songNotes();
+    static final int SONG_TRK = 16;
+    /** the song (track -1) or one track as a 16-bit WAV, written to this file descriptor (closed when done) */
+    static native String exportSongWav(int fd, int track);
+    static native String exportSongMidi(int fd);
+    static native int songTrackCount();
+    /** five ints per note: track, start, length (1/480 beat), pitch, velocity */
+    static native int[] songNoteList();
+    static native void setSongNoteList(int[] notes);
+    static native boolean undoSongEdit();
+    static native void newSong();
+    static native String songWhy(int t);
 
     static native byte[] saveState();
     static native void loadState(byte[] data);

@@ -116,7 +116,51 @@ public class MainActivity extends Activity {
     }
 
     // ---- Page 8: your own sounds, one file, many files or a whole folder ----
-    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43;
+    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43, SAVE_WAV = 44, SAVE_STEMS = 45, SAVE_MIDI = 46;
+
+    // ---- exports: 0 the song (or Page R) as WAV, 1 stems into a folder, 2 the song as MIDI ----
+    void export(int what) {
+        String name = Native.currentSong() >= 0 ? Native.songInfo().split("\\t", -1)[0] : "PAGE R";
+        if (what == 1) { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), SAVE_STEMS); return; }
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType(what == 2 ? "audio/midi" : "audio/wav");
+        i.putExtra(Intent.EXTRA_TITLE, name + (what == 2 ? ".mid" : ".wav"));
+        startActivityForResult(i, what == 2 ? SAVE_MIDI : SAVE_WAV);
+    }
+    private int fdFor(Uri u) throws Exception {
+        android.os.ParcelFileDescriptor pfd;
+        try { pfd = getContentResolver().openFileDescriptor(u, "rw"); } catch (Exception e) { pfd = getContentResolver().openFileDescriptor(u, "w"); }
+        if (pfd == null) throw new Exception("no file");
+        return pfd.detachFd();
+    }
+    private void exportResult(int req, Intent data) {
+        final Uri uri = data.getData();
+        if (uri == null) return;
+        view.status("RENDERING...");
+        new Thread(() -> {
+            String msg;
+            try {
+                if (req == SAVE_WAV) msg = Native.exportSongWav(fdFor(uri), -1);
+                else if (req == SAVE_MIDI) msg = Native.exportSongMidi(fdFor(uri));
+                else {
+                    String base = Native.songInfo().split("\\t", -1)[0];
+                    Uri dir = DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getTreeDocumentId(uri));
+                    int n = 0;
+                    for (int t = 0; t < Native.SONG_TRK; ++t) {
+                        String[] f = Native.songTrack(t).split("\\t", -1);
+                        if (f.length < 4 || !f[2].equals("1") || f[3].equals("1")) continue;
+                        final int tt = t; ui.post(() -> view.status("RENDERING TRACK " + (tt + 1)));
+                        Uri doc = DocumentsContract.createDocument(getContentResolver(), dir, "audio/wav", String.format("%s %02d %s.wav", base, t + 1, f[0]).trim());
+                        if (doc == null) continue;
+                        Native.exportSongWav(fdFor(doc), t); ++n;
+                    }
+                    msg = "EXPORTED " + n + " STEMS";
+                }
+            } catch (Exception e) { msg = "CAN'T WRITE THE FILE"; }
+            final String m = msg; ui.post(() -> view.status(m));
+        }).start();
+    }
     void pickSample(int slot) { pickSlot = slot; startActivityForResult(audioIntent(false), PICK_ONE); }
     void importFiles() { startActivityForResult(audioIntent(true), PICK_MANY); }
     void importFolder() { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER); }
@@ -132,6 +176,7 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null) return;
+        if (req == SAVE_WAV || req == SAVE_MIDI || req == SAVE_STEMS) { exportResult(req, data); return; }
         final List<Uri> uris = new ArrayList<>();
         final List<String> names = new ArrayList<>();
         if (req == PICK_FOLDER && data.getData() != null) {

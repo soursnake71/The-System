@@ -11,6 +11,18 @@ namespace cmi {
 
 struct PDef { const char* id; const char* name; float min, max, def, step; };
 // the Page 7 controls of the keyboard instrument, then the machine's own settings
+// the controllers every control answers to before you teach it others (MIDI learn on Page 7)
+inline const std::vector<std::pair<int, const char*>>& defaultCCs() {
+    static const std::vector<std::pair<int, const char*>> d = {
+        { 7, "level" }, { 74, "filter" }, { 73, "attack" }, { 72, "damp" }, { 69, "sustain" }, { 77, "vib" }, { 76, "vibRate" }, { 78, "vibDelay" },
+        { 5, "porta" }, { 70, "velVol" }, { 71, "velFilt" }, { 9, "transpose" }, { 3, "fine" }, { 75, "loop" }, { 79, "seg" }, { 14, "poly" }, { 15, "bend" },
+        { 85, "master" }, { 86, "hiss" }, { 87, "spread" }, { 88, "tempo" }, { 89, "swing" }, { 90, "songMode" }, { 102, "sync" }, { 103, "multi" }, { 104, "songLevel" },
+    };
+    return d;
+}
+inline const std::vector<PDef>& paramDefs();
+inline int paramIndex(const char* id);
+
 inline const std::vector<PDef>& paramDefs() {
     static const std::vector<PDef> d = {
         { "sound", "Sound", 0, MAX_SOUNDS - 1, 0, 1 },
@@ -39,9 +51,12 @@ inline const std::vector<PDef>& paramDefs() {
         { "tempo", "Speed (BPM)", 40, 240, 120, 0 },
         { "swing", "Swing", 0, 0.5f, 0, 0 },
         { "songMode", "Song mode", 0, 1, 0, 1 },
+        { "songLevel", "MIDI song level", 0, 1, 0.5f, 0 },
     };
     return d;
 }
+
+inline int paramIndex(const char* id) { const auto& d = paramDefs(); for (size_t i = 0; i < d.size(); ++i) if (!std::strcmp(d[i].id, id)) return (int) i; return -1; }
 
 class CmiProcessor : public juce::AudioProcessor, private juce::Timer {
 public:
@@ -92,6 +107,17 @@ public:
     void seqPlay(bool on) { engine.seqRun = on; }
     std::atomic<float> meter { 0 };
 
+    // MIDI control: controller -> parameter (index into paramDefs, -1 none), MIDI learn, the last controller seen
+    std::array<std::atomic<int>, 128> ccMap;
+    std::atomic<int> learnParam { -1 }, lastCC { -1 };
+    void resetCCMap();
+    int ccFor(int param) const { for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() == param) return c; return -1; }
+
+    // exports (run on a background thread; done() comes back on the message thread)
+    void exportAudio(const juce::File& f, bool stems, std::function<void(juce::String)> done);
+    void exportMidi(const juce::File& f, std::function<void(juce::String)> done);
+    std::atomic<bool> exporting { false };
+
 private:
     void timerCallback() override;
     juce::String makeSound(const juce::File& f, int root, bool loop, Sound& out);
@@ -101,7 +127,9 @@ private:
     void readSeq(const juce::XmlElement&);
 
     int program = 0;
-    std::atomic<int> pendingProgram { -1 }, previewReq { -1 };
+    std::atomic<int> pendingProgram { -1 }, previewReq { -1 }, bankMsb { 0 };
+    std::array<std::atomic<float>, 128> ccVal; std::atomic<uint64_t> ccDirty[2];
+    juce::ThreadPool pool { 1 };
     juce::AudioFormatManager formats;
     std::vector<float> bufL, bufR;
     std::vector<std::atomic<float>*> raw;

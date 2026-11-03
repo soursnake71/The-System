@@ -257,7 +257,7 @@ int main(int argc, char** argv) {
         std::vector<uint8_t> t0 = { 0, 0xFF, 0x51, 3, 0x07, 0xA1, 0x20, 0, 0xFF, 0x2F, 0 };   // 120 BPM
         tag("MTrk"); u32((uint32_t) t0.size()); f.insert(f.end(), t0.begin(), t0.end());
         // channel 1: strings (program 48), four quarter notes and a volume change; channel 3: choir (52) on beat 2, running status
-        std::vector<uint8_t> t1 = { 0, 0xFF, 0x03, 4, 'L', 'E', 'A', 'D', 0, 0xC0, 48, 0, 0xC2, 52, 0, 0xB0, 7, 100,
+        std::vector<uint8_t> t1 = { 0, 0xFF, 0x03, 4, 'V', 'L', 'N', 'S', 0, 0xC0, 48, 0, 0xC2, 52, 0, 0xB0, 7, 100,
                                     0, 0x90, 60, 100, 96, 0x80, 60, 0, 0, 0x90, 62, 100, 96, 0x80, 62, 0, 0, 0xB0, 7, 40,
                                     0, 0x90, 64, 100, 96, 64, 0, 0, 65, 100, 96, 65, 0,
                                     0, 0x92, 57, 90, 0x81, 0x40, 0x82, 57, 0, 0, 0xFF, 0x2F, 0 };
@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
         CHECK(ok, "parse: %s", err.c_str());
         if (ok) {
             CHECK(std::fabs(ms.bpmAt(0) - 120) < 0.01 && std::fabs(ms.length - 6) < 1e-6, "tempo %.2f length %.2f beats", ms.bpmAt(0), ms.length);
-            CHECK(ms.used[0] && ms.program[0] == 48 && ms.trackName[0] == "LEAD" && ms.used[1] && ms.program[1] == 52 && !ms.used[2], "tracks: %d %d '%s'", ms.program[0], ms.program[1], ms.trackName[0].c_str());
+            CHECK(ms.used[0] && ms.program[0] == 48 && ms.trackName[0] == "VLNS" && ms.used[1] && ms.program[1] == 52 && !ms.used[2], "tracks: %d %d '%s'", ms.program[0], ms.program[1], ms.trackName[0].c_str());
             Kit ks; SongList sl; const int si = sl.add(ms, ks.bank);
             CHECK(ks.bank.at(sl.at(si)->voice[0])->name == "STRINGS" && ks.bank.at(sl.at(si)->voice[1])->name == "CHOIRAAH", "GM voices");
             Engine es; es.bank = &ks.bank; es.prepare(fs); es.setOutput(1, 0, 0); es.extSync = false;
@@ -290,6 +290,48 @@ int main(int argc, char** argv) {
             CHECK(pk > 0.01 && eh.songBeat.load() > 1.0, "host sync from beat 2 (beat %.2f)", eh.songBeat.load());
         }
         CHECK(!parseSmf((const uint8_t*) "junk", 4, "x", ms, err), "junk MIDI refused");
+        // auto matching: by name, preferring a loaded CMI disk voice, then GM
+        {
+            MidiSong m2 = ms; m2.used[2] = m2.used[3] = m2.used[4] = true;
+            m2.trackName[0] = "SynthVox"; m2.trackName[1] = "Timpani"; m2.trackName[2] = "Bassoon"; m2.trackName[3] = "Str Ensem"; m2.trackName[4] = "Shadowrun for SNES";
+            m2.program[2] = 70; m2.program[3] = 48; m2.program[4] = 30;
+            Kit k2; int v[SONG_TRK]; std::string why[SONG_TRK];
+            autoSongVoices(m2, k2.bank, v, why);
+            auto nm = [&](int i) { return i == GM_KIT ? std::string("KIT") : k2.bank.at(i)->name; };
+            CHECK(nm(v[0]) == "CHOIRAAH" && nm(v[1]) == "TIMPANI" && nm(v[2]) == "SAX" && nm(v[3]) == "STRINGS" && nm(v[4]) == "GTRLEAD",
+                  "auto voices: %s %s %s %s %s", nm(v[0]).c_str(), nm(v[1]).c_str(), nm(v[2]).c_str(), nm(v[3]).c_str(), nm(v[4]).c_str());
+            Sound arr = *k2.bank.at(lib.find("CHOIRAAH")); arr.name = "ARR1"; arr.category = "CHORAL"; k2.setUser(0, arr);
+            autoSongVoices(m2, k2.bank, v, why);
+            CHECK(nm(v[0]) == "ARR1" && v[0] == k2.userSlot(0), "a loaded disk voice wins (%s, %s)", nm(v[0]).c_str(), why[0].c_str());
+        }
+        // editing: notes out, moved, back in; written as a MIDI file and read again; the player carries on
+        if (ok) {
+            Kit ke; SongList se; const int ei = se.add(ms, ke.bank);
+            auto notes = notesOf(*se.at(ei)->song);
+            CHECK(notes.size() == 5 && std::fabs(notes[0].len - 1) < 1e-9 && notes[0].pitch == 60, "%zu notes", notes.size());
+            Engine ee; ee.bank = &ke.bank; ee.prepare(fs); ee.extSync = false; selectSong(ee, se.at(ei)); ee.songRun = true;
+            std::vector<float> x(4800), y(4800); ee.render(x.data(), y.data(), 4800);   // 0.1 s in
+            notes[0].pitch = 72; notes.push_back({ 0, 4.5, 0.5, 67, 110 });
+            editSong(ee, se.at(ei), notes);
+            ee.render(x.data(), y.data(), 4800);
+            CHECK(ee.songRun.load() && ee.songBeat.load() > 0.3, "plays on through an edit (beat %.2f)", ee.songBeat.load());
+            const auto n2 = notesOf(*se.at(ei)->song);
+            CHECK(n2.size() == 6 && n2[0].pitch == 72 && std::fabs(se.at(ei)->song->length - 6) < 1e-9, "edited: %zu notes", n2.size());
+            MidiSong back; std::string e2;
+            CHECK(parseSmf(se.at(ei)->song->raw.data(), se.at(ei)->song->raw.size(), "B", back, e2) && notesOf(back).size() == 6 && notesOf(back)[0].pitch == 72 &&
+                  std::fabs(back.bpmAt(0) - 120) < 0.01, "MIDI file written and read back: %s", e2.c_str());
+            CHECK(undoSong(ee, se.at(ei)) && notesOf(*se.at(ei)->song)[0].pitch == 60, "undo");
+            // render the whole song, and one track, to WAV
+            Rendered rr = renderSong(ke.bank, *se.at(ei), 44100);
+            Rendered r1 = renderSong(ke.bank, *se.at(ei), 44100, 1);
+            double pk = 0; for (float q : rr.L) pk = std::max(pk, (double) std::fabs(q));
+            double pk1 = 0; for (size_t q = 0; q < r1.L.size() && q < (size_t) 44100 * 2; ++q) pk1 = std::max(pk1, (double) std::fabs(r1.L[q]));
+            CHECK(rr.L.size() > 44100 * 3 && rr.L.size() < 44100 * 7 && pk > 0.05, "render: %.2f s, peak %.3f", rr.L.size() / 44100.0, pk);
+            CHECK(pk1 < 0.01, "stem of track 2 is silent before its note (%.4f)", pk1);
+            const auto wb = wavBytes(rr, 24);
+            CHECK(wb.size() == 44 + rr.L.size() * 6 && !std::memcmp(wb.data(), "RIFF", 4), "24-bit WAV");
+            writeWav(dir + "/SONG_RENDER.wav", rr.L, rr.R, 44100);
+        }
     }
 
     // ---- speed: 16 voices for one second ----

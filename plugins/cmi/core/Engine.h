@@ -10,7 +10,9 @@ namespace cmi {
 constexpr int MAX_SOUNDS = 256;
 constexpr int STEPS = 16, TRACKS = 8, NPAT = 16, SONG_MAX = 64;
 // cards: 8 for the keyboard, then two per track (Page R uses the first, a MIDI song both)
-constexpr int KEY_CH = 8, TRK_CH = 8, NCH = KEY_CH + 2 * TRACKS;
+constexpr int SONG_TRK = 16;   // a MIDI song: one track per MIDI channel
+// cards: 8 for the keyboard, then 32 shared by Page R (one per track, the first 8) and MIDI songs (any free one)
+constexpr int KEY_CH = 8, TRK_CH = 8, SONG_CH = 32, NCH = KEY_CH + SONG_CH;
 
 // the sound library: slots hold pointers that are only ever swapped, never freed while the engine runs
 struct Bank {
@@ -230,11 +232,13 @@ struct MidiSong {
     std::vector<SongEvent> ev;                       // in time order
     std::vector<std::pair<double, double>> tempo;    // (beat, quarter-note BPM), from beat 0
     double length = 0;                               // beats
+    double minLength = 0;                            // a song written from scratch keeps its bars even when empty
     int num = 4, den = 4;
-    std::string trackName[TRACKS];
-    int program[TRACKS] {};                          // General MIDI program, -1 for a drum channel
-    bool used[TRACKS] {};
+    std::string trackName[SONG_TRK];
+    int program[SONG_TRK] {};                        // General MIDI program, -1 for a drum channel
+    bool used[SONG_TRK] {};
     std::vector<uint8_t> raw;                        // the file, to save it with a project
+    uint32_t id = 0;                                 // the same for every edited version of one song
     double bpmAt(double beat) const {
         double b = 120;
         for (const auto& t : tempo) { if (t.first > beat + 1e-9) break; b = t.second; }
@@ -261,8 +265,9 @@ public:
     std::atomic<const MidiSong*> song { nullptr };
     std::atomic<bool> songRun { false }, songLoop { false };
     std::atomic<double> songBeat { 0 };                    // for the screen
-    int songVoice[TRACKS] {};                              // a sound index, or GM_KIT
-    bool songMute[TRACKS] {};
+    int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
+    bool songMute[SONG_TRK] {};
+    std::atomic<double> songGain { 0.5 };                // a whole band on 32 cards: headroom for the summing amp
     std::function<int(int note)> kitVoice;                 // GM drum note -> sound index
 
     void prepare(double sampleRate) {
@@ -368,53 +373,62 @@ private:
     void songAllOff() { for (int i = KEY_CH; i < NCH; ++i) ch[(size_t) i].noteOff(); for (auto& h : songHeld) h = false; }
     void songSeek(const MidiSong* s, double beat) {
         sidx = 0;
-        for (int t = 0; t < TRACKS; ++t) { songVol[t] = 1; songPan[t] = 0.5; songBendV[t] = 0; }
+        for (int t = 0; t < SONG_TRK; ++t) { songVol[t] = 1; songPan[t] = 0.5; songBendV[t] = 0; }
         while (sidx < s->ev.size() && s->ev[sidx].beat < beat - 1e-9) {
             const auto& e = s->ev[sidx++];
             if ((e.status & 0xF0) == 0xB0 || (e.status & 0xF0) == 0xE0) songEvent(e);   // levels, pans and bends up to here
         }
     }
-    Controls songControls(const Sound* snd, int t) const { Controls c = snd->ctl; c.level = (float) std::min(1.0, c.level * songVol[t] * 0.8); return c; }
+    Controls songControls(const Sound* snd, int t) const { Controls c = snd->ctl; c.level = (float) std::min(1.0, c.level * songVol[t] * songGain.load()); return c; }
+    // a card for a note on track t: one already on this note, a free one, the oldest released, the oldest
+    int songCard(int t, int note) {
+        int best = -1; uint64_t oldest = UINT64_MAX;
+        for (int i = KEY_CH; i < NCH; ++i) { const Channel& c = ch[(size_t) i]; if (c.st() != Channel::Idle && cardTrack[i] == t && cardNote[i] == note) return i; }
+        for (int i = KEY_CH; i < NCH; ++i) if (ch[(size_t) i].st() == Channel::Idle) return i;
+        for (int i = KEY_CH; i < NCH; ++i) { const Channel& c = ch[(size_t) i]; if (c.st() == Channel::Releasing && c.stamp() < oldest) { oldest = c.stamp(); best = i; } }
+        if (best >= 0) return best;
+        for (int i = KEY_CH; i < NCH; ++i) if (ch[(size_t) i].stamp() < oldest) { oldest = ch[(size_t) i].stamp(); best = i; }
+        return best;
+    }
     void songEvent(const SongEvent& e) {
         const int t = e.track, hi = e.status & 0xF0;
-        Channel& a = ch[(size_t) (KEY_CH + t)]; Channel& b = ch[(size_t) (KEY_CH + TRACKS + t)];
+        if (t < 0 || t >= SONG_TRK) return;
         if (hi == 0x90 && e.d2 > 0) {
             if (songMute[t] || !bank) return;
             int idx = songVoice[t];
             if (idx == GM_KIT) idx = kitVoice ? kitVoice(e.d1) : -1;
             const Sound* snd = bank->at(idx);
             if (!snd) return;
-            // the pair: the card already on this note, else a free one, else the older
-            Channel* c = &a;
-            if (b.st() != Channel::Idle && b.curNote() == e.d1) c = &b;
-            else if (a.st() != Channel::Idle && a.curNote() == e.d1) c = &a;
-            else if (a.st() == Channel::Idle) c = &a;
-            else if (b.st() == Channel::Idle) c = &b;
-            else c = a.stamp() <= b.stamp() ? &a : &b;
+            const int k = songCard(t, e.d1);
+            if (k < 0) return;
+            Channel& c = ch[(size_t) k];
             const int note = songVoice[t] == GM_KIT ? snd->root : e.d1;
-            c->noteOn(snd, songControls(snd, t), note, e.d2 / 127.f, -1, ++stampN);
-            c->setBend(songBendV[t]); c->setHeld(songHeld[t]);
-            kitNote[c == &a ? 0 : 1][t] = e.d1;
+            c.noteOn(snd, songControls(snd, t), note, e.d2 / 127.f, -1, ++stampN);
+            c.setBend(songBendV[t]); c.setHeld(songHeld[t]);
+            cardTrack[k] = t; cardNote[k] = e.d1;
             return;
         }
         if (hi == 0x80 || hi == 0x90) {
-            for (int k = 0; k < 2; ++k) { Channel& c = k ? b : a; if (c.isGate() && kitNote[k][t] == e.d1) c.noteOff(); }
+            for (int i = KEY_CH; i < NCH; ++i) { Channel& c = ch[(size_t) i]; if (cardTrack[i] == t && cardNote[i] == e.d1 && c.isGate()) c.noteOff(); }
             return;
         }
+        auto each = [&](auto fn) { for (int i = KEY_CH; i < NCH; ++i) if (cardTrack[i] == t && ch[(size_t) i].st() != Channel::Idle) fn(ch[(size_t) i]); };
         if (hi == 0xB0) {
-            if (e.d1 == 7 || e.d1 == 11) {
-                songVol[t] = e.d2 / 127.0;
-                for (int k = 0; k < 2; ++k) { Channel& c = k ? b : a; if (c.st() != Channel::Idle && c.sound()) c.setControls(songControls(c.sound(), t)); }
-            } else if (e.d1 == 10) songPan[t] = e.d2 / 127.0;
-            else if (e.d1 == 64) { songHeld[t] = e.d2 >= 64; a.setHeld(songHeld[t]); b.setHeld(songHeld[t]); }
-            else if (e.d1 == 120 || e.d1 == 123) { a.noteOff(); b.noteOff(); }
+            if (e.d1 == 7 || e.d1 == 11) { songVol[t] = e.d2 / 127.0; each([&](Channel& c) { if (c.sound()) c.setControls(songControls(c.sound(), t)); }); }
+            else if (e.d1 == 10) songPan[t] = e.d2 / 127.0;
+            else if (e.d1 == 64) { songHeld[t] = e.d2 >= 64; each([&](Channel& c) { c.setHeld(songHeld[t]); }); }
+            else if (e.d1 == 120 || e.d1 == 123) each([&](Channel& c) { c.noteOff(); });
             return;
         }
-        if (hi == 0xE0) { songBendV[t] = (((e.d2 << 7) | e.d1) - 8192) / 8192.0 * 2.0; a.setBend(songBendV[t]); b.setBend(songBendV[t]); }
+        if (hi == 0xE0) { songBendV[t] = (((e.d2 << 7) | e.d1) - 8192) / 8192.0 * 2.0; each([&](Channel& c) { c.setBend(songBendV[t]); }); }
     }
     int songAdvance(int maxLen, const Transport* tp, int offset) {
         const MidiSong* s = song.load();
-        if (s != curSong) { songAllOff(); curSong = s; sbeat = 0; songWas = false; if (!s) { songBeat = 0; return maxLen; } }
+        if (s != curSong) {
+            // an edited version of the song that's playing: carry on from here
+            if (s && curSong && s->id == curSong->id && s->id != 0) { songAllOff(); curSong = s; if (songWas) songSeek(s, sbeat); }
+            else { songAllOff(); curSong = s; sbeat = 0; songWas = false; if (!s) { songBeat = 0; return maxLen; } }
+        }
         const bool ext = extSync.load() && tp && tp->valid;
         const bool running = ext ? tp->playing : songRun.load();
         if (!running) {
@@ -511,7 +525,8 @@ private:
             c.render(mono.data(), n);
             double pan;
             if (i < KEY_CH) pan = 0.5 + ((i & 1) ? 0.5 : -0.5) * spread * (0.4 + 0.6 * (i >> 1) / 3.0);
-            else pan = curSong ? songPan[(i - KEY_CH) % TRACKS] : seq.trk[(i - KEY_CH) % TRACKS].pan;
+            else if (curSong) pan = songPan[clampi(cardTrack[i], 0, SONG_TRK - 1)];
+            else pan = seq.trk[(i - KEY_CH) % TRACKS].pan;
             const float gl = (float) std::cos(pan * PI / 2) * 1.41421356f, gr = (float) std::sin(pan * PI / 2) * 1.41421356f;
             for (int k = 0; k < n; ++k) { kbL[k] += mono[(size_t) k] * gl; kbR[k] += mono[(size_t) k] * gr; }
         }
@@ -543,7 +558,8 @@ private:
     double gateEnd[TRACKS] { -1, -1, -1, -1, -1, -1, -1, -1 };
     // song player
     const MidiSong* curSong = nullptr; double sbeat = 0; size_t sidx = 0; bool songWas = false;
-    double songVol[TRACKS] {}, songPan[TRACKS] {}, songBendV[TRACKS] {}; bool songHeld[TRACKS] {}; int kitNote[2][TRACKS] {};
+    double songVol[SONG_TRK] {}, songPan[SONG_TRK] {}, songBendV[SONG_TRK] {}; bool songHeld[SONG_TRK] {};
+    int cardTrack[NCH] {}, cardNote[NCH] {};
 };
 
 }  // namespace cmi

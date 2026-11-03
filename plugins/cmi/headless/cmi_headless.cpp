@@ -14,7 +14,8 @@
 //   MIDI: notes, velocity, pitch bend, mod wheel, sustain, program change (the voice list: factory voices first,
 //   then everything you loaded), CC 7 level, CC 74 filter, CC 73 attack, CC 72 damping, all notes off;
 //   start / stop / clock run Page R (or the selected MIDI song) in time with your MPC. Lines on stdin: LOAD <path>,
-//   VOICE <n|name>, PLAY, STOP, SPEED <bpm>, PATTERN <n>, SONG ON|OFF, SONGS, SELECT <n>, LOOP ON|OFF, LIST, SAVE, QUIT.
+//   VOICE <n|name>, PLAY, STOP, SPEED <bpm>, PATTERN <n>, SONG ON|OFF, SONGS, SELECT <n>, LOOP ON|OFF,
+//   EXPORT <file.wav | file.mid>, LIST, SAVE, QUIT.
 #include "../core/Disk.h"
 #include "../core/Song.h"
 #include <alsa/asoundlib.h>
@@ -88,9 +89,9 @@ static int load(Box& b, const std::string& path) {
         std::lock_guard<std::mutex> g(b.lock);
         const int i = b.songs.add(std::move(ms), b.kit.bank);
         selectSong(b.eng, b.songs.at(i));
-        const MidiSong& s = b.songs.at(i)->song;
+        const MidiSong& s = *b.songs.at(i)->song;
         std::printf("song %d: %s, %.0f BPM %d/%d, %.0f s\n", b.songs.count(), s.name.c_str(), s.bpmAt(0), s.num, s.den, s.length * 60 / s.bpmAt(0));
-        for (int t = 0; t < TRACKS; ++t) if (s.used[t]) { const int v = b.songs.at(i)->voice[t]; std::printf("  track %d %-20s %s\n", t + 1, s.trackName[t].c_str(), v == GM_KIT ? "DRUM KIT" : b.kit.bank.at(v)->name.c_str()); }
+        for (int t = 0; t < SONG_TRK; ++t) if (s.used[t]) { const int v = b.songs.at(i)->voice[t]; std::printf("  track %d %-20s %s\n", t + 1, s.trackName[t].c_str(), v == GM_KIT ? "DRUM KIT" : b.kit.bank.at(v)->name.c_str()); }
         std::fflush(stdout);
         return 0;
     } else if (e == "wav") {
@@ -237,6 +238,13 @@ static void commandThread(Box& b, const std::string& statePath) {
         if (w == "LOAD") { load(b, arg); continue; }
         if (w == "LIST") { list(b); continue; }
         if (w == "SAVE") { saveState(b, statePath); std::puts("saved"); continue; }
+        if (w == "EXPORT") {   // EXPORT song.wav | song.mid: the selected song (or Page R) to a file
+            const SongEntry* e = b.songs.at(b.songs.indexOf(b.eng.song.load()));
+            if (ext(arg) == "mid") { if (!e) { std::puts("no song selected"); continue; } const auto bytes = writeSmf(*e->song); std::ofstream(arg, std::ios::binary).write((const char*) bytes.data(), (std::streamsize) bytes.size()); std::printf("exported %s\n", arg.c_str()); continue; }
+            Rendered r = e ? renderSong(b.kit.bank, *e, 48000) : renderPageR(b.kit.bank, b.eng.seq, b.eng.tempo.load(), 48000);
+            const auto bytes = wavBytes(r, 24); std::ofstream(arg, std::ios::binary).write((const char*) bytes.data(), (std::streamsize) bytes.size());
+            std::printf("exported %s (%.1f s)\n", arg.c_str(), r.L.size() / 48000.0); std::fflush(stdout); continue;
+        }
         std::lock_guard<std::mutex> g(b.lock);
         if (w == "VOICE") {
             int idx = -1;
@@ -245,7 +253,7 @@ static void commandThread(Box& b, const std::string& statePath) {
             if (b.kit.bank.at(idx)) selectSound(b, idx); else std::puts("no such voice");
         } else if (w == "PLAY") { b.eng.extSync = false; if (b.eng.song.load()) b.eng.songRun = true; else b.eng.seqRun = true; }
         else if (w == "STOP") { b.eng.seqRun = false; b.eng.songRun = false; }
-        else if (w == "SONGS") { std::puts("0  Page R patterns"); for (int k = 0; k < b.songs.count(); ++k) std::printf("%d  %s\n", k + 1, b.songs.at(b.songs.nth(k))->song.name.c_str()); }
+        else if (w == "SONGS") { std::puts("0  Page R patterns"); for (int k = 0; k < b.songs.count(); ++k) std::printf("%d  %s\n", k + 1, b.songs.at(b.songs.nth(k))->song->name.c_str()); }
         else if (w == "SELECT") { const int k = std::atoi(arg.c_str()); selectSong(b.eng, k <= 0 ? nullptr : b.songs.at(b.songs.nth(k - 1))); }
         else if (w == "LOOP") b.eng.songLoop = lower(arg) != "off";
         else if (w == "SPEED" || w == "TEMPO") b.eng.tempo = std::atof(arg.c_str());
@@ -296,15 +304,16 @@ static int runAlsa(Box& b, const std::string& dev, unsigned rate, snd_pcm_uframe
 
 static int writeWav(const std::string& path, const std::vector<float>& L, const std::vector<float>& R, unsigned rate);
 static int renderFile(Box& b, const std::string& path, double secs, unsigned rate) {
+    if (secs <= 0 && !b.eng.song.load()) secs = 4;
     b.eng.prepare(rate); b.eng.setKeyboard(b.sound, b.ctl);
     const size_t n = (size_t) (secs * rate);
     std::vector<float> L(n), R(n);
-    if (b.eng.song.load()) {
-        b.eng.extSync = false; b.eng.songRun = true;
-        std::vector<float> L(n), R(n);
-        b.eng.render(L.data(), R.data(), (int) n);
-        return writeWav(path, L, R, rate);
+    if (const SongEntry* e = b.songs.at(b.songs.indexOf(b.eng.song.load()))) {   // a song: all of it (or secs, if given)
+        Rendered r = renderSong(b.kit.bank, *e, rate);
+        if (secs > 0 && r.L.size() > n) { r.L.resize(n); r.R.resize(n); }
+        return writeWav(path, r.L, r.R, rate);
     }
+    if (secs <= 0) return renderFile(b, path, 4, rate);
     // play the keyboard voice: a chord, then Page R if nothing else is asked
     const int notes[3] = { 60, 64, 67 };
     for (int k : notes) b.eng.keyOn(k, 0.9f);
@@ -355,7 +364,7 @@ int main(int argc, char** argv) {
     for (auto& f : files) { const int before = b.kit.loadedCount(); if (load(b, f) > 0 && first < 0) { for (int k = 0; k < Library::USER_SLOTS; ++k) if (b.kit.userLoaded(k) && k >= before) { first = k; break; } } }
     if (first >= 0) selectSound(b, b.kit.userSlot(first));
     if (listOnly) { list(b); return 0; }
-    if (!wavOut.empty()) return renderFile(b, wavOut, wavSecs > 0 ? wavSecs : 4, rate);
+    if (!wavOut.empty()) return renderFile(b, wavOut, wavSecs, rate);
     std::thread midi(midiThread, std::ref(b), extraMidi);
     std::thread cmd(commandThread, std::ref(b), statePath);
     cmd.detach();
