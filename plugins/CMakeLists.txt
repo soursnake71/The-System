@@ -128,6 +128,44 @@ foreach(variant "Twelve|Omega Twelve|Otw1|0" "TwelveInst|Omega Twelve Instrument
   target_link_libraries(Omega${tgt} PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endforeach()
 
+# Omega CMI: a circuit model of the Fairlight CMI Series II channel cards, with the Page R composer and a
+# synthesised library of the famous sounds. An instrument (VST3, AU on Mac) and a standalone app.
+if(NOT OMEGA_ONLY OR "CMI" IN_LIST OMEGA_ONLY)
+  set(cmifmts ${OMEGA_FORMATS} Standalone)
+  if(APPLE)
+    set(cmiau kAudioUnitType_MusicDevice)
+  endif()
+  juce_add_plugin(OmegaCMI
+    PRODUCT_NAME "Omega CMI"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.CMI"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Ocmi
+    FORMATS ${cmifmts}
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Sampler
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaCMI PRIVATE cmi/CmiPlugin.cpp cmi/CmiEditor.cpp)
+  target_compile_definitions(OmegaCMI PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(OmegaCMI PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+# pictures of every page of the CMI's screen, and the processor driven directly: <build>/cmi_snapshot <dir>
+if(TARGET OmegaCMI)
+  juce_add_console_app(cmi_snapshot PRODUCT_NAME "cmi_snapshot")
+  target_sources(cmi_snapshot PRIVATE cmi/tools/snapshot.cpp cmi/CmiPlugin.cpp cmi/CmiEditor.cpp)
+  target_compile_definitions(cmi_snapshot PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega CMI"
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(cmi_snapshot PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(cmi_snapshot PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
+# the CMI engine on its own: <build>/cmi_test <dir> (checks the card maths, renders every sound and Page R)
+add_executable(cmi_test cmi/tools/test.cpp)
+
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
 add_executable(twelve_test twelve/test.cpp)
 
