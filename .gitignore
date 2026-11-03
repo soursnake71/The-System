@@ -1,3 +1,4 @@
 *.apk
 *.zip
 /Omega-Twelve-Setup-*.exe
+dist/
