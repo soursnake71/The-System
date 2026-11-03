@@ -64,15 +64,21 @@ int main(int argc, char** argv) {
         int n = 0;
         const auto msg = p.importFiles({ juce::File(juce::String::fromUTF8(argv[i])) }, 60, false, n);
         std::printf("import %s: %s\n", argv[i], msg.toRawUTF8());
-        ok &= n > 0;
+        ok &= msg.contains("IMPORTED") && !msg.contains("UNREADABLE");
     }
     // state round trip keeps Page R and the user sample
     juce::MemoryBlock st; p.getStateInformation(st);
     cmi::CmiProcessor q; q.setStateInformation(st.getData(), (int) st.getSize());
-    const bool same = std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0) && q.kit.loadedCount() == p.kit.loadedCount() && q.kit.user(2)->mode == p.kit.user(2)->mode && q.kit.user(2)->ram == p.kit.user(2)->ram;
+    const bool same = q.songs.count() == p.songs.count() && q.currentSong() == p.currentSong() && std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0) && q.kit.loadedCount() == p.kit.loadedCount() && q.kit.user(2)->mode == p.kit.user(2)->mode && q.kit.user(2)->ram == p.kit.user(2)->ram;
     std::printf("state %d bytes, Page R and user voice restored: %s\n", (int) st.getSize(), same ? "yes" : "NO"); ok &= same;
     // pictures
     p.loadSound(cmi::Library::get().find("CHOIRAAH"));
+    if (p.engine.song.load()) {   // a song was given: play some of it and check it sounds
+        p.set("sync", 0); p.engine.songRun = true;
+        const double pk = run(1200, {});
+        std::printf("song %s: beat %.1f, peak %.3f\n", p.engine.song.load()->name.c_str(), p.engine.songBeat.load(), pk);
+        ok &= pk > 0.05;
+    }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
     for (char pg : { 'R', '2', '7', 'D', '8' }) {

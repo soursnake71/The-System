@@ -5,6 +5,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "core/Library.h"
+#include "core/Song.h"
 
 namespace cmi {
 
@@ -81,6 +82,13 @@ public:
     juce::String importFiles(const juce::Array<juce::File>& filesOrFolders, int root, bool loop, int& imported);   // a summary
     std::atomic<bool> showFactory { true };   // Page 2: the synthesised voices too, or only yours
     void preview(int track) { previewReq = track; }
+    // MIDI songs
+    SongList songs;
+    juce::String importMidi(const juce::File& f);          // "" or the error; the song is selected
+    void chooseSong(int i);                                // -1: the Page R patterns
+    int currentSong() const { return songs.indexOf(engine.song.load()); }
+    void setSongVoice(int track, int voice) { if (auto* e = songs.at(currentSong())) { e->voice[track] = voice; engine.songVoice[track] = voice; } }
+    void setSongMute(int track, bool m) { if (auto* e = songs.at(currentSong())) { e->mute[track] = m; engine.songMute[track] = m; } }
     void seqPlay(bool on) { engine.seqRun = on; }
     std::atomic<float> meter { 0 };
 

@@ -2,6 +2,7 @@
 // Checks the channel card maths against the hardware formulas, renders every library sound and the Page R demo
 // song to WAV files, and fails on silence, clipping, NaNs or wrong pitch.
 #include "../core/Disk.h"
+#include "../core/Song.h"
 #include <cstdio>
 #include <chrono>
 
@@ -244,6 +245,51 @@ int main(int argc, char** argv) {
         CHECK(d2.err.empty() && d2.files.size() == 2 && d2.files[0].data == d.files[0].data && d2.files[1].data == d.files[1].data, "IMD reads the same: %s", d2.err.c_str());
         Disk bad = readDiskImage((const uint8_t*) "hello", 5);
         CHECK(!bad.err.empty(), "junk is refused");
+    }
+
+    // ---- MIDI songs: a two-channel file made here, played on its own clock and with the host ----
+    {
+        std::vector<uint8_t> f;
+        auto u32 = [&](uint32_t v) { for (int k = 3; k >= 0; --k) f.push_back((uint8_t) (v >> (8 * k))); };
+        auto u16 = [&](uint16_t v) { f.push_back((uint8_t) (v >> 8)); f.push_back((uint8_t) v); };
+        auto tag = [&](const char* t) { f.insert(f.end(), t, t + 4); };
+        tag("MThd"); u32(6); u16(1); u16(2); u16(96);
+        std::vector<uint8_t> t0 = { 0, 0xFF, 0x51, 3, 0x07, 0xA1, 0x20, 0, 0xFF, 0x2F, 0 };   // 120 BPM
+        tag("MTrk"); u32((uint32_t) t0.size()); f.insert(f.end(), t0.begin(), t0.end());
+        // channel 1: strings (program 48), four quarter notes and a volume change; channel 3: choir (52) on beat 2, running status
+        std::vector<uint8_t> t1 = { 0, 0xFF, 0x03, 4, 'L', 'E', 'A', 'D', 0, 0xC0, 48, 0, 0xC2, 52, 0, 0xB0, 7, 100,
+                                    0, 0x90, 60, 100, 96, 0x80, 60, 0, 0, 0x90, 62, 100, 96, 0x80, 62, 0, 0, 0xB0, 7, 40,
+                                    0, 0x90, 64, 100, 96, 64, 0, 0, 65, 100, 96, 65, 0,
+                                    0, 0x92, 57, 90, 0x81, 0x40, 0x82, 57, 0, 0, 0xFF, 0x2F, 0 };
+        tag("MTrk"); u32((uint32_t) t1.size()); f.insert(f.end(), t1.begin(), t1.end());
+        MidiSong ms; std::string err;
+        const bool ok = parseSmf(f.data(), f.size(), "TEST", ms, err);
+        CHECK(ok, "parse: %s", err.c_str());
+        if (ok) {
+            CHECK(std::fabs(ms.bpmAt(0) - 120) < 0.01 && std::fabs(ms.length - 6) < 1e-6, "tempo %.2f length %.2f beats", ms.bpmAt(0), ms.length);
+            CHECK(ms.used[0] && ms.program[0] == 48 && ms.trackName[0] == "LEAD" && ms.used[1] && ms.program[1] == 52 && !ms.used[2], "tracks: %d %d '%s'", ms.program[0], ms.program[1], ms.trackName[0].c_str());
+            Kit ks; SongList sl; const int si = sl.add(ms, ks.bank);
+            CHECK(ks.bank.at(sl.at(si)->voice[0])->name == "STRINGS" && ks.bank.at(sl.at(si)->voice[1])->name == "CHOIRAAH", "GM voices");
+            Engine es; es.bank = &ks.bank; es.prepare(fs); es.setOutput(1, 0, 0); es.extSync = false;
+            selectSong(es, sl.at(si)); es.songRun = true;
+            const int len = fs * 4;
+            std::vector<float> a((size_t) len), b2((size_t) len);
+            for (int p = 0; p < len; p += 256) es.render(a.data() + p, b2.data() + p, std::min(256, len - p));
+            double pk1 = 0, pk2 = 0, late = 0;
+            for (int i = 0; i < fs / 2; ++i) pk1 = std::max(pk1, (double) std::fabs(a[(size_t) i]));
+            for (int i = fs; i < fs * 3 / 2; ++i) pk2 = std::max(pk2, (double) std::fabs(a[(size_t) i]));
+            for (int i = fs * 7 / 2; i < len; ++i) late = std::max(late, (double) std::fabs(a[(size_t) i]));
+            std::printf("song: beat-1 peak %.3f, after CC7 40 %.3f, after the end %.4f, running %d\n", pk1, pk2, late, (int) es.songRun.load());
+            CHECK(pk1 > 0.05 && pk2 > 0.01 && pk2 < pk1, "song plays and follows CC7");
+            CHECK(!es.songRun.load() && late < 0.05, "song stops at its end");
+            // with the host: the beat comes from the playhead
+            Engine eh; eh.bank = &ks.bank; eh.prepare(fs); eh.extSync = true; selectSong(eh, sl.at(si));
+            Transport tp; tp.valid = true; tp.playing = true; tp.bpm = 120; tp.ppq = 1.0;   // start on beat 2
+            std::vector<float> x(256), y(256); double pk = 0;
+            for (int p = 0; p < fs / 4; p += 256) { eh.render(x.data(), y.data(), 256, &tp); tp.ppq += 256.0 / fs * 2.0; for (float v : x) pk = std::max(pk, (double) std::fabs(v)); }
+            CHECK(pk > 0.01 && eh.songBeat.load() > 1.0, "host sync from beat 2 (beat %.2f)", eh.songBeat.load());
+        }
+        CHECK(!parseSmf((const uint8_t*) "junk", 4, "x", ms, err), "junk MIDI refused");
     }
 
     // ---- speed: 16 voices for one second ----

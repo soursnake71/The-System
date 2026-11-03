@@ -36,6 +36,8 @@ private:
     void drawWave(juce::Graphics&);
     void drawSampling(juce::Graphics&);
     void drawComposer(juce::Graphics&);
+    void drawMidiSong(juce::Graphics&);
+    void songMenu();
     void bar(juce::Graphics&, juce::Rectangle<float> r, const char* id, const juce::String& label, std::function<juce::String(float)> fmt);
     void button(juce::Graphics&, juce::Rectangle<float> r, const juce::String& text, bool inverse, std::function<void()> fn);
     void soundMenu(std::function<void(int)> chosen);

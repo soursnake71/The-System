@@ -24,6 +24,7 @@ CmiProcessor::CmiProcessor()
     formats.registerBasicFormats();
     for (const auto& d : paramDefs()) raw.push_back(apvts.getRawParameterValue(d.id));
     engine.bank = &kit.bank;
+    engine.kitVoice = kitLookup(kit.bank);
     Library::factorySeq(engine.seq, Library::get());
     loadSound(Library::get().find("ORCHHIT"));
     startTimerHz(20);
@@ -138,18 +139,31 @@ juce::String CmiProcessor::loadSample(const juce::File& f, int slot, int root, b
     return {};
 }
 
+juce::String CmiProcessor::importMidi(const juce::File& f) {
+    juce::MemoryBlock mb;
+    if (!f.loadFileAsData(mb)) return "Can't read " + f.getFileName();
+    MidiSong ms; std::string err;
+    juce::String name = f.getFileNameWithoutExtension().toUpperCase().replaceCharacters("_-", "  ");
+    if (!parseSmf((const uint8_t*) mb.getData(), mb.getSize(), name.toStdString(), ms, err)) return f.getFileName() + ": " + juce::String(err);
+    chooseSong(songs.add(std::move(ms), kit.bank));
+    return {};
+}
+
+void CmiProcessor::chooseSong(int i) { selectSong(engine, songs.at(i)); }
+
 // files and folders (searched inside) into the free user voices, in name order
 juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int root, bool loop, int& imported) {
     juce::Array<juce::File> files;
-    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.vc;*.imd;*.img;*.bin;*.raw;*.dsk;*.hfe";
+    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.vc;*.imd;*.img;*.bin;*.raw;*.dsk;*.hfe;*.mid;*.midi";
     for (const auto& it : items) {
         if (it.isDirectory()) for (const auto& e : juce::RangedDirectoryIterator(it, true, exts, juce::File::findFiles)) files.add(e.getFile());
         else if (it.existsAsFile()) files.add(it);
     }
     struct ByName { static int compareElements(const juce::File& a, const juce::File& b) { return a.getFullPathName().compareNatural(b.getFullPathName()); } } cmp;
     files.sort(cmp);
-    imported = 0; int failed = 0, first = -1, disks = 0; juce::String lastErr;
+    imported = 0; int failed = 0, first = -1, disks = 0, midis = 0; juce::String lastErr;
     for (const auto& f : files) {
+        if (f.hasFileExtension("mid;midi")) { const auto e = importMidi(f); if (e.isEmpty()) ++midis; else { ++failed; lastErr = e; } continue; }
         std::vector<Sound> got;
         const auto err = soundsFrom(f, root, loop, got);
         if (got.empty()) { ++failed; lastErr = err; continue; }
@@ -164,8 +178,10 @@ juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int
     }
     if (first >= 0) loadSound(kit.userSlot(first));
     if (files.isEmpty()) return "NO SOUNDS FOUND";
+    if (midis && !imported && !failed) return juce::String(midis) + (midis == 1 ? " SONG" : " SONGS") + " IMPORTED (PAGE R)";
     juce::String m = juce::String(imported) + " IMPORTED";
     if (disks) m << " FROM " << disks << (disks == 1 ? " DISK" : " DISKS");
+    if (midis) m = (imported ? m + ", " : juce::String()) + juce::String(midis) + (midis == 1 ? " SONG" : " SONGS") + " (PAGE R)";
     if (failed) m << ", " << failed << " UNREADABLE" << (failed == 1 && lastErr.isNotEmpty() ? " (" + lastErr.toUpperCase() + ")" : juce::String());
     return m;
 }
@@ -291,6 +307,16 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
         u->setAttribute("loopStart", s->loopStart); u->setAttribute("loopEnd", s->loopEnd);
         u->setAttribute("ram", juce::MemoryBlock(s->ram.data(), s->ram.size()).toBase64Encoding());
     }
+    auto* sg = x->createNewChildElement("Songs");
+    sg->setAttribute("selected", currentSong());
+    for (int i = 0; i < songs.size(); ++i) {
+        const SongEntry* e = songs.at(i); if (!e) continue;
+        auto* el = sg->createNewChildElement("Song");
+        el->setAttribute("index", i); el->setAttribute("name", juce::String(e->song.name));
+        juce::String v, m; for (int t = 0; t < TRACKS; ++t) { v << e->voice[t] << " "; m << (e->mute[t] ? 1 : 0) << " "; }
+        el->setAttribute("voices", v.trim()); el->setAttribute("mutes", m.trim());
+        el->setAttribute("midi", juce::MemoryBlock(e->song.raw.data(), e->song.raw.size()).toBase64Encoding());
+    }
     copyXmlToBinary(*x, dest);
 }
 
@@ -309,6 +335,19 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
         kit.setUser(u->getIntAttribute("slot"), std::move(s));
     }
     readSeq(*x);
+    if (const auto* sg = x->getChildByName("Songs")) {
+        const int want = sg->getIntAttribute("selected", -1); int pick = -1;
+        for (auto* el : sg->getChildWithTagNameIterator("Song")) {
+            juce::MemoryBlock mb; mb.fromBase64Encoding(el->getStringAttribute("midi"));
+            MidiSong ms; std::string err;
+            if (!parseSmf((const uint8_t*) mb.getData(), mb.getSize(), el->getStringAttribute("name").toStdString(), ms, err)) continue;
+            const int i = songs.add(std::move(ms), kit.bank);
+            auto vs = juce::StringArray::fromTokens(el->getStringAttribute("voices"), " ", ""), mu = juce::StringArray::fromTokens(el->getStringAttribute("mutes"), " ", "");
+            if (auto* e = songs.at(i)) for (int t = 0; t < TRACKS; ++t) { if (t < vs.size()) e->voice[t] = vs[t].getIntValue(); if (t < mu.size()) e->mute[t] = mu[t].getIntValue() != 0; }
+            if (el->getIntAttribute("index", -2) == want) pick = i;
+        }
+        chooseSong(pick);
+    }
     program = x->getIntAttribute("program", 0);
     showFactory = x->getBoolAttribute("showFactory", true);
     const juce::String sn = x->getStringAttribute("soundName");

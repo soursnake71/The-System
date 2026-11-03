@@ -54,6 +54,7 @@ public class CmiView extends View {
     }
 
     void status(String s) { status = s.toUpperCase(); invalidate(); }
+    void showPage(char p) { page = p; invalidate(); }
 
     // ---------------------------------------------------------------------------------------------------------
     private Hit hit(RectF r, Act down) { Hit h = new Hit(); h.r = r; h.down = down; hits.add(h); return h; }
@@ -305,7 +306,94 @@ public class CmiView extends View {
     }
 
     // ---- Page R ----
+    // the song list: Page R patterns, the imported MIDI songs, import, remove
+    private void songsDialog() {
+        final int n = Native.songCount(), cur = Native.currentSong();
+        final List<String> items = new ArrayList<>();
+        items.add((cur < 0 ? "> " : "   ") + "Page R patterns");
+        for (int k = 0; k < n; ++k) items.add((cur == k ? "> " : "   ") + Native.songName(k));
+        items.add("   Import MIDI file...");
+        if (cur >= 0) items.add("   Remove this song");
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Songs")
+                .setItems(items.toArray(new String[0]), (dlg, w) -> {
+                    if (w == 0) Native.selectSongAt(-1);
+                    else if (w <= n) Native.selectSongAt(w - 1);
+                    else if (w == n + 1) act.importMidi();
+                    else { Native.removeSong(); act.saveState(); }
+                    invalidate();
+                }).show();
+    }
+    private void songVoiceDialog(final int track) {
+        final int n = Native.soundCount(), built = Native.builtInCount();
+        final List<Integer> ids = new ArrayList<>(); final List<String> names = new ArrayList<>();
+        ids.add(Native.GM_KIT); names.add("DRUM KIT  (a voice per GM drum note)");
+        for (int i = 0; i < n; ++i) { if (i >= built && !Native.userLoaded(i - built)) continue; String[] f = info(i); ids.add(i); names.add(f[0] + "  (" + f[2] + ")  " + f[1]); }
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Track " + (track + 1) + " voice")
+                .setItems(names.toArray(new String[0]), (dlg, w) -> { Native.setSongVoice(track, ids.get(w)); act.saveState(); invalidate(); })
+                .show();
+    }
+    private int[] notesCache = new int[0]; private String notesFor = "";
+
+    // a MIDI song on Page R: the tracks, their voices, the whole song at a glance
+    private void songView(Canvas c, RectF b) {
+        final String[] si = Native.songInfo().split("\t", -1);
+        if (si.length < 6) return;
+        final double len = Math.max(1, Double.parseDouble(si[4])), beat = Double.parseDouble(si[5]);
+        final int num = Integer.parseInt(si[2]), den = Integer.parseInt(si[3]);
+        final double barBeats = num * 4.0 / den;
+        final boolean running = Native.songRunning(), loop = Native.songLoop();
+        float x = b.left;
+        text(c, si[0].length() > 18 ? si[0].substring(0, 18) : si[0], x, b.top + dp(17), 13, INK);
+        button(c, new RectF(b.right - dp(76), b.top, b.right, b.top + dp(22)), "SONGS", false, this::songsDialog);
+        final float t0 = b.top + dp(26);
+        button(c, new RectF(x, t0, x + dp(56), t0 + dp(22)), "PLAY", running, () -> Native.songPlay(true)); x += dp(60);
+        button(c, new RectF(x, t0, x + dp(56), t0 + dp(22)), "STOP", !running, () -> Native.songPlay(false)); x += dp(60);
+        button(c, new RectF(x, t0, x + dp(64), t0 + dp(22)), loop ? "LOOP" : "ONCE", loop, () -> Native.setSongLoop(!loop)); x += dp(70);
+        text(c, String.format("%s BPM %d/%d  BAR %d/%d", si[1], num, den, 1 + (int) (beat / barBeats), (int) Math.ceil(len / barBeats)), x, t0 + dp(16), 10, DIM);
+
+        final float footH = portrait ? dp(50) : dp(22);
+        final float by = b.bottom - footH;
+        final String[] tr = Native.songTrack(selTrack).split("\t", -1);
+        final boolean muted = tr.length > 3 && tr[3].equals("1");
+        final String[] lbl = { muted ? "MUTED" : "AUDIBLE", "VOICE", "GM VOICES", "PATTERNS" };
+        final Runnable[] fns = { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack), () -> { Native.gmVoices(); act.saveState(); },
+                () -> Native.selectSongAt(-1) };
+        float bw = (b.width() - dp(18)) / 4;
+        for (int i = 0; i < 4; ++i) { float rx = b.left + i * (bw + dp(6)); button(c, new RectF(rx, by, rx + bw, by + dp(22)), lbl[i], i == 0 && !muted, fns[i]); }
+        if (portrait) text(c, "tap a track to pick it, hold it for its voice", b.left, by + dp(42), 9, DIM);
+
+        RectF g = new RectF(b.left, t0 + dp(28), b.right, by - dp(6));
+        final float nameW = Math.min(dp(120), g.width() * 0.3f), rh = g.height() / Native.TRACKS;
+        final float gx = g.left + nameW + dp(6), gw = g.right - gx;
+        for (int t = 0; t < Native.TRACKS; ++t) {
+            final int tk = t;
+            final String[] f = Native.songTrack(t).split("\t", -1);
+            if (f.length < 4) continue;
+            final boolean used = f[2].equals("1"), mute = f[3].equals("1");
+            final int v = Integer.parseInt(f[1]);
+            RectF nr = new RectF(g.left, g.top + t * rh, g.left + nameW, g.top + (t + 1) * rh);
+            if (t == selTrack) fill(c, nr, FAINT);
+            text(c, used ? (v == Native.GM_KIT ? "DRUM KIT" : info(v)[0]) : "--", nr.left + dp(3), nr.top + rh * 0.45f, 12, used && !mute ? INK : DIM);
+            text(c, (f[0].length() > 14 ? f[0].substring(0, 14) : f[0]) + (mute ? " MUTE" : ""), nr.left + dp(3), nr.top + rh * 0.8f, 8, DIM);
+            Hit h = hit(nr, (xx, yy) -> selTrack = tk);
+            h.longPress = true; h.hold = (xx, yy) -> { selTrack = tk; songVoiceDialog(tk); };
+            p.setColor(FAINT); c.drawLine(gx, nr.bottom, g.right, nr.bottom, p);
+        }
+        frame(c, new RectF(gx, g.top, g.right, g.bottom), DIM);
+        if (!notesFor.equals(si[0] + si[4])) { notesCache = Native.songNotes(); notesFor = si[0] + si[4]; }
+        for (int i = 0; i + 3 < notesCache.length; i += 4) {
+            final int t = notesCache[i];
+            final float y = g.top + t * rh + dp(3) + (rh - dp(6)) * (1 - notesCache[i + 3] / 1000f);
+            final float x0 = gx + gw * notesCache[i + 1] / 10000f, x1 = gx + gw * notesCache[i + 2] / 10000f;
+            p.setColor(DIM); c.drawRect(x0, y - dp(1), Math.max(x0 + dp(1), x1), y + dp(1), p);
+        }
+        p.setColor(Color.WHITE); final float px = gx + gw * (float) (beat / len); c.drawRect(px, g.top, px + dp(1.5f), g.bottom, p);
+    }
+
     private void composer(Canvas c, RectF b) {
+        if (Native.currentSong() >= 0) { songView(c, b); return; }
         final int pat = Native.getPattern();
         final boolean running = Native.seqRunning();
         final int stepNow = running ? Native.seqStep() : -1;
@@ -319,6 +407,7 @@ public class CmiView extends View {
         float row2 = b.top;
         if (portrait) { x = b.left; row2 = b.top + dp(26); }
         final float t0 = row2;
+        button(c, new RectF(b.right - dp(76), b.top, b.right, b.top + dp(22)), "SONGS", false, this::songsDialog);
         final float tempo = Native.getParam(Native.TEMPO);
         text(c, String.format("SPEED %.0f", tempo), x, t0 + dp(17), 12, INK); x += dp(78);
         button(c, new RectF(x, t0, x + dp(26), t0 + dp(22)), "-", false, () -> Native.setParam(Native.TEMPO, Math.max(40, Math.round(tempo) - 2))); x += dp(28);

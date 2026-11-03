@@ -63,6 +63,28 @@ final class Native {
     static native boolean userLoaded(int k);
     static native int userSlot(int k);
 
+    // MIDI songs (Page R)
+    static final int GM_KIT = -2;
+    static native String importMidi(byte[] midi, String name);
+    static native int songCount();
+    static native String songName(int k);
+    static native void selectSongAt(int k);   // -1: the Page R patterns
+    static native int currentSong();
+    static native void removeSong();
+    /** name, bpm, num, den, length (beats), beat now (tab separated) */
+    static native String songInfo();
+    /** track name, voice, used, muted */
+    static native String songTrack(int t);
+    static native void setSongVoice(int t, int voice);
+    static native void setSongMute(int t, boolean muted);
+    static native void gmVoices();
+    static native void songPlay(boolean on);
+    static native boolean songRunning();
+    static native boolean songLoop();
+    static native void setSongLoop(boolean on);
+    /** four ints per note: track, start, end (1/10000 of the song), pitch in the track's range (0..1000) */
+    static native int[] songNotes();
+
     static native byte[] saveState();
     static native void loadState(byte[] data);
 }

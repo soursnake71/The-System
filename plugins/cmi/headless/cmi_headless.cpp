@@ -13,9 +13,10 @@
 //     -w <out.wav> <seconds>  render to a WAV file instead of the sound card (testing)
 //   MIDI: notes, velocity, pitch bend, mod wheel, sustain, program change (the voice list: factory voices first,
 //   then everything you loaded), CC 7 level, CC 74 filter, CC 73 attack, CC 72 damping, all notes off;
-//   start / stop / clock run Page R in time with your MPC. Lines on stdin: LOAD <path>, VOICE <n|name>, PLAY,
-//   STOP, SPEED <bpm>, PATTERN <n>, SONG ON|OFF, LIST, SAVE, QUIT.
+//   start / stop / clock run Page R (or the selected MIDI song) in time with your MPC. Lines on stdin: LOAD <path>,
+//   VOICE <n|name>, PLAY, STOP, SPEED <bpm>, PATTERN <n>, SONG ON|OFF, SONGS, SELECT <n>, LOOP ON|OFF, LIST, SAVE, QUIT.
 #include "../core/Disk.h"
+#include "../core/Song.h"
 #include <alsa/asoundlib.h>
 #include <atomic>
 #include <cerrno>
@@ -37,6 +38,7 @@ static void onSignal(int) { quit = true; }
 struct Box {
     Kit kit;
     Engine eng;
+    SongList songs;
     std::mutex lock;            // engine access: the audio thread, MIDI thread and stdin take turns
     int sound = 0; Controls ctl;
     int channel = 0;            // 0 = omni
@@ -79,6 +81,18 @@ static int load(Box& b, const std::string& path) {
     } else if (e == "vc") {
         Sound s; std::string err;
         if (vcToSound(bytes, baseName(path), "", s, err)) got.push_back(std::move(s)); else std::fprintf(stderr, "%s: %s\n", path.c_str(), err.c_str());
+    } else if (e == "mid" || e == "midi") {
+        MidiSong ms; std::string err;
+        std::string nm = baseName(path); for (auto& c : nm) c = (char) (c == '_' || c == '-' ? ' ' : std::toupper((unsigned char) c));
+        if (!parseSmf(bytes.data(), bytes.size(), nm, ms, err)) { std::fprintf(stderr, "%s: %s\n", path.c_str(), err.c_str()); return 0; }
+        std::lock_guard<std::mutex> g(b.lock);
+        const int i = b.songs.add(std::move(ms), b.kit.bank);
+        selectSong(b.eng, b.songs.at(i));
+        const MidiSong& s = b.songs.at(i)->song;
+        std::printf("song %d: %s, %.0f BPM %d/%d, %.0f s\n", b.songs.count(), s.name.c_str(), s.bpmAt(0), s.num, s.den, s.length * 60 / s.bpmAt(0));
+        for (int t = 0; t < TRACKS; ++t) if (s.used[t]) { const int v = b.songs.at(i)->voice[t]; std::printf("  track %d %-20s %s\n", t + 1, s.trackName[t].c_str(), v == GM_KIT ? "DRUM KIT" : b.kit.bank.at(v)->name.c_str()); }
+        std::fflush(stdout);
+        return 0;
     } else if (e == "wav") {
         WavData w = parseWav(bytes.data(), bytes.size());
         if (!w.err.empty()) { std::fprintf(stderr, "%s: %s\n", path.c_str(), w.err.c_str()); return 0; }
@@ -144,8 +158,8 @@ static void midiBytes(Box& b, const uint8_t* m, int len) {
     const uint8_t st = m[0];
     std::lock_guard<std::mutex> g(b.lock);
     // real time: Page R follows the MPC's transport
-    if (st == 0xFA || st == 0xFB) { b.eng.extSync = false; b.eng.seqRun = true; b.clocks = 0; return; }
-    if (st == 0xFC) { b.eng.seqRun = false; return; }
+    if (st == 0xFA || st == 0xFB) { b.eng.extSync = false; if (b.eng.song.load()) b.eng.songRun = true; else b.eng.seqRun = true; b.clocks = 0; return; }
+    if (st == 0xFC) { b.eng.seqRun = false; b.eng.songRun = false; return; }
     if (st == 0xF8) {
         const double t = b.now();
         if (b.lastClock >= 0) { const double dt = t - b.lastClock; if (dt > 0.001 && dt < 0.2) { b.clockBpm += (60.0 / (dt * 24) - b.clockBpm) * 0.08; b.eng.tempo = b.clockBpm; } }
@@ -229,8 +243,11 @@ static void commandThread(Box& b, const std::string& statePath) {
             if (!arg.empty() && std::isdigit((unsigned char) arg[0])) idx = std::atoi(arg.c_str()) - 1;
             else { std::string up = arg; for (auto& c : up) c = (char) std::toupper((unsigned char) c); for (int i = b.kit.bank.count.load() - 1; i >= 0; --i) if (const Sound* s = b.kit.bank.at(i)) if (s->name == up) { idx = i; break; } }
             if (b.kit.bank.at(idx)) selectSound(b, idx); else std::puts("no such voice");
-        } else if (w == "PLAY") { b.eng.extSync = false; b.eng.seqRun = true; }
-        else if (w == "STOP") b.eng.seqRun = false;
+        } else if (w == "PLAY") { b.eng.extSync = false; if (b.eng.song.load()) b.eng.songRun = true; else b.eng.seqRun = true; }
+        else if (w == "STOP") { b.eng.seqRun = false; b.eng.songRun = false; }
+        else if (w == "SONGS") { std::puts("0  Page R patterns"); for (int k = 0; k < b.songs.count(); ++k) std::printf("%d  %s\n", k + 1, b.songs.at(b.songs.nth(k))->song.name.c_str()); }
+        else if (w == "SELECT") { const int k = std::atoi(arg.c_str()); selectSong(b.eng, k <= 0 ? nullptr : b.songs.at(b.songs.nth(k - 1))); }
+        else if (w == "LOOP") b.eng.songLoop = lower(arg) != "off";
         else if (w == "SPEED" || w == "TEMPO") b.eng.tempo = std::atof(arg.c_str());
         else if (w == "PATTERN") b.eng.curPattern = clampi(std::atoi(arg.c_str()) - 1, 0, NPAT - 1);
         else if (w == "SONG") b.eng.songMode = lower(arg) != "off";
@@ -277,16 +294,28 @@ static int runAlsa(Box& b, const std::string& dev, unsigned rate, snd_pcm_uframe
     return 0;
 }
 
+static int writeWav(const std::string& path, const std::vector<float>& L, const std::vector<float>& R, unsigned rate);
 static int renderFile(Box& b, const std::string& path, double secs, unsigned rate) {
     b.eng.prepare(rate); b.eng.setKeyboard(b.sound, b.ctl);
     const size_t n = (size_t) (secs * rate);
     std::vector<float> L(n), R(n);
+    if (b.eng.song.load()) {
+        b.eng.extSync = false; b.eng.songRun = true;
+        std::vector<float> L(n), R(n);
+        b.eng.render(L.data(), R.data(), (int) n);
+        return writeWav(path, L, R, rate);
+    }
     // play the keyboard voice: a chord, then Page R if nothing else is asked
     const int notes[3] = { 60, 64, 67 };
     for (int k : notes) b.eng.keyOn(k, 0.9f);
     b.eng.render(L.data(), R.data(), (int) std::min(n, (size_t) rate));
     for (int k : notes) b.eng.keyOff(k);
     if (n > rate) { b.eng.extSync = false; b.eng.seqRun = true; b.eng.render(L.data() + rate, R.data() + rate, (int) (n - rate)); }
+    return writeWav(path, L, R, rate);
+}
+
+static int writeWav(const std::string& path, const std::vector<float>& L, const std::vector<float>& R, unsigned rate) {
+    const size_t n = L.size(); const double secs = (double) n / rate;
     std::ofstream o(path, std::ios::binary);
     auto u32 = [&](uint32_t v) { o.write((const char*) &v, 4); }; auto u16 = [&](uint16_t v) { o.write((const char*) &v, 2); };
     o.write("RIFF", 4); u32(36 + (uint32_t) n * 4); o.write("WAVEfmt ", 8); u32(16); u16(1); u16(2); u32(rate); u32(rate * 4); u16(4); u16(16); o.write("data", 4); u32((uint32_t) n * 4);
@@ -316,6 +345,7 @@ int main(int argc, char** argv) {
     auto* box = new Box();   // the engine lives for the whole run
     Box& b = *box;
     b.eng.bank = &b.kit.bank;
+    b.eng.kitVoice = kitLookup(b.kit.bank);
     b.channel = chan; b.eng.setMultiTimbral(multi);
     Library::factorySeq(b.eng.seq, Library::get());
     b.eng.extSync = false;

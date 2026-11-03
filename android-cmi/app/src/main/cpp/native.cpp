@@ -7,6 +7,7 @@
 #include <mutex>
 #include <thread>
 #include "Disk.h"
+#include "Song.h"
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "OmegaCMI", __VA_ARGS__)
 
@@ -23,6 +24,7 @@ const float kDefaults[NPARAM] = { 0.85f, 255, 0, 10, 1, 0, 5.5f, 0.25f, 0, 0.6f,
 struct App {
     Kit kit;
     Engine engine;
+    SongList songs;
     std::atomic<int> sound { 0 };
     std::atomic<float> param[NPARAM];
     // queue: many producers (UI, MIDI threads) under a mutex, one consumer (audio)
@@ -34,6 +36,7 @@ struct App {
     App() {
         for (int i = 0; i < NPARAM; ++i) param[i] = kDefaults[i];
         engine.bank = &kit.bank;
+        engine.kitVoice = kitLookup(kit.bank);
         Library::factorySeq(engine.seq, Library::get());
         engine.extSync = false;
         loadSound(Library::get().find("ORCHHIT"));
@@ -266,6 +269,73 @@ FN(jstring, loadVc)(JNIEnv* env, jclass, jbyteArray data, jstring name, jstring 
     app()->kit.setUser(slot, std::move(s));
     return env->NewStringUTF("");
 }
+// ---- MIDI songs (Page R) ----
+static int curSongIdx() { return app()->songs.indexOf(app()->engine.song.load()); }
+FN(jstring, importMidi)(JNIEnv* env, jclass, jbyteArray data, jstring name) {
+    const jsize n = env->GetArrayLength(data);
+    std::vector<uint8_t> b((size_t) n);
+    env->GetByteArrayRegion(data, 0, n, (jbyte*) b.data());
+    const char* nm = env->GetStringUTFChars(name, nullptr);
+    std::string up = nm; for (auto& c : up) c = (char) (c == '_' || c == '-' ? ' ' : std::toupper((unsigned char) c));
+    env->ReleaseStringUTFChars(name, nm);
+    MidiSong ms; std::string err;
+    if (!parseSmf(b.data(), b.size(), up, ms, err)) return env->NewStringUTF(err.c_str());
+    selectSong(app()->engine, app()->songs.at(app()->songs.add(std::move(ms), app()->kit.bank)));
+    return env->NewStringUTF("");
+}
+FN(jint, songCount)(JNIEnv*, jclass) { return app()->songs.count(); }
+FN(jstring, songName)(JNIEnv* env, jclass, jint k) { const SongEntry* e = app()->songs.at(app()->songs.nth(k)); return env->NewStringUTF(e ? e->song.name.c_str() : ""); }
+FN(void, selectSongAt)(JNIEnv*, jclass, jint k) { selectSong(app()->engine, k < 0 ? nullptr : app()->songs.at(app()->songs.nth(k))); }
+FN(jint, currentSong)(JNIEnv*, jclass) {   // its place in the list, -1: Page R patterns
+    const int i = curSongIdx(); if (i < 0) return -1;
+    int k = 0; for (int j = 0; j < i; ++j) k += app()->songs.at(j) != nullptr; return k;
+}
+FN(void, removeSong)(JNIEnv*, jclass) { const int i = curSongIdx(); selectSong(app()->engine, nullptr); app()->songs.remove(i); }
+/** name, bpm, num, den, length (beats), beat now */
+FN(jstring, songInfo)(JNIEnv* env, jclass) {
+    const MidiSong* s = app()->engine.song.load();
+    if (!s) return env->NewStringUTF("");
+    char buf[256]; const double beat = app()->engine.songBeat.load();
+    std::snprintf(buf, sizeof buf, "%s\t%.1f\t%d\t%d\t%.3f\t%.3f", s->name.c_str(), s->bpmAt(beat), s->num, s->den, s->length, beat);
+    return env->NewStringUTF(buf);
+}
+/** track name, voice, used, muted */
+FN(jstring, songTrack)(JNIEnv* env, jclass, jint t) {
+    const MidiSong* s = app()->engine.song.load();
+    if (!s || t < 0 || t >= TRACKS) return env->NewStringUTF("");
+    char buf[256];
+    std::snprintf(buf, sizeof buf, "%s\t%d\t%d\t%d", s->trackName[t].c_str(), app()->engine.songVoice[t], (int) s->used[t], (int) app()->engine.songMute[t]);
+    return env->NewStringUTF(buf);
+}
+FN(void, setSongVoice)(JNIEnv*, jclass, jint t, jint v) { if (t < 0 || t >= TRACKS) return; if (auto* e = app()->songs.at(curSongIdx())) e->voice[t] = v; app()->engine.songVoice[t] = v; }
+FN(void, setSongMute)(JNIEnv*, jclass, jint t, jboolean m) { if (t < 0 || t >= TRACKS) return; if (auto* e = app()->songs.at(curSongIdx())) e->mute[t] = m; app()->engine.songMute[t] = m; }
+FN(void, gmVoices)(JNIEnv*, jclass) { if (auto* e = app()->songs.at(curSongIdx())) { defaultSongVoices(e->song, app()->kit.bank, e->voice); selectSong(app()->engine, e); } }
+FN(void, songPlay)(JNIEnv*, jclass, jboolean on) { app()->engine.songRun = on; }
+FN(jboolean, songRunning)(JNIEnv*, jclass) { return app()->engine.songRun.load(); }
+FN(jboolean, songLoop)(JNIEnv*, jclass) { return app()->engine.songLoop.load(); }
+FN(void, setSongLoop)(JNIEnv*, jclass, jboolean on) { app()->engine.songLoop = on; }
+/** the notes, four ints each: track, start and end (in 1/10000 of the song), pitch in the track's range (0..1000) */
+FN(jintArray, songNotes)(JNIEnv* env, jclass) {
+    const MidiSong* s = app()->engine.song.load();
+    std::vector<jint> out;
+    if (s) {
+        int lo[TRACKS], hi[TRACKS]; for (int t = 0; t < TRACKS; ++t) { lo[t] = 127; hi[t] = 0; }
+        for (const auto& e : s->ev) if ((e.status & 0xF0) == 0x90 && e.d2) { lo[e.track] = std::min(lo[e.track], (int) e.d1); hi[e.track] = std::max(hi[e.track], (int) e.d1); }
+        const double len = std::max(1.0, s->length);
+        for (size_t i = 0; i < s->ev.size() && out.size() < 4 * 6000; ++i) {
+            const auto& e = s->ev[i];
+            if ((e.status & 0xF0) != 0x90 || !e.d2) continue;
+            double end = e.beat + 0.25;
+            for (size_t k = i + 1; k < s->ev.size() && k < i + 400; ++k) { const auto& o = s->ev[k]; if (o.track == e.track && o.d1 == e.d1 && ((o.status & 0xF0) == 0x80 || ((o.status & 0xF0) == 0x90 && !o.d2))) { end = o.beat; break; } }
+            out.push_back(e.track); out.push_back((jint) (e.beat / len * 10000)); out.push_back((jint) (std::min(end, len) / len * 10000));
+            out.push_back((jint) (1000.0 * (e.d1 - lo[e.track]) / std::max(1, hi[e.track] - lo[e.track])));
+        }
+    }
+    jintArray a = env->NewIntArray((jsize) out.size());
+    env->SetIntArrayRegion(a, 0, (jsize) out.size(), out.data());
+    return a;
+}
+
 FN(jboolean, userLoaded)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k); }
 FN(jint, userSlot)(JNIEnv*, jclass, jint k) { return app()->kit.userSlot(k); }
 FN(jint, firstFreeUser)(JNIEnv*, jclass) { return app()->kit.firstFree(); }
@@ -279,12 +349,23 @@ FN(void, clearUser)(JNIEnv*, jclass, jint k) {
 // state: parameters, Page R, user voices
 FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
     auto* a = app(); std::vector<uint8_t> v;
-    put(v, (uint32_t) 0x434D4932);   // "CMI2"
+    put(v, (uint32_t) 0x434D4933);   // "CMI3"
     const Sound* cur = a->kit.bank.at(a->sound.load());
     char nm[16] {}; if (cur) std::strncpy(nm, cur->name.c_str(), 15); put(v, nm);
     for (int i = 0; i < NPARAM; ++i) put(v, a->param[i].load());
     put(v, a->engine.curPattern.load());
     put(v, a->engine.seq);
+    {
+        const int cur = a->songs.indexOf(a->engine.song.load());
+        int32_t n = 0, sel = -1; for (int i = 0; i < a->songs.size(); ++i) if (a->songs.at(i)) { if (i == cur) sel = n; ++n; }
+        put(v, n); put(v, sel);
+        for (int i = 0; i < a->songs.size(); ++i) {
+            const SongEntry* e = a->songs.at(i); if (!e) continue;
+            char nm[32] {}; std::strncpy(nm, e->song.name.c_str(), 31); put(v, nm);
+            for (int t = 0; t < TRACKS; ++t) { put(v, (int32_t) e->voice[t]); put(v, (uint8_t) e->mute[t]); }
+            put(v, (int32_t) e->song.raw.size()); v.insert(v.end(), e->song.raw.begin(), e->song.raw.end());
+        }
+    }
     for (int k = 0; k < Library::USER_SLOTS; ++k) {
         if (!a->kit.userLoaded(k)) continue;
         const Sound* s = a->kit.user(k);
@@ -304,13 +385,30 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     env->GetByteArrayRegion(data, 0, n, (jbyte*) v.data());
     const uint8_t* p = v.data(); const uint8_t* e = p + v.size();
     auto* a = app();
-    uint32_t magic = 0; if (!get(p, e, magic) || (magic != 0x434D4931 && magic != 0x434D4932)) return;
-    const bool v2 = magic == 0x434D4932;
+    uint32_t magic = 0; if (!get(p, e, magic) || (magic != 0x434D4931 && magic != 0x434D4932 && magic != 0x434D4933)) return;
+    const bool v2 = magic != 0x434D4931, v3 = magic == 0x434D4933;
     char nm[16]; if (!get(p, e, nm)) return; nm[15] = 0;
     float prm[NPARAM]; for (auto& x : prm) if (!get(p, e, x)) return;
     int pat = 0; get(p, e, pat);
     SeqData sd; if (!get(p, e, sd)) return;
     a->engine.seq = sd; a->engine.curPattern = clampi(pat, 0, NPAT - 1);
+    if (v3) {
+        int32_t n = 0, sel = -1; if (!get(p, e, n) || !get(p, e, sel)) return;
+        SongEntry* pick = nullptr;
+        for (int32_t k = 0; k < n; ++k) {
+            char nm[32]; int32_t voice[TRACKS]; uint8_t mute[TRACKS]; int32_t sz;
+            if (!get(p, e, nm)) return;
+            for (int t = 0; t < TRACKS; ++t) if (!get(p, e, voice[t]) || !get(p, e, mute[t])) return;
+            if (!get(p, e, sz) || sz <= 0 || p + sz > e) return;
+            nm[31] = 0; MidiSong ms; std::string err;
+            const bool ok = parseSmf(p, (size_t) sz, nm, ms, err); p += sz;
+            if (!ok) continue;
+            SongEntry* en = a->songs.at(a->songs.add(std::move(ms), a->kit.bank));
+            for (int t = 0; t < TRACKS; ++t) { en->voice[t] = voice[t]; en->mute[t] = mute[t] != 0; }
+            if (k == sel) pick = en;
+        }
+        selectSong(a->engine, pick);
+    }
     int32_t k;
     while (get(p, e, k)) {
         Sound s; char un[16]; int32_t root, ls, le, sz, mode = 0; char cat[16] = "User";

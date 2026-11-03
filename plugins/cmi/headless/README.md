@@ -15,6 +15,7 @@ a Raspberry Pi, anything with ALSA).
     ./cmi-headless -d hw:0,0 -p 64 -n 2 /sdcard/CMI                     # a whole folder, lower latency
     ./cmi-headless -l /sdcard/CMI                                       # list the voices and their program numbers
 
+- MIDI songs (.mid) given on the command line play on the CMI voices: `PLAY` / `STOP` (or MIDI start / stop), `SONGS`, `SELECT <n>` (0 = Page R patterns), `LOOP ON|OFF`.
 - Disks (.IMD, .IMG / .BIN), .VC voice files and WAVs load; every voice on a disk goes in. The voices you load and
   Page R are kept in `~/.omega-cmi.state` (`-s` to move it), so the next start has them.
 - MIDI: every hardware MIDI input is connected (or `-m client:port`). Notes, velocity, pitch bend, mod wheel,

@@ -236,7 +236,7 @@ void Screen::drawWave(juce::Graphics& g) {
     for (int i = 0; i < info.size(); ++i) g.drawText(info[i], 790, 228 + i * 20, 200, 18, juce::Justification::centredLeft);
     // the sixteen channel cards
     g.drawText("CHANNEL CARDS", 790, 360, 200, 18, juce::Justification::centredLeft);
-    for (int c = 0; c < NCH; ++c) {
+    for (int c = 0; c < 16; ++c) {
         const auto v = ed.proc.engine.view(c);
         juce::Rectangle<float> r(790.f + (c % 8) * 24.f, 384.f + (c / 8) * 92.f, 18, 80);
         g.setColour(kFaint); g.fillRect(r);
@@ -319,7 +319,118 @@ static void noteGlyph(juce::Graphics& g, float x, float y, float h, int vel, boo
     g.fillRect(x, bot - 2, 10.f, 2.5f);
 }
 
+void Screen::songMenu() {
+    juce::PopupMenu m;
+    const int cur = ed.proc.currentSong();
+    m.addItem(1, "Page R patterns", true, cur < 0);
+    for (int i = 0; i < ed.proc.songs.size(); ++i) if (const SongEntry* e = ed.proc.songs.at(i)) m.addItem(100 + i, juce::String(e->song.name), true, cur == i);
+    m.addSeparator();
+    m.addItem(2, "Import MIDI file...");
+    if (cur >= 0) m.addItem(3, "Remove this song");
+    m.showMenuAsync(juce::PopupMenu::Options(), [this](int r) {
+        if (r == 1) ed.proc.chooseSong(-1);
+        else if (r >= 100) ed.proc.chooseSong(r - 100);
+        else if (r == 3) { const int c = ed.proc.currentSong(); ed.proc.chooseSong(-1); ed.proc.songs.remove(c); }
+        else if (r == 2) {
+            ed.chooser = std::make_unique<juce::FileChooser>("Import a MIDI song", juce::File(), "*.mid;*.midi");
+            ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                                    [this](const juce::FileChooser& fc) {
+                                        for (const auto& f : fc.getResults()) { const auto err = ed.proc.importMidi(f); status = err.isEmpty() ? "SONG LOADED" : err.toUpperCase(); }
+                                        repaint();
+                                    });
+        }
+        repaint();
+    });
+}
+
+// a MIDI song on Page R: its eight tracks, their CMI voices, the whole song at a glance
+void Screen::drawMidiSong(juce::Graphics& g) {
+    auto& eng = ed.proc.engine; auto& kit = ed.proc.kit;
+    const MidiSong* s = eng.song.load();
+    if (!s) return;
+    const bool ext = ed.proc.get("sync") > 0.5f;
+    const double beat = eng.songBeat.load(), bpm = s->bpmAt(beat);
+    const double barBeats = s->num * 4.0 / s->den;
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawRect(20.f, 54.f, (float) W - 40, 46.f, 1.f);
+    g.drawText("SONG: " + juce::String(s->name), 28, 56, 300, 20, juce::Justification::centredLeft);
+    g.fillRect(330.f, 57.f, 240.f, 19.f); g.setColour(kBg); g.drawText("REAL-TIME COMPOSER", 330, 57, 240, 19, juce::Justification::centred); g.setColour(kInk);
+    g.drawText("Songs: " + juce::String(ed.proc.songs.count()), 640, 56, 340, 20, juce::Justification::centredRight);
+    g.drawText("Speed: " + juce::String(bpm, 1), 28, 78, 180, 20, juce::Justification::centredLeft);
+    g.drawText(juce::String("Sync: ") + (ext ? "EXT" : "INT"), 230, 78, 120, 20, juce::Justification::centredLeft);
+    hit({ 230, 78, 120, 20 }, [this, ext](const juce::MouseEvent&) { ed.proc.set("sync", ext ? 0.f : 1.f); });
+    g.drawText("Bar: " + juce::String(1 + (int) (beat / barBeats)) + " / " + juce::String((int) std::ceil(s->length / barBeats)), 380, 78, 220, 20, juce::Justification::centredLeft);
+    g.drawText("Time: " + juce::String(s->num) + "/" + juce::String(s->den), 640, 78, 340, 20, juce::Justification::centredRight);
+    g.setFont(mono(30)); g.drawText(juce::String(s->name), 28, 104, 560, 40, juce::Justification::centredLeft);
+    g.setFont(mono(17));
+    const bool loop = eng.songLoop.load();
+    button(g, { 640, 112, 150, 24 }, loop ? "LOOP ON" : "LOOP OFF", loop, [&eng, loop] { eng.songLoop = !loop; });
+    button(g, { 800, 112, 170, 24 }, "SONGS...", false, [this] { songMenu(); });
+
+    const float gx = 410, gw = 565, gy = 152, rh = 46;
+    g.drawRect(25.f, gy - 2, 360.f, rh * TRACKS + 32, 1.f);
+    // note range per track, for the lanes
+    int lo[TRACKS], hi[TRACKS]; for (int t = 0; t < TRACKS; ++t) { lo[t] = 127; hi[t] = 0; }
+    for (const auto& e : s->ev) if ((e.status & 0xF0) == 0x90 && e.d2) { lo[e.track] = std::min(lo[e.track], (int) e.d1); hi[e.track] = std::max(hi[e.track], (int) e.d1); }
+    for (int t = 0; t < TRACKS; ++t) {
+        const float y = gy + t * rh;
+        const bool used = s->used[t], muted = eng.songMute[t];
+        if (t == selTrack) { g.setColour(kFaint); g.fillRect(26.f, y, 358.f, rh); }
+        const int v = eng.songVoice[t];
+        const Sound* snd = v == GM_KIT ? nullptr : kit.bank.at(v);
+        g.setColour(used && !muted ? kInk : kDim); g.setFont(mono(17));
+        g.drawText(used ? juce::String(snd ? snd->name : std::string("DRUM KIT")) : juce::String("--"), 40, (int) y + 2, 200, 22, juce::Justification::centredLeft);
+        g.setFont(mono(12)); g.setColour(kDim);
+        g.drawText(juce::String(s->trackName[t]).substring(0, 22) + (muted ? "  MUTE" : ""), 40, (int) y + 24, 340, 16, juce::Justification::centredLeft);
+        hit({ 26, y, 358, rh }, [this, t](const juce::MouseEvent& e) {
+            selTrack = t;
+            if (e.mods.isPopupMenu() || e.getNumberOfClicks() > 1) soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); });
+        });
+        g.setColour(kInk); g.setFont(mono(34));
+        g.drawText(juce::String(t + 1), 385, (int) y, 24, (int) rh, juce::Justification::centred);
+        g.setColour(kFaint); g.drawHorizontalLine((int) (y + rh), gx, gx + gw);
+    }
+    g.setColour(kInk); g.drawRect(gx, gy - 2, gw, rh * TRACKS + 2, 1.f);
+    // the notes, the whole song across the grid
+    const double len = std::max(1.0, s->length);
+    for (size_t i = 0; i < s->ev.size(); ++i) {
+        const auto& e = s->ev[i];
+        if ((e.status & 0xF0) != 0x90 || !e.d2) continue;
+        double end = e.beat + 0.25;
+        for (size_t k = i + 1; k < s->ev.size() && k < i + 400; ++k) { const auto& o = s->ev[k]; if (o.track == e.track && o.d1 == e.d1 && ((o.status & 0xF0) == 0x80 || ((o.status & 0xF0) == 0x90 && !o.d2))) { end = o.beat; break; } }
+        const int t = e.track;
+        const float span = (float) std::max(1, hi[t] - lo[t]);
+        const float y = gy + t * rh + 6 + (rh - 12) * (1.f - (e.d1 - lo[t]) / span);
+        const float x0 = gx + (float) (e.beat / len) * gw, x1 = gx + (float) (std::min(end, len) / len) * gw;
+        g.setColour(eng.songMute[t] ? kFaint : kDim);
+        g.fillRect(x0, y - 1.5f, std::max(1.5f, x1 - x0), 3.f);
+    }
+    const float px = gx + (float) (beat / len) * gw;
+    g.setColour(juce::Colours::white); g.fillRect(px, gy - 2, 1.5f, rh * TRACKS + 2);
+    for (int b = 0; b * barBeats < len; b += 8) { const float x = gx + (float) (b * barBeats / len) * gw; g.setColour(kInk); g.setFont(mono(11)); g.drawText(juce::String(b + 1), (int) x + 2, (int) (gy + rh * TRACKS + 2), 40, 14, juce::Justification::centredLeft); }
+    g.setFont(mono(17)); g.setColour(kInk);
+    g.drawText("Voices", 48, (int) (gy + rh * TRACKS + 4), 200, 24, juce::Justification::centredLeft);
+
+    const float by = (float) H - 92;
+    const bool mute = eng.songMute[selTrack];
+    g.drawText(juce::String("Audible: ") + (mute ? "OFF" : "ON"), 28, (int) by, 170, 22, juce::Justification::centredLeft);
+    hit({ 28, by, 170, 22 }, [this, mute](const juce::MouseEvent&) { ed.proc.setSongMute(selTrack, !mute); });
+    button(g, { 230, by, 200, 22 }, "VOICE...", false, [this] { const int t = selTrack; soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); }); });
+    button(g, { 440, by, 200, 22 }, "GM VOICES", false, [this] {
+        if (auto* e = ed.proc.songs.at(ed.proc.currentSong())) { defaultSongVoices(e->song, ed.proc.kit.bank, e->voice); ed.proc.chooseSong(ed.proc.currentSong()); }
+    });
+    g.setColour(kDim); g.setFont(mono(13));
+    g.drawText("double-click a track: its voice", 660, (int) by - 2, 320, 26, juce::Justification::centredLeft);
+    const float by2 = (float) H - 60;
+    const bool running = eng.songRun.load();
+    button(g, { 28, by2, 100, 24 }, "PLAY", running && !ext, [this, &eng] { ed.proc.set("sync", 0.f); eng.songRun = true; });
+    button(g, { 140, by2, 100, 24 }, "STOP", !running, [&eng] { eng.songRun = false; });
+    button(g, { 775, by2, 195, 24 }, "PAGE R PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
+    if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
+}
+
 void Screen::drawComposer(juce::Graphics& g) {
+    if (ed.proc.engine.song.load()) { drawMidiSong(g); return; }
     auto& eng = ed.proc.engine; auto& sq = eng.seq; auto& kit = ed.proc.kit;
     const int pat = eng.curPattern.load();
     const bool ext = ed.proc.get("sync") > 0.5f;
@@ -447,6 +558,7 @@ void Screen::drawComposer(juce::Graphics& g) {
     g.drawText("editor:", 560, (int) by2, 90, 24, juce::Justification::centredRight);
     button(g, { 655, by2, 110, 24 }, "PATTERN", !songEditor, [this] { songEditor = false; });
     button(g, { 775, by2, 90, 24 }, "SONG", songEditor, [this] { songEditor = true; });
+    button(g, { 875, by2, 95, 24 }, "MIDI...", false, [this] { songMenu(); });
     if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
 }
 
@@ -459,7 +571,8 @@ void Screen::soundMenu(std::function<void(int)> chosen) {
         cats[s->category].addItem(i + 1, juce::String(s->name) + "  " + juce::String(s->title).substring(0, 40));
     }
     for (auto& c : order) m.addSubMenu(c, cats[c]);
-    m.showMenuAsync(juce::PopupMenu::Options(), [chosen](int r) { if (r > 0 && chosen) chosen(r - 1); });
+    if (page == 'R' && ed.proc.engine.song.load()) m.addItem(10000, "Drum kit (a voice per GM drum note)");
+    m.showMenuAsync(juce::PopupMenu::Options(), [chosen](int r) { if (r == 10000 && chosen) chosen(GM_KIT); else if (r > 0 && chosen) chosen(r - 1); });
 }
 
 void Screen::command(const juce::String& raw) {
@@ -548,7 +661,7 @@ void CmiEditor::resized() {
 void CmiEditor::timerCallback() { screen.repaint(); }
 
 bool CmiEditor::isInterestedInFileDrag(const juce::StringArray& files) {
-    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg;vc;imd;img;bin;raw;dsk;hfe")) return true; }
+    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg;vc;imd;img;bin;raw;dsk;hfe;mid;midi")) return true; }
     return false;
 }
 
@@ -556,7 +669,7 @@ void CmiEditor::filesDropped(const juce::StringArray& files, int, int) {
     juce::Array<juce::File> items; for (auto& f : files) items.add(juce::File(f));
     int n = 0;
     screen.status = proc.importFiles(items, screen.rootKey, screen.loopIt, n);
-    screen.page = '8'; screen.repaint();
+    screen.page = proc.engine.song.load() && n == 0 ? 'R' : '8'; screen.repaint();
 }
 
 juce::AudioProcessorEditor* CmiProcessor::createEditor() { return new CmiEditor(*this); }
