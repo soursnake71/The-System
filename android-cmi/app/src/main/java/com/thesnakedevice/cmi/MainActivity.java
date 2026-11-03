@@ -168,7 +168,7 @@ public class MainActivity extends Activity {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("*/*");
-        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "audio/*", "application/octet-stream" });
+        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "audio/*", "application/zip", "application/x-zip-compressed", "application/octet-stream" });
         if (many) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         return i;
     }
@@ -197,11 +197,11 @@ public class MainActivity extends Activity {
             for (int idx : order) {
                 int slot = single >= 0 ? single : Native.firstFreeUser();
                 String nlow = names.get(idx).toLowerCase();
-                boolean midi = nlow.endsWith(".mid") || nlow.endsWith(".midi") || nlow.endsWith(".smf");
+                boolean midi = nlow.endsWith(".mid") || nlow.endsWith(".midi") || nlow.endsWith(".smf") || nlow.endsWith(".zip");
                 if (slot < 0 && !midi) { last = "USER VOICES FULL"; break; }
                 lastDiskCount = 0;
                 String err = importOne(uris.get(idx), names.get(idx), slot, root, loop);
-                if (err.isEmpty()) { if (midi) continue; if (lastDiskCount > 0) { ok += lastDiskCount; ++disks; } else ++ok; if (first < 0) first = slot; } else { ++bad; last = err; }
+                if (err.isEmpty()) { if (midi && lastDiskCount == 0) continue; if (lastDiskCount > 0) { ok += lastDiskCount; ++disks; } else ++ok; if (first < 0) first = slot; } else { ++bad; last = err; }
                 final int done = ok + bad;
                 ui.post(() -> view.status("IMPORTING " + done + " / " + order.size()));
                 if (single >= 0) break;
@@ -214,11 +214,12 @@ public class MainActivity extends Activity {
     }
 
     private int lastDiskCount = 0, importedSongs = 0;
-    void importMidi() { Intent i = audioIntent(true); i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "audio/midi", "audio/x-midi", "application/x-midi", "audio/sp-midi", "application/octet-stream" }); startActivityForResult(i, PICK_MANY); }
+    void importMidi() { Intent i = audioIntent(true); i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "audio/midi", "audio/x-midi", "application/x-midi", "audio/sp-midi", "application/zip", "application/x-zip-compressed", "application/octet-stream" }); startActivityForResult(i, PICK_MANY); }
     private String importOne(Uri uri, String name, int slot, int root, boolean loop) {
         String base = name; int dot = base.lastIndexOf('.'); if (dot > 0) base = base.substring(0, dot);
         String lower = name.toLowerCase();
         try {
+            if (lower.endsWith(".zip")) return importZip(uri);
             if (lower.endsWith(".imd") || lower.endsWith(".img") || lower.endsWith(".bin") || lower.endsWith(".raw") || lower.endsWith(".dsk") || lower.endsWith(".hfe")) {
                 String r = Native.loadDisk(readAll(uri, 4 << 20), base);
                 try { int n = Integer.parseInt(r); lastDiskCount += n; return n > 0 ? "" : "NO VOICES ON " + name; } catch (NumberFormatException e) { return r; }
@@ -235,6 +236,34 @@ public class MainActivity extends Activity {
             if (mono.length == 0) return "EMPTY FILE";
             return Native.loadSample(mono, rate[0], base, slot, root, loop, -1, -1);
         } catch (Exception e) { return "CAN'T READ " + name; }
+    }
+
+    // everything in a zip: songs, disks, voice files, WAVs (other audio needs unpacking first)
+    private String importZip(Uri uri) throws Exception {
+        int songs = 0, voices = 0, bad = 0;
+        try (InputStream in = getContentResolver().openInputStream(uri); java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(in)) {
+            java.util.zip.ZipEntry en;
+            while ((en = z.getNextEntry()) != null) {
+                if (en.isDirectory()) continue;
+                String nm = en.getName(); int sl = nm.lastIndexOf('/'); if (sl >= 0) nm = nm.substring(sl + 1);
+                if (nm.startsWith(".") || nm.startsWith("._")) continue;
+                String lo = nm.toLowerCase(), base = nm; int dot = base.lastIndexOf('.'); if (dot > 0) base = base.substring(0, dot);
+                boolean midi = lo.endsWith(".mid") || lo.endsWith(".midi"), disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
+                boolean vc = lo.endsWith(".vc"), wav = lo.endsWith(".wav");
+                if (!midi && !disk && !vc && !wav) continue;
+                ByteArrayOutputStream o = new ByteArrayOutputStream(); byte[] buf = new byte[65536]; int r;
+                while ((r = z.read(buf)) > 0 && o.size() < (64 << 20)) o.write(buf, 0, r);
+                byte[] b = o.toByteArray();
+                String err;
+                if (midi) { err = Native.importMidi(b, base); if (err.isEmpty()) songs++; }
+                else if (disk) { err = Native.loadDisk(b, base); try { voices += Integer.parseInt(err); err = ""; } catch (NumberFormatException e) { } }
+                else { int slot = Native.firstFreeUser(); if (slot < 0) { err = "FULL"; } else { err = vc ? Native.loadVc(b, base, "", slot) : Native.loadWav(b, base, slot, 60, false); if (err.isEmpty()) voices++; } }
+                if (!err.isEmpty()) bad++;
+                final int s2 = songs, v2 = voices; ui.post(() -> view.status("UNZIPPING: " + s2 + " SONGS, " + v2 + " VOICES"));
+            }
+        }
+        importedSongs += songs; lastDiskCount += voices;
+        return songs + voices > 0 ? "" : "NOTHING TO IMPORT IN THE ZIP";
     }
 
     private byte[] readAll(Uri uri, int max) throws Exception {
@@ -269,7 +298,7 @@ public class MainActivity extends Activity {
                 String n = name.toLowerCase();
                 boolean audio = (mime != null && mime.startsWith("audio/")) || n.endsWith(".wav") || n.endsWith(".aif") || n.endsWith(".aiff") || n.endsWith(".flac")
                         || n.endsWith(".mp3") || n.endsWith(".ogg") || n.endsWith(".vc") || n.endsWith(".imd") || n.endsWith(".img") || n.endsWith(".bin")
-                        || n.endsWith(".raw") || n.endsWith(".dsk") || n.endsWith(".mid") || n.endsWith(".midi");
+                        || n.endsWith(".raw") || n.endsWith(".dsk") || n.endsWith(".mid") || n.endsWith(".midi") || n.endsWith(".zip");
                 if (!audio) continue;
                 uris.add(DocumentsContract.buildDocumentUriUsingTree(tree, id));
                 names.add(name);

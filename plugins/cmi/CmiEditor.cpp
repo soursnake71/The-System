@@ -272,7 +272,7 @@ void Screen::drawSampling(juce::Graphics& g) {
         const int flags = juce::FileBrowserComponent::openMode | (folder ? juce::FileBrowserComponent::canSelectDirectories
                                                                           : juce::FileBrowserComponent::canSelectFiles | (slot < 0 ? juce::FileBrowserComponent::canSelectMultipleItems : 0));
         ed.chooser = std::make_unique<juce::FileChooser>(folder ? "Import a folder of sounds" : slot < 0 ? "Import sounds" : "Sample into USER" + juce::String(slot + 1),
-                                                         juce::File(), folder ? juce::String() : juce::String("*.imd;*.img;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg"));
+                                                         juce::File(), folder ? juce::String() : juce::String("*.imd;*.img;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.mid;*.midi;*.zip"));
         ed.chooser->launchAsync(flags, [this, slot](const juce::FileChooser& fc) {
             const auto res = fc.getResults(); if (res.isEmpty()) return;
             if (slot >= 0) { const auto err = ed.proc.loadSample(res[0], slot, rootKey, loopIt); status = err.isEmpty() ? "SAMPLED" : err.toUpperCase(); }
@@ -341,10 +341,10 @@ void Screen::songMenu() {
         else if (r == 3) { const int c = ed.proc.currentSong(); ed.proc.chooseSong(-1); ed.proc.songs.remove(c); }
         else if (r == 4) { ed.proc.chooseSong(ed.proc.songs.add(emptySong("NEW SONG " + std::to_string(ed.proc.songs.count() + 1)), ed.proc.kit.bank)); songGrid = true; selTrack = 0; viewStart = 0; }
         else if (r == 2) {
-            ed.chooser = std::make_unique<juce::FileChooser>("Import a MIDI song", juce::File(), "*.mid;*.midi");
+            ed.chooser = std::make_unique<juce::FileChooser>("Import MIDI songs (or a zip of them)", juce::File(), "*.mid;*.midi;*.zip");
             ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
                                     [this](const juce::FileChooser& fc) {
-                                        for (const auto& f : fc.getResults()) { const auto err = ed.proc.importMidi(f); status = err.isEmpty() ? "SONG LOADED" : err.toUpperCase(); }
+                                        int n = 0; status = ed.proc.importFiles(fc.getResults(), rootKey, loopIt, n);
                                         repaint();
                                     });
         }
@@ -813,7 +813,7 @@ void CmiEditor::resized() {
 void CmiEditor::timerCallback() { screen.repaint(); }
 
 bool CmiEditor::isInterestedInFileDrag(const juce::StringArray& files) {
-    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg;vc;imd;img;bin;raw;dsk;hfe;mid;midi")) return true; }
+    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg;vc;imd;img;bin;raw;dsk;hfe;mid;midi;zip")) return true; }
     return false;
 }
 

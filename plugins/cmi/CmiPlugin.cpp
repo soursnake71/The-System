@@ -157,11 +157,23 @@ void CmiProcessor::chooseSong(int i) { selectSong(engine, songs.at(i)); }
 // files and folders (searched inside) into the free user voices, in name order
 juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int root, bool loop, int& imported) {
     juce::Array<juce::File> files;
-    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.vc;*.imd;*.img;*.bin;*.raw;*.dsk;*.hfe;*.mid;*.midi";
-    for (const auto& it : items) {
-        if (it.isDirectory()) for (const auto& e : juce::RangedDirectoryIterator(it, true, exts, juce::File::findFiles)) files.add(e.getFile());
-        else if (it.existsAsFile()) files.add(it);
-    }
+    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.vc;*.imd;*.img;*.bin;*.raw;*.dsk;*.hfe;*.mid;*.midi;*.zip";
+    // zip files: unpacked into a temporary folder, then everything in them comes in like a folder
+    std::vector<std::unique_ptr<juce::TemporaryFile>> unzipped;
+    std::function<void(const juce::File&)> addItem = [&](const juce::File& it) {
+        if (it.isDirectory()) { for (const auto& e : juce::RangedDirectoryIterator(it, true, exts, juce::File::findFiles)) addItem(e.getFile()); return; }
+        if (!it.existsAsFile()) return;
+        if (it.hasFileExtension("zip")) {
+            juce::ZipFile z(it);
+            auto tmp = std::make_unique<juce::TemporaryFile>(juce::String(), juce::TemporaryFile::useHiddenFile);
+            const juce::File dir = tmp->getFile(); dir.createDirectory();
+            if (z.uncompressTo(dir, true).wasOk()) for (const auto& e : juce::RangedDirectoryIterator(dir, true, exts, juce::File::findFiles)) if (!e.getFile().hasFileExtension("zip")) files.add(e.getFile());
+            unzipped.push_back(std::move(tmp));
+            return;
+        }
+        files.add(it);
+    };
+    for (const auto& it : items) addItem(it);
     struct ByName { static int compareElements(const juce::File& a, const juce::File& b) { return a.getFullPathName().compareNatural(b.getFullPathName()); } } cmp;
     files.sort(cmp);
     imported = 0; int failed = 0, first = -1, disks = 0, midis = 0; juce::String lastErr;

@@ -66,6 +66,19 @@ int main(int argc, char** argv) {
         std::printf("import %s: %s\n", argv[i], msg.toRawUTF8());
         ok &= msg.contains("IMPORTED") && !msg.contains("UNREADABLE");
     }
+    // a zip with songs in it
+    {
+        juce::File zf = out.getChildFile("songs.zip"); zf.deleteFile();
+        juce::ZipFile::Builder zb; int mids = 0;
+        for (int i = 2; i < argc; ++i) { juce::File f(juce::String::fromUTF8(argv[i])); if (f.hasFileExtension("mid")) { zb.addFile(f, 9, "inside/" + f.getFileName()); ++mids; } }
+        if (mids > 0) {
+            { juce::FileOutputStream os(zf); zb.writeToStream(os, nullptr); }
+            const int before = p.songs.count(); int n = 0;
+            const auto msg = p.importFiles({ zf }, 60, false, n);
+            std::printf("zip import: %s (%d songs before, %d after)\n", msg.toRawUTF8(), before, p.songs.count());
+            ok &= p.songs.count() > before;
+        }
+    }
     // state round trip keeps Page R and the user sample
     juce::MemoryBlock st; p.getStateInformation(st);
     cmi::CmiProcessor q; q.setStateInformation(st.getData(), (int) st.getSize());
