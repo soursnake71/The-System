@@ -30,6 +30,9 @@ jobs:
       - name: Test Omega Twelve (C++ engine against the app's engine.js)
         if: runner.os == 'Linux'
         run: node twelve/tools/compare.mjs build/twelve_test "$RUNNER_TEMP"
+      - name: Test Omega REV7 (every preset rendered and checked)
+        if: runner.os == 'Linux'
+        run: build/rev7_test
       - name: Collect
         shell: bash
         run: |

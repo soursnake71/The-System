@@ -16,6 +16,7 @@ public:
     ~Processor() override;
 
     const Spec& spec() const { return sp; }
+    float engineLevel() const { return engine ? engine->level() : 0.f; }
     juce::AudioProcessorValueTreeState& state() { return apvts; }
 
     void prepareToPlay(double sampleRate, int maxBlock) override;

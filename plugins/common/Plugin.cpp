@@ -153,7 +153,12 @@ void Processor::setStateInformation(const void* data, int size) {
     }
 }
 
+#if OMEGA_CUSTOM_EDITOR
+juce::AudioProcessorEditor* makeCustomEditor(Processor&);   // a plugin with its own panel (e.g. src/Rev7Editor.cpp)
+juce::AudioProcessorEditor* Processor::createEditor() { return makeCustomEditor(*this); }
+#else
 juce::AudioProcessorEditor* Processor::createEditor() { return new Editor(*this); }
+#endif
 
 }  // namespace omega
 

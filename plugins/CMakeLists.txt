@@ -43,6 +43,7 @@ set(OMEGA_PLUGINS
   "BusComp|Omega Bus Compressor|Obus|0|0"
   "Soother|Omega Resonance Tamer|Osth|0|0"
   "GateStepper|Omega Gate Stepper|Ogat|0|0"
+  "Rev7|Omega REV7|Orv7|0|0"
 )
 
 foreach(entry ${OMEGA_PLUGINS})
@@ -84,8 +85,22 @@ foreach(entry ${OMEGA_PLUGINS})
   target_link_libraries(Omega${tgt} PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endforeach()
 
+# the REV7 has its own front panel (src/Rev7Editor.cpp) instead of the generic knob editor
+if(TARGET OmegaRev7)
+  target_sources(OmegaRev7 PRIVATE src/Rev7Editor.cpp)
+  target_compile_definitions(OmegaRev7 PRIVATE OMEGA_CUSTOM_EDITOR=1)
+  # draws the panel to a PNG without a host: <build>/rev7_shot out.png
+  juce_add_console_app(rev7_shot PRODUCT_NAME "rev7_shot")
+  target_sources(rev7_shot PRIVATE tools/rev7_shot.cpp common/Plugin.cpp common/Editor.cpp src/Rev7.cpp src/Rev7Editor.cpp)
+  target_compile_definitions(rev7_shot PRIVATE OMEGA_CUSTOM_EDITOR=1 JucePlugin_Name="Omega REV7" JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+  target_link_libraries(rev7_shot PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(rev7_shot PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
+
 # a plain C++ test runner for the DSP engines (no JUCE), used by tools/check
 add_executable(omega_dsp_test tools/dsp_test.cpp)
+# every REV7 preset rendered and checked: <build>/rev7_test [wav dir]
+add_executable(rev7_test tools/rev7_test.cpp)
 
 # Omega Twelve: the 12-bit sampler emulator (twelve/ in the app). Two builds from one source: an effect that also
 # plays samples from MIDI (plus a standalone app), and an instrument for hosts that only send MIDI to instruments.

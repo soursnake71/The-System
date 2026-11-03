@@ -12,6 +12,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Vocoder 350 | effect (MIDI or sidechain carrier) |
 | Omega Lexicon 224, PrimeTime, Effectron, DP4, Microverb, ADA Flanger, 1176, Phil Collins Sim, H910, MXR 113 | effects |
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
+| Omega REV7 (Yamaha REV7 model with its own front panel) | effect |
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
 
@@ -24,3 +25,35 @@ Omega Twelve lives in `twelve/` and doesn't use the shared Spec/Editor: it has i
 app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelve_test` + `node twelve/tools/compare.mjs`
 (C++ against the app's engine), `twelve_proc_test` (sampler, MIDI, exports, analysis, state), and `tools/hosttest` (`twelve_host_test`
 loads the built .vst3 like a DAW).
+
+## Omega REV7
+
+![Omega REV7 panel](rev7-panel.png)
+
+A model of the Yamaha REV7 digital reverberator (1985), built from its service manual
+([archive.org](https://archive.org/details/yamaha_yamaha_rev7)).
+- **Analog path** (the manual's circuit description): input level (8 = unity, 10 = +12 dB), 3-band parametric EQ ahead of the
+  converter, 12 kHz LC low-pass, pre-emphasis (+8 dB at 10 kHz), sample and hold, 16-bit A/D at 31.25 kHz (one channel),
+  16-bit D/A (L/R), 12 kHz low-pass, de-emphasis and aperture compensation. The VINTAGE switch turns the converters and
+  filters off.
+- **DSP**: runs at the REV7's own 31.25 kHz. REV programs have 3 early reflections per channel, then a tank with mid,
+  high (x0.1-1.0) and low (x0.1-2.4) reverb times and diffusion 0-10. E/R programs have 18 reflections per channel, with
+  the six modes (small hall, large hall, random, reverse, plate, spring), liveness and room size. Then Delay, Echo (feedback
+  plus high damp), Stereo Flange, Reverb Flange, Chorus A/B (DM + AM), Stereo Phasing, Tremolo and Symphonic. Every program
+  has the centre 1st reflection. Measured decay is within about 8% of REV TIME.
+- **Presets**: the 30 factory programs, with the values from the manual's ROM contents chart, plus 14 artist presets.
+  The artist presets are this plugin's own settings, based on what these musicians and engineers have said about using a
+  REV7 (gear lists and interviews collected on [Equipboard](https://equipboard.com/items/yamaha-rev-7)):
+  Jean-Michel Jarre, Rick Wakeman, Tony Banks, The Prodigy, Graham Massey, Charlie Burchill, Martyn Ware,
+  Daniel Miller, Paul Hardcastle and Minoru Mukaiya. They are not those artists' own stored programs.
+- **Panel** (`src/Rev7Editor.cpp`): REV1-4 / E/R1-2 recall 1-6. Type a number and press RECALL for 1-30, or 31-90 for
+  user memories. Type 31-90 and press STORE to save there; user memories are saved with your project. REV TIME,
+  INITIAL DELAY, 1ST REF and F1-F3 pick a parameter, and what F1-F3 do depends on the program type, as on the unit.
+  Change it with -/+, the mouse wheel on the LCD, or by typing a value and pressing ENTER. Click the LCD for the full
+  preset menu. MUTE, OUT PHASE (inverts the wet signal) and BYPASS all work. The window resizes.
+- **Not from the unit**: the DSP coefficients and the reflection patterns. Yamaha's microcode and preset data live in
+  the unit's 16 KB EPROM, and this model does not use or include that firmware. These values are this model's own,
+  written to match the manual's descriptions. The REV TIME values for presets 16-18 are estimates, since the chart has
+  no REV TIME for them. The name of preset 16 is not legible in the manual scan.
+- **Tests**: `rev7_test` renders every preset at 44.1, 48 and 96 kHz and checks the levels and tails. `tools/hosttest`
+  `rev7_host_test` loads the built .vst3 like a DAW. `rev7_shot out.png` draws the panel.
