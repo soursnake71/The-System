@@ -49,6 +49,62 @@ jobs:
           cd out && 7z a -tzip "../Omega-CMI-${{ matrix.name }}.zip" . >/dev/null
       - uses: actions/upload-artifact@v4
         with: {name: 'cmi-${{ matrix.name }}', path: 'Omega-CMI-${{ matrix.name }}.zip', if-no-files-found: error}
+  headless:
+    # the engine with ALSA, no GUI: for samplers running their own Linux (built for 64-bit ARM, 32-bit ARM and x86-64)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cross compilers
+        run: |
+          sudo dpkg --add-architecture arm64 && sudo dpkg --add-architecture armhf
+          sudo sed -i 's/^Types: deb$/Types: deb\nArchitectures: amd64/' /etc/apt/sources.list.d/ubuntu.sources
+          printf 'Types: deb\nURIs: http://ports.ubuntu.com/ubuntu-ports\nSuites: noble noble-updates\nComponents: main universe\nArchitectures: arm64 armhf\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' | sudo tee /etc/apt/sources.list.d/ports.sources
+          sudo apt-get update
+          sudo apt-get install -y g++-aarch64-linux-gnu g++-arm-linux-gnueabihf libasound2-dev libasound2-dev:arm64 libasound2-dev:armhf qemu-user-static
+      - name: Build and test
+        run: |
+          set -e
+          cd plugins/cmi/headless
+          mkdir -p out
+          make CXX=g++ && mv cmi-headless out/cmi-headless-x86_64
+          make clean && make CXX=aarch64-linux-gnu-g++ && mv cmi-headless out/cmi-headless-aarch64
+          make clean && make CXX=arm-linux-gnueabihf-g++ && mv cmi-headless out/cmi-headless-armhf
+          ./out/cmi-headless-x86_64 -s /dev/null -w /tmp/x86.wav 3
+          qemu-aarch64-static -L /usr/aarch64-linux-gnu ./out/cmi-headless-aarch64 -s /dev/null -w /tmp/arm64.wav 3
+          qemu-arm-static -L /usr/arm-linux-gnueabihf ./out/cmi-headless-armhf -s /dev/null -w /tmp/armhf.wav 3
+      - name: Package
+        run: |
+          cd plugins/cmi/headless
+          for a in x86_64 aarch64 armhf; do
+            d=cmi-headless-$a; mkdir -p $d && cp out/cmi-headless-$a $d/cmi-headless && cp README.md $d/
+            tar czf ../../../cmi-headless-linux-$a.tar.gz $d
+          done
+          cd ../../.. && tar czf cmi-headless-source.tar.gz plugins/cmi/core plugins/cmi/headless/cmi_headless.cpp plugins/cmi/headless/Makefile plugins/cmi/headless/README.md
+          ls -la *.tar.gz
+      - uses: actions/upload-artifact@v4
+        with: {name: cmi-headless, path: '*.tar.gz', if-no-files-found: error}
+  arm64-plugin:
+    # the VST3 and standalone app for 64-bit ARM Linux, on GitHub's ARM runners (where the repository has them)
+    runs-on: ubuntu-24.04-arm
+    continue-on-error: true
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Libraries
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Build
+        run: |
+          cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=CMI
+          cmake --build build --config Release --parallel 3 --target OmegaCMI_All cmi_test
+          mkdir -p wavs && ./build/cmi_test wavs
+      - name: Collect
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune -name 'Omega CMI' -exec cp -R {} out/ \;
+          cd out && zip -qr ../Omega-CMI-Linux-arm64.zip .
+      - uses: actions/upload-artifact@v4
+        with: {name: cmi-Linux-arm64, path: Omega-CMI-Linux-arm64.zip, if-no-files-found: error}
   apk:
     runs-on: ubuntu-latest
     steps:
@@ -68,7 +124,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: {name: cmi-Android, path: omega-cmi.apk, if-no-files-found: error}
   publish:
-    needs: [plugins, apk]
+    needs: [plugins, apk, headless, arm64-plugin]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -81,7 +137,8 @@ jobs:
           notes="Omega CMI (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the Fairlight CMI Series II channel cards, with Page R and a synthesised library of the famous sounds.
 
           - Windows / Mac / Linux: unzip Omega-CMI-<system>.zip and copy Omega CMI.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). The standalone app is in the same zip. On a Mac, if the DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
-          - Android: open omega-cmi.apk on the phone and allow installing from your browser or files app. Plays from the screen keyboard or a USB / Bluetooth MIDI keyboard."
+          - Android: open omega-cmi.apk on the phone and allow installing from your browser or files app. Plays from the screen keyboard or a USB / Bluetooth MIDI keyboard.
+          - Samplers running their own Linux: cmi-headless-linux-aarch64 / -armhf / -x86_64.tar.gz (ALSA audio and MIDI, no screen), or cmi-headless-source.tar.gz to build on the device (make). Omega-CMI-Linux-arm64.zip: the VST3 and standalone app for 64-bit ARM Linux, when that build ran."
           gh release view omega-cmi >/dev/null 2>&1 || gh release create omega-cmi --title "Omega CMI (latest)" --notes "$notes" --target "$GITHUB_SHA"
           gh release edit omega-cmi --notes "$notes"
           gh release upload omega-cmi dl/* --clobber
