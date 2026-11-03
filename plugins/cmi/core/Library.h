@@ -783,7 +783,7 @@ public:
 
     // user slots (loaded samples): replace the sound in a slot, keeping the old one alive
     int userSlot(int k) const { return builtIn + k; }
-    static constexpr int USER_SLOTS = 64;
+    static constexpr int USER_SLOTS = 200;
     void setUser(int k, Sound s) {
         if (k < 0 || k >= USER_SLOTS) return;
         auto p = std::make_unique<Sound>(std::move(s));
@@ -839,9 +839,9 @@ private:
         for (auto& m : makers) { auto p = std::make_unique<Sound>(m()); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p)); }
         builtIn = i;
         // empty user slots: a soft sine until something is loaded
+        const Sound empty = gen::waveform("USER", "Empty: load or import samples (Page 8)", "User", [](int, double* a, double*) { a[0] = 1; }, 0, 127, Controls());
         for (int k = 0; k < USER_SLOTS; ++k) {
-            Sound s = gen::waveform(("USER" + std::to_string(k + 1)).c_str(), "Empty: load or import samples (Page 8)", "User",
-                                    [](int, double* a, double*) { a[0] = 1; }, 0, 127, Controls());
+            Sound s = empty; s.name = "USER" + std::to_string(k + 1);
             auto p = std::make_unique<Sound>(std::move(s)); blank.push_back(p.get()); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p));
         }
         bank.count = i;
@@ -866,7 +866,7 @@ public:
     void clearUser(int k) { if (k >= 0 && k < Library::USER_SLOTS) bank.slot[(size_t) userSlot(k)].store(Library::get().blank[(size_t) k]); }
     int firstFree(int from = 0) const { for (int k = std::max(0, from); k < Library::USER_SLOTS; ++k) if (!userLoaded(k)) return k; return -1; }
     int loadedCount() const { int n = 0; for (int k = 0; k < Library::USER_SLOTS; ++k) n += userLoaded(k); return n; }
-    bool userLoaded(int k) const { const Sound* s = user(k); return s && s->category == "User" && s->title.rfind("Empty", 0) != 0; }
+    bool userLoaded(int k) const { return k >= 0 && k < Library::USER_SLOTS && user(k) != Library::get().blank[(size_t) k]; }
 private:
     std::vector<std::unique_ptr<Sound>> owned; std::mutex lock;
 };

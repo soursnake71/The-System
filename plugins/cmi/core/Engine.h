@@ -6,7 +6,7 @@
 
 namespace cmi {
 
-constexpr int MAX_SOUNDS = 128;
+constexpr int MAX_SOUNDS = 256;
 constexpr int KEY_CH = 8, TRK_CH = 8, NCH = KEY_CH + TRK_CH;
 constexpr int STEPS = 16, TRACKS = 8, NPAT = 16, SONG_MAX = 64;
 

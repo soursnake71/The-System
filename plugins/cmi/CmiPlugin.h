@@ -87,6 +87,7 @@ public:
 private:
     void timerCallback() override;
     juce::String makeSound(const juce::File& f, int root, bool loop, Sound& out);
+    juce::String soundsFrom(const juce::File& f, int root, bool loop, std::vector<Sound>& out);
     Controls controlsNow() const;
     void writeSeq(juce::XmlElement&) const;
     void readSeq(const juce::XmlElement&);

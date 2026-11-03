@@ -251,21 +251,21 @@ void Screen::drawWave(juce::Graphics& g) {
 void Screen::drawSampling(juce::Graphics& g) {
     auto& kit = ed.proc.kit;
     constexpr int per = 16;
-    const int pages = Library::USER_SLOTS / per;
+    const int pages = (Library::USER_SLOTS + per - 1) / per;
     userPage = juce::jlimit(0, pages - 1, userPage);
     g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("SAMPLING   " + juce::String(kit.loadedCount()) + " OF " + juce::String(Library::USER_SLOTS) + " USER VOICES   8 BITS, UP TO 32 kHz, 16 KB EACH", 20, 58, W - 40, 20,
+    g.drawText("DISKS & SAMPLING   " + juce::String(kit.loadedCount()) + " OF " + juce::String(Library::USER_SLOTS) + " USER VOICES", 20, 58, W - 40, 20,
                juce::Justification::centredLeft);
     g.drawHorizontalLine(80, 20, (float) W - 20);
     g.setColour(kDim); g.setFont(mono(14));
-    g.drawText("Your own CMI sounds: import files or a whole folder (or drop them here). A sound that fits a channel card is kept sample for sample;",
+    g.drawText("CMI disks (.IMD / .IMG) and voice files (.VC) load exactly as the CMI holds them: the 16 KB, its loop, its pitch rule.",
                20, 84, W - 40, 16, juce::Justification::centredLeft);
-    g.drawText("a WAV's root key and loop (smpl chunk) are used. Others go in at the highest rate that fits 16 KB.", 20, 100, W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("Audio files: kept sample for sample if they fit a card, WAV root and loop used. Import files, a folder, or drop them here.", 20, 100, W - 40, 16, juce::Justification::centredLeft);
     auto launch = [this](bool folder, int slot) {
         const int flags = juce::FileBrowserComponent::openMode | (folder ? juce::FileBrowserComponent::canSelectDirectories
                                                                           : juce::FileBrowserComponent::canSelectFiles | (slot < 0 ? juce::FileBrowserComponent::canSelectMultipleItems : 0));
         ed.chooser = std::make_unique<juce::FileChooser>(folder ? "Import a folder of sounds" : slot < 0 ? "Import sounds" : "Sample into USER" + juce::String(slot + 1),
-                                                         juce::File(), folder ? juce::String() : juce::String("*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg"));
+                                                         juce::File(), folder ? juce::String() : juce::String("*.imd;*.img;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg"));
         ed.chooser->launchAsync(flags, [this, slot](const juce::FileChooser& fc) {
             const auto res = fc.getResults(); if (res.isEmpty()) return;
             if (slot >= 0) { const auto err = ed.proc.loadSample(res[0], slot, rootKey, loopIt); status = err.isEmpty() ? "SAMPLED" : err.toUpperCase(); }
@@ -273,19 +273,24 @@ void Screen::drawSampling(juce::Graphics& g) {
             repaint();
         });
     };
-    button(g, { 20, 122, 200, 24 }, "IMPORT FILES", false, [launch] { launch(false, -1); });
+    button(g, { 20, 122, 200, 24 }, "IMPORT DISKS/FILES", false, [launch] { launch(false, -1); });
     button(g, { 230, 122, 200, 24 }, "IMPORT FOLDER", false, [launch] { launch(true, -1); });
     button(g, { 440, 122, 160, 24 }, "CLEAR ALL", false, [this] { for (int k = 0; k < Library::USER_SLOTS; ++k) ed.proc.kit.clearUser(k); status = "USER VOICES CLEARED"; });
     for (int r = 0; r < per; ++r) {
         const int k = userPage * per + r;
+        if (k >= Library::USER_SLOTS) break;
         const float y = 156.f + r * 24.f;
         const Sound* s = kit.user(k);
         const bool loaded = kit.userLoaded(k);
         g.setColour(loaded ? kInk : kDim); g.setFont(mono(15));
         g.drawText("USER" + juce::String(k + 1).paddedLeft('0', 2), 20, (int) y, 80, 22, juce::Justification::centredLeft);
-        g.drawText(loaded && s ? juce::String(s->name).paddedRight(' ', 9) + juce::String(juce::roundToInt(s->rate)).paddedLeft(' ', 5) + " Hz  " + juce::String(s->ram.size() / s->rate, 2) +
-                                     " s  root " + noteName(s->root) + "  loop " + (s->loopStart >= 0 ? juce::String(s->loopStart + 1) + "-" + juce::String(s->loopEnd + 1) : juce::String("-"))
-                               : juce::String("--"), 110, (int) y, 560, 22, juce::Justification::centredLeft);
+        const bool cmiVoice = loaded && s && s->category != "User";
+        const juce::String loopTxt = s && s->loopStart >= 0 ? juce::String(s->loopStart + 1) + "-" + juce::String(s->loopEnd + 1) : juce::String("-");
+        g.drawText(!loaded || !s ? juce::String("--")
+                   : cmiVoice ? juce::String(s->name).paddedRight(' ', 9) + juce::String(s->category).paddedRight(' ', 11) + (s->mode == Mode::Waveform ? "MODE 1  " : "MODE 4  ") + "loop " + loopTxt
+                              : juce::String(s->name).paddedRight(' ', 9) + juce::String(juce::roundToInt(s->rate)).paddedLeft(' ', 5) + " Hz  " + juce::String(s->ram.size() / s->rate, 2) +
+                                    " s  root " + noteName(s->root) + "  loop " + loopTxt,
+                   110, (int) y, 560, 22, juce::Justification::centredLeft);
         button(g, { 680, y + 1, 90, 20 }, "LOAD", false, [launch, k] { launch(false, k); });
         button(g, { 778, y + 1, 90, 20 }, "PLAY", false, [this, k] { ed.proc.loadSound(ed.proc.kit.userSlot(k)); status = "LOADED"; });
         button(g, { 876, y + 1, 90, 20 }, "CLEAR", false, [this, k] { ed.proc.kit.clearUser(k); });
@@ -293,7 +298,7 @@ void Screen::drawSampling(juce::Graphics& g) {
     const float by = 156.f + per * 24.f + 4;
     button(g, { 20, by, 40, 22 }, "<", false, [this] { userPage = juce::jmax(0, userPage - 1); });
     g.setColour(kInk); g.setFont(mono(15));
-    g.drawText(juce::String(userPage * per + 1) + "-" + juce::String((userPage + 1) * per), 64, (int) by, 90, 22, juce::Justification::centred);
+    g.drawText(juce::String(userPage * per + 1) + "-" + juce::String(juce::jmin(Library::USER_SLOTS, (userPage + 1) * per)), 64, (int) by, 90, 22, juce::Justification::centred);
     button(g, { 158, by, 40, 22 }, ">", false, [this, pages] { userPage = juce::jmin(pages - 1, userPage + 1); });
     g.drawText("ROOT KEY: " + noteName(rootKey) + " (wheel/drag; a WAV's own wins)", 230, (int) by, 470, 22, juce::Justification::centredLeft);
     auto& h = hit({ 230, by, 470, 22 }, [this](const juce::MouseEvent&) { dragRoot = rootKey; },
@@ -543,7 +548,7 @@ void CmiEditor::resized() {
 void CmiEditor::timerCallback() { screen.repaint(); }
 
 bool CmiEditor::isInterestedInFileDrag(const juce::StringArray& files) {
-    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg")) return true; }
+    for (auto& f : files) { const juce::File x(f); if (x.isDirectory() || x.hasFileExtension("wav;aif;aiff;flac;mp3;ogg;vc;imd;img;bin;raw;dsk;hfe")) return true; }
     return false;
 }
 

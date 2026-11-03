@@ -1,7 +1,7 @@
 // Omega CMI engine tests, no framework: cmi_test <outdir>
 // Checks the channel card maths against the hardware formulas, renders every library sound and the Page R demo
 // song to WAV files, and fails on silence, clipping, NaNs or wrong pitch.
-#include "../core/Library.h"
+#include "../core/Disk.h"
 #include <cstdio>
 #include <chrono>
 
@@ -169,7 +169,81 @@ int main(int argc, char** argv) {
         CHECK(kit.loadedCount() == 3 && kit.firstFree() == 3, "three imported");
         kit.clearUser(1);
         CHECK(kit.firstFree() == 1 && kit.loadedCount() == 2, "clear a slot");
-        CHECK(Library::USER_SLOTS == 64 && lib.size() <= MAX_SOUNDS, "64 user voices fit the bank (%d)", lib.size());
+        CHECK(Library::USER_SLOTS == 200 && lib.size() <= MAX_SOUNDS, "200 user voices fit the bank (%d)", lib.size());
+    }
+
+    // ---- CMI disks: a QDOS image built here (raw and as ImageDisk), with a sampled (mode 4) and a waveform (mode 1) voice ----
+    {
+        const size_t SECB = 128, NSEC = 77 * 2 * 26;
+        std::vector<uint8_t> img(NSEC * SECB, 0xE5);
+        std::memcpy(img.data(), "TESTDISK", 8);
+        for (size_t i = 3 * SECB; i < 23 * SECB; ++i) img[i] = 0;   // empty directory
+        auto makeVc = [](int mode, int ls, int le, bool loop, uint8_t seed) {
+            std::vector<uint8_t> v(21888, 0);
+            v[0] = (uint8_t) mode; std::memcpy(&v[0xA0], "TESTCO  ", 8);
+            v[0x1332] = (uint8_t) ls; v[0x1333] = (uint8_t) le; v[0x133B] = loop ? 1 : 0;
+            for (size_t i = 0x1580; i < v.size(); ++i) v[i] = (uint8_t) (128 + 100 * std::sin((i - 0x1580) * 2 * PI / 128.0 + seed));
+            return v;
+        };
+        auto put = [&](int entry, const char* name, const char* type, const std::vector<uint8_t>& data, int firstCluster) {
+            const size_t o = 3 * SECB + (size_t) entry * 16;
+            std::memcpy(&img[o], name, 8); std::memcpy(&img[o + 8], type, 2);
+            const int rib = firstCluster * 4; img[o + 10] = (uint8_t) (rib >> 8); img[o + 11] = (uint8_t) rib; img[o + 12] = 0x10;
+            const size_t dataSecs = (data.size() + 127) / 128, secs = dataSecs + 1;
+            // two segments, to exercise the retrieval block: half the clusters here, the rest 40 clusters on
+            const size_t clusters = (secs + 3) / 4, c1 = clusters / 2, c2 = clusters - c1;
+            const uint16_t w1 = (uint16_t) ((c1 - 1) << 10 | firstCluster), w2 = (uint16_t) ((c2 - 1) << 10 | (firstCluster + 40)), w3 = (uint16_t) (0x8000 | (dataSecs - 1));
+            const uint16_t ws[3] = { w1, w2, w3 };
+            for (int k = 0; k < 3; ++k) { img[(size_t) rib * SECB + 2 * k] = (uint8_t) (ws[k] >> 8); img[(size_t) rib * SECB + 2 * k + 1] = (uint8_t) ws[k]; }
+            std::vector<size_t> list;
+            for (size_t c = 0; c < c1 * 4; ++c) list.push_back((size_t) rib + c);
+            for (size_t c = 0; c < c2 * 4; ++c) list.push_back((size_t) (firstCluster + 40) * 4 + c);
+            for (size_t sct = 0; sct < dataSecs; ++sct) for (size_t b = 0; b < 128; ++b) { const size_t i = sct * 128 + b; img[list[sct + 1] * SECB + b] = i < data.size() ? data[i] : 0; }
+        };
+        const auto vc4 = makeVc(4, 17, 118, true, 1), vc1 = makeVc(1, 0, 0, false, 2);
+        put(0, "SARTEST ", "VC", vc4, 6);
+        put(1, "WAVTEST ", "VC", vc1, 100);
+        Disk d = readDiskImage(img.data(), img.size());
+        CHECK(d.err.empty() && d.label == "TESTDISK" && d.files.size() == 2, "raw disk: %s, label %s, %zu files", d.err.c_str(), d.label.c_str(), d.files.size());
+        if (d.files.size() == 2) {
+            CHECK(d.files[0].name == "SARTEST" && d.files[0].type == "VC" && d.files[0].data.size() >= vc4.size() &&
+                  std::equal(vc4.begin(), vc4.end(), d.files[0].data.begin()), "voice read through its retrieval block");
+            Sound s4, s1; std::string err;
+            CHECK(vcToSound(d.files[0].data, d.files[0].name, d.label, s4, err), "vc mode 4: %s", err.c_str());
+            CHECK(s4.mode == Mode::Sample && s4.pages() == 128 && s4.loopStart == 17 && s4.loopEnd == 118 && s4.rate == 128 * 440.0 && s4.root == 69,
+                  "mode 4: pages %d loop %d-%d", s4.pages(), s4.loopStart, s4.loopEnd);
+            CHECK(std::equal(s4.ram.begin(), s4.ram.end(), vc4.begin() + 0x1580), "channel card RAM is the file's 16 KB, untouched");
+            CHECK(vcToSound(d.files[1].data, d.files[1].name, d.label, s1, err) && s1.mode == Mode::Waveform && s1.pages() == 32, "mode 1: %d segments", s1.pages());
+            // the CMI's pitch rule: a 128-sample cycle sounds at the key's frequency
+            Kit kd; kd.setUser(0, s1);
+            Engine ed; ed.bank = &kd.bank; ed.prepare(fs); ed.setOutput(1, 0, 0);
+            Controls c = s1.ctl; ed.setKeyboard(kd.userSlot(0), c);
+            std::vector<float> a((size_t) fs), b2((size_t) fs);
+            ed.keyOn(57, 1); ed.render(a.data(), b2.data(), fs);
+            const double f = freqOf(a, fs, fs / 4, fs);
+            CHECK(std::fabs(1200 * std::log2(f / 220.0)) < 4, "mode 1 voice on A3 plays %.2f Hz", f);
+        }
+        // the same disk as an ImageDisk file: tracks out of order, interleaved sectors, compressed sectors, a head map
+        std::vector<uint8_t> imd;
+        const char* hdr = "IMD 1.18: 01/01/2000 0:00:00\r\ntest\x1a";
+        imd.insert(imd.end(), hdr, hdr + std::strlen(hdr));
+        for (int t = 2 * 77 - 1; t >= 0; --t) {
+            const int cyl = t / 2, head = t % 2;
+            imd.push_back(0); imd.push_back((uint8_t) cyl); imd.push_back((uint8_t) (head | (head ? 0x40 : 0))); imd.push_back(26); imd.push_back(0);
+            int order[26]; for (int k = 0; k < 26; ++k) order[k] = (k * 7) % 26 + 1;   // interleave
+            for (int k = 0; k < 26; ++k) imd.push_back((uint8_t) order[k]);
+            if (head) for (int k = 0; k < 26; ++k) imd.push_back(0);   // physical head 1 recorded as 0
+            for (int k = 0; k < 26; ++k) {
+                const size_t off = ((size_t) t * 26 + (size_t) (order[k] - 1)) * 128;
+                bool same = true; for (int b = 1; b < 128; ++b) same &= img[off + (size_t) b] == img[off];
+                if (same) { imd.push_back(2); imd.push_back(img[off]); }
+                else { imd.push_back(1); imd.insert(imd.end(), img.begin() + (long) off, img.begin() + (long) off + 128); }
+            }
+        }
+        Disk d2 = readDiskImage(imd.data(), imd.size());
+        CHECK(d2.err.empty() && d2.files.size() == 2 && d2.files[0].data == d.files[0].data && d2.files[1].data == d.files[1].data, "IMD reads the same: %s", d2.err.c_str());
+        Disk bad = readDiskImage((const uint8_t*) "hello", 5);
+        CHECK(!bad.err.empty(), "junk is refused");
     }
 
     // ---- speed: 16 voices for one second ----

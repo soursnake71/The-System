@@ -148,25 +148,33 @@ public class MainActivity extends Activity {
         final int root = view.rootKey; final boolean loop = view.loopSample;
         view.status("IMPORTING...");
         new Thread(() -> {
-            int ok = 0, bad = 0, first = -1; String last = "";
+            int ok = 0, bad = 0, first = -1, disks = 0; String last = "";
             for (int idx : order) {
                 int slot = single >= 0 ? single : Native.firstFreeUser();
                 if (slot < 0) { last = "USER VOICES FULL"; break; }
+                lastDiskCount = 0;
                 String err = importOne(uris.get(idx), names.get(idx), slot, root, loop);
-                if (err.isEmpty()) { ++ok; if (first < 0) first = slot; } else { ++bad; last = err; }
+                if (err.isEmpty()) { if (lastDiskCount > 0) { ok += lastDiskCount; ++disks; } else ++ok; if (first < 0) first = slot; } else { ++bad; last = err; }
                 final int done = ok + bad;
                 ui.post(() -> view.status("IMPORTING " + done + " / " + order.size()));
                 if (single >= 0) break;
             }
             if (first >= 0) Native.loadSound(Native.userSlot(first));
-            final String m = ok + " IMPORTED" + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
+            final String m = ok + " IMPORTED" + (disks > 0 ? " FROM " + disks + (disks == 1 ? " DISK" : " DISKS") : "") + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
             ui.post(() -> { view.status(m); saveState(); });
         }).start();
     }
 
+    private int lastDiskCount = 0;
     private String importOne(Uri uri, String name, int slot, int root, boolean loop) {
         String base = name; int dot = base.lastIndexOf('.'); if (dot > 0) base = base.substring(0, dot);
+        String lower = name.toLowerCase();
         try {
+            if (lower.endsWith(".imd") || lower.endsWith(".img") || lower.endsWith(".bin") || lower.endsWith(".raw") || lower.endsWith(".dsk") || lower.endsWith(".hfe")) {
+                String r = Native.loadDisk(readAll(uri, 4 << 20), base);
+                try { int n = Integer.parseInt(r); lastDiskCount += n; return n > 0 ? "" : "NO VOICES ON " + name; } catch (NumberFormatException e) { return r; }
+            }
+            if (lower.endsWith(".vc")) return Native.loadVc(readAll(uri, 1 << 20), base, "", slot);
             if (name.toLowerCase().endsWith(".wav")) {
                 byte[] b = readAll(uri, 64 << 20);
                 String err = Native.loadWav(b, base, slot, root, loop);
@@ -210,7 +218,8 @@ public class MainActivity extends Activity {
                 if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) { listFolder(tree, id, uris, names, depth + 1); continue; }
                 String n = name.toLowerCase();
                 boolean audio = (mime != null && mime.startsWith("audio/")) || n.endsWith(".wav") || n.endsWith(".aif") || n.endsWith(".aiff") || n.endsWith(".flac")
-                        || n.endsWith(".mp3") || n.endsWith(".ogg");
+                        || n.endsWith(".mp3") || n.endsWith(".ogg") || n.endsWith(".vc") || n.endsWith(".imd") || n.endsWith(".img") || n.endsWith(".bin")
+                        || n.endsWith(".raw") || n.endsWith(".dsk");
                 if (!audio) continue;
                 uris.add(DocumentsContract.buildDocumentUriUsingTree(tree, id));
                 names.add(name);

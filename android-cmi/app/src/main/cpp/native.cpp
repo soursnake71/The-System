@@ -6,7 +6,7 @@
 #include <jni.h>
 #include <mutex>
 #include <thread>
-#include "Library.h"
+#include "Disk.h"
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "OmegaCMI", __VA_ARGS__)
 
@@ -232,6 +232,40 @@ FN(jstring, loadWav)(JNIEnv* env, jclass, jbyteArray data, jstring name, jint sl
     app()->kit.setUser(slot, std::move(s));
     return env->NewStringUTF("");
 }
+// a CMI disk image (.IMD / .IMG): every voice on it, into the free user voices; returns "<count>" or the error
+FN(jstring, loadDisk)(JNIEnv* env, jclass, jbyteArray data, jstring fileName) {
+    const jsize n = env->GetArrayLength(data);
+    std::vector<uint8_t> b((size_t) n);
+    env->GetByteArrayRegion(data, 0, n, (jbyte*) b.data());
+    Disk dk = readDiskImage(b.data(), b.size());
+    if (!dk.err.empty()) return env->NewStringUTF(dk.err.c_str());
+    const char* fn = env->GetStringUTFChars(fileName, nullptr);
+    const std::string label = dk.label.empty() ? std::string(fn) : dk.label;
+    env->ReleaseStringUTFChars(fileName, fn);
+    int count = 0;
+    for (const auto& f : dk.files) {
+        if (f.type != "VC") continue;
+        const int slot = app()->kit.firstFree();
+        if (slot < 0) break;
+        Sound s; std::string err;
+        if (vcToSound(f.data, f.name, label, s, err)) { app()->kit.setUser(slot, std::move(s)); ++count; }
+    }
+    return env->NewStringUTF(std::to_string(count).c_str());
+}
+// a .VC voice file into one slot; "" or the error
+FN(jstring, loadVc)(JNIEnv* env, jclass, jbyteArray data, jstring name, jstring from, jint slot) {
+    if (slot < 0 || slot >= Library::USER_SLOTS) return env->NewStringUTF("USER VOICES FULL");
+    const jsize n = env->GetArrayLength(data);
+    std::vector<uint8_t> b((size_t) n);
+    env->GetByteArrayRegion(data, 0, n, (jbyte*) b.data());
+    const char* nm = env->GetStringUTFChars(name, nullptr); const char* fr = env->GetStringUTFChars(from, nullptr);
+    Sound s; std::string err;
+    const bool ok = vcToSound(b, nm, fr, s, err);
+    env->ReleaseStringUTFChars(name, nm); env->ReleaseStringUTFChars(from, fr);
+    if (!ok) return env->NewStringUTF(err.c_str());
+    app()->kit.setUser(slot, std::move(s));
+    return env->NewStringUTF("");
+}
 FN(jboolean, userLoaded)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k); }
 FN(jint, userSlot)(JNIEnv*, jclass, jint k) { return app()->kit.userSlot(k); }
 FN(jint, firstFreeUser)(JNIEnv*, jclass) { return app()->kit.firstFree(); }
@@ -245,7 +279,7 @@ FN(void, clearUser)(JNIEnv*, jclass, jint k) {
 // state: parameters, Page R, user voices
 FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
     auto* a = app(); std::vector<uint8_t> v;
-    put(v, (uint32_t) 0x434D4931);   // "CMI1"
+    put(v, (uint32_t) 0x434D4932);   // "CMI2"
     const Sound* cur = a->kit.bank.at(a->sound.load());
     char nm[16] {}; if (cur) std::strncpy(nm, cur->name.c_str(), 15); put(v, nm);
     for (int i = 0; i < NPARAM; ++i) put(v, a->param[i].load());
@@ -255,7 +289,9 @@ FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
         if (!a->kit.userLoaded(k)) continue;
         const Sound* s = a->kit.user(k);
         put(v, (int32_t) k); char un[16] {}; std::strncpy(un, s->name.c_str(), 15); put(v, un);
-        put(v, s->rate); put(v, (int32_t) s->root); put(v, (int32_t) s->loopStart); put(v, (int32_t) s->loopEnd); put(v, (int32_t) s->ram.size());
+        put(v, s->rate); put(v, (int32_t) s->root); put(v, (int32_t) s->loopStart); put(v, (int32_t) s->loopEnd);
+        put(v, (int32_t) s->mode); char cat[16] {}; std::strncpy(cat, s->category.c_str(), 15); put(v, cat);
+        put(v, (int32_t) s->ram.size());
         v.insert(v.end(), s->ram.begin(), s->ram.end());
     }
     jbyteArray out = env->NewByteArray((jsize) v.size());
@@ -268,7 +304,8 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     env->GetByteArrayRegion(data, 0, n, (jbyte*) v.data());
     const uint8_t* p = v.data(); const uint8_t* e = p + v.size();
     auto* a = app();
-    uint32_t magic = 0; if (!get(p, e, magic) || magic != 0x434D4931) return;
+    uint32_t magic = 0; if (!get(p, e, magic) || (magic != 0x434D4931 && magic != 0x434D4932)) return;
+    const bool v2 = magic == 0x434D4932;
     char nm[16]; if (!get(p, e, nm)) return; nm[15] = 0;
     float prm[NPARAM]; for (auto& x : prm) if (!get(p, e, x)) return;
     int pat = 0; get(p, e, pat);
@@ -276,10 +313,13 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     a->engine.seq = sd; a->engine.curPattern = clampi(pat, 0, NPAT - 1);
     int32_t k;
     while (get(p, e, k)) {
-        Sound s; char un[16]; int32_t root, ls, le, sz;
-        if (!get(p, e, un) || !get(p, e, s.rate) || !get(p, e, root) || !get(p, e, ls) || !get(p, e, le) || !get(p, e, sz)) break;
+        Sound s; char un[16]; int32_t root, ls, le, sz, mode = 0; char cat[16] = "User";
+        if (!get(p, e, un) || !get(p, e, s.rate) || !get(p, e, root) || !get(p, e, ls) || !get(p, e, le)) break;
+        if (v2 && (!get(p, e, mode) || !get(p, e, cat))) break;
+        if (!get(p, e, sz)) break;
         if (sz <= 0 || sz > RAM_SIZE || p + sz > e) break;
-        un[15] = 0; s.name = un; s.title = std::string("Sampled: ") + un; s.category = "User"; s.root = root; s.loopStart = ls; s.loopEnd = le;
+        un[15] = 0; cat[15] = 0; s.name = un; s.category = cat; s.title = s.category == "User" ? std::string("Sampled: ") + un : std::string(un) + " from " + cat;
+        s.mode = mode == 1 ? Mode::Waveform : Mode::Sample; s.root = root; s.loopStart = ls; s.loopEnd = le;
         s.ram.assign(p, p + sz); p += sz;
         a->kit.setUser(k, std::move(s));
     }

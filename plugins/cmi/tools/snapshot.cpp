@@ -59,10 +59,17 @@ int main(int argc, char** argv) {
         std::printf("folder import: %s; SND2 root %d loop %d-%d rate %.0f\n", msg.toRawUTF8(), s2 ? s2->root : -1, s2 ? s2->loopStart : -1, s2 ? s2->loopEnd : -1, s2 ? s2->rate : 0);
         ok &= n == 3 && s2 && s2->name == "SND2" && s2->root == 45 && s2->loopStart == 40 && s2->loopEnd == 99 && s2->rate == 25000;
     }
+    // optional: real CMI disk images or .VC files given on the command line (cmi_snapshot <outdir> <disk.imd> ...)
+    for (int i = 2; i < argc; ++i) {
+        int n = 0;
+        const auto msg = p.importFiles({ juce::File(juce::String::fromUTF8(argv[i])) }, 60, false, n);
+        std::printf("import %s: %s\n", argv[i], msg.toRawUTF8());
+        ok &= n > 0;
+    }
     // state round trip keeps Page R and the user sample
     juce::MemoryBlock st; p.getStateInformation(st);
     cmi::CmiProcessor q; q.setStateInformation(st.getData(), (int) st.getSize());
-    const bool same = std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0) && q.kit.loadedCount() == 4 && q.kit.user(2)->ram == p.kit.user(2)->ram;
+    const bool same = std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0) && q.kit.loadedCount() == p.kit.loadedCount() && q.kit.user(2)->mode == p.kit.user(2)->mode && q.kit.user(2)->ram == p.kit.user(2)->ram;
     std::printf("state %d bytes, Page R and user voice restored: %s\n", (int) st.getSize(), same ? "yes" : "NO"); ok &= same;
     // pictures
     p.loadSound(cmi::Library::get().find("CHOIRAAH"));

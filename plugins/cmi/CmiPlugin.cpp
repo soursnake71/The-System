@@ -1,5 +1,6 @@
 #include "CmiPlugin.h"
 #include "CmiEditor.h"
+#include "core/Disk.h"
 
 namespace cmi {
 
@@ -91,38 +92,82 @@ juce::String CmiProcessor::makeSound(const juce::File& f, int root, bool loop, S
     return {};
 }
 
-juce::String CmiProcessor::loadSample(const juce::File& f, int slot, int root, bool loop) {
+static bool isDiskImage(const juce::File& f) { return f.hasFileExtension("imd;img;bin;raw;dsk;hfe"); }
+
+// every sound in a file: a CMI disk image (all its voices), a .VC voice file, or any audio file
+juce::String CmiProcessor::soundsFrom(const juce::File& f, int root, bool loop, std::vector<Sound>& out) {
+    if (isDiskImage(f) || f.hasFileExtension("vc")) {
+        juce::MemoryBlock mb;
+        if (!f.loadFileAsData(mb)) return "Can't read " + f.getFileName();
+        const auto* d = (const uint8_t*) mb.getData();
+        if (f.hasFileExtension("vc")) {
+            Sound s; std::string err;
+            if (!vcToSound(std::vector<uint8_t>(d, d + mb.getSize()), f.getFileNameWithoutExtension().toStdString(), f.getParentDirectory().getFileName().toStdString(), s, err))
+                return juce::String(err);
+            out.push_back(std::move(s));
+            return {};
+        }
+        Disk dk = readDiskImage(d, mb.getSize());
+        if (!dk.err.empty()) return f.getFileName() + ": " + juce::String(dk.err);
+        const std::string label = dk.label.empty() ? f.getFileNameWithoutExtension().toStdString() : dk.label;
+        for (const auto& df : dk.files) {
+            if (df.type != "VC") continue;
+            Sound s; std::string err;
+            if (vcToSound(df.data, df.name, label, s, err)) out.push_back(std::move(s));
+        }
+        return out.empty() ? f.getFileName() + ": no voices on this disk" : juce::String();
+    }
     Sound s;
     const auto err = makeSound(f, root, loop, s);
-    if (err.isNotEmpty()) return err;
-    kit.setUser(slot, std::move(s));
-    loadSound(kit.userSlot(slot));
+    if (err.isEmpty()) out.push_back(std::move(s));
+    return err;
+}
+
+juce::String CmiProcessor::loadSample(const juce::File& f, int slot, int root, bool loop) {
+    std::vector<Sound> got;
+    const auto err = soundsFrom(f, root, loop, got);
+    if (got.empty()) return err.isEmpty() ? "Nothing to load" : err;
+    // a disk fills this slot and the free ones after it
+    int k = slot, first = slot;
+    for (auto& s : got) {
+        if (k < 0 || k >= Library::USER_SLOTS) break;
+        kit.setUser(k, std::move(s));
+        k = kit.firstFree(k + 1);
+    }
+    loadSound(kit.userSlot(first));
     return {};
 }
 
 // files and folders (searched inside) into the free user voices, in name order
 juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int root, bool loop, int& imported) {
     juce::Array<juce::File> files;
-    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg";
+    const juce::String exts = "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.vc;*.imd;*.img;*.bin;*.raw;*.dsk;*.hfe";
     for (const auto& it : items) {
         if (it.isDirectory()) for (const auto& e : juce::RangedDirectoryIterator(it, true, exts, juce::File::findFiles)) files.add(e.getFile());
         else if (it.existsAsFile()) files.add(it);
     }
-    struct ByName { static int compareElements(const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()); } } cmp;
+    struct ByName { static int compareElements(const juce::File& a, const juce::File& b) { return a.getFullPathName().compareNatural(b.getFullPathName()); } } cmp;
     files.sort(cmp);
-    imported = 0; int failed = 0, first = -1;
+    imported = 0; int failed = 0, first = -1, disks = 0; juce::String lastErr;
     for (const auto& f : files) {
-        const int slot = kit.firstFree();
-        if (slot < 0) return juce::String(imported) + " IMPORTED, USER VOICES FULL";
-        Sound s;
-        if (makeSound(f, root, loop, s).isNotEmpty()) { ++failed; continue; }
-        kit.setUser(slot, std::move(s));
-        if (first < 0) first = slot;
-        ++imported;
+        std::vector<Sound> got;
+        const auto err = soundsFrom(f, root, loop, got);
+        if (got.empty()) { ++failed; lastErr = err; continue; }
+        if (isDiskImage(f)) ++disks;
+        for (auto& s : got) {
+            const int slot = kit.firstFree();
+            if (slot < 0) { if (first >= 0) loadSound(kit.userSlot(first)); return juce::String(imported) + " IMPORTED, USER VOICES FULL"; }
+            kit.setUser(slot, std::move(s));
+            if (first < 0) first = slot;
+            ++imported;
+        }
     }
     if (first >= 0) loadSound(kit.userSlot(first));
-    if (files.isEmpty()) return "NO AUDIO FILES FOUND";
-    return juce::String(imported) + " IMPORTED" + (failed ? ", " + juce::String(failed) + " UNREADABLE" : juce::String());
+    if (files.isEmpty()) return "NO SOUNDS FOUND";
+    juce::String m = juce::String(imported) + " IMPORTED";
+    if (disks) m << " FROM " << disks << (disks == 1 ? " DISK" : " DISKS");
+    if (failed) m << ", " << failed << " UNREADABLE" << (failed == 1 && lastErr.isNotEmpty() ? " (" + lastErr.toUpperCase() + ")" : juce::String());
+    return m;
 }
 
 void CmiProcessor::timerCallback() {
@@ -242,7 +287,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
         const Sound* s = kit.user(k);
         auto* u = x->createNewChildElement("User");
         u->setAttribute("slot", k); u->setAttribute("name", juce::String(s->name)); u->setAttribute("title", juce::String(s->title));
-        u->setAttribute("rate", s->rate); u->setAttribute("root", s->root);
+        u->setAttribute("rate", s->rate); u->setAttribute("root", s->root); u->setAttribute("mode", (int) s->mode); u->setAttribute("category", juce::String(s->category));
         u->setAttribute("loopStart", s->loopStart); u->setAttribute("loopEnd", s->loopEnd);
         u->setAttribute("ram", juce::MemoryBlock(s->ram.data(), s->ram.size()).toBase64Encoding());
     }
@@ -253,7 +298,8 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
     std::unique_ptr<juce::XmlElement> x(getXmlFromBinary(data, size));
     if (!x) return;
     for (auto* u : x->getChildWithTagNameIterator("User")) {
-        Sound s; s.name = u->getStringAttribute("name").toStdString(); s.title = u->getStringAttribute("title").toStdString(); s.category = "User";
+        Sound s; s.name = u->getStringAttribute("name").toStdString(); s.title = u->getStringAttribute("title").toStdString(); s.category = u->getStringAttribute("category", "User").toStdString();
+        s.mode = u->getIntAttribute("mode", 0) == 1 ? Mode::Waveform : Mode::Sample;
         s.rate = u->getDoubleAttribute("rate", 20000); s.root = u->getIntAttribute("root", 60);
         s.loopStart = u->getIntAttribute("loopStart", -1); s.loopEnd = u->getIntAttribute("loopEnd", -1);
         juce::MemoryBlock mb; mb.fromBase64Encoding(u->getStringAttribute("ram"));

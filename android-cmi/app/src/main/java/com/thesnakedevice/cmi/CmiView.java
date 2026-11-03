@@ -260,11 +260,11 @@ public class CmiView extends View {
     // ---- Page 8 ----
     private int userPage = 0;
     private void sampling(Canvas c, RectF b) {
-        text(c, "SAMPLING  " + Native.userCount() + " OF " + Native.USER_SLOTS + " USER VOICES", b.left, b.top + dp(12), 12, INK);
-        text(c, "Files that fit a card are kept as they are; a WAV's root and loop are used.", b.left, b.top + dp(28), 9, DIM);
+        text(c, "DISKS & SAMPLING  " + Native.userCount() + " OF " + Native.USER_SLOTS + " USER VOICES", b.left, b.top + dp(12), 12, INK);
+        text(c, "CMI disks (.IMD .IMG) and .VC voices load as the CMI holds them. Audio files too.", b.left, b.top + dp(28), 9, DIM);
         float y0 = b.top + dp(36);
         float bw = (b.width() - dp(12)) / 3;
-        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(26)), "IMPORT FILES", false, act::importFiles);
+        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(26)), "DISKS/FILES", false, act::importFiles);
         button(c, new RectF(b.left + bw + dp(6), y0, b.left + 2 * bw + dp(6), y0 + dp(26)), "IMPORT FOLDER", false, act::importFolder);
         button(c, new RectF(b.left + 2 * bw + dp(12), y0, b.right, y0 + dp(26)), "CLEAR ALL", false, () -> {
             new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Clear all user voices?")
@@ -282,7 +282,9 @@ public class CmiView extends View {
             float y = top + r * rh;
             boolean has = Native.userLoaded(slot);
             String[] f = info(Native.userSlot(slot));
-            String line = String.format("USER%02d ", slot + 1) + (has ? f[0] + "  " + f[3] + "Hz  " + noteName(Integer.parseInt(f[4])) + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : "") : "--");
+            boolean cmiVoice = has && !f[2].equals("User");
+            String line = String.format("USER%03d ", slot + 1) + (!has ? "--" : cmiVoice ? f[0] + "  " + f[2] + "  MODE " + (f[8].equals("1") ? "1" : "4") + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : "")
+                    : f[0] + "  " + f[3] + "Hz  " + noteName(Integer.parseInt(f[4])) + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : ""));
             final float ty = portrait ? y + dp(14) : y + rh * 0.65f;
             text(c, line, b.left, ty, 12, has ? INK : DIM);
             final float btop = portrait ? y + dp(19) : y + dp(2), bh = portrait ? rh - dp(3) : rh - dp(3);

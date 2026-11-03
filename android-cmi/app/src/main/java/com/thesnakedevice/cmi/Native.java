@@ -8,7 +8,7 @@ final class Native {
     // parameter indices (native.cpp)
     static final int LEVEL = 0, FILTER = 1, ATTACK = 2, DAMP = 3, SUSTAIN = 4, VIB = 5, VIBRATE = 6, VIBDELAY = 7, PORTA = 8, VELVOL = 9, VELFILT = 10,
             TRANSPOSE = 11, FINE = 12, LOOP = 13, SEG = 14, POLY = 15, BEND = 16, MASTER = 17, HISS = 18, SPREAD = 19, TEMPO = 20, SWING = 21, SONGMODE = 22;
-    static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 64, NCH = 16;
+    static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 200, NCH = 16;
 
     static native void start();
     static native void stop();
@@ -53,6 +53,10 @@ final class Native {
     static native String loadSample(float[] mono, int rate, String name, int slot, int root, boolean loop, int loopStart, int loopEnd);
     /** a WAV file's bytes: its smpl chunk's root key and loop are used */
     static native String loadWav(byte[] wav, String name, int slot, int root, boolean loop);
+    /** a CMI disk image: all its voices into the free user voices; returns the count, or an error message */
+    static native String loadDisk(byte[] image, String fileName);
+    /** a CMI .VC voice file into one slot; "" or the error */
+    static native String loadVc(byte[] vc, String name, String from, int slot);
     static native int firstFreeUser();
     static native int userCount();
     static native void clearUser(int k);
