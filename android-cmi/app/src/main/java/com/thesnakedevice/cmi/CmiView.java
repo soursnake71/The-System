@@ -30,7 +30,8 @@ public class CmiView extends View {
     private String status = "READY";
     int rootKey = 60; boolean loopSample = false;
     private int selTrack = 0, libScroll = 0, wavePage = -1, waveSound = -1, octave = 4;
-    private boolean songEditor = false;
+    private boolean songEditor = false, portrait = false;
+    private int half = 0;   // portrait Page R: steps 1-8 or 9-16
     private final byte[] wave = new byte[16384];
     private final int[] env = new int[Native.NCH];
 
@@ -83,7 +84,8 @@ public class CmiView extends View {
     @Override protected void onDraw(Canvas c) {
         hits.clear();
         final float W = getWidth(), H = getHeight();
-        final float keyH = Math.min(H * 0.26f, dp(110));
+        portrait = H > W;
+        final float keyH = portrait ? Math.min(H * 0.2f, dp(150)) : Math.min(H * 0.26f, dp(110));
         c.drawColor(0xff151515);
         fill(c, new RectF(0, H - keyH, W, H), CREAM);
         RectF scr = new RectF(dp(6), dp(4), W - dp(6), H - keyH - dp(4));
@@ -91,11 +93,14 @@ public class CmiView extends View {
         // tabs
         final char[] pages = { '2', '7', 'D', '8', 'R' };
         final String[] names = { "LIBRARY", "CONTROL", "WAVE", "SAMPLE", "COMPOSER" };
-        float tw = (scr.width() - dp(110)) / 5f;
-        text(c, "PAGE " + page, scr.left + dp(8), scr.top + dp(18), 13, INK);
+        final String[] shortNames = { "LIB", "CTRL", "WAVE", "SMPL", "SEQ" };
+        final float tabX = portrait ? dp(4) : dp(100);
+        float tw = (scr.width() - tabX - dp(10)) / 5f;
+        if (!portrait) text(c, "PAGE " + page, scr.left + dp(8), scr.top + dp(18), 13, INK);
         for (int i = 0; i < 5; ++i) {
             final char pg = pages[i];
-            RectF r = new RectF(scr.left + dp(100) + i * tw, scr.top + dp(3), scr.left + dp(100) + (i + 1) * tw - dp(4), scr.top + dp(23));
+            RectF r = new RectF(scr.left + tabX + i * tw, scr.top + dp(3), scr.left + tabX + (i + 1) * tw - dp(4), scr.top + dp(23));
+            if (tw < dp(96)) { button(c, r, pg + " " + shortNames[i], page == pg, () -> { page = pg; status = "READY"; }); continue; }
             button(c, r, pg + " " + names[i], page == pg, () -> { page = pg; status = "READY"; });
         }
         fill(c, new RectF(scr.left + dp(4), scr.top + dp(27), scr.right - dp(4), scr.top + dp(43)), INK);
@@ -161,8 +166,8 @@ public class CmiView extends View {
     }
     private String time(float v) { float t = Native.envTimeOf(v); return t < 1 ? Math.round(t * 1000) + "ms" : String.format("%.1fs", t); }
     private void controls(Canvas c, RectF b) {
-        final int rows = 13;
-        final float rh = Math.min(dp(26), b.height() / rows), cw = (b.width() - dp(16)) / 2;
+        final int rows = portrait ? 24 : 13;
+        final float rh = Math.min(dp(26), b.height() / rows), cw = portrait ? b.width() : (b.width() - dp(16)) / 2;
         Object[][] left = {
                 { Native.LEVEL, "LEVEL", 0f, 1f, false, false, (Fmt) v -> "" + Math.round(v * 255) },
                 { Native.FILTER, "FILTER", 0f, 255f, false, true, (Fmt) v -> "" + Math.round(v) },
@@ -191,8 +196,9 @@ public class CmiView extends View {
                 { Native.SONGMODE, "SONG MODE", 0f, 1f, true, true, null },
         };
         for (int i = 0; i < left.length; ++i) { Object[] o = left[i]; barRow(c, new RectF(b.left, b.top + i * rh, b.left + cw, b.top + (i + 1) * rh), (Integer) o[0], (String) o[1], (Float) o[2], (Float) o[3], (Boolean) o[4], (Boolean) o[5], (Fmt) o[6]); }
-        for (int i = 0; i < right.length; ++i) { Object[] o = right[i]; barRow(c, new RectF(b.left + cw + dp(16), b.top + i * rh, b.right, b.top + (i + 1) * rh), (Integer) o[0], (String) o[1], (Float) o[2], (Float) o[3], (Boolean) o[4], (Boolean) o[5], (Fmt) o[6]); }
-        button(c, new RectF(b.left + cw + dp(16), b.top + right.length * rh + dp(6), b.left + cw + dp(170), b.top + right.length * rh + dp(28)), "RESET TO VOICE", false,
+        final float rx = portrait ? b.left : b.left + cw + dp(16), ry = portrait ? b.top + left.length * rh : b.top;
+        for (int i = 0; i < right.length; ++i) { Object[] o = right[i]; barRow(c, new RectF(rx, ry + i * rh, b.right, ry + (i + 1) * rh), (Integer) o[0], (String) o[1], (Float) o[2], (Float) o[3], (Boolean) o[4], (Boolean) o[5], (Fmt) o[6]); }
+        button(c, new RectF(rx, ry + right.length * rh + dp(2), rx + dp(154), ry + right.length * rh + Math.min(rh, dp(24))), "RESET TO VOICE", false,
                 () -> Native.loadSound(Native.getSound()));
     }
 
@@ -204,9 +210,10 @@ public class CmiView extends View {
         final int ls = Integer.parseInt(f[6]), le = Integer.parseInt(f[7]);
         if (s != waveSound) { waveSound = s; wavePage = ls >= 0 ? ls : np / 4; }
         wavePage = Math.max(0, Math.min(np - 1, wavePage));
-        final float infoW = dp(150);
-        final float w = (b.width() - infoW) * 0.62f, dx = (b.width() - infoW) * 0.3f, h = b.height() * 0.16f, dy = b.height() * 0.68f;
-        final float x0 = b.left, y0 = b.bottom - h * 0.6f;
+        final float infoW = portrait ? 0 : dp(150), infoH = portrait ? Math.min(dp(200), b.height() * 0.4f) : 0;
+        final float wh = b.height() - infoH;
+        final float w = (b.width() - infoW) * 0.62f, dx = (b.width() - infoW) * 0.3f, h = wh * 0.16f, dy = wh * 0.68f;
+        final float x0 = b.left, y0 = b.top + wh - h * 0.6f;
         final int stepP = np > 64 ? 2 : 1;
         Paint lp = new Paint(Paint.ANTI_ALIAS_FLAG); lp.setStyle(Paint.Style.STROKE); lp.setStrokeWidth(dp(1));
         for (int pg = np - 1; pg >= 0; pg -= stepP) {
@@ -225,14 +232,16 @@ public class CmiView extends View {
             c.drawPath(line, lp);
         }
         Act pick = (x, y) -> wavePage = Math.max(0, Math.min(np - 1, Math.round((y0 - y) / dy * (np - 1))));
-        Hit hh = hit(new RectF(b.left, b.top, b.right - infoW, b.bottom), pick); hh.drag = pick;
-        float ix = b.right - infoW + dp(6), iy = b.top + dp(12);
+        Hit hh = hit(new RectF(b.left, b.top, b.right - infoW, b.top + wh), pick); hh.drag = pick;
+        float ix = portrait ? b.left : b.right - infoW + dp(6), iy = portrait ? b.top + wh + dp(14) : b.top + dp(12);
         String[] lines = { f[0], "PAGE " + (wavePage + 1) + "/" + np, "RATE " + f[3] + " Hz", "ROOT " + noteName(Integer.parseInt(f[4])),
                 "LOOP " + (ls >= 0 ? (ls + 1) + "-" + (le + 1) : "NONE"), f[8].equals("1") ? "WAVEFORM" : "SAMPLE", "8 BIT " + len + " B" };
         for (int i = 0; i < lines.length; ++i) text(c, lines[i], ix, iy + i * dp(16), 11, i == 0 ? INK : DIM);
         // channel cards
         Native.channelEnv(env);
-        float cy = iy + lines.length * dp(16) + dp(6), bw = (infoW - dp(12)) / 8f, bh = Math.min(dp(44), (b.bottom - cy) / 2 - dp(6));
+        float cy = portrait ? iy - dp(10) : iy + lines.length * dp(16) + dp(6);
+        if (portrait) ix = b.left + b.width() * 0.45f;
+        float bw = ((portrait ? b.right - ix : infoW) - dp(12)) / 8f, bh = Math.min(dp(44), (b.bottom - cy) / 2 - dp(6));
         for (int k = 0; k < Native.NCH; ++k) {
             RectF r = new RectF(ix + (k % 8) * bw, cy + (k / 8) * (bh + dp(6)), ix + (k % 8 + 1) * bw - dp(3), cy + (k / 8) * (bh + dp(6)) + bh);
             fill(c, r, FAINT);
@@ -243,15 +252,17 @@ public class CmiView extends View {
     // ---- Page 8 ----
     private void sampling(Canvas c, RectF b) {
         text(c, "SAMPLING  8 BITS, UP TO 32 kHz, 16 KB PER VOICE", b.left, b.top + dp(12), 12, INK);
-        final float rh = Math.min(dp(30), (b.height() - dp(56)) / 8);
+        final float rh = portrait ? Math.min(dp(52), (b.height() - dp(56)) / 8) : Math.min(dp(30), (b.height() - dp(56)) / 8);
         for (int k = 0; k < Native.USER_SLOTS; ++k) {
             final int slot = k;
             float y = b.top + dp(20) + k * rh;
             boolean has = Native.userLoaded(k);
             String[] f = info(Native.userSlot(k));
-            text(c, "USER" + (k + 1) + "  " + (has ? f[0] + "  " + f[3] + " Hz  root " + noteName(Integer.parseInt(f[4])) : "-- EMPTY --"), b.left, y + rh * 0.65f, 12, has ? INK : DIM);
-            button(c, new RectF(b.right - dp(200), y + dp(2), b.right - dp(110), y + rh - dp(3)), "LOAD", false, () -> act.pickSample(slot));
-            button(c, new RectF(b.right - dp(104), y + dp(2), b.right, y + rh - dp(3)), "PLAY", false, () -> { Native.loadSound(Native.userSlot(slot)); status = "LOADED"; });
+            final float ty = portrait ? y + dp(14) : y + rh * 0.65f;
+            text(c, "USER" + (k + 1) + "  " + (has ? f[0] + "  " + f[3] + " Hz  root " + noteName(Integer.parseInt(f[4])) : "-- EMPTY --"), b.left, ty, 12, has ? INK : DIM);
+            final float btop = portrait ? y + dp(20) : y + dp(2);
+            button(c, new RectF(b.right - dp(200), btop, b.right - dp(110), y + rh - dp(3)), "LOAD", false, () -> act.pickSample(slot));
+            button(c, new RectF(b.right - dp(104), btop, b.right, y + rh - dp(3)), "PLAY", false, () -> { Native.loadSound(Native.userSlot(slot)); status = "LOADED"; });
         }
         float y = b.bottom - dp(26);
         text(c, "ROOT " + noteName(rootKey), b.left, y + dp(16), 12, INK);
@@ -272,22 +283,27 @@ public class CmiView extends View {
         button(c, new RectF(x, b.top, x + dp(26), b.top + dp(22)), "<", false, () -> Native.setPattern(pat - 1)); x += dp(28);
         textC(c, "" + (pat + 1), new RectF(x, b.top, x + dp(30), b.top + dp(22)), 18, INK); x += dp(32);
         button(c, new RectF(x, b.top, x + dp(26), b.top + dp(22)), ">", false, () -> Native.setPattern(pat + 1)); x += dp(36);
+        float row2 = b.top;
+        if (portrait) { x = b.left; row2 = b.top + dp(26); }
+        final float t0 = row2;
         final float tempo = Native.getParam(Native.TEMPO);
-        text(c, String.format("SPEED %.0f", tempo), x, b.top + dp(17), 12, INK); x += dp(78);
-        button(c, new RectF(x, b.top, x + dp(26), b.top + dp(22)), "-", false, () -> Native.setParam(Native.TEMPO, Math.max(40, Math.round(tempo) - 2))); x += dp(28);
-        button(c, new RectF(x, b.top, x + dp(26), b.top + dp(22)), "+", false, () -> Native.setParam(Native.TEMPO, Math.min(240, Math.round(tempo) + 2))); x += dp(36);
-        button(c, new RectF(x, b.top, x + dp(56), b.top + dp(22)), "PLAY", running, () -> Native.seqRun(true)); x += dp(60);
-        button(c, new RectF(x, b.top, x + dp(56), b.top + dp(22)), "STOP", !running, () -> Native.seqRun(false)); x += dp(64);
+        text(c, String.format("SPEED %.0f", tempo), x, t0 + dp(17), 12, INK); x += dp(78);
+        button(c, new RectF(x, t0, x + dp(26), t0 + dp(22)), "-", false, () -> Native.setParam(Native.TEMPO, Math.max(40, Math.round(tempo) - 2))); x += dp(28);
+        button(c, new RectF(x, t0, x + dp(26), t0 + dp(22)), "+", false, () -> Native.setParam(Native.TEMPO, Math.min(240, Math.round(tempo) + 2))); x += dp(36);
+        button(c, new RectF(x, t0, x + dp(56), t0 + dp(22)), "PLAY", running, () -> Native.seqRun(true)); x += dp(60);
+        button(c, new RectF(x, t0, x + dp(56), t0 + dp(22)), "STOP", !running, () -> Native.seqRun(false)); x += dp(64);
         final boolean songOn = Native.getParam(Native.SONGMODE) > 0.5f;
-        button(c, new RectF(x, b.top, x + dp(64), b.top + dp(22)), "SONG", songOn, () -> Native.setParam(Native.SONGMODE, songOn ? 0 : 1)); x += dp(68);
-        if (running) text(c, "BAR " + (Native.seqBar() + 1), x, b.top + dp(17), 12, DIM);
+        button(c, new RectF(x, t0, x + dp(64), t0 + dp(22)), "SONG", songOn, () -> Native.setParam(Native.SONGMODE, songOn ? 0 : 1)); x += dp(68);
+        if (running) text(c, "BAR " + (Native.seqBar() + 1), x, t0 + dp(17), 12, DIM);
 
         // bottom line: editing
-        float by = b.bottom - dp(22);
+        final float footH = portrait ? dp(50) : dp(22);
+        float by = b.bottom - footH;
         final boolean aud = Native.trackAudible(selTrack);
         float bx = b.left;
         String[] lbl = { aud ? "AUDIBLE" : "MUTED", "INSERT", "DELETE", "ZERO", "FILL", "VOICE", songEditor ? "PATTERN" : "SONG" };
-        float bw = (b.width() - dp(6) * (lbl.length - 1)) / lbl.length;
+        final int perRow = portrait ? 4 : lbl.length;
+        float bw = (b.width() - dp(6) * (perRow - 1)) / perRow;
         Runnable[] fns = {
                 () -> Native.setTrackAudible(selTrack, !aud),
                 () -> { if (pat + 1 < Native.NPAT) { Native.copyPattern(pat, pat + 1); Native.setPattern(pat + 1); status = "COPIED"; } },
@@ -297,15 +313,23 @@ public class CmiView extends View {
                 () -> chooseSound(selTrack),
                 () -> songEditor = !songEditor,
         };
-        for (int i = 0; i < lbl.length; ++i) { button(c, new RectF(bx, by, bx + bw, by + dp(22)), lbl[i], i == 0 ? aud : (i == 6 && songEditor), fns[i]); bx += bw + dp(6); }
+        for (int i = 0; i < lbl.length; ++i) {
+            final float ry = by + (i / perRow) * dp(28), rx = b.left + (i % perRow) * (bw + dp(6));
+            button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 0 ? aud : (i == 6 && songEditor), fns[i]);
+        }
+        if (portrait && !songEditor) {   // the eighth slot of the footer: which half of the bar is on screen
+            final float ry = by + dp(28), rx = b.left + 3 * (bw + dp(6));
+            button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), half == 0 ? "STEPS 1-8" : "STEPS 9-16", false, () -> half ^= 1);
+        }
 
-        RectF g = new RectF(b.left, b.top + dp(28), b.right, by - dp(6));
+        RectF g = new RectF(b.left, t0 + dp(28), b.right, by - dp(6));
         if (songEditor) {
             final int n = Native.songLen(), bar = running && songOn ? Native.seqBar() : -1;
-            float cw = g.width() / 16f, ch = Math.min(dp(40), g.height() / 4f - dp(4));
+            final int perLine = portrait ? 8 : 16, lines = Native.SONG_MAX / perLine;
+            float cw = g.width() / perLine, ch = Math.min(dp(40), (g.height() - dp(16)) / lines - dp(4));
             for (int i = 0; i < Native.SONG_MAX; ++i) {
                 final int k = i;
-                RectF r = new RectF(g.left + (i % 16) * cw, g.top + (i / 16) * (ch + dp(4)), g.left + (i % 16 + 1) * cw - dp(3), g.top + (i / 16) * (ch + dp(4)) + ch);
+                RectF r = new RectF(g.left + (i % perLine) * cw, g.top + (i / perLine) * (ch + dp(4)), g.left + (i % perLine + 1) * cw - dp(3), g.top + (i / perLine) * (ch + dp(4)) + ch);
                 frame(c, r, i < n ? INK : FAINT);
                 if (i < n) textC(c, "" + (Native.songAt(i) + 1), r, 15, i == bar ? Color.WHITE : INK);
                 Hit h = hit(r, (xx, yy) -> { if (k >= Native.songLen()) Native.setSongLen(k + 1); else Native.setSongAt(k, (Native.songAt(k) + 1) % Native.NPAT); });
@@ -316,8 +340,10 @@ public class CmiView extends View {
         }
         final float nameW = Math.min(dp(120), g.width() * 0.22f);
         final float rh = g.height() / Native.TRACKS;
-        final float gx = g.left + nameW + dp(20), gw = g.right - gx, cw = gw / Native.STEPS;
-        if (stepNow >= 0 && Native.seqPat() == pat) fill(c, new RectF(gx + stepNow * cw, g.top, gx + (stepNow + 1) * cw, g.bottom), FAINT);
+        final int shown = portrait ? 8 : Native.STEPS, first = portrait ? half * 8 : 0;
+        final float gx = g.left + nameW + dp(20), gw = g.right - gx, cw = gw / shown;
+        final int visNow = stepNow - first;
+        if (stepNow >= 0 && Native.seqPat() == pat && visNow >= 0 && visNow < shown) fill(c, new RectF(gx + visNow * cw, g.top, gx + (visNow + 1) * cw, g.bottom), FAINT);
         for (int t = 0; t < Native.TRACKS; ++t) {
             final int tr = t;
             RectF nr = new RectF(g.left, g.top + t * rh, g.left + nameW, g.top + (t + 1) * rh);
@@ -327,9 +353,9 @@ public class CmiView extends View {
             nh.longPress = true; nh.hold = (xx, yy) -> { selTrack = tr; chooseSound(tr); };
             textC(c, "" + (t + 1), new RectF(nr.right, nr.top, gx, nr.bottom), 16, INK);
             p.setColor(DIM); c.drawLine(gx, nr.bottom, g.right, nr.bottom, p);
-            for (int s = 0; s < Native.STEPS; ++s) {
+            for (int s = first; s < first + shown; ++s) {
                 final int st = s;
-                RectF cell = new RectF(gx + s * cw, nr.top, gx + (s + 1) * cw, nr.bottom);
+                RectF cell = new RectF(gx + (s - first) * cw, nr.top, gx + (s - first + 1) * cw, nr.bottom);
                 int v = Native.getStep(pat, t, s), vel = v & 0xff, note = (byte) (v >> 8);
                 if (vel > 0) {
                     float sc = vel >= 120 ? 1f : vel >= 80 ? 0.75f : 0.5f;
@@ -362,7 +388,7 @@ public class CmiView extends View {
                 };
             }
         }
-        for (int s = 0; s < Native.STEPS; s += 4) { p.setColor(INK); c.drawRect(gx + s * cw, g.bottom - dp(2), gx + s * cw + dp(8), g.bottom, p); }
+        for (int s = 0; s < shown; s += 4) { p.setColor(INK); c.drawRect(gx + s * cw, g.bottom - dp(2), gx + s * cw + dp(8), g.bottom, p); }
     }
 
     private void chooseSound(final int track) {
@@ -402,7 +428,7 @@ public class CmiView extends View {
         }
     }
     private int lowKey() { return 12 * (octave + 1); }
-    private int whiteCount() { return Math.max(8, Math.min(22, (int) (keysRect.width() / dp(34)))); }
+    private int whiteCount() { return Math.max(8, Math.min(22, (int) (keysRect.width() / dp(portrait ? 38 : 34)))); }
     private static boolean isBlack(int n) { int k = ((n % 12) + 12) % 12; return k == 1 || k == 3 || k == 6 || k == 8 || k == 10; }
     private int keyAt(float x, float y) {
         if (!keysRect.contains(x, y)) return -1;
