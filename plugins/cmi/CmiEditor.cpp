@@ -43,17 +43,20 @@ void Screen::paint(juce::Graphics& g) {
         case '7': drawControls(g); break;
         case 'D': drawWave(g); break;
         case '8': drawSampling(g); break;
+        case 'M': drawMixer(g); break;
+        case 'F': drawFiles(g); break;
+        case '5': drawPen(g); break;
         default: drawComposer(g); break;
     }
     // page index along the bottom
-    const char* pages[] = { "2", "7", "D", "8", "R" };
-    const char* names[] = { "LIBRARY", "CONTROL", "WAVEFORM", "SAMPLING", "COMPOSER" };
+    const char* pages[] = { "2", "7", "D", "5", "8", "F", "M", "R" };
+    const char* names[] = { "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
     float x = 20;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 8; ++i) {
         const char p = pages[i][0];
-        juce::Rectangle<float> r(x, (float) H - 26, 180, 22);
-        button(g, r, juce::String("PAGE ") + pages[i] + " " + names[i], page == p, [this, p] { page = p; status = "READY"; repaint(); });
-        x += 194;
+        juce::Rectangle<float> r(x, (float) H - 26, 115, 22);
+        button(g, r, juce::String(pages[i]) + " " + names[i], page == p, [this, p] { page = p; status = "READY"; repaint(); });
+        x += 120;
     }
     // CRT: scanlines and a soft vignette
     g.setColour(juce::Colours::black.withAlpha(0.18f));
@@ -255,6 +258,132 @@ void Screen::drawWave(juce::Graphics& g) {
 }
 
 // ---- Page 8: sampling into the user voices ----
+// ---- Page M: the mixer ----
+void Screen::drawMixer(juce::Graphics& g) {
+    auto& eng = ed.proc.engine;
+    const MidiSong* s = eng.song.load();
+    std::vector<std::pair<int, juce::String>> strips { { 0, "KEYBOARD" } };
+    if (s) { for (int t = 0; t < SONG_TRK; ++t) if (s->used[t]) strips.push_back({ 1 + TRACKS + t, juce::String(s->trackName[t]).substring(0, 8) }); }
+    else for (int t = 0; t < TRACKS; ++t) { const Sound* snd = ed.proc.kit.bank.at(eng.seq.trk[t].sound); strips.push_back({ 1 + t, snd ? juce::String(snd->name) : juce::String(t + 1) }); }
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText(juce::String("MIXER   ") + (s ? "SONG: " + juce::String(s->name).substring(0, 30) : juce::String("PAGE R PATTERNS")), 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    const int n = (int) strips.size() + 1;
+    const float sw = std::min(80.f, (W - 40.f) / n), top = 90, fh = 330;
+    auto fader = [&](float x, std::atomic<float>& val, float meterV, const juce::String& label, int idx) {
+        g.setColour(kInk); g.setFont(mono(12)); g.drawText(label, (int) x, (int) top, (int) sw - 4, 16, juce::Justification::centred);
+        const juce::Rectangle<float> slot(x + sw * 0.5f - 4, top + 24, 8, fh);
+        g.setColour(kFaint); g.fillRect(slot);
+        const float mv = juce::jlimit(0.f, 1.f, meterV);
+        g.setColour(mv > 0.95f ? juce::Colours::white : kDim); g.fillRect(x + 4, slot.getBottom() - fh * mv, 6.f, fh * mv);
+        const float v = val.load(), y = slot.getBottom() - fh * v / 1.5f;
+        g.setColour(kInk); g.fillRect(x + 8, y - 6, sw - 20, 12.f); g.setColour(kBg); g.drawHorizontalLine((int) y, x + 10, x + sw - 14);
+        g.setColour(kDim); g.setFont(mono(11));
+        g.drawText(v <= 0.001f ? juce::String("-INF") : juce::String(20 * std::log10(v), 1), (int) x, (int) (slot.getBottom() + 4), (int) sw - 4, 14, juce::Justification::centred);
+        auto set = [&val, slot](const juce::MouseEvent& m) { val = juce::jlimit(0.f, 1.5f, (slot.getBottom() - m.position.y) / slot.getHeight() * 1.5f); };
+        auto& h = hit({ x, top + 18, sw - 4, fh + 12 }, set, set);
+        h.wheel = [&val](float dy) { val = juce::jlimit(0.f, 1.5f, val.load() + (dy > 0 ? 0.03f : -0.03f)); };
+        if (idx < 0) return;
+        const float py = top + fh + 46;
+        const float po = eng.panOver[(size_t) idx].load();
+        g.setColour(kFaint); g.fillRect(x + 4, py, sw - 12, 8.f);
+        g.setColour(po < 0 ? kDim : kInk); g.fillRect(x + 4 + (sw - 16) * (po < 0 ? 0.5f : po), py - 2, 4.f, 12.f);
+        auto pan = [this, idx, x, sw](const juce::MouseEvent& m) { ed.proc.engine.panOver[(size_t) idx] = m.getNumberOfClicks() > 1 ? -1.f : juce::jlimit(0.f, 1.f, (m.position.x - x - 4) / (sw - 16)); };
+        hit({ x, py - 4, sw - 4, 16 }, pan, pan);
+        const bool mu = eng.mute[(size_t) idx].load(), so = eng.solo[(size_t) idx].load();
+        button(g, { x + 2, py + 18, sw / 2 - 4, 20 }, "M", mu, [this, idx, mu] { ed.proc.engine.mute[(size_t) idx] = !mu; });
+        button(g, { x + sw / 2, py + 18, sw / 2 - 4, 20 }, "S", so, [this, idx, so] { ed.proc.engine.solo[(size_t) idx] = !so; });
+    };
+    float x = 20;
+    for (const auto& st : strips) { fader(x, eng.fader[(size_t) st.first], eng.meter[(size_t) st.first].load(), st.second, st.first); x += sw; }
+    // master: the master parameter (host-automatable)
+    static std::atomic<float> masterView { 1 };
+    masterView = ed.proc.get("master");
+    const float before = masterView.load();
+    fader(W - 20 - sw, masterView, std::max(eng.meterL.load(), eng.meterR.load()), "MASTER", -1);
+    if (masterView.load() != before) ed.proc.set("master", masterView.load());
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText("drag a fader, wheel for fine; drag a pan, double-click it back to the track's own; M mute, S solo", 20, (int) (top + fh + 96), W - 40, 16, juce::Justification::centredLeft);
+}
+
+// ---- Page F: the library folder ----
+void Screen::drawFiles(juce::Graphics& g) {
+    const juce::File dir = ed.proc.libraryFolder();
+    const auto files = ed.proc.libraryFiles();
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("LIBRARY FOLDER: " + (dir == juce::File() ? juce::String("(none set)") : dir.getFullPathName()), 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    button(g, { 20, 84, 170, 24 }, "SET FOLDER", false, [this] {
+        ed.chooser = std::make_unique<juce::FileChooser>("Your CMI library: songs, disks, samples", ed.proc.libraryFolder());
+        ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [this](const juce::FileChooser& fc) {
+            if (fc.getResult().isDirectory()) { ed.proc.setLibraryFolder(fc.getResult()); status = juce::String((int) ed.proc.libraryFiles().size()) + " FILES FOUND"; filePage = 0; } repaint(); });
+    });
+    button(g, { 200, 84, 130, 24 }, "RESCAN", false, [this] { ed.proc.rescanLibrary(); status = juce::String((int) ed.proc.libraryFiles().size()) + " FILES FOUND"; });
+    button(g, { 340, 84, 190, 24 }, "LOAD ALL SONGS", false, [this] {
+        juce::Array<juce::File> a; for (auto& f : ed.proc.libraryFiles()) if (f.hasFileExtension("mid;midi;zip")) a.add(f);
+        int n = 0; status = ed.proc.importFiles(a, rootKey, loopIt, n); });
+    button(g, { 540, 84, 190, 24 }, "LOAD ALL SOUNDS", false, [this] {
+        juce::Array<juce::File> a; for (auto& f : ed.proc.libraryFiles()) if (!f.hasFileExtension("mid;midi;zip")) a.add(f);
+        int n = 0; status = ed.proc.importFiles(a, rootKey, loopIt, n); });
+    button(g, { 740, 84, 240, 24 }, "REMOVE DUPLICATE SONGS", false, [this] { const int c = ed.proc.currentSong(); const int gone = ed.proc.songs.removeDuplicates(); if (!ed.proc.songs.at(c)) ed.proc.chooseSong(-1); status = juce::String(gone) + " DUPLICATES REMOVED"; });
+    const int rows = 20, per = rows * 2;
+    const int pages = std::max(1, ((int) files.size() + per - 1) / per);
+    filePage = juce::jlimit(0, pages - 1, filePage);
+    for (int k = 0; k < per && filePage * per + k < (int) files.size(); ++k) {
+        const juce::File f = files[(size_t) (filePage * per + k)];
+        const juce::String e = f.getFileExtension().toLowerCase();
+        const juce::String tag = e == ".mid" || e == ".midi" ? "SONG" : e == ".zip" ? "ZIP " : e == ".vc" ? "VC  " : e == ".imd" || e == ".img" || e == ".bin" || e == ".raw" || e == ".dsk" ? "DISK" : "WAV ";
+        juce::Rectangle<float> r(20.f + (k / rows) * 480.f, 118.f + (k % rows) * 21.f, 470, 20);
+        g.setColour(tag == "SONG" ? kInk : kDim); g.setFont(mono(14));
+        g.drawText(tag + " " + f.getFileNameWithoutExtension().substring(0, 50), r, juce::Justification::centredLeft);
+        hit(r, [this, f](const juce::MouseEvent&) { int n = 0; status = ed.proc.importFiles({ f }, rootKey, loopIt, n); });
+    }
+    if (files.empty()) { g.setColour(kDim); g.drawText("Set a folder with your MIDI songs, CMI disks (.IMD / .IMG), voice files and samples. Click a file to load it.", 20, 130, W - 40, 20, juce::Justification::centredLeft); }
+    if (pages > 1) {
+        const float y = 118 + rows * 21 + 4;
+        button(g, { 20, y, 40, 22 }, "<", false, [this] { filePage = juce::jmax(0, filePage - 1); });
+        g.setColour(kInk); g.setFont(mono(15)); g.drawText(juce::String(filePage + 1) + "/" + juce::String(pages), 64, (int) y, 70, 22, juce::Justification::centred);
+        button(g, { 138, y, 40, 22 }, ">", false, [this, pages] { filePage = juce::jmin(pages - 1, filePage + 1); });
+    }
+}
+
+// ---- Page 5: drawing with the light pen ----
+void Screen::drawPen(juce::Graphics& g) {
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("LIGHT PEN: DRAW THE START AND THE END WAVEFORM; THE VOICE MORPHS FROM ONE TO THE OTHER", 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    for (int b = 0; b < 2; ++b) {
+        const juce::Rectangle<float> r(20.f + b * 490.f, 100, 470, 300);
+        g.setColour(b == penBox ? kInk : kDim); g.drawRect(r, b == penBox ? 2.f : 1.f);
+        g.setColour(kFaint); g.drawHorizontalLine((int) r.getCentreY(), r.getX(), r.getRight());
+        g.setFont(mono(14)); g.setColour(kDim); g.drawText(b ? "END" : "START", (int) r.getX() + 6, (int) r.getY() + 4, 80, 16, juce::Justification::centredLeft);
+        juce::Path path;
+        for (int i = 0; i < 128; ++i) { const float x = r.getX() + r.getWidth() * i / 127.f, y = r.getCentreY() - cycle[b][i] * r.getHeight() * 0.48f; if (i == 0) path.startNewSubPath(x, y); else path.lineTo(x, y); }
+        g.setColour(kInk); g.strokePath(path, juce::PathStrokeType(2.f));
+        auto draw = [this, b, r](const juce::MouseEvent& m) {
+            penBox = b;
+            const int px = juce::jlimit(0, 127, (int) std::lround((m.position.x - r.getX()) / r.getWidth() * 127));
+            const float pv = juce::jlimit(-1.f, 1.f, (r.getCentreY() - m.position.y) / (r.getHeight() * 0.48f));
+            if (lastPx < 0 || m.mouseWasClicked()) { cycle[b][px] = pv; }
+            else { const int a = std::min(lastPx, px), c = std::max(lastPx, px); for (int i = a; i <= c; ++i) cycle[b][i] = c == a ? pv : lastPv + (pv - lastPv) * (float) (i - lastPx) / (float) (px - lastPx); }
+            lastPx = px; lastPv = pv;
+        };
+        auto& h = hit(r, [this, draw](const juce::MouseEvent& m) { lastPx = -1; draw(m); }, draw);
+        h.up = [this](const juce::MouseEvent&) { lastPx = -1; if (ed.proc.lastDrawn >= 0) ed.proc.saveDrawnVoice(cycle[0], cycle[1], false); };
+    }
+    auto shape = [this](int kind) {
+        for (int i = 0; i < 128; ++i) {
+            const float ph = i / 128.f;
+            float v = kind == 0 ? std::sin(2 * (float) PI * ph) : kind == 1 ? 1 - 2 * ph : kind == 2 ? (ph < 0.5f ? 1.f : -1.f) : kind == 3 ? (ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph) : 0.f;
+            if (kind == 4) v = (float) (std::rand() % 2001 - 1000) / 1000.f;
+            cycle[penBox][i] = v;
+        }
+    };
+    const char* names[] = { "SINE", "SAW", "SQUARE", "TRIANGLE", "NOISE", "CLEAR" };
+    for (int k = 0; k < 6; ++k) button(g, { 20.f + k * 120, 412, 110, 24 }, names[k], false, [shape, k] { shape(k); });
+    button(g, { 740, 412, 240, 24 }, "COPY START TO END", false, [this] { std::copy(cycle[0], cycle[0] + 128, cycle[1]); });
+    button(g, { 20, 450, 300, 26 }, "SAVE AS A NEW VOICE", false, [this] { const auto e = ed.proc.saveDrawnVoice(cycle[0], cycle[1], true); status = e.isEmpty() ? "DRAWN VOICE ON THE KEYBOARD" : e; });
+    g.setColour(kDim); g.setFont(mono(13));
+    g.drawText("After saving, every stroke updates that voice: draw and play at the same time.", 340, 452, 640, 22, juce::Justification::centredLeft);
+}
+
 void Screen::drawSampling(juce::Graphics& g) {
     auto& kit = ed.proc.kit;
     constexpr int per = 16;

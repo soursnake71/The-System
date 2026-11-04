@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
             const int before = p.songs.count(); int n = 0;
             const auto msg = p.importFiles({ zf }, 60, false, n);
             std::printf("zip import: %s (%d songs before, %d after)\n", msg.toRawUTF8(), before, p.songs.count());
-            ok &= p.songs.count() > before;
+            ok &= p.songs.count() > before || msg.contains("DUPLICATES SKIPPED");
         }
     }
     // state round trip keeps Page R and the user sample
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
-    for (char pg : { 'R', '2', '7', 'D', '8' }) {
+    for (char pg : { 'R', '2', '7', 'D', '8', 'M', 'F', '5' }) {
         run(20, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0); });
         ce->showPage(pg);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);

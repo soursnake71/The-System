@@ -36,6 +36,9 @@ private:
     void drawControls(juce::Graphics&);
     void drawWave(juce::Graphics&);
     void drawSampling(juce::Graphics&);
+    void drawMixer(juce::Graphics&);
+    void drawFiles(juce::Graphics&);
+    void drawPen(juce::Graphics&);
     void drawComposer(juce::Graphics&);
     void drawMidiSong(juce::Graphics&);
     void drawGrid(juce::Graphics&, juce::Rectangle<float> area);
@@ -51,6 +54,7 @@ private:
     int wavePage = 0, selTrack = 0, libScroll = 0, userPage = 0, dragRoot = 60;
     // the song editing grid (a piano roll of one track)
     bool songGrid = false; int gridTrack = -1;
+    float cycle[2][128] {}; int penBox = 0, lastPx = -1; float lastPv = 0; int filePage = 0;
     double viewStart = 0, viewBeats = 16, snap = 0.25; int pitchLow = 48;
     std::vector<SongNote> work; int dragIdx = -1, dragMode = 0; SongNote dragOrig {}; double grabBeat = 0; int grabPitch = 0; bool dirty = false; const Sound* waveSound = nullptr;
     bool songEditor = false;
