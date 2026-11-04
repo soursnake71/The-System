@@ -290,6 +290,27 @@ int main(int argc, char** argv) {
             CHECK(pk > 0.01 && eh.songBeat.load() > 1.0, "host sync from beat 2 (beat %.2f)", eh.songBeat.load());
         }
         CHECK(!parseSmf((const uint8_t*) "junk", 4, "x", ms, err), "junk MIDI refused");
+        // duplicates: other versions of the same title, the fuller one stays
+        {
+            CHECK(songKey("1984 - Frankie Goes To Hollywood - Relax (alt)") == songKey("Frankie Goes To Hollywood - Relax") &&
+                  songKey("1984   FRANKIE GOES TO HOLLYWOOD   RELAX") == songKey("Frankie Goes To Hollywood - Relax") &&
+                  songKey("Jan Hammer - Miami Vice Theme (alt 2)") == songKey("Jan Hammer - Miami Vice Theme") &&
+                  songKey("Kate Bush - Running Up That Hill (Online Sequencer)") == songKey("Kate Bush - Running Up That Hill") &&
+                  songKey("Duran Duran - Rio") != songKey("Duran Duran - A View to a Kill"), "song keys");
+            if (ok) {
+                Kit kd2; SongList sl2; int dup = -1;
+                MidiSong a = ms; a.name = "Song A"; MidiSong b = ms; b.name = "SONG A (alt)"; MidiSong c = ms; c.name = "Song B";
+                auto nb = notesOf(b); nb.push_back({ 0, 5, 1, 70, 100 }); setNotes(b, nb); b.raw = writeSmf(b);
+                sl2.addUnique(a, kd2.bank, dup); const int d0 = dup;
+                sl2.addUnique(a, kd2.bank, dup); const int d1 = dup;    // the same file again
+                sl2.addUnique(b, kd2.bank, dup); const int d2 = dup;    // a fuller version
+                sl2.addUnique(c, kd2.bank, dup); const int d3 = dup;
+                CHECK(d0 == 0 && d1 == 1 && d2 == 2 && d3 == 0 && sl2.count() == 2, "dedupe on import: %d %d %d %d, %d songs", d0, d1, d2, d3, sl2.count());
+                SongList sl3; sl3.add(a, kd2.bank); sl3.add(b, kd2.bank); sl3.add(c, kd2.bank); sl3.add(a, kd2.bank);
+                const int gone = sl3.removeDuplicates();
+                CHECK(gone == 2 && sl3.count() == 2 && noteCount(*sl3.at(sl3.nth(0))->song) == 6, "remove duplicates: %d gone", gone);
+            }
+        }
         // auto matching: by name, preferring a loaded CMI disk voice, then GM
         {
             MidiSong m2 = ms; m2.used[2] = m2.used[3] = m2.used[4] = true;
@@ -332,6 +353,27 @@ int main(int argc, char** argv) {
             CHECK(wb.size() == 44 + rr.L.size() * 6 && !std::memcmp(wb.data(), "RIFF", 4), "24-bit WAV");
             writeWav(dir + "/SONG_RENDER.wav", rr.L, rr.R, 44100);
         }
+    }
+
+    // ---- the mixer: faders, mute, solo, meters ----
+    {
+        Engine em; em.bank = &lib.bank; em.prepare(fs); em.setOutput(1, 0, 0); em.setKeyboard(lib.find("STRINGS"), lib.sound(lib.find("STRINGS"))->ctl);
+        auto level = [&]() { std::vector<float> a(4800), b(4800); for (int k = 0; k < 10; ++k) em.render(a.data(), b.data(), 4800); double p = 0; for (float v : a) p = std::max(p, (double) std::fabs(v)); return p; };
+        em.keyOn(60, 1);
+        const double full = level();
+        em.fader[0] = 0.5f; const double half = level();
+        em.mute[0] = true; const double muted = level();
+        em.mute[0] = false; em.solo[3] = true; const double soloed = level();
+        em.solo[3] = false; em.fader[0] = 1; level();
+        std::printf("mixer: full %.3f, fader 0.5 %.3f, muted %.4f, another strip soloed %.4f, meter %.3f\n", full, half, muted, soloed, em.meter[0].load());
+        CHECK(half < full * 0.6 && half > full * 0.4 && muted < 0.002 && soloed < 0.002 && em.meter[0].load() > 0.05, "mixer strips");
+    }
+    // ---- a drawn voice ----
+    {
+        float a[PAGE], b2[PAGE]; for (int i = 0; i < PAGE; ++i) { a[i] = (float) std::sin(2 * PI * i / PAGE); b2[i] = i < PAGE / 2 ? 1.f : -1.f; }
+        Sound d = drawnVoice("DRAW1", a, b2);
+        CHECK(d.mode == Mode::Waveform && d.ram.size() == (size_t) RAM_SIZE && std::abs((int) d.ram[32] - 254) < 3 && std::abs((int) d.ram[127 * PAGE + 32] - 254) < 3 &&
+              std::abs((int) d.ram[127 * PAGE + 96] - 2) < 3, "drawn voice: sine morphing to square");
     }
 
     // ---- speed: 16 voices for one second ----

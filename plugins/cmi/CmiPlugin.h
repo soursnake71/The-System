@@ -113,6 +113,15 @@ public:
     void resetCCMap();
     int ccFor(int param) const { for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() == param) return c; return -1; }
 
+    // the library folder: where your songs, disks and samples live (remembered for every project too)
+    juce::File libraryFolder() const { const juce::ScopedLock l(infoLock); return libFolder; }
+    void setLibraryFolder(const juce::File& f);
+    std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
+    void rescanLibrary();
+    // a voice drawn on Page 5: into a new user voice, or over the one drawn last
+    juce::String saveDrawnVoice(const float* start, const float* end, bool asNew);
+    int lastDrawn = -1;
+
     // exports (run on a background thread; done() comes back on the message thread)
     void exportAudio(const juce::File& f, bool stems, std::function<void(juce::String)> done);
     void exportMidi(const juce::File& f, std::function<void(juce::String)> done);
@@ -129,6 +138,9 @@ private:
     int program = 0;
     std::atomic<int> pendingProgram { -1 }, previewReq { -1 }, bankMsb { 0 };
     std::array<std::atomic<float>, 128> ccVal; std::atomic<uint64_t> ccDirty[2];
+    juce::File libFolder; std::vector<juce::File> libFiles; juce::CriticalSection infoLock;
+    std::unique_ptr<juce::PropertiesFile> settings;
+    int dupSkipped = 0;
     juce::ThreadPool pool { 1 };
     juce::AudioFormatManager formats;
     std::vector<float> bufL, bufR;

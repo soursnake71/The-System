@@ -268,6 +268,15 @@ public:
     int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
     bool songMute[SONG_TRK] {};
     std::atomic<double> songGain { 0.5 };                // a whole band on 32 cards: headroom for the summing amp
+
+    // the mixer: a fader (0..1.5), a pan (-1: as the MIDI file / the track says) and solo per strip, meters (peaks)
+    // strips: 0 keyboard, 1..8 Page R tracks, 9..24 song tracks
+    static constexpr int STRIPS = 1 + TRACKS + SONG_TRK;
+    std::array<std::atomic<float>, STRIPS> fader, panOver, meter;
+    std::array<std::atomic<bool>, STRIPS> solo, mute;
+    std::atomic<float> meterL { 0 }, meterR { 0 };
+    Engine() { for (int i = 0; i < STRIPS; ++i) { fader[(size_t) i] = 1; panOver[(size_t) i] = -1; meter[(size_t) i] = 0; solo[(size_t) i] = false; mute[(size_t) i] = false; } }
+    int stripOf(int card) const { return card < KEY_CH ? 0 : curSong ? 1 + TRACKS + clampi(cardTrack[card], 0, SONG_TRK - 1) : 1 + (card - KEY_CH) % TRACKS; }
     std::function<int(int note)> kitVoice;                 // GM drum note -> sound index
 
     void prepare(double sampleRate) {
@@ -518,18 +527,28 @@ private:
         if ((int) mono.size() < n) { mono.resize((size_t) n); side.resize((size_t) n); }
         float* kbL = L; float* kbR = R;
         std::fill(kbL, kbL + n, 0.f); std::fill(kbR, kbR + n, 0.f);
+        bool anySolo = false; for (const auto& sl : solo) anySolo |= sl.load();
+        float peak[STRIPS] {};
         for (int i = 0; i < NCH; ++i) {
             Channel& c = ch[(size_t) i];
             if (c.st() == Channel::Idle) continue;
             std::fill(mono.begin(), mono.begin() + n, 0.f);
             c.render(mono.data(), n);
+            const int sIdx = stripOf(i);
             double pan;
             if (i < KEY_CH) pan = 0.5 + ((i & 1) ? 0.5 : -0.5) * spread * (0.4 + 0.6 * (i >> 1) / 3.0);
             else if (curSong) pan = songPan[clampi(cardTrack[i], 0, SONG_TRK - 1)];
             else pan = seq.trk[(i - KEY_CH) % TRACKS].pan;
-            const float gl = (float) std::cos(pan * PI / 2) * 1.41421356f, gr = (float) std::sin(pan * PI / 2) * 1.41421356f;
-            for (int k = 0; k < n; ++k) { kbL[k] += mono[(size_t) k] * gl; kbR[k] += mono[(size_t) k] * gr; }
+            const float po = panOver[(size_t) sIdx].load();
+            if (po >= 0) pan = po;
+            const bool on = !mute[(size_t) sIdx].load() && (!anySolo || solo[(size_t) sIdx].load());
+            const float gain = on ? fader[(size_t) sIdx].load() : 0.f;
+            const float gl = (float) std::cos(pan * PI / 2) * 1.41421356f * gain, gr = (float) std::sin(pan * PI / 2) * 1.41421356f * gain;
+            float pk = 0;
+            for (int k = 0; k < n; ++k) { const float m = mono[(size_t) k]; kbL[k] += m * gl; kbR[k] += m * gr; pk = std::max(pk, std::fabs(m)); }
+            peak[sIdx] = std::max(peak[sIdx], pk * gain * 0.5f * (float) master);
         }
+        for (int i = 0; i < STRIPS; ++i) meter[(size_t) i] = std::max(peak[i], meter[(size_t) i].load() * 0.92f);
         // output stage: coupling capacitor, summing amplifier, noise floor, level
         const double g = 0.5 * master;
         for (int k = 0; k < n; ++k) {
@@ -540,6 +559,8 @@ private:
             kbL[k] = (float) (soft(l) + nz);
             kbR[k] = (float) (soft(r) + nz);
         }
+        float pl = 0, pr = 0; for (int k = 0; k < n; ++k) { pl = std::max(pl, std::fabs(kbL[k])); pr = std::max(pr, std::fabs(kbR[k])); }
+        meterL = std::max(pl, meterL.load() * 0.92f); meterR = std::max(pr, meterR.load() * 0.92f);
     }
 
     // the summing amplifier: clean to 0.6, then rounding into its rails at 1

@@ -871,6 +871,23 @@ private:
     std::vector<std::unique_ptr<Sound>> owned; std::mutex lock;
 };
 
+// A voice drawn with the light pen: a start and an end cycle (128 points each, -1..1), morphing across the 128
+// segments as the CMI's waveform voices do (start == end: one waveform all the way).
+inline Sound drawnVoice(const std::string& name, const float* start, const float* end) {
+    Sound s; s.name = name.substr(0, 8); s.title = "Drawn with the light pen"; s.category = "User"; s.mode = Mode::Waveform;
+    s.rate = 128.0 * 440.0; s.root = 69; s.loopStart = 96; s.loopEnd = 127;
+    Controls c; c.attack = 2; c.damp = 10; c.segTime = 0.02f; s.ctl = c;
+    s.ram.resize((size_t) RAM_SIZE);
+    float pk = 1e-6f; for (int i = 0; i < PAGE; ++i) pk = std::max({ pk, std::fabs(start[i]), std::fabs(end[i]) });
+    for (int p = 0; p < PAGES; ++p) {
+        const float u = std::min(1.f, p / 96.f);
+        // remove any offset so the cycle sits on the zero line
+        double m = 0; for (int i = 0; i < PAGE; ++i) m += start[i] * (1 - u) + end[i] * u; m /= PAGE;
+        for (int i = 0; i < PAGE; ++i) s.ram[(size_t) (p * PAGE + i)] = (uint8_t) clampi((int) std::lround(((start[i] * (1 - u) + end[i] * u) - m) / pk * 126.0) + 128, 1, 255);
+    }
+    return s;
+}
+
 // Turns any audio (mono floats at srcRate) into a CMI sound, like Page 8 sampling.
 //  - A sound that already fits a channel card (at most 32 kHz and 16 KB, as the CMI library's own sounds are) is
 //    kept sample for sample at its own rate.

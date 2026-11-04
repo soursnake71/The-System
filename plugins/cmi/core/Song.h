@@ -366,6 +366,24 @@ inline std::function<int(int)> kitLookup(const Bank& bank) {
     };
 }
 
+// ---- duplicates ----
+// a song's title without the year in front, its file's version notes in brackets, and punctuation:
+// "1984 - Frankie Goes To Hollywood - Relax (alt)" and "Frankie Goes To Hollywood - Relax" are the same song
+inline std::string songKey(const std::string& name) {
+    std::string s; int depth = 0;
+    for (char c : name) { if (c == '(' || c == '[') ++depth; else if (c == ')' || c == ']') depth = std::max(0, depth - 1); else if (!depth) s += c; }
+    // a year at the start ("1984 - ")
+    { size_t i = 0; while (i < s.size() && s[i] == ' ') ++i;
+      size_t d = i; while (d < s.size() && std::isdigit((unsigned char) s[d])) ++d;
+      if (d - i == 4 && d < s.size() && (s[d] == ' ' || s[d] == '-' || s[d] == '_')) s = s.substr(d); }
+    std::string k; for (char c : s) if (std::isalnum((unsigned char) c)) k += (char) std::tolower((unsigned char) c);
+    // trailing version words
+    for (const char* tail : { "alt", "alt1", "alt2", "remix", "maybe", "maybe1", "maybe2", "wip", "onlinesequencer" })
+        { const std::string t = tail; if (k.size() > t.size() + 3 && k.compare(k.size() - t.size(), t.size(), t) == 0) k.resize(k.size() - t.size()); }
+    return k;
+}
+inline size_t noteCount(const MidiSong& s) { size_t n = 0; for (const auto& e : s.ev) n += (e.status & 0xF0) == 0x90 && e.d2; return n; }
+
 // One instance's songs (imported MIDI files), each with the voices and mutes chosen for its tracks. Songs are never
 // changed in place: an edit makes a new version and the old ones stay alive (for undo, and for the audio thread,
 // which may still be reading one), so the engine can hold a pointer to any of them.
@@ -391,6 +409,34 @@ public:
     int count() const { int n = 0; for (auto& e : items) n += !e->removed; return n; }
     int nth(int k) const { for (int i = 0; i < size(); ++i) if (at(i) && k-- == 0) return i; return -1; }
     int indexOf(const MidiSong* s) const { if (!s) return -1; for (int i = 0; i < size(); ++i) if (at(i) && at(i)->song->id == s->id) return i; return -1; }
+    // the same song already here (same file, or another version of the same title)
+    int findDuplicate(const MidiSong& s) const {
+        const std::string k = songKey(s.name);
+        for (int i = 0; i < size(); ++i) if (const SongEntry* e = at(i)) if (e->song->raw == s.raw || (!k.empty() && songKey(e->song->name) == k)) return i;
+        return -1;
+    }
+    // adds a song unless it's a duplicate; another version with more notes replaces the one here.
+    // Returns the song's index; dup tells what happened (0 new, 1 skipped, 2 replaced the old version)
+    int addUnique(MidiSong s, const Bank& bank, int& dup) {
+        const int d = findDuplicate(s);
+        if (d < 0) { dup = 0; return add(std::move(s), bank); }
+        if (at(d)->song->raw == s.raw || noteCount(s) <= noteCount(*at(d)->song)) { dup = 1; return d; }
+        remove(d); dup = 2; return add(std::move(s), bank);
+    }
+    // keeps the fullest version of each song; returns how many went
+    int removeDuplicates() {
+        int gone = 0;
+        for (int i = 0; i < size(); ++i) {
+            SongEntry* a = at(i); if (!a) continue;
+            for (int j = i + 1; j < size(); ++j) {
+                SongEntry* b = at(j); if (!b) continue;
+                if (a->song->raw != b->song->raw && songKey(a->song->name) != songKey(b->song->name)) continue;
+                if (noteCount(*b->song) > noteCount(*a->song)) { remove(i); ++gone; break; }
+                remove(j); ++gone;
+            }
+        }
+        return gone;
+    }
 private:
     std::vector<std::unique_ptr<SongEntry>> items; std::mutex lock; uint32_t nextId = 0;
 };
