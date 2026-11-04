@@ -74,10 +74,15 @@ public:
                 phase -= 1.0;
                 int s = cur;
                 if (run) {
-                    const int a = ((msb << 7) | lsb) & 0x3FFF;
-                    s = a < (int) snd->ram.size() ? (int) snd->ram[(size_t) a] - 128 : 0;
-                    if (++lsb == PAGE) { lsb = 0; pageEnd(); }
-                } else s = 0;
+                    s = ramAt(msb, lsb);
+                    if (xf > 0) {   // across a loop: from where the sound was going into the loop's start
+                        const int so = oldMsb >= 0 ? ramAt(oldMsb, lsb) : 0;
+                        const double w = 0.5 - 0.5 * std::cos(PI * (xfLen - xf) / xfLen);   // raised cosine: no corners
+                        s = (int) std::lround(so + (s - so) * w);
+                        --xf;
+                    }
+                    if (++lsb == PAGE) { lsb = 0; if (oldMsb >= 0) oldMsb = oldMsb + 1 < snd->pages() ? oldMsb + 1 : -1; pageEnd(); }
+                } else s = cur;   // stopped: the DAC holds its last value while the envelope closes
                 if (s != cur) {
                     const double frac = inc > 0 ? std::min(phase / inc, 0.999999) : 0;
                     const double p = frac * BL_PH; const int i0 = (int) p; const float f = (float) (p - i0);
@@ -106,7 +111,7 @@ private:
     void startPending() {
         snd = pend.s; ctl = pend.c; note = pend.note; vel = pend.vel; gate = pend.gate;
         target = note; pitch = (pend.glideFrom >= 0 && ctl.porta > 0.0005f) ? pend.glideFrom : note;
-        t = 0; ws = 0; lsb = 0; msb = 0; phase = 1.0; run = true; ended = false;
+        t = 0; ws = 0; lsb = 0; msb = 0; phase = 1.0; run = true; ended = false; xf = 0; oldMsb = -1;
         env = 0; up = true; state = Playing;
         setEclk(envTime(ctl.attack), true); envClk = true;
         flt.reset(); tick = 0;
@@ -154,12 +159,24 @@ private:
     void zeroCross() { if (zxKill) { zxKill = false; env = 0; atBottom(); } }
 
     // the address counter rolled over into the next page
+    int ramAt(int page, int i) const { const int a = ((page << 7) | i) & 0x3FFF; return a < (int) snd->ram.size() ? (int) snd->ram[(size_t) a] - 128 : 0; }
     void pageEnd() {
         if (snd->mode == Mode::Waveform) { msb = ws; return; }   // the page register is reloaded every cycle
         ++msb;
         const bool looping = ctl.loop > 0.5f && snd->loopStart >= 0 && snd->loopEnd >= snd->loopStart;
-        if (looping && msb > snd->loopEnd) msb = snd->loopStart;
-        else if (msb >= snd->pages()) { run = false; ended = true; if (state != Idle) { state = Releasing; up = false; env = 0; atBottom(); } }
+        if (looping && msb > snd->loopEnd) {
+            // the loop: crossfade a few clocks from the sound's own continuation into the loop start (no click)
+            oldMsb = msb < snd->pages() ? msb : -1;
+            xfLen = xf = clampi((snd->loopEnd - snd->loopStart + 1) * PAGE / 2, 32, 384);
+            msb = snd->loopStart;
+        } else if (!looping && msb == std::max(1, snd->pages() - FADE_PAGES) && state != Idle && env > 0) {
+            // two pages from the end of a one-shot sound (most were cut off at 16 KB mid-wave): close the envelope
+            // so it reaches silence with the sound
+            state = Releasing; up = false; setEclk((FADE_PAGES - 0.5) * PAGE / std::max(1.0, regs.clock), false); envClk = true;
+        } else if (msb >= snd->pages()) {
+            run = false; ended = true;
+            if (state != Idle) { state = Releasing; up = false; setEclk(0.003, false); envClk = true; if (env == 0) atBottom(); }
+        }
     }
 
     // ~1 kHz: the CPU's real-time loop for this channel
@@ -199,6 +216,7 @@ private:
     // card
     const Sound* snd = nullptr; Controls ctl; SSM2045 flt; PitchRegs regs;
     bool run = false, ended = false, envClk = false, up = true, zxKill = false;
+    static constexpr int FADE_PAGES = 8; int xf = 0, xfLen = 64, oldMsb = -1;
     int lsb = 0, msb = 0, ws = 0, cur = 0, env = 0, vol = 0;
     double phase = 0, inc = 0, eclk = 0, envAcc = 0;
     float corr[32] {}, hist[32] {}; unsigned ci = 0, hi = 0;

@@ -59,11 +59,18 @@ int main(int argc, char** argv) {
         std::printf("folder import: %s; SND2 root %d loop %d-%d rate %.0f\n", msg.toRawUTF8(), s2 ? s2->root : -1, s2 ? s2->loopStart : -1, s2 ? s2->loopEnd : -1, s2 ? s2->rate : 0);
         ok &= n == 3 && s2 && s2->name == "SND2" && s2->root == 45 && s2->loopStart == 40 && s2->loopEnd == 99 && s2->rate == 25000;
     }
+    // a library folder (CMI_LIBRARY): its catalogue, and songs connected to it
+    if (const char* lib = std::getenv("CMI_LIBRARY")) {
+        p.setLibraryFolder(juce::File(juce::String::fromUTF8(lib)));
+        std::printf("library: %d files, catalogue %zu voices on %d disks\n", (int) p.libraryFiles().size(), p.catalog.voices.size(), p.catalog.disks);
+        ok &= !p.catalog.voices.empty();
+    }
     // optional: real CMI disk images or .VC files given on the command line (cmi_snapshot <outdir> <disk.imd> ...)
     for (int i = 2; i < argc; ++i) {
         int n = 0;
         const auto msg = p.importFiles({ juce::File(juce::String::fromUTF8(argv[i])) }, 60, false, n);
         std::printf("import %s: %s\n", argv[i], msg.toRawUTF8());
+        if (const cmi::SongEntry* e = p.songs.at(p.currentSong())) for (int t = 0; t < cmi::SONG_TRK; ++t) if (e->song->used[t]) std::printf("    %-20s %s\n", e->song->trackName[t].substr(0, 20).c_str(), e->why[t].c_str());
         ok &= msg.contains("IMPORTED") && !msg.contains("UNREADABLE");
     }
     // a zip with songs in it

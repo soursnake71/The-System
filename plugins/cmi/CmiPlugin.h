@@ -6,6 +6,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "core/Library.h"
 #include "core/Song.h"
+#include "core/Catalog.h"
 
 namespace cmi {
 
@@ -102,7 +103,13 @@ public:
     juce::String importMidi(const juce::File& f);          // "" or the error; the song is selected
     void chooseSong(int i);                                // -1: the Page R patterns
     int currentSong() const { return songs.indexOf(engine.song.load()); }
-    void setSongVoice(int track, int voice) { if (auto* e = songs.at(currentSong())) { e->voice[track] = voice; engine.songVoice[track] = voice; } }
+    void setSongVoice(int track, int voice);
+    // the CMI library: every voice on the disks in the library folder
+    Catalog catalog; juce::CriticalSection catLock;
+    int connectToLibrary(int songIndex);                   // the song's tracks to library voices; how many matched
+    void useCatalogVoice(int track, int catIndex);         // a library voice for one track (loaded, remembered)
+    std::map<int, std::string> rememberedFor(const MidiSong& s) const;
+    void remember(const MidiSong& s, int track, const std::string& what);
     void setSongMute(int track, bool m) { if (auto* e = songs.at(currentSong())) { e->mute[track] = m; engine.songMute[track] = m; } }
     void seqPlay(bool on) { engine.seqRun = on; }
     std::atomic<float> meter { 0 };

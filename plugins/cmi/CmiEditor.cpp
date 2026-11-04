@@ -311,6 +311,8 @@ void Screen::drawFiles(juce::Graphics& g) {
     const auto files = ed.proc.libraryFiles();
     g.setColour(kInk); g.setFont(mono(17));
     g.drawText("LIBRARY FOLDER: " + (dir == juce::File() ? juce::String("(none set)") : dir.getFullPathName()), 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    { const juce::ScopedLock l(ed.proc.catLock); g.setColour(kDim); g.setFont(mono(13));
+      g.drawText("CMI LIBRARY: " + juce::String(ed.proc.catalog.voices.size()) + " VOICES ON " + juce::String(ed.proc.catalog.disks) + " DISKS - songs you load play on these", 20, 110, W - 40, 16, juce::Justification::centredLeft); g.setFont(mono(17)); g.setColour(kInk); }
     button(g, { 20, 84, 170, 24 }, "SET FOLDER", false, [this] {
         ed.chooser = std::make_unique<juce::FileChooser>("Your CMI library: songs, disks, samples", ed.proc.libraryFolder());
         ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [this](const juce::FileChooser& fc) {
@@ -331,7 +333,7 @@ void Screen::drawFiles(juce::Graphics& g) {
         const juce::File f = files[(size_t) (filePage * per + k)];
         const juce::String e = f.getFileExtension().toLowerCase();
         const juce::String tag = e == ".mid" || e == ".midi" ? "SONG" : e == ".zip" ? "ZIP " : e == ".vc" ? "VC  " : e == ".imd" || e == ".img" || e == ".bin" || e == ".raw" || e == ".dsk" ? "DISK" : "WAV ";
-        juce::Rectangle<float> r(20.f + (k / rows) * 480.f, 118.f + (k % rows) * 21.f, 470, 20);
+        juce::Rectangle<float> r(20.f + (k / rows) * 480.f, 130.f + (k % rows) * 21.f, 470, 20);
         g.setColour(tag == "SONG" ? kInk : kDim); g.setFont(mono(14));
         g.drawText(tag + " " + f.getFileNameWithoutExtension().substring(0, 50), r, juce::Justification::centredLeft);
         hit(r, [this, f](const juce::MouseEvent&) { int n = 0; status = ed.proc.importFiles({ f }, rootKey, loopIt, n); });
@@ -678,7 +680,11 @@ void Screen::drawMidiSong(juce::Graphics& g) {
         const bool mute = eng.songMute[selTrack];
         button(g, { 28, by, 130, 22 }, mute ? "MUTED" : "AUDIBLE", !mute, [this, mute] { ed.proc.setSongMute(selTrack, !mute); });
         button(g, { 168, by, 130, 22 }, "VOICE...", false, [this] { const int t = selTrack; soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); }); });
-        button(g, { 308, by, 150, 22 }, "AUTO MATCH", false, [this, entry] { autoSongVoices(*entry->song, ed.proc.kit.bank, entry->voice, entry->why); ed.proc.chooseSong(ed.proc.currentSong()); status = "VOICES MATCHED"; });
+        const bool haveLib = !ed.proc.catalog.voices.empty();
+        button(g, { 308, by, 150, 22 }, haveLib ? "CMI LIBRARY" : "AUTO MATCH", false, [this, entry, haveLib] {
+            if (haveLib) { const int n = ed.proc.connectToLibrary(ed.proc.currentSong()); status = juce::String(n) + " TRACKS ON CMI LIBRARY VOICES"; }
+            else { autoSongVoices(*entry->song, ed.proc.kit.bank, entry->voice, entry->why); ed.proc.chooseSong(ed.proc.currentSong()); status = "SET A LIBRARY FOLDER (PAGE F) FOR THE ORIGINAL VOICES"; }
+        });
         button(g, { 468, by, 130, 22 }, "EDIT GRID", false, [this] { songGrid = true; });
         g.setColour(kDim); g.setFont(mono(12));
         g.drawText(juce::String(entry->why[selTrack]).substring(0, 48), 610, (int) by, 360, 22, juce::Justification::centredLeft);
@@ -852,8 +858,21 @@ void Screen::soundMenu(std::function<void(int)> chosen) {
         cats[s->category].addItem(i + 1, juce::String(s->name) + "  " + juce::String(s->title).substring(0, 40));
     }
     for (auto& c : order) m.addSubMenu(c, cats[c]);
-    if (page == 'R' && ed.proc.engine.song.load()) m.addItem(10000, "Drum kit (a voice per GM drum note)");
-    m.showMenuAsync(juce::PopupMenu::Options(), [chosen](int r) { if (r == 10000 && chosen) chosen(GM_KIT); else if (r > 0 && chosen) chosen(r - 1); });
+    if (page == 'R' && ed.proc.engine.song.load()) {
+        m.addItem(10000, "Drum kit (a voice per GM drum note)");
+        const juce::ScopedLock l(ed.proc.catLock);
+        const auto& cv = ed.proc.catalog.voices;
+        if (!cv.empty()) {
+            std::map<std::string, juce::PopupMenu> byDisk;
+            for (size_t i = 0; i < cv.size() && i < 9000; ++i) byDisk[cv[i].disk].addItem(20000 + (int) i, juce::String(cv[i].name) + (cv[i].looped ? "  (loop)" : ""));
+            juce::PopupMenu lib; for (auto& kv : byDisk) lib.addSubMenu(juce::String(kv.first), kv.second);
+            m.addSeparator(); m.addSubMenu("CMI library (your disks)", lib);
+        }
+    }
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, chosen](int r) {
+        if (r >= 20000) { ed.proc.useCatalogVoice(selTrack, r - 20000); repaint(); return; }
+        if (r == 10000 && chosen) chosen(GM_KIT); else if (r > 0 && chosen) chosen(r - 1);
+    });
 }
 
 void Screen::command(const juce::String& raw) {

@@ -24,7 +24,7 @@ CmiProcessor::CmiProcessor()
     formats.registerBasicFormats();
     for (const auto& d : paramDefs()) raw.push_back(apvts.getRawParameterValue(d.id));
     engine.bank = &kit.bank;
-    engine.kitVoice = kitLookup(kit.bank);
+    engine.kitVoice = cmiKitLookup(kit.bank);
     Library::factorySeq(engine.seq, Library::get());
     loadSound(Library::get().find("ORCHHIT"));
     resetCCMap();
@@ -163,6 +163,14 @@ void CmiProcessor::rescanLibrary() {
             if (found.size() > 5000) break;
         }
     std::sort(found.begin(), found.end(), [](const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()) < 0; });
+    // the catalogue: every CMI voice on the disks (and .VC files) there
+    Catalog cat;
+    for (const auto& f : found) {
+        if (!f.hasFileExtension("imd;img;bin;raw;dsk;vc")) continue;
+        juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) continue;
+        cat.add(f.getFileName().toStdString(), (const uint8_t*) mb.getData(), mb.getSize(), f.getParentDirectory().getFileName().toUpperCase().toStdString());
+    }
+    { const juce::ScopedLock l(catLock); catalog = std::move(cat); }
     const juce::ScopedLock l(infoLock); libFiles = std::move(found);
 }
 
@@ -186,11 +194,53 @@ juce::String CmiProcessor::importMidi(const juce::File& f) {
     int dup = 0;
     const int i = songs.addUnique(std::move(ms), kit.bank, dup);
     if (dup == 1) { ++dupSkipped; return {}; }
+    connectToLibrary(i);   // the original CMI voices, when a library is set
     chooseSong(i);
     return {};
 }
 
 void CmiProcessor::chooseSong(int i) { selectSong(engine, songs.at(i)); }
+
+// what you chose for each track of a song, kept with the settings every project shares: songKey -> "t=NAME@DISK;..."
+std::map<int, std::string> CmiProcessor::rememberedFor(const MidiSong& s) const {
+    std::map<int, std::string> m;
+    if (!settings) return m;
+    for (auto& tok : juce::StringArray::fromTokens(settings->getValue("voices." + juce::String(songKey(s.name))), ";", ""))
+        if (tok.contains("=")) m[tok.upToFirstOccurrenceOf("=", false, false).getIntValue()] = tok.fromFirstOccurrenceOf("=", false, false).toStdString();
+    return m;
+}
+void CmiProcessor::remember(const MidiSong& s, int track, const std::string& what) {
+    if (!settings) return;
+    auto m = rememberedFor(s); m[track] = what;
+    juce::String v; for (auto& kv : m) v << kv.first << "=" << juce::String(kv.second) << ";";
+    settings->setValue("voices." + juce::String(songKey(s.name)), v); settings->saveIfNeeded();
+}
+void CmiProcessor::setSongVoice(int track, int voice) {
+    SongEntry* e = songs.at(currentSong()); if (!e) return;
+    e->voice[track] = voice; engine.songVoice[track] = voice;
+    const Sound* snd = kit.bank.at(voice);
+    if (voice == GM_KIT) remember(*e->song, track, "KIT");
+    else if (snd && voice >= Library::get().builtIn) remember(*e->song, track, snd->name + "@" + snd->category);
+}
+int CmiProcessor::connectToLibrary(int si) {
+    SongEntry* e = songs.at(si); if (!e) return 0;
+    const juce::ScopedLock l(catLock);
+    if (catalog.voices.empty()) return 0;
+    const int n = connectSong(*e, kit, catalog, rememberedFor(*e->song));
+    if (si == currentSong()) chooseSong(si);
+    return n;
+}
+void CmiProcessor::useCatalogVoice(int track, int ci) {
+    SongEntry* e = songs.at(currentSong()); if (!e) return;
+    const juce::ScopedLock l(catLock);
+    if (ci < 0 || ci >= (int) catalog.voices.size()) return;
+    const CatVoice& cv = catalog.voices[(size_t) ci];
+    int v = -1;
+    for (int k = 0; k < Library::USER_SLOTS && v < 0; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) v = kit.userSlot(k);
+    if (v < 0) { const int slot = kit.firstFree(); Sound snd; if (slot < 0 || !catalog.sound(ci, snd)) return; kit.setUser(slot, std::move(snd)); v = kit.userSlot(slot); }
+    e->voice[track] = v; engine.songVoice[track] = v; e->why[track] = cv.name + " (" + cv.disk + "): your choice";
+    remember(*e->song, track, cv.name + "@" + cv.disk.substr(0, 10));
+}
 
 // files and folders (searched inside) into the free user voices, in name order
 juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int root, bool loop, int& imported) {
