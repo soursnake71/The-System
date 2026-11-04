@@ -1,0 +1,50 @@
+# Omega Drum Trigger: builds the VST3 for Windows (and Mac/Linux), runs the detector test bench and, on Linux, the
+# processor test and the host test that loads the built .vst3 like a DAW. The Windows zip is attached to the run as
+# an artifact ("Omega-Drum-Trigger-Windows"); on main it also goes into the vst3-latest release with the others.
+name: Omega Drum Trigger
+on:
+  push:
+    paths: ['plugins/trigger/**', 'plugins/tools/hosttest/**', 'plugins/CMakeLists.txt', '.github/workflows/drum-trigger.yml']
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=Trigger
+      - name: Build
+        run: cmake --build build --config Release --parallel 4 --target OmegaTrigger_VST3 trigger_test
+      - name: Detector test bench (synthesized metal drum tracks, three sets of performances)
+        shell: bash
+        run: |
+          t=$(find build -type f \( -name trigger_test -o -name trigger_test.exe \) | head -1)
+          for s in 0 1 2; do TRIGGER_SEED=$s "$t" | tail -3; test ${PIPESTATUS[0]} -eq 0; done
+      - name: Processor and host tests
+        if: runner.os == 'Linux'
+        run: |
+          cmake --build build --config Release --parallel 4 --target trigger_proc_test
+          xvfb-run -a "$(find build -type f -name trigger_proc_test | head -1)" "$RUNNER_TEMP/shots"
+          cmake -S plugins/tools/hosttest -B hbuild -DJUCE_DIR="$(pwd)/build/_deps/juce-src" -DCMAKE_BUILD_TYPE=Release
+          cmake --build hbuild --parallel 4 --target trigger_host_test
+          xvfb-run -a "$(find hbuild -type f -name trigger_host_test | head -1)" "$(find build -path '*Release/VST3/*.vst3' -prune | head -1)" "$RUNNER_TEMP/shots" | grep -v '^    '
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then for b in out/*; do codesign --force --deep -s - "$b"; done; fi
+          ls out
+          cd out && 7z a -tzip "../Omega-Drum-Trigger-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'Omega-Drum-Trigger-${{ matrix.name }}', path: 'Omega-Drum-Trigger-${{ matrix.name }}.zip'}

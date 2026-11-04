@@ -128,6 +128,42 @@ foreach(variant "Twelve|Omega Twelve|Otw1|0" "TwelveInst|Omega Twelve Instrument
   target_link_libraries(Omega${tgt} PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endforeach()
 
+# Omega Drum Trigger: audio to MIDI for drum sample replacement (trigger/). An effect with MIDI out, plus a
+# sidechain input for bleed rejection.
+if(NOT OMEGA_ONLY OR "Trigger" IN_LIST OMEGA_ONLY)
+  juce_add_plugin(OmegaTrigger
+    PRODUCT_NAME "Omega Drum Trigger"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Trigger"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Otrg
+    FORMATS ${OMEGA_FORMATS}
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT TRUE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Fx Analyzer
+    AU_MAIN_TYPE kAudioUnitType_Effect
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaTrigger PRIVATE trigger/TriggerPlugin.cpp trigger/TriggerEditor.cpp)
+  target_compile_definitions(OmegaTrigger PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(OmegaTrigger PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
+# the trigger's detector against synthesized metal drum tracks with known hits: <build>/trigger_test (exit 0 = pass)
+add_executable(trigger_test trigger/test.cpp)
+
+# drives the trigger's processor directly (recorder, Analyze file, MIDI files, state, panel picture): <build>/trigger_proc_test <dir>
+if(TARGET OmegaTrigger)
+  juce_add_console_app(trigger_proc_test PRODUCT_NAME "trigger_proc_test")
+  target_sources(trigger_proc_test PRIVATE trigger/proctest.cpp trigger/TriggerPlugin.cpp trigger/TriggerEditor.cpp)
+  target_compile_definitions(trigger_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Drum Trigger"
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(trigger_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(trigger_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
+
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
 add_executable(twelve_test twelve/test.cpp)
 

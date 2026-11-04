@@ -14,6 +14,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
+| Omega Drum Trigger | effect with MIDI out: drum audio to MIDI for sample replacement, built for metal (`trigger/README.md`) |
 
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
 
@@ -24,3 +25,7 @@ Omega Twelve lives in `twelve/` and doesn't use the shared Spec/Editor: it has i
 app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelve_test` + `node twelve/tools/compare.mjs`
 (C++ against the app's engine), `twelve_proc_test` (sampler, MIDI, exports, analysis, state), and `tools/hosttest` (`twelve_host_test`
 loads the built .vst3 like a DAW).
+
+Omega Drum Trigger lives in `trigger/`: the detector (`Detector.h`, no JUCE), its test bench (`trigger_test`, synthesized metal drum
+tracks with known hits), `trigger_proc_test` (recorder, Analyze file, MIDI files) and `tools/hosttest` (`trigger_host_test` loads the
+built .vst3 like a DAW). Its own workflow, `.github/workflows/drum-trigger.yml`, builds and tests it on every push.

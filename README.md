@@ -29,6 +29,9 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## Omega Drum Trigger (VST3)
+Drum audio to MIDI for sample replacement, built for metal: double kick, blast beats, bleed rejection with a sidechain mic, a hit recorder and whole-file analysis with drag-and-drop MIDI. See `plugins/trigger/README.md`.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
