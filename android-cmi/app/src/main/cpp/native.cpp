@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include "Disk.h"
 #include "Song.h"
+#include "Catalog.h"
+#include <map>
+#include <sstream>
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "OmegaCMI", __VA_ARGS__)
 
@@ -26,6 +29,8 @@ struct App {
     Kit kit;
     Engine engine;
     SongList songs;
+    Catalog catalog; std::mutex catLock;
+    std::map<std::string, std::map<int, std::string>> remembered;   // songKey -> track -> "NAME@DISK" / "KIT"
     std::atomic<int> sound { 0 };
     std::atomic<float> param[NPARAM];
     // queue: many producers (UI, MIDI threads) under a mutex, one consumer (audio)
@@ -38,7 +43,7 @@ struct App {
     App() {
         for (int i = 0; i < NPARAM; ++i) param[i] = kDefaults[i];
         engine.bank = &kit.bank;
-        engine.kitVoice = kitLookup(kit.bank);
+        engine.kitVoice = cmiKitLookup(kit.bank);
         Library::factorySeq(engine.seq, Library::get());
         engine.extSync = false;
         loadSound(Library::get().find("ORCHHIT"));
@@ -319,6 +324,11 @@ FN(jstring, importMidi)(JNIEnv* env, jclass, jbyteArray data, jstring name) {
     int dup = 0;
     const int i = app()->songs.addUnique(std::move(ms), app()->kit.bank, dup);
     if (dup == 1) return env->NewStringUTF("DUPLICATE");
+    {   // the original CMI voices, when a library is set
+        std::lock_guard<std::mutex> g(app()->catLock);
+        SongEntry* e = app()->songs.at(i);
+        if (e && !app()->catalog.voices.empty()) connectSong(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)]);
+    }
     selectSong(app()->engine, app()->songs.at(i));
     return env->NewStringUTF("");
 }
@@ -467,6 +477,59 @@ FN(jstring, saveDrawn)(JNIEnv* env, jclass, jfloatArray a, jfloatArray b, jboole
     return env->NewStringUTF("");
 }
 FN(jboolean, hasDrawn)(JNIEnv*, jclass) { return lastDrawn >= 0; }
+
+// ---- the CMI library (catalogue of the library folder's disks and .VC files) ----
+FN(void, catalogClear)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); app()->catalog = Catalog(); }
+FN(void, catalogAdd)(JNIEnv* env, jclass, jbyteArray data, jstring fileName, jstring folder) {
+    const jsize n = env->GetArrayLength(data); std::vector<uint8_t> b((size_t) n); env->GetByteArrayRegion(data, 0, n, (jbyte*) b.data());
+    const char* fn = env->GetStringUTFChars(fileName, nullptr); const char* fo = env->GetStringUTFChars(folder, nullptr);
+    { std::lock_guard<std::mutex> g(app()->catLock); app()->catalog.add(fn, b.data(), b.size(), fo); }
+    env->ReleaseStringUTFChars(fileName, fn); env->ReleaseStringUTFChars(folder, fo);
+}
+FN(jint, catalogCount)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); return (jint) app()->catalog.voices.size(); }
+FN(jint, catalogDisks)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); return app()->catalog.disks; }
+/** "NAME\tDISK\tlooped" per voice, newline separated */
+FN(jstring, catalogList)(JNIEnv* env, jclass) {
+    std::lock_guard<std::mutex> g(app()->catLock); std::string o;
+    for (const auto& v : app()->catalog.voices) o += v.name + "\t" + v.disk + "\t" + (v.looped ? "1" : "0") + "\n";
+    return env->NewStringUTF(o.c_str());
+}
+FN(jint, connectToLibrary)(JNIEnv*, jclass) {
+    std::lock_guard<std::mutex> g(app()->catLock);
+    SongEntry* e = app()->songs.at(curSongIdx());
+    if (!e || app()->catalog.voices.empty()) return 0;
+    const int n = connectSong(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)]);
+    selectSong(app()->engine, e);
+    return n;
+}
+// a library voice on one track: loaded (or reused), remembered for this song
+FN(void, useCatalogVoice)(JNIEnv*, jclass, jint t, jint ci) {
+    std::lock_guard<std::mutex> g(app()->catLock);
+    SongEntry* e = app()->songs.at(curSongIdx()); auto& cat = app()->catalog; auto& kit = app()->kit;
+    if (!e || t < 0 || t >= SONG_TRK || ci < 0 || ci >= (int) cat.voices.size()) return;
+    const CatVoice& cv = cat.voices[(size_t) ci];
+    int v = -1;
+    for (int k = 0; k < Library::USER_SLOTS && v < 0; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) v = kit.userSlot(k);
+    if (v < 0) { const int slot = kit.firstFree(); Sound snd; if (slot < 0 || !cat.sound(ci, snd)) return; kit.setUser(slot, std::move(snd)); v = kit.userSlot(slot); }
+    e->voice[t] = v; app()->engine.songVoice[t] = v; e->why[t] = cv.name + " (" + cv.disk + "): your choice";
+    app()->remembered[songKey(e->song->name)][t] = cv.name + "@" + cv.disk.substr(0, 10);
+}
+FN(void, rememberKit)(JNIEnv*, jclass, jint t) { SongEntry* e = app()->songs.at(curSongIdx()); if (e) app()->remembered[songKey(e->song->name)][t] = "KIT"; }
+// the remembered choices as text ("songkey|t=NAME@DISK;..." per line), to keep in the app's settings
+FN(jstring, getRemembered)(JNIEnv* env, jclass) {
+    std::string o; for (auto& kv : app()->remembered) { o += kv.first + "|"; for (auto& tv : kv.second) o += std::to_string(tv.first) + "=" + tv.second + ";"; o += "\n"; }
+    return env->NewStringUTF(o.c_str());
+}
+FN(void, setRemembered)(JNIEnv* env, jclass, jstring text) {
+    const char* c = env->GetStringUTFChars(text, nullptr); std::istringstream in(c); env->ReleaseStringUTFChars(text, c);
+    std::string line;
+    while (std::getline(in, line)) {
+        const size_t bar = line.find('|'); if (bar == std::string::npos) continue;
+        auto& m = app()->remembered[line.substr(0, bar)];
+        std::istringstream ts(line.substr(bar + 1)); std::string tok;
+        while (std::getline(ts, tok, ';')) { const size_t eq = tok.find('='); if (eq != std::string::npos) m[std::atoi(tok.substr(0, eq).c_str())] = tok.substr(eq + 1); }
+    }
+}
 
 FN(jboolean, userLoaded)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k); }
 FN(jint, userSlot)(JNIEnv*, jclass, jint k) { return app()->kit.userSlot(k); }

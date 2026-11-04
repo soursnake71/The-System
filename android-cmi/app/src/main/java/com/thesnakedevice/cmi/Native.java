@@ -105,6 +105,19 @@ final class Native {
     static native String saveDrawn(float[] start, float[] end, boolean asNew);
     static native boolean hasDrawn();
 
+    // the CMI library (catalogue of the library folder's disks and .VC files)
+    static native void catalogClear();
+    static native void catalogAdd(byte[] file, String fileName, String folder);
+    static native int catalogCount();
+    static native int catalogDisks();
+    /** "NAME\tDISK\tlooped" per voice, a line each */
+    static native String catalogList();
+    static native int connectToLibrary();
+    static native void useCatalogVoice(int track, int catIndex);
+    static native void rememberKit(int track);
+    static native String getRemembered();
+    static native void setRemembered(String text);
+
     static native byte[] saveState();
     static native void loadState(byte[] data);
 }

@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         loadState();
+        Native.setRemembered(getSharedPreferences("cmi", MODE_PRIVATE).getString("remembered", ""));
         view = new CmiView(this);
         rescanLibrary();
         setContentView(view);
@@ -77,6 +78,7 @@ public class MainActivity extends Activity {
     // ---- state ----
     private File stateFile() { return new File(getFilesDir(), "cmi-state.bin"); }
     void saveState() {
+        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).apply(); } catch (Exception ignored) {}
         try (FileOutputStream o = new FileOutputStream(stateFile())) { o.write(Native.saveState()); } catch (Exception ignored) {}
     }
     private void loadState() {
@@ -209,7 +211,18 @@ public class MainActivity extends Activity {
             try { final Uri tree = Uri.parse(u); listFolder(tree, DocumentsContract.getTreeDocumentId(tree), us, ns, 0); } catch (Exception ignored) {}
             final List<Integer> ord = new ArrayList<>(); for (int i = 0; i < us.size(); ++i) ord.add(i);
             java.util.Collections.sort(ord, (x, y) -> ns.get(x).compareToIgnoreCase(ns.get(y)));
-            ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); } view.status(libUris.size() + " FILES IN THE LIBRARY"); });
+            // the CMI library: every voice on the disks and .VC files there
+            Native.catalogClear();
+            int done = 0;
+            for (int pass = 0; pass < 2; ++pass) for (int i : ord) {   // disk images first: their labels name the voices' disks
+                String lo = ns.get(i).toLowerCase();
+                boolean disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
+                if (pass == 0 ? !disk : !lo.endsWith(".vc")) continue;
+                try { Native.catalogAdd(readAll(us.get(i), 4 << 20), ns.get(i), ""); } catch (Exception ignored) {}
+                if (++done % 10 == 0) { final int d2 = done; ui.post(() -> view.status("READING THE CMI LIBRARY: " + d2 + " FILES")); }
+            }
+            ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); }
+                view.status(Native.catalogCount() + " CMI VOICES ON " + Native.catalogDisks() + " DISKS, " + libUris.size() + " FILES"); });
         }).start();
     }
     void loadFromLibrary(boolean songs, boolean sounds, int only) {

@@ -208,7 +208,7 @@ public class CmiView extends View {
     private int filePage = 0;
     private void files(Canvas c, RectF b) {
         final String lib = act.libraryName();
-        text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib), b.left, b.top + dp(12), 11, INK);
+        text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib) + "   " + Native.catalogCount() + " CMI VOICES", b.left, b.top + dp(12), 11, INK);
         final float y0 = b.top + dp(20), bw = (b.width() - dp(12)) / 3;
         final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", "" };
         final Runnable[] fn = { act::chooseLibrary, act::rescanLibrary, () -> { status("" + Native.removeDuplicateSongs() + " DUPLICATES REMOVED"); act.saveState(); },
@@ -469,13 +469,33 @@ public class CmiView extends View {
     private void songVoiceDialog(final int track) {
         final int n = Native.soundCount(), built = Native.builtInCount();
         final List<Integer> ids = new ArrayList<>(); final List<String> names = new ArrayList<>();
+        final boolean lib = Native.catalogCount() > 0;
+        if (lib) { ids.add(-100); names.add(">> CMI LIBRARY (your disks)"); }
         ids.add(Native.GM_KIT); names.add("DRUM KIT  (a voice per GM drum note)");
         for (int i = 0; i < n; ++i) { if (i >= built && !Native.userLoaded(i - built)) continue; String[] f = info(i); ids.add(i); names.add(f[0] + "  (" + f[2] + ")  " + f[1]); }
         new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Track " + (track + 1) + " voice")
-                .setItems(names.toArray(new String[0]), (dlg, w) -> { Native.setSongVoice(track, ids.get(w)); act.saveState(); invalidate(); })
+                .setItems(names.toArray(new String[0]), (dlg, w) -> {
+                    if (ids.get(w) == -100) { libraryDialog(track); return; }
+                    Native.setSongVoice(track, ids.get(w)); if (ids.get(w) == Native.GM_KIT) Native.rememberKit(track); act.saveState(); invalidate(); })
                 .show();
     }
+    // the CMI library by disk, then the disk's voices
+    private void libraryDialog(final int track) {
+        final String[] lines = Native.catalogList().split("\n");
+        final java.util.TreeMap<String, List<Integer>> byDisk = new java.util.TreeMap<>();
+        for (int i = 0; i < lines.length; ++i) { String[] f = lines[i].split("\t", -1); if (f.length < 3) continue; byDisk.computeIfAbsent(f[1], k -> new ArrayList<>()).add(i); }
+        final String[] disks = byDisk.keySet().toArray(new String[0]);
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Track " + (track + 1) + ": CMI library")
+                .setItems(disks, (d1, w) -> {
+                    final List<Integer> vs = byDisk.get(disks[w]);
+                    final String[] nm = new String[vs.size()];
+                    for (int k = 0; k < vs.size(); ++k) { String[] f = lines[vs.get(k)].split("\t", -1); nm[k] = f[0] + (f[2].equals("1") ? "  (loop)" : ""); }
+                    new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(disks[w])
+                            .setItems(nm, (d2, k) -> { Native.useCatalogVoice(track, vs.get(k)); act.saveState(); invalidate(); }).show();
+                }).show();
+    }
+
     private int[] notesCache = new int[0]; private String notesFor = "";
     // the editing grid (one track as a piano roll)
     private boolean grid = false, gridActive = false;
@@ -604,8 +624,10 @@ public class CmiView extends View {
         final boolean muted = tr.length > 3 && tr[3].equals("1");
         final String[] lbl; final Runnable[] fns;
         if (!grid) {
-            lbl = new String[] { muted ? "MUTED" : "AUDIBLE", "VOICE", "AUTO MATCH", "EDIT GRID", "NEW SONG", "PATTERNS" };
-            fns = new Runnable[] { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack), () -> { Native.gmVoices(); status("VOICES MATCHED"); act.saveState(); },
+            final boolean lib = Native.catalogCount() > 0;
+            lbl = new String[] { muted ? "MUTED" : "AUDIBLE", "VOICE", lib ? "CMI LIBRARY" : "AUTO MATCH", "EDIT GRID", "NEW SONG", "PATTERNS" };
+            fns = new Runnable[] { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack),
+                    () -> { if (lib) status(Native.connectToLibrary() + " TRACKS ON CMI LIBRARY VOICES"); else { Native.gmVoices(); status("SET A LIBRARY FOLDER (FIL) FOR THE ORIGINAL VOICES"); } act.saveState(); },
                     () -> grid = true, () -> { Native.newSong(); grid = true; selTrack = 0; vStart = 0; act.saveState(); }, () -> Native.selectSongAt(-1) };
         } else {
             final String sn = snapB >= 1 ? "1/4" : snapB >= 0.5 ? "1/8" : snapB >= 0.25 ? "1/16" : "1/32";
