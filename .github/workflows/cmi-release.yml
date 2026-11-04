@@ -1,4 +1,5 @@
-# Omega CMI: the VST3 instrument (AU too on Mac) and standalone app for Windows, macOS and Linux, and the native
+# Omega CMI: the VST3 instrument and standalone app for Windows and Linux (Mac left out: its runners keep the
+# release waiting), and the native
 # Android app (the same C++ engine through AAudio), all attached to the "omega-cmi" release.
 name: Omega CMI release
 on:
@@ -15,7 +16,6 @@ jobs:
       matrix:
         include:
           - {os: windows-latest, name: Windows}
-          - {os: macos-latest, name: Mac}
           - {os: ubuntu-22.04, name: Linux}
     runs-on: ${{ matrix.os }}
     steps:
