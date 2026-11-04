@@ -19,7 +19,7 @@ jobs:
       matrix:
         include:
           - {os: windows-latest, name: Windows}
-          - {os: macos-latest, name: Mac}
+          - {os: macos-13, name: Mac}   # Intel runners: the arm64 pool had no capacity (see ios.yml); the build is universal anyway
           - {os: ubuntu-22.04, name: Linux}
     runs-on: ${{ matrix.os }}
     steps:
