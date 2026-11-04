@@ -4,7 +4,7 @@ name: Omega CMI release
 on:
   push:
     branches: [main, 'claude/**', 'ccr-**']
-    paths: ['plugins/cmi/**', 'plugins/CMakeLists.txt', 'android-cmi/**', '.github/workflows/cmi-release.yml']
+    paths: ['plugins/cmi/**', 'plugins/installer/cmi.iss', 'plugins/CMakeLists.txt', 'android-cmi/**', '.github/workflows/cmi-release.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -47,8 +47,19 @@ jobs:
           fi
           ls out
           cd out && 7z a -tzip "../Omega-CMI-${{ matrix.name }}.zip" . >/dev/null
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBuildDir=$PWD\out" "/DAppVer=1.0.${{ github.run_number }}" /O"$PWD" plugins\installer\cmi.iss
+          Get-ChildItem Omega-CMI-Setup-Windows.exe
       - uses: actions/upload-artifact@v4
-        with: {name: 'cmi-${{ matrix.name }}', path: 'Omega-CMI-${{ matrix.name }}.zip', if-no-files-found: error}
+        with:
+          name: 'cmi-${{ matrix.name }}'
+          path: |
+            Omega-CMI-${{ matrix.name }}.zip
+            Omega-CMI-Setup-Windows.exe
+          if-no-files-found: warn
   headless:
     # the engine with ALSA, no GUI: for samplers running their own Linux (built for 64-bit ARM, 32-bit ARM and x86-64)
     runs-on: ubuntu-24.04
@@ -136,7 +147,8 @@ jobs:
           ls -la dl
           notes="Omega CMI (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the Fairlight CMI Series II channel cards, with Page R and a synthesised library of the famous sounds.
 
-          - Windows / Mac / Linux: unzip Omega-CMI-<system>.zip and copy Omega CMI.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). The standalone app is in the same zip. On a Mac, if the DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
+          - Windows: run Omega-CMI-Setup-Windows.exe (installs the VST3 into Common Files\\VST3 and the standalone app; Windows may warn about an unknown publisher: More info > Run anyway).
+          - Windows / Mac / Linux: or unzip Omega-CMI-<system>.zip and copy Omega CMI.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). The standalone app is in the same zip. On a Mac, if the DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
           - Android: open omega-cmi.apk on the phone and allow installing from your browser or files app. Plays from the screen keyboard or a USB / Bluetooth MIDI keyboard.
           - Samplers running their own Linux: cmi-headless-linux-aarch64 / -armhf / -x86_64.tar.gz (ALSA audio and MIDI, no screen), or cmi-headless-source.tar.gz to build on the device (make). Omega-CMI-Linux-arm64.zip: the VST3 and standalone app for 64-bit ARM Linux, when that build ran."
           gh release view omega-cmi >/dev/null 2>&1 || gh release create omega-cmi --title "Omega CMI (latest)" --notes "$notes" --target "$GITHUB_SHA"
