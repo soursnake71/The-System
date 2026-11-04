@@ -96,6 +96,15 @@ final class Native {
     static native void newSong();
     static native String songWhy(int t);
 
+    // mixer: strips 0 keyboard, 1..8 Page R tracks, 9..24 song tracks; what 0 fader, 1 pan (-1 the track's own), 2 mute, 3 solo, 4 meter
+    static final int STRIPS = 25;
+    static native float mixGet(int strip, int what);
+    static native void mixSet(int strip, int what, float v);
+    static native float masterMeter();
+    static native int removeDuplicateSongs();
+    static native String saveDrawn(float[] start, float[] end, boolean asNew);
+    static native boolean hasDrawn();
+
     static native byte[] saveState();
     static native void loadState(byte[] data);
 }

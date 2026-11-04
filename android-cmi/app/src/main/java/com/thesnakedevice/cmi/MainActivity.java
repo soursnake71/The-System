@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         loadState();
         view = new CmiView(this);
+        rescanLibrary();
         setContentView(view);
         hideBars();
         openMidi();
@@ -177,6 +178,13 @@ public class MainActivity extends Activity {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null) return;
         if (req == SAVE_WAV || req == SAVE_MIDI || req == SAVE_STEMS) { exportResult(req, data); return; }
+        if (req == PICK_LIBRARY && data.getData() != null) {
+            final Uri tree = data.getData();
+            try { getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
+            getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("library", tree.toString()).apply();
+            rescanLibrary();
+            return;
+        }
         final List<Uri> uris = new ArrayList<>();
         final List<String> names = new ArrayList<>();
         if (req == PICK_FOLDER && data.getData() != null) {
@@ -184,16 +192,47 @@ public class MainActivity extends Activity {
         } else if (data.getClipData() != null) {
             for (int i = 0; i < data.getClipData().getItemCount(); ++i) { Uri u = data.getClipData().getItemAt(i).getUri(); uris.add(u); names.add(displayName(u)); }
         } else if (data.getData() != null) { uris.add(data.getData()); names.add(displayName(data.getData())); }
+        importList(uris, names, req == PICK_ONE ? pickSlot : -1);
+    }
+
+    // ---- the library folder: chosen once (the permission is kept), scanned, its files loaded on demand ----
+    static final int PICK_LIBRARY = 47;
+    final List<Uri> libUris = new ArrayList<>(); final List<String> libNames = new ArrayList<>();
+    void chooseLibrary() { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); startActivityForResult(i, PICK_LIBRARY); }
+    String libraryName() { String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("library", ""); if (u.isEmpty()) return ""; String d = Uri.parse(u).getLastPathSegment(); return d == null ? u : d; }
+    void rescanLibrary() {
+        final String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("library", "");
+        if (u.isEmpty()) return;
+        view.status("SCANNING THE LIBRARY...");
+        new Thread(() -> {
+            final List<Uri> us = new ArrayList<>(); final List<String> ns = new ArrayList<>();
+            try { final Uri tree = Uri.parse(u); listFolder(tree, DocumentsContract.getTreeDocumentId(tree), us, ns, 0); } catch (Exception ignored) {}
+            final List<Integer> ord = new ArrayList<>(); for (int i = 0; i < us.size(); ++i) ord.add(i);
+            java.util.Collections.sort(ord, (x, y) -> ns.get(x).compareToIgnoreCase(ns.get(y)));
+            ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); } view.status(libUris.size() + " FILES IN THE LIBRARY"); });
+        }).start();
+    }
+    void loadFromLibrary(boolean songs, boolean sounds, int only) {
+        final List<Uri> us = new ArrayList<>(); final List<String> ns = new ArrayList<>();
+        for (int i = 0; i < libUris.size(); ++i) {
+            if (only >= 0 && i != only) continue;
+            String n = libNames.get(i).toLowerCase(); boolean song = n.endsWith(".mid") || n.endsWith(".midi") || n.endsWith(".zip");
+            if (only >= 0 || (song ? songs : sounds)) { us.add(libUris.get(i)); ns.add(libNames.get(i)); }
+        }
+        importList(us, ns, -1);
+    }
+
+    private int dupes = 0;
+    void importList(final List<Uri> uris, final List<String> names, final int single) {
         if (uris.isEmpty()) { view.status("NO AUDIO FILES FOUND"); return; }
         // name order, like a disk directory
         final List<Integer> order = new ArrayList<>();
         for (int i = 0; i < uris.size(); ++i) order.add(i);
         java.util.Collections.sort(order, (x, y) -> names.get(x).compareToIgnoreCase(names.get(y)));
-        final int single = req == PICK_ONE ? pickSlot : -1;
         final int root = view.rootKey; final boolean loop = view.loopSample;
         view.status("IMPORTING...");
         new Thread(() -> {
-            int ok = 0, bad = 0, first = -1, disks = 0; String last = ""; importedSongs = 0;
+            int ok = 0, bad = 0, first = -1, disks = 0; String last = ""; importedSongs = 0; dupes = 0;
             for (int idx : order) {
                 int slot = single >= 0 ? single : Native.firstFreeUser();
                 String nlow = names.get(idx).toLowerCase();
@@ -208,8 +247,10 @@ public class MainActivity extends Activity {
             }
             if (first >= 0) Native.loadSound(Native.userSlot(first));
             final int songsIn = importedSongs;
-            final String m = (songsIn > 0 && ok == 0 && bad == 0) ? songsIn + (songsIn == 1 ? " SONG" : " SONGS") + " LOADED (PAGE R)" : ok + " IMPORTED" + (disks > 0 ? " FROM " + disks + (disks == 1 ? " DISK" : " DISKS") : "") + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
-            ui.post(() -> { view.status(m); if (songsIn > 0) view.showPage('R'); saveState(); });
+            final String dupTxt = dupes > 0 ? ", " + dupes + " DUPLICATES SKIPPED" : "";
+            final String m0 = (songsIn > 0 && ok == 0 && bad == 0) ? songsIn + (songsIn == 1 ? " SONG" : " SONGS") + " LOADED (PAGE R)" : ok + " IMPORTED" + (disks > 0 ? " FROM " + disks + (disks == 1 ? " DISK" : " DISKS") : "") + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
+            final String mm = m0 + dupTxt;
+            ui.post(() -> { view.status(mm); if (songsIn > 0) view.showPage('R'); saveState(); });
         }).start();
     }
 
@@ -225,7 +266,7 @@ public class MainActivity extends Activity {
                 try { int n = Integer.parseInt(r); lastDiskCount += n; return n > 0 ? "" : "NO VOICES ON " + name; } catch (NumberFormatException e) { return r; }
             }
             if (lower.endsWith(".vc")) return Native.loadVc(readAll(uri, 1 << 20), base, "", slot);
-            if (lower.endsWith(".mid") || lower.endsWith(".midi") || lower.endsWith(".smf")) { String r = Native.importMidi(readAll(uri, 4 << 20), base); if (r.isEmpty()) importedSongs++; return r.isEmpty() ? "" : r; }
+            if (lower.endsWith(".mid") || lower.endsWith(".midi") || lower.endsWith(".smf")) { String r = Native.importMidi(readAll(uri, 4 << 20), base); if (r.equals("DUPLICATE")) { dupes++; return ""; } if (r.isEmpty()) importedSongs++; return r; }
             if (name.toLowerCase().endsWith(".wav")) {
                 byte[] b = readAll(uri, 64 << 20);
                 String err = Native.loadWav(b, base, slot, root, loop);
@@ -255,7 +296,7 @@ public class MainActivity extends Activity {
                 while ((r = z.read(buf)) > 0 && o.size() < (64 << 20)) o.write(buf, 0, r);
                 byte[] b = o.toByteArray();
                 String err;
-                if (midi) { err = Native.importMidi(b, base); if (err.isEmpty()) songs++; }
+                if (midi) { err = Native.importMidi(b, base); if (err.equals("DUPLICATE")) { dupes++; err = ""; } else if (err.isEmpty()) songs++; }
                 else if (disk) { err = Native.loadDisk(b, base); try { voices += Integer.parseInt(err); err = ""; } catch (NumberFormatException e) { } }
                 else { int slot = Native.firstFreeUser(); if (slot < 0) { err = "FULL"; } else { err = vc ? Native.loadVc(b, base, "", slot) : Native.loadWav(b, base, slot, 60, false); if (err.isEmpty()) voices++; } }
                 if (!err.isEmpty()) bad++;

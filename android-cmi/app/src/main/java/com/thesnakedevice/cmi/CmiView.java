@@ -92,16 +92,16 @@ public class CmiView extends View {
         RectF scr = new RectF(dp(6), dp(4), W - dp(6), H - keyH - dp(4));
         fill(c, scr, BG);
         // tabs
-        final char[] pages = { '2', '7', 'D', '8', 'R' };
-        final String[] names = { "LIBRARY", "CONTROL", "WAVE", "SAMPLE", "COMPOSER" };
-        final String[] shortNames = { "LIB", "CTRL", "WAVE", "SMPL", "SEQ" };
+        final char[] pages = { '2', '7', 'D', '5', '8', 'F', 'M', 'R' };
+        final String[] names = { "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
+        final String[] shortNames = { "VOX", "CTL", "WAV", "PEN", "SMP", "FIL", "MIX", "SEQ" };
         final float tabX = portrait ? dp(4) : dp(100);
-        float tw = (scr.width() - tabX - dp(10)) / 5f;
+        float tw = (scr.width() - tabX - dp(10)) / 8f;
         if (!portrait) text(c, "PAGE " + page, scr.left + dp(8), scr.top + dp(18), 13, INK);
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 8; ++i) {
             final char pg = pages[i];
             RectF r = new RectF(scr.left + tabX + i * tw, scr.top + dp(3), scr.left + tabX + (i + 1) * tw - dp(4), scr.top + dp(23));
-            if (tw < dp(96)) { button(c, r, pg + " " + shortNames[i], page == pg, () -> { page = pg; status = "READY"; }); continue; }
+            if (tw < dp(96)) { button(c, r, tw < dp(60) ? shortNames[i] : pg + " " + shortNames[i], page == pg, () -> { page = pg; status = "READY"; }); continue; }
             button(c, r, pg + " " + names[i], page == pg, () -> { page = pg; status = "READY"; });
         }
         fill(c, new RectF(scr.left + dp(4), scr.top + dp(27), scr.right - dp(4), scr.top + dp(43)), INK);
@@ -112,12 +112,20 @@ public class CmiView extends View {
             case '7': controls(c, body); break;
             case 'D': waveform(c, body); break;
             case '8': sampling(c, body); break;
+            case 'M': mixer(c, body); break;
+            case 'F': files(c, body); break;
+            case '5': pen(c, body); break;
             default: composer(c, body); break;
         }
         // scanlines
         p.setColor(0x2a000000);
         for (float y = scr.top; y < scr.bottom; y += dp(2)) c.drawRect(scr.left, y, scr.right, y + dp(0.7f), p);
         keyboard(c, new RectF(0, H - keyH, W, H));
+        if (hoverOn) {   // the light pen: the S Pen hovering over the screen
+            p.setColor(0x904dffa8); p.setStrokeWidth(dp(1));
+            c.drawLine(hoverX - dp(14), hoverY, hoverX + dp(14), hoverY, p); c.drawLine(hoverX, hoverY - dp(14), hoverX, hoverY + dp(14), p);
+            p.setStyle(Paint.Style.STROKE); c.drawCircle(hoverX, hoverY, dp(6), p); p.setStyle(Paint.Style.FILL);
+        }
         postInvalidateDelayed(40);
     }
 
@@ -152,6 +160,138 @@ public class CmiView extends View {
         }
         String[] f = info(cur);
         if (f.length > 3) text(c, f[0] + ": " + (f[1].length() > 40 ? f[1].substring(0, 40) : f[1]), b.left, b.bottom - dp(4), 11, DIM);
+    }
+
+    // ---- Page M: the mixer ----
+    private int mixPage = 0;
+    private void mixer(Canvas c, RectF b) {
+        final List<Integer> strips = new ArrayList<>(); final List<String> names = new ArrayList<>();
+        strips.add(0); names.add("KEYS");
+        if (Native.currentSong() >= 0) {
+            for (int t = 0; t < Native.SONG_TRK; ++t) { String[] f = Native.songTrack(t).split("\\t", -1); if (f.length > 3 && f[2].equals("1")) { strips.add(9 + t); names.add(f[0].length() > 7 ? f[0].substring(0, 7) : f[0]); } }
+        } else for (int t = 0; t < Native.TRACKS; ++t) { strips.add(1 + t); names.add(info(Native.trackSound(t))[0]); }
+        final int per = portrait ? 6 : 12, pages = Math.max(1, (strips.size() + per - 1) / per);
+        mixPage = Math.min(mixPage, pages - 1);
+        text(c, "MIXER " + (Native.currentSong() >= 0 ? "SONG" : "PAGE R"), b.left, b.top + dp(12), 12, INK);
+        if (pages > 1) button(c, new RectF(b.right - dp(110), b.top, b.right, b.top + dp(22)), "STRIPS " + (mixPage + 1) + "/" + pages, false, () -> mixPage = (mixPage + 1) % pages);
+        final int n = Math.min(per, strips.size() - mixPage * per) + 1;
+        final float sw = b.width() / n, top = b.top + dp(28), fh = b.height() - dp(110);
+        for (int k = 0; k < n; ++k) {
+            final boolean master = k == n - 1;
+            final int idx = master ? -1 : strips.get(mixPage * per + k);
+            final float x = b.left + k * sw;
+            final String nm = master ? "MASTER" : names.get(mixPage * per + k);
+            textC(c, nm, new RectF(x, top, x + sw, top + dp(14)), 9, INK);
+            final RectF slot = new RectF(x + sw / 2 - dp(3), top + dp(20), x + sw / 2 + dp(3), top + dp(20) + fh);
+            fill(c, slot, FAINT);
+            final float mv = Math.min(1, master ? Native.masterMeter() : Native.mixGet(idx, 4));
+            fill(c, new RectF(x + dp(4), slot.bottom - fh * mv, x + dp(8), slot.bottom), mv > 0.95f ? Color.WHITE : DIM);
+            final float v = master ? Native.getParam(Native.MASTER) : Native.mixGet(idx, 0), y = slot.bottom - fh * v / 1.5f;
+            fill(c, new RectF(x + dp(10), y - dp(6), x + sw - dp(10), y + dp(6)), INK);
+            textC(c, v <= 0.001f ? "-INF" : String.format("%.1f", 20 * Math.log10(v)), new RectF(x, slot.bottom + dp(2), x + sw, slot.bottom + dp(14)), 8, DIM);
+            Act set = (xx, yy) -> { float nv = Math.max(0, Math.min(1.5f, (slot.bottom - yy) / fh * 1.5f)); if (master) Native.setParam(Native.MASTER, nv); else Native.mixSet(idx, 0, nv); };
+            Hit h = hit(new RectF(x, top + dp(16), x + sw, slot.bottom + dp(6)), set); h.drag = set;
+            if (master) continue;
+            final float py = slot.bottom + dp(18);
+            final float po = Native.mixGet(idx, 1);
+            fill(c, new RectF(x + dp(4), py, x + sw - dp(4), py + dp(8)), FAINT);
+            fill(c, new RectF(x + dp(4) + (sw - dp(12)) * (po < 0 ? 0.5f : po), py - dp(2), x + dp(8) + (sw - dp(12)) * (po < 0 ? 0.5f : po), py + dp(10)), po < 0 ? DIM : INK);
+            Act pan = (xx, yy) -> Native.mixSet(idx, 1, Math.max(0, Math.min(1, (xx - x - dp(4)) / (sw - dp(8)))));
+            Hit ph = hit(new RectF(x, py - dp(6), x + sw, py + dp(14)), pan); ph.drag = pan; ph.longPress = true; ph.hold = (xx, yy) -> Native.mixSet(idx, 1, -1);
+            final boolean mu = Native.mixGet(idx, 2) > 0.5f, so = Native.mixGet(idx, 3) > 0.5f;
+            button(c, new RectF(x + dp(2), py + dp(18), x + sw / 2 - dp(1), py + dp(38)), "M", mu, () -> Native.mixSet(idx, 2, mu ? 0 : 1));
+            button(c, new RectF(x + sw / 2 + dp(1), py + dp(18), x + sw - dp(2), py + dp(38)), "S", so, () -> Native.mixSet(idx, 3, so ? 0 : 1));
+        }
+    }
+
+    // ---- Page F: the library folder ----
+    private int filePage = 0;
+    private void files(Canvas c, RectF b) {
+        final String lib = act.libraryName();
+        text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib), b.left, b.top + dp(12), 11, INK);
+        final float y0 = b.top + dp(20), bw = (b.width() - dp(12)) / 3;
+        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", "" };
+        final Runnable[] fn = { act::chooseLibrary, act::rescanLibrary, () -> { status("" + Native.removeDuplicateSongs() + " DUPLICATES REMOVED"); act.saveState(); },
+                () -> act.loadFromLibrary(true, false, -1), () -> act.loadFromLibrary(false, true, -1), () -> {} };
+        for (int i = 0; i < 5; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = y0 + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], false, fn[i]); }
+        final float top = y0 + dp(58), rh = dp(26);
+        final int rows = Math.max(1, (int) ((b.bottom - dp(26) - top) / rh));
+        final int nf = act.libNames.size(), pages = Math.max(1, (nf + rows - 1) / rows);
+        filePage = Math.min(filePage, pages - 1);
+        if (nf == 0) text(c, lib.isEmpty() ? "Pick the folder with your songs, CMI disks and samples." : "No songs, disks or samples found there.", b.left, top + dp(14), 11, DIM);
+        for (int r = 0; r < rows && filePage * rows + r < nf; ++r) {
+            final int i = filePage * rows + r;
+            final String nm = act.libNames.get(i), lo = nm.toLowerCase();
+            final String tag = lo.endsWith(".mid") || lo.endsWith(".midi") ? "SONG" : lo.endsWith(".zip") ? "ZIP" : lo.endsWith(".vc") ? "VC" : lo.endsWith(".wav") ? "WAV" : "DISK";
+            final RectF row = new RectF(b.left, top + r * rh, b.right, top + (r + 1) * rh - dp(2));
+            text(c, tag, row.left, row.bottom - dp(7), 10, DIM);
+            text(c, nm.length() > 40 ? nm.substring(0, 40) : nm, row.left + dp(40), row.bottom - dp(7), 11, tag.equals("SONG") ? INK : DIM);
+            hit(row, (xx, yy) -> act.loadFromLibrary(false, false, i));
+        }
+        if (pages > 1) {
+            final float y = b.bottom - dp(22);
+            button(c, new RectF(b.left, y, b.left + dp(40), y + dp(22)), "<", false, () -> filePage = Math.max(0, filePage - 1));
+            textC(c, (filePage + 1) + "/" + pages, new RectF(b.left + dp(40), y, b.left + dp(100), y + dp(22)), 11, INK);
+            button(c, new RectF(b.left + dp(100), y, b.left + dp(140), y + dp(22)), ">", false, () -> filePage = Math.min(pages - 1, filePage + 1));
+        }
+    }
+
+    // ---- Page 5: the light pen (the S Pen, or a finger): draw the start and end waveforms ----
+    final float[][] cyc = new float[2][128];
+    private final RectF[] penBoxes = { new RectF(), new RectF() };
+    private int penBox = 0, penLastX = -1; private float penLastV = 0; private boolean penStylus = false;
+    private void pen(Canvas c, RectF b) {
+        text(c, "LIGHT PEN: draw the start and the end waveform", b.left, b.top + dp(12), 11, INK);
+        final float bh = (b.height() - dp(120)) / 2;
+        for (int k = 0; k < 2; ++k) {
+            final RectF r = new RectF(b.left, b.top + dp(20) + k * (bh + dp(8)), b.right, b.top + dp(20) + k * (bh + dp(8)) + bh);
+            penBoxes[k] = r;
+            frame(c, r, k == penBox ? INK : DIM);
+            p.setColor(FAINT); c.drawLine(r.left, r.centerY(), r.right, r.centerY(), p);
+            text(c, k == 0 ? "START" : "END", r.left + dp(4), r.top + dp(12), 9, DIM);
+            Path path = new Path();
+            for (int i = 0; i < 128; ++i) { float x = r.left + r.width() * i / 127f, y = r.centerY() - cyc[k][i] * r.height() * 0.48f; if (i == 0) path.moveTo(x, y); else path.lineTo(x, y); }
+            Paint lp = new Paint(Paint.ANTI_ALIAS_FLAG); lp.setStyle(Paint.Style.STROKE); lp.setStrokeWidth(dp(2)); lp.setColor(INK); c.drawPath(path, lp);
+        }
+        final float y = b.bottom - dp(92), bw = (b.width() - dp(12)) / 3;
+        final String[] lbl = { "SINE", "SAW", "SQUARE", "TRIANGLE", "CLEAR", "START>END" };
+        for (int i = 0; i < 6; ++i) {
+            final int kind = i;
+            float rx = b.left + (i % 3) * (bw + dp(6)), ry = y + (i / 3) * dp(26);
+            button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], false, () -> {
+                if (kind == 5) { System.arraycopy(cyc[0], 0, cyc[1], 0, 128); return; }
+                for (int j = 0; j < 128; ++j) { float ph = j / 128f; cyc[penBox][j] = kind == 0 ? (float) Math.sin(2 * Math.PI * ph) : kind == 1 ? 1 - 2 * ph : kind == 2 ? (ph < 0.5f ? 1 : -1) : kind == 3 ? (ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph) : 0; }
+                if (Native.hasDrawn()) Native.saveDrawn(cyc[0], cyc[1], false);
+            });
+        }
+        button(c, new RectF(b.left, y + dp(56), b.right, y + dp(80)), "SAVE AS A NEW VOICE (then every stroke updates it)", false, () -> { String e = Native.saveDrawn(cyc[0], cyc[1], true); status(e.isEmpty() ? "DRAWN VOICE ON THE KEYBOARD" : e); act.saveState(); });
+    }
+    private boolean penTouch(MotionEvent e) {
+        final int a = e.getActionMasked();
+        final boolean stylus = e.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS || e.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER;
+        if (stylus) penStylus = true;
+        if (penStylus && !stylus) return false;   // the S Pen is in use: a resting palm doesn't draw
+        int k = -1; for (int i = 0; i < 2; ++i) if (penBoxes[i].contains(e.getX(), e.getY())) k = i;
+        if (a == MotionEvent.ACTION_DOWN) { if (k < 0) return false; penBox = k; penLastX = -1; }
+        if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) { penLastX = -1; if (Native.hasDrawn()) { Native.saveDrawn(cyc[0], cyc[1], false); act.saveState(); } return true; }
+        final RectF r = penBoxes[penBox];
+        final boolean erase = e.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER || (e.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0;
+        for (int hI = 0; hI <= e.getHistorySize(); ++hI) {
+            final float x = hI < e.getHistorySize() ? e.getHistoricalX(hI) : e.getX(), y = hI < e.getHistorySize() ? e.getHistoricalY(hI) : e.getY();
+            final int px = Math.max(0, Math.min(127, Math.round((x - r.left) / r.width() * 127)));
+            final float pv = erase ? 0 : Math.max(-1, Math.min(1, (r.centerY() - y) / (r.height() * 0.48f)));
+            if (penLastX < 0) cyc[penBox][px] = pv;
+            else { int lo = Math.min(penLastX, px), hi = Math.max(penLastX, px); for (int i = lo; i <= hi; ++i) cyc[penBox][i] = hi == lo ? pv : penLastV + (pv - penLastV) * (i - penLastX) / (float) (px - penLastX); }
+            penLastX = px; penLastV = pv;
+        }
+        invalidate(); return true;
+    }
+    private float hoverX, hoverY; private boolean hoverOn = false;
+    @Override public boolean onHoverEvent(MotionEvent e) {
+        final int a = e.getActionMasked();
+        hoverOn = a != MotionEvent.ACTION_HOVER_EXIT && e.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS;
+        hoverX = e.getX(); hoverY = e.getY(); invalidate();
+        return true;
     }
 
     // ---- Page 7 ----
@@ -697,6 +837,10 @@ public class CmiView extends View {
     private final Runnable[] holdTimers = new Runnable[16];
     @Override public boolean onTouchEvent(MotionEvent e) {
         final int a = e.getActionMasked();
+        if (page == '5' && e.getPointerCount() == 1 && (penLastX >= 0 || a == MotionEvent.ACTION_DOWN) && penTouch(e)) return true;
+        if (grid && page == 'R' && !gridRect.isEmpty() && a == MotionEvent.ACTION_DOWN && (e.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0) {
+            final int ni = noteAt(e.getX(), e.getY()); if (ni >= 0) { removeNote(ni); invalidate(); } return true;   // the pen's button: delete
+        }
         if (grid && page == 'R' && !gridRect.isEmpty() && e.getPointerCount() == 1 && (gridActive || (a == MotionEvent.ACTION_DOWN && gridRect.contains(e.getX(), e.getY())))) {
             gridActive = a != MotionEvent.ACTION_UP && a != MotionEvent.ACTION_CANCEL;
             return gridTouch(e, a, e.getX(), e.getY());

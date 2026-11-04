@@ -316,7 +316,10 @@ FN(jstring, importMidi)(JNIEnv* env, jclass, jbyteArray data, jstring name) {
     env->ReleaseStringUTFChars(name, nm);
     MidiSong ms; std::string err;
     if (!parseSmf(b.data(), b.size(), up, ms, err)) return env->NewStringUTF(err.c_str());
-    selectSong(app()->engine, app()->songs.at(app()->songs.add(std::move(ms), app()->kit.bank)));
+    int dup = 0;
+    const int i = app()->songs.addUnique(std::move(ms), app()->kit.bank, dup);
+    if (dup == 1) return env->NewStringUTF("DUPLICATE");
+    selectSong(app()->engine, app()->songs.at(i));
     return env->NewStringUTF("");
 }
 FN(jint, songCount)(JNIEnv*, jclass) { return app()->songs.count(); }
@@ -437,6 +440,33 @@ FN(void, setSongNoteList)(JNIEnv* env, jclass, jintArray notes) {
 FN(jboolean, undoSongEdit)(JNIEnv*, jclass) { return undoSong(app()->engine, app()->songs.at(curSongIdx())); }
 FN(void, newSong)(JNIEnv*, jclass) { auto& sl = app()->songs; selectSong(app()->engine, sl.at(sl.add(emptySong("NEW SONG " + std::to_string(sl.count() + 1)), app()->kit.bank))); }
 FN(jstring, songWhy)(JNIEnv* env, jclass, jint t) { const SongEntry* e = app()->songs.at(curSongIdx()); return env->NewStringUTF(e && t >= 0 && t < SONG_TRK ? e->why[t].c_str() : ""); }
+
+// ---- mixer: strips 0 keyboard, 1..8 Page R tracks, 9..24 song tracks ----
+FN(jfloat, mixGet)(JNIEnv*, jclass, jint i, jint what) {
+    auto& e = app()->engine; if (i < 0 || i >= Engine::STRIPS) return 0;
+    return what == 0 ? e.fader[(size_t) i].load() : what == 1 ? e.panOver[(size_t) i].load() : what == 2 ? (float) e.mute[(size_t) i].load() : what == 3 ? (float) e.solo[(size_t) i].load() : e.meter[(size_t) i].load();
+}
+FN(void, mixSet)(JNIEnv*, jclass, jint i, jint what, jfloat v) {
+    auto& e = app()->engine; if (i < 0 || i >= Engine::STRIPS) return;
+    if (what == 0) e.fader[(size_t) i] = clampd(v, 0, 1.5); else if (what == 1) e.panOver[(size_t) i] = v; else if (what == 2) e.mute[(size_t) i] = v > 0.5f; else if (what == 3) e.solo[(size_t) i] = v > 0.5f;
+}
+FN(jfloat, masterMeter)(JNIEnv*, jclass) { return std::max(app()->engine.meterL.load(), app()->engine.meterR.load()); }
+FN(jint, removeDuplicateSongs)(JNIEnv*, jclass) { const int c = curSongIdx(); const int n = app()->songs.removeDuplicates(); if (!app()->songs.at(c)) selectSong(app()->engine, nullptr); return n; }
+// a voice drawn with the pen: two 128-point cycles; into a new slot (asNew) or over the last drawn one
+static int lastDrawn = -1;
+FN(jstring, saveDrawn)(JNIEnv* env, jclass, jfloatArray a, jfloatArray b, jboolean asNew) {
+    float s0[PAGE], s1[PAGE];
+    env->GetFloatArrayRegion(a, 0, PAGE, s0); env->GetFloatArrayRegion(b, 0, PAGE, s1);
+    auto& kit = app()->kit;
+    int slot = asNew || lastDrawn < 0 || !kit.userLoaded(lastDrawn) ? kit.firstFree() : lastDrawn;
+    if (slot < 0) return env->NewStringUTF("USER VOICES FULL");
+    int n = 1; for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && kit.user(k)->name.rfind("DRAW", 0) == 0) ++n;
+    const std::string name = slot == lastDrawn && kit.userLoaded(slot) ? kit.user(slot)->name : "DRAW" + std::to_string(n);
+    kit.setUser(slot, drawnVoice(name, s0, s1)); lastDrawn = slot;
+    app()->loadSound(kit.userSlot(slot));
+    return env->NewStringUTF("");
+}
+FN(jboolean, hasDrawn)(JNIEnv*, jclass) { return lastDrawn >= 0; }
 
 FN(jboolean, userLoaded)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k); }
 FN(jint, userSlot)(JNIEnv*, jclass, jint k) { return app()->kit.userSlot(k); }
