@@ -99,6 +99,7 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_init(JNIEnv* env, jcla
         env->ReleaseStringUTFChars(state, c);
     }
     ui = std::make_unique<ScreenUI>(*host);
+    ui->touchMode = true;
     ui->showPreset(host->s.program.load());
 }
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_start(JNIEnv*, jclass) {
@@ -137,6 +138,34 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_seqToggle(JNIEnv*, jcl
 JNIEXPORT jboolean JNICALL Java_com_thesnakedevice_sid_Native_seqRunning(JNIEnv*, jclass) { return host && host->s.seqPlay.load(); }
 // how many text rows the phone's screen shows (25 to 80): the pixel array passed to render holds 320 x rows x 8
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setRows(JNIEnv*, jclass, jint rows) { if (ui) ui->setRows(rows); }
+// the big controls beside the screen: the page buttons and the panel for the selected setting
+// "page|selected id|name|value|kind|0..1 position|preset name|preset number"
+JNIEXPORT jstring JNICALL Java_com_thesnakedevice_sid_Native_editState(JNIEnv* env, jclass) {
+    if (!ui || !host) return env->NewStringUTF("");
+    const int id = ui->selected;
+    std::string st = std::to_string(ui->page) + "|" + std::to_string(id) + "|";
+    if (id >= 0) {
+        const ParamInfo& p = params()[id];
+        const float v = host->get(id);
+        st += std::string(p.section) + " " + p.name + "|" + formatValue(id, v) + "|" + std::to_string((int) p.kind) + "|" + std::to_string(toNorm(id, v));
+    } else st += "|||0";
+    st += "|" + host->s.presetName + "|" + std::to_string(host->s.program.load() + 1);
+    return env->NewStringUTF(st.c_str());
+}
+// 0 set the selected setting to v (0..1), 1 step it by v, 2 reset it, 3 next / previous preset by v, 4 go to page v,
+// 5 next / previous page by v
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_editAction(JNIEnv*, jclass, jint action, jfloat v) {
+    if (!ui) return;
+    switch (action) {
+        case 0: ui->setSelectedNorm(v); break;
+        case 1: ui->stepSelected(v < 0 ? -1 : 1); break;
+        case 2: ui->resetSelected(); break;
+        case 3: ui->stepPreset(v < 0 ? -1 : 1); break;
+        case 4: ui->setPage((int) v); break;
+        case 5: ui->stepPage(v < 0 ? -1 : 1); break;
+        default: break;
+    }
+}
 JNIEXPORT jint JNICALL Java_com_thesnakedevice_sid_Native_pollRequest(JNIEnv*, jclass) { return host ? host->request.exchange(0) : 0; }
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setRecordingState(JNIEnv*, jclass, jboolean on, jfloat secs) {
     if (host) { host->rec = on; host->recSec = secs; }

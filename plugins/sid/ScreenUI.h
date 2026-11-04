@@ -86,9 +86,32 @@ public:
     }
 
     // ---- pointer, in screen pixels ----
+    // ---- for touch screens: the platform can show the selected setting big, and page buttons ----
+    bool touchMode = false;      // forgiving taps: a touch between rows takes the nearest control
+    int selected = -1;           // the setting touched last (highlighted on the screen)
+    static constexpr int PAGE_ORDER[11] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 9, 7 };   // the tabs, then CHP
+    static const char* pageName(int i) { static const char* n[11] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "SEQ", "CHP" }; return n[std::clamp(i, 0, 10)]; }
+    void setPage(int pg) { page = pg; patList = false; if (pg == 0) showPreset(host.synth().program.load()); }
+    void stepPage(int d) {
+        int k = 0; for (int i = 0; i < 11; ++i) if (PAGE_ORDER[i] == page) k = i;
+        setPage(PAGE_ORDER[((k + d) % 11 + 11) % 11]);
+    }
+    void stepPreset(int d) { button(d < 0 ? B_PREV : B_NEXT); }
+    // the selected setting: change it from a big control
+    void setSelectedNorm(float n) { if (selected >= 0) host.set(selected, fromNorm(selected, n)); }
+    void stepSelected(int d) {
+        if (selected < 0) return;
+        const ParamInfo& p = params()[selected]; const float v = host.get(selected);
+        if (p.kind == TOGGLE) host.set(selected, v > .5f ? 0.f : 1.f);
+        else if (p.kind == CHOICE || p.kind == INT) { float n = v + (float) d; if (p.kind == CHOICE) { if (n > p.max) n = p.min; if (n < p.min) n = p.max; } host.set(selected, std::clamp(n, p.min, p.max)); }
+        else host.set(selected, fromNorm(selected, toNorm(selected, v) + d * 0.01f));
+    }
+    void resetSelected() { if (selected >= 0) host.set(selected, params()[selected].def); }
+
     void down(float x, float y) {
         downX = lastX = x; downY = lastY = y; moved = false;
         hit = zoneAt(x, y);
+        if (hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER)) selected = hit.a;
         if (hit.kind == Z_PBAR) setFromBar(hit, x);
         if (hit.kind == Z_VFADER) setFromFader(hit.a, y);
         const bool isParam = hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER);
@@ -124,6 +147,10 @@ public:
     }
     void up(float x, float y) {
         move(x, y);
+        // a sideways swipe off the controls that drag: the next / previous page
+        const float dx = x - downX, dy = y - downY;
+        const bool drags = (hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER || hit.kind == Z_STEP_NOTE;
+        if (moved && !drags && std::fabs(dx) > 48 && std::fabs(dx) > 2 * std::fabs(dy)) { stepPage(dx < 0 ? 1 : -1); hit = {}; return; }
         if (!moved) tap(hit);
         hit = {};
     }
@@ -192,14 +219,23 @@ private:
     Zone zoneAt(float x, float y) const {
         const int c = (int) (x / 8), r = (int) (y / 8);
         for (auto it = zones.rbegin(); it != zones.rend(); ++it) if (it->r == r && c >= it->c0 && c <= it->c1) return *it;
-        return {};
+        if (!touchMode) return {};
+        // a finger between two rows: the control whose row is nearest, within half a row either way
+        const float fy = y / 8.f - 0.5f;
+        Zone best; float bd = 0.75f;
+        for (auto it = zones.rbegin(); it != zones.rend(); ++it) {
+            if (c < it->c0 - 1 || c > it->c1 + 1) continue;
+            const float d = std::fabs(it->r - fy);
+            if (d < bd) { bd = d; best = *it; }
+        }
+        return best;
     }
 
     // one parameter: NAME (cols 1-16) VALUE (18-27) BAR (28-38)
     void paramRow(int r, int id, const char* label = nullptr) {
         const ParamInfo& p = params()[id];
         const float v = host.get(id);
-        put(r, 1, pad(label ? label : p.name, 16), LBLUE);
+        put(r, 1, pad(label ? label : p.name, 16), id == selected ? WHITE : LBLUE, id == selected);
         zone(r, 0, 17, Z_PNAME, id);
         const std::string val = formatValue(id, v);
         if (p.kind == TOGGLE) {

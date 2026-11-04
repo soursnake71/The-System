@@ -27,6 +27,13 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private float caseW = 1000;                                // the keyboard strip's width, in design units
     private boolean big = true;                                // big screen, or the desk
     private final RectF powerRect = new RectF();               // the monitor's power button: switches the view
+    // big screen, sideways: page buttons on the left, the selected setting's big controls on the right
+    private boolean panels = false;
+    private final RectF leftPanel = new RectF(), rightPanel = new RectF();
+    private final RectF[] pageBtn = new RectF[11];
+    private final RectF sliderRect = new RectF(), minusRect = new RectF(), plusRect = new RectF(), resetRect = new RectF();
+    private final RectF presetPrev = new RectF(), presetNext = new RectF(), toggleRect = new RectF();
+    private String[] edit = new String[0];
     private static final int[] STRIPES = { 0xffd8342b, 0xffef8a2c, 0xfff2d23a, 0xff4aa64a, 0xff2f74c0 };
     private static final int BEIGE_LINE = 0xff9c8f7b;
     private static final int KEY_BROWN = 0xff3f322b, KEY_BROWN_TOP = 0xff574639, KEY_TAUPE = 0xff7d7067, KEY_TAUPE_TOP = 0xff978a80;
@@ -127,9 +134,33 @@ public class SidView extends View implements Choreographer.FrameCallback {
         powerRect.set(rimR - 66, rimB - 34, rimR - 20, rimB - 10);
         placePicture();
         KDY = DH - CASE_H - 596;
+        layoutPanels(DW);
+    }
+    private void layoutPanels(float DW) {
+        final float lw = rimL - 36, rw = DW - rimR - 36;
+        panels = Math.min(lw, rw) * scale > 220;   // only when there's real room beside the monitor (sideways)
+        if (!panels) return;
+        leftPanel.set(18, rimT, rimL - 18, rimB);
+        rightPanel.set(rimR + 18, rimT, DW - 18, rimB);
+        // 11 page buttons, two columns
+        final float gap = 12, bw = (leftPanel.width() - gap) / 2, bh = (leftPanel.height() - 5 * gap) / 6;
+        for (int i = 0; i < 11; ++i) {
+            final float x = leftPanel.left + (i % 2) * (bw + gap), y = leftPanel.top + (i / 2) * (bh + gap);
+            pageBtn[i] = new RectF(x, y, x + bw, y + bh);
+        }
+        final RectF R = rightPanel; final float u = R.height() / 12;
+        sliderRect.set(R.left, R.top + u * 5.2f, R.right, R.top + u * 6.9f);
+        toggleRect.set(R.left, R.top + u * 4.9f, R.right, R.top + u * 7.2f);
+        final float third = (R.width() - 2 * gap) / 3;
+        minusRect.set(R.left, R.top + u * 7.6f, R.left + third, R.top + u * 9.4f);
+        resetRect.set(R.left + third + gap, minusRect.top, R.left + 2 * third + gap, minusRect.bottom);
+        plusRect.set(R.left + 2 * (third + gap), minusRect.top, R.right, minusRect.bottom);
+        presetPrev.set(R.left, R.top + u * 10.2f, R.left + third, R.bottom);
+        presetNext.set(R.right - third, presetPrev.top, R.right, R.bottom);
     }
     // the desk: a 1701 (nearly square, a 4:3 tube) with the breadbin strip in front, scaled to fit and centred
     private void layoutDesk(int w, int h) {
+        panels = false;
         final float contentH = MON_BOTTOM + 6 + CASE_H;
         scale = Math.min(w / 1000f, h / contentH);
         T = contentH; caseW = 1000;
@@ -149,8 +180,11 @@ public class SidView extends View implements Choreographer.FrameCallback {
         invalidate();
     }
     // keyboard parts, in the case's own coordinates (its top edge at 596)
-    private RectF kWell() { return new RectF(40, 664, caseW - 188, 596 + CASE_H - 26); }
-    private RectF fWell() { return new RectF(caseW - 158, 664, caseW - 40, 596 + CASE_H - 26); }
+    // a wide strip (sideways) puts the four function keys in a row in a wider well, so they stay finger-sized
+    private boolean fRow() { return caseW > 1500; }
+    private float fWellW() { return fRow() ? 460 : 118; }
+    private RectF kWell() { return new RectF(40, 664, caseW - fWellW() - 70, 596 + CASE_H - 26); }
+    private RectF fWell() { return new RectF(caseW - fWellW() - 40, 664, caseW - 40, 596 + CASE_H - 26); }
     private RectF whiteRect(int i) {
         final RectF k = kWell(); final float w = (k.width() - 16) / whiteKeys;
         return new RectF(k.left + 8 + i * w, k.top + 6, k.left + 8 + i * w + w - 4, k.bottom - 6);
@@ -159,8 +193,10 @@ public class SidView extends View implements Choreographer.FrameCallback {
         final RectF a = whiteRect(whiteIndexLeft); final float w = a.width();
         return new RectF(a.right - w * 0.3f, a.top - 2, a.right - w * 0.3f + w * 0.62f, a.top - 2 + a.height() * 0.6f);
     }
-    private RectF fkeyRect(int i) {   // two by two
-        final RectF f = fWell(); final float hw = (f.width() - 18) / 2, hh = (f.height() - 18) / 2;
+    private RectF fkeyRect(int i) {   // two by two, or in a row
+        final RectF f = fWell();
+        if (fRow()) { final float kw = (f.width() - 30) / 4; return new RectF(f.left + 6 + i * (kw + 6), f.top + 6, f.left + 6 + i * (kw + 6) + kw, f.bottom - 6); }
+        final float hw = (f.width() - 18) / 2, hh = (f.height() - 18) / 2;
         final int cx = i % 2, cy = i / 2;
         return new RectF(f.left + 6 + cx * (hw + 6), f.top + 6 + cy * (hh + 6), f.left + 6 + cx * (hw + 6) + hw, f.top + 6 + cy * (hh + 6) + hh);
     }
@@ -311,9 +347,75 @@ public class SidView extends View implements Choreographer.FrameCallback {
         p.setShader(new LinearGradient(tubeRect.left, tubeRect.top, tubeRect.left + 400, tubeRect.top + 500, 0x16ffffff, 0x00ffffff, Shader.TileMode.CLAMP));
         r.set(tubeRect.left - 40, tubeRect.top - 40, tubeRect.left + 560, tubeRect.top + 420); c.drawOval(r, p); p.setShader(null);
         c.restore();
+        if (panels) drawPanels(c);
         c.save(); c.translate(0, KDY); drawKeys(c); c.restore();
         c.restore();
     }
+    // C64 colours for the big controls
+    private static final int C_BLUE = 0xff352879, C_LBLUE = 0xff6c5eb5, C_WHITE = 0xffffffff, C_YELLOW = 0xffb8c76f, C_GREY = 0xff959595, C_GREEN = 0xff9ad284;
+    private void bigButton(Canvas c, RectF b, String label, boolean lit, float size) {
+        rrect(c, b.left, b.top, b.right, b.bottom, 10, lit ? C_LBLUE : C_BLUE);
+        stroke(c, b.left, b.top, b.right, b.bottom, 10, C_LBLUE, 3);
+        p.setTypeface(Typeface.MONOSPACE); p.setFakeBoldText(true);
+        text(c, label, b.centerX(), b.centerY() + size * 0.36f, size, lit ? C_BLUE : C_WHITE, Paint.Align.CENTER);
+        p.setFakeBoldText(false); p.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+    }
+    private void drawPanels(Canvas c) {
+        edit = Native.editState().split("\\|", -1);
+        if (edit.length < 8) return;
+        final int page = parseInt(edit[0], 0), sel = parseInt(edit[1], -1);
+        for (int i = 0; i < 11; ++i) bigButton(c, pageBtn[i], ScreenPages.NAME[i], ScreenPages.ORDER[i] == page, Math.min(44, pageBtn[i].height() * 0.42f));
+        final RectF R = rightPanel; final float u = R.height() / 12;
+        rrect(c, R.left - 8, R.top - 8, R.right + 8, R.top + u * 9.8f, 14, 0x40000000);
+        p.setTypeface(Typeface.MONOSPACE); p.setFakeBoldText(true);
+        if (sel < 0) {
+            text(c, "TAP A SETTING", R.centerX(), R.top + u * 3, Math.min(40, R.width() / 11), C_LBLUE, Paint.Align.CENTER);
+            text(c, "ON THE SCREEN", R.centerX(), R.top + u * 4.2f, Math.min(40, R.width() / 11), C_LBLUE, Paint.Align.CENTER);
+            text(c, "TO EDIT IT HERE", R.centerX(), R.top + u * 5.4f, Math.min(40, R.width() / 11), C_GREY, Paint.Align.CENTER);
+        } else {
+            final int kind = parseInt(edit[4], 0); final float norm = parseFloat(edit[5]);
+            text(c, edit[2], R.centerX(), R.top + u * 1.4f, Math.min(34, R.width() / (edit[2].length() * 0.62f + 1)), C_GREY, Paint.Align.CENTER);
+            text(c, edit[3], R.centerX(), R.top + u * 3.9f, Math.min(u * 2.0f, R.width() / (edit[3].length() * 0.62f + 1)), C_WHITE, Paint.Align.CENTER);
+            if (kind == 2) bigButton(c, toggleRect, edit[3].equals("ON") ? "ON" : "OFF", edit[3].equals("ON"), u * 1.1f);
+            else {
+                // the slider: drag along it
+                rrect(c, sliderRect.left, sliderRect.top, sliderRect.right, sliderRect.bottom, 12, 0xff1a1450);
+                final float fx = sliderRect.left + norm * sliderRect.width();
+                rrect(c, sliderRect.left, sliderRect.top, Math.max(sliderRect.left + 24, fx), sliderRect.bottom, 12, kind == 3 ? C_YELLOW : C_GREEN);
+                rrect(c, fx - 8, sliderRect.top - 10, fx + 8, sliderRect.bottom + 10, 4, C_WHITE);
+            }
+            bigButton(c, minusRect, kind == 3 ? "<" : "-", false, u * 1.0f);
+            bigButton(c, resetRect, "RESET", false, u * 0.55f);
+            bigButton(c, plusRect, kind == 3 ? ">" : "+", false, u * 1.0f);
+        }
+        p.setFakeBoldText(false); p.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        // presets
+        bigButton(c, presetPrev, "<", false, u * 1.0f);
+        bigButton(c, presetNext, ">", false, u * 1.0f);
+        p.setTypeface(Typeface.MONOSPACE); p.setFakeBoldText(true);
+        final String pn = edit[7] + " " + edit[6];
+        text(c, pn, R.centerX(), presetPrev.centerY() + u * 0.2f, Math.min(u * 0.6f, (presetNext.left - presetPrev.right - 16) / (pn.length() * 0.62f + 1)), C_YELLOW, Paint.Align.CENTER);
+        text(c, "PRESET", R.centerX(), presetPrev.top - u * 0.15f, u * 0.4f, C_GREY, Paint.Align.CENTER);
+        p.setFakeBoldText(false); p.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+    }
+    private static int parseInt(String s, int d) { try { return Integer.parseInt(s.trim()); } catch (Exception e) { return d; } }
+    private static float parseFloat(String s) { try { return Float.parseFloat(s.trim()); } catch (Exception e) { return 0; } }
+    /** the panels' touches: true if one was hit (kind 5 = dragging the slider) */
+    private boolean panelDown(int id, float x, float y) {
+        if (!panels) return false;
+        for (int i = 0; i < 11; ++i) if (pageBtn[i].contains(x, y)) { Native.editAction(4, ScreenPages.ORDER[i]); pointerKind.put(id, 6); return true; }
+        final int kind = edit.length >= 8 ? parseInt(edit[4], 0) : 0; final boolean sel = edit.length >= 8 && parseInt(edit[1], -1) >= 0;
+        if (sel && kind == 2 && toggleRect.contains(x, y)) { Native.editAction(1, 1); pointerKind.put(id, 6); return true; }
+        if (sel && kind != 2 && sliderRect.contains(x, y)) { pointerKind.put(id, 5); sliderTo(x); return true; }
+        if (sel && minusRect.contains(x, y)) { Native.editAction(1, -1); pointerKind.put(id, 6); return true; }
+        if (sel && plusRect.contains(x, y)) { Native.editAction(1, 1); pointerKind.put(id, 6); return true; }
+        if (sel && resetRect.contains(x, y)) { Native.editAction(2, 0); pointerKind.put(id, 6); return true; }
+        if (presetPrev.contains(x, y)) { Native.editAction(3, -1); pointerKind.put(id, 6); return true; }
+        if (presetNext.contains(x, y)) { Native.editAction(3, 1); pointerKind.put(id, 6); return true; }
+        if (leftPanel.contains(x, y) || rightPanel.contains(x, y)) { pointerKind.put(id, 6); return true; }
+        return false;
+    }
+    private void sliderTo(float x) { Native.editAction(0, Math.max(0, Math.min(1, (x - sliderRect.left) / sliderRect.width()))); }
     private void drawKeys(Canvas c) {
         int wi = 0;
         for (int n = base; wi < whiteKeys; ++n) {
@@ -382,12 +484,14 @@ public class SidView extends View implements Choreographer.FrameCallback {
             final boolean isThis = e.getActionIndex() == i;
             if ((action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) && isThis) {
                 if (powerRect.contains(x, y)) { pointerKind.put(id, 4); toggleView(); return true; }
+                if (panelDown(id, x, y)) continue;
                 if (tubeRect.contains(x, y)) { pointerKind.put(id, 1); Native.touch(0, scrX(x), scrY(y)); }
                 else if (fkeyAt(x, ky) >= 0) { pointerKind.put(id, 3); fkeyDown = fkeyAt(x, ky); fkey(fkeyDown); }
                 else { pointerKind.put(id, 2); setNote(id, noteAt(x, ky), ky); }
             } else if (action == MotionEvent.ACTION_MOVE) {
                 final int kind = pointerKind.get(id, 0);
                 if (kind == 1) Native.touch(1, scrX(x), scrY(y));
+                else if (kind == 5) sliderTo(x);
                 else if (kind == 2) setNote(id, noteAt(x, ky), ky);   // slide across the keys
             } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP || action == MotionEvent.ACTION_CANCEL) && (isThis || action == MotionEvent.ACTION_CANCEL)) {
                 final int kind = pointerKind.get(id, 0);

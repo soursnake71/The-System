@@ -9,6 +9,10 @@ final class Native {
     static native String saveState();
     /** How many text rows the screen has (25 on a C64; more on a tall phone). */
     static native void setRows(int rows);
+    /** For the big controls: "page|selected id|name|value|kind|0..1|preset name|preset number". */
+    static native String editState();
+    /** 0 set the selected setting (0..1), 1 step it (+-1), 2 reset it, 3 preset +-1, 4 go to page, 5 page +-1. */
+    static native void editAction(int action, float value);
     /** Draws the C64 screen, 320 x (rows x 8), into px (ARGB). */
     static native void render(int[] px);
     /** action 0 down, 1 move, 2 up; x, y in C64 screen pixels. */

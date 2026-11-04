@@ -1,7 +1,7 @@
 // Omega SID 64 engine checks (no JUCE): every preset renders finite, audible, unclipped audio; the oscillator is in
 // tune; the filter, sequencer, arp and state round trip work; and how fast it runs.
 // Build: c++ -O2 -std=c++17 plugins/sid/sidtest.cpp -o sidtest && ./sidtest [wav-dir]
-#include "SidSynth.h"
+#include "ScreenUI.h"
 #include <chrono>
 #include <functional>
 #include <cstdio>
@@ -169,6 +169,37 @@ int main(int argc, char** argv) {
             CHECK(a->d.size() == 2 * 60 * 1024 && b->d.size() == 60 * 1024 && c->d.size() > b->d.size(), "RAM limit wrong");
         }
         s->panic(); s->initPatch();
+    }
+
+    // the screen's touch controls: selecting a setting, a tap between rows, swipes, the big +/-/reset
+    {
+        struct TH : ScreenUI::Host {
+            Synth& sy; explicit TH(Synth& x) : sy(x) {}
+            Synth& synth() override { return sy; } float get(int i) override { return sy.get(i); } void set(int i, float v) override { sy.set(i, v); }
+            void loadPreset(int i) override { sy.applyPreset(i); } void initPatch() override { sy.initPatch(); } void randomize() override { sy.randomize(3); }
+            bool isPlugin() const override { return false; }
+        } th(*s);
+        s->initPatch();
+        ScreenUI ui(th); ui.touchMode = true;
+        std::vector<uint32_t> px((size_t) (ScreenUI::W * ScreenUI::MAXROWS * 8));
+        auto tap = [&](float x, float y) { ui.render(px.data()); ui.down(x, y); ui.up(x, y); };
+        ui.setPage(4); tap(20, 5 * 8 + 4);                 // FILTER page, the cutoff row
+        CHECK(ui.selected == P::cut, "tapping CUTOFF selects %d", ui.selected);
+        ui.selected = -1; tap(20, 5 * 8 - 1.5f);             // just above the row: still CUTOFF
+        CHECK(ui.selected == P::cut, "a tap just above the row selects %d", ui.selected);
+        const float c0 = s->get(P::cut);
+        ui.stepSelected(1); CHECK(s->get(P::cut) > c0, "+ doesn't raise the cutoff");
+        ui.setSelectedNorm(1); CHECK(std::fabs(s->get(P::cut) - 2047) < 1, "the slider's top isn't 2047");
+        ui.resetSelected(); CHECK(std::fabs(s->get(P::cut) - params()[P::cut].def) < 1, "reset doesn't restore the default");
+        ui.setPage(1); tap(20, 6 * 8 + 4);                    // OSC 1: the waveform row's TRI toggle is at col 18
+        ui.render(px.data()); ui.down(150, 6 * 8 + 4); ui.up(150, 6 * 8 + 4);
+        CHECK(ui.selected == P::o1tri && s->get(P::o1tri) > .5f, "tapping TRI selects and toggles it");
+        ui.setPage(0); ui.render(px.data()); ui.down(200, 100); ui.move(140, 102); ui.up(120, 103);   // swipe left on the preset list
+        CHECK(ui.page == 1, "swiping left goes to the next page (page %d)", ui.page);
+        ui.render(px.data()); ui.down(100, 30 * 1); ui.move(170, 31); ui.up(190, 31);                 // swipe right
+        CHECK(ui.page == 0, "swiping right goes back (page %d)", ui.page);
+        std::printf("touch controls: select, near-miss tap, +/slider/reset, toggles, swipes checked\n");
+        s->initPatch();
     }
 
     // every preset: a chord, held then released
