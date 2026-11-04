@@ -205,8 +205,44 @@ public class CmiView extends View {
     }
 
     // ---- Page F: the library folder ----
-    private int filePage = 0;
+    private int filePage = 0, songFilePage = 0; private boolean songTab = true;
+    // the song folder: tap a song to load it (or go to it), hold it to load and play
+    private void songFolder(Canvas c, RectF b) {
+        final String sf = act.songFolderName();
+        text(c, "SONGS: " + (sf.isEmpty() ? "(none set)" : sf), b.left, b.top + dp(12), 11, INK);
+        final float bw = (b.width() - dp(6)) / 2, y0 = b.top + dp(20);
+        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(24)), "SET SONG FOLDER", false, act::chooseSongFolder);
+        button(c, new RectF(b.left + bw + dp(6), y0, b.right, y0 + dp(24)), "RESCAN", false, act::rescanSongs);
+        final float top = y0 + dp(32), rh = dp(30);
+        final int rows = Math.max(1, (int) ((b.bottom - dp(26) - top) / rh)), nf = act.songNames.size(), pages = Math.max(1, (nf + rows - 1) / rows);
+        songFilePage = Math.min(songFilePage, pages - 1);
+        if (nf == 0) text(c, sf.isEmpty() ? "Pick the folder with your MIDI songs (searched inside too)." : "No MIDI files there.", b.left, top + dp(14), 11, DIM);
+        final int cur = Native.currentSong();
+        for (int r = 0; r < rows && songFilePage * rows + r < nf; ++r) {
+            final int i = songFilePage * rows + r;
+            final String nm = MainActivity.baseName(act.songNames.get(i));
+            final int li = Native.songLoadedAs(nm);
+            final RectF row = new RectF(b.left, top + r * rh, b.right, top + (r + 1) * rh - dp(3));
+            if (li >= 0 && li == cur) fill(c, row, INK);
+            text(c, (li >= 0 ? "* " : "  ") + (nm.length() > 38 ? nm.substring(0, 38) : nm), row.left + dp(2), row.bottom - dp(9), 11, li >= 0 && li == cur ? BG : li >= 0 ? INK : DIM);
+            Hit h = hit(row, (xx, yy) -> act.openSong(i, false));
+            h.longPress = true; h.hold = (xx, yy) -> act.openSong(i, true);
+        }
+        final float y = b.bottom - dp(22);
+        if (pages > 1) {
+            button(c, new RectF(b.left, y, b.left + dp(40), y + dp(22)), "<", false, () -> songFilePage = Math.max(0, songFilePage - 1));
+            textC(c, (songFilePage + 1) + "/" + pages, new RectF(b.left + dp(40), y, b.left + dp(100), y + dp(22)), 11, INK);
+            button(c, new RectF(b.left + dp(100), y, b.left + dp(140), y + dp(22)), ">", false, () -> songFilePage = Math.min(pages - 1, songFilePage + 1));
+        }
+        text(c, "tap: load   hold: load + play   * loaded", b.left + dp(150), y + dp(15), 9, DIM);
+    }
+
     private void files(Canvas c, RectF b) {
+        final float tw = (b.width() - dp(6)) / 2;
+        button(c, new RectF(b.left, b.top, b.left + tw, b.top + dp(22)), "SONGS", songTab, () -> songTab = true);
+        button(c, new RectF(b.left + tw + dp(6), b.top, b.right, b.top + dp(22)), "CMI LIBRARY", !songTab, () -> songTab = false);
+        b = new RectF(b.left, b.top + dp(28), b.right, b.bottom);
+        if (songTab) { songFolder(c, b); return; }
         final String lib = act.libraryName();
         text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib) + "   " + Native.catalogCount() + " CMI VOICES", b.left, b.top + dp(12), 11, INK);
         final float y0 = b.top + dp(20), bw = (b.width() - dp(12)) / 3;

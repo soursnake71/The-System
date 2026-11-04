@@ -122,6 +122,12 @@ public:
 
     // the library folder: where your songs, disks and samples live (remembered for every project too)
     juce::File libraryFolder() const { const juce::ScopedLock l(infoLock); return libFolder; }
+    // the song folder: your MIDI songs, to browse and load
+    juce::File songFolder() const { const juce::ScopedLock l(infoLock); return songDir; }
+    void setSongFolder(const juce::File& f);
+    std::vector<juce::File> songFiles() const { const juce::ScopedLock l(infoLock); return songList; }
+    void rescanSongs();
+    int loadedSongFor(const juce::File& f) const;          // the song's index if it's loaded, else -1
     void setLibraryFolder(const juce::File& f);
     std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
     void rescanLibrary();
@@ -145,7 +151,7 @@ private:
     int program = 0;
     std::atomic<int> pendingProgram { -1 }, previewReq { -1 }, bankMsb { 0 };
     std::array<std::atomic<float>, 128> ccVal; std::atomic<uint64_t> ccDirty[2];
-    juce::File libFolder; std::vector<juce::File> libFiles; juce::CriticalSection infoLock;
+    juce::File libFolder; std::vector<juce::File> libFiles; juce::File songDir; std::vector<juce::File> songList; juce::CriticalSection infoLock;
     std::unique_ptr<juce::PropertiesFile> settings;
     int dupSkipped = 0;
     juce::ThreadPool pool { 1 };

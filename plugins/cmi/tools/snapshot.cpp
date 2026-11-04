@@ -59,6 +59,15 @@ int main(int argc, char** argv) {
         std::printf("folder import: %s; SND2 root %d loop %d-%d rate %.0f\n", msg.toRawUTF8(), s2 ? s2->root : -1, s2 ? s2->loopStart : -1, s2 ? s2->loopEnd : -1, s2 ? s2->rate : 0);
         ok &= n == 3 && s2 && s2->name == "SND2" && s2->root == 45 && s2->loopStart == 40 && s2->loopEnd == 99 && s2->rate == 25000;
     }
+    // a song folder (CMI_SONGS): scanned, and a song loaded from it
+    if (const char* sd = std::getenv("CMI_SONGS")) {
+        p.setSongFolder(juce::File(juce::String::fromUTF8(sd)));
+        const auto list = p.songFiles();
+        const int before = p.songs.count();
+        if (!list.empty()) p.importMidi(list.front());
+        std::printf("song folder: %d songs; loading the first: %d -> %d loaded, found again: %d\n", (int) list.size(), before, p.songs.count(), list.empty() ? -1 : p.loadedSongFor(list.front()));
+        ok &= !list.empty() && p.loadedSongFor(list.front()) >= 0;
+    }
     // a library folder (CMI_LIBRARY): its catalogue, and songs connected to it
     if (const char* lib = std::getenv("CMI_LIBRARY")) {
         p.setLibraryFolder(juce::File(juce::String::fromUTF8(lib)));
@@ -124,7 +133,7 @@ int main(int argc, char** argv) {
     }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
-    for (char pg : { 'R', '2', '7', 'D', '8', 'M', 'F', '5' }) {
+    for (char pg : { 'R', '2', '7', 'D', '8', 'M', '5', 'F' }) {
         run(20, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0); });
         ce->showPage(pg);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);

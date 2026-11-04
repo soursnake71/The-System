@@ -31,6 +31,8 @@ CmiProcessor::CmiProcessor()
     {   // settings every instance shares: the library folder
         juce::PropertiesFile::Options o; o.applicationName = "Omega CMI"; o.filenameSuffix = ".settings"; o.folderName = "Omega CMI"; o.osxLibrarySubFolder = "Application Support";
         settings = std::make_unique<juce::PropertiesFile>(o);
+        const juce::File sf(settings->getValue("songFolder"));
+        if (sf.isDirectory()) { songDir = sf; rescanSongs(); }
         const juce::File f(settings->getValue("libraryFolder"));
         if (f.isDirectory()) { libFolder = f; rescanLibrary(); }
     }
@@ -146,6 +148,25 @@ juce::String CmiProcessor::loadSample(const juce::File& f, int slot, int root, b
     }
     loadSound(kit.userSlot(first));
     return {};
+}
+
+void CmiProcessor::setSongFolder(const juce::File& f) {
+    { const juce::ScopedLock l(infoLock); songDir = f; }
+    if (settings) { settings->setValue("songFolder", f.getFullPathName()); settings->saveIfNeeded(); }
+    rescanSongs();
+}
+void CmiProcessor::rescanSongs() {
+    std::vector<juce::File> found;
+    const juce::File dir = songFolder();
+    if (dir.isDirectory())
+        for (const auto& e : juce::RangedDirectoryIterator(dir, true, "*.mid;*.midi;*.kar;*.smf", juce::File::findFiles)) { found.push_back(e.getFile()); if (found.size() > 10000) break; }
+    std::sort(found.begin(), found.end(), [](const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()) < 0; });
+    const juce::ScopedLock l(infoLock); songList = std::move(found);
+}
+int CmiProcessor::loadedSongFor(const juce::File& f) const {
+    const std::string k = songKey(f.getFileNameWithoutExtension().toUpperCase().replaceCharacters("_-", "  ").toStdString());
+    for (int i = 0; i < songs.size(); ++i) if (const SongEntry* e = songs.at(i)) if (songKey(e->song->name) == k) return i;
+    return -1;
 }
 
 void CmiProcessor::setLibraryFolder(const juce::File& f) {

@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
         Native.setRemembered(getSharedPreferences("cmi", MODE_PRIVATE).getString("remembered", ""));
         view = new CmiView(this);
         rescanLibrary();
+        rescanSongs();
         setContentView(view);
         hideBars();
         openMidi();
@@ -180,6 +181,13 @@ public class MainActivity extends Activity {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null) return;
         if (req == SAVE_WAV || req == SAVE_MIDI || req == SAVE_STEMS) { exportResult(req, data); return; }
+        if (req == PICK_SONGS && data.getData() != null) {
+            final Uri tree = data.getData();
+            try { getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
+            getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("songs", tree.toString()).apply();
+            rescanSongs();
+            return;
+        }
         if (req == PICK_LIBRARY && data.getData() != null) {
             final Uri tree = data.getData();
             try { getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
@@ -195,6 +203,43 @@ public class MainActivity extends Activity {
             for (int i = 0; i < data.getClipData().getItemCount(); ++i) { Uri u = data.getClipData().getItemAt(i).getUri(); uris.add(u); names.add(displayName(u)); }
         } else if (data.getData() != null) { uris.add(data.getData()); names.add(displayName(data.getData())); }
         importList(uris, names, req == PICK_ONE ? pickSlot : -1);
+    }
+
+    // ---- the song folder: your MIDI songs, browsed and loaded one at a time ----
+    static final int PICK_SONGS = 48;
+    final List<Uri> songUris = new ArrayList<>(); final List<String> songNames = new ArrayList<>();
+    void chooseSongFolder() { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); startActivityForResult(i, PICK_SONGS); }
+    String songFolderName() { String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("songs", ""); if (u.isEmpty()) return ""; String d = Uri.parse(u).getLastPathSegment(); return d == null ? u : d; }
+    void rescanSongs() {
+        final String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("songs", "");
+        if (u.isEmpty()) return;
+        new Thread(() -> {
+            final List<Uri> us = new ArrayList<>(); final List<String> ns = new ArrayList<>();
+            try { final Uri tree = Uri.parse(u); listFolder(tree, DocumentsContract.getTreeDocumentId(tree), us, ns, 0); } catch (Exception ignored) {}
+            final List<Integer> ord = new ArrayList<>();
+            for (int i = 0; i < us.size(); ++i) { String n = ns.get(i).toLowerCase(); if (n.endsWith(".mid") || n.endsWith(".midi") || n.endsWith(".kar") || n.endsWith(".smf")) ord.add(i); }
+            java.util.Collections.sort(ord, (x, y) -> ns.get(x).compareToIgnoreCase(ns.get(y)));
+            ui.post(() -> { songUris.clear(); songNames.clear(); for (int i : ord) { songUris.add(us.get(i)); songNames.add(ns.get(i)); } view.status(songUris.size() + " SONGS IN THE SONG FOLDER"); });
+        }).start();
+    }
+    static String baseName(String n) { int d = n.lastIndexOf('.'); return d > 0 ? n.substring(0, d) : n; }
+    /** a song from the song folder: loaded if it isn't, selected, played if asked */
+    void openSong(final int i, final boolean play) {
+        if (i < 0 || i >= songUris.size()) return;
+        final String base = baseName(songNames.get(i));
+        int k = Native.songLoadedAs(base);
+        if (k >= 0) { Native.selectSongAt(k); if (play) Native.songPlay(true); view.showPage('R'); return; }
+        view.status("LOADING " + base.toUpperCase());
+        new Thread(() -> {
+            String err;
+            try { err = Native.importMidi(readAll(songUris.get(i), 4 << 20), base); } catch (Exception e) { err = "CAN'T READ"; }
+            final String e2 = err;
+            ui.post(() -> {
+                int k2 = Native.songLoadedAs(base);
+                if (k2 >= 0) { Native.selectSongAt(k2); if (play) Native.songPlay(true); view.showPage('R'); view.status("LOADED " + base.toUpperCase()); saveState(); }
+                else view.status(e2.equals("DUPLICATE") ? "ALREADY LOADED (ANOTHER VERSION)" : e2);
+            });
+        }).start();
     }
 
     // ---- the library folder: chosen once (the permission is kept), scanned, its files loaded on demand ----

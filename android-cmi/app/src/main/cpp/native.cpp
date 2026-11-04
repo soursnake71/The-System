@@ -531,6 +531,16 @@ FN(void, setRemembered)(JNIEnv* env, jclass, jstring text) {
     }
 }
 
+// a song file's place in the song list if it's loaded (by title, as duplicates are told apart), else -1
+FN(jint, songLoadedAs)(JNIEnv* env, jclass, jstring fileBase) {
+    const char* c = env->GetStringUTFChars(fileBase, nullptr);
+    std::string up = c; for (auto& ch : up) ch = (char) (ch == '_' || ch == '-' ? ' ' : std::toupper((unsigned char) ch));
+    env->ReleaseStringUTFChars(fileBase, c);
+    const std::string k = songKey(up); int pos = 0;
+    for (int i = 0; i < app()->songs.size(); ++i) if (const SongEntry* e = app()->songs.at(i)) { if (songKey(e->song->name) == k) return pos; ++pos; }
+    return -1;
+}
+
 FN(jboolean, userLoaded)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k); }
 FN(jint, userSlot)(JNIEnv*, jclass, jint k) { return app()->kit.userSlot(k); }
 FN(jint, firstFreeUser)(JNIEnv*, jclass) { return app()->kit.firstFree(); }

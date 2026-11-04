@@ -11,7 +11,7 @@ static juce::String noteName(int n) { static const char* nm[] = { "C", "C#", "D"
 Screen::Screen(CmiEditor& e) : ed(e) { setSize(W, H); setWantsKeyboardFocus(false); }
 
 Screen::Hit& Screen::hit(juce::Rectangle<float> r, std::function<void(const juce::MouseEvent&)> down, std::function<void(const juce::MouseEvent&)> drag) {
-    hits.push_back({ r, std::move(down), std::move(drag), {} });
+    hits.push_back({ r.translated(0, hitDy), std::move(down), std::move(drag), {} });
     return hits.back();
 }
 
@@ -306,7 +306,53 @@ void Screen::drawMixer(juce::Graphics& g) {
 }
 
 // ---- Page F: the library folder ----
+// ---- Page F, SONGS: the song folder ----
+void Screen::drawSongFiles(juce::Graphics& g) {
+    const juce::File dir = ed.proc.songFolder();
+    const auto files = ed.proc.songFiles();
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("SONG FOLDER: " + (dir == juce::File() ? juce::String("(none set)") : dir.getFullPathName()), 20, 86, W - 40, 20, juce::Justification::centredLeft);
+    button(g, { 20, 110, 200, 24 }, "SET SONG FOLDER", false, [this] {
+        ed.chooser = std::make_unique<juce::FileChooser>("Your MIDI songs", ed.proc.songFolder());
+        ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [this](const juce::FileChooser& fc) {
+            if (fc.getResult().isDirectory()) { ed.proc.setSongFolder(fc.getResult()); songPage = 0; status = juce::String((int) ed.proc.songFiles().size()) + " SONGS FOUND"; } repaint(); });
+    });
+    button(g, { 230, 110, 130, 24 }, "RESCAN", false, [this] { ed.proc.rescanSongs(); status = juce::String((int) ed.proc.songFiles().size()) + " SONGS FOUND"; });
+    g.setColour(kDim); g.setFont(mono(13));
+    g.drawText(juce::String((int) files.size()) + " SONGS.  CLICK: LOAD (THEN PAGE R).  * = LOADED", 380, 110, 600, 24, juce::Justification::centredLeft);
+    const int rows = 19, per = rows * 2;
+    const int pages = std::max(1, ((int) files.size() + per - 1) / per);
+    songPage = juce::jlimit(0, pages - 1, songPage);
+    if (files.empty()) { g.setColour(kDim); g.setFont(mono(15)); g.drawText(dir == juce::File() ? "Set the folder with your MIDI songs (it's searched inside too)." : "No MIDI files in that folder.", 20, 150, W - 40, 20, juce::Justification::centredLeft); }
+    const int cur = ed.proc.currentSong();
+    for (int k = 0; k < per && songPage * per + k < (int) files.size(); ++k) {
+        const juce::File f = files[(size_t) (songPage * per + k)];
+        const int li = ed.proc.loadedSongFor(f);
+        juce::Rectangle<float> r(20.f + (k / rows) * 480.f, 142.f + (k % rows) * 22.f, 470, 21);
+        if (li >= 0 && li == cur) { g.setColour(kInk); g.fillRect(r); g.setColour(kBg); } else g.setColour(li >= 0 ? kInk : kDim);
+        g.setFont(mono(14));
+        g.drawText((li >= 0 ? "* " : "  ") + f.getFileNameWithoutExtension().substring(0, 52), r.reduced(4, 0), juce::Justification::centredLeft);
+        hit(r, [this, f](const juce::MouseEvent& m) {
+            int li2 = ed.proc.loadedSongFor(f);
+            if (li2 < 0) { const auto err = ed.proc.importMidi(f); li2 = ed.proc.loadedSongFor(f); status = err.isNotEmpty() ? err.toUpperCase() : li2 >= 0 ? "LOADED " + f.getFileNameWithoutExtension().toUpperCase() : "ALREADY LOADED (ANOTHER VERSION)"; }
+            if (li2 >= 0) { ed.proc.chooseSong(li2); if (m.getNumberOfClicks() > 1 || m.mods.isPopupMenu()) { page = 'R'; ed.proc.set("sync", 0.f); ed.proc.engine.songRun = true; } }
+            repaint();
+        });
+    }
+    if (pages > 1) {
+        const float y = 142 + rows * 22 + 2;
+        button(g, { 20, y, 40, 22 }, "<", false, [this] { songPage = juce::jmax(0, songPage - 1); });
+        g.setColour(kInk); g.setFont(mono(15)); g.drawText(juce::String(songPage + 1) + "/" + juce::String(pages), 64, (int) y, 70, 22, juce::Justification::centred);
+        button(g, { 138, y, 40, 22 }, ">", false, [this, pages] { songPage = juce::jmin(pages - 1, songPage + 1); });
+        g.setColour(kDim); g.setFont(mono(12)); g.drawText("double-click a song: load and play it on Page R", 200, (int) y, 500, 22, juce::Justification::centredLeft);
+    }
+}
+
 void Screen::drawFiles(juce::Graphics& g) {
+    button(g, { 20, 56, 200, 24 }, "SONGS", songFiles, [this] { songFiles = true; });
+    button(g, { 230, 56, 200, 24 }, "CMI LIBRARY", !songFiles, [this] { songFiles = false; });
+    if (songFiles) { drawSongFiles(g); return; }
+    g.saveState(); g.addTransform(juce::AffineTransform::translation(0, 28)); hitDy = 28;
     const juce::File dir = ed.proc.libraryFolder();
     const auto files = ed.proc.libraryFiles();
     g.setColour(kInk); g.setFont(mono(17));
@@ -345,6 +391,7 @@ void Screen::drawFiles(juce::Graphics& g) {
         g.setColour(kInk); g.setFont(mono(15)); g.drawText(juce::String(filePage + 1) + "/" + juce::String(pages), 64, (int) y, 70, 22, juce::Justification::centred);
         button(g, { 138, y, 40, 22 }, ">", false, [this, pages] { filePage = juce::jmin(pages - 1, filePage + 1); });
     }
+    g.restoreState(); hitDy = 0;
 }
 
 // ---- Page 5: drawing with the light pen ----

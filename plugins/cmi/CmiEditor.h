@@ -27,7 +27,7 @@ private:
         std::function<void(const juce::MouseEvent&)> down, drag, up;
         std::function<void(float)> wheel;
     };
-    juce::ModifierKeys wheelMods;
+    juce::ModifierKeys wheelMods; float hitDy = 0;
     std::vector<Hit> hits; int active = -1;
     Hit& hit(juce::Rectangle<float> r, std::function<void(const juce::MouseEvent&)> down = {}, std::function<void(const juce::MouseEvent&)> drag = {});
 
@@ -38,6 +38,7 @@ private:
     void drawSampling(juce::Graphics&);
     void drawMixer(juce::Graphics&);
     void drawFiles(juce::Graphics&);
+    void drawSongFiles(juce::Graphics&);
     void drawPen(juce::Graphics&);
     void drawComposer(juce::Graphics&);
     void drawMidiSong(juce::Graphics&);
@@ -54,7 +55,7 @@ private:
     int wavePage = 0, selTrack = 0, libScroll = 0, userPage = 0, dragRoot = 60;
     // the song editing grid (a piano roll of one track)
     bool songGrid = false; int gridTrack = -1;
-    float cycle[2][128] {}; int penBox = 0, lastPx = -1; float lastPv = 0; int filePage = 0;
+    float cycle[2][128] {}; int penBox = 0, lastPx = -1; float lastPv = 0; int filePage = 0, songPage = 0; bool songFiles = true;
     double viewStart = 0, viewBeats = 16, snap = 0.25; int pitchLow = 48;
     std::vector<SongNote> work; int dragIdx = -1, dragMode = 0; SongNote dragOrig {}; double grabBeat = 0; int grabPitch = 0; bool dirty = false; const Sound* waveSound = nullptr;
     bool songEditor = false;

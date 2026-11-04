@@ -118,6 +118,9 @@ final class Native {
     static native String getRemembered();
     static native void setRemembered(String text);
 
+    /** a song file (name without extension): its place in the song list if loaded, else -1 */
+    static native int songLoadedAs(String fileBase);
+
     static native byte[] saveState();
     static native void loadState(byte[] data);
 }
