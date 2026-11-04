@@ -15,13 +15,18 @@ import android.view.Choreographer;
 import android.view.MotionEvent;
 import android.view.View;
 
-/** The whole app in one view: a 1701 monitor on a desk with a slim breadbin keyboard strip in front of it.
+/** The whole app in one view. Big screen (the default): the C64 picture as large as the display allows, at its real
+ *  4:3 proportions inside a thin 1701 frame, with a slim keyboard strip below (sideways it gets more keys, not fatter
+ *  ones). Desk: a 1701 monitor on a desk with the breadbin strip in front. The frame's power button switches.
  *  The monitor's screen is the C64 screen (25 rows, drawn by the native side) in a 4:3 tube, as on a 1701. */
 public class SidView extends View implements Choreographer.FrameCallback {
     private static final int SW = 320, MAX_ROWS = 80;
     private float CASE_H = 250;                                // the keyboard strip, in design units (slimmer sideways)
     private float PANEL_H = 150;                               // the monitor's badge strip + jack panel (badge only sideways)
-    private static final int WHITE_KEYS = 15;                  // two octaves and a top C
+    private int whiteKeys = 15;                                // whole octaves and a top C, as many as fit
+    private float caseW = 1000;                                // the keyboard strip's width, in design units
+    private boolean big = true;                                // big screen, or the desk
+    private final RectF powerRect = new RectF();               // the monitor's power button: switches the view
     private static final int[] STRIPES = { 0xffd8342b, 0xffef8a2c, 0xfff2d23a, 0xff4aa64a, 0xff2f74c0 };
     private static final int BEIGE_LINE = 0xff9c8f7b;
     private static final int KEY_BROWN = 0xff3f322b, KEY_BROWN_TOP = 0xff574639, KEY_TAUPE = 0xff7d7067, KEY_TAUPE_TOP = 0xff978a80;
@@ -72,44 +77,82 @@ public class SidView extends View implements Choreographer.FrameCallback {
     }
 
     // ---------------- layout ----------------
-    // The set as on a desk: a 1701 (nearly square, a 4:3 tube showing the C64's 25 rows and its border) with the
-    // breadbin strip in front, scaled to fit and centred. Design units: 1000 wide.
     private static final float TUBE_W = 832, TUBE_H = 624, MON_BOTTOM = 890;
+    private float rimL, rimT, rimR, rimB;   // big screen: the frame round the tube
     @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+        if (w <= 0 || h <= 0) return;
         final boolean sideways = w > h;
+        big = getContext().getSharedPreferences("sid", 0).getBoolean("bigScreen", true);
         CASE_H = sideways ? 205 : 250; PANEL_H = 150;
-        final float contentH = MON_BOTTOM + 6 + CASE_H;
-        scale = Math.min(w / 1000f, h / contentH);
-        T = contentH;
-        offX = (w - 1000 * scale) / 2; offY = (h - contentH * scale) / 2;
-        final float monBottom = MON_BOTTOM, panelTop = monBottom - PANEL_H, tubeBottom = panelTop - 40;
-        tubeRect.set(84, tubeBottom - TUBE_H, 84 + TUBE_W, tubeBottom);
-        tube.reset(); tube.addRoundRect(tubeRect, 54, 54, Path.Direction.CW);
-        // the C64's border round the 320 x 200 picture, which the tube shows a little taller than square pixels
         rows = 25;
-        final float side = 28;
-        SX = tubeRect.left + side; SS = (TUBE_W - 2 * side) / SW;
-        SSY = SS * 1.06f;
-        final float picH = rows * 8 * SSY;
-        SY = tubeRect.top + (TUBE_H - picH) / 2;
-        screenArea.set(SX, SY, SX + SW * SS, SY + picH);
-        glass.reset(); glass.addRoundRect(screenArea, 22, 22, Path.Direction.CW);
+        if (big) layoutBig(w, h, sideways); else layoutDesk(w, h);
+        // the keys: whole octaves and a top C, each white key at least ~58 px wide
+        final float kwPx = (kWell().width() - 16) * scale;
+        final int oct = Math.max(2, Math.min(7, ((int) (kwPx / 58) - 1) / 7));
+        whiteKeys = 7 * oct + 1;
+        base = oct >= 4 ? 36 : 48;
         screen = Bitmap.createBitmap(SW, rows * 8, Bitmap.Config.ARGB_8888);
-        KDY = monBottom + 6 - 596;
+        glass.reset(); glass.addRoundRect(screenArea, 22, 22, Path.Direction.CW);
+        tube.reset(); tube.addRoundRect(tubeRect, Math.min(54, tubeRect.width() * 0.065f), Math.min(54, tubeRect.width() * 0.065f), Path.Direction.CW);
         backdrop = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         final Canvas c = new Canvas(backdrop);
         c.drawColor(0xff1b1714);
         c.translate(offX, offY);
         c.scale(scale, scale);
-        drawRoom(c);
-        drawMonitor(c, monBottom, panelTop);
+        if (big) { drawRoomBig(c); drawBigMonitor(c); }
+        else { drawRoom(c); drawMonitor(c, MON_BOTTOM, MON_BOTTOM - PANEL_H); }
         c.save(); c.translate(0, KDY); drawCase(c); c.restore();
     }
+    // the picture inside a tube: the C64's border round 320 x 200, shown a little taller than square pixels
+    private void placePicture() {
+        final float side = tubeRect.width() * 0.034f;
+        SX = tubeRect.left + side; SS = (tubeRect.width() - 2 * side) / SW;
+        SSY = SS * 1.06f;
+        final float picH = rows * 8 * SSY;
+        SY = tubeRect.top + (tubeRect.height() - picH) / 2;
+        screenArea.set(SX, SY, SX + SW * SS, SY + picH);
+    }
+    // big screen: the keyboard strip sets the scale; the tube takes the largest 4:3 that fits above it
+    private void layoutBig(int w, int h, boolean sideways) {
+        final float kh = sideways ? Math.max(140, Math.min(240, h * 0.16f)) : Math.max(200, Math.min(320, h * 0.12f));
+        scale = kh / CASE_H;
+        final float DW = w / scale, DH = h / scale;
+        offX = 0; offY = 0; T = DH; caseW = DW;
+        final float topH = DH - CASE_H - 6, sideM = 36, topM = 36, botM = 70;
+        final float availW = DW - 2 * sideM, availH = topH - topM - botM;
+        final float tw = Math.min(availW, availH * 4 / 3f), th = tw * 0.75f;
+        final float tl = (DW - tw) / 2, tt = topM + (availH - th) / 2;
+        tubeRect.set(tl, tt, tl + tw, tt + th);
+        rimL = tl - 30; rimT = tt - 30; rimR = tl + tw + 30; rimB = tt + th + 30 + 34;
+        powerRect.set(rimR - 66, rimB - 34, rimR - 20, rimB - 10);
+        placePicture();
+        KDY = DH - CASE_H - 596;
+    }
+    // the desk: a 1701 (nearly square, a 4:3 tube) with the breadbin strip in front, scaled to fit and centred
+    private void layoutDesk(int w, int h) {
+        final float contentH = MON_BOTTOM + 6 + CASE_H;
+        scale = Math.min(w / 1000f, h / contentH);
+        T = contentH; caseW = 1000;
+        offX = (w - 1000 * scale) / 2; offY = (h - contentH * scale) / 2;
+        final float tubeBottom = MON_BOTTOM - PANEL_H - 40;
+        tubeRect.set(84, tubeBottom - TUBE_H, 84 + TUBE_W, tubeBottom);
+        placePicture();
+        final float sy = MON_BOTTOM - PANEL_H + 4;
+        powerRect.set(880, sy + 4, 940, sy + 50);
+        KDY = MON_BOTTOM + 6 - 596;
+    }
+    private void toggleView() {
+        releaseAll();
+        big = !big;
+        getContext().getSharedPreferences("sid", 0).edit().putBoolean("bigScreen", big).apply();
+        onSizeChanged(getWidth(), getHeight(), 0, 0);
+        invalidate();
+    }
     // keyboard parts, in the case's own coordinates (its top edge at 596)
-    private RectF kWell() { return new RectF(40, 664, 40 + 772, 596 + CASE_H - 26); }
-    private RectF fWell() { return new RectF(842, 664, 842 + 118, 596 + CASE_H - 26); }
+    private RectF kWell() { return new RectF(40, 664, caseW - 188, 596 + CASE_H - 26); }
+    private RectF fWell() { return new RectF(caseW - 158, 664, caseW - 40, 596 + CASE_H - 26); }
     private RectF whiteRect(int i) {
-        final RectF k = kWell(); final float w = (k.width() - 16) / WHITE_KEYS;
+        final RectF k = kWell(); final float w = (k.width() - 16) / whiteKeys;
         return new RectF(k.left + 8 + i * w, k.top + 6, k.left + 8 + i * w + w - 4, k.bottom - 6);
     }
     private RectF blackRect(int whiteIndexLeft) {
@@ -143,6 +186,33 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private void stroke(Canvas c, float l, float t, float rr, float b, float rad, int col, float w) {
         p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(w); p.setColor(col); r.set(l, t, rr, b); c.drawRoundRect(r, rad, rad, p); p.setStyle(Paint.Style.FILL);
     }
+    private void drawRoomBig(Canvas c) {
+        p.setShader(new LinearGradient(0, 0, 0, T, 0xff2e2925, 0xff171310, Shader.TileMode.CLAMP));
+        c.drawRect(-100, -100, caseW + 100, T + 100, p); p.setShader(null);
+    }
+    // big screen: a thin 1701 frame (beige rim, the stepped bezels) round the tube, the badge and the power button
+    private void drawBigMonitor(Canvas c) {
+        rrect(c, rimL + 6, rimT + 8, rimR + 6, rimB + 10, 16, 0x66000000);
+        p.setShader(new LinearGradient(0, rimT, 0, rimB, 0xffd3c8b8, 0xffbcb1a1, Shader.TileMode.CLAMP));
+        r.set(rimL, rimT, rimR, rimB); c.drawRoundRect(r, 16, 16, p); p.setShader(null);
+        final RectF t = tubeRect;
+        rrect(c, t.left - 24, t.top - 24, t.right + 24, t.bottom + 24, 14, 0xff454a49);
+        rrect(c, t.left - 15, t.top - 15, t.right + 15, t.bottom + 15, 10, 0xff282826);
+        rrect(c, t.left - 8, t.top - 8, t.right + 8, t.bottom + 8, 30, 0xff2a2726);
+        p.setColor(0xff6c5eb5); c.drawPath(tube, p);
+        p.setColor(0xff352879); c.drawPath(glass, p);
+        // the badge, centred under the tube
+        final float by = t.bottom + 30, cx = (rimL + rimR) / 2;
+        rrect(c, cx - 100, by, cx + 100, by + 28, 2, 0xff3f413e);
+        text(c, "omega", cx - 90, by + 20, 17, 0xf0ffffff, Paint.Align.LEFT);
+        rainbow(c, cx - 4, by + 4, 62, 20);
+        rrect(c, cx + 64, by + 4, cx + 92, by + 24, 1, 0xff2a2a28);
+        p.setColor(0xff8ee05a); c.drawRect(cx + 71, by + 10, cx + 85, by + 14, p);
+        text(c, "VIDEO MONITOR MODEL 6581", rimL + 30, by + 19, 11, 0xff6e6458, Paint.Align.LEFT);
+        // the power button: tap it for the desk view
+        rrect(c, powerRect.left, powerRect.top, powerRect.right, powerRect.bottom, 2, 0xff4c4640);
+        text(c, "DESK", powerRect.left - 8, powerRect.centerY() + 4, 10, 0xff6e6458, Paint.Align.RIGHT);
+    }
     // the 1701: beige case, stepped grey bezels, the tube with its light-blue border, the badge strip and the jacks
     private void drawMonitor(Canvas c, float mb, float pt) {
         rrect(c, 24, 18, 988, mb + 8, 12, 0x66000000);
@@ -169,7 +239,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         stroke(c, 700, sy + 12, 860, sy + 42, 1, 0xff6e6458, 1.5f);
         text(c, "VIDEO MONITOR", 708, sy + 25, 11, 0xff5d544a, Paint.Align.LEFT);
         text(c, "MODEL 6581", 708, sy + 37, 11, 0xff5d544a, Paint.Align.LEFT);
-        rrect(c, 892, sy + 12, 930, sy + 42, 1, 0xff4c4640);
+        rrect(c, 892, sy + 12, 930, sy + 42, 1, 0xff4c4640);   // power: tap it for the big screen
         // the lower panel with the jacks (when there's room for it)
         if (PANEL_H < 120) return;
         final float jy = sy + 56;
@@ -187,21 +257,22 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private void drawCase(Canvas c) {
         final float b = 596 + CASE_H - 8;
         final Path bin = new Path();
-        bin.moveTo(30, 596); bin.lineTo(970, 596); bin.quadTo(992, 600, 994, 630);
-        bin.lineTo(996, b - 20); bin.quadTo(996, b, 976, b); bin.lineTo(24, b); bin.quadTo(4, b, 4, b - 20);
+        final float R = caseW;
+        bin.moveTo(30, 596); bin.lineTo(R - 30, 596); bin.quadTo(R - 8, 600, R - 6, 630);
+        bin.lineTo(R - 4, b - 20); bin.quadTo(R - 4, b, R - 24, b); bin.lineTo(24, b); bin.quadTo(4, b, 4, b - 20);
         bin.lineTo(6, 630); bin.quadTo(8, 600, 30, 596); bin.close();
         p.setColor(0x73000000); c.save(); c.translate(4, 6); c.drawPath(bin, p); c.restore();
         p.setShader(new LinearGradient(0, 596, 0, b, 0xffd2c7b6, 0xffaa9d88, Shader.TileMode.CLAMP)); c.drawPath(bin, p); p.setShader(null);
         p.setStrokeWidth(1.6f);
-        for (int i = 0; i < 4; ++i) { p.setColor(BEIGE_LINE); c.drawLine(440, 606 + i * 9, 820, 606 + i * 9, p); p.setColor(0xffe0d6c8); c.drawLine(440, 608 + i * 9, 820, 608 + i * 9, p); }
+        for (int i = 0; i < 4; ++i) { p.setColor(BEIGE_LINE); c.drawLine(440, 606 + i * 9, R - 180, 606 + i * 9, p); p.setColor(0xffe0d6c8); c.drawLine(440, 608 + i * 9, R - 180, 608 + i * 9, p); }
         rrect(c, 40, 606, 340, 640, 17, 0xff8e8576);
         rrect(c, 44, 609, 336, 637, 14, 0xff595249);
         text(c, "omega", 62, 629, 17, 0xffded4c4, Paint.Align.LEFT);
         rainbow(c, 160, 613, 90, 20);
         text(c, "SID 64", 256, 629, 17, 0xffded4c4, Paint.Align.LEFT);
-        rrect(c, 842, 612, 960, 632, 10, 0xff595249);
-        text(c, "POWER", 856, 626, 10, 0xffded4c4, Paint.Align.LEFT);
-        p.setColor(0xffe0241a); c.drawCircle(940, 622, 6, p);
+        rrect(c, R - 158, 612, R - 40, 632, 10, 0xff595249);
+        text(c, "POWER", R - 144, 626, 10, 0xffded4c4, Paint.Align.LEFT);
+        p.setColor(0xffe0241a); c.drawCircle(R - 60, 622, 6, p);
         r.set(kWell()); r.inset(-3, -3); p.setColor(0xff7d7262); c.drawRoundRect(r, 6, 6, p);
         r.set(fWell()); r.inset(-3, -3); c.drawRoundRect(r, 6, 6, p);
         p.setColor(0xff2c2622); c.drawRoundRect(kWell(), 5, 5, p); c.drawRoundRect(fWell(), 5, 5, p);
@@ -245,14 +316,14 @@ public class SidView extends View implements Choreographer.FrameCallback {
     }
     private void drawKeys(Canvas c) {
         int wi = 0;
-        for (int n = base; wi < WHITE_KEYS; ++n) {
+        for (int n = base; wi < whiteKeys; ++n) {
             if (isBlack(n)) continue;
             final RectF k = whiteRect(wi++);
             keycap(c, k, KEY_BROWN, KEY_BROWN_TOP, down[n]);
             if (n % 12 == 0) text(c, "C" + (n / 12 - 1), k.centerX(), k.bottom - 10, 12, 0xccffffff, Paint.Align.CENTER);
         }
         wi = 0;
-        for (int n = base; wi < WHITE_KEYS; ++n) {
+        for (int n = base; wi < whiteKeys; ++n) {
             if (!isBlack(n)) { ++wi; continue; }
             keycap(c, blackRect(wi - 1), mix(KEY_TAUPE, 0xff000000, 0.3f), KEY_TAUPE_TOP, down[n]);
         }
@@ -269,9 +340,9 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private int noteAt(float x, float y) {
         if (!kWell().contains(x, y)) return -1;
         int wi = 0;
-        for (int n = base; wi < WHITE_KEYS; ++n) { if (!isBlack(n)) { ++wi; continue; } if (blackRect(wi - 1).contains(x, y)) return n; }
+        for (int n = base; wi < whiteKeys; ++n) { if (!isBlack(n)) { ++wi; continue; } if (blackRect(wi - 1).contains(x, y)) return n; }
         wi = 0;
-        for (int n = base; wi < WHITE_KEYS; ++n) {
+        for (int n = base; wi < whiteKeys; ++n) {
             if (isBlack(n)) continue;
             final RectF k = whiteRect(wi++); k.inset(-2, 0);
             if (k.contains(x, y)) return n;
@@ -310,6 +381,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
             final float x = (e.getX(i) - offX) / scale, y = (e.getY(i) - offY) / scale, ky = y - KDY;
             final boolean isThis = e.getActionIndex() == i;
             if ((action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) && isThis) {
+                if (powerRect.contains(x, y)) { pointerKind.put(id, 4); toggleView(); return true; }
                 if (tubeRect.contains(x, y)) { pointerKind.put(id, 1); Native.touch(0, scrX(x), scrY(y)); }
                 else if (fkeyAt(x, ky) >= 0) { pointerKind.put(id, 3); fkeyDown = fkeyAt(x, ky); fkey(fkeyDown); }
                 else { pointerKind.put(id, 2); setNote(id, noteAt(x, ky), ky); }
