@@ -93,9 +93,9 @@ public class SidView extends View implements Choreographer.FrameCallback {
         CASE_H = sideways ? 205 : 250; PANEL_H = 150;
         rows = 25;
         if (big) layoutBig(w, h, sideways); else layoutDesk(w, h);
-        // the keys: whole octaves and a top C, each white key at least ~58 px wide
+        // the keys: whole octaves and a top C, each white key at least ~75 px wide
         final float kwPx = (kWell().width() - 16) * scale;
-        final int oct = Math.max(2, Math.min(7, ((int) (kwPx / 58) - 1) / 7));
+        final int oct = Math.max(2, Math.min(7, ((int) (kwPx / 75) - 1) / 7));
         whiteKeys = 7 * oct + 1;
         base = oct >= 4 ? 36 : 48;
         screen = Bitmap.createBitmap(SW, rows * 8, Bitmap.Config.ARGB_8888);
@@ -121,7 +121,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
     }
     // big screen: the keyboard strip sets the scale; the tube takes the largest 4:3 that fits above it
     private void layoutBig(int w, int h, boolean sideways) {
-        final float kh = sideways ? Math.max(140, Math.min(240, h * 0.16f)) : Math.max(200, Math.min(320, h * 0.12f));
+        final float kh = sideways ? Math.max(190, Math.min(330, h * 0.23f)) : Math.max(260, Math.min(420, h * 0.16f));
         scale = kh / CASE_H;
         final float DW = w / scale, DH = h / scale;
         offX = 0; offY = 0; T = DH; caseW = DW;
