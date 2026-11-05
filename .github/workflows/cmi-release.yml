@@ -147,7 +147,7 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls -la dl
-          notes="Omega CMI (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the Fairlight CMI Series II channel cards, with Page R and a synthesised library of the famous sounds.
+          notes="Omega CMI (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the Fairlight CMI Series II channel cards. No sounds are included: set your CMI library folder (your disk images / .VC files) and Page R lists the 678 IIx factory presets, found and loaded from it.
 
           - Windows: run Omega-CMI-Setup-Windows.exe (installs the VST3 into Common Files\\VST3 and the standalone app; Windows may warn about an unknown publisher: More info > Run anyway).
           - Windows / Mac / Linux: or unzip Omega-CMI-<system>.zip and copy Omega CMI.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). The standalone app is in the same zip. On a Mac, if the DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
