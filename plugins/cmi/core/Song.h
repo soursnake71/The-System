@@ -473,11 +473,11 @@ inline bool undoSong(Engine& eng, SongEntry* e) {
 // The song (or one track of it) played on a fresh engine, as fast as the computer can, until it ends and its
 // voices have died away. master / hiss / spread as the instrument is set.
 struct Rendered { std::vector<float> L, R; double fs = 48000; };
-inline Rendered renderSong(const Bank& bank, const SongEntry& e, double fs, int onlyTrack = -1, double master = 1, double hiss = 1, double spread = 0.3) {
+inline Rendered renderSong(const Bank& bank, const SongEntry& e, double fs, int onlyTrack = -1, double master = 1, double hiss = 1, double spread = 0.3, float blend = 0.5f) {
     Rendered r; r.fs = fs;
     auto eng = std::make_unique<Engine>();
     eng->bank = const_cast<Bank*>(&bank); eng->kitVoice = kitLookup(bank);
-    eng->prepare(fs); eng->setOutput(master, hiss, spread);
+    eng->prepare(fs); eng->setOutput(master, hiss, spread); eng->loopBlend = blend;
     eng->extSync = false;
     for (int t = 0; t < SONG_TRK; ++t) { eng->songVoice[t] = e.voice[t]; eng->songMute[t] = e.mute[t] || (onlyTrack >= 0 && t != onlyTrack); }
     eng->song = e.song.get(); eng->songRun = true;
@@ -497,10 +497,10 @@ inline Rendered renderSong(const Bank& bank, const SongEntry& e, double fs, int 
 }
 
 // Page R's song (patterns in song order) rendered once through
-inline Rendered renderPageR(const Bank& bank, const SeqData& seq, double bpm, double fs, double master = 1, double hiss = 1, double spread = 0.3) {
+inline Rendered renderPageR(const Bank& bank, const SeqData& seq, double bpm, double fs, double master = 1, double hiss = 1, double spread = 0.3, float blend = 0.5f) {
     Rendered r; r.fs = fs;
     auto eng = std::make_unique<Engine>();
-    eng->bank = const_cast<Bank*>(&bank); eng->prepare(fs); eng->setOutput(master, hiss, spread);
+    eng->bank = const_cast<Bank*>(&bank); eng->prepare(fs); eng->setOutput(master, hiss, spread); eng->loopBlend = blend;
     eng->seq = seq; eng->extSync = false; eng->songMode = true; eng->tempo = bpm; eng->seqRun = true;
     const size_t len = (size_t) (seq.songLen * STEPS / (bpm / 60.0 * 4.0) * fs);
     const int blk = 512; std::vector<float> l(blk), rr(blk);

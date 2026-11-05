@@ -455,6 +455,7 @@ public class CmiView extends View {
                 { Native.TEMPO, "SPEED", 40f, 240f, false, false, (Fmt) v -> String.format("%.1f", v) },
                 { Native.SWING, "SWING", 0f, 0.5f, false, false, (Fmt) v -> Math.round(v * 200) + "%" },
                 { Native.SONGMODE, "SONG MODE", 0f, 1f, true, true, null },
+                { Native.BLEND, "LOOP BLEND", 0f, 1f, false, false, (Fmt) v -> v < 0.005f ? "OFF" : Math.round(v * 100) + "%" },
         };
         for (int i = 0; i < left.length; ++i) { Object[] o = left[i]; barRow(c, new RectF(b.left, b.top + i * rh, b.left + cw, b.top + (i + 1) * rh), (Integer) o[0], (String) o[1], (Float) o[2], (Float) o[3], (Boolean) o[4], (Boolean) o[5], (Fmt) o[6]); }
         final float rx = portrait ? b.left : b.left + cw + dp(16), ry = portrait ? b.top + left.length * rh : b.top;

@@ -125,6 +125,29 @@ int main(int argc, char** argv) {
         CHECK(steps >= 15 && steps <= 17, "host sync step count %d", steps);
     }
 
+    // ---- loop blend: a loop whose seam jumps (phase and level) is smoothed by the crossfade, and is left as the
+    //      card played it at 0. Loops with room before them and loops from the very start (the loop shrinks). ----
+    for (int from : { 40, 0 }) {
+        Sound s; s.name = "SEAM"; s.mode = Mode::Sample; s.rate = 128 * 440.0; s.root = 69; s.loopStart = from; s.loopEnd = 99;
+        s.ram.resize(100 * PAGE);
+        for (int i = 0; i < 100 * PAGE; ++i) s.ram[(size_t) i] = (uint8_t) std::lround(128 + 100 * std::sin(2 * PI * i / 37.3) * (1.0 - 0.5 * i / (100.0 * PAGE)));
+        Controls c; c.loop = 1; c.sustain = 1; c.attack = 0; c.filter = 255; c.vibDepth = 0; c.damp = 10; s.ctl = c;
+        double worst[3] {};
+        const float blends[3] = { 0, 0.5f, 1 };
+        for (int k = 0; k < 3; ++k) {
+            Kit kl; kl.setUser(0, s);
+            Engine el; el.bank = &kl.bank; el.prepare(fs); el.setOutput(1, 0, 0); el.loopBlend = blends[k];
+            el.setKeyboard(kl.userSlot(0), c); el.keyOn(69, 1);
+            const int len = fs * 3; std::vector<float> a((size_t) len), b2((size_t) len);
+            for (int p = 0; p < len; p += 256) el.render(a.data() + p, b2.data() + p, std::min(256, len - p));
+            // the worst corner in the sustain (second difference), against the sine's own
+            double w = 0; for (int i = fs / 2; i < len; ++i) w = std::max(w, (double) std::fabs(a[(size_t) i] - 2 * a[(size_t) i - 1] + a[(size_t) i - 2]));
+            worst[k] = w;
+        }
+        std::printf("loop from page %d: worst corner, blend 0 %.3f, 0.5 %.3f, 1 %.3f\n", from, worst[0], worst[1], worst[2]);
+        CHECK(worst[1] < worst[0] * 0.8 && worst[2] < worst[0] * 0.8, "loop blend smooths the seam (loop from page %d)", from);
+    }
+
     // ---- a loaded sample goes through Page 8 ----
     {
         std::vector<float> s(44100 * 2); for (size_t i = 0; i < s.size(); ++i) s[i] = (float) std::sin(2 * PI * 261.63 * i / 44100.0) * 0.5f;

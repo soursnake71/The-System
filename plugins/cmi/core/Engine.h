@@ -62,6 +62,7 @@ public:
     int page() const { return msb; }
     const Sound* sound() const { return snd; }
     double pitchNow() const { return pitch; }
+    void setBlend(float b) { blend = b; }
 
     // adds this card into out[0..n)
     void render(float* out, int n) {
@@ -76,14 +77,9 @@ public:
                 int s = cur;
                 if (run) {
                     s = ramAt(msb, lsb);
-                    if (xf > 0) {   // across a loop: from where the sound was going into the loop's start
-                        const int so = oldMsb >= 0 ? ramAt(oldMsb, lsb) : 0;
-                        const double w = 0.5 - 0.5 * std::cos(PI * (xfLen - xf) / xfLen);   // raised cosine: no corners
-                        s = (int) std::lround(so + (s - so) * w);
-                        --xf;
-                    }
+                    if (blend > 0 && snd->mode == Mode::Sample) s = blended(s);
                     if (fadeLeft > 0) --fadeLeft;
-                    if (++lsb == PAGE) { lsb = 0; if (oldMsb >= 0) oldMsb = oldMsb + 1 < snd->pages() ? oldMsb + 1 : -1; pageEnd(); checkEndFade(); }
+                    if (++lsb == PAGE) { lsb = 0; pageEnd(); checkEndFade(); }
                 } else s = cur;   // stopped: the DAC holds its last value while the envelope closes
                 if (s != cur) {
                     const double frac = inc > 0 ? std::min(phase / inc, 0.999999) : 0;
@@ -115,7 +111,7 @@ private:
     void startPending() {
         snd = pend.s; ctl = pend.c; note = pend.note; vel = pend.vel; gate = pend.gate;
         target = note; pitch = (pend.glideFrom >= 0 && ctl.porta > 0.0005f) ? pend.glideFrom : note;
-        t = 0; ws = 0; lsb = 0; msb = 0; phase = 1.0; run = true; ended = false; xf = 0; oldMsb = -1; fadeLeft = -1; fadeTotal = 0;
+        t = 0; ws = 0; lsb = 0; msb = 0; phase = 1.0; run = true; ended = false; fadeLeft = -1; fadeTotal = 0;
         env = 0; up = true; state = Playing;
         setEclk(envTime(ctl.attack), true); envClk = true;
         flt.reset(); tick = 0;
@@ -171,15 +167,39 @@ private:
         if (remaining <= 0.04 * regs.clock || remaining <= PAGE) fadeTotal = fadeLeft = std::max(1, remaining);
     }
     int ramAt(int page, int i) const { const int a = ((page << 7) | i) & 0x3FFF; return a < (int) snd->ram.size() ? (int) snd->ram[(size_t) a] - 128 : 0; }
+    // Loop blend (not on the original card, which just reloads its page counter at the loop end): a crossfade loop.
+    // The last X samples of the loop fade into the X samples that lead into where the loop restarts, so the seam is
+    // gone. With room before the loop start (X samples), the loop keeps its length and its page-boundary jump; with
+    // none, the restart moves X samples into the loop (the loop is X shorter) and the end fades into its first X.
+    struct LoopGeom { int start = 0, end = 0, len = 0, x = 0; bool shrink = false; };
+    LoopGeom loopGeom() const {
+        LoopGeom g;
+        if (!(ctl.loop > 0.5f && snd->loopStart >= 0 && snd->loopEnd >= snd->loopStart)) return g;
+        g.start = snd->loopStart * PAGE; g.end = std::min((snd->loopEnd + 1) * PAGE, snd->pages() * PAGE); g.len = g.end - g.start;
+        g.x = (int) (blend * 0.5f * g.len);
+        if (g.x < 16) { g.x = 0; return g; }
+        g.shrink = g.start < g.x;
+        return g;
+    }
+    int blended(int s) const {
+        const LoopGeom g = loopGeom();
+        if (g.x == 0) return s;
+        const int pos = (msb << 7) | lsb, from = g.end - g.x;
+        if (pos < from || pos >= g.end) return s;
+        const double w = (pos - from + 0.5) / g.x;   // 0 -> 1 across the fade
+        const int src = pos - g.len + (g.shrink ? g.x : 0);
+        const int o = ramAt(src >> 7, src & (PAGE - 1));
+        const double a = std::cos(w * PI * 0.5), b = std::sin(w * PI * 0.5);   // equal power
+        return clampi((int) std::lround(s * a + o * b), -128, 127);
+    }
     void pageEnd() {
         if (snd->mode == Mode::Waveform) { msb = ws; return; }   // the page register is reloaded every cycle
         ++msb;
         const bool looping = ctl.loop > 0.5f && snd->loopStart >= 0 && snd->loopEnd >= snd->loopStart;
         if (looping && msb > snd->loopEnd) {
-            // the loop: crossfade a few clocks from the sound's own continuation into the loop start (no click)
-            oldMsb = msb < snd->pages() ? msb : -1;
-            xfLen = xf = clampi((snd->loopEnd - snd->loopStart + 1) * PAGE / 2, 32, 384);
-            msb = snd->loopStart;
+            msb = snd->loopStart;   // the card: the page counter goes back to the loop's first page
+            const LoopGeom g = blend > 0 ? loopGeom() : LoopGeom();
+            if (g.shrink) { msb += g.x / PAGE; lsb = g.x % PAGE; }   // a blended loop with no room before it restarts X in
         } else if (msb >= snd->pages()) {
             run = false; ended = true;
             if (state != Idle) { state = Releasing; up = false; setEclk(0.003, false); envClk = true; if (env == 0) atBottom(); }
@@ -223,7 +243,8 @@ private:
     // card
     const Sound* snd = nullptr; Controls ctl; SSM2045 flt; PitchRegs regs;
     bool run = false, ended = false, envClk = false, up = true, zxKill = false;
-    int xf = 0, xfLen = 64, oldMsb = -1, fadeLeft = -1, fadeTotal = 0;
+    int fadeLeft = -1, fadeTotal = 0;
+    float blend = 0;   // loop blend, 0 (the card as it was) .. 1, set by the engine
     int lsb = 0, msb = 0, ws = 0, cur = 0, env = 0, vol = 0;
     double phase = 0, inc = 0, eclk = 0, envAcc = 0;
     float corr[32] {}, hist[32] {}; unsigned ci = 0, hi = 0;
@@ -292,7 +313,8 @@ public:
     std::atomic<double> songBeat { 0 };                    // for the screen
     int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
     bool songMute[SONG_TRK] {};
-    std::atomic<double> songGain { 0.5 };                // a whole band on 32 cards: headroom for the summing amp
+    std::atomic<double> songGain { 0.5 };
+    std::atomic<float> loopBlend { 0.5f };   // crossfade at loop points, 0 (the original card: none) .. 1                // a whole band on 32 cards: headroom for the summing amp
 
     // the mixer: a fader (0..1.5), a pan (-1: as the MIDI file / the track says) and solo per strip, meters (peaks)
     // strips: 0 keyboard, 1..8 Page R tracks, 9..24 song tracks
@@ -558,6 +580,7 @@ private:
             Channel& c = ch[(size_t) i];
             if (c.st() == Channel::Idle) continue;
             std::fill(mono.begin(), mono.begin() + n, 0.f);
+            c.setBlend(loopBlend.load());
             c.render(mono.data(), n);
             const int sIdx = stripOf(i);
             double pan;

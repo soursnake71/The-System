@@ -18,7 +18,7 @@ inline const std::vector<std::pair<int, const char*>>& defaultCCs() {
     static const std::vector<std::pair<int, const char*>> d = {
         { 7, "level" }, { 74, "filter" }, { 73, "attack" }, { 72, "damp" }, { 69, "sustain" }, { 77, "vib" }, { 76, "vibRate" }, { 78, "vibDelay" },
         { 5, "porta" }, { 70, "velVol" }, { 71, "velFilt" }, { 9, "transpose" }, { 3, "fine" }, { 75, "loop" }, { 79, "seg" }, { 14, "poly" }, { 15, "bend" },
-        { 85, "master" }, { 86, "hiss" }, { 87, "spread" }, { 88, "tempo" }, { 89, "swing" }, { 90, "songMode" }, { 102, "sync" }, { 103, "multi" }, { 104, "songLevel" },
+        { 85, "master" }, { 86, "hiss" }, { 87, "spread" }, { 88, "tempo" }, { 89, "swing" }, { 90, "songMode" }, { 102, "sync" }, { 103, "multi" }, { 104, "songLevel" }, { 91, "blend" },
     };
     return d;
 }
@@ -54,6 +54,7 @@ inline const std::vector<PDef>& paramDefs() {
         { "swing", "Swing", 0, 0.5f, 0, 0 },
         { "songMode", "Song mode", 0, 1, 0, 1 },
         { "songLevel", "MIDI song level", 0, 1, 0.5f, 0 },
+        { "blend", "Loop blend", 0, 1, 0.5f, 0 },   // crossfade at loop points; 0: the original card (none)
     };
     return d;
 }
