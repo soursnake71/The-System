@@ -18,6 +18,7 @@
 //   EXPORT <file.wav | file.mid>, LIST, SAVE, QUIT.
 #include "../core/Disk.h"
 #include "../core/Song.h"
+#include "../core/Catalog.h"
 #include <alsa/asoundlib.h>
 #include <atomic>
 #include <cerrno>
@@ -145,8 +146,7 @@ static void loadState(Box& b, const std::string& path) {
 
 static void list(Box& b) {
     for (int i = 0; i < b.kit.bank.count.load(); ++i) {
-        const bool user = i >= Library::get().builtIn;
-        if (user && !b.kit.userLoaded(i - Library::get().builtIn)) continue;
+        if (isBlank(b.kit, i)) continue;
         const Sound* s = b.kit.bank.at(i);
         std::printf("%3d  %-8s  %-10s  %s\n", i + 1, s->name.c_str(), s->category.c_str(), s->title.c_str());
     }
@@ -170,11 +170,10 @@ static void midiBytes(Box& b, const uint8_t* m, int len) {
     const int ch = (st & 0x0F) + 1, hi = st & 0xF0;
     if (b.channel && ch != b.channel && !(ch >= 2 && ch <= 9)) return;
     if (hi == 0xC0 && len >= 2) {
-        // program change: the n-th voice in the list (factory, then yours)
+        // program change: the n-th voice loaded
         int n = 0;
         for (int i = 0; i < b.kit.bank.count.load(); ++i) {
-            const bool user = i >= Library::get().builtIn;
-            if (user && !b.kit.userLoaded(i - Library::get().builtIn)) continue;
+            if (isBlank(b.kit, i)) continue;
             if (n++ == m[1]) { selectSound(b, i); break; }
         }
         return;
@@ -356,13 +355,17 @@ int main(int argc, char** argv) {
     b.eng.bank = &b.kit.bank;
     b.eng.kitVoice = kitLookup(b.kit.bank);
     b.channel = chan; b.eng.setMultiTimbral(multi);
-    Library::factorySeq(b.eng.seq, Library::get());
+    Library::factorySeq(b.eng.seq, b.kit.bank);
     b.eng.extSync = false;
-    selectSound(b, Library::get().find("ORCHHIT"));
     if (wavOut.empty()) loadState(b, statePath);
     int first = -1;
     for (auto& f : files) { const int before = b.kit.loadedCount(); if (load(b, f) > 0 && first < 0) { for (int k = 0; k < Library::USER_SLOTS; ++k) if (b.kit.userLoaded(k) && k >= before) { first = k; break; } } }
     if (first >= 0) selectSound(b, b.kit.userSlot(first));
+    {   // no built-in voices: Page R and the keyboard use the CMI voices loaded (the orchestra hit first)
+        connectPageR(b.eng.seq, b.kit, Catalog());
+        if (isBlank(b.kit, b.sound)) for (const auto& w : splitBar(defaultKeyboardVoices())) { const int v = findVoice(b.kit.bank, w); if (v >= 0) { selectSound(b, v); break; } }
+        if (isBlank(b.kit, b.sound)) for (int k = 0; k < Library::USER_SLOTS; ++k) if (b.kit.userLoaded(k)) { selectSound(b, b.kit.userSlot(k)); break; }
+    }
     if (listOnly) { list(b); return 0; }
     if (!wavOut.empty()) return renderFile(b, wavOut, wavSecs, rate);
     std::thread midi(midiThread, std::ref(b), extraMidi);

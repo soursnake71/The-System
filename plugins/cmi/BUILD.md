@@ -18,7 +18,8 @@ Everything is C++17. The engine (`core/`) is plain C++ with no dependencies and 
 ## Layout
 - `core/Cmi.h` channel card model (pitch registers, SSM2045 filter, envelope rate multiplier, band-limited DAC)
 - `core/Engine.h` the 16 channel cards, voice allocation, Page R sequencer
-- `core/Library.h` the synthesised voices, user voices, sample import, WAV reader
+- `core/Library.h` the user voices (no built-in ones), Page R's factory patterns, sample import, WAV reader
+- `core/TestVoices.h` synthesised voices used only by the test program
 - `core/Disk.h` CMI disk images (IMD / IMG, QDOS) and .VC voice files
 - `CmiPlugin.*`, `CmiEditor.*` the JUCE plugin and its screen; `headless/` the ALSA program; `tools/` tests
 - `../../android-cmi/` the Android app: `cpp/native.cpp` (AAudio + JNI), `java/.../CmiView.java` (the screen)

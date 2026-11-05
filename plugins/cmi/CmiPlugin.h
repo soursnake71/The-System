@@ -26,7 +26,7 @@ inline int paramIndex(const char* id);
 
 inline const std::vector<PDef>& paramDefs() {
     static const std::vector<PDef> d = {
-        { "sound", "Sound", 0, MAX_SOUNDS - 1, 0, 1 },
+        { "sound", "Sound", 0, MAX_SOUNDS - 1, NO_VOICE, 1 },
         { "level", "Level", 0, 1, 0.85f, 0 },
         { "filter", "Filter", 0, 255, 255, 1 },
         { "attack", "Attack", 0, 31, 0, 0 },
@@ -77,7 +77,7 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 3.0; }
 
-    int getNumPrograms() override { return Library::get().builtIn; }
+    int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return program; }
     void setCurrentProgram(int i) override;
     const juce::String getProgramName(int i) override;
@@ -96,7 +96,10 @@ public:
     void loadSound(int index);                   // a sound and the controls it was saved with
     juce::String loadSample(const juce::File& f, int slot, int root, bool loop);   // "" or the error
     juce::String importFiles(const juce::Array<juce::File>& filesOrFolders, int root, bool loop, int& imported);   // a summary
-    std::atomic<bool> showFactory { true };   // Page 2: the synthesised voices too, or only yours
+    bool oldNumbers = false;                  // the state being read counted the old built-in voices first
+    std::atomic<bool> showCatalog { true };   // Page 2: the library folder's voices, or only the ones loaded
+    void connectDefaults();                   // Page R's tracks and the keyboard: CMI voices from the library
+    int loadCatalogVoice(int catIndex);       // a library voice into the user voices: its sound index, or -1
     void preview(int track) { previewReq = track; }
     // MIDI songs
     SongList songs;

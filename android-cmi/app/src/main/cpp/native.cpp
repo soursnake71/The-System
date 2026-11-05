@@ -31,7 +31,7 @@ struct App {
     SongList songs;
     Catalog catalog; std::mutex catLock;
     std::map<std::string, std::map<int, std::string>> remembered;   // songKey -> track -> "NAME@DISK" / "KIT"
-    std::atomic<int> sound { 0 };
+    std::atomic<int> sound { NO_VOICE };
     std::atomic<float> param[NPARAM];
     // queue: many producers (UI, MIDI threads) under a mutex, one consumer (audio)
     std::array<Cmd, 2048> q; std::atomic<uint32_t> qw { 0 }, qr { 0 }; std::mutex qm;
@@ -44,9 +44,19 @@ struct App {
         for (int i = 0; i < NPARAM; ++i) param[i] = kDefaults[i];
         engine.bank = &kit.bank;
         engine.kitVoice = cmiKitLookup(kit.bank);
-        Library::factorySeq(engine.seq, Library::get());
+        Library::factorySeq(engine.seq, kit.bank);   // its voices come from the library folder (connectDefaults)
         engine.extSync = false;
-        loadSound(Library::get().find("ORCHHIT"));
+    }
+    // Page R's tracks and the keyboard: CMI voices from the library when they have none
+    void connectDefaults() {
+        std::lock_guard<std::mutex> g(catLock);
+        connectPageR(engine.seq, kit, catalog);
+        if (isBlank(kit, sound.load())) {
+            int v = -1;
+            for (const auto& w : splitBar(defaultKeyboardVoices())) if ((v = findVoice(kit.bank, w)) >= 0) break;
+            if (v < 0) v = loadCatalogNamed(kit, catalog, defaultKeyboardVoices());
+            if (v >= 0) loadSound(v);
+        }
     }
     void push(const Cmd& c) {
         std::lock_guard<std::mutex> g(qm);
@@ -152,12 +162,11 @@ static bool ccParam(int cc, int v) {
     if (cc == 104) { app()->engine.songGain = v / 127.0; return true; }
     return false;
 }
-// program n: the n-th voice in the list (the factory voices, then the ones you loaded)
+// program n: the n-th voice loaded
 static void programChange(int n) {
     int k = 0;
     for (int i = 0; i < app()->kit.bank.count.load(); ++i) {
-        const bool user = i >= Library::get().builtIn;
-        if (user && !app()->kit.userLoaded(i - Library::get().builtIn)) continue;
+        if (isBlank(app()->kit, i)) continue;
         if (k++ == n) { app()->loadSound(i); return; }
     }
 }
@@ -195,7 +204,6 @@ FN(void, allOff)(JNIEnv*, jclass) { Cmd c {}; c.type = C_ALLOFF; app()->push(c);
 FN(void, preview)(JNIEnv*, jclass, jint t) { Cmd c {}; c.type = C_PREVIEW; c.a = t; app()->push(c); }
 
 FN(jint, soundCount)(JNIEnv*, jclass) { return app()->kit.bank.count.load(); }
-FN(jint, builtInCount)(JNIEnv*, jclass) { return Library::get().builtIn; }
 FN(jstring, soundInfo)(JNIEnv* env, jclass, jint i) {
     const Sound* s = app()->kit.bank.at(i);
     if (!s) return env->NewStringUTF("");
@@ -502,15 +510,19 @@ FN(jint, connectToLibrary)(JNIEnv*, jclass) {
     selectSong(app()->engine, e);
     return n;
 }
+// a library voice into the user voices (or the one already there): its sound number, or -1
+FN(jint, loadCatalogVoice)(JNIEnv*, jclass, jint ci) { std::lock_guard<std::mutex> g(app()->catLock); return loadCatalogVoice(app()->kit, app()->catalog, ci); }
+// Page R's tracks and the keyboard: CMI voices from the library when they have none
+FN(void, connectDefaults)(JNIEnv*, jclass) { app()->connectDefaults(); }
+FN(jboolean, isBlankSound)(JNIEnv*, jclass, jint i) { return isBlank(app()->kit, i); }
 // a library voice on one track: loaded (or reused), remembered for this song
 FN(void, useCatalogVoice)(JNIEnv*, jclass, jint t, jint ci) {
     std::lock_guard<std::mutex> g(app()->catLock);
     SongEntry* e = app()->songs.at(curSongIdx()); auto& cat = app()->catalog; auto& kit = app()->kit;
     if (!e || t < 0 || t >= SONG_TRK || ci < 0 || ci >= (int) cat.voices.size()) return;
     const CatVoice& cv = cat.voices[(size_t) ci];
-    int v = -1;
-    for (int k = 0; k < Library::USER_SLOTS && v < 0; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) v = kit.userSlot(k);
-    if (v < 0) { const int slot = kit.firstFree(); Sound snd; if (slot < 0 || !cat.sound(ci, snd)) return; kit.setUser(slot, std::move(snd)); v = kit.userSlot(slot); }
+    const int v = loadCatalogVoice(kit, cat, ci);
+    if (v < 0) return;
     e->voice[t] = v; app()->engine.songVoice[t] = v; e->why[t] = cv.name + " (" + cv.disk + "): your choice";
     app()->remembered[songKey(e->song->name)][t] = cv.name + "@" + cv.disk.substr(0, 10);
 }
@@ -547,14 +559,13 @@ FN(jint, firstFreeUser)(JNIEnv*, jclass) { return app()->kit.firstFree(); }
 FN(jint, userCount)(JNIEnv*, jclass) { return app()->kit.loadedCount(); }
 FN(void, clearUser)(JNIEnv*, jclass, jint k) {
     auto* a = app();
-    if (a->sound.load() == a->kit.userSlot(k)) a->loadSound(Library::get().find("ORCHHIT"));
     a->kit.clearUser(k);
 }
 
 // state: parameters, Page R, user voices
 FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
     auto* a = app(); std::vector<uint8_t> v;
-    put(v, (uint32_t) 0x434D4934);   // "CMI4"
+    put(v, (uint32_t) 0x434D4935);   // "CMI5": voice numbers without built-in voices
     const Sound* cur = a->kit.bank.at(a->sound.load());
     char nm[16] {}; if (cur) std::strncpy(nm, cur->name.c_str(), 15); put(v, nm);
     for (int i = 0; i < NPARAM; ++i) put(v, a->param[i].load());
@@ -590,13 +601,17 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     env->GetByteArrayRegion(data, 0, n, (jbyte*) v.data());
     const uint8_t* p = v.data(); const uint8_t* e = p + v.size();
     auto* a = app();
-    uint32_t magic = 0; if (!get(p, e, magic) || (magic < 0x434D4931 || magic > 0x434D4934)) return;
+    uint32_t magic = 0; if (!get(p, e, magic) || (magic < 0x434D4931 || magic > 0x434D4935)) return;
+    const bool old = magic < 0x434D4935;   // saved with the built-in voices counted first
+    auto fix = [old](int i) { return old ? Library::fromOldIndex(i) : i; };
     const bool v2 = magic != 0x434D4931, v3 = magic >= 0x434D4933;
     const int songTracks = magic >= 0x434D4934 ? SONG_TRK : 8;
     char nm[16]; if (!get(p, e, nm)) return; nm[15] = 0;
     float prm[NPARAM]; for (auto& x : prm) if (!get(p, e, x)) return;
     int pat = 0; get(p, e, pat);
     SeqData sd; if (!get(p, e, sd)) return;
+    if (old) for (auto& tr : sd.trk) tr.sound = fix(tr.sound);
+    for (int k2 = 0; k2 < Library::USER_SLOTS; ++k2) a->kit.clearUser(k2);
     a->engine.seq = sd; a->engine.curPattern = clampi(pat, 0, NPAT - 1);
     if (v3) {
         int32_t n = 0, sel = -1; if (!get(p, e, n) || !get(p, e, sel)) return;
@@ -610,7 +625,7 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
             const bool ok = parseSmf(p, (size_t) sz, nm, ms, err); p += sz;
             if (!ok) continue;
             SongEntry* en = a->songs.at(a->songs.add(std::move(ms), a->kit.bank));
-            for (int t = 0; t < songTracks; ++t) { en->voice[t] = voice[t]; en->mute[t] = mute[t] != 0; }
+            for (int t = 0; t < songTracks; ++t) { en->voice[t] = voice[t] == GM_KIT ? GM_KIT : fix(voice[t]); en->mute[t] = mute[t] != 0; }
             if (k == sel) pick = en;
         }
         selectSong(a->engine, pick);
@@ -631,4 +646,5 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     for (int i = 0; i < a->kit.bank.count.load(); ++i) if (const Sound* s = a->kit.bank.at(i)) if (s->name == nm) { idx = i; break; }
     if (idx >= 0) a->sound = idx;
     for (int i = 0; i < NPARAM; ++i) a->param[i] = prm[i];
+    a->connectDefaults();
 }

@@ -8,6 +8,7 @@
 namespace cmi {
 
 constexpr int MAX_SOUNDS = 256;
+constexpr int NO_VOICE = MAX_SOUNDS - 1;   // a silent voice, always empty: a track with no voice plays it
 constexpr int STEPS = 16, TRACKS = 8, NPAT = 16, SONG_MAX = 64;
 // cards: 8 for the keyboard, then two per track (Page R uses the first, a MIDI song both)
 constexpr int SONG_TRK = 16;   // a MIDI song: one track per MIDI channel
@@ -237,7 +238,7 @@ private:
 // ---------------------------------------------------------------------------------------------------------------
 struct PStep { uint8_t vel = 0; int8_t note = 0; };      // vel 0: no event; note: semitones from the sound's root
 struct Pattern { PStep st[TRACKS][STEPS]; };
-struct Track { int sound = 0; float level = 0.85f; bool audible = true; float pan = 0.5f; };
+struct Track { int sound = NO_VOICE; float level = 0.85f; bool audible = true; float pan = 0.5f; };
 
 struct SeqData {
     Pattern pat[NPAT];

@@ -23,11 +23,11 @@ int main(int argc, char** argv) {
     };
     // keyboard
     const double k = run(200, [](int b, juce::MidiBuffer& m) { if (b == 0) for (int n : { 60, 64, 67 }) m.addEvent(juce::MidiMessage::noteOn(1, n, (juce::uint8) 100), 0); if (b == 120) m.addEvent(juce::MidiMessage::allNotesOff(1), 0); });
-    std::printf("keyboard chord peak %.3f\n", k); ok &= k > 0.05 && k < 1.0;
+    std::printf("keyboard chord peak %.3f\n", k); ok &= k < 1.0 && (p.catalog.voices.empty() ? k < 0.001 : k > 0.05);   // no library: no voices, silence
     // Page R on its own clock
     p.set("sync", 0); p.seqPlay(true);
     const double r = run(300, {});
-    std::printf("Page R peak %.3f, step %d\n", r, p.engine.seqStep.load()); ok &= r > 0.05;
+    std::printf("Page R peak %.3f, step %d\n", r, p.engine.seqStep.load()); ok &= p.catalog.voices.empty() ? r < 0.001 : r > 0.05;
     // a user sample
     {
         juce::File wav = out.getChildFile("tone.wav"); wav.deleteFile();
@@ -55,7 +55,8 @@ int main(int argc, char** argv) {
         }
         int n = 0;
         const auto msg = p.importFiles({ dir }, 60, false, n);
-        const cmi::Sound* s2 = p.kit.user(2);   // slot 1 holds the tone above, so SND2 is in slot 3
+        const cmi::Sound* s2 = nullptr;
+        for (int k = 0; k < cmi::Library::USER_SLOTS; ++k) if (p.kit.userLoaded(k) && p.kit.user(k)->name == "SND2") s2 = p.kit.user(k);
         std::printf("folder import: %s; SND2 root %d loop %d-%d rate %.0f\n", msg.toRawUTF8(), s2 ? s2->root : -1, s2 ? s2->loopStart : -1, s2 ? s2->loopEnd : -1, s2 ? s2->rate : 0);
         ok &= n == 3 && s2 && s2->name == "SND2" && s2->root == 45 && s2->loopStart == 40 && s2->loopEnd == 99 && s2->rate == 25000;
     }
@@ -73,6 +74,12 @@ int main(int argc, char** argv) {
         p.setLibraryFolder(juce::File(juce::String::fromUTF8(lib)));
         std::printf("library: %d files, catalogue %zu voices on %d disks\n", (int) p.libraryFiles().size(), p.catalog.voices.size(), p.catalog.disks);
         ok &= !p.catalog.voices.empty();
+        // no built-in voices: Page R's tracks and the keyboard now play CMI voices from the library
+        p.set("sync", 0); p.seqPlay(true);
+        const double rl = run(300, {});
+        const cmi::Sound* t0 = p.kit.bank.at(p.engine.seq.trk[0].sound);
+        std::printf("Page R on library voices: track 1 %s, peak %.3f\n", t0 ? t0->name.c_str() : "?", rl);
+        ok &= rl > 0.05 && !cmi::isBlank(p.kit, p.engine.seq.trk[0].sound);
     }
     // optional: real CMI disk images or .VC files given on the command line (cmi_snapshot <outdir> <disk.imd> ...)
     for (int i = 2; i < argc; ++i) {
@@ -101,7 +108,8 @@ int main(int argc, char** argv) {
     const bool same = q.songs.count() == p.songs.count() && q.currentSong() == p.currentSong() && std::memcmp(&q.engine.seq.pat[0], &p.engine.seq.pat[0], sizeof(p.engine.seq.pat)) == 0 && q.kit.userLoaded(0) && q.kit.loadedCount() == p.kit.loadedCount() && q.kit.user(2)->mode == p.kit.user(2)->mode && q.kit.user(2)->ram == p.kit.user(2)->ram;
     std::printf("state %d bytes, Page R and user voice restored: %s\n", (int) st.getSize(), same ? "yes" : "NO"); ok &= same;
     // pictures
-    p.loadSound(cmi::Library::get().find("CHOIRAAH"));
+    std::string second;   // program 2: the second voice loaded
+    { int n = 0; for (int i = 0; i < p.kit.bank.count.load(); ++i) if (!cmi::isBlank(p.kit, i) && n++ == 1) { second = p.kit.bank.at(i)->name; break; } }
     if (p.engine.song.load()) {   // a song was given: play some of it and check it sounds
         p.set("sync", 0); p.engine.songRun = true;
         const double pk = run(1200, {});
@@ -119,7 +127,7 @@ int main(int argc, char** argv) {
         run(2, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::programChange(1, 1), 0); }); juce::MessageManager::getInstance()->runDispatchLoopUntil(80);
         const int snd = juce::roundToInt(p.get("sound"));
         std::printf("MIDI control: CC74 0 -> filter %.0f; learned CC21 -> attack %.1f; program 2 -> %s\n", f, at, p.kit.bank.at(snd)->name.c_str());
-        ok &= f < 1 && at > 14 && at < 17 && p.kit.bank.at(snd)->name == "CHOIRAAH";
+        ok &= f < 1 && at > 14 && at < 17 && p.kit.bank.at(snd)->name == second;
     }
     // exports: the song as WAV and as MIDI
     if (p.engine.song.load()) {

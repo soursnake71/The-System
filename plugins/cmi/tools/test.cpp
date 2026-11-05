@@ -3,6 +3,7 @@
 // song to WAV files, and fails on silence, clipping, NaNs or wrong pitch.
 #include "../core/Disk.h"
 #include "../core/Song.h"
+#include "../core/TestVoices.h"
 #include <cstdio>
 #include <chrono>
 
@@ -31,7 +32,7 @@ int main(int argc, char** argv) {
     const std::string dir = argc > 1 ? argv[1] : ".";
     const int fs = 48000;
     auto t0 = std::chrono::steady_clock::now();
-    Library& lib = Library::get();
+    TestKit lib;   // synthesised test voices: the app itself has none
     auto t1 = std::chrono::steady_clock::now();
     std::printf("library: %d sounds built in %.0f ms\n", lib.size(), std::chrono::duration<double, std::milli>(t1 - t0).count());
 
@@ -104,7 +105,7 @@ int main(int argc, char** argv) {
     // ---- Page R: the demo song, 8 bars at 120 BPM, internal clock ----
     {
         Engine e2; e2.bank = &lib.bank; e2.prepare(fs); e2.setOutput(1, 0, 0.3);
-        Library::factorySeq(e2.seq, lib);
+        Library::factorySeq(e2.seq, lib.bank);
         e2.extSync = false; e2.songMode = true; e2.tempo = 120; e2.seqRun = true;
         const int len = fs * 17;
         L.assign((size_t) len, 0); R.assign((size_t) len, 0);
@@ -114,7 +115,7 @@ int main(int argc, char** argv) {
         CHECK(pk > 0.1 && pk < 0.999, "Page R song level %.3f", pk);
         writeWav(dir + "/PAGE_R_SONG.wav", L, R, fs);
         // host sync: ppq drives the steps
-        Engine e3; e3.bank = &lib.bank; e3.prepare(fs); Library::factorySeq(e3.seq, lib);
+        Engine e3; e3.bank = &lib.bank; e3.prepare(fs); Library::factorySeq(e3.seq, lib.bank);
         e3.extSync = true; e3.curPattern = 0;
         Transport tp; tp.valid = true; tp.playing = true; tp.bpm = 120; tp.ppq = 0;
         int steps = 0, last = -1;
@@ -170,7 +171,7 @@ int main(int argc, char** argv) {
         CHECK(kit.loadedCount() == 3 && kit.firstFree() == 3, "three imported");
         kit.clearUser(1);
         CHECK(kit.firstFree() == 1 && kit.loadedCount() == 2, "clear a slot");
-        CHECK(Library::USER_SLOTS == 200 && lib.size() <= MAX_SOUNDS, "200 user voices fit the bank (%d)", lib.size());
+        CHECK(Library::USER_SLOTS == MAX_SOUNDS - 1 && Library::get().size() == MAX_SOUNDS && Library::get().builtIn == 0, "no built-in voices, %d user voices", Library::USER_SLOTS);
     }
 
     // ---- CMI disks: a QDOS image built here (raw and as ImageDisk), with a sampled (mode 4) and a waveform (mode 1) voice ----
@@ -268,7 +269,7 @@ int main(int argc, char** argv) {
         if (ok) {
             CHECK(std::fabs(ms.bpmAt(0) - 120) < 0.01 && std::fabs(ms.length - 6) < 1e-6, "tempo %.2f length %.2f beats", ms.bpmAt(0), ms.length);
             CHECK(ms.used[0] && ms.program[0] == 48 && ms.trackName[0] == "VLNS" && ms.used[1] && ms.program[1] == 52 && !ms.used[2], "tracks: %d %d '%s'", ms.program[0], ms.program[1], ms.trackName[0].c_str());
-            Kit ks; SongList sl; const int si = sl.add(ms, ks.bank);
+            TestKit ks; SongList sl; const int si = sl.add(ms, ks.bank);
             CHECK(ks.bank.at(sl.at(si)->voice[0])->name == "STRINGS" && ks.bank.at(sl.at(si)->voice[1])->name == "CHOIRAAH", "GM voices");
             Engine es; es.bank = &ks.bank; es.prepare(fs); es.setOutput(1, 0, 0); es.extSync = false;
             selectSong(es, sl.at(si)); es.songRun = true;
@@ -316,7 +317,7 @@ int main(int argc, char** argv) {
             MidiSong m2 = ms; m2.used[2] = m2.used[3] = m2.used[4] = true;
             m2.trackName[0] = "SynthVox"; m2.trackName[1] = "Timpani"; m2.trackName[2] = "Bassoon"; m2.trackName[3] = "Str Ensem"; m2.trackName[4] = "Shadowrun for SNES";
             m2.program[2] = 70; m2.program[3] = 48; m2.program[4] = 30;
-            Kit k2; int v[SONG_TRK]; std::string why[SONG_TRK];
+            TestKit k2; int v[SONG_TRK]; std::string why[SONG_TRK];
             autoSongVoices(m2, k2.bank, v, why);
             auto nm = [&](int i) { return i == GM_KIT ? std::string("KIT") : k2.bank.at(i)->name; };
             CHECK(nm(v[0]) == "CHOIRAAH" && nm(v[1]) == "TIMPANI" && nm(v[2]) == "SAX" && nm(v[3]) == "STRINGS" && nm(v[4]) == "GTRLEAD",
@@ -327,7 +328,7 @@ int main(int argc, char** argv) {
         }
         // editing: notes out, moved, back in; written as a MIDI file and read again; the player carries on
         if (ok) {
-            Kit ke; SongList se; const int ei = se.add(ms, ke.bank);
+            TestKit ke; SongList se; const int ei = se.add(ms, ke.bank);
             auto notes = notesOf(*se.at(ei)->song);
             CHECK(notes.size() == 5 && std::fabs(notes[0].len - 1) < 1e-9 && notes[0].pitch == 60, "%zu notes", notes.size());
             Engine ee; ee.bank = &ke.bank; ee.prepare(fs); ee.extSync = false; selectSong(ee, se.at(ei)); ee.songRun = true;
@@ -380,7 +381,7 @@ int main(int argc, char** argv) {
     {
         Engine e4; e4.bank = &lib.bank; e4.prepare(fs); e4.setKeyboard(lib.find("STRINGS"), lib.sound(lib.find("STRINGS"))->ctl);
         for (int k = 0; k < 8; ++k) e4.keyOn(48 + k * 3, 1);
-        Library::factorySeq(e4.seq, lib); e4.extSync = false; e4.seqRun = true; e4.songMode = true;
+        Library::factorySeq(e4.seq, lib.bank); e4.extSync = false; e4.seqRun = true; e4.songMode = true;
         std::vector<float> a(256), b(256);
         auto s0 = std::chrono::steady_clock::now();
         for (int p = 0; p < fs * 4; p += 256) e4.render(a.data(), b.data(), 256);

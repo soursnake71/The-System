@@ -241,532 +241,6 @@ inline Controls ctl(std::initializer_list<std::pair<const char*, float>> kv) {
     return c;
 }
 
-// ======================================================================================================
-// The sounds
-// ======================================================================================================
-
-// the 1980s orchestra stab: brass and strings on one chord over octaves, timpani, cymbal, a hall
-inline Sound orchHit() {
-    const double fs = 22050, sec = 0.743;
-    Vec y = zeros(fs, sec);
-    const int brass[] = { 48, 55, 60, 64, 67 }, str[] = { 60, 64, 67, 72, 76, 79, 84 };
-    uint32_t seed = 11;
-    for (int m : brass) {
-        Vec b = ensemble(fs, sec, mtof(m), 3, 7, 0, 5, seed++, 0.006, -25, 0.03);
-        BQ lp = BQ::lp(fs, 1, 0.9);
-        for (size_t i = 0; i < b.size(); ++i) { const double t = i / fs; if (i % 32 == 0) lp = [&] { BQ q = BQ::lp(fs, 900 + 6000 * std::exp(-t / 0.09), 1.1); q.z1 = lp.z1; q.z2 = lp.z2; return q; }(); b[i] = (float) lp.run(b[i]); }
-        add(y, b, 0.55);
-    }
-    for (int m : str) {
-        Vec s = ensemble(fs, sec, mtof(m), 4, 12, 0.08, 6, seed++, 0.004);
-        filt(s, BQ::lp(fs, 6500, 0.7)); filt(s, BQ::peak(fs, 2600, 1.2, 5));
-        add(y, s, 0.42);
-    }
-    add(y, modal(fs, sec, mtof(36), { { 1, 1, 0.5 }, { 1.5, 0.5, 0.35 }, { 1.98, 0.3, 0.25 }, { 2.44, 0.2, 0.2 } }, 0.04, 0.05), 1.4);
-    Vec cym = noise(fs, sec, 99); filt(cym, BQ::hp(fs, 4500, 0.7)); envelope(cym, fs, [](double t) { return 0.35 * std::exp(-t / 0.12); }); add(y, cym);
-    Vec snap = noise(fs, sec, 98); filt(snap, BQ::bp(fs, 1800, 0.8)); envelope(snap, fs, [](double t) { return 0.8 * std::exp(-t / 0.018); }); add(y, snap);
-    envelope(y, fs, [](double t) { return std::min(1.0, t / 0.003) * (0.75 * std::exp(-t / 0.13) + 0.25 * std::exp(-t / 0.45)); });
-    drive(y, 1.6);
-    room(y, fs, 0.32, 1.6);
-    envelope(y, fs, [sec](double t) { return t > sec - 0.08 ? (sec - t) / 0.08 : 1.0; });
-    return sampled("ORCHHIT", "Orchestra stab: the 1980s hit (in the style of the library's ORCH5)", "Famous", fs, 60, y, -1, 0,
-                   ctl({ { "damp", 9 }, { "velVol", 0.4f }, { "velFilt", 0.2f } }));
-}
-
-inline Vec vowelChoir(double fs, double sec, double f0, int n, const std::vector<Formant>& fm, uint32_t seed, double attack, double breath) {
-    Vec src = ensemble(fs, sec, f0, n, 14, 0.22, 5.3, seed, attack, -15, 0.12, 0.35);
-    Vec nz = noise(fs, sec, seed + 7); envelope(nz, fs, [attack](double t) { return std::min(1.0, t / attack); });
-    add(src, nz, breath);
-    Vec y = formants(src, fs, fm);
-    filt(y, BQ::hp(fs, 90, 0.7));
-    room(y, fs, 0.22, 1.4);
-    return y;
-}
-
-inline Sound choirAah() {
-    const double fs = 16000, sec = 1.024;
-    Vec y = vowelChoir(fs, sec, mtof(60), 7, { { 800, 9, 0 }, { 1150, 9, -5 }, { 2900, 14, -18 }, { 3500, 16, -24 }, { 300, 3, -12 } }, 21, 0.22, 0.12);
-    return sampled("CHOIRAAH", "Breathy 'aah' choir (in the style of the library's ARR1)", "Famous", fs, 60, y, 0.42, 1.02,
-                   ctl({ { "attack", 9 }, { "damp", 14 }, { "velVol", 0.3f } }));
-}
-
-inline Sound maleChoir() {
-    const double fs = 14000, sec = 1.17;
-    Vec y = vowelChoir(fs, sec, mtof(48), 8, { { 600, 8, 0 }, { 1000, 9, -6 }, { 2400, 12, -22 }, { 3000, 14, -26 }, { 250, 3, -8 } }, 33, 0.25, 0.08);
-    return sampled("MALECHR", "Low male choir 'ooh-aah' (in the style of the library's SARARR)", "Famous", fs, 48, y, 0.5, 1.16,
-                   ctl({ { "attack", 10 }, { "damp", 15 }, { "velVol", 0.3f } }));
-}
-
-// breaking glass: an impact, then shards ringing at their own high modes, thinning out
-inline Sound glass() {
-    const double fs = 22050, sec = 0.743;
-    Vec y = zeros(fs, sec); Rng r(77);
-    Vec crack = noise(fs, 0.03, 5); filt(crack, BQ::hp(fs, 1500, 0.7)); envelope(crack, fs, [](double t) { return std::exp(-t / 0.006); }); add(y, crack, 1.3);
-    add(y, modal(fs, 0.12, 110, { { 1, 0.8, 0.03 }, { 2.3, 0.3, 0.02 } }), 1.0);
-    double t = 0.004;
-    while (t < sec - 0.03) {
-        const double rate = 420 * std::exp(-t / 0.1) + 18;
-        t += -std::log(1 - r.uni() * 0.999) / rate;
-        const double amp = (0.25 + 0.75 * r.uni()) * std::exp(-t / 0.28);
-        std::vector<Mode_> m;
-        const int nm = 2 + (int) (r.uni() * 3);
-        for (int k = 0; k < nm; ++k) m.push_back({ 1 + r.uni() * 2.7, 0.3 + 0.7 * r.uni(), 0.012 + 0.09 * r.uni(), r.uni() * 6.28 });
-        Vec sh = modal(fs, 0.16, 2400 + r.uni() * 3000, m);
-        add(y, sh, amp * 0.5, (size_t) (t * fs));
-    }
-    filt(y, BQ::hp(fs, 300, 0.7));
-    room(y, fs, 0.15, 0.8);
-    return sampled("GLASSBRK", "Breaking glass (the effect early CMI records made famous)", "Famous", fs, 60, y, -1, 0, ctl({ { "damp", 6 }, { "velVol", 0.4f } }));
-}
-
-inline Sound pizz() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(55);
-    Vec y = zeros(fs, sec); Rng r(3);
-    for (int k = 0; k < 4; ++k) {
-        const double det = cents(r.bip() * 7);
-        Vec p = pluck(fs, sec, [&](double) { return f0 * det; }, 0.55, 0.45, 0.18, 40 + k);
-        add(y, p, 0.5, (size_t) (r.uni() * 0.012 * fs));
-    }
-    filt(y, BQ::peak(fs, 280, 1.5, 6)); filt(y, BQ::peak(fs, 1000, 1.2, 3)); filt(y, BQ::lp(fs, 5000, 0.7));
-    room(y, fs, 0.25, 1.2);
-    return sampled("PIZZ", "Pizzicato string section", "Strings", fs, 55, y, -1, 0, ctl({ { "damp", 8 } }));
-}
-
-inline Sound strings() {
-    const double fs = 16000, sec = 1.024;
-    Vec y = ensemble(fs, sec, mtof(60), 7, 10, 0.12, 5.6, 51, 0.18, 0, 0.05, 0.0);
-    filt(y, BQ::lp(fs, 4200, 0.7)); filt(y, BQ::peak(fs, 450, 1.0, 4)); filt(y, BQ::peak(fs, 2500, 1.4, 3)); filt(y, BQ::hp(fs, 120, 0.7));
-    room(y, fs, 0.2, 1.3);
-    return sampled("STRINGS", "String section, sustained", "Strings", fs, 60, y, 0.36, 1.0, ctl({ { "attack", 8 }, { "damp", 14 } }));
-}
-
-inline Sound cello() {
-    const double fs = 16000, sec = 1.024, f0 = mtof(48);
-    Vec y = ensemble(fs, sec, f0, 1, 0, 0.16, 5.4, 61, 0.1, -20, 0.06, 0);
-    Vec bow = noise(fs, sec, 62); filt(bow, BQ::bp(fs, 2000, 0.8)); add(y, bow, 0.05);
-    filt(y, BQ::peak(fs, 220, 2, 6)); filt(y, BQ::peak(fs, 600, 2, 4)); filt(y, BQ::peak(fs, 1300, 2, 3)); filt(y, BQ::lp(fs, 3600, 0.7));
-    room(y, fs, 0.15, 1.0);
-    return sampled("CELLO", "Solo cello, bowed", "Strings", fs, 48, y, 0.4, 1.0, ctl({ { "attack", 6 }, { "damp", 12 } }));
-}
-
-inline Vec brassish(double fs, double sec, double f0, int n, double det, uint32_t seed, double peakHz, double susHz, double vib) {
-    Vec y = ensemble(fs, sec, f0, n, det, vib, 5.2, seed, 0.03, -30, 0.04);
-    BQ q = BQ::lp(fs, 400);
-    for (size_t i = 0; i < y.size(); ++i) {
-        const double t = i / fs;
-        if (i % 16 == 0) { const double fc = t < 0.06 ? 400 + (peakHz - 400) * (t / 0.06) : susHz + (peakHz - susHz) * std::exp(-(t - 0.06) / 0.12); BQ n2 = BQ::lp(fs, fc, 1.0); n2.z1 = q.z1; n2.z2 = q.z2; q = n2; }
-        y[i] = (float) q.run(y[i]);
-    }
-    return y;
-}
-
-inline Sound brass() {
-    const double fs = 16000, sec = 1.024;
-    Vec y = brassish(fs, sec, mtof(60), 4, 6, 71, 4800, 2400, 0.05);
-    filt(y, BQ::peak(fs, 1200, 1.2, 4));
-    room(y, fs, 0.2, 1.2);
-    return sampled("BRASS", "Brass section", "Brass", fs, 60, y, 0.42, 1.0, ctl({ { "attack", 2 }, { "damp", 10 }, { "velFilt", 0.5f } }));
-}
-
-inline Sound trumpet() {
-    const double fs = 20000, sec = 0.819;
-    Vec y = brassish(fs, sec, mtof(67), 1, 0, 81, 6000, 3800, 0.15);
-    filt(y, BQ::peak(fs, 1300, 1.5, 6)); filt(y, BQ::peak(fs, 2600, 2, 3)); filt(y, BQ::hp(fs, 200, 0.7));
-    room(y, fs, 0.12, 0.9);
-    return sampled("TRUMPET", "Solo trumpet", "Brass", fs, 67, y, 0.38, 0.81, ctl({ { "attack", 1 }, { "damp", 9 }, { "vib", 0.1f }, { "vibDelay", 0.4f } }));
-}
-
-inline Sound sax() {
-    const double fs = 18000, sec = 0.91;
-    Vec y = ensemble(fs, sec, mtof(58), 1, 0, 0.16, 5, 91, 0.04, -40, 0.05);
-    Vec br = noise(fs, sec, 92); filt(br, BQ::bp(fs, 2500, 0.8)); add(y, br, 0.08);
-    y = formants(y, fs, { { 500, 3, 6 }, { 1500, 4, 3 }, { 3000, 5, -6 }, { 200, 1, -6 } });
-    drive(y, 1.5); filt(y, BQ::lp(fs, 5000, 0.7));
-    room(y, fs, 0.12, 1.0);
-    return sampled("SAX", "Tenor saxophone", "Wind", fs, 58, y, 0.36, 0.9, ctl({ { "attack", 2 }, { "damp", 9 } }));
-}
-
-inline Vec breathyPipe(double fs, double sec, double f0, std::initializer_list<double> harm, double breathAmt, double scoop, uint32_t seed) {
-    Vec y = zeros(fs, sec); Rng r(seed);
-    double ph = 0;
-    for (size_t i = 0; i < y.size(); ++i) {
-        const double t = i / fs;
-        const double vib = 0.12 * std::sin(2 * PI * 5.0 * t) * clampd((t - 0.35) / 0.3, 0, 1);
-        const double f = f0 * std::pow(2.0, (vib + scoop * std::exp(-t / 0.09)) / 12.0);
-        ph += 2 * PI * f / fs;
-        double v = 0; int k = 1;
-        for (double a : harm) { if (f * k < fs * 0.45) v += a * std::sin(ph * k); ++k; }
-        y[i] = (float) (v * std::min(1.0, t / 0.06));
-    }
-    Vec nz = noise(fs, sec, seed + 1);
-    Vec tone = nz; filt(tone, BQ::bp(fs, f0, 9)); filt(tone, BQ::bp(fs, f0, 6));
-    Vec air = nz; filt(air, BQ::hp(fs, 1800, 0.7));
-    envelope(tone, fs, [](double t) { return std::min(1.0, t / 0.04); });
-    envelope(air, fs, [](double t) { return 0.4 + 1.2 * std::exp(-t / 0.05); });
-    add(y, tone, breathAmt * 6); add(y, air, breathAmt * 0.5);
-    return y;
-}
-
-inline Sound shakuhachi() {
-    const double fs = 16000, sec = 1.024;
-    Vec y = breathyPipe(fs, sec, mtof(67), { 1, 0.25, 0.12, 0.04 }, 0.22, -0.9, 101);
-    room(y, fs, 0.25, 1.4);
-    return sampled("SHAKUHCH", "Bamboo flute with a breathy, bent attack", "Wind", fs, 67, y, 0.42, 1.0, ctl({ { "attack", 3 }, { "damp", 11 }, { "vib", 0.08f }, { "vibDelay", 0.5f } }));
-}
-
-inline Sound flute() {
-    const double fs = 18000, sec = 0.91;
-    Vec y = breathyPipe(fs, sec, mtof(72), { 1, 0.3, 0.1, 0.05 }, 0.1, -0.2, 111);
-    room(y, fs, 0.2, 1.2);
-    return sampled("FLUTE", "Concert flute", "Wind", fs, 72, y, 0.36, 0.9, ctl({ { "attack", 3 }, { "damp", 10 }, { "vib", 0.1f } }));
-}
-
-inline Sound panpipe() {
-    const double fs = 18000, sec = 0.91;
-    Vec y = breathyPipe(fs, sec, mtof(72), { 1, 0, 0.12, 0, 0.04 }, 0.35, -0.3, 121);
-    room(y, fs, 0.3, 1.5);
-    return sampled("PANPIPE", "Pan pipes", "Wind", fs, 72, y, 0.34, 0.9, ctl({ { "attack", 2 }, { "damp", 12 } }));
-}
-
-inline Sound marimba() {
-    const double fs = 22050, sec = 0.743;
-    Vec y = modal(fs, sec, mtof(60), { { 1, 1, 0.45 }, { 3.99, 0.35, 0.1 }, { 10.65, 0.12, 0.025 } });
-    Vec m = noise(fs, 0.01, 9); filt(m, BQ::lp(fs, 3000)); envelope(m, fs, [](double t) { return std::exp(-t / 0.002); }); add(y, m, 0.3);
-    room(y, fs, 0.15, 1.0);
-    return sampled("MARIMBA", "Marimba", "Tuned perc", fs, 60, y, -1, 0, ctl({ { "damp", 8 }, { "sustain", 1 } }));
-}
-
-inline Sound kalimba() {
-    const double fs = 22050, sec = 0.743;
-    Vec y = modal(fs, sec, mtof(72), { { 1, 1, 0.55 }, { 5.95, 0.35, 0.06 }, { 13.4, 0.15, 0.02 }, { 2.01, 0.04, 0.3 } });
-    filt(y, BQ::peak(fs, 400, 1, 3));
-    room(y, fs, 0.2, 1.1);
-    return sampled("KALIMBA", "Kalimba (thumb piano)", "Tuned perc", fs, 72, y, -1, 0, ctl({ { "damp", 9 } }));
-}
-
-inline Sound tubularBell() {
-    const double fs = 16000, sec = 1.024;
-    Vec y = modal(fs, sec, mtof(60), { { 1, 1, 1.8 }, { 2.76, 0.65, 1.3 }, { 5.40, 0.45, 0.8 }, { 8.93, 0.3, 0.5 }, { 13.34, 0.18, 0.35 }, { 0.5, 0.12, 2.0 } });
-    room(y, fs, 0.2, 1.8);
-    return sampled("TUBEBELL", "Tubular bells", "Tuned perc", fs, 60, y, 0.62, 1.02, ctl({ { "damp", 22 }, { "sustain", 0 } }));
-}
-
-inline Sound glock() {
-    const double fs = 24000, sec = 0.683;
-    Vec y = modal(fs, sec, mtof(84), { { 1, 1, 0.9 }, { 2.71, 0.35, 0.3 }, { 5.33, 0.15, 0.1 } });
-    Vec m = noise(fs, 0.005, 13); filt(m, BQ::hp(fs, 3000)); add(y, m, 0.15);
-    return sampled("GLOCK", "Glockenspiel", "Tuned perc", fs, 84, y, 0.45, 0.68, ctl({ { "damp", 15 }, { "sustain", 0 } }));
-}
-
-inline Sound steelDrum() {
-    const double fs = 22050, sec = 0.743;
-    Vec y = modal(fs, sec, mtof(67), { { 1, 1, 0.45 }, { 2, 0.55, 0.35 }, { 3, 0.3, 0.25 }, { 1.5, 0.08, 0.2 }, { 4, 0.12, 0.12 } }, 0.02, 0.04);
-    Vec m = noise(fs, 0.01, 17); filt(m, BQ::bp(fs, 900, 1)); add(y, m, 0.2);
-    room(y, fs, 0.15, 1.0);
-    return sampled("STEELDRM", "Steel drum", "Tuned perc", fs, 67, y, -1, 0, ctl({ { "damp", 8 } }));
-}
-
-inline Sound koto() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(62);
-    Vec y = pluck(fs, sec, [f0](double t) { return f0 * std::pow(2.0, clampd((t - 0.22) / 0.18, 0, 1) * 1.0 / 12.0); }, 1.0, 0.8, 0.1, 131);
-    filt(y, BQ::peak(fs, 3000, 1.5, 4)); filt(y, BQ::hp(fs, 120));
-    room(y, fs, 0.2, 1.2);
-    return sampled("KOTO", "Koto, with the bend after the pluck", "Plucked", fs, 62, y, -1, 0, ctl({ { "damp", 10 } }));
-}
-
-inline Sound sitar() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(55);
-    Vec y = pluck(fs, sec, [f0](double) { return f0; }, 1.6, 0.85, 0.06, 141, 1, 0.012);
-    Vec d1 = pluck(fs, sec, [f0](double) { return f0 * 1.5; }, 2.5, 0.6, 0.2, 142, 0.1);
-    Vec d2 = pluck(fs, sec, [f0](double) { return f0 * 2; }, 2.5, 0.6, 0.2, 143, 0.1);
-    add(y, d1, 0.4); add(y, d2, 0.4);
-    filt(y, BQ::peak(fs, 2500, 2, 6)); filt(y, BQ::hp(fs, 150));
-    room(y, fs, 0.2, 1.3);
-    return sampled("SITAR", "Sitar, with the buzzing bridge and drones", "Plucked", fs, 55, y, 0.5, 0.74, ctl({ { "damp", 17 }, { "sustain", 0 } }));
-}
-
-inline Sound harpsichord() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(60);
-    Vec a = pluck(fs, sec, [f0](double) { return f0; }, 2.2, 0.9, 0.07, 151);
-    Vec b = pluck(fs, sec, [f0](double) { return f0 * cents(4); }, 2.0, 0.9, 0.09, 152);
-    Vec c = pluck(fs, sec, [f0](double) { return f0 * 2; }, 1.6, 0.9, 0.12, 153);
-    add(a, b); add(a, c, 0.5);
-    Vec q = noise(fs, 0.006, 154); filt(q, BQ::hp(fs, 2000)); add(a, q, 0.3);
-    filt(a, BQ::peak(fs, 3500, 1.2, 3));
-    room(a, fs, 0.15, 1.0);
-    return sampled("HARPSI", "Harpsichord, two 8' and a 4'", "Keys", fs, 60, a, 0.5, 0.74, ctl({ { "damp", 16 }, { "sustain", 0 } }));
-}
-
-inline Sound clav() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(60);
-    Vec y = pluck(fs, sec, [f0](double) { return f0; }, 1.5, 0.92, 0.05, 161);
-    filt(y, BQ::hp(fs, 250, 0.7)); filt(y, BQ::peak(fs, 1300, 2, 8));
-    drive(y, 2.0);
-    return sampled("CLAV", "Clavinet", "Keys", fs, 60, y, 0.42, 0.74, ctl({ { "damp", 4 }, { "velFilt", 0.5f } }));
-}
-
-inline Sound piano() {
-    const double fs = 16000, sec = 1.024, f0 = mtof(60), B = 0.00035;
-    Vec y = zeros(fs, sec);
-    for (int n = 1; n <= 40; ++n) {
-        const double fn = n * f0 * std::sqrt(1 + B * n * n);
-        if (fn > fs * 0.45) break;
-        const double amp = std::pow(n, -0.85) * std::exp(-n / 16.0);
-        const double t1 = 2.5 / (1 + 0.18 * n), t2 = 9.0 / (1 + 0.1 * n);
-        for (int s = -1; s <= 1; ++s) {
-            const double f = fn * cents(s * 0.9);
-            double ph = s * 1.3;
-            for (size_t i = 0; i < y.size(); ++i) {
-                const double t = i / fs; ph += 2 * PI * f / fs;
-                y[i] += (float) (amp / 3 * (0.7 * std::exp(-t / t1 * 3) + 0.3 * std::exp(-t / t2)) * std::sin(ph));
-            }
-        }
-    }
-    Vec th = noise(fs, 0.04, 171); filt(th, BQ::lp(fs, 600)); envelope(th, fs, [](double t) { return std::exp(-t / 0.01); }); add(y, th, 0.25);
-    room(y, fs, 0.18, 1.3);
-    return sampled("PIANO", "Grand piano (the grainy 8-bit kind)", "Keys", fs, 60, y, 0.7, 1.02, ctl({ { "damp", 12 } }));
-}
-
-inline Sound ePiano() {
-    const double fs = 20000, sec = 0.819, f0 = mtof(60);
-    Vec y = zeros(fs, sec);
-    double pc = 0, pm = 0, pt = 0;
-    for (size_t i = 0; i < y.size(); ++i) {
-        const double t = i / fs;
-        pc += 2 * PI * f0 / fs; pm += 2 * PI * f0 / fs; pt += 2 * PI * f0 * 14 / fs;
-        const double idx = 1.4 * std::exp(-t / 0.25) + 0.2;
-        y[i] = (float) (std::exp(-t / 1.6) * std::sin(pc + idx * std::sin(pm)) + 0.25 * std::exp(-t / 0.04) * std::sin(pt));
-    }
-    room(y, fs, 0.1, 0.9);
-    return sampled("TINEPNO", "Electric tine piano", "Keys", fs, 60, y, 0.55, 0.81, ctl({ { "damp", 13 }, { "velFilt", 0.5f } }));
-}
-
-inline Sound slapBass() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(40);
-    Vec y = pluck(fs, sec, [f0](double) { return f0; }, 1.4, 0.75, 0.08, 181, 1.3);
-    Vec pop = noise(fs, 0.02, 182); filt(pop, BQ::bp(fs, 2500, 1)); envelope(pop, fs, [](double t) { return std::exp(-t / 0.004); }); add(y, pop, 0.6);
-    filt(y, BQ::peak(fs, 80, 1, 4)); filt(y, BQ::peak(fs, 2000, 1, 5));
-    return sampled("SLAPBASS", "Slap bass", "Bass", fs, 40, y, 0.42, 0.74, ctl({ { "damp", 8 } }));
-}
-
-inline Sound fretless() {
-    const double fs = 16000, sec = 1.024, f0 = mtof(40);
-    Vec y = pluck(fs, sec, [f0](double t) { return f0 * std::pow(2.0, -std::exp(-t / 0.03) / 12.0); }, 2.4, 0.5, 0.25, 191);
-    BQ q = BQ::bp(fs, 600, 2);
-    Vec w = y;
-    for (size_t i = 0; i < w.size(); ++i) { if (i % 32 == 0) { const double t = i / (double) fs; BQ n = BQ::bp(fs, 500 + 700 * std::min(1.0, t / 0.4), 2.5); n.z1 = q.z1; n.z2 = q.z2; q = n; } w[i] = (float) q.run(w[i]); }
-    add(y, w, 0.8);
-    return sampled("FRETLESS", "Fretless bass with the 'mwah'", "Bass", fs, 40, y, 0.5, 1.02, ctl({ { "damp", 10 }, { "porta", 0.06f } }));
-}
-
-inline Sound synBass() {
-    const double fs = 16000, sec = 1.024, f0 = mtof(36);
-    Vec y = zeros(fs, sec); Saw a, b; Pulse s;
-    BQ q1 = BQ::lp(fs, 3000, 1.6), q2 = q1;
-    for (size_t i = 0; i < y.size(); ++i) {
-        const double t = i / fs;
-        if (i % 16 == 0) { const double fc = 280 + 2800 * std::exp(-t / 0.12); BQ n1 = BQ::lp(fs, fc, 1.8), n2 = BQ::lp(fs, fc, 0.6); n1.z1 = q1.z1; n1.z2 = q1.z2; n2.z1 = q2.z1; n2.z2 = q2.z2; q1 = n1; q2 = n2; }
-        double v = a.run(f0, fs) + b.run(f0 * cents(8), fs) + 0.6 * s.run(f0 / 2, fs, 0.5);
-        y[i] = (float) q2.run(q1.run(v * 0.4));
-    }
-    return sampled("SYNBASS", "Sampled synth bass", "Bass", fs, 36, y, 0.5, 1.02, ctl({ { "damp", 6 }, { "velFilt", 0.6f } }));
-}
-
-inline Sound bassGuitar() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(40);
-    Vec y = pluck(fs, sec, [f0](double) { return f0; }, 1.8, 0.6, 0.15, 201);
-    filt(y, BQ::peak(fs, 900, 1, 3)); filt(y, BQ::lp(fs, 4000));
-    return sampled("BASSGT", "Picked bass guitar", "Bass", fs, 40, y, 0.45, 0.74, ctl({ { "damp", 6 } }));
-}
-
-inline Sound guitarLead() {
-    const double fs = 20000, sec = 0.819, f0 = mtof(64);
-    Vec y = zeros(fs, sec); Saw a; Pulse p;
-    for (size_t i = 0; i < y.size(); ++i) {
-        const double t = i / fs;
-        const double vib = 0.3 * std::sin(2 * PI * 5.5 * t) * clampd((t - 0.3) / 0.2, 0, 1);
-        const double f = f0 * std::pow(2.0, (vib - 0.5 * std::exp(-t / 0.03)) / 12.0);
-        y[i] = (float) (0.6 * a.run(f, fs) + 0.4 * p.run(f, fs, 0.3));
-    }
-    filt(y, BQ::hp(fs, 120)); drive(y, 7.0);
-    filt(y, BQ::lp(fs, 4200, 0.8)); filt(y, BQ::peak(fs, 1800, 1.2, 5));
-    room(y, fs, 0.2, 1.2);
-    return sampled("GTRLEAD", "Overdriven lead guitar (the TV-theme kind)", "Plucked", fs, 64, y, 0.36, 0.81, ctl({ { "damp", 9 }, { "vib", 0.15f }, { "vibDelay", 0.4f }, { "porta", 0.05f } }));
-}
-
-inline Sound nylon() {
-    const double fs = 22050, sec = 0.743, f0 = mtof(52);
-    Vec y = pluck(fs, sec, [f0](double) { return f0; }, 2.2, 0.45, 0.2, 211);
-    filt(y, BQ::peak(fs, 110, 2, 5)); filt(y, BQ::peak(fs, 220, 2, 3));
-    room(y, fs, 0.15, 1.0);
-    return sampled("NYLONGTR", "Nylon-string guitar", "Plucked", fs, 52, y, -1, 0, ctl({ { "damp", 10 } }));
-}
-
-inline Sound timpani() {
-    const double fs = 16000, sec = 1.024;
-    Vec y = modal(fs, sec, mtof(43), { { 1, 1, 1.2 }, { 1.5, 0.6, 0.9 }, { 1.98, 0.4, 0.7 }, { 2.44, 0.25, 0.5 }, { 2.9, 0.15, 0.4 } }, 0.012, 0.15);
-    Vec th = noise(fs, 0.05, 221); filt(th, BQ::lp(fs, 300)); envelope(th, fs, [](double t) { return std::exp(-t / 0.015); }); add(y, th, 0.8);
-    room(y, fs, 0.25, 1.8);
-    return sampled("TIMPANI", "Timpani", "Orchestral", fs, 43, y, -1, 0, ctl({ { "damp", 14 } }));
-}
-
-inline Sound gong() {
-    const double fs = 12000, sec = 1.365;
-    Vec y = zeros(fs, sec); Rng r(231);
-    for (int k = 0; k < 40; ++k) {
-        const double f = 90 * std::pow(40.0, r.uni()), hi = std::log(f / 90) / std::log(40.0);
-        const double bloom = 0.1 + hi * 0.5;
-        double ph = r.uni() * 6.28;
-        for (size_t i = 0; i < y.size(); ++i) {
-            const double t = i / fs; ph += 2 * PI * f / fs;
-            const double e = (1 - std::exp(-t / bloom)) * std::exp(-t / (2.5 - hi * 1.5)) + (1 - hi) * std::exp(-t / 0.08);
-            y[i] += (float) (e * std::sin(ph) / (1 + hi * 2));
-        }
-    }
-    add(y, modal(fs, 0.3, 70, { { 1, 2, 0.1 } }));
-    return sampled("GONG", "Tam-tam gong, with the bloom", "Orchestral", fs, 48, y, 0.95, 1.36, ctl({ { "damp", 25 }, { "sustain", 0 } }));
-}
-
-inline Sound hey() {
-    const double fs = 16000, sec = 0.6;
-    Vec src = zeros(fs, sec); Rng r(241);
-    for (int k = 0; k < 6; ++k) {
-        Saw o; const double f0 = 190 + r.uni() * 80, st = r.uni() * 0.02;
-        for (size_t i = 0; i < src.size(); ++i) {
-            const double t = i / fs; if (t < st) continue;
-            const double f = f0 * std::pow(2.0, (-3 * clampd((t - 0.15) / 0.2, 0, 1)) / 12.0);
-            src[i] += (float) (o.run(f, fs) * 0.3);
-        }
-    }
-    Vec h = noise(fs, sec, 242); envelope(h, fs, [](double t) { return 2.0 * std::exp(-t / 0.035); }); add(src, h);
-    Vec y = formants(src, fs, { { 530, 7, 0 }, { 1850, 9, -3 }, { 2500, 10, -10 }, { 3500, 10, -18 } });
-    envelope(y, fs, [](double t) { return std::min(1.0, t / 0.01) * (t < 0.22 ? 1 : std::exp(-(t - 0.22) / 0.06)); });
-    room(y, fs, 0.3, 1.0);
-    return sampled("VOXHEY", "Crowd shout 'hey!'", "Voices", fs, 60, y, -1, 0, ctl({ { "damp", 6 } }));
-}
-
-inline Sound breath() {
-    const double fs = 16000, sec = 1.024;
-    Vec n = noise(fs, sec, 251);
-    Vec y = formants(n, fs, { { 700, 4, 0 }, { 1200, 5, -3 }, { 2600, 6, -6 } });
-    envelope(y, fs, [](double t) { return std::sin(PI * std::min(1.0, t / 1.0)) * (0.7 + 0.3 * std::sin(2 * PI * 2 * t)); });
-    return sampled("BREATH", "Human breath", "Voices", fs, 60, y, -1, 0, ctl({ { "damp", 10 } }));
-}
-
-// ---- drums ----
-inline Sound kick() {
-    const double fs = 24000, sec = 0.5;
-    Vec y = zeros(fs, sec); double ph = 0;
-    for (size_t i = 0; i < y.size(); ++i) { const double t = i / fs; ph += 2 * PI * (48 + 110 * std::exp(-t / 0.035)) / fs; y[i] = (float) (std::sin(ph) * std::exp(-t / 0.22)); }
-    Vec c = noise(fs, 0.004, 301); filt(c, BQ::hp(fs, 2000)); add(y, c, 0.5);
-    drive(y, 1.8);
-    return sampled("KICK1", "Kick drum", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 6 }, { "velVol", 0.5f } }));
-}
-inline Sound snare() {
-    const double fs = 24000, sec = 0.45;
-    Vec y = modal(fs, sec, 185, { { 1, 0.8, 0.07 }, { 1.78, 0.5, 0.05 } }, 0.15, 0.01);
-    Vec n = noise(fs, sec, 311); filt(n, BQ::hp(fs, 1500)); filt(n, BQ::peak(fs, 5000, 1, 4));
-    envelope(n, fs, [](double t) { return 0.8 * std::exp(-t / 0.13); }); add(y, n);
-    room(y, fs, 0.28, 0.9);
-    return sampled("SNARE1", "Snare drum (a drum-machine snare, sampled)", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 6 }, { "velVol", 0.5f } }));
-}
-inline Sound crossStick() {
-    const double fs = 24000, sec = 0.15;
-    Vec y = modal(fs, sec, 500, { { 1, 0.6, 0.02 }, { 3.4, 0.8, 0.012 }, { 5.2, 0.4, 0.008 } });
-    Vec n = noise(fs, 0.004, 321); add(y, n, 0.6);
-    return sampled("CROSSTIX", "Cross-stick rim click", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 4 }, { "velVol", 0.5f } }));
-}
-inline Vec metal(double fs, double sec, double dec, uint32_t seed) {
-    const double fr[6] = { 205.3, 304.4, 369.6, 522.7, 540.0, 800.0 };
-    Vec y = zeros(fs, sec); Pulse p[6];
-    for (size_t i = 0; i < y.size(); ++i) { double v = 0; for (int k = 0; k < 6; ++k) v += p[k].run(fr[k] * 1.4, fs, 0.5); y[i] = (float) (v / 6); }
-    Vec n = noise(fs, sec, seed); add(y, n, 0.4);
-    filt(y, BQ::hp(fs, 7000, 0.7)); filt(y, BQ::bp(fs, 9500, 0.9));
-    envelope(y, fs, [dec](double t) { return std::exp(-t / dec); });
-    return y;
-}
-inline Sound hhPedal() { const double fs = 30000; Vec y = metal(fs, 0.12, 0.018, 331); return sampled("HHPEDAL", "Pedal hi-hat", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 3 }, { "velVol", 0.6f } })); }
-inline Sound hiHat() { const double fs = 30000; Vec y = metal(fs, 0.2, 0.04, 341); return sampled("HIHAT2", "Closed hi-hat", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 3 }, { "velVol", 0.6f } })); }
-inline Sound hhOpen() { const double fs = 30000; Vec y = metal(fs, 0.546, 0.22, 351); return sampled("HHOPEN1", "Open hi-hat", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 5 }, { "velVol", 0.6f } })); }
-inline Sound clap() {
-    const double fs = 24000, sec = 0.4;
-    Vec n = noise(fs, sec, 361); filt(n, BQ::bp(fs, 1200, 1.2));
-    envelope(n, fs, [](double t) {
-        double e = 0; for (int k = 0; k < 4; ++k) { const double s = k * 0.011; if (t >= s) e = std::max(e, std::exp(-(t - s) / (k == 3 ? 0.1 : 0.006))); }
-        return t > 0.17 ? e * std::exp(-(t - 0.17) / 0.008) : e;   // the gate
-    });
-    room(n, fs, 0.4, 0.6);
-    envelope(n, fs, [](double t) { return t > 0.2 ? std::exp(-(t - 0.2) / 0.006) : 1.0; });
-    return sampled("CLAPGATE", "Handclap through a gated room", "Drums", fs, 60, n, -1, 0, ctl({ { "damp", 4 }, { "velVol", 0.5f } }));
-}
-inline Sound tom(bool hi) {
-    const double fs = 22050, sec = 0.6;
-    const double f = hi ? 190 : 110;
-    Vec y = zeros(fs, sec); double ph = 0;
-    for (size_t i = 0; i < y.size(); ++i) { const double t = i / fs; ph += 2 * PI * f * (1 + 0.5 * std::exp(-t / 0.05)) / fs; y[i] = (float) (std::sin(ph) * std::exp(-t / 0.25)); }
-    Vec n = noise(fs, 0.03, hi ? 371 : 372); filt(n, BQ::lp(fs, 3000)); envelope(n, fs, [](double t) { return std::exp(-t / 0.01); }); add(y, n, 0.4);
-    room(y, fs, 0.25, 0.9);
-    return sampled(hi ? "TOMHI" : "TOMLO", hi ? "High tom" : "Low tom", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 6 } }));
-}
-inline Sound conga() {
-    const double fs = 22050, sec = 0.4;
-    Vec y = modal(fs, sec, 330, { { 1, 1, 0.12 }, { 1.52, 0.4, 0.06 }, { 2.3, 0.2, 0.03 } }, 0.06, 0.01);
-    Vec n = noise(fs, 0.01, 381); filt(n, BQ::hp(fs, 1500)); add(y, n, 0.3);
-    return sampled("CONGA", "Conga", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 5 } }));
-}
-inline Sound cowbell() {
-    const double fs = 22050, sec = 0.35;
-    Vec y = zeros(fs, sec); Pulse a, b;
-    for (size_t i = 0; i < y.size(); ++i) { const double t = i / fs; y[i] = (float) ((a.run(540, fs, 0.5) + b.run(800, fs, 0.5)) * (0.7 * std::exp(-t / 0.02) + 0.3 * std::exp(-t / 0.12))); }
-    filt(y, BQ::bp(fs, 900, 1.2)); filt(y, BQ::bp(fs, 900, 0.8));
-    return sampled("COWBELL", "Cowbell", "Drums", fs, 60, y, -1, 0, ctl({ { "damp", 4 } }));
-}
-
-// ---- Page 4 waveform sounds (harmonics drawn per segment) ----
-inline Sound wSaw() {
-    return waveform("SAWTOOTH", "Page 4 sawtooth", "Waveform", [](int, double* a, double*) { for (int k = 0; k < 32; ++k) a[k] = 1.0 / (k + 1); }, 0, 127,
-                    ctl({ { "damp", 8 }, { "filter", 190 } }));
-}
-inline Sound wSquare() {
-    return waveform("SQUARE", "Page 4 square", "Waveform", [](int, double* a, double*) { for (int k = 0; k < 32; k += 2) a[k] = 1.0 / (k + 1); }, 0, 127,
-                    ctl({ { "damp", 8 }, { "filter", 190 } }));
-}
-inline Sound wOrgan() {
-    // drawbars 88 8800 000 on a 16' fundamental: harmonics 1, 2, 3, 4 (+ a key click in the first segments)
-    return waveform("ORGAN", "Page 4 drawbar organ", "Waveform", [](int p, double* a, double* ph) {
-        a[0] = 1; a[1] = 1; a[2] = 0.7; a[3] = 0.7; a[5] = 0.25; a[7] = 0.2;
-        if (p < 2) for (int k = 8; k < 32; ++k) { a[k] = 0.15; ph[k] = k * 1.7; }
-    }, 4, 127, ctl({ { "damp", 4 }, { "vib", 0.08f }, { "vibRate", 6.5f }, { "vibDelay", 0 }, { "seg", 0.01f } }));
-}
-inline Sound wVox() {
-    // a voice morphing a -> o -> i: formant envelopes sampled at the harmonics of a 220 Hz voice
-    auto spec = [](double f, double f1, double f2, double f3) {
-        auto pk = [](double x, double c, double bw) { const double d = (x - c) / bw; return 1.0 / (1 + d * d); };
-        return pk(f, f1, 90) + 0.6 * pk(f, f2, 110) + 0.25 * pk(f, f3, 140) + 0.02;
-    };
-    return waveform("VOXMORPH", "Page 4 voice, a-o-i", "Waveform", [spec](int p, double* a, double*) {
-        const double u = p / 127.0;
-        double f1, f2, f3;
-        if (u < 0.5) { const double w = u / 0.5; f1 = 750 + (450 - 750) * w; f2 = 1200 + (800 - 1200) * w; f3 = 2600; }
-        else { const double w = (u - 0.5) / 0.5; f1 = 450 + (300 - 450) * w; f2 = 800 + (2300 - 800) * w; f3 = 2600 + (3000 - 2600) * w; }
-        for (int k = 0; k < 32; ++k) a[k] = spec(220.0 * (k + 1), f1, f2, f3) / std::sqrt(k + 1.0);
-    }, 64, 127, ctl({ { "attack", 6 }, { "damp", 12 }, { "vib", 0.12f }, { "seg", 0.025f } }));
-}
-inline Sound wStrings() {
-    return waveform("SYNSTR", "Page 4 evolving synth strings (sweeping pulse)", "Waveform", [](int p, double* a, double*) {
-        const double pw = 0.5 - 0.42 * std::sin(PI * p / 127.0);
-        for (int k = 0; k < 32; ++k) { const int n = k + 1; a[k] = std::fabs(std::sin(PI * n * pw)) / n * std::exp(-n / 24.0); }
-    }, 0, 127, ctl({ { "attack", 9 }, { "damp", 14 }, { "seg", 0.03f }, { "vib", 0.06f } }));
-}
-inline Sound wBell() {
-    return waveform("SYNBELL", "Page 4 bell: the high harmonics die first", "Waveform", [](int p, double* a, double*) {
-        const double t = p / 127.0;
-        const int h[] = { 1, 2, 3, 5, 7, 9, 11, 14, 17, 21 };
-        int i = 0;
-        for (int n : h) { a[n - 1] = std::exp(-t * (1 + n * 0.9)) / std::sqrt((double) n) * (i % 2 ? 0.8 : 1.0); ++i; }
-    }, 120, 127, ctl({ { "damp", 19 }, { "seg", 0.012f }, { "sustain", 0 } }));
-}
-
 }  // namespace gen
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -783,7 +257,7 @@ public:
 
     // user slots (loaded samples): replace the sound in a slot, keeping the old one alive
     int userSlot(int k) const { return builtIn + k; }
-    static constexpr int USER_SLOTS = 200;
+    static constexpr int USER_SLOTS = MAX_SOUNDS - 1;   // and NO_VOICE, always silent
     void setUser(int k, Sound s) {
         if (k < 0 || k >= USER_SLOTS) return;
         auto p = std::make_unique<Sound>(std::move(s));
@@ -791,10 +265,20 @@ public:
         std::lock_guard<std::mutex> g(lock); owned.push_back(std::move(p));
     }
 
-    // Page R: the factory song (pattern 1 is the one on the famous screen)
-    static void factorySeq(SeqData& d, const Library& lib) {
-        const char* tracks[TRACKS] = { "KICK1", "SNARE1", "CROSSTIX", "ORCHHIT", "HIHAT2", "HHOPEN1", "CLAPGATE", "BASSGT" };
-        for (int t = 0; t < TRACKS; ++t) { d.trk[t].sound = std::max(0, lib.find(tracks[t])); d.trk[t].level = 0.7f; d.trk[t].audible = true; d.trk[t].pan = 0.5f; }
+    // Page R: the factory song (pattern 1 is the one on the famous screen). Its tracks play the CMI voices these
+    // names find among the voices loaded (connectPageR in Catalog.h loads them from your library); none: silent
+    static const char* trackVoices(int t) {
+        static const char* v[TRACKS] = { "KICK1|BDRUM|KICK2", "SNARE1|LMSNARE|SNARE", "CROSSTIX|RRIM", "ORCH5|ORCH2|ORCHHIT", "HIHAT2|HIHAT1|HHCLOSD",
+                                         "HHOPEN1|HHOPNCL1", "CLAPGATE|CLAP|SNAREA10", "BASSGT|BASS1|PICKBASS" };
+        return v[t];
+    }
+    static void factorySeq(SeqData& d, const Bank& bank) {
+        for (int t = 0; t < TRACKS; ++t) {
+            d.trk[t].sound = NO_VOICE; d.trk[t].level = 0.7f; d.trk[t].audible = true; d.trk[t].pan = 0.5f;
+            std::string want = trackVoices(t); size_t a = 0; bool found = false;
+            while (!found && a <= want.size()) { size_t b = want.find('|', a); if (b == std::string::npos) b = want.size(); const std::string w = want.substr(a, b - a); a = b + 1;
+                for (int i = 0; i < bank.count.load(); ++i) if (const Sound* x = bank.at(i)) if (x->name == w) { d.trk[t].sound = i; found = true; break; } }
+        }
         d.trk[4].pan = 0.62f; d.trk[5].pan = 0.62f; d.trk[2].pan = 0.4f;
         for (auto& p : d.pat) for (auto& tr : p.st) for (auto& s : tr) s = {};
         auto on = [&](int p, int t, std::initializer_list<int> steps, int vel = 110, int note = 0) { for (int s : steps) d.pat[p].st[t][s] = { (uint8_t) vel, (int8_t) note }; };
@@ -820,6 +304,9 @@ public:
     }
 
     int builtIn = 0;
+    // projects saved before the built-in voices went: their voice numbers counted 51 of them first
+    static constexpr int OLD_BUILT_IN = 51;
+    static int fromOldIndex(int i) { return i < 0 ? i : i >= OLD_BUILT_IN && i - OLD_BUILT_IN < USER_SLOTS ? i - OLD_BUILT_IN : NO_VOICE; }
     std::vector<const Sound*> blank;   // the empty user voices
 
     // copies the library into another bank (each plugin instance or app has its own, for its own user samples)
@@ -827,24 +314,19 @@ public:
 
 private:
     Library() {
-        using namespace gen;
-        std::vector<std::function<Sound()>> makers = {
-            orchHit, choirAah, maleChoir, glass, pizz, strings, brass, trumpet, shakuhachi, panpipe, marimba, kalimba,
-            tubularBell, harpsichord, piano, ePiano, clav, koto, sitar, steelDrum, glock, flute, sax, cello,
-            slapBass, fretless, synBass, bassGuitar, guitarLead, nylon, timpani, gong, hey, breath,
-            wSaw, wSquare, wOrgan, wVox, wStrings, wBell,
-            kick, snare, crossStick, hhPedal, hiHat, hhOpen, clap, [] { return tom(true); }, [] { return tom(false); }, conga, cowbell,
-        };
+        // no built-in sounds: every voice comes from your library folder, your samples or your drawings.
+        // Empty voices are silent until something is loaded into them.
         int i = 0;
-        for (auto& m : makers) { auto p = std::make_unique<Sound>(m()); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p)); }
-        builtIn = i;
-        // empty user slots: a soft sine until something is loaded
-        const Sound empty = gen::waveform("USER", "Empty: load or import samples (Page 8)", "User", [](int, double* a, double*) { a[0] = 1; }, 0, 127, Controls());
+        builtIn = 0;
+        Sound empty; empty.name = "--"; empty.title = "Empty: set your library folder (Page F) or load a sound"; empty.category = "User";
+        empty.mode = Mode::Sample; empty.ram.assign((size_t) PAGE, 0x80); empty.rate = 128 * 440.0; empty.root = 69;
         for (int k = 0; k < USER_SLOTS; ++k) {
-            Sound s = empty; s.name = "USER" + std::to_string(k + 1);
+            Sound s = empty;
             auto p = std::make_unique<Sound>(std::move(s)); blank.push_back(p.get()); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p));
         }
-        bank.count = i;
+        empty.name = "--"; empty.title = "No voice";
+        auto none = std::make_unique<Sound>(empty); bank.slot[(size_t) NO_VOICE].store(none.get()); owned.push_back(std::move(none));
+        bank.count = MAX_SOUNDS;
     }
     std::vector<std::unique_ptr<Sound>> owned;
     std::mutex lock;

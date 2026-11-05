@@ -131,7 +131,7 @@ inline void defaultSongVoices(const MidiSong& s, const Bank& bank, int* voice) {
     for (int t = 0; t < SONG_TRK; ++t) {
         if (s.program[t] < 0) { voice[t] = GM_KIT; continue; }
         const char* want = gmVoice(s.program[t]);
-        voice[t] = 0;
+        voice[t] = NO_VOICE;
         for (int i = 0; i < bank.count.load(); ++i) if (const Sound* x = bank.at(i)) if (x->name == want) { voice[t] = i; break; }
     }
 }
@@ -218,7 +218,7 @@ inline TrackShape shapeOf(const MidiSong& s, int t) {
 inline void autoSongVoices(const MidiSong& s, const Bank& bank, int* voice, std::string* reason = nullptr) {
     const char* gmNames[16] = { "piano", "chromatic", "organ", "guitar", "bass", "strings", "ensemble", "brass", "reed", "pipe", "synth lead", "synth pad", "synth fx", "ethnic", "percussive", "effects" };
     for (int t = 0; t < SONG_TRK; ++t) {
-        voice[t] = 0; std::string why;
+        voice[t] = NO_VOICE; std::string why;
         if (!s.used[t]) { if (reason) reason[t] = ""; continue; }
         if (s.program[t] < 0) { voice[t] = GM_KIT; if (reason) reason[t] = "drum channel"; continue; }
         const std::string nm = compact(s.trackName[t]);
@@ -261,7 +261,7 @@ inline void autoSongVoices(const MidiSong& s, const Bank& bank, int* voice, std:
             const TrackShape sh = shapeOf(s, t);
             if (sh.medianPitch < 40 && s.program[t] >= 80 && s.program[t] < 104) { const int b2 = findVoice(bank, "SYNBASS"); if (b2 >= 0) { pick = b2; why = "synth part in the bass range"; } }
         }
-        voice[t] = pick < 0 && pick != GM_KIT ? 0 : pick;
+        voice[t] = pick < 0 && pick != GM_KIT ? NO_VOICE : pick;
         if (reason) reason[t] = why;
     }
 }

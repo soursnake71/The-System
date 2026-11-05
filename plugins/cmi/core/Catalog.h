@@ -208,14 +208,45 @@ inline TrackMatch matchTrack(const MidiSong& s, int t, const Catalog& cat, const
 
 // Connects a song to the library: loads each track's voice into the user voices (once, reusing one already there)
 // and sets the drum kit. remembered: track -> "NAME@DISK" (or "KIT"). Returns how many tracks got a library voice.
+// a library voice into the user voices (reusing it if it is already there): its sound index, or -1
+inline int loadCatalogVoice(Kit& kit, const Catalog& cat, int ci) {
+    if (ci < 0 || ci >= (int) cat.voices.size()) return -1;
+    const CatVoice& cv = cat.voices[(size_t) ci];
+    for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) return kit.userSlot(k);
+    const int slot = kit.firstFree(); if (slot < 0) return -1;
+    Sound snd; if (!cat.sound(ci, snd)) return -1;
+    kit.setUser(slot, std::move(snd)); return kit.userSlot(slot);
+}
+
+// the first of "A|B|C" the library has, loaded: its sound index, or -1
+inline int loadCatalogNamed(Kit& kit, const Catalog& cat, const std::string& names) {
+    for (const auto& v : splitBar(names)) { const int ci = cat.find(v); if (ci >= 0) return loadCatalogVoice(kit, cat, ci); }
+    return -1;
+}
+
+inline bool isBlank(const Kit& kit, int sound) {
+    const int k = sound - kit.userSlot(0);
+    return k < 0 || k >= Library::USER_SLOTS || !kit.userLoaded(k);
+}
+
+// Page R's tracks that have no voice yet get their CMI voices: one loaded, else from the library. Returns how many.
+inline int connectPageR(SeqData& d, Kit& kit, const Catalog& cat) {
+    int n = 0;
+    for (int t = 0; t < TRACKS; ++t) {
+        if (!isBlank(kit, d.trk[t].sound)) continue;
+        int v = -1;
+        for (const auto& w : splitBar(Library::trackVoices(t))) if ((v = findVoice(kit.bank, w)) >= 0) break;   // a voice already loaded
+        if (v < 0) v = loadCatalogNamed(kit, cat, Library::trackVoices(t));
+        if (v >= 0) { d.trk[t].sound = v; ++n; }
+    }
+    return n;
+}
+
+// the keyboard's voice when nothing is chosen: the orchestra hit, if the library has one
+inline const char* defaultKeyboardVoices() { return "ORCH5|ORCH2|ORCHHIT|ORCHFZ1"; }
+
 inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::map<int, std::string>& remembered = {}) {
-    auto loadVoice = [&](int ci) -> int {
-        const CatVoice& cv = cat.voices[(size_t) ci];
-        for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) return kit.userSlot(k);
-        const int slot = kit.firstFree(); if (slot < 0) return -1;
-        Sound snd; if (!cat.sound(ci, snd)) return -1;
-        kit.setUser(slot, std::move(snd)); return kit.userSlot(slot);
-    };
+    auto loadVoice = [&](int ci) -> int { return loadCatalogVoice(kit, cat, ci); };
     int n = 0; bool needKit = false;
     for (int t = 0; t < SONG_TRK; ++t) {
         if (!e.song->used[t]) continue;
@@ -239,10 +270,10 @@ inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::ma
     return n;
 }
 
-// the kit lookup when CMI drum voices are loaded: they come first, the built-in drums after
+// the kit lookup: the CMI drum voices loaded
 inline std::function<int(int)> cmiKitLookup(const Bank& bank) {
     return [&bank](int note) {
-        for (const auto& v : splitBar(drumVoices(note))) { const int i = findVoice(bank, v); if (i >= Library::get().builtIn) return i; }
+        for (const auto& v : splitBar(drumVoices(note))) { const int i = findVoice(bank, v); if (i >= 0) return i; }
         return kitLookup(bank)(note);
     };
 }

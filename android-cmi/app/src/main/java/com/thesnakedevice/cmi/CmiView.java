@@ -129,14 +129,23 @@ public class CmiView extends View {
         postInvalidateDelayed(40);
     }
 
-    // ---- Page 2 ----
-    private boolean mineOnly = false;
+    // ---- Page 2: the voices in your library folder, or the ones loaded ----
+    private boolean loadedOnly = false;
+    private String[] catLines = new String[0]; private int catFor = -1;
+    String[] catalog() {
+        final int n = Native.catalogCount();
+        if (n != catFor) { catFor = n; catLines = n == 0 ? new String[0] : Native.catalogList().split("\n"); }
+        return catLines;
+    }
     private void library(Canvas c, RectF b) {
-        final int n = Native.soundCount(), cur = Native.getSound(), built = Native.builtInCount();
-        final List<Integer> list = new ArrayList<>();
-        for (int i = 0; i < n; ++i) { boolean user = i >= built; if (user ? Native.userLoaded(i - built) : !mineOnly) list.add(i); }
-        button(c, new RectF(b.left, b.top, b.left + dp(70), b.top + dp(22)), "ALL", !mineOnly, () -> { mineOnly = false; libScroll = 0; });
-        button(c, new RectF(b.left + dp(76), b.top, b.left + dp(176), b.top + dp(22)), "MINE ONLY", mineOnly, () -> { mineOnly = true; libScroll = 0; });
+        final int n = Native.soundCount(), cur = Native.getSound();
+        final String[] curInfo = Native.isBlankSound(cur) ? new String[0] : info(cur);
+        final List<Integer> list = new ArrayList<>();   // sound numbers (LOADED) or catalogue numbers (LIBRARY)
+        final String[] cat = catalog();
+        if (loadedOnly) { for (int i = 0; i < n; ++i) if (!Native.isBlankSound(i)) list.add(i); }
+        else for (int i = 0; i < cat.length; ++i) if (cat[i].split("\t", -1).length >= 3) list.add(i);
+        button(c, new RectF(b.left, b.top, b.left + dp(80), b.top + dp(22)), "LIBRARY", !loadedOnly, () -> { loadedOnly = false; libScroll = 0; });
+        button(c, new RectF(b.left + dp(86), b.top, b.left + dp(176), b.top + dp(22)), "LOADED", loadedOnly, () -> { loadedOnly = true; libScroll = 0; });
         text(c, list.size() + " VOICES", b.left + dp(186), b.top + dp(16), 11, DIM);
         final RectF lb = new RectF(b.left, b.top + dp(28), b.right, b.bottom - dp(22));
         final float rowH = dp(24);
@@ -145,21 +154,29 @@ public class CmiView extends View {
         final int cols = Math.max(1, (int) (lb.width() / colW));
         final int perPage = rows * cols;
         libScroll = Math.max(0, Math.min(libScroll, Math.max(0, list.size() - 1) / perPage * perPage));
-        if (list.isEmpty()) text(c, "No voices of your own yet: import them on Page 8.", lb.left, lb.top + dp(16), 12, DIM);
+        if (list.isEmpty()) {
+            if (loadedOnly) text(c, "No voices loaded yet: pick one in LIBRARY, or import on Page 8.", lb.left, lb.top + dp(16), 12, DIM);
+            else { text(c, "No CMI library yet: set your library folder on FIL", lb.left, lb.top + dp(16), 12, DIM); text(c, "(your disk images and .VC files).", lb.left, lb.top + dp(34), 12, DIM); }
+        }
         for (int k = 0; k < perPage && libScroll + k < list.size(); ++k) {
             final int i = list.get(libScroll + k);
-            String[] f = info(i);
+            final String name, where;
+            if (loadedOnly) { String[] f = info(i); name = f[0]; where = f[2]; }
+            else { String[] f = cat[i].split("\t", -1); name = f[0]; where = f[1]; }
+            final boolean on = loadedOnly ? i == cur : curInfo.length > 2 && curInfo[0].equals(name) && where.startsWith(curInfo[2]) && !curInfo[2].isEmpty();
             RectF r = new RectF(lb.left + (k / rows) * colW, lb.top + (k % rows) * rowH, lb.left + (k / rows + 1) * colW - dp(6), lb.top + (k % rows + 1) * rowH - dp(2));
-            if (i == cur) fill(c, r, INK);
-            text(c, String.format("%03d %-8s %s", i + 1, f[0], f[2].length() > 6 ? f[2].substring(0, 6) : f[2]), r.left + dp(3), r.bottom - dp(6), 12, i == cur ? BG : INK);
-            hit(r, (x, y) -> { Native.loadSound(i); status = "LOADED " + info(i)[0]; });
+            if (on) fill(c, r, INK);
+            text(c, String.format("%03d %-8s %s", libScroll + k + 1, name, where.length() > 6 ? where.substring(0, 6) : where), r.left + dp(3), r.bottom - dp(6), 12, on ? BG : INK);
+            hit(r, (x, y) -> {
+                final int v = loadedOnly ? i : Native.loadCatalogVoice(i);
+                if (v >= 0) { Native.loadSound(v); status = "LOADED " + name; act.saveState(); } else status = "USER VOICES FULL";
+            });
         }
         if (list.size() > perPage) {
             button(c, new RectF(b.right - dp(90), b.bottom - dp(20), b.right - dp(50), b.bottom), "<", false, () -> libScroll = Math.max(0, libScroll - perPage));
             button(c, new RectF(b.right - dp(44), b.bottom - dp(20), b.right, b.bottom), ">", false, () -> libScroll += perPage);
         }
-        String[] f = info(cur);
-        if (f.length > 3) text(c, f[0] + ": " + (f[1].length() > 40 ? f[1].substring(0, 40) : f[1]), b.left, b.bottom - dp(4), 11, DIM);
+        if (curInfo.length > 3) text(c, curInfo[0] + ": " + (curInfo[1].length() > 40 ? curInfo[1].substring(0, 40) : curInfo[1]), b.left, b.bottom - dp(4), 11, DIM);
     }
 
     // ---- Page M: the mixer ----
@@ -503,32 +520,33 @@ public class CmiView extends View {
                 }).show();
     }
     private void songVoiceDialog(final int track) {
-        final int n = Native.soundCount(), built = Native.builtInCount();
+        final int n = Native.soundCount();
         final List<Integer> ids = new ArrayList<>(); final List<String> names = new ArrayList<>();
         final boolean lib = Native.catalogCount() > 0;
         if (lib) { ids.add(-100); names.add(">> CMI LIBRARY (your disks)"); }
         ids.add(Native.GM_KIT); names.add("DRUM KIT  (a voice per GM drum note)");
-        for (int i = 0; i < n; ++i) { if (i >= built && !Native.userLoaded(i - built)) continue; String[] f = info(i); ids.add(i); names.add(f[0] + "  (" + f[2] + ")  " + f[1]); }
+        for (int i = 0; i < n; ++i) { if (Native.isBlankSound(i)) continue; String[] f = info(i); ids.add(i); names.add(f[0] + "  (" + f[2] + ")  " + f[1]); }
         new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Track " + (track + 1) + " voice")
                 .setItems(names.toArray(new String[0]), (dlg, w) -> {
-                    if (ids.get(w) == -100) { libraryDialog(track); return; }
+                    if (ids.get(w) == -100) { libraryDialog("Track " + (track + 1), ci -> { Native.useCatalogVoice(track, ci); act.saveState(); invalidate(); }); return; }
                     Native.setSongVoice(track, ids.get(w)); if (ids.get(w) == Native.GM_KIT) Native.rememberKit(track); act.saveState(); invalidate(); })
                 .show();
     }
     // the CMI library by disk, then the disk's voices
-    private void libraryDialog(final int track) {
-        final String[] lines = Native.catalogList().split("\n");
+    interface Pick { void on(int catIndex); }
+    private void libraryDialog(final String title, final Pick pick) {
+        final String[] lines = catalog();
         final java.util.TreeMap<String, List<Integer>> byDisk = new java.util.TreeMap<>();
         for (int i = 0; i < lines.length; ++i) { String[] f = lines[i].split("\t", -1); if (f.length < 3) continue; byDisk.computeIfAbsent(f[1], k -> new ArrayList<>()).add(i); }
         final String[] disks = byDisk.keySet().toArray(new String[0]);
-        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Track " + (track + 1) + ": CMI library")
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(title + ": CMI library")
                 .setItems(disks, (d1, w) -> {
                     final List<Integer> vs = byDisk.get(disks[w]);
                     final String[] nm = new String[vs.size()];
                     for (int k = 0; k < vs.size(); ++k) { String[] f = lines[vs.get(k)].split("\t", -1); nm[k] = f[0] + (f[2].equals("1") ? "  (loop)" : ""); }
                     new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(disks[w])
-                            .setItems(nm, (d2, k) -> { Native.useCatalogVoice(track, vs.get(k)); act.saveState(); invalidate(); }).show();
+                            .setItems(nm, (d2, k) -> pick.on(vs.get(k))).show();
                 }).show();
     }
 
@@ -839,11 +857,17 @@ public class CmiView extends View {
 
     private void chooseSound(final int track) {
         final int n = Native.soundCount();
-        final String[] items = new String[n];
-        for (int i = 0; i < n; ++i) { String[] f = info(i); items[i] = f[0] + "  (" + f[2] + ")  " + f[1]; }
+        final List<Integer> ids = new ArrayList<>(); final List<String> names = new ArrayList<>();
+        if (Native.catalogCount() > 0) { ids.add(-100); names.add(">> CMI LIBRARY (your disks)"); }
+        else { ids.add(-101); names.add("(set your library folder on FIL for the CMI voices)"); }
+        for (int i = 0; i < n; ++i) { if (Native.isBlankSound(i)) continue; String[] f = info(i); ids.add(i); names.add(f[0] + "  (" + f[2] + ")  " + f[1]); }
         new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Track " + (track + 1) + " voice")
-                .setItems(items, (dlg, which) -> { Native.setTrackSound(track, which); Native.preview(track); })
+                .setItems(names.toArray(new String[0]), (dlg, w) -> {
+                    final int id = ids.get(w);
+                    if (id == -101) return;
+                    if (id == -100) { libraryDialog("Track " + (track + 1), ci -> { final int v = Native.loadCatalogVoice(ci); if (v >= 0) { Native.setTrackSound(track, v); Native.preview(track); act.saveState(); } else status("USER VOICES FULL"); invalidate(); }); return; }
+                    Native.setTrackSound(track, id); Native.preview(track); act.saveState(); })
                 .show();
     }
 

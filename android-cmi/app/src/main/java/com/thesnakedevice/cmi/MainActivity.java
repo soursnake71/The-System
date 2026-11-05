@@ -266,7 +266,8 @@ public class MainActivity extends Activity {
                 try { Native.catalogAdd(readAll(us.get(i), 4 << 20), ns.get(i), ""); } catch (Exception ignored) {}
                 if (++done % 10 == 0) { final int d2 = done; ui.post(() -> view.status("READING THE CMI LIBRARY: " + d2 + " FILES")); }
             }
-            ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); }
+            Native.connectDefaults();   // no built-in voices: Page R and the keyboard take theirs from the library
+            ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); } saveState();
                 view.status(Native.catalogCount() + " CMI VOICES ON " + Native.catalogDisks() + " DISKS, " + libUris.size() + " FILES"); });
         }).start();
     }

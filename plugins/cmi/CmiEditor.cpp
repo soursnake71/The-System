@@ -76,37 +76,47 @@ void Screen::drawHeader(juce::Graphics& g) {
     hit({ 12, 4, 100, 20 }, [this](const juce::MouseEvent&) { page = '2'; repaint(); });
 }
 
-// ---- Page 2: the disk directory ----
+// ---- Page 2: the disk directory: the voices in your library folder, or the ones loaded ----
 void Screen::drawLibrary(juce::Graphics& g) {
     auto& kit = ed.proc.kit;
     const int n = kit.bank.count.load(), cur = juce::roundToInt(ed.proc.get("sound"));
-    const bool all = ed.proc.showFactory.load();
-    std::vector<int> list;
-    for (int i = 0; i < n; ++i) {
-        const bool user = i >= Library::get().builtIn;
-        if (user ? kit.userLoaded(i - Library::get().builtIn) : all) list.push_back(i);
-    }
+    const bool lib = ed.proc.showCatalog.load();
+    struct Row { int sound = -1, cat = -1; juce::String name, where; bool wf = false, loop = false; };
+    std::vector<Row> list;
+    const Sound* cs = isBlank(kit, cur) ? nullptr : kit.bank.at(cur);
+    if (lib) {
+        const juce::ScopedLock l(ed.proc.catLock);
+        const auto& cv = ed.proc.catalog.voices;
+        for (size_t i = 0; i < cv.size(); ++i) { Row r; r.cat = (int) i; r.name = cv[i].name; r.where = cv[i].disk; r.loop = cv[i].looped; list.push_back(r); }
+    } else
+        for (int i = 0; i < n; ++i)
+            if (!isBlank(kit, i)) if (const Sound* s = kit.bank.at(i)) { Row r; r.sound = i; r.name = s->name; r.where = s->category; r.wf = s->mode == Mode::Waveform; list.push_back(r); }
     g.setColour(kInk); g.setFont(mono(17));
     g.drawText("DISK DIRECTORY:  " + juce::String((int) list.size()) + " VOICES    CLICK TO LOAD THE KEYBOARD", 20, 58, 640, 20, juce::Justification::centredLeft);
-    button(g, { 680, 56, 140, 22 }, "ALL", all, [this] { ed.proc.showFactory = true; libScroll = 0; });
-    button(g, { 830, 56, 140, 22 }, "MINE ONLY", !all, [this] { ed.proc.showFactory = false; libScroll = 0; });
+    button(g, { 680, 56, 140, 22 }, "LIBRARY", lib, [this] { ed.proc.showCatalog = true; libScroll = 0; });
+    button(g, { 830, 56, 140, 22 }, "LOADED", !lib, [this] { ed.proc.showCatalog = false; libScroll = 0; });
     g.drawHorizontalLine(82, 20, (float) W - 20);
     const int rows = 22, colW = 320, per = rows * 3;
     const int pages = std::max(1, ((int) list.size() + per - 1) / per);
     libScroll = juce::jlimit(0, pages - 1, libScroll);
     if (list.empty()) {
-        g.setColour(kDim); g.drawText("No user voices yet: import your sounds on Page 8.", 20, 120, W - 40, 20, juce::Justification::centredLeft);
+        g.setColour(kDim);
+        g.drawText(lib ? "No CMI library yet: set your library folder on Page F (your disk images and .VC files)." : "No voices loaded yet: pick one from LIBRARY, or import sounds on Page 8.",
+                   20, 120, W - 40, 20, juce::Justification::centredLeft);
     }
     for (int k = 0; k < per && libScroll * per + k < (int) list.size(); ++k) {
-        const int i = list[(size_t) (libScroll * per + k)];
-        const Sound* s = kit.bank.at(i); if (!s) continue;
+        const Row row = list[(size_t) (libScroll * per + k)];
         const int c = k / rows, r = k % rows;
         juce::Rectangle<float> rr(20.f + c * colW, 88.f + r * 20.f, (float) colW - 12, 19);
-        if (i == cur) { g.setColour(kInk); g.fillRect(rr); g.setColour(kBg); } else g.setColour(kInk);
+        const bool on = row.sound >= 0 ? row.sound == cur : (cs && cs->name == row.name.toStdString() && cs->category == row.where.substring(0, 10).toStdString());
+        if (on) { g.setColour(kInk); g.fillRect(rr); g.setColour(kBg); } else g.setColour(kInk);
         g.setFont(mono(16));
-        juce::String cat(s->category); cat = cat.substring(0, 10);
-        g.drawText(juce::String(i + 1).paddedLeft('0', 3) + " " + juce::String(s->name).paddedRight(' ', 9) + (s->mode == Mode::Waveform ? ".WF " : ".VC ") + cat, rr.reduced(4, 0), juce::Justification::centredLeft);
-        hit(rr, [this, i](const juce::MouseEvent&) { ed.proc.loadSound(i); status = "LOADED"; });
+        g.drawText(juce::String(libScroll * per + k + 1).paddedLeft('0', 3) + " " + row.name.paddedRight(' ', 9) + (row.wf ? ".WF " : ".VC ") + row.where.substring(0, 10),
+                   rr.reduced(4, 0), juce::Justification::centredLeft);
+        hit(rr, [this, row](const juce::MouseEvent&) {
+            const int v = row.sound >= 0 ? row.sound : ed.proc.loadCatalogVoice(row.cat);
+            if (v >= 0) { ed.proc.loadSound(v); status = "LOADED"; } else status = "USER VOICES FULL";
+        });
     }
     if (pages > 1) {
         button(g, { (float) W - 160, (float) H - 104, 40, 20 }, "<", false, [this] { libScroll = juce::jmax(0, libScroll - 1); });
@@ -114,7 +124,7 @@ void Screen::drawLibrary(juce::Graphics& g) {
         g.drawText(juce::String(libScroll + 1) + "/" + juce::String(pages), W - 116, H - 104, 52, 20, juce::Justification::centred);
         button(g, { (float) W - 60, (float) H - 104, 40, 20 }, ">", false, [this, pages] { libScroll = juce::jmin(pages - 1, libScroll + 1); });
     }
-    if (const Sound* s = kit.bank.at(cur)) {
+    if (const Sound* s = cs) {
         g.setColour(kDim); g.drawHorizontalLine(H - 82, 20, (float) W - 20);
         g.setColour(kInk); g.setFont(mono(16));
         g.drawText(juce::String(s->name) + ": " + juce::String(s->title), 20, H - 78, W - 40, 20, juce::Justification::centredLeft);
@@ -900,13 +910,15 @@ void Screen::soundMenu(std::function<void(int)> chosen) {
     juce::PopupMenu m; std::map<std::string, juce::PopupMenu> cats; std::vector<std::string> order;
     auto& kit = ed.proc.kit;
     for (int i = 0; i < kit.bank.count.load(); ++i) {
+        if (isBlank(kit, i)) continue;
         const Sound* s = kit.bank.at(i); if (!s) continue;
         if (!cats.count(s->category)) order.push_back(s->category);
         cats[s->category].addItem(i + 1, juce::String(s->name) + "  " + juce::String(s->title).substring(0, 40));
     }
-    for (auto& c : order) m.addSubMenu(c, cats[c]);
-    if (page == 'R' && ed.proc.engine.song.load()) {
-        m.addItem(10000, "Drum kit (a voice per GM drum note)");
+    if (!order.empty()) { juce::PopupMenu loaded; for (auto& c : order) loaded.addSubMenu(c, cats[c]); m.addSubMenu("Loaded voices", loaded); }
+    const bool songTrack = page == 'R' && ed.proc.engine.song.load();
+    if (songTrack) m.addItem(10000, "Drum kit (a voice per GM drum note)");
+    {
         const juce::ScopedLock l(ed.proc.catLock);
         const auto& cv = ed.proc.catalog.voices;
         if (!cv.empty()) {
@@ -914,11 +926,16 @@ void Screen::soundMenu(std::function<void(int)> chosen) {
             for (size_t i = 0; i < cv.size() && i < 9000; ++i) byDisk[cv[i].disk].addItem(20000 + (int) i, juce::String(cv[i].name) + (cv[i].looped ? "  (loop)" : ""));
             juce::PopupMenu lib; for (auto& kv : byDisk) lib.addSubMenu(juce::String(kv.first), kv.second);
             m.addSeparator(); m.addSubMenu("CMI library (your disks)", lib);
-        }
+        } else m.addItem(-1, "No CMI library: set your library folder on Page F", false);
     }
-    m.showMenuAsync(juce::PopupMenu::Options(), [this, chosen](int r) {
-        if (r >= 20000) { ed.proc.useCatalogVoice(selTrack, r - 20000); repaint(); return; }
-        if (r == 10000 && chosen) chosen(GM_KIT); else if (r > 0 && chosen) chosen(r - 1);
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, chosen, songTrack](int r) {
+        if (r >= 20000) {
+            if (songTrack) { ed.proc.useCatalogVoice(selTrack, r - 20000); repaint(); return; }
+            const int v = ed.proc.loadCatalogVoice(r - 20000);
+            if (v >= 0 && chosen) chosen(v); else if (v < 0) status = "USER VOICES FULL";
+            repaint(); return;
+        }
+        if (r == 10000 && chosen) chosen(GM_KIT); else if (r > 0 && r < 10000 && chosen) chosen(r - 1);
     });
 }
 
@@ -932,7 +949,8 @@ void Screen::command(const juce::String& raw) {
     else if (w0 == "STOP") ed.proc.seqPlay(false);
     else if (w0 == "PAGE" || (w0.length() == 1 && juce::String("27D8R").contains(w0))) { const auto p = w0 == "PAGE" ? arg : w0; if (p.isNotEmpty() && juce::String("27D8R").contains(p.substring(0, 1))) page = p[0]; }
     else if (w0 == "LOAD" || w0 == "VOICE") {
-        const int idx = Library::get().find(arg.toStdString());
+        int idx = findVoice(ed.proc.kit.bank, arg.toStdString());
+        if (idx < 0) { const juce::ScopedLock l(ed.proc.catLock); idx = loadCatalogNamed(ed.proc.kit, ed.proc.catalog, arg.toStdString()); }
         if (idx >= 0) ed.proc.loadSound(idx); else { status = "NO VOICE " + arg; repaint(); return; }
     }
     else if (w0 == "SPEED" || w0 == "TEMPO") ed.proc.set("tempo", (float) juce::jlimit(40.0, 240.0, arg.getDoubleValue()));
@@ -967,7 +985,7 @@ CmiEditor::CmiEditor(CmiProcessor& p)
     cmdLine.setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack); cmdLine.setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
     cmdLine.setColour(juce::CaretComponent::caretColourId, kBg);
     cmdLine.setBounds(112, 28, Screen::W - 126, 20);
-    cmdLine.setTextToShowWhenEmpty("type: PLAY  STOP  LOAD ORCHHIT  SPEED 110  PATTERN 3  PAGE 7", kBg.withAlpha(0.55f));
+    cmdLine.setTextToShowWhenEmpty("type: PLAY  STOP  LOAD ORCH5  SPEED 110  PATTERN 3  PAGE 7", kBg.withAlpha(0.55f));
     cmdLine.onReturnKey = [this] { screen.command(cmdLine.getText()); cmdLine.clear(); };
     addAndMakeVisible(keys);
     keys.setColour(juce::MidiKeyboardComponent::whiteNoteColourId, kCream);
