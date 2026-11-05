@@ -1,2 +1,2 @@
-{"name":"NAM A2 Finder","short_name":"NAM Finder","description":"Find Neural Amp Modeler A2 models that run on a small machine.","start_url":"./","scope":"./","display":"standalone","background_color":"#16181b","theme_color":"#16181b",
- "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{"name":"NAM A2 Finder","short_name":"NAM Finder","description":"Find, hear and download Neural Amp Modeler A2 rigs that run on a small machine.","start_url":"./","scope":"./","display":"standalone","background_color":"#16181b","theme_color":"#16181b",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

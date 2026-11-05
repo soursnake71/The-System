@@ -10,7 +10,7 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), NAM A2 Finder and Omega Twelve (12-bit sampler emulator)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -23,6 +23,12 @@ android {
       applicationId 'com.thesnakedevice.vox'
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/?app=vox']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/?app=vox"'
+    }
+    nam {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.nam'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/nam/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/nam/"'
     }
     twelve {
       dimension 'app'
