@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NAM Finder</title>
+<meta name="description" content="Find Neural Amp Modeler A2 models that run on a small machine: check your device, search TONE3000 for A2 tones, and rank .nam files by accuracy and CPU.">
+<meta name="theme-color" content="#16181b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#16181b; --panel:#1f2226; --panel2:#272b30; --line:#353a41; --text:#eceae4; --dim:#9aa0a8;
+  --accent:#f2a33a; --accent2:#ffcf87; --ok:#4cc38a; --warn:#e8b339; --bad:#e5584f; --link:#7fb8ff;
+  --mono:ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  --sans:system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f3f1ec; --panel:#ffffff; --panel2:#f6f4ef; --line:#dcd8cf; --text:#1d1c1a; --dim:#6b6860;
+    --accent:#b86a00; --accent2:#7a4600; --ok:#1d8a57; --warn:#9a6c00; --bad:#c03a32; --link:#1b5fb8;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0; background:var(--bg); color:var(--text); font:15px/1.45 var(--sans)}
+a{color:var(--link)}
+main{max-width:980px; margin:0 auto; padding:16px 16px 60px}
+header h1{margin:6px 0 2px; font-size:26px; letter-spacing:-.3px}
+header h1 span{color:var(--accent)}
+header p{margin:0 0 14px; color:var(--dim)}
+section{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0}
+section > h2{margin:0 0 4px; font-size:18px; display:flex; align-items:center; gap:8px}
+section > h2 .n{display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%; background:var(--accent); color:#1b1307; font-size:13px; font-weight:700}
+.sub{color:var(--dim); margin:0 0 12px; font-size:14px}
+.row{display:flex; flex-wrap:wrap; gap:10px 14px; align-items:end; margin:8px 0}
+label.f{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--dim); min-width:0}
+label.f.grow{flex:1 1 220px}
+select,input[type=text],input[type=number],input[type=search]{font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-width:0; max-width:100%}
+input[type=range]{width:160px; accent-color:var(--accent)}
+button{font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:var(--panel2); color:var(--text); padding:8px 14px}
+button.primary{background:var(--accent); border-color:var(--accent); color:#1b1307; font-weight:600}
+button:disabled{opacity:.5; cursor:default}
+button.small{padding:4px 10px; font-size:13px}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:13px; cursor:pointer; user-select:none; background:var(--panel2)}
+.chip input{display:none}
+.chip:has(input:checked){background:var(--accent); color:#1b1307; border-color:var(--accent)}
+.check{display:inline-flex; gap:6px; align-items:center; font-size:14px}
+.tiles{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:12px}
+.tile{border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:var(--panel2)}
+.tile .t{font-weight:600}
+.tile .pc{font:600 22px/1.2 var(--mono)}
+.tile .bar{height:6px; border-radius:3px; background:var(--line); overflow:hidden; margin:6px 0 4px}
+.tile .bar i{display:block; height:100%}
+.tile.a2{border-color:color-mix(in srgb, var(--accent) 55%, var(--line))}
+.tag{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.3px; border-radius:5px; padding:1px 6px; text-transform:uppercase}
+.tag.ok{background:color-mix(in srgb, var(--ok) 22%, transparent); color:var(--ok)}
+.tag.warn{background:color-mix(in srgb, var(--warn) 22%, transparent); color:var(--warn)}
+.tag.bad{background:color-mix(in srgb, var(--bad) 22%, transparent); color:var(--bad)}
+.tag.a2{background:var(--accent); color:#1b1307}
+.verdict{margin-top:12px; padding:10px 12px; border-left:4px solid var(--accent); background:var(--panel2); border-radius:6px}
+.note{font-size:12px; color:var(--dim)}
+details{margin-top:10px}
+summary{cursor:pointer; color:var(--dim); font-size:14px}
+.tone{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:8px 0; background:var(--panel2)}
+.tone .top{display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap}
+.tone h3{margin:0; font-size:16px}
+.tone .meta{font-size:13px; color:var(--dim)}
+.tone .stats{display:flex; gap:12px; font:13px var(--mono); color:var(--dim); flex-wrap:wrap}
+.tone .score{font:700 14px var(--mono); color:var(--accent)}
+.models{margin-top:8px; display:none}
+.models.open{display:block}
+.mrow{display:flex; gap:8px; align-items:center; justify-content:space-between; border-top:1px dashed var(--line); padding:6px 0; flex-wrap:wrap}
+.mrow .nm{flex:1 1 200px; min-width:0; overflow-wrap:anywhere}
+.drop{display:block; margin-top:4px; border:2px dashed var(--line); border-radius:10px; padding:22px; text-align:center; color:var(--dim); cursor:pointer}
+.drop.over{border-color:var(--accent); color:var(--text)}
+.tablewrap{overflow-x:auto; margin-top:10px}
+table{border-collapse:collapse; width:100%; font-size:14px}
+th,td{padding:7px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top}
+th{font-size:12px; color:var(--dim); font-weight:600; white-space:nowrap}
+td.num{font-family:var(--mono); white-space:nowrap}
+tr.best td{background:color-mix(in srgb, var(--accent) 10%, transparent)}
+.status{font-size:13px; color:var(--dim); min-height:1.4em; margin-top:6px}
+.status.err{color:var(--bad)}
+.hidden{display:none !important}
+code{font-family:var(--mono); font-size:.92em; background:var(--panel2); padding:1px 5px; border-radius:4px}
+ol.steps{padding-left:20px; margin:6px 0}
+ol.steps li{margin:4px 0}
+footer{color:var(--dim); font-size:12px; margin-top:20px}
+@media (max-width:560px){ input[type=range]{width:120px} header h1{font-size:22px} }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>NAM <span>A2</span> Finder</h1>
+  <p>Find the best Neural Amp Modeler A2 captures that will actually run on a small machine.</p>
+</header>
+
+<section id="machine">
+  <h2><span class="n">1</span> Your machine</h2>
+  <p class="sub">Pick the box the amp will run on. Every A2 file holds two sizes: <b>A2-Full</b> (8 channels) and <b>A2-Lite</b> (3 channels). This works out which one your machine can run.</p>
+  <div class="row">
+    <label class="f grow">Device
+      <select id="device"></select>
+    </label>
+    <label class="f">Models at once
+      <select id="count"><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option><option>8</option></select>
+    </label>
+    <label class="f">Buffer (samples)
+      <select id="buffer"><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option></select>
+    </label>
+    <label class="f">CPU you'll give NAM: <b id="budgetV">70%</b>
+      <input type="range" id="budget" min="20" max="100" step="5" value="70">
+    </label>
+  </div>
+  <div class="row">
+    <label class="check"><input type="checkbox" id="fast" checked> Player has the A2 fast path (NAM core 0.5.2 or newer)</label>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="verdict" id="verdict"></div>
+  <details id="benchBox">
+    <summary>Running this page on the small machine itself? Measure it.</summary>
+    <p class="note">Open this page in the browser on the device (a Pi, a mini PC, a phone) and run the test. It plays one second of audio through networks the size of A2-Full, A2-Lite and A1-standard, in 64-sample buffers, on one core. A browser is slower than a native NAM player, so the measured numbers are a worst case; the estimate below assumes native code is a few times faster.</p>
+    <div class="row">
+      <button id="benchBtn" class="primary">Run the test</button>
+      <label class="f">Native speed-up over browser
+        <select id="nativeX"><option value="1">1x (worst case)</option><option value="2">2x</option><option value="3" selected>3x</option><option value="4">4x</option></select>
+      </label>
+    </div>
+    <div class="status" id="benchStatus"></div>
+  </details>
+</section>
+
+<section id="search">
+  <h2><span class="n">2</span> Find A2 tones on TONE3000</h2>
+  <p class="sub">Searches TONE3000 for tones that have A2 models and ranks them by how many people downloaded and favorited them.</p>
+  <div id="t3kSetup">
+    <div class="row">
+      <label class="f grow">TONE3000 publishable key (starts <code>t3k_pub_</code>)
+        <input type="text" id="pubKey" placeholder="t3k_pub_..." autocomplete="off" spellcheck="false">
+      </label>
+      <button id="connectBtn" class="primary">Connect</button>
+    </div>
+    <details>
+      <summary>How to get a key</summary>
+      <ol class="steps">
+        <li>Sign in at <a href="https://www.tone3000.com/api" target="_blank" rel="noopener">tone3000.com/api</a> and create an API key. The <b>publishable</b> key is the one for this page; it is safe to paste here. Never paste the secret (<code>t3k_cs_</code>) key.</li>
+        <li>Add this page's address as a redirect URI on the key: <code id="redirectShow"></code> (localhost addresses always work).</li>
+        <li>Paste the key above and tap Connect. TONE3000 asks you to sign in and sends you back here.</li>
+      </ol>
+      <p class="note">TONE3000's free tier is for non-commercial use and search is rate limited. If a search gets refused, use <b>Pick on TONE3000</b>, which lets you browse on their site and brings the tone back here.</p>
+    </details>
+  </div>
+  <div id="t3kSearch" class="hidden">
+    <div class="row">
+      <label class="f grow">Search
+        <input type="search" id="q" placeholder="e.g. JCM800, Dumble, Klon, 5150">
+      </label>
+      <label class="f">Order
+        <select id="sort">
+          <option value="ranked">Best for you (our ranking)</option>
+          <option value="downloads-all-time">Most downloaded</option>
+          <option value="trending">Trending</option>
+          <option value="newest">Newest</option>
+          <option value="best-match">Best text match</option>
+        </select>
+      </label>
+      <button id="searchBtn" class="primary">Search</button>
+    </div>
+    <div class="row">
+      <div class="chips" id="gears">
+        <label class="chip"><input type="checkbox" value="amp" checked>Amp</label>
+        <label class="chip"><input type="checkbox" value="amp-cab">Amp + cab</label>
+        <label class="chip"><input type="checkbox" value="pedal">Pedal</label>
+        <label class="chip"><input type="checkbox" value="outboard">Outboard</label>
+        <label class="chip"><input type="checkbox" value="experimental">Experimental</label>
+      </div>
+      <label class="check"><input type="checkbox" id="verified"> Verified creators</label>
+      <label class="check"><input type="checkbox" id="calibrated"> Calibrated only</label>
+    </div>
+    <div class="row">
+      <button id="pickBtn">Pick on TONE3000</button>
+      <button id="disconnectBtn" class="small">Disconnect</button>
+      <span class="note" id="who"></span>
+    </div>
+    <div class="status" id="searchStatus"></div>
+    <div id="results"></div>
+    <div class="row"><button id="moreBtn" class="hidden">More results</button></div>
+  </div>
+</section>
+
+<section id="check">
+  <h2><span class="n">3</span> Check and rank models</h2>
+  <p class="sub">Drop <code>.nam</code> files here, or tap <b>Check</b> on a TONE3000 model. Each file is read on this device (nothing is uploaded): which size it is, what it costs on your machine and how accurate the capture is (validation ESR, lower is better, when the file has it).</p>
+  <label class="drop" id="drop">
+    <input type="file" id="files" accept=".nam,application/json" multiple hidden>
+    Drop .nam files here or tap to choose
+  </label>
+  <div class="status" id="checkStatus"></div>
+  <div class="tablewrap hidden" id="tableWrap">
+    <table>
+      <thead><tr><th>#</th><th>Model</th><th>Type</th><th>Runs as</th><th>CPU</th><th>ESR</th><th>Loudness</th><th>Gear</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="row"><button id="clearBtn" class="small hidden">Clear list</button></div>
+</section>
+
+<footer>
+  CPU figures are estimates. They are scaled from published numbers (A2-Lite at 50% of a 600 MHz Cortex-M7; 64 A2-Full or about 200 A2-Lite on one Apple M-series core; three A2-Full cost about what two A1-standard do) and from each file's real layer sizes. Other devices are scaled by typical float throughput. The test in step 1 measures the device you are on.
+  Search and downloads use the <a href="https://www.tone3000.com/api" target="_blank" rel="noopener">TONE3000 API</a>.
+</footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

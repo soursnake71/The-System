@@ -29,6 +29,13 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## NAM A2 Finder (`/nam/`)
+Find Neural Amp Modeler A2 captures that will run on a small machine. Open `https://<your-username>.github.io/<repo>/nam/`.
+- **Your machine:** pick a device (Daisy Seed, Cortex-M7, Raspberry Pi Zero 2 / 3 / 4 / 5, N100, phones, Apple M) and see the CPU that A2-Full, A2-Lite and the A1 sizes would take, with a recommendation. Open the page on the device itself and run the test to measure it.
+- **Find A2 tones:** sign in to TONE3000 with your publishable API key (add the page address as a redirect URI on the key), search A2 tones by gear, and rank them by downloads, favorites and verified creators. Or use Pick on TONE3000 to browse their site and bring a tone back.
+- **Check and rank models:** drop `.nam` files (or check TONE3000 models straight from the search). Each file is read on the device: its architecture and sizes (an A2 file holds an 8-channel Full and a 3-channel Lite), the CPU each size takes on your machine, the validation ESR and loudness. The list puts models that fit first, then the most accurate.
+- CPU figures are estimates scaled from published A2 numbers and each file's layer sizes (`nam/namfile.js`). `node nam/tools/check.mjs <file.nam> ...` prints what the finder reads from files.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 

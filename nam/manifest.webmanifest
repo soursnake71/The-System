@@ -1,0 +1,2 @@
+{"name":"NAM A2 Finder","short_name":"NAM Finder","description":"Find Neural Amp Modeler A2 models that run on a small machine.","start_url":"./","scope":"./","display":"standalone","background_color":"#16181b","theme_color":"#16181b",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
