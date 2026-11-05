@@ -80,9 +80,11 @@ jobs:
           make CXX=g++ && mv cmi-headless out/cmi-headless-x86_64
           make clean && make CXX=aarch64-linux-gnu-g++ && mv cmi-headless out/cmi-headless-aarch64
           make clean && make CXX=arm-linux-gnueabihf-g++ && mv cmi-headless out/cmi-headless-armhf
-          ./out/cmi-headless-x86_64 -s /dev/null -w /tmp/x86.wav 3
-          qemu-aarch64-static -L /usr/aarch64-linux-gnu ./out/cmi-headless-aarch64 -s /dev/null -w /tmp/arm64.wav 3
-          qemu-arm-static -L /usr/arm-linux-gnueabihf ./out/cmi-headless-armhf -s /dev/null -w /tmp/armhf.wav 3
+          # no built-in voices: give it one to play (a test tone)
+          python3 -c "import wave,struct,math; w=wave.open('/tmp/tone.wav','wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(22050); w.writeframes(b''.join(struct.pack('<h',int(12000*math.sin(2*math.pi*261.63*i/22050))) for i in range(22050)))"
+          ./out/cmi-headless-x86_64 -s /dev/null -w /tmp/x86.wav 3 /tmp/tone.wav
+          qemu-aarch64-static -L /usr/aarch64-linux-gnu ./out/cmi-headless-aarch64 -s /dev/null -w /tmp/arm64.wav 3 /tmp/tone.wav
+          qemu-arm-static -L /usr/arm-linux-gnueabihf ./out/cmi-headless-armhf -s /dev/null -w /tmp/armhf.wav 3 /tmp/tone.wav
       - name: Package
         run: |
           cd plugins/cmi/headless
