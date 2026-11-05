@@ -275,7 +275,8 @@ void Screen::drawControls(juce::Graphics& g) {
         { "vibDelay", "VIB DELAY", [](float v) { return juce::String(v, 2) + "s"; } }, { "porta", "PORTAMENTO", [](float v) { return juce::String(v, 2) + "s"; } },
         { "velVol", "VEL>LEVEL", f2 }, { "velFilt", "VEL>FILTER", f2 }, { "transpose", "TRANSPOSE", fi }, { "fine", "FINE TUNE", [](float v) { return juce::String(juce::roundToInt(v)) + "c"; } },
         { "seg", "SEGMENT", [](float v) { return juce::String(juce::roundToInt(v * 1000)) + "ms"; } },
-        { "blend", "LOOP BLEND", [](float v) { return v < 0.005f ? juce::String("OFF") : juce::String(juce::roundToInt(v * 100)) + "%"; } },
+        { "blendOn", "LOOP BLEND", {} },
+        { "blend", "BLEND AMOUNT", [](float v) { return juce::String(juce::roundToInt(v * 100)) + "%"; } },
     };
     const std::vector<Row> right = {
         { "poly", "VOICES", fi }, { "bend", "BEND RANGE", fi }, { "master", "MASTER", f2 }, { "hiss", "NOISE FLOOR", f2 }, { "spread", "SPREAD", f2 },

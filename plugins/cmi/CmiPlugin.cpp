@@ -406,16 +406,16 @@ void CmiProcessor::exportAudio(const juce::File& f, bool stems, std::function<vo
         const SongEntry* e = songs.at(si);
         auto write = [&](const juce::File& out, const Rendered& r) { const auto b = wavBytes(r, 24); return out.replaceWithData(b.data(), b.size()); };
         if (!e) {
-            msg = write(f, renderPageR(kit.bank, seq, bpm, fs, master, hiss, spread, get("blend"))) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+            msg = write(f, renderPageR(kit.bank, seq, bpm, fs, master, hiss, spread, loopBlendNow())) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
         } else if (!stems) {
-            msg = write(f, renderSong(kit.bank, *e, fs, -1, master, hiss, spread, get("blend"))) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+            msg = write(f, renderSong(kit.bank, *e, fs, -1, master, hiss, spread, loopBlendNow())) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
         } else {
             int n = 0;
             for (int t = 0; t < SONG_TRK; ++t) {
                 if (!e->song->used[t] || e->mute[t]) continue;
                 juce::String nm = juce::String(e->song->trackName[t]).retainCharacters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _-").trim();
                 const juce::File out = f.getSiblingFile(f.getFileNameWithoutExtension() + " " + juce::String(t + 1).paddedLeft('0', 2) + (nm.isEmpty() ? "" : " " + nm) + ".wav");
-                n += write(out, renderSong(kit.bank, *e, fs, t, master, hiss, spread, get("blend"))) ? 1 : 0;
+                n += write(out, renderSong(kit.bank, *e, fs, t, master, hiss, spread, loopBlendNow())) ? 1 : 0;
             }
             msg = "EXPORTED " + juce::String(n) + " STEMS";
         }
@@ -442,7 +442,7 @@ void CmiProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuff
     engine.setPoly(juce::roundToInt(get("poly")));
     engine.setBendRange(get("bend"));
     engine.setOutput(get("master"), get("hiss"), get("spread"));
-    engine.loopBlend = get("blend");
+    engine.loopBlend = loopBlendNow();
     engine.setMultiTimbral(get("multi") > 0.5f);
     engine.extSync = get("sync") > 0.5f;
     engine.tempo = get("tempo");

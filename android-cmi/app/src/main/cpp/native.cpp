@@ -23,8 +23,8 @@ namespace {
 enum CmdType { C_MIDI, C_PREVIEW, C_ALLOFF };
 struct Cmd { int type; uint8_t m[3]; int len; int a; };
 
-constexpr int NPARAM = 24;   // 23: loop blend
-const float kDefaults[NPARAM] = { 0.85f, 255, 0, 10, 1, 0, 5.5f, 0.25f, 0, 0.6f, 0.3f, 0, 0, 1, 0.03f, 8, 2, 1, 1, 0.3f, 120, 0, 0, 0.5f };
+constexpr int NPARAM = 25;   // 23: loop blend amount, 24: loop blend on
+const float kDefaults[NPARAM] = { 0.85f, 255, 0, 10, 1, 0, 5.5f, 0.25f, 0, 0.6f, 0.3f, 0, 0, 1, 0.03f, 8, 2, 1, 1, 0.3f, 120, 0, 0, 0.5f, 1 };
 
 struct App {
     Kit kit;
@@ -101,7 +101,7 @@ struct App {
         engine.setKeyboard(sound.load(), controls());
         engine.setPoly((int) param[15].load()); engine.setBendRange(param[16]);
         engine.setOutput(param[17], param[18], param[19]);
-        engine.tempo = param[20].load(); engine.seq.swing = param[21]; engine.songMode = param[22] > 0.5f; engine.loopBlend = param[23].load();
+        engine.tempo = param[20].load(); engine.seq.swing = param[21]; engine.songMode = param[22] > 0.5f; engine.loopBlend = param[24] > 0.5f ? param[23].load() : 0.f;
         while (r != w) {
             const Cmd& c = q[r % q.size()];
             if (c.type == C_MIDI) engine.midi(c.m, c.len);
@@ -170,7 +170,7 @@ static bool ccParam(int cc, int v) {
                              { 5, 8, 0, 1, false, false }, { 70, 9, 0, 1, false, false }, { 71, 10, 0, 1, false, false }, { 9, 11, -24, 24, false, true },
                              { 3, 12, -100, 100, false, false }, { 75, 13, 0, 1, true, true }, { 79, 14, 0.005f, 0.2f, false, false }, { 14, 15, 1, 8, false, true },
                              { 15, 16, 0, 12, false, true }, { 85, 17, 0, 1.5f, false, false }, { 86, 18, 0, 4, false, false }, { 87, 19, 0, 1, false, false },
-                             { 88, 20, 40, 240, false, false }, { 89, 21, 0, 0.5f, false, false }, { 90, 22, 0, 1, true, true }, { 91, 23, 0, 1, false, false } };
+                             { 88, 20, 40, 240, false, false }, { 89, 21, 0, 0.5f, false, false }, { 90, 22, 0, 1, true, true }, { 91, 23, 0, 1, false, false }, { 92, 24, 0, 1, true, true } };
     for (const auto& m : map) if (m.cc == cc) {
         float x = m.lo + v / 127.f * (m.hi - m.lo);
         if (m.toggle) x = v >= 64 ? 1.f : 0.f; else if (m.integer) x = std::round(x);
@@ -420,7 +420,7 @@ FN(jstring, exportSongWav)(JNIEnv* env, jclass, jint fd, jint track) {
     const double fs = 44100;
     auto eng = std::make_unique<Engine>();
     eng->bank = &app()->kit.bank; eng->kitVoice = kitLookup(app()->kit.bank); eng->prepare(fs);
-    eng->setOutput(app()->param[17], app()->param[18], app()->param[19]); eng->extSync = false; eng->songGain = app()->engine.songGain.load(); eng->loopBlend = app()->param[23].load();
+    eng->setOutput(app()->param[17], app()->param[18], app()->param[19]); eng->extSync = false; eng->songGain = app()->engine.songGain.load(); eng->loopBlend = app()->param[24] > 0.5f ? app()->param[23].load() : 0.f;
     size_t total = 0, maxLen;
     if (e) {
         for (int t = 0; t < SONG_TRK; ++t) { eng->songVoice[t] = e->voice[t]; eng->songMute[t] = e->mute[t] || (track >= 0 && t != track); }
@@ -623,7 +623,7 @@ FN(void, clearUser)(JNIEnv*, jclass, jint k) {
 // state: parameters, Page R, user voices
 FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
     auto* a = app(); std::vector<uint8_t> v;
-    put(v, (uint32_t) 0x434D4936);   // "CMI6": + loop blend (CMI5: voice numbers without built-in voices)
+    put(v, (uint32_t) 0x434D4937);   // "CMI7": + loop blend on (CMI6: + loop blend; CMI5: voice numbers without built-in voices)
     const Sound* cur = a->kit.bank.at(a->sound.load());
     char nm[16] {}; if (cur) std::strncpy(nm, cur->name.c_str(), 15); put(v, nm);
     for (int i = 0; i < NPARAM; ++i) put(v, a->param[i].load());
@@ -659,8 +659,8 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     env->GetByteArrayRegion(data, 0, n, (jbyte*) v.data());
     const uint8_t* p = v.data(); const uint8_t* e = p + v.size();
     auto* a = app();
-    uint32_t magic = 0; if (!get(p, e, magic) || (magic < 0x434D4931 || magic > 0x434D4936)) return;
-    const int nParams = magic >= 0x434D4936 ? NPARAM : 23;
+    uint32_t magic = 0; if (!get(p, e, magic) || (magic < 0x434D4931 || magic > 0x434D4937)) return;
+    const int nParams = magic >= 0x434D4937 ? NPARAM : magic >= 0x434D4936 ? 24 : 23;
     const bool old = magic < 0x434D4935;   // saved with the built-in voices counted first
     auto fix = [old](int i) { return old ? Library::fromOldIndex(i) : i; };
     const bool v2 = magic != 0x434D4931, v3 = magic >= 0x434D4933;

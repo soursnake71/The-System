@@ -427,7 +427,7 @@ public class CmiView extends View {
     }
     private String time(float v) { float t = Native.envTimeOf(v); return t < 1 ? Math.round(t * 1000) + "ms" : String.format("%.1fs", t); }
     private void controls(Canvas c, RectF b) {
-        final int rows = portrait ? 24 : 13;
+        final int rows = portrait ? 25 : 14;
         final float rh = Math.min(dp(26), b.height() / rows), cw = portrait ? b.width() : (b.width() - dp(16)) / 2;
         Object[][] left = {
                 { Native.LEVEL, "LEVEL", 0f, 1f, false, false, (Fmt) v -> "" + Math.round(v * 255) },
@@ -443,6 +443,8 @@ public class CmiView extends View {
                 { Native.VELVOL, "VEL>LEVEL", 0f, 1f, false, false, null },
                 { Native.VELFILT, "VEL>FILTER", 0f, 1f, false, false, null },
                 { Native.SEG, "SEGMENT", 0.005f, 0.2f, false, false, (Fmt) v -> Math.round(v * 1000) + "ms" },
+                { Native.BLENDON, "LOOP BLEND", 0f, 1f, true, true, null },
+                { Native.BLEND, "BLEND AMOUNT", 0f, 1f, false, false, (Fmt) v -> Math.round(v * 100) + "%" },
         };
         Object[][] right = {
                 { Native.TRANSPOSE, "TRANSPOSE", -24f, 24f, false, true, (Fmt) v -> "" + Math.round(v) },
@@ -455,7 +457,6 @@ public class CmiView extends View {
                 { Native.TEMPO, "SPEED", 40f, 240f, false, false, (Fmt) v -> String.format("%.1f", v) },
                 { Native.SWING, "SWING", 0f, 0.5f, false, false, (Fmt) v -> Math.round(v * 200) + "%" },
                 { Native.SONGMODE, "SONG MODE", 0f, 1f, true, true, null },
-                { Native.BLEND, "LOOP BLEND", 0f, 1f, false, false, (Fmt) v -> v < 0.005f ? "OFF" : Math.round(v * 100) + "%" },
         };
         for (int i = 0; i < left.length; ++i) { Object[] o = left[i]; barRow(c, new RectF(b.left, b.top + i * rh, b.left + cw, b.top + (i + 1) * rh), (Integer) o[0], (String) o[1], (Float) o[2], (Float) o[3], (Boolean) o[4], (Boolean) o[5], (Fmt) o[6]); }
         final float rx = portrait ? b.left : b.left + cw + dp(16), ry = portrait ? b.top + left.length * rh : b.top;

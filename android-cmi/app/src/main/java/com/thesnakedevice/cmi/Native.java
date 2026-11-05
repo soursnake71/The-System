@@ -7,7 +7,7 @@ final class Native {
 
     // parameter indices (native.cpp)
     static final int LEVEL = 0, FILTER = 1, ATTACK = 2, DAMP = 3, SUSTAIN = 4, VIB = 5, VIBRATE = 6, VIBDELAY = 7, PORTA = 8, VELVOL = 9, VELFILT = 10,
-            TRANSPOSE = 11, FINE = 12, LOOP = 13, SEG = 14, POLY = 15, BEND = 16, MASTER = 17, HISS = 18, SPREAD = 19, TEMPO = 20, SWING = 21, SONGMODE = 22, BLEND = 23;
+            TRANSPOSE = 11, FINE = 12, LOOP = 13, SEG = 14, POLY = 15, BEND = 16, MASTER = 17, HISS = 18, SPREAD = 19, TEMPO = 20, SWING = 21, SONGMODE = 22, BLEND = 23, BLENDON = 24;
     static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 255, NCH = 16;
 
     static native void start();

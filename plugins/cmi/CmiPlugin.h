@@ -18,7 +18,7 @@ inline const std::vector<std::pair<int, const char*>>& defaultCCs() {
     static const std::vector<std::pair<int, const char*>> d = {
         { 7, "level" }, { 74, "filter" }, { 73, "attack" }, { 72, "damp" }, { 69, "sustain" }, { 77, "vib" }, { 76, "vibRate" }, { 78, "vibDelay" },
         { 5, "porta" }, { 70, "velVol" }, { 71, "velFilt" }, { 9, "transpose" }, { 3, "fine" }, { 75, "loop" }, { 79, "seg" }, { 14, "poly" }, { 15, "bend" },
-        { 85, "master" }, { 86, "hiss" }, { 87, "spread" }, { 88, "tempo" }, { 89, "swing" }, { 90, "songMode" }, { 102, "sync" }, { 103, "multi" }, { 104, "songLevel" }, { 91, "blend" },
+        { 85, "master" }, { 86, "hiss" }, { 87, "spread" }, { 88, "tempo" }, { 89, "swing" }, { 90, "songMode" }, { 102, "sync" }, { 103, "multi" }, { 104, "songLevel" }, { 91, "blend" }, { 92, "blendOn" },
     };
     return d;
 }
@@ -55,6 +55,7 @@ inline const std::vector<PDef>& paramDefs() {
         { "songMode", "Song mode", 0, 1, 0, 1 },
         { "songLevel", "MIDI song level", 0, 1, 0.5f, 0 },
         { "blend", "Loop blend", 0, 1, 0.5f, 0 },   // crossfade at loop points; 0: the original card (none)
+        { "blendOn", "Loop blend on", 0, 1, 1, 1 },  // the switch: off plays loops as the original card did
     };
     return d;
 }
@@ -136,6 +137,7 @@ public:
     void setLibraryFolder(const juce::File& f);
     std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
     void rescanLibrary();
+    float loopBlendNow() const { return get("blendOn") > 0.5f ? get("blend") : 0.f; }
     // ---- factory presets (Page R): the IIx factory library, each found in your library folder ----
     std::vector<int> presetCat;               // preset -> catalogue voice, -1 missing (under catLock)
     std::map<int, std::string> presetChoice;  // presets you matched by hand: "NAME@DISK"
