@@ -1,6 +1,7 @@
 # Omega Drum Trigger: builds the VST3 for Windows (and Mac/Linux), runs the detector test bench and, on Linux, the
 # processor test and the host test that loads the built .vst3 like a DAW. The Windows zip is attached to the run as
-# an artifact ("Omega-Drum-Trigger-Windows"); on main it also goes into the vst3-latest release with the others.
+# an artifact and published to the drum-trigger-latest release (a plain download link); on main the plugin also
+# goes into the vst3-latest release with the others.
 name: Omega Drum Trigger
 on:
   push:
@@ -48,3 +49,18 @@ jobs:
           cd out && 7z a -tzip "../Omega-Drum-Trigger-${{ matrix.name }}.zip" . >/dev/null
       - uses: actions/upload-artifact@v4
         with: {name: 'Omega-Drum-Trigger-${{ matrix.name }}', path: 'Omega-Drum-Trigger-${{ matrix.name }}.zip'}
+  # a plain download link (no GitHub login needed): the drum-trigger-latest release
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls dl
+          gh release view drum-trigger-latest >/dev/null 2>&1 || gh release create drum-trigger-latest --target "$GITHUB_SHA" --title "Omega Drum Trigger (latest)" --notes "Drum audio to MIDI for sample replacement. Windows: unzip Omega-Drum-Trigger-Windows.zip and copy Omega Drum Trigger.vst3 into C:\\Program Files\\Common Files\\VST3, then rescan plugins in your DAW. Mac: /Library/Audio/Plug-Ins/VST3 (if the DAW refuses it: xattr -cr \"/Library/Audio/Plug-Ins/VST3/Omega Drum Trigger.vst3\"). Linux: ~/.vst3. Guide: plugins/trigger/README.md"
+          gh release upload drum-trigger-latest dl/*.zip --clobber

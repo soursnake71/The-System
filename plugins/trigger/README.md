@@ -5,7 +5,8 @@ blasts, and kick/snare mics full of bleed. One instance per close mic (kick, sna
 Mac and Linux, plus AU on Mac.
 
 ## Getting it
-- From this branch: the **Omega Drum Trigger** workflow run (`.github/workflows/drum-trigger.yml`) has the zip
+- Windows download: https://github.com/soursnake71/The-System/releases/download/drum-trigger-latest/Omega-Drum-Trigger-Windows.zip
+  (all builds: the `drum-trigger-latest` release). Each workflow run also has the zip
   `Omega-Drum-Trigger-Windows` under *Artifacts*. From `main`: the `vst3-latest` release (Omega-Plugins-Windows.zip).
 - Unzip and copy `Omega Drum Trigger.vst3` into `C:\Program Files\Common Files\VST3`, then rescan plugins in the DAW.
 - Build it yourself: `cmake -S plugins -B build -DOMEGA_ONLY=Trigger && cmake --build build --config Release --target OmegaTrigger_VST3`.
