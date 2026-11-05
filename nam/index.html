@@ -87,6 +87,18 @@ code{font-family:var(--mono); font-size:.92em; background:var(--panel2); padding
 ol.steps{padding-left:20px; margin:6px 0}
 ol.steps li{margin:4px 0}
 footer{color:var(--dim); font-size:12px; margin-top:20px}
+.btn-file span{display:inline-block; cursor:pointer; border-radius:8px; border:1px solid var(--line); background:var(--panel2); padding:8px 14px}
+.rigs{display:flex; flex-direction:column; gap:6px; margin:10px 0}
+.rig{display:flex; gap:8px; align-items:center; flex-wrap:wrap; border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:var(--panel2); cursor:pointer}
+.rig.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
+.rig .nm{flex:1 1 180px; min-width:0; overflow-wrap:anywhere}
+.rig .nm small{display:block; color:var(--dim)}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden}
+.seg button{border:0; border-radius:0; padding:4px 10px; font-size:13px}
+.seg button.on{background:var(--accent); color:#1b1307; font-weight:600}
+.player{border-top:1px solid var(--line); margin-top:8px; padding-top:6px}
+#playBtn.playing{background:var(--panel2); color:var(--text); border-color:var(--accent)}
+#bypassBtn.on{background:var(--accent); color:#1b1307}
 @media (max-width:560px){ input[type=range]{width:120px} header h1{font-size:22px} }
 </style>
 </head>
@@ -149,7 +161,7 @@ footer{color:var(--dim); font-size:12px; margin-top:20px}
         <li>Add this page's address as a redirect URI on the key: <code id="redirectShow"></code> (localhost addresses always work).</li>
         <li>Paste the key above and tap Connect. TONE3000 asks you to sign in and sends you back here.</li>
       </ol>
-      <p class="note">TONE3000's free tier is for non-commercial use and search is rate limited. If a search gets refused, use <b>Pick on TONE3000</b>, which lets you browse on their site and brings the tone back here.</p>
+      <p class="note">TONE3000's free tier is for non-commercial use and search is rate limited. If a search gets refused, use <b>Pick on TONE3000</b>, which lets you browse (and preview) on their site and brings the tone back here.</p>
     </details>
   </div>
   <div id="t3kSearch" class="hidden">
@@ -190,8 +202,57 @@ footer{color:var(--dim); font-size:12px; margin-top:20px}
   </div>
 </section>
 
+<section id="audition">
+  <h2><span class="n">3</span> Audition rigs</h2>
+  <p class="sub">Hear a model before you keep it. Tap <b>Play</b> on any TONE3000 model or checked file, or load <code>.nam</code> files here. Pick a rig to switch while it plays, so you can A/B them.</p>
+  <div class="row">
+    <label class="btn-file"><input type="file" id="rigFiles" accept=".nam,application/json" multiple hidden><span>Load .nam files</span></label>
+  </div>
+  <div id="rigList" class="rigs"><div class="note">No rigs loaded yet.</div></div>
+  <div class="player">
+    <div class="row">
+      <label class="f">Play through it
+        <select id="src">
+          <option value="riff">Guitar riff (built in)</option>
+          <option value="file">Your audio file…</option>
+          <option value="live">Live guitar (audio interface)</option>
+        </select>
+      </label>
+      <input type="file" id="srcFile" accept="audio/*,video/*" hidden>
+      <label class="f">Cab
+        <select id="cab">
+          <option value="simple">Simple cab (for amp-only captures)</option>
+          <option value="off">Off (capture has a cab, or use your own)</option>
+          <option value="ir">Your cab IR…</option>
+        </select>
+      </label>
+      <input type="file" id="irFile" accept="audio/*,.wav" hidden>
+    </div>
+    <div class="row">
+      <label class="f">Input gain: <b id="inGainV">0 dB</b>
+        <input type="range" id="inGain" min="-18" max="18" step="1" value="0">
+      </label>
+      <label class="f">Volume: <b id="volV">-6 dB</b>
+        <input type="range" id="vol" min="-40" max="6" step="1" value="-6">
+      </label>
+      <label class="check"><input type="checkbox" id="norm" checked> Even out loudness</label>
+    </div>
+    <div class="row">
+      <button id="playBtn" class="primary" disabled>▶ Play</button>
+      <button id="bypassBtn" disabled>Dry DI</button>
+      <span class="status" id="playStatus"></span>
+    </div>
+    <div class="row">
+      <button id="dlNam" class="small" disabled>Download .nam</button>
+      <button id="dlRig" class="small" disabled>Download rig (.zip)</button>
+      <button id="dlClip" class="small" disabled>Download clip (.wav)</button>
+    </div>
+    <p class="note">The riff and your own files are rendered on this device first (a few seconds; longer on a slow machine), so any model can be heard on any computer. Live guitar runs the model in real time: if it crackles, use the Lite size. A rig download has the model, your cab IR and your settings.</p>
+  </div>
+</section>
+
 <section id="check">
-  <h2><span class="n">3</span> Check and rank models</h2>
+  <h2><span class="n">4</span> Check and rank models</h2>
   <p class="sub">Drop <code>.nam</code> files here, or tap <b>Check</b> on a TONE3000 model. Each file is read on this device (nothing is uploaded): which size it is, what it costs on your machine and how accurate the capture is (validation ESR, lower is better, when the file has it).</p>
   <label class="drop" id="drop">
     <input type="file" id="files" accept=".nam,application/json" multiple hidden>

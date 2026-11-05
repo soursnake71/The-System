@@ -1,5 +1,6 @@
 // app.js — NAM A2 Finder
 import { analyzeNam, REFERENCE, DEVICES, cpuShare, variantUnits, unitsOf } from './namfile.js';
+import { addRig, initPlayer } from './player.js';
 
 const $ = id => document.getElementById(id);
 const T3K = 'https://www.tone3000.com';
@@ -272,7 +273,7 @@ async function toggleModels(card) {
       box.dataset.loaded = '1';
       box.innerHTML = (d.data || []).map(m => `<div class="mrow" data-url="${esc(m.model_url)}" data-name="${esc(m.name)}" data-tone="${esc(title)}">
         <span class="nm">${esc(m.name)}</span>
-        <span><button class="small primary" data-act="check">Check</button> <button class="small" data-act="save">Save</button></span>
+        <span><button class="small primary" data-act="play">▶ Play</button> <button class="small" data-act="check">Check</button> <button class="small" data-act="save">Save</button></span>
       </div>`).join('') || '<div class="note">No A2 models listed.</div>';
       if ((d.data || []).length > 1) box.insertAdjacentHTML('afterbegin', '<div class="row"><button class="small" data-act="checkall">Check all</button></div>');
     } catch (e) { box.innerHTML = `<div class="note" style="color:var(--bad)">${esc(e.message)}</div>`; }
@@ -294,6 +295,13 @@ function saveText(name, text) {
   a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   a.download = name.replace(/[^\w\- .()]+/g, '_').replace(/\.nam$/i, '') + '.nam';
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function playRemote(btn) {
+  const row = btn.closest('.mrow');
+  btn.disabled = true; btn.textContent = '…';
+  try { addRig(row.dataset.name, await fetchModel(row.dataset.url), row.dataset.tone); }
+  catch (e) { status('searchStatus', e.message, true); }
+  finally { btn.disabled = false; btn.textContent = '▶ Play'; }
 }
 async function saveRemote(row) {
   try { saveText(row.dataset.name, await fetchModel(row.dataset.url)); }
@@ -350,7 +358,7 @@ function renderRows() {
       <td class="num">${m.esr != null ? m.esr.toFixed(4) : '–'}</td>
       <td class="num">${m.loudness != null ? m.loudness.toFixed(1) + ' dB' : '–'}</td>
       <td>${esc(gear)}${m.toneType ? `<div class="note">${esc(m.toneType)}</div>` : ''}</td>
-      <td>${c.source !== 'file' ? `<button class="small" data-save="${checked.indexOf(c)}">Save</button>` : ''}</td>
+      <td><button class="small primary" data-play="${checked.indexOf(c)}">▶ Play</button>${c.source !== 'file' ? ` <button class="small" data-save="${checked.indexOf(c)}">Save</button>` : ''}</td>
     </tr>`;
   }).join('');
   $('tableWrap').classList.remove('hidden'); $('clearBtn').classList.remove('hidden');
@@ -370,7 +378,7 @@ $('pubKey').value = store.get('pubKey', '');
 $('connectBtn').addEventListener('click', () => authorize());
 $('disconnectBtn').addEventListener('click', () => { sess.del('t3k_tokens'); showConnected(); });
 $('pickBtn').addEventListener('click', () => {
-  const extra = { prompt: 'select_tone', architecture: '2', format: 'nam' };
+  const extra = { prompt: 'select_tone', architecture: '2', format: 'nam', preview: 'true' };
   const g = gearsChosen(); if (g.length) extra.gears = g.join('_');
   if ($('calibrated').checked) extra.calibrated = 'true';
   authorize(extra);
@@ -384,6 +392,7 @@ $('results').addEventListener('click', e => {
   const act = b.dataset.act;
   if (act === 'models') { toggleModels(b.closest('.tone')); b.textContent = b.textContent === 'Show models' ? 'Hide models' : 'Show models'; }
   else if (act === 'check') checkRemote(b.closest('.mrow'));
+  else if (act === 'play') playRemote(b);
   else if (act === 'save') saveRemote(b.closest('.mrow'));
   else if (act === 'checkall') b.closest('.models').querySelectorAll('.mrow').forEach(r => checkRemote(r));
 });
@@ -399,7 +408,11 @@ $('files').addEventListener('change', e => { readFiles([...e.target.files]); e.t
 drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); readFiles([...e.dataTransfer.files]); });
-$('rows').addEventListener('click', e => { const b = e.target.closest('[data-save]'); if (b) { const c = checked[Number(b.dataset.save)]; saveText(c.name, c.text); } });
+$('rows').addEventListener('click', e => {
+  const b = e.target.closest('[data-save]'); if (b) { const c = checked[Number(b.dataset.save)]; saveText(c.name, c.text); }
+  const p = e.target.closest('[data-play]'); if (p) { const c = checked[Number(p.dataset.play)]; addRig(c.name, c.text, c.source === 'file' ? 'local file' : c.source); }
+});
+initPlayer();
 $('clearBtn').addEventListener('click', () => { checked = []; renderRows(); status('checkStatus', ''); });
 
 renderMachine();
