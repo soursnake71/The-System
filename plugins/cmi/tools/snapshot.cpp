@@ -80,6 +80,15 @@ int main(int argc, char** argv) {
         const cmi::Sound* t0 = p.kit.bank.at(p.engine.seq.trk[0].sound);
         std::printf("Page R on library voices: track 1 %s, peak %.3f\n", t0 ? t0->name.c_str() : "?", rl);
         ok &= rl > 0.05 && !cmi::isBlank(p.kit, p.engine.seq.trk[0].sound);
+        // factory presets: found in the library by name and disk, one loads onto the keyboard and plays
+        int found = 0; for (int c : p.presetCat) found += c >= 0;
+        int orch = -1; for (int i = 0; i < (int) cmi::factoryPresets().size(); ++i) if (std::string(cmi::factoryPresets()[(size_t) i].name) == "ORCH5") orch = i;
+        const bool loaded = p.loadPreset(orch);
+        p.seqPlay(false); run(100, {});
+        const double kp = run(100, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 110), 0); if (b == 60) m.addEvent(juce::MidiMessage::allNotesOff(1), 0); });
+        const cmi::Sound* ks = p.kit.bank.at(juce::roundToInt(p.get("sound")));
+        std::printf("factory presets: %d of %zu in the library; preset %d ORCH5 -> %s, peak %.3f\n", found, cmi::factoryPresets().size(), orch + 1, ks ? (ks->name + " from " + ks->category).c_str() : "?", kp);
+        ok &= found > 600 && loaded && ks && ks->name == "ORCH5" && kp > 0.05;
     }
     // optional: real CMI disk images or .VC files given on the command line (cmi_snapshot <outdir> <disk.imd> ...)
     for (int i = 2; i < argc; ++i) {
@@ -110,6 +119,7 @@ int main(int argc, char** argv) {
     // pictures
     std::string second;   // program 2: the second voice loaded
     { int n = 0; for (int i = 0; i < p.kit.bank.count.load(); ++i) if (!cmi::isBlank(p.kit, i) && n++ == 1) { second = p.kit.bank.at(i)->name; break; } }
+    if (p.presetCat.size() > 1 && p.presetCat[1] >= 0) second = cmi::factoryPresets()[1].name;   // with a library: program 2 is factory preset 2
     if (p.engine.song.load()) {   // a song was given: play some of it and check it sounds
         p.set("sync", 0); p.engine.songRun = true;
         const double pk = run(1200, {});
@@ -141,7 +151,7 @@ int main(int argc, char** argv) {
     }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
-    for (char pg : { 'R', '2', '7', 'D', '8', 'M', '5', 'F' }) {
+    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F' }) {
         run(20, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0); });
         ce->showPage(pg);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
@@ -150,7 +160,7 @@ int main(int argc, char** argv) {
         std::printf("wrote %s\n", f.getFullPathName().toRawUTF8());
     }
     if (p.engine.song.load()) {
-        ce->showPage('R'); ce->showSongGrid(true, 0);
+        ce->showPage('S'); ce->showSongGrid(true, 0);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
         juce::File f = out.getChildFile("page_R_grid.png"); f.deleteFile();
         juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);

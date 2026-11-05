@@ -32,6 +32,8 @@ CmiProcessor::CmiProcessor()
         settings = std::make_unique<juce::PropertiesFile>(o);
         const juce::File sf(settings->getValue("songFolder"));
         if (sf.isDirectory()) { songDir = sf; rescanSongs(); }
+        for (auto& tok : juce::StringArray::fromTokens(settings->getValue("presets.choice"), ";", ""))
+            if (tok.contains("=")) presetChoice[tok.upToFirstOccurrenceOf("=", false, false).getIntValue()] = tok.fromFirstOccurrenceOf("=", false, false).toStdString();
         const juce::File f(settings->getValue("libraryFolder"));
         if (f.isDirectory()) { libFolder = f; rescanLibrary(); }
     }
@@ -68,18 +70,48 @@ void CmiProcessor::loadSound(int index) {
     const Sound* s = kit.bank.at(index);
     if (!s) return;
     const Controls& c = s->ctl;
-    set("sound", (float) index);
+    set("sound", (float) index); curPreset = -1;
     set("level", c.level); set("filter", c.filter); set("attack", c.attack); set("damp", c.damp); set("sustain", c.sustain);
     set("vib", c.vibDepth); set("vibRate", c.vibRate); set("vibDelay", c.vibDelay); set("porta", c.porta);
     set("velVol", c.velVol); set("velFilt", c.velFilt); set("transpose", c.transpose); set("fine", c.fine);
     set("loop", c.loop); set("seg", c.segTime);
 }
 
-void CmiProcessor::setCurrentProgram(int) {}
+void CmiProcessor::setCurrentProgram(int i) { loadPreset(i); }
 
-const juce::String CmiProcessor::getProgramName(int) {
-    const Sound* s = kit.bank.at(juce::roundToInt(get("sound")));
-    return s && !isBlank(kit, juce::roundToInt(get("sound"))) ? juce::String(s->name) + " - " + juce::String(s->category) : juce::String("No voice");
+const juce::String CmiProcessor::getProgramName(int i) {
+    const auto& ps = factoryPresets();
+    if (i < 0 || i >= (int) ps.size()) return {};
+    return juce::String(i + 1).paddedLeft('0', 3) + " " + ps[(size_t) i].name + " (" + ps[(size_t) i].file + ")";
+}
+
+void CmiProcessor::rebuildPresets() {
+    const juce::ScopedLock l(catLock);
+    const int n = (int) factoryPresets().size();
+    std::vector<int> m((size_t) n, -1);
+    if (!catalog.voices.empty())
+        for (int i = 0; i < n; ++i) { auto it = presetChoice.find(i); m[(size_t) i] = findFactory(catalog, i, it == presetChoice.end() ? "" : it->second); }
+    presetCat = std::move(m);
+}
+bool CmiProcessor::loadPreset(int n) {
+    int v = -1;
+    {
+        const juce::ScopedLock l(catLock);
+        if (n < 0 || n >= (int) presetCat.size() || presetCat[(size_t) n] < 0) return false;
+        v = cmi::loadCatalogVoice(kit, catalog, presetCat[(size_t) n]);
+    }
+    if (v < 0) return false;
+    loadSound(v); curPreset = n; program = n;
+    return true;
+}
+void CmiProcessor::choosePresetVoice(int n, int ci) {
+    {
+        const juce::ScopedLock l(catLock);
+        if (ci >= 0 && ci < (int) catalog.voices.size()) presetChoice[n] = catalog.voices[(size_t) ci].name + "@" + catalog.voices[(size_t) ci].disk;
+        else presetChoice.erase(n);
+    }
+    if (settings) { juce::String v; for (auto& kv : presetChoice) v << kv.first << "=" << juce::String(kv.second) << ";"; settings->setValue("presets.choice", v); settings->saveIfNeeded(); }
+    rebuildPresets();
 }
 
 // Page R's tracks and the keyboard get their CMI voices from the library when they have none
@@ -210,6 +242,7 @@ void CmiProcessor::rescanLibrary() {
         }
     { const juce::ScopedLock l(catLock); catalog = std::move(cat); }
     { const juce::ScopedLock l(infoLock); libFiles = std::move(found); }
+    rebuildPresets();
     connectDefaults();
 }
 
@@ -321,10 +354,10 @@ juce::String CmiProcessor::importFiles(const juce::Array<juce::File>& items, int
     if (first >= 0) loadSound(kit.userSlot(first));
     connectDefaults();   // Page R's empty tracks: the CMI voices just loaded
     if (files.isEmpty()) return "NO SOUNDS FOUND";
-    if (midis && !imported && !failed) return juce::String(midis - dupSkipped) + (midis - dupSkipped == 1 ? " SONG" : " SONGS") + " IMPORTED (PAGE R)" + (dupSkipped ? ", " + juce::String(dupSkipped) + " DUPLICATES SKIPPED" : juce::String());
+    if (midis && !imported && !failed) return juce::String(midis - dupSkipped) + (midis - dupSkipped == 1 ? " SONG" : " SONGS") + " IMPORTED (PAGE S)" + (dupSkipped ? ", " + juce::String(dupSkipped) + " DUPLICATES SKIPPED" : juce::String());
     juce::String m = juce::String(imported) + " IMPORTED";
     if (disks) m << " FROM " << disks << (disks == 1 ? " DISK" : " DISKS");
-    if (midis) m = (imported ? m + ", " : juce::String()) + juce::String(midis - dupSkipped) + (midis - dupSkipped == 1 ? " SONG" : " SONGS") + " (PAGE R)" + (dupSkipped ? ", " + juce::String(dupSkipped) + " DUPLICATES SKIPPED" : juce::String());
+    if (midis) m = (imported ? m + ", " : juce::String()) + juce::String(midis - dupSkipped) + (midis - dupSkipped == 1 ? " SONG" : " SONGS") + " (PAGE S)" + (dupSkipped ? ", " + juce::String(dupSkipped) + " DUPLICATES SKIPPED" : juce::String());
     if (failed) m << ", " << failed << " UNREADABLE" << (failed == 1 && lastErr.isNotEmpty() ? " (" + lastErr.toUpperCase() + ")" : juce::String());
     return m;
 }
@@ -337,7 +370,7 @@ void CmiProcessor::resetCCMap() {
 // controllers and program changes from the audio thread, applied here (parameters notify the host)
 void CmiProcessor::timerCallback() {
     const int p = pendingProgram.exchange(-1);
-    if (p >= 0) {
+    if (p >= 0 && !loadPreset(p)) {   // program n: factory preset n; not in your library: the n-th voice loaded
         // the voice list: the voices loaded (from your library and your samples); bank select (CC 0) pages through it
         int n = 0, pick = -1;
         for (int i = 0; i < kit.bank.count.load() && pick < 0; ++i) {

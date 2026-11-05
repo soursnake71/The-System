@@ -17,7 +17,7 @@ public:
     void mouseUp(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
-    char page = 'R';
+    char page = 'R';   // R: factory presets, S: the real-time composer
     int rootKey = 60; bool loopIt = false;
     juce::String status = "READY";
 
@@ -33,6 +33,8 @@ private:
 
     void drawHeader(juce::Graphics&);
     void drawLibrary(juce::Graphics&);
+    void drawPresets(juce::Graphics&);
+    void presetMenu(int n);
     void drawControls(juce::Graphics&);
     void drawWave(juce::Graphics&);
     void drawSampling(juce::Graphics&);
@@ -52,6 +54,7 @@ private:
     void command(const juce::String& cmd);
 
     CmiEditor& ed;
+    int presetScroll = 0;
     int wavePage = 0, selTrack = 0, libScroll = 0, userPage = 0, dragRoot = 60;
     // the song editing grid (a piano roll of one track)
     bool songGrid = false; int gridTrack = -1;

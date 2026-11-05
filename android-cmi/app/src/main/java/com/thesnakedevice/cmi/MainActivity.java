@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         loadState();
         Native.setRemembered(getSharedPreferences("cmi", MODE_PRIVATE).getString("remembered", ""));
+        Native.setPresetChoices(getSharedPreferences("cmi", MODE_PRIVATE).getString("presets", ""));
         view = new CmiView(this);
         rescanLibrary();
         rescanSongs();
@@ -79,7 +80,7 @@ public class MainActivity extends Activity {
     // ---- state ----
     private File stateFile() { return new File(getFilesDir(), "cmi-state.bin"); }
     void saveState() {
-        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).apply(); } catch (Exception ignored) {}
+        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).apply(); } catch (Exception ignored) {}
         try (FileOutputStream o = new FileOutputStream(stateFile())) { o.write(Native.saveState()); } catch (Exception ignored) {}
     }
     private void loadState() {
@@ -124,7 +125,7 @@ public class MainActivity extends Activity {
 
     // ---- exports: 0 the song (or Page R) as WAV, 1 stems into a folder, 2 the song as MIDI ----
     void export(int what) {
-        String name = Native.currentSong() >= 0 ? Native.songInfo().split("\\t", -1)[0] : "PAGE R";
+        String name = Native.currentSong() >= 0 ? Native.songInfo().split("\\t", -1)[0] : "PAGE S";
         if (what == 1) { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), SAVE_STEMS); return; }
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -228,7 +229,7 @@ public class MainActivity extends Activity {
         if (i < 0 || i >= songUris.size()) return;
         final String base = baseName(songNames.get(i));
         int k = Native.songLoadedAs(base);
-        if (k >= 0) { Native.selectSongAt(k); if (play) Native.songPlay(true); view.showPage('R'); return; }
+        if (k >= 0) { Native.selectSongAt(k); if (play) Native.songPlay(true); view.showPage('S'); return; }
         view.status("LOADING " + base.toUpperCase());
         new Thread(() -> {
             String err;
@@ -236,7 +237,7 @@ public class MainActivity extends Activity {
             final String e2 = err;
             ui.post(() -> {
                 int k2 = Native.songLoadedAs(base);
-                if (k2 >= 0) { Native.selectSongAt(k2); if (play) Native.songPlay(true); view.showPage('R'); view.status("LOADED " + base.toUpperCase()); saveState(); }
+                if (k2 >= 0) { Native.selectSongAt(k2); if (play) Native.songPlay(true); view.showPage('S'); view.status("LOADED " + base.toUpperCase()); saveState(); }
                 else view.status(e2.equals("DUPLICATE") ? "ALREADY LOADED (ANOTHER VERSION)" : e2);
             });
         }).start();
@@ -307,9 +308,9 @@ public class MainActivity extends Activity {
             if (first >= 0) Native.loadSound(Native.userSlot(first));
             final int songsIn = importedSongs;
             final String dupTxt = dupes > 0 ? ", " + dupes + " DUPLICATES SKIPPED" : "";
-            final String m0 = (songsIn > 0 && ok == 0 && bad == 0) ? songsIn + (songsIn == 1 ? " SONG" : " SONGS") + " LOADED (PAGE R)" : ok + " IMPORTED" + (disks > 0 ? " FROM " + disks + (disks == 1 ? " DISK" : " DISKS") : "") + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
+            final String m0 = (songsIn > 0 && ok == 0 && bad == 0) ? songsIn + (songsIn == 1 ? " SONG" : " SONGS") + " LOADED (PAGE S)" : ok + " IMPORTED" + (disks > 0 ? " FROM " + disks + (disks == 1 ? " DISK" : " DISKS") : "") + (bad > 0 ? ", " + bad + " UNREADABLE" : "") + (last.equals("USER VOICES FULL") ? ", USER VOICES FULL" : "");
             final String mm = m0 + dupTxt;
-            ui.post(() -> { view.status(mm); if (songsIn > 0) view.showPage('R'); saveState(); });
+            ui.post(() -> { view.status(mm); if (songsIn > 0) view.showPage('S'); saveState(); });
         }).start();
     }
 

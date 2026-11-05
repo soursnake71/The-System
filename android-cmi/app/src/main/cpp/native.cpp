@@ -10,6 +10,7 @@
 #include "Disk.h"
 #include "Song.h"
 #include "Catalog.h"
+#include "Factory.h"
 #include <map>
 #include <sstream>
 
@@ -48,8 +49,25 @@ struct App {
         engine.extSync = false;
     }
     // Page R's tracks and the keyboard: CMI voices from the library when they have none
+    // factory presets (Page R): preset -> catalogue voice (-1 missing); presets matched by hand: "NAME@DISK"
+    std::vector<int> presetCat; std::map<int, std::string> presetChoice; std::atomic<int> curPreset { -1 };
+    void rebuildPresets() {   // under catLock
+        const int n = (int) factoryPresets().size();
+        std::vector<int> m((size_t) n, -1);
+        if (!catalog.voices.empty()) for (int i = 0; i < n; ++i) { auto it = presetChoice.find(i); m[(size_t) i] = findFactory(catalog, i, it == presetChoice.end() ? "" : it->second); }
+        presetCat = std::move(m);
+    }
+    bool loadPreset(int n) {
+        int v = -1;
+        { std::lock_guard<std::mutex> g(catLock);
+          if (n < 0 || n >= (int) presetCat.size() || presetCat[(size_t) n] < 0) return false;
+          v = loadCatalogVoice(kit, catalog, presetCat[(size_t) n]); }
+        if (v < 0) return false;
+        loadSound(v); curPreset = n; return true;
+    }
     void connectDefaults() {
         std::lock_guard<std::mutex> g(catLock);
+        rebuildPresets();
         connectPageR(engine.seq, kit, catalog);
         if (isBlank(kit, sound.load())) {
             int v = -1;
@@ -69,7 +87,7 @@ struct App {
         const Controls& c = s->ctl;
         const float v[15] = { c.level, c.filter, c.attack, c.damp, c.sustain, c.vibDepth, c.vibRate, c.vibDelay, c.porta, c.velVol, c.velFilt, c.transpose, c.fine, c.loop, c.segTime };
         for (int k = 0; k < 15; ++k) param[k] = v[k];
-        sound = i;
+        sound = i; curPreset = -1;
     }
     Controls controls() const {
         Controls c;
@@ -164,6 +182,7 @@ static bool ccParam(int cc, int v) {
 }
 // program n: the n-th voice loaded
 static void programChange(int n) {
+    if (app()->loadPreset(n)) return;   // program n: factory preset n, when it's in your library
     int k = 0;
     for (int i = 0; i < app()->kit.bank.count.load(); ++i) {
         if (isBlank(app()->kit, i)) continue;
@@ -515,6 +534,45 @@ FN(jint, loadCatalogVoice)(JNIEnv*, jclass, jint ci) { std::lock_guard<std::mute
 // Page R's tracks and the keyboard: CMI voices from the library when they have none
 FN(void, connectDefaults)(JNIEnv*, jclass) { app()->connectDefaults(); }
 FN(jboolean, isBlankSound)(JNIEnv*, jclass, jint i) { return isBlank(app()->kit, i); }
+// ---- factory presets (Page R) ----
+FN(jint, presetCount)(JNIEnv*, jclass) { return (jint) factoryPresets().size(); }
+// name, disk file, category, note, found (1/0), matched by hand (1/0), where it was found
+FN(jstring, presetInfo)(JNIEnv* env, jclass, jint n) {
+    const auto& ps = factoryPresets(); if (n < 0 || n >= (int) ps.size()) return env->NewStringUTF("");
+    const FactoryPreset& p = ps[(size_t) n]; auto* a = app();
+    std::lock_guard<std::mutex> g(a->catLock);
+    const int ci = n < (int) a->presetCat.size() ? a->presetCat[(size_t) n] : -1;
+    std::string where = ci >= 0 ? a->catalog.voices[(size_t) ci].name + " on " + a->catalog.voices[(size_t) ci].disk : "";
+    const std::string o = std::string(p.name) + "\t" + p.file + "\t" + p.category + "\t" + factoryNote(p.name) + "\t" + (ci >= 0 ? "1" : "0") + "\t" + (a->presetChoice.count(n) ? "1" : "0") + "\t" + where;
+    return env->NewStringUTF(o.c_str());
+}
+// one char per preset: '1' found, '0' missing, '*' matched by hand
+FN(jstring, presetFound)(JNIEnv* env, jclass) {
+    auto* a = app(); std::lock_guard<std::mutex> g(a->catLock);
+    std::string o; const int n = (int) factoryPresets().size();
+    for (int i = 0; i < n; ++i) o += i < (int) a->presetCat.size() && a->presetCat[(size_t) i] >= 0 ? (a->presetChoice.count(i) ? '*' : '1') : '0';
+    return env->NewStringUTF(o.c_str());
+}
+FN(jboolean, loadPreset)(JNIEnv*, jclass, jint n) { return app()->loadPreset(n); }
+FN(jint, currentPreset)(JNIEnv*, jclass) { return app()->curPreset.load(); }
+FN(void, choosePresetVoice)(JNIEnv*, jclass, jint n, jint ci) {
+    auto* a = app(); std::lock_guard<std::mutex> g(a->catLock);
+    if (ci >= 0 && ci < (int) a->catalog.voices.size()) a->presetChoice[n] = a->catalog.voices[(size_t) ci].name + "@" + a->catalog.voices[(size_t) ci].disk; else a->presetChoice.erase(n);
+    a->rebuildPresets();
+}
+FN(jstring, getPresetChoices)(JNIEnv* env, jclass) {
+    auto* a = app(); std::lock_guard<std::mutex> g(a->catLock);
+    std::string o; for (auto& kv : a->presetChoice) o += std::to_string(kv.first) + "=" + kv.second + ";";
+    return env->NewStringUTF(o.c_str());
+}
+FN(void, setPresetChoices)(JNIEnv* env, jclass, jstring text) {
+    const char* c = env->GetStringUTFChars(text, nullptr); std::istringstream in(c); env->ReleaseStringUTFChars(text, c);
+    auto* a = app(); std::lock_guard<std::mutex> g(a->catLock);
+    std::string tok;
+    while (std::getline(in, tok, ';')) { const size_t eq = tok.find('='); if (eq != std::string::npos) a->presetChoice[std::atoi(tok.substr(0, eq).c_str())] = tok.substr(eq + 1); }
+    a->rebuildPresets();
+}
+
 // a library voice on one track: loaded (or reused), remembered for this song
 FN(void, useCatalogVoice)(JNIEnv*, jclass, jint t, jint ci) {
     std::lock_guard<std::mutex> g(app()->catLock);

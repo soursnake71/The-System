@@ -46,17 +46,18 @@ void Screen::paint(juce::Graphics& g) {
         case 'M': drawMixer(g); break;
         case 'F': drawFiles(g); break;
         case '5': drawPen(g); break;
+        case 'R': drawPresets(g); break;
         default: drawComposer(g); break;
     }
     // page index along the bottom
-    const char* pages[] = { "2", "7", "D", "5", "8", "F", "M", "R" };
-    const char* names[] = { "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
-    float x = 20;
-    for (int i = 0; i < 8; ++i) {
+    const char* pages[] = { "R", "2", "7", "D", "5", "8", "F", "M", "S" };
+    const char* names[] = { "PRESETS", "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
+    float x = 14;
+    for (int i = 0; i < 9; ++i) {
         const char p = pages[i][0];
-        juce::Rectangle<float> r(x, (float) H - 26, 115, 22);
+        juce::Rectangle<float> r(x, (float) H - 26, 106, 22);
         button(g, r, juce::String(pages[i]) + " " + names[i], page == p, [this, p] { page = p; status = "READY"; repaint(); });
-        x += 120;
+        x += 108.5f;
     }
     // CRT: scanlines and a soft vignette
     g.setColour(juce::Colours::black.withAlpha(0.18f));
@@ -135,6 +136,89 @@ void Screen::drawLibrary(juce::Graphics& g) {
     }
 }
 
+// ---- Page R: the factory presets. The IIx factory library by disk; each one found in your library folder ----
+void Screen::drawPresets(juce::Graphics& g) {
+    const auto& ps = factoryPresets();
+    std::vector<int> pc; bool haveLib;
+    { const juce::ScopedLock l(ed.proc.catLock); pc = ed.proc.presetCat; haveLib = !ed.proc.catalog.voices.empty(); }
+    pc.resize(ps.size(), -1);
+    int found = 0; for (int c : pc) found += c >= 0;
+    const int cur = ed.proc.curPreset.load();
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("FACTORY PRESETS: " + juce::String((int) ps.size()) + "   IN YOUR LIBRARY: " + juce::String(found) + "   MISSING: " + juce::String((int) ps.size() - found),
+               20, 58, 700, 20, juce::Justification::centredLeft);
+    button(g, { 830, 56, 140, 22 }, "DISK...", false, [this] {
+        juce::PopupMenu m; const auto d = factoryDisks();
+        for (int i = 0; i < (int) d.size(); ++i) m.addItem(i + 1, juce::String(d[(size_t) i].first) + "   (" + juce::String(d[(size_t) i].second + 1) + ")");
+        m.showMenuAsync(juce::PopupMenu::Options(), [this, d](int r) { if (r > 0) { presetScroll = d[(size_t) r - 1].second / 66; repaint(); } });
+    });
+    g.drawHorizontalLine(82, 20, (float) W - 20);
+    const int rows = 22, colW = 320, per = rows * 3;
+    const int pages = std::max(1, ((int) ps.size() + per - 1) / per);
+    presetScroll = juce::jlimit(0, pages - 1, presetScroll);
+    auto& lh = hit({ 20, 86, (float) W - 40, rows * 20.f + 4 });
+    lh.wheel = [this, pages](float dy) { presetScroll = juce::jlimit(0, pages - 1, presetScroll + (dy > 0 ? -1 : 1)); };
+    for (int k = 0; k < per && presetScroll * per + k < (int) ps.size(); ++k) {
+        const int n = presetScroll * per + k;
+        const FactoryPreset& p = ps[(size_t) n];
+        const int c = k / rows, r = k % rows;
+        juce::Rectangle<float> rr(20.f + c * colW, 88.f + r * 20.f, (float) colW - 12, 19);
+        const bool have = pc[(size_t) n] >= 0, mine = ed.proc.presetChoice.count(n) > 0;
+        if (n == cur) { g.setColour(kInk); g.fillRect(rr); g.setColour(kBg); } else g.setColour(have ? kInk : kDim.withAlpha(0.6f));
+        g.setFont(mono(16));
+        g.drawText(juce::String(n + 1).paddedLeft('0', 3) + (mine ? "*" : " ") + juce::String(p.name).paddedRight(' ', 9) + juce::String(p.file) + (have ? "" : " --"),
+                   rr.reduced(4, 0), juce::Justification::centredLeft);
+        hit(rr, [this, n](const juce::MouseEvent& e) {
+            if (e.mods.isPopupMenu()) { presetMenu(n); return; }
+            status = ed.proc.loadPreset(n) ? "PRESET " + juce::String(n + 1) : juce::String(factoryPresets()[(size_t) n].name) + " NOT IN YOUR LIBRARY";
+        });
+    }
+    if (pages > 1) {
+        button(g, { (float) W - 160, (float) H - 104, 40, 20 }, "<", false, [this] { presetScroll = juce::jmax(0, presetScroll - 1); });
+        g.setColour(kInk); g.setFont(mono(15));
+        g.drawText(juce::String(presetScroll + 1) + "/" + juce::String(pages), W - 116, H - 104, 52, 20, juce::Justification::centred);
+        button(g, { (float) W - 60, (float) H - 104, 40, 20 }, ">", false, [this, pages] { presetScroll = juce::jmin(pages - 1, presetScroll + 1); });
+    }
+    g.setColour(kDim); g.drawHorizontalLine(H - 82, 20, (float) W - 20);
+    g.setFont(mono(15));
+    if (!haveLib) {
+        g.setColour(kInk);
+        g.drawText("Set your library folder on Page F: each preset is found there by its file name and disk.", 20, H - 78, W - 40, 20, juce::Justification::centredLeft);
+    } else if (cur >= 0 && cur < (int) ps.size()) {
+        const FactoryPreset& p = ps[(size_t) cur];
+        juce::String where;
+        { const juce::ScopedLock l(ed.proc.catLock); const int ci = pc[(size_t) cur]; if (ci >= 0 && ci < (int) ed.proc.catalog.voices.size()) where = juce::String(ed.proc.catalog.voices[(size_t) ci].name) + " on " + ed.proc.catalog.voices[(size_t) ci].disk; }
+        g.setColour(kInk);
+        const juce::String note = factoryNote(p.name);
+        g.drawText("PRESET " + juce::String(cur + 1) + ": " + p.name + " (" + p.category + ", disk " + p.file + ")" + (note.isNotEmpty() ? ", " + note : juce::String()), 20, H - 78, W - 40, 20, juce::Justification::centredLeft);
+        g.setColour(kDim); g.drawText("loaded from your library: " + where, 20, H - 58, W - 40, 18, juce::Justification::centredLeft);
+    } else {
+        g.setColour(kDim);
+        g.drawText("click: load onto the keyboard (MIDI program = preset number)   right-click: match it to another library voice   * = matched by you", 20, H - 78, W - 40, 20, juce::Justification::centredLeft);
+    }
+}
+
+void Screen::presetMenu(int n) {
+    juce::PopupMenu m;
+    m.addSectionHeader(juce::String(n + 1) + " " + factoryPresets()[(size_t) n].name + " (" + factoryPresets()[(size_t) n].file + ")");
+    m.addItem(1, "Automatic (its name on its disk)", true, ed.proc.presetChoice.count(n) == 0);
+    {
+        const juce::ScopedLock l(ed.proc.catLock);
+        const auto& cv = ed.proc.catalog.voices;
+        std::map<std::string, juce::PopupMenu> byDisk;
+        for (size_t i = 0; i < cv.size() && i < 9000; ++i) byDisk[cv[i].disk].addItem(20000 + (int) i, juce::String(cv[i].name) + (cv[i].looped ? "  (loop)" : ""));
+        juce::PopupMenu lib; for (auto& kv : byDisk) lib.addSubMenu(juce::String(kv.first), kv.second);
+        if (cv.empty()) m.addItem(-1, "No library: set your library folder on Page F", false);
+        else m.addSubMenu("Match to a library voice", lib);
+    }
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, n](int r) {
+        if (r == 1) ed.proc.choosePresetVoice(n, -1);
+        else if (r >= 20000) ed.proc.choosePresetVoice(n, r - 20000);
+        else return;
+        ed.proc.loadPreset(n); repaint();
+    });
+}
+
 // ---- Page 7: control parameters as bar graphs ----
 void Screen::bar(juce::Graphics& g, juce::Rectangle<float> r, const char* id, const juce::String& label, std::function<juce::String(float)> fmt) {
     const PDef* d = nullptr; for (const auto& p : paramDefs()) if (!std::strcmp(p.id, id)) d = &p;
@@ -203,7 +287,7 @@ void Screen::drawControls(juce::Graphics& g) {
     g.setColour(kDim); g.setFont(mono(14));
     g.drawMultiLineText("Filter: the SSM2045 latch; the card adds the octave\nregister, so it follows the keyboard octave by octave.\n"
                         "Attack / damping: the envelope counter's clock.\nSegment: waveform voices step one segment per time.\n"
-                        "Multi MIDI: channels 2-9 play Page R tracks 1-8.\nClick a name: MIDI learn (move a controller).", 520, 442, 460);
+                        "Multi MIDI: channels 2-9 play Page S tracks 1-8.\nClick a name: MIDI learn (move a controller).", 520, 442, 460);
     button(g, { 520, 540, 220, 24 }, "RESET TO VOICE", false, [this] { ed.proc.loadSound(juce::roundToInt(ed.proc.get("sound"))); });
 }
 
@@ -264,7 +348,7 @@ void Screen::drawWave(juce::Graphics& g) {
     }
     g.setColour(kDim); g.setFont(mono(13));
     g.drawText("KEYBOARD 1-8", 790, 466, 200, 14, juce::Justification::centredLeft);
-    g.drawText("PAGE R TRACKS 1-8", 790, 558, 200, 14, juce::Justification::centredLeft);
+    g.drawText("PAGE S TRACKS 1-8", 790, 558, 200, 14, juce::Justification::centredLeft);
 }
 
 // ---- Page 8: sampling into the user voices ----
@@ -276,7 +360,7 @@ void Screen::drawMixer(juce::Graphics& g) {
     if (s) { for (int t = 0; t < SONG_TRK; ++t) if (s->used[t]) strips.push_back({ 1 + TRACKS + t, juce::String(s->trackName[t]).substring(0, 8) }); }
     else for (int t = 0; t < TRACKS; ++t) { const Sound* snd = ed.proc.kit.bank.at(eng.seq.trk[t].sound); strips.push_back({ 1 + t, snd ? juce::String(snd->name) : juce::String(t + 1) }); }
     g.setColour(kInk); g.setFont(mono(17));
-    g.drawText(juce::String("MIXER   ") + (s ? "SONG: " + juce::String(s->name).substring(0, 30) : juce::String("PAGE R PATTERNS")), 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    g.drawText(juce::String("MIXER   ") + (s ? "SONG: " + juce::String(s->name).substring(0, 30) : juce::String("PAGE S PATTERNS")), 20, 58, W - 40, 20, juce::Justification::centredLeft);
     const int n = (int) strips.size() + 1;
     const float sw = std::min(80.f, (W - 40.f) / n), top = 90, fh = 330;
     auto fader = [&](float x, std::atomic<float>& val, float meterV, const juce::String& label, int idx) {
@@ -329,7 +413,7 @@ void Screen::drawSongFiles(juce::Graphics& g) {
     });
     button(g, { 230, 110, 130, 24 }, "RESCAN", false, [this] { ed.proc.rescanSongs(); status = juce::String((int) ed.proc.songFiles().size()) + " SONGS FOUND"; });
     g.setColour(kDim); g.setFont(mono(13));
-    g.drawText(juce::String((int) files.size()) + " SONGS.  CLICK: LOAD (THEN PAGE R).  * = LOADED", 380, 110, 600, 24, juce::Justification::centredLeft);
+    g.drawText(juce::String((int) files.size()) + " SONGS.  CLICK: LOAD (THEN PAGE S).  * = LOADED", 380, 110, 600, 24, juce::Justification::centredLeft);
     const int rows = 19, per = rows * 2;
     const int pages = std::max(1, ((int) files.size() + per - 1) / per);
     songPage = juce::jlimit(0, pages - 1, songPage);
@@ -345,7 +429,7 @@ void Screen::drawSongFiles(juce::Graphics& g) {
         hit(r, [this, f](const juce::MouseEvent& m) {
             int li2 = ed.proc.loadedSongFor(f);
             if (li2 < 0) { const auto err = ed.proc.importMidi(f); li2 = ed.proc.loadedSongFor(f); status = err.isNotEmpty() ? err.toUpperCase() : li2 >= 0 ? "LOADED " + f.getFileNameWithoutExtension().toUpperCase() : "ALREADY LOADED (ANOTHER VERSION)"; }
-            if (li2 >= 0) { ed.proc.chooseSong(li2); if (m.getNumberOfClicks() > 1 || m.mods.isPopupMenu()) { page = 'R'; ed.proc.set("sync", 0.f); ed.proc.engine.songRun = true; } }
+            if (li2 >= 0) { ed.proc.chooseSong(li2); if (m.getNumberOfClicks() > 1 || m.mods.isPopupMenu()) { page = 'S'; ed.proc.set("sync", 0.f); ed.proc.engine.songRun = true; } }
             repaint();
         });
     }
@@ -354,7 +438,7 @@ void Screen::drawSongFiles(juce::Graphics& g) {
         button(g, { 20, y, 40, 22 }, "<", false, [this] { songPage = juce::jmax(0, songPage - 1); });
         g.setColour(kInk); g.setFont(mono(15)); g.drawText(juce::String(songPage + 1) + "/" + juce::String(pages), 64, (int) y, 70, 22, juce::Justification::centred);
         button(g, { 138, y, 40, 22 }, ">", false, [this, pages] { songPage = juce::jmin(pages - 1, songPage + 1); });
-        g.setColour(kDim); g.setFont(mono(12)); g.drawText("double-click a song: load and play it on Page R", 200, (int) y, 500, 22, juce::Justification::centredLeft);
+        g.setColour(kDim); g.setFont(mono(12)); g.drawText("double-click a song: load and play it on Page S", 200, (int) y, 500, 22, juce::Justification::centredLeft);
     }
 }
 
@@ -517,7 +601,7 @@ static void noteGlyph(juce::Graphics& g, float x, float y, float h, int vel, boo
 void Screen::songMenu() {
     juce::PopupMenu m;
     const int cur = ed.proc.currentSong();
-    m.addItem(1, "Page R patterns", true, cur < 0);
+    m.addItem(1, "Page S patterns", true, cur < 0);
     for (int i = 0; i < ed.proc.songs.size(); ++i) if (const SongEntry* e = ed.proc.songs.at(i)) m.addItem(100 + i, juce::String(e->song->name), true, cur == i);
     m.addSeparator();
     m.addItem(2, "Import MIDI file...");
@@ -543,12 +627,12 @@ void Screen::songMenu() {
 void Screen::exportMenu() {
     juce::PopupMenu m;
     const bool song = ed.proc.currentSong() >= 0;
-    m.addItem(1, song ? "Song as a WAV file (24-bit)..." : "Page R song as a WAV file (24-bit)...");
+    m.addItem(1, song ? "Song as a WAV file (24-bit)..." : "Page S song as a WAV file (24-bit)...");
     if (song) { m.addItem(2, "Stems: a WAV file per track..."); m.addItem(3, "Song as a MIDI file (with your edits)..."); }
     m.showMenuAsync(juce::PopupMenu::Options(), [this, song](int r) {
         if (r <= 0) return;
         const SongEntry* e = ed.proc.songs.at(ed.proc.currentSong());
-        const juce::String base = song && e ? juce::String(e->song->name) : juce::String("PAGE R");
+        const juce::String base = song && e ? juce::String(e->song->name) : juce::String("PAGE S");
         const bool midi = r == 3;
         ed.chooser = std::make_unique<juce::FileChooser>(midi ? "Export MIDI" : "Export audio", juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile(base + (midi ? ".mid" : ".wav")),
                                                          midi ? "*.mid" : "*.wav");
@@ -769,7 +853,7 @@ void Screen::drawMidiSong(juce::Graphics& g) {
     button(g, { 140, by2, 100, 24 }, "STOP", !running, [&eng] { eng.songRun = false; });
     if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
     else if (songGrid) { g.setColour(kDim); g.setFont(mono(12)); g.drawText("click add, drag move, drag end lengthen, right-click delete, double-click loud/soft", 250, (int) by2, 520, 24, juce::Justification::centredLeft); }
-    button(g, { 775, by2, 195, 24 }, "PAGE R PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
+    button(g, { 775, by2, 195, 24 }, "PAGE S PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
 }
 
 void Screen::drawComposer(juce::Graphics& g) {
@@ -916,7 +1000,7 @@ void Screen::soundMenu(std::function<void(int)> chosen) {
         cats[s->category].addItem(i + 1, juce::String(s->name) + "  " + juce::String(s->title).substring(0, 40));
     }
     if (!order.empty()) { juce::PopupMenu loaded; for (auto& c : order) loaded.addSubMenu(c, cats[c]); m.addSubMenu("Loaded voices", loaded); }
-    const bool songTrack = page == 'R' && ed.proc.engine.song.load();
+    const bool songTrack = page == 'S' && ed.proc.engine.song.load();
     if (songTrack) m.addItem(10000, "Drum kit (a voice per GM drum note)");
     {
         const juce::ScopedLock l(ed.proc.catLock);
@@ -945,13 +1029,19 @@ void Screen::command(const juce::String& raw) {
     if (words.isEmpty()) return;
     const auto w0 = words[0], arg = words.size() > 1 ? words[1] : juce::String();
     auto& eng = ed.proc.engine;
-    if (w0 == "PLAY") { ed.proc.seqPlay(true); ed.proc.set("sync", 0.f); page = 'R'; }
+    if (w0 == "PLAY") { ed.proc.seqPlay(true); ed.proc.set("sync", 0.f); page = 'S'; }
     else if (w0 == "STOP") ed.proc.seqPlay(false);
-    else if (w0 == "PAGE" || (w0.length() == 1 && juce::String("27D8R").contains(w0))) { const auto p = w0 == "PAGE" ? arg : w0; if (p.isNotEmpty() && juce::String("27D8R").contains(p.substring(0, 1))) page = p[0]; }
+    else if (w0 == "PAGE" || (w0.length() == 1 && juce::String("27D58FMRS").contains(w0))) { const auto p = w0 == "PAGE" ? arg : w0; if (p.isNotEmpty() && juce::String("27D58FMRS").contains(p.substring(0, 1))) page = p[0]; }
     else if (w0 == "LOAD" || w0 == "VOICE") {
         int idx = findVoice(ed.proc.kit.bank, arg.toStdString());
         if (idx < 0) { const juce::ScopedLock l(ed.proc.catLock); idx = loadCatalogNamed(ed.proc.kit, ed.proc.catalog, arg.toStdString()); }
         if (idx >= 0) ed.proc.loadSound(idx); else { status = "NO VOICE " + arg; repaint(); return; }
+    }
+    else if (w0 == "PRESET") {
+        int n = arg.getIntValue() - 1;
+        if (!arg.containsOnly("0123456789")) { n = -1; const auto& ps = factoryPresets(); for (int i = 0; i < (int) ps.size(); ++i) if (arg == ps[(size_t) i].name) { n = i; break; } }
+        if (!ed.proc.loadPreset(n)) { status = "PRESET NOT IN YOUR LIBRARY"; repaint(); return; }
+        page = 'R';
     }
     else if (w0 == "SPEED" || w0 == "TEMPO") ed.proc.set("tempo", (float) juce::jlimit(40.0, 240.0, arg.getDoubleValue()));
     else if (w0 == "PATTERN") eng.curPattern = juce::jlimit(0, NPAT - 1, arg.getIntValue() - 1);
@@ -985,7 +1075,7 @@ CmiEditor::CmiEditor(CmiProcessor& p)
     cmdLine.setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack); cmdLine.setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
     cmdLine.setColour(juce::CaretComponent::caretColourId, kBg);
     cmdLine.setBounds(112, 28, Screen::W - 126, 20);
-    cmdLine.setTextToShowWhenEmpty("type: PLAY  STOP  LOAD ORCH5  SPEED 110  PATTERN 3  PAGE 7", kBg.withAlpha(0.55f));
+    cmdLine.setTextToShowWhenEmpty("type: PRESET 5  LOAD ORCH5  PLAY  STOP  SPEED 110  PAGE S", kBg.withAlpha(0.55f));
     cmdLine.onReturnKey = [this] { screen.command(cmdLine.getText()); cmdLine.clear(); };
     addAndMakeVisible(keys);
     keys.setColour(juce::MidiKeyboardComponent::whiteNoteColourId, kCream);
@@ -1034,7 +1124,7 @@ void CmiEditor::filesDropped(const juce::StringArray& files, int, int) {
     juce::Array<juce::File> items; for (auto& f : files) items.add(juce::File(f));
     int n = 0;
     screen.status = proc.importFiles(items, screen.rootKey, screen.loopIt, n);
-    screen.page = proc.engine.song.load() && n == 0 ? 'R' : '8'; screen.repaint();
+    screen.page = proc.engine.song.load() && n == 0 ? 'S' : '8'; screen.repaint();
 }
 
 juce::AudioProcessorEditor* CmiProcessor::createEditor() { return new CmiEditor(*this); }

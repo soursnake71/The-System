@@ -92,13 +92,13 @@ public class CmiView extends View {
         RectF scr = new RectF(dp(6), dp(4), W - dp(6), H - keyH - dp(4));
         fill(c, scr, BG);
         // tabs
-        final char[] pages = { '2', '7', 'D', '5', '8', 'F', 'M', 'R' };
-        final String[] names = { "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
-        final String[] shortNames = { "VOX", "CTL", "WAV", "PEN", "SMP", "FIL", "MIX", "SEQ" };
+        final char[] pages = { 'R', '2', '7', 'D', '5', '8', 'F', 'M', 'S' };
+        final String[] names = { "PRESETS", "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
+        final String[] shortNames = { "PRE", "VOX", "CTL", "WAV", "PEN", "SMP", "FIL", "MIX", "SEQ" };
         final float tabX = portrait ? dp(4) : dp(100);
-        float tw = (scr.width() - tabX - dp(10)) / 8f;
+        float tw = (scr.width() - tabX - dp(10)) / 9f;
         if (!portrait) text(c, "PAGE " + page, scr.left + dp(8), scr.top + dp(18), 13, INK);
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 9; ++i) {
             final char pg = pages[i];
             RectF r = new RectF(scr.left + tabX + i * tw, scr.top + dp(3), scr.left + tabX + (i + 1) * tw - dp(4), scr.top + dp(23));
             if (tw < dp(96)) { button(c, r, tw < dp(60) ? shortNames[i] : pg + " " + shortNames[i], page == pg, () -> { page = pg; status = "READY"; }); continue; }
@@ -115,6 +115,7 @@ public class CmiView extends View {
             case 'M': mixer(c, body); break;
             case 'F': files(c, body); break;
             case '5': pen(c, body); break;
+            case 'R': presets(c, body); break;
             default: composer(c, body); break;
         }
         // scanlines
@@ -179,6 +180,64 @@ public class CmiView extends View {
         if (curInfo.length > 3) text(c, curInfo[0] + ": " + (curInfo[1].length() > 40 ? curInfo[1].substring(0, 40) : curInfo[1]), b.left, b.bottom - dp(4), 11, DIM);
     }
 
+    // ---- Page R: the factory presets (the IIx factory library), each found in your library folder ----
+    private int presetScroll = 0;
+    private String[] presetNames = null, presetFiles = null;
+    private void presets(Canvas c, RectF b) {
+        final int n = Native.presetCount();
+        if (presetNames == null) { presetNames = new String[n]; presetFiles = new String[n]; for (int i = 0; i < n; ++i) { String[] f = Native.presetInfo(i).split("\t", -1); presetNames[i] = f[0]; presetFiles[i] = f.length > 1 ? f[1] : ""; } }
+        final String found = Native.presetFound();
+        int have = 0; for (int i = 0; i < found.length(); ++i) if (found.charAt(i) != '0') ++have;
+        final int cur = Native.currentPreset();
+        text(c, "FACTORY PRESETS " + n + "   FOUND " + have + "   MISSING " + (n - have), b.left, b.top + dp(16), 11, INK);
+        button(c, new RectF(b.right - dp(70), b.top, b.right, b.top + dp(22)), "DISK", false, this::diskDialog);
+        final RectF lb = new RectF(b.left, b.top + dp(28), b.right, b.bottom - dp(40));
+        final float rowH = dp(24);
+        final int rows = Math.max(1, (int) (lb.height() / rowH));
+        final float colW = dp(170);
+        final int cols = Math.max(1, (int) (lb.width() / colW));
+        final int perPage = rows * cols;
+        presetScroll = Math.max(0, Math.min(presetScroll, Math.max(0, n - 1) / perPage * perPage));
+        for (int k = 0; k < perPage && presetScroll + k < n; ++k) {
+            final int i = presetScroll + k;
+            final char st = i < found.length() ? found.charAt(i) : '0';
+            RectF r = new RectF(lb.left + (k / rows) * colW, lb.top + (k % rows) * rowH, lb.left + (k / rows + 1) * colW - dp(6), lb.top + (k % rows + 1) * rowH - dp(2));
+            if (i == cur) fill(c, r, INK);
+            final String f = presetFiles[i].length() > 8 ? presetFiles[i].substring(0, 8) : presetFiles[i];
+            text(c, String.format("%03d%s%-8s %s%s", i + 1, st == '*' ? "*" : " ", presetNames[i], f, st == '0' ? " --" : ""), r.left + dp(3), r.bottom - dp(6), 12, i == cur ? BG : st == '0' ? DIM : INK);
+            Hit h = hit(r, (x, y) -> {
+                if (Native.loadPreset(i)) status = "PRESET " + (i + 1) + " " + presetNames[i];
+                else status = presetNames[i] + " NOT IN YOUR LIBRARY";
+            });
+            h.longPress = true; h.hold = (x, y) -> presetDialog(i);
+        }
+        if (n > perPage) {
+            button(c, new RectF(b.right - dp(90), b.bottom - dp(36), b.right - dp(50), b.bottom - dp(16)), "<", false, () -> presetScroll = Math.max(0, presetScroll - perPage));
+            button(c, new RectF(b.right - dp(44), b.bottom - dp(36), b.right, b.bottom - dp(16)), ">", false, () -> presetScroll += perPage);
+            text(c, (presetScroll / perPage + 1) + "/" + ((n + perPage - 1) / perPage), b.right - dp(150), b.bottom - dp(21), 11, INK);
+        }
+        if (Native.catalogCount() == 0) text(c, "Set your library folder on FIL: presets are found there by file name and disk.", b.left, b.bottom - dp(4), 10, INK);
+        else if (cur >= 0) {
+            String[] f = Native.presetInfo(cur).split("\t", -1);
+            text(c, (cur + 1) + " " + f[0] + " (" + f[2] + ", " + f[1] + ")" + (f[3].isEmpty() ? "" : ": " + f[3]) + "  from " + f[6], b.left, b.bottom - dp(4), 10, DIM);
+        } else text(c, "Tap: load onto the keyboard (MIDI program = number). Hold: match to another voice.", b.left, b.bottom - dp(4), 10, DIM);
+    }
+    private void diskDialog() {
+        final List<String> disks = new ArrayList<>(); final List<Integer> first = new ArrayList<>();
+        for (int i = 0; i < presetFiles.length; ++i) if (disks.isEmpty() || !disks.get(disks.size() - 1).equals(presetFiles[i])) { disks.add(presetFiles[i]); first.add(i); }
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Factory disks")
+                .setItems(disks.toArray(new String[0]), (d, w) -> { presetScroll = first.get(w); invalidate(); }).show();
+    }
+    private void presetDialog(final int n) {
+        final String[] items = { "Automatic (its name on its disk)", "Match to a library voice..." };
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle((n + 1) + " " + presetNames[n] + " (" + presetFiles[n] + ")")
+                .setItems(items, (d, w) -> {
+                    if (w == 0) { Native.choosePresetVoice(n, -1); Native.loadPreset(n); act.saveState(); invalidate(); return; }
+                    if (Native.catalogCount() == 0) { status("SET YOUR LIBRARY FOLDER ON FIL"); return; }
+                    libraryDialog(presetNames[n], ci -> { Native.choosePresetVoice(n, ci); Native.loadPreset(n); act.saveState(); invalidate(); });
+                }).show();
+    }
+
     // ---- Page M: the mixer ----
     private int mixPage = 0;
     private void mixer(Canvas c, RectF b) {
@@ -189,7 +248,7 @@ public class CmiView extends View {
         } else for (int t = 0; t < Native.TRACKS; ++t) { strips.add(1 + t); names.add(info(Native.trackSound(t))[0]); }
         final int per = portrait ? 6 : 12, pages = Math.max(1, (strips.size() + per - 1) / per);
         mixPage = Math.min(mixPage, pages - 1);
-        text(c, "MIXER " + (Native.currentSong() >= 0 ? "SONG" : "PAGE R"), b.left, b.top + dp(12), 12, INK);
+        text(c, "MIXER " + (Native.currentSong() >= 0 ? "SONG" : "PAGE S"), b.left, b.top + dp(12), 12, INK);
         if (pages > 1) button(c, new RectF(b.right - dp(110), b.top, b.right, b.top + dp(22)), "STRIPS " + (mixPage + 1) + "/" + pages, false, () -> mixPage = (mixPage + 1) % pages);
         final int n = Math.min(per, strips.size() - mixPage * per) + 1;
         final float sw = b.width() / n, top = b.top + dp(28), fh = b.height() - dp(110);
@@ -503,7 +562,7 @@ public class CmiView extends View {
     private void songsDialog() {
         final int n = Native.songCount(), cur = Native.currentSong();
         final List<String> items = new ArrayList<>();
-        items.add((cur < 0 ? "> " : "   ") + "Page R patterns");
+        items.add((cur < 0 ? "> " : "   ") + "Page S patterns");
         for (int k = 0; k < n; ++k) items.add((cur == k ? "> " : "   ") + Native.songName(k));
         items.add("   Import MIDI file...");
         items.add("   New empty song (for the grid)");
@@ -729,7 +788,7 @@ public class CmiView extends View {
 
     private void exportDialog() {
         final boolean song = Native.currentSong() >= 0;
-        final String[] items = song ? new String[] { "Song as a WAV file", "Stems: a WAV file per track (pick a folder)", "Song as a MIDI file" } : new String[] { "Page R song as a WAV file" };
+        final String[] items = song ? new String[] { "Song as a WAV file", "Stems: a WAV file per track (pick a folder)", "Song as a MIDI file" } : new String[] { "Page S song as a WAV file" };
         new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Export")
                 .setItems(items, (dlg, w) -> act.export(w)).show();
     }
@@ -920,10 +979,10 @@ public class CmiView extends View {
     @Override public boolean onTouchEvent(MotionEvent e) {
         final int a = e.getActionMasked();
         if (page == '5' && e.getPointerCount() == 1 && (penLastX >= 0 || a == MotionEvent.ACTION_DOWN) && penTouch(e)) return true;
-        if (grid && page == 'R' && !gridRect.isEmpty() && a == MotionEvent.ACTION_DOWN && (e.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0) {
+        if (grid && page == 'S' && !gridRect.isEmpty() && a == MotionEvent.ACTION_DOWN && (e.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0) {
             final int ni = noteAt(e.getX(), e.getY()); if (ni >= 0) { removeNote(ni); invalidate(); } return true;   // the pen's button: delete
         }
-        if (grid && page == 'R' && !gridRect.isEmpty() && e.getPointerCount() == 1 && (gridActive || (a == MotionEvent.ACTION_DOWN && gridRect.contains(e.getX(), e.getY())))) {
+        if (grid && page == 'S' && !gridRect.isEmpty() && e.getPointerCount() == 1 && (gridActive || (a == MotionEvent.ACTION_DOWN && gridRect.contains(e.getX(), e.getY())))) {
             gridActive = a != MotionEvent.ACTION_UP && a != MotionEvent.ACTION_CANCEL;
             return gridTouch(e, a, e.getX(), e.getY());
         }

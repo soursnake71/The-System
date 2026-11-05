@@ -119,6 +119,18 @@ final class Native {
     static native void connectDefaults();
     /** an empty voice (nothing loaded there) */
     static native boolean isBlankSound(int i);
+
+    // factory presets (Page R): the IIx factory library, each found in the library folder
+    static native int presetCount();
+    /** name, disk file, category, note, found 1/0, matched by hand 1/0, where found (tab separated) */
+    static native String presetInfo(int n);
+    /** a char per preset: '1' found, '0' missing, '*' matched by hand */
+    static native String presetFound();
+    static native boolean loadPreset(int n);
+    static native int currentPreset();
+    static native void choosePresetVoice(int n, int catIndex);
+    static native String getPresetChoices();
+    static native void setPresetChoices(String text);
     static native void rememberKit(int track);
     static native String getRemembered();
     static native void setRemembered(String text);

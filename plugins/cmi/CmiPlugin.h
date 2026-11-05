@@ -7,6 +7,7 @@
 #include "core/Library.h"
 #include "core/Song.h"
 #include "core/Catalog.h"
+#include "core/Factory.h"
 
 namespace cmi {
 
@@ -77,7 +78,7 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 3.0; }
 
-    int getNumPrograms() override { return 1; }
+    int getNumPrograms() override { return (int) factoryPresets().size(); }   // the factory presets
     int getCurrentProgram() override { return program; }
     void setCurrentProgram(int i) override;
     const juce::String getProgramName(int i) override;
@@ -134,6 +135,13 @@ public:
     void setLibraryFolder(const juce::File& f);
     std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
     void rescanLibrary();
+    // ---- factory presets (Page R): the IIx factory library, each found in your library folder ----
+    std::vector<int> presetCat;               // preset -> catalogue voice, -1 missing (under catLock)
+    std::map<int, std::string> presetChoice;  // presets you matched by hand: "NAME@DISK"
+    std::atomic<int> curPreset { -1 };
+    void rebuildPresets();                    // after the library or a choice changes
+    bool loadPreset(int n);                   // onto the keyboard; false: not in your library
+    void choosePresetVoice(int n, int catIndex);   // match a preset to a library voice by hand (-1: automatic)
     // a voice drawn on Page 5: into a new user voice, or over the one drawn last
     juce::String saveDrawnVoice(const float* start, const float* end, bool asNew);
     int lastDrawn = -1;
