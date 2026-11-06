@@ -59,6 +59,11 @@ label.f span{display:block;font-size:13px;color:var(--sub);margin-bottom:2px}
 .toast.show{opacity:1;transform:none}
 .copy{border:0;background:var(--fill);color:var(--accent);border-radius:8px;padding:6px 10px;font:600 14px inherit;font-family:inherit;flex:none}
 code{font-size:13px;word-break:break-all}
+.sw{appearance:none;-webkit-appearance:none;width:51px;height:31px;border-radius:16px;background:var(--line);position:relative;flex:none;transition:.2s;margin:0}
+.sw:checked{background:var(--green)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:.2s}
+.sw:checked::after{left:22px}
+.copy.wide{padding:8px 12px}
 [hidden]{display:none!important}
 a{color:var(--accent)}
 </style>
@@ -130,8 +135,20 @@ a{color:var(--accent)}
     <div class="card"><div class="row"><code class="grow" id="urlVoice"></code><button class="copy" data-copy="urlVoice">Copy</button></div></div>
     <h2>Paste into ElevenLabs (Agents → Settings → Post-call webhook)</h2>
     <div class="card"><div class="row"><code class="grow" id="urlPost"></code><button class="copy" data-copy="urlPost">Copy</button></div></div>
+    <div id="androidBox" hidden>
+      <h2>This Android phone</h2>
+      <div class="card">
+        <div class="row"><div class="grow"><div>Send <span class="cn"></span>'s calls to the AI</div><div class="sub">Declines their call on this phone while the AI is on, so it forwards to the AI. Nothing to tap.</div></div><input type="checkbox" class="sw" id="autoSw"></div>
+        <div class="row"><span class="check" id="roleChk">1</span><div class="grow"><div>Call screening</div><div class="sub" id="roleSub"></div></div><button class="copy" id="roleBtn">Allow</button></div>
+        <div class="row"><span class="check" id="contactsChk">2</span><div class="grow"><div>Contacts access</div><div class="sub">Android only screens saved contacts if Call Buddy can read contacts.</div></div><button class="copy" id="contactsBtn">Allow</button></div>
+        <div class="row"><span class="check">3</span><div class="grow"><div>Forward when busy → AI</div><div class="sub">Opens the dialer with your carrier's code typed in. Tap Call once.</div></div></div>
+        <div class="row" style="flex-wrap:wrap"><button class="copy wide" data-fwd="gsm">AT&amp;T / T-Mobile</button><button class="copy wide" data-fwd="vzw">Verizon</button><button class="copy wide" data-fwd="off-gsm">Undo (AT&amp;T/T-Mobile)</button><button class="copy wide" data-fwd="off-vzw">Undo (Verizon)</button></div>
+      </div>
+      <p class="foot">Another call from them within 20 minutes rings through to you (that's the AI's emergency transfer, or them calling right back). "Ring me first" and "Just me" turn the auto-decline off.</p>
+    </div>
     <button class="btn" id="agentBtn">Build / update the AI</button>
     <button class="btn plain" id="logout">Sign out</button>
+    <button class="btn plain" id="changeServer" hidden>Change server address</button>
   </section>
 </main>
 
@@ -233,9 +250,36 @@ function render() {
   $('steps').innerHTML = steps.map(([ok, t, d], i) =>
     `<div class="row"><span class="check ${ok ? 'ok' : ''}">${ok ? '✓' : i + 1}</span><div class="grow"><div>${esc(t)}</div><div class="sub">${esc(d)}</div></div></div>`).join('');
   $('urlVoice').textContent = S.urls.voice; $('urlPost').textContent = S.urls.postCall;
+  renderAndroid();
 }
 
 async function load() { S = await api('/api/status'); render(); }
+
+// ---------- Android app extras (only inside the Call Buddy APK) ----------
+const AND = window.CallBuddyAndroid;
+function renderAndroid() {
+  if (!AND || !S) return;
+  AND.sync(JSON.stringify({ numbers: S.callerNumbers || [], mode: S.mode, twilioNumber: S.twilioNumber || '' }));
+  let a = {}; try { a = JSON.parse(AND.status()); } catch {}
+  $('androidBox').hidden = false; $('changeServer').hidden = false;
+  $('autoSw').checked = !!a.auto;
+  $('roleChk').className = 'check' + (a.role ? ' ok' : ''); $('roleChk').textContent = a.role ? '✓' : '1';
+  $('roleSub').textContent = a.role ? 'Call Buddy is your call screening app.' : 'Lets Call Buddy recognize their number when it rings.';
+  $('roleBtn').hidden = !!a.role;
+  $('contactsChk').className = 'check' + (a.contacts ? ' ok' : ''); $('contactsChk').textContent = a.contacts ? '✓' : '2';
+  $('contactsBtn').hidden = !!a.contacts;
+}
+window.cbAndroidChanged = renderAndroid;
+if (AND) {
+  $('autoSw').onchange = (e) => { AND.setAuto(e.target.checked); toast(e.target.checked ? 'Their calls will go to the AI.' : 'Their calls will ring this phone.'); };
+  $('roleBtn').onclick = $('contactsBtn').onclick = () => AND.enableScreening();
+  $('changeServer').onclick = () => AND.changeServer();
+  document.querySelectorAll('[data-fwd]').forEach((b) => b.onclick = () => {
+    const d = (S.twilioNumber || '').replace(/\D/g, ''), ten = d.replace(/^1(?=\d{10}$)/, '');
+    if (!d && !b.dataset.fwd.startsWith('off')) return toast('TWILIO_NUMBER is not set on the server.');
+    AND.dialCode({ gsm: `**67*${d.length === 10 ? '1' + d : d}#`, vzw: `*90${ten}`, 'off-gsm': '##67#', 'off-vzw': '*900' }[b.dataset.fwd]);
+  });
+}
 
 // ---------- actions ----------
 document.querySelectorAll('#modeSeg button').forEach((b) => b.onclick = async () => {

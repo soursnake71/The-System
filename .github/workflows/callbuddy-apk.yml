@@ -1,0 +1,29 @@
+# Builds the Call Buddy Android app and attaches call-buddy.apk to the "callbuddy-latest" release.
+# Debug-signed, so it installs on your own phone without a private release key.
+name: Call Buddy APK
+on:
+  push:
+    paths: ['callbuddy/android/**', '.github/workflows/callbuddy-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > callbuddy/android/local.properties
+          gradle -p callbuddy/android assembleDebug --no-daemon
+      - name: Publish
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          cp callbuddy/android/app/build/outputs/apk/debug/app-debug.apk call-buddy.apk
+          gh release view callbuddy-latest >/dev/null 2>&1 || gh release create callbuddy-latest --title "Call Buddy for Android (latest)" --notes "Download call-buddy.apk on your Android phone and open it to install (allow installs from your browser when Android asks). Needs Android 10 or newer."
+          gh release upload callbuddy-latest call-buddy.apk --clobber

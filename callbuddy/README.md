@@ -2,14 +2,29 @@
 
 An AI that speaks in **your cloned voice** and answers calls from one person: a family member with Alzheimer's who calls several times a day and doesn't remember the earlier calls. It is patient every time and never says "you already called." It transfers emergencies to your real phone and texts you a short summary after each call.
 
-**You run everything from your iPhone.** The app opens from your Home Screen. You use it to record your voice, clone it, tell the AI about them, switch it on or off, and read today's calls. The part that actually answers the phone runs in the cloud. iOS doesn't let any app answer calls or run a server in the background, so the cloud part is required.
+**You run everything from your phone (iPhone or Android).** The app opens from your Home Screen. You use it to record your voice, clone it, tell the AI about them, switch it on or off, and read today's calls. The part that actually answers the phone runs in the cloud. iOS doesn't let any app answer calls or run a server in the background, so the cloud part is required.
 
-```
-Their phone ──► Twilio number ──► Call Buddy (cloud) ──┬─ their number? ─► AI in your voice (ElevenLabs)
-                                                      ├─ "Ring me first" ─► your iPhone, AI if you don't answer
-                                                      └─ anyone else ─► your iPhone
-                    after each call ──► text summary to your iPhone (⚠️ money / meds / emergency)
-Your iPhone ──► Call Buddy app (Home Screen) ──► record voice · about them · mode · today's calls
+```mermaid
+flowchart TD
+  A([They call you]) --> B{How is the call routed?}
+  B -->|Their contact entry was changed| T
+  B -->|Rings your iPhone| I[You tap Decline]
+  B -->|Rings your Android| D{Call Buddy app: their number and AI on?}
+  D -->|Yes| AD[App declines it for you]
+  D -->|No, or 2nd call in 20 min| R1[Your phone just rings]
+  I --> F[Carrier forward-when-busy]
+  AD --> F
+  F --> T[Twilio number]
+  T --> S{Call Buddy server: who is calling?}
+  S -->|Someone else| ME1[Rings you] -->|No answer| VM[Voicemail, link texted to you]
+  S -->|Them| M{Mode in the app}
+  M -->|AI answers| AI
+  M -->|Ring me first| ME2[Rings you] -->|No answer| AI
+  M -->|Just me| ME3[Rings you] -->|No answer| VM
+  AI[[AI in your cloned voice]] --> C{During the call}
+  C -->|Fall, pain, fire, lost, stranger, money| X[Transfers to your cell]
+  C -->|Normal chat| BYE[Warm goodbye]
+  BYE --> SUM[Summary text to you, memory for the next call today]
 ```
 
 ## Setup, all on your iPhone (about 30 minutes)
@@ -56,6 +71,19 @@ The iPhone can't hand a live call's audio to an app, so their call has to land o
   - Verizon: `*90` + the Twilio number (busy forwarding). To undo it: `*900`. Codes vary by plan, so check with your carrier.
 
   When their call rings, tap **Decline** (or press the side button twice). The carrier forwards the call to Twilio, and Call Buddy recognizes their number and answers in your voice. Anyone else you decline is passed back to ring your iPhone. Don't use Settings → Phone → Call Forwarding: that forwards **every** call.
+
+## Android app
+Android can do one thing an iPhone can't: **Call Buddy recognizes their number and declines it for you**, so it forwards to the AI without you touching the phone.
+
+1. Download **call-buddy.apk** from the `callbuddy-latest` release on GitHub. The `Call Buddy APK` workflow builds it. Open the file to install it; Android asks you to allow installs from your browser. Needs Android 10 or newer.
+2. Open Call Buddy, enter your server address (the Render link), and sign in.
+3. On the **Setup** tab, under "This Android phone":
+   - **Call screening → Allow**, and pick Call Buddy.
+   - **Contacts access → Allow**. Android only screens saved contacts when this is on.
+   - Tap your carrier's button. The dialer opens with the forward-when-busy code typed in; tap Call once.
+   - Turn on **Send their calls to the AI**.
+
+It only auto-declines while the mode is **AI answers**. A second call from them within 20 minutes rings through to you. That is either the AI's emergency transfer or them calling right back, and you should hear both.
 
 ## Day to day
 Open Call Buddy from your Home Screen:

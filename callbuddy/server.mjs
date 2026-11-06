@@ -5,7 +5,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  DATA, loadEnv, isCaller, xml, twilioSignatureValid, registerAgentCall, elevenWebhookValid,
+  DATA, loadEnv, isCaller, digits, callerNumbers, xml, twilioSignatureValid, registerAgentCall, elevenWebhookValid,
   addCall, todaysCalls, earlierToday, timeOfDay, clock, flagsFor, sendSms,
 } from './lib.mjs';
 import { listSamples, saveSample, clearSamples, readProfile, saveProfile, cloneVoice, createOrUpdateAgent, previewVoice } from './agent.mjs';
@@ -21,6 +21,17 @@ const twiml = (inner) => `<?xml version="1.0" encoding="UTF-8"?><Response>${inne
 const dialMe = (from, extra = '') =>
   `<Dial callerId="${xml(from || E.TWILIO_NUMBER)}" answerOnBridge="true"${extra}>${xml(E.MY_CELL)}</Dial>`;
 
+// Calls to your cell remember who they were for. If your phone declines one and the carrier
+// forwards it straight back here (busy forwarding), we spot the bounce instead of looping.
+const recentDials = new Map();
+const ringMe = (from, next) => {
+  recentDials.set(digits(from), Date.now());
+  return dialMe(from, ` timeout="${Number(E.RING_SECONDS) || 20}" action="/voice/after-ring?next=${next}" method="POST"`);
+};
+const isBounce = (from) => Date.now() - (recentDials.get(digits(from)) || 0) < 60_000;
+const voicemail = () => `<Say>Sorry, ${xml(E.MY_NAME || 'I')} can't come to the phone. Please leave a message after the tone.</Say>`
+  + '<Record maxLength="120" playBeep="true" action="/voice/recorded" method="POST"/>';
+
 async function agentTwiml(params) {
   try {
     return await registerAgentCall({
@@ -29,23 +40,33 @@ async function agentTwiml(params) {
     });
   } catch (e) {
     console.error('Agent unavailable, ringing you instead:', e.message);
-    return twiml(dialMe(params.From));
+    return twiml(ringMe(params.From, 'voicemail'));
   }
 }
 
 async function handleVoice(params) {
-  if (!isCaller(params.From)) return twiml(dialMe(params.From)); // anyone else: straight through to you
-  console.log(`${clock(Date.now())} call from ${E.CALLER_NAME} (${params.From}), mode=${state.mode}`);
-  if (state.mode === 'pass') return twiml(dialMe(params.From));
-  if (state.mode === 'ring') {
-    return twiml(dialMe(params.From, ` timeout="${Number(E.RING_SECONDS) || 20}" action="/voice/after-ring" method="POST"`));
-  }
+  const from = params.From;
+  if (digits(from) && digits(from) === digits(E.TWILIO_NUMBER)) return twiml('<Reject/>'); // never call ourselves
+  if (isBounce(from)) return twiml('<Reject reason="busy"/>'); // you declined the call we just rang you with
+  if (!isCaller(from)) return twiml(ringMe(from, 'voicemail')); // anyone else: you, then voicemail
+  console.log(`${clock(Date.now())} call from ${E.CALLER_NAME} (${from}), mode=${state.mode}`);
+  if (state.mode === 'pass') return twiml(ringMe(from, 'voicemail'));
+  if (state.mode === 'ring') return twiml(ringMe(from, 'agent'));
   return agentTwiml(params);
 }
 
-async function handleAfterRing(params) {
-  if (params.DialCallStatus === 'completed') return twiml('<Hangup/>'); // you answered
-  return agentTwiml(params);
+async function handleAfterRing(params, next) {
+  if (params.DialCallStatus === 'completed') return twiml('<Hangup/>'); // you (or your voicemail) answered
+  if (next === 'agent' && isCaller(params.From)) return agentTwiml(params);
+  return twiml(voicemail());
+}
+
+async function handleRecorded(params) {
+  if (params.RecordingUrl && Number(params.RecordingDuration) > 1) {
+    const who = isCaller(params.From) ? E.CALLER_NAME : params.From;
+    await sendSms(E.MY_CELL, `Voicemail from ${who} (${params.RecordingDuration}s): ${params.RecordingUrl}.mp3`);
+  }
+  return twiml('<Hangup/>');
 }
 
 async function handlePostCall(body) {
@@ -86,6 +107,7 @@ function status() {
   return {
     mode: state.mode,
     names: { me: E.MY_NAME || '', caller: E.CALLER_NAME || '' },
+    callerNumbers: callerNumbers(), twilioNumber: E.TWILIO_NUMBER || '',
     missing: REQUIRED.filter((k) => !E[k]),
     voiceId: E.ELEVENLABS_VOICE_ID || null,
     agentId: E.ELEVENLABS_AGENT_ID || null,
@@ -134,7 +156,8 @@ export const server = http.createServer(async (req, res) => {
       if (E.SKIP_TWILIO_SIGNATURE !== 'true' && !twilioSignatureValid(publicUrl() + req.url, params, req.headers['x-twilio-signature'])) {
         return send(403, 'bad signature');
       }
-      const out = url.pathname === '/voice/after-ring' ? await handleAfterRing(params) : await handleVoice(params);
+      const out = url.pathname === '/voice/after-ring' ? await handleAfterRing(params, url.searchParams.get('next'))
+        : url.pathname === '/voice/recorded' ? await handleRecorded(params) : await handleVoice(params);
       return send(200, out, 'text/xml');
     }
     if (req.method === 'POST' && url.pathname === '/elevenlabs/post-call') {

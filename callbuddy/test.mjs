@@ -86,17 +86,27 @@ assert.match(reg2.conversation_initiation_client_data.dynamic_variables.earlier_
 assert.equal((await req('GET', base + '/mode?key=wrong&set=pass')).status, 403);
 assert.match((await req('GET', base + '/mode?key=adm&set=ring')).text, /mode: ring/);
 r = await post({ From: '+15553334444' });
-assert.match(r.text, /timeout="20" action="\/voice\/after-ring"/);
-r = await post({ From: '+15553334444', DialCallStatus: 'no-answer' }, '/voice/after-ring');
+assert.match(r.text, /timeout="20" action="\/voice\/after-ring\?next=agent"/);
+// you decline -> carrier forwards it back -> treated as busy, not a loop
+assert.match((await post({ From: '+15553334444' })).text, /<Reject reason="busy"\/>/);
+r = await post({ From: '+15553334444', DialCallStatus: 'busy' }, '/voice/after-ring?next=agent');
 assert.match(r.text, /<Stream/);
-r = await post({ From: '+15553334444', DialCallStatus: 'completed' }, '/voice/after-ring');
+r = await post({ From: '+15553334444', DialCallStatus: 'completed' }, '/voice/after-ring?next=agent');
 assert.match(r.text, /<Hangup\/>/);
+// strangers who aren't answered get voicemail, and you get a text
+r = await post({ From: '+15557776666', DialCallStatus: 'no-answer' }, '/voice/after-ring?next=voicemail');
+assert.match(r.text, /<Record/);
+calls.length = 0;
+await post({ From: '+15557776666', RecordingUrl: 'https://api.twilio.com/rec/RE1', RecordingDuration: '9' }, '/voice/recorded');
+assert.match(new URLSearchParams(calls.find((c) => c.url.includes('Messages.json')).init.body).get('Body'), /Voicemail from \+15557776666/);
+// never route a call from our own Twilio number
+assert.match((await post({ From: '+15550000000' })).text, /<Reject\/>/);
 
-// 7. ElevenLabs down -> ring me instead of silence
+// 7. ElevenLabs down -> ring me (then voicemail) instead of silence
 await req('GET', base + '/mode?key=adm&set=ai');
 globalThis.fetch = async () => new Response('down', { status: 500 });
-r = await post({ From: '+15553334444' });
-assert.match(r.text, /<Dial[^>]*>\+15551112222<\/Dial>/);
+r = await post({ From: '+15553334444', DialCallStatus: 'busy' }, '/voice/after-ring?next=agent');
+assert.match(r.text, /<Dial[^>]*next=voicemail[^>]*>\+15551112222<\/Dial>/);
 
 // 8. iPhone app + its API
 globalThis.fetch = async (url, init) => {
@@ -115,7 +125,7 @@ const api = async (m, p, body, h = {}) => {
 assert.match((await req('GET', base + '/')).text, /<title>Call Buddy<\/title>/);
 assert.equal((await req('GET', base + '/api/status')).status, 403);
 let s = (await api('GET', '/api/status')).j;
-assert.equal(s.mode, 'ai'); assert.equal(s.samples, 0); assert.ok(s.profileIsExample);
+assert.equal(s.mode, 'ai'); assert.equal(s.samples, 0); assert.deepEqual(s.callerNumbers, ['5553334444']); assert.ok(s.profileIsExample);
 assert.equal(s.urls.voice, 'https://cb.example/voice');
 assert.equal((await api('POST', '/api/clone')).status, 400, 'no samples -> error');
 assert.equal((await api('POST', '/api/samples', Buffer.alloc(100), { 'content-type': 'audio/mp4' })).status, 400, 'too short');
