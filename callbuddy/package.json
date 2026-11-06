@@ -1,0 +1,13 @@
+{
+  "name": "callbuddy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Answers calls from one number with a voice-cloned AI agent and texts you a summary.",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "setup": "node setup.mjs",
+    "start": "node server.mjs",
+    "test": "node test.mjs"
+  }
+}

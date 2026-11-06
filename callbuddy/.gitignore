@@ -1,0 +1,5 @@
+.env
+profile.json
+data/
+samples/*
+!samples/README.md
