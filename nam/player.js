@@ -1,6 +1,6 @@
 // player.js — audition rigs: a NAM model (+ cab) heard on a riff, your own clip or live guitar.
 import { namSizes } from './engine.js';
-import { makeRiff, encodeWav, makeZip, simpleCab } from './audio.js';
+import { makeRiff, encodeWav, makeZip, simpleCab, saveBlob } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -22,7 +22,7 @@ let lastRendered = null;
 
 function status(msg, err = false) { const el = $('playStatus'); el.textContent = msg; el.classList.toggle('err', err); }
 function sanitize(name) { return String(name).replace(/\.nam$/i, '').replace(/[^\w\- .()]+/g, '_').trim() || 'rig'; }
-function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); }
+const save = (blob, name) => saveBlob(blob, name);
 
 // ─── rigs ─────────────────────────────────────────────────────────────────────
 

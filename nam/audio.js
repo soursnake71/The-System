@@ -92,3 +92,14 @@ export function simpleCab(ctx) {
   for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
   return { input: chain[0], output: chain.at(-1) };
 }
+
+// Save a file: a normal browser download, or through the Android app (its WebView can't download)
+export async function saveBlob(blob, name) {
+  if (window.AndroidNam) {
+    const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); });
+    return window.AndroidNam.save(b64, name, blob.type || 'application/octet-stream');
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}

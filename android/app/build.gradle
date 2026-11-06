@@ -51,6 +51,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  namImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -61,3 +62,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// NAM Finder carries its web app inside the APK too: copy ../nam (not its tools) into its assets
+def namAssets = layout.buildDirectory.dir('namAssets')
+tasks.register('copyNamWeb', Copy) {
+  from('../../nam') { exclude 'tools/**', '*.md' }
+  into namAssets.map { it.dir('nam') }
+}
+android.sourceSets.nam.assets.srcDirs += [namAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Nam') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyNamWeb' }

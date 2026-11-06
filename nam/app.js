@@ -1,6 +1,7 @@
 // app.js — NAM A2 Finder
 import { analyzeNam, REFERENCE, DEVICES, cpuShare, variantUnits, unitsOf } from './namfile.js';
 import { addRig, initPlayer } from './player.js';
+import { saveBlob } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const T3K = 'https://www.tone3000.com';
@@ -291,10 +292,7 @@ async function checkRemote(row) {
   } catch (e) { btn.textContent = 'Check'; btn.disabled = false; status('checkStatus', e.message, true); }
 }
 function saveText(name, text) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  a.download = name.replace(/[^\w\- .()]+/g, '_').replace(/\.nam$/i, '') + '.nam';
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  saveBlob(new Blob([text], { type: 'application/json' }), name.replace(/[^\w\- .()]+/g, '_').replace(/\.nam$/i, '') + '.nam');
 }
 async function playRemote(btn) {
   const row = btn.closest('.mrow');
@@ -418,4 +416,4 @@ $('clearBtn').addEventListener('click', () => { checked = []; renderRows(); stat
 renderMachine();
 handleCallback().then(() => { showConnected(); if (pendingTone) showPickedTone(pendingTone); });
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidNam) navigator.serviceWorker.register('sw.js').catch(() => {});
