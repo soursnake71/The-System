@@ -2,52 +2,80 @@
 
 An AI that speaks in **your cloned voice** and answers calls from one person: a family member with Alzheimer's who calls several times a day and doesn't remember the earlier calls. It is patient every time and never says "you already called." It transfers emergencies to your real phone and texts you a short summary after each call.
 
+**You run everything from your iPhone.** The app opens from your Home Screen. You use it to record your voice, clone it, tell the AI about them, switch it on or off, and read today's calls. The part that actually answers the phone runs in the cloud. iOS doesn't let any app answer calls or run a server in the background, so the cloud part is required.
+
 ```
-Their phone ──► Twilio number ──► server.mjs ──┬─ caller's number? ─► ElevenLabs agent (your voice)
-                                               ├─ mode=ring ─► your cell first, agent if no answer
-                                               └─ anyone else ─► your cell
-ElevenLabs ── post-call webhook ──► server.mjs ──► text summary to you (⚠️ money / meds / emergency flags)
+Their phone ──► Twilio number ──► Call Buddy (cloud) ──┬─ their number? ─► AI in your voice (ElevenLabs)
+                                                      ├─ "Ring me first" ─► your iPhone, AI if you don't answer
+                                                      └─ anyone else ─► your iPhone
+                    after each call ──► text summary to your iPhone (⚠️ money / meds / emergency)
+Your iPhone ──► Call Buddy app (Home Screen) ──► record voice · about them · mode · today's calls
 ```
 
-## What you need
-- An **ElevenLabs** account on a plan that allows voice cloning. Instant Voice Cloning is in the Starter plan and up.
-- A **Twilio** account and one voice- and SMS-capable phone number, about $1.15 a month plus per-minute charges.
-- Somewhere to run Node 18+ with a public HTTPS URL: Render, Railway, Fly.io, a home machine with ngrok, and so on.
+## Setup, all on your iPhone (about 30 minutes)
 
-## Setup
-1. **Record your voice.** Put 1–3 minutes of clean recordings of yourself in `samples/` (see `samples/README.md`).
-2. **Configure.** `cp .env.example .env` and `cp profile.example.json profile.json`, then fill both in. The profile is what makes the calls sound like you: topics they enjoy, safe facts about your life, the names of their nurse and family. Everything in `prompt.md` can be edited.
-3. **Clone your voice and create the agent.** `npm run setup` writes `ELEVENLABS_VOICE_ID` and `ELEVENLABS_AGENT_ID` into `.env`. After editing `prompt.md` or `profile.json`, run `npm run setup -- --agent` to push the changes.
-4. **Deploy** this folder and run `npm start`. Set `PUBLIC_URL` to its address.
-5. **Twilio:** under Phone Numbers, open your number and set "A call comes in" to Webhook `PUBLIC_URL/voice` (POST).
-6. **ElevenLabs:** under Agents → Settings, set the post-call webhook to `PUBLIC_URL/elevenlabs/post-call` and put its secret in `ELEVENLABS_WEBHOOK_SECRET`.
-7. In the ElevenLabs dashboard, open the agent and **test it** in the browser before going live. Check that the Tools tab shows **Transfer to number** pointing to your cell. If setup printed a warning that it could not add the tool, add it there by hand.
+### 1. Make three accounts (in Safari)
+- **ElevenLabs** (elevenlabs.io), Starter plan or higher, which allows voice cloning. Go to Profile → API Keys and create a key.
+- **Twilio** (twilio.com). Buy one phone number with Voice and SMS, about $1.15 a month. From the Console home page, note the **Account SID** and **Auth Token**.
+- **Render** (render.com). Sign in with GitHub. This hosts Call Buddy for about $7 a month. Free hosting plans go to sleep and would miss calls.
 
-## Getting their calls to the Twilio number
-Your phone can't hand a live call's audio to an app, so their calls have to reach the Twilio number. Pick one:
+### 2. Put Call Buddy online
+In Safari, open **https://render.com/deploy?repo=https://github.com/soursnake71/the-system**. If this branch isn't merged yet, go to Render → New → Blueprint, pick the repo, and choose this branch. Render reads `render.yaml` and asks for:
 
-- **A. Change their contact entry (recommended, most reliable).** Ask the caregiver or facility to change the number saved under your name, or their speed dial, to the Twilio number. They keep pressing the same button. Calls from anyone else to the Twilio number are passed straight through to your cell.
-- **B. Carrier "forward when busy".** On most US carriers, dial `*67*<twilio number>#` (GSM) or ask your carrier to turn on forward-when-busy or no-answer. When their call comes in, tap Decline: the carrier forwards it to Twilio, and the server sees their number and answers. Other callers you decline also land on Twilio and get passed back to your cell, so you may want `MODE=pass` as the default for unknown numbers. That is already how it behaves.
+| Setting | What to enter |
+|---|---|
+| `ADMIN_KEY` | A password you make up. You'll type it into the app. |
+| `ELEVENLABS_API_KEY` | From ElevenLabs |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | From Twilio |
+| `TWILIO_NUMBER` | The Twilio number, like `+15550000000` |
+| `MY_NAME`, `CALLER_CALLS_ME` | Your name, and what they call you ("Chris", "son", "honey") |
+| `MY_CELL` | Your iPhone number, like `+15551112222` |
+| `CALLER_NAME`, `CALLER_NUMBERS` | Their name, and their number(s), comma-separated |
+| `TZ` | Your time zone, like `America/New_York` |
 
-## Day to day (from your phone's browser)
-- `PUBLIC_URL/mode?key=ADMIN_KEY&set=ring`: ring me first, and the agent answers if I don't pick up within `RING_SECONDS`. Keep this shorter than your voicemail pickup time.
-- `...&set=ai`: the agent always answers. `...&set=pass`: the agent is off.
-- `PUBLIC_URL/calls?key=ADMIN_KEY`: today's calls with summaries.
+Tap **Apply**. When it's live, Render shows a link like `https://callbuddy-xxxx.onrender.com`.
 
-Each summary text looks like: `⚠️ MONEY - Pat call #3 today (4 min): Talked about the garden; asked whether a bill needs paying.`
+### 3. Install the app
+Open that link in **Safari**, tap **Share → Add to Home Screen**, and open **Call Buddy** from your Home Screen. Sign in with your `ADMIN_KEY`.
+
+### 4. Follow the Setup tab
+1. **Voice tab:** tap the red button and read the script, then keep chatting naturally. 1–3 minutes total is plenty; several short takes are fine. Allow the microphone when asked.
+2. Tap **Clone my voice**, then **Play** to hear your clone.
+3. **About tab:** fill in what they love to talk about, safe facts about you, their nurse's name, and how you answer the phone. Then tap **Save**.
+4. **Setup tab:** tap **Build / update the AI**.
+5. Copy the first link into **Twilio**: Phone Numbers → your number → Voice → "A call comes in" → Webhook (HTTP POST). Also set **"Primary handler fails"** to a TwiML Bin containing `<Response><Dial>YOUR CELL</Dial></Response>`, so their call reaches you even if the server is down.
+6. Copy the second link into **ElevenLabs**: Agents → Settings → Post-call webhook. You can also put the webhook's secret into Render as `ELEVENLABS_WEBHOOK_SECRET`.
+7. In the ElevenLabs site, open the agent and **talk to it** to test it before going live. Under **Tools**, check that "Transfer to number" points to your cell. If the app warned that it couldn't add this tool, add it there by hand.
+
+### 5. Get their calls to the Twilio number
+The iPhone can't hand a live call's audio to an app, so their call has to land on the Twilio number. Pick one:
+
+- **A. Change their contact entry (recommended).** Ask their caregiver or facility to change the number saved under your name, or on their speed dial, to the **Twilio number**. They press the same button as always. If anyone else calls the Twilio number, it is passed straight through to your iPhone.
+- **B. Forward when busy (no one else needs to change anything).** On your iPhone, open the Phone app and dial the code for your carrier, then press call:
+  - AT&T / T-Mobile / most GSM carriers: `**67*1TWILIONUMBER#` (example `**67*15550000000#`). To undo it: `##67#`.
+  - Verizon: `*90` + the Twilio number (busy forwarding). To undo it: `*900`. Codes vary by plan, so check with your carrier.
+
+  When their call rings, tap **Decline** (or press the side button twice). The carrier forwards the call to Twilio, and Call Buddy recognizes their number and answers in your voice. Anyone else you decline is passed back to ring your iPhone. Don't use Settings → Phone → Call Forwarding: that forwards **every** call.
+
+## Day to day
+Open Call Buddy from your Home Screen:
+- **AI answers**, **Ring me first** (your phone rings, and the AI answers if you don't pick up), or **Just me** (AI off).
+- **Today's calls** shows a summary of each call, flagged ⚠️ MONEY, MEDS or EMERGENCY when one of those came up.
+- After each call you also get a text with the summary. Set `SMS_SUMMARIES=false` in Render to turn that off. Flagged calls are always texted.
+- Edit the **About** tab any time. Saving updates the AI.
 
 ## Safety built in
-- **Emergencies** (a fall, pain, fire, being lost, a stranger, someone asking for money) → the agent transfers the call to your cell immediately. If the transfer fails, it tells them to dial 911.
-- It never agrees to money, purchases or account details, never gives medication advice, and never promises a visit.
+- **Emergencies** (a fall, pain, fire, being lost, a stranger, someone asking for money) → the AI transfers the call to your cell immediately. If the transfer fails, it tells them to dial 911.
+- It never agrees to money, purchases or account details, never gives medication advice, and never promises a visit. It only uses facts you wrote on the About tab.
 - If ElevenLabs is down or anything errors, the call **rings your phone** instead of going silent.
-- Twilio and ElevenLabs webhook signatures are verified. `/mode` and `/calls` need `ADMIN_KEY`.
-- If they sincerely and repeatedly ask whether it's a machine, the agent won't flatly deny it. It says it's your phone helper and that you'll call back. You can change this in `prompt.md`, but there are good reasons to keep it.
+- Twilio and ElevenLabs webhook signatures are verified, and the app needs your password.
+- If they sincerely and repeatedly ask whether it's a machine, the AI won't flatly deny it. It says it's your phone helper and that you'll call back. This is set in `prompt.md`.
 
 ## Please also
-- **Tell their caregiver or facility** that this is set up. A person who knows can then check on anything the summaries flag.
-- **Recording and consent laws** differ by state and country. ElevenLabs stores transcripts. Look up your local rules, and turn on zero-retention in ElevenLabs if you want.
+- **Tell their caregiver or facility** that this is set up, so a person can follow up on anything that gets flagged.
+- **Recording and consent laws** differ by state and country, and ElevenLabs stores transcripts. You can turn on zero-retention in ElevenLabs.
 - **Clone only your own voice.** ElevenLabs requires consent from the voice's owner.
-- Still call them yourself sometimes. The summaries make it easy to bring up what they talked about.
+- Still call them yourself sometimes. The summaries give you things to talk about.
 
-## Test
-`npm test` runs an offline test with fake Twilio and ElevenLabs. It covers routing, signatures, the ring-first fallback, memory across calls, and the summary texts.
+## For developers
+`npm test` runs offline tests with fake Twilio and ElevenLabs. `npm start` runs the server locally, and `npm run setup` does the voice clone and agent setup from the command line. Settings come from environment variables or `.env` (see `.env.example`). The voice and agent ids and the profile are saved to `CALLBUDDY_DATA`.

@@ -27,7 +27,8 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const sign = (p, params) => crypto.createHmac('sha1', 'tok')
   .update('https://cb.example' + p + Object.keys(params).sort().map((k) => k + params[k]).join('')).digest('base64');
 // fetch is mocked for outbound calls; use the real one for our own server
-const realFetch = (await import('node:http')).default;
+const http = (await import('node:http')).default;
+const realFetch = http;
 async function req(method, url, body, headers = {}) {
   return new Promise((resolve, reject) => {
     const r = realFetch.request(url, { method, headers }, (res) => {
@@ -96,6 +97,53 @@ await req('GET', base + '/mode?key=adm&set=ai');
 globalThis.fetch = async () => new Response('down', { status: 500 });
 r = await post({ From: '+15553334444' });
 assert.match(r.text, /<Dial[^>]*>\+15551112222<\/Dial>/);
+
+// 8. iPhone app + its API
+globalThis.fetch = async (url, init) => {
+  calls.push({ url: String(url), init });
+  if (String(url).endsWith('/v1/voices/add')) return new Response('{"voice_id":"v123"}');
+  if (String(url).includes('/v1/convai/agents')) return new Response('{"agent_id":"agent1"}');
+  if (String(url).includes('/text-to-speech/')) return new Response(new Uint8Array(3000), { headers: { 'content-type': 'audio/mpeg' } });
+  return new Response('{}');
+};
+Object.assign(process.env, { MY_NAME: 'Chris', CALLER_NAME: 'Pat', ELEVENLABS_AGENT_ID: '' });
+const K = { 'x-admin-key': 'adm' };
+const api = async (m, p, body, h = {}) => {
+  const r = await req(m, base + p, body, { ...K, ...h });
+  return { status: r.status, j: r.text.startsWith('{') ? JSON.parse(r.text) : r.text };
+};
+assert.match((await req('GET', base + '/')).text, /<title>Call Buddy<\/title>/);
+assert.equal((await req('GET', base + '/api/status')).status, 403);
+let s = (await api('GET', '/api/status')).j;
+assert.equal(s.mode, 'ai'); assert.equal(s.samples, 0); assert.ok(s.profileIsExample);
+assert.equal(s.urls.voice, 'https://cb.example/voice');
+assert.equal((await api('POST', '/api/clone')).status, 400, 'no samples -> error');
+assert.equal((await api('POST', '/api/samples', Buffer.alloc(100), { 'content-type': 'audio/mp4' })).status, 400, 'too short');
+s = (await api('POST', '/api/samples', Buffer.alloc(50000), { 'content-type': 'audio/mp4' })).j;
+assert.equal(s.samples, 1);
+s = (await api('PUT', '/api/profile', JSON.stringify({ topics: 'baseball', my_facts: 'I live in Ohio', their_facts: 'Loves jazz', care_contact: 'Nurse Kim', first_message: 'Hey Pat!' }), { 'content-type': 'application/json' })).j;
+assert.equal(s.profileIsExample, false);
+s = (await api('POST', '/api/clone')).j;
+assert.equal(s.voiceId, 'v123');
+const add = calls.find((c) => c.url.endsWith('/v1/voices/add'));
+assert.ok(add.init.body instanceof FormData);
+s = (await api('POST', '/api/agent')).j;
+assert.equal(s.agentId, 'agent1'); assert.deepEqual(s.warnings, []);
+const created = JSON.parse(calls.find((c) => c.url.endsWith('/agents/create')).init.body);
+const prm = created.conversation_config.agent.prompt.prompt;
+assert.match(prm, /baseball/); assert.match(prm, /Nurse Kim/); assert.doesNotMatch(prm, /\[\[/);
+assert.equal(created.conversation_config.tts.voice_id, 'v123');
+assert.equal(created.conversation_config.agent.first_message, 'Hey Pat!');
+assert.equal(created.conversation_config.agent.prompt.built_in_tools.transfer_to_number.params.transfers[0].phone_number, '+15551112222');
+const prev = await new Promise((resolve) => {
+  const r = http.request(base + '/api/preview', { method: 'POST', headers: K }, (res) => resolve(res.headers['content-type']));
+  r.end('{"text":"hi"}');
+});
+assert.equal(prev, 'audio/mpeg');
+s = (await api('POST', '/api/mode', JSON.stringify({ mode: 'pass' }))).j;
+assert.equal(s.mode, 'pass');
+assert.ok(fs.existsSync(path.join(tmp, 'config.json')), 'ids persisted on data disk');
+assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'config.json'))).ELEVENLABS_AGENT_ID, 'agent1');
 
 server.close();
 fs.rmSync(tmp, { recursive: true, force: true });

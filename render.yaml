@@ -1,0 +1,43 @@
+# One-tap cloud hosting for Call Buddy (callbuddy/). Render asks for each "sync: false" value.
+services:
+  - type: web
+    name: callbuddy
+    runtime: node
+    rootDir: callbuddy
+    plan: starter            # always on (free plans sleep and would miss calls) + keeps a data disk
+    buildCommand: echo "no dependencies"
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    disk:
+      name: callbuddy-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: CALLBUDDY_DATA
+        value: /var/data
+      - key: ADMIN_KEY            # the password you type into the iPhone app
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_NUMBER        # +15550000000
+        sync: false
+      - key: MY_NAME
+        sync: false
+      - key: CALLER_CALLS_ME
+        sync: false
+      - key: MY_CELL              # +15551112222
+        sync: false
+      - key: CALLER_NAME
+        sync: false
+      - key: CALLER_NUMBERS       # +15553334444 (comma-separate several)
+        sync: false
+      - key: TZ                   # e.g. America/New_York
+        sync: false
+      - key: MODE
+        value: ai
+      - key: RING_SECONDS
+        value: "20"

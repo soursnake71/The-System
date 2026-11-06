@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Call Buddy">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Call Buddy</title>
+<style>
+:root{--bg:#f2f2f7;--card:#fff;--text:#000;--sub:#6c6c70;--line:#d1d1d6;--accent:#007aff;--green:#34c759;--red:#ff3b30;--orange:#ff9500;--fill:#e5e5ea}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#fff;--sub:#98989f;--line:#38383a;--accent:#0a84ff;--green:#30d158;--red:#ff453a;--orange:#ff9f0a;--fill:#2c2c2e}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 96px)}
+h1{font-size:34px;font-weight:700;margin:8px 4px 16px}
+h2{font-size:13px;font-weight:400;text-transform:uppercase;color:var(--sub);margin:24px 16px 6px;letter-spacing:.02em}
+.card{background:var(--card);border-radius:12px;overflow:hidden}
+.row{padding:12px 16px;border-bottom:.5px solid var(--line);display:flex;gap:12px;align-items:center}
+.row:last-child{border-bottom:0}
+.row .grow{flex:1;min-width:0}
+.sub{color:var(--sub);font-size:15px}
+.foot{color:var(--sub);font-size:13px;margin:6px 16px 0}
+.hero{padding:20px 16px;text-align:center}
+.hero .big{font-size:22px;font-weight:600;margin-top:6px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 0 4px}
+.seg button{flex:1;border:0;background:none;color:var(--text);font:600 15px/1 inherit;font-family:inherit;padding:10px 4px;border-radius:7px}
+.seg button.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:15px;font:600 17px inherit;font-family:inherit;background:var(--accent);color:#fff;margin-top:12px}
+.btn.plain{background:var(--card);color:var(--accent)}
+.btn.danger{background:var(--card);color:var(--red)}
+.btn:disabled{opacity:.45}
+.flag{font-size:12px;font-weight:600;color:#fff;background:var(--orange);border-radius:6px;padding:2px 6px;margin-right:4px}
+.flag.EMERGENCY,.flag.TRANSFERRED{background:var(--red)}
+.check{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:15px;color:#fff;background:var(--line);flex:none}
+.check.ok{background:var(--green)}
+input,textarea{width:100%;border:0;background:transparent;color:var(--text);font:17px inherit;font-family:inherit;outline:none;resize:vertical}
+textarea{min-height:76px}
+label.f{display:block;padding:10px 16px;border-bottom:.5px solid var(--line)}
+label.f:last-child{border-bottom:0}
+label.f span{display:block;font-size:13px;color:var(--sub);margin-bottom:2px}
+.rec{width:96px;height:96px;border-radius:50%;border:4px solid var(--line);background:var(--card);display:grid;place-items:center;margin:8px auto}
+.rec i{width:64px;height:64px;border-radius:50%;background:var(--red);transition:.2s}
+.rec.on i{width:36px;height:36px;border-radius:8px}
+.timer{font:600 28px ui-monospace,SFMono-Regular,monospace;text-align:center}
+.script{font-size:16px;color:var(--sub);padding:12px 16px;line-height:1.5}
+.script b{color:var(--text);font-weight:500}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:.5px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{flex:1;border:0;background:none;color:var(--sub);font:500 11px inherit;font-family:inherit;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tabs button.on{color:var(--accent)}
+.tabs svg{width:26px;height:26px}
+.toast{position:fixed;left:16px;right:16px;top:calc(env(safe-area-inset-top) + 10px);background:var(--text);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:15px;z-index:9;opacity:0;transform:translateY(-10px);transition:.25s;pointer-events:none;max-width:528px;margin:0 auto}
+.toast.show{opacity:1;transform:none}
+.copy{border:0;background:var(--fill);color:var(--accent);border-radius:8px;padding:6px 10px;font:600 14px inherit;font-family:inherit;flex:none}
+code{font-size:13px;word-break:break-all}
+[hidden]{display:none!important}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <!-- Login -->
+  <section id="login" hidden>
+    <h1>Call Buddy</h1>
+    <div class="card"><label class="f"><span>App password (ADMIN_KEY from your server settings)</span>
+      <input id="key" type="password" autocomplete="current-password" placeholder="Password"></label></div>
+    <button class="btn" id="loginBtn">Sign in</button>
+    <p class="foot">Tip: in Safari tap Share → Add to Home Screen so this opens like an app.</p>
+  </section>
+
+  <!-- Home -->
+  <section id="home" hidden>
+    <h1>Call Buddy</h1>
+    <div class="card hero"><span class="dot" id="modeDot"></span><div class="big" id="modeText"></div><div class="sub" id="modeSub"></div></div>
+    <h2>When <span class="cn"></span> calls</h2>
+    <div class="seg" id="modeSeg">
+      <button data-m="ai">AI answers</button><button data-m="ring">Ring me first</button><button data-m="pass">Just me</button>
+    </div>
+    <p class="foot" id="modeHelp"></p>
+    <h2>Today's calls</h2>
+    <div class="card" id="calls"></div>
+    <button class="btn plain" id="refresh">Refresh</button>
+  </section>
+
+  <!-- Voice -->
+  <section id="voice" hidden>
+    <h1>Your voice</h1>
+    <div class="card">
+      <div class="hero" style="padding-bottom:8px">
+        <button class="rec" id="recBtn" aria-label="Record"><i></i></button>
+        <div class="timer" id="timer">0:00</div>
+        <div class="sub" id="recCount"></div>
+      </div>
+      <div class="script" id="script"></div>
+    </div>
+    <p class="foot">Quiet room, phone about 6 inches away. Talk the way you do on the phone with them. 1 to 3 minutes total is plenty; you can record several short takes.</p>
+    <button class="btn" id="cloneBtn">Clone my voice</button>
+    <button class="btn danger" id="clearBtn">Delete recordings and start over</button>
+    <h2>Hear your clone</h2>
+    <div class="card"><label class="f"><span>Text to say</span><input id="previewText"></label></div>
+    <button class="btn plain" id="previewBtn">Play</button>
+    <audio id="player" controls hidden style="width:100%;margin-top:12px"></audio>
+  </section>
+
+  <!-- About them -->
+  <section id="about" hidden>
+    <h1>About <span class="cn"></span></h1>
+    <div class="card">
+      <label class="f"><span>Things they love to talk about</span><textarea id="p_topics"></textarea></label>
+      <label class="f"><span>Facts about you the AI can mention</span><textarea id="p_my_facts"></textarea></label>
+      <label class="f"><span>Their life, home and people around them</span><textarea id="p_their_facts"></textarea></label>
+      <label class="f"><span>Who to "ask" about pills and medical things</span><input id="p_care_contact"></label>
+      <label class="f"><span>How you answer the phone</span><input id="p_first_message"></label>
+    </div>
+    <p class="foot">The AI only uses facts you write here, so it never makes things up about family.</p>
+    <button class="btn" id="saveProfile">Save and update the AI</button>
+  </section>
+
+  <!-- Setup -->
+  <section id="setup" hidden>
+    <h1>Setup</h1>
+    <div class="card" id="steps"></div>
+    <h2>Paste into Twilio (phone number → "A call comes in")</h2>
+    <div class="card"><div class="row"><code class="grow" id="urlVoice"></code><button class="copy" data-copy="urlVoice">Copy</button></div></div>
+    <h2>Paste into ElevenLabs (Agents → Settings → Post-call webhook)</h2>
+    <div class="card"><div class="row"><code class="grow" id="urlPost"></code><button class="copy" data-copy="urlPost">Copy</button></div></div>
+    <button class="btn" id="agentBtn">Build / update the AI</button>
+    <button class="btn plain" id="logout">Sign out</button>
+  </section>
+</main>
+
+<nav class="tabs" id="tabs" hidden>
+  <button data-t="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>Calls</button>
+  <button data-t="voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Voice</button>
+  <button data-t="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>About</button>
+  <button data-t="setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Setup</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+let key = store.get('cb-key') || '';
+let S = null;
+
+function toast(msg, ms = 2600) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+async function api(path, { method = 'GET', body, type } = {}) {
+  const headers = { 'x-admin-key': key };
+  if (body !== undefined && !type) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
+  if (type) headers['Content-Type'] = type;
+  const r = await fetch(path, { method, headers, body });
+  if (r.status === 403) { showLogin('Wrong password.'); throw new Error('Wrong password'); }
+  if ((r.headers.get('content-type') || '').includes('audio')) return r.blob();
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+  return j;
+}
+
+async function busy(btn, label, fn) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = label;
+  try { return await fn(); } catch (e) { toast(e.message, 6000); } finally { btn.disabled = false; btn.textContent = old; }
+}
+
+// ---------- navigation ----------
+function show(tab) {
+  for (const s of ['home', 'voice', 'about', 'setup']) $(s).hidden = s !== tab;
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === tab));
+  store.set('cb-tab', tab); scrollTo(0, 0);
+}
+document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => show(b.dataset.t));
+function showLogin(msg) { $('login').hidden = false; $('tabs').hidden = true; ['home','voice','about','setup'].forEach((s) => $(s).hidden = true); if (msg) toast(msg); }
+
+$('loginBtn').onclick = async () => {
+  key = $('key').value.trim(); store.set('cb-key', key);
+  try { await load(); $('login').hidden = true; $('tabs').hidden = false; show(nextTab()); } catch {}
+};
+$('key').onkeydown = (e) => { if (e.key === 'Enter') $('loginBtn').click(); };
+$('logout').onclick = () => { key = ''; store.set('cb-key', null); showLogin(); };
+const nextTab = () => (!S.voiceId || !S.agentId || S.missing.length) ? (store.get('cb-tab') || 'setup') : (store.get('cb-tab') || 'home');
+
+// ---------- render ----------
+const MODES = {
+  ai: ['var(--green)', 'The AI is answering', 'Your cloned voice picks up every call from them.', 'The AI picks up every time, in your voice.'],
+  ring: ['var(--orange)', 'Ringing you first', 'If you don\'t answer, the AI picks up.', 'Your phone rings first. If you don\'t pick up, the AI answers. (Keep this shorter than your voicemail.)'],
+  pass: ['var(--sub)', 'AI is off', 'Calls go straight to your phone.', 'The AI is off. Every call rings your phone.'],
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function render() {
+  const caller = S.names.caller || 'they';
+  document.querySelectorAll('.cn').forEach((e) => e.textContent = S.names.caller || 'them');
+  const [color, title, sub, help] = MODES[S.mode];
+  $('modeDot').style.background = color; $('modeText').textContent = title;
+  $('modeSub').textContent = (!S.agentId && S.mode !== 'pass') ? 'Not set up yet: calls ring your phone. See Setup.' : sub;
+  $('modeHelp').textContent = help;
+  document.querySelectorAll('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.m === S.mode));
+
+  $('calls').innerHTML = S.calls.length ? S.calls.map((c) =>
+    `<div class="row"><div class="grow"><div>${c.flags.map((f) => `<span class="flag ${f}">${f}</span>`).join('')}${esc(c.summary)}</div>
+     <div class="sub">${esc(c.time)} · ${c.mins} min</div></div></div>`).join('')
+    : `<div class="row sub">No calls from ${esc(caller)} yet today.</div>`;
+
+  $('recCount').textContent = S.samples ? `${S.samples} recording${S.samples > 1 ? 's' : ''} saved` : 'Tap to record';
+  $('cloneBtn').textContent = S.voiceId ? 'Re-clone my voice from these recordings' : 'Clone my voice';
+  $('cloneBtn').disabled = !S.samples;
+  if (!$('previewText').value) $('previewText').value = `Hi ${S.names.caller || ''}! It's so good to hear from you. How are you doing today?`;
+  $('script').innerHTML = `Read this, then just chat naturally:<br><b>"Hey ${esc(caller)}, it's ${esc(S.names.me || 'me')}! How are you doing today? Oh, that sounds nice. What did you have for lunch? I was just thinking about you. The weather's been pretty good here. I'm doing fine, eating well, keeping busy. Well, I've got to get going, but I'm so glad you called. I love you. Talk soon!"</b>`;
+
+  for (const k of ['topics', 'my_facts', 'their_facts', 'care_contact', 'first_message']) {
+    const el = $('p_' + k); if (document.activeElement !== el && !el.dataset.dirty) el.value = S.profileIsExample ? '' : (S.profile[k] || '');
+    el.placeholder = S.profile[k] || '';
+  }
+
+  const steps = [
+    [!S.missing.length, 'Server settings', S.missing.length ? `Missing: ${S.missing.join(', ')}. Add them in your host's Environment settings, then restart.` : 'Keys and phone numbers are set.'],
+    [S.samples > 0 || !!S.voiceId, 'Record your voice', 'Voice tab → record 1 to 3 minutes.'],
+    [!!S.voiceId, 'Clone your voice', S.voiceId ? 'Done. Try "Hear your clone" on the Voice tab.' : 'Voice tab → Clone my voice.'],
+    [!S.profileIsExample, `Tell it about ${caller}`, 'About tab → fill in and save.'],
+    [!!S.agentId, 'Build the AI', S.agentId ? 'Done. Test it in the ElevenLabs app/site before going live.' : 'Tap "Build / update the AI" below.'],
+    [null, 'Connect the phone number', 'Copy the two links below into Twilio and ElevenLabs.'],
+  ];
+  $('steps').innerHTML = steps.map(([ok, t, d], i) =>
+    `<div class="row"><span class="check ${ok ? 'ok' : ''}">${ok ? '✓' : i + 1}</span><div class="grow"><div>${esc(t)}</div><div class="sub">${esc(d)}</div></div></div>`).join('');
+  $('urlVoice').textContent = S.urls.voice; $('urlPost').textContent = S.urls.postCall;
+}
+
+async function load() { S = await api('/api/status'); render(); }
+
+// ---------- actions ----------
+document.querySelectorAll('#modeSeg button').forEach((b) => b.onclick = async () => {
+  try { S = await api('/api/mode', { method: 'POST', body: { mode: b.dataset.m } }); render(); toast(MODES[S.mode][1]); } catch (e) { toast(e.message); }
+});
+$('refresh').onclick = () => busy($('refresh'), 'Refreshing…', load);
+document.querySelectorAll('[data-copy]').forEach((b) => b.onclick = async () => {
+  try { await navigator.clipboard.writeText($(b.dataset.copy).textContent); toast('Copied'); } catch { toast('Press and hold the link to copy it'); }
+});
+document.querySelectorAll('#about textarea, #about input').forEach((el) => el.oninput = () => el.dataset.dirty = '1');
+$('saveProfile').onclick = () => busy($('saveProfile'), 'Saving…', async () => {
+  const body = {}; for (const k of ['topics', 'my_facts', 'their_facts', 'care_contact', 'first_message']) body[k] = $('p_' + k).value.trim();
+  S = await api('/api/profile', { method: 'PUT', body });
+  document.querySelectorAll('#about [data-dirty]').forEach((el) => delete el.dataset.dirty);
+  if (S.voiceId) { const r = await api('/api/agent', { method: 'POST' }); S = r; (r.warnings || []).forEach((w) => toast(w, 8000)); toast('Saved. The AI is updated.'); }
+  else toast('Saved. Clone your voice next.');
+  render();
+});
+$('agentBtn').onclick = () => busy($('agentBtn'), 'Building…', async () => {
+  const r = await api('/api/agent', { method: 'POST' }); S = r; render();
+  r.warnings?.length ? toast(r.warnings.join(' '), 9000) : toast('The AI is ready.');
+});
+$('cloneBtn').onclick = () => busy($('cloneBtn'), 'Cloning… (about 30 seconds)', async () => {
+  S = await api('/api/clone', { method: 'POST' });
+  if (S.agentId) S = await api('/api/agent', { method: 'POST' });
+  render(); toast('Voice cloned! Tap Play to hear it.');
+});
+$('clearBtn').onclick = async () => {
+  if (!confirm('Delete all recordings? (Your cloned voice stays until you re-clone.)')) return;
+  S = await api('/api/samples', { method: 'DELETE' }); render();
+};
+$('previewBtn').onclick = () => {
+  const p = $('player'); p.hidden = false;
+  busy($('previewBtn'), 'Loading…', async () => {
+    const blob = await api('/api/preview', { method: 'POST', body: { text: $('previewText').value } });
+    p.src = URL.createObjectURL(blob); p.play().catch(() => toast('Tap ▶ to listen'));
+  });
+};
+
+// ---------- recording (Safari records audio/mp4) ----------
+let rec, chunks, t0, tick;
+$('recBtn').onclick = async () => {
+  if (rec?.state === 'recording') { rec.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
+    const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || '';
+    rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined); chunks = [];
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop()); clearInterval(tick); $('recBtn').classList.remove('on');
+      const secs = (Date.now() - t0) / 1000;
+      if (secs < 5) return toast('Too short. Record at least 5 seconds.');
+      const blob = new Blob(chunks, { type: rec.mimeType || 'audio/mp4' });
+      $('recCount').textContent = 'Uploading…';
+      try { S = await api('/api/samples', { method: 'POST', body: blob, type: blob.type }); render(); toast(`Saved ${Math.round(secs)} seconds.`); }
+      catch (e) { toast(e.message, 6000); render(); }
+    };
+    rec.start(1000); t0 = Date.now(); $('recBtn').classList.add('on');
+    tick = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); $('timer').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; if (s >= 180) rec.stop(); }, 250);
+  } catch (e) { toast('Microphone blocked. Settings → Safari → Microphone → Allow.', 6000); }
+};
+
+// ---------- start ----------
+document.addEventListener('visibilitychange', () => { if (!document.hidden && key && S) load().catch(() => {}); });
+(async () => {
+  if (!key) return showLogin();
+  try { await load(); $('tabs').hidden = false; show(nextTab()); } catch (e) { if (e.message !== 'Wrong password') { showLogin(); toast(e.message); } }
+})();
+</script>
+</body>
+</html>

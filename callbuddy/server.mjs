@@ -8,6 +8,7 @@ import {
   DATA, loadEnv, isCaller, xml, twilioSignatureValid, registerAgentCall, elevenWebhookValid,
   addCall, todaysCalls, earlierToday, timeOfDay, clock, flagsFor, sendSms,
 } from './lib.mjs';
+import { listSamples, saveSample, clearSamples, readProfile, saveProfile, cloneVoice, createOrUpdateAgent, previewVoice } from './agent.mjs';
 
 loadEnv();
 const E = process.env;
@@ -68,35 +69,96 @@ async function handlePostCall(body) {
   }
 }
 
-function readBody(req) {
+function readBody(req, limit = 2e6) {
   return new Promise((resolve, reject) => {
-    let b = ''; req.on('data', (c) => { b += c; if (b.length > 2e6) req.destroy(); });
-    req.on('end', () => resolve(b)); req.on('error', reject);
+    const chunks = []; let n = 0;
+    req.on('data', (c) => { n += c.length; if (n > limit) { reject(new Error('too large')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks))); req.on('error', reject);
   });
 }
 
+const publicUrl = () => (E.PUBLIC_URL || E.RENDER_EXTERNAL_URL || '').replace(/\/$/, '');
+const adminOk = (key) => !!E.ADMIN_KEY && E.ADMIN_KEY !== 'change-me' && key === E.ADMIN_KEY;
+const REQUIRED = ['ELEVENLABS_API_KEY', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_NUMBER', 'MY_NAME', 'MY_CELL', 'CALLER_NAME', 'CALLER_NUMBERS'];
+
+function status() {
+  const profile = readProfile();
+  return {
+    mode: state.mode,
+    names: { me: E.MY_NAME || '', caller: E.CALLER_NAME || '' },
+    missing: REQUIRED.filter((k) => !E[k]),
+    voiceId: E.ELEVENLABS_VOICE_ID || null,
+    agentId: E.ELEVENLABS_AGENT_ID || null,
+    samples: listSamples().length,
+    profile, profileIsExample: !!profile._example,
+    calls: todaysCalls().map((c) => ({ time: clock(c.at), mins: Math.round((c.secs || 0) / 60), flags: c.flags || [], summary: c.summary })).reverse(),
+    urls: { voice: `${publicUrl()}/voice`, postCall: `${publicUrl()}/elevenlabs/post-call` },
+  };
+}
+
+// JSON API used by the iPhone app (app/index.html). All calls need the admin key.
+async function handleApi(req, url) {
+  const route = `${req.method} ${url.pathname}`;
+  const json = async () => JSON.parse((await readBody(req)).toString() || '{}');
+  switch (route) {
+    case 'GET /api/status': return status();
+    case 'POST /api/mode': {
+      const { mode } = await json();
+      if (!['ai', 'ring', 'pass'].includes(mode)) throw new Error('bad mode');
+      state.mode = mode; saveState(); return status();
+    }
+    case 'POST /api/samples': {
+      const buf = await readBody(req, 15e6);
+      if (buf.length < 2000) throw new Error('Recording too short.');
+      saveSample(buf, req.headers['content-type']); return status();
+    }
+    case 'DELETE /api/samples': clearSamples(); return status();
+    case 'PUT /api/profile': saveProfile(await json()); return status();
+    case 'POST /api/clone': await cloneVoice(); return status();
+    case 'POST /api/agent': { const r = await createOrUpdateAgent(); return { ...status(), warnings: r.warnings }; }
+    default: return null;
+  }
+}
+
+const APP_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), 'app');
+const STATIC = { '/': 'index.html', '/manifest.webmanifest': 'manifest.webmanifest', '/icon.svg': 'icon.svg', '/icon-180.png': 'icon-180.png' };
+const TYPES = { html: 'text/html; charset=utf-8', webmanifest: 'application/manifest+json', svg: 'image/svg+xml', png: 'image/png' };
+
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  const send = (code, body, type = 'text/plain') => { res.writeHead(code, { 'Content-Type': type }); res.end(body); };
+  const send = (code, body, type = 'text/plain') => { res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(body); };
   try {
     if (req.method === 'POST' && url.pathname.startsWith('/voice')) {
-      const raw = await readBody(req);
+      const raw = (await readBody(req)).toString();
       const params = Object.fromEntries(new URLSearchParams(raw));
-      const fullUrl = (E.PUBLIC_URL || '').replace(/\/$/, '') + req.url;
-      if (E.SKIP_TWILIO_SIGNATURE !== 'true' && !twilioSignatureValid(fullUrl, params, req.headers['x-twilio-signature'])) {
+      if (E.SKIP_TWILIO_SIGNATURE !== 'true' && !twilioSignatureValid(publicUrl() + req.url, params, req.headers['x-twilio-signature'])) {
         return send(403, 'bad signature');
       }
       const out = url.pathname === '/voice/after-ring' ? await handleAfterRing(params) : await handleVoice(params);
       return send(200, out, 'text/xml');
     }
     if (req.method === 'POST' && url.pathname === '/elevenlabs/post-call') {
-      const raw = await readBody(req);
+      const raw = (await readBody(req)).toString();
       if (!elevenWebhookValid(raw, req.headers['elevenlabs-signature'])) return send(401, 'bad signature');
       send(200, 'ok'); // reply fast, then process
       return handlePostCall(raw).catch((e) => console.error('post-call', e));
     }
+    if (url.pathname.startsWith('/api/')) {
+      if (!adminOk(req.headers['x-admin-key'])) return send(403, JSON.stringify({ error: 'Wrong app password (ADMIN_KEY).' }), 'application/json');
+      if (req.method === 'POST' && url.pathname === '/api/preview') {
+        const { text } = JSON.parse((await readBody(req)).toString() || '{}');
+        return send(200, await previewVoice(text || `Hi ${E.CALLER_NAME || ''}, it's ${E.MY_NAME || 'me'}. How are you doing today?`), 'audio/mpeg');
+      }
+      try {
+        const out = await handleApi(req, url);
+        return out ? send(200, JSON.stringify(out), 'application/json') : send(404, '{"error":"not found"}', 'application/json');
+      } catch (e) {
+        console.error(e);
+        return send(400, JSON.stringify({ error: e.message.slice(0, 500) }), 'application/json');
+      }
+    }
     if (url.pathname === '/mode' || url.pathname === '/calls') {
-      if (!E.ADMIN_KEY || E.ADMIN_KEY === 'change-me' || url.searchParams.get('key') !== E.ADMIN_KEY) return send(403, 'no');
+      if (!adminOk(url.searchParams.get('key'))) return send(403, 'no');
       if (url.pathname === '/mode') {
         const set = url.searchParams.get('set');
         if (set && ['ai', 'ring', 'pass'].includes(set)) { state.mode = set; saveState(); }
@@ -106,6 +168,10 @@ export const server = http.createServer(async (req, res) => {
       return send(200, lines.join('\n') || 'No calls yet today.');
     }
     if (url.pathname === '/health') return send(200, 'ok');
+    if (req.method === 'GET' && STATIC[url.pathname]) {
+      const f = STATIC[url.pathname];
+      return send(200, fs.readFileSync(path.join(APP_DIR, f)), TYPES[f.split('.').pop()]);
+    }
     send(404, 'not found');
   } catch (e) {
     console.error(e);
@@ -116,7 +182,7 @@ export const server = http.createServer(async (req, res) => {
 });
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
-  for (const k of ['ELEVENLABS_API_KEY', 'ELEVENLABS_AGENT_ID', 'TWILIO_AUTH_TOKEN', 'MY_CELL', 'CALLER_NUMBERS', 'PUBLIC_URL']) {
+  for (const k of [...REQUIRED, 'ADMIN_KEY']) {
     if (!E[k]) console.warn(`Warning: ${k} is not set`);
   }
   const port = Number(E.PORT) || 3000;

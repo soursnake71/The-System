@@ -8,19 +8,25 @@ export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const DATA = process.env.CALLBUDDY_DATA || path.join(ROOT, 'data');
 const EL = 'https://api.elevenlabs.io';
 
+// Values saved by the app (voice id, agent id). Kept on the data disk so they survive restarts.
+const configFile = () => path.join(DATA, 'config.json');
+
 export function loadEnv(file = path.join(ROOT, '.env')) {
-  if (!fs.existsSync(file)) return;
-  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  if (fs.existsSync(file)) {
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
   }
+  try { Object.assign(process.env, JSON.parse(fs.readFileSync(configFile(), 'utf8'))); } catch {}
 }
 
-export function setEnvValue(key, value, file = path.join(ROOT, '.env')) {
-  let text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const re = new RegExp(`^${key}=.*$`, 'm');
-  text = re.test(text) ? text.replace(re, `${key}=${value}`) : `${text.replace(/\n?$/, '\n')}${key}=${value}\n`;
-  fs.writeFileSync(file, text);
+export function setEnvValue(key, value) {
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(configFile(), 'utf8')); } catch {}
+  cfg[key] = value;
+  fs.mkdirSync(DATA, { recursive: true });
+  fs.writeFileSync(configFile(), JSON.stringify(cfg, null, 1));
   process.env[key] = value;
 }
 
