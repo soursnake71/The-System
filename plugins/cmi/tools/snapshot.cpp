@@ -126,6 +126,14 @@ int main(int argc, char** argv) {
         std::printf("song %s: beat %.1f, peak %.3f\n", p.engine.song.load()->name.c_str(), p.engine.songBeat.load(), pk);
         ok &= pk > 0.05;
     }
+    // the light pen: a drawing goes straight to the PEN voice, which MIDI plays
+    {
+        p.pen.shape(0, 1); p.pen.shape(1, 2); p.penChanged();
+        const cmi::Sound* ps = p.kit.bank.at(juce::roundToInt(p.get("sound")));
+        const double pk = run(60, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 57, (juce::uint8) 110), 0); if (b == 40) m.addEvent(juce::MidiMessage::noteOff(1, 57), 0); });
+        std::printf("light pen: keyboard voice %s, MIDI note peak %.3f\n", ps ? ps->name.c_str() : "?", pk);
+        ok &= ps && ps->name == "PEN" && pk > 0.05;
+    }
     // MIDI control: CC 74 moves the filter (a default), MIDI learn puts the attack on CC 21, program change picks a voice
     {
         auto cc = [&](int c, int v) { run(2, [c, v](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::controllerEvent(1, c, v), 0); }); juce::MessageManager::getInstance()->runDispatchLoopUntil(80); };
@@ -175,6 +183,8 @@ int main(int argc, char** argv) {
     if (p.engine.song.load()) {
         ce->showPage('M');
         { auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f); juce::File f = out.getChildFile("page_M_song.png"); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo); }
+        ce->showPage('K');
+        { auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f); juce::File f = out.getChildFile("page_K_kit.png"); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo); }
         ce->showPage('S'); ce->showSongGrid(true, 1);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
         juce::File f = out.getChildFile("page_S_grid.png"); f.deleteFile();

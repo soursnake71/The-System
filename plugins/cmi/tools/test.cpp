@@ -6,6 +6,8 @@
 #include "../core/TestVoices.h"
 #include "../core/Catalog.h"
 #include "../core/GridEdit.h"
+#include "../core/Record.h"
+#include "../core/Pen.h"
 #include <cstdio>
 #include <chrono>
 
@@ -200,6 +202,75 @@ int main(int argc, char** argv) {
         CHECK(std::fabs(ge.notes[0].len - 1.25) < 1e-9, "legato (%.2f)", ge.notes[0].len);
         ge.selectAll(1); ge.erase();
         CHECK(ge.notes.size() == 5 && ge.at(0, 0.5, 60, 0.1) == 0, "erase the selection");
+    }
+
+    // ---- the drum kit: a piece's sound, level, mute, tune; and its text ----
+    {
+        TestKit kk; SongList sk;
+        MidiSong ds = emptySong("KIT", 120, 2);
+        for (int t = 0; t < SONG_TRK; ++t) ds.used[t] = false;
+        ds.used[4] = true; ds.program[4] = -1;
+        std::vector<SongNote> dn; for (int b = 0; b < 8; ++b) dn.push_back({ 4, (double) b, 0.5, b % 2 ? 38 : 36, 110 });
+        setNotes(ds, dn); ds.raw = writeSmf(ds);
+        const int di = sk.add(ds, kk.bank); SongEntry* de = sk.at(di); de->voice[4] = GM_KIT;
+        auto level = [&](const DrumKit& k) {
+            de->kit = k; Engine e; e.bank = &kk.bank; e.kitVoice = kitLookup(kk.bank); e.prepare(fs); e.setOutput(1, 0, 0); e.fxOn = false; e.extSync = false;
+            selectSong(e, de); e.songRun = true;
+            std::vector<float> a(fs * 4), b2(fs * 4); e.render(a.data(), b2.data(), fs * 4);
+            double s2 = 0; for (float x : a) s2 += x * x; return std::sqrt(s2 / a.size());
+        };
+        DrumKit k0; const double base = level(k0);
+        DrumKit km; km.p[36].mute = true; km.p[38].mute = true; const double muted = level(km);
+        DrumKit kl; kl.p[36].level = 0.25f; kl.p[38].level = 0.25f; const double quiet = level(kl);
+        DrumKit kv; kv.p[36].voice = "ORCHHIT"; kv.p[38].voice = "ORCHHIT"; const double other = level(kv);
+        std::printf("kit: rms %.4f, muted %.5f, level 1/4 %.4f, other voice %.4f\n", base, muted, quiet, other);
+        CHECK(base > 0.005 && muted < base * 0.02 && quiet < base * 0.6 && std::fabs(other - base) > base * 0.05, "drum kit pieces");
+        DrumKit kt; kt.p[42].voice = "HIHAT1@DRUMS"; kt.p[42].tune = -2; kt.p[36].solo = true; kt.p[38].pan = 0.25f;
+        DrumKit kr; kr.load(kt.save());
+        CHECK(kr.save() == kt.save() && kr.p[42].voice == "HIHAT1@DRUMS" && kr.p[42].tune == -2 && kr.p[36].solo, "kit text: %s", kt.save().c_str());
+    }
+
+    // ---- recording: keyboard notes onto a track, with a count-in and the click ----
+    {
+        TestKit kr; SongList sr; const int ri = sr.add(recordSong("REC", 120), kr.bank); SongEntry* re = sr.at(ri);
+        Engine e; e.bank = &kr.bank; e.prepare(fs); e.setOutput(1, 0, 0); e.fxOn = false; e.extSync = false;
+        selectSong(e, re);
+        RecordSettings rs; rs.track = 2; rs.quant = 0.25;
+        e.recTrack = rs.track; e.recFrom = 0; e.recOn = true; e.clickOn = true;
+        e.songStartReq = -4.0; e.songRun = true;   // a bar's count-in
+        std::vector<float> a(fs * 6), b2(fs * 6);
+        auto run = [&](int from, int to) { e.render(a.data() + from, b2.data() + from, to - from); };
+        const int beat = fs / 2;   // 120 BPM
+        run(0, 4 * beat + beat / 20);                 // the count-in, then just past beat 0
+        const uint8_t on1[3] = { 0x90, 60, 100 }, off1[3] = { 0x80, 60, 0 }, on2[3] = { 0x90, 64, 90 }, off2[3] = { 0x80, 64, 0 };
+        e.midi(on1, 3); run(4 * beat + beat / 20, 5 * beat); e.midi(off1, 3);
+        run(5 * beat, 6 * beat - beat / 30); e.midi(on2, 3); run(6 * beat - beat / 30, 7 * beat); e.midi(off2, 3);
+        run(7 * beat, fs * 6);
+        e.recOn = false;
+        std::vector<Engine::RecEv> evs; Engine::RecEv ev; while (e.recPop(ev)) evs.push_back(ev);
+        auto notes = notesOf(*re->song);
+        const int added = mergeRecording(notes, evs, rs, 0, e.songBeat.load());
+        editSong(e, re, notes);
+        const auto got = notesOf(*re->song);
+        int on2n = 0; double st1 = -1, st2 = -1; for (const auto& n : got) if (n.track == 2) { ++on2n; if (n.pitch == 60) st1 = n.start; if (n.pitch == 64) st2 = n.start; }
+        // the click: blips in the count-in, before any note
+        double clickPk = 0; for (int i = 0; i < beat / 10; ++i) clickPk = std::max(clickPk, (double) std::fabs(a[(size_t) i]));
+        double gapPk = 0; for (int i = beat / 2; i < beat * 9 / 10; ++i) gapPk = std::max(gapPk, (double) std::fabs(a[(size_t) i]));
+        std::printf("record: %d events, %d notes (60 at %.3f, 64 at %.3f), click %.3f vs between %.4f\n", (int) evs.size(), added, st1, st2, clickPk, gapPk);
+        CHECK(added == 2 && on2n == 2 && std::fabs(st1 - 0) < 1e-9 && std::fabs(st2 - 2) < 1e-9, "recorded and quantised onto track 3");
+        CHECK(clickPk > 0.05 && gapPk < clickPk * 0.1, "the click in the count-in");
+    }
+
+    // ---- the light pen: shapes, a voice, back from the voice, as text, as a WAV with its loop ----
+    {
+        PenDrawing pd; pd.shape(0, 0); pd.shape(1, 1); pd.smooth(1);
+        const Sound v = pd.voice("PEN");
+        PenDrawing back; back.fromSound(v);
+        double err = 0; for (int i = 0; i < PAGE; ++i) err = std::max(err, (double) std::fabs(back.c[0][i] - pd.c[0][i]));
+        PenDrawing t; t.load(pd.save());
+        const auto w = voiceWav(v); WavData wd = parseWav(w.data(), w.size());
+        CHECK(v.mode == Mode::Waveform && err < 0.03 && std::fabs(t.c[1][5] - pd.c[1][5]) < 1e-3, "pen voice and back (%.3f)", err);
+        CHECK(wd.err.empty() && (int) wd.mono.size() == RAM_SIZE && wd.root == 60 && wd.loopStart == 96 * PAGE, "pen as a WAV: %s root %d loop %ld", wd.err.c_str(), wd.root, wd.loopStart);
     }
 
     // ---- a loaded sample goes through Page 8 ----

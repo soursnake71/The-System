@@ -48,6 +48,7 @@ void Screen::paint(juce::Graphics& g) {
         case '5': drawPen(g); break;
         case 'R': drawPresets(g); break;
         case 'E': drawEffects(g); break;
+        case 'K': drawKit(g); break;
         default: drawComposer(g); break;
     }
     // page index along the bottom
@@ -401,6 +402,7 @@ void Screen::drawMixer(juce::Graphics& g) {
     g.setColour(kInk); g.setFont(mono(17));
     g.drawText(juce::String("MIXER   ") + (s ? "SONG: " + juce::String(s->name).substring(0, 30) : juce::String("PAGE S PATTERNS")), 20, 58, 640, 20, juce::Justification::centredLeft);
     button(g, { 790, 56, 190, 22 }, "FX MIXER: E", false, [this] { page = 'E'; fxTab = 1; });
+    if (s) button(g, { 640, 56, 140, 22 }, "DRUM KIT", false, [this] { kitBack = 'M'; page = 'K'; });
     const int n = (int) strips.size() + 1;
     const float sw = std::min(80.f, (W - 40.f) / n), top = 90, fh = 360;
     float x = 20;
@@ -548,6 +550,119 @@ void Screen::fxPresetMenu() {
     }
     for (auto& c : order) m.addSubMenu(c, sub[c]);
     m.showMenuAsync(juce::PopupMenu::Options(), [this](int r) { if (r > 0) { ed.proc.engine.fx.preset(r - 1); status = "REV7: " + juce::String(Rev7Fx::spec().presets[(size_t) r - 1].name).toUpperCase(); repaint(); } });
+}
+
+// the record controls: REC (the selected track, from fromBeat, after a count-in), the click, the count-in, the
+// quantise for what's recorded, overdub or replace
+void Screen::recordRow(juce::Graphics& g, float x, float y, double fromBeat) {
+    auto& p = ed.proc;
+    const bool rec = p.recording.load(), clk = p.engine.clickOn.load();
+    const bool blink = rec && (juce::Time::getMillisecondCounter() / 400) % 2 == 0;
+    if (rec) { g.setColour(blink ? juce::Colours::white : kInk); g.fillRect(x, y, 60.f, 24.f); g.setColour(kBg); g.setFont(mono(17)); g.drawText("REC", juce::Rectangle<float>(x, y, 60, 24), juce::Justification::centred);
+               hit({ x, y, 60, 24 }, [this](const juce::MouseEvent&) { status = ed.proc.stopRecording(); geFor = nullptr; }); }
+    else button(g, { x, y, 60, 24 }, "REC", false, [this, fromBeat] { ed.proc.recFromBeat = fromBeat; status = ed.proc.startRecording(selTrack); });
+    button(g, { x + 64, y, 70, 24 }, "CLICK", clk, [this, clk] { ed.proc.engine.clickOn = !clk; });
+    button(g, { x + 138, y, 70, 24 }, "COUNT", p.recCountIn, [this] { ed.proc.recCountIn = !ed.proc.recCountIn; });
+    const double q = p.rec.quant;
+    button(g, { x + 212, y, 84, 24 }, q <= 0 ? "Q OFF" : q >= 0.5 ? "Q 1/8" : q >= 0.25 ? "Q 1/16" : "Q 1/32", q > 0, [this, q] { ed.proc.rec.quant = q <= 0 ? 0.5 : q >= 0.5 ? 0.25 : q >= 0.25 ? 0.125 : 0; });
+    button(g, { x + 300, y, 90, 24 }, p.rec.replace ? "REPLACE" : "OVERDUB", p.rec.replace, [this] { ed.proc.rec.replace = !ed.proc.rec.replace; });
+}
+
+// ---- the DRUM KIT (Page K): for the song's kit, each drum's sound, tuning, level, pan, mute and solo, with meters ----
+void Screen::kitVoiceMenu(int note) {
+    auto& p = ed.proc; auto& kit = p.kit;
+    juce::PopupMenu m;
+    m.addItem(1, "Automatic (the CMI drum map)");
+    {   // the voices loaded: drum disks first
+        juce::PopupMenu loaded; std::map<std::string, juce::PopupMenu> cats;
+        for (int i = 0; i < kit.bank.count.load(); ++i) { if (isBlank(kit, i)) continue; const Sound* s = kit.bank.at(i); if (s) cats[s->category].addItem(100 + i, juce::String(s->name)); }
+        for (auto& kv : cats) loaded.addSubMenu(kv.first, kv.second);
+        m.addSubMenu("Loaded voices", loaded);
+    }
+    {
+        const juce::ScopedLock l(p.catLock);
+        const auto& cv = p.catalog.voices;
+        if (!cv.empty()) {
+            std::map<std::string, juce::PopupMenu> byDisk; std::vector<std::string> drums, rest;
+            for (size_t i = 0; i < cv.size() && i < 9000; ++i) {
+                const std::string& d = cv[i].disk;
+                if (!byDisk.count(d)) { const bool dr = d.rfind("DRUM", 0) == 0 || d.rfind("CYMBAL", 0) == 0 || d.rfind("PERCUS", 0) == 0 || d.rfind("BIGME", 0) == 0 || d.rfind("BIGML", 0) == 0; (dr ? drums : rest).push_back(d); }
+                byDisk[d].addItem(20000 + (int) i, juce::String(cv[i].name));
+            }
+            juce::PopupMenu lib; for (auto& d : drums) lib.addSubMenu(d, byDisk[d]); lib.addSeparator(); for (auto& d : rest) lib.addSubMenu(d, byDisk[d]);
+            m.addSubMenu("CMI library (drum disks first)", lib);
+        }
+    }
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, note](int r) {
+        if (r == 1) ed.proc.setKitVoice(note, -1);
+        else if (r >= 20000) ed.proc.setKitCatalogVoice(note, r - 20000);
+        else if (r >= 100) ed.proc.setKitVoice(note, r - 100);
+        repaint();
+    });
+}
+
+void Screen::drawKit(juce::Graphics& g) {
+    auto& p = ed.proc; auto& eng = p.engine;
+    const MidiSong* s = eng.song.load();
+    g.setColour(kInk); g.setFont(mono(17));
+    if (!s) { g.drawText("DRUM KIT: load a song first (Page F), or REC NEW SONG on Page S.", 20, 58, W - 40, 20, juce::Justification::centredLeft); return; }
+    g.drawText("DRUM KIT   " + juce::String(s->name).substring(0, 28), 20, 58, 520, 20, juce::Justification::centredLeft);
+    button(g, { 520, 56, 120, 22 }, kitAll ? "ALL DRUMS" : "IN SONG", kitAll, [this] { kitAll = !kitAll; kitPage = 0; });
+    button(g, { 646, 56, 100, 22 }, "RESET", false, [this] { ed.proc.resetKit(); status = "KIT BACK TO THE CMI DRUM MAP"; });
+    button(g, { 752, 56, 110, 22 }, "PLAY", eng.songRun.load(), [this] { ed.proc.set("sync", 0.f); ed.proc.engine.songRun = !ed.proc.engine.songRun.load(); });
+    button(g, { 868, 56, 112, 22 }, "BACK", false, [this] { page = kitBack; });
+    const auto notes = p.kitNotes(kitAll);
+    if (notes.empty()) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("This song has no drum-kit track. Set a track's voice to the drum kit (VOICE... on Page S).", 20, 120, W - 40, 20, juce::Justification::centredLeft); return; }
+    constexpr int per = 15;
+    const int pages = ((int) notes.size() + per - 1) / per;
+    kitPage = juce::jlimit(0, pages - 1, kitPage);
+    const float sw = (W - 40.f) / per;
+    for (int k = 0; k < per && kitPage * per + k < (int) notes.size(); ++k) {
+        const int n = notes[(size_t) (kitPage * per + k)];
+        const KitPiece kp = p.kitPiece(n);
+        const float x = 20 + k * sw;
+        // the drum
+        g.setColour(kInk); g.setFont(mono(11));
+        g.drawText(juce::String(n), (int) x, 88, (int) sw - 4, 12, juce::Justification::centred);
+        g.drawFittedText(gmDrumName(n), (int) x, 100, (int) sw - 4, 24, juce::Justification::centredTop, 2);
+        // its sound: chosen, or what the drum map plays
+        juce::String vn; bool chosen = !kp.voice.empty();
+        if (chosen) vn = juce::String(kp.voice).upToFirstOccurrenceOf("@", false, false);
+        else { const int a = eng.kitVoice ? eng.kitVoice(n) : -1; const Sound* snd = a >= 0 ? p.kit.bank.at(a) : nullptr; vn = snd ? juce::String(snd->name) : juce::String("--"); }
+        juce::Rectangle<float> vb(x + 2, 126, sw - 6, 20);
+        if (chosen) { g.setColour(kInk); g.fillRect(vb); g.setColour(kBg); } else { g.setColour(kFaint); g.drawRect(vb, 1.f); g.setColour(kDim); }
+        g.setFont(mono(10)); g.drawText(vn.substring(0, 8), vb, juce::Justification::centred);
+        hit(vb, [this, n](const juce::MouseEvent&) { kitVoiceMenu(n); });
+        // the pad
+        juce::Rectangle<float> pad(x + 4, 150, sw - 10, 28);
+        const float km = juce::jlimit(0.f, 1.f, eng.kitMeter[(size_t) n].load() * 2);
+        g.setColour(kInk.withAlpha(0.25f + 0.75f * km)); g.fillRoundedRectangle(pad, 3.f);
+        g.setColour(kBg); g.setFont(mono(11)); g.drawText("PLAY", pad, juce::Justification::centred);
+        hit(pad, [this, n](const juce::MouseEvent&) { ed.proc.auditionKit(n); });
+        // tune
+        g.setColour(kInk); g.setFont(mono(11));
+        g.drawText((kp.tune > 0 ? "+" : "") + juce::String((int) kp.tune), (int) x, 182, (int) sw - 4, 14, juce::Justification::centred);
+        button(g, { x + 1, 182, 16, 14 }, "-", false, [this, n] { KitPiece q = ed.proc.kitPiece(n); q.tune = std::max(-24.f, q.tune - 1); ed.proc.setKitPiece(n, q); ed.proc.auditionKit(n); });
+        button(g, { x + sw - 20, 182, 16, 14 }, "+", false, [this, n] { KitPiece q = ed.proc.kitPiece(n); q.tune = std::min(24.f, q.tune + 1); ed.proc.setKitPiece(n, q); ed.proc.auditionKit(n); });
+        // level
+        vFader(g, x, sw, 198, 250, "", 2.f, [this, n] { return ed.proc.kitPiece(n).level; }, [this, n](float v) { KitPiece q = ed.proc.kitPiece(n); q.level = v; ed.proc.setKitPiece(n, q); }, km, true);
+        // pan, mute, solo
+        const float py = 198 + 250 + 40;
+        g.setColour(kFaint); g.fillRect(x + 3, py, sw - 8, 8.f);
+        g.setColour(kp.pan < 0 ? kDim : kInk); g.fillRect(x + 3 + (sw - 12) * (kp.pan < 0 ? 0.5f : kp.pan), py - 2, 4.f, 12.f);
+        auto pan = [this, n, x, sw](const juce::MouseEvent& m) { KitPiece q = ed.proc.kitPiece(n); q.pan = m.getNumberOfClicks() > 1 ? -1.f : juce::jlimit(0.f, 1.f, (m.position.x - x - 3) / (sw - 12)); ed.proc.setKitPiece(n, q); };
+        hit({ x, py - 4, sw - 2, 16 }, pan, pan);
+        button(g, { x + 1, py + 16, sw / 2 - 2, 20 }, "M", kp.mute, [this, n] { KitPiece q = ed.proc.kitPiece(n); q.mute = !q.mute; ed.proc.setKitPiece(n, q); });
+        button(g, { x + sw / 2, py + 16, sw / 2 - 3, 20 }, "S", kp.solo, [this, n] { KitPiece q = ed.proc.kitPiece(n); q.solo = !q.solo; ed.proc.setKitPiece(n, q); });
+    }
+    const float y = (float) H - 58;
+    if (pages > 1) {
+        button(g, { 20, y, 40, 22 }, "<", false, [this] { kitPage = std::max(0, kitPage - 1); });
+        g.setColour(kInk); g.setFont(mono(14)); g.drawText(juce::String(kitPage + 1) + "/" + juce::String(pages), 64, (int) y, 60, 22, juce::Justification::centred);
+        button(g, { 128, y, 40, 22 }, ">", false, [this, pages] { kitPage = std::min(pages - 1, kitPage + 1); });
+    }
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText("click a sound to choose it (the CMI library, drum disks first); PLAY to hear it; double-click pan for the track's. Kept with the song.", 180, (int) y, W - 200, 22, juce::Justification::centredLeft);
 }
 
 // ---- Page F: the library folder ----
@@ -721,42 +836,63 @@ void Screen::drawFiles(juce::Graphics& g) {
 }
 
 // ---- Page 5: drawing with the light pen ----
+// ---- Page 5: the light pen. Draw the start and the end cycle of a waveform voice; it morphs from one to the other.
+// LIVE: every stroke goes straight to the PEN voice, which the keyboard and MIDI in play, so you hear it as you draw.
 void Screen::drawPen(juce::Graphics& g) {
-    g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("LIGHT PEN: DRAW THE START AND THE END WAVEFORM; THE VOICE MORPHS FROM ONE TO THE OTHER", 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    auto& p = ed.proc; auto& pen = p.pen;
+    g.setColour(kInk); g.setFont(mono(16));
+    g.drawText("LIGHT PEN: DRAW THE START AND THE END; THE VOICE MORPHS FROM ONE TO THE OTHER", 20, 58, 760, 20, juce::Justification::centredLeft);
+    button(g, { 860, 56, 120, 22 }, p.penLive ? "LIVE: ON" : "LIVE: OFF", p.penLive, [this] { ed.proc.penLive = !ed.proc.penLive; if (ed.proc.penLive) ed.proc.penChanged(); });
+    static double lastLive = 0;
     for (int b = 0; b < 2; ++b) {
-        const juce::Rectangle<float> r(20.f + b * 490.f, 100, 470, 300);
+        const juce::Rectangle<float> r(20.f + b * 490.f, 92, 470, 290);
         g.setColour(b == penBox ? kInk : kDim); g.drawRect(r, b == penBox ? 2.f : 1.f);
         g.setColour(kFaint); g.drawHorizontalLine((int) r.getCentreY(), r.getX(), r.getRight());
+        for (int q = 1; q < 4; ++q) g.drawVerticalLine((int) (r.getX() + r.getWidth() * q / 4), r.getY(), r.getBottom());
         g.setFont(mono(14)); g.setColour(kDim); g.drawText(b ? "END" : "START", (int) r.getX() + 6, (int) r.getY() + 4, 80, 16, juce::Justification::centredLeft);
         juce::Path path;
-        for (int i = 0; i < 128; ++i) { const float x = r.getX() + r.getWidth() * i / 127.f, y = r.getCentreY() - cycle[b][i] * r.getHeight() * 0.48f; if (i == 0) path.startNewSubPath(x, y); else path.lineTo(x, y); }
+        for (int i = 0; i < PAGE; ++i) { const float x = r.getX() + r.getWidth() * i / (PAGE - 1.f), y = r.getCentreY() - pen.c[b][i] * r.getHeight() * 0.48f; if (i == 0) path.startNewSubPath(x, y); else path.lineTo(x, y); }
         g.setColour(kInk); g.strokePath(path, juce::PathStrokeType(2.f));
         auto draw = [this, b, r](const juce::MouseEvent& m) {
             penBox = b;
-            const int px = juce::jlimit(0, 127, (int) std::lround((m.position.x - r.getX()) / r.getWidth() * 127));
+            const int px = juce::jlimit(0, PAGE - 1, (int) std::lround((m.position.x - r.getX()) / r.getWidth() * (PAGE - 1)));
             const float pv = juce::jlimit(-1.f, 1.f, (r.getCentreY() - m.position.y) / (r.getHeight() * 0.48f));
-            if (lastPx < 0 || m.mouseWasClicked()) { cycle[b][px] = pv; }
-            else { const int a = std::min(lastPx, px), c = std::max(lastPx, px); for (int i = a; i <= c; ++i) cycle[b][i] = c == a ? pv : lastPv + (pv - lastPv) * (float) (i - lastPx) / (float) (px - lastPx); }
+            ed.proc.pen.line(b, lastPx < 0 ? px : lastPx, lastPx < 0 ? pv : lastPv, px, pv);
             lastPx = px; lastPv = pv;
+            const double now = juce::Time::getMillisecondCounterHiRes();
+            if (now - lastLive > 120) { lastLive = now; ed.proc.penChanged(); }   // hear it while drawing
         };
         auto& h = hit(r, [this, draw](const juce::MouseEvent& m) { lastPx = -1; draw(m); }, draw);
-        h.up = [this](const juce::MouseEvent&) { lastPx = -1; if (ed.proc.lastDrawn >= 0) ed.proc.saveDrawnVoice(cycle[0], cycle[1], false); };
+        h.up = [this](const juce::MouseEvent&) { lastPx = -1; ed.proc.penChanged(); };
     }
-    auto shape = [this](int kind) {
-        for (int i = 0; i < 128; ++i) {
-            const float ph = i / 128.f;
-            float v = kind == 0 ? std::sin(2 * (float) PI * ph) : kind == 1 ? 1 - 2 * ph : kind == 2 ? (ph < 0.5f ? 1.f : -1.f) : kind == 3 ? (ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph) : 0.f;
-            if (kind == 4) v = (float) (std::rand() % 2001 - 1000) / 1000.f;
-            cycle[penBox][i] = v;
-        }
-    };
-    const char* names[] = { "SINE", "SAW", "SQUARE", "TRIANGLE", "NOISE", "CLEAR" };
-    for (int k = 0; k < 6; ++k) button(g, { 20.f + k * 120, 412, 110, 24 }, names[k], false, [shape, k] { shape(k); });
-    button(g, { 740, 412, 240, 24 }, "COPY START TO END", false, [this] { std::copy(cycle[0], cycle[0] + 128, cycle[1]); });
-    button(g, { 20, 450, 300, 26 }, "SAVE AS A NEW VOICE", false, [this] { const auto e = ed.proc.saveDrawnVoice(cycle[0], cycle[1], true); status = e.isEmpty() ? "DRAWN VOICE ON THE KEYBOARD" : e; });
-    g.setColour(kDim); g.setFont(mono(13));
-    g.drawText("After saving, every stroke updates that voice: draw and play at the same time.", 340, 452, 640, 22, juce::Justification::centredLeft);
+    // the morph: eight steps from the start to the end
+    for (int k = 0; k < 8; ++k) {
+        const juce::Rectangle<float> r(20.f + k * 120.f, 390, 110, 34);
+        g.setColour(kFaint); g.drawRect(r, 1.f);
+        juce::Path path; const float u = k / 7.f;
+        for (int i = 0; i < PAGE; i += 2) { const float v = pen.c[0][i] * (1 - u) + pen.c[1][i] * u; const float x = r.getX() + r.getWidth() * i / (PAGE - 1.f), y = r.getCentreY() - v * r.getHeight() * 0.45f; if (i == 0) path.startNewSubPath(x, y); else path.lineTo(x, y); }
+        g.setColour(kDim); g.strokePath(path, juce::PathStrokeType(1.f));
+    }
+    const int bx = penBox;
+    auto act = [this](std::function<void()> f) { return [this, f] { f(); ed.proc.penChanged(); }; };
+    const char* names[8] = { "SINE", "SAW", "SQUARE", "TRIANGLE", "PULSE", "ORGAN", "NOISE", "CLEAR" };
+    const int kinds[8] = { 0, 1, 2, 3, 6, 7, 4, 5 };
+    for (int k = 0; k < 8; ++k) { const int kind = kinds[k]; button(g, { 20.f + k * 120, 432, 110, 22 }, names[k], false, act([this, bx, kind] { ed.proc.pen.shape(bx, kind, (uint32_t) juce::Time::getMillisecondCounter()); })); }
+    button(g, { 20, 460, 110, 22 }, "SMOOTH", false, act([this, bx] { ed.proc.pen.smooth(bx); }));
+    button(g, { 140, 460, 110, 22 }, "FULL", false, act([this, bx] { ed.proc.pen.normalise(bx); }));
+    button(g, { 260, 460, 110, 22 }, "INVERT", false, act([this, bx] { ed.proc.pen.invert(bx); }));
+    button(g, { 380, 460, 110, 22 }, "REVERSE", false, act([this, bx] { ed.proc.pen.reverse(bx); }));
+    button(g, { 500, 460, 230, 22 }, bx == 0 ? "COPY START TO END" : "COPY END TO START", false, act([this, bx] { ed.proc.pen.copy(bx, 1 - bx); }));
+    button(g, { 740, 460, 240, 22 }, "FROM KEYBOARD VOICE", false, [this] { if (ed.proc.penFrom(juce::roundToInt(ed.proc.get("sound")))) { status = "THE KEYBOARD'S VOICE IS ON THE PEN"; ed.proc.penChanged(); } else status = "NO VOICE ON THE KEYBOARD"; });
+    // save
+    button(g, { 20, 494, 240, 26 }, "SAVE AS A VOICE", false, [this] { status = ed.proc.penSaveAs(); });
+    button(g, { 270, 494, 240, 26 }, "EXPORT WAV...", false, [this] {
+        ed.chooser = std::make_unique<juce::FileChooser>("Save the drawn voice as a WAV (it loops, root C3)", juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile("PEN.wav"), "*.wav");
+        ed.chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting, [this](const juce::FileChooser& fc) {
+            const auto f = fc.getResult(); if (f != juce::File()) { status = ed.proc.penExport(f.withFileExtension("wav")); repaint(); } });
+    });
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText(p.penSlot >= 0 ? "PEN = voice " + juce::String(p.penSlot + 1) + ": the keys and MIDI play it" : "Draw: the keys and MIDI play it", 520, 494, 460, 26, juce::Justification::centredLeft);
 }
 
 void Screen::drawSampling(juce::Graphics& g) {
@@ -1096,10 +1232,8 @@ void Screen::gridPage(juce::Graphics& g) {
         { "VEL-", op([this] { ge.velocity(selTrack, -10); }, "SOFTER") }, { "VEL+", op([this] { ge.velocity(selTrack, 10); }, "LOUDER") },
     };
     for (size_t k = 0; k < bs.size(); ++k) button(g, { 20.f + k * 68.5f, by, 64, 22 }, bs[k].t, false, bs[k].f);
-    g.setColour(kDim); g.setFont(mono(11));
     const int ns = ge.selected();
-    g.drawText((ns ? juce::String(ns) + " SELECTED" : juce::String("NONE SELECTED: EDITS APPLY TO THE TRACK")), 390, H - 60, 380, 12, juce::Justification::centredLeft);
-    g.drawText("keys: Del  Ctrl+Z/A/C/V/D  arrows (shift: octave)  D/S/E tools", 390, H - 47, 380, 12, juce::Justification::centredLeft);
+    if (ns) { g.setColour(juce::Colours::white); g.setFont(mono(11)); g.drawText(juce::String(ns) + " SELECTED", 830, 196, 150, 14, juce::Justification::centredRight); }
 }
 
 bool Screen::keyPressed(const juce::KeyPress& k) {
@@ -1157,8 +1291,9 @@ void Screen::drawMidiSong(juce::Graphics& g) {
         const float by2 = (float) H - 60;
         const bool running = eng.songRun.load();
         button(g, { 28, by2, 100, 24 }, "PLAY", running && !ext, [this, &eng] { ed.proc.set("sync", 0.f); eng.songRun = true; });
-        button(g, { 140, by2, 100, 24 }, "STOP", !running, [&eng] { eng.songRun = false; });
+        button(g, { 140, by2, 100, 24 }, "STOP", !running, [this, &eng] { if (ed.proc.recording.load()) { status = ed.proc.stopRecording(); geFor = nullptr; } eng.songRun = false; });
         button(g, { 252, by2, 120, 24 }, "FROM VIEW", false, [this, &eng] { (void) eng; status = "PLAY FROM BAR " + juce::String(1 + (int) (viewStart / 4)); ed.proc.set("sync", 0.f); ed.proc.playSongFrom(viewStart); });
+        if (!ext) { const MidiSong* sg = eng.song.load(); const double bb = sg ? sg->num * 4.0 / std::max(1, sg->den) : 4.0; recordRow(g, 380, by2, std::max(0.0, std::floor(viewStart / bb) * bb)); }
         button(g, { 775, by2, 195, 24 }, "PAGE S PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
         return;
     }
@@ -1213,8 +1348,9 @@ void Screen::drawMidiSong(juce::Graphics& g) {
             else { autoSongVoices(*entry->song, ed.proc.kit.bank, entry->voice, entry->why); ed.proc.chooseSong(ed.proc.currentSong()); status = "SET A LIBRARY FOLDER (PAGE F) FOR THE ORIGINAL VOICES"; }
         });
         button(g, { 468, by, 130, 22 }, "EDIT GRID", false, [this] { songGrid = true; });
+        button(g, { 608, by, 130, 22 }, "DRUM KIT", false, [this] { kitBack = 'S'; page = 'K'; });
         g.setColour(kDim); g.setFont(mono(12));
-        g.drawText(juce::String(entry->why[selTrack]).substring(0, 48), 610, (int) by, 360, 22, juce::Justification::centredLeft);
+        g.drawText(juce::String(entry->why[selTrack]).substring(0, 30), 744, (int) by, 236, 22, juce::Justification::centredLeft);
     } else {
         button(g, { 28, by, 110, 22 }, "UNDO", false, [this, entry] { if (undoSong(ed.proc.engine, entry)) status = "UNDONE"; });
         const char* sn = snap >= 1 ? "1/4" : snap >= 0.5 ? "1/8" : snap >= 0.25 ? "1/16" : "1/32";
@@ -1236,9 +1372,9 @@ void Screen::drawMidiSong(juce::Graphics& g) {
     const float by2 = (float) H - 60;
     const bool running = eng.songRun.load();
     button(g, { 28, by2, 100, 24 }, "PLAY", running && !ext, [this, &eng] { ed.proc.set("sync", 0.f); eng.songRun = true; });
-    button(g, { 140, by2, 100, 24 }, "STOP", !running, [&eng] { eng.songRun = false; });
+    button(g, { 140, by2, 100, 24 }, "STOP", !running, [this, &eng] { if (ed.proc.recording.load()) { status = ed.proc.stopRecording(); geFor = nullptr; } eng.songRun = false; });
     if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
-    else if (songGrid) { g.setColour(kDim); g.setFont(mono(12)); g.drawText("click add, drag move, drag end lengthen, right-click delete, double-click loud/soft", 250, (int) by2, 520, 24, juce::Justification::centredLeft); }
+    else recordRow(g, 252, by2, 0);
     button(g, { 775, by2, 195, 24 }, "PAGE S PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
 }
 
@@ -1372,6 +1508,7 @@ void Screen::drawComposer(juce::Graphics& g) {
     button(g, { 655, by2, 110, 24 }, "PATTERN", !songEditor, [this] { songEditor = false; });
     button(g, { 775, by2, 90, 24 }, "SONG", songEditor, [this] { songEditor = true; });
     button(g, { 875, by2, 95, 24 }, "MIDI...", false, [this] { songMenu(); });
+    button(g, { 252, by2, 150, 24 }, "REC NEW SONG", false, [this] { ed.proc.recFromBeat = 0; selTrack = 0; status = ed.proc.startRecording(0); });
     button(g, { 655, (float) H - 122, 150, 24 }, "EXPORT WAV", false, [this] { exportMenu(); });
     if (ext) { g.setColour(kDim); g.setFont(mono(14)); g.drawText("follows the host's transport", 260, (int) by2, 290, 24, juce::Justification::centredLeft); }
 }

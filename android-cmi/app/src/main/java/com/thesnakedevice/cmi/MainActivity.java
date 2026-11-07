@@ -49,6 +49,8 @@ public class MainActivity extends Activity {
         Native.setRemembered(getSharedPreferences("cmi", MODE_PRIVATE).getString("remembered", ""));
         Native.setPresetChoices(getSharedPreferences("cmi", MODE_PRIVATE).getString("presets", ""));
         { String fx = getSharedPreferences("cmi", MODE_PRIVATE).getString("fx", ""); if (!fx.isEmpty()) Native.setFxState(fx); }
+        { String pn = getSharedPreferences("cmi", MODE_PRIVATE).getString("pen", ""); if (!pn.isEmpty()) Native.setPenState(pn); }
+        Native.setClick(getSharedPreferences("cmi", MODE_PRIVATE).getBoolean("click", false));
         view = new CmiView(this);
         rescanLibrary();
         rescanSongs();
@@ -81,7 +83,7 @@ public class MainActivity extends Activity {
     // ---- state ----
     private File stateFile() { return new File(getFilesDir(), "cmi-state.bin"); }
     void saveState() {
-        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).putString("fx", Native.fxState()).apply(); } catch (Exception ignored) {}
+        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).putString("fx", Native.fxState()).putString("pen", Native.penState()).putBoolean("click", Native.clickOn()).apply(); } catch (Exception ignored) {}
         try (FileOutputStream o = new FileOutputStream(stateFile())) { o.write(Native.saveState()); } catch (Exception ignored) {}
     }
     private void loadState() {
@@ -122,12 +124,13 @@ public class MainActivity extends Activity {
     }
 
     // ---- Page 8: your own sounds, one file, many files or a whole folder ----
-    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43, SAVE_WAV = 44, SAVE_STEMS = 45, SAVE_MIDI = 46;
+    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43, SAVE_WAV = 44, SAVE_STEMS = 45, SAVE_MIDI = 46, SAVE_PEN = 47;
 
     // ---- exports: 0 the song (or Page R) as WAV, 1 stems into a folder, 2 the song as MIDI ----
     void export(int what) {
         String name = Native.currentSong() >= 0 ? Native.songInfo().split("\\t", -1)[0] : "PAGE S";
         if (what == 1) { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), SAVE_STEMS); return; }
+        if (what == 3) { Intent p = new Intent(Intent.ACTION_CREATE_DOCUMENT); p.addCategory(Intent.CATEGORY_OPENABLE); p.setType("audio/wav"); p.putExtra(Intent.EXTRA_TITLE, "PEN.wav"); startActivityForResult(p, SAVE_PEN); return; }
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType(what == 2 ? "audio/midi" : "audio/wav");
@@ -147,7 +150,8 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             String msg;
             try {
-                if (req == SAVE_WAV) msg = Native.exportSongWav(fdFor(uri), -1);
+                if (req == SAVE_PEN) msg = Native.penExportWav(fdFor(uri));
+                else if (req == SAVE_WAV) msg = Native.exportSongWav(fdFor(uri), -1);
                 else if (req == SAVE_MIDI) msg = Native.exportSongMidi(fdFor(uri));
                 else {
                     String base = Native.songInfo().split("\\t", -1)[0];
@@ -182,7 +186,7 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null) return;
-        if (req == SAVE_WAV || req == SAVE_MIDI || req == SAVE_STEMS) { exportResult(req, data); return; }
+        if (req == SAVE_WAV || req == SAVE_MIDI || req == SAVE_STEMS || req == SAVE_PEN) { exportResult(req, data); return; }
         if (req == PICK_SONGS && data.getData() != null) {
             final Uri tree = data.getData();
             try { getContentResolver().takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}

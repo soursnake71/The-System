@@ -12,6 +12,8 @@
 #include "Catalog.h"
 #include "Factory.h"
 #include "GridEdit.h"
+#include "Record.h"
+#include "Pen.h"
 #include <map>
 #include <sstream>
 
@@ -66,9 +68,14 @@ struct App {
         if (v < 0) return false;
         loadSound(v); curPreset = n; return true;
     }
+    // the light pen and the recorder (core/Pen.h, core/Record.h)
+    PenDrawing pen; int penSlot = -1; bool penLive = true;
+    Recorder recorder;
     void connectDefaults() {
         std::lock_guard<std::mutex> g(catLock);
         rebuildPresets();
+        for (int i = 0; i < songs.size(); ++i) if (SongEntry* e = songs.at(i)) if (!e->kit.empty()) loadKitVoices(e->kit, kit, catalog);   // the kits' chosen voices
+        if (SongEntry* e = songs.at(songs.indexOf(engine.song.load()))) applyKit(engine, e->kit);
         connectPageR(engine.seq, kit, catalog);
         if (isBlank(kit, sound.load())) {
             int v = -1;
@@ -683,7 +690,88 @@ FN(void, setRemembered)(JNIEnv* env, jclass, jstring text) {
         std::istringstream ts(line.substr(bar + 1)); std::string tok;
         while (std::getline(ts, tok, ';')) { const size_t eq = tok.find('='); if (eq != std::string::npos) m[std::atoi(tok.substr(0, eq).c_str())] = tok.substr(eq + 1); }
     }
+    // the songs' kits as you left them
+    auto* a = app();
+    for (int i = 0; i < a->songs.size(); ++i) if (SongEntry* e = a->songs.at(i)) { auto it = a->remembered.find(songKey(e->song->name)); if (it != a->remembered.end() && it->second.count(-1)) e->kit.load(it->second[-1]); }
+    if (SongEntry* e = a->songs.at(a->songs.indexOf(a->engine.song.load()))) applyKit(a->engine, e->kit);
 }
+
+// ---- the drum kit (the selected song's): each GM drum's voice, level, pan, tune, mute, solo ----
+static SongEntry* curEntry() { return app()->songs.at(curSongIdx()); }
+static void kitChanged(SongEntry* e) { applyKit(app()->engine, e->kit); app()->remembered[songKey(e->song->name)][-1] = e->kit.save(); }
+FN(jintArray, kitNotes)(JNIEnv* env, jclass, jboolean all) {
+    std::vector<jint> o;
+    if (all) { for (int n = 35; n <= 81; ++n) o.push_back(n); }
+    else if (SongEntry* e = curEntry()) for (int n : kitNotesOf(*e)) o.push_back(n);
+    jintArray r = env->NewIntArray((jsize) o.size()); env->SetIntArrayRegion(r, 0, (jsize) o.size(), o.data()); return r;
+}
+// voice (chosen, or "" ), level, pan, tune, mute, solo, the voice playing it, the GM name
+FN(jstring, kitPiece)(JNIEnv* env, jclass, jint n) {
+    SongEntry* e = curEntry(); if (!e || n < 0 || n > 127) return env->NewStringUTF("");
+    const KitPiece& k = e->kit.p[(size_t) n]; auto& eng = app()->engine;
+    int v = eng.kitSound[(size_t) n].load(); if (v < 0 && eng.kitVoice) v = eng.kitVoice(n);
+    const Sound* snd = v >= 0 ? app()->kit.bank.at(v) : nullptr;
+    std::ostringstream o; o << k.voice << "\t" << k.level << "\t" << k.pan << "\t" << k.tune << "\t" << (k.mute ? 1 : 0) << "\t" << (k.solo ? 1 : 0) << "\t" << (snd ? snd->name : "--") << "\t" << gmDrumName(n);
+    return env->NewStringUTF(o.str().c_str());
+}
+FN(void, setKitPiece)(JNIEnv*, jclass, jint n, jfloat level, jfloat pan, jfloat tune, jboolean mute, jboolean solo) {
+    SongEntry* e = curEntry(); if (!e || n < 0 || n > 127) return;
+    KitPiece& k = e->kit.p[(size_t) n]; k.level = std::clamp(level, 0.f, 2.f); k.pan = pan; k.tune = std::clamp(tune, -24.f, 24.f); k.mute = mute; k.solo = solo;
+    kitChanged(e);
+}
+static void auditionKitNote(int n) { for (int t = 0; t < SONG_TRK; ++t) if (app()->engine.songVoice[t] == GM_KIT) { Cmd c {}; c.type = C_AUDITION; c.a = (t << 8) | (n & 0x7F); app()->push(c); return; } }
+FN(void, setKitVoice)(JNIEnv*, jclass, jint n, jint v) {
+    SongEntry* e = curEntry(); if (!e || n < 0 || n > 127) return;
+    const Sound* s = v >= 0 && !isBlank(app()->kit, v) ? app()->kit.bank.at(v) : nullptr;
+    e->kit.p[(size_t) n].voice = s ? s->name + "@" + s->category : std::string();
+    kitChanged(e); auditionKitNote(n);
+}
+FN(void, setKitCatalogVoice)(JNIEnv*, jclass, jint n, jint ci) {
+    int v; { std::lock_guard<std::mutex> g(app()->catLock); v = loadCatalogVoice(app()->kit, app()->catalog, ci); }
+    if (v < 0) return;
+    SongEntry* e = curEntry(); if (!e || n < 0 || n > 127) return;
+    const Sound* s = app()->kit.bank.at(v); e->kit.p[(size_t) n].voice = s ? s->name + "@" + s->category : std::string();
+    kitChanged(e); auditionKitNote(n);
+}
+FN(void, auditionKit)(JNIEnv*, jclass, jint n) { auditionKitNote(n); }
+FN(void, resetKit)(JNIEnv*, jclass) { SongEntry* e = curEntry(); if (!e) return; e->kit = DrumKit(); kitChanged(e); }
+FN(jfloat, kitMeter)(JNIEnv*, jclass, jint n) { return n >= 0 && n < 128 ? app()->engine.kitMeter[(size_t) n].load() : 0.f; }
+
+// ---- recording (core/Record.h): the keyboard and MIDI in onto the selected track, a count-in, the click ----
+FN(jstring, recStart)(JNIEnv* env, jclass, jint track, jdouble from, jboolean countIn, jdouble quant, jboolean replace) {
+    auto* a = app();
+    if (curSongIdx() < 0) Recorder::newSong(a->songs, a->engine, a->kit.bank, a->param[20].load());
+    a->recorder.countIn = countIn; a->recorder.rs.quant = quant; a->recorder.rs.replace = replace;
+    return env->NewStringUTF(a->recorder.start(a->engine, curEntry(), track, from).c_str());
+}
+FN(void, recPoll)(JNIEnv*, jclass) { if (app()->recorder.on.load()) app()->recorder.poll(app()->engine); }
+FN(jstring, recStop)(JNIEnv* env, jclass) { return env->NewStringUTF(app()->recorder.stop(app()->engine, curEntry()).c_str()); }
+FN(jboolean, recording)(JNIEnv*, jclass) { return app()->recorder.on.load(); }
+FN(jboolean, clickOn)(JNIEnv*, jclass) { return app()->engine.clickOn.load(); }
+FN(void, setClick)(JNIEnv*, jclass, jboolean on) { app()->engine.clickOn = on; }
+
+// ---- the light pen (core/Pen.h): the drawing, its tools, the live PEN voice, saving ----
+FN(jfloatArray, penGet)(JNIEnv* env, jclass) { jfloatArray r = env->NewFloatArray(2 * PAGE); env->SetFloatArrayRegion(r, 0, PAGE, app()->pen.c[0]); env->SetFloatArrayRegion(r, PAGE, PAGE, app()->pen.c[1]); return r; }
+FN(void, penLine)(JNIEnv*, jclass, jint box, jint x0, jfloat v0, jint x1, jfloat v1) { app()->pen.line(box, x0, v0, x1, v1); }
+// ops: 0..7 a shape (sine, saw, square, triangle, noise, clear, pulse, organ), 10 smooth, 11 full, 12 invert, 13 reverse, 14 copy to the other
+FN(void, penOp)(JNIEnv*, jclass, jint box, jint op) {
+    auto& p = app()->pen;
+    if (op >= 0 && op <= 7) p.shape(box, op, (uint32_t) std::rand()); else if (op == 10) p.smooth(box); else if (op == 11) p.normalise(box);
+    else if (op == 12) p.invert(box); else if (op == 13) p.reverse(box); else if (op == 14) p.copy(box, 1 - box);
+}
+FN(void, penLive)(JNIEnv*, jclass) { auto* a = app(); if (!a->penLive) return; a->penSlot = penToSlot(a->kit, a->pen, a->penSlot); if (a->penSlot >= 0) a->loadSound(a->kit.userSlot(a->penSlot)); }
+FN(jboolean, penIsLive)(JNIEnv*, jclass) { return app()->penLive; }
+FN(void, setPenLive)(JNIEnv*, jclass, jboolean on) { app()->penLive = on; }
+FN(jint, penSlotNow)(JNIEnv*, jclass) { return app()->penSlot; }
+FN(jstring, penSaveAs)(JNIEnv* env, jclass) { std::string nm; const int slot = penSaveAs(app()->kit, app()->pen, nm); return env->NewStringUTF(slot < 0 ? "USER VOICES FULL" : (nm + " SAVED (VOICE " + std::to_string(slot + 1) + ")").c_str()); }
+FN(jboolean, penFromKeyboard)(JNIEnv*, jclass) { auto* a = app(); const int v = a->sound.load(); const Sound* s = a->kit.bank.at(v); if (!s || isBlank(a->kit, v)) return false; return a->pen.fromSound(*s); }
+FN(jstring, penExportWav)(JNIEnv* env, jclass, jint fd) {
+    const auto b = voiceWav(app()->pen.voice("PEN"));
+    const bool ok = writeAll(fd, b.data(), b.size()); ::close(fd);
+    return env->NewStringUTF(ok ? "EXPORTED" : "CAN'T WRITE THE FILE");
+}
+FN(jstring, penState)(JNIEnv* env, jclass) { return env->NewStringUTF(app()->pen.save().c_str()); }
+FN(void, setPenState)(JNIEnv* env, jclass, jstring t) { const char* c = env->GetStringUTFChars(t, nullptr); app()->pen.load(c); env->ReleaseStringUTFChars(t, c); }
 
 // a song file's place in the song list if it's loaded (by title, as duplicates are told apart), else -1
 FN(jint, songLoadedAs)(JNIEnv* env, jclass, jstring fileBase) {

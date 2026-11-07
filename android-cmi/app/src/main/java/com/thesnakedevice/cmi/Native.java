@@ -98,6 +98,37 @@ final class Native {
     static native int[] gridOp(int[] notes, boolean[] sel, int track, int op, float a, float b, float c, float d, boolean e);
     static native int clipboardSize();
     static native void songPlayFrom(double beat);
+
+    // the drum kit of the selected song
+    static native int[] kitNotes(boolean all);
+    /** voice chosen (or ""), level, pan, tune, mute, solo, voice playing it, GM name (tab separated) */
+    static native String kitPiece(int note);
+    static native void setKitPiece(int note, float level, float pan, float tune, boolean mute, boolean solo);
+    static native void setKitVoice(int note, int sound);
+    static native void setKitCatalogVoice(int note, int catIndex);
+    static native void auditionKit(int note);
+    static native void resetKit();
+    static native float kitMeter(int note);
+    // recording
+    static native String recStart(int track, double from, boolean countIn, double quant, boolean replace);
+    static native void recPoll();
+    static native String recStop();
+    static native boolean recording();
+    static native boolean clickOn();
+    static native void setClick(boolean on);
+    // the light pen
+    static native float[] penGet();
+    static native void penLine(int box, int x0, float v0, int x1, float v1);
+    static native void penOp(int box, int op);
+    static native void penLive();
+    static native boolean penIsLive();
+    static native void setPenLive(boolean on);
+    static native int penSlotNow();
+    static native String penSaveAs();
+    static native boolean penFromKeyboard();
+    static native String penExportWav(int fd);
+    static native String penState();
+    static native void setPenState(String s);
     static native void newSong();
     static native String songWhy(int t);
 

@@ -246,6 +246,59 @@ void CmiProcessor::rescanLibrary() {
     connectDefaults();
 }
 
+// ---- the drum kit ----
+std::vector<int> CmiProcessor::kitNotes(bool all) const {
+    if (all) { std::vector<int> o; for (int n = 35; n <= 81; ++n) o.push_back(n); return o; }
+    const SongEntry* e = songs.at(currentSong()); if (!e) return {};
+    return kitNotesOf(*e);
+}
+KitPiece CmiProcessor::kitPiece(int note) const { const SongEntry* e = songs.at(currentSong()); return e && note >= 0 && note < 128 ? e->kit.p[(size_t) note] : KitPiece(); }
+void CmiProcessor::setKitPiece(int note, const KitPiece& p) {
+    SongEntry* e = songs.at(currentSong()); if (!e || note < 0 || note > 127) return;
+    e->kit.p[(size_t) note] = p;
+    applyKit(engine, e->kit);
+    remember(*e->song, -1, e->kit.save());
+}
+void CmiProcessor::setKitVoice(int note, int v) {
+    KitPiece p = kitPiece(note);
+    const Sound* s = v >= 0 && !isBlank(kit, v) ? kit.bank.at(v) : nullptr;
+    p.voice = s ? s->name + "@" + s->category : std::string();
+    setKitPiece(note, p); auditionKit(note);
+}
+void CmiProcessor::setKitCatalogVoice(int note, int ci) {
+    int v; { const juce::ScopedLock l(catLock); v = cmi::loadCatalogVoice(kit, catalog, ci); }
+    if (v >= 0) setKitVoice(note, v);
+}
+void CmiProcessor::auditionKit(int note) {
+    for (int t = 0; t < SONG_TRK; ++t) if (engine.songVoice[t] == GM_KIT) { audition(t, note); return; }
+}
+void CmiProcessor::resetKit() { SongEntry* e = songs.at(currentSong()); if (!e) return; e->kit = DrumKit(); applyKit(engine, e->kit); remember(*e->song, -1, ""); }
+
+// ---- recording: the keyboard (and MIDI in) onto a song track, with a count-in and the click ----
+juce::String CmiProcessor::startRecording(int track) {
+    if (currentSong() < 0) Recorder::newSong(songs, engine, kit.bank, get("tempo"));
+    set("sync", 0.f);
+    return recorder.start(engine, songs.at(currentSong()), track, recFromBeat);
+}
+void CmiProcessor::pollRecording() { recorder.poll(engine); }
+juce::String CmiProcessor::stopRecording() { return recorder.stop(engine, songs.at(currentSong())); }
+
+// ---- the light pen ----
+void CmiProcessor::penChanged() {
+    if (!penLive) return;
+    penSlot = penToSlot(kit, pen, penSlot);
+    if (penSlot >= 0) loadSound(kit.userSlot(penSlot));
+}
+juce::String CmiProcessor::penSaveAs() {
+    std::string name; const int slot = cmi::penSaveAs(kit, pen, name);
+    return slot < 0 ? juce::String("USER VOICES FULL") : juce::String(name) + " SAVED (VOICE " + juce::String(slot + 1) + ")";
+}
+juce::String CmiProcessor::penExport(const juce::File& f) {
+    const auto b = voiceWav(pen.voice(f.getFileNameWithoutExtension().toUpperCase().toStdString()));
+    return f.replaceWithData(b.data(), b.size()) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+}
+bool CmiProcessor::penFrom(int v) { const Sound* s = kit.bank.at(v); if (!s || isBlank(kit, v)) return false; pen.fromSound(*s); return true; }
+
 juce::String CmiProcessor::saveDrawnVoice(const float* start, const float* end, bool asNew) {
     int slot = asNew || lastDrawn < 0 || !kit.userLoaded(lastDrawn) ? kit.firstFree() : lastDrawn;
     if (slot < 0) return "USER VOICES FULL";
@@ -298,7 +351,9 @@ int CmiProcessor::connectToLibrary(int si) {
     SongEntry* e = songs.at(si); if (!e) return 0;
     const juce::ScopedLock l(catLock);
     if (catalog.voices.empty()) return 0;
-    const int n = connectSong(*e, kit, catalog, rememberedFor(*e->song));
+    const auto rem = rememberedFor(*e->song);
+    const int n = connectSong(*e, kit, catalog, rem);
+    if (auto it = rem.find(-1); it != rem.end()) { e->kit.load(it->second); loadKitVoices(e->kit, kit, catalog); }   // the kit as you left it
     if (si == currentSong()) chooseSong(si);
     return n;
 }
@@ -369,6 +424,7 @@ void CmiProcessor::resetCCMap() {
 
 // controllers and program changes from the audio thread, applied here (parameters notify the host)
 void CmiProcessor::timerCallback() {
+    if (recording.load()) pollRecording();
     const int p = pendingProgram.exchange(-1);
     if (p >= 0 && !loadPreset(p)) {   // program n: factory preset n; not in your library: the n-th voice loaded
         // the voice list: the voices loaded (from your library and your samples); bank select (CC 0) pages through it
@@ -556,6 +612,8 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
     x->setAttribute("program", program);
     x->setAttribute("showCatalog", showCatalog.load());
     x->setAttribute("voiceNumbers", 2);
+    if (!pen.silent()) { x->setAttribute("pen", juce::String(pen.save())); x->setAttribute("penSlot", penSlot); }
+    x->setAttribute("click", engine.clickOn.load()); x->setAttribute("countIn", recCountIn); x->setAttribute("recQuant", rec.quant); x->setAttribute("recReplace", rec.replace);
     { juce::String m; for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() >= 0) m << c << ":" << paramDefs()[(size_t) ccMap[(size_t) c].load()].id << " "; x->setAttribute("ccMap", m.trim()); }
     const Sound* cur = kit.bank.at(juce::roundToInt(get("sound")));
     if (cur) x->setAttribute("soundName", juce::String(cur->name));
@@ -577,6 +635,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
         el->setAttribute("index", i); el->setAttribute("name", juce::String(e->song->name));
         juce::String v, m; for (int t = 0; t < SONG_TRK; ++t) { v << e->voice[t] << " "; m << (e->mute[t] ? 1 : 0) << " "; }
         el->setAttribute("voices", v.trim()); el->setAttribute("mutes", m.trim());
+        if (!e->kit.empty()) el->setAttribute("kit", juce::String(e->kit.save()));
         el->setAttribute("midi", juce::MemoryBlock(e->song->raw.data(), e->song->raw.size()).toBase64Encoding());
     }
     {
@@ -633,6 +692,7 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
             if (!parseSmf((const uint8_t*) mb.getData(), mb.getSize(), el->getStringAttribute("name").toStdString(), ms, err)) continue;
             const int i = songs.add(std::move(ms), kit.bank);
             auto vs = juce::StringArray::fromTokens(el->getStringAttribute("voices"), " ", ""), mu = juce::StringArray::fromTokens(el->getStringAttribute("mutes"), " ", "");
+            if (auto* e = songs.at(i)) e->kit.load(el->getStringAttribute("kit").toStdString());
             if (auto* e = songs.at(i)) for (int t = 0; t < SONG_TRK; ++t) { if (t < vs.size()) { const int vi = vs[t].getIntValue(); e->voice[t] = vi == GM_KIT || !oldNumbers ? vi : Library::fromOldIndex(vi); } if (t < mu.size()) e->mute[t] = mu[t].getIntValue() != 0; }
             if (el->getIntAttribute("index", -2) == want) pick = i;
         }
@@ -640,6 +700,9 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
     }
     program = x->getIntAttribute("program", 0);
     showCatalog = x->getBoolAttribute("showCatalog", true);
+    if (x->hasAttribute("pen")) { pen.load(x->getStringAttribute("pen").toStdString()); penSlot = x->getIntAttribute("penSlot", -1); }
+    engine.clickOn = x->getBoolAttribute("click", false); recCountIn = x->getBoolAttribute("countIn", true);
+    rec.quant = x->getDoubleAttribute("recQuant", 0); rec.replace = x->getBoolAttribute("recReplace", false);
     if (x->hasAttribute("ccMap")) {
         for (auto& c : ccMap) c = -1;
         for (auto& tok : juce::StringArray::fromTokens(x->getStringAttribute("ccMap"), " ", "")) {

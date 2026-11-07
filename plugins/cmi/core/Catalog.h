@@ -364,4 +364,17 @@ inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::ma
 // the kit lookup: the CMI drum voices loaded
 inline std::function<int(int)> cmiKitLookup(const Bank& bank) { return kitLookup(bank); }
 
+// a kit's chosen voices that aren't loaded yet: loaded from the library (by name and disk); the kit then names them
+// as loaded ("NAME@CATEGORY")
+inline void loadKitVoices(DrumKit& k, Kit& kit, const Catalog& cat) {
+    for (auto& p : k.p) {
+        if (p.voice.empty() || findVoiceAt(kit.bank, p.voice) >= 0) continue;
+        const size_t at = p.voice.find('@');
+        int ci = cat.find(p.voice.substr(0, at), at == std::string::npos ? "" : p.voice.substr(at + 1));
+        if (ci < 0) ci = cat.find(p.voice.substr(0, at));
+        const int v = loadCatalogVoice(kit, cat, ci);
+        if (v >= 0) if (const Sound* s = kit.bank.at(v)) p.voice = s->name + "@" + s->category;
+    }
+}
+
 }  // namespace cmi

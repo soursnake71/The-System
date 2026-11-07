@@ -2,6 +2,7 @@
 // each track given the CMI voice closest to its General MIDI program (changeable), and the factory songs.
 #pragma once
 #include "Library.h"
+#include "Engine.h"
 
 namespace cmi {
 
@@ -351,9 +352,11 @@ inline std::vector<uint8_t> writeSmf(const MidiSong& s, const std::string* voice
 // a new, empty song to write on the grid: 8 bars of 4/4 at 120
 inline MidiSong emptySong(const std::string& name, double bpm = 120, int bars = 8) {
     MidiSong s; s.name = name; s.tempo.push_back({ 0.0, bpm }); s.num = 4; s.den = 4; s.minLength = s.length = bars * 4.0;
-    const int prog[SONG_TRK] = { 48, 52, 33, 0, -1, 61, 73, 81 };
-    const char* names[SONG_TRK] = { "Strings", "Choir", "Bass", "Piano", "Drums", "Brass", "Flute", "Lead" };
-    for (int t = 0; t < SONG_TRK; ++t) { s.program[t] = prog[t]; s.trackName[t] = names[t]; s.used[t] = true; }
+    const int prog[8] = { 48, 52, 33, 0, -1, 61, 73, 81 };
+    const char* names[8] = { "Strings", "Choir", "Bass", "Piano", "Drums", "Brass", "Flute", "Lead" };
+    for (int t = 0; t < SONG_TRK; ++t) {   // eight named tracks, eight more free
+        s.program[t] = t < 8 ? prog[t] : 0; s.trackName[t] = t < 8 ? names[t] : "Track " + std::to_string(t + 1); s.used[t] = t < 8;
+    }
     return s;
 }
 
@@ -426,6 +429,7 @@ struct SongEntry {
     std::unique_ptr<MidiSong> song;
     std::vector<std::unique_ptr<MidiSong>> undo, retired;
     int voice[SONG_TRK] {}; bool mute[SONG_TRK] {}; std::string why[SONG_TRK];
+    DrumKit kit;   // the drum kit's pieces (GM_KIT tracks)
     bool removed = false;
 };
 class SongList {
@@ -477,8 +481,38 @@ private:
 };
 
 // selecting a song on an engine: its voices and mutes go onto the track cards
+// a loaded voice by "NAME@CATEGORY" (or just a name); -1 if it isn't loaded
+inline int findVoiceAt(const Bank& bank, const std::string& v) {
+    const size_t at = v.find('@');
+    const std::string nm = v.substr(0, at), cat = at == std::string::npos ? "" : v.substr(at + 1);
+    const int n = bank.count.load();
+    for (int i = 0; i < n; ++i) {
+        const Sound* x = bank.at(i);
+        if (!x || (i < Library::USER_SLOTS && x == Library::get().blank[(size_t) i]) || i == NO_VOICE) continue;
+        if (x->name == nm && (cat.empty() || x->category == cat)) return i;
+    }
+    return cat.empty() ? -1 : findVoiceAt(bank, nm);
+}
+// the song's drum kit into the engine
+inline void applyKit(Engine& eng, const DrumKit& k) {
+    for (int n = 0; n < 128; ++n) {
+        const KitPiece& p = k.p[(size_t) n];
+        eng.kitSound[(size_t) n] = p.voice.empty() || !eng.bank ? -1 : findVoiceAt(*eng.bank, p.voice);
+        eng.kitLevel[(size_t) n] = p.level; eng.kitPan[(size_t) n] = p.pan; eng.kitTune[(size_t) n] = p.tune;
+        eng.kitMute[(size_t) n] = p.mute; eng.kitSolo[(size_t) n] = p.solo;
+    }
+}
+// the GM drum notes a song's kit tracks play, low to high
+inline std::vector<int> kitNotesOf(const SongEntry& e) {
+    bool want[128] {};
+    for (const auto& ev : e.song->ev) if ((ev.status & 0xF0) == 0x90 && ev.d2 && e.voice[ev.track] == GM_KIT) want[ev.d1] = true;
+    std::vector<int> o; for (int n = 0; n < 128; ++n) if (want[n]) o.push_back(n);
+    return o;
+}
+
 inline void selectSong(Engine& eng, SongEntry* e) {
-    if (e) { for (int t = 0; t < SONG_TRK; ++t) { eng.songVoice[t] = e->voice[t]; eng.songMute[t] = e->mute[t]; } }
+    if (e) { for (int t = 0; t < SONG_TRK; ++t) { eng.songVoice[t] = e->voice[t]; eng.songMute[t] = e->mute[t]; } applyKit(eng, e->kit); }
+    else eng.clearKit();
     eng.songRun = false;
     eng.song = e ? e->song.get() : nullptr;
 }

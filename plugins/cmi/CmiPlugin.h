@@ -8,6 +8,8 @@
 #include "core/Song.h"
 #include "core/Catalog.h"
 #include "core/Factory.h"
+#include "core/Record.h"
+#include "core/Pen.h"
 
 namespace cmi {
 
@@ -152,6 +154,26 @@ public:
     // a voice drawn on Page 5: into a new user voice, or over the one drawn last
     juce::String saveDrawnVoice(const float* start, const float* end, bool asNew);
     int lastDrawn = -1;
+    // ---- the drum kit (the selected song's) ----
+    std::vector<int> kitNotes(bool all) const;             // the GM notes its kit tracks play (all: 35-81)
+    KitPiece kitPiece(int note) const;
+    void setKitPiece(int note, const KitPiece& p);         // into the song, the engine, and remembered for the song
+    void setKitVoice(int note, int soundIndex);            // -1: automatic
+    void setKitCatalogVoice(int note, int catIndex);
+    void auditionKit(int note);
+    void resetKit();
+    // ---- recording ----
+    Recorder recorder; RecordSettings& rec = recorder.rs; bool& recCountIn = recorder.countIn; std::atomic<bool>& recording = recorder.on;
+    juce::String startRecording(int track);                // from the start of the song view (recFromBeat)
+    juce::String stopRecording();                          // the notes onto the track; a summary
+    void pollRecording();
+    double recFromBeat = 0;
+    // ---- the light pen ----
+    PenDrawing pen; int penSlot = -1; bool penLive = true;
+    void penChanged();                                     // the live PEN voice (the keyboard plays it)
+    juce::String penSaveAs();                              // a new voice, kept with the project
+    juce::String penExport(const juce::File& f);           // a WAV with its loop and root
+    bool penFrom(int soundIndex);
 
     // exports (run on a background thread; done() comes back on the message thread)
     void exportAudio(const juce::File& f, bool stems, std::function<void(juce::String)> done);

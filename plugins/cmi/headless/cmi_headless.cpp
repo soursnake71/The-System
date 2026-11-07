@@ -19,6 +19,7 @@
 #include "../core/Disk.h"
 #include "../core/Song.h"
 #include "../core/Catalog.h"
+#include "../core/Record.h"
 #include <alsa/asoundlib.h>
 #include <atomic>
 #include <cerrno>
@@ -41,6 +42,7 @@ struct Box {
     Kit kit;
     Engine eng;
     SongList songs;
+    Recorder recorder;
     std::mutex lock;            // engine access: the audio thread, MIDI thread and stdin take turns
     int sound = 0; Controls ctl;
     int channel = 0;            // 0 = omni
@@ -237,6 +239,18 @@ static void commandThread(Box& b, const std::string& statePath) {
         if (w == "LOAD") { load(b, arg); continue; }
         if (w == "LIST") { list(b); continue; }
         if (w == "SAVE") { saveState(b, statePath); std::puts("saved"); continue; }
+        if (w == "REC") {   // REC n: record MIDI in onto song track n (a bar's count-in, the click on); REC STOP: keep it
+            std::lock_guard<std::mutex> g(b.lock);
+            std::string a2 = arg; for (auto& c : a2) c = (char) std::toupper((unsigned char) c);
+            if (a2 == "STOP" || a2.empty()) std::printf("%s\n", b.recorder.stop(b.eng, b.songs.at(b.songs.indexOf(b.eng.song.load()))).c_str());
+            else {
+                if (!b.eng.song.load()) Recorder::newSong(b.songs, b.eng, b.kit.bank, b.eng.tempo.load());
+                b.eng.clickOn = true;
+                std::printf("%s\n", b.recorder.start(b.eng, b.songs.at(b.songs.indexOf(b.eng.song.load())), std::atoi(a2.c_str()) - 1, 0).c_str());
+            }
+            std::fflush(stdout); continue;
+        }
+        if (w == "CLICK") { std::string a2 = arg; for (auto& c : a2) c = (char) std::toupper((unsigned char) c); b.eng.clickOn = a2 != "OFF"; std::printf("click %s\n", b.eng.clickOn.load() ? "on" : "off"); std::fflush(stdout); continue; }
         if (w == "FX" || w == "REV7") {   // FX ON | OFF | SEND 0-100 | PRESET n | DICE [SETTINGS] | LIST: the REV7 on the aux send
             std::string a2 = arg.substr(0, arg.find(' ')), v = arg.find(' ') == std::string::npos ? "" : arg.substr(arg.find(' ') + 1);
             for (auto& c : a2) c = (char) std::toupper((unsigned char) c);

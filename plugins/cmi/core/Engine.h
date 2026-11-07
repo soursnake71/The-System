@@ -4,6 +4,7 @@
 #pragma once
 #include "Cmi.h"
 #include "Effects.h"
+#include "DrumKit.h"
 #include <functional>
 
 namespace cmi {
@@ -287,7 +288,7 @@ struct MidiSong {
     std::vector<uint8_t> raw;                        // the file, to save it with a project
     uint32_t id = 0;                                 // the same for every edited version of one song
     double bpmAt(double beat) const {
-        double b = 120;
+        double b = tempo.empty() ? 120 : tempo.front().second;   // before the first change (a count-in): the song's first tempo
         for (const auto& t : tempo) { if (t.first > beat + 1e-9) break; b = t.second; }
         return b;
     }
@@ -312,7 +313,19 @@ public:
     std::atomic<const MidiSong*> song { nullptr };
     std::atomic<bool> songRun { false }, songLoop { false };
     std::atomic<double> songBeat { 0 };                    // for the screen
-    std::atomic<double> songStartReq { -1 };               // play from this beat (set with songRun)
+    std::atomic<double> songStartReq { -1e9 };             // play from this beat (set with songRun; may be < 0 for a count-in)
+    // the drum kit (GM_KIT tracks): per GM note, a sound (-1: the CMI drum map), level, pan (-1: the track's), tune,
+    // mute, solo, and a meter. Set from the song's DrumKit by applyKit (Song.h) and by the kit screen.
+    std::array<std::atomic<int>, 128> kitSound;
+    std::array<std::atomic<float>, 128> kitLevel, kitPan, kitTune, kitMeter;
+    std::array<std::atomic<bool>, 128> kitMute, kitSolo;
+    void clearKit() { for (int n = 0; n < 128; ++n) { kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; } }
+    // recording: keyboard and MIDI notes go to a song track (heard on its voice) and are logged with their beats
+    struct RecEv { double beat; int note, vel; };   // vel 0: note off
+    std::atomic<bool> recOn { false }; std::atomic<int> recTrack { 0 }; std::atomic<double> recFrom { 0 };
+    bool recPop(RecEv& e) { const uint32_t r = recR.load(std::memory_order_relaxed); if (r == recW.load(std::memory_order_acquire)) return false; e = recQ[r % recQ.size()]; recR.store(r + 1, std::memory_order_release); return true; }
+    // the click (metronome): while the song plays, accented on the bar
+    std::atomic<bool> clickOn { false }; std::atomic<float> clickLevel { 0.5f };
     int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
     bool songMute[SONG_TRK] {};
     std::atomic<double> songGain { 0.5 };
@@ -330,7 +343,7 @@ public:
     std::atomic<bool> fxOn { true };
     std::array<std::atomic<float>, STRIPS> fxSend;
     std::atomic<float> fxMeter { 0 };
-    Engine() { for (int i = 0; i < STRIPS; ++i) { fader[(size_t) i] = 1; panOver[(size_t) i] = -1; meter[(size_t) i] = 0; solo[(size_t) i] = false; mute[(size_t) i] = false; fxSend[(size_t) i] = 0.15f; } }
+    Engine() { clearKit(); for (int i = 0; i < STRIPS; ++i) { fader[(size_t) i] = 1; panOver[(size_t) i] = -1; meter[(size_t) i] = 0; solo[(size_t) i] = false; mute[(size_t) i] = false; fxSend[(size_t) i] = 0.15f; } }
     // the effects settings, to carry over to an export's own engine
     struct FxSettings { bool on = true; std::array<float, STRIPS> send {}; std::string state; };
     FxSettings fxSettings() const { FxSettings f; f.on = fxOn.load(); for (int i = 0; i < STRIPS; ++i) f.send[(size_t) i] = fxSend[(size_t) i].load(); f.state = fx.save(); return f; }
@@ -361,6 +374,12 @@ public:
         if (len < 1) return false;
         const int st = m[0] & 0xF0, chn = m[0] & 0x0F;
         const bool toTrack = multi && chn >= 1 && chn <= TRACKS;
+        if (recOn.load() && song.load() && (st == 0x90 || st == 0x80) && len >= 3 && !toTrack) {   // recording
+            const int vel = st == 0x80 ? 0 : m[2];
+            songNote(recTrack.load(), m[1], vel);
+            if (songRun.load() && (vel == 0 || sbeat >= recFrom.load() - 1e-6)) recPush({ sbeat, m[1], vel });
+            return true;
+        }
         if (st == 0x90 && len >= 3 && m[2] > 0) {
             if (toTrack) trackNote(chn - 1, m[1] - 60, m[2] / 127.f);
             else keyOn(m[1], m[2] / 127.f);
@@ -437,8 +456,13 @@ public:
     void render(float* L, float* R, int n, const Transport* tp = nullptr) {
         int done = 0;
         while (done < n) {
-            const int len = song.load() || curSong ? songAdvance(n - done, tp, done) : seqAdvance(n - done, tp, done);
+            const bool songs = song.load() || curSong;
+            blockB0 = 1e18;
+            const int len = songs ? songAdvance(n - done, tp, done) : seqAdvance(n - done, tp, done);
             renderRaw(L + done, R + done, len);
+            if (songs && clickOn.load() && songWas && curSong && blockB0 < 1e17) clickBeats(L + done, R + done, len, blockB0, sbeat);
+            else if (blockB0 < 1e17) clickNext = std::ceil(sbeat - 1e-9);
+            mixClick(L + done, R + done, 0, len);
             done += len;
         }
     }
@@ -456,9 +480,9 @@ private:
     }
     // a song track's card levels: its MIDI volume, the song level, and for the drum kit a lift (the CMI's drum samples
     // are short and peaky: at the same latch level they sit well under the sustained parts)
-    Controls songControls(const Sound* snd, int t) const {
+    Controls songControls(const Sound* snd, int t, int note = -1) const {
         Controls c = snd->ctl;
-        const double lift = songVoice[t] == GM_KIT ? drumLift.load() : 1.0;
+        const double lift = songVoice[t] == GM_KIT ? drumLift.load() * (note >= 0 && note < 128 ? kitLevel[(size_t) note].load() : 1.f) : 1.0;
         c.level = (float) std::min(1.0, c.level * songVol[t] * songGain.load() * lift);
         if (songVoice[t] == GM_KIT) c.velVol = std::min(c.velVol, 0.35f);   // ghost notes stay audible
         return c;
@@ -479,14 +503,20 @@ private:
         if (hi == 0x90 && e.d2 > 0) {
             if (songMute[t] || !bank) return;
             int idx = songVoice[t];
-            if (idx == GM_KIT) idx = kitVoice ? kitVoice(e.d1) : -1;
+            const bool kit = idx == GM_KIT;
+            if (kit) {
+                bool anySolo = false; for (const auto& so : kitSolo) anySolo |= so.load();
+                if (kitMute[e.d1].load() || (anySolo && !kitSolo[e.d1].load())) return;
+                const int ks = kitSound[e.d1].load();
+                idx = ks >= 0 ? ks : kitVoice ? kitVoice(e.d1) : -1;
+            }
             const Sound* snd = bank->at(idx);
             if (!snd) return;
             const int k = songCard(t, e.d1);
             if (k < 0) return;
             Channel& c = ch[(size_t) k];
-            const int note = songVoice[t] == GM_KIT ? snd->root : e.d1;
-            c.noteOn(snd, songControls(snd, t), note, e.d2 / 127.f, -1, ++stampN);
+            const int note = kit ? clampi(snd->root + (int) std::lround(kitTune[e.d1].load()), 0, 127) : e.d1;
+            c.noteOn(snd, songControls(snd, t, kit ? e.d1 : -1), note, e.d2 / 127.f, -1, ++stampN);
             c.setBend(songBendV[t]); c.setHeld(songHeld[t]);
             cardTrack[k] = t; cardNote[k] = e.d1;
             return;
@@ -497,7 +527,7 @@ private:
         }
         auto each = [&](auto fn) { for (int i = KEY_CH; i < NCH; ++i) if (cardTrack[i] == t && ch[(size_t) i].st() != Channel::Idle) fn(ch[(size_t) i]); };
         if (hi == 0xB0) {
-            if (e.d1 == 7 || e.d1 == 11) { songVol[t] = e.d2 / 127.0; each([&](Channel& c) { if (c.sound()) c.setControls(songControls(c.sound(), t)); }); }
+            if (e.d1 == 7 || e.d1 == 11) { songVol[t] = e.d2 / 127.0; for (int i = KEY_CH; i < NCH; ++i) if (cardTrack[i] == t && ch[(size_t) i].st() != Channel::Idle && ch[(size_t) i].sound()) ch[(size_t) i].setControls(songControls(ch[(size_t) i].sound(), t, songVoice[t] == GM_KIT ? cardNote[i] : -1)); }
             else if (e.d1 == 10) songPan[t] = e.d2 / 127.0;
             else if (e.d1 == 64) { songHeld[t] = e.d2 >= 64; each([&](Channel& c) { c.setHeld(songHeld[t]); }); }
             else if (e.d1 == 120 || e.d1 == 123) each([&](Channel& c) { c.noteOff(); });
@@ -519,7 +549,7 @@ private:
             if (!ext) sbeat = 0;
             return maxLen;
         }
-        if (const double r = songStartReq.exchange(-1); r >= 0 && !ext) { songAllOff(); sbeat = std::min(r, s->length); songWas = false; }   // play from here
+        if (const double r = songStartReq.exchange(-1e9); r > -1e8 && !ext) { songAllOff(); sbeat = std::min(r, s->length); songWas = false; clickNext = std::ceil(sbeat - 1e-9); }   // play from here
         const double bpm = ext ? (tp->bpm > 0 ? tp->bpm : 120) : s->bpmAt(sbeat);
         const double bps = bpm / 60.0 / fs;   // beats per sample
         if (ext) {
@@ -529,7 +559,7 @@ private:
         } else if (!songWas) songSeek(s, sbeat);
         songWas = true;
         while (sidx < s->ev.size() && s->ev[sidx].beat <= sbeat + 1e-9) songEvent(s->ev[sidx++]);
-        if (sidx >= s->ev.size() && sbeat >= s->length) {
+        if (sidx >= s->ev.size() && sbeat >= s->length && !recOn.load()) {   // recording: the song runs on past its end
             songAllOff();
             if (songLoop.load() && !ext) { sbeat = 0; songSeek(s, 0); }
             else { if (!ext) { songRun = false; sbeat = 0; } songWas = ext; songBeat = 0; return maxLen; }
@@ -538,6 +568,8 @@ private:
         int len = clampi((int) std::ceil((next - sbeat) / bps), 1, maxLen);
         // tempo changes are events too
         for (const auto& tc : s->tempo) if (tc.first > sbeat + 1e-9) { len = std::min(len, std::max(1, (int) std::ceil((tc.first - sbeat) / bps))); break; }
+        if (clickOn.load() && !ext) { const double nb = std::floor(sbeat + 1e-9) + 1; len = std::min(len, std::max(1, (int) std::ceil((nb - sbeat) / bps))); }   // one click per block
+        blockB0 = sbeat;
         if (!ext) sbeat += len * bps;
         songBeat = sbeat;
         return len;
@@ -617,7 +649,11 @@ private:
             const int sIdx = stripOf(i);
             double pan;
             if (i < KEY_CH) pan = 0.5 + ((i & 1) ? 0.5 : -0.5) * spread * (0.4 + 0.6 * (i >> 1) / 3.0);
-            else if (curSong) pan = songPan[clampi(cardTrack[i], 0, SONG_TRK - 1)];
+            else if (curSong) {
+                const int tk = clampi(cardTrack[i], 0, SONG_TRK - 1);
+                pan = songPan[tk];
+                if (songVoice[tk] == GM_KIT) { const float kp = kitPan[(size_t) (cardNote[i] & 127)].load(); if (kp >= 0) pan = kp; }
+            }
             else pan = seq.trk[(i - KEY_CH) % TRACKS].pan;
             const float po = panOver[(size_t) sIdx].load();
             if (po >= 0) pan = po;
@@ -629,8 +665,10 @@ private:
             const float sd = fxSend[(size_t) sIdx].load();
             if (fxRun && sd > 0 && gain > 0) { anySend = true; for (int k = 0; k < n; ++k) { const float m = mono[(size_t) k] * sd; fxL[(size_t) k] += m * gl; fxR[(size_t) k] += m * gr; } }
             peak[sIdx] = std::max(peak[sIdx], pk * gain * 0.5f * (float) master);
+            if (i >= KEY_CH && curSong && songVoice[clampi(cardTrack[i], 0, SONG_TRK - 1)] == GM_KIT) { auto& km = kitMeter[(size_t) (cardNote[i] & 127)]; km = std::max(km.load(), pk * gain * 0.5f * (float) master); }
         }
         for (int i = 0; i < STRIPS; ++i) meter[(size_t) i] = std::max(peak[i], meter[(size_t) i].load() * 0.92f);
+        for (auto& km : kitMeter) { const float v = km.load(); if (v > 0) km = v * 0.92f < 1e-4f ? 0.f : v * 0.92f; }
         // the REV7 return (it keeps running on silence to ring out; it sleeps by itself once its tail has gone)
         if (fxRun) {
             (void) anySend;
@@ -652,6 +690,35 @@ private:
         float pl = 0, pr = 0; for (int k = 0; k < n; ++k) { pl = std::max(pl, std::fabs(kbL[k])); pr = std::max(pr, std::fabs(kbR[k])); }
         meterL = std::max(pl, meterL.load() * 0.92f); meterR = std::max(pr, meterR.load() * 0.92f);
     }
+
+    // the click: a beat's blip (1.6 kHz on the bar, 1 kHz on the beat) wherever a beat falls in this block
+    void clickBeats(float* L, float* R, int len, double b0, double b1) {
+        (void) L; (void) R;
+        if (b1 < b0 - 1e-9) { clickNext = std::ceil(b1 - 1e-9); return; }   // a jump back
+        if (clickNext < b0 - 1.0) clickNext = std::ceil(b0 - 1e-9);
+        while (clickNext < b1 - 1e-9 && b1 > b0) {   // a beat on the block's end belongs to the next block
+            const int off = clampi((int) std::lround((clickNext - b0) / (b1 - b0) * len), 0, len - 1);
+            const double barBeats = curSong ? curSong->num * 4.0 / std::max(1, curSong->den) : 4.0;
+            const double inBar = std::fmod(clickNext, barBeats);
+            clickStart = off; clickPos = 0; clickHz = std::fabs(inBar) < 1e-6 || std::fabs(inBar - barBeats) < 1e-6 ? 1600 : 1000;
+            clickNext += 1;
+        }
+    }
+    void mixClick(float* L, float* R, int from, int len) {
+        const int cl = (int) (fs * 0.03);
+        int k = clickStart >= 0 ? clickStart : from;
+        if (clickStart < 0 && clickPos >= cl) return;
+        clickStart = -1;
+        const float lv = clickLevel.load() * 0.5f;
+        for (; k < len && clickPos < cl; ++k, ++clickPos) {
+            const double t = clickPos / fs, env = std::exp(-t / 0.006);
+            const float v = (float) (std::sin(2 * PI * clickHz * t) * env) * lv;
+            L[k] += v; R[k] += v;
+        }
+    }
+    void recPush(const RecEv& e) { const uint32_t w = recW.load(std::memory_order_relaxed); if (w - recR.load(std::memory_order_acquire) >= recQ.size()) return; recQ[w % recQ.size()] = e; recW.store(w + 1, std::memory_order_release); }
+    std::array<RecEv, 4096> recQ {}; std::atomic<uint32_t> recW { 0 }, recR { 0 };
+    double clickNext = 0, clickHz = 1000, blockB0 = 1e18; int clickPos = 1 << 30, clickStart = -1;
 
     // the summing amplifier: clean to 0.6, then rounding into its rails at 1
     static double soft(double x) { const double a = std::fabs(x); return a < 0.6 ? x : std::copysign(0.6 + 0.4 * std::tanh((a - 0.6) / 0.4), x); }

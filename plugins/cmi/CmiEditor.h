@@ -43,6 +43,10 @@ private:
     void drawMixer(juce::Graphics&);
     void drawEffects(juce::Graphics&);
     void drawFxMixer(juce::Graphics&);
+    void drawKit(juce::Graphics&);
+    void kitVoiceMenu(int note);
+    void recordRow(juce::Graphics&, float x, float y, double fromBeat);
+    int kitPage = 0; bool kitAll = false; char kitBack = 'S';
     void vFader(juce::Graphics&, float x, float w, float top, float h, const juce::String& label, float maxV, std::function<float()> get, std::function<void(float)> set, float meter, bool dbScale);
     std::vector<std::pair<int, juce::String>> mixStrips();
     int fxTab = 0;
