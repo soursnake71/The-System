@@ -8,7 +8,7 @@ static juce::Font mono(float h, bool bold = true) { return juce::Font(juce::Font
 static juce::String noteName(int n) { static const char* nm[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }; return juce::String(nm[((n % 12) + 12) % 12]) + juce::String(n / 12 - 1); }
 
 // ---------------------------------------------------------------------------------------------------------------
-Screen::Screen(CmiEditor& e) : ed(e) { setSize(W, H); setWantsKeyboardFocus(false); }
+Screen::Screen(CmiEditor& e) : ed(e) { setSize(W, H); setWantsKeyboardFocus(true); }
 
 Screen::Hit& Screen::hit(juce::Rectangle<float> r, std::function<void(const juce::MouseEvent&)> down, std::function<void(const juce::MouseEvent&)> drag) {
     hits.push_back({ r.translated(0, hitDy), std::move(down), std::move(drag), {} });
@@ -358,64 +358,96 @@ void Screen::drawWave(juce::Graphics& g) {
 
 // ---- Page 8: sampling into the user voices ----
 // ---- Page M: the mixer ----
+// the mixer's strips: the keyboard, then the song's tracks (or Page S's eight)
+std::vector<std::pair<int, juce::String>> Screen::mixStrips() {
+    auto& eng = ed.proc.engine;
+    const MidiSong* s = eng.song.load();
+    std::vector<std::pair<int, juce::String>> strips { { 0, "KEYS" } };
+    if (s) {   // the track's number and its voice (track names are often just "TRACK 3")
+        for (int t = 0; t < SONG_TRK; ++t) {
+            if (!s->used[t]) continue;
+            const int v = eng.songVoice[t]; const Sound* snd = v == GM_KIT ? nullptr : ed.proc.kit.bank.at(v);
+            strips.push_back({ 1 + TRACKS + t, juce::String(t + 1) + " " + (v == GM_KIT ? juce::String("KIT") : snd && !isBlank(ed.proc.kit, v) ? juce::String(snd->name) : juce::String(s->trackName[t]).trim()) });
+        }
+    }
+    else for (int t = 0; t < TRACKS; ++t) { const Sound* snd = ed.proc.kit.bank.at(eng.seq.trk[t].sound); strips.push_back({ 1 + t, snd && !isBlank(ed.proc.kit, eng.seq.trk[t].sound) ? juce::String(snd->name) : juce::String(t + 1) }); }
+    return strips;
+}
+
+// one vertical fader with its meter (drag, wheel for fine)
+void Screen::vFader(juce::Graphics& g, float x, float w, float top, float h, const juce::String& label, float maxV, std::function<float()> get, std::function<void(float)> set, float meter, bool dbScale) {
+    g.setColour(kInk); g.setFont(mono(w < 52 ? 10.f : 12.f));
+    const int chars = std::max(3, (int) (w / (w < 52 ? 6.2f : 7.4f)));
+    g.drawText(label.substring(0, chars), (int) x, (int) top, (int) w - 2, 16, juce::Justification::centred);
+    const juce::Rectangle<float> slot(x + w * 0.5f - 3, top + 22, 6, h);
+    g.setColour(kFaint); g.fillRect(slot);
+    const float mv = juce::jlimit(0.f, 1.f, meter);
+    g.setColour(mv > 0.95f ? juce::Colours::white : kDim); g.fillRect(x + 3, slot.getBottom() - h * mv, 4.f, h * mv);
+    const float v = get(), y = slot.getBottom() - h * v / maxV;
+    g.setColour(kInk); g.fillRect(x + 8, y - 6, w - 16, 12.f); g.setColour(kBg); g.drawHorizontalLine((int) y, x + 10, x + w - 10);
+    g.setColour(kDim); g.setFont(mono(10));
+    g.drawText(dbScale ? (v <= 0.001f ? juce::String("-INF") : juce::String(20 * std::log10(v), 1)) : juce::String(juce::roundToInt(v / maxV * 100)) + "%",
+               (int) x, (int) (slot.getBottom() + 3), (int) w - 2, 12, juce::Justification::centred);
+    auto setY = [set, slot, maxV](const juce::MouseEvent& m) { set(juce::jlimit(0.f, maxV, (slot.getBottom() - m.position.y) / slot.getHeight() * maxV)); };
+    auto& hh = hit({ x, top + 16, w - 2, h + 12 }, setY, setY);
+    hh.wheel = [get, set, maxV](float dy) { set(juce::jlimit(0.f, maxV, get() + (dy > 0 ? 0.02f : -0.02f) * maxV)); };
+}
+
+// ---- Page M: every strip on one screen (the sends are on Page E, FX MIXER) ----
 void Screen::drawMixer(juce::Graphics& g) {
     auto& eng = ed.proc.engine;
     const MidiSong* s = eng.song.load();
-    std::vector<std::pair<int, juce::String>> strips { { 0, "KEYBOARD" } };
-    if (s) { for (int t = 0; t < SONG_TRK; ++t) if (s->used[t]) strips.push_back({ 1 + TRACKS + t, juce::String(s->trackName[t]).substring(0, 8) }); }
-    else for (int t = 0; t < TRACKS; ++t) { const Sound* snd = ed.proc.kit.bank.at(eng.seq.trk[t].sound); strips.push_back({ 1 + t, snd ? juce::String(snd->name) : juce::String(t + 1) }); }
+    const auto strips = mixStrips();
     g.setColour(kInk); g.setFont(mono(17));
-    g.drawText(juce::String("MIXER   ") + (s ? "SONG: " + juce::String(s->name).substring(0, 30) : juce::String("PAGE S PATTERNS")), 20, 58, W - 40, 20, juce::Justification::centredLeft);
+    g.drawText(juce::String("MIXER   ") + (s ? "SONG: " + juce::String(s->name).substring(0, 30) : juce::String("PAGE S PATTERNS")), 20, 58, 640, 20, juce::Justification::centredLeft);
+    button(g, { 790, 56, 190, 22 }, "FX MIXER: E", false, [this] { page = 'E'; fxTab = 1; });
     const int n = (int) strips.size() + 1;
-    const float sw = std::min(80.f, (W - 40.f) / n), top = 90, fh = 330;
-    auto fader = [&](float x, std::atomic<float>& val, float meterV, const juce::String& label, int idx) {
-        g.setColour(kInk); g.setFont(mono(12)); g.drawText(label, (int) x, (int) top, (int) sw - 4, 16, juce::Justification::centred);
-        const juce::Rectangle<float> slot(x + sw * 0.5f - 4, top + 24, 8, fh);
-        g.setColour(kFaint); g.fillRect(slot);
-        const float mv = juce::jlimit(0.f, 1.f, meterV);
-        g.setColour(mv > 0.95f ? juce::Colours::white : kDim); g.fillRect(x + 4, slot.getBottom() - fh * mv, 6.f, fh * mv);
-        const float v = val.load(), y = slot.getBottom() - fh * v / 1.5f;
-        g.setColour(kInk); g.fillRect(x + 8, y - 6, sw - 20, 12.f); g.setColour(kBg); g.drawHorizontalLine((int) y, x + 10, x + sw - 14);
-        g.setColour(kDim); g.setFont(mono(11));
-        g.drawText(v <= 0.001f ? juce::String("-INF") : juce::String(20 * std::log10(v), 1), (int) x, (int) (slot.getBottom() + 4), (int) sw - 4, 14, juce::Justification::centred);
-        auto set = [&val, slot](const juce::MouseEvent& m) { val = juce::jlimit(0.f, 1.5f, (slot.getBottom() - m.position.y) / slot.getHeight() * 1.5f); };
-        auto& h = hit({ x, top + 18, sw - 4, fh + 12 }, set, set);
-        h.wheel = [&val](float dy) { val = juce::jlimit(0.f, 1.5f, val.load() + (dy > 0 ? 0.03f : -0.03f)); };
-        if (idx < 0) return;
-        const float py = top + fh + 46;
-        const float po = eng.panOver[(size_t) idx].load();
-        g.setColour(kFaint); g.fillRect(x + 4, py, sw - 12, 8.f);
-        g.setColour(po < 0 ? kDim : kInk); g.fillRect(x + 4 + (sw - 16) * (po < 0 ? 0.5f : po), py - 2, 4.f, 12.f);
-        auto pan = [this, idx, x, sw](const juce::MouseEvent& m) { ed.proc.engine.panOver[(size_t) idx] = m.getNumberOfClicks() > 1 ? -1.f : juce::jlimit(0.f, 1.f, (m.position.x - x - 4) / (sw - 16)); };
-        hit({ x, py - 4, sw - 4, 16 }, pan, pan);
-        const bool mu = eng.mute[(size_t) idx].load(), so = eng.solo[(size_t) idx].load();
-        button(g, { x + 2, py + 18, sw / 2 - 4, 20 }, "M", mu, [this, idx, mu] { ed.proc.engine.mute[(size_t) idx] = !mu; });
-        button(g, { x + sw / 2, py + 18, sw / 2 - 4, 20 }, "S", so, [this, idx, so] { ed.proc.engine.solo[(size_t) idx] = !so; });
-        // the send to the REV7 (effects section)
-        const float sy = py + 50, sv = eng.fxSend[(size_t) idx].load();
-        g.setColour(kDim); g.setFont(mono(10)); g.drawText("REV " + juce::String(juce::roundToInt(sv * 100)), (int) x, (int) sy - 13, (int) sw - 4, 12, juce::Justification::centred);
-        g.setColour(kFaint); g.fillRect(x + 4, sy, sw - 12, 8.f);
-        g.setColour(eng.fxOn.load() ? kInk : kDim); g.fillRect(x + 4, sy, (sw - 12) * sv, 8.f);
-        auto send = [this, idx, x, sw](const juce::MouseEvent& m) { ed.proc.engine.fxSend[(size_t) idx] = juce::jlimit(0.f, 1.f, (m.position.x - x - 4) / (sw - 12)); };
-        auto& sh = hit({ x, sy - 4, sw - 4, 16 }, send, send);
-        sh.wheel = [this, idx](float dy) { auto& a = ed.proc.engine.fxSend[(size_t) idx]; a = juce::jlimit(0.f, 1.f, a.load() + (dy > 0 ? 0.02f : -0.02f)); };
-    };
+    const float sw = std::min(80.f, (W - 40.f) / n), top = 90, fh = 360;
     float x = 20;
-    for (const auto& st : strips) { fader(x, eng.fader[(size_t) st.first], eng.meter[(size_t) st.first].load(), st.second, st.first); x += sw; }
-    // master: the master parameter (host-automatable)
-    static std::atomic<float> masterView { 1 };
-    masterView = ed.proc.get("master");
-    const float before = masterView.load();
-    fader(W - 20 - sw, masterView, std::max(eng.meterL.load(), eng.meterR.load()), "MASTER", -1);
-    if (masterView.load() != before) ed.proc.set("master", masterView.load());
-    // the REV7 return (its OUTPUT knob), beside the master
-    static std::atomic<float> retView { 1 };
-    retView = (float) eng.fx.get("ret");
-    const float rb = retView.load();
-    fader(W - 20 - 2 * sw, retView, eng.fxMeter.load(), eng.fxOn.load() ? "REV7" : "REV7 OFF", -1);
-    if (retView.load() != rb) eng.fx.set("ret", retView.load());
+    for (const auto& st : strips) {
+        const int idx = st.first;
+        vFader(g, x, sw, top, fh, st.second, 1.5f, [this, idx] { return ed.proc.engine.fader[(size_t) idx].load(); }, [this, idx](float v) { ed.proc.engine.fader[(size_t) idx] = v; },
+               eng.meter[(size_t) idx].load(), true);
+        const float py = top + fh + 40;
+        const float po = eng.panOver[(size_t) idx].load();
+        g.setColour(kFaint); g.fillRect(x + 3, py, sw - 8, 8.f);
+        g.setColour(po < 0 ? kDim : kInk); g.fillRect(x + 3 + (sw - 12) * (po < 0 ? 0.5f : po), py - 2, 4.f, 12.f);
+        auto pan = [this, idx, x, sw](const juce::MouseEvent& m) { ed.proc.engine.panOver[(size_t) idx] = m.getNumberOfClicks() > 1 ? -1.f : juce::jlimit(0.f, 1.f, (m.position.x - x - 3) / (sw - 12)); };
+        hit({ x, py - 4, sw - 2, 16 }, pan, pan);
+        const bool mu = eng.mute[(size_t) idx].load(), so = eng.solo[(size_t) idx].load();
+        button(g, { x + 1, py + 16, sw / 2 - 2, 20 }, "M", mu, [this, idx, mu] { ed.proc.engine.mute[(size_t) idx] = !mu; });
+        button(g, { x + sw / 2, py + 16, sw / 2 - 3, 20 }, "S", so, [this, idx, so] { ed.proc.engine.solo[(size_t) idx] = !so; });
+        x += sw;
+    }
+    vFader(g, W - 20 - sw, sw, top, fh, "MASTER", 1.5f, [this] { return ed.proc.get("master"); }, [this](float v) { ed.proc.set("master", v); },
+           std::max(eng.meterL.load(), eng.meterR.load()), true);
     g.setColour(kDim); g.setFont(mono(12));
-    g.drawText("drag a fader, wheel for fine; drag a pan, double-click it back to the track's own; M mute, S solo; REV: the send to the REV7 (Page E)", 20, (int) (top + fh + 116), W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("drag a fader, wheel for fine; drag a pan, double-click it back to the track's own; M mute, S solo. Effects sends: FX MIXER (Page E)", 20, (int) (top + fh + 84), W - 40, 16, juce::Justification::centredLeft);
+}
+
+// ---- Page E, FX MIXER: each strip's send to the REV7, and its return ----
+void Screen::drawFxMixer(juce::Graphics& g) {
+    auto& eng = ed.proc.engine;
+    const auto strips = mixStrips();
+    const bool on = eng.fxOn.load();
+    const int n = (int) strips.size() + 1;
+    const float sw = std::min(80.f, (W - 40.f) / n), top = 120, fh = 330;
+    g.setColour(kDim); g.setFont(mono(13));
+    g.drawText("SENDS TO THE REV7 (post fader)", 20, 92, 400, 18, juce::Justification::centredLeft);
+    float x = 20;
+    for (const auto& st : strips) {
+        const int idx = st.first;
+        vFader(g, x, sw, top, fh, st.second, 1.f, [this, idx] { return ed.proc.engine.fxSend[(size_t) idx].load(); }, [this, idx](float v) { ed.proc.engine.fxSend[(size_t) idx] = v; },
+               eng.meter[(size_t) idx].load() * eng.fxSend[(size_t) idx].load(), false);
+        x += sw;
+    }
+    vFader(g, W - 20 - sw, sw, top, fh, on ? "REV7" : "OFF", 1.5f, [this] { return (float) ed.proc.engine.fx.get("ret"); }, [this](float v) { ed.proc.engine.fx.set("ret", v); }, eng.fxMeter.load(), true);
+    const float by = top + fh + 42;
+    button(g, { 20, by, 140, 24 }, "ALL SENDS 0", false, [this] { for (auto& sd : ed.proc.engine.fxSend) sd = 0.f; });
+    button(g, { 170, by, 140, 24 }, "ALL 15%", false, [this] { for (auto& sd : ed.proc.engine.fxSend) sd = 0.15f; });
+    button(g, { 320, by, 140, 24 }, "ALL 30%", false, [this] { for (auto& sd : ed.proc.engine.fxSend) sd = 0.3f; });
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText("REV7 fader: the return (its OUTPUT). Program, settings: REV7 tab", 480, (int) by, 500, 24, juce::Justification::centredLeft);
 }
 
 // ---- Page E: the effects section. A Yamaha REV7 (the Omega REV7 model) on the mixer's aux send ----
@@ -424,10 +456,19 @@ void Screen::drawEffects(juce::Graphics& g) {
     const auto& sp = Rev7Fx::spec();
     const bool on = eng.fxOn.load();
     g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("EFFECTS: REV7 DIGITAL REVERBERATOR (AUX SEND)", 20, 58, 560, 20, juce::Justification::centredLeft);
+    button(g, { 20, 56, 120, 22 }, "REV7", fxTab == 0, [this] { fxTab = 0; });
+    button(g, { 146, 56, 150, 22 }, "FX MIXER", fxTab == 1, [this] { fxTab = 1; });
+    if (fxTab == 1) {
+        button(g, { 560, 56, 110, 22 }, on ? "REV7 ON" : "REV7 OFF", on, [this, on] { ed.proc.engine.fxOn = !on; });
+        g.setColour(kInk); g.setFont(mono(14));
+        const int cp0 = fx.curPreset.load();
+        g.drawText(cp0 >= 0 && cp0 < (int) sp.presets.size() ? juce::String(sp.presets[(size_t) cp0].name).substring(0, 34) : juce::String(omega::rev7ProgName((int) fx.get("prog"))) + " *", 680, 56, 300, 22, juce::Justification::centredRight);
+        g.drawHorizontalLine(82, 20, (float) W - 20);
+        drawFxMixer(g); return;
+    }
     button(g, { 560, 56, 110, 22 }, on ? "REV7 ON" : "REV7 OFF", on, [this, on] { ed.proc.engine.fxOn = !on; });
     button(g, { 680, 56, 120, 22 }, "PRESET...", false, [this] { fxPresetMenu(); });
-    button(g, { 810, 56, 110, 22 }, "SENDS: M", false, [this] { page = 'M'; });
+    button(g, { 810, 56, 110, 22 }, "SENDS", false, [this] { fxTab = 1; });
     {   // the dice: click a random preset, right-click (or shift-click) new random settings
         static int face = 5;
         juce::Rectangle<float> d(938, 50, 34, 34);
@@ -493,7 +534,7 @@ void Screen::drawEffects(juce::Graphics& g) {
         }
     }
     g.setColour(kDim); g.setFont(mono(12));
-    g.drawText("Sends: REV on each strip (Page M). Dim: unused by this program. Dice: click random preset, right-click random settings.", 20, H - 50, W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("Sends: the FX MIXER tab. Dim: unused by this program. Dice: click random preset, right-click random settings.", 20, H - 50, W - 40, 16, juce::Justification::centredLeft);
 }
 
 void Screen::fxPresetMenu() {
@@ -511,45 +552,126 @@ void Screen::fxPresetMenu() {
 
 // ---- Page F: the library folder ----
 // ---- Page F, SONGS: the song folder ----
+// "1984 - Frankie Goes To Hollywood - Relax (alt)" -> artist, title
+static std::pair<juce::String, juce::String> artistTitle(const juce::File& f) {
+    juce::String n = f.getFileNameWithoutExtension().replaceCharacters("_", " ").trim();
+    if (n.length() > 7 && n.substring(0, 4).containsOnly("0123456789") && n.substring(4, 7) == " - ") n = n.substring(7);
+    const int d = n.indexOf(" - ");
+    if (d > 0) return { n.substring(0, d).trim(), n.substring(d + 3).trim() };
+    return { juce::String(), n };
+}
+
+void Screen::songSearchBox() {
+    auto* w = new juce::AlertWindow("Search songs", "Part of a title or artist (empty: all)", juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor("q", songSearch); w->addButton("Search", 1, juce::KeyPress(juce::KeyPress::returnKey)); w->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    w->enterModalState(true, juce::ModalCallbackFunction::create([this, w](int r) { if (r == 1) { songSearch = w->getTextEditorContents("q").trim(); songPage = 0; } repaint(); }), true);
+}
+
+// ---- Page F, SONGS: the song folder as a browser ----
 void Screen::drawSongFiles(juce::Graphics& g) {
     const juce::File dir = ed.proc.songFolder();
-    const auto files = ed.proc.songFiles();
-    g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("SONG FOLDER: " + (dir == juce::File() ? juce::String("(none set)") : dir.getFullPathName()), 20, 86, W - 40, 20, juce::Justification::centredLeft);
-    button(g, { 20, 110, 200, 24 }, "SET SONG FOLDER", false, [this] {
+    const auto all = ed.proc.songFiles();
+    // filter and order
+    struct Row { juce::File f; juce::String artist, title, key; };
+    std::vector<Row> rows;
+    for (const auto& f : all) {
+        const auto at = artistTitle(f);
+        if (songSearch.isNotEmpty() && !f.getFileNameWithoutExtension().containsIgnoreCase(songSearch)) continue;
+        rows.push_back({ f, at.first, at.second, (songByArtist ? at.first + " " + at.second : at.second + " " + at.first).toUpperCase() });
+    }
+    std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.key.compareNatural(b.key) < 0; });
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText("SONG FOLDER: " + (dir == juce::File() ? juce::String("(none set)") : dir.getFullPathName()), 20, 84, 560, 16, juce::Justification::centredLeft);
+    button(g, { 590, 82, 120, 20 }, "SET FOLDER", false, [this] {
         ed.chooser = std::make_unique<juce::FileChooser>("Your MIDI songs", ed.proc.songFolder());
         ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [this](const juce::FileChooser& fc) {
             if (fc.getResult().isDirectory()) { ed.proc.setSongFolder(fc.getResult()); songPage = 0; status = juce::String((int) ed.proc.songFiles().size()) + " SONGS FOUND"; } repaint(); });
     });
-    button(g, { 230, 110, 130, 24 }, "RESCAN", false, [this] { ed.proc.rescanSongs(); status = juce::String((int) ed.proc.songFiles().size()) + " SONGS FOUND"; });
-    g.setColour(kDim); g.setFont(mono(13));
-    g.drawText(juce::String((int) files.size()) + " SONGS.  CLICK: LOAD (THEN PAGE S).  * = LOADED", 380, 110, 600, 24, juce::Justification::centredLeft);
-    const int rows = 19, per = rows * 2;
-    const int pages = std::max(1, ((int) files.size() + per - 1) / per);
+    button(g, { 716, 82, 90, 20 }, "RESCAN", false, [this] { ed.proc.rescanSongs(); songInfoCache.clear(); status = juce::String((int) ed.proc.songFiles().size()) + " SONGS FOUND"; });
+    button(g, { 812, 82, 168, 20 }, songByArtist ? "ORDER: ARTIST" : "ORDER: TITLE", false, [this] { songByArtist = !songByArtist; songPage = 0; });
+    // search and the letters
+    button(g, { 20, 106, 110, 22 }, "SEARCH", songSearch.isNotEmpty(), [this] { songSearchBox(); });
+    if (songSearch.isNotEmpty()) { g.setColour(kInk); g.setFont(mono(13)); g.drawText("\"" + songSearch + "\"", 136, 106, 120, 22, juce::Justification::centredLeft); button(g, { 258, 106, 30, 22 }, "X", false, [this] { songSearch.clear(); songPage = 0; }); }
+    const int rowsPer = 17;
+    const juce::String letters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (int k = 0; k < letters.length(); ++k) {
+        const juce::juce_wchar ch = letters[k];
+        int first = -1; for (int i = 0; i < (int) rows.size() && first < 0; ++i) { const auto c0 = rows[(size_t) i].key[0]; if (ch == '#' ? !juce::CharacterFunctions::isLetter(c0) : c0 == ch) first = i; }
+        juce::Rectangle<float> r(296.f + k * 25.f, 106, 23, 22);
+        g.setColour(first >= 0 ? kInk : kFaint); g.setFont(mono(14)); g.drawText(juce::String::charToString(ch), r, juce::Justification::centred);
+        if (first >= 0) hit(r, [this, first, rowsPer](const juce::MouseEvent&) { songPage = first / rowsPer; });
+    }
+    g.drawHorizontalLine(132, 20, (float) W - 20);
+    // the list
+    const int pages = std::max(1, ((int) rows.size() + rowsPer - 1) / rowsPer);
     songPage = juce::jlimit(0, pages - 1, songPage);
-    if (files.empty()) { g.setColour(kDim); g.setFont(mono(15)); g.drawText(dir == juce::File() ? "Set the folder with your MIDI songs (it's searched inside too)." : "No MIDI files in that folder.", 20, 150, W - 40, 20, juce::Justification::centredLeft); }
+    if (rows.empty()) { g.setColour(kDim); g.setFont(mono(15)); g.drawText(dir == juce::File() ? "Set the folder with your MIDI songs (it's searched inside too)." : songSearch.isNotEmpty() ? "Nothing matches." : "No MIDI files in that folder.", 20, 150, 580, 20, juce::Justification::centredLeft); }
     const int cur = ed.proc.currentSong();
-    for (int k = 0; k < per && songPage * per + k < (int) files.size(); ++k) {
-        const juce::File f = files[(size_t) (songPage * per + k)];
-        const int li = ed.proc.loadedSongFor(f);
-        juce::Rectangle<float> r(20.f + (k / rows) * 480.f, 142.f + (k % rows) * 22.f, 470, 21);
-        if (li >= 0 && li == cur) { g.setColour(kInk); g.fillRect(r); g.setColour(kBg); } else g.setColour(li >= 0 ? kInk : kDim);
-        g.setFont(mono(14));
-        g.drawText((li >= 0 ? "* " : "  ") + f.getFileNameWithoutExtension().substring(0, 52), r.reduced(4, 0), juce::Justification::centredLeft);
-        hit(r, [this, f](const juce::MouseEvent& m) {
-            int li2 = ed.proc.loadedSongFor(f);
-            if (li2 < 0) { const auto err = ed.proc.importMidi(f); li2 = ed.proc.loadedSongFor(f); status = err.isNotEmpty() ? err.toUpperCase() : li2 >= 0 ? "LOADED " + f.getFileNameWithoutExtension().toUpperCase() : "ALREADY LOADED (ANOTHER VERSION)"; }
-            if (li2 >= 0) { ed.proc.chooseSong(li2); if (m.getNumberOfClicks() > 1 || m.mods.isPopupMenu()) { page = 'S'; ed.proc.set("sync", 0.f); ed.proc.engine.songRun = true; } }
+    for (int k = 0; k < rowsPer && songPage * rowsPer + k < (int) rows.size(); ++k) {
+        const Row& rw = rows[(size_t) (songPage * rowsPer + k)];
+        const int li = ed.proc.loadedSongFor(rw.f);
+        juce::Rectangle<float> r(20, 138.f + k * 24.f, 590, 23);
+        const bool picked = rw.f == songSel, playing = li >= 0 && li == cur;
+        if (picked) { g.setColour(kInk); g.fillRect(r); } else if (playing) { g.setColour(kFaint); g.fillRect(r); }
+        g.setColour(picked ? kBg : kInk); g.setFont(mono(15));
+        g.drawText((playing ? "> " : li >= 0 ? "* " : "  ") + rw.title.substring(0, 34), r.reduced(4, 0), juce::Justification::centredLeft);
+        g.setColour(picked ? kBg : kDim); g.setFont(mono(12));
+        g.drawText(rw.artist.substring(0, 26), r.reduced(6, 0), juce::Justification::centredRight);
+        const juce::File f = rw.f;
+        auto& hh = hit(r, [this, f](const juce::MouseEvent& m) {
+            songSel = f;
+            if (m.getNumberOfClicks() > 1 || m.mods.isPopupMenu()) {   // load and play
+                int li2 = ed.proc.loadedSongFor(f);
+                if (li2 < 0) { const auto err = ed.proc.importMidi(f); li2 = ed.proc.loadedSongFor(f); if (err.isNotEmpty()) status = err.toUpperCase(); }
+                if (li2 >= 0) { ed.proc.chooseSong(li2); ed.proc.set("sync", 0.f); ed.proc.engine.songRun = true; status = "PLAYING " + f.getFileNameWithoutExtension().toUpperCase(); }
+            }
             repaint();
         });
+        hh.wheel = [this, pages](float dy) { songPage = juce::jlimit(0, pages - 1, songPage + (dy > 0 ? -1 : 1)); };
     }
-    if (pages > 1) {
-        const float y = 142 + rows * 22 + 2;
-        button(g, { 20, y, 40, 22 }, "<", false, [this] { songPage = juce::jmax(0, songPage - 1); });
-        g.setColour(kInk); g.setFont(mono(15)); g.drawText(juce::String(songPage + 1) + "/" + juce::String(pages), 64, (int) y, 70, 22, juce::Justification::centred);
-        button(g, { 138, y, 40, 22 }, ">", false, [this, pages] { songPage = juce::jmin(pages - 1, songPage + 1); });
-        g.setColour(kDim); g.setFont(mono(12)); g.drawText("double-click a song: load and play it on Page S", 200, (int) y, 500, 22, juce::Justification::centredLeft);
+    const float py = 138 + rowsPer * 24 + 4;
+    button(g, { 20, py, 40, 22 }, "<", false, [this] { songPage = juce::jmax(0, songPage - 1); });
+    g.setColour(kInk); g.setFont(mono(14)); g.drawText(juce::String(songPage + 1) + "/" + juce::String(pages) + "   " + juce::String((int) rows.size()) + " SONGS", 64, (int) py, 260, 22, juce::Justification::centredLeft);
+    button(g, { 570, py, 40, 22 }, ">", false, [this, pages] { songPage = juce::jmin(pages - 1, songPage + 1); });
+    g.setColour(kDim); g.setFont(mono(11)); g.drawText("double-click: play  > playing  * loaded", 250, (int) py, 320, 22, juce::Justification::centredLeft);
+    // the song picked
+    juce::Rectangle<float> dp(624, 138, 356, 412);
+    g.setColour(kFaint); g.drawRect(dp, 1.f);
+    if (songSel == juce::File()) { g.setColour(kDim); g.setFont(mono(13)); g.drawText("Pick a song to see what's in it.", dp.reduced(10), juce::Justification::centredTop); return; }
+    const auto at = artistTitle(songSel);
+    const juce::String key = songSel.getFullPathName();
+    if (!songInfoCache.count(key)) {   // its tempo, length and tracks, read once
+        juce::MemoryBlock mb; MidiSong ms; std::string err; juce::String info;
+        if (songSel.loadFileAsData(mb) && parseSmf((const uint8_t*) mb.getData(), mb.getSize(), "x", ms, err)) {
+            int used = 0; for (int t = 0; t < SONG_TRK; ++t) used += ms.used[t];
+            double secs = 0; { double b = 0; const double step = 0.25; while (b < ms.length) { secs += step * 60.0 / ms.bpmAt(b); b += step; } }
+            info << juce::String(ms.bpmAt(0), 1) << " BPM   " << ms.num << "/" << ms.den << "   " << (int) secs / 60 << ":" << juce::String((int) secs % 60).paddedLeft('0', 2) << "   " << used << " TRACKS\n";
+            for (int t = 0; t < SONG_TRK; ++t) {   // its name, and what it plays (the role the library matcher sees)
+                if (!ms.used[t]) continue;
+                const int ro = roleOf(ms, t);
+                const juce::String what = ms.program[t] < 0 || ro < 0 ? juce::String("drums") : juce::String(roles()[(size_t) ro].name);
+                juce::String nm = juce::String(ms.trackName[t]).trim().substring(0, 18);
+                int same = 0; for (int u = 0; u < SONG_TRK; ++u) same += ms.used[u] && ms.trackName[u] == ms.trackName[t];
+                if (same > 2) nm.clear();
+                info << juce::String(t + 1).paddedLeft(' ', 2) << " " << (nm.isEmpty() ? what : nm.paddedRight(' ', 19) + what) << "\n";
+            }
+        } else info = "Can't read it: " + juce::String(err);
+        songInfoCache[key] = info;
     }
+    g.setColour(kInk); g.setFont(mono(19)); g.drawFittedText(at.second, dp.reduced(10).removeFromTop(48).toNearestInt(), juce::Justification::topLeft, 2);
+    g.setColour(kDim); g.setFont(mono(14)); g.drawText(at.first, dp.reduced(10).withTrimmedTop(48).removeFromTop(18), juce::Justification::centredLeft);
+    auto lines = juce::StringArray::fromLines(songInfoCache[key]);
+    g.setColour(kInk); g.setFont(mono(13)); if (lines.size()) g.drawText(lines[0], dp.reduced(10).withTrimmedTop(72).removeFromTop(18), juce::Justification::centredLeft);
+    g.setColour(kDim); g.setFont(mono(12));
+    for (int i = 1; i < lines.size() && i < 17; ++i) g.drawText(lines[i], (int) dp.getX() + 10, (int) dp.getY() + 94 + (i - 1) * 15, (int) dp.getWidth() - 20, 14, juce::Justification::centredLeft);
+    const int li = ed.proc.loadedSongFor(songSel);
+    const juce::File f = songSel;
+    auto load = [this, f]() { int li2 = ed.proc.loadedSongFor(f); if (li2 < 0) { const auto err = ed.proc.importMidi(f); li2 = ed.proc.loadedSongFor(f); if (err.isNotEmpty()) status = err.toUpperCase(); } if (li2 >= 0) ed.proc.chooseSong(li2); return li2; };
+    const float by = dp.getBottom() - 30;
+    button(g, { dp.getX() + 8, by, 104, 24 }, li >= 0 ? "SELECT" : "LOAD", false, [this, load] { if (load() >= 0) status = "LOADED"; });
+    button(g, { dp.getX() + 118, by, 104, 24 }, "PLAY", li >= 0 && li == ed.proc.currentSong() && ed.proc.engine.songRun.load(), [this, load] { if (load() >= 0) { ed.proc.set("sync", 0.f); ed.proc.engine.songRun = true; } });
+    button(g, { dp.getX() + 228, by, 120, 24 }, "TO PAGE S", false, [this, load] { if (load() >= 0) page = 'S'; });
+    if (ed.proc.engine.songRun.load()) button(g, { dp.getX() + 228, by - 30, 120, 24 }, "STOP", false, [this] { ed.proc.engine.songRun = false; });
 }
 
 void Screen::drawFiles(juce::Graphics& g) {
@@ -775,89 +897,233 @@ void Screen::learnMenu(const char* id) {
 
 // the grid: one track's notes as a piano roll; click to add, drag to move, drag the end to lengthen,
 // right-click to delete, double-click for loud / soft; wheel scrolls, shift-wheel moves the octaves, ctrl-wheel zooms
+void Screen::gridCommit() {
+    SongEntry* e = ed.proc.songs.at(ed.proc.currentSong()); if (!e) return;
+    editSong(ed.proc.engine, e, ge.notes); geFor = e->song.get(); dirty = false;
+}
+void Screen::gridAudition(int pitch) { ed.proc.audition(selTrack, pitch); }
+
+// the piano roll for one track: keys down the side (click to hear), the other tracks faintly behind, a velocity lane
+// and the whole song as a strip underneath. Tools: DRAW (click adds, drag moves, drag the end to lengthen),
+// SELECT (drag a box), ERASE (click or drag over notes). Right-click deletes in any tool.
 void Screen::drawGrid(juce::Graphics& g, juce::Rectangle<float> a) {
     auto& eng = ed.proc.engine;
     SongEntry* e = ed.proc.songs.at(ed.proc.currentSong());
     if (!e) return;
     const MidiSong& s = *e->song;
-    if (dragIdx < 0) work = notesOf(s);
-    const int rows = 24;
-    // a new track on the grid: show its notes
-    if (selTrack != gridTrack) {
-        gridTrack = selTrack;
-        std::vector<int> ps; for (const auto& n : work) if (n.track == selTrack) ps.push_back(n.pitch);
-        if (!ps.empty()) { std::nth_element(ps.begin(), ps.begin() + (long) ps.size() / 2, ps.end()); pitchLow = juce::jlimit(0, 103, ps[ps.size() / 2] - 12); }
+    if (e->song.get() != geFor && dragIdx < 0) { ge.setNotes(notesOf(s)); geFor = e->song.get(); }
+    ge.fit();
+    const int rows = gridRows;
+    if (selTrack != gridTrack) {   // a new track: centre its notes, clear the selection
+        gridTrack = selTrack; ge.clear();
+        std::vector<int> ps; for (const auto& n : ge.notes) if (n.track == selTrack) ps.push_back(n.pitch);
+        if (!ps.empty()) { std::nth_element(ps.begin(), ps.begin() + (long) ps.size() / 2, ps.end()); pitchLow = juce::jlimit(0, 127 - rows, ps[ps.size() / 2] - rows / 2); }
     }
-    const float keyW = 34, gx = a.getX() + keyW, gw = a.getWidth() - keyW, rh = a.getHeight() / rows;
+    pitchLow = juce::jlimit(0, 127 - rows, pitchLow);
+    const float keyW = 40, gx = a.getX() + keyW, gw = a.getWidth() - keyW;
+    const float velH = 40, ovH = 12;
+    juce::Rectangle<float> ga(gx, a.getY(), gw, a.getHeight() - velH - ovH - 8);
+    const float rh = ga.getHeight() / rows;
     const double beatNow = eng.songBeat.load();
-    if (eng.songRun.load() && dragIdx < 0 && (beatNow < viewStart || beatNow > viewStart + viewBeats)) viewStart = std::floor(beatNow / 4) * 4;
-    auto xOf = [&](double b) { return gx + (float) ((b - viewStart) / viewBeats) * gw; };
-    auto beatAt = [&](float x) { return viewStart + (x - gx) / gw * viewBeats; };
-    auto pitchAt = [&](float y) { return pitchLow + (int) ((a.getBottom() - y) / rh); };
-    auto snapTo = [&](double b) { return std::round(b / snap) * snap; };
-    // rows: the keyboard down the side
+    if (gridFollow && eng.songRun.load() && dragIdx < 0 && !banding && (beatNow < viewStart || beatNow > viewStart + viewBeats)) viewStart = std::floor(beatNow / 4) * 4;
+    auto xOf = [=](double b) { return gx + (float) ((b - viewStart) / viewBeats) * gw; };
+    auto beatAt = [=](float x) { return viewStart + (x - gx) / gw * viewBeats; };
+    auto pitchAt = [=](float y) { return pitchLow + (int) std::floor((ga.getBottom() - y) / rh); };
+    auto snapTo = [this](double b) { return snap > 0 ? std::round(b / snap) * snap : b; };
+    // keys and rows
     for (int r = 0; r < rows; ++r) {
-        const int p = pitchLow + r; const float y = a.getBottom() - (r + 1) * rh;
+        const int p = pitchLow + r; const float y = ga.getBottom() - (r + 1) * rh;
         const int k = p % 12; const bool black = k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
         g.setColour(black ? juce::Colour(0xff031208) : kBg); g.fillRect(gx, y, gw, rh);
-        g.setColour(black ? juce::Colour(0xff0d2a1c) : kFaint); g.fillRect(a.getX(), y, keyW - 2, rh - 1);
-        if (k == 0) { g.setColour(kInk); g.setFont(mono(11)); g.drawText(noteName(p), (int) a.getX() + 2, (int) y, (int) keyW, (int) rh, juce::Justification::centredLeft); g.setColour(kFaint); g.drawHorizontalLine((int) (y + rh), gx, gx + gw); }
+        g.setColour(black ? juce::Colour(0xff0d2a1c) : juce::Colour(0xffcfe9d6).withAlpha(0.85f)); g.fillRect(a.getX(), y, black ? keyW * 0.62f : keyW - 2, rh - 0.5f);
+        if (k == 0) { g.setColour(kBg); g.setFont(mono(std::min(11.f, rh))); g.drawText(noteName(p), (int) a.getX() + 2, (int) y, (int) keyW - 4, (int) rh, juce::Justification::centredRight); g.setColour(kFaint); g.drawHorizontalLine((int) (y + rh), gx, gx + gw); }
     }
+    hit({ a.getX(), ga.getY(), keyW, ga.getHeight() }, [this, pitchAt](const juce::MouseEvent& m) { gridAudition(pitchAt(m.position.y)); });
     // beats and bars
-    const double barBeats = s.num * 4.0 / s.den;
-    for (double b = std::ceil(viewStart / snap) * snap; b <= viewStart + viewBeats; b += snap) {
+    const double barBeats = s.num * 4.0 / s.den, step = snap > 0 ? snap : 0.25;
+    for (double b = std::ceil(viewStart / step) * step; b <= viewStart + viewBeats; b += step) {
         const bool bar = std::fmod(b + 1e-6, barBeats) < 2e-6, beat = std::fmod(b + 1e-6, 1.0) < 2e-6;
         if (!beat && viewBeats > 48) continue;
-        g.setColour(bar ? kDim : beat ? kFaint : juce::Colour(0xff08200f)); g.fillRect(xOf(b), a.getY(), bar ? 1.5f : 1.f, a.getHeight());
-        if (bar) { g.setColour(kDim); g.setFont(mono(11)); g.drawText(juce::String(1 + (int) std::round(b / barBeats)), (int) xOf(b) + 2, (int) a.getY() - 14, 40, 13, juce::Justification::centredLeft); }
+        g.setColour(bar ? kDim : beat ? kFaint : juce::Colour(0xff08200f)); g.fillRect(xOf(b), ga.getY(), bar ? 1.5f : 1.f, ga.getHeight());
+        if (bar) { g.setColour(kDim); g.setFont(mono(11)); g.drawText(juce::String(1 + (int) std::round(b / barBeats)), (int) xOf(b) + 2, (int) ga.getY() - 13, 40, 12, juce::Justification::centredLeft); }
     }
-    // the other tracks, faintly; then this one
+    // notes: the other tracks faintly, then this one (the selection white-edged)
     for (int pass = 0; pass < 2; ++pass)
-        for (size_t i = 0; i < work.size(); ++i) {
-            const auto& n = work[i];
+        for (size_t i = 0; i < ge.notes.size(); ++i) {
+            const auto& n = ge.notes[i];
             if ((n.track == selTrack) != (pass == 1)) continue;
+            if (pass == 0 && !gridGhost) continue;
             if (n.start + n.len < viewStart || n.start > viewStart + viewBeats || n.pitch < pitchLow || n.pitch >= pitchLow + rows) continue;
-            const float y = a.getBottom() - (n.pitch - pitchLow + 1) * rh, x0 = std::max(gx, xOf(n.start)), x1 = std::min(gx + gw, xOf(n.start + n.len));
-            if (pass == 0) { g.setColour(kFaint.brighter(0.2f)); g.fillRect(x0, y + rh * 0.35f, std::max(1.f, x1 - x0), rh * 0.3f); continue; }
-            g.setColour(kInk.withAlpha(0.45f + 0.55f * n.vel / 127.f)); g.fillRect(x0, y + 1, std::max(2.f, x1 - x0 - 1), rh - 2);
-            g.setColour((int) i == dragIdx ? juce::Colours::white : kBg); g.drawRect(x0, y + 1, std::max(2.f, x1 - x0 - 1), rh - 2, 1.f);
+            const float y = ga.getBottom() - (n.pitch - pitchLow + 1) * rh, x0 = std::max(gx, xOf(n.start)), x1 = std::min(gx + gw, xOf(n.start + n.len));
+            if (pass == 0) { g.setColour(kFaint.brighter(0.25f)); g.fillRect(x0, y + rh * 0.35f, std::max(1.f, x1 - x0), rh * 0.3f); continue; }
+            const bool on = ge.sel[i] != 0;
+            g.setColour((on ? juce::Colours::white : kInk).withAlpha(0.5f + 0.5f * n.vel / 127.f)); g.fillRect(x0, y + 1, std::max(3.f, x1 - x0 - 1), rh - 2);
+            g.setColour(on ? juce::Colours::white : kBg); g.drawRect(x0, y + 1, std::max(3.f, x1 - x0 - 1), rh - 2, 1.f);
+            if (x1 - x0 > 14) { g.setColour(kBg.withAlpha(0.8f)); g.fillRect(x1 - 4, y + 3, 2.f, rh - 6); }   // the end handle
         }
-    g.setColour(juce::Colours::white); if (beatNow >= viewStart && beatNow <= viewStart + viewBeats) g.fillRect(xOf(beatNow), a.getY(), 1.5f, a.getHeight());
-    g.setColour(kInk); g.drawRect(a, 1.f);
+    if (beatNow >= viewStart && beatNow <= viewStart + viewBeats) { g.setColour(juce::Colours::white); g.fillRect(xOf(beatNow), ga.getY(), 1.5f, ga.getHeight()); }
+    if (banding) { g.setColour(juce::Colours::white.withAlpha(0.15f)); auto br = juce::Rectangle<float>(bandA, bandB); g.fillRect(br); g.setColour(juce::Colours::white); g.drawRect(br, 1.f); }
+    g.setColour(kInk); g.drawRect(ga, 1.f);
 
-    juce::Rectangle<float> ga(gx, a.getY(), gw, a.getHeight());
-    auto& h = hit(ga, [this, beatAt, pitchAt, snapTo, xOf](const juce::MouseEvent& m) {
+    auto& h = hit(ga, [=](const juce::MouseEvent& m) {
+        grabKeyboardFocus();
         const double b = beatAt(m.position.x); const int p = pitchAt(m.position.y);
-        int idx = -1;
-        for (size_t i = 0; i < work.size(); ++i) { const auto& n = work[i]; if (n.track == selTrack && n.pitch == p && b >= n.start && b <= n.start + std::max(n.len, snap * 0.5)) idx = (int) i; }
-        if (m.mods.isPopupMenu()) { if (idx >= 0) { work.erase(work.begin() + idx); dirty = true; } dragIdx = -1; if (dirty) { editSong(ed.proc.engine, ed.proc.songs.at(ed.proc.currentSong()), work); dirty = false; } return; }
-        if (idx >= 0 && m.getNumberOfClicks() > 1) { auto& n = work[(size_t) idx]; n.vel = n.vel >= 120 ? 64 : n.vel >= 90 ? 127 : 100; editSong(ed.proc.engine, ed.proc.songs.at(ed.proc.currentSong()), work); dirty = false; dragIdx = -1; return; }
+        const int idx = ge.at(selTrack, b, p, std::max(snap, 0.125) * 0.5);
+        velIdx = -1;
+        if (m.mods.isPopupMenu() || gridTool == 2) {   // erase
+            if (idx >= 0) { ge.sel.assign(ge.notes.size(), 0); ge.sel[(size_t) idx] = 1; ge.erase(); dirty = true; }
+            dragIdx = -2; return;
+        }
         if (idx >= 0) {
-            dragIdx = idx; dragOrig = work[(size_t) idx];
-            dragMode = m.position.x > xOf(dragOrig.start + dragOrig.len) - 6 ? 1 : 0;
-        } else {
-            const double st = std::max(0.0, std::floor(b / snap) * snap);
-            work.push_back({ selTrack, st, std::max(snap, 0.5), p, 100 });
-            dragIdx = (int) work.size() - 1; dragOrig = work.back(); dragMode = 1; dirty = true;
+            if (!ge.sel[(size_t) idx]) { if (!m.mods.isShiftDown()) ge.clear(); ge.sel[(size_t) idx] = 1; }
+            else if (m.mods.isShiftDown()) { ge.sel[(size_t) idx] = 0; dragIdx = -1; return; }
+            dragIdx = idx; dragFrom = ge.notes; dragOrig = ge.notes[(size_t) idx];
+            dragMode = m.position.x > xOf(dragOrig.start + dragOrig.len) - 7 ? 1 : 0;
+            newLen = dragOrig.len; gridAudition(p);
+        } else if (gridTool == 1) {   // select: a box
+            if (!m.mods.isShiftDown()) ge.clear();
+            banding = true; bandA = bandB = m.position; dragIdx = -1;
+        } else {   // draw: a new note, drag to lengthen
+            ge.clear();
+            const double st = std::max(0.0, snap > 0 ? std::floor(b / snap) * snap : b);
+            dragIdx = ge.add(selTrack, st, newLen, p, 100); ge.sel[(size_t) dragIdx] = 1;
+            dragFrom = ge.notes; dragOrig = ge.notes[(size_t) dragIdx]; dragMode = 2; dirty = true; gridAudition(p);
         }
         grabBeat = b; grabPitch = p;
-    }, [this, beatAt, pitchAt, snapTo](const juce::MouseEvent& m) {
-        if (dragIdx < 0 || dragIdx >= (int) work.size()) return;
-        auto& n = work[(size_t) dragIdx];
+    }, [=](const juce::MouseEvent& m) {
         const double b = beatAt(m.position.x); const int p = pitchAt(m.position.y);
-        if (dragMode == 0) { n.start = std::max(0.0, dragOrig.start + snapTo(b - grabBeat)); n.pitch = juce::jlimit(0, 127, dragOrig.pitch + (p - grabPitch)); }
-        else n.len = std::max(snap, snapTo(b - n.start));
+        if (banding) { bandB = m.position; ge.selectRect(selTrack, beatAt(bandA.x), b, pitchAt(bandA.y), p, m.mods.isShiftDown()); return; }
+        if (dragIdx == -2) { const int idx = ge.at(selTrack, b, p, 0.06); if (idx >= 0) { ge.sel.assign(ge.notes.size(), 0); ge.sel[(size_t) idx] = 1; ge.erase(); dirty = true; } return; }
+        if (dragIdx < 0 || dragIdx >= (int) ge.notes.size() || dragFrom.size() != ge.notes.size()) return;
+        if (dragMode == 0) {   // move the selection
+            const double db = snapTo(b - grabBeat); const int dp = p - grabPitch;
+            for (size_t i = 0; i < ge.notes.size(); ++i) if (ge.sel[i]) { ge.notes[i].start = std::max(0.0, dragFrom[i].start + db); ge.notes[i].pitch = juce::jlimit(0, 127, dragFrom[i].pitch + dp); }
+            if (dp != 0 && ge.notes[(size_t) dragIdx].pitch != dragOrig.pitch + dp - 0) {}
+        } else {               // lengthen (the selection by the same amount)
+            const double end = std::max(dragOrig.start + std::max(snap, 1.0 / 32), snap > 0 ? std::ceil((b - 1e-9) / snap) * snap : b);
+            const double d = end - (dragOrig.start + dragOrig.len);
+            for (size_t i = 0; i < ge.notes.size(); ++i) if (ge.sel[i]) ge.notes[i].len = std::max(snap > 0 ? snap : 1.0 / 32, dragFrom[i].len + d);
+            newLen = ge.notes[(size_t) dragIdx].len;
+        }
         dirty = true;
     });
-    h.up = [this](const juce::MouseEvent&) {
-        if (dirty) editSong(ed.proc.engine, ed.proc.songs.at(ed.proc.currentSong()), work);
-        dirty = false; dragIdx = -1;
-    };
+    h.up = [this](const juce::MouseEvent&) { banding = false; if (dirty) gridCommit(); dragIdx = -1; };
     h.wheel = [this](float dy) {
-        if (wheelMods.isShiftDown()) pitchLow = juce::jlimit(0, 103, pitchLow + (dy > 0 ? 2 : -2));
+        if (wheelMods.isShiftDown()) pitchLow = juce::jlimit(0, 127 - gridRows, pitchLow + (dy > 0 ? 2 : -2));
         else if (wheelMods.isCommandDown() || wheelMods.isCtrlDown()) viewBeats = juce::jlimit(2.0, 512.0, viewBeats * (dy > 0 ? 0.8 : 1.25));
         else viewStart = std::max(0.0, viewStart + (dy > 0 ? -1 : 1) * viewBeats / 8);
     };
+    // the velocity lane
+    juce::Rectangle<float> vl(gx, ga.getBottom() + 4, gw, velH);
+    g.setColour(juce::Colour(0xff041a0c)); g.fillRect(vl); g.setColour(kFaint); g.drawRect(vl, 1.f);
+    g.setColour(kDim); g.setFont(mono(10)); g.drawText("VEL", (int) a.getX(), (int) vl.getY(), (int) keyW - 4, (int) velH, juce::Justification::centredRight);
+    for (size_t i = 0; i < ge.notes.size(); ++i) {
+        const auto& n = ge.notes[i]; if (n.track != selTrack || n.start < viewStart || n.start > viewStart + viewBeats) continue;
+        const float x = xOf(n.start), hgt = (velH - 4) * n.vel / 127.f;
+        g.setColour(ge.sel[i] ? juce::Colours::white : kInk); g.fillRect(x, vl.getBottom() - 2 - hgt, 3.f, hgt);
+    }
+    auto velSet = [=](const juce::MouseEvent& m) {
+        const int v = juce::jlimit(1, 127, (int) std::lround((vl.getBottom() - 2 - m.position.y) / (velH - 4) * 127));
+        if (velIdx < 0) {   // the note nearest the click (with the selection, if it's in it)
+            double best = 1e9;
+            for (size_t i = 0; i < ge.notes.size(); ++i) { const auto& n = ge.notes[i]; if (n.track != selTrack) continue; const double d = std::fabs(xOf(n.start) - m.position.x); if (d < best && d < 8) { best = d; velIdx = (int) i; } }
+            if (velIdx < 0) return;
+        }
+        if (ge.sel[(size_t) velIdx]) { for (size_t i = 0; i < ge.notes.size(); ++i) if (ge.sel[i]) ge.notes[i].vel = v; }
+        else ge.notes[(size_t) velIdx].vel = v;
+        dirty = true;
+    };
+    auto& vh = hit(vl, [this, velSet](const juce::MouseEvent& m) { velIdx = -1; velSet(m); }, velSet);
+    vh.up = [this](const juce::MouseEvent&) { if (dirty) gridCommit(); velIdx = -1; };
+    // the whole song, this track: click or drag to move the view
+    juce::Rectangle<float> ov(gx, vl.getBottom() + 4, gw, ovH);
+    const double len = std::max(4.0, s.length);
+    g.setColour(juce::Colour(0xff041a0c)); g.fillRect(ov);
+    g.setColour(kDim); for (const auto& n : ge.notes) if (n.track == selTrack) g.fillRect(ov.getX() + (float) (n.start / len) * gw, ov.getY() + 2, std::max(1.f, (float) (n.len / len) * gw), ovH - 4);
+    g.setColour(juce::Colours::white); g.drawRect(ov.getX() + (float) (viewStart / len) * gw, ov.getY(), std::max(3.f, (float) (viewBeats / len) * gw), ovH, 1.f);
+    g.fillRect(ov.getX() + (float) (beatNow / len) * gw, ov.getY(), 1.f, ovH);
+    auto ovSet = [this, ov, len, gw](const juce::MouseEvent& m) { viewStart = std::max(0.0, (m.position.x - ov.getX()) / gw * len - viewBeats / 2); gridFollow = false; };
+    hit(ov, ovSet, ovSet);
+}
+
+// the grid page: track chips, tools, the roll, the edit buttons
+void Screen::gridPage(juce::Graphics& g) {
+    auto& eng = ed.proc.engine; auto& kit = ed.proc.kit;
+    SongEntry* entry = ed.proc.songs.at(ed.proc.currentSong());
+    const MidiSong* s = eng.song.load();
+    if (!entry || !s) return;
+    // track chips
+    for (int t = 0; t < SONG_TRK; ++t) {
+        juce::Rectangle<float> r(20.f + t * 60.f, 146, 58, 20);
+        const int v = eng.songVoice[t]; const Sound* snd = v == GM_KIT ? nullptr : kit.bank.at(v);
+        const juce::String nm = !s->used[t] ? juce::String("--") : v == GM_KIT ? juce::String("KIT") : snd ? juce::String(snd->name).substring(0, 5) : juce::String("?");
+        if (t == selTrack) { g.setColour(kInk); g.fillRect(r); g.setColour(kBg); } else g.setColour(s->used[t] ? kInk : kDim);
+        g.setFont(mono(11)); g.drawText(juce::String(t + 1) + " " + nm, r, juce::Justification::centred);
+        if (t != selTrack) { g.setColour(kFaint); g.drawRect(r, 1.f); }
+        hit(r, [this, t](const juce::MouseEvent& m) { selTrack = t; if (m.mods.isPopupMenu() || m.getNumberOfClicks() > 1) soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); }); });
+    }
+    // tools
+    const char* tools[3] = { "DRAW", "SELECT", "ERASE" };
+    for (int k = 0; k < 3; ++k) button(g, { 20.f + k * 74, 172, 70, 20 }, tools[k], gridTool == k, [this, k] { gridTool = k; });
+    const char* sn = snap <= 0 ? "OFF" : snap >= 4 ? "BAR" : snap >= 1 ? "1/4" : snap >= 0.5 ? "1/8" : snap >= 0.25 ? "1/16" : "1/32";
+    button(g, { 250, 172, 110, 20 }, juce::String("SNAP ") + sn, false, [this] { snap = snap <= 0 ? 4 : snap >= 4 ? 1 : snap >= 1 ? 0.5 : snap >= 0.5 ? 0.25 : snap >= 0.25 ? 0.125 : 0; });
+    button(g, { 366, 172, 92, 20 }, "ROWS " + juce::String(gridRows), false, [this] { gridRows = gridRows == 24 ? 36 : gridRows == 36 ? 48 : 24; });
+    button(g, { 464, 172, 40, 20 }, "-", false, [this] { viewBeats = std::min(512.0, viewBeats * 1.5); });
+    button(g, { 508, 172, 40, 20 }, "+", false, [this] { viewBeats = std::max(2.0, viewBeats / 1.5); });
+    button(g, { 554, 172, 92, 20 }, "FOLLOW", gridFollow, [this] { gridFollow = !gridFollow; });
+    button(g, { 652, 172, 92, 20 }, "OTHERS", gridGhost, [this] { gridGhost = !gridGhost; });
+    button(g, { 750, 172, 36, 20 }, "<", false, [this] { viewStart = std::max(0.0, viewStart - viewBeats / 2); gridFollow = false; });
+    button(g, { 790, 172, 36, 20 }, ">", false, [this] { viewStart += viewBeats / 2; gridFollow = false; });
+    button(g, { 832, 172, 32, 20 }, "^", false, [this] { pitchLow = juce::jlimit(0, 127 - gridRows, pitchLow + 12); });
+    button(g, { 868, 172, 32, 20 }, "v", false, [this] { pitchLow = juce::jlimit(0, 127 - gridRows, pitchLow - 12); });
+    button(g, { 906, 172, 74, 20 }, "TRACKS", false, [this] { songGrid = false; });
+    drawGrid(g, { 20, 214, (float) W - 40, 326 });
+    // edits: on the selection, or the whole track when nothing is selected
+    const float by = (float) H - 92;
+    struct B { const char* t; std::function<void()> f; };
+    auto op = [this](std::function<void()> f, const char* msg) { return [this, f, msg] { f(); gridCommit(); status = msg; }; };
+    const std::vector<B> bs = {
+        { "UNDO", [this, entry] { if (undoSong(ed.proc.engine, entry)) status = "UNDONE"; } },
+        { "ALL", [this] { ge.selectAll(selTrack); } },
+        { "DEL", op([this] { if (!ge.any()) ge.selectAll(selTrack); ge.erase(); }, "DELETED") },
+        { "COPY", [this] { ge.copy(); status = juce::String((int) GridEdit::clipboard().size()) + " NOTES COPIED"; } },
+        { "PASTE", op([this] { const double b = ed.proc.engine.songBeat.load(); ge.paste(selTrack, std::max(0.0, snap > 0 ? std::round((b >= viewStart && b <= viewStart + viewBeats ? b : viewStart) / snap) * snap : viewStart)); }, "PASTED") },
+        { "DUP", op([this] { ge.duplicate(snap); }, "DUPLICATED") },
+        { "-12", op([this] { ge.transpose(selTrack, -12); }, "OCTAVE DOWN") }, { "-1", op([this] { ge.transpose(selTrack, -1); }, "DOWN") },
+        { "+1", op([this] { ge.transpose(selTrack, 1); }, "UP") }, { "+12", op([this] { ge.transpose(selTrack, 12); }, "OCTAVE UP") },
+        { "QUANT", op([this] { ge.quantize(selTrack, snap > 0 ? snap : 0.25); }, "QUANTIZED") },
+        { "LEGATO", op([this] { ge.legato(selTrack); }, "LEGATO") },
+        { "VEL-", op([this] { ge.velocity(selTrack, -10); }, "SOFTER") }, { "VEL+", op([this] { ge.velocity(selTrack, 10); }, "LOUDER") },
+    };
+    for (size_t k = 0; k < bs.size(); ++k) button(g, { 20.f + k * 68.5f, by, 64, 22 }, bs[k].t, false, bs[k].f);
+    g.setColour(kDim); g.setFont(mono(11));
+    const int ns = ge.selected();
+    g.drawText((ns ? juce::String(ns) + " SELECTED" : juce::String("NONE SELECTED: EDITS APPLY TO THE TRACK")), 390, H - 60, 380, 12, juce::Justification::centredLeft);
+    g.drawText("keys: Del  Ctrl+Z/A/C/V/D  arrows (shift: octave)  D/S/E tools", 390, H - 47, 380, 12, juce::Justification::centredLeft);
+}
+
+bool Screen::keyPressed(const juce::KeyPress& k) {
+    if (!(page == 'S' && songGrid && ed.proc.engine.song.load())) return false;
+    SongEntry* e = ed.proc.songs.at(ed.proc.currentSong()); if (!e) return false;
+    const auto c = k.getKeyCode(); const bool cmd = k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown(), sh = k.getModifiers().isShiftDown();
+    bool edit = true;
+    if (c == juce::KeyPress::deleteKey || c == juce::KeyPress::backspaceKey) { if (!ge.any()) return true; ge.erase(); }
+    else if (cmd && (c == 'Z' || c == 'z')) { undoSong(ed.proc.engine, e); edit = false; }
+    else if (cmd && (c == 'A' || c == 'a')) { ge.selectAll(selTrack); edit = false; }
+    else if (cmd && (c == 'C' || c == 'c')) { ge.copy(); edit = false; }
+    else if (cmd && (c == 'V' || c == 'v')) ge.paste(selTrack, snap > 0 ? std::round(viewStart / snap) * snap : viewStart);
+    else if (cmd && (c == 'D' || c == 'd')) ge.duplicate(snap);
+    else if (c == juce::KeyPress::upKey) ge.transpose(selTrack, sh ? 12 : 1);
+    else if (c == juce::KeyPress::downKey) ge.transpose(selTrack, sh ? -12 : -1);
+    else if (c == juce::KeyPress::leftKey) ge.move(selTrack, -(snap > 0 ? snap : 0.25) * (sh ? 4 : 1));
+    else if (c == juce::KeyPress::rightKey) ge.move(selTrack, (snap > 0 ? snap : 0.25) * (sh ? 4 : 1));
+    else if (!cmd && (c == 'D' || c == 'd')) { gridTool = 0; edit = false; }
+    else if (!cmd && (c == 'S' || c == 's')) { gridTool = 1; edit = false; }
+    else if (!cmd && (c == 'E' || c == 'e')) { gridTool = 2; edit = false; }
+    else if (c == juce::KeyPress::escapeKey) { ge.clear(); edit = false; }
+    else return false;
+    if (edit) gridCommit();
+    repaint(); return true;
 }
 
 // a MIDI song on Page R: its sixteen tracks, their CMI voices, the whole song at a glance or one track on the grid
@@ -886,6 +1152,16 @@ void Screen::drawMidiSong(juce::Graphics& g) {
     button(g, { 680, 112, 140, 24 }, "EXPORT...", false, [this] { exportMenu(); });
     button(g, { 830, 112, 140, 24 }, "SONGS...", false, [this] { songMenu(); });
 
+    if (songGrid) {
+        gridPage(g);
+        const float by2 = (float) H - 60;
+        const bool running = eng.songRun.load();
+        button(g, { 28, by2, 100, 24 }, "PLAY", running && !ext, [this, &eng] { ed.proc.set("sync", 0.f); eng.songRun = true; });
+        button(g, { 140, by2, 100, 24 }, "STOP", !running, [&eng] { eng.songRun = false; });
+        button(g, { 252, by2, 120, 24 }, "FROM VIEW", false, [this, &eng] { (void) eng; status = "PLAY FROM BAR " + juce::String(1 + (int) (viewStart / 4)); ed.proc.set("sync", 0.f); ed.proc.playSongFrom(viewStart); });
+        button(g, { 775, by2, 195, 24 }, "PAGE S PATTERNS", false, [this] { ed.proc.chooseSong(-1); });
+        return;
+    }
     const float gy = 152, rh = 23, listW = 360;
     const int nT = SONG_TRK;
     g.drawRect(25.f, gy - 2, listW, rh * nT + 4, 1.f);

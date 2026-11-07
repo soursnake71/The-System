@@ -159,10 +159,25 @@ int main(int argc, char** argv) {
         juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
         std::printf("wrote %s\n", f.getFullPathName().toRawUTF8());
     }
-    if (p.engine.song.load()) {
-        ce->showPage('S'); ce->showSongGrid(true, 0);
+    if (!p.songFiles().empty()) {   // the song browser with a song picked
+        ce->pickSong(p.songFiles().back()); ce->showPage('F');
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
-        juce::File f = out.getChildFile("page_R_grid.png"); f.deleteFile();
+        juce::File f = out.getChildFile("page_F_songs.png"); f.deleteFile();
+        juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
+    }
+    {
+        ce->showFxMixer();
+        auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        juce::File f = out.getChildFile("page_E_mixer.png"); f.deleteFile();
+        juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
+        ce->showPage('E');
+    }
+    if (p.engine.song.load()) {
+        ce->showPage('M');
+        { auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f); juce::File f = out.getChildFile("page_M_song.png"); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo); }
+        ce->showPage('S'); ce->showSongGrid(true, 1);
+        auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        juce::File f = out.getChildFile("page_S_grid.png"); f.deleteFile();
         juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
     }
     ed.reset();

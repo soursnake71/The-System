@@ -51,118 +51,190 @@ public:
     bool sound(int i, Sound& out) const { if (i < 0 || i >= (int) voices.size()) return false; std::string err; return vcToSound(voices[(size_t) i].vc, voices[(size_t) i].name, voices[(size_t) i].disk, out, err); }
 };
 
-// ---- roles: what a track plays, and where the CMI library keeps it ----
+// ---- roles: what a track plays, and where the CMI library keeps it (voice names as on the IIx factory disks) ----
+// disks: prefixes of the disk labels and file / folder names; voices: the best-known first
 struct Role { const char* name; const char* disks; const char* voices; bool sustained; };
 inline const std::vector<Role>& roles() {
     static const std::vector<Role> r = {
-        { "orch hit", "STRINGS", "ORCH5|ORCH2|ORCHFZ1", false },
-        { "choir", "CHORAL|VOICE", "ARR1|SARARR1|SARARR|AHH1|ALTO1|OOHHI|TENOR2", true },
-        { "strings", "STRINGS", "ENSEMBLE|STRINGS1|STRINGS|VIOLINS|VLNTREMG|TENSEMBL", true },
-        { "pizzicato", "STRINGS|PLUCK", "PIZZ|PIZZ1|PIZZICAT", false },
-        { "cello", "STRINGS", "CELLO|CELLO2|CELLO1", true },
-        { "brass", "BRASS", "BRASS1|HORNENSM|PRAISBRS|FHORN1|TRPMID1", true },
-        { "trumpet", "BRASS", "TRPHI1|TRPMID1|TRPHI2|SYNTRUMP", true },
-        { "synth brass", "ANASYNTH|BRASS", "MBRASS|MBRASS2|SYNTRUMP|SYNTRP2", true },
-        { "sax", "REEDS|WOODWIND", "SAX|TENSAX|ALTOSAX|SAXOPHON|CLARINET|OBOE|BASSOON", true },
-        { "flute", "WOODWIND|REEDS", "FLUTE|FLUTE1|PANPIPE|SHAKU|RECORDER", true },
-        { "bass", "BASSES", "BASSGT|BASS1|PICKBASS|BASS2|ACCBASS1", false },
-        { "fretless", "BASSES", "BASSWOW|DBLBASS|BASSO", false },
-        { "slap bass", "BASSES", "BASSPOP|BASSRICK", false },
-        { "synth bass", "BASSES|ANASYNTH", "SYNBSS1|SYNBSS2|BASSYNT|BASSZOW|SYNBSS3", false },
-        { "piano", "PIANO", "PIANO|PIANO1|GRAND|BRIGHT", false },
-        { "electric piano", "ELECKEYB", "RHODES1|ELECPIAN|RHODES4|WURLITZ|PHASPIAN", false },
-        { "clav", "ELECKEYB|KEYBRDS", "CLAV|CLAV2|DIRTCLAV", false },
-        { "organ", "KEYBRDS|KYBD", "ORGAN1|ORGAN2|ELECORG1|LESLIE1|ORGMAJOR", true },
-        { "harpsichord", "KEYBRDS|KYBD|PLUCK", "HARPSIM1|SPINET1|HARPSI", false },
-        { "guitar", "GUITARS", "GUITAR1|CGUITAR|GTRAC|GUITAR2|LONGTR", false },
-        { "dist guitar", "GUITARS", "FUZZGTR|FUZZGTR1|DIRTGTR|WAILGTR|STRATX", true },
-        { "plucked", "PLUCK", "KOTO|SITAR|HARP|BANJO|MANDOLIN", false },
-        { "mallets", "MALLETS", "MARIMBA|VIBMID|XYLOP1|GLOCK", false },
-        { "steel drum", "MALLETS", "STLDRUM|STEEL1", false },
-        { "bells", "BELLS", "CHIME|SYNBELL|BOWL1|MUSICBOX|GLASS4", false },
-        { "synth lead", "ANASYNTH", "MSAWTOOF|TSQUARE1|MWA|ZOW1", true },
-        { "synth pad", "ANASYNTH|STRINGS", "ENSEMBLE|TENSEMBL|MDEEYAWL|MBWOWSUS", true },
-        { "timpani", "DRUMS|PERCUSS", "TYMPANI|TIMPANI", false },
+        { "orch hit", "STRINGS4", "ORCH5|ORCH2|ORCHFZ1|SFZAN1|LOSTAB1", false },
+        { "choir", "CHORAL|VOICE", "ARR1|SARARR1|AHH1|ARR|AH2|OOHHI|ALTO1|TENOR2|MMM|LA", true },
+        { "voice pad", "VOICE|CHORAL", "VOX|VOX1|AH2|MOAN|MMM|OOHHI", true },
+        { "strings", "STRINGS", "STRNGENS|BIGSTRN1|STRSUS|STRMID|BIGSTRN2|STRCHOIR|NEWVLNS|FENSTRNG|BOBSTRNG|STRINGO", true },
+        { "violin", "STRINGS", "VIOLSUS|VIOLMID|VNSMID|VLNHIA|VIOLHI2|VIOLINL1|STGESOLO|CFIDDLE", true },
+        { "tremolo strings", "STRINGS4", "VTREMOLO|VLNTREMG|VLNTREM2|VLNSHIM|SHIMMER|VLNTREMA", true },
+        { "pizzicato", "STRINGS", "PIZZOPEN|VPIZZ|PIZZLOW3|PIZZHI|PIZZLOW|VLNPIZZA|PIZZLOW1|VIOLAPIZ", false },
+        { "cello", "STRINGS", "CELLO2|CELLO1|CELLO3|TRAMCHLO", true },
+        { "contrabass", "STRINGS", "BOWDBASS|DBLBASS1|BOWDBAS4|LOWSTR1", true },
+        { "brass", "BRASS", "BRASS1|PRAISBRS|HORNENSM|FHORN1|TRPMID1", true },
+        { "trumpet", "BRASS", "TRPMID1|TRPHI1|TRPHI2|TRPTJ2|GS1TRUMP|TRIP1", true },
+        { "trombone", "BRASS", "TROMBONE|TRMBNMID|FLGLBONE", true },
+        { "tuba", "BRASS", "UPHONIUM|TROMBONE", true },
+        { "french horn", "BRASS", "FHORN1|FHORN2|GS1HORN|OLDHORN|CORHI|HORNENSM", true },
+        { "synth brass", "ANASYNTH|ANALOG|BRASS2", "MBRASS|MBRASS2|SYNTRUMP|SYNTRP2", true },
+        { "sax", "REEDS", "SAX|TENOSAX1|TENRSAX|SOPSAX|SAXZ|DELSAX2|TENOSAXY", true },
+        { "bari sax", "REEDS", "BARISAX|BARISAX1|BARISAX2", true },
+        { "oboe", "REEDS", "OBOE1|OBOE2", true },
+        { "bassoon", "REEDS", "BASSOONE|BASSCLAR", true },
+        { "clarinet", "REEDS", "CLARMID2|CLARHI2|CLARMDHI|BASSCLAR|BASCLAR2", true },
+        { "flute", "WOODWIND", "FLUTE|FLUTE2|FLUTE3|JAZFLUTE|FLTEE|FLTCF", true },
+        { "pan flute", "WOODWIND", "NAYPRO|FLUPAD|OCARINA|FLUTE2", true },
+        { "whistle", "WOODWIND|CHORAL|VOICE", "WHISTLE|WHIST2|WHIST5", true },
+        { "harmonica", "WOODWIND", "HARMONKA|HARMNIKA", true },
+        { "bagpipe", "WOODWIND", "BAGPIPE1|BAGPIPE2", true },
+        { "bass", "BASS", "BASSGT|BASS1|BASS2|BASS3|BASSGTR2|BASS4", false },
+        { "pick bass", "BASS", "PICKBASS|BASSRICK|BASSGT", false },
+        { "fretless", "BASS", "BASSWOW|BASSO|BASSGT", false },
+        { "slap bass", "BASS", "BASSPOP|BASSRICK", false },
+        { "acoustic bass", "BASS|STRINGS", "ACCBASS1|DBLBASS|DBLBASS1", false },
+        { "synth bass", "BASS|ANASYNTH|ANALOG", "SYNBSS1|SYNBSS2|SYNBSS3|BASSYNT|BASSZOW|BASS5", false },
+        { "piano", "PIANO", "GRAND1LO|PIANOM1|P1|PIANOLL1|PIA440|GRAND1HI|PIANOH1", false },
+        { "honky tonk", "PIANO", "HONKY1|PIANOLL2", false },
+        { "electric piano", "ELECKEYB|ELECTKBD|PIANOS", "RHODES1|RHODES4|ELECPIAN|RHODES2|WURLITZ|PHASPIAN|WURLI", false },
+        { "clav", "ELECKEYB|ELECTKBD|KEYBRDS", "CLAV|CLAV2|DIRTCLAV|MCLAV", false },
+        { "organ", "KEYBRDS|KYBD", "ORGAN1|ORGAN2|ELECORG1|LESLIE1|ORGMAJOR|ORGAN3", true },
+        { "church organ", "KEYBRDS|KYBD", "CHURHORG|ORGAN13|REGAL|ORGAN1", true },
+        { "harmonium", "KEYBRDS|KYBD", "HARMONUM|MELODIUM", true },
+        { "harpsichord", "KEYBRDS|KYBD", "HARPSIM1|SPINET1", false },
+        { "celesta", "ELECKEYB|ELECTKBD|KEYBRDS", "CELESTE|CELESTE7|MUSICBOX", false },
+        { "music box", "BELLS", "MUSICBOX|CELESTE", false },
+        { "glockenspiel", "MALLETS", "GLOCK|XYLOP2", false },
+        { "vibes", "MALLETS", "VIBMID|VIBLO|VIBHI|VIBUP|VIBOCT", false },
+        { "marimba", "MALLETS", "MARIMBA|BASSMAR", false },
+        { "xylophone", "MALLETS", "XYLOP1|XYLOPHNE|XYLOP2", false },
+        { "steel drum", "MALLETS", "STLDRUM|STEEL1|STEEL2|STLDRUM2", false },
+        { "tubular bells", "BELLS", "CHIME|CHYME|BELLTREE", false },
+        { "bells", "BELLS", "SYNBELL|CHIME|BOWL1|GLASS4|SLBELLS|JINGBELL", false },
+        { "guitar", "GUITAR", "CGUITAR|GTRAC|GUITAR1|GUITAR2|GUITAR3", false },
+        { "steel guitar", "GUITAR", "GTARAA|GUITAR3|GTRAC|GUITAR1", false },
+        { "electric guitar", "GUITAR", "GTRM1|GTRL1|STRATX|LONGTR|GTRHI1|GTRL2", false },
+        { "muted guitar", "GUITAR", "GMUFF|GMUFFA|GMUFX", false },
+        { "dist guitar", "GUITAR", "FUZZGTR|FUZZGTR1|DIRTGTR|WAILGTR|FUZZGTR2|FUZZGTR3", true },
+        { "harp", "PLUCK|KEYBRDS", "HARPARP|HARPUPGD|HARPDNGD|FLUHARP", false },
+        { "koto", "PLUCK", "KOTO|KOTO2|KOTSTRM|KOTOBEND", false },
+        { "sitar", "PLUCK", "SITAR2|BAZOUKI", false },
+        { "banjo", "PLUCK", "BANJO|BAZOUKI", false },
+        { "plucked", "PLUCK", "ZITHER|BAZOUKI|ZITHER2|KOTO", false },
+        { "kalimba", "PERCUS", "KALIMHI|KALIMLO", false },
+        { "synth lead", "ANASYNTH|ANALOG", "MSAWTOOF|TSQUARE1|MWA|ZOW1|MDEEYAWL|MDWEEEEE", true },
+        { "synth pad", "ANASYNTH|ANALOG|MODE1", "ENSEMBLE|TENSEMBL|MBWOWSUS|POLYMOOG|SWEEP1|WASH2", true },
+        { "sweep pad", "MODE1|ANASYNTH|ANALOG", "SWEEP1|SWEEP2|SWEEP3|BASSWEEP|WASH2|MBWOWSUS", true },
+        { "synth fx", "MODE1|ANASYNTH|ANALOG", "SAMPHOLD|MDOOTWA|SPACY|META|SATURN5", false },
+        { "timpani", "DRUMS", "TYMPANI", false },
         { "toms", "DRUMS", "TTOM|FLOORTOM|ROTOTOM|TOMNEW", false },
-        { "effects", "EFFECTS", "SMASH|BOMB|XPLODE|BREAKGLS", false },
+        { "taiko", "DRUMS", "BIKODRUM|DRUMBO|FLOORTOM", false },
+        { "synth drum", "BIGMLTLU|BIGMELU", "SYNDRUM1|ROTOTOM", false },
+        { "effects", "EFFECTS|SFX", "SMASH|BOMB|XPLODE|BREAKGLS", false },
+        { "seashore", "WEATHER", "SURF|WWIND|GALE", true },
+        { "birds", "ANIMALS", "BIRD1|BIRD2|CHIRP|BIRD3", false },
+        { "telephone", "EFFECTS|SFX|BELLS", "PHONE|WPHONE|TELBEL", false },
+        { "helicopter", "EFFECTS|SFX", "HELICPTR", true },
+        { "applause", "EFFECTS|SFX|VOICE", "PEOPLE|SHOUT", false },
+        { "gunshot", "EFFECTS|SFX", "MGUN1|XPLODE|RICOCHET|BOMB", false },
+        { "thunder", "WEATHER", "THNDR1|THNDRCRK|THNDR2", false },
+        { "fret noise", "GUITAR", "GITCRS|SALTUP", false },
     };
     return r;
 }
+inline int roleIndex(const char* n) { const auto& r = roles(); for (size_t i = 0; i < r.size(); ++i) if (!std::strcmp(r[i].name, n)) return (int) i; return -1; }
 
-// the role for a track: its name, then its General MIDI program
+// General MIDI programs 1-128 to roles
+inline const char* gmRole(int p) {
+    static const char* g[128] = {
+        "piano", "piano", "piano", "honky tonk", "electric piano", "electric piano", "harpsichord", "clav",
+        "celesta", "glockenspiel", "music box", "vibes", "marimba", "xylophone", "tubular bells", "plucked",
+        "organ", "organ", "organ", "church organ", "harmonium", "harmonium", "harmonica", "harmonium",
+        "guitar", "steel guitar", "electric guitar", "electric guitar", "muted guitar", "dist guitar", "dist guitar", "electric guitar",
+        "acoustic bass", "bass", "pick bass", "fretless", "slap bass", "slap bass", "synth bass", "synth bass",
+        "violin", "violin", "cello", "contrabass", "tremolo strings", "pizzicato", "harp", "timpani",
+        "strings", "strings", "synth pad", "synth pad", "choir", "voice pad", "voice pad", "orch hit",
+        "trumpet", "trombone", "tuba", "trumpet", "french horn", "brass", "synth brass", "synth brass",
+        "sax", "sax", "sax", "bari sax", "oboe", "oboe", "bassoon", "clarinet",
+        "flute", "flute", "flute", "pan flute", "whistle", "pan flute", "whistle", "pan flute",
+        "synth lead", "synth lead", "synth lead", "synth lead", "synth lead", "voice pad", "synth lead", "synth lead",
+        "synth pad", "sweep pad", "synth pad", "synth pad", "synth pad", "synth pad", "sweep pad", "sweep pad",
+        "synth fx", "synth pad", "bells", "synth pad", "synth pad", "voice pad", "synth pad", "synth fx",
+        "sitar", "banjo", "plucked", "koto", "kalimba", "bagpipe", "violin", "flute",
+        "bells", "toms", "steel drum", "toms", "taiko", "toms", "synth drum", "effects",
+        "fret noise", "effects", "seashore", "birds", "telephone", "helicopter", "applause", "gunshot",
+    };
+    return p >= 0 && p < 128 ? g[p] : nullptr;
+}
+
+// the role for a track: its name, then its General MIDI program (-1: drums)
 inline int roleOf(const MidiSong& s, int t) {
-    auto R = [](const char* n) { const auto& r = roles(); for (size_t i = 0; i < r.size(); ++i) if (!std::strcmp(r[i].name, n)) return (int) i; return 0; };
     struct K { const char* keys; const char* role; };
     static const K byName[] = {
-        { "orchhit|orchestrahit|orchestraattack|orchstab|stab|hit", "orch hit" }, { "choir|choral|chorus|vox|voice|vocal|aah|ooh|singer", "choir" },
-        { "pizz", "pizzicato" }, { "cello", "cello" }, { "synthbrass|synbrass", "synth brass" }, { "trump|trp", "trumpet" },
-        { "brass|horn|tromb|tuba", "brass" }, { "sax|bassoon|oboe|clarin|reed", "sax" }, { "flute|piccolo|recorder|pipe|shaku|whistle", "flute" },
-        { "slap", "slap bass" }, { "fretless", "fretless" }, { "synthbass|synbass|moog", "synth bass" }, { "bass", "bass" },
-        { "rhodes|elecpiano|electricpiano|epiano1|wurl|tinepiano", "electric piano" }, { "clav", "clav" }, { "organ", "organ" }, { "harpsi", "harpsichord" },
-        { "piano|grand|pno", "piano" }, { "distort|odrive|overdrive|fuzz|lead gtr", "dist guitar" }, { "guitar|gtr|geetar|nylon|steelg", "guitar" },
-        { "koto|sitar|harp|banjo|mandolin", "plucked" }, { "marimba|vibe|xylo|mallet|glock|celest", "mallets" }, { "steeldrum|steelpan", "steel drum" },
-        { "bell|chime", "bells" }, { "timp", "timpani" }, { "tom|taiko", "toms" }, { "string|str|violin|viola|ensem|orch", "strings" },
-        { "pad|sweep|atmos|space", "synth pad" }, { "lead|solo|synth|saw|square", "synth lead" }, { "gun|shot|explo|bomb|crash|fx|effect", "effects" },
+        { "orchhit|orchestrahit|orchestraattack|orchstab|stab|hit", "orch hit" }, { "choir|choral|aah|ooh|singer|chorus", "choir" },
+        { "vox|voice|vocal", "voice pad" }, { "pizz", "pizzicato" }, { "trem", "tremolo strings" }, { "cello", "cello" },
+        { "contrabass|doublebass|uprightbass|acoustbass|acobass|accobass", "acoustic bass" },
+        { "violin|fiddle|viola", "violin" }, { "synthbrass|synbrass", "synth brass" }, { "trump|trp", "trumpet" },
+        { "trombone|tromb", "trombone" }, { "tuba|euphon", "tuba" }, { "frenchhorn|frhorn|fhorn", "french horn" }, { "brass|horn", "brass" },
+        { "barisax|baritone", "bari sax" }, { "sax", "sax" }, { "oboe|englishhorn", "oboe" }, { "bassoon", "bassoon" }, { "clarin", "clarinet" },
+        { "panflute|panpipe|shaku|ocarina|recorder|pipe", "pan flute" }, { "flute|piccolo", "flute" }, { "whistle", "whistle" },
+        { "harmonica", "harmonica" }, { "bagpipe", "bagpipe" },
+        { "slap", "slap bass" }, { "fretless", "fretless" }, { "synthbass|synbass|moog|bassynth|synthbs", "synth bass" }, { "pickbass|pickedbass", "pick bass" },
+        { "bass", "bass" },
+        { "honky|ragtime|saloon", "honky tonk" }, { "rhodes|elecpiano|electricpiano|electpiano|wurl|tinepiano|fmpiano|dxpiano|ep", "electric piano" }, { "clav", "clav" },
+        { "churchorgan|pipeorgan", "church organ" }, { "accordion|harmonium|reedorgan", "harmonium" }, { "organ", "organ" }, { "harpsi", "harpsichord" },
+        { "celest", "celesta" }, { "musicbox", "music box" }, { "glock", "glockenspiel" }, { "vibe|vibra", "vibes" }, { "marimba", "marimba" },
+        { "xylo", "xylophone" }, { "steeldrum|steelpan", "steel drum" }, { "tubular|chime", "tubular bells" }, { "bell", "bells" },
+        { "piano|grand|pno", "piano" },
+        { "distort|odrive|overdrive|fuzz|leadgtr|leadguitar", "dist guitar" }, { "muted|mute gtr|palm", "muted guitar" },
+        { "steelg|steelstr|acousticg|acgtr|folk", "steel guitar" }, { "elecgtr|electricg|egtr|egit|cleangtr|jazzg", "electric guitar" },
+        { "guitar|gtr|geetar|nylon", "guitar" }, { "harp", "harp" }, { "koto", "koto" }, { "sitar", "sitar" }, { "banjo", "banjo" },
+        { "mandolin|zither|bouzouki|shamisen", "plucked" }, { "kalimba|mbira", "kalimba" },
+        { "timp", "timpani" }, { "taiko", "taiko" }, { "syndrum|synthdrum|electrotom", "synth drum" }, { "tom", "toms" },
+        { "string|str|ensem|orch", "strings" }, { "sweep", "sweep pad" }, { "pad|atmos|space|warm", "synth pad" },
+        { "lead|solo|synth|saw|square|poly", "synth lead" }, { "sfx|fx|effect|noise", "effects" },
+        { "gun|shot|explo|bomb|crash", "gunshot" }, { "thunder|storm|rain", "thunder" }, { "sea|wave|wind|surf", "seashore" }, { "bird", "birds" },
+        { "phone", "telephone" }, { "helicop", "helicopter" }, { "applause|crowd|cheer", "applause" },
     };
     const std::string nm = compact(s.trackName[t]);
     // track names that say nothing: the same name on most tracks (often the song's title), or none
     int same = 0, usedN = 0; for (int u = 0; u < SONG_TRK; ++u) if (s.used[u]) { ++usedN; same += s.trackName[u] == s.trackName[t]; }
     const bool namesMean = !nm.empty() && !(usedN > 2 && same * 2 > usedN);
-    for (const auto& k : byName) {
-        if (!namesMean) break;
-        std::string keys = k.keys; size_t a = 0;
-        while (a <= keys.size()) { size_t b = keys.find('|', a); if (b == std::string::npos) b = keys.size(); const std::string key = keys.substr(a, b - a); a = b + 1;
-            if (!key.empty() && key.size() > 3 ? nm.find(key) != std::string::npos : (!key.empty() && nm.rfind(key, 0) == 0)) return R(k.role); }
-    }
+    if (namesMean)
+        for (const auto& k : byName) {
+            std::string keys = k.keys; size_t a = 0;
+            while (a <= keys.size()) { size_t b = keys.find('|', a); if (b == std::string::npos) b = keys.size(); std::string key = keys.substr(a, b - a); a = b + 1;
+                key = compact(key);
+                if (!key.empty() && key.size() > 3 ? nm.find(key) != std::string::npos : (!key.empty() && nm.rfind(key, 0) == 0)) return roleIndex(k.role); }
+        }
     const int p = s.program[t];
     if (p < 0) return -1;
-    static const char* gm[16] = { "piano", "mallets", "organ", "guitar", "bass", "strings", "strings", "brass", "sax", "flute", "synth lead", "synth pad", "synth pad", "plucked", "toms", "effects" };
-    if (p == 4 || p == 5) return R("electric piano"); if (p == 6) return R("harpsichord"); if (p == 7) return R("clav");
-    if (p == 14) return R("bells"); if (p == 29 || p == 30) return R("dist guitar"); if (p == 35) return R("fretless"); if (p == 36 || p == 37) return R("slap bass");
-    if (p == 38 || p == 39) return R("synth bass"); if (p == 42 || p == 43) return R("cello"); if (p == 45) return R("pizzicato"); if (p == 47) return R("timpani");
-    if (p == 52 || p == 53 || p == 54 || p == 85 || p == 91) return R("choir"); if (p == 55) return R("orch hit"); if (p == 56 || p == 59) return R("trumpet");
-    if (p == 62 || p == 63) return R("synth brass"); if (p == 114) return R("steel drum");
-    return R(gm[p / 8]);
+    return roleIndex(gmRole(p));
 }
 
-// records whose CMI voices are well known (the orchestra stab, the ARR1 voice...): those voices first, for the
-// tracks whose role fits
+// is a track a drum part, whatever its channel? (named so, and on the GM drum keys)
+inline bool drumPart(const MidiSong& s, int t) {
+    if (s.program[t] < 0) return true;
+    const std::string nm = compact(s.trackName[t]);
+    static const char* keys[] = { "drum", "kit", "perc", "kick", "snare", "hihat", "hat", "cymbal", "beat", "rhythm", "808", "909", "linn", "dmx" };
+    bool named = false; for (const char* k : keys) named |= nm.find(k) != std::string::npos;
+    if (!named || nm.find("tom") != std::string::npos && nm.find("drum") == std::string::npos) return false;
+    if (nm.find("bass") != std::string::npos && nm.find("drum") == std::string::npos) return false;   // "bass" tracks aren't kits
+    const TrackShape sh = shapeOf(s, t);
+    return sh.drumKeys && sh.meanLen < 0.6;
+}
+
+// records whose CMI voices are well known (the orchestra stab, the ARR1 voice...): that voice for the one track it suits
 struct Famous { const char* key; const char* voice; const char* roles; };
 inline const std::vector<Famous>& famousSongs() {
     static const std::vector<Famous> f = {
         { "planetrock", "ORCH5", "orch hit|brass|synth brass|strings|effects" }, { "thedreaming", "ORCH5", "orch hit|brass|strings" },
         { "closetotheedit", "ORCH5", "orch hit|brass|strings|effects" }, { "ownerofalonelyheart", "ORCH5", "orch hit|brass|synth brass" },
-        { "tearsforfearsshout", "ARR1", "choir|synth pad|synth lead" }, { "crockettstheme", "ARR1", "choir|synth lead|flute" },
-        { "miamivicetheme", "ARR1", "choir|synth pad" },
+        { "tearsforfearsshout", "ARR1", "choir|voice pad|synth pad|synth lead" }, { "crockettstheme", "ARR1", "choir|voice pad|synth lead|flute|clarinet" },
+        { "miamivicetheme", "ARR1", "choir|voice pad|synth pad" },
     };
     return f;
 }
 
-// GM drum notes on the CMI's drum disks
-inline const char* drumVoices(int note) {
-    switch (note) {
-        case 35: case 36: return "KICK1|BDRUM|BDRUM1|KICK2|POWERKIK";
-        case 37: return "CROSSTIX|RRIM";
-        case 38: case 40: return "SNARE1|LMSNARE|SNARE|MEDSNARE|SNARE2";
-        case 39: return "CLAP|CLAPS|HANDCLAP";
-        case 42: case 44: return "HHCLOSD|HIHAT1|CLOSEDHH|HHCLOSD1|HIHAT2";
-        case 46: return "HHOPEN1|HHOPNCL1|HIHAT3";
-        case 49: case 57: case 55: case 52: return "CYMSPLS1|CYMB0|CYMSPLS2";
-        case 51: case 59: case 53: return "CYMBELL1|CYMBELL2|CYMSTICK";
-        case 41: case 43: case 45: return "FLOORTOM|TTOM|ROTOTOM";
-        case 47: case 48: case 50: return "TTOM|TOMNEW|ROTOTOM";
-        case 56: return "COWBELL|GOGO|SHTBELL";
-        case 54: case 69: case 70: return "CABASA1|TAMB|SHAKER";
-        default: return note < 41 ? "KICK1|BDRUM" : note < 60 ? "TTOM|SNARE1" : "CONGA|BONGO|TIMBALI|GOGO";
-    }
-}
-
 struct TrackMatch { int catIndex = -1; bool kit = false; std::string why; };
-
-inline std::vector<std::string> splitBar(const std::string& s) { std::vector<std::string> o; size_t a = 0; while (a <= s.size()) { size_t b = s.find('|', a); if (b == std::string::npos) b = s.size(); if (b > a) o.push_back(s.substr(a, b - a)); a = b + 1; } return o; }
+// what the other tracks of the song already got (for variety): catalogue voice -> the role it was picked for
+struct MatchContext { std::map<int, int> used; bool famousUsed = false; };
 
 // the library voice for one track (remembered: "NAME@DISK" from an earlier choice, or empty)
-inline TrackMatch matchTrack(const MidiSong& s, int t, const Catalog& cat, const std::string& remembered = "") {
+inline TrackMatch matchTrack(const MidiSong& s, int t, const Catalog& cat, const std::string& remembered = "", MatchContext* ctx = nullptr) {
     TrackMatch m;
     if (!remembered.empty()) {
         const size_t at = remembered.find('@');
@@ -171,38 +243,56 @@ inline TrackMatch matchTrack(const MidiSong& s, int t, const Catalog& cat, const
         if (remembered == "KIT") { m.kit = true; m.why = "your choice: drum kit"; return m; }
     }
     if (s.program[t] < 0) { m.kit = true; m.why = "drum channel: CMI drum disks"; return m; }
-    // a voice named in the track's name (a real voice name: not an everyday instrument word, not the same name on
-    // most tracks, which is usually the song's title)
+    if (drumPart(s, t)) { m.kit = true; m.why = "drum part (\"" + s.trackName[t] + "\"): CMI drum disks"; return m; }
+    // a voice named in the track's name (a real voice name: not an everyday instrument word, not the song's title)
     int same = 0, usedN = 0; for (int u = 0; u < SONG_TRK; ++u) if (s.used[u]) { ++usedN; same += s.trackName[u] == s.trackName[t]; }
     static const char* generic[] = { "BASS", "ORGAN", "PIANO", "STRINGS", "STRING", "CHOIR", "BRASS", "DRUMS", "DRUM", "LEAD", "VOICE", "SYNTH", "GUITAR", "PAD",
-                                     "BELLS", "FLUTE", "SAX", "HORN", "HORNS", "PERC", "SOLO", "MELODY", "CHORDS", "KEYS", "TRACK", "ELECTRIC", "CLASSIC", "ACOUSTIC" };
+                                     "BELLS", "FLUTE", "SAX", "HORN", "HORNS", "PERC", "SOLO", "MELODY", "CHORDS", "KEYS", "TRACK", "ELECTRIC", "CLASSIC", "ACOUSTIC",
+                                     "CELLO", "VIOLIN", "CLAP", "SNARE", "KICK", "ORCH", "WIND", "WAVE", "SWEEP", "RANDOM", "META" };
+    std::vector<std::string> words;
     if (!(usedN > 2 && same * 2 > usedN)) {
-        std::string w; std::vector<std::string> words;
+        std::string w; std::string titleUp = s.name; for (auto& c : titleUp) c = (char) std::toupper((unsigned char) c);
         for (char c : s.trackName[t] + " ") { if (std::isalnum((unsigned char) c)) w += (char) std::toupper((unsigned char) c); else { if (w.size() >= 3) words.push_back(w); w.clear(); } }
         for (const auto& wd : words) {
             bool gen = false; for (const char* g : generic) gen |= wd == g;
-            if (gen || s.name.find(wd) != std::string::npos) continue;
-            std::string titleUp = s.name; for (auto& c : titleUp) c = (char) std::toupper((unsigned char) c);
-            if (titleUp.find(wd) != std::string::npos) continue;
+            if (gen || titleUp.find(wd) != std::string::npos) continue;
             const int i = cat.find(wd); if (i >= 0) { m.catIndex = i; m.why = "named in the track"; return m; }
         }
     }
     const int role = roleOf(s, t);
     if (role < 0) { m.kit = true; m.why = "drums"; return m; }
     const Role& r = roles()[(size_t) role];
-    if (!std::strcmp(r.name, "toms") && shapeOf(s, t).drumKeys && compact(s.trackName[t]).find("drum") != std::string::npos) { m.kit = true; m.why = "drum part"; return m; }
-    // famous records
+    const TrackShape sh = shapeOf(s, t);
+    // famous records: that voice, for the one track that suits it best (stabs, or the role it's known for)
     const std::string key = songKey(s.name);
     for (const auto& f : famousSongs())
-        if (key.find(f.key) != std::string::npos)
-            for (const auto& rn : splitBar(f.roles)) if (rn == r.name) { const int i = cat.find(f.voice); if (i >= 0) { m.catIndex = i; m.why = std::string("the ") + f.voice + " this record is known for"; return m; } }
-    // the role's well-known voices, then any voice on its disks (looped for sustained parts)
-    for (const auto& v : splitBar(r.voices)) { const int i = cat.find(v); if (i >= 0) { m.catIndex = i; m.why = std::string(r.name) + " from the CMI library"; return m; } }
-    for (int pass = 0; pass < 2; ++pass)
-        for (const auto& d : splitBar(r.disks))
-            for (size_t i = 0; i < cat.voices.size(); ++i)
-                if (cat.voices[i].disk.rfind(d, 0) == 0 && (pass == 1 || cat.voices[i].looped == r.sustained)) { m.catIndex = (int) i; m.why = std::string(r.name) + " from the " + cat.voices[i].disk + " disk"; return m; }
-    m.why = std::string("no ") + r.name + " in your library";
+        if (key.find(f.key) != std::string::npos && !(ctx && ctx->famousUsed))
+            for (const auto& rn : splitBar(f.roles))
+                if (rn == r.name && (rn == std::string("orch hit") || rn == std::string("choir") || std::string(f.voice) != "ORCH5" || sh.meanLen < 0.6)) {
+                    const int i = cat.find(f.voice);
+                    if (i >= 0) { if (ctx) ctx->famousUsed = true; m.catIndex = i; m.why = std::string("the ") + f.voice + " this record is known for"; return m; }
+                }
+    // the candidates: the role's well-known voices, then every voice on its disks; scored
+    const bool longNotes = sh.meanLen >= 1.0 || r.sustained, shortNotes = sh.meanLen > 0 && sh.meanLen < 0.35;
+    const auto known = splitBar(r.voices);
+    std::map<int, double> score;
+    for (size_t k = 0; k < known.size(); ++k) { const int i = cat.find(known[k]); if (i >= 0) score[i] = std::max(score[i], 12.0 - 0.8 * (double) k); }
+    for (const auto& d : splitBar(r.disks))
+        for (size_t i = 0; i < cat.voices.size(); ++i)
+            if (cat.voices[i].disk.rfind(d, 0) == 0 && !score.count((int) i)) score[(int) i] = 3.0;
+    if (score.empty()) { m.why = std::string("no ") + r.name + " in your library"; return m; }
+    int best = -1; double bs = -1e9;
+    for (auto& kv : score) {
+        const CatVoice& v = cat.voices[(size_t) kv.first];
+        double sc = kv.second;
+        if (longNotes) sc += v.looped ? 2.5 : -2.0; else if (shortNotes) sc += v.looped ? -0.5 : 1.0;
+        for (const auto& wd : words) if (wd.size() >= 4 && v.name.find(wd.substr(0, 4)) != std::string::npos) sc += 4;   // "VIOLIN 1" -> VIOLSUS
+        if (ctx) { auto u = ctx->used.find(kv.first); if (u != ctx->used.end()) sc -= u->second == role ? 3.0 : 7.0; }   // variety
+        if (sc > bs) { bs = sc; best = kv.first; }
+    }
+    m.catIndex = best;
+    m.why = std::string(r.name) + (score[best] >= 6 ? " from the CMI library" : " from the " + cat.voices[(size_t) best].disk + " disk");
+    if (ctx) ctx->used[best] = role;
     return m;
 }
 
@@ -248,10 +338,11 @@ inline const char* defaultKeyboardVoices() { return "ORCH5|ORCH2|ORCHHIT|ORCHFZ1
 inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::map<int, std::string>& remembered = {}) {
     auto loadVoice = [&](int ci) -> int { return loadCatalogVoice(kit, cat, ci); };
     int n = 0; bool needKit = false;
+    MatchContext ctx;
     for (int t = 0; t < SONG_TRK; ++t) {
         if (!e.song->used[t]) continue;
         auto it = remembered.find(t);
-        const TrackMatch m = matchTrack(*e.song, t, cat, it == remembered.end() ? "" : it->second);
+        const TrackMatch m = matchTrack(*e.song, t, cat, it == remembered.end() ? "" : it->second, &ctx);
         if (m.kit) { e.voice[t] = GM_KIT; e.why[t] = m.why; needKit = true; ++n; continue; }
         if (m.catIndex < 0) { e.why[t] = m.why + " (kept " + std::string("the voice it had") + ")"; continue; }
         const int v = loadVoice(m.catIndex);
@@ -271,11 +362,6 @@ inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::ma
 }
 
 // the kit lookup: the CMI drum voices loaded
-inline std::function<int(int)> cmiKitLookup(const Bank& bank) {
-    return [&bank](int note) {
-        for (const auto& v : splitBar(drumVoices(note))) { const int i = findVoice(bank, v); if (i >= 0) return i; }
-        return kitLookup(bank)(note);
-    };
-}
+inline std::function<int(int)> cmiKitLookup(const Bank& bank) { return kitLookup(bank); }
 
 }  // namespace cmi

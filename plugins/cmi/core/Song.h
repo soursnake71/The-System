@@ -358,10 +358,45 @@ inline MidiSong emptySong(const std::string& name, double bpm = 120, int bars = 
 }
 
 // the drum kit lookup a song engine uses
+inline std::vector<std::string> splitBar(const std::string& s) { std::vector<std::string> o; size_t a = 0; while (a <= s.size()) { size_t b = s.find('|', a); if (b == std::string::npos) b = s.size(); if (b > a) o.push_back(s.substr(a, b - a)); a = b + 1; } return o; }
+
+// GM drum notes on the CMI's drum disks (DRUMS, DRUMS1, CYMBALS, PERCUSS1/2, BIGMLTLU), best first
+inline const char* drumVoices(int note) {
+    switch (note) {
+        case 35: case 36: return "KICK1|BDRUM1|BDRUM|KICK2|POWERKIK|KICK3";
+        case 37: return "CROSSTIX|RRIM|STICK";
+        case 38: case 40: return "SNARE1|LMSNARE|SNARE|MEDSNARE|SNARE2|SNAREA10";
+        case 39: return "CLAP|CLAPS|CLAPTRAP|CLAP1";
+        case 42: return "HHCLOSD|HIHAT1|HHCLOSD1|CLOSEDHH|HIHAT2";
+        case 44: return "HHCLOSD1|HHCLOSD|HIHAT1|CLOSEDHH";
+        case 46: return "HHOPEN1|HHOPNCL1|HIHAT3|HHOPNCL2";
+        case 49: case 57: return "CYMSPLS1|CYMSPLS2|CYMB0";
+        case 55: return "CYMSPLS2|CYMSPLS1|CYMB0";
+        case 52: return "CYMB0|PANG|CYMSPLS1";
+        case 51: case 59: return "CYMSTICK|CYMBELL1|CYMB0";
+        case 53: return "CYMBELL1|CYMBELL2|CYMSTICK";
+        case 41: case 43: return "FLOORTOM|TTOM|ROTOTOM";
+        case 45: case 47: return "TTOM|TOMNEW|ROTOTOM";
+        case 48: case 50: return "TOMNEW|TTOM|ROTOTOM";
+        case 54: return "TAMBSHK|TAMBHIT|TAMBOUR1";
+        case 56: return "COWBELL1|COWBELL2|COWBELOO";
+        case 58: return "VIBSLP|VBRSLP";
+        case 60: return "BONGHI|CCONGHI"; case 61: return "BONGLO|CCONGLO";
+        case 62: case 63: return "CCONGHI|BONGHI"; case 64: return "CCONGLO|BONGLO";
+        case 65: case 66: return "TIMBALI|CCONGLO";
+        case 67: case 68: return "GOGO|SHTBELL";
+        case 69: return "CABASA|CABASA1"; case 70: return "CASTANET|CABASA";
+        case 71: case 72: return "WHIST2|WHISTLE";
+        case 75: return "STICK|WOOD|PERCSTK"; case 76: case 77: return "WOOD|PERCSTK";
+        case 80: case 81: return "TRIANGLE";
+        default: return note < 41 ? "KICK1|BDRUM1|BDRUM" : note < 60 ? "TTOM|SNARE1" : "CCONGHI|BONGHI|GOGO";
+    }
+}
+
+// the drum kit: a GM drum note -> the CMI drum voice loaded for it (connectSong loads them from the library)
 inline std::function<int(int)> kitLookup(const Bank& bank) {
     return [&bank](int note) {
-        const char* want = gmDrum(note);
-        for (int i = 0; i < bank.count.load(); ++i) if (const Sound* x = bank.at(i)) if (x->name == want) return i;
+        for (const auto& v : splitBar(drumVoices(note))) { const int i = findVoice(bank, v); if (i >= 0) return i; }
         return -1;
     };
 }

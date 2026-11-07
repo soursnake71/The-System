@@ -312,9 +312,11 @@ public:
     std::atomic<const MidiSong*> song { nullptr };
     std::atomic<bool> songRun { false }, songLoop { false };
     std::atomic<double> songBeat { 0 };                    // for the screen
+    std::atomic<double> songStartReq { -1 };               // play from this beat (set with songRun)
     int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
     bool songMute[SONG_TRK] {};
     std::atomic<double> songGain { 0.5 };
+    std::atomic<double> drumLift { 2.0 };                 // the drum kit's level on top (+6 dB)
     std::atomic<float> loopBlend { 0.5f };   // crossfade at loop points, 0 (the original card: none) .. 1                // a whole band on 32 cards: headroom for the summing amp
 
     // the mixer: a fader (0..1.5), a pan (-1: as the MIDI file / the track says) and solo per strip, meters (peaks)
@@ -426,6 +428,12 @@ public:
     ChView view(int i) const { const Channel& c = ch[(size_t) i]; return { (int) c.st(), c.envLevel(), c.page(), c.curNote() }; }
     int activeVoices() const { int n = 0; for (auto& c : ch) n += c.st() != Channel::Idle; return n; }
 
+    // a note on a song track, outside the song (the grid's audition); audio thread only
+    void songNote(int t, int note, int vel) {
+        if (!song.load() || t < 0 || t >= SONG_TRK) return;
+        SongEvent e { 0, (uint8_t) t, (uint8_t) (vel > 0 ? 0x90 : 0x80), (uint8_t) std::clamp(note, 0, 127), (uint8_t) std::clamp(vel, 0, 127) };
+        const bool m = songMute[t]; songMute[t] = false; songEvent(e); songMute[t] = m;
+    }
     void render(float* L, float* R, int n, const Transport* tp = nullptr) {
         int done = 0;
         while (done < n) {
@@ -446,7 +454,15 @@ private:
             if ((e.status & 0xF0) == 0xB0 || (e.status & 0xF0) == 0xE0) songEvent(e);   // levels, pans and bends up to here
         }
     }
-    Controls songControls(const Sound* snd, int t) const { Controls c = snd->ctl; c.level = (float) std::min(1.0, c.level * songVol[t] * songGain.load()); return c; }
+    // a song track's card levels: its MIDI volume, the song level, and for the drum kit a lift (the CMI's drum samples
+    // are short and peaky: at the same latch level they sit well under the sustained parts)
+    Controls songControls(const Sound* snd, int t) const {
+        Controls c = snd->ctl;
+        const double lift = songVoice[t] == GM_KIT ? drumLift.load() : 1.0;
+        c.level = (float) std::min(1.0, c.level * songVol[t] * songGain.load() * lift);
+        if (songVoice[t] == GM_KIT) c.velVol = std::min(c.velVol, 0.35f);   // ghost notes stay audible
+        return c;
+    }
     // a card for a note on track t: one already on this note, a free one, the oldest released, the oldest
     int songCard(int t, int note) {
         int best = -1; uint64_t oldest = UINT64_MAX;
@@ -503,6 +519,7 @@ private:
             if (!ext) sbeat = 0;
             return maxLen;
         }
+        if (const double r = songStartReq.exchange(-1); r >= 0 && !ext) { songAllOff(); sbeat = std::min(r, s->length); songWas = false; }   // play from here
         const double bpm = ext ? (tp->bpm > 0 ? tp->bpm : 120) : s->bpmAt(sbeat);
         const double bps = bpm / 60.0 / fs;   // beats per sample
         if (ext) {

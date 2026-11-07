@@ -440,6 +440,10 @@ void CmiProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuff
     keyboard.processNextMidiBuffer(midi, 0, n, true);
 
     engine.setKeyboard(juce::roundToInt(get("sound")), controlsNow());
+    if (const int a = auditionReq.exchange(-1); a >= 0) {
+        if (auditionOn >= 0) engine.songNote(auditionOn >> 8, auditionOn & 0x7F, 0);
+        engine.songNote(a >> 8, a & 0x7F, 100); auditionOn = a; auditionLeft = (int64_t) (getSampleRate() * 0.35);
+    } else if (auditionOn >= 0 && (auditionLeft -= n) <= 0) { engine.songNote(auditionOn >> 8, auditionOn & 0x7F, 0); auditionOn = -1; }
     engine.setPoly(juce::roundToInt(get("poly")));
     engine.setBendRange(get("bend"));
     engine.setOutput(get("master"), get("hiss"), get("spread"));

@@ -2,6 +2,7 @@
 // Pages: 2 (library), 7 (controls), D (the waveform in 3D), 8 (sampling), R (the real-time composer).
 #pragma once
 #include "CmiPlugin.h"
+#include "core/GridEdit.h"
 
 namespace cmi {
 
@@ -16,6 +17,7 @@ public:
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    bool keyPressed(const juce::KeyPress&) override;
 
     char page = 'R';   // R: factory presets, S: the real-time composer
     int rootKey = 60; bool loopIt = false;
@@ -40,6 +42,13 @@ private:
     void drawSampling(juce::Graphics&);
     void drawMixer(juce::Graphics&);
     void drawEffects(juce::Graphics&);
+    void drawFxMixer(juce::Graphics&);
+    void vFader(juce::Graphics&, float x, float w, float top, float h, const juce::String& label, float maxV, std::function<float()> get, std::function<void(float)> set, float meter, bool dbScale);
+    std::vector<std::pair<int, juce::String>> mixStrips();
+    int fxTab = 0;
+    // the song browser: the song picked, the search, the order, what each file holds (read once)
+    juce::File songSel; juce::String songSearch; bool songByArtist = false; std::map<juce::String, juce::String> songInfoCache;
+    void songSearchBox();   // Page E: 0 the REV7, 1 the effects mixer (the sends)
     void fxPresetMenu();
     void drawFiles(juce::Graphics&);
     void drawSongFiles(juce::Graphics&);
@@ -47,6 +56,9 @@ private:
     void drawComposer(juce::Graphics&);
     void drawMidiSong(juce::Graphics&);
     void drawGrid(juce::Graphics&, juce::Rectangle<float> area);
+    void gridPage(juce::Graphics&);
+    void gridCommit();
+    void gridAudition(int pitch);
     void songMenu();
     void exportMenu();
     void learnMenu(const char* id);
@@ -64,6 +76,9 @@ private:
     double viewStart = 0, viewBeats = 16, snap = 0.25; int pitchLow = 48;
     std::vector<SongNote> work; int dragIdx = -1, dragMode = 0; SongNote dragOrig {}; double grabBeat = 0; int grabPitch = 0; bool dirty = false; const Sound* waveSound = nullptr;
     bool songEditor = false;
+    // the grid (piano roll): the notes being edited and the selection, the tool (0 draw, 1 select, 2 erase)
+    GridEdit ge; const MidiSong* geFor = nullptr; int gridTool = 0, gridRows = 24; bool gridFollow = true, gridGhost = true;
+    double newLen = 0.5; bool banding = false; juce::Point<float> bandA, bandB; std::vector<SongNote> dragFrom; int velIdx = -1;
     friend class CmiEditor;
 };
 
@@ -76,6 +91,8 @@ public:
     bool isInterestedInFileDrag(const juce::StringArray&) override;
     void filesDropped(const juce::StringArray&, int, int) override;
     void showPage(char p) { screen.page = p; screen.repaint(); }
+    void pickSong(const juce::File& f) { screen.songSel = f; screen.repaint(); }
+    void showFxMixer() { screen.page = 'E'; screen.fxTab = 1; screen.repaint(); }
     void showSongGrid(bool on, int track = 0) { screen.songGrid = on; screen.selTrack = track; screen.repaint(); }
     CmiProcessor& proc;
     juce::TextEditor cmdLine;

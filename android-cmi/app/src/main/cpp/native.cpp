@@ -11,6 +11,7 @@
 #include "Song.h"
 #include "Catalog.h"
 #include "Factory.h"
+#include "GridEdit.h"
 #include <map>
 #include <sstream>
 
@@ -20,7 +21,7 @@ using namespace cmi;
 
 namespace {
 
-enum CmdType { C_MIDI, C_PREVIEW, C_ALLOFF };
+enum CmdType { C_MIDI, C_PREVIEW, C_ALLOFF, C_AUDITION };
 struct Cmd { int type; uint8_t m[3]; int len; int a; };
 
 constexpr int NPARAM = 25;   // 23: loop blend amount, 24: loop blend on
@@ -95,6 +96,7 @@ struct App {
         c.vibDelay = param[7]; c.porta = param[8]; c.velVol = param[9]; c.velFilt = param[10]; c.transpose = param[11]; c.fine = param[12]; c.loop = param[13]; c.segTime = param[14];
         return c;
     }
+    int audOn = -1, audLeft = 0;
     void render(float* out, int n) {
         uint32_t r = qr.load(std::memory_order_relaxed);
         const uint32_t w = qw.load(std::memory_order_acquire);
@@ -107,8 +109,13 @@ struct App {
             if (c.type == C_MIDI) engine.midi(c.m, c.len);
             else if (c.type == C_PREVIEW) engine.trackNote(c.a, 0, 0.9f);
             else if (c.type == C_ALLOFF) engine.allOff(true);
+            else if (c.type == C_AUDITION) {   // the grid: a note on a song track, for a moment
+                if (audOn >= 0) engine.songNote(audOn >> 8, audOn & 0x7F, 0);
+                engine.songNote(c.a >> 8, c.a & 0x7F, 100); audOn = c.a; audLeft = (int) (rate * 0.35);
+            }
             ++r;
         }
+        if (audOn >= 0 && (audLeft -= n) <= 0) { engine.songNote(audOn >> 8, audOn & 0x7F, 0); audOn = -1; }
         qr.store(r, std::memory_order_release);
         if ((int) L.size() < n) { L.resize((size_t) n); R.resize((size_t) n); }
         engine.render(L.data(), R.data(), n, nullptr);
@@ -475,6 +482,31 @@ FN(void, setSongNoteList)(JNIEnv* env, jclass, jintArray notes) {
     for (jsize i = 0; i + 4 < n; i += 5) list.push_back({ v[(size_t) i], v[(size_t) i + 1] / 480.0, v[(size_t) i + 2] / 480.0, v[(size_t) i + 3], v[(size_t) i + 4] });
     editSong(app()->engine, app()->songs.at(curSongIdx()), list);
 }
+FN(void, auditionSong)(JNIEnv*, jclass, jint t, jint note) { Cmd c {}; c.type = C_AUDITION; c.a = (t << 8) | (note & 0x7F); app()->push(c); }
+// the grid's edits (GridEdit.h): notes five ints each (track, start, length in 1/480 beat, pitch, velocity) and a
+// selection flag each; returns six ints per note (the five and the flag). ops: 1 erase, 2 transpose a, 3 move a beats,
+// 4 quantize to a, 5 velocity +a, 6 legato, 7 duplicate (snap a), 8 copy, 9 paste at beat a, 10 select all,
+// 11 select the box a..b beats, c..d pitches (add if e)
+FN(jintArray, gridOp)(JNIEnv* env, jclass, jintArray notes, jbooleanArray sel, jint track, jint op, jfloat a, jfloat b, jfloat c, jfloat d, jboolean e) {
+    const jsize n = env->GetArrayLength(notes), ns = env->GetArrayLength(sel);
+    std::vector<jint> v((size_t) n); env->GetIntArrayRegion(notes, 0, n, v.data());
+    std::vector<jboolean> sv((size_t) ns); if (ns) env->GetBooleanArrayRegion(sel, 0, ns, sv.data());
+    GridEdit ge; std::vector<SongNote> list;
+    for (jsize i = 0; i + 4 < n; i += 5) list.push_back({ v[(size_t) i], v[(size_t) i + 1] / 480.0, v[(size_t) i + 2] / 480.0, v[(size_t) i + 3], v[(size_t) i + 4] });
+    ge.setNotes(list);
+    for (size_t i = 0; i < ge.sel.size() && i < sv.size(); ++i) ge.sel[i] = sv[i] ? 1 : 0;
+    switch (op) {
+        case 1: ge.erase(); break; case 2: ge.transpose(track, (int) a); break; case 3: ge.move(track, a); break;
+        case 4: ge.quantize(track, a); break; case 5: ge.velocity(track, (int) a); break; case 6: ge.legato(track); break;
+        case 7: ge.duplicate(a); break; case 8: ge.copy(); break; case 9: ge.paste(track, a); break; case 10: ge.selectAll(track); break;
+        case 11: ge.selectRect(track, a, b, (int) c, (int) d, e); break; default: break;
+    }
+    std::vector<jint> out;
+    for (size_t i = 0; i < ge.notes.size(); ++i) { const auto& x = ge.notes[i]; out.insert(out.end(), { x.track, (jint) std::lround(x.start * 480), (jint) std::lround(x.len * 480), x.pitch, x.vel, ge.sel[i] ? 1 : 0 }); }
+    jintArray r = env->NewIntArray((jsize) out.size()); env->SetIntArrayRegion(r, 0, (jsize) out.size(), out.data()); return r;
+}
+FN(void, songPlayFrom)(JNIEnv*, jclass, jdouble beat) { app()->engine.songStartReq = beat; app()->engine.songRun = true; }
+FN(jint, clipboardSize)(JNIEnv*, jclass) { return (jint) GridEdit::clipboard().size(); }
 FN(jboolean, undoSongEdit)(JNIEnv*, jclass) { return undoSong(app()->engine, app()->songs.at(curSongIdx())); }
 FN(void, newSong)(JNIEnv*, jclass) { auto& sl = app()->songs; selectSong(app()->engine, sl.at(sl.add(emptySong("NEW SONG " + std::to_string(sl.count() + 1)), app()->kit.bank))); }
 FN(jstring, songWhy)(JNIEnv* env, jclass, jint t) { const SongEntry* e = app()->songs.at(curSongIdx()); return env->NewStringUTF(e && t >= 0 && t < SONG_TRK ? e->why[t].c_str() : ""); }

@@ -243,9 +243,18 @@ public class CmiView extends View {
     private String[][] fxDefs = null;
     private int fxScroll = 0;
     private void effects(Canvas c, RectF b) {
+        final boolean on = Native.fxOn();
+        button(c, new RectF(b.left, b.top, b.left + dp(56), b.top + dp(22)), "REV7", fxTab == 0, () -> fxTab = 0);
+        button(c, new RectF(b.left + dp(60), b.top, b.left + dp(140), b.top + dp(22)), "FX MIXER", fxTab == 1, () -> fxTab = 1);
+        if (fxTab == 1) {
+            button(c, new RectF(b.right - dp(60), b.top, b.right, b.top + dp(22)), on ? "ON" : "OFF", on, () -> { Native.setFxOn(!on); act.saveState(); });
+            fxMixer(c, new RectF(b.left, b.top + dp(30), b.right, b.bottom)); return;
+        }
+        effectsUnit(c, new RectF(b.left, b.top + dp(28), b.right, b.bottom));
+    }
+    private void effectsUnit(Canvas c, RectF b) {
         if (fxDefs == null) { final int n = Native.fxCount(); fxDefs = new String[n][]; for (int i = 0; i < n; ++i) fxDefs[i] = Native.fxParam(i).split("\t", -1); }
         final boolean on = Native.fxOn();
-        text(c, "EFFECTS: REV7 (AUX SEND)", b.left, b.top + dp(14), 12, INK);
         button(c, new RectF(b.right - dp(232), b.top, b.right - dp(172), b.top + dp(22)), on ? "ON" : "OFF", on, () -> { Native.setFxOn(!on); act.saveState(); });
         button(c, new RectF(b.right - dp(166), b.top, b.right - dp(94), b.top + dp(22)), "PRESET", false, this::fxPresetDialog);
         // the dice: tap a random preset, hold for random settings
@@ -302,7 +311,7 @@ public class CmiView extends View {
             button(c, new RectF(b.right - dp(90), b.bottom - dp(22), b.right - dp(50), b.bottom), "<", false, () -> fxScroll = Math.max(0, fxScroll - per));
             button(c, new RectF(b.right - dp(44), b.bottom - dp(22), b.right, b.bottom), ">", false, () -> fxScroll += per);
         }
-        text(c, "Sends: REV on each mixer strip (MIX). Dim: not used. Dice: tap random preset, hold random settings.", b.left, b.bottom - dp(6), 9, DIM);
+        text(c, "Sends: FX MIXER tab. Dim: not used. Dice: tap random preset, hold random settings.", b.left, b.bottom - dp(6), 9, DIM);
     }
     private int diceFace = 5;
     private void fxRoll(boolean settings) {
@@ -324,88 +333,147 @@ public class CmiView extends View {
                 }).show();
     }
 
-    // ---- Page M: the mixer ----
-    private int mixPage = 0;
-    private void mixer(Canvas c, RectF b) {
-        final List<Integer> strips = new ArrayList<>(); final List<String> names = new ArrayList<>();
+    // ---- Page M: the mixer, every strip on one screen (two rows on a phone held upright) ----
+    interface FGet { float get(); }
+    interface FSet { void set(float v); }
+    private void mixList(List<Integer> strips, List<String> names) {
         strips.add(0); names.add("KEYS");
         if (Native.currentSong() >= 0) {
-            for (int t = 0; t < Native.SONG_TRK; ++t) { String[] f = Native.songTrack(t).split("\\t", -1); if (f.length > 3 && f[2].equals("1")) { strips.add(9 + t); names.add(f[0].length() > 7 ? f[0].substring(0, 7) : f[0]); } }
-        } else for (int t = 0; t < Native.TRACKS; ++t) { strips.add(1 + t); names.add(info(Native.trackSound(t))[0]); }
-        final int per = portrait ? 6 : 12, pages = Math.max(1, (strips.size() + per - 1) / per);
-        mixPage = Math.min(mixPage, pages - 1);
+            for (int t = 0; t < Native.SONG_TRK; ++t) {
+                String[] f = Native.songTrack(t).split("\\t", -1);
+                if (f.length > 3 && f[2].equals("1")) { final int v = Integer.parseInt(f[1]); strips.add(9 + t); names.add((t + 1) + " " + (v == Native.GM_KIT ? "KIT" : Native.isBlankSound(v) ? f[0] : info(v)[0])); }
+            }
+        } else for (int t = 0; t < Native.TRACKS; ++t) { strips.add(1 + t); final int sd = Native.trackSound(t); names.add(Native.isBlankSound(sd) ? "" + (t + 1) : info(sd)[0]); }
+    }
+    private void vfader(Canvas c, float x, float sw, float top, float fh, String nm, final float max, FGet get, FSet set, float meter, boolean db) {
+        textC(c, nm.length() > Math.max(3, (int) (sw / dp(5.2f))) ? nm.substring(0, Math.max(3, (int) (sw / dp(5.2f)))) : nm, new RectF(x, top, x + sw, top + dp(12)), 8, INK);
+        final RectF slot = new RectF(x + sw / 2 - dp(3), top + dp(16), x + sw / 2 + dp(3), top + dp(16) + fh);
+        fill(c, slot, FAINT);
+        final float mv = Math.min(1, meter);
+        fill(c, new RectF(x + dp(3), slot.bottom - fh * mv, x + dp(6), slot.bottom), mv > 0.95f ? Color.WHITE : DIM);
+        final float v = get.get(), y = slot.bottom - fh * v / max;
+        fill(c, new RectF(x + dp(7), y - dp(6), x + sw - dp(7), y + dp(6)), INK);
+        textC(c, db ? (v <= 0.001f ? "-INF" : String.format("%.1f", 20 * Math.log10(v))) : Math.round(v / max * 100) + "%", new RectF(x, slot.bottom + dp(2), x + sw, slot.bottom + dp(13)), 7, DIM);
+        Act a = (xx, yy) -> set.set(Math.max(0, Math.min(max, (slot.bottom - yy) / fh * max)));
+        Hit h = hit(new RectF(x, top + dp(12), x + sw, slot.bottom + dp(6)), a); h.drag = a;
+    }
+    private void mixer(Canvas c, RectF b) {
+        final List<Integer> strips = new ArrayList<>(); final List<String> names = new ArrayList<>();
+        mixList(strips, names);
         text(c, "MIXER " + (Native.currentSong() >= 0 ? "SONG" : "PAGE S"), b.left, b.top + dp(12), 12, INK);
-        if (pages > 1) button(c, new RectF(b.right - dp(110), b.top, b.right, b.top + dp(22)), "STRIPS " + (mixPage + 1) + "/" + pages, false, () -> mixPage = (mixPage + 1) % pages);
-        final int n = Math.min(per, strips.size() - mixPage * per) + 2;   // + the REV7 return and the master
-        final float sw = b.width() / n, top = b.top + dp(28), fh = b.height() - dp(134);
-        for (int k = 0; k < n; ++k) {
-            final boolean master = k == n - 1, rev = k == n - 2;
-            final int idx = master ? -1 : rev ? Native.FX_STRIP : strips.get(mixPage * per + k);
-            final float x = b.left + k * sw;
-            final String nm = master ? "MASTER" : rev ? (Native.fxOn() ? "REV7" : "REV OFF") : names.get(mixPage * per + k);
-            textC(c, nm, new RectF(x, top, x + sw, top + dp(14)), 9, INK);
-            final RectF slot = new RectF(x + sw / 2 - dp(3), top + dp(20), x + sw / 2 + dp(3), top + dp(20) + fh);
-            fill(c, slot, FAINT);
-            final float mv = Math.min(1, master ? Native.masterMeter() : Native.mixGet(idx, 4));
-            fill(c, new RectF(x + dp(4), slot.bottom - fh * mv, x + dp(8), slot.bottom), mv > 0.95f ? Color.WHITE : DIM);
-            final float v = master ? Native.getParam(Native.MASTER) : Native.mixGet(idx, 0), y = slot.bottom - fh * v / 1.5f;
-            fill(c, new RectF(x + dp(10), y - dp(6), x + sw - dp(10), y + dp(6)), INK);
-            textC(c, v <= 0.001f ? "-INF" : String.format("%.1f", 20 * Math.log10(v)), new RectF(x, slot.bottom + dp(2), x + sw, slot.bottom + dp(14)), 8, DIM);
-            Act set = (xx, yy) -> { float nv = Math.max(0, Math.min(1.5f, (slot.bottom - yy) / fh * 1.5f)); if (master) Native.setParam(Native.MASTER, nv); else Native.mixSet(idx, 0, nv); };
-            Hit h = hit(new RectF(x, top + dp(16), x + sw, slot.bottom + dp(6)), set); h.drag = set;
-            if (master) continue;
-            final float py = slot.bottom + dp(18);
-            if (rev) { final boolean fon = Native.fxOn(); button(c, new RectF(x + dp(2), py + dp(18), x + sw - dp(2), py + dp(38)), fon ? "ON" : "OFF", fon, () -> { Native.setFxOn(!fon); act.saveState(); }); continue; }
+        button(c, new RectF(b.right - dp(110), b.top, b.right, b.top + dp(22)), "FX MIXER", false, () -> { page = 'E'; fxTab = 1; });
+        final int count = strips.size() + 1, rowsN = portrait && count > 9 ? 2 : 1, per = (count + rowsN - 1) / rowsN;
+        final float sw = b.width() / per, rowH = (b.height() - dp(28)) / rowsN, fh = rowH - dp(80);
+        for (int k = 0; k < count; ++k) {
+            final boolean master = k == count - 1;
+            final int idx = master ? -1 : strips.get(k), row = k / per, col = k % per;
+            final float x = b.left + col * sw, top = b.top + dp(28) + row * rowH;
+            if (master) { vfader(c, x, sw, top, fh, "MASTER", 1.5f, () -> Native.getParam(Native.MASTER), v -> Native.setParam(Native.MASTER, v), Native.masterMeter(), true); continue; }
+            vfader(c, x, sw, top, fh, names.get(k), 1.5f, () -> Native.mixGet(idx, 0), v -> Native.mixSet(idx, 0, v), Native.mixGet(idx, 4), true);
+            final float py = top + dp(16) + fh + dp(18);
             final float po = Native.mixGet(idx, 1);
-            fill(c, new RectF(x + dp(4), py, x + sw - dp(4), py + dp(8)), FAINT);
-            fill(c, new RectF(x + dp(4) + (sw - dp(12)) * (po < 0 ? 0.5f : po), py - dp(2), x + dp(8) + (sw - dp(12)) * (po < 0 ? 0.5f : po), py + dp(10)), po < 0 ? DIM : INK);
-            Act pan = (xx, yy) -> Native.mixSet(idx, 1, Math.max(0, Math.min(1, (xx - x - dp(4)) / (sw - dp(8)))));
+            fill(c, new RectF(x + dp(3), py, x + sw - dp(3), py + dp(8)), FAINT);
+            fill(c, new RectF(x + dp(3) + (sw - dp(10)) * (po < 0 ? 0.5f : po), py - dp(2), x + dp(7) + (sw - dp(10)) * (po < 0 ? 0.5f : po), py + dp(10)), po < 0 ? DIM : INK);
+            Act pan = (xx, yy) -> Native.mixSet(idx, 1, Math.max(0, Math.min(1, (xx - x - dp(3)) / (sw - dp(6)))));
             Hit ph = hit(new RectF(x, py - dp(6), x + sw, py + dp(14)), pan); ph.drag = pan; ph.longPress = true; ph.hold = (xx, yy) -> Native.mixSet(idx, 1, -1);
             final boolean mu = Native.mixGet(idx, 2) > 0.5f, so = Native.mixGet(idx, 3) > 0.5f;
-            button(c, new RectF(x + dp(2), py + dp(18), x + sw / 2 - dp(1), py + dp(38)), "M", mu, () -> Native.mixSet(idx, 2, mu ? 0 : 1));
-            button(c, new RectF(x + sw / 2 + dp(1), py + dp(18), x + sw - dp(2), py + dp(38)), "S", so, () -> Native.mixSet(idx, 3, so ? 0 : 1));
-            // the send to the REV7 (Page E)
-            final float sy = py + dp(52), sv = Native.mixGet(idx, 5);
-            textC(c, "REV " + Math.round(sv * 100), new RectF(x, sy - dp(11), x + sw, sy - dp(1)), 8, DIM);
-            fill(c, new RectF(x + dp(4), sy, x + sw - dp(4), sy + dp(8)), FAINT);
-            fill(c, new RectF(x + dp(4), sy, x + dp(4) + (sw - dp(8)) * sv, sy + dp(8)), Native.fxOn() ? INK : DIM);
-            Act snd = (xx, yy) -> Native.mixSet(idx, 5, Math.max(0, Math.min(1, (xx - x - dp(4)) / (sw - dp(8)))));
-            Hit sh = hit(new RectF(x, sy - dp(8), x + sw, sy + dp(14)), snd); sh.drag = snd;
+            button(c, new RectF(x + dp(1), py + dp(16), x + sw / 2 - dp(1), py + dp(36)), "M", mu, () -> Native.mixSet(idx, 2, mu ? 0 : 1));
+            button(c, new RectF(x + sw / 2 + dp(1), py + dp(16), x + sw - dp(1), py + dp(36)), "S", so, () -> Native.mixSet(idx, 3, so ? 0 : 1));
         }
+    }
+    // ---- Page E, FX MIXER: each strip's send to the REV7, and its return ----
+    private int fxTab = 0;
+    private void fxMixer(Canvas c, RectF b) {
+        final List<Integer> strips = new ArrayList<>(); final List<String> names = new ArrayList<>();
+        mixList(strips, names);
+        final int count = strips.size() + 1, rowsN = portrait && count > 9 ? 2 : 1, per = (count + rowsN - 1) / rowsN;
+        final float sw = b.width() / per, rowH = (b.height() - dp(30)) / rowsN, fh = rowH - dp(40);
+        for (int k = 0; k < count; ++k) {
+            final boolean ret = k == count - 1;
+            final int idx = ret ? Native.FX_STRIP : strips.get(k), row = k / per, col = k % per;
+            final float x = b.left + col * sw, top = b.top + row * rowH;
+            if (ret) vfader(c, x, sw, top, fh, Native.fxOn() ? "REV7" : "OFF", 1.5f, () -> Native.mixGet(idx, 0), v -> Native.mixSet(idx, 0, v), Native.mixGet(idx, 4), true);
+            else vfader(c, x, sw, top, fh, names.get(k), 1f, () -> Native.mixGet(idx, 5), v -> Native.mixSet(idx, 5, v), Native.mixGet(idx, 4) * Native.mixGet(idx, 5), false);
+        }
+        final float by = b.bottom - dp(24), bw = (b.width() - dp(12)) / 3;
+        final String[] l = { "SENDS 0", "SENDS 15%", "SENDS 30%" }; final float[] vs = { 0, 0.15f, 0.3f };
+        for (int i = 0; i < 3; ++i) { final float v = vs[i]; button(c, new RectF(b.left + i * (bw + dp(6)), by, b.left + i * (bw + dp(6)) + bw, by + dp(22)), l[i], false, () -> { for (int st = 0; st < Native.STRIPS; ++st) Native.mixSet(st, 5, v); act.saveState(); }); }
     }
 
     // ---- Page F: the library folder ----
     private int filePage = 0, songFilePage = 0; private boolean songTab = true;
     // the song folder: tap a song to load it (or go to it), hold it to load and play
+    // the song browser: search, order by title or artist, A-Z, two-line rows, the song loaded at the bottom
+    private String songSearch = ""; private boolean songByArtist = false;
+    private static String[] artistTitle(String nm) {
+        String n = nm.replace('_', ' ').trim();
+        if (n.length() > 7 && n.substring(0, 4).matches("\\d{4}") && n.startsWith(" - ", 4)) n = n.substring(7);
+        final int d = n.indexOf(" - ");
+        return d > 0 ? new String[] { n.substring(0, d).trim(), n.substring(d + 3).trim() } : new String[] { "", n };
+    }
+    private void songSearchDialog() {
+        final android.widget.EditText ed = new android.widget.EditText(getContext()); ed.setText(songSearch); ed.setSingleLine(true);
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Search songs").setView(ed)
+                .setPositiveButton("Search", (d, w) -> { songSearch = ed.getText().toString().trim(); songFilePage = 0; invalidate(); })
+                .setNeutralButton("All", (d, w) -> { songSearch = ""; songFilePage = 0; invalidate(); }).show();
+    }
     private void songFolder(Canvas c, RectF b) {
         final String sf = act.songFolderName();
-        text(c, "SONGS: " + (sf.isEmpty() ? "(none set)" : sf), b.left, b.top + dp(12), 11, INK);
-        final float bw = (b.width() - dp(6)) / 2, y0 = b.top + dp(20);
-        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(24)), "SET SONG FOLDER", false, act::chooseSongFolder);
-        button(c, new RectF(b.left + bw + dp(6), y0, b.right, y0 + dp(24)), "RESCAN", false, act::rescanSongs);
-        final float top = y0 + dp(32), rh = dp(30);
-        final int rows = Math.max(1, (int) ((b.bottom - dp(26) - top) / rh)), nf = act.songNames.size(), pages = Math.max(1, (nf + rows - 1) / rows);
+        text(c, "SONGS: " + (sf.isEmpty() ? "(none set)" : sf), b.left, b.top + dp(12), 10, DIM);
+        final float y0 = b.top + dp(18), bw4 = (b.width() - dp(18)) / 4;
+        final String[] tl = { "FOLDER", "RESCAN", songSearch.isEmpty() ? "SEARCH" : "\"" + (songSearch.length() > 6 ? songSearch.substring(0, 6) : songSearch) + "\"", songByArtist ? "BY ARTIST" : "BY TITLE" };
+        final Runnable[] tf = { act::chooseSongFolder, act::rescanSongs, this::songSearchDialog, () -> { songByArtist = !songByArtist; songFilePage = 0; } };
+        for (int i = 0; i < 4; ++i) button(c, new RectF(b.left + i * (bw4 + dp(6)), y0, b.left + i * (bw4 + dp(6)) + bw4, y0 + dp(24)), tl[i], i == 2 && !songSearch.isEmpty(), tf[i]);
+        // the list: filtered, ordered
+        final List<Integer> ix = new ArrayList<>(); final List<String[]> at = new ArrayList<>();
+        for (int i = 0; i < act.songNames.size(); ++i) at.add(artistTitle(MainActivity.baseName(act.songNames.get(i))));
+        final String q = songSearch.toLowerCase();
+        for (int i = 0; i < act.songNames.size(); ++i) if (q.isEmpty() || act.songNames.get(i).toLowerCase().contains(q)) ix.add(i);
+        java.util.Collections.sort(ix, (x, y) -> sortKey(at.get(x)).compareToIgnoreCase(sortKey(at.get(y))));
+        // A-Z
+        final float ly = y0 + dp(30); final String letters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ"; final float lw = b.width() / letters.length();
+        final float top = ly + dp(24), rh = dp(34);
+        final int rows = Math.max(1, (int) ((b.bottom - dp(56) - top) / rh)), nf = ix.size(), pages = Math.max(1, (nf + rows - 1) / rows);
+        for (int k = 0; k < letters.length(); ++k) {
+            final char ch = letters.charAt(k); int first = -1;
+            for (int j = 0; j < nf && first < 0; ++j) { final String key = sortKey(at.get(ix.get(j))); final char c0 = key.isEmpty() ? '#' : Character.toUpperCase(key.charAt(0)); if (ch == '#' ? !Character.isLetter(c0) : c0 == ch) first = j; }
+            final RectF r = new RectF(b.left + k * lw, ly, b.left + (k + 1) * lw, ly + dp(20));
+            textC(c, "" + ch, r, 9, first >= 0 ? INK : 0xff0e3a1e);
+            final int f = first; if (f >= 0) hit(r, (xx, yy) -> songFilePage = f / rows);
+        }
         songFilePage = Math.min(songFilePage, pages - 1);
-        if (nf == 0) text(c, sf.isEmpty() ? "Pick the folder with your MIDI songs (searched inside too)." : "No MIDI files there.", b.left, top + dp(14), 11, DIM);
-        final int cur = Native.currentSong();
+        if (nf == 0) text(c, sf.isEmpty() ? "Pick the folder with your MIDI songs (searched inside too)." : !songSearch.isEmpty() ? "Nothing matches." : "No MIDI files there.", b.left, top + dp(14), 11, DIM);
+        final int cur = Native.currentSong(); final boolean running = Native.songRunning();
         for (int r = 0; r < rows && songFilePage * rows + r < nf; ++r) {
-            final int i = songFilePage * rows + r;
-            final String nm = MainActivity.baseName(act.songNames.get(i));
+            final int i = ix.get(songFilePage * rows + r);
+            final String nm = MainActivity.baseName(act.songNames.get(i)); final String[] a2 = at.get(i);
             final int li = Native.songLoadedAs(nm);
             final RectF row = new RectF(b.left, top + r * rh, b.right, top + (r + 1) * rh - dp(3));
-            if (li >= 0 && li == cur) fill(c, row, INK);
-            text(c, (li >= 0 ? "* " : "  ") + (nm.length() > 38 ? nm.substring(0, 38) : nm), row.left + dp(2), row.bottom - dp(9), 11, li >= 0 && li == cur ? BG : li >= 0 ? INK : DIM);
+            final boolean on = li >= 0 && li == cur;
+            if (on) fill(c, row, INK);
+            text(c, (on && running ? "> " : li >= 0 ? "* " : "  ") + (a2[1].length() > 34 ? a2[1].substring(0, 34) : a2[1]), row.left + dp(2), row.top + dp(14), 12, on ? BG : INK);
+            text(c, "   " + a2[0], row.left + dp(2), row.bottom - dp(4), 9, on ? BG : DIM);
             Hit h = hit(row, (xx, yy) -> act.openSong(i, false));
             h.longPress = true; h.hold = (xx, yy) -> act.openSong(i, true);
         }
-        final float y = b.bottom - dp(22);
+        final float y = b.bottom - dp(50);
         if (pages > 1) {
             button(c, new RectF(b.left, y, b.left + dp(40), y + dp(22)), "<", false, () -> songFilePage = Math.max(0, songFilePage - 1));
             textC(c, (songFilePage + 1) + "/" + pages, new RectF(b.left + dp(40), y, b.left + dp(100), y + dp(22)), 11, INK);
             button(c, new RectF(b.left + dp(100), y, b.left + dp(140), y + dp(22)), ">", false, () -> songFilePage = Math.min(pages - 1, songFilePage + 1));
         }
-        text(c, "tap: load   hold: load + play   * loaded", b.left + dp(150), y + dp(15), 9, DIM);
+        text(c, nf + " SONGS   tap: load   hold: play", b.left + dp(148), y + dp(15), 9, DIM);
+        // the song loaded
+        final float ny = b.bottom - dp(24);
+        if (cur >= 0) {
+            final String[] si = Native.songInfo().split("\\t", -1);
+            final String nmS = si.length > 0 ? artistTitle(si[0])[1] : "";
+            text(c, (nmS.length() > 18 ? nmS.substring(0, 18) : nmS) + (si.length > 1 ? "  " + si[1] + " BPM" : ""), b.left, ny + dp(15), 10, INK);
+            button(c, new RectF(b.right - dp(166), ny, b.right - dp(112), ny + dp(22)), running ? "STOP" : "PLAY", running, () -> Native.songPlay(!running));
+            button(c, new RectF(b.right - dp(106), ny, b.right, ny + dp(22)), "TO SEQUENCER", false, () -> { page = 'S'; grid = false; });
+        }
     }
+    private String sortKey(String[] at) { return songByArtist ? at[0] + " " + at[1] : at[1] + " " + at[0]; }
 
     private void files(Canvas c, RectF b) {
         final float tw = (b.width() - dp(6)) / 2;
@@ -706,107 +774,233 @@ public class CmiView extends View {
     }
 
     private int[] notesCache = new int[0]; private String notesFor = "";
-    // the editing grid (one track as a piano roll)
-    private boolean grid = false, gridActive = false;
-    private double vStart = 0, vBeats = 16, snapB = 0.25; private int pLow = 48, gridTrack = -1, selNote = -1;
-    private int[] gNotes = new int[0]; private boolean gStale = true; private String gridFor = "";
-    private RectF gridRect = new RectF();
-    private int gIdx = -1, gMode = 0; private float gDownX, gDownY; private boolean gMoved, gLong; private double gStartV; private int gStartP; private int[] gOrig = new int[5];
-    private final Runnable gLongPress = () -> { if (!gMoved && gIdx >= 0) { removeNote(gIdx); gIdx = -1; gLong = true; invalidate(); } };
+    // the editing grid (one track as a piano roll): keys down the side (tap to hear), a velocity lane underneath.
+    // Tools: DRAW (tap adds, drag a note moves the selection, its end lengthens, drag empty space scrolls, hold deletes),
+    // SEL (drag a box, tap toggles), ERASE (tap or drag over notes). Two fingers: scroll, pinch to zoom.
+    private boolean grid = false, gridActive = false, gFollow = true;
+    private double vStart = 0, vBeats = 16, snapB = 0.25, newLenB = 0.5; private int pLow = 48, gridTrack = -1, gRows = 20, gTool = 0;
+    private int[] gNotes = new int[0]; private boolean[] gSel = new boolean[0]; private boolean gStale = true; private String gridFor = "";
+    private RectF gridRect = new RectF(), velRect = new RectF(), gKeysRect = new RectF();
+    private int gIdx = -1, gMode = -1; private float gDownX, gDownY, gCurX, gCurY; private boolean gMoved, gLong; private double gStartV; private int gStartP; private int[] gFrom = null;
+    private final Runnable gLongPress = () -> { if (!gMoved && gIdx >= 0 && gTool == 0) { selectOnly(gIdx); gridOp(1, 0); gIdx = -1; gLong = true; invalidate(); } };
+    // two fingers
+    private boolean gTwo = false; private float g2Span, g2MidX, g2MidY; private double g2Start, g2Beats; private int g2Low;
 
-    private void commitNotes() { Native.setSongNoteList(gNotes); gStale = true; notesFor = ""; act.saveState(); }
-    private void removeNote(int i) { int[] n = new int[gNotes.length - 5]; System.arraycopy(gNotes, 0, n, 0, i * 5); System.arraycopy(gNotes, i * 5 + 5, n, i * 5, gNotes.length - i * 5 - 5); gNotes = n; commitNotes(); }
+    private int nNotes() { return gNotes.length / 5; }
+    private void fitSel() { if (gSel.length != nNotes()) { boolean[] s = new boolean[nNotes()]; System.arraycopy(gSel, 0, s, 0, Math.min(gSel.length, s.length)); gSel = s; } }
+    private void selectOnly(int i) { fitSel(); java.util.Arrays.fill(gSel, false); if (i >= 0 && i < gSel.length) gSel[i] = true; }
+    private int selCount() { int n = 0; for (boolean b : gSel) if (b) ++n; return n; }
+    private void commitNotes() { Native.setSongNoteList(gNotes); notesFor = ""; act.saveState(); }
+    // an edit through GridEdit (native): ops as in native.cpp gridOp
+    private void gridOp(int op, float a) { gridOp(op, a, 0, 0, 0, false); }
+    private void gridOp(int op, float a, float b, float c, float d, boolean add) {
+        fitSel();
+        final int[] r = Native.gridOp(gNotes, gSel, selTrack, op, a, b, c, d, add);
+        final int n = r.length / 6; int[] nn = new int[n * 5]; boolean[] ss = new boolean[n];
+        for (int i = 0; i < n; ++i) { System.arraycopy(r, i * 6, nn, i * 5, 5); ss[i] = r[i * 6 + 5] != 0; }
+        gNotes = nn; gSel = ss;
+        if (op != 8 && op != 10 && op != 11) commitNotes();
+    }
+    private void removeNote(int i) { selectOnly(i); gridOp(1, 0); }
 
-    private float gx() { return gridRect.left + dp(28); }
-    private float rowH() { return gridRect.height() / 24f; }
+    private float gx() { return gridRect.left; }
+    private float rowH() { return gridRect.height() / gRows; }
     private double beatAt(float x) { return vStart + (x - gx()) / (gridRect.right - gx()) * vBeats; }
-    private int pitchAt(float y) { return pLow + (int) ((gridRect.bottom - y) / rowH()); }
+    private int pitchAt(float y) { return pLow + (int) Math.floor((gridRect.bottom - y) / rowH()); }
     private float xOfBeat(double b) { return gx() + (float) ((b - vStart) / vBeats) * (gridRect.right - gx()); }
+    private double snapIt(double b) { return snapB > 0 ? Math.round(b / snapB) * snapB : b; }
     private int noteAt(float x, float y) {
-        final double b = beatAt(x); final int p = pitchAt(y);
+        final double b = beatAt(x); final int p = pitchAt(y); int best = -1;
+        final double minLen = Math.max(snapB, 0.125) * 0.5 + vBeats * dp(6) / Math.max(1, gridRect.width());   // a finger's width
         for (int i = 0; i + 4 < gNotes.length; i += 5) {
             if (gNotes[i] != selTrack || gNotes[i + 3] != p) continue;
-            final double st = gNotes[i + 1] / 480.0, ln = Math.max(gNotes[i + 2] / 480.0, snapB);
-            if (b >= st && b <= st + ln) return i / 5;
+            final double st = gNotes[i + 1] / 480.0, ln = Math.max(gNotes[i + 2] / 480.0, minLen);
+            if (b >= st - minLen * 0.3 && b <= st + ln) best = i / 5;
         }
-        return -1;
+        return best;
+    }
+    private void setVelAt(float x, float y) {
+        final int v = Math.max(1, Math.min(127, Math.round((velRect.bottom - y) / velRect.height() * 127)));
+        if (gIdx < 0) { float best = dp(12); for (int i = 0; i + 4 < gNotes.length; i += 5) { if (gNotes[i] != selTrack) continue; float d = Math.abs(xOfBeat(gNotes[i + 1] / 480.0) - x); if (d < best) { best = d; gIdx = i / 5; } } }
+        if (gIdx < 0) return;
+        fitSel();
+        if (gSel[gIdx]) { for (int i = 0; i < gSel.length; ++i) if (gSel[i]) gNotes[i * 5 + 4] = v; } else gNotes[gIdx * 5 + 4] = v;
     }
     private boolean gridTouch(MotionEvent e, int a, float x, float y) {
+        fitSel();
         if (a == MotionEvent.ACTION_DOWN) {
-            gDownX = x; gDownY = y; gMoved = false; gLong = false; gStartV = vStart; gStartP = pLow;
+            gDownX = gCurX = x; gDownY = gCurY = y; gMoved = false; gLong = false; gStartV = vStart; gStartP = pLow; gIdx = -1; gFrom = gNotes.clone();
+            if (gKeysRect.contains(x, y)) { gMode = -1; Native.auditionSong(selTrack, pitchAt(y)); return true; }
+            if (velRect.contains(x, y)) { gMode = 6; setVelAt(x, y); invalidate(); return true; }
             gIdx = noteAt(x, y);
-            if (gIdx >= 0) { System.arraycopy(gNotes, gIdx * 5, gOrig, 0, 5); final double end = (gOrig[1] + gOrig[2]) / 480.0; gMode = x > xOfBeat(end) - (xOfBeat(end) - xOfBeat(gOrig[1] / 480.0)) * 0.3f ? 1 : 0; selNote = gIdx; }
-            else gMode = 2;
-            postDelayed(gLongPress, 500);
-            return true;
+            if (gTool == 2) { gMode = 4; if (gIdx >= 0) { removeNote(gIdx); gIdx = -1; } invalidate(); return true; }
+            if (gIdx >= 0) {
+                if (gTool == 1) gSel[gIdx] = !gSel[gIdx]; else if (!gSel[gIdx]) selectOnly(gIdx);
+                gFrom = gNotes.clone();
+                final double st = gNotes[gIdx * 5 + 1] / 480.0, end = (gNotes[gIdx * 5 + 1] + gNotes[gIdx * 5 + 2]) / 480.0;
+                gMode = x > xOfBeat(end) - Math.max(dp(10), (xOfBeat(end) - xOfBeat(st)) * 0.3f) ? 1 : 0;
+                newLenB = gNotes[gIdx * 5 + 2] / 480.0;
+                Native.auditionSong(selTrack, gNotes[gIdx * 5 + 3]);
+                postDelayed(gLongPress, 550);
+            } else gMode = gTool == 1 ? 3 : 2;
+            invalidate(); return true;
         }
         if (a == MotionEvent.ACTION_MOVE) {
+            gCurX = x; gCurY = y;
             if (!gMoved && Math.hypot(x - gDownX, y - gDownY) > dp(8)) { gMoved = true; removeCallbacks(gLongPress); }
+            if (gMode == 6) { setVelAt(x, y); invalidate(); return true; }
             if (!gMoved || gLong) return true;
             if (gMode == 2) {
-                vStart = Math.max(0, gStartV - (x - gDownX) / (gridRect.right - gx()) * vBeats);
-                pLow = Math.max(0, Math.min(103, gStartP + Math.round((y - gDownY) / rowH())));
-            } else if (gIdx >= 0 && gIdx * 5 + 4 < gNotes.length) {
-                final double db = Math.round((beatAt(x) - beatAt(gDownX)) / snapB) * snapB;
-                if (gMode == 0) {
-                    gNotes[gIdx * 5 + 1] = (int) Math.max(0, Math.round((gOrig[1] / 480.0 + db) * 480));
-                    gNotes[gIdx * 5 + 3] = Math.max(0, Math.min(127, gOrig[3] + pitchAt(y) - pitchAt(gDownY)));
-                } else gNotes[gIdx * 5 + 2] = (int) Math.round(Math.max(snapB, Math.round((gOrig[2] / 480.0 + db) / snapB) * snapB) * 480);
+                vStart = Math.max(0, gStartV - (x - gDownX) / gridRect.width() * vBeats); gFollow = false;
+                pLow = Math.max(0, Math.min(127 - gRows, gStartP + Math.round((y - gDownY) / rowH())));
+            } else if (gMode == 3) {
+                gridOp(11, (float) beatAt(gDownX), (float) beatAt(x), pitchAt(gDownY), pitchAt(y), false);
+            } else if (gMode == 4) {
+                final int i = noteAt(x, y); if (i >= 0) removeNote(i);
+            } else if ((gMode == 0 || gMode == 1) && gFrom != null && gFrom.length == gNotes.length) {
+                final double db = snapIt(beatAt(x) - beatAt(gDownX)); final int dpch = pitchAt(y) - pitchAt(gDownY);
+                for (int i = 0; i < gSel.length; ++i) {
+                    if (!gSel[i]) continue;
+                    if (gMode == 0) { gNotes[i * 5 + 1] = (int) Math.max(0, Math.round((gFrom[i * 5 + 1] / 480.0 + db) * 480)); gNotes[i * 5 + 3] = Math.max(0, Math.min(127, gFrom[i * 5 + 3] + dpch)); }
+                    else gNotes[i * 5 + 2] = (int) Math.round(Math.max(snapB > 0 ? snapB : 1.0 / 32, gFrom[i * 5 + 2] / 480.0 + db) * 480);
+                }
+                if (gIdx >= 0) newLenB = gNotes[gIdx * 5 + 2] / 480.0;
             }
             invalidate(); return true;
         }
         if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
             removeCallbacks(gLongPress);
-            if (gLong || a == MotionEvent.ACTION_CANCEL) { gIdx = -1; return true; }
-            if (gMoved) { if (gMode != 2 && gIdx >= 0) commitNotes(); }
-            else if (gIdx < 0) {   // a tap on an empty place: a new note
-                final double st = Math.max(0, Math.floor(beatAt(x) / snapB) * snapB);
+            final int mode = gMode; gMode = -1;
+            if (gLong || a == MotionEvent.ACTION_CANCEL) { gIdx = -1; invalidate(); return true; }
+            if (mode == 6 || ((mode == 0 || mode == 1) && gMoved)) commitNotes();
+            else if (mode == 2 && !gMoved) {   // a tap on an empty place: a new note
+                final double st = Math.max(0, snapB > 0 ? Math.floor(beatAt(x) / snapB) * snapB : beatAt(x));
+                final int pt = Math.max(0, Math.min(127, pitchAt(y)));
                 int[] n = new int[gNotes.length + 5]; System.arraycopy(gNotes, 0, n, 0, gNotes.length);
-                n[gNotes.length] = selTrack; n[gNotes.length + 1] = (int) Math.round(st * 480); n[gNotes.length + 2] = (int) Math.round(Math.max(snapB, 0.5) * 480);
-                n[gNotes.length + 3] = Math.max(0, Math.min(127, pitchAt(y))); n[gNotes.length + 4] = 100;
-                gNotes = n; selNote = gNotes.length / 5 - 1; commitNotes();
-            }
+                n[gNotes.length] = selTrack; n[gNotes.length + 1] = (int) Math.round(st * 480); n[gNotes.length + 2] = (int) Math.round(Math.max(1.0 / 32, newLenB) * 480);
+                n[gNotes.length + 3] = pt; n[gNotes.length + 4] = 100;
+                gNotes = n; fitSel(); selectOnly(nNotes() - 1); commitNotes(); Native.auditionSong(selTrack, pt);
+            } else if (mode == 3 && !gMoved) { selectOnly(-1); }
             gIdx = -1; invalidate(); return true;
         }
         return true;
     }
+    // two fingers on the grid: scroll both ways, pinch to zoom (time)
+    private boolean gridTwo(MotionEvent e, int a) {
+        if (e.getPointerCount() < 2) { gTwo = false; return true; }
+        final float x0 = e.getX(0), x1 = e.getX(1), mx = (x0 + x1) / 2, my = (e.getY(0) + e.getY(1)) / 2, span = Math.max(dp(20), Math.abs(x1 - x0));
+        if (!gTwo || a == MotionEvent.ACTION_POINTER_DOWN) {
+            removeCallbacks(gLongPress); if (gFrom != null && gFrom.length == gNotes.length && gMoved) gNotes = gFrom.clone();
+            gMode = -1; gIdx = -1; gTwo = true; g2Span = span; g2MidX = mx; g2MidY = my; g2Start = vStart; g2Beats = vBeats; g2Low = pLow; return true;
+        }
+        final double beats = Math.max(2, Math.min(256, g2Beats * g2Span / span));
+        final double anchor = g2Start + (g2MidX - gx()) / gridRect.width() * g2Beats;   // the beat under the fingers stays there
+        vBeats = beats; vStart = Math.max(0, anchor - (mx - gx()) / gridRect.width() * beats); gFollow = false;
+        pLow = Math.max(0, Math.min(127 - gRows, g2Low + Math.round((my - g2MidY) / rowH())));
+        invalidate(); return true;
+    }
 
     private void drawGrid(Canvas c, RectF r, double beat, double barBeats, String key) {
-        gridRect = r;
-        if (gStale || !key.equals(gridFor)) { gNotes = Native.songNoteList(); gStale = false; gridFor = key; }
+        final float keyW = dp(30), velH = Math.min(dp(40), r.height() * 0.15f);
+        gKeysRect = new RectF(r.left, r.top, r.left + keyW, r.bottom - velH - dp(4));
+        gridRect = new RectF(r.left + keyW, r.top, r.right, r.bottom - velH - dp(4));
+        velRect = new RectF(r.left + keyW, r.bottom - velH, r.right, r.bottom);
+        if (gStale || !key.equals(gridFor)) { gNotes = Native.songNoteList(); gSel = new boolean[nNotes()]; gStale = false; gridFor = key; }
+        fitSel();
         if (selTrack != gridTrack) {
-            gridTrack = selTrack; selNote = -1;
+            gridTrack = selTrack; selectOnly(-1);
             int sum = 0, cnt = 0; for (int i = 0; i + 4 < gNotes.length; i += 5) if (gNotes[i] == selTrack) { sum += gNotes[i + 3]; ++cnt; }
-            if (cnt > 0) pLow = Math.max(0, Math.min(103, sum / cnt - 12));
+            if (cnt > 0) pLow = Math.max(0, Math.min(127 - gRows, sum / cnt - gRows / 2));
         }
-        if (Native.songRunning() && gIdx < 0 && (beat < vStart || beat > vStart + vBeats)) vStart = Math.floor(beat / 4) * 4;
-        final float rh = rowH(), gx = gx();
-        for (int row = 0; row < 24; ++row) {
-            final int pt = pLow + row, k = pt % 12; final float y = r.bottom - (row + 1) * rh;
+        pLow = Math.max(0, Math.min(127 - gRows, pLow));
+        if (gFollow && Native.songRunning() && gMode < 0 && !gTwo && (beat < vStart || beat > vStart + vBeats)) vStart = Math.floor(beat / 4) * 4;
+        final RectF gr = gridRect; final float rh = rowH(), gx = gx();
+        for (int row = 0; row < gRows; ++row) {
+            final int pt = pLow + row, k = pt % 12; final float y = gr.bottom - (row + 1) * rh;
             final boolean black = k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
-            fill(c, new RectF(gx, y, r.right, y + rh), black ? 0xff031208 : BG);
-            fill(c, new RectF(r.left, y, gx - dp(2), y + rh - 1), black ? 0xff0d2a1c : FAINT);
-            if (k == 0) text(c, noteName(pt), r.left + dp(1), y + rh - dp(2), 8, INK);
+            fill(c, new RectF(gx, y, gr.right, y + rh), black ? 0xff031208 : BG);
+            fill(c, new RectF(r.left, y, r.left + (black ? keyW * 0.62f : keyW - dp(2)), y + rh - 1), black ? 0xff0d2a1c : 0xd9cfe9d6);
+            if (k == 0) text(c, noteName(pt), r.left + dp(2), y + rh - dp(2), Math.min(9, rh / d * 0.8f), BG);
         }
-        for (double b = Math.ceil(vStart / snapB) * snapB; b <= vStart + vBeats; b += snapB) {
+        final double stp = snapB > 0 ? snapB : 0.25;
+        for (double b = Math.ceil(vStart / stp) * stp; b <= vStart + vBeats; b += stp) {
             final boolean bar = Math.abs(b / barBeats - Math.rint(b / barBeats)) < 1e-6, bt = Math.abs(b - Math.rint(b)) < 1e-6;
             if (!bt && vBeats > 32) continue;
-            p.setColor(bar ? DIM : bt ? FAINT : 0xff08200f); c.drawRect(xOfBeat(b), r.top, xOfBeat(b) + (bar ? dp(1.2f) : dp(0.6f)), r.bottom, p);
-            if (bar) text(c, "" + (1 + Math.round(b / barBeats)), xOfBeat(b) + dp(2), r.top + dp(9), 8, DIM);
+            p.setColor(bar ? DIM : bt ? FAINT : 0xff08200f); c.drawRect(xOfBeat(b), gr.top, xOfBeat(b) + (bar ? dp(1.2f) : dp(0.6f)), gr.bottom, p);
+            if (bar) text(c, "" + (1 + Math.round(b / barBeats)), xOfBeat(b) + dp(2), gr.top + dp(9), 8, DIM);
         }
         for (int pass = 0; pass < 2; ++pass)
             for (int i = 0; i + 4 < gNotes.length; i += 5) {
                 if ((gNotes[i] == selTrack) != (pass == 1)) continue;
                 final double st = gNotes[i + 1] / 480.0, ln = gNotes[i + 2] / 480.0; final int pt = gNotes[i + 3];
-                if (st + ln < vStart || st > vStart + vBeats || pt < pLow || pt >= pLow + 24) continue;
-                final float y = r.bottom - (pt - pLow + 1) * rh, x0 = Math.max(gx, xOfBeat(st)), x1 = Math.min(r.right, xOfBeat(st + ln));
+                if (st + ln < vStart || st > vStart + vBeats || pt < pLow || pt >= pLow + gRows) continue;
+                final float y = gr.bottom - (pt - pLow + 1) * rh, x0 = Math.max(gx, xOfBeat(st)), x1 = Math.min(gr.right, xOfBeat(st + ln));
                 if (pass == 0) { fill(c, new RectF(x0, y + rh * 0.35f, Math.max(x0 + 1, x1), y + rh * 0.65f), FAINT); continue; }
-                final int alpha = 110 + gNotes[i + 4];
-                fill(c, new RectF(x0, y + 1, Math.max(x0 + dp(2), x1 - 1), y + rh - 1), (Math.min(255, alpha) << 24) | (INK & 0xffffff));
-                if (i / 5 == selNote) frame(c, new RectF(x0, y + 1, Math.max(x0 + dp(2), x1 - 1), y + rh - 1), Color.WHITE);
+                final boolean on = i / 5 < gSel.length && gSel[i / 5];
+                final int alpha = Math.min(255, 128 + gNotes[i + 4]);
+                fill(c, new RectF(x0, y + 1, Math.max(x0 + dp(3), x1 - 1), y + rh - 1), (alpha << 24) | ((on ? Color.WHITE : INK) & 0xffffff));
+                frame(c, new RectF(x0, y + 1, Math.max(x0 + dp(3), x1 - 1), y + rh - 1), on ? Color.WHITE : BG);
             }
-        if (beat >= vStart && beat <= vStart + vBeats) { p.setColor(Color.WHITE); c.drawRect(xOfBeat(beat), r.top, xOfBeat(beat) + dp(1.5f), r.bottom, p); }
-        frame(c, r, INK);
+        if (gMode == 3 && gMoved) { p.setColor(0x30ffffff); RectF br = new RectF(Math.min(gDownX, gCurX), Math.min(gDownY, gCurY), Math.max(gDownX, gCurX), Math.max(gDownY, gCurY)); c.drawRect(br, p); frame(c, br, Color.WHITE); }
+        if (beat >= vStart && beat <= vStart + vBeats) { p.setColor(Color.WHITE); c.drawRect(xOfBeat(beat), gr.top, xOfBeat(beat) + dp(1.5f), gr.bottom, p); }
+        frame(c, gr, INK);
+        // the velocity lane
+        fill(c, velRect, 0xff041a0c); frame(c, velRect, FAINT);
+        text(c, "VEL", r.left, velRect.centerY() + dp(3), 8, DIM);
+        for (int i = 0; i + 4 < gNotes.length; i += 5) {
+            if (gNotes[i] != selTrack) continue;
+            final double st = gNotes[i + 1] / 480.0; if (st < vStart || st > vStart + vBeats) continue;
+            final float x = xOfBeat(st), hgt = (velRect.height() - dp(3)) * gNotes[i + 4] / 127f;
+            fill(c, new RectF(x, velRect.bottom - dp(1) - hgt, x + dp(2.5f), velRect.bottom - dp(1)), i / 5 < gSel.length && gSel[i / 5] ? Color.WHITE : INK);
+        }
+    }
+
+    // the grid: track chips across the top, the roll, tools and edits underneath
+    private void gridFooter(Canvas c, RectF b, double beat) {
+        final String[] si = Native.songInfo().split("\\t", -1);
+        final double barBeats = si.length > 3 ? Integer.parseInt(si[2]) * 4.0 / Integer.parseInt(si[3]) : 4;
+        final float t0 = b.top + dp(52);
+        // track chips, two rows of eight
+        final float cw = b.width() / 8f;
+        for (int t = 0; t < Native.SONG_TRK; ++t) {
+            final int tk = t;
+            final String[] f = Native.songTrack(t).split("\\t", -1);
+            if (f.length < 4) continue;
+            final boolean used = f[2].equals("1"); final int v = Integer.parseInt(f[1]);
+            final String nm = !used ? "--" : v == Native.GM_KIT ? "KIT" : info(v)[0];
+            RectF r = new RectF(b.left + (t % 8) * cw, t0 + (t / 8) * dp(22), b.left + (t % 8 + 1) * cw - dp(2), t0 + (t / 8) * dp(22) + dp(20));
+            if (t == selTrack) fill(c, r, INK); else frame(c, r, used ? FAINT : 0xff0a2a14);
+            textC(c, (t + 1) + " " + (nm.length() > 5 ? nm.substring(0, 5) : nm), r, 8, t == selTrack ? BG : used ? INK : DIM);
+            Hit h = hit(r, (xx, yy) -> selTrack = tk); h.longPress = true; h.hold = (xx, yy) -> { selTrack = tk; songVoiceDialog(tk); };
+        }
+        final float footH = dp(4 * 26), by = b.bottom - footH;
+        drawGrid(c, new RectF(b.left, t0 + dp(48), b.right, by - dp(6)), beat, barBeats, (si.length > 0 ? si[0] : "") + "g");
+        final String sn = snapB <= 0 ? "OFF" : snapB >= 4 ? "BAR" : snapB >= 1 ? "1/4" : snapB >= 0.5 ? "1/8" : snapB >= 0.25 ? "1/16" : "1/32";
+        final int ns = selCount();
+        final String[] lbl = { "DRAW", "SEL", "ERASE", "SNAP " + sn, "ZOOM-", "ZOOM+", "ROWS " + gRows,
+                "UNDO", "ALL", "DEL", "COPY", "PASTE", "DUP", "QUANT",
+                "-12", "-1", "+1", "+12", "LEGATO", "VEL-", "VEL+",
+                "^", "v", "FOLLOW", "FROM HERE", "TRACKS" };
+        final Runnable[] fns = {
+                () -> gTool = 0, () -> gTool = 1, () -> gTool = 2,
+                () -> snapB = snapB <= 0 ? 4 : snapB >= 4 ? 1 : snapB >= 1 ? 0.5 : snapB >= 0.5 ? 0.25 : snapB >= 0.25 ? 0.125 : 0,
+                () -> vBeats = Math.min(256, vBeats * 1.5), () -> vBeats = Math.max(2, vBeats / 1.5),
+                () -> gRows = gRows == 14 ? 20 : gRows == 20 ? 28 : 14,
+                () -> { if (Native.undoSongEdit()) { gStale = true; status("UNDONE"); act.saveState(); } },
+                () -> gridOp(10, 0), () -> { if (selCount() == 0) gridOp(10, 0); gridOp(1, 0); status("DELETED"); },
+                () -> { gridOp(8, 0); status(Native.clipboardSize() + " NOTES COPIED"); },
+                () -> { final double at = beat >= vStart && beat <= vStart + vBeats ? beat : vStart; gridOp(9, (float) Math.max(0, snapIt(at))); status("PASTED"); },
+                () -> { gridOp(7, (float) snapB); status("DUPLICATED"); }, () -> { gridOp(4, (float) (snapB > 0 ? snapB : 0.25)); status("QUANTIZED"); },
+                () -> gridOp(2, -12), () -> gridOp(2, -1), () -> gridOp(2, 1), () -> gridOp(2, 12), () -> gridOp(6, 0), () -> gridOp(5, -10), () -> gridOp(5, 10),
+                () -> pLow = Math.min(127 - gRows, pLow + 12), () -> pLow = Math.max(0, pLow - 12), () -> gFollow = !gFollow,
+                () -> Native.songPlayFrom(vStart), () -> grid = false };
+        final int per = 7; final float bw = (b.width() - dp(4) * (per - 1)) / per;
+        for (int i = 0; i < lbl.length; ++i) {
+            final float rx = b.left + (i % per) * (bw + dp(4)), ry = by + (i / per) * dp(26);
+            final boolean on = (i < 3 && gTool == i) || (i == 23 && gFollow);
+            button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], on, fns[i]);
+        }
+        text(c, ns > 0 ? ns + " SELECTED" : "NONE SELECTED: EDITS ON THE TRACK", b.left + 5 * (bw + dp(4)), by + 3 * dp(26) + dp(15), 8, DIM);
     }
 
     // a MIDI song on Page R: sixteen tracks, their voices, the whole song at a glance, or one track on the grid
@@ -828,7 +1022,7 @@ public class CmiView extends View {
         text(c, String.format("%s BPM %d/%d  BAR %d/%d", si[1], num, den, 1 + (int) (beat / barBeats), (int) Math.ceil(len / barBeats)), x, t0 + dp(16), 10, DIM);
 
         // the footer
-        final float footH = dp(50), by = b.bottom - footH;
+        final float footH = grid ? dp(4 * 26) : dp(50), by = b.bottom - footH;
         final String[] tr = Native.songTrack(selTrack).split("\\t", -1);
         final boolean muted = tr.length > 3 && tr[3].equals("1");
         final String[] lbl; final Runnable[] fns;
@@ -838,14 +1032,7 @@ public class CmiView extends View {
             fns = new Runnable[] { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack),
                     () -> { if (lib) status(Native.connectToLibrary() + " TRACKS ON CMI LIBRARY VOICES"); else { Native.gmVoices(); status("SET A LIBRARY FOLDER (FIL) FOR THE ORIGINAL VOICES"); } act.saveState(); },
                     () -> grid = true, () -> { Native.newSong(); grid = true; selTrack = 0; vStart = 0; act.saveState(); }, () -> Native.selectSongAt(-1) };
-        } else {
-            final String sn = snapB >= 1 ? "1/4" : snapB >= 0.5 ? "1/8" : snapB >= 0.25 ? "1/16" : "1/32";
-            lbl = new String[] { "UNDO", "SNAP " + sn, "ZOOM-", "ZOOM+", "VEL", "TRACKS" };
-            fns = new Runnable[] { () -> { if (Native.undoSongEdit()) { gStale = true; status("UNDONE"); act.saveState(); } }, () -> snapB = snapB >= 1 ? 0.125 : snapB * 2,
-                    () -> vBeats = Math.min(256, vBeats * 1.5), () -> vBeats = Math.max(2, vBeats / 1.5),
-                    () -> { if (selNote >= 0 && selNote * 5 + 4 < gNotes.length) { int v = gNotes[selNote * 5 + 4]; gNotes[selNote * 5 + 4] = v >= 120 ? 64 : v >= 90 ? 127 : 100; commitNotes(); } },
-                    () -> grid = false };
-        }
+        } else { gridFooter(c, b, beat); return; }
         final float bw = (b.width() - dp(12)) / 3;
         for (int i = 0; i < lbl.length; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = by + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 0 && !grid && !muted, fns[i]); }
 
@@ -1078,7 +1265,12 @@ public class CmiView extends View {
         if (grid && page == 'S' && !gridRect.isEmpty() && a == MotionEvent.ACTION_DOWN && (e.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0) {
             final int ni = noteAt(e.getX(), e.getY()); if (ni >= 0) { removeNote(ni); invalidate(); } return true;   // the pen's button: delete
         }
-        if (grid && page == 'S' && !gridRect.isEmpty() && e.getPointerCount() == 1 && (gridActive || (a == MotionEvent.ACTION_DOWN && gridRect.contains(e.getX(), e.getY())))) {
+        if (grid && page == 'S' && !gridRect.isEmpty() && (gTwo || (e.getPointerCount() == 2 && gridActive))) {
+            if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) { gTwo = false; gridActive = false; return true; }
+            if (a == MotionEvent.ACTION_POINTER_UP) { gTwo = false; return true; }
+            return gridTwo(e, a);
+        }
+        if (grid && page == 'S' && !gridRect.isEmpty() && e.getPointerCount() == 1 && (gridActive || (a == MotionEvent.ACTION_DOWN && (gridRect.contains(e.getX(), e.getY()) || velRect.contains(e.getX(), e.getY()) || gKeysRect.contains(e.getX(), e.getY()))))) {
             gridActive = a != MotionEvent.ACTION_UP && a != MotionEvent.ACTION_CANCEL;
             return gridTouch(e, a, e.getX(), e.getY());
         }

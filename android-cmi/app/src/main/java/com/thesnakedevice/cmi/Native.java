@@ -92,6 +92,12 @@ final class Native {
     static native int[] songNoteList();
     static native void setSongNoteList(int[] notes);
     static native boolean undoSongEdit();
+    /** the grid: a note on a song track for a moment */
+    static native void auditionSong(int track, int note);
+    /** the grid's edits on notes (5 ints each) and a selection; returns 6 ints per note (the 5 and selected 0/1). See native.cpp for ops */
+    static native int[] gridOp(int[] notes, boolean[] sel, int track, int op, float a, float b, float c, float d, boolean e);
+    static native int clipboardSize();
+    static native void songPlayFrom(double beat);
     static native void newSong();
     static native String songWhy(int t);
 

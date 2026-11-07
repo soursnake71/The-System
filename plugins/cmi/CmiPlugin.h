@@ -137,6 +137,10 @@ public:
     void setLibraryFolder(const juce::File& f);
     std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
     void rescanLibrary();
+    // the grid's audition: a note on a song track, played for a moment
+    void playSongFrom(double beat) { engine.songStartReq = beat; engine.songRun = true; }
+    void audition(int track, int note) { auditionReq = (track << 8) | (note & 0x7F); }
+    std::atomic<int> auditionReq { -1 }; int auditionOn = -1; int64_t auditionLeft = 0;
     float loopBlendNow() const { return get("blendOn") > 0.5f ? get("blend") : 0.f; }
     // ---- factory presets (Page R): the IIx factory library, each found in your library folder ----
     std::vector<int> presetCat;               // preset -> catalogue voice, -1 missing (under catLock)

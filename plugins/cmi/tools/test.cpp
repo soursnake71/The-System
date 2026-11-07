@@ -4,6 +4,8 @@
 #include "../core/Disk.h"
 #include "../core/Song.h"
 #include "../core/TestVoices.h"
+#include "../core/Catalog.h"
+#include "../core/GridEdit.h"
 #include <cstdio>
 #include <chrono>
 
@@ -181,6 +183,23 @@ int main(int argc, char** argv) {
         }
         std::printf("REV7 dice: 200 rolls, peak %.3f\n", worst);
         CHECK(named && stuck == 0 && worst < 1.5, "dice rolls (peak %.3f, repeats %d)", worst, stuck);
+    }
+
+    // ---- the grid's edits ----
+    {
+        GridEdit ge; ge.setNotes({ { 0, 0, 1, 60, 100 }, { 0, 1, 1, 62, 100 }, { 0, 2, 0.5, 64, 100 }, { 1, 0, 4, 40, 90 } });
+        ge.selectRect(0, 0.5, 2.2, 61, 70, false);
+        CHECK(ge.selected() == 2 && ge.sel[1] && ge.sel[2], "box select: %d", ge.selected());
+        ge.transpose(0, 12); ge.move(0, 0.25);
+        CHECK(ge.notes[1].pitch == 74 && ge.notes[2].start == 2.25 && ge.notes[0].pitch == 60, "move and transpose the selection");
+        ge.duplicate(0.25);
+        CHECK(ge.notes.size() == 6 && ge.selected() == 2 && std::fabs(ge.notes[4].start - 2.75) < 1e-9, "duplicate after itself (%.2f)", ge.notes[4].start);
+        ge.copy(); ge.paste(1, 8);
+        CHECK(ge.notes.size() == 8 && ge.notes[6].track == 1 && std::fabs(ge.notes[6].start - 8) < 1e-9, "paste on another track");
+        ge.clear(); ge.legato(0);
+        CHECK(std::fabs(ge.notes[0].len - 1.25) < 1e-9, "legato (%.2f)", ge.notes[0].len);
+        ge.selectAll(1); ge.erase();
+        CHECK(ge.notes.size() == 5 && ge.at(0, 0.5, 60, 0.1) == 0, "erase the selection");
     }
 
     // ---- a loaded sample goes through Page 8 ----
@@ -380,6 +399,15 @@ int main(int argc, char** argv) {
             auto nm = [&](int i) { return i == GM_KIT ? std::string("KIT") : k2.bank.at(i)->name; };
             CHECK(nm(v[0]) == "CHOIRAAH" && nm(v[1]) == "TIMPANI" && nm(v[2]) == "SAX" && nm(v[3]) == "STRINGS" && nm(v[4]) == "GTRLEAD",
                   "auto voices: %s %s %s %s %s", nm(v[0]).c_str(), nm(v[1]).c_str(), nm(v[2]).c_str(), nm(v[3]).c_str(), nm(v[4]).c_str());
+            // the library matcher's roles: track names first, then the GM program; drum parts on any channel
+            {
+                auto role = [&](const char* name, int prog) { MidiSong r = m2; r.trackName[0] = name; r.program[0] = prog; r.used[1] = r.used[2] = r.used[3] = r.used[4] = false;
+                                                              const int i = roleOf(r, 0); return i < 0 ? std::string("drums") : std::string(roles()[(size_t) i].name); };
+                CHECK(role("Violin", 40) == "violin" && role("Ragtime Piano", 3) == "honky tonk" && role("FR.HORN", 60) == "french horn" && role("VIBRAPHONE", 11) == "vibes" &&
+                      role("TRACK 4", 46) == "harp" && role("Rhodes", 4) == "electric piano" && role("", 33) == "bass" && role("", 123) == "birds",
+                      "roles: %s %s %s", role("Violin", 40).c_str(), role("Ragtime Piano", 3).c_str(), role("TRACK 4", 46).c_str());
+                CHECK(std::string(drumVoices(36)).rfind("KICK1", 0) == 0 && std::string(drumVoices(56)).find("COWBELL1") != std::string::npos, "CMI drum map");
+            }
             Sound arr = *k2.bank.at(lib.find("CHOIRAAH")); arr.name = "ARR1"; arr.category = "CHORAL"; k2.setUser(0, arr);
             autoSongVoices(m2, k2.bank, v, why);
             CHECK(nm(v[0]) == "ARR1" && v[0] == k2.userSlot(0), "a loaded disk voice wins (%s, %s)", nm(v[0]).c_str(), why[0].c_str());
