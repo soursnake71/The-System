@@ -60,12 +60,20 @@ public class NamActivity extends Activity {
     s.setAllowContentAccess(false);
     web.addJavascriptInterface(new Files(), "AndroidNam");
     web.setWebViewClient(new WebViewClient() {
-      @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) { return assets.shouldInterceptRequest(r.getUrl()); }
+      @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) { return assets.shouldInterceptRequest(withIndex(r.getUrl())); }
       @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
         Uri u = r.getUrl();
         String h = u.getHost() == null ? "" : u.getHost();
-        // the app itself and TONE3000's sign-in stay in the app; everything else opens in the browser
-        if (h.equals("appassets.androidplatform.net") || h.equals("www.tone3000.com") || h.equals("tone3000.com")) return false;
+        if (h.equals(APP_HOST)) {
+          // TONE3000's sign-in sends the browser back here with a redirect. The app's address only exists
+          // inside the app, so load it ourselves rather than letting the WebView follow the redirect to
+          // the network (where it fails with ERR_NAME_NOT_RESOLVED).
+          Uri fixed = withIndex(u);
+          if (r.isRedirect() || !fixed.equals(u)) { v.loadUrl(fixed.toString()); return true; }
+          return false;
+        }
+        // TONE3000's sign-in stays in the app; everything else opens in the browser
+        if (h.equals("www.tone3000.com") || h.equals("tone3000.com")) return false;
         try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (ActivityNotFoundException e) { }
         return true;
       }
@@ -105,6 +113,14 @@ public class NamActivity extends Activity {
     });
     setContentView(root);
     if (b != null) web.restoreState(b); else web.loadUrl(HOME);
+  }
+
+  static final String APP_HOST = "appassets.androidplatform.net";
+  // a folder address (…/nam/) means its index.html, as on a web server
+  static Uri withIndex(Uri u) {
+    String path = u.getPath();
+    if (APP_HOST.equals(u.getHost()) && path != null && path.endsWith("/")) return u.buildUpon().path(path + "index.html").build();
+    return u;
   }
 
   void toast(String s) { ui.post(() -> Toast.makeText(this, s, Toast.LENGTH_LONG).show()); }

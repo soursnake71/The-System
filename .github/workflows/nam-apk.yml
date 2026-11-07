@@ -23,6 +23,8 @@ jobs:
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          # the same signing key every build, so a new APK installs over the old one
+          mkdir -p ~/.android && cp android/nam-debug.keystore ~/.android/debug.keystore
           gradle -p android assembleNamDebug --no-daemon
           cp android/app/build/outputs/apk/nam/debug/app-nam-debug.apk nam-finder.apk
       - uses: actions/upload-artifact@v4
