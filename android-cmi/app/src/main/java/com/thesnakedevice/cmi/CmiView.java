@@ -246,8 +246,16 @@ public class CmiView extends View {
         if (fxDefs == null) { final int n = Native.fxCount(); fxDefs = new String[n][]; for (int i = 0; i < n; ++i) fxDefs[i] = Native.fxParam(i).split("\t", -1); }
         final boolean on = Native.fxOn();
         text(c, "EFFECTS: REV7 (AUX SEND)", b.left, b.top + dp(14), 12, INK);
-        button(c, new RectF(b.right - dp(186), b.top, b.right - dp(110), b.top + dp(22)), on ? "ON" : "OFF", on, () -> { Native.setFxOn(!on); act.saveState(); });
-        button(c, new RectF(b.right - dp(104), b.top, b.right, b.top + dp(22)), "PRESET", false, this::fxPresetDialog);
+        button(c, new RectF(b.right - dp(232), b.top, b.right - dp(172), b.top + dp(22)), on ? "ON" : "OFF", on, () -> { Native.setFxOn(!on); act.saveState(); });
+        button(c, new RectF(b.right - dp(166), b.top, b.right - dp(94), b.top + dp(22)), "PRESET", false, this::fxPresetDialog);
+        // the dice: tap a random preset, hold for random settings
+        final RectF dr = new RectF(b.right - dp(88), b.top, b.right, b.top + dp(22));
+        Hit dh = hit(dr, (xx, yy) -> fxRoll(false)); dh.longPress = true; dh.hold = (xx, yy) -> fxRoll(true);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(1.5f)); p.setColor(INK); c.drawRoundRect(new RectF(dr.left + dp(2), dr.top + dp(1), dr.left + dp(22), dr.bottom - dp(1)), dp(4), dp(4), p); p.setStyle(Paint.Style.FILL);
+        final float[][] pp = { {}, {.5f, .5f}, {.25f, .25f, .75f, .75f}, {.25f, .25f, .5f, .5f, .75f, .75f}, {.25f, .25f, .75f, .25f, .25f, .75f, .75f, .75f},
+                { .25f, .25f, .75f, .25f, .5f, .5f, .25f, .75f, .75f, .75f }, { .25f, .25f, .25f, .5f, .25f, .75f, .75f, .25f, .75f, .5f, .75f, .75f } };
+        for (int k = 0; k + 1 < pp[diceFace].length; k += 2) c.drawCircle(dr.left + dp(2) + dp(20) * pp[diceFace][k], dr.top + dp(1) + dp(20) * pp[diceFace][k + 1], dp(1.8f), p);
+        text(c, "DICE", dr.left + dp(28), dr.bottom - dp(7), 10, INK);
         int progIdx = 0; for (int i = 0; i < fxDefs.length; ++i) if (fxDefs[i][0].equals("prog")) progIdx = i;
         final int pi = progIdx, prog = Math.round(Native.fxGet(progIdx));
         final RectF lcd = new RectF(b.left, b.top + dp(28), b.right - dp(96), b.top + dp(64));
@@ -294,7 +302,13 @@ public class CmiView extends View {
             button(c, new RectF(b.right - dp(90), b.bottom - dp(22), b.right - dp(50), b.bottom), "<", false, () -> fxScroll = Math.max(0, fxScroll - per));
             button(c, new RectF(b.right - dp(44), b.bottom - dp(22), b.right, b.bottom), ">", false, () -> fxScroll += per);
         }
-        text(c, "Sends: REV on each mixer strip (MIX). Dim: not used by this program.", b.left, b.bottom - dp(6), 9, DIM);
+        text(c, "Sends: REV on each mixer strip (MIX). Dim: not used. Dice: tap random preset, hold random settings.", b.left, b.bottom - dp(6), 9, DIM);
+    }
+    private int diceFace = 5;
+    private void fxRoll(boolean settings) {
+        diceFace = 1 + (int) (Math.random() * 6);
+        String w = Native.fxDice(settings); int sl = w.indexOf(" / "); if (sl >= 0) w = w.substring(sl + 3);
+        status("DICE: " + w); act.saveState(); invalidate();
     }
     private void fxPresetDialog() {
         final int n = Native.fxPresetCount();

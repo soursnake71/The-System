@@ -92,7 +92,7 @@ jobs:
             d=cmi-headless-$a; mkdir -p $d && cp out/cmi-headless-$a $d/cmi-headless && cp README.md $d/
             tar czf ../../../cmi-headless-linux-$a.tar.gz $d
           done
-          cd ../../.. && tar czf cmi-headless-source.tar.gz plugins/cmi/core plugins/dsp/Common.h plugins/dsp/Rack.h plugins/dsp/Rev7.h plugins/dsp/Rev7Spec.h plugins/dsp/Rev7Library.inc plugins/common/Spec.h plugins/cmi/headless/cmi_headless.cpp plugins/cmi/headless/Makefile plugins/cmi/headless/README.md
+          cd ../../.. && tar czf cmi-headless-source.tar.gz plugins/cmi/core plugins/dsp/Common.h plugins/dsp/Rack.h plugins/dsp/Rev7.h plugins/dsp/Rev7Spec.h plugins/dsp/Rev7Library.inc plugins/dsp/Rev7CmiLibrary.inc plugins/common/Spec.h plugins/cmi/headless/cmi_headless.cpp plugins/cmi/headless/Makefile plugins/cmi/headless/README.md
           ls -la *.tar.gz
       - uses: actions/upload-artifact@v4
         with: {name: cmi-headless, path: '*.tar.gz', if-no-files-found: error}

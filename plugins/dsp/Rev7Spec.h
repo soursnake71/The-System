@@ -120,6 +120,7 @@ inline Spec rev7Spec() {
     // the library: 100 more, "Category / Name"
     auto L = [&](const std::string& cat, const std::string& name, int n, V v) { v.insert(v.begin(), {"prog", (double) n}); s.preset(cat + " / " + name, v); };
 #include "Rev7Library.inc"
+#include "Rev7CmiLibrary.inc"   // 100 more, made for the Omega CMI
 
     s.make = [](const Spec& sp) { return std::unique_ptr<Engine>(new dsp::Rev7(sp)); };
     return s;

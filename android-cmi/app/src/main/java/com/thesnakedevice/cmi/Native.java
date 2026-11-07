@@ -114,6 +114,8 @@ final class Native {
     static native String fxPresetName(int k);
     static native void fxLoadPreset(int k);
     static native int fxCurrentPreset();
+    /** the dice: a random preset, or (settings) a random program with rolled settings; returns what it rolled */
+    static native String fxDice(boolean settings);
     static native void fxNoPreset();
     static native String fxProgName(int n);
     static native boolean fxOn();

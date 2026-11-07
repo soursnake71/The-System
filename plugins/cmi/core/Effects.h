@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
+#include <random>
 #include <sstream>
 #include "../../dsp/Rev7Spec.h"
 
@@ -53,6 +54,38 @@ public:
         force(pending); dirty = true; curPreset = k;
     }
     std::atomic<int> curPreset { 0 };
+
+    // the dice (as on the Omega REV7's panel): a random preset from all of them, or a random program with its
+    // settings rolled within useful ranges for its type. Returns what it rolled, for the screen.
+    std::string rollPreset() {
+        const int n = (int) spec().presets.size(); if (n <= 0) return {};
+        int k = (int) (rng() % (unsigned) n); if (n > 1) while (k == curPreset.load()) k = (int) (rng() % (unsigned) n);
+        preset(k);
+        return spec().presets[(size_t) k].name;
+    }
+    std::string rollSettings() {
+        std::uniform_real_distribution<double> u(0, 1);
+        auto r = [&](double a, double b) { return a + (b - a) * u(rng); };
+        auto rl = [&](double a, double b) { return a * std::pow(b / a, u(rng)); };   // log-spread
+        const int prog = 1 + (int) (rng() % 30u);
+        preset(prog - 1);   // the factory program first (presets 1-30 are the ROM programs), then roll what matters
+        using K = omega::dsp::Rev7::Kind;
+        switch (omega::dsp::Rev7::prog(prog).kind) {
+            case K::REV: set("rt", rl(.5, 5)); set("hi", r(.2, .8)); set("lo", r(.6, 1.8)); set("diff", std::round(r(3, 10))); set("idly", rl(1, 70)); break;
+            case K::ER: set("live", std::round(r(1, 9))); set("mode", 1 + (int) (rng() % 6u)); set("size", rl(.6, 5)); set("diff", std::round(r(2, 9))); set("idly", rl(1, 35)); break;
+            case K::DLY: set("dlyL", rl(40, 600)); set("dlyR", rl(40, 600)); set("dlev", r(.4, .9)); break;
+            case K::ECHO: { const double d = rl(80, 450); set("fb", r(.15, .65)); set("dlyL", d); set("dlyR", std::min(450.0, d * r(.7, 1.4))); set("hdamp", std::round(r(2, 9))); break; }
+            case K::FLANGE: set("fb", r(.1, .8)); set("mfreq", rl(.1, 3)); set("mdep", r(.3, 1)); set("mdly", rl(.5, 4)); break;
+            case K::RFLANGE: set("rt", rl(1, 4)); set("mfreq", rl(.1, 2)); set("mdep", r(.3, 1)); set("mdly", rl(.5, 4)); break;
+            case K::CHORUS: set("mfreq", rl(.1, 2)); set("mdep", r(.2, .9)); set("amdep", r(0, .5)); break;
+            case K::PHASE: set("mfreq", rl(.1, 3)); set("mdep", r(.3, 1)); set("mdly", rl(.5, 6)); break;
+            case K::TREM: set("mfreq", r(2, 8)); set("mdep", r(.2, .7)); break;
+            case K::SYMPH: set("mfreq", rl(.2, 1.5)); set("mdep", r(.3, .9)); break;
+        }
+        if (u(rng) < .3) { set("fdly", rl(5, 60)); set("flev", r(.2, .6)); }
+        curPreset = -1;
+        return std::string(omega::rev7ProgName(prog)) + " *";
+    }
     // "id=value;..." for saving
     std::string save() const {
         std::lock_guard<std::mutex> g(lock); std::ostringstream o; o.precision(9);
@@ -126,6 +159,7 @@ private:
     std::vector<double> pending, live;
     std::atomic<bool> dirty { false };
     mutable std::mutex lock;
+    std::mt19937 rng { std::random_device {}() };
 };
 
 }  // namespace cmi

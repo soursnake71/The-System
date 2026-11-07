@@ -163,6 +163,24 @@ int main(int argc, char** argv) {
         }
         std::printf("REV7 send: tail at 2-3 s %.4f (fx off %.4f, no send %.4f); %d presets\n", tails[0], tails[1], tails[2], (int) Rev7Fx::spec().presets.size());
         CHECK(tails[0] > 0.002 && tails[1] < 0.0005 && tails[2] < 0.0005, "REV7 on the aux send");
+        CHECK(Rev7Fx::spec().presets.size() == 244, "244 REV7 presets (%zu)", Rev7Fx::spec().presets.size());
+        // the dice: 200 rolls with audio running, every one a valid preset or program, the output stays sane
+        TestKit kd; Engine ed; ed.bank = &kd.bank; ed.prepare(fs); ed.setOutput(1, 0, 0);
+        for (auto& sd : ed.fxSend) sd = 0.5f;
+        const int sn = kd.find("ORCHHIT"); ed.setKeyboard(sn, kd.sound(sn)->ctl);
+        std::vector<float> a(2048), b2(2048); double worst = 0; bool named = true; int stuck = 0, last = -2;
+        for (int k = 0; k < 200; ++k) {
+            last = ed.fx.curPreset.load();
+            const std::string what = k % 2 ? ed.fx.rollSettings() : ed.fx.rollPreset();
+            named &= !what.empty();
+            if (k % 2 == 0) stuck += ed.fx.curPreset.load() == last;   // never the preset already on
+            if (k % 10 == 0) ed.keyOn(60, 1);
+            ed.render(a.data(), b2.data(), 2048);
+            if (k % 10 == 5) ed.keyOff(60);
+            for (float x : a) { if (!std::isfinite(x)) worst = 99; worst = std::max(worst, (double) std::fabs(x)); }
+        }
+        std::printf("REV7 dice: 200 rolls, peak %.3f\n", worst);
+        CHECK(named && stuck == 0 && worst < 1.5, "dice rolls (peak %.3f, repeats %d)", worst, stuck);
     }
 
     // ---- a loaded sample goes through Page 8 ----

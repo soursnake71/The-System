@@ -425,9 +425,24 @@ void Screen::drawEffects(juce::Graphics& g) {
     const bool on = eng.fxOn.load();
     g.setColour(kInk); g.setFont(mono(17));
     g.drawText("EFFECTS: REV7 DIGITAL REVERBERATOR (AUX SEND)", 20, 58, 560, 20, juce::Justification::centredLeft);
-    button(g, { 600, 56, 110, 22 }, on ? "REV7 ON" : "REV7 OFF", on, [this, on] { ed.proc.engine.fxOn = !on; });
-    button(g, { 720, 56, 130, 22 }, "PRESET...", false, [this] { fxPresetMenu(); });
-    button(g, { 860, 56, 120, 22 }, "SENDS: M", false, [this] { page = 'M'; });
+    button(g, { 560, 56, 110, 22 }, on ? "REV7 ON" : "REV7 OFF", on, [this, on] { ed.proc.engine.fxOn = !on; });
+    button(g, { 680, 56, 120, 22 }, "PRESET...", false, [this] { fxPresetMenu(); });
+    button(g, { 810, 56, 110, 22 }, "SENDS: M", false, [this] { page = 'M'; });
+    {   // the dice: click a random preset, right-click (or shift-click) new random settings
+        static int face = 5;
+        juce::Rectangle<float> d(938, 50, 34, 34);
+        g.setColour(kInk); g.drawRoundedRectangle(d.reduced(1), 5.f, 1.5f);
+        static const int pips[7][6][2] = { {}, { {1, 1} }, { {0, 0}, {2, 2} }, { {0, 0}, {1, 1}, {2, 2} }, { {0, 0}, {2, 0}, {0, 2}, {2, 2} },
+                                           { {0, 0}, {2, 0}, {1, 1}, {0, 2}, {2, 2} }, { {0, 0}, {0, 1}, {0, 2}, {2, 0}, {2, 1}, {2, 2} } };
+        for (int k = 0; k < face; ++k) g.fillEllipse(d.getX() + 6 + pips[face][k][0] * 8.5f, d.getY() + 6 + pips[face][k][1] * 8.5f, 5.f, 5.f);
+        hit(d, [this](const juce::MouseEvent& m) {
+            face = 1 + juce::Random::getSystemRandom().nextInt(6);
+            const bool settings = m.mods.isPopupMenu() || m.mods.isShiftDown();
+            const std::string what = settings ? ed.proc.engine.fx.rollSettings() : ed.proc.engine.fx.rollPreset();
+            juce::String nm(what); if (nm.contains(" / ")) nm = nm.fromFirstOccurrenceOf(" / ", false, false);
+            status = "DICE: " + nm.toUpperCase();
+        });
+    }
     g.drawHorizontalLine(82, 20, (float) W - 20);
     // the LCD: memory number, program, preset
     const int prog = (int) fx.get("prog");
@@ -478,7 +493,7 @@ void Screen::drawEffects(juce::Graphics& g) {
         }
     }
     g.setColour(kDim); g.setFont(mono(12));
-    g.drawText("Each mixer strip sends to the REV7 (REV, Page M); its return is the REV7 fader there. Dim: not used by this program.", 20, H - 50, W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("Sends: REV on each strip (Page M). Dim: unused by this program. Dice: click random preset, right-click random settings.", 20, H - 50, W - 40, 16, juce::Justification::centredLeft);
 }
 
 void Screen::fxPresetMenu() {

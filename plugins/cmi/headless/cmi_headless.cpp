@@ -237,13 +237,14 @@ static void commandThread(Box& b, const std::string& statePath) {
         if (w == "LOAD") { load(b, arg); continue; }
         if (w == "LIST") { list(b); continue; }
         if (w == "SAVE") { saveState(b, statePath); std::puts("saved"); continue; }
-        if (w == "FX" || w == "REV7") {   // FX ON | OFF | SEND 0-100 | PRESET n (1-144) | LIST: the REV7 on the aux send
+        if (w == "FX" || w == "REV7") {   // FX ON | OFF | SEND 0-100 | PRESET n | DICE [SETTINGS] | LIST: the REV7 on the aux send
             std::string a2 = arg.substr(0, arg.find(' ')), v = arg.find(' ') == std::string::npos ? "" : arg.substr(arg.find(' ') + 1);
             for (auto& c : a2) c = (char) std::toupper((unsigned char) c);
             const auto& pr = Rev7Fx::spec().presets;
             if (a2 == "ON" || a2 == "OFF") b.eng.fxOn = a2 == "ON";
             else if (a2 == "SEND") { for (auto& sd : b.eng.fxSend) sd = (float) clampd(std::atof(v.c_str()) / 100, 0, 1); }
             else if (a2 == "PRESET") { const int k = std::atoi(v.c_str()) - 1; if (k >= 0 && k < (int) pr.size()) b.eng.fx.preset(k); }
+            else if (a2 == "DICE") { std::string up = v; for (auto& c : up) c = (char) std::toupper((unsigned char) c); std::printf("dice: %s\n", (up == "SETTINGS" ? b.eng.fx.rollSettings() : b.eng.fx.rollPreset()).c_str()); }
             else if (a2 == "LIST") { for (size_t k = 0; k < pr.size(); ++k) std::printf("%3zu  %s\n", k + 1, pr[k].name.c_str()); }
             const int cp = b.eng.fx.curPreset.load();
             std::printf("REV7 %s, send %.0f%%, %s\n", b.eng.fxOn.load() ? "on" : "off", b.eng.fxSend[0].load() * 100.0, cp >= 0 && cp < (int) pr.size() ? pr[(size_t) cp].name.c_str() : omega::rev7ProgName((int) b.eng.fx.get("prog")));

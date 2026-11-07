@@ -516,6 +516,8 @@ FN(jboolean, fxRelevant)(JNIEnv*, jclass, jint i) { const auto& ps = Rev7Fx::spe
 FN(jint, fxPresetCount)(JNIEnv*, jclass) { return Rev7Fx::spec().presets.size(); }
 FN(jstring, fxPresetName)(JNIEnv* env, jclass, jint k) { const auto& pr = Rev7Fx::spec().presets; return env->NewStringUTF(k >= 0 && k < (int) pr.size() ? pr[(size_t) k].name.c_str() : ""); }
 FN(void, fxLoadPreset)(JNIEnv*, jclass, jint k) { app()->engine.fx.preset(k); }
+// the dice: a random preset, or (settings) a random program with its settings rolled; what it rolled
+FN(jstring, fxDice)(JNIEnv* env, jclass, jboolean settings) { return env->NewStringUTF((settings ? app()->engine.fx.rollSettings() : app()->engine.fx.rollPreset()).c_str()); }
 FN(jint, fxCurrentPreset)(JNIEnv*, jclass) { return app()->engine.fx.curPreset.load(); }
 FN(void, fxNoPreset)(JNIEnv*, jclass) { app()->engine.fx.curPreset = -1; }
 FN(jstring, fxProgName)(JNIEnv* env, jclass, jint n) { return env->NewStringUTF(omega::rev7ProgName(n)); }
