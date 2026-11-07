@@ -47,17 +47,20 @@ void Screen::paint(juce::Graphics& g) {
         case 'F': drawFiles(g); break;
         case '5': drawPen(g); break;
         case 'R': drawPresets(g); break;
+        case 'E': drawEffects(g); break;
         default: drawComposer(g); break;
     }
     // page index along the bottom
-    const char* pages[] = { "R", "2", "7", "D", "5", "8", "F", "M", "S" };
-    const char* names[] = { "PRESETS", "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
-    float x = 14;
-    for (int i = 0; i < 9; ++i) {
+    const char* pages[] = { "R", "2", "7", "D", "5", "8", "F", "M", "E", "S" };
+    const char* names[] = { "PRESETS", "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "FILES", "MIXER", "EFFECTS", "COMPOSER" };
+    float x = 12;
+    for (int i = 0; i < 10; ++i) {
         const char p = pages[i][0];
-        juce::Rectangle<float> r(x, (float) H - 26, 106, 22);
-        button(g, r, juce::String(pages[i]) + " " + names[i], page == p, [this, p] { page = p; status = "READY"; repaint(); });
-        x += 108.5f;
+        juce::Rectangle<float> r(x, (float) H - 26, 95, 22);
+        if (page == p) { g.setColour(kInk); g.fillRect(r); g.setColour(kBg); } else g.setColour(kInk);
+        g.setFont(mono(15)); g.drawText(juce::String(pages[i]) + " " + names[i], r, juce::Justification::centred);
+        hit(r, [this, p](const juce::MouseEvent&) { page = p; status = "READY"; repaint(); });
+        x += 97.6f;
     }
     // CRT: scanlines and a soft vignette
     g.setColour(juce::Colours::black.withAlpha(0.18f));
@@ -388,6 +391,14 @@ void Screen::drawMixer(juce::Graphics& g) {
         const bool mu = eng.mute[(size_t) idx].load(), so = eng.solo[(size_t) idx].load();
         button(g, { x + 2, py + 18, sw / 2 - 4, 20 }, "M", mu, [this, idx, mu] { ed.proc.engine.mute[(size_t) idx] = !mu; });
         button(g, { x + sw / 2, py + 18, sw / 2 - 4, 20 }, "S", so, [this, idx, so] { ed.proc.engine.solo[(size_t) idx] = !so; });
+        // the send to the REV7 (effects section)
+        const float sy = py + 50, sv = eng.fxSend[(size_t) idx].load();
+        g.setColour(kDim); g.setFont(mono(10)); g.drawText("REV " + juce::String(juce::roundToInt(sv * 100)), (int) x, (int) sy - 13, (int) sw - 4, 12, juce::Justification::centred);
+        g.setColour(kFaint); g.fillRect(x + 4, sy, sw - 12, 8.f);
+        g.setColour(eng.fxOn.load() ? kInk : kDim); g.fillRect(x + 4, sy, (sw - 12) * sv, 8.f);
+        auto send = [this, idx, x, sw](const juce::MouseEvent& m) { ed.proc.engine.fxSend[(size_t) idx] = juce::jlimit(0.f, 1.f, (m.position.x - x - 4) / (sw - 12)); };
+        auto& sh = hit({ x, sy - 4, sw - 4, 16 }, send, send);
+        sh.wheel = [this, idx](float dy) { auto& a = ed.proc.engine.fxSend[(size_t) idx]; a = juce::jlimit(0.f, 1.f, a.load() + (dy > 0 ? 0.02f : -0.02f)); };
     };
     float x = 20;
     for (const auto& st : strips) { fader(x, eng.fader[(size_t) st.first], eng.meter[(size_t) st.first].load(), st.second, st.first); x += sw; }
@@ -397,8 +408,90 @@ void Screen::drawMixer(juce::Graphics& g) {
     const float before = masterView.load();
     fader(W - 20 - sw, masterView, std::max(eng.meterL.load(), eng.meterR.load()), "MASTER", -1);
     if (masterView.load() != before) ed.proc.set("master", masterView.load());
+    // the REV7 return (its OUTPUT knob), beside the master
+    static std::atomic<float> retView { 1 };
+    retView = (float) eng.fx.get("ret");
+    const float rb = retView.load();
+    fader(W - 20 - 2 * sw, retView, eng.fxMeter.load(), eng.fxOn.load() ? "REV7" : "REV7 OFF", -1);
+    if (retView.load() != rb) eng.fx.set("ret", retView.load());
     g.setColour(kDim); g.setFont(mono(12));
-    g.drawText("drag a fader, wheel for fine; drag a pan, double-click it back to the track's own; M mute, S solo", 20, (int) (top + fh + 96), W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("drag a fader, wheel for fine; drag a pan, double-click it back to the track's own; M mute, S solo; REV: the send to the REV7 (Page E)", 20, (int) (top + fh + 116), W - 40, 16, juce::Justification::centredLeft);
+}
+
+// ---- Page E: the effects section. A Yamaha REV7 (the Omega REV7 model) on the mixer's aux send ----
+void Screen::drawEffects(juce::Graphics& g) {
+    auto& eng = ed.proc.engine; auto& fx = eng.fx;
+    const auto& sp = Rev7Fx::spec();
+    const bool on = eng.fxOn.load();
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("EFFECTS: REV7 DIGITAL REVERBERATOR (AUX SEND)", 20, 58, 560, 20, juce::Justification::centredLeft);
+    button(g, { 600, 56, 110, 22 }, on ? "REV7 ON" : "REV7 OFF", on, [this, on] { ed.proc.engine.fxOn = !on; });
+    button(g, { 720, 56, 130, 22 }, "PRESET...", false, [this] { fxPresetMenu(); });
+    button(g, { 860, 56, 120, 22 }, "SENDS: M", false, [this] { page = 'M'; });
+    g.drawHorizontalLine(82, 20, (float) W - 20);
+    // the LCD: memory number, program, preset
+    const int prog = (int) fx.get("prog");
+    juce::Rectangle<float> lcd(20, 90, 560, 44);
+    g.setColour(kFaint); g.fillRect(lcd); g.setColour(kInk); g.drawRect(lcd, 1.f);
+    g.setFont(mono(24));
+    g.drawText(juce::String(prog).paddedLeft('0', 2) + "  " + omega::rev7ProgName(prog), lcd.reduced(10, 0).withHeight(28), juce::Justification::centredLeft);
+    g.setFont(mono(13)); g.setColour(kDim);
+    const int cp = fx.curPreset.load();
+    g.drawText(cp >= 0 && cp < (int) sp.presets.size() ? juce::String(sp.presets[(size_t) cp].name) : juce::String(), lcd.reduced(10, 0).withTrimmedTop(26), juce::Justification::centredLeft);
+    button(g, { 590, 100, 40, 26 }, "<", false, [this, prog] { ed.proc.engine.fx.set("prog", prog > 1 ? prog - 1 : 30); ed.proc.engine.fx.curPreset = -1; });
+    button(g, { 636, 100, 40, 26 }, ">", false, [this, prog] { ed.proc.engine.fx.set("prog", prog < 30 ? prog + 1 : 1); ed.proc.engine.fx.curPreset = -1; });
+    g.setColour(kDim); g.setFont(mono(13));
+    g.drawText("PROGRAM", 690, 100, 100, 26, juce::Justification::centredLeft);
+    const float lv = juce::jlimit(0.f, 1.f, eng.fxMeter.load());
+    g.setColour(kFaint); g.fillRect(800.f, 108.f, 180.f, 10.f); g.setColour(lv > 0.95f ? juce::Colours::white : kInk); g.fillRect(800.f, 108.f, 180.f * lv, 10.f);
+    // the edit parameters (the ones this program uses lit) and the panel's knobs and switches
+    std::vector<int> ids;
+    for (int i = 0; i < (int) sp.params.size(); ++i) if (Rev7Fx::shown(sp.params[(size_t) i]) && sp.params[(size_t) i].id != "prog") ids.push_back(i);
+    const int rows = (int) (ids.size() + 1) / 2;
+    const float rh = std::min(27.f, 440.f / rows);
+    for (int k = 0; k < (int) ids.size(); ++k) {
+        const int i = ids[(size_t) k];
+        const auto& p = sp.params[(size_t) i];
+        const bool lit = fx.relevant(p.id);
+        const float x = k < rows ? 20.f : 510.f, y = 146.f + (k % rows) * rh;
+        juce::Rectangle<float> r(x, y, 470, rh - 4);
+        const double v = fx.get(i);
+        g.setColour(lit ? kInk : kDim.withAlpha(0.5f)); g.setFont(mono(14));
+        juce::String label(p.name); if (label.startsWith("Panel: ")) label = label.substring(7);
+        g.drawText(label.toUpperCase(), r.withWidth(170), juce::Justification::centredLeft);
+        g.drawText(Rev7Fx::format(p, v), r.withTrimmedLeft(380), juce::Justification::centredRight);
+        juce::Rectangle<float> b(x + 175, y + 3, 200, rh - 10);
+        if (p.toggle || !p.choices.empty()) {
+            g.drawRect(b.withWidth(70), 1.f);
+            if (p.toggle && v >= .5) { g.fillRect(b.withWidth(70).reduced(2)); }
+            hit(b.withWidth(70), [this, i, p, v](const juce::MouseEvent&) {
+                double nv = p.toggle ? (v >= .5 ? 0 : 1) : v + 1; if (!p.toggle && nv > p.max) nv = p.min;
+                ed.proc.engine.fx.set(i, p.choices.empty() ? nv : p.choices[(size_t) juce::jlimit(0, (int) p.choices.size() - 1, (int) nv - (int) p.choices.front().value)].value);
+            });
+        } else {
+            const float u = (float) ((v - p.min) / std::max(1e-9f, p.max - p.min));
+            g.setColour(kFaint); g.fillRect(b);
+            g.setColour(lit ? kInk : kDim); g.fillRect(b.withWidth(b.getWidth() * juce::jlimit(0.f, 1.f, u)));
+            auto set = [this, i, p, b](const juce::MouseEvent& m) { ed.proc.engine.fx.set(i, p.min + (p.max - p.min) * juce::jlimit(0.f, 1.f, (m.position.x - b.getX()) / b.getWidth())); };
+            auto& h = hit(b.expanded(0, 2), set, set);
+            h.wheel = [this, i, p](float dy) { const double st = p.step > 0 ? p.step : (p.max - p.min) / 100; ed.proc.engine.fx.set(i, ed.proc.engine.fx.get(i) + (dy > 0 ? st : -st)); };
+        }
+    }
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText("Each mixer strip sends to the REV7 (REV, Page M); its return is the REV7 fader there. Dim: not used by this program.", 20, H - 50, W - 40, 16, juce::Justification::centredLeft);
+}
+
+void Screen::fxPresetMenu() {
+    const auto& pr = Rev7Fx::spec().presets;
+    juce::PopupMenu m; std::map<std::string, juce::PopupMenu> sub; std::vector<std::string> order;
+    for (int k = 0; k < (int) pr.size(); ++k) {
+        const std::string& n = pr[(size_t) k].name; const size_t sl = n.find(" / ");
+        const std::string cat = sl == std::string::npos ? "Factory (ROM 1-30)" : n.substr(0, sl);
+        if (!sub.count(cat)) order.push_back(cat);
+        sub[cat].addItem(k + 1, sl == std::string::npos ? n : n.substr(sl + 3), true, ed.proc.engine.fx.curPreset.load() == k);
+    }
+    for (auto& c : order) m.addSubMenu(c, sub[c]);
+    m.showMenuAsync(juce::PopupMenu::Options(), [this](int r) { if (r > 0) { ed.proc.engine.fx.preset(r - 1); status = "REV7: " + juce::String(Rev7Fx::spec().presets[(size_t) r - 1].name).toUpperCase(); repaint(); } });
 }
 
 // ---- Page F: the library folder ----
@@ -1033,7 +1126,7 @@ void Screen::command(const juce::String& raw) {
     auto& eng = ed.proc.engine;
     if (w0 == "PLAY") { ed.proc.seqPlay(true); ed.proc.set("sync", 0.f); page = 'S'; }
     else if (w0 == "STOP") ed.proc.seqPlay(false);
-    else if (w0 == "PAGE" || (w0.length() == 1 && juce::String("27D58FMRS").contains(w0))) { const auto p = w0 == "PAGE" ? arg : w0; if (p.isNotEmpty() && juce::String("27D58FMRS").contains(p.substring(0, 1))) page = p[0]; }
+    else if (w0 == "PAGE" || (w0.length() == 1 && juce::String("27D58FMRSE").contains(w0))) { const auto p = w0 == "PAGE" ? arg : w0; if (p.isNotEmpty() && juce::String("27D58FMRSE").contains(p.substring(0, 1))) page = p[0]; }
     else if (w0 == "LOAD" || w0 == "VOICE") {
         int idx = findVoice(ed.proc.kit.bank, arg.toStdString());
         if (idx < 0) { const juce::ScopedLock l(ed.proc.catLock); idx = loadCatalogNamed(ed.proc.kit, ed.proc.catalog, arg.toStdString()); }

@@ -151,7 +151,7 @@ int main(int argc, char** argv) {
     }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
-    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F' }) {
+    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F', 'E' }) {
         run(20, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0); });
         ce->showPage(pg);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);

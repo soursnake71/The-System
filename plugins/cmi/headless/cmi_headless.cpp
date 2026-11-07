@@ -237,10 +237,23 @@ static void commandThread(Box& b, const std::string& statePath) {
         if (w == "LOAD") { load(b, arg); continue; }
         if (w == "LIST") { list(b); continue; }
         if (w == "SAVE") { saveState(b, statePath); std::puts("saved"); continue; }
+        if (w == "FX" || w == "REV7") {   // FX ON | OFF | SEND 0-100 | PRESET n (1-144) | LIST: the REV7 on the aux send
+            std::string a2 = arg.substr(0, arg.find(' ')), v = arg.find(' ') == std::string::npos ? "" : arg.substr(arg.find(' ') + 1);
+            for (auto& c : a2) c = (char) std::toupper((unsigned char) c);
+            const auto& pr = Rev7Fx::spec().presets;
+            if (a2 == "ON" || a2 == "OFF") b.eng.fxOn = a2 == "ON";
+            else if (a2 == "SEND") { for (auto& sd : b.eng.fxSend) sd = (float) clampd(std::atof(v.c_str()) / 100, 0, 1); }
+            else if (a2 == "PRESET") { const int k = std::atoi(v.c_str()) - 1; if (k >= 0 && k < (int) pr.size()) b.eng.fx.preset(k); }
+            else if (a2 == "LIST") { for (size_t k = 0; k < pr.size(); ++k) std::printf("%3zu  %s\n", k + 1, pr[k].name.c_str()); }
+            const int cp = b.eng.fx.curPreset.load();
+            std::printf("REV7 %s, send %.0f%%, %s\n", b.eng.fxOn.load() ? "on" : "off", b.eng.fxSend[0].load() * 100.0, cp >= 0 && cp < (int) pr.size() ? pr[(size_t) cp].name.c_str() : omega::rev7ProgName((int) b.eng.fx.get("prog")));
+            std::fflush(stdout); continue;
+        }
         if (w == "EXPORT") {   // EXPORT song.wav | song.mid: the selected song (or Page R) to a file
             const SongEntry* e = b.songs.at(b.songs.indexOf(b.eng.song.load()));
             if (ext(arg) == "mid") { if (!e) { std::puts("no song selected"); continue; } const auto bytes = writeSmf(*e->song); std::ofstream(arg, std::ios::binary).write((const char*) bytes.data(), (std::streamsize) bytes.size()); std::printf("exported %s\n", arg.c_str()); continue; }
-            Rendered r = e ? renderSong(b.kit.bank, *e, 48000) : renderPageR(b.kit.bank, b.eng.seq, b.eng.tempo.load(), 48000);
+            const Engine::FxSettings fxs = b.eng.fxSettings();
+            Rendered r = e ? renderSong(b.kit.bank, *e, 48000, -1, 1, 1, 0.3, 0.5f, &fxs) : renderPageR(b.kit.bank, b.eng.seq, b.eng.tempo.load(), 48000, 1, 1, 0.3, 0.5f, &fxs);
             const auto bytes = wavBytes(r, 24); std::ofstream(arg, std::ios::binary).write((const char*) bytes.data(), (std::streamsize) bytes.size());
             std::printf("exported %s (%.1f s)\n", arg.c_str(), r.L.size() / 48000.0); std::fflush(stdout); continue;
         }

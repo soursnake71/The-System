@@ -401,21 +401,22 @@ void CmiProcessor::exportAudio(const juce::File& f, bool stems, std::function<vo
     const double fs = std::max(44100.0, getSampleRate() > 0 ? getSampleRate() : 48000.0);
     const double master = get("master"), hiss = get("hiss"), spread = get("spread"), bpm = get("tempo");
     const SeqData seq = engine.seq;
-    pool.addJob([this, f, stems, si, fs, master, hiss, spread, bpm, seq, done] {
+    const Engine::FxSettings fxs = engine.fxSettings();   // the REV7 as it is set now
+    pool.addJob([this, f, stems, si, fs, master, hiss, spread, bpm, seq, fxs, done] {
         juce::String msg;
         const SongEntry* e = songs.at(si);
         auto write = [&](const juce::File& out, const Rendered& r) { const auto b = wavBytes(r, 24); return out.replaceWithData(b.data(), b.size()); };
         if (!e) {
-            msg = write(f, renderPageR(kit.bank, seq, bpm, fs, master, hiss, spread, loopBlendNow())) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+            msg = write(f, renderPageR(kit.bank, seq, bpm, fs, master, hiss, spread, loopBlendNow(), &fxs)) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
         } else if (!stems) {
-            msg = write(f, renderSong(kit.bank, *e, fs, -1, master, hiss, spread, loopBlendNow())) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
+            msg = write(f, renderSong(kit.bank, *e, fs, -1, master, hiss, spread, loopBlendNow(), &fxs)) ? "EXPORTED " + f.getFileName() : "CAN'T WRITE " + f.getFileName();
         } else {
             int n = 0;
             for (int t = 0; t < SONG_TRK; ++t) {
                 if (!e->song->used[t] || e->mute[t]) continue;
                 juce::String nm = juce::String(e->song->trackName[t]).retainCharacters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 _-").trim();
                 const juce::File out = f.getSiblingFile(f.getFileNameWithoutExtension() + " " + juce::String(t + 1).paddedLeft('0', 2) + (nm.isEmpty() ? "" : " " + nm) + ".wav");
-                n += write(out, renderSong(kit.bank, *e, fs, t, master, hiss, spread, loopBlendNow())) ? 1 : 0;
+                n += write(out, renderSong(kit.bank, *e, fs, t, master, hiss, spread, loopBlendNow(), &fxs)) ? 1 : 0;
             }
             msg = "EXPORTED " + juce::String(n) + " STEMS";
         }
@@ -579,6 +580,10 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
         juce::String fd, pn, so, mu;
         for (int i = 0; i < Engine::STRIPS; ++i) { fd << engine.fader[(size_t) i].load() << " "; pn << engine.panOver[(size_t) i].load() << " "; so << (engine.solo[(size_t) i].load() ? 1 : 0) << " "; mu << (engine.mute[(size_t) i].load() ? 1 : 0) << " "; }
         mx->setAttribute("faders", fd.trim()); mx->setAttribute("pans", pn.trim()); mx->setAttribute("solos", so.trim()); mx->setAttribute("mutes", mu.trim());
+        // the effects section: the REV7 and the sends to it
+        auto* fx = x->createNewChildElement("Effects");
+        juce::String sd; for (int i = 0; i < Engine::STRIPS; ++i) sd << engine.fxSend[(size_t) i].load() << " ";
+        fx->setAttribute("on", engine.fxOn.load()); fx->setAttribute("sends", sd.trim()); fx->setAttribute("rev7", juce::String(engine.fx.save()));
     }
     copyXmlToBinary(*x, dest);
 }
@@ -600,6 +605,12 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
         kit.setUser(u->getIntAttribute("slot"), std::move(s));
     }
     readSeq(*x);
+    if (const auto* fx = x->getChildByName("Effects")) {
+        engine.fxOn = fx->getBoolAttribute("on", true);
+        auto sd = juce::StringArray::fromTokens(fx->getStringAttribute("sends"), " ", "");
+        for (int i = 0; i < Engine::STRIPS && i < sd.size(); ++i) engine.fxSend[(size_t) i] = juce::jlimit(0.f, 1.f, sd[i].getFloatValue());
+        engine.fx.load(fx->getStringAttribute("rev7").toStdString());
+    }
     if (const auto* mx = x->getChildByName("Mixer")) {
         auto fd = juce::StringArray::fromTokens(mx->getStringAttribute("faders"), " ", ""), pn = juce::StringArray::fromTokens(mx->getStringAttribute("pans"), " ", "");
         auto so = juce::StringArray::fromTokens(mx->getStringAttribute("solos"), " ", ""), mu = juce::StringArray::fromTokens(mx->getStringAttribute("mutes"), " ", "");

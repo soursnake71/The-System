@@ -39,6 +39,8 @@ private:
     void drawWave(juce::Graphics&);
     void drawSampling(juce::Graphics&);
     void drawMixer(juce::Graphics&);
+    void drawEffects(juce::Graphics&);
+    void fxPresetMenu();
     void drawFiles(juce::Graphics&);
     void drawSongFiles(juce::Graphics&);
     void drawPen(juce::Graphics&);

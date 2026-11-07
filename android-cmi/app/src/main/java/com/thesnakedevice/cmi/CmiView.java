@@ -92,13 +92,13 @@ public class CmiView extends View {
         RectF scr = new RectF(dp(6), dp(4), W - dp(6), H - keyH - dp(4));
         fill(c, scr, BG);
         // tabs
-        final char[] pages = { 'R', '2', '7', 'D', '5', '8', 'F', 'M', 'S' };
-        final String[] names = { "PRESETS", "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "FILES", "MIXER", "COMPOSER" };
-        final String[] shortNames = { "PRE", "VOX", "CTL", "WAV", "PEN", "SMP", "FIL", "MIX", "SEQ" };
+        final char[] pages = { 'R', '2', '7', 'D', '5', '8', 'F', 'M', 'E', 'S' };
+        final String[] names = { "PRESETS", "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "FILES", "MIXER", "EFFECTS", "COMPOSER" };
+        final String[] shortNames = { "PRE", "VOX", "CTL", "WAV", "PEN", "SMP", "FIL", "MIX", "FX", "SEQ" };
         final float tabX = portrait ? dp(4) : dp(100);
-        float tw = (scr.width() - tabX - dp(10)) / 9f;
+        float tw = (scr.width() - tabX - dp(10)) / 10f;
         if (!portrait) text(c, "PAGE " + page, scr.left + dp(8), scr.top + dp(18), 13, INK);
-        for (int i = 0; i < 9; ++i) {
+        for (int i = 0; i < 10; ++i) {
             final char pg = pages[i];
             RectF r = new RectF(scr.left + tabX + i * tw, scr.top + dp(3), scr.left + tabX + (i + 1) * tw - dp(4), scr.top + dp(23));
             if (tw < dp(96)) { button(c, r, tw < dp(60) ? shortNames[i] : pg + " " + shortNames[i], page == pg, () -> { page = pg; status = "READY"; }); continue; }
@@ -116,6 +116,7 @@ public class CmiView extends View {
             case 'F': files(c, body); break;
             case '5': pen(c, body); break;
             case 'R': presets(c, body); break;
+            case 'E': effects(c, body); break;
             default: composer(c, body); break;
         }
         // scanlines
@@ -238,6 +239,77 @@ public class CmiView extends View {
                 }).show();
     }
 
+    // ---- Page E: the effects section. A Yamaha REV7 (the Omega REV7 model) on the mixer's aux send ----
+    private String[][] fxDefs = null;
+    private int fxScroll = 0;
+    private void effects(Canvas c, RectF b) {
+        if (fxDefs == null) { final int n = Native.fxCount(); fxDefs = new String[n][]; for (int i = 0; i < n; ++i) fxDefs[i] = Native.fxParam(i).split("\t", -1); }
+        final boolean on = Native.fxOn();
+        text(c, "EFFECTS: REV7 (AUX SEND)", b.left, b.top + dp(14), 12, INK);
+        button(c, new RectF(b.right - dp(186), b.top, b.right - dp(110), b.top + dp(22)), on ? "ON" : "OFF", on, () -> { Native.setFxOn(!on); act.saveState(); });
+        button(c, new RectF(b.right - dp(104), b.top, b.right, b.top + dp(22)), "PRESET", false, this::fxPresetDialog);
+        int progIdx = 0; for (int i = 0; i < fxDefs.length; ++i) if (fxDefs[i][0].equals("prog")) progIdx = i;
+        final int pi = progIdx, prog = Math.round(Native.fxGet(progIdx));
+        final RectF lcd = new RectF(b.left, b.top + dp(28), b.right - dp(96), b.top + dp(64));
+        fill(c, lcd, FAINT);
+        text(c, String.format("%02d  %s", prog, Native.fxProgName(prog)), lcd.left + dp(6), lcd.top + dp(18), 14, INK);
+        final int cp = Native.fxCurrentPreset();
+        if (cp >= 0) text(c, Native.fxPresetName(cp), lcd.left + dp(6), lcd.bottom - dp(5), 9, DIM);
+        button(c, new RectF(b.right - dp(90), lcd.top + dp(4), b.right - dp(48), lcd.bottom - dp(4)), "<", false, () -> { Native.fxSet(pi, prog > 1 ? prog - 1 : 30); Native.fxNoPreset(); act.saveState(); });
+        button(c, new RectF(b.right - dp(42), lcd.top + dp(4), b.right, lcd.bottom - dp(4)), ">", false, () -> { Native.fxSet(pi, prog < 30 ? prog + 1 : 1); Native.fxNoPreset(); act.saveState(); });
+        final List<Integer> ids = new ArrayList<>();
+        for (int i = 0; i < fxDefs.length; ++i) if (fxDefs[i].length > 7 && fxDefs[i][7].equals("1")) ids.add(i);
+        final float rh = dp(26);
+        final RectF lb = new RectF(b.left, lcd.bottom + dp(8), b.right, b.bottom - dp(26));
+        final int cols = portrait ? 1 : 2, rows = Math.max(1, (int) (lb.height() / rh)), per = rows * cols;
+        fxScroll = Math.max(0, Math.min(fxScroll, Math.max(0, ids.size() - per)));
+        final float cw = (lb.width() - dp(12) * (cols - 1)) / cols;
+        for (int k = 0; k < per && fxScroll + k < ids.size(); ++k) {
+            final int i = ids.get(fxScroll + k);
+            final String[] d = fxDefs[i];
+            final float x = lb.left + (k / rows) * (cw + dp(12)), y = lb.top + (k % rows) * rh;
+            final boolean lit = Native.fxRelevant(i);
+            String label = d[1].startsWith("Panel: ") ? d[1].substring(7) : d[1];
+            text(c, label.toUpperCase(), x, y + dp(16), 10, lit ? INK : DIM);
+            final float mn = Float.parseFloat(d[2]), mx = Float.parseFloat(d[3]), v = Native.fxGet(i);
+            final RectF tr = new RectF(x + dp(100), y + dp(5), x + cw - dp(64), y + rh - dp(5));
+            p.setTextAlign(Paint.Align.RIGHT); p.setTextSize(dp(10)); p.setColor(lit ? INK : DIM);
+            c.drawText(Native.fxFormat(i), x + cw, y + dp(16), p); p.setTextAlign(Paint.Align.LEFT);
+            if (d[5].equals("1") || !d[6].isEmpty()) {
+                final boolean tog = d[5].equals("1");
+                final String[] ch = d[6].isEmpty() ? new String[0] : d[6].split("\\|");
+                button(c, new RectF(tr.left, tr.top - dp(2), tr.left + dp(56), tr.bottom + dp(2)), tog ? (v > 0.5f ? "ON" : "OFF") : "NEXT", tog && v > 0.5f, () -> {
+                    if (tog) Native.fxSet(i, v > 0.5f ? 0 : 1);
+                    else { float nv = v + 1; if (nv > mx) nv = mn; Native.fxSet(i, nv); }
+                    act.saveState();
+                });
+                continue;
+            }
+            fill(c, tr, FAINT);
+            fill(c, new RectF(tr.left, tr.top, tr.left + tr.width() * Math.max(0, Math.min(1, (v - mn) / (mx - mn))), tr.bottom), lit ? INK : DIM);
+            Act set = (xx, yy) -> Native.fxSet(i, mn + Math.max(0, Math.min(1, (xx - tr.left) / tr.width())) * (mx - mn));
+            Hit h = hit(new RectF(tr.left - dp(6), y, tr.right + dp(6), y + rh), set); h.drag = set;
+        }
+        if (ids.size() > per) {
+            button(c, new RectF(b.right - dp(90), b.bottom - dp(22), b.right - dp(50), b.bottom), "<", false, () -> fxScroll = Math.max(0, fxScroll - per));
+            button(c, new RectF(b.right - dp(44), b.bottom - dp(22), b.right, b.bottom), ">", false, () -> fxScroll += per);
+        }
+        text(c, "Sends: REV on each mixer strip (MIX). Dim: not used by this program.", b.left, b.bottom - dp(6), 9, DIM);
+    }
+    private void fxPresetDialog() {
+        final int n = Native.fxPresetCount();
+        final java.util.LinkedHashMap<String, List<Integer>> cats = new java.util.LinkedHashMap<>();
+        for (int k = 0; k < n; ++k) { String nm = Native.fxPresetName(k); int sl = nm.indexOf(" / "); cats.computeIfAbsent(sl < 0 ? "Factory (ROM 1-30)" : nm.substring(0, sl), q -> new ArrayList<>()).add(k); }
+        final String[] cs = cats.keySet().toArray(new String[0]);
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("REV7 presets")
+                .setItems(cs, (d1, w) -> {
+                    final List<Integer> ks = cats.get(cs[w]); final String[] nm = new String[ks.size()];
+                    for (int j = 0; j < ks.size(); ++j) { String s = Native.fxPresetName(ks.get(j)); int sl = s.indexOf(" / "); nm[j] = sl < 0 ? s : s.substring(sl + 3); }
+                    new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(cs[w])
+                            .setItems(nm, (d2, j) -> { Native.fxLoadPreset(ks.get(j)); status("REV7: " + nm[j]); act.saveState(); invalidate(); }).show();
+                }).show();
+    }
+
     // ---- Page M: the mixer ----
     private int mixPage = 0;
     private void mixer(Canvas c, RectF b) {
@@ -250,13 +322,13 @@ public class CmiView extends View {
         mixPage = Math.min(mixPage, pages - 1);
         text(c, "MIXER " + (Native.currentSong() >= 0 ? "SONG" : "PAGE S"), b.left, b.top + dp(12), 12, INK);
         if (pages > 1) button(c, new RectF(b.right - dp(110), b.top, b.right, b.top + dp(22)), "STRIPS " + (mixPage + 1) + "/" + pages, false, () -> mixPage = (mixPage + 1) % pages);
-        final int n = Math.min(per, strips.size() - mixPage * per) + 1;
-        final float sw = b.width() / n, top = b.top + dp(28), fh = b.height() - dp(110);
+        final int n = Math.min(per, strips.size() - mixPage * per) + 2;   // + the REV7 return and the master
+        final float sw = b.width() / n, top = b.top + dp(28), fh = b.height() - dp(134);
         for (int k = 0; k < n; ++k) {
-            final boolean master = k == n - 1;
-            final int idx = master ? -1 : strips.get(mixPage * per + k);
+            final boolean master = k == n - 1, rev = k == n - 2;
+            final int idx = master ? -1 : rev ? Native.FX_STRIP : strips.get(mixPage * per + k);
             final float x = b.left + k * sw;
-            final String nm = master ? "MASTER" : names.get(mixPage * per + k);
+            final String nm = master ? "MASTER" : rev ? (Native.fxOn() ? "REV7" : "REV OFF") : names.get(mixPage * per + k);
             textC(c, nm, new RectF(x, top, x + sw, top + dp(14)), 9, INK);
             final RectF slot = new RectF(x + sw / 2 - dp(3), top + dp(20), x + sw / 2 + dp(3), top + dp(20) + fh);
             fill(c, slot, FAINT);
@@ -269,6 +341,7 @@ public class CmiView extends View {
             Hit h = hit(new RectF(x, top + dp(16), x + sw, slot.bottom + dp(6)), set); h.drag = set;
             if (master) continue;
             final float py = slot.bottom + dp(18);
+            if (rev) { final boolean fon = Native.fxOn(); button(c, new RectF(x + dp(2), py + dp(18), x + sw - dp(2), py + dp(38)), fon ? "ON" : "OFF", fon, () -> { Native.setFxOn(!fon); act.saveState(); }); continue; }
             final float po = Native.mixGet(idx, 1);
             fill(c, new RectF(x + dp(4), py, x + sw - dp(4), py + dp(8)), FAINT);
             fill(c, new RectF(x + dp(4) + (sw - dp(12)) * (po < 0 ? 0.5f : po), py - dp(2), x + dp(8) + (sw - dp(12)) * (po < 0 ? 0.5f : po), py + dp(10)), po < 0 ? DIM : INK);
@@ -277,6 +350,13 @@ public class CmiView extends View {
             final boolean mu = Native.mixGet(idx, 2) > 0.5f, so = Native.mixGet(idx, 3) > 0.5f;
             button(c, new RectF(x + dp(2), py + dp(18), x + sw / 2 - dp(1), py + dp(38)), "M", mu, () -> Native.mixSet(idx, 2, mu ? 0 : 1));
             button(c, new RectF(x + sw / 2 + dp(1), py + dp(18), x + sw - dp(2), py + dp(38)), "S", so, () -> Native.mixSet(idx, 3, so ? 0 : 1));
+            // the send to the REV7 (Page E)
+            final float sy = py + dp(52), sv = Native.mixGet(idx, 5);
+            textC(c, "REV " + Math.round(sv * 100), new RectF(x, sy - dp(11), x + sw, sy - dp(1)), 8, DIM);
+            fill(c, new RectF(x + dp(4), sy, x + sw - dp(4), sy + dp(8)), FAINT);
+            fill(c, new RectF(x + dp(4), sy, x + dp(4) + (sw - dp(8)) * sv, sy + dp(8)), Native.fxOn() ? INK : DIM);
+            Act snd = (xx, yy) -> Native.mixSet(idx, 5, Math.max(0, Math.min(1, (xx - x - dp(4)) / (sw - dp(8)))));
+            Hit sh = hit(new RectF(x, sy - dp(8), x + sw, sy + dp(14)), snd); sh.drag = snd;
         }
     }
 

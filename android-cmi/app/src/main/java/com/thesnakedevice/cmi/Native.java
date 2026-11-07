@@ -100,6 +100,26 @@ final class Native {
     static native float mixGet(int strip, int what);
     static native void mixSet(int strip, int what, float v);
     static native float masterMeter();
+
+    // the effects section: a REV7 on the mixer's aux send (mixer strip FX_STRIP is its return; mixGet/mixSet what 5: a send)
+    static final int FX_STRIP = 25;
+    static native int fxCount();
+    /** id, name, min, max, step, toggle 1/0, choices ("label=value|..."), shown 1/0 (tab separated) */
+    static native String fxParam(int i);
+    static native float fxGet(int i);
+    static native void fxSet(int i, float v);
+    static native String fxFormat(int i);
+    static native boolean fxRelevant(int i);
+    static native int fxPresetCount();
+    static native String fxPresetName(int k);
+    static native void fxLoadPreset(int k);
+    static native int fxCurrentPreset();
+    static native void fxNoPreset();
+    static native String fxProgName(int n);
+    static native boolean fxOn();
+    static native void setFxOn(boolean on);
+    static native String fxState();
+    static native void setFxState(String s);
     static native int removeDuplicateSongs();
     static native String saveDrawn(float[] start, float[] end, boolean asNew);
     static native boolean hasDrawn();

@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
         loadState();
         Native.setRemembered(getSharedPreferences("cmi", MODE_PRIVATE).getString("remembered", ""));
         Native.setPresetChoices(getSharedPreferences("cmi", MODE_PRIVATE).getString("presets", ""));
+        { String fx = getSharedPreferences("cmi", MODE_PRIVATE).getString("fx", ""); if (!fx.isEmpty()) Native.setFxState(fx); }
         view = new CmiView(this);
         rescanLibrary();
         rescanSongs();
@@ -80,7 +81,7 @@ public class MainActivity extends Activity {
     // ---- state ----
     private File stateFile() { return new File(getFilesDir(), "cmi-state.bin"); }
     void saveState() {
-        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).apply(); } catch (Exception ignored) {}
+        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).putString("fx", Native.fxState()).apply(); } catch (Exception ignored) {}
         try (FileOutputStream o = new FileOutputStream(stateFile())) { o.write(Native.saveState()); } catch (Exception ignored) {}
     }
     private void loadState() {

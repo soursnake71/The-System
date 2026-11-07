@@ -473,10 +473,11 @@ inline bool undoSong(Engine& eng, SongEntry* e) {
 // The song (or one track of it) played on a fresh engine, as fast as the computer can, until it ends and its
 // voices have died away. master / hiss / spread as the instrument is set.
 struct Rendered { std::vector<float> L, R; double fs = 48000; };
-inline Rendered renderSong(const Bank& bank, const SongEntry& e, double fs, int onlyTrack = -1, double master = 1, double hiss = 1, double spread = 0.3, float blend = 0.5f) {
+inline Rendered renderSong(const Bank& bank, const SongEntry& e, double fs, int onlyTrack = -1, double master = 1, double hiss = 1, double spread = 0.3, float blend = 0.5f, const Engine::FxSettings* fx = nullptr) {
     Rendered r; r.fs = fs;
     auto eng = std::make_unique<Engine>();
     eng->bank = const_cast<Bank*>(&bank); eng->kitVoice = kitLookup(bank);
+    if (fx) eng->applyFx(*fx);
     eng->prepare(fs); eng->setOutput(master, hiss, spread); eng->loopBlend = blend;
     eng->extSync = false;
     for (int t = 0; t < SONG_TRK; ++t) { eng->songVoice[t] = e.voice[t]; eng->songMute[t] = e.mute[t] || (onlyTrack >= 0 && t != onlyTrack); }
@@ -490,25 +491,28 @@ inline Rendered renderSong(const Bank& bank, const SongEntry& e, double fs, int 
         if (!eng->songRun.load()) {
             float pk = 0; for (int i = 0; i < blk; ++i) pk = std::max({ pk, std::fabs(l[(size_t) i]), std::fabs(rr[(size_t) i]) });
             quiet = pk < 0.0005f ? quiet + blk : 0;
-            if (quiet > fs * 0.3 || eng->activeVoices() == 0) break;
+            if (quiet > fs * 0.3 || (eng->activeVoices() == 0 && !eng->fxOn.load())) break;   // the REV7's tail rings out
         }
     }
     return r;
 }
 
 // Page R's song (patterns in song order) rendered once through
-inline Rendered renderPageR(const Bank& bank, const SeqData& seq, double bpm, double fs, double master = 1, double hiss = 1, double spread = 0.3, float blend = 0.5f) {
+inline Rendered renderPageR(const Bank& bank, const SeqData& seq, double bpm, double fs, double master = 1, double hiss = 1, double spread = 0.3, float blend = 0.5f, const Engine::FxSettings* fx = nullptr) {
     Rendered r; r.fs = fs;
     auto eng = std::make_unique<Engine>();
-    eng->bank = const_cast<Bank*>(&bank); eng->prepare(fs); eng->setOutput(master, hiss, spread); eng->loopBlend = blend;
+    eng->bank = const_cast<Bank*>(&bank); if (fx) eng->applyFx(*fx); eng->prepare(fs); eng->setOutput(master, hiss, spread); eng->loopBlend = blend;
     eng->seq = seq; eng->extSync = false; eng->songMode = true; eng->tempo = bpm; eng->seqRun = true;
     const size_t len = (size_t) (seq.songLen * STEPS / (bpm / 60.0 * 4.0) * fs);
     const int blk = 512; std::vector<float> l(blk), rr(blk);
-    while (r.L.size() < len + (size_t) (fs * 4)) {
+    int quiet = 0;
+    while (r.L.size() < len + (size_t) (fs * 12)) {
         if (r.L.size() >= len) eng->seqRun = false;
         eng->render(l.data(), rr.data(), blk);
         r.L.insert(r.L.end(), l.begin(), l.end()); r.R.insert(r.R.end(), rr.begin(), rr.end());
-        if (r.L.size() > len + (size_t) (fs * 0.5) && eng->activeVoices() == 0) break;
+        float pk = 0; for (int i = 0; i < blk; ++i) pk = std::max({ pk, std::fabs(l[(size_t) i]), std::fabs(rr[(size_t) i]) });
+        quiet = pk < 0.0005f ? quiet + blk : 0;
+        if (r.L.size() > len + (size_t) (fs * 0.5) && eng->activeVoices() == 0 && (!eng->fxOn.load() || quiet > fs * 0.3)) break;
     }
     return r;
 }

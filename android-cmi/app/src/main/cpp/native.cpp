@@ -420,6 +420,7 @@ FN(jstring, exportSongWav)(JNIEnv* env, jclass, jint fd, jint track) {
     const double fs = 44100;
     auto eng = std::make_unique<Engine>();
     eng->bank = &app()->kit.bank; eng->kitVoice = kitLookup(app()->kit.bank); eng->prepare(fs);
+    eng->applyFx(app()->engine.fxSettings());   // the REV7 as set now
     eng->setOutput(app()->param[17], app()->param[18], app()->param[19]); eng->extSync = false; eng->songGain = app()->engine.songGain.load(); eng->loopBlend = app()->param[24] > 0.5f ? app()->param[23].load() : 0.f;
     size_t total = 0, maxLen;
     if (e) {
@@ -441,7 +442,7 @@ FN(jstring, exportSongWav)(JNIEnv* env, jclass, jint fd, jint track) {
         if (!writeAll(fd, pcm.data(), pcm.size() * 2)) { ::close(fd); return env->NewStringUTF("CAN'T WRITE THE FILE"); }
         total += blk;
         const bool ended = e ? !eng->songRun.load() : total >= maxLen;
-        if (ended) { quiet = pk < 0.0005f ? quiet + blk : 0; if (quiet > fs * 0.3 || eng->activeVoices() == 0) break; }
+        if (ended) { quiet = pk < 0.0005f ? quiet + blk : 0; if (quiet > fs * 0.3 || (eng->activeVoices() == 0 && !eng->fxOn.load())) break; }   // the REV7 rings out
     }
     // the sizes, now that they're known (when the file can seek)
     const uint32_t data = (uint32_t) (total * 4), riff = 36 + data;
@@ -479,14 +480,63 @@ FN(void, newSong)(JNIEnv*, jclass) { auto& sl = app()->songs; selectSong(app()->
 FN(jstring, songWhy)(JNIEnv* env, jclass, jint t) { const SongEntry* e = app()->songs.at(curSongIdx()); return env->NewStringUTF(e && t >= 0 && t < SONG_TRK ? e->why[t].c_str() : ""); }
 
 // ---- mixer: strips 0 keyboard, 1..8 Page R tracks, 9..24 song tracks ----
+// strip STRIPS: the REV7 return (fader = its OUTPUT knob, meter = its return); what 5: a strip's send to the REV7
 FN(jfloat, mixGet)(JNIEnv*, jclass, jint i, jint what) {
-    auto& e = app()->engine; if (i < 0 || i >= Engine::STRIPS) return 0;
+    auto& e = app()->engine;
+    if (i == Engine::STRIPS) return what == 0 ? (float) e.fx.get("ret") : what == 4 ? e.fxMeter.load() : what == 2 ? (float) !e.fxOn.load() : 0.f;
+    if (i < 0 || i >= Engine::STRIPS) return 0;
+    if (what == 5) return e.fxSend[(size_t) i].load();
     return what == 0 ? e.fader[(size_t) i].load() : what == 1 ? e.panOver[(size_t) i].load() : what == 2 ? (float) e.mute[(size_t) i].load() : what == 3 ? (float) e.solo[(size_t) i].load() : e.meter[(size_t) i].load();
 }
 FN(void, mixSet)(JNIEnv*, jclass, jint i, jint what, jfloat v) {
-    auto& e = app()->engine; if (i < 0 || i >= Engine::STRIPS) return;
+    auto& e = app()->engine;
+    if (i == Engine::STRIPS) { if (what == 0) e.fx.set("ret", clampd(v, 0, 1.5)); else if (what == 2) e.fxOn = v < 0.5f; return; }
+    if (i < 0 || i >= Engine::STRIPS) return;
+    if (what == 5) { e.fxSend[(size_t) i] = clampd(v, 0, 1); return; }
     if (what == 0) e.fader[(size_t) i] = clampd(v, 0, 1.5); else if (what == 1) e.panOver[(size_t) i] = v; else if (what == 2) e.mute[(size_t) i] = v > 0.5f; else if (what == 3) e.solo[(size_t) i] = v > 0.5f;
 }
+// ---- the effects section: the REV7 ----
+FN(jint, fxCount)(JNIEnv*, jclass) { return Rev7Fx::spec().params.size(); }
+// id, name, min, max, step, toggle 1/0, choices ("label=value|..."), shown 1/0
+FN(jstring, fxParam)(JNIEnv* env, jclass, jint i) {
+    const auto& ps = Rev7Fx::spec().params; if (i < 0 || i >= (int) ps.size()) return env->NewStringUTF("");
+    const auto& p = ps[(size_t) i]; std::ostringstream o;
+    o << p.id << "\t" << p.name << "\t" << p.min << "\t" << p.max << "\t" << p.step << "\t" << (p.toggle ? 1 : 0) << "\t";
+    for (size_t k = 0; k < p.choices.size(); ++k) o << (k ? "|" : "") << p.choices[k].label << "=" << p.choices[k].value;
+    o << "\t" << (Rev7Fx::shown(p) && p.id != "prog" ? 1 : 0);
+    return env->NewStringUTF(o.str().c_str());
+}
+FN(jfloat, fxGet)(JNIEnv*, jclass, jint i) { return (float) app()->engine.fx.get(i); }
+FN(void, fxSet)(JNIEnv*, jclass, jint i, jfloat v) { app()->engine.fx.set(i, v); }
+FN(jstring, fxFormat)(JNIEnv* env, jclass, jint i) {
+    const auto& ps = Rev7Fx::spec().params; if (i < 0 || i >= (int) ps.size()) return env->NewStringUTF("");
+    return env->NewStringUTF(Rev7Fx::format(ps[(size_t) i], app()->engine.fx.get(i)).c_str());
+}
+FN(jboolean, fxRelevant)(JNIEnv*, jclass, jint i) { const auto& ps = Rev7Fx::spec().params; return i >= 0 && i < (int) ps.size() && app()->engine.fx.relevant(ps[(size_t) i].id); }
+FN(jint, fxPresetCount)(JNIEnv*, jclass) { return Rev7Fx::spec().presets.size(); }
+FN(jstring, fxPresetName)(JNIEnv* env, jclass, jint k) { const auto& pr = Rev7Fx::spec().presets; return env->NewStringUTF(k >= 0 && k < (int) pr.size() ? pr[(size_t) k].name.c_str() : ""); }
+FN(void, fxLoadPreset)(JNIEnv*, jclass, jint k) { app()->engine.fx.preset(k); }
+FN(jint, fxCurrentPreset)(JNIEnv*, jclass) { return app()->engine.fx.curPreset.load(); }
+FN(void, fxNoPreset)(JNIEnv*, jclass) { app()->engine.fx.curPreset = -1; }
+FN(jstring, fxProgName)(JNIEnv* env, jclass, jint n) { return env->NewStringUTF(omega::rev7ProgName(n)); }
+FN(jboolean, fxOn)(JNIEnv*, jclass) { return app()->engine.fxOn.load(); }
+FN(void, setFxOn)(JNIEnv*, jclass, jboolean on) { app()->engine.fxOn = on; }
+// on, the sends and the REV7's settings as text (kept in the app's settings)
+FN(jstring, fxState)(JNIEnv* env, jclass) {
+    auto& e = app()->engine; std::ostringstream o; o << (e.fxOn.load() ? 1 : 0) << "|";
+    for (int i = 0; i < Engine::STRIPS; ++i) o << (i ? "," : "") << e.fxSend[(size_t) i].load();
+    o << "|" << e.fx.save();
+    return env->NewStringUTF(o.str().c_str());
+}
+FN(void, setFxState)(JNIEnv* env, jclass, jstring text) {
+    const char* c = env->GetStringUTFChars(text, nullptr); std::string s = c; env->ReleaseStringUTFChars(text, c);
+    const size_t a = s.find('|'); if (a == std::string::npos) return; const size_t b = s.find('|', a + 1); if (b == std::string::npos) return;
+    auto& e = app()->engine; e.fxOn = s.substr(0, a) == "1";
+    std::istringstream in(s.substr(a + 1, b - a - 1)); std::string tok; int i = 0;
+    while (std::getline(in, tok, ',') && i < Engine::STRIPS) e.fxSend[(size_t) i++] = (float) clampd(std::atof(tok.c_str()), 0, 1);
+    e.fx.load(s.substr(b + 1));
+}
+
 FN(jfloat, masterMeter)(JNIEnv*, jclass) { return std::max(app()->engine.meterL.load(), app()->engine.meterR.load()); }
 FN(jint, removeDuplicateSongs)(JNIEnv*, jclass) { const int c = curSongIdx(); const int n = app()->songs.removeDuplicates(); if (!app()->songs.at(c)) selectSong(app()->engine, nullptr); return n; }
 // a voice drawn with the pen: two 128-point cycles; into a new slot (asNew) or over the last drawn one

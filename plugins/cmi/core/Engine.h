@@ -3,6 +3,7 @@
 // envelope clock rates, segment stepping) and the Page R pattern sequencer.
 #pragma once
 #include "Cmi.h"
+#include "Effects.h"
 #include <functional>
 
 namespace cmi {
@@ -322,13 +323,23 @@ public:
     std::array<std::atomic<float>, STRIPS> fader, panOver, meter;
     std::array<std::atomic<bool>, STRIPS> solo, mute;
     std::atomic<float> meterL { 0 }, meterR { 0 };
-    Engine() { for (int i = 0; i < STRIPS; ++i) { fader[(size_t) i] = 1; panOver[(size_t) i] = -1; meter[(size_t) i] = 0; solo[(size_t) i] = false; mute[(size_t) i] = false; } }
+    // the effects section: a REV7 on an aux send; each strip's send level (post fader and pan)
+    Rev7Fx fx;
+    std::atomic<bool> fxOn { true };
+    std::array<std::atomic<float>, STRIPS> fxSend;
+    std::atomic<float> fxMeter { 0 };
+    Engine() { for (int i = 0; i < STRIPS; ++i) { fader[(size_t) i] = 1; panOver[(size_t) i] = -1; meter[(size_t) i] = 0; solo[(size_t) i] = false; mute[(size_t) i] = false; fxSend[(size_t) i] = 0.15f; } }
+    // the effects settings, to carry over to an export's own engine
+    struct FxSettings { bool on = true; std::array<float, STRIPS> send {}; std::string state; };
+    FxSettings fxSettings() const { FxSettings f; f.on = fxOn.load(); for (int i = 0; i < STRIPS; ++i) f.send[(size_t) i] = fxSend[(size_t) i].load(); f.state = fx.save(); return f; }
+    void applyFx(const FxSettings& f) { fxOn = f.on; for (int i = 0; i < STRIPS; ++i) fxSend[(size_t) i] = f.send[(size_t) i]; fx.load(f.state); }
     int stripOf(int card) const { return card < KEY_CH ? 0 : curSong ? 1 + TRACKS + clampi(cardTrack[card], 0, SONG_TRK - 1) : 1 + (card - KEY_CH) % TRACKS; }
     std::function<int(int note)> kitVoice;                 // GM drum note -> sound index
 
     void prepare(double sampleRate) {
         fs = sampleRate;
         for (auto& c : ch) c.prepare(fs, mf);
+        fx.prepare(fs, 4096);
         hpA = std::exp(-2 * PI * 7.0 / fs);
         gpos = 0; lastStep = -1;
     }
@@ -572,6 +583,10 @@ private:
 
     void renderRaw(float* L, float* R, int n) {
         if ((int) mono.size() < n) { mono.resize((size_t) n); side.resize((size_t) n); }
+        if ((int) fxL.size() < n) { fxL.resize((size_t) n); fxR.resize((size_t) n); retL.resize((size_t) n); retR.resize((size_t) n); }
+        const bool fxRun = fxOn.load();
+        bool anySend = false;
+        if (fxRun) { std::fill(fxL.begin(), fxL.begin() + n, 0.f); std::fill(fxR.begin(), fxR.begin() + n, 0.f); }
         float* kbL = L; float* kbR = R;
         std::fill(kbL, kbL + n, 0.f); std::fill(kbR, kbR + n, 0.f);
         bool anySolo = false; for (const auto& sl : solo) anySolo |= sl.load();
@@ -594,9 +609,19 @@ private:
             const float gl = (float) std::cos(pan * PI / 2) * 1.41421356f * gain, gr = (float) std::sin(pan * PI / 2) * 1.41421356f * gain;
             float pk = 0;
             for (int k = 0; k < n; ++k) { const float m = mono[(size_t) k]; kbL[k] += m * gl; kbR[k] += m * gr; pk = std::max(pk, std::fabs(m)); }
+            const float sd = fxSend[(size_t) sIdx].load();
+            if (fxRun && sd > 0 && gain > 0) { anySend = true; for (int k = 0; k < n; ++k) { const float m = mono[(size_t) k] * sd; fxL[(size_t) k] += m * gl; fxR[(size_t) k] += m * gr; } }
             peak[sIdx] = std::max(peak[sIdx], pk * gain * 0.5f * (float) master);
         }
         for (int i = 0; i < STRIPS; ++i) meter[(size_t) i] = std::max(peak[i], meter[(size_t) i].load() * 0.92f);
+        // the REV7 return (it keeps running on silence to ring out; it sleeps by itself once its tail has gone)
+        if (fxRun) {
+            (void) anySend;
+            fx.process(fxL.data(), fxR.data(), retL.data(), retR.data(), n);
+            float fp = 0;
+            for (int k = 0; k < n; ++k) { kbL[k] += retL[(size_t) k]; kbR[k] += retR[(size_t) k]; fp = std::max({ fp, std::fabs(retL[(size_t) k]), std::fabs(retR[(size_t) k]) }); }
+            fxMeter = std::max(fp * 0.5f * (float) master, fxMeter.load() * 0.92f);
+        }
         // output stage: coupling capacitor, summing amplifier, noise floor, level
         const double g = 0.5 * master;
         for (int k = 0; k < n; ++k) {
@@ -616,7 +641,7 @@ private:
     double rnd() { rs ^= rs << 13; rs ^= rs >> 17; rs ^= rs << 5; return rs * (1.0 / 4294967296.0); }
 
     std::array<Channel, NCH> ch;
-    std::vector<float> mono, side;
+    std::vector<float> mono, side, fxL, fxR, retL, retR;
     double fs = 48000, mf = masterFreq(), master = 1, hiss = 1, spread = 0.3, bendRange = 2, hpA = 0.999;
     double hlx = 0, lpx = 0, hrx = 0, rpx = 0;
     uint32_t rs = 0x1234567u;

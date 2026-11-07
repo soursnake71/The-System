@@ -148,6 +148,23 @@ int main(int argc, char** argv) {
         CHECK(worst[1] < worst[0] * 0.8 && worst[2] < worst[0] * 0.8, "loop blend smooths the seam (loop from page %d)", from);
     }
 
+    // ---- the effects section: the REV7 on the send rings on after the note; off (or no send): silence ----
+    {
+        double tails[3] {};
+        for (int k = 0; k < 3; ++k) {
+            TestKit kf; Engine ef; ef.bank = &kf.bank; ef.prepare(fs); ef.setOutput(1, 0, 0);
+            ef.fxOn = k != 1; for (auto& sd : ef.fxSend) sd = k == 2 ? 0.f : 0.5f;
+            ef.fx.preset(0);   // 1 LARGE HALL
+            const int sn = kf.find("ORCHHIT"); ef.setKeyboard(sn, kf.sound(sn)->ctl);
+            std::vector<float> a(fs * 4), b2(fs * 4);
+            ef.keyOn(60, 1); ef.render(a.data(), b2.data(), fs / 4); ef.keyOff(60);
+            ef.render(a.data() + fs / 4, b2.data() + fs / 4, fs * 4 - fs / 4);
+            for (int i = fs * 2; i < fs * 3; ++i) tails[k] = std::max(tails[k], (double) std::fabs(a[(size_t) i]));
+        }
+        std::printf("REV7 send: tail at 2-3 s %.4f (fx off %.4f, no send %.4f); %d presets\n", tails[0], tails[1], tails[2], (int) Rev7Fx::spec().presets.size());
+        CHECK(tails[0] > 0.002 && tails[1] < 0.0005 && tails[2] < 0.0005, "REV7 on the aux send");
+    }
+
     // ---- a loaded sample goes through Page 8 ----
     {
         std::vector<float> s(44100 * 2); for (size_t i = 0; i < s.size(); ++i) s[i] = (float) std::sin(2 * PI * 261.63 * i / 44100.0) * 0.5f;
