@@ -173,6 +173,8 @@ struct Controls {
     float fine = 0;          // cents
     float loop = 1;          // loop the sound's loop pages while held
     float segTime = 0.03f;   // waveform mode: seconds per segment
+    float decay = 10;        // after the attack, down to the sustain level (0..31, as the damping)
+    float sustainLevel = 1;  // where the envelope holds while the key is down (1: the top, as the CMI did)
 };
 
 struct Sound {

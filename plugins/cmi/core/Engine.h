@@ -114,7 +114,7 @@ private:
         snd = pend.s; ctl = pend.c; note = pend.note; vel = pend.vel; gate = pend.gate;
         target = note; pitch = (pend.glideFrom >= 0 && ctl.porta > 0.0005f) ? pend.glideFrom : note;
         t = 0; ws = 0; lsb = 0; msb = snd && snd->mode == Mode::Sample ? clampi(snd->startPage, 0, std::max(0, snd->pages() - 1)) : 0; phase = 1.0; run = true; ended = false; fadeLeft = -1; fadeTotal = 0;
-        env = 0; up = true; state = Playing;
+        env = 0; up = true; state = Playing; susFloor = 0;
         setEclk(envTime(ctl.attack), true); envClk = true;
         flt.reset(); tick = 0;
         if (!gate) release();
@@ -122,7 +122,7 @@ private:
 
     void release() {
         if (state == Idle) return;
-        state = Releasing; up = false;
+        state = Releasing; up = false; susFloor = 0;
         const double tm = envTime(ctl.damp);
         if (ctl.damp <= 0.01f) { zxKill = true; setEclk(0.002, false); }
         else setEclk(tm, false);
@@ -140,8 +140,8 @@ private:
                 if (env < 255) ++env;
                 if (env >= 255) { envAcc = 0; atTop(); return; }
             } else {
-                if (env > 0) --env;
-                if (env <= 0) { envAcc = 0; atBottom(); return; }
+                if (env > susFloor) --env;
+                if (env <= susFloor) { envAcc = 0; if (susFloor > 0 && state == Playing) { envClk = false; return; } atBottom(); return; }   // holding at the sustain level
             }
         }
     }
@@ -149,6 +149,8 @@ private:
         envClk = false;
         if (state == Playing && ctl.sustain < 0.5f) {   // no sustain: damping begins at the peak
             up = false; setEclk(envTime(ctl.damp), false); envClk = true;
+        } else if (state == Playing && ctl.sustainLevel < 0.995f) {   // ADSR: decay to the sustain level and hold there
+            susFloor = std::max(1, (int) std::lround(ctl.sustainLevel * 255)); up = false; setEclk(envTime(ctl.decay), false); envClk = true;
         }
     }
     void atBottom() {
@@ -247,7 +249,7 @@ private:
     bool run = false, ended = false, envClk = false, up = true, zxKill = false;
     int fadeLeft = -1, fadeTotal = 0;
     float blend = 0;   // loop blend, 0 (the card as it was) .. 1, set by the engine
-    int lsb = 0, msb = 0, ws = 0, cur = 0, env = 0, vol = 0;
+    int lsb = 0, msb = 0, ws = 0, cur = 0, env = 0, vol = 0, susFloor = 0;
     double phase = 0, inc = 0, eclk = 0, envAcc = 0;
     float corr[32] {}, hist[32] {}; unsigned ci = 0, hi = 0;
     // cpu
@@ -319,6 +321,8 @@ public:
     std::array<std::atomic<int>, 128> kitSound;
     std::array<std::atomic<float>, 128> kitLevel, kitPan, kitTune, kitMeter;
     std::array<std::atomic<bool>, 128> kitMute, kitSolo;
+    // the kit's envelope per drum (attack, decay, sustain level, release; -1: the voice's own), merged in pushKit
+    std::array<std::atomic<float>, 128> kitEnvA, kitEnvD, kitEnvS, kitEnvR;
     // the kits behind those: the pads' (plays every song) and the song's own changes on top (UI thread; applyKit and
     // applyPads in Song.h merge them into the arrays above)
     DrumKit padKit, songKit;
@@ -329,7 +333,7 @@ public:
     std::atomic<float> kickLift { 2.0f }, humanize { 0.0f };   // MIDI channel 10 plays the kit, as General MIDI does
     void padTap(int note, int vel = 110) { padPush(note, vel | 0x100); }   // a hit let go by itself 0.3 s later (an audition)
     void padPush(int note, int vel) { std::lock_guard<std::mutex> g(padLock); const uint32_t w = padW.load(std::memory_order_relaxed); if (w - padR.load(std::memory_order_acquire) >= padQ.size()) return; padQ[w % padQ.size()] = { note, vel }; padW.store(w + 1, std::memory_order_release); }
-    void clearKit() { for (int n = 0; n < 128; ++n) { kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; } }
+    void clearKit() { for (int n = 0; n < 128; ++n) { kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; kitEnvA[(size_t) n] = kitEnvD[(size_t) n] = kitEnvS[(size_t) n] = kitEnvR[(size_t) n] = -1; } }
     // recording: keyboard and MIDI notes go to a song track (heard on its voice) and are logged with their beats
     struct RecEv { double beat; int note, vel; };   // vel 0: note off
     std::atomic<bool> recOn { false }; std::atomic<int> recTrack { 0 }; std::atomic<double> recFrom { 0 };
@@ -475,7 +479,8 @@ public:
         if (!bank || note < 0 || note > 127) return;
         constexpr int t = 9;   // the GM drum channel's track
         if (vel <= 0) {   // let go: a looped sound stops; a one-shot drum plays out, as on a drum machine
-            for (int i = KEY_CH; i < NCH; ++i) if (cardPad[i] && cardNote[i] == note && ch[(size_t) i].isGate() && ch[(size_t) i].sound() && ch[(size_t) i].sound()->loopStart >= 0) ch[(size_t) i].noteOff();
+            const bool rel = kitEnvR[(size_t) note].load() >= 0 || kitEnvS[(size_t) note].load() >= 0;   // an envelope set: let go means release
+            for (int i = KEY_CH; i < NCH; ++i) if (cardPad[i] && cardNote[i] == note && ch[(size_t) i].isGate() && ch[(size_t) i].sound() && (rel || ch[(size_t) i].sound()->loopStart >= 0)) ch[(size_t) i].noteOff();
             return;
         }
         const Sound* snd = kitSoundFor(note); if (!snd) return;
@@ -527,6 +532,13 @@ private:
         const double lift = kit ? drumLift.load() * (note >= 0 && note < 128 ? kitLevel[(size_t) note].load() : 1.f) : 1.0;
         c.level = (float) std::min(1.0, c.level * (pad && !curSong ? 1.0 : songVol[t]) * songGain.load() * lift);
         if (kit) c.velVol = std::min(c.velVol, 0.35f);   // ghost notes stay audible
+        if (kit && note >= 0 && note < 128) {   // the kit's ADSR over the voice's own
+            const float a = kitEnvA[(size_t) note].load(), d = kitEnvD[(size_t) note].load(), su = kitEnvS[(size_t) note].load(), r = kitEnvR[(size_t) note].load();
+            if (a >= 0) c.attack = a;
+            if (d >= 0) c.decay = d;
+            if (su >= 0) { c.sustainLevel = su; c.sustain = 1; }
+            if (r >= 0) c.damp = r;
+        }
         return c;
     }
     // the kit's sound for a drum note (muted and solo'd as the kit says), nullptr: none

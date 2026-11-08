@@ -521,6 +521,7 @@ inline KitPiece mergePiece(const KitPiece& pad, const KitPiece& song) {
     KitPiece m = pad;
     if (!song.voice.empty()) { m.voice = song.voice; m.tune = song.tune; } else m.tune += song.tune;
     m.level *= song.level; if (song.pan >= 0) m.pan = song.pan; m.mute |= song.mute; m.solo |= song.solo;
+    if (song.a >= 0) m.a = song.a; if (song.d >= 0) m.d = song.d; if (song.s >= 0) m.s = song.s; if (song.r >= 0) m.r = song.r;
     return m;
 }
 // the kits into the engine: the pads' kit with the song's changes on top
@@ -530,6 +531,9 @@ inline void pushKit(Engine& eng) {
         eng.kitSound[(size_t) n] = p.voice.empty() || !eng.bank ? -1 : findVoiceAt(*eng.bank, p.voice);
         eng.kitLevel[(size_t) n] = p.level; eng.kitPan[(size_t) n] = p.pan; eng.kitTune[(size_t) n] = p.tune;
         eng.kitMute[(size_t) n] = p.mute; eng.kitSolo[(size_t) n] = p.solo;
+        const float* ke = eng.padKit.env;   // a pad's own envelope, else the kit's
+        eng.kitEnvA[(size_t) n] = p.a >= 0 ? p.a : ke[0]; eng.kitEnvD[(size_t) n] = p.d >= 0 ? p.d : ke[1];
+        eng.kitEnvS[(size_t) n] = p.s >= 0 ? p.s : ke[2]; eng.kitEnvR[(size_t) n] = p.r >= 0 ? p.r : ke[3];
     }
 }
 inline void applyKit(Engine& eng, const DrumKit& songKit) { eng.songKit = songKit; pushKit(eng); }

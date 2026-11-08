@@ -413,6 +413,12 @@ inline bool padsReady(DrumKit& pads, Kit& kit, const Catalog& cat, bool defaultK
     return set;
 }
 
+// CLEAR ALL's engine part: the mixer, the effects, the kit's lift and feel, the click, back to how they start
+inline void resetEngineSettings(Engine& eng) {
+    for (int i = 0; i < Engine::STRIPS; ++i) { eng.fader[(size_t) i] = 1; eng.panOver[(size_t) i] = -1; eng.mute[(size_t) i] = false; eng.solo[(size_t) i] = false; eng.fxSend[(size_t) i] = 0.15f; }
+    eng.fxOn = true; eng.fx.preset(0); eng.kickLift = 2.0f; eng.humanize = 0.f; eng.ch10Kit = true; eng.clickOn = false; eng.songLoop = false;
+}
+
 // a kit as a short text for the screen: "KICK1 SNARE1 HIHAT2 ..."
 inline std::string kitSummary(const DrumKit& k) {
     std::string s;

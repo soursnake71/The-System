@@ -11,6 +11,7 @@
 #include "core/Record.h"
 #include "core/Pen.h"
 #include "core/Pads.h"
+#include "core/SampleEdit.h"
 
 namespace cmi {
 
@@ -180,7 +181,12 @@ public:
     juce::String padImport(const juce::Array<juce::File>& filesOrFolders, bool replaceKit);
     void padsClear() { setPads(DrumKit(), "CMI DRUM MAP", false); padPreset = -1; }
     int unloadUnusedLibrary();                                   // library voices nothing uses; how many went
-    juce::String recordPads();                                   // REC on the pads: the drum track of the song (stop: keep it)
+    juce::String recordPads();
+    PadEditor padEd;                                             // the sample editor (Page W), a pad's sound
+    bool editPad(int note) { if (padEd.open) padEd.close(); return padEd.begin(kit, engine, note); }
+    void editCommit() { padEd.commit(kit, engine); }
+    void setPadEnv(int note, int i, float v);                    // note -1: the whole kit; v -1: not set
+    void resetAll(bool factory);                                 // CLEAR ALL (folders, library, songs, samples stay) / FACTORY RESET                                   // REC on the pads: the drum track of the song (stop: keep it)
     // your samples folder (remembered for every project): its sounds load as your voices
     juce::File samplesFolder() const { return samplesDir; }
     void setSamplesFolder(const juce::File& f);

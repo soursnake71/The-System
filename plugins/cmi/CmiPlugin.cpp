@@ -317,6 +317,33 @@ juce::String CmiProcessor::recordPads() {
     return startRecording(t);
 }
 
+void CmiProcessor::setPadEnv(int note, int i, float v) {
+    if (i < 0 || i > 3) return;
+    DrumKit k = engine.padKit;
+    if (v >= 0) v = i == 2 ? juce::jlimit(0.f, 1.f, v) : juce::jlimit(0.f, 31.f, v);
+    if (note < 0) k.env[i] = v; else { KitPiece& p = k.p[(size_t) juce::jlimit(0, 127, note)]; (i == 0 ? p.a : i == 1 ? p.d : i == 2 ? p.s : p.r) = v; }
+    applyPads(engine, k);
+}
+void CmiProcessor::resetAll(bool factory) {
+    for (const auto& d : paramDefs()) if (std::strcmp(d.id, "sound") != 0) set(d.id, d.def);
+    resetEngineSettings(engine);
+    Library::factorySeq(engine.seq, kit.bank);
+    presetChoice.clear();
+    if (factory) {
+        engine.songRun = false; chooseSong(-1);
+        for (int i = 0; i < songs.size(); ++i) songs.remove(i);
+        for (int k = 0; k < Library::USER_SLOTS; ++k) kit.clearUser(k);
+        { const juce::ScopedLock l(catLock); catalog = Catalog(); }
+        { const juce::ScopedLock l(infoLock); libFolder = juce::File(); libFiles.clear(); songDir = juce::File(); songList.clear(); }
+        samplesDir = juce::File();
+        if (settings) { settings->getFile().getSiblingFile("catalog.bin").deleteFile(); settings->clear(); settings->saveIfNeeded(); }
+        pen = PenDrawing(); penSlot = -1;
+    }
+    DrumKit k; { const juce::ScopedLock l(catLock); if (padsReady(k, kit, catalog)) { padKitName = kitPresets()[0].name; padPreset = 0; } else { padKitName = "CMI DRUM MAP"; padPreset = -1; } }
+    applyPads(engine, k);
+    rebuildPresets(); connectDefaults();
+}
+
 // ---- the drum pads ----
 void CmiProcessor::setPads(DrumKit k, const juce::String& name, bool fit) {
     { const juce::ScopedLock l(catLock); if (fit) fitKitToLibrary(k, catalog); padsReady(k, kit, catalog, false); }

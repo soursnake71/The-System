@@ -61,6 +61,18 @@ public class MainActivity extends Activity {
         { android.content.SharedPreferences sp = getSharedPreferences("cmi", MODE_PRIVATE); if (!sp.getBoolean("setupDone", false) && sp.getString("library", "").isEmpty()) ui.postDelayed(() -> setupNext(1), 400); }
     }
 
+    // FACTORY RESET: every setting, file and folder choice gone, the app started again as when first installed
+    private boolean resetting = false;
+    void factoryReset() {
+        resetting = true;
+        getSharedPreferences("cmi", MODE_PRIVATE).edit().clear().commit();
+        for (File f : new File[] { stateFile(), catalogFile(), libListFile() }) f.delete();
+        for (android.content.UriPermission up : getContentResolver().getPersistedUriPermissions()) { try { getContentResolver().releasePersistableUriPermission(up.getUri(), Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {} }
+        Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); }
+        finishAffinity(); Runtime.getRuntime().exit(0);
+    }
+
     // ---- the first time: your folders, one after the other (remembered; Page F changes them) ----
     private int setupStep = 0;
     private void setupNext(int step) {
@@ -121,6 +133,7 @@ public class MainActivity extends Activity {
     // ---- state ----
     private File stateFile() { return new File(getFilesDir(), "cmi-state.bin"); }
     void saveState() {
+        if (resetting) return;
         try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).putString("fx", Native.fxState()).putString("pen", Native.penState()).putBoolean("click", Native.clickOn()).putFloat("kickLift", Native.kickLift()).putFloat("humanize", Native.humanize()).apply(); } catch (Exception ignored) {}
         try (FileOutputStream o = new FileOutputStream(stateFile())) { o.write(Native.saveState()); } catch (Exception ignored) {}
     }

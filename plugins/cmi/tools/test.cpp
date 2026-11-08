@@ -9,6 +9,7 @@
 #include "../core/Record.h"
 #include "../core/Pen.h"
 #include "../core/Pads.h"
+#include "../core/SampleEdit.h"
 #include <cstdio>
 #include <chrono>
 
@@ -304,6 +305,34 @@ int main(int argc, char** argv) {
                 en.allOff(true); en.render(c.data(), d.data(), fs / 4);
             }
             CHECK(set && quiet == 0 && !np.p[36].voice.empty(), "new pads: preset 1, every pad sounds after a quick tap (%d silent)", quiet);
+        }
+        {   // ADSR on the kit: a held, looped drum decays to its sustain level; the text keeps it
+            Kit ka; Sound lp; lp.name = "LOOPY"; lp.category = "User"; lp.mode = Mode::Sample; lp.rate = 30200; lp.root = 60; lp.ram.resize(100 * PAGE);
+            for (size_t i = 0; i < lp.ram.size(); ++i) lp.ram[i] = (uint8_t) (128 + (int) std::lround(100 * std::sin(i * 0.2)));
+            lp.loopStart = 50; lp.loopEnd = 99; lp.ctl.attack = 0; lp.ctl.sustain = 1; lp.ctl.loop = 1; ka.setUser(0, lp);
+            auto tail = [&](const DrumKit& dk) {
+                Engine ea; ea.bank = &ka.bank; ea.prepare(fs); ea.setOutput(1, 0, 0); ea.fxOn = false; ea.extSync = false; applyPads(ea, dk);
+                ea.padPush(38, 120); std::vector<float> x(fs), y(fs); ea.render(x.data(), y.data(), fs);
+                double e0 = 0, e1 = 0; for (int i = fs / 20; i < fs / 10; ++i) e0 += x[(size_t) i] * x[(size_t) i]; for (int i = fs * 8 / 10; i < fs; ++i) e1 += x[(size_t) i] * x[(size_t) i];
+                (void) e0; return std::sqrt(e1 / (fs / 5.0));
+            };
+            DrumKit k1; k1.p[38].voice = "LOOPY@User"; const double flat = tail(k1);
+            DrumKit k2 = k1; k2.env[1] = 4; k2.env[2] = 0.25f; const double kitEnv = tail(k2);
+            DrumKit k3 = k2; k3.p[38].s = 1.f; const double padOwn = tail(k3);
+            DrumKit k4; k4.load(k2.save());
+            CHECK(flat > 0.01 && kitEnv < flat * 0.5 && padOwn > flat * 0.9 && k4.env[1] == 4 && std::fabs(k4.env[2] - 0.25f) < 1e-6, "ADSR: held level %.2f, kit sustain 25%% %.2f, the pad's own 100%% %.2f", flat, kitEnv, padOwn);
+        }
+        {   // the sample editor: trim, reverse, fades, a loop on the selection; whole pages; undo; on the pad while editing
+            Kit ke; DrumKit pk2; padsReady(pk2, ke, cat); Engine ee; ee.bank = &ke.bank; ee.kitVoice = kitLookup(ke.bank); applyPads(ee, pk2);
+            PadEditor pe; const bool opened = pe.begin(ke, ee, 38);
+            const int before = pe.ed.len(); pe.ed.select(PAGE * 2, PAGE * 10 + 5); pe.ed.trim(); const int afterTrim = pe.ed.len();
+            pe.ed.selectAll(); pe.ed.fadeOut(); const int lastAbs = std::abs(pe.ed.at(pe.ed.len() - 1)); pe.ed.reverse(); pe.ed.select(PAGE * 2, PAGE * 4); pe.ed.loopSelection();
+            pe.commit(ke, ee);
+            const Sound* onPad = ke.bank.at(ee.kitSound[38].load());
+            const bool undone = pe.ed.undoLast() && pe.ed.s.loopStart < 0;
+            pe.revert(ke, ee);
+            CHECK(opened && before > afterTrim && afterTrim == 9 * PAGE && lastAbs <= 1 && onPad && onPad->category == "User" && onPad->loopStart == 2 && onPad->loopEnd == 3 && undone &&
+                  ee.padKit.p[38].voice == pk2.p[38].voice, "sample editor: %d -> %d bytes, loop on the pad %d-%d, reverted", before, afterTrim, onPad ? onPad->loopStart : -9, onPad ? onPad->loopEnd : -9);
         }
         // the pads play the kit with no song; MIDI channel 10 too; a song's kit goes on top
         Kit kk; DrumKit pk = randomKit(cat, 3); loadKitVoices(pk, kk, cat);

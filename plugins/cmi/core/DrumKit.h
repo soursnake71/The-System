@@ -14,33 +14,40 @@ struct KitPiece {
     std::string voice;   // "NAME@CATEGORY" (a loaded voice), empty: automatic
     float level = 1, pan = -1, tune = 0;   // level 0..2, pan 0..1 (-1: the track's), tune in semitones
     bool mute = false, solo = false;
-    bool plain() const { return voice.empty() && level == 1 && pan < 0 && tune == 0 && !mute && !solo; }
+    float a = -1, d = -1, s = -1, r = -1;   // its envelope: attack, decay (0..31), sustain level (0..1), release (0..31); -1: the kit's
+    bool plain() const { return voice.empty() && level == 1 && pan < 0 && tune == 0 && !mute && !solo && a < 0 && d < 0 && s < 0 && r < 0; }
 };
 
 struct DrumKit {
     std::array<KitPiece, 128> p {};
-    bool empty() const { for (const auto& k : p) if (!k.plain()) return false; return true; }
+    float env[4] = { -1, -1, -1, -1 };   // the whole kit's envelope (attack, decay, sustain, release; -1: each voice's own)
+    bool empty() const { for (float e : env) if (e >= 0) return false; for (const auto& k : p) if (!k.plain()) return false; return true; }
     // "note:VOICE,level,pan,tune,mute,solo|..." (only the pieces changed)
     std::string save() const {
         std::ostringstream o; o.precision(4); bool first = true;
+        if (env[0] >= 0 || env[1] >= 0 || env[2] >= 0 || env[3] >= 0) { o << "env:" << env[0] << "," << env[1] << "," << env[2] << "," << env[3]; first = false; }
         for (int n = 0; n < 128; ++n) {
             const auto& k = p[(size_t) n]; if (k.plain()) continue;
             if (!first) o << "|"; first = false;
             o << n << ":" << k.voice << "," << k.level << "," << k.pan << "," << k.tune << "," << (k.mute ? 1 : 0) << "," << (k.solo ? 1 : 0);
+            if (k.a >= 0 || k.d >= 0 || k.s >= 0 || k.r >= 0) o << "," << k.a << "," << k.d << "," << k.s << "," << k.r;
         }
         return o.str();
     }
     void load(const std::string& s) {
-        p = {};
+        p = {}; for (float& e : env) e = -1;
         std::istringstream in(s); std::string tok;
         while (std::getline(in, tok, '|')) {
+            if (tok.rfind("env:", 0) == 0) { std::istringstream f(tok.substr(4)); std::string v; int i = 0; while (std::getline(f, v, ',') && i < 4) env[i++] = (float) std::atof(v.c_str()); continue; }
             const size_t c = tok.find(':'); if (c == std::string::npos) continue;
             const int n = std::atoi(tok.substr(0, c).c_str()); if (n < 0 || n > 127) continue;
             std::istringstream f(tok.substr(c + 1)); std::string v; KitPiece k; int i = 0;
             while (std::getline(f, v, ',')) {
                 switch (i++) {
                     case 0: k.voice = v; break; case 1: k.level = (float) std::atof(v.c_str()); break; case 2: k.pan = (float) std::atof(v.c_str()); break;
-                    case 3: k.tune = (float) std::atof(v.c_str()); break; case 4: k.mute = v == "1"; break; case 5: k.solo = v == "1"; break; default: break;
+                    case 3: k.tune = (float) std::atof(v.c_str()); break; case 4: k.mute = v == "1"; break; case 5: k.solo = v == "1"; break;
+                    case 6: k.a = (float) std::atof(v.c_str()); break; case 7: k.d = (float) std::atof(v.c_str()); break;
+                    case 8: k.s = (float) std::atof(v.c_str()); break; case 9: k.r = (float) std::atof(v.c_str()); break; default: break;
                 }
             }
             p[(size_t) n] = k;

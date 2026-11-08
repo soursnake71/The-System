@@ -15,6 +15,7 @@
 #include "Record.h"
 #include "Pen.h"
 #include "Pads.h"
+#include "SampleEdit.h"
 #include <map>
 #include <sstream>
 
@@ -72,7 +73,7 @@ struct App {
     // the light pen and the recorder (core/Pen.h, core/Record.h)
     PenDrawing pen; int penSlot = -1; bool penLive = true;
     // the drum pads (core/Pads.h): the kit's name, its preset, samples coming in from a folder
-    std::string padKitName = "CMI DRUM MAP"; int padPreset = -1; std::vector<KitSample> padIn;
+    std::string padKitName = "CMI DRUM MAP"; int padPreset = -1; std::vector<KitSample> padIn; PadEditor padEd;
     Recorder recorder;
     void connectDefaults() {
         std::lock_guard<std::mutex> g(catLock);
@@ -871,6 +872,47 @@ FN(jstring, recStart)(JNIEnv* env, jclass, jint track, jdouble from, jboolean co
     if (curSongIdx() < 0) Recorder::newSong(a->songs, a->engine, a->kit.bank, a->param[20].load());
     a->recorder.countIn = countIn; a->recorder.rs.quant = quant; a->recorder.rs.replace = replace;
     return env->NewStringUTF(a->recorder.start(a->engine, curEntry(), track, from).c_str());
+}
+// the kit's envelope (note -1) or a pad's: attack, decay, sustain level, release (-1: not set)
+FN(jfloatArray, padEnv)(JNIEnv* env, jclass, jint n) {
+    const DrumKit& k = app()->engine.padKit; float v[4];
+    if (n < 0) for (int i = 0; i < 4; ++i) v[i] = k.env[i];
+    else { const KitPiece& p = k.p[(size_t) std::clamp(n, 0, 127)]; v[0] = p.a; v[1] = p.d; v[2] = p.s; v[3] = p.r; }
+    jfloatArray r = env->NewFloatArray(4); env->SetFloatArrayRegion(r, 0, 4, v); return r;
+}
+FN(void, setPadEnv)(JNIEnv*, jclass, jint n, jint i, jfloat v) {
+    DrumKit k = app()->engine.padKit; if (i < 0 || i > 3) return;
+    if (v >= 0) v = i == 2 ? std::clamp(v, 0.f, 1.f) : std::clamp(v, 0.f, 31.f);
+    if (n < 0) k.env[i] = v; else { KitPiece& p = k.p[(size_t) std::clamp(n, 0, 127)]; (i == 0 ? p.a : i == 1 ? p.d : i == 2 ? p.s : p.r) = v; }
+    applyPads(app()->engine, k);
+}
+// the sample editor (core/SampleEdit.h): a pad's sound, edited on the pad
+FN(jboolean, editBegin)(JNIEnv*, jclass, jint n) { auto* a = app(); if (a->padEd.open) a->padEd.close(); return a->padEd.begin(a->kit, a->engine, n); }
+FN(jbyteArray, editWave)(JNIEnv* env, jclass) { const auto v = app()->padEd.ed.view(); jbyteArray r = env->NewByteArray((jsize) v.size()); env->SetByteArrayRegion(r, 0, (jsize) v.size(), (const jbyte*) v.data()); return r; }
+FN(jintArray, editSel)(JNIEnv* env, jclass) { const auto& e = app()->padEd.ed; jint v[5] = { e.a, e.b, e.s.loopStart, e.s.loopEnd, e.len() }; jintArray r = env->NewIntArray(5); env->SetIntArrayRegion(r, 0, 5, v); return r; }
+FN(void, editSelect)(JNIEnv*, jclass, jint x, jint y) { app()->padEd.ed.select(x, y); }
+// 0 all, 1 trim, 2 cut, 3 silence, 4 normalise, 5 reverse, 6 fade in, 7 fade out, 8 gain (dB), 9 loop the selection, 10 no loop, 11 undo
+FN(void, editOp)(JNIEnv*, jclass, jint op, jfloat v) {
+    auto* a = app(); auto& e = a->padEd.ed; if (!a->padEd.open) return;
+    switch (op) { case 0: e.selectAll(); return; case 1: e.trim(); break; case 2: e.cut(); break; case 3: e.silence(); break; case 4: e.normalise(); break; case 5: e.reverse(); break;
+                  case 6: e.fadeIn(); break; case 7: e.fadeOut(); break; case 8: e.gain(v); break; case 9: e.loopSelection(); break; case 10: e.noLoop(); break; case 11: e.undoLast(); break; default: return; }
+    a->padEd.commit(a->kit, a->engine);
+}
+FN(jstring, editInfo)(JNIEnv* env, jclass) {
+    const auto& pe = app()->padEd; const Sound& s = pe.ed.s;
+    std::ostringstream o; o << s.name << "\t" << gmDrumName(pe.note) << "\t" << (int) s.rate << "\t" << s.ram.size() << "\t" << pe.note << "\t" << (pe.open ? 1 : 0) << "\t" << s.title;
+    return env->NewStringUTF(o.str().c_str());
+}
+FN(void, editClose)(JNIEnv*, jclass) { app()->padEd.close(); }
+FN(void, editRevert)(JNIEnv*, jclass) { auto* a = app(); a->padEd.revert(a->kit, a->engine); }
+// CLEAR ALL: every setting back to how it starts (your folders, songs and samples stay)
+FN(void, resetSettings)(JNIEnv*, jclass) {
+    auto* a = app();
+    for (int i = 0; i < NPARAM; ++i) a->param[i] = kDefaults[i];
+    resetEngineSettings(a->engine);
+    { std::lock_guard<std::mutex> g(a->catLock); DrumKit k; if (padsReady(k, a->kit, a->catalog)) { a->padKitName = kitPresets()[0].name; a->padPreset = 0; } else { a->padKitName = "CMI DRUM MAP"; a->padPreset = -1; } applyPads(a->engine, k); }
+    Library::factorySeq(a->engine.seq, a->kit.bank);
+    a->connectDefaults();
 }
 // REC on the pads: onto the song's drum track (a new song if none; track 10 made the kit if it has none), click on
 FN(jstring, recordPads)(JNIEnv* env, jclass) {

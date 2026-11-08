@@ -143,6 +143,17 @@ final class Native {
     static native boolean catalogSave(String path);
     static native boolean catalogLoad(String path);
     static native String recordPads();
+    static native float[] padEnv(int note);
+    static native void setPadEnv(int note, int i, float v);
+    static native boolean editBegin(int note);
+    static native byte[] editWave();
+    static native int[] editSel();
+    static native void editSelect(int a, int b);
+    static native void editOp(int op, float v);
+    static native String editInfo();
+    static native void editClose();
+    static native void editRevert();
+    static native void resetSettings();
     static native float kickLift();
     static native void setKickLift(float v);
     static native float humanize();

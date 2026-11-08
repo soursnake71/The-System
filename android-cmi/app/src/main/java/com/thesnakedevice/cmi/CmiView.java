@@ -120,6 +120,7 @@ public class CmiView extends View {
             case 'E': effects(c, body); break;
             case 'K': kitPage(c, body); break;
             case 'P': pads(c, body); break;
+            case 'W': editor(c, body); break;
             default: composer(c, body); break;
         }
         // scanlines
@@ -355,7 +356,9 @@ public class CmiView extends View {
     // ---- the DRUM KIT: each drum of the song's kit, its sound, tuning, level, pan, mute, solo, meter ----
     // ---- the DRUM PADS: the kit every song's drums, MIDI channel 10 and these pads play, in General MIDI order (so a
     // MIDI file's kick, snare and hats land right); 100 preset kits, the dice, your own samples ----
-    private int padBank = 0, padSel = 1;
+    private int padBank = 0, padSel = 1; private boolean adsrKit = false, padEditPick = false;
+    private static String envMs(float v) { final double u = Math.max(0, Math.min(31, v)) / 31.0, s = Math.max(0.0004, 12.0 * u * u * u); return s < 1 ? Math.round(s * 1000) + "ms" : String.format(java.util.Locale.US, "%.1fs", s); }
+    private void openEditor(int note) { if (Native.editBegin(note)) { edBack = 'P'; page = 'W'; status("EDITING " + Native.editInfo().split("\t", -1)[0]); } else status("NO SOUND ON THIS PAD TO EDIT (OR NO VOICE FREE)"); }
     private void padSoundDialog(final int note, String gm) {
         final List<String> labels = new ArrayList<>(); final List<int[]> ids = new ArrayList<>();   // {kind, index}: 0 auto, 1 catalogue, 2 loaded voice
         labels.add("Automatic (the CMI drum map)"); ids.add(new int[] { 0, 0 });
@@ -400,12 +403,13 @@ public class CmiView extends View {
         final String[] bankNames = { "A KIT", "B MORE", "C PERC" };
         for (int k = 0; k < 3; ++k) { final int bk = k; button(c, new RectF(b.left + k * (bw + dp(4)), y, b.left + k * (bw + dp(4)) + bw, y + dp(24)), bankNames[k], padBank == k, () -> padBank = bk); }
         final boolean c10 = Native.ch10Kit();
-        button(c, new RectF(b.left + 3 * (bw + dp(4)), y, b.right, y + dp(24)), c10 ? "CH10: KIT" : "CH10: KEYS", c10, () -> { Native.setCh10Kit(!c10); act.saveState(); });
+        button(c, new RectF(b.left + 3 * (bw + dp(4)), y, b.left + 4 * (bw + dp(4)) - dp(4), y + dp(24)), c10 ? "CH10 KIT" : "CH10 KEY", c10, () -> { Native.setCh10Kit(!c10); act.saveState(); });
+        button(c, new RectF(b.left + 4 * (bw + dp(4)), y, b.right, y + dp(24)), padEditPick ? "TAP A PAD" : "EDIT", padEditPick, () -> { padEditPick = !padEditPick; status(padEditPick ? "TAP THE PAD WHOSE SOUND YOU WANT TO EDIT" : "READY"); });
         y += dp(30);
         // the pad chosen: its sound, tuning, level, pan, mute, solo
         final int sel = Native.padNote(padBank, padSel);
         final String[] f = Native.padInfo(sel).split("\t", -1);
-        final float detailH = portrait ? dp(166) : dp(64);
+        final float detailH = portrait ? dp(192) : dp(64);
         final float gridBottom = b.bottom - detailH - dp(6);
         // the pads, 4 x 4, pad 1 bottom left
         final float gw = portrait ? b.width() : Math.min(b.width() * 0.6f, (gridBottom - y) * 1.3f);
@@ -427,7 +431,7 @@ public class CmiView extends View {
             }
             final int ii = i;
             final boolean silent = pf.length >= 9 && pf[0].isEmpty() && pf[6].equals("--");
-            Hit h = hit(r, (xx, yy) -> { padSel = ii; if (silent) status(Native.catalogCount() == 0 ? "NO SOUNDS YET: SET YOUR CMI LIBRARY FOLDER (FIL)" : "NO SOUND ON THIS PAD: TAP SOUND TO CHOOSE ONE"); Native.hitPad(note, Math.max(30, Math.min(127, Math.round(127 - (yy - r.top) / r.height() * 80)))); });
+            Hit h = hit(r, (xx, yy) -> { padSel = ii; if (padEditPick) { padEditPick = false; Native.tapPad(note); openEditor(note); return; } if (silent) status(Native.catalogCount() == 0 ? "NO SOUNDS YET: SET YOUR CMI LIBRARY FOLDER (FIL)" : "NO SOUND ON THIS PAD: TAP SOUND TO CHOOSE ONE"); Native.hitPad(note, Math.max(30, Math.min(127, Math.round(127 - (yy - r.top) / r.height() * 80)))); });
             h.up = (xx, yy) -> Native.hitPad(note, 0);
         }
         // detail
@@ -437,7 +441,8 @@ public class CmiView extends View {
         float dx = portrait ? b.left : b.left + gw + dp(12), dy = portrait ? gridBottom + dp(6) : y;
         final float dw = portrait ? b.width() : b.right - dx;
         text(c, "PAD " + (padBank * 16 + padSel + 1) + "  " + f[7] + "  NOTE " + sel, dx, dy + dp(12), 11, INK);
-        final RectF vb = new RectF(dx, dy + dp(18), dx + dw, dy + dp(42));
+        final RectF vb = new RectF(dx, dy + dp(18), dx + dw * 0.72f, dy + dp(42));
+        button(c, new RectF(dx + dw * 0.72f + dp(6), dy + dp(18), dx + dw, dy + dp(42)), "EDIT", false, () -> openEditor(sel));
         frame(c, vb, INK); textC(c, "SOUND: " + (f[0].isEmpty() ? "AUTO (" + f[6] + ")" : f[0].replace("@", "  ")), vb, 10, INK);
         final String gm = f[7]; hit(vb, (xx, yy) -> padSoundDialog(sel, gm));
         final float ry = dy + dp(48), cw = (dw - dp(30)) / 6;
@@ -456,8 +461,25 @@ public class CmiView extends View {
         Hit lh = hit(lb, la); lh.drag = la; lh.up = (xx, yy) -> act.saveState();
         Act pa = (xx, yy) -> Native.setPadPiece(sel, level, Math.max(0, Math.min(1, (xx - pb.left) / pb.width())), tune, mute, solo);
         Hit phh = hit(pb, pa); phh.drag = pa; phh.longPress = true; phh.hold = (xx, yy) -> Native.setPadPiece(sel, level, -1, tune, mute, solo);
+        {   // ADSR: this pad's, or the whole kit's (drag; hold: back to the voice's own)
+            final float ay = by + dp(26), sw0 = dp(44), aw = (dw - sw0 - dp(6) - 3 * dp(4)) / 4;
+            final int target = adsrKit ? -1 : sel;
+            final float[] ev = Native.padEnv(target);
+            button(c, new RectF(dx, ay, dx + sw0, ay + dp(20)), adsrKit ? "KIT" : "PAD", adsrKit, () -> adsrKit = !adsrKit);
+            final String[] nm = { "A", "D", "S", "R" };
+            for (int i = 0; i < 4; ++i) {
+                final int ii = i; final float bx0 = dx + sw0 + dp(6) + i * (aw + dp(4));
+                final RectF ab = new RectF(bx0, ay, bx0 + aw, ay + dp(20));
+                final float v = ev[i], frac = v < 0 ? 0 : i == 2 ? v : v / 31f;
+                fill(c, ab, FAINT); if (v >= 0) fill(c, new RectF(ab.left, ab.top, ab.left + ab.width() * frac, ab.bottom), INK);
+                final String t = v < 0 ? nm[i] + " --" : i == 2 ? nm[i] + " " + Math.round(v * 100) + "%" : nm[i] + " " + envMs(v);
+                textC(c, t, ab, 9, v >= 0 && frac > 0.5f ? BG : INK);
+                Act aa = (xx, yy) -> { final float u = Math.max(0, Math.min(1, (xx - ab.left) / ab.width())); Native.setPadEnv(target, ii, ii == 2 ? u : u * 31); };
+                Hit ah = hit(ab, aa); ah.drag = aa; ah.longPress = true; ah.hold = (xx, yy) -> { Native.setPadEnv(target, ii, -1); act.saveState(); }; ah.up = (xx, yy) -> { act.saveState(); Native.tapPad(sel); };
+            }
+        }
         {   // kick lift, humanize, REC DRUMS (the pads into the song's drum track)
-            final float ky = by + dp(26), kw = (dw - dp(12)) / 6;
+            final float ky = by + dp(52), kw = (dw - dp(12)) / 6;
             final float kl = Native.kickLift(), hu = Native.humanize();
             button(c, new RectF(dx, ky, dx + kw, ky + dp(22)), "KICK-", false, () -> { Native.setKickLift(kl / 1.4125f); act.saveState(); });
             textC(c, "+" + Math.round(20 * Math.log10(Math.max(kl, 0.01f))) + "dB", new RectF(dx + kw, ky, dx + 2 * kw, ky + dp(22)), 9, INK);
@@ -469,8 +491,8 @@ public class CmiView extends View {
             button(c, new RectF(dx, ky + dp(26), dx + dw * 0.5f, ky + dp(50)), rec ? "STOP: KEEP IT" : "REC DRUMS", rec, () -> { status(Native.recordPads()); act.saveState(); });
             button(c, new RectF(dx + dw * 0.5f + dp(6), ky + dp(26), dx + dw, ky + dp(50)), "GRID", false, () -> { page = 'S'; grid = true; });
         }
-        if (!portrait && by + dp(110) < b.bottom) {
-            final float hy = by + dp(86);
+        if (!portrait && by + dp(136) < b.bottom) {
+            final float hy = by + dp(112);
             button(c, new RectF(dx, hy, dx + half, hy + dp(24)), "SONG'S OWN KIT", false, () -> { kitBack = 'P'; page = 'K'; });
             final boolean run = Native.songRunning();
             button(c, new RectF(dx + half + dp(8), hy, dx + dw, hy + dp(24)), "PLAY SONG", run, () -> Native.songPlay(!run));
@@ -587,6 +609,80 @@ public class CmiView extends View {
         Act a = (xx, yy) -> set.set(Math.max(0, Math.min(max, (slot.bottom - yy) / fh * max)));
         Hit h = hit(new RectF(x, top + dp(12), x + sw, slot.bottom + dp(6)), a); h.drag = a; h.longPress = true; h.hold = (xx, yy) -> set.set(1);   // hold: 0 dB
     }
+    // ---- the mixer, as an SSL console: a grey strip per channel, the send (red) and pan (blue) knobs, mute and solo
+    // that light red and yellow, a long-throw fader with its scale, a meter bridge LED per strip, the scribble strip ----
+    static final int SSL_PANEL = 0xff2b2e2d, SSL_EDGE = 0xff3d4140, SSL_GROOVE = 0xff0d0f0e, SSL_CAP = 0xffc4c7c3, SSL_RED = 0xffd2382c, SSL_BLUE = 0xff2f6fb8,
+            SSL_YELLOW = 0xffe7c23a, SSL_SCRIBBLE = 0xffe9e4cf, SSL_TEXT = 0xffdcdcd6;
+    private void sslKnob(Canvas c, float cx, float cy, float r, float v, int cap, String label) {
+        p.setStyle(Paint.Style.FILL); p.setColor(0xff141615); c.drawCircle(cx, cy, r + dp(2), p);
+        p.setColor(cap); c.drawCircle(cx, cy, r, p);
+        p.setColor(0x33ffffff); c.drawCircle(cx - r * 0.25f, cy - r * 0.25f, r * 0.55f, p);
+        final double ang = Math.toRadians(-135 + 270 * Math.max(0, Math.min(1, v)));
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2)); p.setColor(Color.WHITE);
+        c.drawLine(cx, cy, cx + (float) Math.sin(ang) * r * 0.9f, cy - (float) Math.cos(ang) * r * 0.9f, p);
+        p.setStyle(Paint.Style.FILL);
+        textC(c, label, new RectF(cx - r * 2, cy + r + dp(2), cx + r * 2, cy + r + dp(11)), 7, SSL_TEXT);
+    }
+    private void sslMeter(Canvas c, RectF r, float level) {
+        final int segs = 16; final float db = level > 1e-6f ? (float) (20 * Math.log10(level)) : -100f, sh = r.height() / segs;
+        fill(c, r, 0xff070808);
+        for (int k = 0; k < segs; ++k) {
+            final float th = -42f + 45f * k / (segs - 1); final boolean lit = db >= th;
+            final int col = k >= segs - 2 ? 0xffff3b30 : k >= segs - 5 ? 0xffffc93a : 0xff3dff7a;
+            fill(c, new RectF(r.left + dp(1), r.bottom - (k + 1) * sh + dp(1), r.right - dp(1), r.bottom - k * sh), lit ? col : (col & 0x00ffffff) | 0x22000000);
+        }
+    }
+    private void sslStrip(Canvas c, float x, float sw, float top, float hgt, String num, String name, final int idx, boolean master) {
+        final RectF panel = new RectF(x + dp(1), top, x + sw - dp(1), top + hgt);
+        fill(c, panel, SSL_PANEL); fill(c, new RectF(panel.left, panel.top, panel.left + dp(1), panel.bottom), SSL_EDGE);
+        textC(c, num, new RectF(panel.left, top + dp(2), panel.right, top + dp(14)), 9, master ? SSL_RED : SSL_TEXT);
+        final float kr = Math.min(sw * 0.26f, dp(13));
+        float y = top + dp(18);
+        if (!master) {
+            final float send = Native.mixGet(idx, 5), pan = Native.mixGet(idx, 1);
+            sslKnob(c, x + sw / 2, y + kr, kr, send, SSL_RED, "SEND");
+            Act sa = (xx, yy) -> Native.mixSet(idx, 5, Math.max(0, Math.min(1, (xx - panel.left) / panel.width())));
+            Hit sh = hit(new RectF(panel.left, y, panel.right, y + 2 * kr + dp(10)), sa); sh.drag = sa; sh.longPress = true; sh.hold = (xx, yy) -> Native.mixSet(idx, 5, 0.15f);
+            y += 2 * kr + dp(14);
+            sslKnob(c, x + sw / 2, y + kr, kr, pan < 0 ? 0.5f : pan, SSL_BLUE, pan < 0 ? "PAN" : "PAN " + Math.round(pan * 100 - 50));
+            Act pa = (xx, yy) -> Native.mixSet(idx, 1, Math.max(0, Math.min(1, (xx - panel.left) / panel.width())));
+            Hit ph = hit(new RectF(panel.left, y, panel.right, y + 2 * kr + dp(10)), pa); ph.drag = pa; ph.longPress = true; ph.hold = (xx, yy) -> Native.mixSet(idx, 1, -1);
+            y += 2 * kr + dp(14);
+            final boolean mu = Native.mixGet(idx, 2) > 0.5f, so = Native.mixGet(idx, 3) > 0.5f;
+            final float bw2 = (panel.width() - dp(6)) / 2;
+            final RectF mb = new RectF(panel.left + dp(2), y, panel.left + dp(2) + bw2, y + dp(16)), sb = new RectF(mb.right + dp(2), y, panel.right - dp(2), y + dp(16));
+            fill(c, mb, mu ? SSL_RED : 0xff1a1c1b); textC(c, "M", mb, 9, mu ? Color.WHITE : SSL_TEXT); hit(mb, (xx, yy) -> Native.mixSet(idx, 2, mu ? 0 : 1));
+            fill(c, sb, so ? SSL_YELLOW : 0xff1a1c1b); textC(c, "S", sb, 9, so ? Color.BLACK : SSL_TEXT); hit(sb, (xx, yy) -> Native.mixSet(idx, 3, so ? 0 : 1));
+            y += dp(22);
+        } else y += dp(4);
+        // the fader: scale, groove, cap; the meter beside it
+        final float scrH = dp(16), fTop = y + dp(6), fBot = top + hgt - scrH - dp(16), fh = Math.max(dp(30), fBot - fTop);
+        final float gx = x + sw * 0.45f;
+        final float max = 1.5f, v = master ? Native.getParam(Native.MASTER) : Native.mixGet(idx, 0);
+        p.setTextSize(dp(6)); p.setColor(SSL_TEXT); p.setTextAlign(Paint.Align.RIGHT);
+        for (float dv : new float[] { 3, 0, -5, -10, -20, -30 }) {
+            final float gv = (float) Math.pow(10, dv / 20); if (gv > max) continue;
+            final float ty = fTop + fh - fh * gv / max;
+            fill(c, new RectF(gx - dp(9), ty, gx - dp(4), ty + dp(1)), SSL_TEXT);
+            if (sw > dp(34)) c.drawText(dv > 0 ? "+" + (int) dv : String.valueOf((int) dv), gx - dp(10), ty + dp(2), p);
+        }
+        p.setTextAlign(Paint.Align.LEFT);
+        fill(c, new RectF(gx - dp(2), fTop, gx + dp(2), fTop + fh), SSL_GROOVE);
+        sslMeter(c, new RectF(x + sw - dp(3) - Math.max(dp(5), sw * 0.14f), fTop, x + sw - dp(3), fTop + fh), master ? Native.masterMeter() : Native.mixGet(idx, 4));
+        final float cy = fTop + fh - fh * v / max, cw = Math.min(dp(11), sw * 0.24f);
+        fill(c, new RectF(gx - cw, cy - dp(9), gx + cw, cy + dp(9)), 0xff121413);
+        fill(c, new RectF(gx - cw + dp(1), cy - dp(8), gx + cw - dp(1), cy + dp(8)), master ? SSL_RED : SSL_CAP);
+        fill(c, new RectF(gx - cw + dp(2), cy - dp(1), gx + cw - dp(2), cy + dp(1)), master ? Color.WHITE : Color.BLACK);
+        textC(c, v <= 0.001f ? "-INF" : String.format(java.util.Locale.US, "%.1f", 20 * Math.log10(v)), new RectF(panel.left, fTop + fh + dp(2), panel.right, fTop + fh + dp(12)), 7, SSL_TEXT);
+        Act fa = (xx, yy) -> { final float nv = Math.max(0, Math.min(max, (fTop + fh - yy) / fh * max)); if (master) Native.setParam(Native.MASTER, nv); else Native.mixSet(idx, 0, nv); };
+        Hit fhit = hit(new RectF(panel.left, fTop - dp(8), panel.right, fTop + fh + dp(8)), fa); fhit.drag = fa; fhit.longPress = true;
+        fhit.hold = (xx, yy) -> { if (master) Native.setParam(Native.MASTER, 1); else Native.mixSet(idx, 0, 1); };
+        // the scribble strip
+        final RectF scr = new RectF(panel.left + dp(2), top + hgt - scrH - dp(2), panel.right - dp(2), top + hgt - dp(2));
+        fill(c, scr, SSL_SCRIBBLE);
+        final int maxCh = Math.max(3, (int) (scr.width() / dp(5)));
+        textC(c, name.length() > maxCh ? name.substring(0, maxCh) : name, scr, 8, Color.BLACK);
+    }
     private void mixer(Canvas c, RectF b) {
         final List<Integer> strips = new ArrayList<>(); final List<String> names = new ArrayList<>();
         mixList(strips, names);
@@ -594,31 +690,19 @@ public class CmiView extends View {
         button(c, new RectF(b.right - dp(90), b.top, b.right, b.top + dp(22)), "FX MIXER", false, () -> { page = 'E'; fxTab = 1; });
         if (Native.currentSong() >= 0) button(c, new RectF(b.right - dp(176), b.top, b.right - dp(96), b.top + dp(22)), "DRUM KIT", false, () -> { kitBack = 'M'; page = 'K'; });
         button(c, new RectF(b.right - dp(246), b.top, b.right - dp(182), b.top + dp(22)), "RESET", false, () -> {
-            for (int idx : strips) { Native.mixSet(idx, 0, 1); Native.mixSet(idx, 1, -1); Native.mixSet(idx, 2, 0); Native.mixSet(idx, 3, 0); }
+            for (int idx : strips) { Native.mixSet(idx, 0, 1); Native.mixSet(idx, 1, -1); Native.mixSet(idx, 2, 0); Native.mixSet(idx, 3, 0); Native.mixSet(idx, 5, 0.15f); }
             Native.setParam(Native.MASTER, 1); act.saveState(); status("MIXER RESET");
         });
-        // the master: its own column on the right, the full height, a meter per side
-        final float mw = Math.max(dp(56), b.width() / 9);
-        final RectF area = new RectF(b.left, b.top, b.right - mw - dp(6), b.bottom);
-        {
-            final float mx = b.right - mw, top = b.top + dp(28), fh = b.bottom - top - dp(36);
-            vfader(c, mx, mw, top, fh, "MASTER", 1.5f, () -> Native.getParam(Native.MASTER), v -> Native.setParam(Native.MASTER, v), Native.masterMeter(), true);
-        }
+        final RectF desk = new RectF(b.left, b.top + dp(26), b.right, b.bottom);
+        fill(c, desk, 0xff1c1e1d);
+        final float mw = Math.max(dp(52), b.width() / 9);
+        sslStrip(c, desk.right - mw, mw, desk.top, desk.height(), "MASTER", "MAIN MIX", -1, true);
+        final float area = desk.width() - mw - dp(4);
         final int count = strips.size(), rowsN = portrait && count > 8 ? 2 : 1, per = Math.max(1, (count + rowsN - 1) / rowsN);
-        final float sw = area.width() / per, rowH = (b.height() - dp(28)) / rowsN, fh = rowH - dp(80);
+        final float sw = area / per, rowH = desk.height() / rowsN;
         for (int k = 0; k < count; ++k) {
             final int idx = strips.get(k), row = k / per, col = k % per;
-            final float x = area.left + col * sw, top = b.top + dp(28) + row * rowH;
-            vfader(c, x, sw, top, fh, names.get(k), 1.5f, () -> Native.mixGet(idx, 0), v -> Native.mixSet(idx, 0, v), Native.mixGet(idx, 4), true);
-            final float py = top + dp(16) + fh + dp(18);
-            final float po = Native.mixGet(idx, 1);
-            fill(c, new RectF(x + dp(3), py, x + sw - dp(3), py + dp(8)), FAINT);
-            fill(c, new RectF(x + dp(3) + (sw - dp(10)) * (po < 0 ? 0.5f : po), py - dp(2), x + dp(7) + (sw - dp(10)) * (po < 0 ? 0.5f : po), py + dp(10)), po < 0 ? DIM : INK);
-            Act pan = (xx, yy) -> Native.mixSet(idx, 1, Math.max(0, Math.min(1, (xx - x - dp(3)) / (sw - dp(6)))));
-            Hit ph = hit(new RectF(x, py - dp(6), x + sw, py + dp(14)), pan); ph.drag = pan; ph.longPress = true; ph.hold = (xx, yy) -> Native.mixSet(idx, 1, -1);
-            final boolean mu = Native.mixGet(idx, 2) > 0.5f, so = Native.mixGet(idx, 3) > 0.5f;
-            button(c, new RectF(x + dp(1), py + dp(16), x + sw / 2 - dp(1), py + dp(36)), "M", mu, () -> Native.mixSet(idx, 2, mu ? 0 : 1));
-            button(c, new RectF(x + sw / 2 + dp(1), py + dp(16), x + sw - dp(1), py + dp(36)), "S", so, () -> Native.mixSet(idx, 3, so ? 0 : 1));
+            sslStrip(c, desk.left + col * sw, sw, desk.top + row * rowH, rowH - dp(2), String.valueOf(k == 0 && names.get(0).startsWith("KEY") ? "KB" : k), names.get(k), idx, false);
         }
     }
     // ---- Page E, FX MIXER: each strip's send to the REV7, and its return ----
@@ -725,11 +809,17 @@ public class CmiView extends View {
         text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib) + "   " + Native.catalogCount() + " CMI VOICES", b.left, b.top + dp(12), 11, INK);
         final float y0 = b.top + dp(20), bw = (b.width() - dp(12)) / 3;
         final boolean only = act.hfeOnly();
-        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", only ? "HFE FIRST" : "ANY FORMAT" };
+        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", only ? "HFE FIRST" : "ANY FORMAT", "CLEAR ALL", "FACTORY RESET", "" };
         final Runnable[] fn = { act::chooseLibrary, act::rescanLibrary, () -> { status("" + Native.removeDuplicateSongs() + " DUPLICATES REMOVED"); act.saveState(); },
-                () -> act.loadFromLibrary(true, false, -1), () -> act.loadFromLibrary(false, true, -1), () -> act.setHfeOnly(!only) };
-        for (int i = 0; i < 6; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = y0 + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 5 && only, fn[i]); }
-        final float top = y0 + dp(58), rh = dp(26);
+                () -> act.loadFromLibrary(true, false, -1), () -> act.loadFromLibrary(false, true, -1), () -> act.setHfeOnly(!only),
+                () -> new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Clear all settings?")
+                        .setMessage("Every control, the mixer, the effects, the pads' kit and Page S patterns go back to how they start. Your folders, the library, your songs and samples stay.")
+                        .setPositiveButton("Clear all", (d, w2) -> { Native.resetSettings(); act.saveState(); status("ALL SETTINGS CLEARED"); }).setNegativeButton("Cancel", null).show(),
+                () -> new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Factory reset?")
+                        .setMessage("Everything goes: your folders, the remembered library, songs, samples, kits and settings. The app starts again as when first installed.")
+                        .setPositiveButton("Reset everything", (d, w2) -> act.factoryReset()).setNegativeButton("Cancel", null).show(), null };
+        for (int i = 0; i < 8; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = y0 + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 5 && only, fn[i]); }
+        final float top = y0 + dp(84), rh = dp(26);
         final int rows = Math.max(1, (int) ((b.bottom - dp(26) - top) / rh));
         final int nf = act.libNames.size(), pages = Math.max(1, (nf + rows - 1) / rows);
         filePage = Math.min(filePage, pages - 1);
@@ -880,6 +970,75 @@ public class CmiView extends View {
     }
 
     // ---- Page D ----
+    // ---- the sample editor (from the pads: EDIT): the pad's sound as the CMI's pages in 3D, the whole of it flat
+    // underneath with the selection (drag across it), and the edits; the pad plays the edit as it stands ----
+    private char edBack = 'P'; private int edAnchor = 0;
+    private void editor(Canvas c, RectF b) {
+        final String[] f = Native.editInfo().split("\t", -1);
+        if (f.length < 7 || !f[5].equals("1")) { text(c, "NOTHING OPEN: PADS > EDIT, THEN TAP A PAD", b.left, b.top + dp(14), 11, INK); button(c, new RectF(b.left, b.top + dp(24), b.left + dp(120), b.top + dp(48)), "PADS", false, () -> page = 'P'); return; }
+        final byte[] w8 = Native.editWave(); final int[] sel = Native.editSel();
+        final int len = w8.length, np = Math.max(1, len / 128), a = sel[0], bb = sel[1], ls = sel[2], le = sel[3];
+        text(c, "SAMPLE EDIT  " + f[0] + "  ON " + f[1] + " (" + f[4] + ")", b.left, b.top + dp(12), 12, INK);
+        text(c, f[2] + " Hz  " + len + " B  " + String.format(java.util.Locale.US, "%.3f s", len / Math.max(1f, Float.parseFloat(f[2]))) + "  SEL " + a + "-" + bb + (ls >= 0 ? "  LOOP " + (ls + 1) + "-" + (le + 1) : ""), b.left, b.top + dp(26), 9, DIM);
+        final float btnH = dp(24), rowsB = 3, btnArea = rowsB * (btnH + dp(4));
+        final float ovH = portrait ? dp(70) : dp(48);
+        final RectF view3d = new RectF(b.left, b.top + dp(32), b.right, b.bottom - btnArea - ovH - dp(10));
+        // 3D: page by page, the selection bright, the loop in ink
+        final float w = view3d.width() * 0.62f, dx = view3d.width() * 0.3f, h = view3d.height() * 0.16f, dy = view3d.height() * 0.68f;
+        final float x0 = view3d.left, y0 = view3d.bottom - h * 0.6f;
+        final int stepP = np > 64 ? 2 : 1;
+        Paint lp = new Paint(Paint.ANTI_ALIAS_FLAG); lp.setStyle(Paint.Style.STROKE); lp.setStrokeWidth(dp(1));
+        for (int pg = np - 1; pg >= 0; pg -= stepP) {
+            float u = np > 1 ? (float) pg / (np - 1) : 0, bx = x0 + dx * u, by = y0 - dy * u;
+            Path line = new Path(), area = new Path();
+            for (int i = 0; i < 128; i += 2) {
+                final int k = pg * 128 + i; final float v = k < len ? w8[k] / 128f : 0;
+                float x = bx + w * i / 127f, y = by - v * h * 0.5f;
+                if (i == 0) { line.moveTo(x, y); area.moveTo(x, by + h * 0.5f); }
+                line.lineTo(x, y); area.lineTo(x, y);
+            }
+            area.lineTo(bx + w, by + h * 0.5f); area.close();
+            p.setColor(BG); c.drawPath(area, p);
+            final boolean inSel = pg * 128 + 127 >= a && pg * 128 < bb && !(a == 0 && bb == len), inLoop = ls >= 0 && pg >= ls && pg <= le;
+            lp.setColor(inSel ? Color.WHITE : inLoop ? INK : DIM);
+            c.drawPath(line, lp);
+        }
+        // the whole sound flat, the selection on it
+        final RectF ov = new RectF(b.left, view3d.bottom + dp(4), b.right, view3d.bottom + dp(4) + ovH);
+        frame(c, ov, DIM);
+        if (len > 0) {
+            final float sx0 = ov.left + ov.width() * a / len, sx1 = ov.left + ov.width() * bb / len;
+            fill(c, new RectF(sx0, ov.top, sx1, ov.bottom), 0x553dff9a);
+            if (ls >= 0) { final float lx0 = ov.left + ov.width() * ls * 128f / len, lx1 = ov.left + ov.width() * Math.min(len, (le + 1) * 128f) / len; fill(c, new RectF(lx0, ov.bottom - dp(4), lx1, ov.bottom), INK); }
+            final int cols = Math.max(1, (int) ov.width());
+            lp.setColor(INK);
+            for (int x = 0; x < cols; x += 2) {
+                final int i0 = (int) ((long) x * len / cols), i1 = Math.max(i0 + 1, (int) ((long) (x + 2) * len / cols));
+                int mn = 0, mx = 0; for (int i = i0; i < i1 && i < len; ++i) { mn = Math.min(mn, w8[i]); mx = Math.max(mx, w8[i]); }
+                c.drawLine(ov.left + x, ov.centerY() - mx / 128f * ov.height() * 0.48f, ov.left + x, ov.centerY() - mn / 128f * ov.height() * 0.48f, lp);
+            }
+            fill(c, new RectF(sx0 - dp(1), ov.top, sx0 + dp(1), ov.bottom), Color.WHITE); fill(c, new RectF(sx1 - dp(1), ov.top, sx1 + dp(1), ov.bottom), Color.WHITE);
+        }
+        Hit oh = hit(ov, (xx, yy) -> { edAnchor = Math.max(0, Math.min(len, Math.round((xx - ov.left) / ov.width() * len))); });
+        oh.drag = (xx, yy) -> Native.editSelect(edAnchor, Math.max(0, Math.min(len, Math.round((xx - ov.left) / ov.width() * len))));
+        // the edits
+        final int note = Integer.parseInt(f[4]);
+        final String[] lbl = { "PLAY", "ALL", "TRIM", "CUT", "SILENCE", "NORM", "REVERSE", "FADE IN", "FADE OUT", "-3 dB", "+3 dB", "LOOP SEL", "NO LOOP", "UNDO", "REVERT", "CLOSE", "", "" };
+        final Runnable[] fn = {
+                () -> Native.tapPad(note), () -> Native.editOp(0, 0), () -> Native.editOp(1, 0), () -> Native.editOp(2, 0), () -> Native.editOp(3, 0), () -> Native.editOp(4, 0),
+                () -> Native.editOp(5, 0), () -> Native.editOp(6, 0), () -> Native.editOp(7, 0), () -> Native.editOp(8, -3), () -> Native.editOp(8, 3), () -> Native.editOp(9, 0),
+                () -> Native.editOp(10, 0), () -> Native.editOp(11, 0),
+                () -> { Native.editRevert(); act.saveState(); status("PAD BACK AS IT WAS"); page = edBack; },
+                () -> { Native.editClose(); act.saveState(); status("KEPT: " + f[0] + " ON THE PAD (YOUR SAMPLES)"); page = edBack; }, null, null };
+        final int per = 6; final float bw = (b.width() - dp(4) * (per - 1)) / per;
+        for (int i = 0; i < lbl.length; ++i) {
+            if (fn[i] == null) continue;
+            final float rx = b.left + (i % per) * (bw + dp(4)), ry = b.bottom - btnArea + (i / per) * (btnH + dp(4));
+            final int ii = i;
+            button(c, new RectF(rx, ry, rx + bw, ry + btnH), lbl[i], i == 15, () -> { fn[ii].run(); if (ii >= 2 && ii <= 13) Native.tapPad(note); });
+        }
+    }
+
     private void waveform(Canvas c, RectF b) {
         final int s = Native.getSound();
         String[] f = info(s);

@@ -189,9 +189,10 @@ int main(int argc, char** argv) {
         std::printf("rec drums: %s / %s; %d drum notes in the song\n", r0.toRawUTF8(), r1.toRawUTF8(), notes);
         ok &= notes >= 4;
     }
+    std::printf("sample editor on pad 38: %s\n", p.editPad(38) ? "open" : "NOT OPEN");
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
-    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F', 'E', 'P' }) {
+    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F', 'E', 'P', 'W' }) {
         run(20, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0); });
         ce->showPage(pg);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
@@ -223,6 +224,8 @@ int main(int argc, char** argv) {
         juce::FileOutputStream fo(f); juce::PNGImageFormat png; png.writeImageToStream(img, fo);
     }
     ed.reset();
+    p.padEd.close(); p.resetAll(false);
+    std::printf("clear all: master %.2f, pads %s\n", p.get("master"), p.padKitName.toRawUTF8()); ok &= std::fabs(p.get("master") - 1.f) < 1e-3;
     std::puts(ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
 }

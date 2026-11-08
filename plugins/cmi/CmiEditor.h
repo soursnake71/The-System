@@ -46,6 +46,9 @@ private:
     void drawKit(juce::Graphics&);
     void kitVoiceMenu(int note, bool pads = false);
     void drawPads(juce::Graphics&);
+    void drawEditor(juce::Graphics&);
+    void sslStrip(juce::Graphics&, float x, float w, float top, float h, const juce::String& num, const juce::String& name, int idx, bool master);
+    bool adsrKit = false, padEditPick = false; int edAnchor = 0;
     void padPresetMenu();
     void padImportChooser(bool replaceKit);
     void recordRow(juce::Graphics&, float x, float y, double fromBeat);
