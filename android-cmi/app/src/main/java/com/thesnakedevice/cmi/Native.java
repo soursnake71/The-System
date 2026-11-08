@@ -140,6 +140,8 @@ final class Native {
     static native boolean userFromLibrary(int k);
     static native boolean userWaiting(int k);
     static native int unloadUnusedLibrary();
+    static native boolean catalogSave(String path);
+    static native boolean catalogLoad(String path);
     static native String recordPads();
     static native float kickLift();
     static native void setKickLift(float v);

@@ -141,9 +141,9 @@ public:
     int loadedSongFor(const juce::File& f) const;          // the song's index if it's loaded, else -1
     void setLibraryFolder(const juce::File& f);
     std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
-    void rescanLibrary();
+    void rescanLibrary(bool force = true);   // not forced: the catalogue kept from the last scan, if it's of this folder
     bool hfeOnly = true, libFromHfe = false;   // the library: its HFE images first (the other copies fill in)
-    void setHfeOnly(bool on) { hfeOnly = on; if (settings) { settings->setValue("libraryHfeOnly", on); settings->saveIfNeeded(); } rescanLibrary(); }
+    void setHfeOnly(bool on) { hfeOnly = on; if (settings) { settings->setValue("libraryHfeOnly", on); settings->saveIfNeeded(); } rescanLibrary(true); }
     // the grid's audition: a note on a song track, played for a moment
     void playSongFrom(double beat) { engine.songStartReq = beat; engine.songRun = true; }
     void audition(int track, int note) { auditionReq = (track << 8) | (note & 0x7F); }

@@ -625,6 +625,18 @@ FN(void, catalogAdd)(JNIEnv* env, jclass, jbyteArray data, jstring fileName, jst
     { std::lock_guard<std::mutex> g(app()->catLock); app()->catalog.add(fn, b.data(), b.size(), fo); }
     env->ReleaseStringUTFChars(fileName, fn); env->ReleaseStringUTFChars(folder, fo);
 }
+// the catalogue kept in a file, so the library is scanned once
+FN(jboolean, catalogSave)(JNIEnv* env, jclass, jstring path) {
+    const char* p = env->GetStringUTFChars(path, nullptr); std::string fn = p; env->ReleaseStringUTFChars(path, p);
+    std::vector<uint8_t> b; { std::lock_guard<std::mutex> g(app()->catLock); b = app()->catalog.save(); }
+    std::ofstream f(fn, std::ios::binary); f.write((const char*) b.data(), (std::streamsize) b.size()); return (bool) f;
+}
+FN(jboolean, catalogLoad)(JNIEnv* env, jclass, jstring path) {
+    const char* p = env->GetStringUTFChars(path, nullptr); std::string fn = p; env->ReleaseStringUTFChars(path, p);
+    std::ifstream f(fn, std::ios::binary); if (!f) return false;
+    std::vector<uint8_t> b((std::istreambuf_iterator<char>(f)), {});
+    std::lock_guard<std::mutex> g(app()->catLock); return app()->catalog.load(b.data(), b.size());
+}
 FN(jint, catalogCount)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); return (jint) app()->catalog.voices.size(); }
 FN(jint, catalogDisks)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); return app()->catalog.disks; }
 /** "NAME\tDISK\tlooped" per voice, newline separated */

@@ -52,12 +52,49 @@ public class MainActivity extends Activity {
         { String pn = getSharedPreferences("cmi", MODE_PRIVATE).getString("pen", ""); if (!pn.isEmpty()) Native.setPenState(pn); }
         Native.setClick(getSharedPreferences("cmi", MODE_PRIVATE).getBoolean("click", false));
         view = new CmiView(this);
-        rescanLibrary();
+        startLibrary();
         loadSamplesFolder();
         rescanSongs();
         setContentView(view);
         hideBars();
         openMidi();
+        { android.content.SharedPreferences sp = getSharedPreferences("cmi", MODE_PRIVATE); if (!sp.getBoolean("setupDone", false) && sp.getString("library", "").isEmpty()) ui.postDelayed(() -> setupNext(1), 400); }
+    }
+
+    // ---- the first time: your folders, one after the other (remembered; Page F changes them) ----
+    private int setupStep = 0;
+    private void setupNext(int step) {
+        setupStep = step;
+        if (step > 3) { setupStep = 0; getSharedPreferences("cmi", MODE_PRIVATE).edit().putBoolean("setupDone", true).apply(); view.status("FOLDERS SET: CHANGE THEM ON FIL AND SMP"); return; }
+        final String[] title = { "", "1 of 3: your CMI library", "2 of 3: your songs", "3 of 3: your samples" };
+        final String[] msg = { "", "The folder with your Fairlight disks (.IMG .IMD .HFE) and .VC voices. It's read once and remembered.",
+                "The folder with your MIDI songs (.mid), to browse on FIL.", "A folder of your own sounds (WAV): they load as your voices every time." };
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(title[step]).setMessage(msg[step]).setCancelable(false)
+                .setPositiveButton("Choose folder", (d, w) -> { if (step == 1) chooseLibrary(); else if (step == 2) chooseSongFolder(); else chooseSamplesFolder(); })
+                .setNegativeButton("Skip", (d, w) -> setupNext(step + 1)).show();
+    }
+    private void setupAfter(int req) {
+        if (setupStep == 0) return;
+        if ((setupStep == 1 && req == PICK_LIBRARY) || (setupStep == 2 && req == PICK_SONGS) || (setupStep == 3 && req == PICK_SAMPLES)) ui.post(() -> setupNext(setupStep + 1));
+    }
+
+    // ---- the library, scanned once: the catalogue and the file list kept in the app's files, read back at start ----
+    private File catalogFile() { return new File(getFilesDir(), "catalog.bin"); }
+    private File libListFile() { return new File(getFilesDir(), "library-files.txt"); }
+    private void startLibrary() {
+        final String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("library", "");
+        if (u.isEmpty()) return;
+        if (!u.equals(getSharedPreferences("cmi", MODE_PRIVATE).getString("catalogOf", "")) || !catalogFile().exists()) { rescanLibrary(); return; }
+        new Thread(() -> {
+            if (!Native.catalogLoad(catalogFile().getPath())) { ui.post(this::rescanLibrary); return; }
+            final List<Uri> us = new ArrayList<>(); final List<String> ns = new ArrayList<>();
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(libListFile()))) {
+                String line; while ((line = r.readLine()) != null) { int t = line.indexOf('\t'); if (t > 0) { us.add(Uri.parse(line.substring(0, t))); ns.add(line.substring(t + 1)); } }
+            } catch (Exception ignored) {}
+            Native.connectDefaults();   // your instruments back in their places
+            ui.post(() -> { libUris.clear(); libNames.clear(); libUris.addAll(us); libNames.addAll(ns);
+                view.status(Native.catalogCount() + " CMI VOICES (LIBRARY REMEMBERED; RESCAN ON FIL)"); view.invalidate(); });
+        }).start();
     }
 
     private void hideBars() {
@@ -225,7 +262,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
-        if (res != RESULT_OK || data == null) return;
+        if (res != RESULT_OK || data == null) { setupAfter(req); return; }
+        setupAfter(req);
         if (req == SAVE_WAV || req == SAVE_MIDI || req == SAVE_STEMS || req == SAVE_PEN) { exportResult(req, data); return; }
         if (req == PICK_SONGS && data.getData() != null) {
             final Uri tree = data.getData();
@@ -327,6 +365,9 @@ public class MainActivity extends Activity {
                 if (++done % 10 == 0) { final int d2 = done; ui.post(() -> view.status("READING THE CMI LIBRARY: " + d2 + " FILES")); }
             }
             Native.connectDefaults();   // no built-in voices: Page R and the keyboard take theirs from the library
+            Native.catalogSave(catalogFile().getPath());   // scanned once: read back from here next time
+            try (java.io.PrintWriter w = new java.io.PrintWriter(libListFile())) { for (int i : ord) w.println(us.get(i) + "\t" + ns.get(i)); } catch (Exception ignored) {}
+            getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("catalogOf", u).apply();
             ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); } saveState();
                 final int hd = Native.catalogHfeDisks(), hb = Native.catalogHfeSetAside();
                 view.status(Native.catalogCount() + " CMI VOICES ON " + Native.catalogDisks() + " DISKS" + (hd > 0 ? " (" + hd + " HFE)" : "") + (hb > 0 ? ", " + hb + " HFE UNREADABLE" : "")); });

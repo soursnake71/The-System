@@ -244,6 +244,9 @@ int main(int argc, char** argv) {
         addVoice("KICK1", "DRUMS1"); addVoice("SNARE1", "DRUMS1"); addVoice("LMSNARE", "DRUMS"); addVoice("HIHAT2", "CYMBALS"); addVoice("HHOPEN1", "CYMBALS");
         addVoice("TTOM", "DRUMS"); addVoice("CYMSPLS1", "CYMBALS"); addVoice("CROSSTIX", "DRUMS"); addVoice("CLAP", "PERCUSN1"); addVoice("BDRUM", "DRUMS", 13000);
         addVoice("STRNGENS", "STRINGS"); addVoice("COWBELL1", "PERCUSN1"); addVoice("CYMSTICK", "CYMBALS");
+        { const auto bytes = cat.save(); Catalog back; const bool ok2 = back.load(bytes.data(), bytes.size());
+          CHECK(ok2 && back.voices.size() == cat.voices.size() && back.voices[3].vc == cat.voices[3].vc && back.voices[3].name == "HIHAT2" && back.voices[3].hash == cat.voices[3].hash && back.gen != cat.gen,
+                "the catalogue saved and read back (%zu bytes)", bytes.size()); }
         Kit kp; kp.keepPlace(300, "STRNGENS", "STRINGS");
         CHECK(kp.user(300)->waiting && !isBlank(kp, kp.userSlot(300)) && findVoiceAt(kp.bank, "STRNGENS@STRINGS") == kp.userSlot(300), "a library voice's place kept");
         const int missing = fillLibraryPlaces(kp, cat);

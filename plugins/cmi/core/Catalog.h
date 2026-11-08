@@ -10,6 +10,9 @@
 #include "Disk.h"
 #include "Song.h"
 #include <map>
+#include <cstring>
+#include <fstream>
+#include <iterator>
 
 namespace cmi {
 
@@ -55,6 +58,40 @@ public:
     int find(const std::string& name, const std::string& diskPrefix = "") const {
         for (size_t i = 0; i < voices.size(); ++i) if (voices[i].name == name && (diskPrefix.empty() || voices[i].disk.rfind(diskPrefix, 0) == 0)) return (int) i;
         return -1;
+    }
+    // the catalogue as one file, so a library is scanned once: read back at start instead of reading every disk again
+    std::vector<uint8_t> save() const {
+        std::vector<uint8_t> o;
+        auto u32 = [&](uint32_t v) { for (int k = 0; k < 4; ++k) o.push_back((uint8_t) (v >> (8 * k))); };
+        auto str = [&](const std::string& x) { u32((uint32_t) x.size()); o.insert(o.end(), x.begin(), x.end()); };
+        o.insert(o.end(), { 'C', 'M', 'I', 'C', 'A', 'T', '1', 0 });
+        u32((uint32_t) disks); u32((uint32_t) hfeDisks); u32((uint32_t) hfeSetAside);
+        u32((uint32_t) hfeLabels.size()); for (const auto& l : hfeLabels) str(l);
+        u32((uint32_t) voices.size());
+        for (const auto& v : voices) { str(v.name); str(v.disk); u32((uint32_t) v.vc.size()); o.insert(o.end(), v.vc.begin(), v.vc.end()); u32((uint32_t) v.hash); u32((uint32_t) (v.hash >> 32)); o.push_back(v.looped); }
+        return o;
+    }
+    bool load(const uint8_t* d, size_t n) {
+        size_t p = 0;
+        auto u32 = [&](uint32_t& v) { if (p + 4 > n) return false; v = (uint32_t) d[p] | (uint32_t) d[p + 1] << 8 | (uint32_t) d[p + 2] << 16 | (uint32_t) d[p + 3] << 24; p += 4; return true; };
+        auto str = [&](std::string& x) { uint32_t l; if (!u32(l) || p + l > n) return false; x.assign((const char*) d + p, l); p += l; return true; };
+        if (n < 8 || std::memcmp(d, "CMICAT1", 7) != 0) return false;
+        p = 8;
+        Catalog c; uint32_t a, b, e, nl, nv;
+        if (!u32(a) || !u32(b) || !u32(e) || !u32(nl)) return false;
+        c.disks = (int) a; c.hfeDisks = (int) b; c.hfeSetAside = (int) e;
+        for (uint32_t i = 0; i < nl; ++i) { std::string l; if (!str(l)) return false; c.hfeLabels.push_back(l); }
+        if (!u32(nv)) return false;
+        for (uint32_t i = 0; i < nv; ++i) {
+            CatVoice v; uint32_t vl, h0, h1;
+            if (!str(v.name) || !str(v.disk) || !u32(vl) || p + vl > n) return false;
+            v.vc.assign(d + p, d + p + vl); p += vl;
+            if (!u32(h0) || !u32(h1) || p + 1 > n) return false;
+            v.hash = (uint64_t) h0 | (uint64_t) h1 << 32; v.looped = d[p++] != 0;
+            c.voices.push_back(std::move(v));
+        }
+        voices = std::move(c.voices); disks = c.disks; hfeDisks = c.hfeDisks; hfeSetAside = c.hfeSetAside; hfeLabels = std::move(c.hfeLabels); gen = nextGen();
+        return true;
     }
     // into a Sound for a channel card
     bool sound(int i, Sound& out) const { if (i < 0 || i >= (int) voices.size()) return false; std::string err; return vcToSound(voices[(size_t) i].vc, voices[(size_t) i].name, voices[(size_t) i].disk, out, err); }

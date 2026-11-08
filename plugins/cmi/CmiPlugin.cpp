@@ -36,7 +36,7 @@ CmiProcessor::CmiProcessor()
             if (tok.contains("=")) presetChoice[tok.upToFirstOccurrenceOf("=", false, false).getIntValue()] = tok.fromFirstOccurrenceOf("=", false, false).toStdString();
         hfeOnly = settings->getBoolValue("libraryHfeOnly", true);
         const juce::File f(settings->getValue("libraryFolder"));
-        if (f.isDirectory()) { libFolder = f; rescanLibrary(); }
+        if (f.isDirectory()) { libFolder = f; rescanLibrary(false); }
         samplesDir = juce::File(settings->getValue("samplesFolder"));
     }
     loadSamplesFolder();
@@ -227,7 +227,7 @@ void CmiProcessor::setLibraryFolder(const juce::File& f) {
     rescanLibrary();
 }
 
-void CmiProcessor::rescanLibrary() {
+void CmiProcessor::rescanLibrary(bool force) {
     std::vector<juce::File> found;
     const juce::File dir = libraryFolder();
     if (dir.isDirectory())
@@ -236,15 +236,20 @@ void CmiProcessor::rescanLibrary() {
             if (found.size() > 5000) break;
         }
     std::sort(found.begin(), found.end(), [](const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()) < 0; });
-    // the catalogue: every CMI voice on the disks (and .VC files) there
+    // the catalogue: every CMI voice on the disks (and .VC files) there; read once, kept beside the settings
     Catalog cat;
-    for (int pass = 0; pass < 3; ++pass)   // HFEs, the other disk images (their labels name the voices' disks), .VC files
+    const juce::File cache = settings ? settings->getFile().getSiblingFile("catalog.bin") : juce::File();
+    const juce::String key = dir.getFullPathName() + (hfeOnly ? "|hfe" : "|any");
+    bool cached = false;
+    if (!force && settings && settings->getValue("catalogOf") == key && cache.existsAsFile()) { juce::MemoryBlock mb; cached = cache.loadFileAsData(mb) && cat.load((const uint8_t*) mb.getData(), mb.getSize()); }
+    if (!cached) for (int pass = 0; pass < 3; ++pass)   // HFEs, the other disk images (their labels name the voices' disks), .VC files
         for (const auto& f : found) {
             if (libraryRole(f.getFileName().toStdString(), hfeOnly) != pass + 1) continue;
             juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) continue;
             juce::File dirF = f.getParentDirectory(); if (dirF.getFileName().equalsIgnoreCase("VCs")) dirF = dirF.getParentDirectory();
             cat.add(f.getFileName().toStdString(), (const uint8_t*) mb.getData(), mb.getSize(), dirF.getFileName().toUpperCase().toStdString());
         }
+    if (!cached && settings && dir.isDirectory()) { const auto b = cat.save(); if (cache.replaceWithData(b.data(), b.size())) { settings->setValue("catalogOf", key); settings->saveIfNeeded(); } }
     libFromHfe = cat.hfeDisks > 0;
     { const juce::ScopedLock l(catLock); catalog = std::move(cat); }
     { const juce::ScopedLock l(infoLock); libFiles = std::move(found); }
