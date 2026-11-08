@@ -41,8 +41,29 @@ public class SidActivity extends Activity {
         @Override public void onSend(byte[] data, int offset, int count, long timestamp) { Native.midi(data, offset, count); }
     };
 
+    // ---- rotation: free (both ways up), or held the way the phone is turned; remembered ----
+    boolean orientationLocked() { return prefs().getInt("lockedOrientation", -99) != -99; }
+    void toggleOrientationLock() {
+        if (orientationLocked()) {
+            prefs().edit().remove("lockedOrientation").apply();
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+        } else {
+            final int o = currentOrientation();
+            prefs().edit().putInt("lockedOrientation", o).apply();
+            setRequestedOrientation(o);
+        }
+    }
+    /** the orientation the screen is in now, as an ActivityInfo constant (so it can be held after a restart) */
+    private int currentOrientation() {
+        final int rot = getWindowManager().getDefaultDisplay().getRotation();
+        final boolean land = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        if (land) return rot == android.view.Surface.ROTATION_270 ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        return rot == android.view.Surface.ROTATION_180 ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+    }
+
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        setRequestedOrientation(prefs().getInt("lockedOrientation", android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER));
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Native.init(prefs().getString("state", ""));
         sampling = new Sampling(this);

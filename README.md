@@ -42,7 +42,7 @@ A circuit-level C++ model of the MOS 6581 and 8580, played from a C64: the contr
 - A mixer page: OSC 1-3 and the filter output each with a fader, LED meter, pan, mute and solo; the echo and REV7 returns and the main output with their meters; the scope underneath. Every mixer control is a plugin parameter (automation).
 - A 32-step sequencer (tracker style) with 16 patterns, accent, slide, swing and 41 pattern presets; it follows the DAW's transport, and held keys transpose it.
 - 406 presets in 17 groups (bass, lead, pad, keys, pluck, arp, chord, brass, drums, FX, sync, ring, classic, digi, REV7, 8580, 6581), a random patch, MIDI (bend, mod wheel, sustain, CC 74, program change) and a QWERTY keyboard on desktop.
-- Android: the `omega-sid` release (`omega-sid-64.apk`, native, low-latency AAudio, USB / Bluetooth MIDI). Desktop: VST3 (and AU on Mac) plus a standalone app in the same release, built by `.github/workflows/sid-release.yml`.
+- Android: the `omega-sid` release (`omega-sid-64.apk`, native, low-latency AAudio, USB / Bluetooth MIDI). It turns both ways: upright, the monitor spans the top with big page buttons and the edit panel under it; sideways, they sit either side of it. The padlock on the monitor frame holds it the way it's turned (remembered). Desktop: VST3 (and AU on Mac) plus a standalone app in the same release, built by `.github/workflows/sid-release.yml`.
 - Tests: `sid_test` (tuning, filter, mixer, every sampling method on both chips, every preset, sequencer and host sync, state).
 
 ## Using a USB-C interface

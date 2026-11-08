@@ -27,6 +27,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
     private float caseW = 1000;                                // the keyboard strip's width, in design units
     private boolean big = true;                                // big screen, or the desk
     private final RectF powerRect = new RectF();               // the monitor's power button: switches the view
+    private final RectF lockRect = new RectF();                // the padlock: holds the screen the way it's turned
     // big screen, sideways: page buttons on the left, the selected setting's big controls on the right
     private boolean panels = false;
     private final RectF leftPanel = new RectF(), rightPanel = new RectF();
@@ -93,7 +94,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         big = getContext().getSharedPreferences("sid", 0).getBoolean("bigScreen", true);
         CASE_H = sideways ? 205 : 250; PANEL_H = 150;
         rows = 25;
-        if (big) layoutBig(w, h, sideways); else layoutDesk(w, h);
+        if (big && sideways) layoutBig(w, h, true); else if (big) layoutBigUpright(w, h); else layoutDesk(w, h);
         // the keys: whole octaves and a top C, each white key at least ~75 px wide
         final float kwPx = (kWell().width() - 16) * scale;
         final int oct = Math.max(2, Math.min(7, ((int) (kwPx / 75) - 1) / 7));
@@ -133,30 +134,52 @@ public class SidView extends View implements Choreographer.FrameCallback {
         tubeRect.set(tl, tt, tl + tw, tt + th);
         rimL = tl - 30; rimT = tt - 30; rimR = tl + tw + 30; rimB = tt + th + 30 + 34;
         powerRect.set(rimR - 66, rimB - 34, rimR - 20, rimB - 10);
+        lockRect.set(rimL + 20, rimB - 34, rimL + 66, rimB - 10);
         placePicture();
         KDY = DH - CASE_H - 596;
         layoutPanels(DW);
+    }
+    // upright: the monitor across the top, then the page buttons and the edit panel in the space under it
+    private void layoutBigUpright(int w, int h) {
+        final float kh = Math.max(260, Math.min(420, h * 0.16f));
+        scale = kh / CASE_H;
+        final float DW = w / scale, DH = h / scale;
+        offX = 0; offY = 0; T = DH; caseW = DW;
+        final float tw = DW - 2 * 36, th = tw * 0.75f, tl = 36, tt = 36;
+        tubeRect.set(tl, tt, tl + tw, tt + th);
+        rimL = tl - 30; rimT = tt - 30; rimR = tl + tw + 30; rimB = tt + th + 30 + 34;
+        powerRect.set(rimR - 66, rimB - 34, rimR - 20, rimB - 10);
+        lockRect.set(rimL + 20, rimB - 34, rimL + 66, rimB - 10);
+        placePicture();
+        KDY = DH - CASE_H - 596;
+        final float top = rimB + 20, bottom = DH - CASE_H - 20, avail = bottom - top;
+        panels = avail * scale > 360;
+        if (!panels) return;
+        final float pagesH = avail * 0.40f;
+        layoutPagesAndEdit(new RectF(18, top, DW - 18, top + pagesH), 4, new RectF(18, top + pagesH + 18, DW - 18, bottom));
     }
     private void layoutPanels(float DW) {
         final float lw = rimL - 36, rw = DW - rimR - 36;
         panels = Math.min(lw, rw) * scale > 220;   // only when there's real room beside the monitor (sideways)
         if (!panels) return;
-        leftPanel.set(18, rimT, rimL - 18, rimB);
-        rightPanel.set(rimR + 18, rimT, DW - 18, rimB);
-        // the page buttons, two columns
-        final int n = pageBtn.length, rowsN = (n + 1) / 2;
-        final float gap = 12, bw = (leftPanel.width() - gap) / 2, bh = (leftPanel.height() - (rowsN - 1) * gap) / rowsN;
+        layoutPagesAndEdit(new RectF(18, rimT, rimL - 18, rimB), 2, new RectF(rimR + 18, rimT, DW - 18, rimB));
+    }
+    private void layoutPagesAndEdit(RectF pages, int cols, RectF edit) {
+        leftPanel.set(pages); rightPanel.set(edit);
+        final int n = pageBtn.length, rowsN = (n + cols - 1) / cols;
+        final float gap = 12, bw = (leftPanel.width() - (cols - 1) * gap) / cols, bh = (leftPanel.height() - (rowsN - 1) * gap) / rowsN;
         for (int i = 0; i < n; ++i) {
-            final float x = leftPanel.left + (i % 2) * (bw + gap), y = leftPanel.top + (i / 2) * (bh + gap);
+            final float x = leftPanel.left + (i % cols) * (bw + gap), y = leftPanel.top + (i / cols) * (bh + gap);
             pageBtn[i] = new RectF(x, y, x + bw, y + bh);
         }
+        final float gap2 = 12;
         final RectF R = rightPanel; final float u = R.height() / 12;
         sliderRect.set(R.left, R.top + u * 5.2f, R.right, R.top + u * 6.9f);
         toggleRect.set(R.left, R.top + u * 4.9f, R.right, R.top + u * 7.2f);
-        final float third = (R.width() - 2 * gap) / 3;
+        final float third = (R.width() - 2 * gap2) / 3;
         minusRect.set(R.left, R.top + u * 7.6f, R.left + third, R.top + u * 9.4f);
-        resetRect.set(R.left + third + gap, minusRect.top, R.left + 2 * third + gap, minusRect.bottom);
-        plusRect.set(R.left + 2 * (third + gap), minusRect.top, R.right, minusRect.bottom);
+        resetRect.set(R.left + third + gap2, minusRect.top, R.left + 2 * third + gap2, minusRect.bottom);
+        plusRect.set(R.left + 2 * (third + gap2), minusRect.top, R.right, minusRect.bottom);
         presetPrev.set(R.left, R.top + u * 10.2f, R.left + third, R.bottom);
         presetNext.set(R.right - third, presetPrev.top, R.right, R.bottom);
     }
@@ -172,6 +195,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         placePicture();
         final float sy = MON_BOTTOM - PANEL_H + 4;
         powerRect.set(880, sy + 4, 940, sy + 50);
+        lockRect.set(40, sy + 8, 100, sy + 46);
         KDY = MON_BOTTOM + 6 - 596;
     }
     private void toggleView() {
@@ -246,10 +270,23 @@ public class SidView extends View implements Choreographer.FrameCallback {
         rainbow(c, cx - 4, by + 4, 62, 20);
         rrect(c, cx + 64, by + 4, cx + 92, by + 24, 1, 0xff2a2a28);
         p.setColor(0xff8ee05a); c.drawRect(cx + 71, by + 10, cx + 85, by + 14, p);
-        text(c, "VIDEO MONITOR MODEL 6581", rimL + 30, by + 19, 11, 0xff6e6458, Paint.Align.LEFT);
+        text(c, "MODEL 6581", rimL + 130, by + 19, 11, 0xff6e6458, Paint.Align.LEFT);
         // the power button: tap it for the desk view
         rrect(c, powerRect.left, powerRect.top, powerRect.right, powerRect.bottom, 2, 0xff4c4640);
         text(c, "DESK", powerRect.left - 8, powerRect.centerY() + 4, 10, 0xff6e6458, Paint.Align.RIGHT);
+    }
+    // the padlock (drawn each frame: it shows whether the rotation is held)
+    private void drawLock(Canvas c) {
+        final boolean locked = getContext() instanceof SidActivity && ((SidActivity) getContext()).orientationLocked();
+        final RectF b = lockRect; final float cx = b.centerX(), w = b.height() * 0.62f;
+        rrect(c, b.left, b.top, b.right, b.bottom, 4, locked ? 0xff6c5eb5 : 0xff4c4640);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3); p.setColor(0xffe8e0d2);
+        final float sy = b.top + b.height() * 0.2f, sh = b.height() * 0.32f;
+        r.set(cx - w * 0.3f, sy, cx + w * 0.3f, sy + sh * 2);
+        c.drawArc(r, 180, locked ? 180 : 140, false, p);   // the shackle: closed when locked, open when not
+        p.setStyle(Paint.Style.FILL);
+        rrect(c, cx - w / 2, sy + sh, cx + w / 2, b.bottom - b.height() * 0.15f, 2, 0xffe8e0d2);
+        text(c, locked ? "LOCKED" : "ROTATE", b.right + 8, b.centerY() + 4, 10, 0xff6e6458, Paint.Align.LEFT);
     }
     // the 1701: beige case, stepped grey bezels, the tube with its light-blue border, the badge strip and the jacks
     private void drawMonitor(Canvas c, float mb, float pt) {
@@ -349,6 +386,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         p.setShader(new LinearGradient(tubeRect.left, tubeRect.top, tubeRect.left + 400, tubeRect.top + 500, 0x16ffffff, 0x00ffffff, Shader.TileMode.CLAMP));
         r.set(tubeRect.left - 40, tubeRect.top - 40, tubeRect.left + 560, tubeRect.top + 420); c.drawOval(r, p); p.setShader(null);
         c.restore();
+        drawLock(c);
         if (panels) drawPanels(c);
         c.save(); c.translate(0, KDY); drawKeys(c); c.restore();
         c.restore();
@@ -486,6 +524,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
             final boolean isThis = e.getActionIndex() == i;
             if ((action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) && isThis) {
                 if (powerRect.contains(x, y)) { pointerKind.put(id, 4); toggleView(); return true; }
+                if (lockRect.contains(x, y) && getContext() instanceof SidActivity) { pointerKind.put(id, 4); ((SidActivity) getContext()).toggleOrientationLock(); invalidate(); continue; }
                 if (panelDown(id, x, y)) continue;
                 if (tubeRect.contains(x, y)) { pointerKind.put(id, 1); Native.touch(0, scrX(x), scrY(y)); }
                 else if (fkeyAt(x, ky) >= 0) { pointerKind.put(id, 3); fkeyDown = fkeyAt(x, ky); fkey(fkeyDown); }
