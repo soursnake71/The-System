@@ -246,6 +246,7 @@ void CmiProcessor::rescanLibrary() {
     { const juce::ScopedLock l(infoLock); libFiles = std::move(found); }
     rebuildPresets();
     connectDefaults();
+    if (SongEntry* e = songs.at(currentSong())) { { const juce::ScopedLock l(catLock); ensureConnected(*e, kit, catalog, rememberedFor(*e->song)); } refreshSong(engine, e); }   // the song on the new library
 }
 
 // ---- the drum kit ----
@@ -326,7 +327,10 @@ juce::String CmiProcessor::importMidi(const juce::File& f) {
     return {};
 }
 
-void CmiProcessor::chooseSong(int i) { selectSong(engine, songs.at(i)); }
+void CmiProcessor::chooseSong(int i) {
+    if (SongEntry* e = songs.at(i)) { const juce::ScopedLock l(catLock); ensureConnected(*e, kit, catalog, rememberedFor(*e->song)); }
+    selectSong(engine, songs.at(i));
+}
 
 // what you chose for each track of a song, kept with the settings every project shares: songKey -> "t=NAME@DISK;..."
 std::map<int, std::string> CmiProcessor::rememberedFor(const MidiSong& s) const {
@@ -353,10 +357,9 @@ int CmiProcessor::connectToLibrary(int si) {
     SongEntry* e = songs.at(si); if (!e) return 0;
     const juce::ScopedLock l(catLock);
     if (catalog.voices.empty()) return 0;
-    const auto rem = rememberedFor(*e->song);
-    const int n = connectSong(*e, kit, catalog, rem);
-    if (auto it = rem.find(-1); it != rem.end()) { e->kit.load(it->second); loadKitVoices(e->kit, kit, catalog); }   // the kit as you left it
-    if (si == currentSong()) chooseSong(si);
+    ensureConnected(*e, kit, catalog, rememberedFor(*e->song), true);
+    int n = 0; for (int t = 0; t < SONG_TRK; ++t) n += e->song->used[t] && (e->voice[t] == GM_KIT || !isBlank(kit, e->voice[t]));
+    refreshSong(engine, e);
     return n;
 }
 void CmiProcessor::useCatalogVoice(int track, int ci) {

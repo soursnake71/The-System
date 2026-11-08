@@ -430,6 +430,7 @@ struct SongEntry {
     std::vector<std::unique_ptr<MidiSong>> undo, retired;
     int voice[SONG_TRK] {}; bool mute[SONG_TRK] {}; std::string why[SONG_TRK];
     DrumKit kit;   // the drum kit's pieces (GM_KIT tracks)
+    uint64_t connectedGen = 0;   // the library scan its tracks were matched to (0: not yet)
     bool removed = false;
 };
 class SongList {

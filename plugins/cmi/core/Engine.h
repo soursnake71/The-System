@@ -43,7 +43,7 @@ public:
         pend = { s, c, key, velocity, glideFrom, true };
         age = stamp; gate = true; note = key;
         if (state == Idle || env == 0) startPending();
-        else { state = Stealing; up = false; setEclk(0.003, false); envClk = true; }
+        else { state = Stealing; up = false; setEclk(0.0015, false); envClk = true; }   // fade the old sound fast, then start
     }
     void noteOff() {
         gate = false;
@@ -488,10 +488,14 @@ private:
         return c;
     }
     // a card for a note on track t: one already on this note, a free one, the oldest released, the oldest
+    // A note again on a card still sounding it: the new one starts at once on a free card and the old one fades out
+    // beside it (taking over a sounding card means fading it first, which made repeated notes late). Only with no
+    // card free is one taken over.
     int songCard(int t, int note) {
-        int best = -1; uint64_t oldest = UINT64_MAX;
-        for (int i = KEY_CH; i < NCH; ++i) { const Channel& c = ch[(size_t) i]; if (c.st() != Channel::Idle && cardTrack[i] == t && cardNote[i] == note) return i; }
-        for (int i = KEY_CH; i < NCH; ++i) if (ch[(size_t) i].st() == Channel::Idle) return i;
+        int best = -1, same = -1; uint64_t oldest = UINT64_MAX;
+        for (int i = KEY_CH; i < NCH; ++i) { const Channel& c = ch[(size_t) i]; if (c.st() != Channel::Idle && c.st() != Channel::Releasing && cardTrack[i] == t && cardNote[i] == note) same = i; }
+        for (int i = KEY_CH; i < NCH; ++i) if (ch[(size_t) i].st() == Channel::Idle) { if (same >= 0) ch[(size_t) same].kill(); return i; }
+        if (same >= 0) return same;
         for (int i = KEY_CH; i < NCH; ++i) { const Channel& c = ch[(size_t) i]; if (c.st() == Channel::Releasing && c.stamp() < oldest) { oldest = c.stamp(); best = i; } }
         if (best >= 0) return best;
         for (int i = KEY_CH; i < NCH; ++i) if (ch[(size_t) i].stamp() < oldest) { oldest = ch[(size_t) i].stamp(); best = i; }

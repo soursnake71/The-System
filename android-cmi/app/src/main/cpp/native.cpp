@@ -75,7 +75,7 @@ struct App {
         std::lock_guard<std::mutex> g(catLock);
         rebuildPresets();
         for (int i = 0; i < songs.size(); ++i) if (SongEntry* e = songs.at(i)) if (!e->kit.empty()) loadKitVoices(e->kit, kit, catalog);   // the kits' chosen voices
-        if (SongEntry* e = songs.at(songs.indexOf(engine.song.load()))) applyKit(engine, e->kit);
+        if (SongEntry* e = songs.at(songs.indexOf(engine.song.load()))) { ensureConnected(*e, kit, catalog, remembered[songKey(e->song->name)]); refreshSong(engine, e); }   // the song on the new library
         connectPageR(engine.seq, kit, catalog);
         if (isBlank(kit, sound.load())) {
             int v = -1;
@@ -368,14 +368,18 @@ FN(jstring, importMidi)(JNIEnv* env, jclass, jbyteArray data, jstring name) {
     {   // the original CMI voices, when a library is set
         std::lock_guard<std::mutex> g(app()->catLock);
         SongEntry* e = app()->songs.at(i);
-        if (e && !app()->catalog.voices.empty()) connectSong(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)]);
+        if (e) ensureConnected(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)]);
     }
     selectSong(app()->engine, app()->songs.at(i));
     return env->NewStringUTF("");
 }
 FN(jint, songCount)(JNIEnv*, jclass) { return app()->songs.count(); }
 FN(jstring, songName)(JNIEnv* env, jclass, jint k) { const SongEntry* e = app()->songs.at(app()->songs.nth(k)); return env->NewStringUTF(e ? e->song->name.c_str() : ""); }
-FN(void, selectSongAt)(JNIEnv*, jclass, jint k) { selectSong(app()->engine, k < 0 ? nullptr : app()->songs.at(app()->songs.nth(k))); }
+FN(void, selectSongAt)(JNIEnv*, jclass, jint k) {
+    SongEntry* e = k < 0 ? nullptr : app()->songs.at(app()->songs.nth(k));
+    if (e) { std::lock_guard<std::mutex> g(app()->catLock); ensureConnected(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)]); }
+    selectSong(app()->engine, e);
+}
 FN(jint, currentSong)(JNIEnv*, jclass) {   // its place in the list, -1: Page R patterns
     const int i = curSongIdx(); if (i < 0) return -1;
     int k = 0; for (int j = 0; j < i; ++j) k += app()->songs.at(j) != nullptr; return k;
@@ -622,8 +626,9 @@ FN(jint, connectToLibrary)(JNIEnv*, jclass) {
     std::lock_guard<std::mutex> g(app()->catLock);
     SongEntry* e = app()->songs.at(curSongIdx());
     if (!e || app()->catalog.voices.empty()) return 0;
-    const int n = connectSong(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)]);
-    selectSong(app()->engine, e);
+    ensureConnected(*e, app()->kit, app()->catalog, app()->remembered[songKey(e->song->name)], true);
+    int n = 0; for (int t = 0; t < SONG_TRK; ++t) n += e->song->used[t] && (e->voice[t] == GM_KIT || !isBlank(app()->kit, e->voice[t]));
+    refreshSong(app()->engine, e);
     return n;
 }
 // a library voice into the user voices (or the one already there): its sound number, or -1

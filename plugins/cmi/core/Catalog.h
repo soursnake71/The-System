@@ -18,6 +18,8 @@ struct CatVoice { std::string name, disk; std::vector<uint8_t> vc; uint64_t hash
 class Catalog {
 public:
     std::vector<CatVoice> voices;
+    uint64_t gen = nextGen();                        // which scan this is (a song matched to an older one is matched again)
+    static uint64_t nextGen() { static std::atomic<uint64_t> g { 0 }; return ++g; }
     int disks = 0, hfeDisks = 0, hfeSetAside = 0;   // disks read; of them from HFE; HFEs not used (a sector unreadable)
     std::vector<std::string> hfeLabels;              // the disks read from HFE: their other copies aren't needed
 
@@ -385,6 +387,17 @@ inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::ma
 // the kit lookup: the CMI drum voices loaded
 inline std::function<int(int)> cmiKitLookup(const Bank& bank) { return kitLookup(bank); }
 
+// A song on the library: its tracks matched to library voices once per library scan, whenever it's selected (so a
+// song loaded before the scan finished, or kept from an older version, plays the CMI voices too). Your choices for
+// the song (remembered: track -> "NAME@DISK", -1 -> its kit) win. force: match again now. True if it was matched.
+inline bool ensureConnected(SongEntry& e, Kit& kit, const Catalog& cat, const std::map<int, std::string>& remembered, bool force = false);
+// the engine's view of the song playing, without stopping it
+inline void refreshSong(Engine& eng, SongEntry* e) {
+    if (!e || eng.song.load() != e->song.get()) return;
+    for (int t = 0; t < SONG_TRK; ++t) eng.songVoice[t] = e->voice[t];
+    applyKit(eng, e->kit);
+}
+
 // a kit's chosen voices that aren't loaded yet: loaded from the library (by name and disk); the kit then names them
 // as loaded ("NAME@CATEGORY")
 inline void loadKitVoices(DrumKit& k, Kit& kit, const Catalog& cat) {
@@ -396,6 +409,15 @@ inline void loadKitVoices(DrumKit& k, Kit& kit, const Catalog& cat) {
         const int v = loadCatalogVoice(kit, cat, ci);
         if (v >= 0) if (const Sound* s = kit.bank.at(v)) p.voice = s->name + "@" + s->category;
     }
+}
+
+inline bool ensureConnected(SongEntry& e, Kit& kit, const Catalog& cat, const std::map<int, std::string>& remembered, bool force) {
+    if (cat.voices.empty() || (!force && e.connectedGen == cat.gen)) return false;
+    connectSong(e, kit, cat, remembered);
+    if (auto it = remembered.find(-1); it != remembered.end()) e.kit.load(it->second);
+    loadKitVoices(e.kit, kit, cat);
+    e.connectedGen = cat.gen;
+    return true;
 }
 
 }  // namespace cmi
