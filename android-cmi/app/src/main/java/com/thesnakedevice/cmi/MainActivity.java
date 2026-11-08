@@ -124,7 +124,7 @@ public class MainActivity extends Activity {
     }
 
     // ---- Page 8: your own sounds, one file, many files or a whole folder ----
-    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43, SAVE_WAV = 44, SAVE_STEMS = 45, SAVE_MIDI = 46, SAVE_PEN = 47;
+    static final int PICK_ONE = 41, PICK_MANY = 42, PICK_FOLDER = 43, SAVE_WAV = 44, SAVE_STEMS = 45, SAVE_MIDI = 46, SAVE_PEN = 60;   // request codes: each its own (47 library, 48 songs)
 
     // ---- exports: 0 the song (or Page R) as WAV, 1 stems into a folder, 2 the song as MIDI ----
     void export(int what) {
