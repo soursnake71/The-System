@@ -1,4 +1,5 @@
-// Omega Synsonics for Android: a NativeActivity, all C++ (src/main/cpp/main.cpp + ../../core). No Java code.
+// Omega Synsonics for Android: a NativeActivity in C++ (src/main/cpp/main.cpp + ../../core). The only Java is
+// SynsonicsActivity, which opens the system file picker for import and export.
 plugins { id 'com.android.application' }
 android {
   namespace 'com.thesnakedevice.synsonics'
@@ -8,8 +9,8 @@ android {
     applicationId 'com.thesnakedevice.synsonics'
     minSdk 26          // AAudio
     targetSdk 35
-    versionCode 2
-    versionName '1.1'
+    versionCode 3
+    versionName '2.0'
     ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_static' } }
   }
@@ -19,6 +20,7 @@ android {
   signingConfigs {
     sideload { storeFile file('synsonics-sideload.jks'); storePassword 'android'; keyAlias 'synsonics'; keyPassword 'android' }
   }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
   buildTypes {
     release { minifyEnabled false; signingConfig signingConfigs.sideload }   // optimized DSP
     debug { signingConfig signingConfigs.sideload }

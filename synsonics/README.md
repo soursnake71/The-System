@@ -1,16 +1,21 @@
 # Omega Synsonics
 
 A circuit model of the **Mattel Synsonics Drums** (model 5281, 1981), stock or with the
-[Circuitbenders](https://www.circuitbenders.co.uk/newsarchive/synsonics.html) mods. Both versions are in one app: the
-**STOCK / BENT** switch at the top changes between them. Everything is C++ and shared:
+[Circuitbenders](https://www.circuitbenders.co.uk/newsarchive/synsonics.html) mods, with a step sequencer, a mixer,
+a REV7-style reverb and a delay, and WAV / MP3 / MIDI import and export. Both versions are in one app: the
+**STOCK / BENT** switch on the DRUMS page changes between them. Everything is C++ and shared:
 
 | Part | What it is |
 |---|---|
-| `core/Engine.h` | the circuit model, U1's sequencer (rate buttons, three memories), state |
-| `core/Canvas.h`, `core/Panel.h` | the front panel, drawn by a small software renderer, with multitouch input |
-| `plugin/` | VST3 / AU instrument and standalone app (JUCE) |
-| `android/` | Android app: a NativeActivity with AAudio, no Java |
-| `tests/` | `syn_engine_test` (every voice, both modes, the sequencer, state) and `syn_panel_snapshot` (panel images) |
+| `core/Circuit.h` | the voices, part by part from the schematic |
+| `core/Engine.h` | the engine: voices, U1's sequencer (rate buttons, memories), 16 patterns and the song, the mixer, the sample pad, state |
+| `core/Fx.h` | the REV7 model and the tempo-synced delay |
+| `core/Files.h`, `core/Files.cpp` | WAV / MP3 / MIDI export (rendered offline) and import |
+| `core/Canvas.h`, `core/Panel.h` | the five pages, drawn by a small software renderer, with multitouch input |
+| `plugin/` | VST3 / AU instrument and standalone app (JUCE), with desktop file dialogs |
+| `android/` | Android app: a NativeActivity with AAudio; one small Java class opens the system file picker |
+| `third_party/` | minimp3 (MP3 decoding, public domain) and shine (MP3 encoding, LGPL 2) |
+| `tests/` | `syn_engine_test` (every voice, both modes, the hardware sequencer), `syn_features_test` (grid, song, swing, mixer, REV7, delay, sample pad, files, state), `syn_panel_snapshot` (images of every page) |
 
 Download: the `synsonics-latest` release (`omega-synsonics.apk` and a zip per desktop OS), built by
 `.github/workflows/synsonics.yml`.
@@ -18,7 +23,51 @@ Download: the `synsonics-latest` release (`omega-synsonics.apk` and a zip per de
 Build it yourself:
 - Plugin: `cmake -S synsonics -B build-syn -DCMAKE_BUILD_TYPE=Release && cmake --build build-syn --config Release`
 - APK: `gradle -p synsonics/android assembleRelease` (Android SDK with NDK 27)
-- Tests only, no JUCE: `cmake -S synsonics -B build-t -DSYN_PLUGIN=OFF && cmake --build build-t && build-t/syn_engine_test .`
+- Tests only, no JUCE: `cmake -S synsonics -B build-t -DSYN_PLUGIN=OFF && cmake --build build-t && build-t/syn_engine_test . && build-t/syn_features_test .`
+
+## Pages
+Five tabs across the top: **DRUMS** (the unit), **GRID**, **MIXER**, **FX**, **FILE**.
+
+**GRID: sequencer and grid editor.**
+- 16 patterns. Patterns 1 to 3 are the front panel's three memories, so whatever you record with RECORD on the
+  DRUMS page shows up here, and the other way round.
+- Rows: tom 1, snare, cymbal, ACCENT (that step's cymbal plays as a closed hi-hat), tom 2, bass, and the sample pad.
+  Tap a cell to set or clear it, and drag to paint. Tap a row name to hear that voice.
+- Length goes up to 340 steps (the memory size of the real unit), changed by a step or a bar at a time. PAGE moves
+  through it 16 steps at a time.
+- COPY / PASTE / CLEAR work on whole patterns.
+- PLAY, STOP, REC (overdub while playing), tempo, and swing (up to 40%).
+- Picking another pattern while one plays queues it for the end of the current one (amber marker).
+- SONG: tap a slot to put the selected pattern there; up to 48 slots on screen. With SONG on, PLAY plays the chain.
+
+**MIXER.**
+- A strip per voice (tom 1, snare, cymbal, tom 2, bass, sample): REV7 send, delay send, pan, mute, solo, fader,
+  meter. Then the two effect returns and the master.
+- The mixer takes each voice where it enters the U4 summing amps. Its defaults are the stock placement (tom 1 and
+  snare left, cymbal and tom 2 right, bass centre) with the unit's 20% blend, so untouched it sounds exactly like the
+  machine. Pushing faders still drives the U4 and LM386 stages.
+- Sends are post-fader. Double-tap any knob or fader to reset it.
+
+**FX: REV7 and delay.**
+- REV7: 30 programs (PROG -/+). The display shows the number and the LCD the name, algorithm and reverb time.
+  Knobs: reverb time (0.3 to 9.9 s), high and low decay ratios, initial delay and reverb delay (0 to 99.9 ms),
+  diffusion (1 to 10), liveness, room size, a 3-band EQ on the effect, and the return.
+- Delay: note values from 1/16 to 1/2, dotted and triplet included, synced to the tempo. Feedback, damping,
+  ping-pong, return.
+- A send matrix repeats every voice's two sends in one place.
+
+**FILE: import and export.**
+- Export the selected pattern or the song, 1, 2 or 4 times through:
+  - **WAV**: 16-bit with dither, or 24-bit.
+  - **MP3**: 256 kbps, 44.1 kHz.
+  - **MIDI**: General MIDI drums on channel 10 at 96 PPQ, with the tempo. The sample pad is note C4 (60).
+- WAV and MP3 are rendered offline through the whole circuit, mixer and effects, including the reverb tail.
+- **Import MIDI**: drum notes go into the selected pattern, quantized to 16ths, and the file's tempo is taken.
+  Files longer than 340 steps become 4-bar patterns from the selected one on, chained as the song.
+- **Import WAV or MP3**: loads it onto the sample pad, with a tune control (±12 semitones). It plays from its grid
+  row, its mixer strip and MIDI C4.
+- On Android the system file picker opens (Downloads, Drive and so on). In the plugin it's a normal file dialog.
+  Exports run in the background.
 
 ## Playing it
 - **Pads**: tom tom 1 (top left), cymbal (top right), snare (bottom left), tom tom 2 (bottom right). Their LEDs light
@@ -41,8 +90,8 @@ Build it yourself:
 - In the plugin, **Host Sync** (on by default) runs the clock at the host's tempo, lined up with its beats, while the host
   plays.
 
-The real machine forgets its memories at power-off; this one keeps them (in the plugin's saved state, and in the
-app's storage on Android).
+The real machine forgets its memories at power-off; this one keeps them, with the patterns, song, mixer, effects
+and the sample pad (in the plugin's saved state, and in the app's storage on Android).
 
 ## How the model works
 Sources: the service manual's schematic (Figure 4), its "Technical Description" of drum sound generator U3, and the
@@ -90,3 +139,22 @@ sets C9's capacitance (0.33 to 22 µF), and the tom decays set the envelope time
 (0 to 4×). Level/overdrive lowers R38 / R42, so the toms drive U4 and the LM386 into clipping; all the distortion
 comes from the circuit itself, as in their demos. The tom 1 boing switch lengthens the pitch sweep's decay, and tom 2
 pitch spans 28 to 420 Hz (kick territory, which is how Circuitbenders use it).
+
+## The REV7 model
+What is documented about the Yamaha REV7 (1983) is followed. The sources are the [Sound On Sound review, November
+1985](https://www.muzines.co.uk/articles/yamaha-rev-7-digital-reverberator/1195) and
+[Yamaha Black Boxes](https://yamahablackboxes.com/collection/yamaha-rev7-reverb/).
+- The input is summed to mono into one converter, and the two outputs carry slightly different reverb patterns.
+- Reverb time is 0.3 to 9.9 s on the mid band, with separate high- and low-frequency decay.
+- Initial delay and first reflection each run 0 to 99.9 ms. There are 10 diffusion steps, plus liveness and room size.
+- The reverb bandwidth is 20 Hz to 12 kHz, and the 3-band EQ works on the effect only.
+- The reverb's 78 dB dynamic range is modelled as a coarse output step, which gives long tails their grain.
+
+The REV7's algorithms and factory program list aren't published (the one page that may list the programs wouldn't
+load). So the engine is a model built on those specs:
+- early-reflection taps,
+- input diffusion,
+- an 8-line feedback delay network with three-band decay.
+
+The 30 programs are this app's own, in the families the reviews describe: halls, rooms, vocal, plates, early
+reflections, gated, reverse, delays and flange/phase.

@@ -14,12 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Circuit model and panel tests
+      - name: Circuit model, sequencer, mixer, effects, files and panel tests
         run: |
           cmake -S synsonics -B build-test -DSYN_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
           cmake --build build-test --parallel 4
           mkdir -p out
           build-test/syn_engine_test out
+          build-test/syn_features_test out
           build-test/syn_panel_snapshot out
   apk:
     needs: test

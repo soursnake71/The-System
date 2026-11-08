@@ -1,6 +1,8 @@
 // Omega Synsonics for Android, all C++: a NativeActivity that draws the shared panel (core/Panel.h) straight into
 // the window's pixels, plays the circuit model (core/Engine.h) through AAudio in low-latency mode, and takes
-// multitouch so pads and buttons can be played together. Memories, tempo and knobs are kept between launches.
+// multitouch so pads and buttons can be played together. Patterns, song, mixer, effects and the sample pad are kept
+// between launches. Files go through Android's file picker: a small Java class (SynsonicsActivity) opens it and
+// hands back a file descriptor; reading, writing, decoding and encoding are all done here.
 #include <aaudio/AAudio.h>
 #include <android/log.h>
 #include <android/native_window.h>
@@ -8,12 +10,16 @@
 #include <android_native_app_glue.h>
 #include <jni.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include "Files.h"
 #include "Panel.h"
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "Synsonics", __VA_ARGS__)
@@ -22,9 +28,11 @@ namespace {
 
 struct Host : syn::PanelHost {
   syn::Engine& e;
+  std::function<void(int)> onFile;
   explicit Host(syn::Engine& en) : e(en) {}
   float getParam(int id) override { return e.params[id]; }
   void setParam(int id, float v) override { e.params[id] = std::clamp(v, 0.f, 1.f); }
+  void requestFile(int op) override { if (onFile) onFile(op); }
 };
 
 struct App {
@@ -40,26 +48,139 @@ struct App {
   double lastTapTime = 0;
   float lastTapX = 0, lastTapY = 0;
   int insetTop = 0, insetBottom = 0;
+  JNIEnv* env = nullptr;  // this (main) thread stays attached
 
-  std::string statePath() const { return std::string(app->activity->internalDataPath) + "/synsonics.state"; }
-  void loadState() {
-    FILE* f = std::fopen(statePath().c_str(), "rb");
-    if (!f) return;
-    std::vector<uint8_t> d;
-    uint8_t b[4096];
+  // ---- files: the picker request in flight, and the worker that does the job
+  int pendingOp = -1;
+  std::thread worker;
+  std::atomic<bool> busy{false};
+  syn::SampleData* savedSample = nullptr;
+
+  std::string dataPath(const char* name) const { return std::string(app->activity->internalDataPath) + "/" + name; }
+  static bool readAll(const std::string& path, std::vector<uint8_t>& d) {
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return false;
+    uint8_t b[16384];
     size_t n;
     while ((n = std::fread(b, 1, sizeof b, f)) > 0) d.insert(d.end(), b, b + n);
     std::fclose(f);
-    engine.loadState(d.data(), d.size());
+    return true;
   }
-  void saveState() {
-    auto d = engine.saveState();
-    std::string tmp = statePath() + ".tmp";
+  static void writeAll(const std::string& path, const std::vector<uint8_t>& d) {
+    std::string tmp = path + ".tmp";
     FILE* f = std::fopen(tmp.c_str(), "wb");
     if (!f) return;
     std::fwrite(d.data(), 1, d.size(), f);
     std::fclose(f);
-    std::rename(tmp.c_str(), statePath().c_str());
+    std::rename(tmp.c_str(), path.c_str());
+  }
+  void loadState() {
+    std::vector<uint8_t> d;
+    if (readAll(dataPath("synsonics.state"), d)) engine.loadState(d.data(), d.size());
+    std::vector<uint8_t> w, nm;
+    if (readAll(dataPath("sample.wav"), w)) {
+      std::string err;
+      if (auto smp = syn::decodeAudio(w, err)) {
+        if (readAll(dataPath("sample.name"), nm)) smp->name.assign(nm.begin(), nm.end());
+        engine.setSample(smp);
+        savedSample = smp.get();
+      }
+    }
+  }
+  void saveState() {
+    writeAll(dataPath("synsonics.state"), engine.saveState());
+    auto smp = engine.sample();
+    if (smp.get() != savedSample) {  // the sample pad, only when it changed
+      if (smp) {
+        writeAll(dataPath("sample.wav"), syn::encodeWav(smp->l, smp->r.empty() ? smp->l : smp->r, int(smp->rate), 24));
+        writeAll(dataPath("sample.name"), std::vector<uint8_t>(smp->name.begin(), smp->name.end()));
+      } else {
+        std::remove(dataPath("sample.wav").c_str());
+      }
+      savedSample = smp.get();
+    }
+  }
+
+  // FILE page button: ask the Java side to show the picker
+  void requestFile(int op) {
+    if (busy) { panel.setStatus("Still working on the last file."); return; }
+    jobject act = app->activity->clazz;
+    jclass c = env->GetObjectClass(act);
+    if (syn::isExport(op)) {
+      std::string name = syn::exportName(engine, panel.exportOptions(), op);
+      jstring mime = env->NewStringUTF(syn::opMime(op)), nm = env->NewStringUTF(name.c_str());
+      env->CallVoidMethod(act, env->GetMethodID(c, "createDocument", "(ILjava/lang/String;Ljava/lang/String;)V"), op, mime, nm);
+      env->DeleteLocalRef(mime); env->DeleteLocalRef(nm);
+    } else {
+      std::vector<const char*> m = op == syn::OpImportMidi
+          ? std::vector<const char*>{"audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "audio/sp-midi", "application/octet-stream"}
+          : std::vector<const char*>{"audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave", "audio/mpeg", "audio/mp3", "audio/x-mpeg"};
+      jobjectArray arr = env->NewObjectArray(jsize(m.size()), env->FindClass("java/lang/String"), nullptr);
+      for (size_t i = 0; i < m.size(); ++i) { jstring js = env->NewStringUTF(m[i]); env->SetObjectArrayElement(arr, jsize(i), js); env->DeleteLocalRef(js); }
+      env->CallVoidMethod(act, env->GetMethodID(c, "openDocument", "(I[Ljava/lang/String;)V"), op, arr);
+      env->DeleteLocalRef(arr);
+    }
+    if (env->ExceptionCheck()) { env->ExceptionClear(); panel.setStatus("Couldn't open the file picker."); return; }
+    pendingOp = op;
+  }
+
+  std::string jstr(jstring s) {
+    if (!s) return {};
+    const char* u = env->GetStringUTFChars(s, nullptr);
+    std::string r = u ? u : "";
+    if (u) env->ReleaseStringUTFChars(s, u);
+    return r;
+  }
+
+  // the picker answered (seen from the main loop): open the file and hand it to the worker
+  void pollFileResult() {
+    if (pendingOp < 0) return;
+    jobject act = app->activity->clazz;
+    jclass c = env->GetObjectClass(act);
+    jfieldID fOp = env->GetFieldID(c, "resultOp", "I"), fUri = env->GetFieldID(c, "resultUri", "Ljava/lang/String;");
+    int op = env->GetIntField(act, fOp);
+    if (op == -1) return;
+    env->SetIntField(act, fOp, -1);
+    pendingOp = -1;
+    if (op < 0) return;  // cancelled
+    jstring juri = static_cast<jstring>(env->GetObjectField(act, fUri));
+    bool exp = syn::isExport(op);
+    jstring mode = env->NewStringUTF(exp ? "wt" : "r");
+    int fd = env->CallIntMethod(act, env->GetMethodID(c, "openFd", "(Ljava/lang/String;Ljava/lang/String;)I"), juri, mode);
+    std::string name = jstr(static_cast<jstring>(env->CallObjectMethod(act, env->GetMethodID(c, "displayName", "(Ljava/lang/String;)Ljava/lang/String;"), juri)));
+    env->DeleteLocalRef(mode);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (fd < 0) { panel.setStatus("Couldn't open that file."); return; }
+    if (worker.joinable()) worker.join();
+    busy = true;
+    syn::ExportOptions o = panel.exportOptions();
+    int pattern = panel.editPattern();
+    panel.setStatus(exp ? "Exporting " + name + "..." : "Loading " + name + "...");
+    worker = std::thread([this, op, fd, name, o, pattern, exp] {
+      std::string msg;
+      if (exp) {
+        std::vector<uint8_t> bytes;
+        msg = syn::exportFile(engine, o, op, bytes);
+        size_t done = 0;
+        while (msg.empty() && done < bytes.size()) {
+          ssize_t w = ::write(fd, bytes.data() + done, bytes.size() - done);
+          if (w <= 0) { msg = "Couldn't write the file."; break; }
+          done += size_t(w);
+        }
+        if (msg.empty()) msg = "Saved " + name + " (" + std::to_string(bytes.size() / 1024) + " KB).";
+      } else {
+        std::vector<uint8_t> data;
+        uint8_t b[65536];
+        ssize_t n;
+        while ((n = ::read(fd, b, sizeof b)) > 0 && data.size() < size_t(256) << 20) data.insert(data.end(), b, b + n);
+        std::string info;
+        msg = syn::importFile(engine, op, data, name, pattern, info);
+        if (msg.empty()) msg = "Loaded " + info + ".";
+      }
+      ::close(fd);
+      panel.setStatus(msg);
+      busy = false;
+    });
   }
 
   // ---- audio
@@ -115,9 +236,7 @@ struct App {
   // ---- window
   // targetSdk 35 draws edge to edge: ask the decor view how much the status and navigation bars cover
   void readInsets() {
-    JNIEnv* env = nullptr;
-    JavaVM* vm = app->activity->vm;
-    if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
+    if (!env) return;
     jobject act = app->activity->clazz;
     jclass actC = env->GetObjectClass(act);
     jobject win = env->CallObjectMethod(act, env->GetMethodID(actC, "getWindow", "()Landroid/view/Window;"));
@@ -135,7 +254,6 @@ struct App {
       }
     }
     if (env->ExceptionCheck()) env->ExceptionClear();
-    vm->DetachCurrentThread();
     panel.setInsets(insetTop, insetBottom);
   }
 
@@ -248,6 +366,9 @@ void android_main(android_app* state) {
   state->onAppCmd = [](android_app* s, int32_t cmd) { static_cast<App*>(s->userData)->onCmd(cmd); };
   state->onInputEvent = [](android_app* s, AInputEvent* e) { return static_cast<App*>(s->userData)->onInput(e); };
   ANativeActivity_setWindowFlags(state->activity, AWINDOW_FLAG_KEEP_SCREEN_ON | AWINDOW_FLAG_FULLSCREEN, 0);
+  state->activity->vm->AttachCurrentThread(&a->env, nullptr);
+  App* ap = a.get();
+  a->host.onFile = [ap](int op) { ap->requestFile(op); };
   a->loadState();
 
   while (!state->destroyRequested) {
@@ -258,8 +379,11 @@ void android_main(android_app* state) {
     int r = ALooper_pollOnce(timeout, nullptr, &events, reinterpret_cast<void**>(&src));
     if (r >= 0 && src) src->process(state, src);
     if (a->restartAudio.exchange(false) && a->resumed) { a->stopAudio(); a->startAudio(); }
+    a->pollFileResult();
     if (a->hasWindow && a->resumed) a->draw(false);
   }
   a->stopAudio();
+  if (a->worker.joinable()) a->worker.join();
   a->saveState();
+  state->activity->vm->DetachCurrentThread();
 }

@@ -1,9 +1,12 @@
 // Omega Synsonics as a VST3 / AU instrument and a standalone app (JUCE). The sound is core/Engine.h and the panel
 // is core/Panel.h, the same code the Android app runs; this file only connects them to the host: parameters for
-// automation, MIDI notes as the trigger inputs, host tempo, saved state, and a window the panel draws into.
+// automation, MIDI notes as the trigger inputs, host tempo, saved state (with the sample pad), file dialogs for import
+// and export, and a window the panel draws into.
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "../core/Panel.h"
+#include "../core/Files.h"
+#include <mutex>
 
 namespace {
 
@@ -30,6 +33,41 @@ class SynsonicsProcessor : public juce::AudioProcessor {
   syn::Engine engine;
   juce::AudioProcessorValueTreeState apvts;
   std::atomic<float>* raw[syn::NumParams];
+
+  // file jobs run here, off the message thread; their result reaches the panel through the status
+  juce::ThreadPool jobs{1};
+  std::mutex statusMutex;
+  std::string status;
+  std::atomic<int> statusVersion{0};
+  std::atomic<bool> busy{false};
+  void setStatus(const std::string& st) { std::lock_guard<std::mutex> lk(statusMutex); status = st; ++statusVersion; }
+  ~SynsonicsProcessor() override { jobs.removeAllJobs(true, 60000); }
+
+  void exportTo(int op, syn::ExportOptions o, juce::File file) {
+    if (busy.exchange(true)) { setStatus("Still working on the last file."); return; }
+    setStatus("Exporting " + file.getFileName().toStdString() + "...");
+    jobs.addJob([this, op, o, file] {
+      std::vector<uint8_t> bytes;
+      std::string err = syn::exportFile(engine, o, op, bytes);
+      if (err.empty()) err = file.replaceWithData(bytes.data(), bytes.size()) ? "" : "Couldn't write " + file.getFullPathName().toStdString();
+      setStatus(err.empty() ? "Saved " + file.getFullPathName().toStdString() + " (" + std::to_string(bytes.size() / 1024) + " KB)." : err);
+      busy = false;
+    });
+  }
+  void importFrom(int op, juce::File file, int pattern) {
+    if (busy.exchange(true)) { setStatus("Still working on the last file."); return; }
+    jobs.addJob([this, op, file, pattern] {
+      juce::MemoryBlock mb;
+      std::string info, err;
+      if (!file.loadFileAsData(mb)) err = "Couldn't read " + file.getFullPathName().toStdString();
+      else {
+        std::vector<uint8_t> data(static_cast<const uint8_t*>(mb.getData()), static_cast<const uint8_t*>(mb.getData()) + mb.getSize());
+        err = syn::importFile(engine, op, data, file.getFileName().toStdString(), pattern, info);
+      }
+      setStatus(err.empty() ? "Loaded " + info + "." : err);
+      busy = false;
+    });
+  }
 
   juce::RangedAudioParameter* param(int i) { return apvts.getParameter(syn::paramInfo()[i].id); }
 
@@ -84,6 +122,12 @@ class SynsonicsProcessor : public juce::AudioProcessor {
     auto st = apvts.copyState();
     auto blob = engine.saveState();
     st.setProperty("engine", juce::Base64::toBase64(blob.data(), blob.size()), nullptr);
+    // the sample pad travels with the project (as a 24-bit WAV), up to about five minutes of stereo
+    if (auto smp = engine.sample(); smp && smp->frames() < size_t(48000) * 300) {
+      auto wav = syn::encodeWav(smp->l, smp->r.empty() ? smp->l : smp->r, int(smp->rate), 24);
+      st.setProperty("sample", juce::Base64::toBase64(wav.data(), wav.size()), nullptr);
+      st.setProperty("sampleName", juce::String(smp->name), nullptr);
+    }
     if (auto xml = st.createXml()) copyXmlToBinary(*xml, dest);
   }
   void setStateInformation(const void* data, int size) override {
@@ -95,6 +139,16 @@ class SynsonicsProcessor : public juce::AudioProcessor {
     if (juce::Base64::convertFromBase64(mo, st.getProperty("engine").toString()))
       engine.loadState(static_cast<const uint8_t*>(mo.getData()), mo.getDataSize());
     st.removeProperty("engine", nullptr);
+    juce::MemoryOutputStream ms;
+    if (st.hasProperty("sample") && juce::Base64::convertFromBase64(ms, st.getProperty("sample").toString())) {
+      std::vector<uint8_t> wav(static_cast<const uint8_t*>(ms.getData()), static_cast<const uint8_t*>(ms.getData()) + ms.getDataSize());
+      std::string err;
+      if (auto smp = syn::decodeAudio(wav, err)) { smp->name = st.getProperty("sampleName").toString().toStdString(); engine.setSample(smp); }
+    } else {
+      engine.setSample(nullptr);
+    }
+    st.removeProperty("sample", nullptr);
+    st.removeProperty("sampleName", nullptr);
     apvts.replaceState(st);
   }
 
@@ -121,7 +175,7 @@ class SynsonicsEditor : public juce::AudioProcessorEditor, private juce::Timer, 
   explicit SynsonicsEditor(SynsonicsProcessor& p) : AudioProcessorEditor(p), proc(p), panel(p.engine, *this) {
     setOpaque(true);
     setResizable(true, true);
-    lastBent = panel.logicalHeight() > syn::Panel::kStockH;
+    lastBent = proc.raw[syn::pMode]->load() > 0.5f;
     applyAspect(true);
     startTimerHz(40);
   }
@@ -138,6 +192,33 @@ class SynsonicsEditor : public juce::AudioProcessorEditor, private juce::Timer, 
   void setParam(int id, float v) override { if (auto* p = proc.param(id)) p->setValueNotifyingHost(p->convertTo0to1(v)); }
   void beginEdit(int id) override { if (auto* p = proc.param(id)) p->beginChangeGesture(); }
   void endEdit(int id) override { if (auto* p = proc.param(id)) p->endChangeGesture(); }
+
+  // FILE page: a save or open dialog, then the job runs on the processor's thread
+  std::unique_ptr<juce::FileChooser> chooser;
+  int seenStatus = -1;
+  void requestFile(int op) override {
+    bool exp = syn::isExport(op);
+    syn::ExportOptions o = panel.exportOptions();
+    int pattern = panel.editPattern();
+    juce::String pattern_ = op == syn::OpImportMidi ? "*.mid;*.midi" : op == syn::OpImportAudio ? "*.wav;*.mp3" : juce::String("*.") + syn::opExtension(op);
+    juce::File start = juce::File::getSpecialLocation(juce::File::userMusicDirectory);
+    if (exp) start = start.getChildFile(syn::exportName(proc.engine, o, op));
+    chooser = std::make_unique<juce::FileChooser>(exp ? "Export" : "Import", start, pattern_);
+    int dlgFlags = exp ? (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting)
+                    : (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles);
+    juce::Component::SafePointer<SynsonicsEditor> self(this);
+    chooser->launchAsync(dlgFlags, [self, op, o, pattern, exp](const juce::FileChooser& fc) {
+      if (!self) return;
+      juce::File f = fc.getResult();
+      if (f == juce::File()) return;
+      if (exp) {
+        if (!f.hasFileExtension(syn::opExtension(op))) f = f.withFileExtension(syn::opExtension(op));
+        self->proc.exportTo(op, o, f);
+      } else {
+        self->proc.importFrom(op, f, pattern);
+      }
+    });
+  }
 
   void applyAspect(bool initial) {
     float aspect = panel.aspect();
@@ -160,6 +241,11 @@ class SynsonicsEditor : public juce::AudioProcessorEditor, private juce::Timer, 
   }
 
   void timerCallback() override {
+    if (proc.statusVersion != seenStatus) {
+      seenStatus = proc.statusVersion;
+      std::lock_guard<std::mutex> lk(proc.statusMutex);
+      if (!proc.status.empty()) panel.setStatus(proc.status);
+    }
     bool b = proc.raw[syn::pMode]->load() > 0.5f;
     if (b != lastBent) { lastBent = b; applyAspect(false); }
     if (redraw(false)) repaint();

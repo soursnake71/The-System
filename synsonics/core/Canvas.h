@@ -4,6 +4,9 @@
 #pragma once
 #include <algorithm>
 #include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846  // MSVC leaves it out
+#endif
 #include <cstdint>
 #include <cstring>
 #include <string>
