@@ -254,6 +254,10 @@ inline bool vcToSound(const std::vector<uint8_t>& vc, const std::string& name, c
     }
     Controls c; c.attack = 0; c.damp = 8; c.sustain = 1; c.loop = 1; c.filter = 255; c.velVol = 0.5f; c.velFilt = 0.2f; c.segTime = 0.04f;
     s.ctl = c;
+    if (mode == 4) {   // silence ahead of the sound (BDRUM, PERCSTK: 0.4 s, the sampling trigger set early): start where it begins
+        size_t at = 0; while (at < s.ram.size() && std::abs((int) s.ram[at] - 128) <= 8) ++at;
+        if (at > 3000 && at < s.ram.size()) s.startPage = (int) (at / PAGE);
+    }
     out = std::move(s);
     return true;
 }

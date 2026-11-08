@@ -468,7 +468,7 @@ public class CmiView extends View {
             button(c, new RectF(dx, ky + dp(26), dx + dw * 0.5f, ky + dp(50)), rec ? "STOP: KEEP IT" : "REC DRUMS", rec, () -> { status(Native.recordPads()); act.saveState(); });
             button(c, new RectF(dx + dw * 0.5f + dp(6), ky + dp(26), dx + dw, ky + dp(50)), "GRID", false, () -> { page = 'S'; grid = true; });
         }
-        if (!portrait) {
+        if (!portrait && by + dp(110) < b.bottom) {
             final float hy = by + dp(86);
             button(c, new RectF(dx, hy, dx + half, hy + dp(24)), "SONG'S OWN KIT", false, () -> { kitBack = 'P'; page = 'K'; });
             final boolean run = Native.songRunning();
@@ -476,7 +476,7 @@ public class CmiView extends View {
             final String[] help = { "Every pad is a General MIDI drum: a song's kick (36),", "snare (38) and hats (42, 46) land on those pads.",
                     "This kit plays every song's drums, MIDI channel 10", "and the pads; a song's own kit goes on top of it.", "DICE: a random kit from your library.",
                     "SAMPLES: a folder of WAVs as CMI voices (8-bit,", "up to 30.2 kHz), each on its pad by its name." };
-            for (int k = 0; k < help.length; ++k) text(c, help[k], dx, hy + dp(40) + k * dp(13), 9, DIM);
+            for (int k = 0; k < help.length && hy + dp(40) + k * dp(13) < b.bottom; ++k) text(c, help[k], dx, hy + dp(40) + k * dp(13), 9, DIM);   // as much as fits
         }
     }
 

@@ -131,7 +131,7 @@ struct LibraryDrums {
             const PartGuess g = partOfName(v.name);
             if (g.part == Part::None || !(g.strong || drumDisk(v.disk))) continue;
             if (!drumDisk(v.disk) && v.looped && g.part != Part::Crash && g.part != Part::Ride) continue;   // a sustained voice named like a drum
-            if (std::find(seen.begin(), seen.end(), v.name) != seen.end() || lateStart(v)) continue;
+            if (std::find(seen.begin(), seen.end(), v.name) != seen.end() ) continue;
             seen.push_back(v.name); by[(size_t) g.part].push_back((int) i);
         }
     }
@@ -298,7 +298,6 @@ inline int fitKitToLibrary(DrumKit& k, const Catalog& cat) {
         const std::string nm = p.voice.substr(0, at), dk = at == std::string::npos ? "" : p.voice.substr(at + 1);
         if (dk == "User") continue;   // your own sample: it's loaded already
         int ci = cat.find(nm, dk); if (ci < 0) ci = cat.find(nm);
-        if (ci >= 0 && lateStart(cat.voices[(size_t) ci])) ci = -1;
         if (ci < 0) {
             Part part = partOfName(nm).part; if (part == Part::None) part = partOfNote(note);
             const auto& c = ld.by[(size_t) part];

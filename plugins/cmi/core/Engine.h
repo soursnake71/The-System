@@ -113,7 +113,7 @@ private:
     void startPending() {
         snd = pend.s; ctl = pend.c; note = pend.note; vel = pend.vel; gate = pend.gate;
         target = note; pitch = (pend.glideFrom >= 0 && ctl.porta > 0.0005f) ? pend.glideFrom : note;
-        t = 0; ws = 0; lsb = 0; msb = 0; phase = 1.0; run = true; ended = false; fadeLeft = -1; fadeTotal = 0;
+        t = 0; ws = 0; lsb = 0; msb = snd && snd->mode == Mode::Sample ? clampi(snd->startPage, 0, std::max(0, snd->pages() - 1)) : 0; phase = 1.0; run = true; ended = false; fadeLeft = -1; fadeTotal = 0;
         env = 0; up = true; state = Playing;
         setEclk(envTime(ctl.attack), true); envClk = true;
         flt.reset(); tick = 0;

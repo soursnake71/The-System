@@ -84,10 +84,11 @@ public class MainActivity extends Activity {
     // ---- state ----
     private File stateFile() { return new File(getFilesDir(), "cmi-state.bin"); }
     void saveState() {
-        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).putString("fx", Native.fxState()).putString("pen", Native.penState()).putBoolean("click", Native.clickOn()).apply(); } catch (Exception ignored) {}
+        try { getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("remembered", Native.getRemembered()).putString("presets", Native.getPresetChoices()).putString("fx", Native.fxState()).putString("pen", Native.penState()).putBoolean("click", Native.clickOn()).putFloat("kickLift", Native.kickLift()).putFloat("humanize", Native.humanize()).apply(); } catch (Exception ignored) {}
         try (FileOutputStream o = new FileOutputStream(stateFile())) { o.write(Native.saveState()); } catch (Exception ignored) {}
     }
     private void loadState() {
+        try { android.content.SharedPreferences sp = getSharedPreferences("cmi", MODE_PRIVATE); Native.setKickLift(sp.getFloat("kickLift", 2f)); Native.setHumanize(sp.getFloat("humanize", 0f)); } catch (Exception ignored) {}
         File f = stateFile();
         if (!f.exists()) return;
         try (FileInputStream in = new FileInputStream(f)) {

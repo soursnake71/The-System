@@ -240,7 +240,7 @@ int main(int argc, char** argv) {
         // a library voice's place kept, filled when the library is read
         auto fakeVc = [](int pages, int start) { std::vector<uint8_t> v(0x1580 + (size_t) pages * PAGE, 0x80); v[0] = 4; for (size_t i = 0x1580 + (size_t) start; i < v.size(); ++i) v[i] = (uint8_t) (128 + (int) std::lround(100 * std::sin(i * 0.2) * std::exp(-(double) (i - 0x1580 - start) / 3000.0))); return v; };
         Catalog cat;
-        auto addVoice = [&](const char* nm, const char* dk, int start = 0) { CatVoice c; c.name = nm; c.disk = dk; c.vc = fakeVc(40, start); c.hash = cat.voices.size() + 1; cat.voices.push_back(c); };
+        auto addVoice = [&](const char* nm, const char* dk, int start = 0) { CatVoice c; c.name = nm; c.disk = dk; c.vc = fakeVc(start ? 120 : 40, start); c.hash = cat.voices.size() + 1; cat.voices.push_back(c); };
         addVoice("KICK1", "DRUMS1"); addVoice("SNARE1", "DRUMS1"); addVoice("LMSNARE", "DRUMS"); addVoice("HIHAT2", "CYMBALS"); addVoice("HHOPEN1", "CYMBALS");
         addVoice("TTOM", "DRUMS"); addVoice("CYMSPLS1", "CYMBALS"); addVoice("CROSSTIX", "DRUMS"); addVoice("CLAP", "PERCUSN1"); addVoice("BDRUM", "DRUMS", 13000);
         addVoice("STRNGENS", "STRINGS"); addVoice("COWBELL1", "PERCUSN1"); addVoice("CYMSTICK", "CYMBALS");
@@ -283,12 +283,12 @@ int main(int argc, char** argv) {
         CHECK(kps.size() == 100 && full == 100 && std::unique(pn.begin(), pn.end()) == pn.end(), "100 kit presets (%zu, %d complete)", kps.size(), full);
         // a preset fitted to a library that lacks some of its voices: the same kind from what's there
         DrumKit fk = kps[10].kit; const int repl = fitKitToLibrary(fk, cat);
-        CHECK(repl > 0 && cat.find(fk.p[36].voice.substr(0, fk.p[36].voice.find('@'))) >= 0 && partOfName(fk.p[38].voice).part == Part::Snare && partOfName(fk.p[36].voice).part == Part::Kick &&
-              fk.p[36].voice.rfind("BDRUM", 0) != 0, "a preset on a small library: %d replaced, kick %s, snare %s", repl, fk.p[36].voice.c_str(), fk.p[38].voice.c_str());
+        CHECK(repl > 0 && cat.find(fk.p[36].voice.substr(0, fk.p[36].voice.find('@'))) >= 0 && partOfName(fk.p[38].voice).part == Part::Snare && partOfName(fk.p[36].voice).part == Part::Kick, "a preset on a small library: %d replaced, kick %s, snare %s", repl, fk.p[36].voice.c_str(), fk.p[38].voice.c_str());
+        { Sound bd; cat.sound(cat.find("BDRUM"), bd); CHECK(bd.startPage == 13000 / PAGE, "silence ahead of a voice skipped: starts at page %d", bd.startPage); }
         // the dice: a kit from this library only
         const DrumKit rk = randomKit(cat, 7); int fromLib = 1;
         for (const auto& p : rk.p) if (!p.voice.empty() && cat.find(p.voice.substr(0, p.voice.find('@'))) < 0) fromLib = 0;
-        CHECK(fromLib && !rk.p[36].voice.empty() && !rk.p[38].voice.empty() && rk.p[36].voice.rfind("BDRUM", 0) != 0 && rk.p[1].voice.empty(), "random kit from the library: %s", kitSummary(rk).c_str());
+        CHECK(fromLib && !rk.p[36].voice.empty() && !rk.p[38].voice.empty() && rk.p[1].voice.empty(), "random kit from the library: %s", kitSummary(rk).c_str());
 
         // the pads play the kit with no song; MIDI channel 10 too; a song's kit goes on top
         Kit kk; DrumKit pk = randomKit(cat, 3); loadKitVoices(pk, kk, cat);
