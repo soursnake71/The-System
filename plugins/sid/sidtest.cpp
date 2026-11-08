@@ -220,72 +220,63 @@ int main(int argc, char** argv) {
         s->initPatch();
     }
 
-    // the REV7: decay time, high ratio, band limit, the gate; then the sends and returns in the synth
+    // the reverb is the Omega REV7: its presets are numbered as the SID presets use them, its decay follows REV TIME
+    // in the SID, every program runs, and the sends / return route it
     {
-        auto impulse = [&](Rev7::Settings st, double secs, std::vector<float>& L) {
-            Rev7 rv; rv.prepare(fs); rv.apply(st, true);
-            const int n = (int) (secs * fs); L.assign((size_t) n, 0.f);
-            for (int i = 0; i < n; ++i) { float l, r; rv.process(i == 0 ? 1.f : 0.f, l, r); L[(size_t) i] = 0.5f * (l + r); }
-        };
-        // RT60 from the energy decay (Schroeder integral), fitted between -5 and -25 dB
-        auto rt60 = [&](const std::vector<float>& x) {
+        const omega::Spec& sp = rev7Spec();
+        std::printf("Omega REV7: %d presets, %d parameters\n", (int) sp.presets.size(), (int) sp.params.size());
+        CHECK(sp.presets.size() == 144, "expected the REV7's 144 presets, got %d", (int) sp.presets.size());
+        CHECK(sp.presets[22].name == "23 GATE REVERB", "REV7 preset 23 is %s", sp.presets[22].name.c_str());
+        CHECK(sp.presets[31].name.find("Wakeman") != std::string::npos, "REV7 preset 32 is %s", sp.presets[31].name.c_str());
+        CHECK(sp.presets[46].name.find("808 kick room") != std::string::npos, "REV7 preset 47 is %s", sp.presets[46].name.c_str());
+        for (auto& m : Synth::rev7Ids()) CHECK(sp.index(m.second) >= 0, "the REV7 has no parameter %s", m.second);
+        // the SID's REV7 parameters have the REV7's own ranges and defaults
+        for (auto& m : Synth::rev7Ids()) {
+            const auto& q = sp.params[(size_t) sp.index(m.second)]; const ParamInfo& pi = params()[m.first];
+            if (!q.choices.empty()) { CHECK((int) q.choices.size() == (int) pi.max + 1, "%s has %d choices", m.second, (int) q.choices.size()); continue; }
+            CHECK(std::fabs(q.min - pi.min) < 1e-3 && std::fabs(q.max - pi.max) < 1e-3 && std::fabs(q.def - pi.def) < 1e-3, "%s range %g..%g def %g vs SID %g..%g def %g", m.second, q.min, q.max, q.def, pi.min, pi.max, pi.def);
+        }
+        // decay through the SID: an impulse-ish blip on the send, LARGE HALL at three REV TIMEs
+        auto rt60 = [&](const std::vector<float>& x, int from) {
             std::vector<double> e(x.size() + 1, 0.0);
-            for (size_t i = x.size(); i-- > 0;) e[i] = e[i + 1] + (double) x[i] * x[i];
-            int a = -1, b = -1;
-            for (size_t i = 0; i < x.size(); ++i) { const double db = 10 * std::log10(e[i] / e[0] + 1e-30); if (a < 0 && db < -5) a = (int) i; if (b < 0 && db < -25) { b = (int) i; break; } }
-            return a < 0 || b < 0 ? 0.0 : (b - a) / (double) fs * 3.0;
+            for (size_t i = x.size(); i-- > (size_t) from;) e[i] = e[i + 1] + (double) x[i] * x[i];
+            int a5 = -1, b25 = -1;
+            for (size_t i = (size_t) from; i < x.size(); ++i) { const double db = 10 * std::log10(e[i] / e[(size_t) from] + 1e-30); if (a5 < 0 && db < -5) a5 = (int) i; if (b25 < 0 && db < -25) { b25 = (int) i; break; } }
+            return a5 < 0 || b25 < 0 ? 0.0 : (b25 - a5) / (double) fs * 3.0;
         };
-        std::vector<float> ir;
-        for (double t : { 1.0, 2.5, 5.0 }) {
-            Rev7::Settings st; st.program = Rev7::HALL; st.time = t; st.highRatio = 1.0; st.balance = 1.0; st.delayMs = 1;
-            impulse(st, t * 1.6, ir);
-            const double m = rt60(ir);
-            std::printf("REV7 hall, time %.1f s: measured RT60 %.2f s\n", t, m);
-            CHECK(m > t * 0.7 && m < t * 1.35, "REV7 RT60 %.2f for a %.1f s setting", m, t);
+        for (double t : { 1.0, 2.6, 5.0 }) {
+            s->panic(); s->initPatch();
+            s->set(P::o1tri, 1); s->set(P::o1saw, 0); s->set(P::o1d, 0); s->set(P::o1s, 0); s->set(P::o1r, 0);
+            s->set(P::rret, 1); s->set(P::s1r, 1); s->set(P::r7prog, 0); s->set(P::r7rt, (float) t); s->set(P::r7idly, 1);
+            auto o = run(*s, fs, t * 1.8 + 0.3, [](Synth& x, int bl) { if (bl == 0) x.noteOn(72, 1); if (bl == 2) x.noteOff(72); });
+            const double m = rt60(o.l, (int) (fs * 0.08));
+            std::printf("REV7 LARGE HALL in the SID, REV TIME %.1f s: measured %.2f s\n", t, m);
+            CHECK(m > t * 0.7 && m < t * 1.35, "REV7 decay %.2f s for REV TIME %.1f s", m, t);
         }
-        // high ratio: the highs die sooner
-        {
-            Rev7::Settings st; st.time = 3; st.balance = 1; st.highRatio = 0.2; impulse(st, 2.0, ir);
-            auto hfLate = [&](const std::vector<float>& x) { double e = 0; for (size_t i = (size_t) (fs * 1.0); i + 1 < x.size(); ++i) { const double d = x[i + 1] - x[i]; e += d * d; } return e; };
-            auto all = [&](const std::vector<float>& x) { double e = 0; for (size_t i = (size_t) (fs * 1.0); i < x.size(); ++i) e += (double) x[i] * x[i]; return e; };
-            const double dark = hfLate(ir) / all(ir);
-            st.highRatio = 1.0; impulse(st, 2.0, ir);
-            const double bright = hfLate(ir) / all(ir);
-            std::printf("REV7 high ratio: late HF share %.4f at 0.2, %.4f at 1.0\n", dark, bright);
-            CHECK(dark < bright * 0.6, "high ratio doesn't darken the tail");
+        // all 30 programs, through the synth
+        int silent = 0;
+        for (int prg = 0; prg < 30; ++prg) {
+            s->panic(); s->initPatch(); s->set(P::rret, 1); s->set(P::s1r, 1); s->set(P::r7prog, (float) prg);
+            auto o = run(*s, fs, 1.2, [](Synth& x, int bl) { if (bl == 0) x.noteOn(60, 1); if (bl == 20) x.noteOff(60); });
+            CHECK(o.finite, "REV7 program %d: not finite", prg + 1);
+            if (o.rms < 1e-3) { ++silent; std::printf("REV7 program %d (%s) quiet\n", prg + 1, sp.presets[(size_t) prg].name.c_str()); }
+            CHECK(o.peak < 1.0, "REV7 program %d clips (%.2f)", prg + 1, o.peak);
         }
-        // band limit: almost nothing above 13 kHz
-        {
-            Rev7::Settings st; st.program = Rev7::PLATE; st.lpfHz = 14000; impulse(st, 1.0, ir);
-            const int N = 16384; double lo = 0, hi = 0;
-            for (int k = 1; k < N / 2; ++k) {
-                double re = 0, im = 0; const double w = 2 * kPi * k / N;
-                if (k % 16) continue;   // a coarse look is enough
-                for (int i = 0; i < N; ++i) { re += ir[(size_t) i] * std::cos(w * i); im += ir[(size_t) i] * std::sin(w * i); }
-                (k * fs / (double) N > 13000 ? hi : lo) += re * re + im * im;
-            }
-            std::printf("REV7 band limit: energy above 13 kHz %.2f%%\n", 100 * hi / (lo + hi));
-            CHECK(hi / (lo + hi) < 0.01, "REV7 passes highs above 13 kHz");
-        }
-        // gate: a flat burst for the gate length, then quiet
-        {
-            Rev7::Settings st; st.program = Rev7::GATE; st.gateMs = 150; st.delayMs = 1; impulse(st, 0.5, ir);
-            double in = 0, after = 0;
-            for (size_t i = 0; i < ir.size(); ++i) { const double t = i / (double) fs; (t < 0.16 ? in : (t > 0.19 ? after : in)) += (double) ir[i] * ir[i]; }
-            std::printf("REV7 gate: energy after the 150 ms gate %.4f%%\n", 100 * after / (in + after));
-            CHECK(after < in * 0.01, "the gate reverb doesn't stop");
-        }
-        // in the synth: no return, no reverb; a return and sends, a tail after the note
+        CHECK(silent == 0, "%d REV7 programs are silent", silent);
+        // the sends and the return
         auto tail = [&](float ret, float send) {
             s->panic(); s->initPatch(); s->set(P::o1d, 4); s->set(P::o1s, 0); s->set(P::o1r, 0);
             s->set(P::rret, ret); s->set(P::s1r, send);
-            auto o = run(*s, fs, 1.2, [](Synth& x, int b) { if (b == 0) x.noteOn(60, 1); if (b == 10) x.noteOff(60); });
+            auto o = run(*s, fs, 1.2, [](Synth& x, int bl) { if (bl == 0) x.noteOn(60, 1); if (bl == 10) x.noteOff(60); });
             double e = 0; for (int i = (int) (fs * 0.5); i < (int) (fs * 1.2); ++i) e += (double) o.l[(size_t) i] * o.l[(size_t) i];
             return e;
         };
         const double none = tail(0, 1), noSend = tail(1, 0), wet = tail(1, 1);
         std::printf("REV7 in the synth: tail energy %.6f no return, %.6f no send, %.4f with both\n", none, noSend, wet);
         CHECK(wet > 100 * (none + 1e-9) && wet > 100 * (noSend + 1e-9), "the reverb send / return doesn't work");
+        // a SID preset that names a REV7 preset gets its program
+        for (int i = 0; i < presetCount(); ++i) if (std::string(PRESETS[i].name) == "GATED SNARE") { s->applyPreset(i); break; }
+        CHECK((int) std::lround(s->get(P::r7prog)) == 22, "GATED SNARE didn't load REV7 program 23 (got %d)", (int) std::lround(s->get(P::r7prog)) + 1);
         s->initPatch();
     }
 

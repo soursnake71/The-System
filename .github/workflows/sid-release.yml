@@ -5,7 +5,8 @@ name: Omega SID 64 release
 on:
   push:
     branches: [main, 'claude/**', 'ccr-**']
-    paths: ['plugins/sid/**', 'plugins/CMakeLists.txt', 'android-sid/**', '.github/workflows/sid-release.yml']
+    paths: ['plugins/sid/**', 'plugins/dsp/Rev7.h', 'plugins/dsp/Rack.h', 'plugins/dsp/Common.h', 'plugins/src/Rev7*', 'plugins/common/Spec.h',
+            'plugins/CMakeLists.txt', 'android-sid/**', '.github/workflows/sid-release.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -74,7 +75,7 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls -la dl
-          notes="Omega SID 64 (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the C64's SID chip (6581 and 8580) as a synth, with sampling into the C64 (4-bit, Mahoney, PWM and Digimax digis at 3.9-22 kHz), a REV7-style reverb, an effects mixer, a step sequencer with a grid editor, an arpeggiator, 398 presets and a C64 screen.
+          notes="Omega SID 64 (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the C64's SID chip (6581 and 8580) as a synth, with sampling into the C64 (4-bit, Mahoney, PWM and Digimax digis at 3.9-22 kHz), the Omega REV7 reverb, an effects mixer, a step sequencer with a grid editor, an arpeggiator, 406 presets and a C64 screen.
 
           - Android: open omega-sid-64.apk on the phone and allow installing from your browser or files app. USB and Bluetooth MIDI keyboards play it.
           - Windows / Mac / Linux: unzip, copy Omega SID 64.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3, Linux ~/.vst3); on Mac the .component goes in /Library/Audio/Plug-Ins/Components. The standalone app runs without a DAW. On a Mac, if it's refused: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"

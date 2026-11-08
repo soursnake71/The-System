@@ -80,6 +80,8 @@ public:
     virtual void pitchBend(double /*semitones*/) {}
     virtual void modWheel(double /*v*/) {}
     virtual void setText(const std::string& /*t*/) {}
+    // an input meter for editors that show one (peak, linear; 0 when the engine has none)
+    virtual float level() const { return 0.f; }
     // in*: main input (may be null for a synth), sc*: sidechain (may be null); out must be filled
     virtual void process(const float* inL, const float* inR, const float* scL, const float* scR, float* outL, float* outR, int n, const Transport& t) = 0;
 

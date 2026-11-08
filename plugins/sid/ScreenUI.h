@@ -93,7 +93,7 @@ public:
     static constexpr int NPAGES = 14;
     static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 11, 12, 9, 13, 7 };   // the tab order
     static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "FX", "REV", "SEQ", "GRID", "CHP" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
-    void setPage(int pg) { page = pg; patList = false; if (pg == 0) showPreset(host.synth().program.load()); if (pg == 13) gridFit(); }
+    void setPage(int pg) { page = pg; patList = false; revList = false; if (pg == 0) showPreset(host.synth().program.load()); if (pg == 13) gridFit(); }
     void stepPage(int d) {
         int k = 0; for (int i = 0; i < NPAGES; ++i) if (PAGE_ORDER[i] == page) k = i;
         setPage(PAGE_ORDER[((k + d) % NPAGES + NPAGES) % NPAGES]);
@@ -123,6 +123,7 @@ public:
         if (hit.kind == Z_STEP_NOTE) { Step s = host.synth().step(curPat(), hit.a); startVal = (float) s.note; }
         if (hit.kind == Z_LIST || hit.kind == Z_PRESET) startVal = (float) listScroll;
         if (hit.kind == Z_PATLIST || hit.kind == Z_PATITEM) startVal = (float) patScroll;
+        if (hit.kind == Z_REVLIST || hit.kind == Z_REVITEM) startVal = (float) revScroll;
     }
     void move(float x, float y) {
         if (std::fabs(x - downX) > 3 || std::fabs(y - downY) > 3) moved = true;
@@ -145,6 +146,7 @@ public:
                 host.synth().setStep(curPat(), hit.a, s); break;
             }
             case Z_LIST: case Z_PRESET: listScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, catSize() - listRows())); break;
+            case Z_REVLIST: case Z_REVITEM: revScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, (int) rev7Spec().presets.size() - listRows())); break;
             case Z_PATLIST: case Z_PATITEM: patScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, patternPresetCount() - 2 * listRows())); break;
             default: break;
         }
@@ -183,7 +185,7 @@ private:
     Host& host;
     struct Cell { char ch = ' '; uint8_t fg = LBLUE; bool inv = false; };
     Cell cell[MAXROWS][COLS];
-    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER, Z_GRID, Z_GRID_ACC, Z_GRID_SLD };
+    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER, Z_GRID, Z_GRID_ACC, Z_GRID_SLD, Z_REVLIST, Z_REVITEM };
     struct Zone { int r = -1, c0 = 0, c1 = 0, kind = Z_NONE, a = -1; };
     struct Bar { int r, c0, c1; float frac; uint8_t col; bool center; };
     struct Rect { int x, y, w, h; uint32_t col; };
@@ -202,7 +204,7 @@ private:
 
     enum Btn { B_PREV = 1, B_NEXT, B_INIT, B_RAND, B_UP, B_DN, B_PLAY, B_STOP, B_PAT_DN, B_PAT_UP, B_LEN_DN, B_LEN_UP, B_LOAD, B_CLEAR,
                B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE,
-               B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT, B_GRID_HALF, B_GRID_UP, B_GRID_DN };
+               B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT, B_GRID_HALF, B_GRID_UP, B_GRID_DN, B_REV_LIST, B_REV_EQ, B_BACK_REV, B_REV_UP, B_REV_DN };
     std::vector<Step> clip;
 
     int curPat() { return std::clamp((int) std::lround(host.get(P::spat)) - 1, 0, kPatterns - 1); }
@@ -626,30 +628,55 @@ private:
         for (int id : { P::etime, P::esync, P::ediv, P::efb, P::etone }) paramRow(r++, id);
     }
 
-    // ---------------- the REV7 ----------------
+    // ---------------- the REV7: the Omega REV7 engine, its programs and presets ----------------
+    bool revList = false, revEq = false; int revScroll = 0;
     void pageRev() {
-        int r = 5;
-        for (int id : { P::rprog, P::rtime, P::rhigh, P::rdly, P::rsize, P::rbal, P::rdiff, P::rdens, P::rlpf, P::rhpf, P::rgate, P::rret }) paramRow(r++, id);
-        put(r, 1, "REV7 STYLE: 31.25 KHZ, 12 KHZ BAND", GREY);
-        // a sketch of the response: the early reflections, then the decay (or the gate's burst)
-        const int y0 = (r + 1) * 8 + 2, h = std::max(10, (rows - 3 - r - 1) * 8 - 4), x0 = 8, w = W - 16;
-        if (h < 10 || y0 + h > height()) return;
-        rects.push_back({ x0, y0, w, h, DIM });
-        const int prog = (int) std::lround(host.get(P::rprog));
-        const double rt = host.get(P::rtime), dly = host.get(P::rdly) / 1000.0, gate = host.get(P::rgate) / 1000.0;
-        const double span = prog >= 6 ? std::max(0.3, gate * 2.0 + dly) : prog >= 4 ? 0.25 : rt * 1.1 + dly;
-        const double bal = host.get(P::rbal);
-        for (int x = 0; x < w; ++x) {
-            const double t = span * x / w - dly; double lv = 0;
-            if (t >= 0) {
-                if (prog == 6) lv = t < gate ? 0.75 : 0;
-                else if (prog == 7) lv = t < gate ? 0.15 + 0.85 * t / gate : 0;
-                else if (prog >= 4) lv = std::exp(-t * 18) * (std::fmod(t * 300, 1.0) < 0.3 ? 1 : 0.4);
-                else lv = (1 - bal) * std::exp(-t * 25) * (std::fmod(t * 400, 1.0) < 0.25 ? 1 : 0) + bal * std::pow(10.0, -3 * t / std::max(0.1, rt)) * std::min(1.0, t * 40);
+        if (revList) { pageRevList(); return; }
+        Synth& s = host.synth();
+        button(5, 0, "PRESETS", B_REV_LIST, YELLOW, true);
+        button(5, 9, revEq ? "{EQ}" : " EQ ", B_REV_EQ, revEq ? WHITE : LBLUE, true);
+        toggleChip(5, 15, P::r7circ, "VINTAGE"); toggleChip(5, 24, P::r7phase, "PHASE"); toggleChip(5, 31, P::rmute, "MUTE");
+        int r = 6;
+        paramRow(r++, P::r7prog);
+        if (revEq) {
+            for (int id : { P::r7eq, P::r7elf, P::r7elg, P::r7emf, P::r7emg, P::r7ehf, P::r7ehg }) paramRow(r++, id);
+        } else {
+            // what the edit keys reach depends on the program's type, as on the unit
+            using K = omega::dsp::Rev7;
+            const int prog = (int) std::lround(host.get(P::r7prog)) + 1;
+            std::vector<int> ids;
+            switch (K::prog(prog).kind) {
+                case K::REV: ids = { P::r7rt, P::r7hi, P::r7lo, P::r7diff, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::ER: ids = { P::r7live, P::r7mode, P::r7size, P::r7diff, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::DLY: ids = { P::r7dlyL, P::r7dlyR, P::r7dlev, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::ECHO: ids = { P::r7fb, P::r7hdmp, P::r7dlyL, P::r7dlyR, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::FLANGE: ids = { P::r7fb, P::r7mfrq, P::r7mdep, P::r7mdly, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::RFLANGE: ids = { P::r7rt, P::r7mfrq, P::r7mdep, P::r7mdly, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::CHORUS: ids = { P::r7mfrq, P::r7mdep, P::r7am, P::r7idly, P::r7fdly, P::r7flev }; break;
+                case K::PHASE: ids = { P::r7mfrq, P::r7mdep, P::r7mdly, P::r7idly, P::r7fdly, P::r7flev }; break;
+                default: ids = { P::r7mfrq, P::r7mdep, P::r7idly, P::r7fdly, P::r7flev }; break;   // tremolo, symphonic
             }
-            const int bh = (int) std::lround(std::clamp(lv, 0.0, 1.0) * (h - 2));
-            if (bh > 0) rects.push_back({ x0 + x, y0 + h - 1 - bh, 1, bh, PALETTE[prog >= 6 ? YELLOW : LGREEN] });
+            for (int id : ids) paramRow(r++, id);
         }
+        paramRow(r++, P::r7in); paramRow(r++, P::rret);
+        const int pi = s.rev7Preset;
+        const omega::Spec& sp = rev7Spec();
+        put(rows - 3, 1, pad(pi >= 0 && pi < (int) sp.presets.size() ? upper(sp.presets[(size_t) pi].name) : "OMEGA REV7: 31.25 KHZ / 16-BIT", 38), GREY);
+    }
+    static std::string upper(std::string t) { for (auto& c : t) c = (char) std::toupper((unsigned char) c); return t; }
+    // all of the Omega REV7's presets: the 30 factory programs, the artist presets and the library
+    void pageRevList() {
+        const omega::Spec& sp = rev7Spec(); const int n = (int) sp.presets.size(), lr = listRows() - 1;   // the last row has the buttons
+        put(5, 0, "REV7 PRESETS", WHITE);
+        char b[32]; std::snprintf(b, sizeof b, "%d-%d OF %d", revScroll + 1, std::min(n, revScroll + lr), n); put(5, 14, b, GREY);
+        button(5, 34, "BACK", B_BACK_REV, WHITE, true);
+        for (int k = 0; k < lr && revScroll + k < n; ++k) {
+            const int i = revScroll + k; const bool sel = i == host.synth().rev7Preset;
+            put(6 + k, 0, pad(std::string(sel ? "{" : " ") + upper(sp.presets[(size_t) i].name), 40), sel ? WHITE : (i < 30 ? LBLUE : CYAN));
+            zone(6 + k, 0, 39, Z_REVITEM, i);
+        }
+        for (int r = 6; r < 6 + lr; ++r) zones.insert(zones.begin(), Zone { r, 0, 39, Z_REVLIST, 0 });
+        button(rows - 3, 26, " ^ ", B_REV_UP, WHITE, true); button(rows - 3, 30, " v ", B_REV_DN, WHITE, true);
     }
 
     // ---------------- the grid: the pattern as a piano roll ----------------
@@ -777,6 +804,16 @@ private:
             case Z_STEP_SLIDE: { Step st = s.step(curPat(), z.a); st.slide = !st.slide; s.setStep(curPat(), z.a, st); break; }
             case Z_GRID_ACC: { Step st = s.step(curPat(), z.a); st.accent = !st.accent; s.setStep(curPat(), z.a, st); break; }
             case Z_GRID_SLD: { Step st = s.step(curPat(), z.a); st.slide = !st.slide; s.setStep(curPat(), z.a, st); break; }
+            case Z_REVLIST: case Z_REVITEM: {
+                const Zone pz = zoneAtKind(lastX, lastY, Z_REVITEM);
+                if (pz.kind == Z_REVITEM) {
+                    s.applyRev7Preset(pz.a);
+                    for (auto& m : Synth::rev7Ids()) host.set(m.first, s.get(m.first));   // so the host (automation) sees it
+                    if (host.get(P::rret) < 0.01f) host.set(P::rret, 0.5f);
+                    revList = false; message("REV7: " + upper(rev7Spec().presets[(size_t) pz.a].name));
+                }
+                break;
+            }
             case Z_PATLIST: case Z_PATITEM: {
                 const Zone pz = zoneAtKind(lastX, lastY, Z_PATITEM);
                 if (pz.kind == Z_PATITEM) {
@@ -839,6 +876,11 @@ private:
             case B_PANIC: s.post(Synth::EV_PANIC, 0, 0); message("ALL NOTES OFF"); break;
             case B_SMP_LOAD: host.loadSampleFile(); break;
             case B_GRID_HALF: gridHalf = !gridHalf; break;
+            case B_REV_LIST: revList = true; if (s.rev7Preset >= 0) revScroll = std::max(0, s.rev7Preset - listRows() / 2); break;
+            case B_BACK_REV: revList = false; break;
+            case B_REV_EQ: revEq = !revEq; break;
+            case B_REV_UP: revScroll = std::max(0, revScroll - listRows()); break;
+            case B_REV_DN: revScroll = std::clamp(revScroll + listRows(), 0, std::max(0, (int) rev7Spec().presets.size() - listRows())); break;
             case B_GRID_UP: gridTop = std::min(127, gridTop + 12); break;
             case B_GRID_DN: gridTop = std::max(gridRows() - 1, gridTop - 12); break;
             case B_SMP_REC:

@@ -10,7 +10,7 @@
 #pragma once
 #include "SidChip.h"
 #include "SidSampler.h"
-#include "Rev7.h"
+#include "../dsp/Rev7.h"
 #include <atomic>
 #include <cctype>
 #include <cstdio>
@@ -19,6 +19,8 @@
 #include <vector>
 
 namespace sid {
+
+const omega::Spec& rev7Spec();   // Rev7Spec.cpp: the Omega REV7's parameters and presets
 
 // ---------------------------------------------------------------------------------------------------------------
 // parameters
@@ -137,17 +139,36 @@ struct ParamInfo {
     X(erev,   "ECHO > REV",    "FX", 0, 1, 0, CONT, "", 1, "", 1) \
     X(rret,   "REV RETURN",    "FX", 0, 1, 0, CONT, "", 1, "", 1) \
     X(rmute,  "REV MUTE",      "FX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
-    X(rprog,  "REV7 PROGRAM",  "REV", 0, 7, 0, CHOICE, "HALL|ROOM|VOCAL|PLATE|EARLY REF 1|EARLY REF 2|GATE REVERB|REVERSE GATE", 1, "", 1) \
-    X(rtime,  "REV TIME",      "REV", 0.3f, 20, 2.2f, CONT, "", 2, "S", 1) \
-    X(rhigh,  "HIGH RATIO",    "REV", 0.1f, 1, 0.6f, CONT, "", 1, "", 1) \
-    X(rdly,   "INITIAL DELAY", "REV", 0.1f, 200, 20, CONT, "", 2, "MS", 1) \
-    X(rsize,  "ROOM SIZE",     "REV", 0.5f, 10, 2, CONT, "", 1.5f, "", 1) \
-    X(rbal,   "ER/REV BALANCE","REV", 0, 1, 0.6f, CONT, "", 1, "", 1) \
-    X(rdiff,  "DIFFUSION",     "REV", 0, 10, 8, INT, "", 1, "", 1) \
-    X(rdens,  "DENSITY",       "REV", 0, 4, 3, INT, "", 1, "", 1) \
-    X(rlpf,   "LPF",           "REV", 1000, 14000, 10000, CONT, "", 2, "HZ", 1) \
-    X(rhpf,   "HPF",           "REV", 20, 1000, 20, CONT, "", 2, "HZ", 1) \
-    X(rgate,  "GATE LENGTH",   "REV", 10, 400, 120, CONT, "", 1, "MS", 1) \
+    X(r7prog, "REV7 PROGRAM",  "REV", 0, 29, 0, CHOICE, "LARGE HALL|SMALL HALL|VOCAL PLATE|PERC PLATE|EARLY REF 1|EARLY REF 2|DELAY L,R|STEREO ECHO|STEREO FLANGE|REVERB FLANGE|CHORUS A|CHORUS B|STEREO PHASING|TREMOLO|SYMPHONIC|REVERB ROOM|ECHO ROOM|STRINGS|ELEC BASS A|ELEC BASS B|KICK|SNARE|GATE REVERB|REVERSE GATE|PIANO|ORGAN|BRASS|GUITAR|HANDCLAPS|LIVE REFERENCE", 1, "", 1) \
+    X(r7rt,   "REV TIME",      "REV", 0.3f, 10, 2.6f, CONT, "", 1.5f, "S", 1) \
+    X(r7hi,   "HIGH RT RATIO", "REV", 0.1f, 1, 0.3f, CONT, "", 1, "", 1) \
+    X(r7lo,   "LOW RT RATIO",  "REV", 0.1f, 2.4f, 1.2f, CONT, "", 1, "", 1) \
+    X(r7diff, "DIFFUSION",     "REV", 0, 10, 5, INT, "", 1, "", 1) \
+    X(r7idly, "INITIAL DELAY", "REV", 0.1f, 100, 30, CONT, "", 1.5f, "MS", 1) \
+    X(r7fdly, "1ST REF DELAY", "REV", 0.1f, 100, 10, CONT, "", 1.5f, "MS", 1) \
+    X(r7flev, "1ST REF LEVEL", "REV", 0, 1, 0, CONT, "", 1, "PCT", 1) \
+    X(r7live, "LIVENESS",      "REV", 0, 10, 5, INT, "", 1, "", 1) \
+    X(r7mode, "E/R MODE",      "REV", 0, 5, 0, CHOICE, "SMALL HALL|LARGE HALL|RANDOM|REVERSE|PLATE|SPRING", 1, "", 1) \
+    X(r7size, "ROOM SIZE",     "REV", 0.1f, 20, 2, CONT, "", 1.5f, "", 1) \
+    X(r7dlyL, "L DELAY",       "REV", 0.1f, 900, 100, CONT, "", 2, "MS", 1) \
+    X(r7dlyR, "R DELAY",       "REV", 0.1f, 900, 200, CONT, "", 2, "MS", 1) \
+    X(r7dlev, "DELAY LEVEL",   "REV", 0, 1, 1, CONT, "", 1, "PCT", 1) \
+    X(r7fb,   "FEEDBACK GAIN", "REV", 0, 0.99f, 0.6f, CONT, "", 1, "PCT", 1) \
+    X(r7hdmp, "HIGH DAMP",     "REV", 0, 10, 5, INT, "", 1, "", 1) \
+    X(r7mfrq, "MOD FREQ",      "REV", 0.1f, 20, 1.1f, CONT, "", 2, "HZ", 1) \
+    X(r7mdep, "MOD DEPTH",     "REV", 0, 1, 0.5f, CONT, "", 1, "PCT", 1) \
+    X(r7mdly, "MOD DELAY",     "REV", 0.1f, 100, 1.2f, CONT, "", 2, "MS", 1) \
+    X(r7am,   "AM DEPTH",      "REV", 0, 1, 0.4f, CONT, "", 1, "PCT", 1) \
+    X(r7in,   "INPUT LEVEL",   "REV", 0, 10, 8, CONT, "", 1, "", 1) \
+    X(r7eq,   "EQ",            "REV", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(r7elf,  "EQ LO FREQ",    "REV", 50, 700, 100, CONT, "", 2, "HZ", 1) \
+    X(r7elg,  "EQ LO LEVEL",   "REV", -15, 15, 0, CONT, "", 1, "DB", 1) \
+    X(r7emf,  "EQ MID FREQ",   "REV", 350, 7000, 1000, CONT, "", 2, "HZ", 1) \
+    X(r7emg,  "EQ MID LEVEL",  "REV", -15, 15, 0, CONT, "", 1, "DB", 1) \
+    X(r7ehf,  "EQ HI FREQ",    "REV", 2000, 20000, 8000, CONT, "", 2, "HZ", 1) \
+    X(r7ehg,  "EQ HI LEVEL",   "REV", -15, 15, 0, CONT, "", 1, "DB", 1) \
+    X(r7circ, "VINTAGE CONV",  "REV", 0, 1, 1, TOGGLE, "", 1, "", 1) \
+    X(r7phase,"OUT PHASE",     "REV", 0, 1, 0, TOGGLE, "", 1, "", 1) \
     X(bpm,    "TEMPO",         "SEQ", 40, 240, 120, CONT, "", 1, "BPM", 0) \
     X(srate,  "STEP RATE",     "SEQ", 0, 3, 1, CHOICE, "1/8|1/16|1/16T|1/32", 1, "", 0) \
     X(swing,  "SWING",         "SEQ", 0, 0.75f, 0, CONT, "", 1, "", 0) \
@@ -204,11 +225,10 @@ inline std::string formatValue(int id, float v) {
     if (id == P::droot) { static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" }; const int n = (int) std::lround(v); std::snprintf(b, sizeof b, "%s%d", nm[n % 12], n / 12 - 1); return b; }
     if (id == P::dstart || id == P::dend || id == P::dlevel) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
     if (std::string(p.section) == "FX" && p.kind == CONT) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
-    if (id == P::rbal) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
-    if (id == P::rhpf && v < 21) return "THRU";
-    if (id == P::rlpf && v > 13900) return "THRU";
-    if (id == P::rlpf || id == P::rhpf) { if (v >= 1000) std::snprintf(b, sizeof b, "%.1fK", v / 1000); else std::snprintf(b, sizeof b, "%.0f HZ", v); return b; }
-    if (id == P::rtime) { std::snprintf(b, sizeof b, "%.1f S", v); return b; }
+    if (std::string(p.unit) == "PCT") { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
+    if (std::string(p.unit) == "S") { std::snprintf(b, sizeof b, "%.1f S", v); return b; }
+    if (std::string(p.unit) == "HZ" && v >= 1000) { std::snprintf(b, sizeof b, "%.1fK HZ", v / 1000); return b; }
+    if (std::string(p.unit) == "HZ" && v >= 100) { std::snprintf(b, sizeof b, "%.0f HZ", v); return b; }
     if (p.kind == INT) {
         if (std::string(p.section).rfind("OSC", 0) == 0 && (int) p.max == 15) { std::snprintf(b, sizeof b, "%X", (int) std::lround(v)); return b; }
         std::snprintf(b, sizeof b, "%s%d%s%s", (p.min < 0 && v > 0) ? "+" : "", (int) std::lround(v), *p.unit ? " " : "", p.unit); return b;
@@ -324,7 +344,9 @@ public:
         for (int q = 0; q < 3; ++q) designFir(q);
         for (auto& b : firBuf) b.assign(4096, 0.f);
         firPos = 0;
-        rev.prepare(fs);
+        if (!rev7) initRev7();
+        rev7->prepare(fs, 64); r7last.clear();
+        rvIn.assign(64, 0.f); rvL.assign(64, 0.f); rvR.assign(64, 0.f); preL.assign(64, 0.f); preR.assign(64, 0.f);
         curOS = -1; configure();
         for (auto& v : voices) v.chip.reset();
         tickCount = 0;
@@ -426,7 +448,7 @@ public:
         for (auto& v : voices) for (auto& s : v.s) { s.gate = false; s.key = -1; }
         for (auto& v : voices) { v.chip.stopDigi(); writeRegs(v); }
     }
-    void panic() { allNotesOff(); for (auto& v : voices) v.chip.reset(); std::fill(echoL.begin(), echoL.end(), 0.f); std::fill(echoR.begin(), echoR.end(), 0.f); rev.reset(); }
+    void panic() { allNotesOff(); for (auto& v : voices) v.chip.reset(); std::fill(echoL.begin(), echoL.end(), 0.f); std::fill(echoR.begin(), echoR.end(), 0.f); if (rev7) rev7->reset(); }
 
     // ---- notes from another thread (the on-screen keyboard): a single-producer queue ----
     void post(int type, int a, float b) {
@@ -591,6 +613,7 @@ private:
     void setByKey(const std::string& k, const std::string& v) {
         auto all = [&](const std::string& key, const std::string& val) { for (int o = 1; o <= 3; ++o) setByKey(key + std::to_string(o), val); };
         if (k == "w" || k == "e" || k == "p" || k == "f" || k == "c") { all(k, v); return; }
+        if (k == "r7p") { applyRev7Preset(std::atoi(v.c_str()) - 1); return; }   // an Omega REV7 preset, by number (1-30 factory)
         if (k.size() == 2 && std::isdigit((unsigned char) k[1])) {
             const int o = k[1] - '1'; if (o < 0 || o > 2) return; const int b = osc(o);
             switch (k[0]) {
@@ -1032,7 +1055,54 @@ private:
     // the chip's buses, decimated: main L / R, echo send L / R, reverb send
     std::vector<float> firCoef[3]; std::vector<float> firBuf[5]; int firPos = 0;
     double extHp[5] {}, extLp[5] {}, extHpA = 0.999, extLpA = 0.5, extIn[5] {};
-    Rev7 rev; float pkRev = 0;
+    // the reverb: the Omega REV7 engine (plugins/dsp/Rev7.h), fed by the reverb sends, wet only
+    std::unique_ptr<omega::Engine> rev7; std::vector<double> r7vals, r7last; std::vector<int> r7map;
+    std::vector<float> rvIn, rvL, rvR, preL, preR; float pkRev = 0;
+    void initRev7() {
+        const omega::Spec& sp = rev7Spec();
+        rev7 = sp.make(sp);
+        r7vals.assign(sp.params.size(), 0.0);
+        for (size_t i = 0; i < sp.params.size(); ++i) { const auto& q = sp.params[i]; r7vals[i] = q.choices.empty() ? q.def : q.choices[(size_t) q.defChoice].value; }
+        // the SID parameters, in REV7 order of the table below
+        r7map.clear();
+        for (auto& m : rev7Ids()) r7map.push_back(sp.index(m.second));
+        auto set = [&](const char* id, double v) { const int k = sp.index(id); if (k >= 0) r7vals[(size_t) k] = v; };
+        set("omix", 1); set("mute", 0); set("bypass", 0); set("mono", 0); set("ret", 1);   // wet only: the return fader mixes it
+        r7last.clear();
+    }
+    void syncRev7() {
+        const auto& ids = rev7Ids();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            if (r7map[i] < 0) continue;
+            double v = get(ids[i].first);
+            if (ids[i].first == P::r7prog || ids[i].first == P::r7mode) v = std::round(v) + 1;   // menus count from 1
+            r7vals[(size_t) r7map[i]] = v;
+        }
+        if (r7vals != r7last) { rev7->setValues(r7vals); r7last = r7vals; }
+    }
+public:
+    // SID parameter -> REV7 parameter id
+    static const std::vector<std::pair<int, const char*>>& rev7Ids() {
+        static const std::vector<std::pair<int, const char*>> t = {
+            { P::r7prog, "prog" }, { P::r7rt, "rt" }, { P::r7hi, "hi" }, { P::r7lo, "lo" }, { P::r7diff, "diff" }, { P::r7idly, "idly" },
+            { P::r7fdly, "fdly" }, { P::r7flev, "flev" }, { P::r7live, "live" }, { P::r7mode, "mode" }, { P::r7size, "size" },
+            { P::r7dlyL, "dlyL" }, { P::r7dlyR, "dlyR" }, { P::r7dlev, "dlev" }, { P::r7fb, "fb" }, { P::r7hdmp, "hdamp" },
+            { P::r7mfrq, "mfreq" }, { P::r7mdep, "mdep" }, { P::r7mdly, "mdly" }, { P::r7am, "amdep" }, { P::r7in, "in" },
+            { P::r7eq, "eq" }, { P::r7elf, "eqlf" }, { P::r7elg, "eqlg" }, { P::r7emf, "eqmf" }, { P::r7emg, "eqmg" },
+            { P::r7ehf, "eqhf" }, { P::r7ehg, "eqhg" }, { P::r7circ, "circ" }, { P::r7phase, "phase" } };
+        return t;
+    }
+    // one of the Omega REV7's presets (factory 1-30, artists, library), onto the SID's REV7 parameters
+    void applyRev7Preset(int i) {
+        const omega::Spec& sp = rev7Spec();
+        if (i < 0 || i >= (int) sp.presets.size()) return;
+        for (auto& m : rev7Ids()) { const int k = sp.index(m.second); if (k >= 0) { const auto& q = sp.params[(size_t) k]; set(m.first, m.first == P::r7prog || m.first == P::r7mode ? (float) q.defChoice : q.def); } }
+        for (auto& kv : sp.presets[(size_t) i].values)
+            for (auto& m : rev7Ids()) if (kv.first == m.second) set(m.first, (float) (m.first == P::r7prog || m.first == P::r7mode ? kv.second - 1 : kv.second));
+        rev7Preset = i;
+    }
+    int rev7Preset = -1;
+private:
     std::vector<float> echoL, echoR; int echoW = 0; float echoLpL = 0, echoLpR = 0;
     float pkEcho = 0, pkL = 0, pkR = 0;
 
@@ -1066,16 +1136,9 @@ private:
         const double eSec = on(P::esync) ? ediv[std::clamp(iv(P::ediv), 0, 5)] * 60.0 / bpmNow() : get(P::etime) / 1000.0;
         const int eLen = (int) std::clamp(eSec * fs, 1.0, (double) echoL.size() - 2);
         const float emix = get(P::emix), efb = get(P::efb), etone = 0.08f + 0.9f * get(P::etone);
-        // the REV7
-        {
-            Rev7::Settings rs;
-            rs.program = std::clamp(iv(P::rprog), 0, 7); rs.time = get(P::rtime); rs.highRatio = get(P::rhigh); rs.delayMs = get(P::rdly);
-            rs.size = get(P::rsize); rs.balance = get(P::rbal); rs.diffusion = iv(P::rdiff); rs.density = iv(P::rdens);
-            rs.lpfHz = get(P::rlpf); rs.hpfHz = get(P::rhpf); rs.gateMs = get(P::rgate);
-            rev.apply(rs);
-        }
         const float rret = on(P::rmute) ? 0.f : get(P::rret), erev = get(P::erev);
         const bool revOn = get(P::rret) > 0.0001f;
+        if (revOn) syncRev7();
         for (int k = 0; k < n; ++k) {
             for (int o = 0; o < os; ++o) {
                 float ch[5] = { 0, 0, 0, 0, 0 };
@@ -1114,13 +1177,21 @@ private:
             const float ret = on(P::emute) ? 0.f : emix;
             yl += ret * echoLpL; yr += ret * echoLpR;
             pkEcho = std::max(pkEcho, std::max(std::fabs(ret * echoLpL), std::fabs(ret * echoLpR)));
-            // the REV7, fed by the reverb sends (and the echo, if asked)
+            // the REV7's input: the reverb sends (and the echo, if asked); it runs after this loop
+            rvIn[(size_t) k] = y5[4] + erev * 0.5f * (echoLpL + echoLpR) * emix;
+            preL[(size_t) k] = yl; preR[(size_t) k] = yr;
+        }
+        if (revOn) {
+            omega::Transport tr; tr.bpm = bpmNow();
+            rev7->process(rvIn.data(), rvIn.data(), nullptr, nullptr, rvL.data(), rvR.data(), n, tr);
+        }
+        for (int k = 0; k < n; ++k) {
+            float yl = preL[(size_t) k], yr = preR[(size_t) k];
             if (revOn) {
-                float rl, rr; rev.process(y5[4] + erev * 0.5f * (echoLpL + echoLpR) * emix, rl, rr);
-                yl += rret * rl; yr += rret * rr;
-                pkRev = std::max(pkRev, std::max(std::fabs(rret * rl), std::fabs(rret * rr)));
+                const float rl = rvL[(size_t) k] * rret, rr = rvR[(size_t) k] * rret;
+                yl += rl; yr += rr; pkRev = std::max(pkRev, std::max(std::fabs(rl), std::fabs(rr)));
             }
-            yl = ftanh(yl * g * 1.6f) / 1.6f * 1.f; yr = ftanh(yr * g * 1.6f) / 1.6f;
+            yl = ftanh(yl * g * 1.6f) / 1.6f; yr = ftanh(yr * g * 1.6f) / 1.6f;
             L[k] = yl; R[k] = yr;
             pkL = std::max(pkL, std::fabs(yl)); pkR = std::max(pkR, std::fabs(yr));
             const int w = scopeW.load(std::memory_order_relaxed);
