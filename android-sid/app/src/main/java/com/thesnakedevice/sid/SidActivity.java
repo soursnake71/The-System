@@ -124,6 +124,7 @@ public class SidActivity extends Activity {
         super.onActivityResult(req, res, data);
         if (req == Sampling.PICK && res == RESULT_OK && data != null) sampling.onPicked(data.getData());
         if ((req == Sampling.MIDI_SAVE || req == Sampling.MIDI_OPEN) && res == RESULT_OK && data != null) sampling.onMidiFile(req, data.getData());
+        if ((req == Songs.PICK_DIR || req == Songs.PICK_FILE) && res == RESULT_OK && data != null) sampling.songs.onResult(req, data.getData());
     }
     @Override public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
         super.onRequestPermissionsResult(req, perms, results);

@@ -12,6 +12,8 @@
 #include "SidSampler.h"
 #include "../dsp/Rev7.h"
 #include <atomic>
+#include <memory>
+#include <mutex>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -176,7 +178,7 @@ struct ParamInfo {
     X(clksrc, "CLOCK",         "MIDI", 0, 1, 0, CHOICE, "INTERNAL|MIDI CLOCK", 1, "", 0) \
     X(clkout, "SEND CLOCK",    "MIDI", 0, 1, 0, TOGGLE, "", 1, "", 0) \
     X(notout, "SEND SEQ NOTES","MIDI", 0, 1, 1, TOGGLE, "", 1, "", 0) \
-    X(xsrc,   "EXPORT",        "FILE", 0, 1, 0, CHOICE, "PATTERN|RECORDING", 1, "", 0) \
+    X(xsrc,   "EXPORT",        "FILE", 0, 2, 0, CHOICE, "PATTERN|RECORDING|SONG", 1, "", 0) \
     X(xloops, "PATTERN LOOPS", "FILE", 1, 32, 4, INT, "", 1, "", 0) \
     X(xtail,  "TAIL",          "FILE", 0, 10, 3, CONT, "", 1, "S", 0) \
     X(xfmt,   "FORMAT",        "FILE", 0, 4, 0, CHOICE, "WAV 16|WAV 24|MP3 128|MP3 192|MP3 320", 1, "", 0) \
@@ -343,6 +345,8 @@ inline int patternPresetCount() { return (int) (sizeof(PATTERNS) / sizeof(PATTER
 inline float ftanh(float x) { if (x > 3) return 1; if (x < -3) return -1; const float x2 = x * x; return x * (27 + x2) / (27 + 9 * x2); }
 
 // ---------------------------------------------------------------------------------------------------------------
+class Song;
+
 class Synth {
 public:
     static constexpr int kChips = 8;
@@ -360,22 +364,23 @@ public:
         for (auto& r : regs) r.store(0);
     }
 
-    ~Synth() { delete cur; delete incoming.exchange(nullptr); collectRetired(); }
+    ~Synth() { destroySong(); delete cur; delete incoming.exchange(nullptr); collectRetired(); }
 
     // ---- setup (call before rendering, not on the audio thread while it runs) ----
     void prepare(double sampleRate) {
         fs = sampleRate;
-        recBuf.assign((size_t) (fs * 20), 0.f); recPos = 0; recOn = false;
-        echoL.assign((size_t) (fs * 2.1) + 8, 0.f); echoR.assign(echoL.size(), 0.f); echoW = 0;
+        if (busMode) { recBuf.clear(); echoL.assign(16, 0.f); echoR.assign(16, 0.f); }
+        else { recBuf.assign((size_t) (fs * 20), 0.f); echoL.assign((size_t) (fs * 2.1) + 8, 0.f); echoR.assign(echoL.size(), 0.f); }
+        recPos = 0; recOn = false; echoW = 0;
         for (int q = 0; q < 3; ++q) designFir(q);
         for (auto& b : firBuf) b.assign(4096, 0.f);
-        firPos = 0;
-        if (!rev7) initRev7();
-        rev7->prepare(fs, 64); r7last.clear();
+        firPos = 0; idleRun = 0;
+        if (!busMode) { if (!rev7) initRev7(); rev7->prepare(fs, 64); r7last.clear(); }
         rvIn.assign(64, 0.f); rvL.assign(64, 0.f); rvR.assign(64, 0.f); preL.assign(64, 0.f); preR.assign(64, 0.f);
         curOS = -1; configure();
         for (auto& v : voices) v.chip.reset();
         tickCount = 0;
+        prepareSong();
     }
 
     // ---- parameters (any thread) ----
@@ -627,6 +632,7 @@ public:
     void loadBuiltin(int i) { source.loadBuiltin(i); ++sourceVersion; }
     // convert again when the source, the rate, the method's bit depth or the RAM limit changes (call from the UI)
     void pollSample() {
+        pollSong();
         collectRetired();
         const int bits = iv(P::dmode) == DIGI_VOL4 ? 4 : 8;
         const int sig = sourceVersion * 1000 + iv(P::drate) * 10 + (bits == 4 ? 1 : 0) + (on(P::dram) ? 2 : 0);
@@ -734,9 +740,11 @@ public:
         s += "ccmap=";
         for (int c = 0; c < 128; ++c) { const int id = ccMap[(size_t) c].load(); if (id >= 0) s += std::to_string(c) + ":" + params()[id].key + " "; }
         s += "\n";
+        s += songState();
         return s;
     }
     void loadState(const std::string& st) {
+        loadSongState(st);
         std::string smpName = "SAMPLE";
         size_t i = 0;
         while (i < st.size()) {
@@ -775,8 +783,30 @@ public:
         }
     }
 
+    // ---- a song part: no echo, REV7 or clip of its own; it renders its dry sound and its sends onto buses
+    //      (main L / R, echo send L / R, reverb send) that a Song mixes into the main synth's effects ----
+    bool busMode = false;                                   // set before prepare()
+    void renderBus(float* l, float* r, float* el, float* er, float* rv, int n) {
+        busE[0] = el; busE[1] = er; busE[2] = rv;
+        render(l, r, n);
+    }
+    bool idle() const { return idleRun > 8192 && qR == qW.load(std::memory_order_relaxed); }
+
+    // ---- a song playing through this synth's echo and REV7 (Song, SidSong.h); the audio thread owns it ----
+    // songShared is the UI's (setSong, currentSong); render() takes it for a block when the UI isn't swapping it
+    Song* currentSong() const { return songShared; }
+    void setSong(Song* s);            // takes ownership; nullptr removes the song
+    std::string songState() const;
+    void loadSongState(const std::string& st);
+private:
+    std::mutex songMx; Song* songShared = nullptr; Song* song = nullptr;
+    void pollSong(); void destroySong(); void prepareSong();
+public:
+
     // ---- audio ----
     void render(float* L, float* R, int n) {
+        std::unique_lock<std::mutex> songLock(songMx, std::try_to_lock);
+        song = songLock.owns_lock() ? songShared : nullptr;
         adoptSample();
         midiOutCount = 0; renderPos = 0;
         drainMidi();
@@ -788,8 +818,9 @@ public:
         while (pos < n) {
             if (tickCount <= 0) { doTick(); tickCount += fs / tickHz; }
             int len = std::min({ n - pos, 32, std::max(1, (int) std::ceil(tickCount)) });
-            renderPos = pos;
+            renderPos = pos; busOff = pos;
             sequencer(len);
+            if (song) songBlock(len);
             synth(L + pos, R + pos, len);
             tickCount -= len; pos += len;
         }
@@ -804,6 +835,7 @@ public:
             outRecFrames.store(f, std::memory_order_relaxed);
             if (f >= cap) outRecOn = false;
         }
+        song = nullptr;
     }
 
 private:
@@ -1477,8 +1509,21 @@ private:
         for (auto& x : c) x = (float) (x / sum);
     }
 
+    float* busE[3] = { nullptr, nullptr, nullptr }; int busOff = 0; int idleRun = 0;
+    float songBus[5][32] {};
+    void songBlock(int n);   // SidSong.h: the song's parts for the next n samples, onto songBus
     void synth(float* L, float* R, int n) {
         const int os = osFactor(), nv = kChips;
+        if (busMode) {
+            // a part with nothing sounding: once the filters have rung out, skip the work
+            bool any = false; for (auto& v : voices) if (!v.asleep) { any = true; break; }
+            if (any) idleRun = 0;
+            else if (idleRun > 8192) {
+                for (int k = 0; k < n; ++k) { L[k] = R[k] = 0; for (auto* b : busE) b[busOff + k] = 0; }
+                for (int c = 0; c < 5; ++c) extHp[c] = extLp[c] = extIn[c] = 0;
+                return;
+            } else idleRun += n;
+        }
         const auto& coef = firCoef[std::clamp(curOS, 0, 2)];
         const int taps = (int) coef.size();
         const float spread = get(P::spread);
@@ -1494,7 +1539,7 @@ private:
         const int eLen = (int) std::clamp(eSec * fs, 1.0, (double) echoL.size() - 2);
         const float emix = get(P::emix), efb = get(P::efb), etone = 0.08f + 0.9f * get(P::etone);
         const float rret = on(P::rmute) ? 0.f : get(P::rret), erev = get(P::erev);
-        const bool revOn = get(P::rret) > 0.0001f;
+        const bool revOn = !busMode && get(P::rret) > 0.0001f;
         if (revOn) syncRev7();
         for (int k = 0; k < n; ++k) {
             for (int o = 0; o < os; ++o) {
@@ -1523,6 +1568,8 @@ private:
                 for (int t = 0; t < taps; ++t) a += bb[t] * coef[(size_t) t];
                 y5[c2] = a;
             }
+            if (busMode) { L[k] = y5[0]; R[k] = y5[1]; for (int c2 = 0; c2 < 3; ++c2) busE[c2][busOff + k] = y5[2 + c2]; continue; }
+            if (song) for (int c2 = 0; c2 < 5; ++c2) y5[c2] += songBus[c2][k];
             float yl = y5[0], yr = y5[1];
             // echo, fed by the echo sends
             int rp = echoW - eLen; if (rp < 0) rp += (int) echoL.size();
@@ -1537,6 +1584,10 @@ private:
             // the REV7's input: the reverb sends (and the echo, if asked); it runs after this loop
             rvIn[(size_t) k] = y5[4] + erev * 0.5f * (echoLpL + echoLpR) * emix;
             preL[(size_t) k] = yl; preR[(size_t) k] = yr;
+        }
+        if (busMode) {
+            for (auto& v : voices) if (!v.asleep && !v.anyGate() && v.chip.silent()) { v.asleep = true; v.chip.reset(); }
+            return;
         }
         if (revOn) {
             omega::Transport tr; tr.bpm = bpmNow();
@@ -1601,3 +1652,5 @@ private:
 };
 
 }  // namespace sid
+
+#include "SidSong.h"

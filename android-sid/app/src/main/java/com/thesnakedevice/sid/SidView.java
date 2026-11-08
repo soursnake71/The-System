@@ -156,7 +156,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         panels = avail * scale > 360;
         if (!panels) return;
         final float pagesH = avail * 0.40f;
-        layoutPagesAndEdit(new RectF(18, top, DW - 18, top + pagesH), 4, new RectF(18, top + pagesH + 18, DW - 18, bottom));
+        layoutPagesAndEdit(new RectF(18, top, DW - 18, top + pagesH), 6, new RectF(18, top + pagesH + 18, DW - 18, bottom));
     }
     private void layoutPanels(float DW) {
         final float lw = rimL - 36, rw = DW - rimR - 36;

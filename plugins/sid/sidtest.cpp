@@ -450,6 +450,103 @@ int main(int argc, char** argv) {
         CHECK(t->saveState() == a, "state round trip differs");
         CHECK(t->step(3, 5).note == 70 && t->step(3, 5).accent, "pattern step lost");
     }
+    // songs: a format 1 MIDI file of three instruments becomes three parts with their own sounds, mixed into the
+    // keyboard synth's echo and REV7; mute / solo / sends; saved and loaded; rendered for export; the SNG and SMX pages
+    {
+        auto be32 = [](std::string& o, uint32_t v) { for (int k = 3; k >= 0; --k) o += (char) (v >> (8 * k) & 255); };
+        auto be16 = [](std::string& o, int v) { o += (char) (v >> 8 & 255); o += (char) (v & 255); };
+        auto track = [&](const std::string& body) { std::string t = "MTrk"; be32(t, (uint32_t) body.size() + 4); return t + body + std::string("\x00\xFF\x2F\x00", 4); };
+        auto ev = [](std::string& o, int delta, int a, int b, int c) { o += (char) delta; o += (char) a; o += (char) b; if (c >= 0) o += (char) c; };
+        std::string f = "MThd"; be32(f, 6); be16(f, 1); be16(f, 4); be16(f, 96);
+        std::string t0 = std::string("\x00\xFF\x51\x03\x07\xA1\x20", 7);            // 120 BPM
+        std::string bass = std::string("\x00\xFF\x03\x04" "Bass", 8); ev(bass, 0, 0xC1, 33, -1);
+        for (int i = 0; i < 8; ++i) { ev(bass, 0, 0x91, 36 + (i % 2) * 7, 100); ev(bass, 0x60, 0x81, 36 + (i % 2) * 7, 0); }
+        std::string lead; ev(lead, 0, 0xC0, 80, -1); ev(lead, 0, 0xB0, 10, 127);
+        for (int i = 0; i < 8; ++i) { ev(lead, 0, 0x90, 72 + i, 90); ev(lead, 0x60, 0x80, 72 + i, 0); }
+        std::string drums; for (int i = 0; i < 16; ++i) { ev(drums, 0, 0x99, i % 2 ? 42 : (i % 4 ? 38 : 36), 110); ev(drums, 0x30, 0x89, i % 2 ? 42 : (i % 4 ? 38 : 36), 0); }
+        f += track(t0) + track(bass) + track(lead) + track(drums);
+        auto sg = std::make_unique<Song>();
+        const std::string err = sg->load(f, "TEST SONG");
+        CHECK(err.empty(), "song load: %s", err.c_str());
+        CHECK(sg->parts.size() == 3, "song parts: %d (expect 3)", (int) sg->parts.size());
+        if (sg->parts.size() == 3) {
+            CHECK(sg->parts[0]->name == "BASS" && std::string(PRESETS[sg->parts[0]->preset.load()].name) == "FINGER BASS", "part 1: %s / %s", sg->parts[0]->name.c_str(), sg->soundName(0).c_str());
+            CHECK(std::string(PRESETS[sg->parts[1]->preset.load()].name) == "SQUARE LEAD" && sg->parts[1]->pan.load() > 0.9f, "part 2: %s pan %.2f", sg->soundName(1).c_str(), sg->parts[1]->pan.load());
+            CHECK(sg->parts[2]->drums && sg->parts[2]->syn.size() == (size_t) DK_COUNT, "part 3 isn't the drum kit");
+            CHECK(std::fabs(sg->bpm - 120) < 0.1 && std::fabs(sg->length - 4.0) < 0.01, "song bpm %.1f length %.2f", sg->bpm, sg->length);
+        }
+        auto k = std::make_unique<Synth>(); k->prepare(fs);
+        k->set(P::rret, 0.f); k->set(P::emix, 0.f);
+        Song* song = sg.release(); k->setSong(song);
+        auto partRms = [&](int solo) {
+            for (size_t i = 0; i < song->parts.size(); ++i) song->parts[i]->solo = (int) i == solo;
+            song->seek(0); song->play();
+            Out o = run(*k, fs, 2.0, [](Synth&, int) {});
+            song->stop(); run(*k, fs, 0.3, [](Synth&, int) {});
+            return o;
+        };
+        const Out all = partRms(-1);
+        CHECK(all.finite && all.rms > 0.01 && all.peak < 1.0f, "song: rms %.4f peak %.3f", all.rms, all.peak);
+        double solo[3]; for (int i = 0; i < 3; ++i) solo[i] = partRms(i).rms;
+        CHECK(solo[0] > 0.005 && solo[1] > 0.005 && solo[2] > 0.005, "each part sounds solo: %.4f %.4f %.4f", solo[0], solo[1], solo[2]);
+        for (auto& pp : song->parts) pp->mute = true;
+        const double muted = partRms(-1).rms;
+        CHECK(muted < 1e-4, "all parts muted, still rms %.5f", muted);
+        for (auto& pp : song->parts) { pp->mute = false; pp->rev = 0; pp->echo = 0; }
+        // the sends: nothing reaches the REV7 until a part sends to it (and the return is up)
+        k->set(P::rret, 0.8f);
+        auto tailOf = [&]() { song->seek(0); song->play(); run(*k, fs, 1.0, [](Synth&, int) {}); song->stop(); Out o = run(*k, fs, 1.5, [](Synth&, int) {}); double e = 0; for (size_t i = (size_t) fs / 2; i < o.l.size(); ++i) e += o.l[i] * o.l[i]; return e; };
+        const double dry = tailOf();
+        song->parts[1]->rev = 1.0f;
+        const double wet = tailOf();
+        CHECK(wet > dry * 20 + 1e-6, "a part's REV7 send: tail %.6f vs %.6f dry", wet, dry);
+        song->parts[1]->rev = 0;
+        song->parts[0]->echo = 1.0f; k->set(P::emix, 0.8f); k->set(P::rret, 0);
+        const double echoed = tailOf();
+        CHECK(echoed > dry * 20 + 1e-6, "a part's echo send: tail %.6f vs %.6f dry", echoed, dry);
+        // the keyboard's sound onto a part
+        k->applyPreset(presetByName("SID LEAD"));
+        song->takePatch(1, *k);
+        CHECK(song->parts[1]->preset.load() == -1 && song->soundName(1) == "SID LEAD", "keys -> part: %s", song->soundName(1).c_str());
+        // saved and loaded with the project
+        song->parts[0]->level = 0.5f; song->parts[2]->mute = true;
+        const std::string st = k->saveState();
+        auto k2 = std::make_unique<Synth>(); k2->loadState(st); k2->prepare(fs);
+        Song* s2 = k2->currentSong();
+        CHECK(s2 && s2->parts.size() == 3 && std::fabs(s2->parts[0]->level.load() - 0.5f) < 1e-3f && s2->parts[2]->mute.load() && s2->soundName(1) == "SID LEAD" && s2->parts[1]->preset.load() == -1,
+              "song state round trip");
+        CHECK(k2->saveState() == st, "song state round trip differs");
+        // rendered for export: once through, then the tail
+        const Audio a = renderSong(st, 44100, 2.0);
+        CHECK(a.lr.size() / 2 >= (size_t) (4.0 * 44100) && a.lr.size() / 2 < (size_t) (6.6 * 44100) && peakOf(a) > 0.02f, "song export: %.2f s, peak %.3f", a.lr.size() / 2 / 44100.0, peakOf(a));
+        // the screen: the song browser lists the folder and loads a file; the instrument mixer's fader, mute and sends
+        struct SH : ScreenUI::Host {
+            Synth& sy; std::string file; int opened = -2; explicit SH(Synth& x, std::string f) : sy(x), file(std::move(f)) {}
+            Synth& synth() override { return sy; } float get(int i) override { return sy.get(i); } void set(int i, float v) override { sy.set(i, v); }
+            void loadPreset(int i) override { sy.applyPreset(i); } void initPatch() override { sy.initPatch(); } void randomize() override { sy.randomize(3); }
+            bool isPlugin() const override { return false; }
+            std::string songFolderName() override { return "MIDI"; }
+            std::vector<std::string> songFiles() override { return { "a.mid", "song two.mid" }; }
+            void openSongFile(int i) override { opened = i; if (songFileLoaded && i >= 0) songFileLoaded(file, songFiles()[(size_t) i]); }
+        } sh(*k2, f);
+        ScreenUI ui(sh); ui.touchMode = true;
+        std::vector<uint32_t> px((size_t) (ScreenUI::W * ScreenUI::MAXROWS * 8));
+        auto tap = [&](float x, float y) { ui.render(px.data()); ui.down(x, y); ui.up(x, y); };
+        ui.setPage(16); ui.render(px.data());
+        tap(60, 7 * 8 + 4);                                            // the second file
+        CHECK(sh.opened == 1 && k2->currentSong() && k2->currentSong()->name == "SONG TWO", "tapping a song in the browser: opened %d", sh.opened);
+        Song* s3 = k2->currentSong();
+        ui.setPage(17); ui.render(px.data());
+        const int fr = ui.rows - 9;
+        ui.down(5 * 8 + 9, 8 * 8); ui.move(5 * 8 + 9, 7 * 8 + 1); ui.up(5 * 8 + 9, 7 * 8 + 1);   // part 2's fader to the top
+        CHECK(s3 && s3->parts[1]->level.load() > 0.95f, "the part fader: %.2f", s3 ? s3->parts[1]->level.load() : -1.f);
+        tap(10 * 8 + 4, (fr + 3) * 8 + 4);                            // part 3's mute
+        CHECK(s3 && s3->parts[2]->mute.load(), "the part mute");
+        ui.render(px.data()); ui.down(2, (fr + 2) * 8 + 4); ui.move(30, (fr + 2) * 8 + 4); ui.up(40, (fr + 2) * 8 + 4);   // part 1's REV send, dragged right
+        CHECK(s3 && s3->parts[0]->rev.load() > 0.5f, "dragging the REV send: %.2f", s3 ? s3->parts[0]->rev.load() : -1.f);
+        std::printf("songs: 3 parts (%s, %s, drums), solo rms %.3f %.3f %.3f, REV7 send x%.0f, echo send x%.0f, export %.1f s\n",
+                    song->soundName(0).c_str(), "SQUARE LEAD", solo[0], solo[1], solo[2], wet / std::max(dry, 1e-12), echoed / std::max(dry, 1e-12), a.lr.size() / 2 / 44100.0);
+    }
     // speed: 8 chips, 4x oversampling
     {
         s->panic(); s->applyPreset(0); s->set(P::poly, 8); s->set(P::o2on, 1); s->set(P::o3on, 1); s->set(P::o2saw, 1); s->set(P::o3saw, 1); s->set(P::o1flt, 1);

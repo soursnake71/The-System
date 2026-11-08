@@ -36,6 +36,13 @@ SidProcessor::SidProcessor()
       apvts(*this, nullptr, "STATE", makeLayout()) {
     for (int i = 0; i < NP; ++i) raw[(size_t) i] = apvts.getRawParameterValue(params()[i].key);
     formats.registerBasicFormats();
+    {
+        juce::PropertiesFile::Options o;
+        o.applicationName = "Omega SID 64"; o.filenameSuffix = ".settings"; o.osxLibrarySubFolder = "Application Support"; o.folderName = "Omega SID 64";
+        settings = std::make_unique<juce::PropertiesFile>(o);
+        songDir = juce::File(settings->getValue("songFolder"));
+        rescanSongFolder();
+    }
     setCurrentProgram(0);
     engine.pollSample();
     startTimerHz(8);
@@ -156,6 +163,38 @@ void SidProcessor::loadMidiFile() {
         const auto f = fc.getResult(); if (!f.existsAsFile()) return;
         juce::MemoryBlock mb; f.loadFileAsData(mb);
         if (midiFileLoaded) midiFileLoaded(std::string((const char*) mb.getData(), mb.getSize()));
+    });
+}
+
+void SidProcessor::chooseSongFolder() {
+    chooser = std::make_unique<juce::FileChooser>("Pick a folder of MIDI files", songDir.isDirectory() ? songDir : juce::File::getSpecialLocation(juce::File::userMusicDirectory));
+    chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [this](const juce::FileChooser& fc) {
+        const auto d = fc.getResult(); if (!d.isDirectory()) return;
+        songDir = d; settings->setValue("songFolder", d.getFullPathName()); settings->saveIfNeeded();
+        rescanSongFolder();
+    });
+}
+void SidProcessor::rescanSongFolder() {
+    songList.clear();
+    if (!songDir.isDirectory()) return;
+    songList = songDir.findChildFiles(juce::File::findFiles, true, "*.mid;*.midi;*.MID;*.MIDI;*.smf;*.kar");
+    songList.sort();
+    if (songList.size() > 2000) songList.removeRange(2000, songList.size());
+}
+std::vector<std::string> SidProcessor::songFiles() {
+    std::vector<std::string> v;
+    for (auto& f : songList) v.push_back(f.getRelativePathFrom(songDir).toStdString());
+    return v;
+}
+void SidProcessor::openSongFile(int index) {
+    auto load = [this](const juce::File& f) {
+        juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) return;
+        if (songFileLoaded) songFileLoaded(std::string((const char*) mb.getData(), mb.getSize()), f.getRelativePathFrom(songDir.isDirectory() ? songDir : f.getParentDirectory()).toStdString());
+    };
+    if (index >= 0) { if (index < songList.size()) load(songList[index]); return; }
+    chooser = std::make_unique<juce::FileChooser>("Open a song (a MIDI file)", songDir, "*.mid;*.midi;*.smf;*.kar");
+    chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [load](const juce::FileChooser& fc) {
+        const auto f = fc.getResult(); if (f.existsAsFile()) load(f);
     });
 }
 

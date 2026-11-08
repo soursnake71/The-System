@@ -49,6 +49,12 @@ public:
     void saveMidiFile(const std::string& bytes, const std::string& name) override;
     void loadMidiFile() override;
     void saveAudioFile(const std::string& bytes, const std::string& name, const std::string& mime) override;
+    // songs: a folder of MIDI files, remembered for every project (in the app's settings)
+    void chooseSongFolder() override;
+    std::string songFolderName() override { return songDir.isDirectory() ? songDir.getFileName().toStdString() : std::string(); }
+    std::vector<std::string> songFiles() override;
+    void rescanSongFolder() override;
+    void openSongFile(int index) override;
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<int> uiPresetVersion { 0 };   // bumped when a preset loads, so the editor's screen follows
@@ -59,6 +65,8 @@ private:
     std::array<float, NP> lastHost {};
     juce::AudioFormatManager formats;
     std::unique_ptr<juce::FileChooser> chooser;
+    std::unique_ptr<juce::PropertiesFile> settings;
+    juce::File songDir; juce::Array<juce::File> songList;
     void applyValues(const std::array<float, NP>& v);
     Synth engine;
     std::array<std::atomic<float>*, NP> raw {};

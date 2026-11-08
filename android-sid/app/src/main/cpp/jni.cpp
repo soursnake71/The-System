@@ -34,6 +34,13 @@ struct AppHost : ScreenUI::Host {
     void saveMidiFile(const std::string& bytes, const std::string& name) override { midiToSave = bytes; midiName = name; saveMime = "audio/midi"; request = 4; }
     void saveAudioFile(const std::string& bytes, const std::string& name, const std::string& mime) override { midiToSave = bytes; midiName = name; saveMime = mime; request = 4; }
     void loadMidiFile() override { request = 5; }
+    // songs: the folder and its files come from the Java side (Songs.java); opening one is a request it answers
+    std::string songDir; std::vector<std::string> songNames; std::atomic<int> songIdx { -1 };
+    void chooseSongFolder() override { request = 6; }
+    void rescanSongFolder() override { request = 7; }
+    std::string songFolderName() override { return songDir; }
+    std::vector<std::string> songFiles() override { return songNames; }
+    void openSongFile(int i) override { if (i >= 0) { songIdx = i; request = 8; } else request = 9; }
     bool recording() override { return rec.load(); }
     float recordedSeconds() override { return recSec.load(); }
 };
@@ -238,6 +245,25 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_midiFileLoaded(JNIEnv*
     const jsize n = env->GetArrayLength(data);
     std::string b((size_t) n, '\0'); env->GetByteArrayRegion(data, 0, n, reinterpret_cast<jbyte*>(&b[0]));
     if (host->midiFileLoaded) host->midiFileLoaded(b);
+}
+
+// the song folder's listing (UI thread), the file the screen asked for, and a song read from a file
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setSongFiles(JNIEnv* env, jclass, jstring folder, jobjectArray names) {
+    if (!host) return;
+    auto str = [&](jstring j) { std::string r; if (!j) return r; const char* c = env->GetStringUTFChars(j, nullptr); if (c) r = c; env->ReleaseStringUTFChars(j, c); return r; };
+    host->songDir = str(folder);
+    host->songNames.clear();
+    const jsize n = names ? env->GetArrayLength(names) : 0;
+    for (jsize i = 0; i < n; ++i) { auto j = (jstring) env->GetObjectArrayElement(names, i); host->songNames.push_back(str(j)); env->DeleteLocalRef(j); }
+}
+JNIEXPORT jint JNICALL Java_com_thesnakedevice_sid_Native_songIndex(JNIEnv*, jclass) { return host ? host->songIdx.load() : -1; }
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_songFileLoaded(JNIEnv* env, jclass, jbyteArray data, jstring name) {
+    if (!host || !data) return;
+    const jsize n = env->GetArrayLength(data);
+    std::string b((size_t) n, '\0'); env->GetByteArrayRegion(data, 0, n, reinterpret_cast<jbyte*>(&b[0]));
+    std::string nm = "SONG";
+    if (name) { const char* c = env->GetStringUTFChars(name, nullptr); if (c) nm = c; env->ReleaseStringUTFChars(name, c); }
+    if (host->songFileLoaded) host->songFileLoaded(b, nm);
 }
 
 }  // extern "C"

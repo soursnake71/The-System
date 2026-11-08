@@ -31,7 +31,14 @@ final class Native {
     /** The type of the file to save: audio/midi, audio/wav or audio/mpeg. */
     static native String saveMime();
     static native void midiFileLoaded(byte[] data);
-    /** What the screen asked for: 0 nothing, 1 open a sample, 2 start recording, 3 stop recording, 4 save a .mid, 5 open a .mid. */
+    /** The song folder's name and its MIDI files (relative names, sorted), for the SNG page. */
+    static native void setSongFiles(String folder, String[] names);
+    /** The file the SNG page asked to open (request 8). */
+    static native int songIndex();
+    /** A song (a MIDI file) read on the Java side, and its name. */
+    static native void songFileLoaded(byte[] data, String name);
+    /** What the screen asked for: 0 nothing, 1 open a sample, 2 start recording, 3 stop recording, 4 save a .mid, 5 open a .mid,
+     *  6 choose the song folder, 7 rescan it, 8 open song songIndex(), 9 open any song file. */
     static native int pollRequest();
     static native void setRecordingState(boolean recording, float seconds);
     /** A mono sound (UI thread): it becomes the sampler's source. */

@@ -48,6 +48,37 @@ inline Audio renderPattern(const std::string& state, int loops, int fs, double t
     return a;
 }
 
+// the song (SidSong.h) in `state`, once through, through a copy of the synth, then the tail
+inline Audio renderSong(const std::string& state, int fs, double tail, const std::function<void(float)>& progress = {}) {
+    auto s = std::make_unique<Synth>();
+    s->loadState(state);
+    s->set(P::shost, 0); s->set(P::clksrc, 0); s->set(P::clkout, 0);
+    s->prepare(fs);
+    s->pollSample();
+    Audio a; a.fs = fs;
+    Song* song = s->currentSong();
+    if (!song) return a;
+    song->loop = false; song->seek(0); song->play();
+    const long body = (long) std::ceil(song->length * fs) + 512, maxTail = (long) (tail * fs);
+    a.lr.reserve((size_t) (body + maxTail) * 2);
+    std::vector<float> L(512), R(512);
+    long done = 0, quiet = 0, t = 0;
+    while (done < body && song->playing.load()) {
+        s->render(L.data(), R.data(), 512);
+        for (int i = 0; i < 512; ++i) { a.lr.push_back(L[(size_t) i]); a.lr.push_back(R[(size_t) i]); }
+        done += 512;
+        if (progress && (done & 0xFFFF) < 512) progress(0.9f * (float) done / (float) (body + maxTail));
+    }
+    while (t < maxTail && quiet < fs / 2) {
+        s->render(L.data(), R.data(), 512);
+        float pk = 0;
+        for (int i = 0; i < 512; ++i) { a.lr.push_back(L[(size_t) i]); a.lr.push_back(R[(size_t) i]); pk = std::max({ pk, std::fabs(L[(size_t) i]), std::fabs(R[(size_t) i]) }); }
+        quiet = pk < 1e-4f ? quiet + 512 : 0; t += 512;
+    }
+    if (progress) progress(0.9f);
+    return a;
+}
+
 inline float peakOf(const Audio& a) { float p = 0; for (float x : a.lr) p = std::max(p, std::fabs(x)); return p; }
 inline void normalize(Audio& a, float to = 0.966f) { const float p = peakOf(a); if (p > 1e-6f) for (float& x : a.lr) x *= to / p; }   // -0.3 dBFS
 

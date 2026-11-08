@@ -51,11 +51,19 @@ public:
         std::function<void(const std::string&)> midiFileLoaded;   // the screen sets this: a file the platform read
         // an exported sound: save these bytes (mime: audio/wav or audio/mpeg); the platform asks where
         virtual void saveAudioFile(const std::string& /*bytes*/, const std::string& /*name*/, const std::string& /*mime*/) {}
+        // songs: a folder of MIDI files (the platform remembers it), its files by name, and reading one
+        virtual void chooseSongFolder() {}
+        virtual std::string songFolderName() { return ""; }
+        virtual std::vector<std::string> songFiles() { return {}; }   // the .mid files in the folder, sorted
+        virtual void rescanSongFolder() {}
+        virtual void openSongFile(int /*index*/) {}                     // from the list, or -1: pick any file; the bytes go to songFileLoaded
+        std::function<void(const std::string&, const std::string&)> songFileLoaded;   // bytes, name (the screen sets this)
     };
 
-    ~ScreenUI() { host.midiFileLoaded = nullptr; if (exThread.joinable()) exThread.join(); }
+    ~ScreenUI() { host.midiFileLoaded = nullptr; host.songFileLoaded = nullptr; if (exThread.joinable()) exThread.join(); }
     ScreenUI(Host& h) : host(h) {
         host.midiFileLoaded = [this](const std::string& b) { importMidiFile(b); };
+        host.songFileLoaded = [this](const std::string& b, const std::string& n) { loadSong(b, n); };
         for (int i = 0; i < presetCount(); ++i) {
             const std::string c = PRESETS[i].cat;
             if (std::find(cats.begin(), cats.end(), c) == cats.end()) cats.push_back(c);
@@ -100,10 +108,23 @@ public:
     // ---- for touch screens: the platform can show the selected setting big, and page buttons ----
     bool touchMode = false;      // forgiving taps: a touch between rows takes the nearest control
     int selected = -1;           // the setting touched last (highlighted on the screen)
-    // pages: 0 PRG, 1-3 OSC, 4 FLT, 5 MOD, 6 ARP, 7 CHP, 8 MIX, 9 SEQ, 10 SMP, 11 FX, 12 REV, 13 GRID, 14 MIDI, 15 FILE
-    static constexpr int NPAGES = 16;
-    static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 11, 12, 9, 13, 14, 15, 7 };   // the tab order
-    static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "FX", "REV", "SEQ", "GRID", "MIDI", "FILE", "CHP" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
+    // pages: 0 PRG, 1-3 OSC, 4 FLT, 5 MOD, 6 ARP, 7 CHP, 8 MIX, 9 SEQ, 10 SMP, 11 FX, 12 REV, 13 GRD, 14 MID, 15 DSK (files),
+    // 16 SNG (the song browser), 17 SMX (the song's instrument mixer)
+    static constexpr int NPAGES = 18;
+    static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 7, 8, 11, 12, 9, 13, 16, 17, 14, 15 };   // the tab order
+    static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "CHP", "MIX", "FX", "REV", "SEQ", "GRD", "SNG", "SMX", "MID", "DSK" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
+    // a song the platform read (a MIDI file): it replaces the song playing
+    void loadSong(const std::string& bytes, const std::string& name) {
+        auto sng = std::make_unique<Song>();
+        std::string nm = name; const size_t dot = nm.rfind('.'); if (dot != std::string::npos && dot > 0) nm.resize(dot);
+        for (char& c : nm) c = (char) std::toupper((unsigned char) c);
+        const std::string err = sng->load(bytes, nm);
+        if (!err.empty()) { message("?" + err + " ERROR"); return; }
+        const int n = (int) sng->parts.size(), dropped = sng->dropped;
+        host.synth().setSong(sng.release());
+        songSel = 0; loadedSong = name;
+        message("LOADED " + std::to_string(n) + " PARTS" + (dropped ? " (" + std::to_string(dropped) + " LEFT OUT)" : ""));
+    }
     // a MIDI file the platform read: into the current pattern
     void importMidiFile(const std::string& bytes) {
         Synth& s = host.synth(); snapshot(); int len = 16;
@@ -111,7 +132,7 @@ public:
         if (n < 0) { message("?NOT A MIDI FILE ERROR"); return; }
         host.set(P::slen, (float) len); message("IMPORTED " + std::to_string(n) + " NOTES");
     }
-    void setPage(int pg) { page = pg; patList = false; revList = false; if (pg == 0) showPreset(host.synth().program.load()); if (pg == 13) gridFit(); }
+    void setPage(int pg) { page = pg; patList = false; revList = false; if (pg != 0) partPick = -1; if (pg == 0) showPreset(host.synth().program.load()); if (pg == 13) gridFit(); }
     void stepPage(int d) {
         int k = 0; for (int i = 0; i < NPAGES; ++i) if (PAGE_ORDER[i] == page) k = i;
         setPage(PAGE_ORDER[((k + d) % NPAGES + NPAGES) % NPAGES]);
@@ -139,6 +160,8 @@ public:
         if (hit.kind == Z_VFADER) setFromFader(hit.a, y);
         if (hit.kind == Z_GRID) gridDown(x, y);
         if (hit.kind == Z_GVEL) { snapshot(); gridVel(x, y); }
+        if (hit.kind == Z_SFADER) songFader(hit.a, y);
+        if (hit.kind == Z_SPOS) songSeek(x);
         const bool isParam = hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER);
         startNorm = isParam ? toNorm(hit.a, host.get(hit.a)) : 0;
         startVal = isParam ? host.get(hit.a) : 0;
@@ -146,6 +169,8 @@ public:
         if (hit.kind == Z_LIST || hit.kind == Z_PRESET) startVal = (float) listScroll;
         if (hit.kind == Z_PATLIST || hit.kind == Z_PATITEM) startVal = (float) patScroll;
         if (hit.kind == Z_REVLIST || hit.kind == Z_REVITEM) startVal = (float) revScroll;
+        if (hit.kind == Z_SVAL) startVal = songValueOf(hit.a);
+        if (hit.kind == Z_SLIST || hit.kind == Z_SFILE) startVal = (float) songScroll;
     }
     void move(float x, float y) {
         if (std::fabs(x - downX) > 3 || std::fabs(y - downY) > 3) moved = true;
@@ -157,6 +182,10 @@ public:
             case Z_VFADER: setFromFader(hit.a, y); break;
             case Z_GRID: gridDrag(x, y); break;
             case Z_GVEL: gridVel(x, y); break;
+            case Z_SFADER: songFader(hit.a, y); break;
+            case Z_SVAL: songValue(hit.a, dx); break;
+            case Z_SPOS: songSeek(x); break;
+            case Z_SLIST: case Z_SFILE: songScroll = std::clamp((int) std::lround(startVal - dy / 8.f), 0, std::max(0, (int) songList.size() - songListRows())); break;
             case Z_PNAME: case Z_PVAL: {
                 const ParamInfo& p = params()[hit.a];
                 if (p.kind == CHOICE || (p.kind == INT && p.max - p.min <= 32)) host.set(hit.a, std::clamp(std::round(startVal + dx / 12.f), p.min, p.max));
@@ -178,7 +207,8 @@ public:
         move(x, y);
         // a sideways swipe off the controls that drag: the next / previous page
         const float dx = x - downX, dy = y - downY;
-        const bool drags = (hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER || hit.kind == Z_STEP_NOTE || hit.kind == Z_GRID || hit.kind == Z_GVEL;
+        const bool drags = (hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER || hit.kind == Z_STEP_NOTE || hit.kind == Z_GRID || hit.kind == Z_GVEL ||
+                           hit.kind == Z_SFADER || hit.kind == Z_SVAL || hit.kind == Z_SPOS;
         if (hit.kind == Z_GRID) gridUp();
         if (moved && !drags && std::fabs(dx) > 48 && std::fabs(dx) > 2 * std::fabs(dy)) { stepPage(dx < 0 ? 1 : -1); hit = {}; return; }
         if (!moved) tap(hit);
@@ -209,7 +239,8 @@ private:
     Host& host;
     struct Cell { char ch = ' '; uint8_t fg = LBLUE; bool inv = false; };
     Cell cell[MAXROWS][COLS];
-    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER, Z_GRID, Z_GRID_ACC, Z_GRID_SLD, Z_REVLIST, Z_REVITEM, Z_GVEL, Z_CCITEM };
+    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER, Z_GRID, Z_GRID_ACC, Z_GRID_SLD, Z_REVLIST, Z_REVITEM, Z_GVEL, Z_CCITEM,
+              Z_SFADER, Z_SVAL, Z_SFILE, Z_SLIST, Z_SPOS, Z_SPART };
     struct Zone { int r = -1, c0 = 0, c1 = 0, kind = Z_NONE, a = -1; };
     struct Bar { int r, c0, c1; float frac; uint8_t col; bool center; };
     struct Rect { int x, y, w, h; uint32_t col; };
@@ -217,7 +248,8 @@ private:
     // the mixer: faders from row 7 down to the pan row; extra rows go two thirds to the faders, a third to the scope
     int mixPanRow() const { const int ex = rows - ROWS; return 18 + ex - ex / 3; }
     int faderTop() const { return 7 * 8; }
-    int faderBot() const { return mixPanRow() * 8; }
+    int faderBot() const { return (page == 17 ? songFaderRow() : mixPanRow()) * 8; }
+    int songFaderRow() const { return rows - 9; }
     static constexpr uint32_t DIM = 0xFF2A2066;
     std::vector<std::string> cats;
     int cat = 0, listScroll = 0, patScroll = 0; bool patList = false;
@@ -229,7 +261,9 @@ private:
     enum Btn { B_PREV = 1, B_NEXT, B_INIT, B_RAND, B_UP, B_DN, B_PLAY, B_STOP, B_PAT_DN, B_PAT_UP, B_LEN_DN, B_LEN_UP, B_LOAD, B_CLEAR,
                B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE,
                B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT, B_GRID_HALF, B_GRID_UP, B_GRID_DN, B_REV_LIST, B_REV_EQ, B_BACK_REV, B_REV_UP, B_REV_DN,
-               B_GRID_VIEW, B_DUP, B_UNDO, B_DEFLEN, B_DEFVEL, B_LEARN, B_CCRESET, B_CC_PREV, B_CC_NEXT, B_MID_SAVE, B_MID_LOAD, B_EXPORT, B_RECOUT, B_GO_MIX, B_GO_FX };
+               B_GRID_VIEW, B_DUP, B_UNDO, B_DEFLEN, B_DEFVEL, B_LEARN, B_CCRESET, B_CC_PREV, B_CC_NEXT, B_MID_SAVE, B_MID_LOAD, B_EXPORT, B_RECOUT, B_GO_MIX, B_GO_FX,
+               B_SNG_FOLDER, B_SNG_SCAN, B_SNG_OPEN, B_SNG_PLAY, B_SNG_STOP, B_SNG_REW, B_SNG_LOOP, B_SNG_UP, B_SNG_DN,
+               B_SP_PREV, B_SP_NEXT, B_SP_LIST, B_SP_EDIT, B_SP_STORE, B_GO_SNG, B_GO_SMX, B_SP_GM };
     std::vector<GNote> clipNotes, undoNotes; int clipLen = 16; bool hasClip = false, hasUndo = false;
     bool learnArmed = false; int ccPage = 0; int lastLearned = -1;
     void snapshot() { undoNotes = host.synth().copyPattern(curPat()); hasUndo = true; }
@@ -323,7 +357,7 @@ private:
         // tabs
         // two rows of tabs: the sound on the first, mixing, effects, sequencing and the chip on the second
         for (int t = 0; t < NPAGES; ++t) {
-            const int tr = t < 8 ? 3 : 4, tc = (t < 8 ? t : t - 8) * 5;   // 8 on the first row, 7 on the second
+            const int tr = t < 9 ? 3 : 4, tc = (t < 9 ? t : t - 9) * 4 + 2;   // 9 on each row
             const bool sel = PAGE_ORDER[t] == page;
             put(tr, tc, pageName(t), sel ? WHITE : LBLUE, sel);
             zone(tr, tc, tc + 4, Z_TAB, PAGE_ORDER[t]);
@@ -342,6 +376,8 @@ private:
             case 13: pageGrid(); break;
             case 14: pageMidi(); break;
             case 15: pageFile(); break;
+            case 16: pageSong(); break;
+            case 17: pageSongMix(); break;
             default: pageSample(); break;
         }
         pollExport();
@@ -349,7 +385,7 @@ private:
         if (page == 9 && !patList) return;   // the tracker uses the whole screen
         {
             if (frame < msgUntil) put(rows - 2, 0, pad(msg, 40), WHITE);
-            else put(rows - 2, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 13 ? "DRAW: DRAG RIGHT. MOVE / RESIZE. TAP=DEL" : page == 15 ? "EXPORT: THE PATTERN OR WHAT YOU RECORDED" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
+            else put(rows - 2, 0, partPick >= 0 && page == 0 ? "TAP A SOUND FOR PART " + std::to_string(partPick + 1) : page == 0 ? std::string("TAP A PRESET.  DRAG THE LIST TO SCROLL.") : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 13 ? "DRAW: DRAG RIGHT. MOVE / RESIZE. TAP=DEL" : page == 15 ? "EXPORT: THE PATTERN, A TAKE OR THE SONG" : page == 16 ? "TAP A SONG TO LOAD IT. DRAG TO SCROLL." : page == 17 ? "TAP A NAME TO PICK. DRAG E / R / PAN." : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
         }
         // the preset line
         char pl[64];
@@ -367,7 +403,8 @@ private:
             put(5 + k, 0, pad(cats[(size_t) k], 8), k == cat ? WHITE : LBLUE, k == cat);
             zone(5 + k, 0, 8, Z_CAT, k);
         }
-        int idx = 0, row = 0; const int cur = host.synth().program.load();
+        int idx = 0, row = 0; int cur = host.synth().program.load();
+        if (partPick >= 0) { Song* sg = song(); cur = sg && partPick < (int) sg->parts.size() ? sg->parts[(size_t) partPick]->preset.load() : -1; }
         for (int i = 0; i < presetCount(); ++i) {
             if (cats[(size_t) cat] != PRESETS[i].cat) continue;
             if (idx >= listScroll && row < listRows()) {
@@ -838,6 +875,158 @@ private:
         button(rt, 23, "L:" + std::to_string(defLen), B_DEFLEN, CYAN, true); button(rt, 29, "V:" + std::to_string(defVel), B_DEFVEL, YELLOW, true);
     }
 
+    // ---------------- SNG: the song browser (a folder of MIDI files) and the song's transport ----------------
+    int songScroll = 0, songSel = 0, partPick = -1; std::string loadedSong;
+    std::vector<std::string> songList; uint64_t songListFrame = 0;
+    Song* song() { return host.synth().currentSong(); }
+    int songListRows() const { return rows - 12; }
+    void songTransport(int r) {
+        Song* sg = song();
+        const bool pl = sg && sg->playing.load();
+        button(r, 0, pl ? "{PLAY}" : " PLAY ", B_SNG_PLAY, pl ? LGREEN : WHITE, true);
+        button(r, 7, " STOP ", B_SNG_STOP, WHITE, true);
+        button(r, 14, "|<", B_SNG_REW, WHITE, true);
+        const bool lp = sg && sg->loop.load();
+        button(r, 17, lp ? "{LOOP}" : " LOOP ", B_SNG_LOOP, lp ? YELLOW : GREY, true);
+        if (sg) put(r, 24, pad(secs(sg->position.load()) + "/" + secs(sg->length), 16), pl ? LGREEN : GREY);
+    }
+    void pageSong() {
+        if (frame - songListFrame > 60 || songListFrame == 0) { songList = host.songFiles(); songListFrame = frame; }
+        const std::string dir = host.songFolderName();
+        put(5, 0, "DIR:", GREY); put(5, 5, pad(dir.empty() ? "(NONE)" : upper(dir), 15), dir.empty() ? GREY : YELLOW);
+        button(5, 21, "FOLDER", B_SNG_FOLDER, YELLOW, true);
+        button(5, 28, "SCAN", B_SNG_SCAN, WHITE, true);
+        button(5, 33, "OPEN..", B_SNG_OPEN, WHITE, true);
+        const int lr = songListRows(), n = (int) songList.size();
+        songScroll = std::clamp(songScroll, 0, std::max(0, n - lr));
+        if (n == 0) {
+            put(7, 1, dir.empty() ? "SET A FOLDER OF MIDI FILES (.MID):" : "NO .MID FILES IN THIS FOLDER.", LBLUE);
+            put(8, 1, dir.empty() ? "TAP FOLDER. THEIR SONGS SHOW HERE," : "TAP SCAN AFTER ADDING SOME,", LBLUE);
+            put(9, 1, dir.empty() ? "OR OPEN.. ONE FILE." : "OR OPEN.. ONE FILE.", LBLUE);
+        }
+        for (int k = 0; k < lr && songScroll + k < n; ++k) {
+            const int i = songScroll + k; const bool cur = songList[(size_t) i] == loadedSong;
+            std::string nm = songList[(size_t) i]; for (char& c : nm) c = (char) std::toupper((unsigned char) c);
+            put(6 + k, 0, pad(std::string(cur ? "{" : " ") + nm, 40), cur ? WHITE : LBLUE);
+            zone(6 + k, 0, 39, Z_SFILE, i);
+        }
+        for (int r = 6; r < 6 + lr; ++r) zones.insert(zones.begin(), Zone { r, 0, 39, Z_SLIST, 0 });
+        const int rr = 6 + lr;
+        if (n > lr) {
+            char b[32]; std::snprintf(b, sizeof b, "%d-%d OF %d", songScroll + 1, std::min(n, songScroll + lr), n);
+            put(rr, 0, b, GREY); button(rr, 16, " ^ ", B_SNG_UP, WHITE, true); button(rr, 20, " v ", B_SNG_DN, WHITE, true);
+        }
+        button(rr, 31, " MIXER ", B_GO_SMX, CYAN, true);
+        Song* sg = song();
+        if (sg) {
+            char b[64]; std::snprintf(b, sizeof b, "%d PARTS %3.0f BPM", (int) sg->parts.size(), sg->bpm);
+            put(rr + 1, 0, pad(sg->name, 23), WHITE); put(rr + 1, 24, b, GREY);
+            bars.push_back({ rr + 2, 0, 39, sg->length > 0 ? (float) (sg->position.load() / sg->length) : 0.f, LGREEN, false });
+            zone(rr + 2, 0, 39, Z_SPOS, 0);
+        } else put(rr + 1, 0, "NO SONG LOADED", GREY);
+        songTransport(rows - 3);
+    }
+
+    // ---------------- SMX: the song's instruments: a strip for each part, its sends, its sound ----------------
+    static float partGain(float lv) { return 1.0667f * lv * lv; }   // the part fader's law: 0.75 = 0.6 (the parts' 0 dB)
+    static std::string partDb(float lv) { const float g = partGain(lv) / 0.6f; return g < 1e-4f ? "-INF" : dbText(20.f * std::log10(g)); }
+    void faderFrac(int x, int w, float frac, uint8_t fill, float zeroAt) {
+        const int h = faderBot() - faderTop(), pos = (int) std::lround(std::clamp(frac, 0.f, 1.f) * (h - 3));
+        rects.push_back({ x, faderTop(), w, h, DIM });
+        rects.push_back({ x + w / 2 - 1, faderTop() + 1, 2, h - 2, 0xFF1A1450 });
+        if (zeroAt >= 0) { const int z = faderBot() - 2 - (int) std::lround(zeroAt * (h - 3)); rects.push_back({ x - 2, z, 2, 1, PALETTE[GREY] }); }
+        rects.push_back({ x + 1, faderBot() - 1 - pos, w - 2, pos, PALETTE[fill] });
+        rects.push_back({ x, faderBot() - 3 - pos, w, 3, PALETTE[WHITE] });
+    }
+    void pageSongMix() {
+        Song* sg = song();
+        if (!sg || sg->parts.empty()) {
+            put(6, 1, "NO SONG LOADED.", WHITE);
+            put(8, 1, "PICK A MIDI FILE ON THE SONG PAGE:", LBLUE);
+            put(9, 1, "EACH INSTRUMENT IN IT GETS A STRIP", LBLUE);
+            put(10, 1, "HERE, WITH ITS OWN SID SOUND.", LBLUE);
+            button(12, 1, " SONGS ", B_GO_SNG, YELLOW, true);
+            return;
+        }
+        const int np = (int) sg->parts.size(); songSel = std::clamp(songSel, 0, np - 1);
+        const int fr = songFaderRow();
+        for (int i = 0; i < np; ++i) {
+            SongPart& sp = *sg->parts[(size_t) i];
+            const int c = i * 5, x = c * 8;
+            const bool sel = i == songSel;
+            std::string nm = std::to_string(i + 1) + sp.name.substr(0, 3);
+            put(5, c, pad(nm, 4), sel ? WHITE : (sp.drums ? YELLOW : LBLUE), sel);
+            zone(5, c, c + 4, Z_SPART, i);
+            put(6, c, pad(partDb(sp.level.load()), 4), YELLOW); zone(6, c, c + 4, Z_SPART, i);
+            faderFrac(x + 2, 12, sp.level.load(), sel ? CYAN : LBLUE, 0.75f);
+            meter(x + 18, 8, sp.meter.load());
+            for (int r = 7; r < fr; ++r) zone(r, c, c + 2, Z_SFADER, i);
+            // pan
+            const float pv = sp.pan.load(); const int tw = 5 * 8 - 6;
+            rects.push_back({ x + 2, fr * 8 + 2, tw, 4, DIM });
+            rects.push_back({ x + 1 + tw / 2, fr * 8 + 1, 2, 6, PALETTE[GREY] });
+            rects.push_back({ x + 2 + (int) std::lround((pv + 1) * 0.5f * (tw - 4)), fr * 8, 4, 8, PALETTE[CYAN] });
+            zone(fr, c, c + 4, Z_SVAL, i * 8 + 1);
+            // the sends, as percentages: drag sideways
+            put(fr + 1, c, "E" + pad(std::to_string((int) std::lround(sp.echo.load() * 100)), 3), sp.echo.load() > 0.005f ? LGREEN : GREY);
+            zone(fr + 1, c, c + 4, Z_SVAL, i * 8 + 4);
+            put(fr + 2, c, "R" + pad(std::to_string((int) std::lround(sp.rev.load() * 100)), 3), sp.rev.load() > 0.005f ? CYAN : GREY);
+            zone(fr + 2, c, c + 4, Z_SVAL, i * 8 + 5);
+            const bool m = sp.mute.load(), so = sp.solo.load();
+            put(fr + 3, c, "M", m ? LRED : GREY, m); zone(fr + 3, c, c + 1, Z_SVAL, i * 8 + 2);
+            put(fr + 3, c + 2, "S", so ? YELLOW : GREY, so); zone(fr + 3, c + 2, c + 4, Z_SVAL, i * 8 + 3);
+        }
+        // the selected part's sound
+        const int r = fr + 4;
+        button(r, 0, "<", B_SP_PREV, WHITE, true);
+        put(r, 2, pad(std::to_string(songSel + 1) + " " + sg->soundName(songSel), 25), sg->parts[(size_t) songSel]->preset.load() < 0 ? LGREEN : YELLOW);
+        zone(r, 2, 26, Z_BTN, B_SP_LIST);
+        button(r, 28, ">", B_SP_NEXT, WHITE, true);
+        button(r, 30, "SOUNDS", B_SP_LIST, YELLOW, true);
+        if (!sg->parts[(size_t) songSel]->drums) {
+            button(r + 1, 0, "EDIT ON KEYS", B_SP_EDIT, CYAN, true);
+            button(r + 1, 13, "KEYS>PART", B_SP_STORE, CYAN, true);
+            button(r + 1, 23, "GM", B_SP_GM, WHITE, true);
+        } else put(r + 1, 0, "SID DRUM KIT (GM CHANNEL 10)", GREY);
+        button(r + 1, 30, " SONGS ", B_GO_SNG, WHITE, true);
+        songTransport(rows - 3);
+    }
+    void songValue(int a, float dx) {   // a drag on a pan or a send
+        Song* sg = song(); if (!sg) return;
+        const int i = a / 8, ctl = a % 8; if (i < 0 || i >= (int) sg->parts.size()) return;
+        SongPart& sp = *sg->parts[(size_t) i];
+        if (ctl == 1) sp.pan = std::clamp(startVal + dx / 30.f, -1.f, 1.f);
+        if (ctl == 4) sp.echo = std::clamp(startVal + dx / 60.f, 0.f, 1.f);
+        if (ctl == 5) sp.rev = std::clamp(startVal + dx / 60.f, 0.f, 1.f);
+    }
+    float songValueOf(int a) {
+        Song* sg = song(); if (!sg) return 0;
+        const int i = a / 8, ctl = a % 8; if (i < 0 || i >= (int) sg->parts.size()) return 0;
+        SongPart& sp = *sg->parts[(size_t) i];
+        return ctl == 1 ? sp.pan.load() : ctl == 4 ? sp.echo.load() : ctl == 5 ? sp.rev.load() : 0.f;
+    }
+    void songFader(int i, float y) {
+        Song* sg = song(); if (!sg || i < 0 || i >= (int) sg->parts.size()) return;
+        sg->parts[(size_t) i]->level = std::clamp((faderBot() - y) / (float) (faderBot() - faderTop()), 0.f, 1.f);
+        songSel = i;
+    }
+    void songSeek(float x) { Song* sg = song(); if (sg) sg->seek(std::clamp(x / (float) W, 0.f, 1.f) * sg->length); }
+    // the part's sound onto the keyboard synth (through the host, so a plugin's parameters follow), to edit it there
+    void editPartOnKeys() {
+        Song* sg = song(); if (!sg) return;
+        SongPart& sp = *sg->parts[(size_t) songSel];
+        if (sp.drums || sp.syn.empty()) return;
+        if (sp.preset.load() >= 0) { host.loadPreset(sp.preset.load()); showPreset(sp.preset.load()); }
+        else {
+            Synth& from = *sp.syn[0]; Synth& s = host.synth();
+            for (int k = 0; k < NP; ++k) if (params()[k].preset) host.set(k, from.get(k));
+            if (!from.source.empty()) s.setSource(from.source.src, from.source.srcRate, from.source.name);
+            s.presetName = from.presetName;
+        }
+        if (onPresetChanged) onPresetChanged();
+        message("PART " + std::to_string(songSel + 1) + " ON THE KEYS: EDIT, THEN KEYS>PART");
+    }
+
     // ---------------- FILE: audio export (WAV / MP3), MIDI files, the two mixers ----------------
     std::thread exThread; std::mutex exMu; std::atomic<bool> exBusy { false }; std::atomic<float> exProgress { 0 };
     bool exReady = false; std::string exBytes, exName, exMime, exInfo;
@@ -846,7 +1035,9 @@ private:
         if (exBusy) { message("STILL EXPORTING"); return; }
         Synth& s = host.synth();
         const int fmt = (int) std::lround(host.get(P::xfmt)), fs = (int) std::lround(host.get(P::xrate)) ? 48000 : 44100;
-        const bool fromRec = host.get(P::xsrc) > .5f, norm = host.get(P::xnorm) > .5f;
+        const int src = (int) std::lround(host.get(P::xsrc));
+        const bool fromRec = src == 1, fromSong = src == 2, norm = host.get(P::xnorm) > .5f;
+        if (fromSong && !s.currentSong()) { message("?NO SONG ERROR"); return; }
         const int loops = (int) std::lround(host.get(P::xloops)); const double tail = host.get(P::xtail);
         Audio rec;
         if (fromRec) {   // what was recorded, at the rate it was recorded
@@ -856,11 +1047,11 @@ private:
             for (size_t i = 0; i < rec.lr.size(); ++i) rec.lr[i] = s.outRec[i] / 32768.f;
         }
         const std::string state = s.saveState();
-        const std::string base = std::string("OMEGA SID ") + (fromRec ? "RECORDING" : "PATTERN " + std::to_string(curPat() + 1));
+        const std::string base = fromSong ? s.currentSong()->name : std::string("OMEGA SID ") + (fromRec ? "RECORDING" : "PATTERN " + std::to_string(curPat() + 1));
         if (exThread.joinable()) exThread.join();
         exBusy = true; exProgress = 0;
-        exThread = std::thread([this, rec, state, fmt, fs, fromRec, norm, loops, tail, base]() mutable {
-            Audio a = fromRec ? std::move(rec) : renderPattern(state, loops, fs, tail, [this](float p) { exProgress = p; });
+        exThread = std::thread([this, rec, state, fmt, fs, fromRec, fromSong, norm, loops, tail, base]() mutable {
+            Audio a = fromRec ? std::move(rec) : fromSong ? renderSong(state, fs, tail, [this](float p) { exProgress = p; }) : renderPattern(state, loops, fs, tail, [this](float p) { exProgress = p; });
             if (fromRec && fmt >= 2 && a.fs != 44100 && a.fs != 48000 && a.fs != 32000) a = resampleTo(a, 48000);   // MP3 needs 32 / 44.1 / 48 kHz
             const float pk = peakOf(a);
             if (norm) normalize(a);
@@ -909,6 +1100,9 @@ private:
         r += 2;
         put(r++, 0, "MIXERS", WHITE);
         button(r, 0, "AUDIO MIXER", B_GO_MIX, CYAN, true); button(r, 13, "EFFECTS MIXER", B_GO_FX, CYAN, true);
+        r += 2;
+        put(r++, 0, "SONGS", WHITE);
+        button(r, 0, "SONG BROWSER", B_GO_SNG, YELLOW, true); button(r, 14, "INSTRUMENT MIXER", B_GO_SMX, CYAN, true);
     }
 
     // ---------------- MIDI: channel, velocity, aftertouch, bend, clock, learn and the controller map, files ----------------
@@ -968,10 +1162,15 @@ private:
     void tap(const Zone& z) {
         Synth& s = host.synth();
         switch (z.kind) {
-            case Z_TAB: page = z.a; patList = false; if (page == 0) showPreset(s.program.load()); break;
+            case Z_TAB: setPage(z.a); break;
             case Z_CAT: cat = z.a; listScroll = 0; break;
             case Z_PRESET: case Z_LIST: {
                 const Zone pz = zoneAtKind(lastX, lastY, Z_PRESET);
+                if (pz.kind == Z_PRESET && partPick >= 0) {
+                    Song* sg = song();
+                    if (sg && partPick < (int) sg->parts.size()) { sg->applyPreset(partPick, pz.a); message("PART " + std::to_string(partPick + 1) + ": " + PRESETS[pz.a].name); }
+                    songSel = partPick; setPage(17); break;
+                }
                 if (pz.kind == Z_PRESET) { host.loadPreset(pz.a); message("LOAD\"" + std::string(PRESETS[pz.a].name) + "\",8,1"); if (onPresetChanged) onPresetChanged(); }
                 break;
             }
@@ -990,6 +1189,28 @@ private:
             case Z_GRID_SLD: {   // slide on every note that starts at the step
                 snapshot(); bool any = false, to = true;
                 for (auto& q : s.patternNotes(curPat())) if (q.second.start == z.a) { if (!any) to = !q.second.slide; any = true; GNote g = q.second; g.slide = to; s.setNote(curPat(), q.first, g); }
+                break;
+            }
+            case Z_SPART: songSel = z.a; break;
+            case Z_SFADER: songSel = z.a; break;
+            case Z_SFILE: {
+                const Zone fz = zoneAtKind(lastX, lastY, Z_SFILE);
+                if (fz.kind == Z_SFILE) { message("LOADING..."); host.openSongFile(fz.a); }
+                break;
+            }
+            case Z_SVAL: {
+                Song* sg = song(); const int i = z.a / 8, ctl = z.a % 8;
+                if (!sg || i >= (int) sg->parts.size()) break;
+                SongPart& sp = *sg->parts[(size_t) i]; songSel = i;
+                if (ctl == 2) sp.mute = !sp.mute.load();
+                else if (ctl == 3) sp.solo = !sp.solo.load();
+                else if (lastTapParam == 1000 + z.a && frame - lastTapFrame < 12) {   // a double tap: back to the default
+                    if (ctl == 1) sp.pan = 0.f;
+                    else if (ctl == 4) sp.echo = 0.f;
+                    else if (ctl == 5) sp.rev = sp.drums ? 0.1f : 0.15f;
+                    lastTapParam = -1; break;
+                }
+                lastTapParam = 1000 + z.a; lastTapFrame = frame;
                 break;
             }
             case Z_CCITEM: s.ccMap[(size_t) z.a].store(-1); message("CC " + std::to_string(z.a) + " UNMAPPED"); break;
@@ -1091,6 +1312,32 @@ private:
                 else { s.startOutRecord(300); message("RECORDING THE OUTPUT (UP TO 5 MIN)"); }
                 break;
             case B_GO_MIX: setPage(8); break;
+            case B_GO_SNG: setPage(16); break;
+            case B_GO_SMX: setPage(17); break;
+            case B_SNG_FOLDER: host.chooseSongFolder(); songListFrame = 0; break;
+            case B_SNG_SCAN: host.rescanSongFolder(); songListFrame = 0; message("FOLDER SCANNED"); break;
+            case B_SNG_OPEN: host.openSongFile(-1); break;
+            case B_SNG_UP: songScroll = std::max(0, songScroll - songListRows()); break;
+            case B_SNG_DN: songScroll += songListRows(); break;
+            case B_SNG_PLAY: if (Song* sg = song()) { if (sg->playing.load()) sg->stop(); else sg->play(); } else message("?NO SONG ERROR"); break;
+            case B_SNG_STOP: if (Song* sg = song()) { if (!sg->playing.load()) sg->rewind(); sg->stop(); } break;
+            case B_SNG_REW: if (Song* sg = song()) sg->rewind(); break;
+            case B_SNG_LOOP: if (Song* sg = song()) sg->loop = !sg->loop.load(); break;
+            case B_SP_PREV: case B_SP_NEXT: {
+                Song* sg = song(); if (!sg) break;
+                SongPart& sp = *sg->parts[(size_t) songSel]; if (sp.drums) break;
+                const int n = presetCount(), cur = std::max(0, sp.preset.load()), i = ((cur + (id == B_SP_NEXT ? 1 : -1)) % n + n) % n;
+                sg->applyPreset(songSel, i); break;
+            }
+            case B_SP_LIST: {
+                Song* sg = song(); if (!sg || sg->parts[(size_t) songSel]->drums) break;
+                const int pick = songSel; setPage(0); partPick = pick;
+                if (sg->parts[(size_t) pick]->preset.load() >= 0) showPreset(sg->parts[(size_t) pick]->preset.load());
+                break;
+            }
+            case B_SP_GM: if (Song* sg = song()) { sg->applyPreset(songSel, gmPreset(sg->parts[(size_t) songSel]->program)); message("GM SOUND FOR PROGRAM " + std::to_string(sg->parts[(size_t) songSel]->program + 1)); } break;
+            case B_SP_EDIT: editPartOnKeys(); break;
+            case B_SP_STORE: if (Song* sg = song()) { sg->takePatch(songSel, s); message("KEYS -> PART " + std::to_string(songSel + 1) + ": " + s.presetName); } break;
             case B_GO_FX: setPage(11); break;
             case B_PANIC: s.post(Synth::EV_PANIC, 0, 0); message("ALL NOTES OFF"); break;
             case B_SMP_LOAD: host.loadSampleFile(); break;

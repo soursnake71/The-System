@@ -27,7 +27,8 @@ final class Sampling {
     private volatile boolean recording;
     private Thread recThread;
 
-    Sampling(Activity a) { act = a; }
+    final Songs songs;
+    Sampling(Activity a) { act = a; songs = new Songs(a); }
 
     /** Called every frame by the view: act on what the screen's LOAD / REC buttons asked for. */
     void poll() {
@@ -39,6 +40,10 @@ final class Sampling {
                       i.putExtra(Intent.EXTRA_TITLE, Native.midiFileName()); act.startActivityForResult(i, MIDI_SAVE); break; }
             case 5: { final Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*");
                       act.startActivityForResult(i, MIDI_OPEN); break; }
+            case 6: songs.chooseFolder(); break;
+            case 7: songs.scan(); break;
+            case 8: songs.open(Native.songIndex()); break;
+            case 9: songs.openAny(); break;
             default: break;
         }
     }
