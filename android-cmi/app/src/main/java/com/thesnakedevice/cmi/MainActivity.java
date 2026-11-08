@@ -253,6 +253,10 @@ public class MainActivity extends Activity {
     final List<Uri> libUris = new ArrayList<>(); final List<String> libNames = new ArrayList<>();
     void chooseLibrary() { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); startActivityForResult(i, PICK_LIBRARY); }
     String libraryName() { String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("library", ""); if (u.isEmpty()) return ""; String d = Uri.parse(u).getLastPathSegment(); return d == null ? u : d; }
+    // the library: only its HFE images when it has some (each disk once, from its rawest copy)
+    boolean libFromHfe = false;
+    boolean hfeOnly() { return getSharedPreferences("cmi", MODE_PRIVATE).getBoolean("hfeOnly", true); }
+    void setHfeOnly(boolean on) { getSharedPreferences("cmi", MODE_PRIVATE).edit().putBoolean("hfeOnly", on).apply(); rescanLibrary(); }
     void rescanLibrary() {
         final String u = getSharedPreferences("cmi", MODE_PRIVATE).getString("library", "");
         if (u.isEmpty()) return;
@@ -265,16 +269,16 @@ public class MainActivity extends Activity {
             // the CMI library: every voice on the disks and .VC files there
             Native.catalogClear();
             int done = 0;
+            boolean anyHfe = false; for (String n : ns) anyHfe |= n.toLowerCase().endsWith(".hfe");
+            final boolean only = hfeOnly(); libFromHfe = anyHfe && only;
             for (int pass = 0; pass < 2; ++pass) for (int i : ord) {   // disk images first: their labels name the voices' disks
-                String lo = ns.get(i).toLowerCase();
-                boolean disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".hfe") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
-                if (pass == 0 ? !disk : !lo.endsWith(".vc")) continue;
+                if (Native.libraryRole(ns.get(i), anyHfe, only) != pass + 1) continue;
                 try { Native.catalogAdd(readAll(us.get(i), 8 << 20), ns.get(i), ""); } catch (Exception ignored) {}
                 if (++done % 10 == 0) { final int d2 = done; ui.post(() -> view.status("READING THE CMI LIBRARY: " + d2 + " FILES")); }
             }
             Native.connectDefaults();   // no built-in voices: Page R and the keyboard take theirs from the library
             ui.post(() -> { libUris.clear(); libNames.clear(); for (int i : ord) { libUris.add(us.get(i)); libNames.add(ns.get(i)); } saveState();
-                view.status(Native.catalogCount() + " CMI VOICES ON " + Native.catalogDisks() + " DISKS, " + libUris.size() + " FILES"); });
+                view.status(Native.catalogCount() + " CMI VOICES ON " + Native.catalogDisks() + (libFromHfe ? " HFE DISKS, " : " DISKS, ") + libUris.size() + " FILES"); });
         }).start();
     }
     void loadFromLibrary(boolean songs, boolean sounds, int only) {

@@ -51,6 +51,17 @@ public:
     bool sound(int i, Sound& out) const { if (i < 0 || i >= (int) voices.size()) return false; std::string err; return vcToSound(voices[(size_t) i].vc, voices[(size_t) i].name, voices[(size_t) i].disk, out, err); }
 };
 
+// which of the library folder's files the catalogue reads: 0 none, 1 a disk image (read first: its label names its
+// voices' disk), 2 a .VC file. hfeOnly, when the folder has HFE images: only those, so each disk is read once and
+// from its rawest copy (the IMG / IMD / VC copies of the same disks are left alone)
+inline bool endsWithNoCase(const std::string& s, const char* e) { const size_t l = std::strlen(e); if (s.size() < l) return false; for (size_t i = 0; i < l; ++i) if (std::tolower((unsigned char) s[s.size() - l + i]) != e[i]) return false; return true; }
+inline int libraryRole(const std::string& fileName, bool anyHfe, bool hfeOnly) {
+    const bool hfe = endsWithNoCase(fileName, ".hfe");
+    if (hfeOnly && anyHfe) return hfe ? 1 : 0;
+    if (hfe || endsWithNoCase(fileName, ".imd") || endsWithNoCase(fileName, ".img") || endsWithNoCase(fileName, ".bin") || endsWithNoCase(fileName, ".raw") || endsWithNoCase(fileName, ".dsk")) return 1;
+    return endsWithNoCase(fileName, ".vc") ? 2 : 0;
+}
+
 // ---- roles: what a track plays, and where the CMI library keeps it (voice names as on the IIx factory disks) ----
 // disks: prefixes of the disk labels and file / folder names; voices: the best-known first
 struct Role { const char* name; const char* disks; const char* voices; bool sustained; };

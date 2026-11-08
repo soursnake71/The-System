@@ -524,6 +524,9 @@ int main(int argc, char** argv) {
                 CHECK(role("Violin", 40) == "violin" && role("Ragtime Piano", 3) == "honky tonk" && role("FR.HORN", 60) == "french horn" && role("VIBRAPHONE", 11) == "vibes" &&
                       role("TRACK 4", 46) == "harp" && role("Rhodes", 4) == "electric piano" && role("", 33) == "bass" && role("", 123) == "birds",
                       "roles: %s %s %s", role("Violin", 40).c_str(), role("Ragtime Piano", 3).c_str(), role("TRACK 4", 46).c_str());
+                CHECK(libraryRole("BASSES.HFE", true, true) == 1 && libraryRole("BASSES.img", true, true) == 0 && libraryRole("BASS1.VC", true, true) == 0 &&
+                      libraryRole("BASSES.img", false, true) == 1 && libraryRole("BASS1.vc", false, true) == 2 && libraryRole("BASSES.IMD", true, false) == 1 && libraryRole("x.wav", false, false) == 0,
+                      "library: only the HFE images when there are some");
                 CHECK(std::string(drumVoices(36)).rfind("KICK1", 0) == 0 && std::string(drumVoices(56)).find("COWBELL1") != std::string::npos, "CMI drum map");
             }
             Sound arr = *k2.bank.at(lib.find("CHOIRAAH")); arr.name = "ARR1"; arr.category = "CHORAL"; k2.setUser(0, arr);

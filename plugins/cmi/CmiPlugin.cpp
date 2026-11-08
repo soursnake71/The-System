@@ -34,6 +34,7 @@ CmiProcessor::CmiProcessor()
         if (sf.isDirectory()) { songDir = sf; rescanSongs(); }
         for (auto& tok : juce::StringArray::fromTokens(settings->getValue("presets.choice"), ";", ""))
             if (tok.contains("=")) presetChoice[tok.upToFirstOccurrenceOf("=", false, false).getIntValue()] = tok.fromFirstOccurrenceOf("=", false, false).toStdString();
+        hfeOnly = settings->getBoolValue("libraryHfeOnly", true);
         const juce::File f(settings->getValue("libraryFolder"));
         if (f.isDirectory()) { libFolder = f; rescanLibrary(); }
     }
@@ -233,9 +234,11 @@ void CmiProcessor::rescanLibrary() {
     std::sort(found.begin(), found.end(), [](const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()) < 0; });
     // the catalogue: every CMI voice on the disks (and .VC files) there
     Catalog cat;
+    bool anyHfe = false; for (const auto& f : found) anyHfe |= f.hasFileExtension("hfe");
+    libFromHfe = anyHfe && hfeOnly;
     for (int pass = 0; pass < 2; ++pass)   // disk images first: their labels name the voices' disks
         for (const auto& f : found) {
-            if (!f.hasFileExtension(pass == 0 ? "imd;img;hfe;bin;raw;dsk" : "vc")) continue;
+            if (libraryRole(f.getFileName().toStdString(), anyHfe, hfeOnly) != pass + 1) continue;
             juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) continue;
             juce::File dirF = f.getParentDirectory(); if (dirF.getFileName().equalsIgnoreCase("VCs")) dirF = dirF.getParentDirectory();
             cat.add(f.getFileName().toStdString(), (const uint8_t*) mb.getData(), mb.getSize(), dirF.getFileName().toUpperCase().toStdString());

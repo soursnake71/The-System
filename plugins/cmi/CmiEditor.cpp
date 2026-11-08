@@ -799,7 +799,12 @@ void Screen::drawFiles(juce::Graphics& g) {
     g.setColour(kInk); g.setFont(mono(17));
     g.drawText("LIBRARY FOLDER: " + (dir == juce::File() ? juce::String("(none set)") : dir.getFullPathName()), 20, 58, W - 40, 20, juce::Justification::centredLeft);
     { const juce::ScopedLock l(ed.proc.catLock); g.setColour(kDim); g.setFont(mono(13));
-      g.drawText("CMI LIBRARY: " + juce::String(ed.proc.catalog.voices.size()) + " VOICES ON " + juce::String(ed.proc.catalog.disks) + " DISKS - songs you load play on these", 20, 110, W - 40, 16, juce::Justification::centredLeft); g.setFont(mono(17)); g.setColour(kInk); }
+      g.drawText("CMI LIBRARY: " + juce::String(ed.proc.catalog.voices.size()) + " VOICES ON " + juce::String(ed.proc.catalog.disks) + (ed.proc.libFromHfe ? " HFE DISKS" : " DISKS") + " - songs you load play on these", 20, 110, 690, 16, juce::Justification::centredLeft); g.setFont(mono(17)); g.setColour(kInk); }
+    button(g, { 720, 106, 260, 22 }, ed.proc.hfeOnly ? "READ: HFE ONLY" : "READ: ALL FORMATS", ed.proc.hfeOnly, [this] {
+        ed.proc.setHfeOnly(!ed.proc.hfeOnly);
+        const juce::ScopedLock l(ed.proc.catLock);
+        status = juce::String(ed.proc.catalog.voices.size()) + " VOICES ON " + juce::String(ed.proc.catalog.disks) + (ed.proc.libFromHfe ? " HFE DISKS" : " DISKS");
+    });
     button(g, { 20, 84, 170, 24 }, "SET FOLDER", false, [this] {
         ed.chooser = std::make_unique<juce::FileChooser>("Your CMI library: songs, disks, samples", ed.proc.libraryFolder());
         ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [this](const juce::FileChooser& fc) {

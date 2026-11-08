@@ -139,6 +139,8 @@ public:
     void setLibraryFolder(const juce::File& f);
     std::vector<juce::File> libraryFiles() const { const juce::ScopedLock l(infoLock); return libFiles; }
     void rescanLibrary();
+    bool hfeOnly = true, libFromHfe = false;   // the library: only its HFE images when it has them
+    void setHfeOnly(bool on) { hfeOnly = on; if (settings) { settings->setValue("libraryHfeOnly", on); settings->saveIfNeeded(); } rescanLibrary(); }
     // the grid's audition: a note on a song track, played for a moment
     void playSongFrom(double beat) { engine.songStartReq = beat; engine.songRun = true; }
     void audition(int track, int note) { auditionReq = (track << 8) | (note & 0x7F); }

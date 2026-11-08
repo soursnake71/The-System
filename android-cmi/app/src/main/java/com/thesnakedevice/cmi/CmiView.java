@@ -569,10 +569,11 @@ public class CmiView extends View {
         final String lib = act.libraryName();
         text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib) + "   " + Native.catalogCount() + " CMI VOICES", b.left, b.top + dp(12), 11, INK);
         final float y0 = b.top + dp(20), bw = (b.width() - dp(12)) / 3;
-        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", "" };
+        final boolean only = act.hfeOnly();
+        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", only ? "HFE ONLY" : "ALL FORMATS" };
         final Runnable[] fn = { act::chooseLibrary, act::rescanLibrary, () -> { status("" + Native.removeDuplicateSongs() + " DUPLICATES REMOVED"); act.saveState(); },
-                () -> act.loadFromLibrary(true, false, -1), () -> act.loadFromLibrary(false, true, -1), () -> {} };
-        for (int i = 0; i < 5; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = y0 + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], false, fn[i]); }
+                () -> act.loadFromLibrary(true, false, -1), () -> act.loadFromLibrary(false, true, -1), () -> act.setHfeOnly(!only) };
+        for (int i = 0; i < 6; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = y0 + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 5 && only, fn[i]); }
         final float top = y0 + dp(58), rh = dp(26);
         final int rows = Math.max(1, (int) ((b.bottom - dp(26) - top) / rh));
         final int nf = act.libNames.size(), pages = Math.max(1, (nf + rows - 1) / rows);
