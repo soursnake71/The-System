@@ -140,6 +140,11 @@ final class Native {
     static native boolean userFromLibrary(int k);
     static native boolean userWaiting(int k);
     static native int unloadUnusedLibrary();
+    static native String recordPads();
+    static native float kickLift();
+    static native void setKickLift(float v);
+    static native float humanize();
+    static native void setHumanize(float v);
     // recording
     static native String recStart(int track, double from, boolean countIn, double quant, boolean replace);
     static native void recPoll();

@@ -19,7 +19,7 @@ public:
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed(const juce::KeyPress&) override;
 
-    char page = 'R';   // R: factory presets, S: the real-time composer
+    char page = 'S';   // S: the composer and songs (R, the factory presets, by command: PAGE R)
     int rootKey = 60; bool loopIt = false;
     juce::String status = "READY";
 

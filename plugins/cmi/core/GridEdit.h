@@ -4,6 +4,7 @@
 #include "Song.h"
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 namespace cmi {
 
@@ -48,6 +49,11 @@ struct GridEdit {
     void stretch(int track, double factor) { each(track, [&](SongNote& n) { n.len = std::max(1.0 / 64, n.len * factor); }); }
     void velocity(int track, int delta) { each(track, [&](SongNote& n) { n.vel = std::clamp(n.vel + delta, 1, 127); }); }
     void setVelocity(int track, int v) { each(track, [&](SongNote& n) { n.vel = std::clamp(v, 1, 127); }); }
+    // humanize: each note a little early or late (up to beats) and a little softer or harder (up to vel), as a player
+    void humanize(int track, double beats, int vel, uint32_t seed = 1) {
+        std::mt19937 r(seed); std::uniform_real_distribution<double> u(-1, 1);
+        each(track, [&](SongNote& n) { n.start = std::max(0.0, n.start + u(r) * beats); n.vel = std::clamp(n.vel + (int) std::lround(u(r) * vel), 1, 127); });
+    }
     // legato: each note runs to the next one in the track
     void legato(int track) {
         fit(); std::vector<size_t> ix; const bool s = any();

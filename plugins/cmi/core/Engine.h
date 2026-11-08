@@ -323,7 +323,10 @@ public:
     // applyPads in Song.h merge them into the arrays above)
     DrumKit padKit, songKit;
     // the drum pads: a hit from the screen (UI thread; played on the audio thread) or MIDI channel 10
-    std::atomic<bool> ch10Kit { true };   // MIDI channel 10 plays the kit, as General MIDI does
+    std::atomic<bool> ch10Kit { true };
+    // the kick's lift after the card (a kick's energy is low, where the ear hears least: at the same level as the snare
+    // it sounds about 6 dB quieter); 1 = none. And humanize: each drum hit's velocity and pitch varied a little (0..1)
+    std::atomic<float> kickLift { 2.0f }, humanize { 0.0f };   // MIDI channel 10 plays the kit, as General MIDI does
     void padTap(int note, int vel = 110) { padPush(note, vel | 0x100); }   // a hit let go by itself 0.3 s later (an audition)
     void padPush(int note, int vel) { std::lock_guard<std::mutex> g(padLock); const uint32_t w = padW.load(std::memory_order_relaxed); if (w - padR.load(std::memory_order_acquire) >= padQ.size()) return; padQ[w % padQ.size()] = { note, vel }; padW.store(w + 1, std::memory_order_release); }
     void clearKit() { for (int n = 0; n < 128; ++n) { kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; } }
@@ -451,6 +454,8 @@ public:
         c.fine += (float) ((nk - key) * 100.0);   // the sample at its own speed, the step's note from there
         ch[(size_t) (KEY_CH + t)].noteOn(s, c, clampi(key + semis, 0, 127), vel, -1, ++stampN);
         cardPad[KEY_CH + t] = false;
+        const bool kick = s->name.rfind("KICK", 0) == 0 || s->name.rfind("BDRUM", 0) == 0 || s->name.rfind("POWERKIK", 0) == 0 || s->name.rfind("BD", 0) == 0;
+        cardGain[KEY_CH + t] = kick ? kickLift.load() : 1.f;
     }
     void trackOff(int t) { if (t >= 0 && t < TRACKS) ch[(size_t) (KEY_CH + t)].noteOff(); }
 
@@ -474,8 +479,8 @@ public:
         const int k = songCard(t, note); if (k < 0) return;
         Controls sc = songControls(snd, t, note, true);
         const int key = kitKey(snd, note, sc);
-        ch[(size_t) k].noteOn(snd, sc, key, vel / 127.f, -1, ++stampN);
-        cardTrack[k] = t; cardNote[k] = note; cardPad[k] = true;
+        ch[(size_t) k].noteOn(snd, sc, key, human(sc, vel) / 127.f, -1, ++stampN);
+        cardTrack[k] = t; cardNote[k] = note; cardPad[k] = true; cardGain[k] = note == 35 || note == 36 ? kickLift.load() : 1.f;
     }
     void render(float* L, float* R, int n, const Transport* tp = nullptr) {
         for (uint32_t r = padR.load(std::memory_order_relaxed); r != padW.load(std::memory_order_acquire); r = padR.load(std::memory_order_relaxed)) {   // the screen's pads
@@ -529,6 +534,12 @@ private:
         return bank->at(ks >= 0 ? ks : kitVoice ? kitVoice(note) : -1);
     }
     // the key that plays a drum: its sample at its own speed, then the kit's tuning (fractions in the fine tune)
+    // humanize: a drum hit's velocity (up to +-20) and pitch (up to +-15 cents) varied, as no two hits are the same
+    int human(Controls& sc, int vel) {
+        const float h = humanize.load(); if (h <= 0) return vel;
+        sc.fine += (float) ((rnd() * 2 - 1) * 15 * h);
+        return clampi((int) std::lround(vel + (rnd() * 2 - 1) * 20 * h), 1, 127);
+    }
     int kitKey(const Sound* snd, int note, Controls& sc) const {
         const double nk = snd->naturalKey() + kitTune[(size_t) note].load(); const int key = (int) std::lround(nk);
         sc.fine += (float) ((nk - key) * 100.0);
@@ -564,8 +575,10 @@ private:
             Channel& c = ch[(size_t) k];
             Controls sc = songControls(snd, t, kit ? e.d1 : -1);
             int note = e.d1;
-            if (kit) note = kitKey(snd, e.d1, sc);   // a drum: its sample at its own speed, then the kit's tuning
-            c.noteOn(snd, sc, note, e.d2 / 127.f, -1, ++stampN);
+            int vel = e.d2;
+            if (kit) { note = kitKey(snd, e.d1, sc); vel = human(sc, vel); }   // a drum: its sample at its own speed, then the kit's tuning
+            c.noteOn(snd, sc, note, vel / 127.f, -1, ++stampN);
+            cardGain[k] = kit && (e.d1 == 35 || e.d1 == 36) ? kickLift.load() : 1.f;
             c.setBend(songBendV[t]); c.setHeld(songHeld[t]);
             cardTrack[k] = t; cardNote[k] = e.d1; cardPad[k] = false;
             return;
@@ -695,6 +708,7 @@ private:
             std::fill(mono.begin(), mono.begin() + n, 0.f);
             c.setBlend(loopBlend.load());
             c.render(mono.data(), n);
+            if (cardGain[i] != 1.f) for (int k = 0; k < n; ++k) mono[(size_t) k] *= cardGain[i];
             const int sIdx = stripOf(i);
             double pan;
             if (i < KEY_CH) pan = 0.5 + ((i & 1) ? 0.5 : -0.5) * spread * (0.4 + 0.6 * (i >> 1) / 3.0);
@@ -786,7 +800,7 @@ private:
     // song player
     const MidiSong* curSong = nullptr; double sbeat = 0; size_t sidx = 0; bool songWas = false;
     double songVol[SONG_TRK] {}, songPan[SONG_TRK] {}, songBendV[SONG_TRK] {}; bool songHeld[SONG_TRK] {};
-    int cardTrack[NCH] {}, cardNote[NCH] {}; bool cardPad[NCH] {}; std::array<int, 128> tapLeft {};
+    int cardTrack[NCH] {}, cardNote[NCH] {}; bool cardPad[NCH] {}; float cardGain[NCH] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }; std::array<int, 128> tapLeft {};
     std::array<std::pair<int, int>, 256> padQ {}; std::atomic<uint32_t> padW { 0 }, padR { 0 }; std::mutex padLock;
 };
 

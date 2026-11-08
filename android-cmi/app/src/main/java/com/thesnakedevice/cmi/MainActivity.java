@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
         Native.setClick(getSharedPreferences("cmi", MODE_PRIVATE).getBoolean("click", false));
         view = new CmiView(this);
         rescanLibrary();
+        loadSamplesFolder();
         rescanSongs();
         setContentView(view);
         hideBars();
@@ -175,7 +176,29 @@ public class MainActivity extends Activity {
     void importFiles() { startActivityForResult(audioIntent(true), PICK_MANY); }
     void importFolder() { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER); }
     // the drum pads: a folder of drum samples (WAV) as a new kit, or added to the kit
-    static final int PICK_KIT = 61, PICK_KIT_ADD = 62;
+    static final int PICK_KIT = 61, PICK_KIT_ADD = 62, PICK_SAMPLES = 63;
+    // your samples folder (remembered): its WAVs load as your voices whenever the app starts (the ones not loaded yet)
+    void chooseSamplesFolder() { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION); startActivityForResult(i, PICK_SAMPLES); }
+    boolean hasSamplesFolder() { return getSharedPreferences("cmi", MODE_PRIVATE).getString("samples", null) != null; }
+    void loadSamplesFolder() {
+        final String t = getSharedPreferences("cmi", MODE_PRIVATE).getString("samples", null); if (t == null) return;
+        final Uri tree = Uri.parse(t);
+        new Thread(() -> {
+            final List<Uri> us = new ArrayList<>(); final List<String> ns = new ArrayList<>();
+            try { listFolder(tree, DocumentsContract.getTreeDocumentId(tree), us, ns, 0); } catch (Exception e) { return; }
+            final java.util.Set<String> have = new java.util.HashSet<>();
+            for (int k = 0; k < Native.USER_SLOTS; ++k) if (Native.userLoaded(k) && !Native.userFromLibrary(k)) have.add(Native.soundInfo(Native.userSlot(k)).split("\t", -1)[0]);
+            int n = 0;
+            for (int i = 0; i < us.size(); ++i) {
+                String nm = ns.get(i); if (!nm.toLowerCase().endsWith(".wav")) continue;
+                String base = nm.substring(0, nm.lastIndexOf('.')), key = base.toUpperCase().replaceAll("[^A-Z0-9]", ""); if (key.length() > 8) key = key.substring(0, 8);
+                if (key.isEmpty() || have.contains(key)) continue;
+                final int slot = Native.firstFreeUser(); if (slot < 0) break;
+                try { if (Native.loadWav(readAll(us.get(i), 8 << 20), base, slot, 60, false).isEmpty()) { ++n; have.add(key); } } catch (Exception ignored) {}
+            }
+            final int got = n; if (got > 0) ui.post(() -> { view.status(got + " FROM YOUR SAMPLES FOLDER"); saveState(); });
+        }).start();
+    }
     void padFolder(boolean replace) { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), replace ? PICK_KIT : PICK_KIT_ADD); }
     private void padImport(final List<Uri> uris, final List<String> names, final boolean replace) {
         view.status("READING DRUM SAMPLES...");
@@ -219,6 +242,12 @@ public class MainActivity extends Activity {
         }
         final List<Uri> uris = new ArrayList<>();
         final List<String> names = new ArrayList<>();
+        if (req == PICK_SAMPLES && data.getData() != null) {
+            try { getContentResolver().takePersistableUriPermission(data.getData(), Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
+            getSharedPreferences("cmi", MODE_PRIVATE).edit().putString("samples", data.getData().toString()).apply();
+            loadSamplesFolder();
+            return;
+        }
         if ((req == PICK_KIT || req == PICK_KIT_ADD) && data.getData() != null) {
             listFolder(data.getData(), DocumentsContract.getTreeDocumentId(data.getData()), uris, names, 0);
             padImport(uris, names, req == PICK_KIT);

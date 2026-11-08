@@ -37,7 +37,9 @@ CmiProcessor::CmiProcessor()
         hfeOnly = settings->getBoolValue("libraryHfeOnly", true);
         const juce::File f(settings->getValue("libraryFolder"));
         if (f.isDirectory()) { libFolder = f; rescanLibrary(); }
+        samplesDir = juce::File(settings->getValue("samplesFolder"));
     }
+    loadSamplesFolder();
     for (auto& v : ccVal) v = 0;
     ccDirty[0] = ccDirty[1] = 0;
     startTimerHz(40);
@@ -278,6 +280,37 @@ void CmiProcessor::auditionKit(int note) {
     engine.padTap(note);
 }
 void CmiProcessor::resetKit() { SongEntry* e = songs.at(currentSong()); if (!e) return; e->kit = DrumKit(); applyKit(engine, e->kit); remember(*e->song, -1, ""); }
+
+// ---- your samples folder: its sounds become your voices whenever the plugin starts (the ones not loaded yet) ----
+void CmiProcessor::setSamplesFolder(const juce::File& f) {
+    samplesDir = f;
+    if (settings) { settings->setValue("samplesFolder", f.getFullPathName()); settings->saveIfNeeded(); }
+    loadSamplesFolder();
+}
+int CmiProcessor::loadSamplesFolder() {
+    if (!samplesDir.isDirectory()) return 0;
+    int n = 0;
+    for (const auto& e : juce::RangedDirectoryIterator(samplesDir, true, "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg", juce::File::findFiles)) {
+        std::string nm; for (char c : e.getFile().getFileNameWithoutExtension().toStdString()) if (std::isalnum((unsigned char) c)) nm += (char) std::toupper((unsigned char) c);
+        nm = nm.substr(0, 8); if (nm.empty()) continue;
+        bool have = false; for (int k = 0; k < Library::USER_SLOTS && !have; ++k) have = kit.userLoaded(k) && !kit.user(k)->fromLibrary && kit.user(k)->name == nm;
+        if (have) continue;
+        const int slot = kit.firstFree(); if (slot < 0) break;
+        Sound snd; if (makeSound(e.getFile(), 60, false, snd).isNotEmpty()) continue;
+        kit.setUser(slot, std::move(snd)); ++n;
+    }
+    return n;
+}
+// recording the pads into a song: onto its drum track (a new song if there's none; a drum track if it has none), with
+// the click and a bar's count-in
+juce::String CmiProcessor::recordPads() {
+    if (recording.load()) return stopRecording();
+    if (currentSong() < 0) Recorder::newSong(songs, engine, kit.bank, get("tempo"));
+    int t = -1; for (int k = 0; k < SONG_TRK && t < 0; ++k) if (engine.songVoice[k] == GM_KIT) t = k;
+    if (t < 0) { t = 9; setSongVoice(t, GM_KIT); if (auto* e = songs.at(currentSong())) { (void) e; } }
+    engine.clickOn = true; recFromBeat = 0;
+    return startRecording(t);
+}
 
 // ---- the drum pads ----
 void CmiProcessor::setPads(DrumKit k, const juce::String& name, bool fit) {
@@ -678,6 +711,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
     if (!pen.silent()) { x->setAttribute("pen", juce::String(pen.save())); x->setAttribute("penSlot", penSlot); }
     if (!engine.padKit.empty()) { x->setAttribute("pads", juce::String(engine.padKit.save())); x->setAttribute("padsName", padKitName); }
     x->setAttribute("padPreset", padPreset); x->setAttribute("padBank", padBank); x->setAttribute("ch10Kit", engine.ch10Kit.load());
+    x->setAttribute("kickLift", engine.kickLift.load()); x->setAttribute("humanize", engine.humanize.load());
     x->setAttribute("click", engine.clickOn.load()); x->setAttribute("countIn", recCountIn); x->setAttribute("recQuant", rec.quant); x->setAttribute("recReplace", rec.replace);
     { juce::String m; for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() >= 0) m << c << ":" << paramDefs()[(size_t) ccMap[(size_t) c].load()].id << " "; x->setAttribute("ccMap", m.trim()); }
     const Sound* cur = kit.bank.at(juce::roundToInt(get("sound")));
@@ -773,6 +807,7 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
     engine.clickOn = x->getBoolAttribute("click", false); recCountIn = x->getBoolAttribute("countIn", true);
     { DrumKit pk; pk.load(x->getStringAttribute("pads").toStdString()); applyPads(engine, pk); padKitName = x->getStringAttribute("padsName", "CMI DRUM MAP"); }
     padPreset = x->getIntAttribute("padPreset", -1); padBank = juce::jlimit(0, PAD_BANKS - 1, x->getIntAttribute("padBank", 0)); engine.ch10Kit = x->getBoolAttribute("ch10Kit", true);
+    engine.kickLift = (float) x->getDoubleAttribute("kickLift", 2.0); engine.humanize = (float) x->getDoubleAttribute("humanize", 0.0);
     rec.quant = x->getDoubleAttribute("recQuant", 0); rec.replace = x->getBoolAttribute("recReplace", false);
     if (x->hasAttribute("ccMap")) {
         for (auto& c : ccMap) c = -1;
@@ -789,6 +824,7 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
         for (int i = 0; i < kit.bank.count.load(); ++i) if (const Sound* s = kit.bank.at(i)) if (juce::String(s->name) == sn) { idx = i; break; }
         if (idx >= 0) set("sound", (float) idx);
     }
+    loadSamplesFolder();
     connectDefaults();
 }
 

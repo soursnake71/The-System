@@ -521,7 +521,7 @@ FN(jintArray, gridOp)(JNIEnv* env, jclass, jintArray notes, jbooleanArray sel, j
         case 1: ge.erase(); break; case 2: ge.transpose(track, (int) a); break; case 3: ge.move(track, a); break;
         case 4: ge.quantize(track, a); break; case 5: ge.velocity(track, (int) a); break; case 6: ge.legato(track); break;
         case 7: ge.duplicate(a); break; case 8: ge.copy(); break; case 9: ge.paste(track, a); break; case 10: ge.selectAll(track); break;
-        case 11: ge.selectRect(track, a, b, (int) c, (int) d, e); break; default: break;
+        case 11: ge.selectRect(track, a, b, (int) c, (int) d, e); break; case 12: ge.humanize(track, a, (int) b, (uint32_t) std::rand()); break; default: break;
     }
     std::vector<jint> out;
     for (size_t i = 0; i < ge.notes.size(); ++i) { const auto& x = ge.notes[i]; out.insert(out.end(), { x.track, (jint) std::lround(x.start * 480), (jint) std::lround(x.len * 480), x.pitch, x.vel, ge.sel[i] ? 1 : 0 }); }
@@ -860,6 +860,21 @@ FN(jstring, recStart)(JNIEnv* env, jclass, jint track, jdouble from, jboolean co
     a->recorder.countIn = countIn; a->recorder.rs.quant = quant; a->recorder.rs.replace = replace;
     return env->NewStringUTF(a->recorder.start(a->engine, curEntry(), track, from).c_str());
 }
+// REC on the pads: onto the song's drum track (a new song if none; track 10 made the kit if it has none), click on
+FN(jstring, recordPads)(JNIEnv* env, jclass) {
+    auto* a = app();
+    if (a->recorder.on.load()) return env->NewStringUTF(a->recorder.stop(a->engine, curEntry()).c_str());
+    if (curSongIdx() < 0) Recorder::newSong(a->songs, a->engine, a->kit.bank, a->param[20].load());
+    SongEntry* e = curEntry(); if (!e) return env->NewStringUTF("NO SONG");
+    int t = -1; for (int k = 0; k < SONG_TRK && t < 0; ++k) if (e->voice[k] == GM_KIT) t = k;
+    if (t < 0) { t = 9; e->voice[t] = GM_KIT; a->engine.songVoice[t] = GM_KIT; }
+    a->engine.clickOn = true;
+    return env->NewStringUTF(a->recorder.start(a->engine, e, t, 0).c_str());
+}
+FN(jfloat, kickLift)(JNIEnv*, jclass) { return app()->engine.kickLift.load(); }
+FN(void, setKickLift)(JNIEnv*, jclass, jfloat v) { app()->engine.kickLift = std::clamp(v, 1.f, 2.83f); }
+FN(jfloat, humanize)(JNIEnv*, jclass) { return app()->engine.humanize.load(); }
+FN(void, setHumanize)(JNIEnv*, jclass, jfloat v) { app()->engine.humanize = std::clamp(v, 0.f, 1.f); }
 FN(void, recPoll)(JNIEnv*, jclass) { if (app()->recorder.on.load()) app()->recorder.poll(app()->engine); }
 FN(jstring, recStop)(JNIEnv* env, jclass) { return env->NewStringUTF(app()->recorder.stop(app()->engine, curEntry()).c_str()); }
 FN(jboolean, recording)(JNIEnv*, jclass) { return app()->recorder.on.load(); }

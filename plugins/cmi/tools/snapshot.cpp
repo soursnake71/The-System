@@ -180,6 +180,14 @@ int main(int argc, char** argv) {
         std::printf("pads: %s; snare pad peak %.3f, channel 10 kick %.3f; kept with the project %s (%s)\n", msg.toRawUTF8(), hitPk, ch10, kept ? "yes" : "NO", q.pads().p[38].voice.c_str());
         ok &= hitPk > 0.02 && ch10 > 0.02 && kept;
         p.padSel = 1;
+        // REC DRUMS: the pads into a new song's drum track
+        p.chooseSong(-1);
+        const auto r0 = p.recordPads();
+        run(400, [&](int b, juce::MidiBuffer&) { if (b > 200 && b % 25 == 0) p.hitPad(b % 50 ? 36 : 38, 110); if (b > 200 && b % 25 == 3) p.hitPad(b % 50 ? 36 : 38, 0); if (b % 10 == 0) p.pollRecording(); });
+        const auto r1 = p.recordPads();
+        int notes = 0; if (auto* e = p.songs.at(p.currentSong())) for (const auto& ev : e->song->ev) notes += (ev.status & 0xF0) == 0x90 && ev.d2 > 0 && e->voice[ev.track] == cmi::GM_KIT;
+        std::printf("rec drums: %s / %s; %d drum notes in the song\n", r0.toRawUTF8(), r1.toRawUTF8(), notes);
+        ok &= notes >= 4;
     }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());

@@ -180,6 +180,11 @@ public:
     juce::String padImport(const juce::Array<juce::File>& filesOrFolders, bool replaceKit);
     void padsClear() { setPads(DrumKit(), "CMI DRUM MAP", false); padPreset = -1; }
     int unloadUnusedLibrary();                                   // library voices nothing uses; how many went
+    juce::String recordPads();                                   // REC on the pads: the drum track of the song (stop: keep it)
+    // your samples folder (remembered for every project): its sounds load as your voices
+    juce::File samplesFolder() const { return samplesDir; }
+    void setSamplesFolder(const juce::File& f);
+    int loadSamplesFolder();                                     // the ones not loaded yet; how many
     // ---- recording ----
     Recorder recorder; RecordSettings& rec = recorder.rs; bool& recCountIn = recorder.countIn; std::atomic<bool>& recording = recorder.on;
     juce::String startRecording(int track);                // from the start of the song view (recFromBeat)
@@ -209,6 +214,7 @@ private:
     int program = 0;
     std::atomic<int> pendingProgram { -1 }, previewReq { -1 }, bankMsb { 0 };
     std::array<std::atomic<float>, 128> ccVal; std::atomic<uint64_t> ccDirty[2];
+    juce::File samplesDir;
     juce::File libFolder; std::vector<juce::File> libFiles; juce::File songDir; std::vector<juce::File> songList; juce::CriticalSection infoLock;
     std::unique_ptr<juce::PropertiesFile> settings;
     int dupSkipped = 0;
