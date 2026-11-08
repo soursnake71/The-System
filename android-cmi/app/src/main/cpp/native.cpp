@@ -77,7 +77,7 @@ struct App {
     void connectDefaults() {
         std::lock_guard<std::mutex> g(catLock);
         fillLibraryPlaces(kit, catalog);   // a reopened project's library voices, back in their places
-        { DrumKit pk = engine.padKit; loadKitVoices(pk, kit, catalog); applyPads(engine, pk); }   // the pads' sounds
+        { DrumKit pk = engine.padKit; if (padsReady(pk, kit, catalog)) { padKitName = kitPresets()[0].name; padPreset = 0; } applyPads(engine, pk); }   // the pads' sounds
         rebuildPresets();
         for (int i = 0; i < songs.size(); ++i) if (SongEntry* e = songs.at(i)) if (!e->kit.empty()) loadKitVoices(e->kit, kit, catalog);   // the kits' chosen voices
         if (SongEntry* e = songs.at(songs.indexOf(engine.song.load()))) { ensureConnected(*e, kit, catalog, remembered[songKey(e->song->name)]); refreshSong(engine, e); }   // the song on the new library
@@ -774,7 +774,7 @@ FN(jfloat, kitMeter)(JNIEnv*, jclass, jint n) { return n >= 0 && n < 128 ? app()
 // ---- the drum pads (core/Pads.h): the kit every song's drums, MIDI channel 10 and the pads play ----
 static void padsSet(DrumKit k, const std::string& name, bool fit) {
     auto* a = app();
-    { std::lock_guard<std::mutex> g(a->catLock); if (fit) fitKitToLibrary(k, a->catalog); loadKitVoices(k, a->kit, a->catalog); }
+    { std::lock_guard<std::mutex> g(a->catLock); if (fit) fitKitToLibrary(k, a->catalog); padsReady(k, a->kit, a->catalog, false); }
     applyPads(a->engine, k); a->padKitName = name;
 }
 FN(jint, padNote)(JNIEnv*, jclass, jint bank, jint pad) { return padNote(bank, pad); }

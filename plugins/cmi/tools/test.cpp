@@ -293,6 +293,18 @@ int main(int argc, char** argv) {
         for (const auto& p : rk.p) if (!p.voice.empty() && cat.find(p.voice.substr(0, p.voice.find('@'))) < 0) fromLib = 0;
         CHECK(fromLib && !rk.p[36].voice.empty() && !rk.p[38].voice.empty() && rk.p[1].voice.empty(), "random kit from the library: %s", kitSummary(rk).c_str());
 
+        {   // a new install: empty pads become preset 1 from the library, and every pad sounds, a quick tap too
+            Kit kn; DrumKit np; const bool set = padsReady(np, kn, cat);
+            Engine en; en.bank = &kn.bank; en.kitVoice = kitLookup(kn.bank); en.prepare(fs); en.setOutput(1, 0, 0); en.fxOn = false; en.extSync = false; applyPads(en, np);
+            int quiet = 0;
+            for (int n : { 36, 38, 42, 46, 49, 37, 39, 41 }) {
+                en.padPush(n, 110); std::vector<float> a(fs / 50), b2(fs / 50); en.render(a.data(), b2.data(), fs / 50); en.padPush(n, 0);   // a 20 ms tap
+                std::vector<float> c(fs / 4), d(fs / 4); en.render(c.data(), d.data(), fs / 4);
+                float m = 0; for (float x : c) m = std::max(m, std::fabs(x)); quiet += m < 0.01f;
+                en.allOff(true); en.render(c.data(), d.data(), fs / 4);
+            }
+            CHECK(set && quiet == 0 && !np.p[36].voice.empty(), "new pads: preset 1, every pad sounds after a quick tap (%d silent)", quiet);
+        }
         // the pads play the kit with no song; MIDI channel 10 too; a song's kit goes on top
         Kit kk; DrumKit pk = randomKit(cat, 3); loadKitVoices(pk, kk, cat);
         Engine e; e.bank = &kk.bank; e.kitVoice = kitLookup(kk.bank); e.prepare(fs); e.setOutput(1, 0, 0); e.fxOn = false; e.extSync = false;

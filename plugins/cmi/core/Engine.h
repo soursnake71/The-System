@@ -474,7 +474,10 @@ public:
     void padHit(int note, int vel) {
         if (!bank || note < 0 || note > 127) return;
         constexpr int t = 9;   // the GM drum channel's track
-        if (vel <= 0) { for (int i = KEY_CH; i < NCH; ++i) if (cardPad[i] && cardNote[i] == note && ch[(size_t) i].isGate()) ch[(size_t) i].noteOff(); return; }
+        if (vel <= 0) {   // let go: a looped sound stops; a one-shot drum plays out, as on a drum machine
+            for (int i = KEY_CH; i < NCH; ++i) if (cardPad[i] && cardNote[i] == note && ch[(size_t) i].isGate() && ch[(size_t) i].sound() && ch[(size_t) i].sound()->loopStart >= 0) ch[(size_t) i].noteOff();
+            return;
+        }
         const Sound* snd = kitSoundFor(note); if (!snd) return;
         const int k = songCard(t, note); if (k < 0) return;
         Controls sc = songControls(snd, t, note, true);

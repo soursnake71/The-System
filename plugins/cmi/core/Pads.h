@@ -397,6 +397,22 @@ inline std::string importKitSamples(std::vector<KitSample>& files, Kit& kit, Dru
     return msg;
 }
 
+// the pads ready to play: an empty kit (a new install, or cleared) starts as preset 1 (PAGE R CLASSIC) from your
+// library; every pad left on the CMI drum map gets its voice loaded from the library (the map only finds voices
+// loaded). Returns true if the kit was set to preset 1. Under the catalogue's lock.
+inline bool padsReady(DrumKit& pads, Kit& kit, const Catalog& cat, bool defaultKit = true) {
+    if (cat.voices.empty()) return false;
+    bool set = false;
+    if (defaultKit && pads.empty() && !kitPresets().empty()) { pads = kitPresets()[0].kit; fitKitToLibrary(pads, cat); set = true; }
+    loadKitVoices(pads, kit, cat);
+    for (int n = 27; n <= 87; ++n) {
+        if (!pads.p[(size_t) n].voice.empty()) continue;
+        bool have = false; for (const auto& v : splitBar(drumVoices(n))) if (findVoice(kit.bank, v) >= 0) { have = true; break; }
+        if (!have) for (const auto& v : splitBar(drumVoices(n))) { const int ci = cat.find(v); if (ci >= 0 && !lateStart(cat.voices[(size_t) ci])) { loadCatalogVoice(kit, cat, ci); break; } }
+    }
+    return set;
+}
+
 // a kit as a short text for the screen: "KICK1 SNARE1 HIHAT2 ..."
 inline std::string kitSummary(const DrumKit& k) {
     std::string s;

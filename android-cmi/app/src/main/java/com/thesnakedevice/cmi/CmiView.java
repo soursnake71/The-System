@@ -426,7 +426,8 @@ public class CmiView extends View {
                 textC(c, vn, new RectF(r.left, r.top + ph * 0.55f, r.right, r.top + ph * 0.85f), 9, km > 0.5f ? BG : chosen ? INK : DIM);
             }
             final int ii = i;
-            Hit h = hit(r, (xx, yy) -> { padSel = ii; Native.hitPad(note, Math.max(30, Math.min(127, Math.round(127 - (yy - r.top) / r.height() * 80)))); });
+            final boolean silent = pf.length >= 9 && pf[0].isEmpty() && pf[6].equals("--");
+            Hit h = hit(r, (xx, yy) -> { padSel = ii; if (silent) status(Native.catalogCount() == 0 ? "NO SOUNDS YET: SET YOUR CMI LIBRARY FOLDER (FIL)" : "NO SOUND ON THIS PAD: TAP SOUND TO CHOOSE ONE"); Native.hitPad(note, Math.max(30, Math.min(127, Math.round(127 - (yy - r.top) / r.height() * 80)))); });
             h.up = (xx, yy) -> Native.hitPad(note, 0);
         }
         // detail

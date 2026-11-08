@@ -121,7 +121,7 @@ void CmiProcessor::choosePresetVoice(int n, int ci) {
 void CmiProcessor::connectDefaults() {
     const juce::ScopedLock l(catLock);
     fillLibraryPlaces(kit, catalog);   // a reopened project's library voices, back in their places
-    { DrumKit pk = engine.padKit; loadKitVoices(pk, kit, catalog); applyPads(engine, pk); }   // the pads' sounds
+    { DrumKit pk = engine.padKit; if (padsReady(pk, kit, catalog)) { padKitName = kitPresets()[0].name; padPreset = 0; } applyPads(engine, pk); }   // the pads' sounds
     connectPageR(engine.seq, kit, catalog);
     if (isBlank(kit, juce::roundToInt(get("sound")))) {
         int v = -1;
@@ -319,7 +319,7 @@ juce::String CmiProcessor::recordPads() {
 
 // ---- the drum pads ----
 void CmiProcessor::setPads(DrumKit k, const juce::String& name, bool fit) {
-    { const juce::ScopedLock l(catLock); if (fit) fitKitToLibrary(k, catalog); loadKitVoices(k, kit, catalog); }
+    { const juce::ScopedLock l(catLock); if (fit) fitKitToLibrary(k, catalog); padsReady(k, kit, catalog, false); }
     applyPads(engine, k); padKitName = name;
 }
 void CmiProcessor::setPadPiece(int note, const KitPiece& p) {
