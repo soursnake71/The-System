@@ -9,3 +9,5 @@ the plugin and the Android app; the complete source of both is in this repositor
 Built as its own static library (`omega_shine` in `plugins/CMakeLists.txt`, and in `android-sid`), with
 `dmask` and `hs` renamed to `shine_dmask` / `shine_hs` by compiler definitions, since those two short global names
 could meet others in a plugin.
+With MSVC, `plugins/third_party/shine_msvc.h` (not part of shine) is force-included to define away GCC's
+`__attribute__`, which shine uses on two variables.
