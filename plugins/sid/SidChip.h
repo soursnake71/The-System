@@ -230,6 +230,8 @@ public:
     // and the filter output's level and pan (equal-power gains, 0.707 each at centre); peaks for the meters
     float vgain[3] { 1, 1, 1 }, vpl[3] { .7071f, .7071f, .7071f }, vpr[3] { .7071f, .7071f, .7071f };
     float fgain = 1, fpl = .7071f, fpr = .7071f;
+    // effect sends (post-fader, post-pan): A to the echo (stereo), B to the reverb (mono)
+    float vsa[3] { 1, 1, 1 }, vsb[3] {}, fsa = 1, fsb = 0;
     float vpk[3] {}, fpk = 0;
 
     // ---- digi playback: what C64 code does in its NMI handler, at a timer period counted in cycles ----
@@ -293,8 +295,8 @@ public:
         g = std::tan(kPi * hz / fsI);
     }
 
-    // one internal sample: advance every part of the chip by cyclesPerTick; the stereo output goes to L / R
-    void tick(float& L, float& R) {
+    // one internal sample: advance every part of the chip by cyclesPerTick. out: main L, R, echo send L, R, reverb send
+    void tick(float* out5) {
         cycAcc += cyclesPerTick;
         const int whole = (int) cycAcc; cycAcc -= whole;
         const double cyc = cyclesPerTick;
@@ -313,7 +315,7 @@ public:
         const Tables& T = Tables::get();
         const int m = model;
         const double zero = m == MOS6581 ? T.wave[0][0x380] : 0.5;
-        double dl = 0, dr = 0, fin = 0;
+        double dl = 0, dr = 0, fin = 0, al = 0, ar = 0, bm = 0;
         for (int i = 0; i < 3; ++i) {
             Voice& x = v[i];
             const uint32_t w = x.wave12(m, (uint32_t) v[(i + 2) % 3].acc);
@@ -332,7 +334,10 @@ public:
             }
             const double out = (y - zero) * T.env[m][x.env.level] * vgain[i];
             if (filt >> i & 1) fin += out;
-            else if (!(i == 2 && (mode & 0x80))) { dl += out * vpl[i]; dr += out * vpr[i]; }
+            else if (!(i == 2 && (mode & 0x80))) {
+                const double ol = out * vpl[i], orr = out * vpr[i];
+                dl += ol; dr += orr; al += ol * vsa[i]; ar += orr * vsa[i]; bm += (ol + orr) * vsb[i];
+            }
             else continue;
             vpk[i] = std::max(vpk[i], (float) std::fabs(out));
         }
@@ -350,8 +355,12 @@ public:
         // doesn't move is taken out, as the output capacitor would, so chips waking up don't thump
         const double dc = mixDC * digiLevel * ((int) vol - (int) baseVol) / 15.0 * 0.72;
         const double ext = digiActive && digiMethod == 4 ? (dmx - 128) / 128.0 * 0.5 * digiLevel : 0.0;
-        L = (float) ((dl * 0.6 + outF * fpl) * outG + dc + ext);
-        R = (float) ((dr * 0.6 + outF * fpr) * outG + dc + ext);
+        const double dg = dc + ext;   // the digi: sent like oscillator 1
+        out5[0] = (float) ((dl * 0.6 + outF * fpl) * outG + dg);
+        out5[1] = (float) ((dr * 0.6 + outF * fpr) * outG + dg);
+        out5[2] = (float) ((al * 0.6 + outF * fpl * fsa) * outG + dg * vsa[0]);
+        out5[3] = (float) ((ar * 0.6 + outF * fpr * fsa) * outG + dg * vsa[0]);
+        out5[4] = (float) ((bm * 0.6 + outF * (fpl + fpr) * fsb) * 0.5 * outG + dg * vsb[0]);
     }
 
 private:
@@ -417,8 +426,8 @@ inline const uint8_t* mahoneyTable(int model) {
                 for (auto& x : c.v) { x.ctrl = TEST | PULSE | GATE; x.env.gate = true; x.env.level = 255; x.env.state = Envelope::DECAY_SUSTAIN; x.env.sustain = 15; x.env.holdZero = false; }
                 c.filt = 3; c.fc = 0; c.res = 0; c.updateFilter();
                 c.vol = (uint8_t) (r & 15); c.mode = (uint8_t) (r & 0xF0);
-                float L = 0, R = 0; double acc = 0;
-                for (int k = 0; k < 2400; ++k) { c.tick(L, R); if (k >= 2000) acc += L; }
+                float o5[5] {}; double acc = 0;
+                for (int k = 0; k < 2400; ++k) { c.tick(o5); if (k >= 2000) acc += o5[0]; }
                 lvl[r] = acc / 400;
             }
             double lo = 1e9, hi = -1e9; for (double x : lvl) { lo = std::min(lo, x); hi = std::max(hi, x); }

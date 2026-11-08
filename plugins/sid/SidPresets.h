@@ -409,6 +409,23 @@ static const PresetDef PRESETS[] = {
     { "DIGI", "8580 BOOSTED DIGI",   "model=8580 dboost=1 w1=- dmode=1 dsmp=SNARE drate=7.8K" },
     { "DIGI", "DIGI VOX ARP",        "w1=- dmode=4 dsmp=VOX_AH drate=11K dloop=1 dgate=1 dstart=0.2 dend=0.6 arp=UP chord=MAJOR aspd=3" },
 
+    // ------------------------------------------------------------------ REV7 (sounds built round the reverb; FX page sends)
+    { "REV7", "HALL STRINGS",        "w1=S w2=S w3=S f2=-9 f3=9 e=9AC9 flt=1 cut=800 res=2 vib=8 lrate=4.5 rret=0.5 rprog=0 rtime=3.5" },
+    { "REV7", "PLATE LEAD",          "w1=P p1=35 pwm=20 pwr=0.6 e1=09A6 vib=25 vdel=300 lrate=6 rret=0.45 rprog=3 rtime=1.8 rhigh=0.8 rdly=10" },
+    { "REV7", "ROOM KEYS",           "w1=T w2=P p2=12 c2=12 e1=0898 e2=0640 rret=0.4 rprog=1 rtime=0.9" },
+    { "REV7", "VOCAL PAD",           "w1=P w2=P p1=15 p2=20 f2=10 e=ABC9 flt=1 bp=1 lp=0 cut=700 res=8 vib=10 lrate=5 rret=0.5 rprog=2 rtime=2.8" },
+    { "REV7", "CATHEDRAL ORGAN",     "w1=T w2=T c2=12 w3=T c3=19 e=6AC9 rret=0.55 rprog=0 rtime=8 rhigh=0.4 rdly=60 rsize=8" },
+    { "REV7", "GATED SNARE",         "w1=N e1=0800 prog=SNARE rret=0.8 rprog=6 rgate=180 s1r=1" },
+    { "REV7", "GATED KICK",          "w1=P e1=0800 prog=KICK rret=0.6 rprog=6 rgate=120 s1r=1" },
+    { "REV7", "80S POWER TOM",       "w1=T e1=0900 prog=TOM rret=0.7 rprog=6 rgate=220 s1r=1" },
+    { "REV7", "REVERSE SNARE",       "w1=N e1=0800 prog=SNARE rret=0.9 rprog=7 rgate=260 s1r=1" },
+    { "REV7", "REVERSE PLUCK",       "w1=P p1=30 e1=0870 flt=1 cut=700 res=6 fenv=700 fd=120 rret=0.7 rprog=7 rgate=300" },
+    { "REV7", "EARLY REF CLAP",      "w1=N e1=0700 prog=CLAP rret=0.6 rprog=4 rsize=3 s1r=1" },
+    { "REV7", "SPACE ARP",           "arp=UP chord=MAJ7 aspd=2 w1=P p1=30 e1=09A6 rret=0.5 rprog=0 rtime=4 emix=0.3 erev=0.6" },
+    { "REV7", "DARK HALL BASS",      "w1=S w2=P c2=-12 e=0AA6 flt=1 cut=240 res=4 rret=0.25 rprog=0 rtime=2 rhigh=0.2 rlpf=4000" },
+    { "REV7", "DIGI GATE CLAP",      "w1=- dmode=4 dsmp=CLAP drate=16K rret=0.7 rprog=6 rgate=200" },
+    { "REV7", "SHIMMER PLATE PAD",   "w1=T c1=12 w2=P p2=20 pwm=15 w3=T c3=24 e=9AC9 rret=0.6 rprog=3 rtime=6 rhigh=0.9 emix=0.3 erev=0.5 esync=1 ediv=1/8." },
+
     // ------------------------------------------------------------------ 6581 (chip character)
     { "6581", "6581 GRIT",           "w1=S w2=S c2=-12 flt=1 cut=900 res=15 drive=1 curve=-0.2 e=09A6" },
     { "6581", "6581 DARK CHIP",      "w1=S w2=P flt=1 cut=900 res=8 curve=-1 e=09A6" },

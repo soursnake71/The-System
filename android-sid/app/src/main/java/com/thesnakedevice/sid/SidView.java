@@ -30,7 +30,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
     // big screen, sideways: page buttons on the left, the selected setting's big controls on the right
     private boolean panels = false;
     private final RectF leftPanel = new RectF(), rightPanel = new RectF();
-    private final RectF[] pageBtn = new RectF[11];
+    private final RectF[] pageBtn = new RectF[ScreenPages.NAME.length];
     private final RectF sliderRect = new RectF(), minusRect = new RectF(), plusRect = new RectF(), resetRect = new RectF();
     private final RectF presetPrev = new RectF(), presetNext = new RectF(), toggleRect = new RectF();
     private String[] edit = new String[0];
@@ -142,9 +142,10 @@ public class SidView extends View implements Choreographer.FrameCallback {
         if (!panels) return;
         leftPanel.set(18, rimT, rimL - 18, rimB);
         rightPanel.set(rimR + 18, rimT, DW - 18, rimB);
-        // 11 page buttons, two columns
-        final float gap = 12, bw = (leftPanel.width() - gap) / 2, bh = (leftPanel.height() - 5 * gap) / 6;
-        for (int i = 0; i < 11; ++i) {
+        // the page buttons, two columns
+        final int n = pageBtn.length, rowsN = (n + 1) / 2;
+        final float gap = 12, bw = (leftPanel.width() - gap) / 2, bh = (leftPanel.height() - (rowsN - 1) * gap) / rowsN;
+        for (int i = 0; i < n; ++i) {
             final float x = leftPanel.left + (i % 2) * (bw + gap), y = leftPanel.top + (i / 2) * (bh + gap);
             pageBtn[i] = new RectF(x, y, x + bw, y + bh);
         }
@@ -364,7 +365,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
         edit = Native.editState().split("\\|", -1);
         if (edit.length < 8) return;
         final int page = parseInt(edit[0], 0), sel = parseInt(edit[1], -1);
-        for (int i = 0; i < 11; ++i) bigButton(c, pageBtn[i], ScreenPages.NAME[i], ScreenPages.ORDER[i] == page, Math.min(44, pageBtn[i].height() * 0.42f));
+        for (int i = 0; i < pageBtn.length; ++i) bigButton(c, pageBtn[i], ScreenPages.NAME[i], ScreenPages.ORDER[i] == page, Math.min(44, pageBtn[i].height() * 0.42f));
         final RectF R = rightPanel; final float u = R.height() / 12;
         rrect(c, R.left - 8, R.top - 8, R.right + 8, R.top + u * 9.8f, 14, 0x40000000);
         p.setTypeface(Typeface.MONOSPACE); p.setFakeBoldText(true);
@@ -403,7 +404,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
     /** the panels' touches: true if one was hit (kind 5 = dragging the slider) */
     private boolean panelDown(int id, float x, float y) {
         if (!panels) return false;
-        for (int i = 0; i < 11; ++i) if (pageBtn[i].contains(x, y)) { Native.editAction(4, ScreenPages.ORDER[i]); pointerKind.put(id, 6); return true; }
+        for (int i = 0; i < pageBtn.length; ++i) if (pageBtn[i].contains(x, y)) { Native.editAction(4, ScreenPages.ORDER[i]); pointerKind.put(id, 6); return true; }
         final int kind = edit.length >= 8 ? parseInt(edit[4], 0) : 0; final boolean sel = edit.length >= 8 && parseInt(edit[1], -1) >= 0;
         if (sel && kind == 2 && toggleRect.contains(x, y)) { Native.editAction(1, 1); pointerKind.put(id, 6); return true; }
         if (sel && kind != 2 && sliderRect.contains(x, y)) { pointerKind.put(id, 5); sliderTo(x); return true; }

@@ -10,6 +10,7 @@
 #pragma once
 #include "SidChip.h"
 #include "SidSampler.h"
+#include "Rev7.h"
 #include <atomic>
 #include <cctype>
 #include <cstdio>
@@ -125,6 +126,28 @@ struct ParamInfo {
     X(dlevel, "DIGI LEVEL",    "SMP", 0, 1, 0.8f, CONT, "", 1, "", 1) \
     X(dram,   "64K RAM LIMIT", "SMP", 0, 1, 1, TOGGLE, "", 1, "", 1) \
     X(dboost, "8580 DIGI BOOST","SMP", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(s1e,    "OSC 1 > ECHO",  "FX", 0, 1, 1, CONT, "", 1, "", 1) \
+    X(s2e,    "OSC 2 > ECHO",  "FX", 0, 1, 1, CONT, "", 1, "", 1) \
+    X(s3e,    "OSC 3 > ECHO",  "FX", 0, 1, 1, CONT, "", 1, "", 1) \
+    X(sfe,    "FILTER > ECHO", "FX", 0, 1, 1, CONT, "", 1, "", 1) \
+    X(s1r,    "OSC 1 > REV",   "FX", 0, 1, 0.5f, CONT, "", 1, "", 1) \
+    X(s2r,    "OSC 2 > REV",   "FX", 0, 1, 0.5f, CONT, "", 1, "", 1) \
+    X(s3r,    "OSC 3 > REV",   "FX", 0, 1, 0.5f, CONT, "", 1, "", 1) \
+    X(sfr,    "FILTER > REV",  "FX", 0, 1, 0.5f, CONT, "", 1, "", 1) \
+    X(erev,   "ECHO > REV",    "FX", 0, 1, 0, CONT, "", 1, "", 1) \
+    X(rret,   "REV RETURN",    "FX", 0, 1, 0, CONT, "", 1, "", 1) \
+    X(rmute,  "REV MUTE",      "FX", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(rprog,  "REV7 PROGRAM",  "REV", 0, 7, 0, CHOICE, "HALL|ROOM|VOCAL|PLATE|EARLY REF 1|EARLY REF 2|GATE REVERB|REVERSE GATE", 1, "", 1) \
+    X(rtime,  "REV TIME",      "REV", 0.3f, 20, 2.2f, CONT, "", 2, "S", 1) \
+    X(rhigh,  "HIGH RATIO",    "REV", 0.1f, 1, 0.6f, CONT, "", 1, "", 1) \
+    X(rdly,   "INITIAL DELAY", "REV", 0.1f, 200, 20, CONT, "", 2, "MS", 1) \
+    X(rsize,  "ROOM SIZE",     "REV", 0.5f, 10, 2, CONT, "", 1.5f, "", 1) \
+    X(rbal,   "ER/REV BALANCE","REV", 0, 1, 0.6f, CONT, "", 1, "", 1) \
+    X(rdiff,  "DIFFUSION",     "REV", 0, 10, 8, INT, "", 1, "", 1) \
+    X(rdens,  "DENSITY",       "REV", 0, 4, 3, INT, "", 1, "", 1) \
+    X(rlpf,   "LPF",           "REV", 1000, 14000, 10000, CONT, "", 2, "HZ", 1) \
+    X(rhpf,   "HPF",           "REV", 20, 1000, 20, CONT, "", 2, "HZ", 1) \
+    X(rgate,  "GATE LENGTH",   "REV", 10, 400, 120, CONT, "", 1, "MS", 1) \
     X(bpm,    "TEMPO",         "SEQ", 40, 240, 120, CONT, "", 1, "BPM", 0) \
     X(srate,  "STEP RATE",     "SEQ", 0, 3, 1, CHOICE, "1/8|1/16|1/16T|1/32", 1, "", 0) \
     X(swing,  "SWING",         "SEQ", 0, 0.75f, 0, CONT, "", 1, "", 0) \
@@ -180,6 +203,12 @@ inline std::string formatValue(int id, float v) {
     if (id == P::cut) { std::snprintf(b, sizeof b, "$%03X", (int) std::lround(v)); return b; }
     if (id == P::droot) { static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" }; const int n = (int) std::lround(v); std::snprintf(b, sizeof b, "%s%d", nm[n % 12], n / 12 - 1); return b; }
     if (id == P::dstart || id == P::dend || id == P::dlevel) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
+    if (std::string(p.section) == "FX" && p.kind == CONT) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
+    if (id == P::rbal) { std::snprintf(b, sizeof b, "%.0f %%", v * 100); return b; }
+    if (id == P::rhpf && v < 21) return "THRU";
+    if (id == P::rlpf && v > 13900) return "THRU";
+    if (id == P::rlpf || id == P::rhpf) { if (v >= 1000) std::snprintf(b, sizeof b, "%.1fK", v / 1000); else std::snprintf(b, sizeof b, "%.0f HZ", v); return b; }
+    if (id == P::rtime) { std::snprintf(b, sizeof b, "%.1f S", v); return b; }
     if (p.kind == INT) {
         if (std::string(p.section).rfind("OSC", 0) == 0 && (int) p.max == 15) { std::snprintf(b, sizeof b, "%X", (int) std::lround(v)); return b; }
         std::snprintf(b, sizeof b, "%s%d%s%s", (p.min < 0 && v > 0) ? "+" : "", (int) std::lround(v), *p.unit ? " " : "", p.unit); return b;
@@ -239,7 +268,7 @@ inline Step unpackStep(uint32_t v) { Step s; s.note = (int) (v & 127); s.on = v 
 
 inline std::string noteName(int n) {
     static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" };
-    char b[8]; std::snprintf(b, sizeof b, "%s%d", nm[((n % 12) + 12) % 12], n / 12 - 1); return b;
+    char b[16]; std::snprintf(b, sizeof b, "%s%d", nm[((n % 12) + 12) % 12], n / 12 - 1); return b;
 }
 // "C4", "C#4", "Db4", "C-4" -> MIDI note (C4 = 60); -1 if it isn't a note
 inline int parseNote(const std::string& t) {
@@ -293,7 +322,9 @@ public:
         recBuf.assign((size_t) (fs * 20), 0.f); recPos = 0; recOn = false;
         echoL.assign((size_t) (fs * 2.1) + 8, 0.f); echoR.assign(echoL.size(), 0.f); echoW = 0;
         for (int q = 0; q < 3; ++q) designFir(q);
-        firBuf[0].assign(4096, 0.f); firBuf[1].assign(4096, 0.f); firPos = 0;
+        for (auto& b : firBuf) b.assign(4096, 0.f);
+        firPos = 0;
+        rev.prepare(fs);
         curOS = -1; configure();
         for (auto& v : voices) v.chip.reset();
         tickCount = 0;
@@ -395,7 +426,7 @@ public:
         for (auto& v : voices) for (auto& s : v.s) { s.gate = false; s.key = -1; }
         for (auto& v : voices) { v.chip.stopDigi(); writeRegs(v); }
     }
-    void panic() { allNotesOff(); for (auto& v : voices) v.chip.reset(); std::fill(echoL.begin(), echoL.end(), 0.f); std::fill(echoR.begin(), echoR.end(), 0.f); }
+    void panic() { allNotesOff(); for (auto& v : voices) v.chip.reset(); std::fill(echoL.begin(), echoL.end(), 0.f); std::fill(echoR.begin(), echoR.end(), 0.f); rev.reset(); }
 
     // ---- notes from another thread (the on-screen keyboard): a single-producer queue ----
     void post(int type, int a, float b) {
@@ -475,8 +506,8 @@ public:
     std::array<std::atomic<float>, 512> scope; std::atomic<int> scopeW { 0 };
     std::array<std::atomic<int>, 25> regs;   // the first chip's registers, $D400-$D418
     std::atomic<int> activeVoices { 0 };
-    // mixer meters (peak, linear, falling back over ~300 ms): OSC 1-3, FILTER, ECHO return, OUT L, OUT R
-    enum { M_OSC1, M_OSC2, M_OSC3, M_FILTER, M_ECHO, M_OUTL, M_OUTR, M_COUNT };
+    // mixer meters (peak, linear, falling back over ~300 ms): OSC 1-3, FILTER, ECHO return, REV return, OUT L, OUT R
+    enum { M_OSC1, M_OSC2, M_OSC3, M_FILTER, M_ECHO, M_REV, M_OUTL, M_OUTR, M_COUNT };
     std::array<std::atomic<float>, M_COUNT> meters;
 
     // ---- state ----
@@ -594,7 +625,7 @@ private:
             curOS = os; curClock = clk;
             const double fsI = fs * osFactor();
             for (auto& v : voices) { v.chip.clock = clk ? NTSC_CLOCK : PAL_CLOCK; v.chip.setRate(fsI); }
-            extHp[0] = extHp[1] = extLp[0] = extLp[1] = 0;
+            for (int c = 0; c < 5; ++c) extHp[c] = extLp[c] = extIn[c] = 0;
             const double fsIn = fs * osFactor();
             extHpA = std::exp(-2 * kPi * 16.0 / fsIn); extLpA = std::exp(-2 * kPi * 16000.0 / fsIn);
         }
@@ -931,6 +962,9 @@ private:
             // soloing the filter silences the direct paths of voices that aren't routed into it
             panGains(get(pan[i]), c.vpl[i], c.vpr[i]);
         }
+        static const int se[3] = { P::s1e, P::s2e, P::s3e }, sr[3] = { P::s1r, P::s2r, P::s3r };
+        for (int i = 0; i < 3; ++i) { c.vsa[i] = get(se[i]); c.vsb[i] = get(sr[i]); }
+        c.fsa = get(P::sfe); c.fsb = get(P::sfr);
         const bool fHeard = !on(P::mfmute) && (!anySolo || soloF || soloRouted);
         c.fgain = fHeard ? db(get(P::mflvl)) : 0.f;
         panGains(get(P::mfpan), c.fpl, c.fpr);
@@ -995,8 +1029,10 @@ private:
     }
 
     // ---------------- sound ----------------
-    std::vector<float> firCoef[3]; std::vector<float> firBuf[2]; int firPos = 0;
-    double extHp[2] {}, extLp[2] {}, extHpA = 0.999, extLpA = 0.5, extIn[2] {};
+    // the chip's buses, decimated: main L / R, echo send L / R, reverb send
+    std::vector<float> firCoef[3]; std::vector<float> firBuf[5]; int firPos = 0;
+    double extHp[5] {}, extLp[5] {}, extHpA = 0.999, extLpA = 0.5, extIn[5] {};
+    Rev7 rev; float pkRev = 0;
     std::vector<float> echoL, echoR; int echoW = 0; float echoLpL = 0, echoLpR = 0;
     float pkEcho = 0, pkL = 0, pkR = 0;
 
@@ -1030,18 +1066,28 @@ private:
         const double eSec = on(P::esync) ? ediv[std::clamp(iv(P::ediv), 0, 5)] * 60.0 / bpmNow() : get(P::etime) / 1000.0;
         const int eLen = (int) std::clamp(eSec * fs, 1.0, (double) echoL.size() - 2);
         const float emix = get(P::emix), efb = get(P::efb), etone = 0.08f + 0.9f * get(P::etone);
+        // the REV7
+        {
+            Rev7::Settings rs;
+            rs.program = std::clamp(iv(P::rprog), 0, 7); rs.time = get(P::rtime); rs.highRatio = get(P::rhigh); rs.delayMs = get(P::rdly);
+            rs.size = get(P::rsize); rs.balance = get(P::rbal); rs.diffusion = iv(P::rdiff); rs.density = iv(P::rdens);
+            rs.lpfHz = get(P::rlpf); rs.hpfHz = get(P::rhpf); rs.gateMs = get(P::rgate);
+            rev.apply(rs);
+        }
+        const float rret = on(P::rmute) ? 0.f : get(P::rret), erev = get(P::erev);
+        const bool revOn = get(P::rret) > 0.0001f;
         for (int k = 0; k < n; ++k) {
             for (int o = 0; o < os; ++o) {
-                float l = 0, r = 0;
+                float ch[5] = { 0, 0, 0, 0, 0 };
                 for (int i = 0; i < nv; ++i) {
                     NVoice& v = voices[i];
                     if (v.asleep) continue;
-                    float cl, cr; v.chip.tick(cl, cr);
-                    l += cl * v.level * v.panL * 1.41421356f; r += cr * v.level * v.panR * 1.41421356f;
+                    float o5[5]; v.chip.tick(o5);
+                    const float gl = v.level * v.panL * 1.41421356f, gr = v.level * v.panR * 1.41421356f;
+                    ch[0] += o5[0] * gl; ch[1] += o5[1] * gr; ch[2] += o5[2] * gl; ch[3] += o5[3] * gr; ch[4] += o5[4] * v.level;
                 }
                 // C64 board: 10 uF / 1 k high-pass, 10 k / 1 nF low-pass on the audio output
-                float ch[2] = { l, r };
-                for (int c2 = 0; c2 < 2; ++c2) {
+                for (int c2 = 0; c2 < 5; ++c2) {
                     const double x = ch[c2];
                     extHp[c2] = extHpA * (extHp[c2] + x - extIn[c2]); extIn[c2] = x;
                     extLp[c2] = extHp[c2] + extLpA * (extLp[c2] - extHp[c2]);
@@ -1051,19 +1097,29 @@ private:
                 firPos = (firPos + 1) & 2047;
             }
             // decimate: one FIR output per output sample
-            float yl = 0, yr = 0;
-            const float* bl = firBuf[0].data() + firPos + 2048 - taps; const float* br = firBuf[1].data() + firPos + 2048 - taps;
-            for (int t = 0; t < taps; ++t) { yl += bl[t] * coef[(size_t) t]; yr += br[t] * coef[(size_t) t]; }
-            // echo
+            float y5[5] = { 0, 0, 0, 0, 0 };
+            for (int c2 = 0; c2 < 5; ++c2) {
+                const float* bb = firBuf[(size_t) c2].data() + firPos + 2048 - taps; float a = 0;
+                for (int t = 0; t < taps; ++t) a += bb[t] * coef[(size_t) t];
+                y5[c2] = a;
+            }
+            float yl = y5[0], yr = y5[1];
+            // echo, fed by the echo sends
             int rp = echoW - eLen; if (rp < 0) rp += (int) echoL.size();
             const float dl = echoL[(size_t) rp], dr = echoR[(size_t) rp];
             echoLpL += etone * (dl - echoLpL); echoLpR += etone * (dr - echoLpR);
-            echoL[(size_t) echoW] = yl + echoLpR * efb;     // ping-pong
-            echoR[(size_t) echoW] = yr + echoLpL * efb;
+            echoL[(size_t) echoW] = y5[2] + echoLpR * efb;     // ping-pong
+            echoR[(size_t) echoW] = y5[3] + echoLpL * efb;
             if (++echoW >= (int) echoL.size()) echoW = 0;
             const float ret = on(P::emute) ? 0.f : emix;
             yl += ret * echoLpL; yr += ret * echoLpR;
             pkEcho = std::max(pkEcho, std::max(std::fabs(ret * echoLpL), std::fabs(ret * echoLpR)));
+            // the REV7, fed by the reverb sends (and the echo, if asked)
+            if (revOn) {
+                float rl, rr; rev.process(y5[4] + erev * 0.5f * (echoLpL + echoLpR) * emix, rl, rr);
+                yl += rret * rl; yr += rret * rr;
+                pkRev = std::max(pkRev, std::max(std::fabs(rret * rl), std::fabs(rret * rr)));
+            }
             yl = ftanh(yl * g * 1.6f) / 1.6f * 1.f; yr = ftanh(yr * g * 1.6f) / 1.6f;
             L[k] = yl; R[k] = yr;
             pkL = std::max(pkL, std::fabs(yl)); pkR = std::max(pkR, std::fabs(yr));
@@ -1080,8 +1136,8 @@ private:
             // voice and filter peaks are inside the chip, before its volume and output scaling
             const float chipScale = (float) (iv(P::vol) / 15.0 * 0.72) * g;
             for (int i = 0; i <= M_FILTER; ++i) pk[i] *= chipScale;
-            pk[M_ECHO] = pkEcho * g; pk[M_OUTL] = pkL; pk[M_OUTR] = pkR;
-            pkEcho = pkL = pkR = 0;
+            pk[M_ECHO] = pkEcho * g; pk[M_REV] = pkRev * g; pk[M_OUTL] = pkL; pk[M_OUTR] = pkR;
+            pkEcho = pkL = pkR = pkRev = 0;
             const float fall = std::exp(-(float) n / (float) (fs * 0.3));
             for (int i = 0; i < M_COUNT; ++i) meters[(size_t) i].store(std::max(pk[i], meters[(size_t) i].load(std::memory_order_relaxed) * fall), std::memory_order_relaxed);
         }
