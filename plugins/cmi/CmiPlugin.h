@@ -186,6 +186,10 @@ public:
     bool editPad(int note) { if (padEd.open) padEd.close(); return padEd.begin(kit, engine, note); }
     void editCommit() { padEd.commit(kit, engine); }
     void setPadEnv(int note, int i, float v);                    // note -1: the whole kit; v -1: not set
+    void setPadFx(int note, int i, float v);                     // filter, LFO rate, LFO depth; note -1: the whole kit
+    void addPadRR(int note, int soundIndex, int catIndex);       // a round robin voice for a pad (a loaded voice, or from the library)
+    void clearPadRR(int note);
+    void setRROn(bool on) { DrumKit k = engine.padKit; k.rrOn = on; applyPads(engine, k); }
     void resetAll(bool factory);                                 // CLEAR ALL (folders, library, songs, samples stay) / FACTORY RESET                                   // REC on the pads: the drum track of the song (stop: keep it)
     // your samples folder (remembered for every project): its sounds load as your voices
     juce::File samplesFolder() const { return samplesDir; }

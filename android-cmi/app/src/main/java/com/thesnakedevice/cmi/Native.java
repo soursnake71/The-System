@@ -154,6 +154,14 @@ final class Native {
     static native void editClose();
     static native void editRevert();
     static native void resetSettings();
+    static native float[] padFx(int note);
+    static native void setPadFx(int note, int i, float v);
+    static native boolean rrOn();
+    static native void setRROn(boolean on);
+    static native void addPadRR(int note, int sound, int catIndex);
+    static native void clearPadRR(int note);
+    static native int[] editChop(int n);
+    static native int padBanks();
     static native float kickLift();
     static native void setKickLift(float v);
     static native float humanize();

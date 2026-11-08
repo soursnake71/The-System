@@ -11,6 +11,7 @@
 #include "../core/Pads.h"
 #include "../core/SampleEdit.h"
 #include <cstdio>
+#include <set>
 #include <chrono>
 
 using namespace cmi;
@@ -278,8 +279,8 @@ int main(int argc, char** argv) {
         CHECK(gk.p[36].voice == "K@X" && gk.p[35].voice == "K@X" && gk.p[38].voice == "S@X" && gk.p[40].voice == "S@X" && gk.p[42].voice == "CH@X" && gk.p[44].voice == "CH@X" && gk.p[46].voice == "OH@X" &&
               gk.p[41].voice == "TL@X" && gk.p[45].voice == "TL@X" && gk.p[48].voice == "TH@X" && gk.p[50].voice == "TH@X" && gk.p[41].tune < gk.p[45].tune && gk.p[48].tune < gk.p[50].tune &&
               gk.p[49].voice == "CR@X" && gk.p[57].voice == "CR@X" && gk.p[55].voice == "CR@X", "a kit in General MIDI order");
-        int padsOk = 1; std::vector<int> seen; for (int b = 0; b < PAD_BANKS; ++b) for (int i = 0; i < 16; ++i) { const int n = padNote(b, i); if (std::find(seen.begin(), seen.end(), n) != seen.end() || n < 35 || n > 82) padsOk = 0; seen.push_back(n); }
-        CHECK(padsOk && padNote(0, 0) == 36 && padNote(0, 1) == 38 && padNote(0, 2) == 42 && padNote(0, 3) == 46, "48 pads, every GM drum once");
+        int padsOk = 1; std::vector<int> seen; for (int b = 0; b < PAD_BANKS; ++b) for (int i = 0; i < 16; ++i) { const int n = padNote(b, i); if (std::find(seen.begin(), seen.end(), n) != seen.end() || n < 0 || n >= KIT_SLOTS || (b < 3 && (n < 35 || n > 82))) padsOk = 0; seen.push_back(n); }
+        CHECK(padsOk && seen.size() == 320 && padNote(0, 0) == 36 && padNote(0, 1) == 38 && padNote(0, 2) == 42 && padNote(0, 3) == 46, "320 pads on 20 banks, each its own place, the GM drums on A-C");
         // presets: 100, named, each with a kick, snare and hat
         const auto& kps = kitPresets(); int full = 0; std::vector<std::string> pn;
         for (const auto& kp2 : kps) { full += !kp2.kit.p[36].voice.empty() && !kp2.kit.p[38].voice.empty() && !kp2.kit.p[42].voice.empty() && !kp2.kit.p[46].voice.empty(); pn.push_back(kp2.name); }
@@ -288,7 +289,14 @@ int main(int argc, char** argv) {
         // a preset fitted to a library that lacks some of its voices: the same kind from what's there
         DrumKit fk = kps[10].kit; const int repl = fitKitToLibrary(fk, cat);
         CHECK(repl > 0 && cat.find(fk.p[36].voice.substr(0, fk.p[36].voice.find('@'))) >= 0 && partOfName(fk.p[38].voice).part == Part::Snare && partOfName(fk.p[36].voice).part == Part::Kick, "a preset on a small library: %d replaced, kick %s, snare %s", repl, fk.p[36].voice.c_str(), fk.p[38].voice.c_str());
+        { Sound sv; cat.sound(cat.find("STRNGENS"), sv); CHECK(sv.octaveFix == -24, "a voice with a 31-sample cycle: songs play it two octaves down (%d)", sv.octaveFix); }
         { Sound bd; cat.sound(cat.find("BDRUM"), bd); CHECK(bd.startPage == 13000 / PAGE, "silence ahead of a voice skipped: starts at page %d", bd.startPage); }
+        {   // the dice fills banks A-C and gives the snare a round robin; the engine cycles it
+            const DrumKit rk2 = randomKit(cat, 11); int empty = 0; for (int b = 0; b < 3; ++b) for (int i = 0; i < 16; ++i) empty += rk2.p[(size_t) padNote(b, i)].voice.empty();
+            Kit kr; DrumKit rk3 = rk2; rk3.rrOn = true; loadKitVoices(rk3, kr, cat); Engine er; er.bank = &kr.bank; er.kitVoice = kitLookup(kr.bank); applyPads(er, rk3);
+            std::set<const Sound*> heard; for (int h = 0; h < 6; ++h) heard.insert(er.nextKitSound(38));
+            CHECK(empty == 0 && er.kitRRn[38].load() >= 1 && heard.size() >= 2, "dice: banks A-C full (%d empty), snare round robin %d voices, %zu heard", empty, er.kitRRn[38].load() + 1, heard.size());
+        }
         // the dice: a kit from this library only
         const DrumKit rk = randomKit(cat, 7); int fromLib = 1;
         for (const auto& p : rk.p) if (!p.voice.empty() && cat.find(p.voice.substr(0, p.voice.find('@'))) < 0) fromLib = 0;
@@ -330,6 +338,16 @@ int main(int argc, char** argv) {
             pe.commit(ke, ee);
             const Sound* onPad = ke.bank.at(ee.kitSound[38].load());
             const bool undone = pe.ed.undoLast() && pe.ed.s.loopStart < 0;
+            {   // chopping: four hits found, on bank D's first four pads, each its own voice
+                PadEditor pc; Sound hits; hits.name = "BEAT"; hits.category = "User"; hits.mode = Mode::Sample; hits.rate = 30200; hits.root = 60; hits.ram.assign(100 * PAGE, 0x80);
+                for (int h = 0; h < 4; ++h) for (int i = 0; i < 2000; ++i) hits.ram[(size_t) (h * 3000 + 200 + i)] = (uint8_t) (128 + (int) std::lround(110 * std::sin(i * 0.3) * std::exp(-i / 400.0)));
+                const int hs = ke.firstFree(); ke.setUser(hs, hits); DrumKit hk = ee.padKit; hk.p[60].voice = "BEAT@User"; applyPads(ee, hk);
+                int made = 0; const bool op = pc.begin(ke, ee, 60); const int bank = pc.chop(ke, ee, 0, &made);
+                const Sound* s0 = ke.bank.at(findVoiceAt(ke.bank, ee.padKit.p[(size_t) padNote(3, 0)].voice));
+                int eq = 0; pc.chop(ke, ee, 8, &eq);
+                CHECK(op && bank == 3 && made == 4 && s0 && s0->ram.size() <= 3000 + PAGE && eq == 8, "chop: %d hits onto bank %c, 8 equal slices onto the next (%d)", made, padBankLetter(bank < 0 ? 0 : bank), eq);
+                pc.close();
+            }
             pe.revert(ke, ee);
             CHECK(opened && before > afterTrim && afterTrim == 9 * PAGE && lastAbs <= 1 && onPad && onPad->category == "User" && onPad->loopStart == 2 && onPad->loopEnd == 3 && undone &&
                   ee.padKit.p[38].voice == pk2.p[38].voice, "sample editor: %d -> %d bytes, loop on the pad %d-%d, reverted", before, afterTrim, onPad ? onPad->loopStart : -9, onPad ? onPad->loopEnd : -9);
@@ -352,7 +370,7 @@ int main(int argc, char** argv) {
         tone("Kick.wav", 0.4, 60); tone("Snare 1.wav", 0.3, 200); tone("CH.wav", 0.1, 3000); tone("Open Hat.wav", 0.8, 3000); tone("Crash.wav", 2.5, 2500); tone("Tom Lo.wav", 0.5, 90); tone("Tom Hi.wav", 0.5, 160); tone("weird noise.wav", 0.2, 500);
         Kit ks; DrumKit sp; const std::string msg = importKitSamples(smp, ks, sp, true);
         const Sound* kick = ks.bank.at(findVoiceAt(ks.bank, sp.p[36].voice)); const Sound* crash = ks.bank.at(findVoiceAt(ks.bank, sp.p[49].voice));
-        int unnamed = 0; for (int i = 0; i < 16; ++i) unnamed += sp.p[(size_t) padNote(2, i)].voice.rfind("WEIRDNOI", 0) == 0;
+        int unnamed = 0; for (int i = 0; i < 16; ++i) unnamed += sp.p[(size_t) padNote(3, i)].voice.rfind("WEIRDNOI", 0) == 0;
         CHECK(kick && kick->name == "KICK" && kick->rate <= 30200.5 && kick->category == "User" && !kick->fromLibrary && crash && crash->rate < 8000.5 && crash->ram.size() <= (size_t) RAM_SIZE &&
               sp.p[38].voice.rfind("SNARE1", 0) == 0 && sp.p[42].voice.rfind("CH", 0) == 0 && sp.p[46].voice.rfind("OPENHAT", 0) == 0 && sp.p[41].voice.rfind("TOMLO", 0) == 0 && sp.p[50].voice.rfind("TOMHI", 0) == 0 && unnamed == 1,
               "samples onto the pads: %s (kick %.0f Hz, crash %.0f Hz)", msg.c_str(), kick ? kick->rate : 0, crash ? crash->rate : 0);

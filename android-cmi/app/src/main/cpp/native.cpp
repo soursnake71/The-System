@@ -770,7 +770,7 @@ FN(void, setKitCatalogVoice)(JNIEnv*, jclass, jint n, jint ci) {
 }
 FN(void, auditionKit)(JNIEnv*, jclass, jint n) { auditionKitNote(n); }
 FN(void, resetKit)(JNIEnv*, jclass) { SongEntry* e = curEntry(); if (!e) return; e->kit = DrumKit(); kitChanged(e); }
-FN(jfloat, kitMeter)(JNIEnv*, jclass, jint n) { return n >= 0 && n < 128 ? app()->engine.kitMeter[(size_t) n].load() : 0.f; }
+FN(jfloat, kitMeter)(JNIEnv*, jclass, jint n) { return n >= 0 && n < KIT_SLOTS ? app()->engine.kitMeter[(size_t) n].load() : 0.f; }
 
 // ---- the drum pads (core/Pads.h): the kit every song's drums, MIDI channel 10 and the pads play ----
 static void padsSet(DrumKit k, const std::string& name, bool fit) {
@@ -781,21 +781,21 @@ static void padsSet(DrumKit k, const std::string& name, bool fit) {
 FN(jint, padNote)(JNIEnv*, jclass, jint bank, jint pad) { return padNote(bank, pad); }
 // voice (chosen or ""), level, pan, tune, mute, solo, the voice playing it, the GM name, the part
 FN(jstring, padInfo)(JNIEnv* env, jclass, jint n) {
-    if (n < 0 || n > 127) return env->NewStringUTF("");
+    if (n < 0 || n >= KIT_SLOTS) return env->NewStringUTF("");
     auto& eng = app()->engine; const KitPiece& k = eng.padKit.p[(size_t) n];
     int v = eng.kitSound[(size_t) n].load(); if (v < 0 && eng.kitVoice) v = eng.kitVoice(n);
     const Sound* snd = v >= 0 ? app()->kit.bank.at(v) : nullptr;
-    std::ostringstream o; o << k.voice << "\t" << k.level << "\t" << k.pan << "\t" << k.tune << "\t" << (k.mute ? 1 : 0) << "\t" << (k.solo ? 1 : 0) << "\t" << (snd ? snd->name : "--") << "\t" << gmDrumName(n) << "\t" << partName(partOfNote(n));
+    std::ostringstream o; o << k.voice << "\t" << k.level << "\t" << k.pan << "\t" << k.tune << "\t" << (k.mute ? 1 : 0) << "\t" << (k.solo ? 1 : 0) << "\t" << (snd ? snd->name : "--") << "\t" << padName(n) << "\t" << partName(partOfNote(n)) << "\t" << (k.rr.empty() ? 0 : 1 + (int) std::count(k.rr.begin(), k.rr.end(), ';'));
     return env->NewStringUTF(o.str().c_str());
 }
 FN(void, setPadPiece)(JNIEnv*, jclass, jint n, jfloat level, jfloat pan, jfloat tune, jboolean mute, jboolean solo) {
-    if (n < 0 || n > 127) return;
+    if (n < 0 || n >= KIT_SLOTS) return;
     DrumKit k = app()->engine.padKit; KitPiece& p = k.p[(size_t) n];
     p.level = std::clamp(level, 0.f, 2.f); p.pan = pan; p.tune = std::clamp(tune, -24.f, 24.f); p.mute = mute; p.solo = solo;
     applyPads(app()->engine, k);
 }
 FN(void, setPadVoice)(JNIEnv*, jclass, jint n, jint v) {
-    if (n < 0 || n > 127) return;
+    if (n < 0 || n >= KIT_SLOTS) return;
     DrumKit k = app()->engine.padKit;
     const Sound* s = v >= 0 && !isBlank(app()->kit, v) ? app()->kit.bank.at(v) : nullptr;
     if (v < 0) k.p[(size_t) n] = KitPiece(); else k.p[(size_t) n].voice = s ? s->name + "@" + s->category : std::string();
@@ -803,7 +803,7 @@ FN(void, setPadVoice)(JNIEnv*, jclass, jint n, jint v) {
 }
 FN(void, setPadCatalogVoice)(JNIEnv*, jclass, jint n, jint ci) {
     int v; { std::lock_guard<std::mutex> g(app()->catLock); v = loadCatalogVoice(app()->kit, app()->catalog, ci); }
-    if (v < 0 || n < 0 || n > 127) return;
+    if (v < 0 || n < 0 || n >= KIT_SLOTS) return;
     DrumKit k = app()->engine.padKit; const Sound* s = app()->kit.bank.at(v); k.p[(size_t) n].voice = s ? s->name + "@" + s->category : std::string();
     applyPads(app()->engine, k); app()->padPreset = -1; app()->engine.padTap(n);
 }
@@ -877,13 +877,13 @@ FN(jstring, recStart)(JNIEnv* env, jclass, jint track, jdouble from, jboolean co
 FN(jfloatArray, padEnv)(JNIEnv* env, jclass, jint n) {
     const DrumKit& k = app()->engine.padKit; float v[4];
     if (n < 0) for (int i = 0; i < 4; ++i) v[i] = k.env[i];
-    else { const KitPiece& p = k.p[(size_t) std::clamp(n, 0, 127)]; v[0] = p.a; v[1] = p.d; v[2] = p.s; v[3] = p.r; }
+    else { const KitPiece& p = k.p[(size_t) std::clamp(n, 0, KIT_SLOTS - 1)]; v[0] = p.a; v[1] = p.d; v[2] = p.s; v[3] = p.r; }
     jfloatArray r = env->NewFloatArray(4); env->SetFloatArrayRegion(r, 0, 4, v); return r;
 }
 FN(void, setPadEnv)(JNIEnv*, jclass, jint n, jint i, jfloat v) {
     DrumKit k = app()->engine.padKit; if (i < 0 || i > 3) return;
     if (v >= 0) v = i == 2 ? std::clamp(v, 0.f, 1.f) : std::clamp(v, 0.f, 31.f);
-    if (n < 0) k.env[i] = v; else { KitPiece& p = k.p[(size_t) std::clamp(n, 0, 127)]; (i == 0 ? p.a : i == 1 ? p.d : i == 2 ? p.s : p.r) = v; }
+    if (n < 0) k.env[i] = v; else { KitPiece& p = k.p[(size_t) std::clamp(n, 0, KIT_SLOTS - 1)]; (i == 0 ? p.a : i == 1 ? p.d : i == 2 ? p.s : p.r) = v; }
     applyPads(app()->engine, k);
 }
 // the sample editor (core/SampleEdit.h): a pad's sound, edited on the pad
@@ -900,7 +900,7 @@ FN(void, editOp)(JNIEnv*, jclass, jint op, jfloat v) {
 }
 FN(jstring, editInfo)(JNIEnv* env, jclass) {
     const auto& pe = app()->padEd; const Sound& s = pe.ed.s;
-    std::ostringstream o; o << s.name << "\t" << gmDrumName(pe.note) << "\t" << (int) s.rate << "\t" << s.ram.size() << "\t" << pe.note << "\t" << (pe.open ? 1 : 0) << "\t" << s.title;
+    std::ostringstream o; o << s.name << "\t" << padName(pe.note) << "\t" << (int) s.rate << "\t" << s.ram.size() << "\t" << pe.note << "\t" << (pe.open ? 1 : 0) << "\t" << s.title;
     return env->NewStringUTF(o.str().c_str());
 }
 FN(void, editClose)(JNIEnv*, jclass) { app()->padEd.close(); }
@@ -914,6 +914,33 @@ FN(void, resetSettings)(JNIEnv*, jclass) {
     Library::factorySeq(a->engine.seq, a->kit.bank);
     a->connectDefaults();
 }
+// filter, LFO rate and depth (note -1: the whole kit; -1: not set), round robin
+FN(jfloatArray, padFx)(JNIEnv* env, jclass, jint n) {
+    const DrumKit& k = app()->engine.padKit; float v[3];
+    if (n < 0) for (int i = 0; i < 3; ++i) v[i] = k.fx[i]; else { const KitPiece& p = k.p[(size_t) std::clamp(n, 0, KIT_SLOTS - 1)]; v[0] = p.f; v[1] = p.lr; v[2] = p.ld; }
+    jfloatArray r = env->NewFloatArray(3); env->SetFloatArrayRegion(r, 0, 3, v); return r;
+}
+FN(void, setPadFx)(JNIEnv*, jclass, jint n, jint i, jfloat v) {
+    if (i < 0 || i > 2) return; DrumKit k = app()->engine.padKit;
+    if (v >= 0) v = i == 0 ? std::clamp(v, 0.f, 255.f) : i == 1 ? std::clamp(v, 0.1f, 20.f) : std::clamp(v, 0.f, 12.f);
+    if (n < 0) k.fx[i] = v; else { KitPiece& p = k.p[(size_t) std::clamp(n, 0, KIT_SLOTS - 1)]; (i == 0 ? p.f : i == 1 ? p.lr : p.ld) = v; }
+    applyPads(app()->engine, k);
+}
+FN(jboolean, rrOn)(JNIEnv*, jclass) { return app()->engine.padKit.rrOn; }
+FN(void, setRROn)(JNIEnv*, jclass, jboolean on) { DrumKit k = app()->engine.padKit; k.rrOn = on; applyPads(app()->engine, k); }
+FN(void, addPadRR)(JNIEnv*, jclass, jint n, jint v, jint ci) {
+    auto* a = app(); if (n < 0 || n >= KIT_SLOTS) return;
+    if (ci >= 0) { std::lock_guard<std::mutex> g(a->catLock); v = loadCatalogVoice(a->kit, a->catalog, ci); }
+    const Sound* s = v >= 0 && !isBlank(a->kit, v) ? a->kit.bank.at(v) : nullptr; if (!s) return;
+    DrumKit k = a->engine.padKit; KitPiece& p = k.p[(size_t) n]; if (std::count(p.rr.begin(), p.rr.end(), ';') >= 3) return;
+    p.rr += (p.rr.empty() ? "" : ";") + s->name + "@" + s->category; k.rrOn = true; applyPads(a->engine, k); a->engine.padTap(n);
+}
+FN(void, clearPadRR)(JNIEnv*, jclass, jint n) { if (n < 0 || n >= KIT_SLOTS) return; DrumKit k = app()->engine.padKit; k.p[(size_t) n].rr.clear(); applyPads(app()->engine, k); }
+FN(jintArray, editChop)(JNIEnv* env, jclass, jint n) {
+    auto* a = app(); int made = 0; const int bank = a->padEd.chop(a->kit, a->engine, n, &made);
+    jint v[2] = { bank, made }; jintArray r = env->NewIntArray(2); env->SetIntArrayRegion(r, 0, 2, v); return r;
+}
+FN(jint, padBanks)(JNIEnv*, jclass) { return PAD_BANKS; }
 // REC on the pads: onto the song's drum track (a new song if none; track 10 made the kit if it has none), click on
 FN(jstring, recordPads)(JNIEnv* env, jclass) {
     auto* a = app();

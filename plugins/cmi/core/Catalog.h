@@ -495,6 +495,17 @@ inline void refreshSong(Engine& eng, SongEntry* e) {
 // a kit's chosen voices that aren't loaded yet: loaded from the library (by name and disk); the kit then names them
 // as loaded ("NAME@CATEGORY")
 inline void loadKitVoices(DrumKit& k, Kit& kit, const Catalog& cat) {
+    auto loadOne = [&](std::string& v) {
+        if (v.empty() || findVoiceAt(kit.bank, v) >= 0) return;
+        const size_t at = v.find('@');
+        int ci = cat.find(v.substr(0, at), at == std::string::npos ? "" : v.substr(at + 1)); if (ci < 0) ci = cat.find(v.substr(0, at));
+        const int x = loadCatalogVoice(kit, cat, ci); if (x >= 0) if (const Sound* s = kit.bank.at(x)) v = s->name + "@" + s->category;
+    };
+    for (auto& p : k.p) if (!p.rr.empty()) {   // round robin voices
+        std::string o; size_t a = 0;
+        while (a < p.rr.size()) { size_t b = p.rr.find(';', a); if (b == std::string::npos) b = p.rr.size(); std::string v = p.rr.substr(a, b - a); loadOne(v); if (!v.empty()) o += (o.empty() ? "" : ";") + v; a = b + 1; }
+        p.rr = o;
+    }
     for (auto& p : k.p) {
         if (p.voice.empty() || findVoiceAt(kit.bank, p.voice) >= 0) continue;
         const size_t at = p.voice.find('@');

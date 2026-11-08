@@ -324,6 +324,23 @@ void CmiProcessor::setPadEnv(int note, int i, float v) {
     if (note < 0) k.env[i] = v; else { KitPiece& p = k.p[(size_t) juce::jlimit(0, 127, note)]; (i == 0 ? p.a : i == 1 ? p.d : i == 2 ? p.s : p.r) = v; }
     applyPads(engine, k);
 }
+void CmiProcessor::setPadFx(int note, int i, float v) {
+    if (i < 0 || i > 2) return;
+    DrumKit k = engine.padKit;
+    if (v >= 0) v = i == 0 ? juce::jlimit(0.f, 255.f, v) : i == 1 ? juce::jlimit(0.1f, 20.f, v) : juce::jlimit(0.f, 12.f, v);
+    if (note < 0) k.fx[i] = v; else { KitPiece& p = k.p[(size_t) juce::jlimit(0, KIT_SLOTS - 1, note)]; (i == 0 ? p.f : i == 1 ? p.lr : p.ld) = v; }
+    applyPads(engine, k);
+}
+void CmiProcessor::addPadRR(int note, int v, int ci) {
+    if (note < 0 || note >= KIT_SLOTS) return;
+    if (ci >= 0) { const juce::ScopedLock l(catLock); v = cmi::loadCatalogVoice(kit, catalog, ci); }
+    const Sound* s = v >= 0 && !isBlank(kit, v) ? kit.bank.at(v) : nullptr; if (!s) return;
+    DrumKit k = engine.padKit; KitPiece& p = k.p[(size_t) note];
+    if (std::count(p.rr.begin(), p.rr.end(), ';') >= 3) return;   // four at most
+    p.rr += (p.rr.empty() ? "" : ";") + s->name + "@" + s->category; k.rrOn = true;
+    applyPads(engine, k);
+}
+void CmiProcessor::clearPadRR(int note) { if (note < 0 || note >= KIT_SLOTS) return; DrumKit k = engine.padKit; k.p[(size_t) note].rr.clear(); applyPads(engine, k); }
 void CmiProcessor::resetAll(bool factory) {
     for (const auto& d : paramDefs()) if (std::strcmp(d.id, "sound") != 0) set(d.id, d.def);
     resetEngineSettings(engine);

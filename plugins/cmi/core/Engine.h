@@ -318,11 +318,14 @@ public:
     std::atomic<double> songStartReq { -1e9 };             // play from this beat (set with songRun; may be < 0 for a count-in)
     // the drum kit (GM_KIT tracks): per GM note, a sound (-1: the CMI drum map), level, pan (-1: the track's), tune,
     // mute, solo, and a meter. Set from the song's DrumKit by applyKit (Song.h) and by the kit screen.
-    std::array<std::atomic<int>, 128> kitSound;
-    std::array<std::atomic<float>, 128> kitLevel, kitPan, kitTune, kitMeter;
-    std::array<std::atomic<bool>, 128> kitMute, kitSolo;
+    std::array<std::atomic<int>, KIT_SLOTS> kitSound;
+    std::array<std::atomic<float>, KIT_SLOTS> kitLevel, kitPan, kitTune, kitMeter;
+    std::array<std::atomic<bool>, KIT_SLOTS> kitMute, kitSolo;
+    // each drum's filter and LFO (-1: the voice's own), round robin (up to 4 more voices it cycles through)
+    std::array<std::atomic<float>, KIT_SLOTS> kitFilt, kitLfoR, kitLfoD;
+    std::array<std::array<std::atomic<int>, 4>, KIT_SLOTS> kitRR; std::array<std::atomic<int>, KIT_SLOTS> kitRRn; std::atomic<bool> kitRROn { false };
     // the kit's envelope per drum (attack, decay, sustain level, release; -1: the voice's own), merged in pushKit
-    std::array<std::atomic<float>, 128> kitEnvA, kitEnvD, kitEnvS, kitEnvR;
+    std::array<std::atomic<float>, KIT_SLOTS> kitEnvA, kitEnvD, kitEnvS, kitEnvR;
     // the kits behind those: the pads' (plays every song) and the song's own changes on top (UI thread; applyKit and
     // applyPads in Song.h merge them into the arrays above)
     DrumKit padKit, songKit;
@@ -333,7 +336,7 @@ public:
     std::atomic<float> kickLift { 2.0f }, humanize { 0.0f };   // MIDI channel 10 plays the kit, as General MIDI does
     void padTap(int note, int vel = 110) { padPush(note, vel | 0x100); }   // a hit let go by itself 0.3 s later (an audition)
     void padPush(int note, int vel) { std::lock_guard<std::mutex> g(padLock); const uint32_t w = padW.load(std::memory_order_relaxed); if (w - padR.load(std::memory_order_acquire) >= padQ.size()) return; padQ[w % padQ.size()] = { note, vel }; padW.store(w + 1, std::memory_order_release); }
-    void clearKit() { for (int n = 0; n < 128; ++n) { kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; kitEnvA[(size_t) n] = kitEnvD[(size_t) n] = kitEnvS[(size_t) n] = kitEnvR[(size_t) n] = -1; } }
+    void clearKit() { kitRROn = false; for (int n = 0; n < KIT_SLOTS; ++n) { kitFilt[(size_t) n] = kitLfoR[(size_t) n] = kitLfoD[(size_t) n] = -1; kitRRn[(size_t) n] = 0; kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; kitEnvA[(size_t) n] = kitEnvD[(size_t) n] = kitEnvS[(size_t) n] = kitEnvR[(size_t) n] = -1; } }
     // recording: keyboard and MIDI notes go to a song track (heard on its voice) and are logged with their beats
     struct RecEv { double beat; int note, vel; };   // vel 0: note off
     std::atomic<bool> recOn { false }; std::atomic<int> recTrack { 0 }; std::atomic<double> recFrom { 0 };
@@ -389,7 +392,7 @@ public:
         if (len < 1) return false;
         const int st = m[0] & 0xF0, chn = m[0] & 0x0F;
         const bool toTrack = multi && chn >= 1 && chn <= TRACKS;
-        if (chn == 9 && ch10Kit.load() && !recOn.load() && (st == 0x90 || st == 0x80) && len >= 3) { padHit(m[1], st == 0x80 ? 0 : m[2]); return true; }
+        if (chn >= 9 && chn <= 11 && ch10Kit.load() && !recOn.load() && (st == 0x90 || st == 0x80) && len >= 3) { padHit((chn - 9) * 128 + m[1], st == 0x80 ? 0 : m[2]); return true; }   // 10: the GM kit, 11-12: the pads' extra banks
         if (recOn.load() && song.load() && (st == 0x90 || st == 0x80) && len >= 3 && !toTrack) {   // recording
             const int vel = st == 0x80 ? 0 : m[2];
             songNote(recTrack.load(), m[1], vel);
@@ -474,9 +477,10 @@ public:
         SongEvent e { 0, (uint8_t) t, (uint8_t) (vel > 0 ? 0x90 : 0x80), (uint8_t) std::clamp(note, 0, 127), (uint8_t) std::clamp(vel, 0, 127) };
         const bool m = songMute[t]; songMute[t] = false; songEvent(e); songMute[t] = m;
     }
+    const Sound* nextKitSound(int note) { return kitSoundFor(note); }   // (round robin moves on: for tests and the audio thread)
     // a pad (a GM drum note on the kit, song or no song; vel 0: let go). Audio thread
     void padHit(int note, int vel) {
-        if (!bank || note < 0 || note > 127) return;
+        if (!bank || note < 0 || note >= KIT_SLOTS) return;
         constexpr int t = 9;   // the GM drum channel's track
         if (vel <= 0) {   // let go: a looped sound stops; a one-shot drum plays out, as on a drum machine
             const bool rel = kitEnvR[(size_t) note].load() >= 0 || kitEnvS[(size_t) note].load() >= 0;   // an envelope set: let go means release
@@ -493,13 +497,13 @@ public:
     void render(float* L, float* R, int n, const Transport* tp = nullptr) {
         for (uint32_t r = padR.load(std::memory_order_relaxed); r != padW.load(std::memory_order_acquire); r = padR.load(std::memory_order_relaxed)) {   // the screen's pads
             auto h = padQ[r % padQ.size()]; padR.store(r + 1, std::memory_order_release);
-            if (h.second & 0x100) { h.second &= 0xFF; if (h.first >= 0 && h.first < 128) tapLeft[(size_t) h.first] = (int) (fs * 0.3); }
+            if (h.second & 0x100) { h.second &= 0xFF; if (h.first >= 0 && h.first < KIT_SLOTS) tapLeft[(size_t) h.first] = (int) (fs * 0.3); }
             if (recOn.load() && song.load() && songVoice[clampi(recTrack.load(), 0, SONG_TRK - 1)] == GM_KIT) {   // recording onto the kit track
                 songNote(recTrack.load(), h.first, h.second);
                 if (songRun.load() && (h.second == 0 || sbeat >= recFrom.load() - 1e-6)) recPush({ sbeat, h.first, h.second });
             } else padHit(h.first, h.second);
         }
-        for (int k = 0; k < 128; ++k) if (tapLeft[(size_t) k] > 0 && (tapLeft[(size_t) k] -= n) <= 0) { tapLeft[(size_t) k] = 0; padHit(k, 0); }
+        for (int k = 0; k < KIT_SLOTS; ++k) if (tapLeft[(size_t) k] > 0 && (tapLeft[(size_t) k] -= n) <= 0) { tapLeft[(size_t) k] = 0; padHit(k, 0); }
         int done = 0;
         while (done < n) {
             const bool songs = song.load() || curSong;
@@ -529,10 +533,14 @@ private:
     Controls songControls(const Sound* snd, int t, int note = -1, bool pad = false) const {
         Controls c = snd->ctl;
         const bool kit = pad || songVoice[t] == GM_KIT;
-        const double lift = kit ? drumLift.load() * (note >= 0 && note < 128 ? kitLevel[(size_t) note].load() : 1.f) : 1.0;
+        const double lift = kit ? drumLift.load() * (note >= 0 && note < KIT_SLOTS ? kitLevel[(size_t) note].load() : 1.f) : 1.0;
         c.level = (float) std::min(1.0, c.level * (pad && !curSong ? 1.0 : songVol[t]) * songGain.load() * lift);
         if (kit) c.velVol = std::min(c.velVol, 0.35f);   // ghost notes stay audible
-        if (kit && note >= 0 && note < 128) {   // the kit's ADSR over the voice's own
+        if (kit && note >= 0 && note < KIT_SLOTS) {   // the kit's ADSR, filter and LFO over the voice's own
+            const float fl = kitFilt[(size_t) note].load(), lr = kitLfoR[(size_t) note].load(), ld = kitLfoD[(size_t) note].load();
+            if (fl >= 0) c.filter = fl;
+            if (lr >= 0) { c.vibRate = lr; c.vibDelay = 0; }
+            if (ld >= 0) { c.vibDepth = ld; c.vibDelay = 0; }
             const float a = kitEnvA[(size_t) note].load(), d = kitEnvD[(size_t) note].load(), su = kitEnvS[(size_t) note].load(), r = kitEnvR[(size_t) note].load();
             if (a >= 0) c.attack = a;
             if (d >= 0) c.decay = d;
@@ -542,10 +550,15 @@ private:
         return c;
     }
     // the kit's sound for a drum note (muted and solo'd as the kit says), nullptr: none
-    const Sound* kitSoundFor(int note) const {
+    const Sound* kitSoundFor(int note) {
+        if (note < 0 || note >= KIT_SLOTS) return nullptr;
         bool anySolo = false; for (const auto& so : kitSolo) anySolo |= so.load();
         if (kitMute[(size_t) note].load() || (anySolo && !kitSolo[(size_t) note].load())) return nullptr;
-        const int ks = kitSound[(size_t) note].load();
+        int ks = kitSound[(size_t) note].load();
+        if (kitRROn.load()) {   // round robin: the voice and its alternates in turn
+            const int n = std::min(4, kitRRn[(size_t) note].load());
+            if (n > 0) { int& pos = rrPos[(size_t) note]; pos = (pos + 1) % (n + 1); if (pos > 0) { const int alt = kitRR[(size_t) note][(size_t) (pos - 1)].load(); if (alt >= 0) ks = alt; } }
+        }
         return bank->at(ks >= 0 ? ks : kitVoice ? kitVoice(note) : -1);
     }
     // the key that plays a drum: its sample at its own speed, then the kit's tuning (fractions in the fine tune)
@@ -591,6 +604,7 @@ private:
             Controls sc = songControls(snd, t, kit ? e.d1 : -1);
             int note = e.d1;
             int vel = e.d2;
+            if (!kit) note = clampi(e.d1 + snd->octaveFix, 0, 127);   // in the octave written
             if (kit) { note = kitKey(snd, e.d1, sc); vel = human(sc, vel); }   // a drum: its sample at its own speed, then the kit's tuning
             c.noteOn(snd, sc, note, vel / 127.f, -1, ++stampN);
             cardGain[k] = kit && (e.d1 == 35 || e.d1 == 36) ? kickLift.load() : 1.f;
@@ -730,7 +744,7 @@ private:
             else if (curSong || cardPad[i]) {
                 const int tk = clampi(cardTrack[i], 0, SONG_TRK - 1);
                 pan = curSong ? songPan[tk] : 0.5;
-                if (songVoice[tk] == GM_KIT || cardPad[i]) { const float kp = kitPan[(size_t) (cardNote[i] & 127)].load(); if (kp >= 0) pan = kp; }
+                if (songVoice[tk] == GM_KIT || cardPad[i]) { const float kp = kitPan[(size_t) clampi(cardNote[i], 0, KIT_SLOTS - 1)].load(); if (kp >= 0) pan = kp; }
             }
             else pan = seq.trk[(i - KEY_CH) % TRACKS].pan;
             const float po = panOver[(size_t) sIdx].load();
@@ -743,7 +757,7 @@ private:
             const float sd = fxSend[(size_t) sIdx].load();
             if (fxRun && sd > 0 && gain > 0) { anySend = true; for (int k = 0; k < n; ++k) { const float m = mono[(size_t) k] * sd; fxL[(size_t) k] += m * gl; fxR[(size_t) k] += m * gr; } }
             peak[sIdx] = std::max(peak[sIdx], pk * gain * 0.5f * (float) master);
-            if (i >= KEY_CH && ((curSong && songVoice[clampi(cardTrack[i], 0, SONG_TRK - 1)] == GM_KIT) || cardPad[i])) { auto& km = kitMeter[(size_t) (cardNote[i] & 127)]; km = std::max(km.load(), pk * gain * 0.5f * (float) master); }
+            if (i >= KEY_CH && ((curSong && songVoice[clampi(cardTrack[i], 0, SONG_TRK - 1)] == GM_KIT) || cardPad[i])) { auto& km = kitMeter[(size_t) clampi(cardNote[i], 0, KIT_SLOTS - 1)]; km = std::max(km.load(), pk * gain * 0.5f * (float) master); }
         }
         for (int i = 0; i < STRIPS; ++i) meter[(size_t) i] = std::max(peak[i], meter[(size_t) i].load() * 0.92f);
         for (auto& km : kitMeter) { const float v = km.load(); if (v > 0) km = v * 0.92f < 1e-4f ? 0.f : v * 0.92f; }
@@ -815,7 +829,7 @@ private:
     // song player
     const MidiSong* curSong = nullptr; double sbeat = 0; size_t sidx = 0; bool songWas = false;
     double songVol[SONG_TRK] {}, songPan[SONG_TRK] {}, songBendV[SONG_TRK] {}; bool songHeld[SONG_TRK] {};
-    int cardTrack[NCH] {}, cardNote[NCH] {}; bool cardPad[NCH] {}; float cardGain[NCH] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }; std::array<int, 128> tapLeft {};
+    int cardTrack[NCH] {}, cardNote[NCH] {}; bool cardPad[NCH] {}; float cardGain[NCH] { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }; std::array<int, KIT_SLOTS> tapLeft {}; std::array<int, KIT_SLOTS> rrPos {};
     std::array<std::pair<int, int>, 256> padQ {}; std::atomic<uint32_t> padW { 0 }, padR { 0 }; std::mutex padLock;
 };
 

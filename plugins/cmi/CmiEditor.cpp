@@ -656,7 +656,9 @@ void Screen::recordRow(juce::Graphics& g, float x, float y, double fromBeat) {
 void Screen::kitVoiceMenu(int note, bool pads) {
     auto& p = ed.proc; auto& kit = p.kit;
     juce::PopupMenu m;
-    m.addItem(1, "Automatic (the CMI drum map)");
+    if (rrAdding) m.addSectionHeader("ROUND ROBIN: THE VOICE TO ADD");
+    else m.addItem(1, "Automatic (the CMI drum map)");
+    if (pads && !rrAdding) { m.addItem(2, "Round robin: add a voice to cycle..."); if (!p.pads().p[(size_t) note].rr.empty()) m.addItem(3, "Round robin: clear this pad's"); }
     {   // the library's sounds of the same kind first (a snare pad: the snares)
         const juce::ScopedLock l(p.catLock);
         Part part = partOfNote(note);
@@ -695,6 +697,10 @@ void Screen::kitVoiceMenu(int note, bool pads) {
     }
     m.showMenuAsync(juce::PopupMenu::Options(), [this, note, pads](int r) {
         auto& pr = ed.proc;
+        if (r == 0) { rrAdding = false; return; }
+        if (r == 2) { rrAdding = true; kitVoiceMenu(note, true); return; }
+        if (r == 3) { pr.clearPadRR(note); status = "ROUND ROBIN CLEARED"; repaint(); return; }
+        if (rrAdding) { rrAdding = false; if (r >= 20000) pr.addPadRR(note, -1, r - 20000); else if (r >= 100) pr.addPadRR(note, r - 100, -1); { const auto& rr = pr.pads().p[(size_t) note].rr; status = "ROUND ROBIN ON: " + juce::String(rr.empty() ? 1 : 2 + (int) std::count(rr.begin(), rr.end(), ';')) + " VOICES ON THIS PAD"; } pr.auditionKit(note); repaint(); return; }
         if (r == 1) { if (pads) pr.setPadVoice(note, -1); else pr.setKitVoice(note, -1); }
         else if (r >= 20000) { if (pads) pr.setPadCatalogVoice(note, r - 20000); else pr.setKitCatalogVoice(note, r - 20000); }
         else if (r >= 100) { if (pads) pr.setPadVoice(note, r - 100); else pr.setKitVoice(note, r - 100); }
@@ -772,9 +778,10 @@ void Screen::drawEditor(juce::Graphics& g) {
     // the edits
     struct B { const char* t; int op; float v; };
     const B bs[] = { { "PLAY", -1, 0 }, { "ALL", 0, 0 }, { "TRIM", 1, 0 }, { "CUT", 2, 0 }, { "SILENCE", 3, 0 }, { "NORMALISE", 4, 0 }, { "REVERSE", 5, 0 }, { "FADE IN", 6, 0 },
-                     { "FADE OUT", 7, 0 }, { "-3 dB", 8, -3 }, { "+3 dB", 8, 3 }, { "LOOP SEL", 9, 0 }, { "NO LOOP", 10, 0 }, { "UNDO", 11, 0 }, { "REVERT", 12, 0 }, { "CLOSE", 13, 0 } };
+                     { "FADE OUT", 7, 0 }, { "-3 dB", 8, -3 }, { "+3 dB", 8, 3 }, { "LOOP SEL", 9, 0 }, { "NO LOOP", 10, 0 }, { "UNDO", 11, 0 }, { "REVERT", 12, 0 }, { "CLOSE", 13, 0 },
+                     { "CHOP HITS", 14, 0 }, { "CHOP 4", 14, 4 }, { "CHOP 8", 14, 8 }, { "CHOP 16", 14, 16 } };
     const float bw = (W - 40 - 7 * 6) / 8.f;
-    for (int i = 0; i < 16; ++i) {
+    for (int i = 0; i < 20; ++i) {
         const B bb = bs[i];
         button(g, { 20 + (i % 8) * (bw + 6), 484.f + (i / 8) * 30.f, bw, 26 }, bb.t, i == 15, [this, bb] {
             auto& pr = ed.proc; auto& ee = pr.padEd.ed; const int note = pr.padEd.note;
@@ -785,12 +792,15 @@ void Screen::drawEditor(juce::Graphics& g) {
                 case 10: ee.noLoop(); break; case 11: ee.undoLast(); break;
                 case 12: pr.padEd.revert(pr.kit, pr.engine); status = "PAD BACK AS IT WAS"; page = 'P'; return;
                 case 13: status = "KEPT: " + juce::String(ee.s.name) + " ON THE PAD (YOUR SAMPLES)"; pr.padEd.close(); page = 'P'; return;
+                case 14: { int made = 0; const int bk = pr.padEd.chop(pr.kit, pr.engine, (int) bb.v, &made);
+                           if (bk < 0) { status = "NOTHING TO CHOP, OR NO FREE BANK"; return; }
+                           pr.padBank = bk; pr.padSel = 0; status = juce::String(made) + " SLICES ON BANK " + juce::String::charToString((juce::juce_wchar) padBankLetter(bk)); return; }
             }
             pr.editCommit(); pr.engine.padTap(note);
         });
     }
     g.setColour(kDim); g.setFont(mono(12));
-    g.drawText("drag across the strip to select; the edits work on the selection (ALL: the whole sound). The pad plays the edit; CLOSE keeps it as your sample, REVERT puts the pad back.", 20, 548, W - 40, 16, juce::Justification::centredLeft);
+    g.drawText("drag across the strip to select; the edits work on the selection (ALL: the whole sound). CHOP: its slices onto a free bank's pads. CLOSE keeps the edit, REVERT puts the pad back.", 20, 576, W - 40, 16, juce::Justification::centredLeft);
 }
 
 void Screen::drawPads(juce::Graphics& g) {
@@ -798,10 +808,13 @@ void Screen::drawPads(juce::Graphics& g) {
     p.padBank = juce::jlimit(0, PAD_BANKS - 1, p.padBank); p.padSel = juce::jlimit(0, 15, p.padSel);
     g.setColour(kInk); g.setFont(mono(17));
     g.drawText("DRUM PADS   KIT: " + p.padKitName.substring(0, 22), 20, 58, 470, 20, juce::Justification::centredLeft);
-    for (int b = 0; b < PAD_BANKS; ++b) button(g, { 360.f + b * 46, 84, 42, 22 }, juce::String::charToString((juce::juce_wchar) ('A' + b)), p.padBank == b, [this, b] { ed.proc.padBank = b; });
-    g.setColour(kDim); g.setFont(mono(12));
-    g.drawText(p.padBank == 0 ? "THE KIT" : p.padBank == 1 ? "MORE KIT, CONGAS" : "PERCUSSION", 20, 84, 200, 22, juce::Justification::centredLeft);
-    button(g, { 200, 84, 150, 22 }, padEditPick ? "TAP A PAD" : "EDIT A PAD", padEditPick, [this] { padEditPick = !padEditPick; status = padEditPick ? "TAP THE PAD WHOSE SOUND YOU WANT TO EDIT" : "READY"; });
+    for (int b = 0; b < PAD_BANKS; ++b) {   // the banks: A-C the GM kit, D-H channel 10's other notes, I-T channels 11 and 12
+        int used = 0; for (int i = 0; i < 16; ++i) used += !eng.padKit.p[(size_t) padNote(b, i)].voice.empty();
+        const juce::Rectangle<float> br(20.f + b * 24.6f, 84, 22.5f, 22);
+        if (p.padBank == b) { g.setColour(kInk); g.fillRect(br); } else g.setColour(used ? kInk : kFaint), g.drawRect(br, 1.f);
+        g.setColour(p.padBank == b ? kBg : used ? kInk : kDim); g.setFont(mono(13)); g.drawText(juce::String::charToString((juce::juce_wchar) padBankLetter(b)), br, juce::Justification::centred);
+        hit(br, [this, b](const juce::MouseEvent&) { ed.proc.padBank = b; });
+    }
     // the pads, 4 x 4, pad 1 bottom left
     const float gx = 20, gy = 112, pw = 116, ph = 104, gap = 7;
     for (int i = 0; i < 16; ++i) {
@@ -815,7 +828,7 @@ void Screen::drawPads(juce::Graphics& g) {
         g.setColour(sel ? kInk : kDim); g.drawRect(r, sel ? 3.f : 1.f);
         g.setColour(km > 0.5f ? kBg : kInk); g.setFont(mono(12));
         g.drawText(juce::String(p.padBank * 16 + i + 1) + "  " + juce::String(note), r.reduced(6, 4), juce::Justification::topLeft);
-        g.setFont(mono(15)); g.drawText(gmDrumName(note), r.reduced(4, 0).withTrimmedTop(26).withHeight(20), juce::Justification::centred);
+        g.setFont(mono(15)); g.drawText(padName(note), r.reduced(4, 0).withTrimmedTop(26).withHeight(20), juce::Justification::centred);
         juce::String vn; bool chosen = !kp.voice.empty();
         if (chosen) vn = juce::String(kp.voice).upToFirstOccurrenceOf("@", false, false);
         else { const int a = eng.kitVoice ? eng.kitVoice(note) : -1; const Sound* snd = a >= 0 ? p.kit.bank.at(a) : nullptr; vn = snd ? "(" + juce::String(snd->name) + ")" : juce::String("--"); }
@@ -841,8 +854,9 @@ void Screen::drawPads(juce::Graphics& g) {
     hit(pn, [this](const juce::MouseEvent&) { padPresetMenu(); });
     button(g, { rx + 338, 56, 40, 24 }, ">", false, [this] { status = ed.proc.padPresetLoad(ed.proc.padPreset + 1); });
     button(g, { rx + 384, 56, 76, 24 }, "DICE", false, [this] { status = ed.proc.padRandom(); });
-    button(g, { rx, 86, 226, 24 }, "NEW KIT FROM SAMPLES", false, [this] { padImportChooser(true); });
-    button(g, { rx + 234, 86, 226, 24 }, "ADD SAMPLES", false, [this] { padImportChooser(false); });
+    button(g, { rx, 86, 150, 24 }, "NEW KIT: SAMPLES", false, [this] { padImportChooser(true); });
+    button(g, { rx + 155, 86, 150, 24 }, "ADD SAMPLES", false, [this] { padImportChooser(false); });
+    button(g, { rx + 310, 86, 150, 24 }, padEditPick ? "TAP A PAD" : "EDIT A PAD", padEditPick, [this] { padEditPick = !padEditPick; status = padEditPick ? "TAP THE PAD WHOSE SOUND YOU WANT TO EDIT" : "READY"; });
     g.setColour(kDim); g.setFont(mono(11));
     g.drawText("Samples become CMI voices: 8-bit, up to 30.2 kHz, named by kind (kick, snare, hat, BD, SD...)", rx, 112, rw, 14, juce::Justification::centredLeft);
     g.setColour(kDim); g.drawHorizontalLine(132, rx, rx + rw);
@@ -850,7 +864,7 @@ void Screen::drawPads(juce::Graphics& g) {
     const int note = padNote(p.padBank, p.padSel);
     const KitPiece kp = eng.padKit.p[(size_t) note];
     g.setColour(kInk); g.setFont(mono(18));
-    g.drawText("PAD " + juce::String(p.padBank * 16 + p.padSel + 1) + "   " + gmDrumName(note) + "   NOTE " + juce::String(note) + " (" + noteName(note) + ")", rx, 140, rw, 24, juce::Justification::centredLeft);
+    g.drawText("PAD " + juce::String::charToString((juce::juce_wchar) padBankLetter(p.padBank)) + juce::String(p.padSel + 1) + "   " + juce::String(padName(note)) + "   CH " + juce::String(10 + note / 128) + " NOTE " + juce::String(note % 128), rx, 140, rw, 24, juce::Justification::centredLeft);
     juce::String vn = kp.voice.empty() ? juce::String("AUTOMATIC: THE CMI DRUM MAP") : juce::String(kp.voice).replace("@", "  ");
     juce::Rectangle<float> vb(rx, 170, rw - 96, 28);
     button(g, { rx + rw - 90, 170, 90, 28 }, "EDIT", false, [this, note] { if (ed.proc.editPad(note)) { page = 'W'; status = "EDITING " + juce::String(ed.proc.padEd.ed.s.name); } else status = "NO SOUND ON THIS PAD TO EDIT"; });
@@ -896,37 +910,54 @@ void Screen::drawPads(juce::Graphics& g) {
             auto& hh = hit(ab, f, f); hh.up = [this, note](const juce::MouseEvent&) { ed.proc.auditionKit(note); };
         }
     }
-    g.setColour(kDim); g.drawHorizontalLine(372, rx, rx + rw);
+    {   // filter and LFO (the same PAD / KIT as the envelope; double-click a bar: back to the voice's own), round robin
+        const int target = adsrKit ? -1 : note;
+        const float fv[3] = { target < 0 ? eng.padKit.fx[0] : kp.f, target < 0 ? eng.padKit.fx[1] : kp.lr, target < 0 ? eng.padKit.fx[2] : kp.ld };
+        const float mx[3] = { 255.f, 20.f, 12.f }; const char* nm[3] = { "FILTER", "LFO", "DEPTH" };
+        const float aw = (rw - 76 - 12) / 3;
+        for (int i = 0; i < 3; ++i) {
+            const juce::Rectangle<float> ab(rx + i * (aw + 6), 372, aw, 24);
+            const float v = fv[i], frac = v < 0 ? 0.f : v / mx[i];
+            g.setColour(kFaint); g.fillRect(ab); if (v >= 0) { g.setColour(kInk); g.fillRect(ab.withWidth(ab.getWidth() * frac)); }
+            g.setColour(v >= 0 && frac > 0.5f ? kBg : kInk); g.setFont(mono(13));
+            g.drawText(v < 0 ? juce::String(nm[i]) + " --" : i == 0 ? "FILTER " + juce::String(juce::roundToInt(v)) : i == 1 ? "LFO " + juce::String(v, 1) + "Hz" : "DEPTH " + juce::String(v, 1), ab, juce::Justification::centred);
+            auto f = [this, target, i, ab, mx](const juce::MouseEvent& m) {
+                if (m.getNumberOfClicks() > 1) { ed.proc.setPadFx(target, i, -1); return; }
+                ed.proc.setPadFx(target, i, juce::jlimit(0.f, 1.f, (m.position.x - ab.getX()) / ab.getWidth()) * mx[i]); };
+            auto& hh = hit(ab, f, f); hh.up = [this, note](const juce::MouseEvent&) { ed.proc.auditionKit(note); };
+        }
+        const int nrr = kp.rr.empty() ? 0 : 1 + (int) std::count(kp.rr.begin(), kp.rr.end(), ';');
+        button(g, { rx + rw - 70, 372, 70, 24 }, eng.padKit.rrOn ? "RR " + juce::String(nrr + 1) : "RR OFF", eng.padKit.rrOn, [this] { ed.proc.setRROn(!ed.proc.pads().rrOn); status = ed.proc.pads().rrOn ? "ROUND ROBIN ON: PADS WITH MORE VOICES CYCLE THEM (ADD ONE: SOUND)" : "ROUND ROBIN OFF"; });
+    }
+    g.setColour(kDim); g.drawHorizontalLine(404, rx, rx + rw);
     // the kit as a whole
-    button(g, { rx, 384, 226, 24 }, eng.ch10Kit.load() ? "MIDI CH 10: THE KIT" : "MIDI CH 10: KEYBOARD", eng.ch10Kit.load(), [this] { ed.proc.engine.ch10Kit = !ed.proc.engine.ch10Kit.load(); });
-    button(g, { rx + 234, 384, 226, 24 }, "CLEAR KIT", false, [this] { ed.proc.padsClear(); status = "PADS: THE CMI DRUM MAP"; });
-    button(g, { rx, 414, 226, 24 }, "SONG'S OWN KIT (K)", false, [this] { kitBack = 'P'; page = 'K'; });
-    button(g, { rx + 234, 414, 226, 24 }, "PLAY SONG", eng.songRun.load(), [this] { ed.proc.set("sync", 0.f); ed.proc.engine.songRun = !ed.proc.engine.songRun.load(); });
+    button(g, { rx, 416, 226, 24 }, eng.ch10Kit.load() ? "MIDI CH 10: THE KIT" : "MIDI CH 10: KEYBOARD", eng.ch10Kit.load(), [this] { ed.proc.engine.ch10Kit = !ed.proc.engine.ch10Kit.load(); });
+    button(g, { rx + 234, 416, 226, 24 }, "CLEAR KIT", false, [this] { ed.proc.padsClear(); status = "PADS: THE CMI DRUM MAP"; });
+    button(g, { rx, 446, 226, 24 }, "SONG'S OWN KIT (K)", false, [this] { kitBack = 'P'; page = 'K'; });
+    button(g, { rx + 234, 446, 226, 24 }, "PLAY SONG", eng.songRun.load(), [this] { ed.proc.set("sync", 0.f); ed.proc.engine.songRun = !ed.proc.engine.songRun.load(); });
     // the kick's lift, humanize, recording the pads into a song
     {
         const float kl = eng.kickLift.load(), hu = eng.humanize.load();
         g.setColour(kInk); g.setFont(mono(15));
-        g.drawText("KICK LIFT " + juce::String(juce::roundToInt(20 * std::log10(std::max(kl, 0.01f)))) + " dB", (int) rx, 448, 200, 24, juce::Justification::centredLeft);
-        button(g, { rx + 170, 448, 40, 24 }, "-", false, [this] { auto& e = ed.proc.engine; e.kickLift = std::max(1.f, e.kickLift.load() / 1.4125f); });
-        button(g, { rx + 214, 448, 40, 24 }, "+", false, [this] { auto& e = ed.proc.engine; e.kickLift = std::min(2.83f, e.kickLift.load() * 1.4125f); });
-        g.drawText("HUMANIZE " + juce::String(juce::roundToInt(hu * 100)) + "%", (int) rx + 262, 448, 150, 24, juce::Justification::centredLeft);
-        button(g, { rx + 380, 448, 38, 24 }, "-", false, [this] { auto& e = ed.proc.engine; e.humanize = std::max(0.f, e.humanize.load() - 0.25f); });
-        button(g, { rx + 422, 448, 38, 24 }, "+", false, [this] { auto& e = ed.proc.engine; e.humanize = std::min(1.f, e.humanize.load() + 0.25f); });
+        g.drawText("KICK LIFT " + juce::String(juce::roundToInt(20 * std::log10(std::max(kl, 0.01f)))) + " dB", (int) rx, 480, 200, 24, juce::Justification::centredLeft);
+        button(g, { rx + 170, 480, 40, 24 }, "-", false, [this] { auto& e = ed.proc.engine; e.kickLift = std::max(1.f, e.kickLift.load() / 1.4125f); });
+        button(g, { rx + 214, 480, 40, 24 }, "+", false, [this] { auto& e = ed.proc.engine; e.kickLift = std::min(2.83f, e.kickLift.load() * 1.4125f); });
+        g.drawText("HUMANIZE " + juce::String(juce::roundToInt(hu * 100)) + "%", (int) rx + 262, 480, 150, 24, juce::Justification::centredLeft);
+        button(g, { rx + 380, 480, 38, 24 }, "-", false, [this] { auto& e = ed.proc.engine; e.humanize = std::max(0.f, e.humanize.load() - 0.25f); });
+        button(g, { rx + 422, 480, 38, 24 }, "+", false, [this] { auto& e = ed.proc.engine; e.humanize = std::min(1.f, e.humanize.load() + 0.25f); });
         const bool rec = p.recording.load(), blink = rec && (juce::Time::getMillisecondCounter() / 400) % 2 == 0;
-        juce::Rectangle<float> rb(rx, 480, 226, 28);
+        juce::Rectangle<float> rb(rx, 512, 226, 28);
         if (blink) { g.setColour(juce::Colours::white); g.fillRect(rb); g.setColour(kBg); g.setFont(mono(17)); g.drawText("STOP: KEEP IT", rb, juce::Justification::centred); hit(rb, [this](const juce::MouseEvent&) { status = ed.proc.recordPads(); }); }
         else button(g, rb, rec ? "STOP: KEEP IT" : "REC DRUMS", rec, [this] { status = ed.proc.recordPads(); });
-        button(g, { rx + 234, 480, 110, 28 }, "LOOP", eng.songLoop.load(), [this] { ed.proc.engine.songLoop = !ed.proc.engine.songLoop.load(); });
-        button(g, { rx + 350, 480, 110, 28 }, "GRID", false, [this] { page = 'S'; songGrid = true; });
+        button(g, { rx + 234, 512, 110, 28 }, "LOOP", eng.songLoop.load(), [this] { ed.proc.engine.songLoop = !ed.proc.engine.songLoop.load(); });
+        button(g, { rx + 350, 512, 110, 28 }, "GRID", false, [this] { page = 'S'; songGrid = true; });
     }
     g.setColour(kDim); g.setFont(mono(12));
     const char* help[] = {
-        "Every pad is a General MIDI drum: a song's kick (36), snare (38) and hats",
-        "(42, 46) land on those pads. This kit plays every song's drums, MIDI ch 10",
-        "and the pads; Page K changes one song's kit on top of it.",
-        "REC DRUMS: the pads into the song's drum track (a new song if none), after",
-        "a bar's count-in, with the click; then GRID to edit it, HUMAN to loosen it." };
-    for (int i = 0; i < 5; ++i) g.drawText(help[i], (int) rx, 516 + i * 15, (int) rw, 15, juce::Justification::centredLeft);
+        "Banks A-C are the GM kit (a song's kick, snare, hats land there), D-H the",
+        "rest of MIDI ch 10, I-T MIDI ch 11 and 12. REC DRUMS records the pads into",
+        "the song; EDIT opens the sample editor (CHOP slices onto a free bank)." };
+    for (int i = 0; i < 3; ++i) g.drawText(help[i], (int) rx, 548 + i * 15, (int) rw, 15, juce::Justification::centredLeft);
 }
 
 void Screen::drawKit(juce::Graphics& g) {

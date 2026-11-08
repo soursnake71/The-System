@@ -14,6 +14,8 @@
 
 namespace cmi {
 
+inline std::vector<std::string> splitSemi(const std::string& s) { std::vector<std::string> o; size_t a = 0; while (a < s.size()) { size_t b = s.find(';', a); if (b == std::string::npos) b = s.size(); if (b > a) o.push_back(s.substr(a, b - a)); a = b + 1; } return o; }
+
 enum class Part { None, Kick, Snare, Rim, Clap, ClosedHat, PedalHat, OpenHat, Tom, Crash, Ride, RideBell, China, Splash,
                   Tamb, Cowbell, Conga, Bongo, Timbale, Agogo, Cabasa, Shaker, Whistle, Guiro, Claves, Wood, Cuica, Triangle, Vibraslap, Count };
 constexpr int PARTS = (int) Part::Count;
@@ -39,13 +41,22 @@ inline std::vector<int> partNotes(Part p) {
 inline Part partOfNote(int n) { for (int p = 1; p < PARTS; ++p) for (int x : partNotes((Part) p)) if (x == n) return (Part) p; return Part::None; }
 
 // the pads: bank 0..2, pad 0..15 (pad 0 bottom left, as on an MPC) -> a GM drum note
-constexpr int PAD_BANKS = 3;
+constexpr int PAD_BANKS = 20;   // A-C the GM kit, D-H channel 10's other notes, I-T channels 11 and 12
 inline int padNote(int bank, int pad) {
-    static const int n[PAD_BANKS][16] = {
+    static const int n[3][16] = {
         { 36, 38, 42, 46, 37, 39, 44, 49, 41, 45, 48, 50, 51, 53, 54, 56 },   // the kit
         { 35, 40, 43, 47, 52, 55, 57, 59, 58, 60, 61, 62, 63, 64, 65, 66 },   // more kit, bongos, congas, timbales
         { 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82 } }; // percussion
-    return bank >= 0 && bank < PAD_BANKS && pad >= 0 && pad < 16 ? n[bank][pad] : -1;
+    if (bank < 0 || bank >= PAD_BANKS || pad < 0 || pad >= 16) return -1;
+    if (bank < 3) return n[bank][pad];
+    if (bank < 8) { const int k = (bank - 3) * 16 + pad; return k < 35 ? k : k + 48; }   // channel 10: 0-34, then 83-127
+    return 128 + (bank - 8) * 16 + pad;                                                     // channels 11 and 12
+}
+inline char padBankLetter(int bank) { return (char) ('A' + bank); }
+// a pad's name: its GM drum, else where it plays ("CH10 12", "CH11 64")
+inline std::string padName(int k) {
+    if (k >= 35 && k <= 82) return gmDrumName(k);
+    return "CH" + std::to_string(10 + k / 128) + " " + std::to_string(k % 128);
 }
 
 // ---- what a sound is, from its name (a CMI voice "HHOPEN1", a file "Kick 808 (hard).wav", "OH_02", "Tom Lo") ----
@@ -215,7 +226,24 @@ inline DrumKit randomKit(const Catalog& cat, uint32_t seed) {
         if (chance(0.4)) { const int t2 = pick(Part::Tom); if (t2 >= 0 && t2 != t1) ch[(size_t) Part::Tom].voices.push_back(catVoiceName(cat, t2)); }
         ch[(size_t) Part::Tom].tune = chance(0.4) ? tuneBy(4) : 0;
     }
-    return kitFromParts(ch);
+    DrumKit k = kitFromParts(ch);
+    // every pad of banks A-C sounds: a part the library has no voice for gets a drum of a near kind, retuned
+    std::vector<int> any; for (int pi = 1; pi < PARTS; ++pi) for (int ci : ld.by[(size_t) pi]) any.push_back(ci);
+    for (int b = 0; b < 3 && !any.empty(); ++b) for (int i = 0; i < 16; ++i) {
+        const int n = padNote(b, i); KitPiece& p = k.p[(size_t) n];
+        if (!p.voice.empty()) continue;
+        static const Part near[] = { Part::Wood, Part::Cowbell, Part::Tamb, Part::Cabasa, Part::Rim, Part::Conga, Part::Bongo, Part::ClosedHat };
+        int ci = -1; for (Part q : near) if (ci < 0 && !ld.by[(size_t) q].empty()) ci = ld.by[(size_t) q][(size_t) (r() % ld.by[(size_t) q].size())];
+        if (ci < 0) ci = any[(size_t) (r() % any.size())];
+        p.voice = catVoiceName(cat, ci); p.tune = (float) ((int) (r() % 13) - 6); p.level = 0.85f;
+    }
+    // round robin: the kick, snare and hats get another voice or two of their kind to cycle through
+    for (int n : { 36, 38, 40, 42, 46 }) {
+        const Part part = partOfNote(n); const auto& c = ld.by[(size_t) part]; KitPiece& p = k.p[(size_t) n];
+        if (c.size() < 2 || p.voice.empty()) continue;
+        for (int t = 0, got = 0; t < 6 && got < 2; ++t) { const std::string v = catVoiceName(cat, c[(size_t) (r() % c.size())]); if (v != p.voice && p.rr.find(v) == std::string::npos) { p.rr += (p.rr.empty() ? "" : ";") + v; ++got; } }
+    }
+    return k;
 }
 
 // ---- 100 kit presets from the IIx factory disks ----
@@ -291,8 +319,17 @@ inline const std::vector<KitPreset>& kitPresets() {
 inline int fitKitToLibrary(DrumKit& k, const Catalog& cat) {
     if (cat.voices.empty()) return 0;
     LibraryDrums ld(cat); int n = 0;
-    for (int note = 0; note < 128; ++note) {
+    auto one = [&](const std::string& v, int note) -> std::string {
+        const size_t at = v.find('@');
+        const std::string nm = v.substr(0, at), dk = at == std::string::npos ? "" : v.substr(at + 1);
+        if (dk == "User") return v;
+        int ci = cat.find(nm, dk); if (ci < 0) ci = cat.find(nm);
+        if (ci < 0) { Part part = partOfName(nm).part; if (part == Part::None) part = partOfNote(note); const auto& c = ld.by[(size_t) part]; ci = c.empty() ? -1 : c[(size_t) (std::hash<std::string>()(nm) % c.size())]; }
+        return ci < 0 ? std::string() : catVoiceName(cat, ci);
+    };
+    for (int note = 0; note < KIT_SLOTS; ++note) {
         KitPiece& p = k.p[(size_t) note];
+        if (!p.rr.empty()) { std::string o; for (const auto& v : splitSemi(p.rr)) { const std::string r = one(v, note); if (!r.empty()) o += (o.empty() ? "" : ";") + r; } p.rr = o; }
         if (p.voice.empty()) continue;
         const size_t at = p.voice.find('@');
         const std::string nm = p.voice.substr(0, at), dk = at == std::string::npos ? "" : p.voice.substr(at + 1);
@@ -382,10 +419,10 @@ inline std::string importKitSamples(std::vector<KitSample>& files, Kit& kit, Dru
     std::stable_sort(toms.begin(), toms.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     for (const auto& t : toms) ch[(size_t) Part::Tom].voices.push_back(t.second);
     DrumKit k = kitFromParts(ch);
-    if (!replaceKit) for (int n = 0; n < 128; ++n) if (k.p[(size_t) n].voice.empty()) k.p[(size_t) n] = pads.p[(size_t) n];
-    // the sounds it couldn't place: onto pads still free, the percussion banks first
+    if (!replaceKit) for (int n = 0; n < KIT_SLOTS; ++n) if (k.p[(size_t) n].voice.empty()) k.p[(size_t) n] = pads.p[(size_t) n];
+    // the sounds it couldn't place: onto pads still free, bank D onwards
     int placed = 0;
-    for (int b = PAD_BANKS - 1; b >= 0 && placed < (int) others.size(); --b)
+    for (int b = 3; b < PAD_BANKS && placed < (int) others.size(); ++b)
         for (int i = 0; i < 16 && placed < (int) others.size(); ++i) { const int n = padNote(b, i); if (k.p[(size_t) n].voice.empty()) k.p[(size_t) n].voice = others[(size_t) placed++]; }
     pads = k;
     std::string parts;

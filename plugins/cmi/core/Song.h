@@ -522,11 +522,13 @@ inline KitPiece mergePiece(const KitPiece& pad, const KitPiece& song) {
     if (!song.voice.empty()) { m.voice = song.voice; m.tune = song.tune; } else m.tune += song.tune;
     m.level *= song.level; if (song.pan >= 0) m.pan = song.pan; m.mute |= song.mute; m.solo |= song.solo;
     if (song.a >= 0) m.a = song.a; if (song.d >= 0) m.d = song.d; if (song.s >= 0) m.s = song.s; if (song.r >= 0) m.r = song.r;
+    if (song.f >= 0) m.f = song.f; if (song.lr >= 0) m.lr = song.lr; if (song.ld >= 0) m.ld = song.ld; if (!song.rr.empty()) m.rr = song.rr;
     return m;
 }
 // the kits into the engine: the pads' kit with the song's changes on top
 inline void pushKit(Engine& eng) {
-    for (int n = 0; n < 128; ++n) {
+    eng.kitRROn = eng.padKit.rrOn;
+    for (int n = 0; n < KIT_SLOTS; ++n) {
         const KitPiece p = mergePiece(eng.padKit.p[(size_t) n], eng.songKit.p[(size_t) n]);
         eng.kitSound[(size_t) n] = p.voice.empty() || !eng.bank ? -1 : findVoiceAt(*eng.bank, p.voice);
         eng.kitLevel[(size_t) n] = p.level; eng.kitPan[(size_t) n] = p.pan; eng.kitTune[(size_t) n] = p.tune;
@@ -534,6 +536,12 @@ inline void pushKit(Engine& eng) {
         const float* ke = eng.padKit.env;   // a pad's own envelope, else the kit's
         eng.kitEnvA[(size_t) n] = p.a >= 0 ? p.a : ke[0]; eng.kitEnvD[(size_t) n] = p.d >= 0 ? p.d : ke[1];
         eng.kitEnvS[(size_t) n] = p.s >= 0 ? p.s : ke[2]; eng.kitEnvR[(size_t) n] = p.r >= 0 ? p.r : ke[3];
+        const float* kf = eng.padKit.fx;
+        eng.kitFilt[(size_t) n] = p.f >= 0 ? p.f : kf[0]; eng.kitLfoR[(size_t) n] = p.lr >= 0 ? p.lr : kf[1]; eng.kitLfoD[(size_t) n] = p.ld >= 0 ? p.ld : kf[2];
+        int rn = 0;
+        if (!p.rr.empty() && eng.bank) { size_t a = 0; while (a < p.rr.size() && rn < 4) { size_t b = p.rr.find(';', a); if (b == std::string::npos) b = p.rr.size();
+            const int v = findVoiceAt(*eng.bank, p.rr.substr(a, b - a)); if (v >= 0) eng.kitRR[(size_t) n][(size_t) rn++] = v; a = b + 1; } }
+        eng.kitRRn[(size_t) n] = rn;
     }
 }
 inline void applyKit(Engine& eng, const DrumKit& songKit) { eng.songKit = songKit; pushKit(eng); }

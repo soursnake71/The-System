@@ -359,14 +359,20 @@ public class CmiView extends View {
     private int padBank = 0, padSel = 1; private boolean adsrKit = false, padEditPick = false;
     private static String envMs(float v) { final double u = Math.max(0, Math.min(31, v)) / 31.0, s = Math.max(0.0004, 12.0 * u * u * u); return s < 1 ? Math.round(s * 1000) + "ms" : String.format(java.util.Locale.US, "%.1fs", s); }
     private void openEditor(int note) { if (Native.editBegin(note)) { edBack = 'P'; page = 'W'; status("EDITING " + Native.editInfo().split("\t", -1)[0]); } else status("NO SOUND ON THIS PAD TO EDIT (OR NO VOICE FREE)"); }
-    private void padSoundDialog(final int note, String gm) {
-        final List<String> labels = new ArrayList<>(); final List<int[]> ids = new ArrayList<>();   // {kind, index}: 0 auto, 1 catalogue, 2 loaded voice
-        labels.add("Automatic (the CMI drum map)"); ids.add(new int[] { 0, 0 });
+    private void padSoundDialog(final int note, String gm) { padSoundDialog(note, gm, false); }
+    private void padSoundDialog(final int note, String gm, final boolean rrAdd) {
+        final List<String> labels = new ArrayList<>(); final List<int[]> ids = new ArrayList<>();   // {kind, index}: 0 auto, 1 catalogue, 2 loaded voice, 3 add RR, 4 clear RR
+        if (!rrAdd) { labels.add("Automatic (the CMI drum map)"); ids.add(new int[] { 0, 0 });
+            labels.add(">> Round robin: add a voice to cycle"); ids.add(new int[] { 3, 0 });
+            labels.add(">> Round robin: clear this pad's"); ids.add(new int[] { 4, 0 }); }
         for (String line : Native.padPartVoices(note)) { String[] f = line.split("\t", -1); if (f.length < 3) continue; labels.add(f[1] + "   " + f[2]); ids.add(new int[] { 1, Integer.parseInt(f[0]) }); }
         for (int k = 0; k < Native.USER_SLOTS; ++k) if (Native.userLoaded(k) && !Native.userFromLibrary(k)) { String[] f = info(Native.userSlot(k)); labels.add(f[0] + "   (your sample)"); ids.add(new int[] { 2, Native.userSlot(k) }); }
-        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(note + " " + gm + ": its sound")
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(gm + (rrAdd ? ": round robin voice" : ": its sound"))
                 .setItems(labels.toArray(new String[0]), (d, w) -> {
                     final int[] id = ids.get(w);
+                    if (id[0] == 3) { padSoundDialog(note, gm, true); return; }
+                    if (id[0] == 4) { Native.clearPadRR(note); act.saveState(); status("ROUND ROBIN CLEARED"); return; }
+                    if (rrAdd) { if (id[0] == 1) Native.addPadRR(note, -1, id[1]); else Native.addPadRR(note, id[1], -1); act.saveState(); status("ROUND ROBIN ON"); invalidate(); return; }
                     if (id[0] == 0) Native.setPadVoice(note, -1); else if (id[0] == 1) Native.setPadCatalogVoice(note, id[1]); else Native.setPadVoice(note, id[1]);
                     act.saveState(); invalidate();
                 }).show();
@@ -400,8 +406,16 @@ public class CmiView extends View {
                         }).show());
         y += dp(32);
         // banks
-        final String[] bankNames = { "A KIT", "B MORE", "C PERC" };
-        for (int k = 0; k < 3; ++k) { final int bk = k; button(c, new RectF(b.left + k * (bw + dp(4)), y, b.left + k * (bw + dp(4)) + bw, y + dp(24)), bankNames[k], padBank == k, () -> padBank = bk); }
+        {   // the banks: A-C the GM kit, D-H channel 10's other notes, I-T channels 11 and 12
+            final int nb = Native.padBanks();
+            button(c, new RectF(b.left, y, b.left + bw * 0.5f, y + dp(24)), "<", false, () -> padBank = (padBank + nb - 1) % nb);
+            final String[] what = { "KIT", "MORE", "PERC" };
+            textC(c, "BANK " + (char) ('A' + padBank) + (padBank < 3 ? " " + what[padBank] : padBank < 8 ? " CH10" : padBank < 16 ? " CH11" : " CH12"), new RectF(b.left + bw * 0.5f, y, b.left + bw * 2.5f, y + dp(24)), 11, INK);
+            hit(new RectF(b.left + bw * 0.5f, y, b.left + bw * 2.5f, y + dp(24)), (xx, yy) -> {
+                final String[] items = new String[nb]; for (int k = 0; k < nb; ++k) items[k] = "BANK " + (char) ('A' + k) + (k < 3 ? " (GM KIT)" : k < 8 ? " (CH 10)" : k < 16 ? " (CH 11)" : " (CH 12)");
+                new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Pad bank").setItems(items, (d, w2) -> padBank = w2).show(); });
+            button(c, new RectF(b.left + bw * 2.5f, y, b.left + bw * 3f + dp(4) - dp(4), y + dp(24)), ">", false, () -> padBank = (padBank + 1) % nb);
+        }
         final boolean c10 = Native.ch10Kit();
         button(c, new RectF(b.left + 3 * (bw + dp(4)), y, b.left + 4 * (bw + dp(4)) - dp(4), y + dp(24)), c10 ? "CH10 KIT" : "CH10 KEY", c10, () -> { Native.setCh10Kit(!c10); act.saveState(); });
         button(c, new RectF(b.left + 4 * (bw + dp(4)), y, b.right, y + dp(24)), padEditPick ? "TAP A PAD" : "EDIT", padEditPick, () -> { padEditPick = !padEditPick; status(padEditPick ? "TAP THE PAD WHOSE SOUND YOU WANT TO EDIT" : "READY"); });
@@ -409,7 +423,7 @@ public class CmiView extends View {
         // the pad chosen: its sound, tuning, level, pan, mute, solo
         final int sel = Native.padNote(padBank, padSel);
         final String[] f = Native.padInfo(sel).split("\t", -1);
-        final float detailH = portrait ? dp(192) : dp(64);
+        final float detailH = portrait ? dp(218) : dp(64);
         final float gridBottom = b.bottom - detailH - dp(6);
         // the pads, 4 x 4, pad 1 bottom left
         final float gw = portrait ? b.width() : Math.min(b.width() * 0.6f, (gridBottom - y) * 1.3f);
@@ -422,11 +436,11 @@ public class CmiView extends View {
             if (km > 0.5f) fill(c, r, INK);   // like every button: a frame, lit while it sounds
             if (i == padSel) { p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2.5f)); p.setColor(INK); c.drawRect(r, p); p.setStyle(Paint.Style.FILL); } else frame(c, r, DIM);
             final int tc = km > 0.5f ? BG : INK;
-            text(c, (padBank * 16 + i + 1) + " " + note, r.left + dp(4), r.top + dp(11), 8, tc);
+            text(c, (char) ('A' + padBank) + "" + (i + 1), r.left + dp(4), r.top + dp(11), 8, tc);
             if (pf.length >= 9) {
                 textC(c, pf[7], new RectF(r.left, r.top + ph * 0.25f, r.right, r.top + ph * 0.55f), ph > dp(60) ? 11 : 9, tc);
                 final boolean chosen = !pf[0].isEmpty();
-                final String vn = chosen ? pf[0].split("@")[0] : "(" + pf[6] + ")";
+                final String vn = (chosen ? pf[0].split("@")[0] : "(" + pf[6] + ")") + (pf.length > 9 && !pf[9].equals("0") ? " RR" + (Integer.parseInt(pf[9]) + 1) : "");
                 textC(c, vn, new RectF(r.left, r.top + ph * 0.55f, r.right, r.top + ph * 0.85f), 9, km > 0.5f ? BG : chosen ? INK : DIM);
             }
             final int ii = i;
@@ -440,7 +454,7 @@ public class CmiView extends View {
         final boolean mute = f[4].equals("1"), solo = f[5].equals("1");
         float dx = portrait ? b.left : b.left + gw + dp(12), dy = portrait ? gridBottom + dp(6) : y;
         final float dw = portrait ? b.width() : b.right - dx;
-        text(c, "PAD " + (padBank * 16 + padSel + 1) + "  " + f[7] + "  NOTE " + sel, dx, dy + dp(12), 11, INK);
+        text(c, "PAD " + (char) ('A' + padBank) + (padSel + 1) + "  " + f[7] + "  CH" + (10 + sel / 128) + " NOTE " + (sel % 128), dx, dy + dp(12), 11, INK);
         final RectF vb = new RectF(dx, dy + dp(18), dx + dw * 0.72f, dy + dp(42));
         button(c, new RectF(dx + dw * 0.72f + dp(6), dy + dp(18), dx + dw, dy + dp(42)), "EDIT", false, () -> openEditor(sel));
         frame(c, vb, INK); textC(c, "SOUND: " + (f[0].isEmpty() ? "AUTO (" + f[6] + ")" : f[0].replace("@", "  ")), vb, 10, INK);
@@ -478,8 +492,23 @@ public class CmiView extends View {
                 Hit ah = hit(ab, aa); ah.drag = aa; ah.longPress = true; ah.hold = (xx, yy) -> { Native.setPadEnv(target, ii, -1); act.saveState(); }; ah.up = (xx, yy) -> { act.saveState(); Native.tapPad(sel); };
             }
         }
+        {   // filter and LFO (the same PAD / KIT; hold a bar: back to the voice's own), round robin on / off
+            final float fy = by + dp(52), rrw = dp(60), fw = (dw - rrw - dp(6) - 2 * dp(4)) / 3;
+            final int target = adsrKit ? -1 : sel; final float[] fv = Native.padFx(target);
+            final float[] mx = { 255, 20, 12 }; final String[] fn2 = { "FILTER", "LFO", "DEPTH" };
+            for (int i = 0; i < 3; ++i) {
+                final int ii = i; final float bx0 = dx + i * (fw + dp(4)); final RectF fb = new RectF(bx0, fy, bx0 + fw, fy + dp(20));
+                final float v = fv[i], frac = v < 0 ? 0 : v / mx[i];
+                fill(c, fb, FAINT); if (v >= 0) fill(c, new RectF(fb.left, fb.top, fb.left + fb.width() * frac, fb.bottom), INK);
+                textC(c, v < 0 ? fn2[i] + " --" : i == 0 ? "FILT " + Math.round(v) : i == 1 ? String.format(java.util.Locale.US, "LFO %.1fHz", v) : String.format(java.util.Locale.US, "DEP %.1f", v), fb, 9, v >= 0 && frac > 0.5f ? BG : INK);
+                Act fa = (xx, yy) -> Native.setPadFx(target, ii, Math.max(0, Math.min(1, (xx - fb.left) / fb.width())) * mx[ii]);
+                Hit fh2 = hit(fb, fa); fh2.drag = fa; fh2.longPress = true; fh2.hold = (xx, yy) -> { Native.setPadFx(target, ii, -1); act.saveState(); }; fh2.up = (xx, yy) -> { act.saveState(); Native.tapPad(sel); };
+            }
+            final boolean rr = Native.rrOn();
+            button(c, new RectF(dx + dw - rrw, fy, dx + dw, fy + dp(20)), rr ? "RR ON" : "RR OFF", rr, () -> { Native.setRROn(!rr); act.saveState(); status(!rr ? "ROUND ROBIN ON: ADD VOICES TO A PAD WITH SOUND" : "ROUND ROBIN OFF"); });
+        }
         {   // kick lift, humanize, REC DRUMS (the pads into the song's drum track)
-            final float ky = by + dp(52), kw = (dw - dp(12)) / 6;
+            final float ky = by + dp(78), kw = (dw - dp(12)) / 6;
             final float kl = Native.kickLift(), hu = Native.humanize();
             button(c, new RectF(dx, ky, dx + kw, ky + dp(22)), "KICK-", false, () -> { Native.setKickLift(kl / 1.4125f); act.saveState(); });
             textC(c, "+" + Math.round(20 * Math.log10(Math.max(kl, 0.01f))) + "dB", new RectF(dx + kw, ky, dx + 2 * kw, ky + dp(22)), 9, INK);
@@ -491,8 +520,8 @@ public class CmiView extends View {
             button(c, new RectF(dx, ky + dp(26), dx + dw * 0.5f, ky + dp(50)), rec ? "STOP: KEEP IT" : "REC DRUMS", rec, () -> { status(Native.recordPads()); act.saveState(); });
             button(c, new RectF(dx + dw * 0.5f + dp(6), ky + dp(26), dx + dw, ky + dp(50)), "GRID", false, () -> { page = 'S'; grid = true; });
         }
-        if (!portrait && by + dp(136) < b.bottom) {
-            final float hy = by + dp(112);
+        if (!portrait && by + dp(162) < b.bottom) {
+            final float hy = by + dp(138);
             button(c, new RectF(dx, hy, dx + half, hy + dp(24)), "SONG'S OWN KIT", false, () -> { kitBack = 'P'; page = 'K'; });
             final boolean run = Native.songRunning();
             button(c, new RectF(dx + half + dp(8), hy, dx + dw, hy + dp(24)), "PLAY SONG", run, () -> Native.songPlay(!run));
@@ -980,7 +1009,7 @@ public class CmiView extends View {
         final int len = w8.length, np = Math.max(1, len / 128), a = sel[0], bb = sel[1], ls = sel[2], le = sel[3];
         text(c, "SAMPLE EDIT  " + f[0] + "  ON " + f[1] + " (" + f[4] + ")", b.left, b.top + dp(12), 12, INK);
         text(c, f[2] + " Hz  " + len + " B  " + String.format(java.util.Locale.US, "%.3f s", len / Math.max(1f, Float.parseFloat(f[2]))) + "  SEL " + a + "-" + bb + (ls >= 0 ? "  LOOP " + (ls + 1) + "-" + (le + 1) : ""), b.left, b.top + dp(26), 9, DIM);
-        final float btnH = dp(24), rowsB = 3, btnArea = rowsB * (btnH + dp(4));
+        final float btnH = dp(24), rowsB = 4, btnArea = rowsB * (btnH + dp(4));
         final float ovH = portrait ? dp(70) : dp(48);
         final RectF view3d = new RectF(b.left, b.top + dp(32), b.right, b.bottom - btnArea - ovH - dp(10));
         // 3D: page by page, the selection bright, the loop in ink
@@ -1023,19 +1052,27 @@ public class CmiView extends View {
         oh.drag = (xx, yy) -> Native.editSelect(edAnchor, Math.max(0, Math.min(len, Math.round((xx - ov.left) / ov.width() * len))));
         // the edits
         final int note = Integer.parseInt(f[4]);
-        final String[] lbl = { "PLAY", "ALL", "TRIM", "CUT", "SILENCE", "NORM", "REVERSE", "FADE IN", "FADE OUT", "-3 dB", "+3 dB", "LOOP SEL", "NO LOOP", "UNDO", "REVERT", "CLOSE", "", "" };
+        final String[] lbl = { "PLAY", "ALL", "TRIM", "CUT", "SILENCE", "NORM", "REVERSE", "FADE IN", "FADE OUT", "-3 dB", "+3 dB", "LOOP SEL", "NO LOOP", "UNDO", "REVERT", "CLOSE", "CHOP HITS", "CHOP 4", "CHOP 8", "CHOP 16" };
         final Runnable[] fn = {
                 () -> Native.tapPad(note), () -> Native.editOp(0, 0), () -> Native.editOp(1, 0), () -> Native.editOp(2, 0), () -> Native.editOp(3, 0), () -> Native.editOp(4, 0),
                 () -> Native.editOp(5, 0), () -> Native.editOp(6, 0), () -> Native.editOp(7, 0), () -> Native.editOp(8, -3), () -> Native.editOp(8, 3), () -> Native.editOp(9, 0),
                 () -> Native.editOp(10, 0), () -> Native.editOp(11, 0),
                 () -> { Native.editRevert(); act.saveState(); status("PAD BACK AS IT WAS"); page = edBack; },
-                () -> { Native.editClose(); act.saveState(); status("KEPT: " + f[0] + " ON THE PAD (YOUR SAMPLES)"); page = edBack; }, null, null };
+                () -> { Native.editClose(); act.saveState(); status("KEPT: " + f[0] + " ON THE PAD (YOUR SAMPLES)"); page = edBack; },
+                () -> chop(0), () -> chop(4), () -> chop(8), () -> chop(16) };
         final int per = 6; final float bw = (b.width() - dp(4) * (per - 1)) / per;
         for (int i = 0; i < lbl.length; ++i) {
             if (fn[i] == null) continue;
             final float rx = b.left + (i % per) * (bw + dp(4)), ry = b.bottom - btnArea + (i / per) * (btnH + dp(4));
             final int ii = i;
             button(c, new RectF(rx, ry, rx + bw, ry + btnH), lbl[i], i == 15, () -> { fn[ii].run(); if (ii >= 2 && ii <= 13) Native.tapPad(note); });
+        }
+    }
+    private void chop(int n) {
+        final int[] r = Native.editChop(n);
+        if (r[0] < 0) { status("NOTHING TO CHOP, OR NO FREE BANK"); return; }
+        padBank = r[0]; padSel = 0; act.saveState(); status(r[1] + " SLICES ON BANK " + (char) ('A' + r[0]));
+        {
         }
     }
 

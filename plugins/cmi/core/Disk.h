@@ -254,6 +254,20 @@ inline bool vcToSound(const std::vector<uint8_t>& vc, const std::string& name, c
     }
     Controls c; c.attack = 0; c.damp = 8; c.sustain = 1; c.loop = 1; c.filter = 255; c.velVol = 0.5f; c.velFilt = 0.2f; c.segTime = 0.04f;
     s.ctl = c;
+    if (mode == 4) {   // the voice's cycle (normalised autocorrelation over its loop, or its middle): 64 samples is an octave up
+        const int n = (int) s.ram.size(); int a0, len;
+        if (s.loopStart >= 0) { a0 = s.loopStart * PAGE; len = std::min(4096, (s.loopEnd + 1) * PAGE - a0); } else { a0 = n / 5; len = std::min(4096, n / 2); }
+        if (len >= 512) {
+            std::vector<double> x((size_t) len); double m = 0; for (int i = 0; i < len; ++i) { x[(size_t) i] = (int) s.ram[(size_t) (a0 + i)] - 128; m += x[(size_t) i]; } m /= len; for (auto& v : x) v -= m;
+            double e0 = 0; for (int i = 0; i < len / 2; ++i) e0 += x[(size_t) i] * x[(size_t) i];
+            if (e0 > 1) {
+                std::vector<double> r(1026, 0.0); double best = 0;
+                for (int L = 8; L <= 1024 && L < len / 2; ++L) { double c = 0, e1 = 0; for (int i = 0; i < len / 2; ++i) { c += x[(size_t) i] * x[(size_t) (i + L)]; e1 += x[(size_t) (i + L)] * x[(size_t) (i + L)]; } r[(size_t) L] = c / std::sqrt(e0 * e1 + 1e-9); best = std::max(best, r[(size_t) L]); }
+                int P = 0; for (int L = 9; L < 1024 && L < len / 2 - 1; ++L) if (r[(size_t) L] >= best * 0.9 && r[(size_t) L] >= r[(size_t) L - 1] && r[(size_t) L] >= r[(size_t) L + 1]) { P = L; break; }
+                if (P > 0 && best >= 0.85) { const double off = 12 * std::log2(128.0 / P); if (std::fabs(off) >= 9) s.octaveFix = -12 * (int) std::lround(off / 12); }
+            }
+        }
+    }
     if (mode == 4) {   // silence ahead of the sound (BDRUM, PERCSTK: 0.4 s, the sampling trigger set early): start where it begins
         size_t at = 0; while (at < s.ram.size() && std::abs((int) s.ram[at] - 128) <= 8) ++at;
         if (at > 3000 && at < s.ram.size()) s.startPage = (int) (at / PAGE);

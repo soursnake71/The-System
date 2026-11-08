@@ -44,6 +44,36 @@ struct SampleEdit {
     void gain(double db) { push(); const double g = std::pow(10.0, db / 20); for (int i = a; i < b; ++i) put(i, at(i) * g); }
     void loopSelection() { push(); s.loopStart = a / PAGE; s.loopEnd = std::max(s.loopStart, (b - 1) / PAGE); s.ctl.loop = 1; }
     void noLoop() { push(); s.loopStart = s.loopEnd = -1; }
+    // chopping: where the selection splits, into n equal slices, or (n 0) at each hit (a sharp rise, 50 ms apart at
+    // least), at most 16; each slice [start, end)
+    std::vector<std::pair<int, int>> slices(int n) const {
+        std::vector<int> cuts;
+        if (n > 0) for (int k = 0; k < n; ++k) cuts.push_back(a + (int) ((int64_t) (b - a) * k / n));
+        else {
+            const int win = std::max(32, (int) (s.rate * 0.005)), gap = (int) (s.rate * 0.05);
+            int pk = 1; for (int i = a; i < b; ++i) pk = std::max(pk, std::abs(at(i)));
+            double prev = 0; int last = -gap;
+            for (int i = a; i + win <= b; i += win) {
+                double e = 0; for (int j = i; j < i + win; ++j) e += std::abs(at(j)); e /= win;
+                if (e > pk * 0.12 && e > prev * 2.0 && i - last >= gap) { cuts.push_back(i); last = i; }
+                prev = e;
+            }
+            if (cuts.empty() || cuts[0] > a + win) cuts.insert(cuts.begin(), a);
+        }
+        if (cuts.size() > 16) cuts.resize(16);
+        std::vector<std::pair<int, int>> o;
+        for (size_t k = 0; k < cuts.size(); ++k) { const int e = k + 1 < cuts.size() ? cuts[k + 1] : b; if (e - cuts[k] >= PAGE / 2) o.push_back({ cuts[k], e }); }
+        return o;
+    }
+    // a slice as a voice of its own: its samples, whole pages, a short fade at its end so it doesn't click
+    Sound slice(int from, int to, const std::string& name) const {
+        Sound o = s; o.name = name; o.category = "User"; o.title = "Slice of " + s.name; o.fromLibrary = false; o.waiting = false; o.startPage = 0; o.loopStart = o.loopEnd = -1;
+        o.ram.assign(s.ram.begin() + from, s.ram.begin() + to);
+        const int fl = std::min((int) o.ram.size() / 4, (int) (s.rate * 0.004)); const int n = (int) o.ram.size();
+        for (int i = 0; i < fl; ++i) { const int k = n - 1 - i; o.ram[(size_t) k] = (uint8_t) clampi((int) std::lround(((int) o.ram[(size_t) k] - 128) * (double) i / fl) + 128, 1, 255); }
+        o.ram.resize((size_t) ((n + PAGE - 1) / PAGE * PAGE), 0x80);
+        return o;
+    }
     // the 8-bit samples to draw (-128..127)
     std::vector<int8_t> view() const { std::vector<int8_t> v((size_t) len()); for (int i = 0; i < len(); ++i) v[(size_t) i] = (int8_t) at(i); return v; }
 };
@@ -75,6 +105,26 @@ struct PadEditor {
         DrumKit k = eng.padKit; k.p[(size_t) note].voice = ed.s.name + "@User"; applyPads(eng, k);
     }
     void close() { open = false; }
+    // CHOP: the selection's slices (n equal, or 0: at its hits) as voices of your own on a free bank's pads (D onwards),
+    // in order; the pad being edited keeps its sound. Returns the bank, or -1 (no slices, no free bank or voices)
+    int chop(Kit& kit, Engine& eng, int n, int* count = nullptr) {
+        if (!open) return -1;
+        const auto sl = ed.slices(n); if (sl.empty()) return -1;
+        int bank = -1;
+        for (int b = 3; b < PAD_BANKS && bank < 0; ++b) { bool free = true; for (int i = 0; i < 16; ++i) free &= eng.padKit.p[(size_t) padNote(b, i)].voice.empty(); if (free) bank = b; }
+        if (bank < 0) return -1;
+        DrumKit k = eng.padKit; int made = 0;
+        const std::string base = ed.s.name.substr(0, 5);
+        for (size_t i = 0; i < sl.size() && i < 16; ++i) {
+            const int slot = kit.firstFree(); if (slot < 0) break;
+            const std::string nm = kitSampleName(kit.bank, base + std::to_string(i + 1));
+            kit.setUser(slot, ed.slice(sl[i].first, sl[i].second, nm));
+            k.p[(size_t) padNote(bank, (int) i)].voice = nm + "@User"; ++made;
+        }
+        applyPads(eng, k);
+        if (count) *count = made;
+        return made ? bank : -1;
+    }
     // back as it was before editing
     void revert(Kit& kit, Engine& eng) {
         if (!open) return;

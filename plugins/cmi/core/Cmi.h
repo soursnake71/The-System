@@ -189,7 +189,9 @@ struct Sound {
     Controls ctl;            // the controls it was saved with
     bool fromLibrary = false;   // loaded from the library folder (a project keeps only its name and disk, not its sample)
     bool waiting = false;
-    int startPage = 0;          // where the card starts playing it (a voice sampled with silence ahead of its sound)       // its place kept until the library folder is read
+    int startPage = 0;
+    int octaveFix = 0;          // songs play it this many semitones from the note written (its cycle measured: most library
+                                // voices hold 2 or 4 cycles a page, an octave or two above the pitch rule's key)          // where the card starts playing it (a voice sampled with silence ahead of its sound)       // its place kept until the library folder is read
     int pages() const { return (int) ram.size() / PAGE; }
     // the key (fractional) that plays the sample at the speed it was recorded: a voice from a CMI disk (the pitch rule:
     // clock = 128 x the key's frequency) was sampled at the Series II's 30.2 kHz, so that's A#3 and 21 cents (the
