@@ -119,6 +119,8 @@ public:
     std::map<int, std::string> rememberedFor(const MidiSong& s) const;
     void remember(const MidiSong& s, int track, const std::string& what);
     void setSongMute(int track, bool m) { if (auto* e = songs.at(currentSong())) { e->mute[track] = m; engine.songMute[track] = m; } }
+    // a track one note at a time (or chords); remembered for the song
+    void setSongMono(int track, bool m) { if (auto* e = songs.at(currentSong())) { e->mono[track] = m; engine.songMono[track] = m; remember(*e->song, 200 + track, m ? "MONO" : "POLY"); } }
     void seqPlay(bool on) { engine.seqRun = on; }
     std::atomic<float> meter { 0 };
 

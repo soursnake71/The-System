@@ -640,6 +640,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
         el->setAttribute("index", i); el->setAttribute("name", juce::String(e->song->name));
         juce::String v, m; for (int t = 0; t < SONG_TRK; ++t) { v << e->voice[t] << " "; m << (e->mute[t] ? 1 : 0) << " "; }
         el->setAttribute("voices", v.trim()); el->setAttribute("mutes", m.trim());
+        { juce::String mo; for (int t = 0; t < SONG_TRK; ++t) mo << (e->mono[t] ? 1 : 0) << " "; el->setAttribute("monos", mo.trim()); }
         if (!e->kit.empty()) el->setAttribute("kit", juce::String(e->kit.save()));
         el->setAttribute("midi", juce::MemoryBlock(e->song->raw.data(), e->song->raw.size()).toBase64Encoding());
     }
@@ -699,6 +700,7 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
             auto vs = juce::StringArray::fromTokens(el->getStringAttribute("voices"), " ", ""), mu = juce::StringArray::fromTokens(el->getStringAttribute("mutes"), " ", "");
             if (auto* e = songs.at(i)) e->kit.load(el->getStringAttribute("kit").toStdString());
             if (auto* e = songs.at(i)) for (int t = 0; t < SONG_TRK; ++t) { if (t < vs.size()) { const int vi = vs[t].getIntValue(); e->voice[t] = vi == GM_KIT || !oldNumbers ? vi : Library::fromOldIndex(vi); } if (t < mu.size()) e->mute[t] = mu[t].getIntValue() != 0; }
+            if (auto* e = songs.at(i)) if (el->hasAttribute("monos")) { auto mo = juce::StringArray::fromTokens(el->getStringAttribute("monos"), " ", ""); for (int t = 0; t < SONG_TRK && t < mo.size(); ++t) e->mono[t] = mo[t].getIntValue() != 0; }
             if (el->getIntAttribute("index", -2) == want) pick = i;
         }
         chooseSong(pick);

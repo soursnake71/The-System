@@ -387,6 +387,11 @@ inline int connectSong(SongEntry& e, Kit& kit, const Catalog& cat, const std::ma
 // the kit lookup: the CMI drum voices loaded
 inline std::function<int(int)> cmiKitLookup(const Bank& bank) { return kitLookup(bank); }
 
+// the tracks you set mono or poly for this song (remembered as 200 + track -> "MONO" / "POLY")
+inline void applyMonoChoices(SongEntry& e, const std::map<int, std::string>& remembered) {
+    for (int t = 0; t < SONG_TRK; ++t) if (auto it = remembered.find(200 + t); it != remembered.end()) e.mono[t] = it->second == "MONO";
+}
+
 // A song on the library: its tracks matched to library voices once per library scan, whenever it's selected (so a
 // song loaded before the scan finished, or kept from an older version, plays the CMI voices too). Your choices for
 // the song (remembered: track -> "NAME@DISK", -1 -> its kit) win. force: match again now. True if it was matched.
@@ -415,6 +420,7 @@ inline bool ensureConnected(SongEntry& e, Kit& kit, const Catalog& cat, const st
     if (cat.voices.empty() || (!force && e.connectedGen == cat.gen)) return false;
     connectSong(e, kit, cat, remembered);
     if (auto it = remembered.find(-1); it != remembered.end()) e.kit.load(it->second);
+    applyMonoChoices(e, remembered);
     loadKitVoices(e.kit, kit, cat);
     e.connectedGen = cat.gen;
     return true;

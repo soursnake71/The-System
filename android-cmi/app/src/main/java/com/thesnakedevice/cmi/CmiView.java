@@ -1126,14 +1126,16 @@ public class CmiView extends View {
         final String[] lbl; final Runnable[] fns;
         if (!grid) {
             final boolean lib = Native.catalogCount() > 0;
-            lbl = new String[] { muted ? "MUTED" : "AUDIBLE", "VOICE", lib ? "CMI LIBRARY" : "AUTO MATCH", "EDIT GRID", "DRUM KIT", "PATTERNS" };
+            final boolean mono = Native.songMono(selTrack);
+            lbl = new String[] { muted ? "MUTED" : "AUDIBLE", "VOICE", lib ? "CMI LIBRARY" : "AUTO MATCH", mono ? "MONO" : "POLY", "EDIT GRID", "DRUM KIT", "PATTERNS" };
             fns = new Runnable[] { () -> { Native.setSongMute(selTrack, !muted); act.saveState(); }, () -> songVoiceDialog(selTrack),
                     () -> { if (lib) status(Native.connectToLibrary() + " TRACKS ON CMI LIBRARY VOICES"); else { Native.gmVoices(); status("SET A LIBRARY FOLDER (FIL) FOR THE ORIGINAL VOICES"); } act.saveState(); },
+                    () -> { Native.setSongMono(selTrack, !mono); status(mono ? "POLY: CHORDS" : "MONO: ONE NOTE AT A TIME"); act.saveState(); },
                     () -> grid = true, () -> { kitBack = 'S'; page = 'K'; }, () -> Native.selectSongAt(-1) };
             recRow(c, b.left, by + 2 * dp(26), b.width(), 0);
         } else { gridFooter(c, b, beat); return; }
-        final float bw = (b.width() - dp(12)) / 3;
-        for (int i = 0; i < lbl.length; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = by + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 0 && !grid && !muted, fns[i]); }
+        final float bw = (b.width() - dp(18)) / 4;
+        for (int i = 0; i < lbl.length; ++i) { float rx = b.left + (i % 4) * (bw + dp(6)), ry = by + (i / 4) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], (i == 0 && !grid && !muted) || (i == 3 && lbl[3].equals("MONO")), fns[i]); }
 
         RectF g = new RectF(b.left, t0 + dp(28), b.right, by - dp(6));
         final int nT = Native.SONG_TRK;

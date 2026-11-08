@@ -1317,7 +1317,7 @@ void Screen::drawMidiSong(juce::Graphics& g) {
         g.drawText(juce::String(t + 1).paddedLeft('0', 2) + " " + (used ? juce::String(snd ? snd->name : std::string("DRUM KIT")).paddedRight(' ', 9) : juce::String("--       ")), 32, (int) y, 180, (int) rh,
                    juce::Justification::centredLeft);
         g.setFont(mono(12)); g.setColour(kDim);
-        g.drawText(juce::String(s->trackName[t]).substring(0, 18) + (muted ? " MUTE" : ""), 200, (int) y, 180, (int) rh, juce::Justification::centredLeft);
+        g.drawText(juce::String(s->trackName[t]).substring(0, 16) + (eng.songMono[t] && used && v != GM_KIT ? " MONO" : "") + (muted ? " MUTE" : ""), 200, (int) y, 180, (int) rh, juce::Justification::centredLeft);
         hit({ 26, y, listW - 2, rh }, [this, t](const juce::MouseEvent& m) {
             selTrack = t;
             if (m.mods.isPopupMenu() || m.getNumberOfClicks() > 1) soundMenu([this, t](int idx) { ed.proc.setSongVoice(t, idx); });
@@ -1356,8 +1356,10 @@ void Screen::drawMidiSong(juce::Graphics& g) {
         });
         button(g, { 468, by, 130, 22 }, "EDIT GRID", false, [this] { songGrid = true; });
         button(g, { 608, by, 130, 22 }, "DRUM KIT", false, [this] { kitBack = 'S'; page = 'K'; });
+        const bool mo = eng.songMono[selTrack];
+        if (eng.songVoice[selTrack] != GM_KIT) button(g, { 748, by, 90, 22 }, mo ? "MONO" : "POLY", mo, [this, mo] { ed.proc.setSongMono(selTrack, !mo); status = mo ? "POLY: CHORDS" : "MONO: ONE NOTE AT A TIME"; });
         g.setColour(kDim); g.setFont(mono(12));
-        g.drawText(juce::String(entry->why[selTrack]).substring(0, 30), 744, (int) by, 236, 22, juce::Justification::centredLeft);
+        g.drawText(juce::String(entry->why[selTrack]).substring(0, 20), 844, (int) by, 136, 22, juce::Justification::centredLeft);
     } else {
         button(g, { 28, by, 110, 22 }, "UNDO", false, [this, entry] { if (undoSong(ed.proc.engine, entry)) status = "UNDONE"; });
         const char* sn = snap >= 1 ? "1/4" : snap >= 0.5 ? "1/8" : snap >= 0.25 ? "1/16" : "1/32";

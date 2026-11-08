@@ -215,6 +215,24 @@ inline TrackShape shapeOf(const MidiSong& s, int t) {
     return sh;
 }
 
+// a part played one note at a time: its notes (on a melodic channel) almost never overlap. Such parts sound best mono
+// on the CMI: a sampled note's tail doesn't run on under the next.
+inline bool monoPart(const MidiSong& s, int t) {
+    if (!s.used[t] || s.program[t] < 0) return false;
+    std::vector<std::pair<double, double>> n; std::vector<double> start(128, -1);
+    for (const auto& e : s.ev) {
+        if (e.track != t) continue;
+        const int hi = e.status & 0xF0;
+        if (hi == 0x90 && e.d2) start[e.d1] = e.beat;
+        else if ((hi == 0x80 || hi == 0x90) && start[e.d1] >= 0) { n.push_back({ start[e.d1], e.beat }); start[e.d1] = -1; }
+    }
+    if (n.size() < 4) return false;
+    std::sort(n.begin(), n.end());
+    int overlaps = 0; double end = -1;
+    for (const auto& x : n) { if (x.first < end - 0.06) ++overlaps; end = std::max(end, x.second); }   // a little legato is still a line
+    return overlaps * 50 < (int) n.size();   // under 2%
+}
+
 // the voice for each track; reason[t] says why (for the screen)
 inline void autoSongVoices(const MidiSong& s, const Bank& bank, int* voice, std::string* reason = nullptr) {
     const char* gmNames[16] = { "piano", "chromatic", "organ", "guitar", "bass", "strings", "ensemble", "brass", "reed", "pipe", "synth lead", "synth pad", "synth fx", "ethnic", "percussive", "effects" };
@@ -431,6 +449,7 @@ struct SongEntry {
     int voice[SONG_TRK] {}; bool mute[SONG_TRK] {}; std::string why[SONG_TRK];
     DrumKit kit;   // the drum kit's pieces (GM_KIT tracks)
     uint64_t connectedGen = 0;   // the library scan its tracks were matched to (0: not yet)
+    bool mono[SONG_TRK] {};      // a track played one note at a time (from the start: the parts whose notes never overlap)
     bool removed = false;
 };
 class SongList {
@@ -440,6 +459,7 @@ public:
         s.id = ++nextId;
         e->song = std::make_unique<MidiSong>(std::move(s));
         autoSongVoices(*e->song, bank, e->voice, e->why);
+        for (int t = 0; t < SONG_TRK; ++t) e->mono[t] = monoPart(*e->song, t);
         std::lock_guard<std::mutex> g(lock); items.push_back(std::move(e)); return (int) items.size() - 1;
     }
     int size() const { return (int) items.size(); }
@@ -512,7 +532,7 @@ inline std::vector<int> kitNotesOf(const SongEntry& e) {
 }
 
 inline void selectSong(Engine& eng, SongEntry* e) {
-    if (e) { for (int t = 0; t < SONG_TRK; ++t) { eng.songVoice[t] = e->voice[t]; eng.songMute[t] = e->mute[t]; } applyKit(eng, e->kit); }
+    if (e) { for (int t = 0; t < SONG_TRK; ++t) { eng.songVoice[t] = e->voice[t]; eng.songMute[t] = e->mute[t]; eng.songMono[t] = e->mono[t]; } applyKit(eng, e->kit); }
     else eng.clearKit();
     eng.songRun = false;
     eng.song = e ? e->song.get() : nullptr;

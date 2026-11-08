@@ -76,6 +76,9 @@ final class Native {
     static native String songTrack(int t);
     static native void setSongVoice(int t, int voice);
     static native void setSongMute(int t, boolean muted);
+    /** a track one note at a time (mono) or chords (poly); remembered for the song */
+    static native boolean songMono(int t);
+    static native void setSongMono(int t, boolean mono);
     static native void gmVoices();
     static native void songPlay(boolean on);
     static native boolean songRunning();

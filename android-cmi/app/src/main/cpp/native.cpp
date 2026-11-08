@@ -403,6 +403,12 @@ FN(jstring, songTrack)(JNIEnv* env, jclass, jint t) {
 }
 FN(void, setSongVoice)(JNIEnv*, jclass, jint t, jint v) { if (t < 0 || t >= SONG_TRK) return; if (auto* e = app()->songs.at(curSongIdx())) e->voice[t] = v; app()->engine.songVoice[t] = v; }
 FN(void, setSongMute)(JNIEnv*, jclass, jint t, jboolean m) { if (t < 0 || t >= SONG_TRK) return; if (auto* e = app()->songs.at(curSongIdx())) e->mute[t] = m; app()->engine.songMute[t] = m; }
+FN(jboolean, songMono)(JNIEnv*, jclass, jint t) { return t >= 0 && t < SONG_TRK && app()->engine.songMono[t]; }
+FN(void, setSongMono)(JNIEnv*, jclass, jint t, jboolean m) {
+    if (t < 0 || t >= SONG_TRK) return;
+    if (auto* e = app()->songs.at(curSongIdx())) { e->mono[t] = m; app()->remembered[songKey(e->song->name)][200 + t] = m ? "MONO" : "POLY"; }
+    app()->engine.songMono[t] = m;
+}
 FN(void, gmVoices)(JNIEnv*, jclass) { if (auto* e = app()->songs.at(curSongIdx())) { autoSongVoices(*e->song, app()->kit.bank, e->voice, e->why); selectSong(app()->engine, e); } }
 FN(void, songPlay)(JNIEnv*, jclass, jboolean on) { app()->engine.songRun = on; }
 FN(jboolean, songRunning)(JNIEnv*, jclass) { return app()->engine.songRun.load(); }
@@ -703,8 +709,8 @@ FN(void, setRemembered)(JNIEnv* env, jclass, jstring text) {
     }
     // the songs' kits as you left them
     auto* a = app();
-    for (int i = 0; i < a->songs.size(); ++i) if (SongEntry* e = a->songs.at(i)) { auto it = a->remembered.find(songKey(e->song->name)); if (it != a->remembered.end() && it->second.count(-1)) e->kit.load(it->second[-1]); }
-    if (SongEntry* e = a->songs.at(a->songs.indexOf(a->engine.song.load()))) applyKit(a->engine, e->kit);
+    for (int i = 0; i < a->songs.size(); ++i) if (SongEntry* e = a->songs.at(i)) { auto it = a->remembered.find(songKey(e->song->name)); if (it != a->remembered.end()) { if (it->second.count(-1)) e->kit.load(it->second[-1]); applyMonoChoices(*e, it->second); } }
+    if (SongEntry* e = a->songs.at(a->songs.indexOf(a->engine.song.load()))) { applyKit(a->engine, e->kit); for (int t = 0; t < SONG_TRK; ++t) a->engine.songMono[t] = e->mono[t]; }
 }
 
 // ---- the drum kit (the selected song's): each GM drum's voice, level, pan, tune, mute, solo ----

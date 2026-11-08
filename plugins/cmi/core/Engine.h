@@ -328,6 +328,7 @@ public:
     std::atomic<bool> clickOn { false }; std::atomic<float> clickLevel { 0.5f };
     int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
     bool songMute[SONG_TRK] {};
+    bool songMono[SONG_TRK] {};                            // mono: a track's new note cuts the one before (a 4 ms fade)
     std::atomic<double> songGain { 0.5 };
     std::atomic<double> drumLift { 2.0 };                 // the drum kit's level on top (+6 dB)
     std::atomic<float> loopBlend { 0.5f };   // crossfade at loop points, 0 (the original card: none) .. 1                // a whole band on 32 cards: headroom for the summing amp
@@ -516,6 +517,8 @@ private:
             }
             const Sound* snd = bank->at(idx);
             if (!snd) return;
+            if (songMono[t] && !kit)   // one note at a time on this track: the ones sounding fade out as this one starts
+                for (int i = KEY_CH; i < NCH; ++i) { Channel& c = ch[(size_t) i]; if (cardTrack[i] == t && c.st() != Channel::Idle && c.st() != Channel::Releasing) c.kill(); }
             const int k = songCard(t, e.d1);
             if (k < 0) return;
             Channel& c = ch[(size_t) k];

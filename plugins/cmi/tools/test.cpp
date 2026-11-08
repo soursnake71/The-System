@@ -230,6 +230,27 @@ int main(int argc, char** argv) {
         CHECK(kr.save() == kt.save() && kr.p[42].voice == "HIHAT1@DRUMS" && kr.p[42].tune == -2 && kr.p[36].solo, "kit text: %s", kt.save().c_str());
     }
 
+    // ---- mono tracks: a new note cuts the one before; parts whose notes never overlap start mono ----
+    {
+        TestKit km; SongList sm;
+        MidiSong ms2 = emptySong("MONO", 120, 2);
+        std::vector<SongNote> nn = { { 0, 0, 2, 48, 100 }, { 0, 0.5, 2, 52, 100 } };   // two long notes overlapping on track 1
+        for (int b = 0; b < 8; ++b) nn.push_back({ 2, b * 0.5, 0.4, 36 + b, 100 });      // a line on track 3
+        setNotes(ms2, nn); ms2.raw = writeSmf(ms2);
+        SongEntry* me = sm.at(sm.add(ms2, km.bank));
+        const bool autoLine = me->mono[2], autoChords = me->mono[0];
+        int voicesNow[2] {};
+        for (int m = 0; m < 2; ++m) {
+            me->voice[0] = km.find("STRINGS"); me->mono[0] = m == 1;
+            Engine e; e.bank = &km.bank; e.prepare(fs); e.extSync = false; e.fxOn = false; selectSong(e, me); e.songRun = true;
+            std::vector<float> a(fs), b2(fs); e.render(a.data(), b2.data(), fs / 2 + fs / 50);   // 0.52 beats... 0.27 s in: both notes asked
+            e.render(a.data(), b2.data(), fs / 10);
+            voicesNow[m] = 0; for (int t = 0; t < 1; ++t) {} voicesNow[m] = e.activeVoices();
+        }
+        std::printf("mono: poly %d cards sounding, mono %d; auto: the line %s, the chords %s\n", voicesNow[0], voicesNow[1], autoLine ? "mono" : "poly", autoChords ? "mono" : "poly");
+        CHECK(voicesNow[1] < voicesNow[0] && autoLine && !autoChords, "mono tracks");
+    }
+
     // ---- recording: keyboard notes onto a track, with a count-in and the click ----
     {
         TestKit kr; SongList sr; const int ri = sr.add(recordSong("REC", 120), kr.bank); SongEntry* re = sr.at(ri);
