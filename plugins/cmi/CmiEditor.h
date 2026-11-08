@@ -44,7 +44,10 @@ private:
     void drawEffects(juce::Graphics&);
     void drawFxMixer(juce::Graphics&);
     void drawKit(juce::Graphics&);
-    void kitVoiceMenu(int note);
+    void kitVoiceMenu(int note, bool pads = false);
+    void drawPads(juce::Graphics&);
+    void padPresetMenu();
+    void padImportChooser(bool replaceKit);
     void recordRow(juce::Graphics&, float x, float y, double fromBeat);
     int kitPage = 0; bool kitAll = false; char kitBack = 'S';
     void vFader(juce::Graphics&, float x, float w, float top, float h, const juce::String& label, float maxV, std::function<float()> get, std::function<void(float)> set, float meter, bool dbScale);
@@ -74,6 +77,7 @@ private:
     CmiEditor& ed;
     int presetScroll = 0;
     int wavePage = 0, selTrack = 0, libScroll = 0, userPage = 0, dragRoot = 60;
+    bool showLibVoices = false;   // Page 8 lists the voices from the library folder (else your own)
     // the song editing grid (a piano roll of one track)
     bool songGrid = false; int gridTrack = -1;
     float cycle[2][128] {}; int penBox = 0, lastPx = -1; float lastPv = 0; int filePage = 0, songPage = 0; bool songFiles = true;

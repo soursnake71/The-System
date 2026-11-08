@@ -8,7 +8,7 @@ final class Native {
     // parameter indices (native.cpp)
     static final int LEVEL = 0, FILTER = 1, ATTACK = 2, DAMP = 3, SUSTAIN = 4, VIB = 5, VIBRATE = 6, VIBDELAY = 7, PORTA = 8, VELVOL = 9, VELFILT = 10,
             TRANSPOSE = 11, FINE = 12, LOOP = 13, SEG = 14, POLY = 15, BEND = 16, MASTER = 17, HISS = 18, SPREAD = 19, TEMPO = 20, SWING = 21, SONGMODE = 22, BLEND = 23, BLENDON = 24;
-    static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 255, NCH = 16;
+    static final int TRACKS = 8, STEPS = 16, NPAT = 16, SONG_MAX = 64, USER_SLOTS = 1023, NCH = 16;
 
     static native void start();
     static native void stop();
@@ -112,6 +112,34 @@ final class Native {
     static native void auditionKit(int note);
     static native void resetKit();
     static native float kitMeter(int note);
+    // the drum pads: the kit every song's drums, MIDI channel 10 and the pads play (core/Pads.h)
+    static native int padNote(int bank, int pad);
+    /** voice chosen (or ""), level, pan, tune, mute, solo, voice playing it, GM name, part (tab separated) */
+    static native String padInfo(int note);
+    static native void setPadPiece(int note, float level, float pan, float tune, boolean mute, boolean solo);
+    static native void setPadVoice(int note, int sound);
+    static native void setPadCatalogVoice(int note, int catIndex);
+    static native void hitPad(int note, int vel);
+    static native void tapPad(int note);
+    /** "catalogue index \t name \t disk or kind", the pad's kind first */
+    static native String[] padPartVoices(int note);
+    static native int padPresetCount();
+    static native String padPresetName(int i);
+    static native String padPresetLoad(int i);
+    static native int padPreset();
+    static native String padKitName();
+    static native String padRandom();
+    static native void padsClear();
+    static native boolean ch10Kit();
+    static native void setCh10Kit(boolean on);
+    static native void padImportBegin();
+    static native boolean padImportAdd(String name, byte[] wav);
+    static native String padImportEnd(boolean replaceKit);
+    static native int ownVoiceCount();
+    static native int libraryVoiceCount();
+    static native boolean userFromLibrary(int k);
+    static native boolean userWaiting(int k);
+    static native int unloadUnusedLibrary();
     // recording
     static native String recStart(int track, double from, boolean countIn, double quant, boolean replace);
     static native void recPoll();

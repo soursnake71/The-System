@@ -174,6 +174,22 @@ public class MainActivity extends Activity {
     void pickSample(int slot) { pickSlot = slot; startActivityForResult(audioIntent(false), PICK_ONE); }
     void importFiles() { startActivityForResult(audioIntent(true), PICK_MANY); }
     void importFolder() { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PICK_FOLDER); }
+    // the drum pads: a folder of drum samples (WAV) as a new kit, or added to the kit
+    static final int PICK_KIT = 61, PICK_KIT_ADD = 62;
+    void padFolder(boolean replace) { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), replace ? PICK_KIT : PICK_KIT_ADD); }
+    private void padImport(final List<Uri> uris, final List<String> names, final boolean replace) {
+        view.status("READING DRUM SAMPLES...");
+        new Thread(() -> {
+            Native.padImportBegin(); int n = 0;
+            for (int i = 0; i < uris.size(); ++i) {
+                final String nm = names.get(i); if (!nm.toLowerCase().endsWith(".wav")) continue;
+                try { if (Native.padImportAdd(nm, readAll(uris.get(i), 8 << 20))) ++n; } catch (Exception ignored) {}
+                final int k = i + 1; ui.post(() -> view.status("READING " + k + " / " + uris.size()));
+            }
+            final String m = Native.padImportEnd(replace);
+            ui.post(() -> { view.status(m); view.showPage('P'); saveState(); });
+        }).start();
+    }
     private Intent audioIntent(boolean many) {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -203,6 +219,11 @@ public class MainActivity extends Activity {
         }
         final List<Uri> uris = new ArrayList<>();
         final List<String> names = new ArrayList<>();
+        if ((req == PICK_KIT || req == PICK_KIT_ADD) && data.getData() != null) {
+            listFolder(data.getData(), DocumentsContract.getTreeDocumentId(data.getData()), uris, names, 0);
+            padImport(uris, names, req == PICK_KIT);
+            return;
+        }
         if (req == PICK_FOLDER && data.getData() != null) {
             listFolder(data.getData(), DocumentsContract.getTreeDocumentId(data.getData()), uris, names, 0);
         } else if (data.getClipData() != null) {

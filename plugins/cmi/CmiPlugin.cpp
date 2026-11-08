@@ -118,6 +118,8 @@ void CmiProcessor::choosePresetVoice(int n, int ci) {
 // Page R's tracks and the keyboard get their CMI voices from the library when they have none
 void CmiProcessor::connectDefaults() {
     const juce::ScopedLock l(catLock);
+    fillLibraryPlaces(kit, catalog);   // a reopened project's library voices, back in their places
+    { DrumKit pk = engine.padKit; loadKitVoices(pk, kit, catalog); applyPads(engine, pk); }   // the pads' sounds
     connectPageR(engine.seq, kit, catalog);
     if (isBlank(kit, juce::roundToInt(get("sound")))) {
         int v = -1;
@@ -273,9 +275,65 @@ void CmiProcessor::setKitCatalogVoice(int note, int ci) {
     if (v >= 0) setKitVoice(note, v);
 }
 void CmiProcessor::auditionKit(int note) {
-    for (int t = 0; t < SONG_TRK; ++t) if (engine.songVoice[t] == GM_KIT) { audition(t, note); return; }
+    engine.padTap(note);
 }
 void CmiProcessor::resetKit() { SongEntry* e = songs.at(currentSong()); if (!e) return; e->kit = DrumKit(); applyKit(engine, e->kit); remember(*e->song, -1, ""); }
+
+// ---- the drum pads ----
+void CmiProcessor::setPads(DrumKit k, const juce::String& name, bool fit) {
+    { const juce::ScopedLock l(catLock); if (fit) fitKitToLibrary(k, catalog); loadKitVoices(k, kit, catalog); }
+    applyPads(engine, k); padKitName = name;
+}
+void CmiProcessor::setPadPiece(int note, const KitPiece& p) {
+    if (note < 0 || note > 127) return;
+    DrumKit k = engine.padKit; k.p[(size_t) note] = p; applyPads(engine, k);
+}
+void CmiProcessor::setPadVoice(int note, int v) {
+    if (note < 0 || note > 127) return;
+    KitPiece p = engine.padKit.p[(size_t) note];
+    const Sound* s = v >= 0 && !isBlank(kit, v) ? kit.bank.at(v) : nullptr;
+    p.voice = s ? s->name + "@" + s->category : std::string();
+    setPadPiece(note, p); auditionKit(note);
+}
+void CmiProcessor::setPadCatalogVoice(int note, int ci) {
+    int v; { const juce::ScopedLock l(catLock); v = cmi::loadCatalogVoice(kit, catalog, ci); }
+    if (v >= 0) setPadVoice(note, v);
+}
+juce::String CmiProcessor::padPresetLoad(int n) {
+    const auto& ps = kitPresets(); if (ps.empty()) return {};
+    n = ((n % (int) ps.size()) + (int) ps.size()) % (int) ps.size();
+    setPads(ps[(size_t) n].kit, ps[(size_t) n].name, true); padPreset = n;
+    return "KIT " + juce::String(n + 1) + ": " + juce::String(ps[(size_t) n].name);
+}
+juce::String CmiProcessor::padRandom() {
+    DrumKit k; { const juce::ScopedLock l(catLock); if (catalog.voices.empty()) return "NO LIBRARY YET: SET YOUR LIBRARY FOLDER (PAGE F)"; k = randomKit(catalog, juce::Random::getSystemRandom().nextInt()); }
+    setPads(k, "RANDOM KIT", false); padPreset = -1;
+    return "RANDOM KIT: " + juce::String(kitSummary(engine.padKit));
+}
+juce::String CmiProcessor::padImport(const juce::Array<juce::File>& items, bool replaceKit) {
+    std::vector<KitSample> got;
+    std::function<void(const juce::File&)> add = [&](const juce::File& f) {
+        if (f.isDirectory()) { for (const auto& e : juce::RangedDirectoryIterator(f, true, "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg", juce::File::findFiles)) add(e.getFile()); return; }
+        std::unique_ptr<juce::AudioFormatReader> r(formats.createReaderFor(f)); if (!r) return;
+        const int n = (int) std::min<int64_t>(r->lengthInSamples, (int64_t) (r->sampleRate * 6)); if (n <= 0) return;
+        juce::AudioBuffer<float> b((int) r->numChannels, n); r->read(&b, 0, n, 0, true, true);
+        KitSample ks; ks.file = f.getFileName().toStdString(); ks.rate = r->sampleRate; ks.mono.assign((size_t) n, 0.f);
+        for (int c = 0; c < b.getNumChannels(); ++c) { auto* p = b.getReadPointer(c); for (int i = 0; i < n; ++i) ks.mono[(size_t) i] += p[i] / (float) b.getNumChannels(); }
+        got.push_back(std::move(ks));
+    };
+    for (const auto& f : items) add(f);
+    if (got.empty()) return "NO AUDIO FILES THERE";
+    DrumKit k = engine.padKit;
+    const std::string m = importKitSamples(got, kit, k, replaceKit);
+    setPads(k, replaceKit ? "YOUR SAMPLES" : padKitName + " +", false); padPreset = -1;
+    return m;
+}
+int CmiProcessor::unloadUnusedLibrary() {
+    const juce::ScopedLock l(catLock);
+    const int n = cmi::unloadUnusedLibrary(kit, voicesInUse(kit, juce::roundToInt(get("sound")), engine.seq, songs, &engine.padKit));
+    pushKit(engine);
+    return n;
+}
 
 // ---- recording: the keyboard (and MIDI in) onto a song track, with a count-in and the click ----
 juce::String CmiProcessor::startRecording(int track) {
@@ -618,6 +676,8 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
     x->setAttribute("showCatalog", showCatalog.load());
     x->setAttribute("voiceNumbers", 2);
     if (!pen.silent()) { x->setAttribute("pen", juce::String(pen.save())); x->setAttribute("penSlot", penSlot); }
+    if (!engine.padKit.empty()) { x->setAttribute("pads", juce::String(engine.padKit.save())); x->setAttribute("padsName", padKitName); }
+    x->setAttribute("padPreset", padPreset); x->setAttribute("padBank", padBank); x->setAttribute("ch10Kit", engine.ch10Kit.load());
     x->setAttribute("click", engine.clickOn.load()); x->setAttribute("countIn", recCountIn); x->setAttribute("recQuant", rec.quant); x->setAttribute("recReplace", rec.replace);
     { juce::String m; for (int c = 0; c < 128; ++c) if (ccMap[(size_t) c].load() >= 0) m << c << ":" << paramDefs()[(size_t) ccMap[(size_t) c].load()].id << " "; x->setAttribute("ccMap", m.trim()); }
     const Sound* cur = kit.bank.at(juce::roundToInt(get("sound")));
@@ -628,6 +688,7 @@ void CmiProcessor::getStateInformation(juce::MemoryBlock& dest) {
         const Sound* s = kit.user(k);
         auto* u = x->createNewChildElement("User");
         u->setAttribute("slot", k); u->setAttribute("name", juce::String(s->name)); u->setAttribute("title", juce::String(s->title));
+        if (s->fromLibrary) { u->setAttribute("library", juce::String(s->category)); continue; }   // read again from the library folder
         u->setAttribute("rate", s->rate); u->setAttribute("root", s->root); u->setAttribute("mode", (int) s->mode); u->setAttribute("category", juce::String(s->category));
         u->setAttribute("loopStart", s->loopStart); u->setAttribute("loopEnd", s->loopEnd);
         u->setAttribute("ram", juce::MemoryBlock(s->ram.data(), s->ram.size()).toBase64Encoding());
@@ -663,6 +724,7 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
     for (int k = 0; k < Library::USER_SLOTS; ++k) kit.clearUser(k);   // the project's own voices, in their own places
     oldNumbers = x->getIntAttribute("voiceNumbers", 1) < 2;            // saved when 51 built-in voices came first
     for (auto* u : x->getChildWithTagNameIterator("User")) {
+        if (u->hasAttribute("library")) { kit.keepPlace(u->getIntAttribute("slot"), u->getStringAttribute("name").toStdString(), u->getStringAttribute("library").toStdString()); continue; }
         Sound s; s.name = u->getStringAttribute("name").toStdString(); s.title = u->getStringAttribute("title").toStdString(); s.category = u->getStringAttribute("category", "User").toStdString();
         s.mode = u->getIntAttribute("mode", 0) == 1 ? Mode::Waveform : Mode::Sample;
         s.rate = u->getDoubleAttribute("rate", 20000); s.root = u->getIntAttribute("root", 60);
@@ -709,6 +771,8 @@ void CmiProcessor::setStateInformation(const void* data, int size) {
     showCatalog = x->getBoolAttribute("showCatalog", true);
     if (x->hasAttribute("pen")) { pen.load(x->getStringAttribute("pen").toStdString()); penSlot = x->getIntAttribute("penSlot", -1); }
     engine.clickOn = x->getBoolAttribute("click", false); recCountIn = x->getBoolAttribute("countIn", true);
+    { DrumKit pk; pk.load(x->getStringAttribute("pads").toStdString()); applyPads(engine, pk); padKitName = x->getStringAttribute("padsName", "CMI DRUM MAP"); }
+    padPreset = x->getIntAttribute("padPreset", -1); padBank = juce::jlimit(0, PAD_BANKS - 1, x->getIntAttribute("padBank", 0)); engine.ch10Kit = x->getBoolAttribute("ch10Kit", true);
     rec.quant = x->getDoubleAttribute("recQuant", 0); rec.replace = x->getBoolAttribute("recReplace", false);
     if (x->hasAttribute("ccMap")) {
         for (auto& c : ccMap) c = -1;

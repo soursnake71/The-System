@@ -256,12 +256,15 @@ public:
     int find(const std::string& name) const { for (int i = 0; i < size(); ++i) if (sound(i) && sound(i)->name == name) return i; return -1; }
 
     // user slots (loaded samples): replace the sound in a slot, keeping the old one alive
-    int userSlot(int k) const { return builtIn + k; }
+    // user voice k's sound index (NO_VOICE, always silent, sits among them at 255), and back (-1: not a user voice)
+    static constexpr int slotOf(int k) { return k < NO_VOICE ? k : k + 1; }
+    static constexpr int userOf(int i) { return i < 0 || i >= MAX_SOUNDS || i == NO_VOICE ? -1 : i < NO_VOICE ? i : i - 1; }
+    int userSlot(int k) const { return slotOf(k); }
     static constexpr int USER_SLOTS = MAX_SOUNDS - 1;   // and NO_VOICE, always silent
     void setUser(int k, Sound s) {
         if (k < 0 || k >= USER_SLOTS) return;
         auto p = std::make_unique<Sound>(std::move(s));
-        bank.slot[(size_t) (builtIn + k)].store(p.get());
+        bank.slot[(size_t) slotOf(k)].store(p.get());
         std::lock_guard<std::mutex> g(lock); owned.push_back(std::move(p));
     }
 
@@ -316,13 +319,12 @@ private:
     Library() {
         // no built-in sounds: every voice comes from your library folder, your samples or your drawings.
         // Empty voices are silent until something is loaded into them.
-        int i = 0;
         builtIn = 0;
         Sound empty; empty.name = "--"; empty.title = "Empty: set your library folder (Page F) or load a sound"; empty.category = "User";
         empty.mode = Mode::Sample; empty.ram.assign((size_t) PAGE, 0x80); empty.rate = 128 * 440.0; empty.root = 69;
         for (int k = 0; k < USER_SLOTS; ++k) {
             Sound s = empty;
-            auto p = std::make_unique<Sound>(std::move(s)); blank.push_back(p.get()); bank.slot[(size_t) i++].store(p.get()); owned.push_back(std::move(p));
+            auto p = std::make_unique<Sound>(std::move(s)); blank.push_back(p.get()); bank.slot[(size_t) slotOf(k)].store(p.get()); owned.push_back(std::move(p));
         }
         empty.name = "--"; empty.title = "No voice";
         auto none = std::make_unique<Sound>(empty); bank.slot[(size_t) NO_VOICE].store(none.get()); owned.push_back(std::move(none));
@@ -337,7 +339,7 @@ class Kit {
 public:
     Bank bank;
     Kit() { Library::get().fill(bank); }
-    int userSlot(int k) const { return Library::get().builtIn + k; }
+    int userSlot(int k) const { return Library::slotOf(k); }
     void setUser(int k, Sound s) {
         if (k < 0 || k >= Library::USER_SLOTS) return;
         auto p = std::make_unique<Sound>(std::move(s));
@@ -346,6 +348,16 @@ public:
     }
     const Sound* user(int k) const { return bank.at(userSlot(k)); }
     void clearUser(int k) { if (k >= 0 && k < Library::USER_SLOTS) bank.slot[(size_t) userSlot(k)].store(Library::get().blank[(size_t) k]); }
+    // a library voice's place kept for it (a project reopened before the library is read): silent until
+    // fillLibraryPlaces (Catalog.h) loads it there
+    void keepPlace(int k, const std::string& name, const std::string& disk) {
+        Sound s; s.name = name; s.category = disk; s.title = name + " from " + disk + " (waiting for your library folder)";
+        s.fromLibrary = true; s.waiting = true; s.ram.assign((size_t) PAGE, 0x80); s.rate = 128 * 440.0; s.root = 69;
+        setUser(k, std::move(s));
+    }
+    // your own voices (sampled, imported, drawn) and the ones loaded from the library folder
+    int ownCount() const { int n = 0; for (int k = 0; k < Library::USER_SLOTS; ++k) n += userLoaded(k) && !user(k)->fromLibrary; return n; }
+    int libraryCount() const { int n = 0; for (int k = 0; k < Library::USER_SLOTS; ++k) n += userLoaded(k) && user(k)->fromLibrary; return n; }
     int firstFree(int from = 0) const { for (int k = std::max(0, from); k < Library::USER_SLOTS; ++k) if (!userLoaded(k)) return k; return -1; }
     int loadedCount() const { int n = 0; for (int k = 0; k < Library::USER_SLOTS; ++k) n += userLoaded(k); return n; }
     bool userLoaded(int k) const { return k >= 0 && k < Library::USER_SLOTS && user(k) != Library::get().blank[(size_t) k]; }

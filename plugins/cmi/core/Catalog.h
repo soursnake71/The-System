@@ -325,9 +325,14 @@ inline TrackMatch matchTrack(const MidiSong& s, int t, const Catalog& cat, const
 inline int loadCatalogVoice(Kit& kit, const Catalog& cat, int ci) {
     if (ci < 0 || ci >= (int) cat.voices.size()) return -1;
     const CatVoice& cv = cat.voices[(size_t) ci];
-    for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) return kit.userSlot(k);
-    const int slot = kit.firstFree(); if (slot < 0) return -1;
+    int keep = -1;
+    for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && kit.user(k)->name == cv.name && kit.user(k)->category == cv.disk.substr(0, 10)) {
+        if (!kit.user(k)->waiting) return kit.userSlot(k);
+        keep = k; break;   // its place, kept from the project
+    }
+    const int slot = keep >= 0 ? keep : kit.firstFree(); if (slot < 0) return -1;
     Sound snd; if (!cat.sound(ci, snd)) return -1;
+    snd.fromLibrary = true;
     kit.setUser(slot, std::move(snd)); return kit.userSlot(slot);
 }
 
@@ -338,8 +343,55 @@ inline int loadCatalogNamed(Kit& kit, const Catalog& cat, const std::string& nam
 }
 
 inline bool isBlank(const Kit& kit, int sound) {
-    const int k = sound - kit.userSlot(0);
-    return k < 0 || k >= Library::USER_SLOTS || !kit.userLoaded(k);
+    const int k = Library::userOf(sound);
+    return k < 0 || !kit.userLoaded(k);
+}
+// the library voices a reopened project kept places for: loaded into their places now the library is read.
+// Returns how many are still missing (not in this library).
+inline int fillLibraryPlaces(Kit& kit, const Catalog& cat) {
+    if (cat.voices.empty()) return 0;
+    int missing = 0;
+    for (int k = 0; k < Library::USER_SLOTS; ++k) {
+        if (!kit.userLoaded(k) || (kit.user(k)->fromLibrary && !kit.user(k)->waiting)) continue;
+        const Sound* w = kit.user(k);
+        if (!w->waiting) {   // a library voice kept whole by an older project: known as one again
+            if (w->category == "User" || w->category == "CMI") continue;
+            bool lib = false;
+            for (const auto& cv : cat.voices) if (cv.name == w->name && cv.disk.substr(0, 10) == w->category) { lib = true; break; }
+            if (lib) { Sound c = *w; c.fromLibrary = true; kit.setUser(k, std::move(c)); }
+            continue;
+        }
+        int ci = -1;
+        for (size_t i = 0; i < cat.voices.size() && ci < 0; ++i) if (cat.voices[i].name == w->name && cat.voices[i].disk.substr(0, 10) == w->category) ci = (int) i;
+        if (ci < 0) ci = cat.find(w->name);
+        Sound snd; if (ci < 0 || !cat.sound(ci, snd)) { ++missing; continue; }
+        snd.fromLibrary = true; kit.setUser(k, std::move(snd));
+    }
+    return missing;
+}
+
+// the library voices nothing uses (used: by sound index), unloaded to make room; they load again when needed.
+// Returns how many went.
+inline int unloadUnusedLibrary(Kit& kit, const std::vector<char>& used) {
+    int n = 0;
+    for (int k = 0; k < Library::USER_SLOTS; ++k) {
+        const int i = kit.userSlot(k);
+        if (!kit.userLoaded(k) || !kit.user(k)->fromLibrary || (i < (int) used.size() && used[(size_t) i])) continue;
+        kit.clearUser(k); ++n;
+    }
+    return n;
+}
+// what a project uses: the keyboard's voice, Page R's tracks, every song's tracks and kit, the pads' kit
+inline std::vector<char> voicesInUse(const Kit& kit, int keyboard, const SeqData& seq, const SongList& songs, const DrumKit* pads) {
+    std::vector<char> u((size_t) MAX_SOUNDS, 0);
+    auto mark = [&](int i) { if (i >= 0 && i < MAX_SOUNDS) u[(size_t) i] = 1; };
+    auto markKit = [&](const DrumKit& k) { for (const auto& p : k.p) if (!p.voice.empty()) mark(findVoiceAt(kit.bank, p.voice)); };
+    mark(keyboard);
+    for (const auto& t : seq.trk) mark(t.sound);
+    for (int i = 0; i < songs.size(); ++i) if (const SongEntry* e = songs.at(i)) { for (int t = 0; t < SONG_TRK; ++t) mark(e->voice[t]); markKit(e->kit); }
+    if (pads) markKit(*pads);
+    const auto cmiMap = kitLookup(kit.bank); for (int n = 27; n <= 87; ++n) mark(cmiMap(n));   // the CMI drum map's voices
+    return u;
 }
 
 // Page R's tracks that have no voice yet get their CMI voices: one loaded, else from the library. Returns how many.

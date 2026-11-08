@@ -192,7 +192,7 @@ inline int findVoice(const Bank& bank, const std::string& want) {
     for (int pass = 0; pass < 3; ++pass)
         for (int i = pass == 2 ? 0 : built; i < (pass == 2 ? built : n); ++i) {
             const Sound* x = bank.at(i);
-            if (!x || (i >= built && x == Library::get().blank[(size_t) (i - built)])) continue;
+            if (!x || (i >= built && Library::userOf(i) >= 0 && x == Library::get().blank[(size_t) Library::userOf(i)])) continue;
             if (pass == 0 ? x->name == want : pass == 1 ? x->name.rfind(want, 0) == 0 : x->name == want) return i;
         }
     return -1;
@@ -509,20 +509,31 @@ inline int findVoiceAt(const Bank& bank, const std::string& v) {
     const int n = bank.count.load();
     for (int i = 0; i < n; ++i) {
         const Sound* x = bank.at(i);
-        if (!x || (i < Library::USER_SLOTS && x == Library::get().blank[(size_t) i]) || i == NO_VOICE) continue;
+        if (!x || i == NO_VOICE || (Library::userOf(i) >= 0 && x == Library::get().blank[(size_t) Library::userOf(i)])) continue;
         if (x->name == nm && (cat.empty() || x->category == cat)) return i;
     }
     return cat.empty() ? -1 : findVoiceAt(bank, nm);
 }
-// the song's drum kit into the engine
-inline void applyKit(Engine& eng, const DrumKit& k) {
+// a song's kit piece over the pads' one: the song's sound (its tuning with it) if it chose one, else the pads' with
+// the song's tuning added; levels multiply; the song's pan, mute and solo
+inline KitPiece mergePiece(const KitPiece& pad, const KitPiece& song) {
+    if (song.plain()) return pad;
+    KitPiece m = pad;
+    if (!song.voice.empty()) { m.voice = song.voice; m.tune = song.tune; } else m.tune += song.tune;
+    m.level *= song.level; if (song.pan >= 0) m.pan = song.pan; m.mute |= song.mute; m.solo |= song.solo;
+    return m;
+}
+// the kits into the engine: the pads' kit with the song's changes on top
+inline void pushKit(Engine& eng) {
     for (int n = 0; n < 128; ++n) {
-        const KitPiece& p = k.p[(size_t) n];
+        const KitPiece p = mergePiece(eng.padKit.p[(size_t) n], eng.songKit.p[(size_t) n]);
         eng.kitSound[(size_t) n] = p.voice.empty() || !eng.bank ? -1 : findVoiceAt(*eng.bank, p.voice);
         eng.kitLevel[(size_t) n] = p.level; eng.kitPan[(size_t) n] = p.pan; eng.kitTune[(size_t) n] = p.tune;
         eng.kitMute[(size_t) n] = p.mute; eng.kitSolo[(size_t) n] = p.solo;
     }
 }
+inline void applyKit(Engine& eng, const DrumKit& songKit) { eng.songKit = songKit; pushKit(eng); }
+inline void applyPads(Engine& eng, const DrumKit& pads) { eng.padKit = pads; pushKit(eng); }
 // the GM drum notes a song's kit tracks play, low to high
 inline std::vector<int> kitNotesOf(const SongEntry& e) {
     bool want[128] {};
@@ -533,7 +544,7 @@ inline std::vector<int> kitNotesOf(const SongEntry& e) {
 
 inline void selectSong(Engine& eng, SongEntry* e) {
     if (e) { for (int t = 0; t < SONG_TRK; ++t) { eng.songVoice[t] = e->voice[t]; eng.songMute[t] = e->mute[t]; eng.songMono[t] = e->mono[t]; } applyKit(eng, e->kit); }
-    else eng.clearKit();
+    else applyKit(eng, DrumKit());   // no song: the pads' kit
     eng.songRun = false;
     eng.song = e ? e->song.get() : nullptr;
 }

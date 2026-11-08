@@ -49,19 +49,20 @@ void Screen::paint(juce::Graphics& g) {
         case 'R': drawPresets(g); break;
         case 'E': drawEffects(g); break;
         case 'K': drawKit(g); break;
+        case 'P': drawPads(g); break;
         default: drawComposer(g); break;
     }
     // page index along the bottom
-    const char* pages[] = { "R", "2", "7", "D", "5", "8", "F", "M", "E", "S" };
-    const char* names[] = { "PRESETS", "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "FILES", "MIXER", "EFFECTS", "COMPOSER" };
+    const char* pages[] = { "R", "2", "7", "D", "5", "8", "P", "F", "M", "E", "S" };
+    const char* names[] = { "PRESETS", "VOICES", "CONTROL", "WAVE", "DRAW", "SAMPLE", "PADS", "FILES", "MIXER", "EFFECTS", "COMPOSER" };
     float x = 12;
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 11; ++i) {
         const char p = pages[i][0];
-        juce::Rectangle<float> r(x, (float) H - 26, 95, 22);
+        juce::Rectangle<float> r(x, (float) H - 26, 86, 22);
         if (page == p) { g.setColour(kInk); g.fillRect(r); g.setColour(kBg); } else g.setColour(kInk);
-        g.setFont(mono(15)); g.drawText(juce::String(pages[i]) + " " + names[i], r, juce::Justification::centred);
+        g.setFont(mono(13)); g.drawText(juce::String(pages[i]) + " " + names[i], r, juce::Justification::centred);
         hit(r, [this, p](const juce::MouseEvent&) { page = p; status = "READY"; repaint(); });
-        x += 97.6f;
+        x += 88.7f;
     }
     // CRT: scanlines and a soft vignette
     g.setColour(juce::Colours::black.withAlpha(0.18f));
@@ -569,10 +570,26 @@ void Screen::recordRow(juce::Graphics& g, float x, float y, double fromBeat) {
 }
 
 // ---- the DRUM KIT (Page K): for the song's kit, each drum's sound, tuning, level, pan, mute and solo, with meters ----
-void Screen::kitVoiceMenu(int note) {
+void Screen::kitVoiceMenu(int note, bool pads) {
     auto& p = ed.proc; auto& kit = p.kit;
     juce::PopupMenu m;
     m.addItem(1, "Automatic (the CMI drum map)");
+    {   // the library's sounds of the same kind first (a snare pad: the snares)
+        const juce::ScopedLock l(p.catLock);
+        Part part = partOfNote(note);
+        if (!p.catalog.voices.empty() && part != Part::None) {
+            LibraryDrums ld(p.catalog);
+            juce::PopupMenu same; for (int ci : ld.by[(size_t) part]) same.addItem(20000 + ci, juce::String(p.catalog.voices[(size_t) ci].name) + "  (" + p.catalog.voices[(size_t) ci].disk + ")");
+            if (same.getNumItems() > 0) m.addSubMenu(juce::String(partName(part)) + "S IN YOUR LIBRARY", same);
+            juce::PopupMenu all;
+            for (int pi = 1; pi < PARTS; ++pi) { if (ld.by[(size_t) pi].empty()) continue; juce::PopupMenu sub; for (int ci : ld.by[(size_t) pi]) sub.addItem(20000 + ci, juce::String(p.catalog.voices[(size_t) ci].name)); all.addSubMenu(partName((Part) pi), sub); }
+            m.addSubMenu("Every drum in your library, by kind", all);
+        }
+    }
+    {   // your own samples
+        juce::PopupMenu mine; for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && !kit.user(k)->fromLibrary) mine.addItem(100 + kit.userSlot(k), juce::String(kit.user(k)->name));
+        if (mine.getNumItems() > 0) m.addSubMenu("Your samples", mine);
+    }
     {   // the voices loaded: drum disks first
         juce::PopupMenu loaded; std::map<std::string, juce::PopupMenu> cats;
         for (int i = 0; i < kit.bank.count.load(); ++i) { if (isBlank(kit, i)) continue; const Sound* s = kit.bank.at(i); if (s) cats[s->category].addItem(100 + i, juce::String(s->name)); }
@@ -593,20 +610,140 @@ void Screen::kitVoiceMenu(int note) {
             m.addSubMenu("CMI library (drum disks first)", lib);
         }
     }
-    m.showMenuAsync(juce::PopupMenu::Options(), [this, note](int r) {
-        if (r == 1) ed.proc.setKitVoice(note, -1);
-        else if (r >= 20000) ed.proc.setKitCatalogVoice(note, r - 20000);
-        else if (r >= 100) ed.proc.setKitVoice(note, r - 100);
+    m.showMenuAsync(juce::PopupMenu::Options(), [this, note, pads](int r) {
+        auto& pr = ed.proc;
+        if (r == 1) { if (pads) pr.setPadVoice(note, -1); else pr.setKitVoice(note, -1); }
+        else if (r >= 20000) { if (pads) pr.setPadCatalogVoice(note, r - 20000); else pr.setKitCatalogVoice(note, r - 20000); }
+        else if (r >= 100) { if (pads) pr.setPadVoice(note, r - 100); else pr.setKitVoice(note, r - 100); }
+        if (pads && r > 0) pr.padPreset = -1;
         repaint();
     });
+}
+
+// ---- the DRUM PADS (Page P): the kit every song's drums, MIDI channel 10 and these pads play, in General MIDI
+// order (so a MIDI file's kick, snare and hats land right). Presets, the dice, your own samples. ----
+void Screen::padPresetMenu() {
+    juce::PopupMenu m; const auto& ps = kitPresets();
+    for (size_t f = 0; f < ps.size(); f += 10) {
+        juce::PopupMenu sub;
+        for (size_t i = f; i < f + 10 && i < ps.size(); ++i) sub.addItem(1 + (int) i, juce::String(i + 1) + "  " + ps[i].name, true, ed.proc.padPreset == (int) i);
+        m.addSubMenu(juce::String(f + 1) + "-" + juce::String(f + 10) + "  " + ps[f].name, sub);
+    }
+    m.showMenuAsync(juce::PopupMenu::Options(), [this](int r) { if (r > 0) { status = ed.proc.padPresetLoad(r - 1); repaint(); } });
+}
+void Screen::padImportChooser(bool replaceKit) {
+    ed.chooser = std::make_unique<juce::FileChooser>(replaceKit ? "A folder (or files) of drum samples: a new kit" : "Drum samples to add to the kit", juce::File(), "*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg");
+    ed.chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                            [this, replaceKit](const juce::FileChooser& fc) { const auto res = fc.getResults(); if (res.isEmpty()) return; status = ed.proc.padImport(res, replaceKit); repaint(); });
+}
+
+void Screen::drawPads(juce::Graphics& g) {
+    auto& p = ed.proc; auto& eng = p.engine;
+    p.padBank = juce::jlimit(0, PAD_BANKS - 1, p.padBank); p.padSel = juce::jlimit(0, 15, p.padSel);
+    g.setColour(kInk); g.setFont(mono(17));
+    g.drawText("DRUM PADS   KIT: " + p.padKitName.substring(0, 22), 20, 58, 470, 20, juce::Justification::centredLeft);
+    for (int b = 0; b < PAD_BANKS; ++b) button(g, { 360.f + b * 46, 84, 42, 22 }, juce::String::charToString((juce::juce_wchar) ('A' + b)), p.padBank == b, [this, b] { ed.proc.padBank = b; });
+    g.setColour(kDim); g.setFont(mono(12));
+    g.drawText(p.padBank == 0 ? "THE KIT" : p.padBank == 1 ? "MORE KIT, BONGOS, CONGAS" : "PERCUSSION", 20, 84, 330, 22, juce::Justification::centredLeft);
+    // the pads, 4 x 4, pad 1 bottom left
+    const float gx = 20, gy = 112, pw = 116, ph = 104, gap = 7;
+    for (int i = 0; i < 16; ++i) {
+        const int note = padNote(p.padBank, i), row = 3 - i / 4, col = i % 4;
+        juce::Rectangle<float> r(gx + col * (pw + gap), gy + row * (ph + gap), pw, ph);
+        const KitPiece kp = eng.padKit.p[(size_t) note];
+        const float km = juce::jlimit(0.f, 1.f, eng.kitMeter[(size_t) note].load() * 2.5f);
+        const bool sel = i == p.padSel;
+        g.setColour(kInk.withAlpha(0.10f + 0.85f * km)); g.fillRoundedRectangle(r, 5.f);
+        g.setColour(sel ? kInk : kDim); g.drawRoundedRectangle(r.reduced(1), 5.f, sel ? 3.f : 1.f);
+        g.setColour(km > 0.5f ? kBg : kInk); g.setFont(mono(12));
+        g.drawText(juce::String(p.padBank * 16 + i + 1) + "  " + juce::String(note), r.reduced(6, 4), juce::Justification::topLeft);
+        g.setFont(mono(15)); g.drawText(gmDrumName(note), r.reduced(4, 0).withTrimmedTop(26).withHeight(20), juce::Justification::centred);
+        juce::String vn; bool chosen = !kp.voice.empty();
+        if (chosen) vn = juce::String(kp.voice).upToFirstOccurrenceOf("@", false, false);
+        else { const int a = eng.kitVoice ? eng.kitVoice(note) : -1; const Sound* snd = a >= 0 ? p.kit.bank.at(a) : nullptr; vn = snd ? "(" + juce::String(snd->name) + ")" : juce::String("--"); }
+        g.setColour(km > 0.5f ? kBg : chosen ? kInk : kDim); g.setFont(mono(13));
+        g.drawText(vn, r.reduced(4, 0).withTrimmedTop(52).withHeight(18), juce::Justification::centred);
+        if (kp.tune != 0 || kp.mute || kp.solo) g.drawText((kp.tune != 0 ? juce::String(kp.tune > 0 ? "+" : "") + juce::String(kp.tune, 1) + " " : juce::String()) + (kp.mute ? "M " : "") + (kp.solo ? "S" : ""),
+                                                            r.reduced(4, 0).withTrimmedTop(74).withHeight(16), juce::Justification::centred);
+        auto& h = hit(r, [this, i, note, r](const juce::MouseEvent& e) {
+            ed.proc.padSel = i;
+            const int vel = juce::jlimit(30, 127, juce::roundToInt(127 - (e.position.y - r.getY()) / r.getHeight() * 80));   // harder near the top
+            ed.proc.hitPad(note, vel);
+        });
+        h.up = [this, note](const juce::MouseEvent&) { ed.proc.hitPad(note, 0); };
+    }
+    // the kit: presets, the dice, your samples
+    const float rx = 520, rw = 460;
+    g.setColour(kInk); g.setFont(mono(14));
+    button(g, { rx, 56, 40, 24 }, "<", false, [this] { status = ed.proc.padPresetLoad(ed.proc.padPreset < 0 ? 0 : ed.proc.padPreset - 1); });
+    juce::Rectangle<float> pn(rx + 44, 56, 290, 24);
+    g.setColour(kFaint); g.drawRect(pn, 1.f); g.setColour(kInk);
+    g.drawText(p.padPreset >= 0 ? juce::String(p.padPreset + 1) + "  " + juce::String(kitPresets()[(size_t) p.padPreset].name) : juce::String("PRESETS (100)"), pn, juce::Justification::centred);
+    hit(pn, [this](const juce::MouseEvent&) { padPresetMenu(); });
+    button(g, { rx + 338, 56, 40, 24 }, ">", false, [this] { status = ed.proc.padPresetLoad(ed.proc.padPreset + 1); });
+    button(g, { rx + 384, 56, 76, 24 }, "DICE", false, [this] { status = ed.proc.padRandom(); });
+    button(g, { rx, 86, 226, 24 }, "NEW KIT FROM SAMPLES", false, [this] { padImportChooser(true); });
+    button(g, { rx + 234, 86, 226, 24 }, "ADD SAMPLES", false, [this] { padImportChooser(false); });
+    g.setColour(kDim); g.setFont(mono(11));
+    g.drawText("Samples become CMI voices: 8-bit, up to 30.2 kHz, named by kind (kick, snare, hat, BD, SD...)", rx, 112, rw, 14, juce::Justification::centredLeft);
+    g.setColour(kDim); g.drawHorizontalLine(132, rx, rx + rw);
+    // the pad chosen
+    const int note = padNote(p.padBank, p.padSel);
+    const KitPiece kp = eng.padKit.p[(size_t) note];
+    g.setColour(kInk); g.setFont(mono(18));
+    g.drawText("PAD " + juce::String(p.padBank * 16 + p.padSel + 1) + "   " + gmDrumName(note) + "   NOTE " + juce::String(note) + " (" + noteName(note) + ")", rx, 140, rw, 24, juce::Justification::centredLeft);
+    juce::String vn = kp.voice.empty() ? juce::String("AUTOMATIC: THE CMI DRUM MAP") : juce::String(kp.voice).replace("@", "  ");
+    juce::Rectangle<float> vb(rx, 170, rw, 28);
+    g.setColour(kInk); g.drawRect(vb, 1.f); g.setFont(mono(15)); g.drawText("SOUND: " + vn, vb.reduced(8, 0), juce::Justification::centredLeft);
+    hit(vb, [this, note](const juce::MouseEvent&) { kitVoiceMenu(note, true); });
+    auto edit = [this, note](std::function<void(KitPiece&)> f) { KitPiece q = ed.proc.pads().p[(size_t) note]; f(q); ed.proc.setPadPiece(note, q); };
+    // tune, level, pan
+    g.setFont(mono(15));
+    g.drawText("TUNE " + juce::String(kp.tune > 0 ? "+" : "") + juce::String(kp.tune, 1), rx, 208, 160, 24, juce::Justification::centredLeft);
+    button(g, { rx + 170, 208, 40, 24 }, "-1", false, [this, edit, note] { edit([](KitPiece& q) { q.tune = std::max(-24.f, q.tune - 1); }); ed.proc.auditionKit(note); });
+    button(g, { rx + 214, 208, 50, 24 }, "-.1", false, [this, edit, note] { edit([](KitPiece& q) { q.tune = std::max(-24.f, std::round((q.tune - 0.1f) * 10) / 10); }); ed.proc.auditionKit(note); });
+    button(g, { rx + 268, 208, 50, 24 }, "+.1", false, [this, edit, note] { edit([](KitPiece& q) { q.tune = std::min(24.f, std::round((q.tune + 0.1f) * 10) / 10); }); ed.proc.auditionKit(note); });
+    button(g, { rx + 322, 208, 40, 24 }, "+1", false, [this, edit, note] { edit([](KitPiece& q) { q.tune = std::min(24.f, q.tune + 1); }); ed.proc.auditionKit(note); });
+    auto barRow = [&](float y, const juce::String& label, float v, float maxV, std::function<void(float)> set, std::function<void()> reset) {
+        g.setColour(kInk); g.setFont(mono(15)); g.drawText(label, (int) rx, (int) y, 160, 24, juce::Justification::centredLeft);
+        juce::Rectangle<float> bb(rx + 170, y + 6, 290, 12);
+        g.setColour(kFaint); g.fillRect(bb); g.setColour(kInk); g.fillRect(bb.withWidth(bb.getWidth() * juce::jlimit(0.f, 1.f, v / maxV)));
+        auto f = [set, bb, maxV, reset](const juce::MouseEvent& e) { if (e.getNumberOfClicks() > 1) { reset(); return; } set(juce::jlimit(0.f, maxV, (e.position.x - bb.getX()) / bb.getWidth() * maxV)); };
+        hit(bb.expanded(0, 6), f, f);
+    };
+    barRow(240, "LEVEL " + juce::String(juce::Decibels::gainToDecibels(kp.level, -60.f), 1) + " dB", kp.level, 2.f, [edit](float v) { edit([v](KitPiece& q) { q.level = v; }); }, [edit] { edit([](KitPiece& q) { q.level = 1; }); });
+    barRow(270, kp.pan < 0 ? juce::String("PAN CENTRE") : "PAN " + juce::String(juce::roundToInt(kp.pan * 100 - 50)), kp.pan < 0 ? 0.5f : kp.pan, 1.f, [edit](float v) { edit([v](KitPiece& q) { q.pan = v; }); }, [edit] { edit([](KitPiece& q) { q.pan = -1; }); });
+    button(g, { rx, 304, 110, 24 }, "MUTE", kp.mute, [edit] { edit([](KitPiece& q) { q.mute = !q.mute; }); });
+    button(g, { rx + 116, 304, 110, 24 }, "SOLO", kp.solo, [edit] { edit([](KitPiece& q) { q.solo = !q.solo; }); });
+    button(g, { rx + 232, 304, 110, 24 }, "AUTO", false, [this, note] { KitPiece q; ed.proc.setPadPiece(note, q); status = "PAD BACK TO THE CMI DRUM MAP"; });
+    button(g, { rx + 348, 304, 112, 24 }, "PLAY", false, [this, note] { ed.proc.auditionKit(note); });
+    g.setColour(kDim); g.drawHorizontalLine(340, rx, rx + rw);
+    // the kit as a whole
+    button(g, { rx, 350, 226, 24 }, eng.ch10Kit.load() ? "MIDI CH 10: THE KIT" : "MIDI CH 10: KEYBOARD", eng.ch10Kit.load(), [this] { ed.proc.engine.ch10Kit = !ed.proc.engine.ch10Kit.load(); });
+    button(g, { rx + 234, 350, 226, 24 }, "CLEAR KIT", false, [this] { ed.proc.padsClear(); status = "PADS: THE CMI DRUM MAP"; });
+    button(g, { rx, 380, 226, 24 }, "SONG'S OWN KIT (K)", false, [this] { kitBack = 'P'; page = 'K'; });
+    button(g, { rx + 234, 380, 226, 24 }, "PLAY SONG", eng.songRun.load(), [this] { ed.proc.set("sync", 0.f); ed.proc.engine.songRun = !ed.proc.engine.songRun.load(); });
+    g.setColour(kDim); g.setFont(mono(12));
+    const char* help[] = {
+        "Every pad is a General MIDI drum: a song's kick (36), snare (38) and",
+        "hats (42, 46) always land on the kick, snare and hat pads.",
+        "This kit plays every song's drum tracks, MIDI channel 10 and the pads.",
+        "Page K changes one song's kit on top of it.",
+        "Click a pad to play it (harder near the top); SOUND to choose its voice:",
+        "the library's sounds of the same kind first, or your samples.",
+        "DICE: a random kit from your library. < > : 100 preset kits",
+        "from the IIx drum, cymbal and percussion disks." };
+    for (int i = 0; i < 8; ++i) g.drawText(help[i], (int) rx, 414 + i * 16, (int) rw, 16, juce::Justification::centredLeft);
 }
 
 void Screen::drawKit(juce::Graphics& g) {
     auto& p = ed.proc; auto& eng = p.engine;
     const MidiSong* s = eng.song.load();
     g.setColour(kInk); g.setFont(mono(17));
-    if (!s) { g.drawText("DRUM KIT: load a song first (Page F), or REC NEW SONG on Page S.", 20, 58, W - 40, 20, juce::Justification::centredLeft); return; }
-    g.drawText("DRUM KIT   " + juce::String(s->name).substring(0, 28), 20, 58, 520, 20, juce::Justification::centredLeft);
+    if (!s) { g.drawText("SONG KIT: load a song first (Page F). The kit for every song is on Page P (PADS).", 20, 58, W - 40, 20, juce::Justification::centredLeft);
+              button(g, { 20, 90, 160, 24 }, "PADS", false, [this] { page = 'P'; }); return; }
+    g.drawText("SONG KIT   " + juce::String(s->name).substring(0, 24), 20, 58, 420, 20, juce::Justification::centredLeft);
+    button(g, { 420, 56, 94, 22 }, "PADS", false, [this] { page = 'P'; });
     button(g, { 520, 56, 120, 22 }, kitAll ? "ALL DRUMS" : "IN SONG", kitAll, [this] { kitAll = !kitAll; kitPage = 0; });
     button(g, { 646, 56, 100, 22 }, "RESET", false, [this] { ed.proc.resetKit(); status = "KIT BACK TO THE CMI DRUM MAP"; });
     button(g, { 752, 56, 110, 22 }, "PLAY", eng.songRun.load(), [this] { ed.proc.set("sync", 0.f); ed.proc.engine.songRun = !ed.proc.engine.songRun.load(); });
@@ -662,7 +799,7 @@ void Screen::drawKit(juce::Graphics& g) {
         button(g, { 128, y, 40, 22 }, ">", false, [this, pages] { kitPage = std::min(pages - 1, kitPage + 1); });
     }
     g.setColour(kDim); g.setFont(mono(12));
-    g.drawText("click a sound to choose it (the CMI library, drum disks first); PLAY to hear it; double-click pan for the track's. Kept with the song.", 180, (int) y, W - 200, 22, juce::Justification::centredLeft);
+    g.drawText("this song only, on top of the pads' kit (Page P): click a sound to choose it; PLAY to hear it; double-click pan for the track's.", 180, (int) y, W - 200, 22, juce::Justification::centredLeft);
 }
 
 // ---- Page F: the library folder ----
@@ -905,54 +1042,69 @@ void Screen::drawPen(juce::Graphics& g) {
 void Screen::drawSampling(juce::Graphics& g) {
     auto& kit = ed.proc.kit;
     constexpr int per = 16;
-    const int pages = (Library::USER_SLOTS + per - 1) / per;
+    // the list: your own voices (sampled, imported, drawn), or the ones loaded from your library folder (Page R
+    // presets, songs, kits: loaded by themselves as they're needed, kept by name with the project)
+    std::vector<int> list;
+    for (int k = 0; k < Library::USER_SLOTS; ++k) if (kit.userLoaded(k) && kit.user(k)->fromLibrary == showLibVoices) list.push_back(k);
+    const int pages = juce::jmax(1, ((int) list.size() + per - 1) / per);
     userPage = juce::jlimit(0, pages - 1, userPage);
     g.setColour(kInk); g.setFont(mono(17));
-    g.drawText("DISKS & SAMPLING   " + juce::String(kit.loadedCount()) + " OF " + juce::String(Library::USER_SLOTS) + " USER VOICES", 20, 58, W - 40, 20,
-               juce::Justification::centredLeft);
+    g.drawText("DISKS & SAMPLING   " + juce::String(kit.ownCount()) + " YOUR SAMPLES   " + juce::String(kit.libraryCount()) + " FROM THE LIBRARY   " +
+               juce::String(Library::USER_SLOTS - kit.loadedCount()) + " FREE", 20, 58, W - 40, 20, juce::Justification::centredLeft);
     g.drawHorizontalLine(80, 20, (float) W - 20);
     g.setColour(kDim); g.setFont(mono(14));
-    g.drawText("CMI disks (.IMD / .IMG) and voice files (.VC) load exactly as the CMI holds them: the 16 KB, its loop, its pitch rule.",
+    g.drawText("CMI disks (.IMD / .IMG / .HFE) and voice files (.VC) load exactly as the CMI holds them: the 16 KB, its loop, its pitch rule.",
                20, 84, W - 40, 16, juce::Justification::centredLeft);
     g.drawText("Audio files: kept sample for sample if they fit a card, WAV root and loop used. Import files, a folder, or drop them here.", 20, 100, W - 40, 16, juce::Justification::centredLeft);
     auto launch = [this](bool folder, int slot) {
         const int flags = juce::FileBrowserComponent::openMode | (folder ? juce::FileBrowserComponent::canSelectDirectories
                                                                           : juce::FileBrowserComponent::canSelectFiles | (slot < 0 ? juce::FileBrowserComponent::canSelectMultipleItems : 0));
-        ed.chooser = std::make_unique<juce::FileChooser>(folder ? "Import a folder of sounds" : slot < 0 ? "Import sounds" : "Sample into USER" + juce::String(slot + 1),
+        ed.chooser = std::make_unique<juce::FileChooser>(folder ? "Import a folder of sounds" : slot < 0 ? "Import sounds" : "Replace voice " + juce::String(slot + 1),
                                                          juce::File(), folder ? juce::String() : juce::String("*.imd;*.img;*.hfe;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.mid;*.midi;*.zip"));
         ed.chooser->launchAsync(flags, [this, slot](const juce::FileChooser& fc) {
             const auto res = fc.getResults(); if (res.isEmpty()) return;
             if (slot >= 0) { const auto err = ed.proc.loadSample(res[0], slot, rootKey, loopIt); status = err.isEmpty() ? "SAMPLED" : err.toUpperCase(); }
             else { int n = 0; status = ed.proc.importFiles(res, rootKey, loopIt, n); }
-            repaint();
+            showLibVoices = false; repaint();
         });
     };
     button(g, { 20, 122, 200, 24 }, "IMPORT DISKS/FILES", false, [launch] { launch(false, -1); });
-    button(g, { 230, 122, 200, 24 }, "IMPORT FOLDER", false, [launch] { launch(true, -1); });
-    button(g, { 440, 122, 160, 24 }, "CLEAR ALL", false, [this] { for (int k = 0; k < Library::USER_SLOTS; ++k) ed.proc.kit.clearUser(k); status = "USER VOICES CLEARED"; });
+    button(g, { 230, 122, 170, 24 }, "IMPORT FOLDER", false, [launch] { launch(true, -1); });
+    button(g, { 410, 122, 170, 24 }, "YOUR SAMPLES", !showLibVoices, [this] { showLibVoices = false; userPage = 0; });
+    button(g, { 590, 122, 170, 24 }, "FROM LIBRARY", showLibVoices, [this] { showLibVoices = true; userPage = 0; });
+    button(g, { 770, 122, 196, 24 }, showLibVoices ? "UNLOAD UNUSED" : "CLEAR MINE", false, [this] {
+        auto& kt = ed.proc.kit;
+        if (showLibVoices) { status = juce::String(ed.proc.unloadUnusedLibrary()) + " LIBRARY VOICES UNLOADED"; return; }
+        for (int k = 0; k < Library::USER_SLOTS; ++k) if (kt.userLoaded(k) && !kt.user(k)->fromLibrary) kt.clearUser(k);
+        status = "YOUR SAMPLES CLEARED";
+    });
+    if (list.empty()) {
+        g.setColour(kDim); g.setFont(mono(15));
+        g.drawText(showLibVoices ? "None yet: they load from your library folder (Page F) as presets, songs and kits need them."
+                                 : "None yet: import or drop sounds here, or sample on Page 8's keyboard.", 20, 160, W - 40, 22, juce::Justification::centredLeft);
+    }
     for (int r = 0; r < per; ++r) {
-        const int k = userPage * per + r;
-        if (k >= Library::USER_SLOTS) break;
+        const int li = userPage * per + r;
+        if (li >= (int) list.size()) break;
+        const int k = list[(size_t) li];
         const float y = 156.f + r * 24.f;
         const Sound* s = kit.user(k);
-        const bool loaded = kit.userLoaded(k);
-        g.setColour(loaded ? kInk : kDim); g.setFont(mono(15));
-        g.drawText("USER" + juce::String(k + 1).paddedLeft('0', 2), 20, (int) y, 80, 22, juce::Justification::centredLeft);
-        const bool cmiVoice = loaded && s && s->category != "User";
-        const juce::String loopTxt = s && s->loopStart >= 0 ? juce::String(s->loopStart + 1) + "-" + juce::String(s->loopEnd + 1) : juce::String("-");
-        g.drawText(!loaded || !s ? juce::String("--")
-                   : cmiVoice ? juce::String(s->name).paddedRight(' ', 9) + juce::String(s->category).paddedRight(' ', 11) + (s->mode == Mode::Waveform ? "MODE 1  " : "MODE 4  ") + "loop " + loopTxt
+        g.setColour(s->waiting ? kDim : kInk); g.setFont(mono(15));
+        g.drawText(juce::String(li + 1).paddedLeft('0', 3), 20, (int) y, 50, 22, juce::Justification::centredLeft);
+        const juce::String loopTxt = s->loopStart >= 0 ? juce::String(s->loopStart + 1) + "-" + juce::String(s->loopEnd + 1) : juce::String("-");
+        g.drawText(s->waiting ? juce::String(s->name).paddedRight(' ', 9) + juce::String(s->category).paddedRight(' ', 11) + "not in your library folder yet"
+                   : s->category != "User" ? juce::String(s->name).paddedRight(' ', 9) + juce::String(s->category).paddedRight(' ', 11) + (s->mode == Mode::Waveform ? "MODE 1  " : "MODE 4  ") + "loop " + loopTxt
                               : juce::String(s->name).paddedRight(' ', 9) + juce::String(juce::roundToInt(s->rate)).paddedLeft(' ', 5) + " Hz  " + juce::String(s->ram.size() / s->rate, 2) +
                                     " s  root " + noteName(s->root) + "  loop " + loopTxt,
-                   110, (int) y, 560, 22, juce::Justification::centredLeft);
-        button(g, { 680, y + 1, 90, 20 }, "LOAD", false, [launch, k] { launch(false, k); });
-        button(g, { 778, y + 1, 90, 20 }, "PLAY", false, [this, k] { ed.proc.loadSound(ed.proc.kit.userSlot(k)); status = "LOADED"; });
-        button(g, { 876, y + 1, 90, 20 }, "CLEAR", false, [this, k] { ed.proc.kit.clearUser(k); });
+                   80, (int) y, 590, 22, juce::Justification::centredLeft);
+        if (!showLibVoices) button(g, { 680, y + 1, 90, 20 }, "REPLACE", false, [launch, k] { launch(false, k); });
+        button(g, { 778, y + 1, 90, 20 }, "PLAY", false, [this, k] { ed.proc.loadSound(ed.proc.kit.userSlot(k)); status = "ON THE KEYBOARD: " + juce::String(ed.proc.kit.user(k)->name); });
+        button(g, { 876, y + 1, 90, 20 }, "REMOVE", false, [this, k] { ed.proc.kit.clearUser(k); });
     }
     const float by = 156.f + per * 24.f + 4;
     button(g, { 20, by, 40, 22 }, "<", false, [this] { userPage = juce::jmax(0, userPage - 1); });
     g.setColour(kInk); g.setFont(mono(15));
-    g.drawText(juce::String(userPage * per + 1) + "-" + juce::String(juce::jmin(Library::USER_SLOTS, (userPage + 1) * per)), 64, (int) by, 90, 22, juce::Justification::centred);
+    g.drawText(juce::String(userPage + 1) + " OF " + juce::String(pages), 64, (int) by, 90, 22, juce::Justification::centred);
     button(g, { 158, by, 40, 22 }, ">", false, [this, pages] { userPage = juce::jmin(pages - 1, userPage + 1); });
     g.drawText("ROOT KEY: " + noteName(rootKey) + " (wheel/drag; a WAV's own wins)", 230, (int) by, 470, 22, juce::Justification::centredLeft);
     auto& h = hit({ 230, by, 470, 22 }, [this](const juce::MouseEvent&) { dragRoot = rootKey; },
@@ -1654,6 +1806,7 @@ bool CmiEditor::isInterestedInFileDrag(const juce::StringArray& files) {
 
 void CmiEditor::filesDropped(const juce::StringArray& files, int, int) {
     juce::Array<juce::File> items; for (auto& f : files) items.add(juce::File(f));
+    if (screen.page == 'P') { screen.status = proc.padImport(items, false); screen.repaint(); return; }   // samples onto the pads
     int n = 0;
     screen.status = proc.importFiles(items, screen.rootKey, screen.loopIt, n);
     screen.page = proc.engine.song.load() && n == 0 ? 'S' : '8'; screen.repaint();

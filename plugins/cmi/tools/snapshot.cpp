@@ -157,9 +157,33 @@ int main(int argc, char** argv) {
         std::printf("export: %s (wav %lld bytes, mid %lld bytes)\n", got.toRawUTF8(), (long long) wav.getSize(), (long long) mid.getSize());
         ok &= wav.getSize() > 1000000 && mid.getSize() > 100;
     }
+    // the drum pads: a folder of drum samples onto the pads, a pad played, kept with the project
+    {
+        juce::File dir = out.getChildFile("kit"); dir.deleteRecursively(); dir.createDirectory();
+        const char* names[] = { "Kick.wav", "Snare.wav", "CH.wav", "OH.wav", "Crash.wav" };
+        for (int k = 0; k < 5; ++k) {
+            juce::File wav = dir.getChildFile(names[k]); juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::OutputStream> os(wav.createOutputStream().release());
+            std::unique_ptr<juce::AudioFormatWriter> w(fmt.createWriterFor(os.get(), 44100, 1, 16, {}, 0));
+            if (!w) { ok = false; break; }
+            os.release();
+            const int n = k == 4 ? 88200 : 15000;
+            juce::AudioBuffer<float> b(1, n); for (int i = 0; i < n; ++i) b.setSample(0, i, 0.6f * (float) std::sin(i * (0.01 + 0.05 * k)) * std::exp(-i / 4000.f));
+            w->writeFromAudioSampleBuffer(b, 0, n);
+        }
+        const auto msg = p.padImport({ dir }, true);
+        const double hitPk = run(20, [&](int b, juce::MidiBuffer&) { if (b == 0) p.hitPad(38, 120); });
+        const double ch10 = run(20, [&](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(10, 36, (juce::uint8) 120), 0); });
+        juce::MemoryBlock st; p.getStateInformation(st);
+        cmi::CmiProcessor q; q.setStateInformation(st.getData(), (int) st.getSize());
+        const bool kept = q.pads().p[38].voice == p.pads().p[38].voice && !q.pads().p[38].voice.empty() && q.padKitName == p.padKitName;
+        std::printf("pads: %s; snare pad peak %.3f, channel 10 kick %.3f; kept with the project %s (%s)\n", msg.toRawUTF8(), hitPk, ch10, kept ? "yes" : "NO", q.pads().p[38].voice.c_str());
+        ok &= hitPk > 0.02 && ch10 > 0.02 && kept;
+        p.padSel = 1;
+    }
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     auto* ce = dynamic_cast<cmi::CmiEditor*>(ed.get());
-    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F', 'E' }) {
+    for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F', 'E', 'P' }) {
         run(20, [](int b, juce::MidiBuffer& m) { if (b == 0) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0); });
         ce->showPage(pg);
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);

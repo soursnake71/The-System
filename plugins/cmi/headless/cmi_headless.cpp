@@ -19,6 +19,7 @@
 #include "../core/Disk.h"
 #include "../core/Song.h"
 #include "../core/Catalog.h"
+#include "../core/Pads.h"
 #include "../core/Record.h"
 #include <alsa/asoundlib.h>
 #include <atomic>
@@ -248,6 +249,15 @@ static void commandThread(Box& b, const std::string& statePath) {
                 b.eng.clickOn = true;
                 std::printf("%s\n", b.recorder.start(b.eng, b.songs.at(b.songs.indexOf(b.eng.song.load())), std::atoi(a2.c_str()) - 1, 0).c_str());
             }
+            std::fflush(stdout); continue;
+        }
+        if (w == "PAD") { std::istringstream pa(arg); int n = 36, v = 110; pa >> n >> v; std::lock_guard<std::mutex> g(b.lock); b.eng.padTap(n, clampi(v, 1, 127)); continue; }   // PAD note [vel]: a drum on the kit
+        if (w == "KIT") {   // KIT n: one of the 100 kit presets (its voices by name among those loaded; the rest the CMI drum map) | KIT CLEAR | KIT LIST
+            std::string a2 = arg; for (auto& c : a2) c = (char) std::toupper((unsigned char) c);
+            const auto& ps = kitPresets();
+            if (a2 == "LIST") { for (size_t i = 0; i < ps.size(); ++i) std::printf("%zu  %s\n", i + 1, ps[i].name.c_str()); }
+            else if (a2 == "CLEAR") { std::lock_guard<std::mutex> g(b.lock); applyPads(b.eng, DrumKit()); std::puts("kit: the CMI drum map"); }
+            else { const int k = std::atoi(arg.c_str()) - 1; if (k >= 0 && k < (int) ps.size()) { std::lock_guard<std::mutex> g(b.lock); applyPads(b.eng, ps[(size_t) k].kit); std::printf("kit %d: %s\n", k + 1, ps[(size_t) k].name.c_str()); } }
             std::fflush(stdout); continue;
         }
         if (w == "CLICK") { std::string a2 = arg; for (auto& c : a2) c = (char) std::toupper((unsigned char) c); b.eng.clickOn = a2 != "OFF"; std::printf("click %s\n", b.eng.clickOn.load() ? "on" : "off"); std::fflush(stdout); continue; }

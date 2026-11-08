@@ -14,6 +14,7 @@
 #include "GridEdit.h"
 #include "Record.h"
 #include "Pen.h"
+#include "Pads.h"
 #include <map>
 #include <sstream>
 
@@ -70,9 +71,13 @@ struct App {
     }
     // the light pen and the recorder (core/Pen.h, core/Record.h)
     PenDrawing pen; int penSlot = -1; bool penLive = true;
+    // the drum pads (core/Pads.h): the kit's name, its preset, samples coming in from a folder
+    std::string padKitName = "CMI DRUM MAP"; int padPreset = -1; std::vector<KitSample> padIn;
     Recorder recorder;
     void connectDefaults() {
         std::lock_guard<std::mutex> g(catLock);
+        fillLibraryPlaces(kit, catalog);   // a reopened project's library voices, back in their places
+        { DrumKit pk = engine.padKit; loadKitVoices(pk, kit, catalog); applyPads(engine, pk); }   // the pads' sounds
         rebuildPresets();
         for (int i = 0; i < songs.size(); ++i) if (SongEntry* e = songs.at(i)) if (!e->kit.empty()) loadKitVoices(e->kit, kit, catalog);   // the kits' chosen voices
         if (SongEntry* e = songs.at(songs.indexOf(engine.song.load()))) { ensureConnected(*e, kit, catalog, remembered[songKey(e->song->name)]); refreshSong(engine, e); }   // the song on the new library
@@ -736,7 +741,7 @@ FN(void, setKitPiece)(JNIEnv*, jclass, jint n, jfloat level, jfloat pan, jfloat 
     KitPiece& k = e->kit.p[(size_t) n]; k.level = std::clamp(level, 0.f, 2.f); k.pan = pan; k.tune = std::clamp(tune, -24.f, 24.f); k.mute = mute; k.solo = solo;
     kitChanged(e);
 }
-static void auditionKitNote(int n) { for (int t = 0; t < SONG_TRK; ++t) if (app()->engine.songVoice[t] == GM_KIT) { Cmd c {}; c.type = C_AUDITION; c.a = (t << 8) | (n & 0x7F); app()->push(c); return; } }
+static void auditionKitNote(int n) { app()->engine.padTap(n); }
 FN(void, setKitVoice)(JNIEnv*, jclass, jint n, jint v) {
     SongEntry* e = curEntry(); if (!e || n < 0 || n > 127) return;
     const Sound* s = v >= 0 && !isBlank(app()->kit, v) ? app()->kit.bank.at(v) : nullptr;
@@ -753,6 +758,100 @@ FN(void, setKitCatalogVoice)(JNIEnv*, jclass, jint n, jint ci) {
 FN(void, auditionKit)(JNIEnv*, jclass, jint n) { auditionKitNote(n); }
 FN(void, resetKit)(JNIEnv*, jclass) { SongEntry* e = curEntry(); if (!e) return; e->kit = DrumKit(); kitChanged(e); }
 FN(jfloat, kitMeter)(JNIEnv*, jclass, jint n) { return n >= 0 && n < 128 ? app()->engine.kitMeter[(size_t) n].load() : 0.f; }
+
+// ---- the drum pads (core/Pads.h): the kit every song's drums, MIDI channel 10 and the pads play ----
+static void padsSet(DrumKit k, const std::string& name, bool fit) {
+    auto* a = app();
+    { std::lock_guard<std::mutex> g(a->catLock); if (fit) fitKitToLibrary(k, a->catalog); loadKitVoices(k, a->kit, a->catalog); }
+    applyPads(a->engine, k); a->padKitName = name;
+}
+FN(jint, padNote)(JNIEnv*, jclass, jint bank, jint pad) { return padNote(bank, pad); }
+// voice (chosen or ""), level, pan, tune, mute, solo, the voice playing it, the GM name, the part
+FN(jstring, padInfo)(JNIEnv* env, jclass, jint n) {
+    if (n < 0 || n > 127) return env->NewStringUTF("");
+    auto& eng = app()->engine; const KitPiece& k = eng.padKit.p[(size_t) n];
+    int v = eng.kitSound[(size_t) n].load(); if (v < 0 && eng.kitVoice) v = eng.kitVoice(n);
+    const Sound* snd = v >= 0 ? app()->kit.bank.at(v) : nullptr;
+    std::ostringstream o; o << k.voice << "\t" << k.level << "\t" << k.pan << "\t" << k.tune << "\t" << (k.mute ? 1 : 0) << "\t" << (k.solo ? 1 : 0) << "\t" << (snd ? snd->name : "--") << "\t" << gmDrumName(n) << "\t" << partName(partOfNote(n));
+    return env->NewStringUTF(o.str().c_str());
+}
+FN(void, setPadPiece)(JNIEnv*, jclass, jint n, jfloat level, jfloat pan, jfloat tune, jboolean mute, jboolean solo) {
+    if (n < 0 || n > 127) return;
+    DrumKit k = app()->engine.padKit; KitPiece& p = k.p[(size_t) n];
+    p.level = std::clamp(level, 0.f, 2.f); p.pan = pan; p.tune = std::clamp(tune, -24.f, 24.f); p.mute = mute; p.solo = solo;
+    applyPads(app()->engine, k);
+}
+FN(void, setPadVoice)(JNIEnv*, jclass, jint n, jint v) {
+    if (n < 0 || n > 127) return;
+    DrumKit k = app()->engine.padKit;
+    const Sound* s = v >= 0 && !isBlank(app()->kit, v) ? app()->kit.bank.at(v) : nullptr;
+    if (v < 0) k.p[(size_t) n] = KitPiece(); else k.p[(size_t) n].voice = s ? s->name + "@" + s->category : std::string();
+    applyPads(app()->engine, k); app()->padPreset = -1; app()->engine.padTap(n);
+}
+FN(void, setPadCatalogVoice)(JNIEnv*, jclass, jint n, jint ci) {
+    int v; { std::lock_guard<std::mutex> g(app()->catLock); v = loadCatalogVoice(app()->kit, app()->catalog, ci); }
+    if (v < 0 || n < 0 || n > 127) return;
+    DrumKit k = app()->engine.padKit; const Sound* s = app()->kit.bank.at(v); k.p[(size_t) n].voice = s ? s->name + "@" + s->category : std::string();
+    applyPads(app()->engine, k); app()->padPreset = -1; app()->engine.padTap(n);
+}
+FN(void, hitPad)(JNIEnv*, jclass, jint n, jint vel) { app()->engine.padPush(n, vel); }
+FN(void, tapPad)(JNIEnv*, jclass, jint n) { app()->engine.padTap(n); }
+// the library's sounds of the kind a pad plays: "catalogue index \t name \t disk" each
+FN(jobjectArray, padPartVoices)(JNIEnv* env, jclass, jint n) {
+    std::vector<std::string> o;
+    { std::lock_guard<std::mutex> g(app()->catLock); const Catalog& cat = app()->catalog; LibraryDrums ld(cat);
+      const Part part = partOfNote(n);
+      if (part != Part::None) for (int ci : ld.by[(size_t) part]) o.push_back(std::to_string(ci) + "\t" + cat.voices[(size_t) ci].name + "\t" + cat.voices[(size_t) ci].disk);
+      for (int pi = 1; pi < PARTS; ++pi) if ((Part) pi != part) for (int ci : ld.by[(size_t) pi]) o.push_back(std::to_string(ci) + "\t" + cat.voices[(size_t) ci].name + "\t" + std::string(partName((Part) pi))); }
+    jobjectArray r = env->NewObjectArray((jsize) o.size(), env->FindClass("java/lang/String"), nullptr);
+    for (size_t i = 0; i < o.size(); ++i) { jstring js = env->NewStringUTF(o[i].c_str()); env->SetObjectArrayElement(r, (jsize) i, js); env->DeleteLocalRef(js); }
+    return r;
+}
+FN(jint, padPresetCount)(JNIEnv*, jclass) { return (jint) kitPresets().size(); }
+FN(jstring, padPresetName)(JNIEnv* env, jclass, jint i) { const auto& ps = kitPresets(); return env->NewStringUTF(i >= 0 && i < (int) ps.size() ? ps[(size_t) i].name.c_str() : ""); }
+FN(jstring, padPresetLoad)(JNIEnv* env, jclass, jint n) {
+    const auto& ps = kitPresets(); if (ps.empty()) return env->NewStringUTF("");
+    n = ((n % (int) ps.size()) + (int) ps.size()) % (int) ps.size();
+    padsSet(ps[(size_t) n].kit, ps[(size_t) n].name, true); app()->padPreset = n;
+    return env->NewStringUTF(("KIT " + std::to_string(n + 1) + ": " + ps[(size_t) n].name).c_str());
+}
+FN(jint, padPreset)(JNIEnv*, jclass) { return app()->padPreset; }
+FN(jstring, padKitName)(JNIEnv* env, jclass) { return env->NewStringUTF(app()->padKitName.c_str()); }
+FN(jstring, padRandom)(JNIEnv* env, jclass) {
+    DrumKit k; { std::lock_guard<std::mutex> g(app()->catLock); if (app()->catalog.voices.empty()) return env->NewStringUTF("NO LIBRARY YET: SET YOUR LIBRARY FOLDER (FIL)"); k = randomKit(app()->catalog, (uint32_t) std::random_device {}()); }
+    padsSet(k, "RANDOM KIT", false); app()->padPreset = -1;
+    return env->NewStringUTF(("RANDOM KIT: " + kitSummary(app()->engine.padKit)).c_str());
+}
+FN(void, padsClear)(JNIEnv*, jclass) { padsSet(DrumKit(), "CMI DRUM MAP", false); app()->padPreset = -1; }
+FN(jboolean, ch10Kit)(JNIEnv*, jclass) { return app()->engine.ch10Kit.load(); }
+FN(void, setCh10Kit)(JNIEnv*, jclass, jboolean on) { app()->engine.ch10Kit = on; }
+// samples from a folder onto the pads: begin, each WAV, end
+FN(void, padImportBegin)(JNIEnv*, jclass) { app()->padIn.clear(); }
+FN(jboolean, padImportAdd)(JNIEnv* env, jclass, jstring name, jbyteArray data) {
+    const jsize n = env->GetArrayLength(data); std::vector<uint8_t> v((size_t) n); env->GetByteArrayRegion(data, 0, n, (jbyte*) v.data());
+    WavData w = parseWav(v.data(), v.size(), 48000 * 6);
+    if (!w.err.empty() || w.mono.empty()) return false;
+    const char* nm = env->GetStringUTFChars(name, nullptr); KitSample k; k.file = nm; env->ReleaseStringUTFChars(name, nm);
+    k.mono = std::move(w.mono); k.rate = w.rate; app()->padIn.push_back(std::move(k));
+    return true;
+}
+FN(jstring, padImportEnd)(JNIEnv* env, jclass, jboolean replace) {
+    auto* a = app(); if (a->padIn.empty()) return env->NewStringUTF("NO WAV FILES THERE");
+    DrumKit k = a->engine.padKit;
+    const std::string m = importKitSamples(a->padIn, a->kit, k, replace); a->padIn.clear();
+    padsSet(k, replace ? "YOUR SAMPLES" : a->padKitName + " +", false); a->padPreset = -1;
+    return env->NewStringUTF(m.c_str());
+}
+// your own voices and the library's: how many; whether one is from the library; unloading the unused
+FN(jint, ownVoiceCount)(JNIEnv*, jclass) { return app()->kit.ownCount(); }
+FN(jint, libraryVoiceCount)(JNIEnv*, jclass) { return app()->kit.libraryCount(); }
+FN(jboolean, userFromLibrary)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k) && app()->kit.user(k)->fromLibrary; }
+FN(jboolean, userWaiting)(JNIEnv*, jclass, jint k) { return app()->kit.userLoaded(k) && app()->kit.user(k)->waiting; }
+FN(jint, unloadUnusedLibrary)(JNIEnv*, jclass) {
+    auto* a = app(); std::lock_guard<std::mutex> g(a->catLock);
+    const int n = unloadUnusedLibrary(a->kit, voicesInUse(a->kit, a->sound.load(), a->engine.seq, a->songs, &a->engine.padKit));
+    pushKit(a->engine); return n;
+}
 
 // ---- recording (core/Record.h): the keyboard and MIDI in onto the selected track, a count-in, the click ----
 FN(jstring, recStart)(JNIEnv* env, jclass, jint track, jdouble from, jboolean countIn, jdouble quant, jboolean replace) {
@@ -812,7 +911,7 @@ FN(void, clearUser)(JNIEnv*, jclass, jint k) {
 // state: parameters, Page R, user voices
 FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
     auto* a = app(); std::vector<uint8_t> v;
-    put(v, (uint32_t) 0x434D4937);   // "CMI7": + loop blend on (CMI6: + loop blend; CMI5: voice numbers without built-in voices)
+    put(v, (uint32_t) 0x434D4938);   // "CMI8": + the pads' kit, library voices kept by name; CMI7: + loop blend on (CMI6: + loop blend; CMI5: voice numbers without built-in voices)
     const Sound* cur = a->kit.bank.at(a->sound.load());
     char nm[16] {}; if (cur) std::strncpy(nm, cur->name.c_str(), 15); put(v, nm);
     for (int i = 0; i < NPARAM; ++i) put(v, a->param[i].load());
@@ -829,9 +928,20 @@ FN(jbyteArray, saveState)(JNIEnv* env, jclass) {
             put(v, (int32_t) e->song->raw.size()); v.insert(v.end(), e->song->raw.begin(), e->song->raw.end());
         }
     }
+    {   // the pads
+        auto str = [&](const std::string& x) { put(v, (int32_t) x.size()); v.insert(v.end(), x.begin(), x.end()); };
+        str(a->engine.padKit.save()); str(a->padKitName); put(v, (int32_t) a->padPreset); put(v, (uint8_t) a->engine.ch10Kit.load());
+    }
     for (int k = 0; k < Library::USER_SLOTS; ++k) {
         if (!a->kit.userLoaded(k)) continue;
         const Sound* s = a->kit.user(k);
+        if (s->fromLibrary) {   // read again from the library folder: its name and disk only
+            put(v, (int32_t) k); char un[16] {}; std::strncpy(un, s->name.c_str(), 15); put(v, un);
+            put(v, s->rate); put(v, (int32_t) s->root); put(v, (int32_t) s->loopStart); put(v, (int32_t) s->loopEnd);
+            put(v, (int32_t) s->mode); char cat[16] {}; std::strncpy(cat, s->category.c_str(), 15); put(v, cat);
+            put(v, (int32_t) 0);
+            continue;
+        }
         put(v, (int32_t) k); char un[16] {}; std::strncpy(un, s->name.c_str(), 15); put(v, un);
         put(v, s->rate); put(v, (int32_t) s->root); put(v, (int32_t) s->loopStart); put(v, (int32_t) s->loopEnd);
         put(v, (int32_t) s->mode); char cat[16] {}; std::strncpy(cat, s->category.c_str(), 15); put(v, cat);
@@ -848,7 +958,7 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
     env->GetByteArrayRegion(data, 0, n, (jbyte*) v.data());
     const uint8_t* p = v.data(); const uint8_t* e = p + v.size();
     auto* a = app();
-    uint32_t magic = 0; if (!get(p, e, magic) || (magic < 0x434D4931 || magic > 0x434D4937)) return;
+    uint32_t magic = 0; if (!get(p, e, magic) || (magic < 0x434D4931 || magic > 0x434D4938)) return;
     const int nParams = magic >= 0x434D4937 ? NPARAM : magic >= 0x434D4936 ? 24 : 23;
     const bool old = magic < 0x434D4935;   // saved with the built-in voices counted first
     auto fix = [old](int i) { return old ? Library::fromOldIndex(i) : i; };
@@ -879,14 +989,21 @@ FN(void, loadState)(JNIEnv* env, jclass, jbyteArray data) {
         }
         selectSong(a->engine, pick);
     }
+    if (magic >= 0x434D4938) {   // the pads
+        auto str = [&](std::string& x) { int32_t n = 0; if (!get(p, e, n) || n < 0 || p + n > e) return false; x.assign((const char*) p, (size_t) n); p += n; return true; };
+        std::string kt, nmk; int32_t pre = -1; uint8_t c10 = 1;
+        if (!str(kt) || !str(nmk) || !get(p, e, pre) || !get(p, e, c10)) return;
+        DrumKit pk; pk.load(kt); applyPads(a->engine, pk); a->padKitName = nmk; a->padPreset = pre; a->engine.ch10Kit = c10 != 0;
+    }
     int32_t k;
     while (get(p, e, k)) {
         Sound s; char un[16]; int32_t root, ls, le, sz, mode = 0; char cat[16] = "User";
         if (!get(p, e, un) || !get(p, e, s.rate) || !get(p, e, root) || !get(p, e, ls) || !get(p, e, le)) break;
         if (v2 && (!get(p, e, mode) || !get(p, e, cat))) break;
         if (!get(p, e, sz)) break;
-        if (sz <= 0 || sz > RAM_SIZE || p + sz > e) break;
-        un[15] = 0; cat[15] = 0; s.name = un; s.category = cat; s.title = s.category == "User" ? std::string("Sampled: ") + un : std::string(un) + " from " + cat;
+        un[15] = 0; cat[15] = 0;
+        if (sz == 0) { a->kit.keepPlace(k, un, cat); continue; }   // a library voice: back when the library is read
+        if (sz < 0 || sz > RAM_SIZE || p + sz > e) break; s.name = un; s.category = cat; s.title = s.category == "User" ? std::string("Sampled: ") + un : std::string(un) + " from " + cat;
         s.mode = mode == 1 ? Mode::Waveform : Mode::Sample; s.root = root; s.loopStart = ls; s.loopEnd = le;
         s.ram.assign(p, p + sz); p += sz;
         a->kit.setUser(k, std::move(s));

@@ -37,7 +37,7 @@ public class CmiView extends View {
 
     // hit regions, rebuilt on every draw
     interface Act { void run(float x, float y); }
-    static final class Hit { RectF r; Act down, drag; boolean longPress; Act hold; }
+    static final class Hit { RectF r; Act down, drag, up; boolean longPress; Act hold; }
     private final List<Hit> hits = new ArrayList<>();
     private final Map<Integer, Hit> active = new LinkedHashMap<>();
     private final Map<Integer, Integer> keyOf = new LinkedHashMap<>();
@@ -93,13 +93,13 @@ public class CmiView extends View {
         RectF scr = new RectF(dp(6), dp(4), W - dp(6), H - keyH - dp(4));
         fill(c, scr, BG);
         // tabs
-        final char[] pages = { 'R', '2', '7', 'D', '5', '8', 'F', 'M', 'E', 'S' };
-        final String[] names = { "PRESETS", "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "FILES", "MIXER", "EFFECTS", "COMPOSER" };
-        final String[] shortNames = { "PRE", "VOX", "CTL", "WAV", "PEN", "SMP", "FIL", "MIX", "FX", "SEQ" };
+        final char[] pages = { 'R', '2', '7', 'D', '5', '8', 'P', 'F', 'M', 'E', 'S' };
+        final String[] names = { "PRESETS", "VOICES", "CONTROL", "WAVE", "PEN", "SAMPLE", "PADS", "FILES", "MIXER", "EFFECTS", "COMPOSER" };
+        final String[] shortNames = { "PRE", "VOX", "CTL", "WAV", "PEN", "SMP", "PAD", "FIL", "MIX", "FX", "SEQ" };
         final float tabX = portrait ? dp(4) : dp(100);
-        float tw = (scr.width() - tabX - dp(10)) / 10f;
+        float tw = (scr.width() - tabX - dp(10)) / 11f;
         if (!portrait) text(c, "PAGE " + page, scr.left + dp(8), scr.top + dp(18), 13, INK);
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < 11; ++i) {
             final char pg = pages[i];
             RectF r = new RectF(scr.left + tabX + i * tw, scr.top + dp(3), scr.left + tabX + (i + 1) * tw - dp(4), scr.top + dp(23));
             if (tw < dp(96)) { button(c, r, tw < dp(60) ? shortNames[i] : pg + " " + shortNames[i], page == pg, () -> { page = pg; status = "READY"; }); continue; }
@@ -119,6 +119,7 @@ public class CmiView extends View {
             case 'R': presets(c, body); break;
             case 'E': effects(c, body); break;
             case 'K': kitPage(c, body); break;
+            case 'P': pads(c, body); break;
             default: composer(c, body); break;
         }
         // scanlines
@@ -352,6 +353,120 @@ public class CmiView extends View {
     }
 
     // ---- the DRUM KIT: each drum of the song's kit, its sound, tuning, level, pan, mute, solo, meter ----
+    // ---- the DRUM PADS: the kit every song's drums, MIDI channel 10 and these pads play, in General MIDI order (so a
+    // MIDI file's kick, snare and hats land right); 100 preset kits, the dice, your own samples ----
+    private int padBank = 0, padSel = 1;
+    private void padSoundDialog(final int note, String gm) {
+        final List<String> labels = new ArrayList<>(); final List<int[]> ids = new ArrayList<>();   // {kind, index}: 0 auto, 1 catalogue, 2 loaded voice
+        labels.add("Automatic (the CMI drum map)"); ids.add(new int[] { 0, 0 });
+        for (String line : Native.padPartVoices(note)) { String[] f = line.split("\t", -1); if (f.length < 3) continue; labels.add(f[1] + "   " + f[2]); ids.add(new int[] { 1, Integer.parseInt(f[0]) }); }
+        for (int k = 0; k < Native.USER_SLOTS; ++k) if (Native.userLoaded(k) && !Native.userFromLibrary(k)) { String[] f = info(Native.userSlot(k)); labels.add(f[0] + "   (your sample)"); ids.add(new int[] { 2, Native.userSlot(k) }); }
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(note + " " + gm + ": its sound")
+                .setItems(labels.toArray(new String[0]), (d, w) -> {
+                    final int[] id = ids.get(w);
+                    if (id[0] == 0) Native.setPadVoice(note, -1); else if (id[0] == 1) Native.setPadCatalogVoice(note, id[1]); else Native.setPadVoice(note, id[1]);
+                    act.saveState(); invalidate();
+                }).show();
+    }
+    private void padPresetDialog() {
+        final int n = Native.padPresetCount(), cur = Native.padPreset();
+        final String[] families = new String[(n + 9) / 10];
+        for (int f = 0; f < families.length; ++f) families[f] = (f * 10 + 1) + "-" + Math.min(n, f * 10 + 10) + "   " + Native.padPresetName(f * 10);
+        new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("100 kits from the IIx drum disks")
+                .setItems(families, (d, f) -> {
+                    final String[] items = new String[Math.min(10, n - f * 10)];
+                    for (int k = 0; k < items.length; ++k) items[k] = (f * 10 + k == cur ? "> " : "   ") + (f * 10 + k + 1) + "  " + Native.padPresetName(f * 10 + k);
+                    new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle(families[f])
+                            .setItems(items, (d2, k) -> { status(Native.padPresetLoad(f * 10 + k)); act.saveState(); }).show();
+                }).show();
+    }
+    private void pads(Canvas c, RectF b) {
+        final int cur = Native.padPreset();
+        text(c, "DRUM PADS  " + Native.padKitName(), b.left, b.top + dp(14), 12, INK);
+        // the kit row: presets, the dice, samples
+        float y = b.top + dp(20);
+        final float bw = (b.width() - dp(24)) / 5;
+        button(c, new RectF(b.left, y, b.left + bw * 0.5f, y + dp(26)), "<", false, () -> { status(Native.padPresetLoad(cur < 0 ? 0 : cur - 1)); act.saveState(); });
+        button(c, new RectF(b.left + bw * 0.5f + dp(4), y, b.left + bw * 2.5f, y + dp(26)), cur >= 0 ? (cur + 1) + " " + Native.padPresetName(cur) : "PRESETS (100)", false, this::padPresetDialog);
+        button(c, new RectF(b.left + bw * 2.5f + dp(4), y, b.left + bw * 3f + dp(4), y + dp(26)), ">", false, () -> { status(Native.padPresetLoad(cur + 1)); act.saveState(); });
+        button(c, new RectF(b.left + bw * 3f + dp(10), y, b.left + bw * 4f + dp(10), y + dp(26)), "DICE", false, () -> { status(Native.padRandom()); act.saveState(); });
+        button(c, new RectF(b.left + bw * 4f + dp(16), y, b.right, y + dp(26)), "SAMPLES", false, () ->
+                new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Drum samples (a folder of WAVs)")
+                        .setItems(new String[] { "A new kit from a folder", "Add a folder to this kit", "Clear the kit (the CMI drum map)" }, (d, w) -> {
+                            if (w == 0) act.padFolder(true); else if (w == 1) act.padFolder(false); else { Native.padsClear(); act.saveState(); status("PADS: THE CMI DRUM MAP"); }
+                        }).show());
+        y += dp(32);
+        // banks
+        final String[] bankNames = { "A KIT", "B MORE", "C PERC" };
+        for (int k = 0; k < 3; ++k) { final int bk = k; button(c, new RectF(b.left + k * (bw + dp(4)), y, b.left + k * (bw + dp(4)) + bw, y + dp(24)), bankNames[k], padBank == k, () -> padBank = bk); }
+        final boolean c10 = Native.ch10Kit();
+        button(c, new RectF(b.left + 3 * (bw + dp(4)), y, b.right, y + dp(24)), c10 ? "CH10: KIT" : "CH10: KEYS", c10, () -> { Native.setCh10Kit(!c10); act.saveState(); });
+        y += dp(30);
+        // the pad chosen: its sound, tuning, level, pan, mute, solo
+        final int sel = Native.padNote(padBank, padSel);
+        final String[] f = Native.padInfo(sel).split("\t", -1);
+        final float detailH = portrait ? dp(112) : dp(64);
+        final float gridBottom = b.bottom - detailH - dp(6);
+        // the pads, 4 x 4, pad 1 bottom left
+        final float gw = portrait ? b.width() : Math.min(b.width() * 0.6f, (gridBottom - y) * 1.3f);
+        final float pw = (gw - dp(18)) / 4, ph = (gridBottom - y - dp(18)) / 4;
+        for (int i = 0; i < 16; ++i) {
+            final int note = Native.padNote(padBank, i), row = 3 - i / 4, col = i % 4;
+            final RectF r = new RectF(b.left + col * (pw + dp(6)), y + row * (ph + dp(6)), b.left + col * (pw + dp(6)) + pw, y + row * (ph + dp(6)) + ph);
+            final String[] pf = Native.padInfo(note).split("\t", -1);
+            final float km = Math.min(1, Native.kitMeter(note) * 2.5f);
+            fill(c, r, (((int) (26 + 200 * km)) << 24) | (INK & 0xffffff));
+            if (i == padSel) { p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2.5f)); p.setColor(INK); c.drawRect(r, p); p.setStyle(Paint.Style.FILL); } else frame(c, r, DIM);
+            final int tc = km > 0.5f ? BG : INK;
+            text(c, (padBank * 16 + i + 1) + " " + note, r.left + dp(4), r.top + dp(11), 8, tc);
+            if (pf.length >= 9) {
+                textC(c, pf[7], new RectF(r.left, r.top + ph * 0.25f, r.right, r.top + ph * 0.55f), ph > dp(60) ? 11 : 9, tc);
+                final boolean chosen = !pf[0].isEmpty();
+                final String vn = chosen ? pf[0].split("@")[0] : "(" + pf[6] + ")";
+                textC(c, vn, new RectF(r.left, r.top + ph * 0.55f, r.right, r.top + ph * 0.85f), 9, km > 0.5f ? BG : chosen ? INK : DIM);
+            }
+            final int ii = i;
+            Hit h = hit(r, (xx, yy) -> { padSel = ii; Native.hitPad(note, Math.max(30, Math.min(127, Math.round(127 - (yy - r.top) / r.height() * 80)))); });
+            h.up = (xx, yy) -> Native.hitPad(note, 0);
+        }
+        // detail
+        if (f.length < 9) return;
+        final float level = Float.parseFloat(f[1]), pan = Float.parseFloat(f[2]), tune = Float.parseFloat(f[3]);
+        final boolean mute = f[4].equals("1"), solo = f[5].equals("1");
+        float dx = portrait ? b.left : b.left + gw + dp(12), dy = portrait ? gridBottom + dp(6) : y;
+        final float dw = portrait ? b.width() : b.right - dx;
+        text(c, "PAD " + (padBank * 16 + padSel + 1) + "  " + f[7] + "  NOTE " + sel, dx, dy + dp(12), 11, INK);
+        final RectF vb = new RectF(dx, dy + dp(18), dx + dw, dy + dp(42));
+        frame(c, vb, INK); textC(c, "SOUND: " + (f[0].isEmpty() ? "AUTO (" + f[6] + ")" : f[0].replace("@", "  ")), vb, 10, INK);
+        final String gm = f[7]; hit(vb, (xx, yy) -> padSoundDialog(sel, gm));
+        final float ry = dy + dp(48), cw = (dw - dp(30)) / 6;
+        button(c, new RectF(dx, ry, dx + cw, ry + dp(24)), "-1", false, () -> { Native.setPadPiece(sel, level, pan, Math.max(-24, tune - 1), mute, solo); Native.tapPad(sel); act.saveState(); });
+        textC(c, "TUNE " + (tune > 0 ? "+" : "") + String.format(java.util.Locale.US, "%.0f", tune), new RectF(dx + cw, ry, dx + 2 * cw + dp(6), ry + dp(24)), 10, INK);
+        button(c, new RectF(dx + 2 * cw + dp(6), ry, dx + 3 * cw + dp(6), ry + dp(24)), "+1", false, () -> { Native.setPadPiece(sel, level, pan, Math.min(24, tune + 1), mute, solo); Native.tapPad(sel); act.saveState(); });
+        button(c, new RectF(dx + 3 * cw + dp(12), ry, dx + 4 * cw + dp(12), ry + dp(24)), "MUTE", mute, () -> { Native.setPadPiece(sel, level, pan, tune, !mute, solo); act.saveState(); });
+        button(c, new RectF(dx + 4 * cw + dp(18), ry, dx + 5 * cw + dp(18), ry + dp(24)), "SOLO", solo, () -> { Native.setPadPiece(sel, level, pan, tune, mute, !solo); act.saveState(); });
+        button(c, new RectF(dx + 5 * cw + dp(24), ry, dx + dw, ry + dp(24)), "AUTO", false, () -> { Native.setPadVoice(sel, -1); act.saveState(); });
+        // level and pan bars (drag; hold for the default)
+        final float by = ry + dp(30), half = (dw - dp(8)) / 2;
+        final RectF lb = new RectF(dx, by, dx + half, by + dp(20)), pb = new RectF(dx + half + dp(8), by, dx + dw, by + dp(20));
+        fill(c, lb, FAINT); fill(c, new RectF(lb.left, lb.top, lb.left + lb.width() * Math.min(1, level / 2f), lb.bottom), INK); textC(c, "LEVEL " + Math.round(level * 100) + "%", lb, 9, level > 1f ? BG : INK);
+        fill(c, pb, FAINT); final float pp = pan < 0 ? 0.5f : pan; fill(c, new RectF(pb.left + pb.width() * pp - dp(3), pb.top, pb.left + pb.width() * pp + dp(3), pb.bottom), INK); textC(c, pan < 0 ? "PAN C" : "PAN " + Math.round(pan * 100 - 50), pb, 9, INK);
+        Act la = (xx, yy) -> Native.setPadPiece(sel, Math.max(0, Math.min(2, (xx - lb.left) / lb.width() * 2)), pan, tune, mute, solo);
+        Hit lh = hit(lb, la); lh.drag = la; lh.up = (xx, yy) -> act.saveState();
+        Act pa = (xx, yy) -> Native.setPadPiece(sel, level, Math.max(0, Math.min(1, (xx - pb.left) / pb.width())), tune, mute, solo);
+        Hit phh = hit(pb, pa); phh.drag = pa; phh.longPress = true; phh.hold = (xx, yy) -> Native.setPadPiece(sel, level, -1, tune, mute, solo);
+        if (!portrait) {
+            final float hy = by + dp(36);
+            button(c, new RectF(dx, hy, dx + half, hy + dp(24)), "SONG'S OWN KIT", false, () -> { kitBack = 'P'; page = 'K'; });
+            final boolean run = Native.songRunning();
+            button(c, new RectF(dx + half + dp(8), hy, dx + dw, hy + dp(24)), "PLAY SONG", run, () -> Native.songPlay(!run));
+            final String[] help = { "Every pad is a General MIDI drum: a song's kick (36),", "snare (38) and hats (42, 46) land on those pads.",
+                    "This kit plays every song's drums, MIDI channel 10", "and the pads; a song's own kit goes on top of it.", "DICE: a random kit from your library.",
+                    "SAMPLES: a folder of WAVs as CMI voices (8-bit,", "up to 30.2 kHz), each on its pad by its name." };
+            for (int k = 0; k < help.length; ++k) text(c, help[k], dx, hy + dp(40) + k * dp(13), 9, DIM);
+        }
+    }
+
     private char kitBack = 'S'; private boolean kitAll = false; private int kitPageN = 0;
     private void kitVoiceDialog(final int note, String name) {
         final int n = Native.soundCount();
@@ -367,8 +482,10 @@ public class CmiView extends View {
                 }).show();
     }
     private void kitPage(Canvas c, RectF b) {
-        if (Native.currentSong() < 0) { text(c, "DRUM KIT: load a song (FIL) or REC on SEQ first", b.left, b.top + dp(14), 11, INK); return; }
-        text(c, "DRUM KIT", b.left, b.top + dp(14), 12, INK);
+        if (Native.currentSong() < 0) { text(c, "SONG KIT: load a song (FIL) first. The kit for every song: PAD", b.left, b.top + dp(14), 11, INK);
+            button(c, new RectF(b.left, b.top + dp(24), b.left + dp(90), b.top + dp(48)), "PADS", false, () -> page = 'P'); return; }
+        text(c, "SONG KIT", b.left, b.top + dp(14), 12, INK);
+        button(c, new RectF(b.left + dp(76), b.top, b.left + dp(130), b.top + dp(22)), "PADS", false, () -> page = 'P');
         final float bw = dp(64);
         button(c, new RectF(b.right - 4 * bw - dp(12), b.top, b.right - 3 * bw - dp(12), b.top + dp(22)), kitAll ? "ALL" : "IN SONG", kitAll, () -> { kitAll = !kitAll; kitPageN = 0; });
         button(c, new RectF(b.right - 3 * bw - dp(8), b.top, b.right - 2 * bw - dp(8), b.top + dp(22)), "RESET", false, () -> { Native.resetKit(); act.saveState(); });
@@ -772,50 +889,54 @@ public class CmiView extends View {
     }
 
     // ---- Page 8 ----
-    private int userPage = 0;
+    private int userPage = 0; private boolean showLib = false;
     private void sampling(Canvas c, RectF b) {
-        text(c, "DISKS & SAMPLING  " + Native.userCount() + " OF " + Native.USER_SLOTS + " USER VOICES", b.left, b.top + dp(12), 12, INK);
-        text(c, "CMI disks (.IMD .IMG) and .VC voices load as the CMI holds them. Audio files too.", b.left, b.top + dp(28), 9, DIM);
+        text(c, "SAMPLES  " + Native.ownVoiceCount() + " YOURS  " + Native.libraryVoiceCount() + " FROM LIBRARY  " + (Native.USER_SLOTS - Native.userCount()) + " FREE", b.left, b.top + dp(12), 12, INK);
+        text(c, showLib ? "Library voices load by themselves as presets, songs and kits need them." : "Your sounds: CMI disks (.IMG .IMD .HFE), .VC voices, WAVs.", b.left, b.top + dp(28), 9, DIM);
         float y0 = b.top + dp(36);
-        float bw = (b.width() - dp(12)) / 3;
-        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(26)), "DISKS/FILES", false, act::importFiles);
-        button(c, new RectF(b.left + bw + dp(6), y0, b.left + 2 * bw + dp(6), y0 + dp(26)), "IMPORT FOLDER", false, act::importFolder);
-        button(c, new RectF(b.left + 2 * bw + dp(12), y0, b.right, y0 + dp(26)), "CLEAR ALL", false, () -> {
-            new AlertDialog.Builder(getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert).setTitle("Clear all user voices?")
-                    .setPositiveButton("Clear", (d2, w) -> { for (int k = 0; k < Native.USER_SLOTS; ++k) Native.clearUser(k); status("USER VOICES CLEARED"); act.saveState(); })
-                    .setNegativeButton("Cancel", null).show();
-        });
+        float bw = (b.width() - dp(18)) / 4;
+        button(c, new RectF(b.left, y0, b.left + bw, y0 + dp(26)), "FILES", false, act::importFiles);
+        button(c, new RectF(b.left + bw + dp(6), y0, b.left + 2 * bw + dp(6), y0 + dp(26)), "FOLDER", false, act::importFolder);
+        button(c, new RectF(b.left + 2 * bw + dp(12), y0, b.left + 3 * bw + dp(12), y0 + dp(26)), "YOURS", !showLib, () -> { showLib = false; userPage = 0; });
+        button(c, new RectF(b.left + 3 * bw + dp(18), y0, b.right, y0 + dp(26)), "LIBRARY", showLib, () -> { showLib = true; userPage = 0; });
+        final List<Integer> list = new ArrayList<>();
+        for (int k = 0; k < Native.USER_SLOTS; ++k) if (Native.userLoaded(k) && Native.userFromLibrary(k) == showLib) list.add(k);
         final float top = y0 + dp(32), bottom = b.bottom - dp(30);
-        final float rh = portrait ? dp(46) : dp(28);
+        final float rh = dp(28);
         final int per = Math.max(1, (int) ((bottom - top) / rh));
-        final int pages = (Native.USER_SLOTS + per - 1) / per;
+        final int pages = Math.max(1, (list.size() + per - 1) / per);
         userPage = Math.max(0, Math.min(pages - 1, userPage));
+        if (list.isEmpty()) text(c, showLib ? "None yet: set your library folder (FIL)." : "None yet: import sounds, or sample on the keyboard.", b.left, top + dp(16), 11, DIM);
         for (int r = 0; r < per; ++r) {
-            final int slot = userPage * per + r;
-            if (slot >= Native.USER_SLOTS) break;
+            final int li = userPage * per + r;
+            if (li >= list.size()) break;
+            final int slot = list.get(li);
             float y = top + r * rh;
-            boolean has = Native.userLoaded(slot);
             String[] f = info(Native.userSlot(slot));
-            boolean cmiVoice = has && !f[2].equals("User");
-            String line = String.format("USER%03d ", slot + 1) + (!has ? "--" : cmiVoice ? f[0] + "  " + f[2] + "  MODE " + (f[8].equals("1") ? "1" : "4") + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : "")
-                    : f[0] + "  " + f[3] + "Hz  " + noteName(Integer.parseInt(f[4])) + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : ""));
-            final float ty = portrait ? y + dp(14) : y + rh * 0.65f;
-            text(c, line, b.left, ty, 12, has ? INK : DIM);
-            final float btop = portrait ? y + dp(19) : y + dp(2), bh = portrait ? rh - dp(3) : rh - dp(3);
-            final float w3 = portrait ? (b.width() - dp(12)) / 3 : dp(64);
-            final float bx = portrait ? b.left : b.right - 3 * w3 - dp(12);
-            button(c, new RectF(bx, btop, bx + w3, y + bh), "LOAD", false, () -> act.pickSample(slot));
-            button(c, new RectF(bx + w3 + dp(6), btop, bx + 2 * w3 + dp(6), y + bh), "PLAY", false, () -> { Native.loadSound(Native.userSlot(slot)); status = "LOADED"; });
-            button(c, new RectF(bx + 2 * w3 + dp(12), btop, bx + 3 * w3 + dp(12), y + bh), "CLEAR", false, () -> { Native.clearUser(slot); act.saveState(); });
+            final boolean waiting = Native.userWaiting(slot);
+            String line = f[0] + "  " + (waiting ? f[2] + "  (NOT IN LIBRARY YET)" : !f[2].equals("User") ? f[2] + (Integer.parseInt(f[6]) >= 0 ? "  LOOP" : "")
+                    : f[3] + "Hz " + noteName(Integer.parseInt(f[4])) + (Integer.parseInt(f[6]) >= 0 ? " LOOP" : ""));
+            final float w = portrait ? dp(52) : dp(70);
+            final int nb = showLib ? 2 : 3;
+            text(c, line, b.left, y + rh * 0.62f, 11, waiting ? DIM : INK);
+            float bx = b.right - nb * (w + dp(4));
+            if (!showLib) { button(c, new RectF(bx, y + dp(2), bx + w, y + rh - dp(2)), portrait ? "REPL" : "REPLACE", false, () -> act.pickSample(slot)); bx += w + dp(4); }
+            button(c, new RectF(bx, y + dp(2), bx + w, y + rh - dp(2)), "PLAY", false, () -> { Native.loadSound(Native.userSlot(slot)); status("ON THE KEYBOARD: " + info(Native.userSlot(slot))[0]); });
+            bx += w + dp(4);
+            button(c, new RectF(bx, y + dp(2), bx + w, y + rh - dp(2)), portrait ? "DEL" : "REMOVE", false, () -> { Native.clearUser(slot); act.saveState(); });
         }
         float y = b.bottom - dp(24);
         button(c, new RectF(b.left, y, b.left + dp(34), y + dp(22)), "<", false, () -> userPage = Math.max(0, userPage - 1));
-        textC(c, (userPage * per + 1) + "-" + Math.min(Native.USER_SLOTS, (userPage + 1) * per), new RectF(b.left + dp(34), y, b.left + dp(96), y + dp(22)), 11, INK);
-        button(c, new RectF(b.left + dp(96), y, b.left + dp(130), y + dp(22)), ">", false, () -> userPage = Math.min(pages - 1, userPage + 1));
-        text(c, "ROOT " + noteName(rootKey), b.left + dp(140), y + dp(16), 11, INK);
-        button(c, new RectF(b.left + dp(200), y, b.left + dp(230), y + dp(22)), "-", false, () -> rootKey = Math.max(24, rootKey - 1));
-        button(c, new RectF(b.left + dp(234), y, b.left + dp(264), y + dp(22)), "+", false, () -> rootKey = Math.min(96, rootKey + 1));
-        button(c, new RectF(b.left + dp(272), y, Math.min(b.right, b.left + dp(372)), y + dp(22)), loopSample ? "LOOP ON" : "LOOP OFF", loopSample, () -> loopSample = !loopSample);
+        textC(c, (userPage + 1) + "/" + pages, new RectF(b.left + dp(34), y, b.left + dp(80), y + dp(22)), 11, INK);
+        button(c, new RectF(b.left + dp(80), y, b.left + dp(114), y + dp(22)), ">", false, () -> userPage = Math.min(pages - 1, userPage + 1));
+        if (showLib) {
+            button(c, new RectF(b.left + dp(124), y, Math.min(b.right, b.left + dp(270)), y + dp(22)), "UNLOAD UNUSED", false, () -> { status(Native.unloadUnusedLibrary() + " LIBRARY VOICES UNLOADED"); act.saveState(); });
+            return;
+        }
+        text(c, "ROOT " + noteName(rootKey), b.left + dp(124), y + dp(16), 11, INK);
+        button(c, new RectF(b.left + dp(184), y, b.left + dp(212), y + dp(22)), "-", false, () -> rootKey = Math.max(24, rootKey - 1));
+        button(c, new RectF(b.left + dp(216), y, b.left + dp(244), y + dp(22)), "+", false, () -> rootKey = Math.min(96, rootKey + 1));
+        button(c, new RectF(b.left + dp(250), y, Math.min(b.right, b.left + dp(330)), y + dp(22)), loopSample ? "LOOP ON" : "LOOP OFF", loopSample, () -> loopSample = !loopSample);
     }
 
     // ---- Page R ----
@@ -1417,6 +1538,7 @@ public class CmiView extends View {
             if (k != null) Native.noteOff(k);
             Hit h = active.remove(id);
             float[] o = downAt.remove(id);
+            if (h != null && h.up != null) h.up.run(e.getX(i), e.getY(i));
             if (h != null && h.longPress) {
                 removeCallbacks(holdTimers[id & 15]);
                 boolean moved = o != null && Math.hypot(e.getX(i) - o[0], e.getY(i) - o[1]) > dp(8);

@@ -10,6 +10,7 @@
 #include "core/Factory.h"
 #include "core/Record.h"
 #include "core/Pen.h"
+#include "core/Pads.h"
 
 namespace cmi {
 
@@ -166,6 +167,19 @@ public:
     void setKitCatalogVoice(int note, int catIndex);
     void auditionKit(int note);
     void resetKit();
+    // ---- the drum pads (core/Pads.h): the kit every song's drums, channel 10 and the pads play ----
+    juce::String padKitName = "CMI DRUM MAP"; int padPreset = -1, padBank = 0, padSel = 0;
+    const DrumKit& pads() const { return engine.padKit; }
+    void setPads(DrumKit k, const juce::String& name, bool fit);   // its voices loaded (fit: from this library)
+    void setPadPiece(int note, const KitPiece& p);
+    void setPadVoice(int note, int soundIndex);                   // -1: automatic
+    void setPadCatalogVoice(int note, int catIndex);
+    void hitPad(int note, int vel) { engine.padPush(note, vel); }
+    juce::String padPresetLoad(int n);
+    juce::String padRandom();
+    juce::String padImport(const juce::Array<juce::File>& filesOrFolders, bool replaceKit);
+    void padsClear() { setPads(DrumKit(), "CMI DRUM MAP", false); padPreset = -1; }
+    int unloadUnusedLibrary();                                   // library voices nothing uses; how many went
     // ---- recording ----
     Recorder recorder; RecordSettings& rec = recorder.rs; bool& recCountIn = recorder.countIn; std::atomic<bool>& recording = recorder.on;
     juce::String startRecording(int track);                // from the start of the song view (recFromBeat)

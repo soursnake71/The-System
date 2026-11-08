@@ -8,6 +8,7 @@
 #include "../core/GridEdit.h"
 #include "../core/Record.h"
 #include "../core/Pen.h"
+#include "../core/Pads.h"
 #include <cstdio>
 #include <chrono>
 
@@ -228,6 +229,90 @@ int main(int argc, char** argv) {
         DrumKit kt; kt.p[42].voice = "HIHAT1@DRUMS"; kt.p[42].tune = -2; kt.p[36].solo = true; kt.p[38].pan = 0.25f;
         DrumKit kr; kr.load(kt.save());
         CHECK(kr.save() == kt.save() && kr.p[42].voice == "HIHAT1@DRUMS" && kr.p[42].tune == -2 && kr.p[36].solo, "kit text: %s", kt.save().c_str());
+    }
+
+    // ---- room for the library: 1023 voices, NO_VOICE kept at 255; library voices kept by name and put back ----
+    {
+        CHECK(Library::USER_SLOTS == 1023 && Library::slotOf(254) == 254 && Library::slotOf(255) == 256 && Library::userOf(256) == 255 && Library::userOf(NO_VOICE) == -1,
+              "voice numbers: NO_VOICE in its old place");
+        Kit big; int put = 0; for (int k = 0; k < 700; ++k) { Sound x; x.name = "V" + std::to_string(k); x.category = "DRUMS"; x.ram.assign(PAGE, 0x90); x.fromLibrary = k % 2 == 0; big.setUser(k, x); ++put; }
+        CHECK(big.loadedCount() == 700 && big.libraryCount() == 350 && big.ownCount() == 350 && big.firstFree() == 700 && big.bank.at(NO_VOICE)->name == "--", "700 voices loaded (%d free after)", Library::USER_SLOTS - big.loadedCount());
+        // a library voice's place kept, filled when the library is read
+        auto fakeVc = [](int pages, int start) { std::vector<uint8_t> v(0x1580 + (size_t) pages * PAGE, 0x80); v[0] = 4; for (size_t i = 0x1580 + (size_t) start; i < v.size(); ++i) v[i] = (uint8_t) (128 + (int) std::lround(100 * std::sin(i * 0.2) * std::exp(-(double) (i - 0x1580 - start) / 3000.0))); return v; };
+        Catalog cat;
+        auto addVoice = [&](const char* nm, const char* dk, int start = 0) { CatVoice c; c.name = nm; c.disk = dk; c.vc = fakeVc(40, start); c.hash = cat.voices.size() + 1; cat.voices.push_back(c); };
+        addVoice("KICK1", "DRUMS1"); addVoice("SNARE1", "DRUMS1"); addVoice("LMSNARE", "DRUMS"); addVoice("HIHAT2", "CYMBALS"); addVoice("HHOPEN1", "CYMBALS");
+        addVoice("TTOM", "DRUMS"); addVoice("CYMSPLS1", "CYMBALS"); addVoice("CROSSTIX", "DRUMS"); addVoice("CLAP", "PERCUSN1"); addVoice("BDRUM", "DRUMS", 13000);
+        addVoice("STRNGENS", "STRINGS"); addVoice("COWBELL1", "PERCUSN1"); addVoice("CYMSTICK", "CYMBALS");
+        Kit kp; kp.keepPlace(300, "STRNGENS", "STRINGS");
+        CHECK(kp.user(300)->waiting && !isBlank(kp, kp.userSlot(300)) && findVoiceAt(kp.bank, "STRNGENS@STRINGS") == kp.userSlot(300), "a library voice's place kept");
+        const int missing = fillLibraryPlaces(kp, cat);
+        CHECK(missing == 0 && !kp.user(300)->waiting && kp.user(300)->fromLibrary && kp.user(300)->ram.size() == 40 * PAGE, "the library voice back in its place");
+        const int lv = loadCatalogVoice(kp, cat, 0);
+        CHECK(lv >= 0 && kp.bank.at(lv)->fromLibrary && kp.libraryCount() == 2 && kp.ownCount() == 0, "library voices marked as such");
+        SongList none; SeqData sq; for (auto& t : sq.trk) t.sound = NO_VOICE;
+        const int gone = unloadUnusedLibrary(kp, voicesInUse(kp, lv, sq, none, nullptr));
+        CHECK(gone == 1 && kp.userLoaded(300) == false && kp.bank.at(lv)->name == "KICK1", "unused library voices unloaded, the keyboard's kept (%d)", gone);
+
+        // ---- the drum pads ----
+        struct NameCase { const char* n; Part p; };
+        const NameCase names[] = { { "Kick 808 (hard).wav", Part::Kick }, { "BD01.wav", Part::Kick }, { "SD_02.wav", Part::Snare }, { "snare-tight.aif", Part::Snare },
+            { "HiHat Closed.wav", Part::ClosedHat }, { "CH.wav", Part::ClosedHat }, { "OH 1.wav", Part::OpenHat }, { "hihat open.wav", Part::OpenHat }, { "Pedal Hat.wav", Part::PedalHat },
+            { "Clap.wav", Part::Clap }, { "RIMSHOT.wav", Part::Rim }, { "Tom Lo.wav", Part::Tom }, { "LT.wav", Part::Tom }, { "Crash 16.wav", Part::Crash }, { "Ride Bell.wav", Part::RideBell },
+            { "ride.wav", Part::Ride }, { "Cowbell.wav", Part::Cowbell }, { "Conga Hi.wav", Part::Conga }, { "shaker.wav", Part::Shaker }, { "Tamb.wav", Part::Tamb },
+            { "KICK1", Part::Kick }, { "LMSNARE", Part::Snare }, { "HHOPNCL1", Part::OpenHat }, { "HIHAT2", Part::ClosedHat }, { "CROSSTIX", Part::Rim }, { "CYMSPLS1", Part::Crash },
+            { "CYMBELL1", Part::RideBell }, { "TTOM", Part::Tom }, { "SYNDRUM1", Part::Tom }, { "CCONGHI", Part::Conga }, { "BONGLO", Part::Bongo }, { "GOGO", Part::Agogo },
+            { "STRNGENS", Part::None }, { "ORCH5", Part::None }, { "BASSGT", Part::None }, { "custom pad.wav", Part::None } };
+        int wrong = 0; for (const auto& nc : names) if (partOfName(nc.n).part != nc.p) { ++wrong; std::printf("  %s -> %s (want %s)\n", nc.n, partName(partOfName(nc.n).part), partName(nc.p)); }
+        CHECK(wrong == 0, "drum names: %d wrong", wrong);
+        CHECK(partOfName("Tom Lo.wav").pitch < 0 && partOfName("Tom Hi.wav").pitch > 0, "tom pitch from the name");
+        // GM lines up: the kick on 36, snare 38, hats 42/46, toms across 41-50 low to high
+        std::array<PartChoice, PARTS> ch;
+        ch[(size_t) Part::Kick].voices = { "K@X" }; ch[(size_t) Part::Snare].voices = { "S@X" }; ch[(size_t) Part::ClosedHat].voices = { "CH@X" }; ch[(size_t) Part::OpenHat].voices = { "OH@X" };
+        ch[(size_t) Part::Tom].voices = { "TL@X", "TH@X" }; ch[(size_t) Part::Crash].voices = { "CR@X" };
+        const DrumKit gk = kitFromParts(ch);
+        CHECK(gk.p[36].voice == "K@X" && gk.p[35].voice == "K@X" && gk.p[38].voice == "S@X" && gk.p[40].voice == "S@X" && gk.p[42].voice == "CH@X" && gk.p[44].voice == "CH@X" && gk.p[46].voice == "OH@X" &&
+              gk.p[41].voice == "TL@X" && gk.p[45].voice == "TL@X" && gk.p[48].voice == "TH@X" && gk.p[50].voice == "TH@X" && gk.p[41].tune < gk.p[45].tune && gk.p[48].tune < gk.p[50].tune &&
+              gk.p[49].voice == "CR@X" && gk.p[57].voice == "CR@X" && gk.p[55].voice == "CR@X", "a kit in General MIDI order");
+        int padsOk = 1; std::vector<int> seen; for (int b = 0; b < PAD_BANKS; ++b) for (int i = 0; i < 16; ++i) { const int n = padNote(b, i); if (std::find(seen.begin(), seen.end(), n) != seen.end() || n < 35 || n > 82) padsOk = 0; seen.push_back(n); }
+        CHECK(padsOk && padNote(0, 0) == 36 && padNote(0, 1) == 38 && padNote(0, 2) == 42 && padNote(0, 3) == 46, "48 pads, every GM drum once");
+        // presets: 100, named, each with a kick, snare and hat
+        const auto& kps = kitPresets(); int full = 0; std::vector<std::string> pn;
+        for (const auto& kp2 : kps) { full += !kp2.kit.p[36].voice.empty() && !kp2.kit.p[38].voice.empty() && !kp2.kit.p[42].voice.empty() && !kp2.kit.p[46].voice.empty(); pn.push_back(kp2.name); }
+        std::sort(pn.begin(), pn.end());
+        CHECK(kps.size() == 100 && full == 100 && std::unique(pn.begin(), pn.end()) == pn.end(), "100 kit presets (%zu, %d complete)", kps.size(), full);
+        // a preset fitted to a library that lacks some of its voices: the same kind from what's there
+        DrumKit fk = kps[10].kit; const int repl = fitKitToLibrary(fk, cat);
+        CHECK(repl > 0 && cat.find(fk.p[36].voice.substr(0, fk.p[36].voice.find('@'))) >= 0 && partOfName(fk.p[38].voice).part == Part::Snare && partOfName(fk.p[36].voice).part == Part::Kick &&
+              fk.p[36].voice.rfind("BDRUM", 0) != 0, "a preset on a small library: %d replaced, kick %s, snare %s", repl, fk.p[36].voice.c_str(), fk.p[38].voice.c_str());
+        // the dice: a kit from this library only
+        const DrumKit rk = randomKit(cat, 7); int fromLib = 1;
+        for (const auto& p : rk.p) if (!p.voice.empty() && cat.find(p.voice.substr(0, p.voice.find('@'))) < 0) fromLib = 0;
+        CHECK(fromLib && !rk.p[36].voice.empty() && !rk.p[38].voice.empty() && rk.p[36].voice.rfind("BDRUM", 0) != 0 && rk.p[1].voice.empty(), "random kit from the library: %s", kitSummary(rk).c_str());
+
+        // the pads play the kit with no song; MIDI channel 10 too; a song's kit goes on top
+        Kit kk; DrumKit pk = randomKit(cat, 3); loadKitVoices(pk, kk, cat);
+        Engine e; e.bank = &kk.bank; e.kitVoice = kitLookup(kk.bank); e.prepare(fs); e.setOutput(1, 0, 0); e.fxOn = false; e.extSync = false;
+        applyPads(e, pk);
+        auto hit = [&](std::function<void()> f) { f(); std::vector<float> a(fs / 4), b2(fs / 4); e.render(a.data(), b2.data(), fs / 4); float m = 0; for (float x : a) m = std::max(m, std::fabs(x)); for (int i = 0; i < 4; ++i) e.render(a.data(), b2.data(), fs / 4); e.allOff(true); return m; };
+        const float viaPad = hit([&] { e.padPush(38, 120); });
+        const uint8_t on10[3] = { 0x99, 36, 120 }; const float viaMidi = hit([&] { e.midi(on10, 3); });
+        DrumKit mk = pk; mk.p[38].mute = true; applyPads(e, mk); const float muted = hit([&] { e.padPush(38, 120); }); applyPads(e, pk);
+        CHECK(viaPad > 0.02f && viaMidi > 0.02f && muted < 0.001f && e.kitSound[38].load() == findVoiceAt(kk.bank, pk.p[38].voice), "pads: %.3f, channel 10: %.3f, muted %.4f", viaPad, viaMidi, muted);
+        DrumKit sk; sk.p[38].tune = 2; sk.p[42].voice = "CYMSTICK@CYMBALS"; loadKitVoices(sk, kk, cat); applyKit(e, sk);
+        CHECK(e.kitTune[38].load() == pk.p[38].tune + 2 && e.kitSound[38].load() == findVoiceAt(kk.bank, pk.p[38].voice) && e.kitSound[42].load() == findVoiceAt(kk.bank, "CYMSTICK") && e.kitSound[36].load() == findVoiceAt(kk.bank, pk.p[36].voice),
+              "a song's kit over the pads' kit");
+        // your samples onto the pads, as CMI voices: 8-bit, at most 30.2 kHz, a long one at a lower rate
+        std::vector<KitSample> smp;
+        auto tone = [&](const char* file, double secs, double hz) { KitSample k2; k2.file = file; k2.rate = 44100; k2.mono.resize((size_t) (secs * 44100)); for (size_t i = 0; i < k2.mono.size(); ++i) k2.mono[i] = (float) (0.5 * std::sin(i * 2 * PI * hz / 44100) * std::exp(-(double) i / (secs * 44100 / 4))); smp.push_back(k2); };
+        tone("Kick.wav", 0.4, 60); tone("Snare 1.wav", 0.3, 200); tone("CH.wav", 0.1, 3000); tone("Open Hat.wav", 0.8, 3000); tone("Crash.wav", 2.5, 2500); tone("Tom Lo.wav", 0.5, 90); tone("Tom Hi.wav", 0.5, 160); tone("weird noise.wav", 0.2, 500);
+        Kit ks; DrumKit sp; const std::string msg = importKitSamples(smp, ks, sp, true);
+        const Sound* kick = ks.bank.at(findVoiceAt(ks.bank, sp.p[36].voice)); const Sound* crash = ks.bank.at(findVoiceAt(ks.bank, sp.p[49].voice));
+        int unnamed = 0; for (int i = 0; i < 16; ++i) unnamed += sp.p[(size_t) padNote(2, i)].voice.rfind("WEIRDNOI", 0) == 0;
+        CHECK(kick && kick->name == "KICK" && kick->rate <= 30200.5 && kick->category == "User" && !kick->fromLibrary && crash && crash->rate < 8000.5 && crash->ram.size() <= (size_t) RAM_SIZE &&
+              sp.p[38].voice.rfind("SNARE1", 0) == 0 && sp.p[42].voice.rfind("CH", 0) == 0 && sp.p[46].voice.rfind("OPENHAT", 0) == 0 && sp.p[41].voice.rfind("TOMLO", 0) == 0 && sp.p[50].voice.rfind("TOMHI", 0) == 0 && unnamed == 1,
+              "samples onto the pads: %s (kick %.0f Hz, crash %.0f Hz)", msg.c_str(), kick ? kick->rate : 0, crash ? crash->rate : 0);
+        std::printf("pads: %s; preset 11 on a small library: %s; random: %s\n", msg.c_str(), kitSummary(fk).c_str(), kitSummary(rk).c_str());
     }
 
     // ---- a CMI disk voice in the drum kit plays at its own speed: the Series II's 30.2 kHz ----
