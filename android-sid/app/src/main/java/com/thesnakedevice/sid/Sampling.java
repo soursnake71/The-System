@@ -21,7 +21,7 @@ import java.nio.ShortBuffer;
  *  MediaCodec, so WAV, MP3, AAC, FLAC, Ogg... whatever the phone plays). Up to 20 s recorded, 60 s from a file;
  *  the native side converts it to the sample rate and bit depth chosen on the SMP page. */
 final class Sampling {
-    static final int PICK = 64, PERMISSION = 65;
+    static final int PICK = 64, PERMISSION = 65, MIDI_SAVE = 66, MIDI_OPEN = 67;
     private static final int RATE = 44100;
     private final Activity act;
     private volatile boolean recording;
@@ -35,6 +35,10 @@ final class Sampling {
             case 1: openFile(); break;
             case 2: startRecording(); break;
             case 3: stopRecording(); break;
+            case 4: { final Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("audio/midi");
+                      i.putExtra(Intent.EXTRA_TITLE, Native.midiFileName()); act.startActivityForResult(i, MIDI_SAVE); break; }
+            case 5: { final Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*");
+                      act.startActivityForResult(i, MIDI_OPEN); break; }
             default: break;
         }
     }
@@ -44,6 +48,23 @@ final class Sampling {
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("audio/*");
         act.startActivityForResult(i, PICK);
+    }
+
+    /** The MIDI file picker's answer: write the pattern there, or read the file into the pattern. */
+    void onMidiFile(int req, Uri uri) {
+        if (uri == null) return;
+        try {
+            if (req == MIDI_SAVE) {
+                try (java.io.OutputStream o = act.getContentResolver().openOutputStream(uri, "wt")) { if (o != null) o.write(Native.midiFileToSave()); }
+            } else {
+                try (java.io.InputStream in = act.getContentResolver().openInputStream(uri)) {
+                    if (in == null) return;
+                    final java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream(); final byte[] buf = new byte[8192]; int n;
+                    while ((n = in.read(buf)) > 0 && b.size() < 1 << 20) b.write(buf, 0, n);
+                    Native.midiFileLoaded(b.toByteArray());
+                }
+            }
+        } catch (Exception ignored) { }
     }
 
     void onPicked(Uri uri) {

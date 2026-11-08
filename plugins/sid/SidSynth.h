@@ -169,6 +169,13 @@ struct ParamInfo {
     X(r7ehg,  "EQ HI LEVEL",   "REV", -15, 15, 0, CONT, "", 1, "DB", 1) \
     X(r7circ, "VINTAGE CONV",  "REV", 0, 1, 1, TOGGLE, "", 1, "", 1) \
     X(r7phase,"OUT PHASE",     "REV", 0, 1, 0, TOGGLE, "", 1, "", 1) \
+    X(midich, "MIDI CHANNEL",  "MIDI", 0, 16, 0, CHOICE, "OMNI|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16", 1, "", 0) \
+    X(velcrv, "VELOCITY CURVE","MIDI", 0, 3, 0, CHOICE, "LINEAR|SOFT|HARD|FIXED", 1, "", 0) \
+    X(atcut,  "AFTERTOUCH>CUT","MIDI", -1, 1, 0.5f, CONT, "", 1, "", 0) \
+    X(atvib,  "AFTERTOUCH>VIB","MIDI", 0, 100, 0, CONT, "", 1, "CT", 0) \
+    X(clksrc, "CLOCK",         "MIDI", 0, 1, 0, CHOICE, "INTERNAL|MIDI CLOCK", 1, "", 0) \
+    X(clkout, "SEND CLOCK",    "MIDI", 0, 1, 0, TOGGLE, "", 1, "", 0) \
+    X(notout, "SEND SEQ NOTES","MIDI", 0, 1, 1, TOGGLE, "", 1, "", 0) \
     X(bpm,    "TEMPO",         "SEQ", 40, 240, 120, CONT, "", 1, "BPM", 0) \
     X(srate,  "STEP RATE",     "SEQ", 0, 3, 1, CHOICE, "1/8|1/16|1/16T|1/32", 1, "", 0) \
     X(swing,  "SWING",         "SEQ", 0, 0.75f, 0, CONT, "", 1, "", 0) \
@@ -282,7 +289,18 @@ inline const std::vector<std::vector<int>>& chords() {
 // ---------------------------------------------------------------------------------------------------------------
 // sequencer patterns
 struct Step { int note = 60; bool on = false, accent = false, slide = false; };
-constexpr int kSteps = 32, kPatterns = 16;
+constexpr int kSteps = 32, kPatterns = 16, kNotes = 128;
+// a note in a pattern (the grid edits these): start step, length in steps, pitch, velocity, slide into the next
+struct GNote { int start = 0, len = 1, note = 60, vel = 100; bool slide = false; };
+inline uint32_t packNote(const GNote& n) {
+    return 0x80000000u | (uint32_t) (n.start & 63) | (uint32_t) ((std::clamp(n.len, 1, 64) - 1) & 63) << 6 | (uint32_t) (n.note & 127) << 12
+         | (uint32_t) std::clamp(n.vel, 1, 127) << 19 | (n.slide ? 1u << 26 : 0u);
+}
+inline bool unpackNote(uint32_t v, GNote& n) {
+    if (!(v & 0x80000000u)) return false;
+    n.start = (int) (v & 63); n.len = (int) ((v >> 6) & 63) + 1; n.note = (int) ((v >> 12) & 127); n.vel = (int) ((v >> 19) & 127); n.slide = (v >> 26) & 1;
+    return true;
+}
 inline uint32_t packStep(const Step& s) { return (uint32_t) (s.note & 127) | (s.on ? 128u : 0u) | (s.accent ? 256u : 0u) | (s.slide ? 512u : 0u); }
 inline Step unpackStep(uint32_t v) { Step s; s.note = (int) (v & 127); s.on = v & 128; s.accent = v & 256; s.slide = v & 512; return s; }
 
@@ -325,7 +343,9 @@ public:
 
     Synth() {
         for (int i = 0; i < NP; ++i) values[i].store(params()[i].def);
-        for (auto& p : pat) for (auto& s : p) s.store(packStep(Step {}));
+        for (auto& p : notes) for (auto& s : p) s.store(0);
+        for (auto& c : ccMap) c.store(-1);
+        resetCCMap();
         for (int i = 0; i < 16 && i < patternPresetCount(); ++i) loadPatternPreset(i, i);
         for (auto& s : scope) s.store(0);
         for (auto& m : meters) m.store(0);
@@ -458,6 +478,116 @@ public:
     }
     enum { EV_ON, EV_OFF, EV_PANIC, EV_SEQ_PLAY, EV_SEQ_STOP, EV_BEND, EV_WHEEL, EV_ALLOFF };
 
+    // ---- MIDI in: everything from a host or a device goes through midiIn (audio thread), or postMidi (any one other thread) ----
+    std::array<std::atomic<int>, 128> ccMap;                  // controller -> parameter (-1: none)
+    std::atomic<int> learnParam { -1 };                       // the next controller moved is mapped to this
+    std::atomic<int> lastCC { -1 }, lastCCValue { 0 }, learnedCC { -1 };
+    std::atomic<int> pendingProgram { -1 };                   // a program change, for the UI thread to load
+    void resetCCMap() {
+        for (auto& c : ccMap) c.store(-1);
+        const std::pair<int, int> d[] = { { 74, P::cut }, { 71, P::res }, { 73, P::o1a }, { 75, P::o1d }, { 72, P::o1r }, { 5, P::glide },
+            { 7, P::gain }, { 10, P::spread }, { 91, P::rret }, { 93, P::emix }, { 76, P::lrate }, { 77, P::vib }, { 78, P::vdel },
+            { 79, P::fenv }, { 20, P::o1pw }, { 21, P::o2pw }, { 22, P::o3pw }, { 23, P::o1pwm }, { 24, P::curve }, { 25, P::drive },
+            { 26, P::etime }, { 27, P::efb }, { 28, P::r7rt }, { 29, P::flfo }, { 30, P::aspd }, { 31, P::swing } };
+        for (auto& m : d) ccMap[(size_t) m.first].store(m.second);
+    }
+    // parameter changes that came from MIDI, for a host that keeps its own copy (the plugin's automation)
+    bool popParamChange(int& id, float& v) {
+        const int r = pcR.load(std::memory_order_relaxed);
+        if (r == pcW.load(std::memory_order_acquire)) return false;
+        id = pcq[(size_t) (r & 255)].first; v = pcq[(size_t) (r & 255)].second; pcR.store(r + 1, std::memory_order_release);
+        return true;
+    }
+    void postMidi(const uint8_t* d, int n) {   // from a device thread: bytes into a ring the audio thread reads
+        int w = mrW.load(std::memory_order_relaxed);
+        for (int i = 0; i < n; ++i) { if (w - mrR.load(std::memory_order_acquire) >= 4095) break; mring[(size_t) (w & 4095)] = d[i]; ++w; }
+        mrW.store(w, std::memory_order_release);
+    }
+    void midiIn(const uint8_t* d, int n) {
+        for (int i = 0; i < n; ++i) midiByte(d[i]);
+    }
+
+    // ---- MIDI files: a pattern as a standard MIDI file (format 0, 96 ticks a beat), and back ----
+    std::string exportMidi(int p) const {
+        const int ppq = 96; const double stepTicks = stepBeats() * ppq;
+        const int ch = std::max(0, iv(P::midich) - 1);
+        struct E { long t; int pri; uint8_t a, b, c; };
+        std::vector<E> ev;
+        for (auto& q : patternNotes(p)) {
+            const GNote& g = q.second;
+            const long on = std::lround(g.start * stepTicks);
+            const long off = std::lround((g.start + g.len - (g.slide ? 0.0 : 1.0 - get(P::sgate))) * stepTicks);
+            ev.push_back({ on, 1, (uint8_t) (0x90 | ch), (uint8_t) g.note, (uint8_t) std::clamp(g.vel, 1, 127) });
+            ev.push_back({ std::max(on + 1, off), 0, (uint8_t) (0x80 | ch), (uint8_t) g.note, 0 });
+        }
+        std::stable_sort(ev.begin(), ev.end(), [](const E& x, const E& y) { return x.t != y.t ? x.t < y.t : x.pri < y.pri; });
+        std::string trk;
+        auto vlq = [&](long v) { uint8_t b[5]; int k = 0; b[k++] = (uint8_t) (v & 127); while (v >>= 7) b[k++] = (uint8_t) (0x80 | (v & 127)); while (k) trk += (char) b[--k]; };
+        const std::string name = "OMEGA SID 64 PATTERN " + std::to_string(p + 1);
+        vlq(0); trk += "\xFF\x03"; trk += (char) name.size(); trk += name;
+        const long us = std::lround(60000000.0 / std::max(1.0, (double) get(P::bpm)));
+        vlq(0); trk += "\xFF\x51\x03"; trk += (char) (us >> 16 & 255); trk += (char) (us >> 8 & 255); trk += (char) (us & 255);
+        long t = 0;
+        for (const E& e : ev) { vlq(e.t - t); t = e.t; trk += (char) e.a; trk += (char) e.b; trk += (char) e.c; }
+        const long endT = std::lround(std::clamp(iv(P::slen), 1, kSteps) * stepTicks);
+        vlq(std::max(0L, endT - t)); trk += "\xFF\x2F"; trk += (char) 0;
+        std::string f = "MThd"; f += std::string("\0\0\0\x06\0\0\0\x01", 8); f += (char) (ppq >> 8); f += (char) (ppq & 255);
+        f += "MTrk"; const uint32_t L = (uint32_t) trk.size();
+        f += (char) (L >> 24); f += (char) (L >> 16 & 255); f += (char) (L >> 8 & 255); f += (char) (L & 255);
+        return f + trk;
+    }
+    // reads every track and channel; notes land on the nearest step at the pattern's step rate. Returns the number of
+    // notes, or -1 if it isn't a MIDI file. The pattern length becomes the file's length (up to 32 steps).
+    int importMidi(const std::string& f, int p, int* lengthOut = nullptr) {
+        auto u8 = [&](size_t i) { return i < f.size() ? (uint8_t) f[i] : (uint8_t) 0; };
+        auto be = [&](size_t i, int n) { uint32_t v = 0; for (int k = 0; k < n; ++k) v = v << 8 | u8(i + (size_t) k); return v; };
+        if (f.size() < 14 || f.compare(0, 4, "MThd") != 0) return -1;
+        const int ntr = (int) be(10, 2), div = (int) be(12, 2);
+        if (div <= 0 || (div & 0x8000)) return -1;   // SMPTE time isn't supported
+        size_t pos = 8 + be(4, 4);
+        struct N { long on, off; int note, vel; };
+        std::vector<N> got;
+        for (int t = 0; t < ntr && pos + 8 <= f.size(); ++t) {
+            if (f.compare(pos, 4, "MTrk") != 0) break;
+            const size_t len = be(pos + 4, 4), endp = std::min(f.size(), pos + 8 + len);
+            size_t i = pos + 8; long tick = 0; uint8_t run = 0;
+            std::vector<std::pair<int, long>> open[16];   // per channel: (note, start)
+            std::vector<int> openVel[16];
+            while (i < endp) {
+                long d = 0; uint8_t b; do { b = u8(i++); d = d << 7 | (b & 127); } while ((b & 0x80) && i < endp);
+                tick += d;
+                uint8_t st = u8(i);
+                if (st & 0x80) { ++i; if (st < 0xF0) run = st; } else st = run;
+                if (st == 0xFF) { ++i; long l = 0; do { b = u8(i++); l = l << 7 | (b & 127); } while (b & 0x80); i += (size_t) l; continue; }
+                if (st == 0xF0 || st == 0xF7) { long l = 0; do { b = u8(i++); l = l << 7 | (b & 127); } while (b & 0x80); i += (size_t) l; continue; }
+                const int type = st & 0xF0, ch = st & 15;
+                const int nb = (type == 0xC0 || type == 0xD0) ? 1 : 2;
+                const int d1 = u8(i), d2 = nb > 1 ? u8(i + 1) : 0; i += (size_t) nb;
+                if (type == 0x90 && d2 > 0) { open[ch].push_back({ d1, tick }); openVel[ch].push_back(d2); }
+                else if (type == 0x80 || (type == 0x90 && d2 == 0)) {
+                    for (size_t k = 0; k < open[ch].size(); ++k) if (open[ch][k].first == d1) {
+                        got.push_back({ open[ch][k].second, tick, d1, openVel[ch][k] });
+                        open[ch].erase(open[ch].begin() + (long) k); openVel[ch].erase(openVel[ch].begin() + (long) k); break;
+                    }
+                }
+            }
+            pos = endp;
+        }
+        const double stepTicks = div * stepBeats();
+        std::vector<GNote> v; int maxEnd = 0;
+        for (const N& n : got) {
+            GNote g; g.start = (int) std::lround(n.on / stepTicks);
+            if (g.start < 0 || g.start >= kSteps) continue;
+            g.len = std::clamp((int) std::lround((n.off - n.on) / stepTicks), 1, kSteps - g.start);
+            g.note = n.note; g.vel = n.vel;
+            v.push_back(g); maxEnd = std::max(maxEnd, g.start + g.len);
+            if ((int) v.size() >= kNotes) break;
+        }
+        setPatternNotes(p, v);
+        if (lengthOut) *lengthOut = std::clamp(((maxEnd + 3) / 4) * 4, 1, kSteps);
+        return (int) v.size();
+    }
+
     // ---- the sampler (UI thread, except recordInput) ----
     SampleSource source;          // what's been sampled; only the UI thread touches it
     int sourceVersion = 0;
@@ -493,28 +623,70 @@ public:
     double effectiveRate(double rate) const { const double clk = on(P::clock) ? NTSC_CLOCK : PAL_CLOCK; return clk / std::max(1.0, std::round(clk / rate)); }
 
     // ---- sequencer ----
-    std::atomic<uint32_t> pat[kPatterns][kSteps];
-    Step step(int p, int i) const { return unpackStep(pat[p][i].load(std::memory_order_relaxed)); }
-    void setStep(int p, int i, const Step& s) { pat[p][i].store(packStep(s), std::memory_order_relaxed); }
+    // patterns: up to 128 notes each, packed in atomics so the editor and the audio thread can share them
+    std::atomic<uint32_t> notes[kPatterns][kNotes];
+    std::vector<std::pair<int, GNote>> patternNotes(int p) const {
+        std::vector<std::pair<int, GNote>> out; GNote n;
+        for (int k = 0; k < kNotes; ++k) if (unpackNote(notes[p][k].load(std::memory_order_relaxed), n)) out.push_back({ k, n });
+        return out;
+    }
+    int addNote(int p, const GNote& n) {
+        for (int k = 0; k < kNotes; ++k) if (!(notes[p][k].load(std::memory_order_relaxed) & 0x80000000u)) { notes[p][k].store(packNote(n), std::memory_order_relaxed); return k; }
+        return -1;
+    }
+    void setNote(int p, int slot, const GNote& n) { if (slot >= 0 && slot < kNotes) notes[p][slot].store(packNote(n), std::memory_order_relaxed); }
+    void removeNote(int p, int slot) { if (slot >= 0 && slot < kNotes) notes[p][slot].store(0, std::memory_order_relaxed); }
+    void clearPattern(int p) { for (auto& n : notes[p]) n.store(0, std::memory_order_relaxed); }
+    void setPatternNotes(int p, const std::vector<GNote>& v) { clearPattern(p); for (const GNote& n : v) addNote(p, n); }
+    std::vector<GNote> copyPattern(int p) const { std::vector<GNote> v; for (auto& q : patternNotes(p)) v.push_back(q.second); return v; }
+
+    // the tracker's view of a pattern: one note per step (the lowest that starts there)
+    Step step(int p, int i) const {
+        Step st; int lo = 999, last = 48, lastStart = -1; GNote n;
+        for (int k = 0; k < kNotes; ++k) {
+            if (!unpackNote(notes[p][k].load(std::memory_order_relaxed), n)) continue;
+            if (n.start == i && n.note < lo) { lo = n.note; st.on = true; st.note = n.note; st.accent = n.vel >= 100; st.slide = n.slide; }
+            if (n.start < i && n.start > lastStart) { lastStart = n.start; last = n.note; }
+        }
+        if (!st.on) st.note = last;   // an empty step offers the note before it
+        return st;
+    }
+    // ... and editing it: the lowest note at the step changes (keeping its length); off removes the step's notes
+    void setStep(int p, int i, const Step& st) {
+        int lowSlot = -1, lo = 999; GNote n, low;
+        for (int k = 0; k < kNotes; ++k) {
+            if (!unpackNote(notes[p][k].load(std::memory_order_relaxed), n) || n.start != i) continue;
+            if (!st.on) { removeNote(p, k); continue; }
+            if (n.note < lo) { lo = n.note; lowSlot = k; low = n; }
+        }
+        if (!st.on) return;
+        if (lowSlot >= 0) {
+            const bool wasAccent = low.vel >= 100;
+            low.note = st.note; low.slide = st.slide;
+            if (st.accent != wasAccent) low.vel = st.accent ? 120 : 90;
+            setNote(p, lowSlot, low);
+        } else addNote(p, GNote { i, 1, st.note, st.accent ? 120 : 90, st.slide });
+    }
     void loadPatternPreset(int preset, int slot) {
         if (preset < 0 || preset >= patternPresetCount() || slot < 0 || slot >= kPatterns) return;
         int n = 0; std::string s = PATTERNS[preset].steps; size_t i = 0;
-        for (int k = 0; k < kSteps; ++k) setStep(slot, k, Step {});
+        clearPattern(slot);
         int last = 48;
         while (i < s.size() && n < kSteps) {
             while (i < s.size() && s[i] == ' ') ++i;
             if (i >= s.size()) break;
             size_t j = s.find(' ', i); std::string t = s.substr(i, j == std::string::npos ? std::string::npos : j - i);
             i = j == std::string::npos ? s.size() : j + 1;
-            Step st; st.note = last;
             if (t != ".") {
-                if (!t.empty() && t[0] == '!') { st.accent = true; t = t.substr(1); }
-                if (!t.empty() && t.back() == '~') { st.slide = true; t.pop_back(); }
+                GNote g; g.start = n; g.vel = 90;
+                if (!t.empty() && t[0] == '!') { g.vel = 120; t = t.substr(1); }
+                if (!t.empty() && t.back() == '~') { g.slide = true; t.pop_back(); }
                 const int nn = parseNote(t);
-                if (nn >= 0) { st.note = nn; st.on = true; last = nn; }
+                if (nn >= 0) { g.note = nn; last = nn; addNote(slot, g); }
             }
-            setStep(slot, n++, st);
+            ++n;
         }
+        (void) last;
         patLen[slot] = std::max(1, n);
     }
     int patLen[kPatterns] {};   // length of the loaded preset pattern, for the editor
@@ -522,7 +694,7 @@ public:
     std::atomic<bool> seqPlay { false };
     std::atomic<int> seqStepShown { -1 };
     // host transport: call before render() each block (plugin only)
-    void hostTransport(bool playing, double ppq, double bpm) { hostPlaying = playing; hostPpq = ppq; hostBpm = bpm; hostValid = true; }
+    void hostTransport(bool isPlaying, double ppq, double bpm) { hostPlaying = isPlaying; hostPpq = ppq; hostBpm = bpm; hostValid = true; }
 
     // ---- what the screen shows ----
     std::array<std::atomic<float>, 512> scope; std::atomic<int> scopeW { 0 };
@@ -539,10 +711,14 @@ public:
         s += "name=" + presetName + "\nprogram=" + std::to_string(program.load()) + "\n";
         if (!source.empty()) s += "smpname=" + source.name + "\nsmp=" + source.save() + "\n";
         for (int p = 0; p < kPatterns; ++p) {
-            s += "pat" + std::to_string(p) + "=";
-            for (int i = 0; i < kSteps; ++i) s += std::to_string(pat[p][i].load()) + (i < kSteps - 1 ? "," : "");
+            s += "pn" + std::to_string(p) + "=";
+            bool first = true;
+            for (auto& q : patternNotes(p)) { s += (first ? "" : ",") + std::to_string(packNote(q.second)); first = false; }
             s += "\n";
         }
+        s += "ccmap=";
+        for (int c = 0; c < 128; ++c) { const int id = ccMap[(size_t) c].load(); if (id >= 0) s += std::to_string(c) + ":" + params()[id].key + " "; }
+        s += "\n";
         return s;
     }
     void loadState(const std::string& st) {
@@ -557,10 +733,29 @@ public:
             else if (k == "smpname") smpName = v;
             else if (k == "smp") { source.load(v, smpName); ++sourceVersion; }
             else if (k == "program") program = std::atoi(v.c_str());
-            else if (k.rfind("pat", 0) == 0 && k.size() > 3 && std::isdigit((unsigned char) k[3])) {
+            else if (k.rfind("pn", 0) == 0 && k.size() > 2 && std::isdigit((unsigned char) k[2])) {
+                const int p = std::atoi(k.c_str() + 2); if (p < 0 || p >= kPatterns) continue;
+                clearPattern(p); size_t a = 0;
+                while (a < v.size()) { size_t b = v.find(',', a); if (b == std::string::npos) b = v.size(); GNote g; if (unpackNote((uint32_t) std::strtoul(v.substr(a, b - a).c_str(), nullptr, 10), g)) addNote(p, g); a = b + 1; }
+            } else if (k.rfind("pat", 0) == 0 && k.size() > 3 && std::isdigit((unsigned char) k[3])) {
+                // the older one-note-per-step format
                 const int p = std::atoi(k.c_str() + 3); if (p < 0 || p >= kPatterns) continue;
-                size_t a = 0; int n = 0;
-                while (a <= v.size() && n < kSteps) { size_t b = v.find(',', a); if (b == std::string::npos) b = v.size(); pat[p][n++].store((uint32_t) std::strtoul(v.substr(a, b - a).c_str(), nullptr, 10)); a = b + 1; }
+                clearPattern(p); size_t a = 0; int n = 0;
+                while (a <= v.size() && n < kSteps) {
+                    size_t b = v.find(',', a); if (b == std::string::npos) b = v.size();
+                    const uint32_t w = (uint32_t) std::strtoul(v.substr(a, b - a).c_str(), nullptr, 10);
+                    if (w & 128) addNote(p, GNote { n, 1, (int) (w & 127), (w & 256) ? 120 : 90, (w & 512) != 0 });
+                    ++n; a = b + 1;
+                }
+            } else if (k == "ccmap") {
+                for (auto& c : ccMap) c.store(-1);
+                size_t a = 0;
+                while (a < v.size()) {
+                    size_t b = v.find(' ', a); if (b == std::string::npos) b = v.size();
+                    const std::string t = v.substr(a, b - a); const size_t c = t.find(':');
+                    if (c != std::string::npos) { const int cc = std::atoi(t.c_str()); const int id = paramIndex(t.substr(c + 1)); if (cc >= 0 && cc < 128 && id >= 0) ccMap[(size_t) cc].store(id); }
+                    a = b + 1;
+                }
             } else { const int id = paramIndex(k); if (id >= 0) set(id, (float) std::atof(v.c_str())); }
         }
     }
@@ -568,21 +763,126 @@ public:
     // ---- audio ----
     void render(float* L, float* R, int n) {
         adoptSample();
+        midiOutCount = 0; renderPos = 0;
+        drainMidi();
         drainQueue();
+        extTransport(n);
         configure();
         int pos = 0;
         const double tickHz = tickRate();
         while (pos < n) {
             if (tickCount <= 0) { doTick(); tickCount += fs / tickHz; }
             int len = std::min({ n - pos, 32, std::max(1, (int) std::ceil(tickCount)) });
+            renderPos = pos;
             sequencer(len);
             synth(L + pos, R + pos, len);
             tickCount -= len; pos += len;
         }
         hostValid = false;
+        samplesRendered += (uint64_t) n;
     }
 
 private:
+    // ---------------- MIDI in ----------------
+    std::array<uint8_t, 4096> mring {}; std::atomic<int> mrW { 0 }, mrR { 0 };
+    std::array<std::pair<int, float>, 256> pcq {}; std::atomic<int> pcW { 0 }, pcR { 0 };
+    uint8_t mStatus = 0, mData[2] {}; int mNeed = 0, mHave = 0;
+    int bankMsb = 0, rpnMsb = 127, rpnLsb = 127;
+    double aftertouch = 0;
+    // the external clock (MIDI clock in)
+    bool extClock = false, extRunning = false; double extPpq = 0, extBpm = 0; uint64_t samplesRendered = 0, lastTick = 0;
+    void drainMidi() {
+        extClock = iv(P::clksrc) == 1;
+        int r = mrR.load(std::memory_order_relaxed); const int w = mrW.load(std::memory_order_acquire);
+        while (r != w) { midiByte(mring[(size_t) (r & 4095)]); ++r; }
+        mrR.store(r, std::memory_order_release);
+    }
+    void extTransport(int n) {
+        (void) n;
+        if (!extClock || !extRunning) return;
+        const double ahead = extBpm > 0 ? (double) (samplesRendered - lastTick) / fs * extBpm / 60.0 : 0.0;
+        hostPpq = extPpq + std::min(ahead, 1.0 / 24);   // between ticks: run on at the measured tempo, up to the next tick
+    }
+    void pushParamChange(int id, float v) {
+        const int w2 = pcW.load(std::memory_order_relaxed);
+        if (w2 - pcR.load(std::memory_order_acquire) >= 255) return;
+        pcq[(size_t) (w2 & 255)] = { id, v }; pcW.store(w2 + 1, std::memory_order_release);
+    }
+    void setFromMidi(int id, float v) { set(id, v); pushParamChange(id, get(id)); }
+    float velCurve(int v) const {
+        const float x = v / 127.f;
+        switch (iv(P::velcrv)) { case 1: return std::sqrt(x); case 2: return x * x; case 3: return 0.85f; default: return x; }
+    }
+    void midiByte(uint8_t b) {
+        if (b >= 0xF8) { midiRealtime(b); return; }
+        if (b & 0x80) {
+            mStatus = b; mHave = 0;
+            if (b == 0xF2) mNeed = 2; else if (b == 0xF1 || b == 0xF3) mNeed = 1; else if (b >= 0xF0) { mNeed = 0; if (b != 0xF0) mStatus = 0; }
+            else { const int t = b & 0xF0; mNeed = (t == 0xC0 || t == 0xD0) ? 1 : 2; }
+            return;
+        }
+        if (!mStatus || mStatus == 0xF0) return;   // running status, or inside sysex
+        mData[mHave++] = b;
+        if (mHave < mNeed) return;
+        mHave = 0;
+        midiMessage(mStatus, mData[0], mNeed > 1 ? mData[1] : 0);
+        if (mStatus >= 0xF0) mStatus = 0;
+    }
+    void midiRealtime(uint8_t b) {
+        extClock = iv(P::clksrc) == 1;
+        if (!extClock) return;
+        switch (b) {
+            case 0xF8: {   // clock: 24 a beat
+                if (lastTick > 0 && samplesRendered > lastTick) {
+                    const double bpm = 60.0 / ((double) (samplesRendered - lastTick) / fs * 24.0);
+                    if (bpm > 20 && bpm < 400) extBpm = extBpm > 0 ? extBpm * 0.9 + bpm * 0.1 : bpm;
+                }
+                lastTick = samplesRendered;
+                if (extRunning) extPpq += 1.0 / 24;
+                break;
+            }
+            case 0xFA: extRunning = true; extPpq = 0; break;          // start
+            case 0xFB: extRunning = true; break;                      // continue
+            case 0xFC: extRunning = false; break;                     // stop
+            default: break;
+        }
+    }
+    void midiMessage(uint8_t st, int d1, int d2) {
+        if (st == 0xF2) { if (extClock) extPpq = ((d2 << 7) | d1) * 0.25; return; }   // song position: in 16ths
+        if (st >= 0xF0) return;
+        const int type = st & 0xF0, ch = st & 15, want = iv(P::midich);
+        if (want > 0 && ch != want - 1) return;
+        switch (type) {
+            case 0x90: if (d2 > 0) { noteOn(d1, velCurve(d2)); break; } [[fallthrough]];
+            case 0x80: noteOff(d1); break;
+            case 0xE0: setBend((((d2 << 7) | d1) - 8192) / 8192.0); break;
+            case 0xD0: aftertouch = d1 / 127.0; break;
+            case 0xA0: aftertouch = std::max(aftertouch * 0.98, d2 / 127.0); break;   // poly pressure: the strongest key
+            case 0xC0: pendingProgram = std::clamp(bankMsb * 128 + d1, 0, presetCount() - 1); break;
+            case 0xB0: midiCC(d1, d2); break;
+            default: break;
+        }
+    }
+    void midiCC(int cc, int v) {
+        lastCC = cc; lastCCValue = v;
+        // MIDI learn: the next controller moved takes the parameter asked for
+        const int learn = learnParam.load();
+        if (learn >= 0) { for (auto& c : ccMap) if (c.load() == learn) c.store(-1); ccMap[(size_t) cc].store(learn); learnParam = -1; learnedCC = cc; }
+        const int id = ccMap[(size_t) cc].load();
+        if (id >= 0) { setFromMidi(id, fromNorm(id, v / 127.f)); return; }
+        switch (cc) {
+            case 0: bankMsb = v; break;
+            case 1: setModWheel(v / 127.0); break;
+            case 64: setSustain(v >= 64); break;
+            case 101: rpnMsb = v; break;
+            case 100: rpnLsb = v; break;
+            case 6: if (rpnMsb == 0 && rpnLsb == 0) setFromMidi(P::bend, (float) std::min(v, 24)); break;   // RPN 0: bend range
+            case 120: case 123: allNotesOff(); break;
+            case 121: setBend(0); setModWheel(0); aftertouch = 0; setSustain(false); break;
+            default: break;
+        }
+    }
+
     // ---------------- voices ----------------
     struct Slot {            // one oscillator's note
         int key = -1, note = 60; float vel = 1; bool gate = false; double pitch = 60, target = 60;
@@ -859,7 +1159,10 @@ private:
         for (int i = 0; i < kChips; ++i) if (!voices[i].asleep && voices[i].age >= a) { a = voices[i].age; best = i; }
         return best;
     }
-    double bpmNow() const { return hostValid && hostBpm > 0 && on(P::shost) ? hostBpm : (double) get(P::bpm); }
+    double bpmNow() const {
+        if (extClock && extBpm > 0) return extBpm;
+        return hostValid && hostBpm > 0 && on(P::shost) ? hostBpm : (double) get(P::bpm);
+    }
 
     // time-based modulation for one chip; dt = 0 just recomputes (a note arrived between ticks)
     void updateVoice(NVoice& v, double dt) {
@@ -911,7 +1214,7 @@ private:
             // pitch
             double n = s.pitch + iv(b + 5) + get(b + 6) / 100.0 + bend;
             const double fade = vdel > 0 ? std::min(1.0, s.vibTime / vdel) : 1.0;
-            n += (vibDepth * fade + mwv) / 100.0 * lfoVal;
+            n += (vibDepth * fade + mwv + aftertouch * get(P::atvib)) / 100.0 * lfoVal;
             int wave = (on(b + 1) ? TRI : 0) | (on(b + 2) ? SAW : 0) | (on(b + 3) ? PULSE : 0) | (on(b + 4) ? NOISE : 0);
             if (!pr.f.empty() && (progAll || i == 0) && s.gate) {
                 int p = s.progPos;
@@ -936,7 +1239,7 @@ private:
         }
         if (nk) keyNote /= nk; else keyNote = 60;
         double cut = get(P::cut) + get(P::fenv) * v.fenv + get(P::flfo) * lfoVal
-                   + get(P::key) * (keyNote - 60) * 28.0 + get(P::velcut) * (vel - 0.5) * 1400.0 + ccCut * 1024.0;
+                   + get(P::key) * (keyNote - 60) * 28.0 + get(P::velcut) * (vel - 0.5) * 1400.0 + ccCut * 1024.0 + aftertouch * get(P::atcut) * 1024.0;
         c.fc = (uint16_t) std::clamp(std::lround(cut), 0L, 2047L);
         c.res = (uint8_t) std::clamp(iv(P::res), 0, 15);
         c.filt = (uint8_t) filt;
@@ -998,58 +1301,88 @@ private:
     double seqPos = 0; long nextStep = 0; int seqNote = -1; double seqOffAt = -1; bool wasRunning = false; bool seqInternal = false;
     double stepBeats() const { static const double d[4] = { 0.5, 0.25, 1.0 / 6, 0.125 }; return d[std::clamp(iv(P::srate), 0, 3)]; }
     double stepTime(long k) const { const double sb = stepBeats(); return k * sb + ((k & 1) ? get(P::swing) * sb * 0.5 : 0); }
-    void seqStop() {
-        if (seqNote >= 0) { playNoteOff(seqNote, true); seqNote = -1; }
-        seqOffAt = -1; seqStepShown = -1;
+    // notes the sequencer is holding, and when each stops (in beats)
+    struct Playing { int key = -1; double off = 0; };
+    std::array<Playing, 64> playing {};
+    void seqAllOff() {
+        for (auto& pl : playing) if (pl.key >= 0) { playNoteOff(pl.key, true); midiOutNote(false, pl.key, 0); pl.key = -1; }
+    }
+    void seqStop() { seqAllOff(); seqStepShown = -1; }
+    void seqOffsUntil(double t) {
+        for (auto& pl : playing) if (pl.key >= 0 && pl.off <= t) { playNoteOff(pl.key, true); midiOutNote(false, pl.key, 0); pl.key = -1; }
     }
     void sequencer(int len) {
         const bool follow = on(P::shost) && hostValid;
         const bool internal = seqPlay.load();
-        hostRolling = follow && hostPlaying;
+        hostRolling = (follow && hostPlaying) || (extClock && extRunning);
         const bool running = internal || hostRolling;
-        if (!running) { if (wasRunning) { seqStop(); keyTranspose = 0; transposeKeys.clear(); } wasRunning = false; return; }
+        if (!running) {
+            if (wasRunning) { seqStop(); keyTranspose = 0; transposeKeys.clear(); if (on(P::clkout)) midiOutByte(0xFC); }
+            wasRunning = false; return;
+        }
         const double bpm = bpmNow();
         const double dBeats = bpm / 60.0 * len / fs;
         double pos;
         if (hostRolling) {
             pos = hostPpq; hostPpq += dBeats;   // advance within the block
             if (!wasRunning || std::fabs(pos - seqPos) > 0.25) {    // started or jumped: find the step at this position
-                if (seqNote >= 0) { playNoteOff(seqNote, true); seqNote = -1; }
+                seqAllOff();
                 nextStep = (long) std::ceil(pos / stepBeats() - 1e-9);
                 if (stepTime(nextStep) - pos > stepBeats() * .99) --nextStep;
-                seqOffAt = -1;
             }
         } else {
-            if (!wasRunning) { seqPos = 0; nextStep = 0; seqOffAt = -1; }
+            if (!wasRunning) { seqPos = 0; nextStep = 0; clockNext = 0; if (on(P::clkout)) midiOutByte(0xFA); }
             pos = seqPos;
         }
         wasRunning = true;
         const double end = pos + dBeats;
+        // MIDI clock out (24 a beat) while the internal clock runs the sequencer
+        if (!hostRolling && on(P::clkout)) while (clockNext < end) { midiOutByteAt(0xF8, (int) std::clamp((clockNext - pos) / dBeats * len, 0.0, (double) len - 1)); clockNext += 1.0 / 24; }
         const int patIdx = std::clamp(iv(P::spat) - 1, 0, kPatterns - 1), slen = std::clamp(iv(P::slen), 1, kSteps);
-        if (seqOffAt >= 0 && seqOffAt < end) { if (seqNote >= 0) playNoteOff(seqNote, true); seqNote = -1; seqOffAt = -1; }
+        const double sb = stepBeats(), gate = get(P::sgate);
+        GNote n;
         while (stepTime(nextStep) < end) {
+            const double t = stepTime(nextStep);
+            seqOffsUntil(t);
             const int si = (int) (((nextStep % slen) + slen) % slen);
-            const Step st = step(patIdx, si);
             seqStepShown = si;
-            if (st.on) {
-                const int note = std::clamp(st.note + keyTranspose, 0, 127);
-                const Step prev = step(patIdx, ((si - 1) % slen + slen) % slen);
-                const bool tie = prev.slide && prev.on && seqNote >= 0;
-                const float vel = st.accent ? 1.0f : 0.72f;
-                if (tie) {
-                    // slide: the new note starts before the old one stops, so MONO / LEGATO glide into it
-                    const int old = seqNote; playNoteOn(note, vel, true); if (old != note) playNoteOff(old, true);
-                } else {
-                    if (seqNote >= 0) playNoteOff(seqNote, true);
-                    playNoteOn(note, vel, true);
-                }
-                seqNote = note;
-                seqOffAt = st.slide ? -1 : stepTime(nextStep) + stepBeats() * get(P::sgate);
+            for (int k = 0; k < kNotes; ++k) {
+                if (!unpackNote(notes[patIdx][k].load(std::memory_order_relaxed), n) || n.start != si) continue;
+                const int key = std::clamp(n.note + keyTranspose, 0, 127);
+                const float vel = n.vel / 127.f;
+                // the same key still sounding: a slide glides into it (no new attack); otherwise it restarts
+                bool tied = false;
+                for (auto& pl : playing) if (pl.key == key) { if (n.slide || pl.off > t + 1e-9) tied = true; else { playNoteOff(key, true); midiOutNote(false, key, 0); pl.key = -1; } }
+                if (!tied) { playNoteOn(key, vel, true); midiOutNote(true, key, n.vel); }
+                // the end: its length times the gate, or (slide) just past the next note's start so it glides
+                const double off = n.slide ? stepTime(nextStep + n.len) + sb * 0.05 : t + (n.len - 1 + gate) * sb;
+                bool placed = false;
+                for (auto& pl : playing) if (pl.key == key) { pl.off = std::max(pl.off, off); placed = true; break; }
+                if (!placed) for (auto& pl : playing) if (pl.key < 0) { pl.key = key; pl.off = off; break; }
             }
             ++nextStep;
         }
-        if (!hostRolling) seqPos = end; else seqPos = end;
+        seqOffsUntil(end);
+        seqPos = end;
     }
+
+    // ---------------- MIDI out: the sequencer's notes and the clock, for the host / the phone to send on ----------------
+public:
+    struct MidiEvent { int offset; uint8_t b[3]; int n; };
+    std::array<MidiEvent, 512> midiOutBuf {}; int midiOutCount = 0;   // filled during render(), offsets within the call
+private:
+    int renderPos = 0;   // where in the render() call the current sub-block starts
+    double clockNext = 0;
+    void midiOutPush(int offset, uint8_t a, uint8_t b, uint8_t c, int n) {
+        if (midiOutCount < (int) midiOutBuf.size()) midiOutBuf[(size_t) midiOutCount++] = { renderPos + offset, { a, b, c }, n };
+    }
+    void midiOutNote(bool onNote, int key, int vel) {
+        if (!on(P::notout)) return;
+        const int ch = std::max(0, iv(P::midich) - 1);
+        midiOutPush(0, (uint8_t) ((onNote ? 0x90 : 0x80) | ch), (uint8_t) key, (uint8_t) (onNote ? std::clamp(vel, 1, 127) : 0), 3);
+    }
+    void midiOutByte(uint8_t b) { midiOutPush(0, b, 0, 0, 1); }
+    void midiOutByteAt(uint8_t b, int off) { midiOutPush(off, b, 0, 0, 1); }
 
     // ---------------- sound ----------------
     // the chip's buses, decimated: main L / R, echo send L / R, reverb send

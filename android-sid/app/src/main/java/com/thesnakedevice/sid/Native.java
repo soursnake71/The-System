@@ -24,7 +24,12 @@ final class Native {
     static native boolean seqRunning();
     static native void panic();
     static native void midi(byte[] data, int offset, int length);
-    /** What the screen asked for: 0 nothing, 1 open a file, 2 start recording, 3 stop recording. */
+    /** Messages for the MIDI devices: fills times (System.nanoTime), bytes (3 each), lengths; returns how many. */
+    static native int midiOut(long[] times, byte[] bytes, int[] lengths);
+    static native byte[] midiFileToSave();
+    static native String midiFileName();
+    static native void midiFileLoaded(byte[] data);
+    /** What the screen asked for: 0 nothing, 1 open a sample, 2 start recording, 3 stop recording, 4 save a .mid, 5 open a .mid. */
     static native int pollRequest();
     static native void setRecordingState(boolean recording, float seconds);
     /** A mono sound (UI thread): it becomes the sampler's source. */

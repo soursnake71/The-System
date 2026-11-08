@@ -77,6 +77,7 @@ public class SidView extends View implements Choreographer.FrameCallback {
             Native.setRows(rows);
             Native.render(px);
             sampling.poll();
+            if (getContext() instanceof SidActivity) ((SidActivity) getContext()).sendMidiOut();
             screen.setPixels(px, 0, SW, 0, 0, SW, rows * 8);
             invalidate();
         }

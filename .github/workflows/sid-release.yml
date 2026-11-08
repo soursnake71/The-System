@@ -75,7 +75,7 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls -la dl
-          notes="Omega SID 64 (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the C64's SID chip (6581 and 8580) as a synth, with sampling into the C64 (4-bit, Mahoney, PWM and Digimax digis at 3.9-22 kHz), the Omega REV7 reverb, an effects mixer, a step sequencer with a grid editor, an arpeggiator, 406 presets and a C64 screen.
+          notes="Omega SID 64 (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the C64's SID chip (6581 and 8580) as a synth, with sampling into the C64 (4-bit, Mahoney, PWM and Digimax digis at 3.9-22 kHz), the Omega REV7 reverb, an effects mixer, a step sequencer with a full piano-roll grid, full MIDI (learn, clock in / out, MIDI files), an arpeggiator, 406 presets and a C64 screen.
 
           - Android: open omega-sid-64.apk on the phone and allow installing from your browser or files app. USB and Bluetooth MIDI keyboards play it.
           - Windows / Mac / Linux: unzip, copy Omega SID 64.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3, Linux ~/.vst3); on Mac the .component goes in /Library/Audio/Plug-Ins/Components. The standalone app runs without a DAW. On a Mac, if it's refused: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"

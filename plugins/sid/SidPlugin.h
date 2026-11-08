@@ -22,7 +22,7 @@ public:
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
+    bool producesMidi() const override { return true; }   // the sequencer's notes
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 2.0; }
 
@@ -46,19 +46,21 @@ public:
     void loadSampleFile() override;
     float recordedSeconds() override { return (float) (engine.recPos.load() / std::max(1.0, getSampleRate())); }
     juce::String loadSampleFrom(const juce::File& f);   // "" when it worked
+    void saveMidiFile(const std::string& bytes, const std::string& name) override;
+    void loadMidiFile() override;
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<int> uiPresetVersion { 0 };   // bumped when a preset loads, so the editor's screen follows
 
 private:
     void handleAsyncUpdate() override;   // program changes from MIDI
-    void timerCallback() override { engine.pollSample(); }   // converts the sample again when its settings change
+    void timerCallback() override;
+    std::array<float, NP> lastHost {};
     juce::AudioFormatManager formats;
     std::unique_ptr<juce::FileChooser> chooser;
     void applyValues(const std::array<float, NP>& v);
     Synth engine;
     std::array<std::atomic<float>*, NP> raw {};
-    std::atomic<int> pendingProgram { -1 };
     juce::AudioBuffer<float> tmp;
 };
 

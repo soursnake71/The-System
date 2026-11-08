@@ -42,9 +42,15 @@ public:
         virtual void setRecording(bool on) { if (on) synth().startRecording(); else synth().stopRecording(); }
         virtual bool recording() { return synth().recOn.load(); }
         virtual float recordedSeconds() { return synth().recPos.load() / 48000.f; }
+        // MIDI files: save these bytes (the platform asks where), or pick a file and hand it to importMidiFile
+        virtual void saveMidiFile(const std::string& /*bytes*/, const std::string& /*name*/) {}
+        virtual void loadMidiFile() {}
+        std::function<void(const std::string&)> midiFileLoaded;   // the screen sets this: a file the platform read
     };
 
+    ~ScreenUI() { host.midiFileLoaded = nullptr; }
     ScreenUI(Host& h) : host(h) {
+        host.midiFileLoaded = [this](const std::string& b) { importMidiFile(b); };
         for (int i = 0; i < presetCount(); ++i) {
             const std::string c = PRESETS[i].cat;
             if (std::find(cats.begin(), cats.end(), c) == cats.end()) cats.push_back(c);
@@ -89,10 +95,17 @@ public:
     // ---- for touch screens: the platform can show the selected setting big, and page buttons ----
     bool touchMode = false;      // forgiving taps: a touch between rows takes the nearest control
     int selected = -1;           // the setting touched last (highlighted on the screen)
-    // pages: 0 PRG, 1-3 OSC, 4 FLT, 5 MOD, 6 ARP, 7 CHP, 8 MIX, 9 SEQ, 10 SMP, 11 FX, 12 REV, 13 GRID
-    static constexpr int NPAGES = 14;
-    static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 11, 12, 9, 13, 7 };   // the tab order
-    static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "FX", "REV", "SEQ", "GRID", "CHP" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
+    // pages: 0 PRG, 1-3 OSC, 4 FLT, 5 MOD, 6 ARP, 7 CHP, 8 MIX, 9 SEQ, 10 SMP, 11 FX, 12 REV, 13 GRID, 14 MIDI
+    static constexpr int NPAGES = 15;
+    static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 11, 12, 9, 13, 14, 7 };   // the tab order
+    static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "FX", "REV", "SEQ", "GRID", "MIDI", "CHP" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
+    // a MIDI file the platform read: into the current pattern
+    void importMidiFile(const std::string& bytes) {
+        Synth& s = host.synth(); snapshot(); int len = 16;
+        const int n = s.importMidi(bytes, curPat(), &len);
+        if (n < 0) { message("?NOT A MIDI FILE ERROR"); return; }
+        host.set(P::slen, (float) len); message("IMPORTED " + std::to_string(n) + " NOTES");
+    }
     void setPage(int pg) { page = pg; patList = false; revList = false; if (pg == 0) showPreset(host.synth().program.load()); if (pg == 13) gridFit(); }
     void stepPage(int d) {
         int k = 0; for (int i = 0; i < NPAGES; ++i) if (PAGE_ORDER[i] == page) k = i;
@@ -113,10 +126,14 @@ public:
     void down(float x, float y) {
         downX = lastX = x; downY = lastY = y; moved = false;
         hit = zoneAt(x, y);
-        if (hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER)) selected = hit.a;
+        if (hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER)) {
+            selected = hit.a;
+            if (learnArmed) { learnArmed = false; host.synth().learnParam = hit.a; message("MOVE A CONTROLLER FOR " + std::string(params()[hit.a].name)); }
+        }
         if (hit.kind == Z_PBAR) setFromBar(hit, x);
         if (hit.kind == Z_VFADER) setFromFader(hit.a, y);
         if (hit.kind == Z_GRID) gridDown(x, y);
+        if (hit.kind == Z_GVEL) { snapshot(); gridVel(x, y); }
         const bool isParam = hit.a >= 0 && ((hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER);
         startNorm = isParam ? toNorm(hit.a, host.get(hit.a)) : 0;
         startVal = isParam ? host.get(hit.a) : 0;
@@ -134,6 +151,7 @@ public:
             case Z_PBAR: setFromBar(hit, x); break;
             case Z_VFADER: setFromFader(hit.a, y); break;
             case Z_GRID: gridDrag(x, y); break;
+            case Z_GVEL: gridVel(x, y); break;
             case Z_PNAME: case Z_PVAL: {
                 const ParamInfo& p = params()[hit.a];
                 if (p.kind == CHOICE || (p.kind == INT && p.max - p.min <= 32)) host.set(hit.a, std::clamp(std::round(startVal + dx / 12.f), p.min, p.max));
@@ -155,7 +173,8 @@ public:
         move(x, y);
         // a sideways swipe off the controls that drag: the next / previous page
         const float dx = x - downX, dy = y - downY;
-        const bool drags = (hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER || hit.kind == Z_STEP_NOTE || hit.kind == Z_GRID;
+        const bool drags = (hit.kind >= Z_PNAME && hit.kind <= Z_PBAR) || hit.kind == Z_VFADER || hit.kind == Z_STEP_NOTE || hit.kind == Z_GRID || hit.kind == Z_GVEL;
+        if (hit.kind == Z_GRID) gridUp();
         if (moved && !drags && std::fabs(dx) > 48 && std::fabs(dx) > 2 * std::fabs(dy)) { stepPage(dx < 0 ? 1 : -1); hit = {}; return; }
         if (!moved) tap(hit);
         hit = {};
@@ -185,7 +204,7 @@ private:
     Host& host;
     struct Cell { char ch = ' '; uint8_t fg = LBLUE; bool inv = false; };
     Cell cell[MAXROWS][COLS];
-    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER, Z_GRID, Z_GRID_ACC, Z_GRID_SLD, Z_REVLIST, Z_REVITEM };
+    enum ZK { Z_NONE, Z_TAB, Z_PNAME, Z_PVAL, Z_PBAR, Z_CAT, Z_PRESET, Z_LIST, Z_BTN, Z_STEP_NOTE, Z_STEP_ACC, Z_STEP_SLIDE, Z_PATLIST, Z_PATITEM, Z_VFADER, Z_GRID, Z_GRID_ACC, Z_GRID_SLD, Z_REVLIST, Z_REVITEM, Z_GVEL, Z_CCITEM };
     struct Zone { int r = -1, c0 = 0, c1 = 0, kind = Z_NONE, a = -1; };
     struct Bar { int r, c0, c1; float frac; uint8_t col; bool center; };
     struct Rect { int x, y, w, h; uint32_t col; };
@@ -204,8 +223,11 @@ private:
 
     enum Btn { B_PREV = 1, B_NEXT, B_INIT, B_RAND, B_UP, B_DN, B_PLAY, B_STOP, B_PAT_DN, B_PAT_UP, B_LEN_DN, B_LEN_UP, B_LOAD, B_CLEAR,
                B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE,
-               B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT, B_GRID_HALF, B_GRID_UP, B_GRID_DN, B_REV_LIST, B_REV_EQ, B_BACK_REV, B_REV_UP, B_REV_DN };
-    std::vector<Step> clip;
+               B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT, B_GRID_HALF, B_GRID_UP, B_GRID_DN, B_REV_LIST, B_REV_EQ, B_BACK_REV, B_REV_UP, B_REV_DN,
+               B_GRID_VIEW, B_DUP, B_UNDO, B_DEFLEN, B_DEFVEL, B_LEARN, B_CCRESET, B_CC_PREV, B_CC_NEXT, B_MID_SAVE, B_MID_LOAD };
+    std::vector<GNote> clipNotes, undoNotes; int clipLen = 16; bool hasClip = false, hasUndo = false;
+    bool learnArmed = false; int ccPage = 0; int lastLearned = -1;
+    void snapshot() { undoNotes = host.synth().copyPattern(curPat()); hasUndo = true; }
 
     int curPat() { return std::clamp((int) std::lround(host.get(P::spat)) - 1, 0, kPatterns - 1); }
     int catSize() { int n = 0; for (int i = 0; i < presetCount(); ++i) if (cats[(size_t) cat] == PRESETS[i].cat) ++n; return n; }
@@ -296,7 +318,7 @@ private:
         // tabs
         // two rows of tabs: the sound on the first, mixing, effects, sequencing and the chip on the second
         for (int t = 0; t < NPAGES; ++t) {
-            const int tr = t < 8 ? 3 : 4, tc = (t < 8 ? t : t - 8) * 5;
+            const int tr = t < 8 ? 3 : 4, tc = (t < 8 ? t : t - 8) * 5;   // 8 on the first row, 7 on the second
             const bool sel = PAGE_ORDER[t] == page;
             put(tr, tc, pageName(t), sel ? WHITE : LBLUE, sel);
             zone(tr, tc, tc + 4, Z_TAB, PAGE_ORDER[t]);
@@ -313,13 +335,14 @@ private:
             case 11: pageFx(); break;
             case 12: pageRev(); break;
             case 13: pageGrid(); break;
+            case 14: pageMidi(); break;
             default: pageSample(); break;
         }
         // help / messages
         if (page == 9 && !patList) return;   // the tracker uses the whole screen
         {
             if (frame < msgUntil) put(rows - 2, 0, pad(msg, 40), WHITE);
-            else put(rows - 2, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 13 ? "TAP/DRAG: PAINT NOTES. TAP A NOTE: ERASE" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
+            else put(rows - 2, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 13 ? "DRAW: DRAG RIGHT. MOVE / RESIZE. TAP=DEL" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
         }
         // the preset line
         char pl[64];
@@ -654,7 +677,7 @@ private:
                 case K::RFLANGE: ids = { P::r7rt, P::r7mfrq, P::r7mdep, P::r7mdly, P::r7idly, P::r7fdly, P::r7flev }; break;
                 case K::CHORUS: ids = { P::r7mfrq, P::r7mdep, P::r7am, P::r7idly, P::r7fdly, P::r7flev }; break;
                 case K::PHASE: ids = { P::r7mfrq, P::r7mdep, P::r7mdly, P::r7idly, P::r7fdly, P::r7flev }; break;
-                default: ids = { P::r7mfrq, P::r7mdep, P::r7idly, P::r7fdly, P::r7flev }; break;   // tremolo, symphonic
+                case K::TREM: case K::SYMPH: ids = { P::r7mfrq, P::r7mdep, P::r7idly, P::r7fdly, P::r7flev }; break;
             }
             for (int id : ids) paramRow(r++, id);
         }
@@ -680,81 +703,162 @@ private:
     }
 
     // ---------------- the grid: the pattern as a piano roll ----------------
-    bool gridHalf = false; int gridTop = 72;
-    int gridRows() const { return std::max(6, rows - 12); }   // note rows between the header and the lanes
-    int gridStep(float x) const { const int c = (int) (x / 8) - 4; return c < 0 || c >= 32 ? -1 : c / 2 + (gridHalf ? 16 : 0); }
+    // Notes have a start, a length, a pitch and a velocity, and a step can hold a chord. Draw: press on an empty cell
+    // and drag right for the length. Drag a note to move it, drag its last cell to resize it, tap it to delete it.
+    // The SLD lane sets slide, the VEL lane velocity (drag across it). Views: steps 1-16, 17-32, or all 32.
+    int gridView = 0, gridTop = 72, defLen = 1, defVel = 100;
+    int gridRows() const { return std::max(6, rows - 14); }   // note rows between the header and the lanes
+    int gridCw() const { return gridView == 2 ? 1 : 2; }       // columns per step
+    int gridFirst() const { return gridView == 1 ? 16 : 0; }
+    int gridVis() const { return gridView == 2 ? 32 : 16; }
+    int gridStep(float x) const { const int c = (int) (x / 8) - 4; return c < 0 || c >= 32 ? -1 : gridFirst() + c / gridCw(); }
     int gridNoteAt(float y) const { const int r = std::clamp((int) (y / 8) - 8, 0, gridRows() - 1); return gridTop - r; }
     void gridFit() {   // show where the pattern's notes are
-        Synth& s = host.synth(); const int p = curPat(); int lo = 128, hi = -1;
-        for (int i = 0; i < kSteps; ++i) { const Step st = s.step(p, i); if (st.on) { lo = std::min(lo, st.note); hi = std::max(hi, st.note); } }
+        int lo = 128, hi = -1;
+        for (auto& q : host.synth().patternNotes(curPat())) { lo = std::min(lo, q.second.note); hi = std::max(hi, q.second.note); }
         const int n = gridRows();
         if (hi < 0) gridTop = 60 + n / 2;
         else if (hi - lo + 1 <= n) gridTop = hi + (n - (hi - lo + 1)) / 2;
         else gridTop = hi;
         gridTop = std::clamp(gridTop, n - 1, 127);
     }
-    bool gridErase = false; int gridLast = -1;
-    void gridApply(int stepIdx, int note) {
-        if (stepIdx < 0 || stepIdx >= kSteps) return;
-        Synth& s = host.synth(); Step st = s.step(curPat(), stepIdx);
-        if (gridErase) { if (st.on && st.note == note) { st.on = false; s.setStep(curPat(), stepIdx, st); } }
-        else { st.on = true; st.note = note; s.setStep(curPat(), stepIdx, st); }
+    enum { G_NONE, G_DRAW, G_MOVE, G_RESIZE };
+    int gMode = G_NONE, gSlot = -1, gDownStep = 0, gDownPitch = 0, gLastCell = -1; bool gMoved = false; GNote gOrig;
+    int noteAtCell(int stp, int pitch, GNote& out) {
+        for (auto& q : host.synth().patternNotes(curPat())) { const GNote& g = q.second; if (g.note == pitch && stp >= g.start && stp < g.start + g.len) { out = g; return q.first; } }
+        return -1;
     }
     void gridDown(float x, float y) {
-        const int i = gridStep(x), n = gridNoteAt(y); if (i < 0) return;
-        const Step st = host.synth().step(curPat(), i);
-        gridErase = st.on && st.note == n;                       // tapping a note erases; anywhere else paints
-        gridApply(i, n); gridLast = i * 256 + n;
+        const int stp = gridStep(x), pitch = gridNoteAt(y); if (stp < 0) { gMode = G_NONE; return; }
+        Synth& s = host.synth(); snapshot();
+        gDownStep = stp; gDownPitch = pitch; gMoved = false; gLastCell = stp * 256 + pitch;
+        GNote g; gSlot = noteAtCell(stp, pitch, g);
+        if (gSlot >= 0) {
+            gOrig = g;
+            // the last cell of the note (its right half, for a one-step note) resizes; anywhere else moves
+            const float cellX = (x / 8 - 4) / gridCw() - (stp - gridFirst());
+            gMode = (stp == g.start + g.len - 1 && (g.len > 1 || cellX > 0.55f)) ? G_RESIZE : G_MOVE;
+        } else {
+            g = GNote { stp, std::min(defLen, kSteps - stp), pitch, defVel, false };
+            gSlot = s.addNote(curPat(), g); gOrig = g; gMode = gSlot >= 0 ? G_DRAW : G_NONE;
+            if (gSlot < 0) message("?PATTERN FULL ERROR");
+        }
     }
     void gridDrag(float x, float y) {
-        const int i = gridStep(x), n = gridNoteAt(y); if (i < 0) return;
-        if (i * 256 + n == gridLast) return;
-        gridLast = i * 256 + n;
-        if (!gridErase) { const Step st = host.synth().step(curPat(), i); if (st.on && st.note == n) return; }
-        gridApply(i, n);
+        if (gMode == G_NONE || gSlot < 0) return;
+        const int stp = std::clamp(gridStep(x), 0, kSteps - 1), pitch = gridNoteAt(y);
+        if (stp * 256 + pitch == gLastCell) return;
+        gLastCell = stp * 256 + pitch; gMoved = true;
+        GNote g = gOrig;
+        if (gMode == G_DRAW || gMode == G_RESIZE) g.len = std::clamp(stp - g.start + 1, 1, kSteps - g.start);
+        else { g.start = std::clamp(gOrig.start + stp - gDownStep, 0, kSteps - g.len); g.note = std::clamp(gOrig.note + pitch - gDownPitch, 0, 127); }
+        host.synth().setNote(curPat(), gSlot, g);
+    }
+    void gridUp() {
+        if (gMode == G_MOVE && !gMoved && gSlot >= 0) host.synth().removeNote(curPat(), gSlot);   // a tap deletes
+        if (gMode == G_RESIZE && !gMoved && gSlot >= 0) host.synth().removeNote(curPat(), gSlot);
+        gMode = G_NONE; gSlot = -1;
+    }
+    int velLaneTop() const { return (9 + gridRows()) * 8; }
+    void gridVel(float x, float y) {   // the velocity of the notes that start at this step
+        const int stp = gridStep(x); if (stp < 0) return;
+        const int v = std::clamp((int) std::lround((velLaneTop() + 16 - y) / 15.0 * 127), 1, 127);
+        Synth& s = host.synth();
+        for (auto& q : s.patternNotes(curPat())) if (q.second.start == stp) { GNote g = q.second; g.vel = v; s.setNote(curPat(), q.first, g); }
     }
     void pageGrid() {
         Synth& s = host.synth();
-        const int p = curPat(), len = std::clamp((int) std::lround(host.get(P::slen)), 1, kSteps), off = gridHalf ? 16 : 0;
+        const int p = curPat(), len = std::clamp((int) std::lround(host.get(P::slen)), 1, kSteps);
+        const int first = gridFirst(), vis = gridVis(), cw = gridCw();
         const bool run = s.seqRunning();
         button(5, 0, run ? "{STOP}" : "{PLAY}", run ? B_STOP : B_PLAY, run ? LRED : LGREEN, true);
         put(5, 7, "PAT", LBLUE); button(5, 11, "<", B_PAT_DN, WHITE, true); put(5, 13, num(p + 1, 2), WHITE); button(5, 16, ">", B_PAT_UP, WHITE, true);
         put(5, 19, "LEN", LBLUE); button(5, 23, "<", B_LEN_DN, WHITE, true); put(5, 25, num(len, 2), WHITE); button(5, 28, ">", B_LEN_UP, WHITE, true);
-        button(5, 36, "CLR", B_CLEAR, LRED, true);
-        button(6, 0, gridHalf ? "STEPS 17-32" : "STEPS 1-16 ", B_GRID_HALF, WHITE, true);
-        put(6, 13, "NOTES", LBLUE); button(6, 19, " ^ ", B_GRID_UP, WHITE, true); button(6, 23, " v ", B_GRID_DN, WHITE, true);
-        button(6, 28, "RND", B_RNDPAT, LGREEN, true); button(6, 32, "<<", B_SHL, WHITE, true); button(6, 35, ">>", B_SHR, WHITE, true);
+        button(5, 31, "RND", B_RNDPAT, LGREEN, true); button(5, 36, "CLR", B_CLEAR, LRED, true);
+        button(6, 0, gridView == 2 ? "ALL 32" : gridView == 1 ? "17-32 " : "1-16  ", B_GRID_VIEW, WHITE, true);
+        put(6, 8, "KEYS", LBLUE); button(6, 13, " ^ ", B_GRID_UP, WHITE, true); button(6, 17, " v ", B_GRID_DN, WHITE, true);
+        button(6, 22, "<<", B_SHL, WHITE, true); button(6, 25, ">>", B_SHR, WHITE, true);
+        button(6, 29, "CPY", B_COPY, WHITE, true); button(6, 33, "PST", B_PASTE, WHITE, true);
         // the beat numbers
-        for (int i = 0; i < 16; i += 4) put(7, 4 + 2 * i, std::to_string((off + i) / 4 + 1), GREY);
+        for (int i = 0; i < vis; i += 4) put(7, 4 + cw * i, std::to_string((first + i) / 4 + 1), GREY);
         const int nr = gridRows(), playing = s.seqStepShown.load();
         const uint32_t beatCol = 0xFF3A2F92, laneDim = 0xFF241B60;
         for (int k = 0; k < nr; ++k) {
-            const int r = 8 + k, note = gridTop - k;
-            const bool blackKey = isBlackNote(note);
+            const int r = 8 + k, note = gridTop - k; const bool blackKey = isBlackNote(note);
             put(r, 0, noteName(note), note % 12 == 0 ? WHITE : blackKey ? DGREY : GREY);
             zone(r, 4, 35, Z_GRID, k);
-            for (int i = 0; i < 16; ++i) {
-                const int si = off + i; const Step st = s.step(p, si);
-                const int x = (4 + 2 * i) * 8 + 1, y = r * 8 + 1;
-                uint32_t col = si >= len ? 0xFF1C1650 : (i % 4 == 0 ? beatCol : blackKey ? laneDim : DIM);
-                if (st.on && st.note == note) col = si >= len ? PALETTE[GREY] : PALETTE[st.accent ? YELLOW : LGREEN];
-                rects.push_back({ x, y, 14, 6, col });
-                if (st.on && st.note == note && st.slide) rects.push_back({ x + 14, y + 2, 2, 2, PALETTE[LGREEN] });
-                if (k == 0 && st.on && st.note > gridTop) rects.push_back({ x + 4, y - 1, 6, 2, PALETTE[CYAN] });           // above the view
-                if (k == nr - 1 && st.on && st.note < note) rects.push_back({ x + 4, y + 5, 6, 2, PALETTE[CYAN] });       // below
+            for (int i = 0; i < vis; ++i) {
+                const int si = first + i;
+                const uint32_t col = si >= len ? 0xFF1C1650 : (i % 4 == 0 ? beatCol : blackKey ? laneDim : DIM);
+                rects.push_back({ (4 + cw * i) * 8 + 1, r * 8 + 1, cw * 8 - 2, 6, col });
             }
         }
-        // the playing step
-        if (run && playing >= off && playing < off + 16) rects.push_back({ (4 + 2 * (playing - off)) * 8, 8 * 8, 1, nr * 8, PALETTE[WHITE] });
-        // accent and slide lanes
-        const int ra = 8 + nr, rs = ra + 1;
-        put(ra, 0, "ACC", YELLOW); put(rs, 0, "SLD", LGREEN);
-        for (int i = 0; i < 16; ++i) {
-            const int si = off + i; const Step st = s.step(p, si);
-            put(ra, 4 + 2 * i, st.accent ? "!" : ".", st.accent ? YELLOW : DGREY);
-            put(rs, 4 + 2 * i, st.slide ? "~" : ".", st.slide ? LGREEN : DGREY);
-            zone(ra, 4 + 2 * i, 5 + 2 * i, Z_GRID_ACC, si); zone(rs, 4 + 2 * i, 5 + 2 * i, Z_GRID_SLD, si);
+        // the notes, as bars as long as they are
+        for (auto& q : s.patternNotes(p)) {
+            const GNote& g = q.second; const int k = gridTop - g.note;
+            const int a = std::max(g.start, first), b = std::min(g.start + g.len, first + vis);
+            if (b <= a) continue;
+            if (k < 0 || k >= nr) {   // off the view: a mark at the top or bottom edge
+                const int x = (4 + cw * (a - first)) * 8 + 1, y = k < 0 ? 8 * 8 : (8 + nr) * 8 - 2;
+                rects.push_back({ x, y, cw * 8 - 2, 2, PALETTE[CYAN] }); continue;
+            }
+            const int x = (4 + cw * (a - first)) * 8 + 1, y = (8 + k) * 8 + 1, w = (b - a) * cw * 8 - 2;
+            const uint32_t col = g.start >= len ? PALETTE[GREY] : PALETTE[g.vel >= 110 ? YELLOW : g.vel >= 80 ? LGREEN : GREEN];
+            rects.push_back({ x, y, w, 6, col });
+            if (g.start >= first) rects.push_back({ x, y, 1, 6, PALETTE[WHITE] });   // where it starts
+            if (g.slide && b == g.start + g.len) rects.push_back({ x + w, y + 2, 2, 2, PALETTE[LGREEN] });
         }
+        if (run && playing >= first && playing < first + vis) rects.push_back({ (4 + cw * (playing - first)) * 8, 8 * 8, 1, nr * 8, PALETTE[WHITE] });
+        // the slide lane and the velocity lane
+        const int rs = 8 + nr, rv = rs + 1;
+        put(rs, 0, "SLD", LGREEN); put(rv, 0, "VEL", YELLOW);
+        std::array<int, kSteps> vmax {}; std::array<bool, kSteps> sl {};
+        for (auto& q : s.patternNotes(p)) { vmax[(size_t) q.second.start] = std::max(vmax[(size_t) q.second.start], q.second.vel); if (q.second.slide) sl[(size_t) q.second.start] = true; }
+        for (int i = 0; i < vis; ++i) {
+            const int si = first + i;
+            put(rs, 4 + cw * i, sl[(size_t) si] ? "~" : (vmax[(size_t) si] ? "." : " "), sl[(size_t) si] ? LGREEN : DGREY);
+            zone(rs, 4 + cw * i, 3 + cw * (i + 1), Z_GRID_SLD, si);
+            const int h = vmax[(size_t) si] ? std::max(1, vmax[(size_t) si] * 15 / 127) : 0;
+            rects.push_back({ (4 + cw * i) * 8 + 1, rv * 8, cw * 8 - 2, 16, 0xFF1C1650 });
+            if (h) rects.push_back({ (4 + cw * i) * 8 + 1, rv * 8 + 16 - h, cw * 8 - 2, h, PALETTE[vmax[(size_t) si] >= 110 ? YELLOW : LGREEN] });
+        }
+        zone(rv, 4, 35, Z_GVEL, 0); zone(rv + 1, 4, 35, Z_GVEL, 0);
+        // tools
+        const int rt = rv + 2;
+        button(rt, 0, "-1", B_TR_DN, WHITE, true); button(rt, 3, "+1", B_TR_UP, WHITE, true);
+        button(rt, 6, "-12", B_OCT_DN, WHITE, true); button(rt, 10, "+12", B_OCT_UP, WHITE, true);
+        button(rt, 14, "DUP", B_DUP, WHITE, true); button(rt, 18, "UNDO", B_UNDO, hasUndo ? WHITE : GREY, true);
+        button(rt, 23, "L:" + std::to_string(defLen), B_DEFLEN, CYAN, true); button(rt, 29, "V:" + std::to_string(defVel), B_DEFVEL, YELLOW, true);
+    }
+
+    // ---------------- MIDI: channel, velocity, aftertouch, bend, clock, learn and the controller map, files ----------------
+    void pageMidi() {
+        Synth& s = host.synth();
+        int r = 5;
+        for (int id : { P::midich, P::velcrv, P::atcut, P::atvib, P::bend, P::mw, P::clksrc, P::clkout, P::notout }) paramRow(r++, id);
+        const int lp = s.learnParam.load();
+        button(r, 0, lp >= 0 || learnArmed ? "{LEARN}" : " LEARN ", B_LEARN, lp >= 0 || learnArmed ? LRED : WHITE, true);
+        if (s.learnedCC.load() >= 0) { lastLearned = s.learnedCC.exchange(-1); const int id = s.ccMap[(size_t) lastLearned].load(); if (id >= 0) message("CC " + std::to_string(lastLearned) + " -> " + params()[id].name); }
+        char b[48]; const int lc = s.lastCC.load();
+        if (lc >= 0) { std::snprintf(b, sizeof b, "LAST CC %d = %d", lc, s.lastCCValue.load()); put(r, 9, b, GREY); }
+        ++r;
+        // the map, a page at a time
+        std::vector<int> m; for (int c = 0; c < 128; ++c) if (s.ccMap[(size_t) c].load() >= 0) m.push_back(c);
+        const int per = 2 * std::max(1, rows - 3 - r - 1), pages = std::max(1, ((int) m.size() + per - 1) / per);
+        ccPage = std::min(ccPage, pages - 1);
+        for (int k = 0; k < per && ccPage * per + k < (int) m.size(); ++k) {
+            const int c = m[(size_t) (ccPage * per + k)], id = s.ccMap[(size_t) c].load();
+            const int rr = r + (k % (per / 2)), cc0 = k < per / 2 ? 0 : 20;
+            std::snprintf(b, sizeof b, "CC%-3d", c);
+            std::string nm = id >= 0 ? params()[id].name : "";
+            if (id >= 0 && std::string(params()[id].section).rfind("OSC ", 0) == 0) nm = std::string(1, params()[id].section[4]) + ":" + nm;   // which oscillator
+            put(rr, cc0, b, CYAN); put(rr, cc0 + 6, pad(nm, 13), LBLUE);
+            zone(rr, cc0, cc0 + 19, Z_CCITEM, c);
+        }
+        const int rb = rows - 3;
+        button(rb, 0, "<", B_CC_PREV, WHITE, true); put(rb, 2, std::to_string(ccPage + 1) + "/" + std::to_string(pages), GREY); button(rb, 6, ">", B_CC_NEXT, WHITE, true);
+        button(rb, 9, "DEFAULTS", B_CCRESET, WHITE, true);
+        button(rb, 19, "SAVE .MID", B_MID_SAVE, YELLOW, true); button(rb, 30, "LOAD .MID", B_MID_LOAD, YELLOW, true);
     }
     static bool isBlackNote(int n) { const int k = ((n % 12) + 12) % 12; return k == 1 || k == 3 || k == 6 || k == 8 || k == 10; }
 
@@ -803,7 +907,12 @@ private:
             case Z_STEP_ACC: { Step st = s.step(curPat(), z.a); st.accent = !st.accent; s.setStep(curPat(), z.a, st); break; }
             case Z_STEP_SLIDE: { Step st = s.step(curPat(), z.a); st.slide = !st.slide; s.setStep(curPat(), z.a, st); break; }
             case Z_GRID_ACC: { Step st = s.step(curPat(), z.a); st.accent = !st.accent; s.setStep(curPat(), z.a, st); break; }
-            case Z_GRID_SLD: { Step st = s.step(curPat(), z.a); st.slide = !st.slide; s.setStep(curPat(), z.a, st); break; }
+            case Z_GRID_SLD: {   // slide on every note that starts at the step
+                snapshot(); bool any = false, to = true;
+                for (auto& q : s.patternNotes(curPat())) if (q.second.start == z.a) { if (!any) to = !q.second.slide; any = true; GNote g = q.second; g.slide = to; s.setNote(curPat(), q.first, g); }
+                break;
+            }
+            case Z_CCITEM: s.ccMap[(size_t) z.a].store(-1); message("CC " + std::to_string(z.a) + " UNMAPPED"); break;
             case Z_REVLIST: case Z_REVITEM: {
                 const Zone pz = zoneAtKind(lastX, lastY, Z_REVITEM);
                 if (pz.kind == Z_REVITEM) {
@@ -837,7 +946,7 @@ private:
             const int n = presetCount(); const int i = ((s.program.load() + d) % n + n) % n;
             host.loadPreset(i); showPreset(i); message("LOAD\"" + std::string(PRESETS[i].name) + "\",8,1"); if (onPresetChanged) onPresetChanged();
         };
-        auto transpose = [&](int d) { for (int i = 0; i < kSteps; ++i) { Step st = s.step(p, i); st.note = std::clamp(st.note + d, 0, 127); s.setStep(p, i, st); } };
+        auto transpose = [&](int d) { snapshot(); for (auto& q : s.patternNotes(p)) { GNote g = q.second; g.note = std::clamp(g.note + d, 0, 127); s.setNote(p, q.first, g); } };
         switch (id) {
             case B_PREV: stepPresetBy(-1); break;
             case B_NEXT: stepPresetBy(1); break;
@@ -853,7 +962,7 @@ private:
             case B_LEN_UP: host.set(P::slen, (float) std::min(kSteps, len + 1)); break;
             case B_LOAD: patList = true; break;
             case B_BACK: patList = false; break;
-            case B_CLEAR: for (int i = 0; i < kSteps; ++i) { Step st; st.note = 48; s.setStep(p, i, st); } break;
+            case B_CLEAR: snapshot(); s.clearPattern(p); break;
             case B_RNDPAT: {
                 static const int scale[7] = { 0, 2, 3, 5, 7, 8, 10 };
                 uint32_t r = (uint32_t) (frame * 2654435761u) | 1;
@@ -865,17 +974,40 @@ private:
                 }
                 message("RANDOM PATTERN"); break;
             }
-            case B_SHL: { Step f = s.step(p, 0); for (int i = 0; i < len - 1; ++i) s.setStep(p, i, s.step(p, i + 1)); s.setStep(p, len - 1, f); break; }
-            case B_SHR: { Step l = s.step(p, len - 1); for (int i = len - 1; i > 0; --i) s.setStep(p, i, s.step(p, i - 1)); s.setStep(p, 0, l); break; }
+            case B_SHL: case B_SHR: {   // rotate the pattern a step within its length
+                snapshot(); const int d = id == B_SHL ? -1 : 1;
+                for (auto& q : s.patternNotes(p)) { GNote g = q.second; if (g.start < len) { g.start = ((g.start + d) % len + len) % len; s.setNote(p, q.first, g); } }
+                break;
+            }
             case B_TR_DN: transpose(-1); break;
             case B_TR_UP: transpose(1); break;
             case B_OCT_DN: transpose(-12); break;
             case B_OCT_UP: transpose(12); break;
-            case B_COPY: clip.clear(); for (int i = 0; i < kSteps; ++i) clip.push_back(s.step(p, i)); message("PATTERN COPIED"); break;
-            case B_PASTE: if (!clip.empty()) { for (int i = 0; i < kSteps; ++i) s.setStep(p, i, clip[(size_t) i]); message("PATTERN PASTED"); } break;
+            case B_COPY: clipNotes = s.copyPattern(p); clipLen = len; hasClip = true; message("PATTERN COPIED"); break;
+            case B_PASTE: if (hasClip) { snapshot(); s.setPatternNotes(p, clipNotes); host.set(P::slen, (float) clipLen); message("PATTERN PASTED"); } break;
+            case B_DUP: {   // the pattern twice: length doubled, the notes repeated
+                if (len * 2 > kSteps) { message("?PATTERN TOO LONG ERROR"); break; }
+                snapshot();
+                for (auto& q : s.patternNotes(p)) if (q.second.start < len) { GNote g = q.second; g.start += len; s.addNote(p, g); }
+                host.set(P::slen, (float) (len * 2)); message("DOUBLED TO " + std::to_string(len * 2) + " STEPS"); break;
+            }
+            case B_UNDO: if (hasUndo) { const auto cur = s.copyPattern(p); s.setPatternNotes(p, undoNotes); undoNotes = cur; message("UNDO"); } break;
+            case B_GRID_VIEW: gridView = (gridView + 1) % 3; break;
+            case B_DEFLEN: { static const int L[5] = { 1, 2, 4, 8, 16 }; int k = 0; while (k < 4 && L[k] != defLen) ++k; defLen = L[(k + 1) % 5]; break; }
+            case B_DEFVEL: { static const int V[4] = { 70, 90, 110, 127 }; int k = 0; while (k < 3 && V[k] != defVel) ++k; defVel = V[(k + 1) % 4]; break; }
+            case B_LEARN:
+                if (learnArmed || s.learnParam.load() >= 0) { learnArmed = false; s.learnParam = -1; message("LEARN OFF"); }
+                else if (selected >= 0) { s.learnParam = selected; message("MOVE A CONTROLLER FOR " + std::string(params()[selected].name)); }
+                else { learnArmed = true; message("TAP A SETTING, THEN MOVE A CONTROLLER"); }
+                break;
+            case B_CCRESET: s.resetCCMap(); message("DEFAULT CONTROLLER MAP"); break;
+            case B_CC_PREV: ccPage = std::max(0, ccPage - 1); break;
+            case B_CC_NEXT: ++ccPage; break;
+            case B_MID_SAVE: host.saveMidiFile(s.exportMidi(p), "OMEGA SID PATTERN " + std::to_string(p + 1) + ".mid"); message("SAVING PATTERN " + std::to_string(p + 1) + " AS MIDI"); break;
+            case B_MID_LOAD: host.loadMidiFile(); break;
             case B_PANIC: s.post(Synth::EV_PANIC, 0, 0); message("ALL NOTES OFF"); break;
             case B_SMP_LOAD: host.loadSampleFile(); break;
-            case B_GRID_HALF: gridHalf = !gridHalf; break;
+            case B_GRID_HALF: gridView = gridView == 1 ? 0 : 1; break;
             case B_REV_LIST: revList = true; if (s.rev7Preset >= 0) revScroll = std::max(0, s.rev7Preset - listRows() / 2); break;
             case B_BACK_REV: revList = false; break;
             case B_REV_EQ: revEq = !revEq; break;

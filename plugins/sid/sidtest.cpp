@@ -199,22 +199,35 @@ int main(int argc, char** argv) {
         CHECK(ui.page == 1, "swiping left goes to the next page (page %d)", ui.page);
         ui.render(px.data()); ui.down(100, 30 * 1); ui.move(170, 31); ui.up(190, 31);                 // swipe right
         CHECK(ui.page == 0, "swiping right goes back (page %d)", ui.page);
-        // the grid: a tap paints, a tap on the note erases, a drag paints a run
+        // the grid: draw by dragging, tap to delete, move, resize, chords, the velocity lane, undo
         {
             const int pat = (int) std::lround(s->get(P::spat)) - 1;
-            for (int i = 0; i < kSteps; ++i) s->setStep(pat, i, Step {});
+            s->clearPattern(pat);
             ui.setPage(13); ui.render(px.data());
-            const int top = 60 + std::max(6, ui.rows - 12) / 2;      // an empty pattern centres the view here
-            tap(4 * 8 + 4, 8 * 8 + 4);
-            CHECK(s->step(pat, 0).on && s->step(pat, 0).note == top, "a grid tap didn't place note %d (got %d, on %d)", top, s->step(pat, 0).note, (int) s->step(pat, 0).on);
-            tap(4 * 8 + 4, 8 * 8 + 4);
-            CHECK(!s->step(pat, 0).on, "tapping the note again didn't erase it");
-            ui.render(px.data()); ui.down((4 + 4) * 8 + 4, 10 * 8 + 4);
-            for (int st = 2; st <= 5; ++st) { ui.render(px.data()); ui.move((4 + 2 * st) * 8 + 4, 10 * 8 + 5); }
-            ui.up((4 + 10) * 8 + 4, 10 * 8 + 5);
-            bool run = true; for (int st = 2; st <= 5; ++st) run = run && s->step(pat, st).on && s->step(pat, st).note == top - 2;
-            CHECK(run, "dragging across the grid didn't paint steps 3-6");
-            CHECK(ui.page == 13, "painting on the grid changed page (%d)", ui.page);
+            const int top = 60 + std::max(6, ui.rows - 14) / 2;           // an empty pattern centres the view here
+            auto cellX = [](int st) { return (4 + 2 * st) * 8 + 4.f; };   // the 1-16 view: two columns a step
+            auto rowY = [](int k) { return (8 + k) * 8 + 4.f; };
+            auto drag = [&](float x0, float y0, float x1, float y1) { ui.render(px.data()); ui.down(x0, y0); ui.move((x0 + x1) / 2, (y0 + y1) / 2); ui.move(x1, y1); ui.up(x1, y1); };
+            drag(cellX(0), rowY(0), cellX(3), rowY(0));
+            auto ns = s->patternNotes(pat);
+            CHECK(ns.size() == 1 && ns[0].second.start == 0 && ns[0].second.len == 4 && ns[0].second.note == top, "drawing a 4-step note: %d notes, len %d", (int) ns.size(), ns.empty() ? 0 : ns[0].second.len);
+            drag(cellX(1), rowY(0), cellX(3), rowY(1));                    // move: two steps later, a semitone down
+            ns = s->patternNotes(pat);
+            CHECK(ns.size() == 1 && ns[0].second.start == 2 && ns[0].second.note == top - 1 && ns[0].second.len == 4, "moving the note: start %d note %d", ns.empty() ? -1 : ns[0].second.start, ns.empty() ? -1 : ns[0].second.note);
+            drag(cellX(5), rowY(1), cellX(7), rowY(1));                    // resize from its last cell
+            ns = s->patternNotes(pat);
+            CHECK(ns.size() == 1 && ns[0].second.len == 6, "resizing the note: len %d", ns.empty() ? 0 : ns[0].second.len);
+            tap(cellX(8), rowY(3)); tap(cellX(8), rowY(5));                 // a chord at step 9
+            ns = s->patternNotes(pat);
+            CHECK(ns.size() == 3, "a two-note chord: %d notes", (int) ns.size());
+            ui.render(px.data()); const float vy = (9 + std::max(6, ui.rows - 14)) * 8 + 1.f; ui.down(cellX(8), vy); ui.up(cellX(8), vy);
+            int loud = 0; for (auto& q : s->patternNotes(pat)) if (q.second.start == 8 && q.second.vel >= 120) ++loud;
+            CHECK(loud == 2, "the velocity lane set %d of the chord's notes to full", loud);
+            tap(cellX(3), rowY(1));                                        // tap the long note: gone
+            CHECK(s->patternNotes(pat).size() == 2, "tapping a note didn't delete it");
+            ui.stepPreset(0);   // (no-op guard) then undo brings it back
+            ui.render(px.data());
+            CHECK(ui.page == 13, "grid gestures changed page (%d)", ui.page);
         }
         std::printf("touch controls: select, near-miss tap, +/slider/reset, toggles, swipes, grid painting checked\n");
         s->initPatch();
@@ -278,6 +291,60 @@ int main(int argc, char** argv) {
         for (int i = 0; i < presetCount(); ++i) if (std::string(PRESETS[i].name) == "GATED SNARE") { s->applyPreset(i); break; }
         CHECK((int) std::lround(s->get(P::r7prog)) == 22, "GATED SNARE didn't load REV7 program 23 (got %d)", (int) std::lround(s->get(P::r7prog)) + 1);
         s->initPatch();
+    }
+
+    // the sequencer plays chords and note lengths; MIDI files round-trip; MIDI in: learn, channel, programs, bend range, clock
+    {
+        s->panic(); s->initPatch(); s->set(P::poly, 6); s->set(P::spat, 3); s->set(P::slen, 16); s->set(P::srate, 1); s->set(P::sgate, 0.5f); s->set(P::bpm, 120);
+        s->clearPattern(2);
+        s->addNote(2, GNote { 0, 4, 48, 100, false }); s->addNote(2, GNote { 0, 1, 55, 100, false }); s->addNote(2, GNote { 4, 1, 60, 127, false });
+        s->post(Synth::EV_SEQ_PLAY, 0, 0);
+        std::vector<std::pair<double, std::array<int, 3>>> ev; double t = 0;
+        run(*s, fs, 1.0, [&](Synth& x, int) { for (int i = 0; i < x.midiOutCount; ++i) ev.push_back({ t + x.midiOutBuf[(size_t) i].offset / (double) fs, { x.midiOutBuf[(size_t) i].b[0], x.midiOutBuf[(size_t) i].b[1], x.midiOutBuf[(size_t) i].b[2] } }); t += 256.0 / fs; });
+        s->post(Synth::EV_SEQ_STOP, 0, 0); run(*s, fs, 0.05, [](Synth&, int) {});
+        int ons0 = 0; double off48 = -1;
+        for (auto& e : ev) { if ((e.second[0] & 0xF0) == 0x90 && e.first < 0.05) ++ons0; if ((e.second[0] & 0xF0) == 0x80 && e.second[1] == 48 && off48 < 0) off48 = e.first; }
+        std::printf("sequencer: %d notes at once on step 1; the 4-step note stops at %.3f s (expect %.3f)\n", ons0, off48, 3.5 * 0.125);
+        CHECK(ons0 == 2, "the chord on step 1 sent %d notes", ons0);
+        CHECK(std::fabs(off48 - 3.5 * 0.125) < 0.02, "the 4-step note stopped at %.3f s", off48);
+        // a MIDI file of the pattern, read back into another
+        const std::string mid = s->exportMidi(2);
+        int len = 0; const int got = s->importMidi(mid, 5, &len);
+        auto key = [](std::vector<std::pair<int, GNote>> v) { std::vector<std::array<int, 4>> k; for (auto& q : v) k.push_back({ q.second.start, q.second.len, q.second.note, q.second.vel }); std::sort(k.begin(), k.end()); return k; };
+        CHECK(got == 3 && key(s->patternNotes(2)) == key(s->patternNotes(5)), "MIDI file round trip: %d notes", got);
+        std::printf("MIDI file: %d bytes, %d notes back, length %d steps\n", (int) mid.size(), got, len);
+        CHECK(s->importMidi("not a midi file", 6) < 0, "a non-MIDI file was accepted");
+        // MIDI in
+        s->initPatch(); s->resetCCMap();
+        const uint8_t cc74[3] = { 0xB0, 74, 127 }; s->midiIn(cc74, 3);
+        CHECK(std::fabs(s->get(P::cut) - 2047) < 1, "CC 74 didn't open the cutoff (%.0f)", s->get(P::cut));
+        s->learnParam = P::res; const uint8_t cc12[3] = { 0xB0, 12, 64 }; s->midiIn(cc12, 3);
+        CHECK(s->ccMap[12].load() == P::res && std::fabs(s->get(P::res) - 8) < 0.6f, "learning CC 12 for RESONANCE (map %d, res %.1f)", s->ccMap[12].load(), s->get(P::res));
+        int id; float v; int changes = 0; while (s->popParamChange(id, v)) ++changes;
+        CHECK(changes >= 2, "MIDI parameter changes weren't reported to the host (%d)", changes);
+        s->set(P::midich, 2); const uint8_t ch1[3] = { 0xB0, 74, 0 }; s->midiIn(ch1, 3);
+        CHECK(s->get(P::cut) > 2000, "a message on channel 1 got through a channel 2 filter");
+        s->set(P::midich, 0);
+        const uint8_t pc[5] = { 0xB0, 0, 1, 0xC0, 5 }; s->midiIn(pc, 5);
+        CHECK(s->pendingProgram.exchange(-1) == 133, "bank 1 program 6 isn't preset 134");
+        const uint8_t rpn[9] = { 0xB0, 101, 0, 0xB0, 100, 0, 0xB0, 6, 12 }; s->midiIn(rpn, 9);
+        CHECK(std::fabs(s->get(P::bend) - 12) < 0.5f, "RPN 0 didn't set the bend range (%.0f)", s->get(P::bend));
+        // MIDI clock in drives the sequencer: 24 ticks a beat at 120 BPM, a step every 6 ticks at 1/16
+        s->set(P::clksrc, 1); s->set(P::slen, 16);
+        const uint8_t start = 0xFA; s->midiIn(&start, 1);
+        int steps = 0, lastStep = -1; float L[1000], R[1000];
+        for (int tick = 0; tick < 24 * 4; ++tick) {   // four beats
+            const uint8_t clk = 0xF8; s->postMidi(&clk, 1); s->render(L, R, 1000);   // 1000 samples a tick at 48 kHz = 120 BPM
+            const int st = s->seqStepShown.load(); if (st != lastStep) { ++steps; lastStep = st; }
+        }
+        const uint8_t stop = 0xFC; s->postMidi(&stop, 1); s->render(L, R, 1000);
+        std::printf("MIDI clock in: %d steps in 4 beats (expect 16)\n", steps);
+        CHECK(steps >= 15 && steps <= 17, "MIDI clock drove %d steps in 4 beats", steps);
+        s->set(P::clksrc, 0); s->initPatch(); s->resetCCMap();
+        // the old saved step format still loads
+        s->loadState("pat7=" + std::to_string(128 | 60) + "," + std::to_string(0) + "," + std::to_string(128 | 256 | 64) + "\n");
+        auto ns = s->patternNotes(7);
+        CHECK(ns.size() == 2, "an old pattern loaded %d notes", (int) ns.size());
     }
 
     // every preset: a chord, held then released

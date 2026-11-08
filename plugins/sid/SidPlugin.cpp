@@ -1,5 +1,6 @@
 #include "SidPlugin.h"
 #include "SidEditor.h"
+#include <cstring>
 
 namespace sid {
 
@@ -71,12 +72,17 @@ bool SidProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
 void SidProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     for (int i = 0; i < NP; ++i) engine.set(i, raw[(size_t) i]->load());
     engine.prepare(sampleRate);
+    for (auto& v : lastHost) v = std::numeric_limits<float>::quiet_NaN();   // everything is copied on the first block
     tmp.setSize(2, std::max(1, maxBlock));
 }
 
 void SidProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals nd;
-    for (int i = 0; i < NP; ++i) engine.set(i, raw[(size_t) i]->load(std::memory_order_relaxed));
+    // parameters: only the ones the host changed (so a value set from MIDI holds until the host's copy catches up)
+    for (int i = 0; i < NP; ++i) {
+        const float v = raw[(size_t) i]->load(std::memory_order_relaxed);
+        if (std::memcmp(&v, &lastHost[(size_t) i], sizeof v) != 0) { engine.set(i, v); lastHost[(size_t) i] = v; }
+    }
     if (auto* ph = getPlayHead())
         if (auto pos = ph->getPosition()) {
             const double bpm = pos->getBpm().orFallback(0.0);
@@ -90,30 +96,57 @@ void SidProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffer&
     float* L = tmp.getWritePointer(0); float* R = tmp.getWritePointer(1);
     // split the block at each MIDI event so notes land on time
     int pos = 0;
-    auto renderTo = [&](int upto) { if (upto > pos) { engine.render(L + pos, R + pos, upto - pos); pos = upto; } };
+    juce::MidiBuffer out;
+    // the sequencer's notes (and clock) go out to the host, at the samples they happened
+    auto renderTo = [&](int upto) {
+        if (upto <= pos) return;
+        engine.render(L + pos, R + pos, upto - pos);
+        for (int i = 0; i < engine.midiOutCount; ++i) {
+            const auto& e = engine.midiOutBuf[(size_t) i];
+            out.addEvent(e.n == 1 ? juce::MidiMessage(e.b[0]) : juce::MidiMessage(e.b[0], e.b[1], e.b[2]), juce::jlimit(0, n - 1, pos + e.offset));
+        }
+        pos = upto;
+    };
+    // everything that comes in (notes, controllers, bend, aftertouch, programs, clock) goes to the engine's parser
     for (const auto meta : midi) {
-        const auto m = meta.getMessage();
         renderTo(juce::jlimit(0, n, meta.samplePosition));
-        if (m.isNoteOn()) engine.noteOn(m.getNoteNumber(), m.getFloatVelocity());
-        else if (m.isNoteOff()) engine.noteOff(m.getNoteNumber());
-        else if (m.isPitchWheel()) engine.setBend((m.getPitchWheelValue() - 8192) / 8192.0);
-        else if (m.isSustainPedalOn()) engine.setSustain(true);
-        else if (m.isSustainPedalOff()) engine.setSustain(false);
-        else if (m.isAllNotesOff() || m.isAllSoundOff()) engine.allNotesOff();
-        else if (m.isController() && m.getControllerNumber() == 1) engine.setModWheel(m.getControllerValue() / 127.0);
-        else if (m.isController() && m.getControllerNumber() == 74) engine.setCutoffCC((m.getControllerValue() - 64) / 64.0);
-        else if (m.isProgramChange()) { pendingProgram = m.getProgramChangeNumber(); triggerAsyncUpdate(); }
+        engine.midiIn(meta.data, meta.numBytes);
     }
     renderTo(n);
-    midi.clear();
+    midi.swapWith(out);
     if (buf.getNumChannels() >= 2) { buf.copyFrom(0, 0, L, n); buf.copyFrom(1, 0, R, n); }
     else { buf.copyFrom(0, 0, L, n); buf.addFrom(0, 0, R, n); buf.applyGain(0.5f); }
     for (int c = 2; c < buf.getNumChannels(); ++c) buf.clear(c, 0, n);
 }
 
-void SidProcessor::handleAsyncUpdate() {
-    const int p = pendingProgram.exchange(-1);
-    if (p >= 0 && p < presetCount()) setCurrentProgram(p);
+void SidProcessor::handleAsyncUpdate() {}
+
+// message thread: program changes from MIDI, settings moved by MIDI controllers (into the host's automation), the sample
+void SidProcessor::timerCallback() {
+    engine.pollSample();
+    const int prog = engine.pendingProgram.exchange(-1);
+    if (prog >= 0) setCurrentProgram(prog);
+    int id; float v;
+    while (engine.popParamChange(id, v))
+        if (auto* p = apvts.getParameter(params()[id].key)) { lastHost[(size_t) id] = v; p->setValueNotifyingHost(p->convertTo0to1(v)); }
+}
+
+void SidProcessor::saveMidiFile(const std::string& bytes, const std::string& name) {
+    chooser = std::make_unique<juce::FileChooser>("Save the pattern as a MIDI file", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(name), "*.mid");
+    chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
+        [bytes](const juce::FileChooser& fc) {
+            auto f = fc.getResult(); if (f == juce::File()) return;
+            if (!f.hasFileExtension("mid")) f = f.withFileExtension("mid");
+            f.replaceWithData(bytes.data(), bytes.size());
+        });
+}
+void SidProcessor::loadMidiFile() {
+    chooser = std::make_unique<juce::FileChooser>("Load a MIDI file into the pattern", juce::File(), "*.mid;*.midi");
+    chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) {
+        const auto f = fc.getResult(); if (!f.existsAsFile()) return;
+        juce::MemoryBlock mb; f.loadFileAsData(mb);
+        if (midiFileLoaded) midiFileLoaded(std::string((const char*) mb.getData(), mb.getSize()));
+    });
 }
 
 void SidProcessor::set(int id, float v) {

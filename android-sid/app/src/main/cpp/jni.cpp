@@ -7,6 +7,8 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <time.h>
+#include <array>
 #include "ScreenUI.h"
 
 using namespace sid;
@@ -24,10 +26,13 @@ struct AppHost : ScreenUI::Host {
     void randomize() override { s.randomize((uint32_t) std::rand() | 1u); }
     bool isPlugin() const override { return false; }
     // the file picker and the microphone live on the Java side: ask it (SidView polls these each frame)
-    std::atomic<int> request { 0 };            // 1 open a file, 2 start recording, 3 stop recording
+    std::atomic<int> request { 0 };            // 1 open a sample, 2 start recording, 3 stop recording, 4 save a .mid, 5 open a .mid
     std::atomic<bool> rec { false }; std::atomic<float> recSec { 0 };
     void loadSampleFile() override { request = 1; }
     void setRecording(bool on) override { request = on ? 2 : 3; }
+    std::string midiToSave, midiName;
+    void saveMidiFile(const std::string& bytes, const std::string& name) override { midiToSave = bytes; midiName = name; request = 4; }
+    void loadMidiFile() override { request = 5; }
     bool recording() override { return rec.load(); }
     float recordedSeconds() override { return recSec.load(); }
 };
@@ -39,16 +44,29 @@ std::mutex streamLock;
 std::vector<float> bufL, bufR;
 std::atomic<bool> wanted { false };
 double preparedRate = 0;
-std::atomic<int> pendingProgram { -1 };   // program change from MIDI, applied on the UI thread
+// MIDI out (the sequencer's notes and clock): the audio thread stamps each message with the time it should be heard
+// (CLOCK_MONOTONIC, which is Java's System.nanoTime) and the UI thread hands them to the devices
+struct OutMsg { int64_t when; uint8_t b[3]; int n; };
+std::array<OutMsg, 1024> outRing; std::atomic<int> outW { 0 }, outR { 0 };
+int64_t nowNs() { timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t) t.tv_sec * 1000000000LL + t.tv_nsec; }
 
 void openStream();
 
 aaudio_data_callback_result_t onAudio(AAudioStream*, void*, void* data, int32_t frames) {
     float* out = static_cast<float*>(data);
     int done = 0;
+    const double sr = preparedRate > 0 ? preparedRate : 48000;
+    const int64_t base = nowNs() + (int64_t) (AAudioStream_getBufferSizeInFrames(stream) / sr * 1e9);   // when this buffer is heard
     while (done < frames) {
         const int n = std::min(frames - done, (int) bufL.size());
         host->s.render(bufL.data(), bufR.data(), n);
+        for (int i = 0; i < host->s.midiOutCount; ++i) {
+            const auto& e = host->s.midiOutBuf[(size_t) i];
+            const int w = outW.load(std::memory_order_relaxed);
+            if (w - outR.load(std::memory_order_acquire) >= (int) outRing.size()) break;
+            outRing[(size_t) (w & 1023)] = { base + (int64_t) ((done + e.offset) / sr * 1e9), { e.b[0], e.b[1], e.b[2] }, e.n };
+            outW.store(w + 1, std::memory_order_release);
+        }
         for (int i = 0; i < n; ++i) { out[2 * (done + i)] = bufL[(size_t) i]; out[2 * (done + i) + 1] = bufR[(size_t) i]; }
         done += n;
     }
@@ -117,7 +135,8 @@ JNIEXPORT jstring JNICALL Java_com_thesnakedevice_sid_Native_saveState(JNIEnv* e
 }
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_render(JNIEnv* env, jclass, jintArray px) {
     if (!ui) return;
-    const int prog = pendingProgram.exchange(-1);
+    const int prog = host->s.pendingProgram.exchange(-1);
+    { int id; float v; while (host->s.popParamChange(id, v)) {} }   // (no host copy to update here: the engine holds them)
     if (prog >= 0) { host->s.applyPreset(prog); ui->showPreset(prog); }
     host->s.pollSample();
     if (env->GetArrayLength(px) < ScreenUI::W * ui->height()) return;   // a too-small array: draw nothing rather than overrun
@@ -184,36 +203,39 @@ JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_setSample(JNIEnv* env,
     if (ui) ui->message("SAMPLED: " + nm);
 }
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_panic(JNIEnv*, jclass) { if (host) host->s.post(Synth::EV_PANIC, 0, 0); }
-// raw MIDI bytes (USB / Bluetooth devices): notes, bend, mod wheel, sustain, program change
+// raw MIDI bytes from a device (its own thread): into the engine's parser, which the audio thread runs
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_midi(JNIEnv* env, jclass, jbyteArray data, jint off, jint len) {
-    if (!host) return;
-    jbyte* b = env->GetByteArrayElements(data, nullptr);
-    static int status = 0;   // running status
-    for (int i = off; i < off + len;) {
-        int s = (uint8_t) b[i];
-        if (s >= 0xF8) { ++i; continue; }          // clock / realtime
-        if (s & 0x80) { status = s; ++i; } else s = status;
-        const int type = s & 0xF0;
-        const int need = (type == 0xC0 || type == 0xD0) ? 1 : (s >= 0xF0 ? 0 : 2);
-        if (s >= 0xF0) { while (i < off + len && !((uint8_t) b[i] & 0x80)) ++i; continue; }   // sysex etc.
-        if (i + need > off + len) break;
-        const int d1 = b[i] & 127, d2 = need > 1 ? b[i + 1] & 127 : 0; i += need;
-        Synth& sy = host->s;
-        switch (type) {
-            case 0x90: if (d2) sy.post(Synth::EV_ON, d1, d2 / 127.f); else sy.post(Synth::EV_OFF, d1, 0); break;
-            case 0x80: sy.post(Synth::EV_OFF, d1, 0); break;
-            case 0xE0: sy.post(Synth::EV_BEND, 0, ((d2 << 7 | d1) - 8192) / 8192.f); break;
-            case 0xB0:
-                if (d1 == 1) sy.post(Synth::EV_WHEEL, 0, d2 / 127.f);
-                else if (d1 == 123 || d1 == 120) sy.post(Synth::EV_ALLOFF, 0, 0);
-                else if (d1 == 74) sy.set(P::cut, d2 / 127.f * 2047.f);
-                else if (d1 == 71) sy.set(P::res, std::round(d2 / 127.f * 15.f));
-                break;
-            case 0xC0: if (d1 < presetCount()) pendingProgram = d1; break;
-            default: break;
-        }
+    if (!host || len <= 0) return;
+    std::vector<uint8_t> b((size_t) len);
+    env->GetByteArrayRegion(data, off, len, reinterpret_cast<jbyte*>(b.data()));
+    host->s.postMidi(b.data(), len);
+}
+// MIDI out for the UI thread to send: up to max messages as (time ns, bytes); returns how many
+JNIEXPORT jint JNICALL Java_com_thesnakedevice_sid_Native_midiOut(JNIEnv* env, jclass, jlongArray times, jbyteArray bytes, jintArray lens) {
+    const int max = env->GetArrayLength(times);
+    std::vector<jlong> t((size_t) max); std::vector<jbyte> b((size_t) max * 3); std::vector<jint> l((size_t) max);
+    int n = 0, r = outR.load(std::memory_order_relaxed); const int w = outW.load(std::memory_order_acquire);
+    while (r != w && n < max) {
+        const OutMsg& m = outRing[(size_t) (r & 1023)];
+        t[(size_t) n] = m.when; for (int k = 0; k < 3; ++k) b[(size_t) n * 3 + (size_t) k] = (jbyte) m.b[k]; l[(size_t) n] = m.n; ++n; ++r;
     }
-    env->ReleaseByteArrayElements(data, b, JNI_ABORT);
+    outR.store(r, std::memory_order_release);
+    if (n) { env->SetLongArrayRegion(times, 0, n, t.data()); env->SetByteArrayRegion(bytes, 0, n * 3, b.data()); env->SetIntArrayRegion(lens, 0, n, l.data()); }
+    return n;
+}
+// MIDI files: the pattern the screen asked to save, and a file the user picked
+JNIEXPORT jbyteArray JNICALL Java_com_thesnakedevice_sid_Native_midiFileToSave(JNIEnv* env, jclass) {
+    const std::string& m = host ? host->midiToSave : std::string();
+    jbyteArray a = env->NewByteArray((jsize) m.size());
+    env->SetByteArrayRegion(a, 0, (jsize) m.size(), reinterpret_cast<const jbyte*>(m.data()));
+    return a;
+}
+JNIEXPORT jstring JNICALL Java_com_thesnakedevice_sid_Native_midiFileName(JNIEnv* env, jclass) { return env->NewStringUTF(host ? host->midiName.c_str() : "pattern.mid"); }
+JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_midiFileLoaded(JNIEnv* env, jclass, jbyteArray data) {
+    if (!host || !data) return;
+    const jsize n = env->GetArrayLength(data);
+    std::string b((size_t) n, '\0'); env->GetByteArrayRegion(data, 0, n, reinterpret_cast<jbyte*>(&b[0]));
+    if (host->midiFileLoaded) host->midiFileLoaded(b);
 }
 
 }  // extern "C"
