@@ -230,6 +230,23 @@ int main(int argc, char** argv) {
         CHECK(kr.save() == kt.save() && kr.p[42].voice == "HIHAT1@DRUMS" && kr.p[42].tune == -2 && kr.p[36].solo, "kit text: %s", kt.save().c_str());
     }
 
+    // ---- a CMI disk voice in the drum kit plays at its own speed: the Series II's 30.2 kHz ----
+    {
+        Sound dr; dr.name = "SNARE1"; dr.category = "DRUMS1"; dr.mode = Mode::Sample; dr.rate = 128 * 440.0; dr.root = 69;
+        dr.ram.resize(60 * PAGE); for (size_t i = 0; i < dr.ram.size(); ++i) dr.ram[i] = (uint8_t) (128 + (int) std::lround(90 * std::sin(i * 0.3)));
+        Controls dc; dc.attack = 0; dc.damp = 8; dc.sustain = 1; dc.loop = 1; dc.filter = 255; dr.ctl = dc;
+        TestKit kd; kd.setUser(200, dr);
+        SongList sd; MidiSong ds = emptySong("D", 120, 2); for (int t = 0; t < SONG_TRK; ++t) ds.used[t] = false; ds.used[4] = true; ds.program[4] = -1;
+        setNotes(ds, { { 4, 0, 0.5, 38, 110 } }); ds.raw = writeSmf(ds);
+        SongEntry* de = sd.at(sd.add(ds, kd.bank)); de->voice[4] = GM_KIT; de->kit.p[38].voice = "SNARE1@DRUMS1";
+        Engine e; e.bank = &kd.bank; e.prepare(fs); e.setOutput(1, 0, 0); e.fxOn = false; e.extSync = false; selectSong(e, de); e.songRun = true;
+        std::vector<float> a(fs), b2(fs); e.render(a.data(), b2.data(), fs);
+        int first = -1, last = -1; for (int i = 0; i < fs; ++i) if (std::fabs(a[(size_t) i]) > 0.01f) { if (first < 0) first = i; last = i; }
+        const double secs = (last - first) / (double) fs, want = 60.0 * PAGE / 30200.0;
+        std::printf("kit voice from a CMI disk: %.1f ms long (at 30.2 kHz %.1f ms); natural key %.2f\n", secs * 1000, want * 1000, dr.naturalKey());
+        CHECK(std::fabs(secs - want) < 0.006, "CMI drums at their own speed");
+    }
+
     // ---- mono tracks: a new note cuts the one before; parts whose notes never overlap start mono ----
     {
         TestKit km; SongList sm;

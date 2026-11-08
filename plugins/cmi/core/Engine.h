@@ -439,7 +439,9 @@ public:
         const Sound* s = bank ? bank->at(tr.sound) : nullptr;
         if (!s || !tr.audible) return;
         Controls c = s->ctl; c.level = std::min(1.f, c.level * tr.level / 0.85f);
-        ch[(size_t) (KEY_CH + t)].noteOn(s, c, s->root + semis, vel, -1, ++stampN);
+        const double nk = s->naturalKey(); const int key = (int) std::lround(nk);
+        c.fine += (float) ((nk - key) * 100.0);   // the sample at its own speed, the step's note from there
+        ch[(size_t) (KEY_CH + t)].noteOn(s, c, clampi(key + semis, 0, 127), vel, -1, ++stampN);
     }
     void trackOff(int t) { if (t >= 0 && t < TRACKS) ch[(size_t) (KEY_CH + t)].noteOff(); }
 
@@ -522,8 +524,14 @@ private:
             const int k = songCard(t, e.d1);
             if (k < 0) return;
             Channel& c = ch[(size_t) k];
-            const int note = kit ? clampi(snd->root + (int) std::lround(kitTune[e.d1].load()), 0, 127) : e.d1;
-            c.noteOn(snd, songControls(snd, t, kit ? e.d1 : -1), note, e.d2 / 127.f, -1, ++stampN);
+            Controls sc = songControls(snd, t, kit ? e.d1 : -1);
+            int note = e.d1;
+            if (kit) {   // a drum: its sample at its own speed, then the kit's tuning
+                const double nk = snd->naturalKey(); const int key = (int) std::lround(nk);
+                sc.fine += (float) ((nk - key) * 100.0);
+                note = clampi(key + (int) std::lround(kitTune[e.d1].load()), 0, 127);
+            }
+            c.noteOn(snd, sc, note, e.d2 / 127.f, -1, ++stampN);
             c.setBend(songBendV[t]); c.setHeld(songHeld[t]);
             cardTrack[k] = t; cardNote[k] = e.d1;
             return;

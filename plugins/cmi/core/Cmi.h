@@ -186,6 +186,14 @@ struct Sound {
     int loopStart = -1, loopEnd = -1;   // pages, inclusive; -1: no loop
     Controls ctl;            // the controls it was saved with
     int pages() const { return (int) ram.size() / PAGE; }
+    // the key (fractional) that plays the sample at the speed it was recorded: a voice from a CMI disk (the pitch rule:
+    // clock = 128 x the key's frequency) was sampled at the Series II's 30.2 kHz, so that's A#3 and 21 cents (the
+    // extractor's WAVs of the same voices are all 30.2 kHz too); a sample of your own, at its root. Drums and Page S's
+    // tracks play here: at A4 (the voice's reference) a CMI drum ran about nine semitones fast.
+    double naturalKey() const {
+        if (mode == Mode::Sample && std::fabs(rate - 128.0 * 440.0) < 1 && root == 69) return 69.0 + 12.0 * std::log2(30200.0 / (128.0 * 440.0));
+        return (double) root;
+    }
 };
 
 }  // namespace cmi
