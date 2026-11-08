@@ -819,7 +819,7 @@ void Screen::drawFiles(juce::Graphics& g) {
     for (int k = 0; k < per && filePage * per + k < (int) files.size(); ++k) {
         const juce::File f = files[(size_t) (filePage * per + k)];
         const juce::String e = f.getFileExtension().toLowerCase();
-        const juce::String tag = e == ".mid" || e == ".midi" ? "SONG" : e == ".zip" ? "ZIP " : e == ".vc" ? "VC  " : e == ".imd" || e == ".img" || e == ".bin" || e == ".raw" || e == ".dsk" ? "DISK" : "WAV ";
+        const juce::String tag = e == ".mid" || e == ".midi" ? "SONG" : e == ".zip" ? "ZIP " : e == ".vc" ? "VC  " : e == ".imd" || e == ".img" || e == ".bin" || e == ".raw" || e == ".dsk" || e == ".hfe" ? "DISK" : "WAV ";
         juce::Rectangle<float> r(20.f + (k / rows) * 480.f, 130.f + (k % rows) * 21.f, 470, 20);
         g.setColour(tag == "SONG" ? kInk : kDim); g.setFont(mono(14));
         g.drawText(tag + " " + f.getFileNameWithoutExtension().substring(0, 50), r, juce::Justification::centredLeft);
@@ -912,7 +912,7 @@ void Screen::drawSampling(juce::Graphics& g) {
         const int flags = juce::FileBrowserComponent::openMode | (folder ? juce::FileBrowserComponent::canSelectDirectories
                                                                           : juce::FileBrowserComponent::canSelectFiles | (slot < 0 ? juce::FileBrowserComponent::canSelectMultipleItems : 0));
         ed.chooser = std::make_unique<juce::FileChooser>(folder ? "Import a folder of sounds" : slot < 0 ? "Import sounds" : "Sample into USER" + juce::String(slot + 1),
-                                                         juce::File(), folder ? juce::String() : juce::String("*.imd;*.img;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.mid;*.midi;*.zip"));
+                                                         juce::File(), folder ? juce::String() : juce::String("*.imd;*.img;*.hfe;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg;*.mid;*.midi;*.zip"));
         ed.chooser->launchAsync(flags, [this, slot](const juce::FileChooser& fc) {
             const auto res = fc.getResults(); if (res.isEmpty()) return;
             if (slot >= 0) { const auto err = ed.proc.loadSample(res[0], slot, rootKey, loopIt); status = err.isEmpty() ? "SAMPLED" : err.toUpperCase(); }

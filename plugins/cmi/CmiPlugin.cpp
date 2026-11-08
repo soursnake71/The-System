@@ -226,7 +226,7 @@ void CmiProcessor::rescanLibrary() {
     std::vector<juce::File> found;
     const juce::File dir = libraryFolder();
     if (dir.isDirectory())
-        for (const auto& e : juce::RangedDirectoryIterator(dir, true, "*.mid;*.midi;*.zip;*.imd;*.img;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg", juce::File::findFiles)) {
+        for (const auto& e : juce::RangedDirectoryIterator(dir, true, "*.mid;*.midi;*.zip;*.imd;*.img;*.hfe;*.bin;*.raw;*.dsk;*.vc;*.wav;*.aif;*.aiff;*.flac;*.mp3;*.ogg", juce::File::findFiles)) {
             found.push_back(e.getFile());
             if (found.size() > 5000) break;
         }
@@ -235,7 +235,7 @@ void CmiProcessor::rescanLibrary() {
     Catalog cat;
     for (int pass = 0; pass < 2; ++pass)   // disk images first: their labels name the voices' disks
         for (const auto& f : found) {
-            if (!f.hasFileExtension(pass == 0 ? "imd;img;bin;raw;dsk" : "vc")) continue;
+            if (!f.hasFileExtension(pass == 0 ? "imd;img;hfe;bin;raw;dsk" : "vc")) continue;
             juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) continue;
             juce::File dirF = f.getParentDirectory(); if (dirF.getFileName().equalsIgnoreCase("VCs")) dirF = dirF.getParentDirectory();
             cat.add(f.getFileName().toStdString(), (const uint8_t*) mb.getData(), mb.getSize(), dirF.getFileName().toUpperCase().toStdString());

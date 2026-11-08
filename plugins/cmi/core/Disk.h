@@ -69,6 +69,78 @@ inline bool unpackImd(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std
     return true;
 }
 
+// HFE (the HxC floppy emulator's image): not sectors but each track's raw bit cells as the drive head reads them,
+// both sides interleaved in 256-byte blocks, bits in time order from bit 0. The CMI's 8" disks are single density
+// (FM): every data bit is a clock cell then a data cell; an ID mark (data FE, clock C7) precedes each sector's
+// cylinder, head, sector and size, a data mark (FB / F8, clock C7) its 128 bytes; each field ends in a CRC-CCITT.
+// Decoded here into the same sector image an IMG holds. badCrc: sectors read with a CRC error (kept, counted).
+inline uint16_t crcCcitt(const uint8_t* p, size_t n, uint16_t crc = 0xFFFF) {
+    for (size_t i = 0; i < n; ++i) { crc ^= (uint16_t) (p[i] << 8); for (int k = 0; k < 8; ++k) crc = (uint16_t) (crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1); }
+    return crc;
+}
+inline uint16_t fmCells(uint8_t data, uint8_t clock) {   // 16 cells, the first in time at bit 15
+    uint16_t v = 0; for (int i = 7; i >= 0; --i) v = (uint16_t) ((v << 2) | (((clock >> i) & 1) << 1) | ((data >> i) & 1)); return v;
+}
+inline bool unpackHfe(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std::string& err, int* badCrc = nullptr, int* found = nullptr) {
+    if (n < 512 || std::memcmp(d, "HXCPICFE", 8)) { err = "NOT AN HFE IMAGE"; return false; }
+    const int tracks = d[9], sides = d[10], enc = d[11];
+    const size_t tl = (size_t) (d[18] | d[19] << 8) * 512;
+    if (enc != 2 && enc != 3 && enc != 0xFF) { err = enc == 0 ? "HFE IS MFM (DOUBLE DENSITY): NOT A CMI DISK" : "HFE ENCODING NOT FM"; return false; }
+    out.assign((size_t) CYL * 2 * SPT * SEC, 0xE5);
+    int good = 0, bad = 0;
+    const uint16_t idam = fmCells(0xFE, 0xC7), dam = fmCells(0xFB, 0xC7), ddam = fmCells(0xF8, 0xC7);
+    for (int t = 0; t < tracks && t < CYL; ++t) {
+        if (tl + (size_t) t * 4 + 4 > n) break;
+        const size_t off = (size_t) (d[tl + t * 4] | d[tl + t * 4 + 1] << 8) * 512, len = (size_t) (d[tl + t * 4 + 2] | d[tl + t * 4 + 3] << 8);
+        for (int side = 0; side < sides && side < 2; ++side) {
+            // this side's bits, in time order
+            std::vector<uint8_t> bits;
+            const size_t sideLen = len / 2;   // each side has half the track's bytes, 256 to a block (the last block split evenly too)
+            for (size_t j = 0; j < sideLen; ++j) {
+                const size_t at = off + (j / 256) * 512 + (size_t) side * 256 + j % 256;
+                if (at >= n) break;
+                for (int k = 0; k < 8; ++k) bits.push_back((d[at] >> k) & 1);
+            }
+            // the FM cells: one per bit, or (as HxC stores 8" FM at twice the rate) every other bit; whichever finds marks
+            auto marks = [&](const std::vector<uint8_t>& cv) { int m = 0; uint16_t r = 0; for (size_t c = 0; c < cv.size(); ++c) { r = (uint16_t) ((r << 1) | cv[c]); m += r == idam; } return m; };
+            std::vector<uint8_t> cells = bits; int bestMarks = marks(bits);
+            for (int ph = 0; ph < 2; ++ph) {
+                std::vector<uint8_t> cv; cv.reserve(bits.size() / 2 + 1);
+                for (size_t i = (size_t) ph; i < bits.size(); i += 2) cv.push_back(bits[i]);
+                const int m = marks(cv); if (m > bestMarks) { bestMarks = m; cells = std::move(cv); }
+            }
+            const size_t once = cells.size();
+            for (size_t i = 0; i < std::min<size_t>(once, 16 * 400); ++i) cells.push_back(cells[i]);
+            auto byteAt = [&](size_t c) { uint8_t v = 0; for (int i = 0; i < 8; ++i) v = (uint8_t) ((v << 1) | cells[c + (size_t) i * 2 + 1]); return v; };
+            bool seen[SPT] {};
+            uint16_t reg = 0;
+            for (size_t c = 0; c < cells.size(); ++c) {
+                reg = (uint16_t) ((reg << 1) | cells[c]);
+                if (c < 15 || reg != idam || c - 15 >= once) continue;
+                size_t p = c + 1;
+                if (p + 16 * 6 > cells.size()) break;
+                uint8_t id[7] = { 0xFE }; for (int k = 0; k < 6; ++k) id[1 + k] = byteAt(p + (size_t) k * 16);
+                if (crcCcitt(id, 5) != (uint16_t) (id[5] << 8 | id[6])) continue;   // a broken ID: not a sector we can place
+                const int cyl = id[1], head = side, sn = id[3] - 1, size = 128 << (id[4] & 3);   // the side it was read on (CMI disks write head 0 on both)
+                if (size != SEC || cyl >= CYL || sn < 0 || sn >= SPT || seen[sn]) continue;
+                // its data mark, within the gap after the ID
+                p += 16 * 6; uint16_t r2 = 0; size_t q = 0;
+                for (size_t k = p; k < std::min(cells.size(), p + 16 * 60); ++k) { r2 = (uint16_t) ((r2 << 1) | cells[k]); if (k >= p + 15 && (r2 == dam || r2 == ddam)) { q = k + 1; break; } }
+                if (!q || q + 16 * (SEC + 2) > cells.size()) continue;
+                uint8_t buf[1 + SEC + 2]; buf[0] = (uint8_t) (r2 == dam ? 0xFB : 0xF8);
+                for (int k = 0; k < SEC + 2; ++k) buf[1 + k] = byteAt(q + (size_t) k * 16);
+                const bool ok = crcCcitt(buf, 1 + SEC) == (uint16_t) (buf[1 + SEC] << 8 | buf[2 + SEC]);
+                std::memcpy(out.data() + ((size_t) (cyl * 2 + head) * SPT + (size_t) sn) * SEC, buf + 1, SEC);
+                seen[sn] = true; (ok ? good : bad)++;
+            }
+        }
+    }
+    if (badCrc) *badCrc = bad;
+    if (found) *found = good + bad;
+    if (good + bad == 0) { err = "NO CMI SECTORS IN THE HFE"; return false; }
+    return true;
+}
+
 inline uint16_t be16(const std::vector<uint8_t>& v, size_t o) { return o + 1 < v.size() ? (uint16_t) (v[o] << 8 | v[o + 1]) : 0; }
 
 inline std::string trimmed(const uint8_t* p, size_t n) {
@@ -119,8 +191,8 @@ inline Disk readDiskImage(const uint8_t* d, size_t n) {
     std::vector<uint8_t> raw; std::string err;
     if (n >= 4 && !std::memcmp(d, "IMD ", 4)) {
         if (!disk::unpackImd(d, n, raw, err)) { Disk dk; dk.err = err; return dk; }
-    } else if (n >= 4 && !std::memcmp(d, "HXCPICFE", 8 < n ? 8 : n)) {
-        Disk dk; dk.err = "HFE IMAGES AREN'T READ YET: CONVERT TO IMD OR IMG"; return dk;
+    } else if (n >= 8 && !std::memcmp(d, "HXCPICFE", 8)) {
+        if (!disk::unpackHfe(d, n, raw, err)) { Disk dk; dk.err = err; return dk; }
     } else if (n % disk::SEC == 0 && n >= (size_t) disk::SPT * disk::SEC * 4) {
         raw.assign(d, d + n);
     } else { Disk dk; dk.err = "NOT A CMI DISK IMAGE"; return dk; }

@@ -392,6 +392,53 @@ int main(int argc, char** argv) {
         }
         Disk d2 = readDiskImage(imd.data(), imd.size());
         CHECK(d2.err.empty() && d2.files.size() == 2 && d2.files[0].data == d.files[0].data && d2.files[1].data == d.files[1].data, "IMD reads the same: %s", d2.err.c_str());
+        // as an HFE (the HxC emulator's raw track bits): FM at twice the cell rate, LSB first, sides interleaved in 256-byte
+        // blocks, a skewed sector order, head 0 written in the IDs of both sides (as CMI disks do), a sector across the index
+        {
+            auto crc = [](const std::vector<uint8_t>& v) { return disk::crcCcitt(v.data(), v.size()); };
+            std::vector<uint8_t> hfe(512, 0xFF); std::memcpy(hfe.data(), "HXCPICFE", 8);
+            hfe[8] = 0; hfe[9] = 77; hfe[10] = 2; hfe[11] = 2; hfe[12] = 0xF4; hfe[13] = 1; hfe[14] = 0; hfe[15] = 0; hfe[16] = 7; hfe[17] = 1; hfe[18] = 1; hfe[19] = 0;
+            hfe.resize(1024, 0xFF);
+            std::vector<std::vector<uint8_t>> sideBits[1];
+            size_t trackBlock = 2;
+            for (int cyl = 0; cyl < 77; ++cyl) {
+                std::vector<uint8_t> bits[2];
+                for (int head = 0; head < 2; ++head) {
+                    auto& bv = bits[head];
+                    auto cellByte = [&](uint8_t data, uint8_t clock) { for (int i = 7; i >= 0; --i) { for (int r = 0; r < 2; ++r) bv.push_back(r ? (clock >> i) & 1 : 0); for (int r = 0; r < 2; ++r) bv.push_back(r ? (data >> i) & 1 : 0); } };
+                    auto put = [&](uint8_t v) { cellByte(v, 0xFF); };
+                    for (int k = 0; k < 40; ++k) put(0xFF);
+                    for (int k = 0; k < 26; ++k) {
+                        const int sn = (k * 7 + cyl * 3 + head) % 26;
+                        for (int g = 0; g < 6; ++g) put(0x00);
+                        std::vector<uint8_t> id = { 0xFE, (uint8_t) cyl, 0, (uint8_t) (sn + 1), 0 };
+                        cellByte(0xFE, 0xC7); for (int i = 1; i < 5; ++i) put(id[(size_t) i]); const uint16_t c1 = crc(id); put((uint8_t) (c1 >> 8)); put((uint8_t) c1);
+                        for (int g = 0; g < 11; ++g) put(0xFF); for (int g = 0; g < 6; ++g) put(0x00);
+                        std::vector<uint8_t> dt = { 0xFB }; const size_t off = ((size_t) (cyl * 2 + head) * 26 + (size_t) sn) * 128;
+                        dt.insert(dt.end(), img.begin() + (long) off, img.begin() + (long) off + 128);
+                        cellByte(0xFB, 0xC7); for (size_t i = 1; i < dt.size(); ++i) put(dt[i]); const uint16_t c2 = crc(dt); put((uint8_t) (c2 >> 8)); put((uint8_t) c2);
+                        for (int g = 0; g < 27; ++g) put(0xFF);
+                    }
+                    std::rotate(bv.begin(), bv.begin() + (long) (bv.size() - 4000), bv.end());   // the index falls inside a sector
+                }
+                const size_t nb = bits[0].size() / 8, blocks = (nb + 255) / 256;   // the sides' bytes; the track length exact
+                hfe[512 + (size_t) cyl * 4] = (uint8_t) trackBlock; hfe[513 + (size_t) cyl * 4] = (uint8_t) (trackBlock >> 8);
+                const size_t len = nb * 2; hfe[514 + (size_t) cyl * 4] = (uint8_t) len; hfe[515 + (size_t) cyl * 4] = (uint8_t) (len >> 8);
+                hfe.resize(trackBlock * 512 + blocks * 512, 0xAA);
+                for (int head = 0; head < 2; ++head)
+                    for (size_t i = 0; i < bits[head].size(); ++i) {
+                        const size_t byte = i / 8, blk = byte / 256, at = trackBlock * 512 + blk * 512 + (size_t) head * 256 + byte % 256;
+                        if (i % 8 == 0) hfe[at] = 0;
+                        hfe[at] = (uint8_t) (hfe[at] | (bits[head][i] << (i % 8)));
+                    }
+                trackBlock += blocks;
+            }
+            std::vector<uint8_t> back; std::string herr; int hbad = -1, hfound = 0;
+            const bool hok = disk::unpackHfe(hfe.data(), hfe.size(), back, herr, &hbad, &hfound);
+            Disk d3 = readDiskImage(hfe.data(), hfe.size());
+            CHECK(hok && hfound == 4004 && hbad == 0 && back == img, "HFE decodes to the same sectors (%d found, %d bad) %s", hfound, hbad, herr.c_str());
+            CHECK(d3.err.empty() && d3.files.size() == 2 && d3.files[1].data == d.files[1].data, "HFE reads the same voices: %s", d3.err.c_str());
+        }
         Disk bad = readDiskImage((const uint8_t*) "hello", 5);
         CHECK(!bad.err.empty(), "junk is refused");
     }

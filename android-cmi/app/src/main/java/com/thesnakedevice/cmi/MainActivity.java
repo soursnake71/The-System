@@ -267,9 +267,9 @@ public class MainActivity extends Activity {
             int done = 0;
             for (int pass = 0; pass < 2; ++pass) for (int i : ord) {   // disk images first: their labels name the voices' disks
                 String lo = ns.get(i).toLowerCase();
-                boolean disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
+                boolean disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".hfe") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
                 if (pass == 0 ? !disk : !lo.endsWith(".vc")) continue;
-                try { Native.catalogAdd(readAll(us.get(i), 4 << 20), ns.get(i), ""); } catch (Exception ignored) {}
+                try { Native.catalogAdd(readAll(us.get(i), 8 << 20), ns.get(i), ""); } catch (Exception ignored) {}
                 if (++done % 10 == 0) { final int d2 = done; ui.post(() -> view.status("READING THE CMI LIBRARY: " + d2 + " FILES")); }
             }
             Native.connectDefaults();   // no built-in voices: Page R and the keyboard take theirs from the library
@@ -327,7 +327,7 @@ public class MainActivity extends Activity {
         try {
             if (lower.endsWith(".zip")) return importZip(uri);
             if (lower.endsWith(".imd") || lower.endsWith(".img") || lower.endsWith(".bin") || lower.endsWith(".raw") || lower.endsWith(".dsk") || lower.endsWith(".hfe")) {
-                String r = Native.loadDisk(readAll(uri, 4 << 20), base);
+                String r = Native.loadDisk(readAll(uri, 8 << 20), base);
                 try { int n = Integer.parseInt(r); lastDiskCount += n; return n > 0 ? "" : "NO VOICES ON " + name; } catch (NumberFormatException e) { return r; }
             }
             if (lower.endsWith(".vc")) return Native.loadVc(readAll(uri, 1 << 20), base, "", slot);
@@ -354,7 +354,7 @@ public class MainActivity extends Activity {
                 String nm = en.getName(); int sl = nm.lastIndexOf('/'); if (sl >= 0) nm = nm.substring(sl + 1);
                 if (nm.startsWith(".") || nm.startsWith("._")) continue;
                 String lo = nm.toLowerCase(), base = nm; int dot = base.lastIndexOf('.'); if (dot > 0) base = base.substring(0, dot);
-                boolean midi = lo.endsWith(".mid") || lo.endsWith(".midi"), disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
+                boolean midi = lo.endsWith(".mid") || lo.endsWith(".midi"), disk = lo.endsWith(".imd") || lo.endsWith(".img") || lo.endsWith(".hfe") || lo.endsWith(".bin") || lo.endsWith(".raw") || lo.endsWith(".dsk");
                 boolean vc = lo.endsWith(".vc"), wav = lo.endsWith(".wav");
                 if (!midi && !disk && !vc && !wav) continue;
                 ByteArrayOutputStream o = new ByteArrayOutputStream(); byte[] buf = new byte[65536]; int r;
@@ -404,7 +404,7 @@ public class MainActivity extends Activity {
                 String n = name.toLowerCase();
                 boolean audio = (mime != null && mime.startsWith("audio/")) || n.endsWith(".wav") || n.endsWith(".aif") || n.endsWith(".aiff") || n.endsWith(".flac")
                         || n.endsWith(".mp3") || n.endsWith(".ogg") || n.endsWith(".vc") || n.endsWith(".imd") || n.endsWith(".img") || n.endsWith(".bin")
-                        || n.endsWith(".raw") || n.endsWith(".dsk") || n.endsWith(".mid") || n.endsWith(".midi") || n.endsWith(".zip");
+                        || n.endsWith(".raw") || n.endsWith(".dsk") || n.endsWith(".hfe") || n.endsWith(".mid") || n.endsWith(".midi") || n.endsWith(".zip");
                 if (!audio) continue;
                 uris.add(DocumentsContract.buildDocumentUriUsingTree(tree, id));
                 names.add(name);

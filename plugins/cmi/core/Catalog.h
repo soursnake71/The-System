@@ -32,7 +32,7 @@ public:
             CatVoice c; c.name = name; c.disk = disk; c.vc = vc; c.hash = h; c.looped = vc.size() > 0x133B && vc[0x133B] == 1;
             voices.push_back(std::move(c));
         };
-        if (ext(".imd") || ext(".img") || ext(".bin") || ext(".raw") || ext(".dsk")) {
+        if (ext(".imd") || ext(".img") || ext(".hfe") || ext(".bin") || ext(".raw") || ext(".dsk")) {
             Disk dk = readDiskImage(d, n);
             if (!dk.err.empty()) return;
             ++disks;
