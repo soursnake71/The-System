@@ -176,6 +176,12 @@ struct ParamInfo {
     X(clksrc, "CLOCK",         "MIDI", 0, 1, 0, CHOICE, "INTERNAL|MIDI CLOCK", 1, "", 0) \
     X(clkout, "SEND CLOCK",    "MIDI", 0, 1, 0, TOGGLE, "", 1, "", 0) \
     X(notout, "SEND SEQ NOTES","MIDI", 0, 1, 1, TOGGLE, "", 1, "", 0) \
+    X(xsrc,   "EXPORT",        "FILE", 0, 1, 0, CHOICE, "PATTERN|RECORDING", 1, "", 0) \
+    X(xloops, "PATTERN LOOPS", "FILE", 1, 32, 4, INT, "", 1, "", 0) \
+    X(xtail,  "TAIL",          "FILE", 0, 10, 3, CONT, "", 1, "S", 0) \
+    X(xfmt,   "FORMAT",        "FILE", 0, 4, 0, CHOICE, "WAV 16|WAV 24|MP3 128|MP3 192|MP3 320", 1, "", 0) \
+    X(xrate,  "SAMPLE RATE",   "FILE", 0, 1, 0, CHOICE, "44.1K|48K", 1, "", 0) \
+    X(xnorm,  "NORMALIZE",     "FILE", 0, 1, 1, TOGGLE, "", 1, "", 0) \
     X(bpm,    "TEMPO",         "SEQ", 40, 240, 120, CONT, "", 1, "BPM", 0) \
     X(srate,  "STEP RATE",     "SEQ", 0, 3, 1, CHOICE, "1/8|1/16|1/16T|1/32", 1, "", 0) \
     X(swing,  "SWING",         "SEQ", 0, 0.75f, 0, CONT, "", 1, "", 0) \
@@ -477,6 +483,15 @@ public:
         qW.store(w + 1, std::memory_order_release);
     }
     enum { EV_ON, EV_OFF, EV_PANIC, EV_SEQ_PLAY, EV_SEQ_STOP, EV_BEND, EV_WHEEL, EV_ALLOFF };
+
+    // ---- recording what you hear (for the audio export): 16-bit stereo, up to the buffer's length ----
+    std::vector<int16_t> outRec; std::atomic<bool> outRecOn { false }; std::atomic<int> outRecFrames { 0 };
+    void startOutRecord(double seconds) {   // UI thread
+        outRecOn = false; outRec.assign((size_t) (std::max(1.0, seconds) * fs) * 2, 0); outRecFrames = 0; outRecOn = true;
+    }
+    void stopOutRecord() { outRecOn = false; }
+    double outRecSeconds() const { return outRecFrames.load() / fs; }
+    double sampleRate() const { return fs; }
 
     // ---- MIDI in: everything from a host or a device goes through midiIn (audio thread), or postMidi (any one other thread) ----
     std::array<std::atomic<int>, 128> ccMap;                  // controller -> parameter (-1: none)
@@ -780,6 +795,15 @@ public:
         }
         hostValid = false;
         samplesRendered += (uint64_t) n;
+        if (outRecOn.load(std::memory_order_relaxed)) {
+            int f = outRecFrames.load(std::memory_order_relaxed); const int cap = (int) (outRec.size() / 2);
+            for (int i = 0; i < n && f < cap; ++i, ++f) {
+                outRec[(size_t) f * 2] = (int16_t) std::lround(std::clamp(L[i], -1.f, 1.f) * 32767.f);
+                outRec[(size_t) f * 2 + 1] = (int16_t) std::lround(std::clamp(R[i], -1.f, 1.f) * 32767.f);
+            }
+            outRecFrames.store(f, std::memory_order_relaxed);
+            if (f >= cap) outRecOn = false;
+        }
     }
 
 private:

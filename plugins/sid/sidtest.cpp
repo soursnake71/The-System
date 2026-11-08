@@ -2,6 +2,7 @@
 // tune; the filter, sequencer, arp and state round trip work; and how fast it runs.
 // Build: c++ -O2 -std=c++17 plugins/sid/sidtest.cpp -o sidtest && ./sidtest [wav-dir]
 #include "ScreenUI.h"
+#include "SidExport.h"
 #include <chrono>
 #include <functional>
 #include <cstdio>
@@ -345,6 +346,60 @@ int main(int argc, char** argv) {
         s->loadState("pat7=" + std::to_string(128 | 60) + "," + std::to_string(0) + "," + std::to_string(128 | 256 | 64) + "\n");
         auto ns = s->patternNotes(7);
         CHECK(ns.size() == 2, "an old pattern loaded %d notes", (int) ns.size());
+    }
+
+    // audio export: the pattern rendered offline, as WAV and as MP3
+    {
+        s->panic(); s->applyPreset(0); s->loadPatternPreset(0, 0); s->set(P::spat, 1); s->set(P::slen, 16); s->set(P::srate, 1); s->set(P::bpm, 120);
+        const std::string state = s->saveState();
+        Audio a = renderPattern(state, 2, 44100, 2.0);
+        const double secsR = a.lr.size() / 2.0 / a.fs, body = 2 * 16 * 0.25 * 0.5;   // 2 loops x 16 steps x 1/16 at 120 BPM
+        std::printf("export: rendered %.2f s (pattern %.2f s + tail), peak %.2f\n", secsR, body, peakOf(a));
+        CHECK(secsR >= body && secsR <= body + 2.1, "the render is %.2f s", secsR);
+        CHECK(peakOf(a) > 0.05f, "the render is silent");
+        normalize(a);
+        CHECK(std::fabs(peakOf(a) - 0.966f) < 0.01f, "normalize didn't reach -0.3 dB");
+        const std::string w16 = encodeWav(a, 16), w24 = encodeWav(a, 24);
+        CHECK(w16.compare(0, 4, "RIFF") == 0 && w16.size() == 44 + a.lr.size() * 2 && w24.size() == 44 + a.lr.size() * 3, "WAV sizes %zu / %zu", w16.size(), w24.size());
+        const std::string mp3 = encodeMp3(a, 192);
+        // walk the MP3 frames: sync, MPEG-1 layer III, 44.1 kHz, 192 kbps
+        size_t i = 0; int frames = 0; bool ok = true;
+        while (i + 4 <= mp3.size()) {
+            const uint8_t* h = (const uint8_t*) mp3.data() + i;
+            if (h[0] != 0xFF || (h[1] & 0xE0) != 0xE0) { ok = false; break; }
+            const int brIdx = h[2] >> 4, srIdx = (h[2] >> 2) & 3, pad2 = (h[2] >> 1) & 1;
+            if ((h[1] & 0x1E) != 0x1A || brIdx != 11 || srIdx != 0) { ok = false; break; }
+            i += 144 * 192000 / 44100 + (size_t) pad2; ++frames;
+        }
+        const int want = (int) std::ceil(a.lr.size() / 2.0 / 1152);
+        std::printf("export: WAV %zu KB, MP3 %zu KB, %d frames (expect ~%d)\n", w16.size() / 1024, mp3.size() / 1024, frames, want);
+        CHECK(ok && frames >= want && frames <= want + 2, "MP3 frames: %d (valid %d)", frames, (int) ok);
+        // decode it back where ffmpeg is installed, and compare with what went in
+        if (std::system("ffmpeg -version > /dev/null 2>&1") == 0) {
+            const std::string dir = argc > 1 ? argv[1] : "/tmp";
+            { FILE* f = std::fopen((dir + "/sidtest_export.mp3").c_str(), "wb"); std::fwrite(mp3.data(), 1, mp3.size(), f); std::fclose(f); }
+            const std::string cmd = "ffmpeg -loglevel error -y -i " + dir + "/sidtest_export.mp3 -f f32le -ac 2 -ar 44100 " + dir + "/sidtest_export.raw";
+            CHECK(std::system(cmd.c_str()) == 0, "ffmpeg couldn't decode the MP3");
+            FILE* f = std::fopen((dir + "/sidtest_export.raw").c_str(), "rb");
+            std::vector<float> dec; if (f) { float b[4096]; size_t n2; while ((n2 = std::fread(b, 4, 4096, f)) > 0) dec.insert(dec.end(), b, b + n2); std::fclose(f); }
+            // best alignment within the encoder's delay, then the correlation
+            double best = 0; int bestLag = 0;
+            for (int lag = 0; lag < 3000; lag += 1) {
+                double xy = 0, xx = 0, yy = 0;
+                for (size_t k = 20000; k < 60000 && (k + (size_t) lag) * 2 < dec.size() && k * 2 < a.lr.size(); k += 3) { const double x = a.lr[k * 2], y = dec[(k + (size_t) lag) * 2]; xy += x * y; xx += x * x; yy += y * y; }
+                const double c = xy / std::sqrt(xx * yy + 1e-12); if (c > best) { best = c; bestLag = lag; }
+            }
+            std::printf("export: ffmpeg decoded %zu frames; correlation with the original %.3f (delay %d samples)\n", dec.size() / 2, best, bestLag);
+            CHECK(best > 0.95, "the MP3 doesn't match the original (correlation %.3f)", best);
+        } else std::printf("export: ffmpeg not installed, MP3 decode check skipped\n");
+        // recording the output
+        s->panic(); s->initPatch(); s->startOutRecord(2);
+        run(*s, fs, 0.5, [](Synth& x, int b) { if (b == 0) x.noteOn(60, 1); });
+        s->stopOutRecord();
+        CHECK(std::fabs(s->outRecSeconds() - 0.5) < 0.02, "recorded %.2f s of 0.5", s->outRecSeconds());
+        int nz = 0; for (int k = 0; k < s->outRecFrames.load() * 2; ++k) if (s->outRec[(size_t) k]) ++nz;
+        CHECK(nz > 1000, "the recording is silent");
+        s->initPatch();
     }
 
     // every preset: a chord, held then released

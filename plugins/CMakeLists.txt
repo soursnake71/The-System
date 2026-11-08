@@ -143,6 +143,17 @@ endif()
 
 # Omega SID 64: the SID chip (6581 / 8580) circuit model as a synth with a sequencer and the C64 screen.
 # One instrument plus a standalone app; the engine (sid/SidSynth.h) is shared with the Android app.
+# shine (third_party/shine, LGPL): the MP3 encoder for Omega SID's audio export. Two short global names renamed.
+file(GLOB OMEGA_SHINE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/shine/*.c)
+add_library(omega_shine STATIC ${OMEGA_SHINE_SOURCES})
+target_compile_definitions(omega_shine PRIVATE dmask=shine_dmask hs=shine_hs)
+set_target_properties(omega_shine PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+  target_compile_options(omega_shine PRIVATE /w)
+else()
+  target_compile_options(omega_shine PRIVATE -w)
+endif()
+
 if(NOT OMEGA_ONLY OR "Sid" IN_LIST OMEGA_ONLY)
   juce_add_plugin(OmegaSid
     PRODUCT_NAME "Omega SID 64"
@@ -163,7 +174,8 @@ if(NOT OMEGA_ONLY OR "Sid" IN_LIST OMEGA_ONLY)
   target_sources(OmegaSid PRIVATE sid/SidPlugin.cpp sid/SidEditor.cpp sid/Rev7Spec.cpp)   # Rev7Spec: the Omega REV7 as its reverb
   target_compile_definitions(OmegaSid PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1 JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
-  target_link_libraries(OmegaSid PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+  target_link_libraries(OmegaSid PRIVATE juce::juce_audio_utils omega_shine PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endif()
 # the engine's own checks (no JUCE): <build>/sid_test
 add_executable(sid_test sid/sidtest.cpp sid/Rev7Spec.cpp)
+target_link_libraries(sid_test PRIVATE omega_shine)

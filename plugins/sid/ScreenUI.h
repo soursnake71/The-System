@@ -9,7 +9,10 @@
 #pragma once
 #include "SidFont.h"
 #include "SidSynth.h"
+#include "SidExport.h"
 #include <functional>
+#include <mutex>
+#include <thread>
 
 namespace sid {
 
@@ -46,9 +49,11 @@ public:
         virtual void saveMidiFile(const std::string& /*bytes*/, const std::string& /*name*/) {}
         virtual void loadMidiFile() {}
         std::function<void(const std::string&)> midiFileLoaded;   // the screen sets this: a file the platform read
+        // an exported sound: save these bytes (mime: audio/wav or audio/mpeg); the platform asks where
+        virtual void saveAudioFile(const std::string& /*bytes*/, const std::string& /*name*/, const std::string& /*mime*/) {}
     };
 
-    ~ScreenUI() { host.midiFileLoaded = nullptr; }
+    ~ScreenUI() { host.midiFileLoaded = nullptr; if (exThread.joinable()) exThread.join(); }
     ScreenUI(Host& h) : host(h) {
         host.midiFileLoaded = [this](const std::string& b) { importMidiFile(b); };
         for (int i = 0; i < presetCount(); ++i) {
@@ -95,10 +100,10 @@ public:
     // ---- for touch screens: the platform can show the selected setting big, and page buttons ----
     bool touchMode = false;      // forgiving taps: a touch between rows takes the nearest control
     int selected = -1;           // the setting touched last (highlighted on the screen)
-    // pages: 0 PRG, 1-3 OSC, 4 FLT, 5 MOD, 6 ARP, 7 CHP, 8 MIX, 9 SEQ, 10 SMP, 11 FX, 12 REV, 13 GRID, 14 MIDI
-    static constexpr int NPAGES = 15;
-    static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 11, 12, 9, 13, 14, 7 };   // the tab order
-    static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "FX", "REV", "SEQ", "GRID", "MIDI", "CHP" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
+    // pages: 0 PRG, 1-3 OSC, 4 FLT, 5 MOD, 6 ARP, 7 CHP, 8 MIX, 9 SEQ, 10 SMP, 11 FX, 12 REV, 13 GRID, 14 MIDI, 15 FILE
+    static constexpr int NPAGES = 16;
+    static constexpr int PAGE_ORDER[NPAGES] = { 0, 1, 2, 3, 4, 5, 6, 10, 8, 11, 12, 9, 13, 14, 15, 7 };   // the tab order
+    static const char* pageName(int i) { static const char* n[NPAGES] = { "PRG", "OS1", "OS2", "OS3", "FLT", "MOD", "ARP", "SMP", "MIX", "FX", "REV", "SEQ", "GRID", "MIDI", "FILE", "CHP" }; return n[std::clamp(i, 0, NPAGES - 1)]; }
     // a MIDI file the platform read: into the current pattern
     void importMidiFile(const std::string& bytes) {
         Synth& s = host.synth(); snapshot(); int len = 16;
@@ -224,7 +229,7 @@ private:
     enum Btn { B_PREV = 1, B_NEXT, B_INIT, B_RAND, B_UP, B_DN, B_PLAY, B_STOP, B_PAT_DN, B_PAT_UP, B_LEN_DN, B_LEN_UP, B_LOAD, B_CLEAR,
                B_RNDPAT, B_SHL, B_SHR, B_TR_DN, B_TR_UP, B_OCT_DN, B_OCT_UP, B_BACK, B_PANIC, B_COPY, B_PASTE,
                B_SMP_LOAD, B_SMP_REC, B_SMP_PREV, B_SMP_NEXT, B_GRID_HALF, B_GRID_UP, B_GRID_DN, B_REV_LIST, B_REV_EQ, B_BACK_REV, B_REV_UP, B_REV_DN,
-               B_GRID_VIEW, B_DUP, B_UNDO, B_DEFLEN, B_DEFVEL, B_LEARN, B_CCRESET, B_CC_PREV, B_CC_NEXT, B_MID_SAVE, B_MID_LOAD };
+               B_GRID_VIEW, B_DUP, B_UNDO, B_DEFLEN, B_DEFVEL, B_LEARN, B_CCRESET, B_CC_PREV, B_CC_NEXT, B_MID_SAVE, B_MID_LOAD, B_EXPORT, B_RECOUT, B_GO_MIX, B_GO_FX };
     std::vector<GNote> clipNotes, undoNotes; int clipLen = 16; bool hasClip = false, hasUndo = false;
     bool learnArmed = false; int ccPage = 0; int lastLearned = -1;
     void snapshot() { undoNotes = host.synth().copyPattern(curPat()); hasUndo = true; }
@@ -336,13 +341,15 @@ private:
             case 12: pageRev(); break;
             case 13: pageGrid(); break;
             case 14: pageMidi(); break;
+            case 15: pageFile(); break;
             default: pageSample(); break;
         }
+        pollExport();
         // help / messages
         if (page == 9 && !patList) return;   // the tracker uses the whole screen
         {
             if (frame < msgUntil) put(rows - 2, 0, pad(msg, 40), WHITE);
-            else put(rows - 2, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 13 ? "DRAW: DRAG RIGHT. MOVE / RESIZE. TAP=DEL" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
+            else put(rows - 2, 0, page == 0 ? "TAP A PRESET.  DRAG THE LIST TO SCROLL." : page == 8 ? "DRAG FADERS. M=MUTE S=SOLO. 2X TAP=RESET" : page == 13 ? "DRAW: DRAG RIGHT. MOVE / RESIZE. TAP=DEL" : page == 15 ? "EXPORT: THE PATTERN OR WHAT YOU RECORDED" : page == 10 ? sampleHelp() : "DRAG BARS. TAP TO TOGGLE. 2X TAP=RESET", GREY);
         }
         // the preset line
         char pl[64];
@@ -831,6 +838,79 @@ private:
         button(rt, 23, "L:" + std::to_string(defLen), B_DEFLEN, CYAN, true); button(rt, 29, "V:" + std::to_string(defVel), B_DEFVEL, YELLOW, true);
     }
 
+    // ---------------- FILE: audio export (WAV / MP3), MIDI files, the two mixers ----------------
+    std::thread exThread; std::mutex exMu; std::atomic<bool> exBusy { false }; std::atomic<float> exProgress { 0 };
+    bool exReady = false; std::string exBytes, exName, exMime, exInfo;
+    static std::string secs(double t) { char b[32]; std::snprintf(b, sizeof b, "%d:%02d.%d", (int) t / 60, (int) t % 60, (int) (t * 10) % 10); return b; }
+    void startExport() {
+        if (exBusy) { message("STILL EXPORTING"); return; }
+        Synth& s = host.synth();
+        const int fmt = (int) std::lround(host.get(P::xfmt)), fs = (int) std::lround(host.get(P::xrate)) ? 48000 : 44100;
+        const bool fromRec = host.get(P::xsrc) > .5f, norm = host.get(P::xnorm) > .5f;
+        const int loops = (int) std::lround(host.get(P::xloops)); const double tail = host.get(P::xtail);
+        Audio rec;
+        if (fromRec) {   // what was recorded, at the rate it was recorded
+            const int fr = s.outRecFrames.load();
+            if (fr <= 0 || s.outRecOn.load()) { message(s.outRecOn.load() ? "STOP THE RECORDING FIRST" : "?NOTHING RECORDED ERROR"); return; }
+            rec.fs = (int) std::lround(s.sampleRate()); rec.lr.resize((size_t) fr * 2);
+            for (size_t i = 0; i < rec.lr.size(); ++i) rec.lr[i] = s.outRec[i] / 32768.f;
+        }
+        const std::string state = s.saveState();
+        const std::string base = std::string("OMEGA SID ") + (fromRec ? "RECORDING" : "PATTERN " + std::to_string(curPat() + 1));
+        if (exThread.joinable()) exThread.join();
+        exBusy = true; exProgress = 0;
+        exThread = std::thread([this, rec, state, fmt, fs, fromRec, norm, loops, tail, base]() mutable {
+            Audio a = fromRec ? std::move(rec) : renderPattern(state, loops, fs, tail, [this](float p) { exProgress = p; });
+            if (fromRec && fmt >= 2 && a.fs != 44100 && a.fs != 48000 && a.fs != 32000) a = resampleTo(a, 48000);   // MP3 needs 32 / 44.1 / 48 kHz
+            const float pk = peakOf(a);
+            if (norm) normalize(a);
+            static const int kb[5] = { 0, 0, 128, 192, 320 };
+            std::string bytes = fmt >= 2 ? encodeMp3(a, kb[fmt], [this](float p) { exProgress = p; }) : encodeWav(a, fmt == 1 ? 24 : 16);
+            char info[96]; std::snprintf(info, sizeof info, "%s, %.1f KB, PEAK %.1f DB", secs(a.lr.size() / 2.0 / a.fs).c_str(), bytes.size() / 1024.0, 20 * std::log10(std::max(pk, 1e-6f)));
+            std::lock_guard<std::mutex> l(exMu);
+            exBytes = std::move(bytes); exName = base + (fmt >= 2 ? ".mp3" : ".wav"); exMime = fmt >= 2 ? "audio/mpeg" : "audio/wav"; exInfo = info;
+            exReady = true; exBusy = false; exProgress = 1;
+        });
+        message("EXPORTING...");
+    }
+    static Audio resampleTo(const Audio& in, int fs) {   // linear: only for odd recording rates going to MP3
+        Audio o; o.fs = fs; const size_t n = in.lr.size() / 2; const double r = (double) in.fs / fs;
+        const size_t m = (size_t) (n / r); o.lr.resize(m * 2);
+        for (size_t i = 0; i < m; ++i) { const double p = i * r; const size_t k = (size_t) p; const double f = p - k;
+            for (int c = 0; c < 2; ++c) o.lr[i * 2 + (size_t) c] = (float) (in.lr[k * 2 + (size_t) c] * (1 - f) + (k + 1 < n ? in.lr[(k + 1) * 2 + (size_t) c] : 0) * f); }
+        return o;
+    }
+    void pollExport() {   // the finished file goes to the platform to save
+        std::string b, nm, mime, info;
+        { std::lock_guard<std::mutex> l(exMu); if (!exReady) return; exReady = false; b.swap(exBytes); nm = exName; mime = exMime; info = exInfo; }
+        if (b.empty()) { message("?EXPORT ERROR"); return; }
+        lastExport = info;
+        host.saveAudioFile(b, nm, mime);
+        message("SAVE " + nm);
+    }
+    std::string lastExport;
+    void pageFile() {
+        Synth& s = host.synth();
+        put(5, 0, "AUDIO EXPORT", WHITE);
+        int r = 6;
+        for (int id : { P::xsrc, P::xloops, P::xtail, P::xfmt, P::xrate, P::xnorm }) paramRow(r++, id);
+        const bool busy = exBusy.load(), rec = s.outRecOn.load();
+        button(r, 0, busy ? " EXPORTING " : "{EXPORT}", B_EXPORT, busy ? GREY : LGREEN, true);
+        button(r, 12, rec ? "{STOP REC}" : "{REC OUT}", B_RECOUT, LRED, true);
+        if (rec && (frame / 10) % 2 == 0) put(r, 12, "{", LRED, true);
+        if (busy) { const int w = (int) std::lround(exProgress.load() * 14); put(r, 24, std::string((size_t) w, '{') + std::string((size_t) (14 - w), '-'), YELLOW); }
+        else put(r, 23, pad(rec ? "REC " + secs(s.outRecSeconds()) : (s.outRecFrames.load() ? "TAKE " + secs(s.outRecSeconds()) : ""), 17), rec ? LRED : GREY);
+        ++r;
+        if (!lastExport.empty()) put(r, 1, pad("LAST: " + lastExport, 38), GREY);
+        r += 2;
+        put(r++, 0, "MIDI FILES", WHITE);
+        button(r, 0, "EXPORT .MID", B_MID_SAVE, YELLOW, true); button(r, 13, "IMPORT .MID", B_MID_LOAD, YELLOW, true);
+        put(r, 26, "PATTERN " + num(curPat() + 1, 2), GREY);
+        r += 2;
+        put(r++, 0, "MIXERS", WHITE);
+        button(r, 0, "AUDIO MIXER", B_GO_MIX, CYAN, true); button(r, 13, "EFFECTS MIXER", B_GO_FX, CYAN, true);
+    }
+
     // ---------------- MIDI: channel, velocity, aftertouch, bend, clock, learn and the controller map, files ----------------
     void pageMidi() {
         Synth& s = host.synth();
@@ -1005,6 +1085,13 @@ private:
             case B_CC_NEXT: ++ccPage; break;
             case B_MID_SAVE: host.saveMidiFile(s.exportMidi(p), "OMEGA SID PATTERN " + std::to_string(p + 1) + ".mid"); message("SAVING PATTERN " + std::to_string(p + 1) + " AS MIDI"); break;
             case B_MID_LOAD: host.loadMidiFile(); break;
+            case B_EXPORT: startExport(); break;
+            case B_RECOUT:
+                if (s.outRecOn.load()) { s.stopOutRecord(); message("RECORDED " + secs(s.outRecSeconds())); host.set(P::xsrc, 1); }
+                else { s.startOutRecord(300); message("RECORDING THE OUTPUT (UP TO 5 MIN)"); }
+                break;
+            case B_GO_MIX: setPage(8); break;
+            case B_GO_FX: setPage(11); break;
             case B_PANIC: s.post(Synth::EV_PANIC, 0, 0); message("ALL NOTES OFF"); break;
             case B_SMP_LOAD: host.loadSampleFile(); break;
             case B_GRID_HALF: gridView = gridView == 1 ? 0 : 1; break;

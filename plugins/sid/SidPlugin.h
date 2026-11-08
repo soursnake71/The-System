@@ -48,6 +48,7 @@ public:
     juce::String loadSampleFrom(const juce::File& f);   // "" when it worked
     void saveMidiFile(const std::string& bytes, const std::string& name) override;
     void loadMidiFile() override;
+    void saveAudioFile(const std::string& bytes, const std::string& name, const std::string& mime) override;
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<int> uiPresetVersion { 0 };   // bumped when a preset loads, so the editor's screen follows

@@ -140,6 +140,16 @@ void SidProcessor::saveMidiFile(const std::string& bytes, const std::string& nam
             f.replaceWithData(bytes.data(), bytes.size());
         });
 }
+void SidProcessor::saveAudioFile(const std::string& bytes, const std::string& name, const std::string& mime) {
+    const juce::String ext = mime == "audio/mpeg" ? "mp3" : "wav";
+    chooser = std::make_unique<juce::FileChooser>("Save the export", juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile(name), "*." + ext);
+    chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting,
+        [bytes, ext](const juce::FileChooser& fc) {
+            auto f = fc.getResult(); if (f == juce::File()) return;
+            if (!f.hasFileExtension(ext)) f = f.withFileExtension(ext);
+            f.replaceWithData(bytes.data(), bytes.size());
+        });
+}
 void SidProcessor::loadMidiFile() {
     chooser = std::make_unique<juce::FileChooser>("Load a MIDI file into the pattern", juce::File(), "*.mid;*.midi");
     chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) {

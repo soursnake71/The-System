@@ -28,6 +28,8 @@ final class Native {
     static native int midiOut(long[] times, byte[] bytes, int[] lengths);
     static native byte[] midiFileToSave();
     static native String midiFileName();
+    /** The type of the file to save: audio/midi, audio/wav or audio/mpeg. */
+    static native String saveMime();
     static native void midiFileLoaded(byte[] data);
     /** What the screen asked for: 0 nothing, 1 open a sample, 2 start recording, 3 stop recording, 4 save a .mid, 5 open a .mid. */
     static native int pollRequest();

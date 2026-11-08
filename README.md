@@ -38,6 +38,7 @@ A circuit-level C++ model of the MOS 6581 and 8580, played from a C64: the contr
 - An effects mixer (FX page): OSC 1-3 and the filter each send to the echo and the REV7; the returns have faders, mutes and meters, and the echo can feed the reverb.
 - A full editing grid (GRID page): patterns are notes with a start, a length, a pitch and a velocity, so a step can hold a chord. Draw by dragging right, drag a note to move it, drag its last cell to resize it, tap it to delete it; a velocity lane and a slide lane; views of steps 1-16, 17-32 or all 32; transpose, shift, copy / paste, double, undo, a default length and velocity. The tracker (SEQ page) edits the same notes. Old saved patterns still load.
 - Full MIDI (MIDI page): channel (omni or 1-16), velocity curves, channel and poly aftertouch to cutoff and vibrato, RPN bend range, bank select + program change across all presets, MIDI learn for every control and a default controller map (shown and editable), MIDI clock in (start / stop / continue / song position) driving the sequencer, the sequencer's notes and clock out (the plugin sends them to the host; the phone to its USB / Bluetooth devices), and patterns to and from standard MIDI files.
+- A FILE page: export the pattern (rendered offline for a number of loops plus its tail) or a recording of the output as WAV (16 or 24-bit) or MP3 (128 / 192 / 320 kbps, encoded with shine, `plugins/third_party/shine`, LGPL), with normalize; import and export MIDI files; buttons to the audio mixer (MIX) and the effects mixer (FX).
 - A mixer page: OSC 1-3 and the filter output each with a fader, LED meter, pan, mute and solo; the echo and REV7 returns and the main output with their meters; the scope underneath. Every mixer control is a plugin parameter (automation).
 - A 32-step sequencer (tracker style) with 16 patterns, accent, slide, swing and 41 pattern presets; it follows the DAW's transport, and held keys transpose it.
 - 406 presets in 17 groups (bass, lead, pad, keys, pluck, arp, chord, brass, drums, FX, sync, ring, classic, digi, REV7, 8580, 6581), a random patch, MIDI (bend, mod wheel, sustain, CC 74, program change) and a QWERTY keyboard on desktop.
@@ -48,6 +49,7 @@ A circuit-level C++ model of the MOS 6581 and 8580, played from a C64: the contr
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
 ## Credits
+- MP3 export uses shine (https://github.com/toots/shine, LGPL 2), in `plugins/third_party/shine` with its licence.
 - SID chip behaviour from published analyses of the 6581 / 8580 (die shots and measurements of the oscillators, envelope rate table, DAC ladders and filter); the original playsid.library (Per Håkan Sundell and Ron Birk) for the idea. Omega SID 64's code is its own.
 - SP-1200 audio path data (filter prototypes, pitch table, converter behaviour) from [libmd12](https://github.com/Mudb0y/libmd12) (MIT).
 - SVC-350 vocoder modeled from the Roland SVC-350 service notes (Dec. 8, 1979), [archive.org](https://archive.org/details/roland_SVC-350_SERVICE_NOTES).

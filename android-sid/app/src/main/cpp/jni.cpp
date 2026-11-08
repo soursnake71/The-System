@@ -30,8 +30,9 @@ struct AppHost : ScreenUI::Host {
     std::atomic<bool> rec { false }; std::atomic<float> recSec { 0 };
     void loadSampleFile() override { request = 1; }
     void setRecording(bool on) override { request = on ? 2 : 3; }
-    std::string midiToSave, midiName;
-    void saveMidiFile(const std::string& bytes, const std::string& name) override { midiToSave = bytes; midiName = name; request = 4; }
+    std::string midiToSave, midiName, saveMime = "audio/midi";   // the file to save (a .mid, or an exported .wav / .mp3)
+    void saveMidiFile(const std::string& bytes, const std::string& name) override { midiToSave = bytes; midiName = name; saveMime = "audio/midi"; request = 4; }
+    void saveAudioFile(const std::string& bytes, const std::string& name, const std::string& mime) override { midiToSave = bytes; midiName = name; saveMime = mime; request = 4; }
     void loadMidiFile() override { request = 5; }
     bool recording() override { return rec.load(); }
     float recordedSeconds() override { return recSec.load(); }
@@ -231,6 +232,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_thesnakedevice_sid_Native_midiFileToSave(J
     return a;
 }
 JNIEXPORT jstring JNICALL Java_com_thesnakedevice_sid_Native_midiFileName(JNIEnv* env, jclass) { return env->NewStringUTF(host ? host->midiName.c_str() : "pattern.mid"); }
+JNIEXPORT jstring JNICALL Java_com_thesnakedevice_sid_Native_saveMime(JNIEnv* env, jclass) { return env->NewStringUTF(host ? host->saveMime.c_str() : "audio/midi"); }
 JNIEXPORT void JNICALL Java_com_thesnakedevice_sid_Native_midiFileLoaded(JNIEnv* env, jclass, jbyteArray data) {
     if (!host || !data) return;
     const jsize n = env->GetArrayLength(data);

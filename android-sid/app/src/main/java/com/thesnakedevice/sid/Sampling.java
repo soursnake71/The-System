@@ -35,7 +35,7 @@ final class Sampling {
             case 1: openFile(); break;
             case 2: startRecording(); break;
             case 3: stopRecording(); break;
-            case 4: { final Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("audio/midi");
+            case 4: { final Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType(Native.saveMime());
                       i.putExtra(Intent.EXTRA_TITLE, Native.midiFileName()); act.startActivityForResult(i, MIDI_SAVE); break; }
             case 5: { final Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*");
                       act.startActivityForResult(i, MIDI_OPEN); break; }
