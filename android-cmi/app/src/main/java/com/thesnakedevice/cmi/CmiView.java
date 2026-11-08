@@ -570,7 +570,7 @@ public class CmiView extends View {
         text(c, "LIBRARY: " + (lib.isEmpty() ? "(none set)" : lib) + "   " + Native.catalogCount() + " CMI VOICES", b.left, b.top + dp(12), 11, INK);
         final float y0 = b.top + dp(20), bw = (b.width() - dp(12)) / 3;
         final boolean only = act.hfeOnly();
-        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", only ? "HFE ONLY" : "ALL FORMATS" };
+        final String[] lbl = { "SET FOLDER", "RESCAN", "DEDUPE", "ALL SONGS", "ALL SOUNDS", only ? "HFE FIRST" : "ANY FORMAT" };
         final Runnable[] fn = { act::chooseLibrary, act::rescanLibrary, () -> { status("" + Native.removeDuplicateSongs() + " DUPLICATES REMOVED"); act.saveState(); },
                 () -> act.loadFromLibrary(true, false, -1), () -> act.loadFromLibrary(false, true, -1), () -> act.setHfeOnly(!only) };
         for (int i = 0; i < 6; ++i) { float rx = b.left + (i % 3) * (bw + dp(6)), ry = y0 + (i / 3) * dp(26); button(c, new RectF(rx, ry, rx + bw, ry + dp(22)), lbl[i], i == 5 && only, fn[i]); }

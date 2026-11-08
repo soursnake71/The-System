@@ -27,6 +27,7 @@ struct DiskFile { std::string name, type; std::vector<uint8_t> data; };
 struct Disk {
     std::string label, err;
     std::vector<DiskFile> files;
+    int sectorsFound = -1, sectorsBad = 0;   // an HFE: the sectors its tracks gave, and how many failed their CRC
 };
 
 namespace disk {
@@ -82,7 +83,8 @@ inline uint16_t fmCells(uint8_t data, uint8_t clock) {   // 16 cells, the first 
     uint16_t v = 0; for (int i = 7; i >= 0; --i) v = (uint16_t) ((v << 2) | (((clock >> i) & 1) << 1) | ((data >> i) & 1)); return v;
 }
 inline bool unpackHfe(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std::string& err, int* badCrc = nullptr, int* found = nullptr) {
-    if (n < 512 || std::memcmp(d, "HXCPICFE", 8)) { err = "NOT AN HFE IMAGE"; return false; }
+    const bool v3 = n >= 8 && !std::memcmp(d, "HXCHFEV3", 8);
+    if (n < 512 || (std::memcmp(d, "HXCPICFE", 8) && !v3)) { err = "NOT AN HFE IMAGE"; return false; }
     const int tracks = d[9], sides = d[10], enc = d[11];
     const size_t tl = (size_t) (d[18] | d[19] << 8) * 512;
     if (enc != 2 && enc != 3 && enc != 0xFF) { err = enc == 0 ? "HFE IS MFM (DOUBLE DENSITY): NOT A CMI DISK" : "HFE ENCODING NOT FM"; return false; }
@@ -96,23 +98,47 @@ inline bool unpackHfe(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std
             // this side's bits, in time order
             std::vector<uint8_t> bits;
             const size_t sideLen = len / 2;   // each side has half the track's bytes, 256 to a block (the last block split evenly too)
+            int skip = 0;
             for (size_t j = 0; j < sideLen; ++j) {
                 const size_t at = off + (j / 256) * 512 + (size_t) side * 256 + j % 256;
                 if (at >= n) break;
-                for (int k = 0; k < 8; ++k) bits.push_back((d[at] >> k) & 1);
+                const uint8_t by = d[at];
+                if (v3 && (by & 0xF0) == 0xF0) {   // HFE v3 opcodes: NOP, index, bit rate (+1), skip bits (+1), random
+                    if (by == 0xF2) ++j; else if (by == 0xF3 && j + 1 < sideLen) { ++j; skip = d[off + (j / 256) * 512 + (size_t) side * 256 + j % 256] & 7; }
+                    else if (by == 0xF4) for (int k = 0; k < 8; ++k) bits.push_back(0);
+                    continue;
+                }
+                for (int k = skip; k < 8; ++k) bits.push_back((by >> k) & 1);
+                skip = 0;
             }
-            // the FM cells: one per bit, or (as HxC stores 8" FM at twice the rate) every other bit; whichever finds marks
-            auto marks = [&](const std::vector<uint8_t>& cv) { int m = 0; uint16_t r = 0; for (size_t c = 0; c < cv.size(); ++c) { r = (uint16_t) ((r << 1) | cv[c]); m += r == idam; } return m; };
-            std::vector<uint8_t> cells = bits; int bestMarks = marks(bits);
-            for (int ph = 0; ph < 2; ++ph) {
+            // the FM cells. An image made from a real floppy drifts against HxC's fixed bit clock, so the cells come from the
+            // gaps between flux transitions (a 1 bit), each rounded to whole cells of 1 or (as HxC stores 8" FM at twice
+            // the rate) 2 bits: a slip of a bit here and there doesn't lose the place. Whichever reading finds marks.
+            auto marks = [&](const std::vector<uint8_t>& cv) { int m = 0; uint16_t r = 0; for (size_t c = 0; c < cv.size(); ++c) { r = (uint16_t) ((r << 1) | cv[c]); m += r == idam || r == dam; } return m; };
+            // the track goes round: its start again after its end, so a sector across the index reads whole
+            const size_t nBits = bits.size();
+            for (size_t i = 0; i < std::min<size_t>(nBits, 16 * 400 * 2); ++i) bits.push_back(bits[i]);
+            auto fromGaps = [&](double cellBits, size_t& onceOut) {
+                std::vector<uint8_t> cv; cv.reserve((size_t) (bits.size() / cellBits) + 8); long last = -1; onceOut = 0;
+                for (size_t i = 0; i < bits.size(); ++i) {
+                    if (i == nBits) onceOut = cv.size();
+                    if (!bits[i]) continue;
+                    if (last >= 0) { const int k = std::max(1, (int) std::floor((double) ((long) i - last) / cellBits + 0.49)); for (int z = 1; z < k; ++z) cv.push_back(0); }
+                    cv.push_back(1); last = (long) i;
+                }
+                if (!onceOut) onceOut = cv.size();
+                return cv;
+            };
+            size_t once = 0, o2 = 0;
+            std::vector<uint8_t> cells = fromGaps(2.0, once); int bestMarks = marks(cells);
+            { auto cv = fromGaps(1.0, o2); const int m = marks(cv); if (m > bestMarks) { bestMarks = m; cells = std::move(cv); once = o2; } }
+            for (int ph = 0; ph < 2; ++ph) {   // a clean image: every other bit, as stored
                 std::vector<uint8_t> cv; cv.reserve(bits.size() / 2 + 1);
                 for (size_t i = (size_t) ph; i < bits.size(); i += 2) cv.push_back(bits[i]);
-                const int m = marks(cv); if (m > bestMarks) { bestMarks = m; cells = std::move(cv); }
+                const int m = marks(cv); if (m > bestMarks) { bestMarks = m; cells = std::move(cv); once = (nBits - (size_t) ph + 1) / 2; }
             }
-            const size_t once = cells.size();
-            for (size_t i = 0; i < std::min<size_t>(once, 16 * 400); ++i) cells.push_back(cells[i]);
             auto byteAt = [&](size_t c) { uint8_t v = 0; for (int i = 0; i < 8; ++i) v = (uint8_t) ((v << 1) | cells[c + (size_t) i * 2 + 1]); return v; };
-            bool seen[SPT] {};
+            int state[SPT] {};   // 0 not found, 1 found with a CRC error, 2 good
             uint16_t reg = 0;
             for (size_t c = 0; c < cells.size(); ++c) {
                 reg = (uint16_t) ((reg << 1) | cells[c]);
@@ -122,7 +148,7 @@ inline bool unpackHfe(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std
                 uint8_t id[7] = { 0xFE }; for (int k = 0; k < 6; ++k) id[1 + k] = byteAt(p + (size_t) k * 16);
                 if (crcCcitt(id, 5) != (uint16_t) (id[5] << 8 | id[6])) continue;   // a broken ID: not a sector we can place
                 const int cyl = id[1], head = side, sn = id[3] - 1, size = 128 << (id[4] & 3);   // the side it was read on (CMI disks write head 0 on both)
-                if (size != SEC || cyl >= CYL || sn < 0 || sn >= SPT || seen[sn]) continue;
+                if (size != SEC || cyl >= CYL || sn < 0 || sn >= SPT || state[sn] == 2) continue;
                 // its data mark, within the gap after the ID
                 p += 16 * 6; uint16_t r2 = 0; size_t q = 0;
                 for (size_t k = p; k < std::min(cells.size(), p + 16 * 60); ++k) { r2 = (uint16_t) ((r2 << 1) | cells[k]); if (k >= p + 15 && (r2 == dam || r2 == ddam)) { q = k + 1; break; } }
@@ -130,9 +156,11 @@ inline bool unpackHfe(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std
                 uint8_t buf[1 + SEC + 2]; buf[0] = (uint8_t) (r2 == dam ? 0xFB : 0xF8);
                 for (int k = 0; k < SEC + 2; ++k) buf[1 + k] = byteAt(q + (size_t) k * 16);
                 const bool ok = crcCcitt(buf, 1 + SEC) == (uint16_t) (buf[1 + SEC] << 8 | buf[2 + SEC]);
+                if (!ok && state[sn] == 1) continue;   // keep the first bad copy
                 std::memcpy(out.data() + ((size_t) (cyl * 2 + head) * SPT + (size_t) sn) * SEC, buf + 1, SEC);
-                seen[sn] = true; (ok ? good : bad)++;
+                state[sn] = ok ? 2 : 1;
             }
+            for (int k = 0; k < SPT; ++k) { if (state[k] == 2) ++good; else if (state[k] == 1) ++bad; }
         }
     }
     if (badCrc) *badCrc = bad;
@@ -191,8 +219,10 @@ inline Disk readDiskImage(const uint8_t* d, size_t n) {
     std::vector<uint8_t> raw; std::string err;
     if (n >= 4 && !std::memcmp(d, "IMD ", 4)) {
         if (!disk::unpackImd(d, n, raw, err)) { Disk dk; dk.err = err; return dk; }
-    } else if (n >= 8 && !std::memcmp(d, "HXCPICFE", 8)) {
-        if (!disk::unpackHfe(d, n, raw, err)) { Disk dk; dk.err = err; return dk; }
+    } else if (n >= 8 && (!std::memcmp(d, "HXCPICFE", 8) || !std::memcmp(d, "HXCHFEV3", 8))) {
+        int bad = 0, found = 0;
+        if (!disk::unpackHfe(d, n, raw, err, &bad, &found)) { Disk dk; dk.err = err; return dk; }
+        Disk dk = disk::readQdos(raw); dk.sectorsFound = found; dk.sectorsBad = bad; return dk;
     } else if (n % disk::SEC == 0 && n >= (size_t) disk::SPT * disk::SEC * 4) {
         raw.assign(d, d + n);
     } else { Disk dk; dk.err = "NOT A CMI DISK IMAGE"; return dk; }

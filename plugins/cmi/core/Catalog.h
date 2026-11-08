@@ -18,7 +18,8 @@ struct CatVoice { std::string name, disk; std::vector<uint8_t> vc; uint64_t hash
 class Catalog {
 public:
     std::vector<CatVoice> voices;
-    int disks = 0;
+    int disks = 0, hfeDisks = 0, hfeSetAside = 0;   // disks read; of them from HFE; HFEs not used (a sector unreadable)
+    std::vector<std::string> hfeLabels;              // the disks read from HFE: their other copies aren't needed
 
     static uint64_t fnv(const uint8_t* d, size_t n) { uint64_t h = 1469598103934665603ull; for (size_t i = 0; i < n; ++i) { h ^= d[i]; h *= 1099511628211ull; } return h; }
     // a file from the library folder: a disk image (all its voices) or a .VC file; anything else is ignored
@@ -27,16 +28,22 @@ public:
         auto ext = [&](const char* e) { const size_t l = std::strlen(e); return lo.size() > l && lo.compare(lo.size() - l, l, e) == 0; };
         auto put = [&](const std::string& name, const std::string& disk, const std::vector<uint8_t>& vc) {
             if (vc.size() < 0x1580 + 4096) return;
-            const uint64_t h = fnv(vc.data() + 0x1580, vc.size() - 0x1580);
-            for (const auto& v : voices) if (v.hash == h && v.name == name) return;   // the same voice in the VC folder and on the disk
+            // the sample (not its last page, which the CMI leaves holding whatever was in memory): the same voice again
+            // (the VC folder, the IMG, the HFE of the same disk) is read once, the first copy kept
+            const uint64_t h = fnv(vc.data() + 0x1580, vc.size() - 0x1580 - 128);
+            for (const auto& v : voices) if (v.hash == h && v.name == name) return;
             CatVoice c; c.name = name; c.disk = disk; c.vc = vc; c.hash = h; c.looped = vc.size() > 0x133B && vc[0x133B] == 1;
             voices.push_back(std::move(c));
         };
         if (ext(".imd") || ext(".img") || ext(".hfe") || ext(".bin") || ext(".raw") || ext(".dsk")) {
             Disk dk = readDiskImage(d, n);
-            if (!dk.err.empty()) return;
-            ++disks;
+            if (!dk.err.empty()) { if (ext(".hfe")) ++hfeSetAside; return; }
             std::string label = dk.label; if (label.empty()) label = fileName.substr(0, fileName.find('.'));
+            if (ext(".hfe")) {   // only an HFE that read cleanly: every sector there, every CRC good
+                if (dk.sectorsBad > 0 || dk.sectorsFound < 4004) { ++hfeSetAside; return; }
+                hfeLabels.push_back(label); ++hfeDisks;
+            } else for (const auto& l : hfeLabels) if (l == label) return;   // this disk came from its HFE
+            ++disks;
             for (const auto& f : dk.files) if (f.type == "VC") put(f.name, label, f.data);
         } else if (ext(".vc")) {
             std::string nm = fileName.substr(0, fileName.size() - 3); for (auto& c : nm) c = (char) std::toupper((unsigned char) c);
@@ -55,11 +62,14 @@ public:
 // voices' disk), 2 a .VC file. hfeOnly, when the folder has HFE images: only those, so each disk is read once and
 // from its rawest copy (the IMG / IMD / VC copies of the same disks are left alone)
 inline bool endsWithNoCase(const std::string& s, const char* e) { const size_t l = std::strlen(e); if (s.size() < l) return false; for (size_t i = 0; i < l; ++i) if (std::tolower((unsigned char) s[s.size() - l + i]) != e[i]) return false; return true; }
-inline int libraryRole(const std::string& fileName, bool anyHfe, bool hfeOnly) {
+// which pass of the scan reads a library file: 0 none, 1 HFE images (first, when hfeFirst), 2 the other disk images,
+// 3 .VC files. HFE first: each disk is read from its HFE when that reads cleanly, and the IMG / IMD / VC copies only
+// fill in what the HFEs don't give (a disk with no HFE, or one set aside), the same voice never read twice.
+inline int libraryRole(const std::string& fileName, bool hfeFirst) {
     const bool hfe = endsWithNoCase(fileName, ".hfe");
-    if (hfeOnly && anyHfe) return hfe ? 1 : 0;
-    if (hfe || endsWithNoCase(fileName, ".imd") || endsWithNoCase(fileName, ".img") || endsWithNoCase(fileName, ".bin") || endsWithNoCase(fileName, ".raw") || endsWithNoCase(fileName, ".dsk")) return 1;
-    return endsWithNoCase(fileName, ".vc") ? 2 : 0;
+    if (hfe) return hfeFirst ? 1 : 2;
+    if (endsWithNoCase(fileName, ".imd") || endsWithNoCase(fileName, ".img") || endsWithNoCase(fileName, ".bin") || endsWithNoCase(fileName, ".raw") || endsWithNoCase(fileName, ".dsk")) return 2;
+    return endsWithNoCase(fileName, ".vc") ? 3 : 0;
 }
 
 // ---- roles: what a track plays, and where the CMI library keeps it (voice names as on the IIx factory disks) ----

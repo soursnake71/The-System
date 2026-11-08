@@ -165,8 +165,10 @@ final class Native {
 
     // the CMI library (catalogue of the library folder's disks and .VC files)
     static native void catalogClear();
-    /** which library file the catalogue reads: 0 none, 1 a disk image, 2 a .VC (only HFEs when hfeOnly and there are some) */
-    static native int libraryRole(String fileName, boolean anyHfe, boolean hfeOnly);
+    /** which scan pass reads a library file: 0 none, 1 HFE (first when hfeFirst), 2 other disk images, 3 .VC */
+    static native int libraryRole(String fileName, boolean hfeFirst);
+    static native int catalogHfeDisks();
+    static native int catalogHfeSetAside();
     static native void catalogAdd(byte[] file, String fileName, String folder);
     static native int catalogCount();
     static native int catalogDisks();

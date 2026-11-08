@@ -234,15 +234,14 @@ void CmiProcessor::rescanLibrary() {
     std::sort(found.begin(), found.end(), [](const juce::File& a, const juce::File& b) { return a.getFileName().compareNatural(b.getFileName()) < 0; });
     // the catalogue: every CMI voice on the disks (and .VC files) there
     Catalog cat;
-    bool anyHfe = false; for (const auto& f : found) anyHfe |= f.hasFileExtension("hfe");
-    libFromHfe = anyHfe && hfeOnly;
-    for (int pass = 0; pass < 2; ++pass)   // disk images first: their labels name the voices' disks
+    for (int pass = 0; pass < 3; ++pass)   // HFEs, the other disk images (their labels name the voices' disks), .VC files
         for (const auto& f : found) {
-            if (libraryRole(f.getFileName().toStdString(), anyHfe, hfeOnly) != pass + 1) continue;
+            if (libraryRole(f.getFileName().toStdString(), hfeOnly) != pass + 1) continue;
             juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) continue;
             juce::File dirF = f.getParentDirectory(); if (dirF.getFileName().equalsIgnoreCase("VCs")) dirF = dirF.getParentDirectory();
             cat.add(f.getFileName().toStdString(), (const uint8_t*) mb.getData(), mb.getSize(), dirF.getFileName().toUpperCase().toStdString());
         }
+    libFromHfe = cat.hfeDisks > 0;
     { const juce::ScopedLock l(catLock); catalog = std::move(cat); }
     { const juce::ScopedLock l(infoLock); libFiles = std::move(found); }
     rebuildPresets();

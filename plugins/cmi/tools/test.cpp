@@ -438,6 +438,32 @@ int main(int argc, char** argv) {
             Disk d3 = readDiskImage(hfe.data(), hfe.size());
             CHECK(hok && hfound == 4004 && hbad == 0 && back == img, "HFE decodes to the same sectors (%d found, %d bad) %s", hfound, hbad, herr.c_str());
             CHECK(d3.err.empty() && d3.files.size() == 2 && d3.files[1].data == d.files[1].data, "HFE reads the same voices: %s", d3.err.c_str());
+            // an HFE at the cell rate (one bit a cell, not two)
+            {
+                std::vector<uint8_t> one = hfe;
+                for (int cyl = 0; cyl < 77; ++cyl) {
+                    const size_t off = (size_t) (one[512 + cyl * 4] | one[513 + cyl * 4] << 8) * 512, len = (size_t) (one[514 + cyl * 4] | one[515 + cyl * 4] << 8);
+                    for (int side = 0; side < 2; ++side) {
+                        std::vector<uint8_t> bits; const size_t sl = len / 2;
+                        for (size_t j = 0; j < sl; ++j) { const uint8_t by = hfe[off + (j / 256) * 512 + (size_t) side * 256 + j % 256]; for (int k = 1; k < 8; k += 2) bits.push_back((by >> k) & 1); }
+                        std::vector<uint8_t> by((bits.size() + 7) / 8, 0); for (size_t i = 0; i < bits.size(); ++i) by[i / 8] = (uint8_t) (by[i / 8] | bits[i] << (i % 8));
+                        for (size_t j = 0; j < sl; ++j) one[off + (j / 256) * 512 + (size_t) side * 256 + j % 256] = j < by.size() ? by[j] : 0xFF;
+                        if (side == 1) { const size_t nl = by.size() * 2; one[514 + cyl * 4] = (uint8_t) nl; one[515 + cyl * 4] = (uint8_t) (nl >> 8); }   // the track is half as long
+                    }
+                }
+                std::vector<uint8_t> ob; std::string oe; int obad = -1, ofound = 0;
+                const bool ook = disk::unpackHfe(one.data(), one.size(), ob, oe, &obad, &ofound);
+                CHECK(ook && ofound == 4004 && obad == 0 && ob == img, "an HFE at the cell rate: %d found, %d bad", ofound, obad);
+            }
+            // a damaged HFE is set aside, and the disk's IMG copy fills in
+            {
+                std::vector<uint8_t> dmg = hfe;
+                for (size_t i = 0; i < 400; ++i) dmg[512 * 40 + 600 + i] ^= 0x55;   // a few sectors of track ~1
+                Catalog cat; cat.add("TESTDISK.hfe", dmg.data(), dmg.size()); cat.add("TESTDISK.img", img.data(), img.size());
+                Catalog c2; c2.add("TESTDISK.hfe", hfe.data(), hfe.size()); c2.add("TESTDISK.img", img.data(), img.size());
+                CHECK(cat.hfeSetAside == 1 && cat.hfeDisks == 0 && cat.voices.size() == 2, "damaged HFE set aside, IMG used (%zu voices)", cat.voices.size());
+                CHECK(c2.hfeDisks == 1 && c2.disks == 1 && c2.voices.size() == 2, "a good HFE: its IMG copy skipped (%d disks, %zu voices)", c2.disks, c2.voices.size());
+            }
         }
         Disk bad = readDiskImage((const uint8_t*) "hello", 5);
         CHECK(!bad.err.empty(), "junk is refused");
@@ -524,9 +550,8 @@ int main(int argc, char** argv) {
                 CHECK(role("Violin", 40) == "violin" && role("Ragtime Piano", 3) == "honky tonk" && role("FR.HORN", 60) == "french horn" && role("VIBRAPHONE", 11) == "vibes" &&
                       role("TRACK 4", 46) == "harp" && role("Rhodes", 4) == "electric piano" && role("", 33) == "bass" && role("", 123) == "birds",
                       "roles: %s %s %s", role("Violin", 40).c_str(), role("Ragtime Piano", 3).c_str(), role("TRACK 4", 46).c_str());
-                CHECK(libraryRole("BASSES.HFE", true, true) == 1 && libraryRole("BASSES.img", true, true) == 0 && libraryRole("BASS1.VC", true, true) == 0 &&
-                      libraryRole("BASSES.img", false, true) == 1 && libraryRole("BASS1.vc", false, true) == 2 && libraryRole("BASSES.IMD", true, false) == 1 && libraryRole("x.wav", false, false) == 0,
-                      "library: only the HFE images when there are some");
+                CHECK(libraryRole("BASSES.HFE", true) == 1 && libraryRole("BASSES.img", true) == 2 && libraryRole("BASS1.VC", true) == 3 &&
+                      libraryRole("BASSES.hfe", false) == 2 && libraryRole("x.wav", true) == 0, "library: HFE images first");
                 CHECK(std::string(drumVoices(36)).rfind("KICK1", 0) == 0 && std::string(drumVoices(56)).find("COWBELL1") != std::string::npos, "CMI drum map");
             }
             Sound arr = *k2.bank.at(lib.find("CHOIRAAH")); arr.name = "ARR1"; arr.category = "CHORAL"; k2.setUser(0, arr);

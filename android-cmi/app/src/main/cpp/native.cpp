@@ -598,9 +598,11 @@ FN(jboolean, hasDrawn)(JNIEnv*, jclass) { return lastDrawn >= 0; }
 
 // ---- the CMI library (catalogue of the library folder's disks and .VC files) ----
 // which library file the catalogue reads (core libraryRole): 0 none, 1 a disk image, 2 a .VC
-FN(jint, libraryRole)(JNIEnv* env, jclass, jstring name, jboolean anyHfe, jboolean hfeOnly) {
-    const char* c = env->GetStringUTFChars(name, nullptr); const int r = libraryRole(c, anyHfe, hfeOnly); env->ReleaseStringUTFChars(name, c); return r;
+FN(jint, libraryRole)(JNIEnv* env, jclass, jstring name, jboolean hfeFirst) {
+    const char* c = env->GetStringUTFChars(name, nullptr); const int r = libraryRole(c, hfeFirst); env->ReleaseStringUTFChars(name, c); return r;
 }
+FN(jint, catalogHfeDisks)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); return app()->catalog.hfeDisks; }
+FN(jint, catalogHfeSetAside)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); return app()->catalog.hfeSetAside; }
 FN(void, catalogClear)(JNIEnv*, jclass) { std::lock_guard<std::mutex> g(app()->catLock); app()->catalog = Catalog(); }
 FN(void, catalogAdd)(JNIEnv* env, jclass, jbyteArray data, jstring fileName, jstring folder) {
     const jsize n = env->GetArrayLength(data); std::vector<uint8_t> b((size_t) n); env->GetByteArrayRegion(data, 0, n, (jbyte*) b.data());
