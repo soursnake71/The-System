@@ -14,6 +14,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
+| Omega DR-110 (DR-110 circuit model, the DAW is the sequencer) | instrument, stereo mix + BD / SD / CP / HH-CY outputs |
 
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
 
@@ -24,3 +25,5 @@ Omega Twelve lives in `twelve/` and doesn't use the shared Spec/Editor: it has i
 app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelve_test` + `node twelve/tools/compare.mjs`
 (C++ against the app's engine), `twelve_proc_test` (sampler, MIDI, exports, analysis, state), and `tools/hosttest` (`twelve_host_test`
 loads the built .vst3 like a DAW).
+
+Omega DR-110 lives in `dr110/` (DR110.h is a port of `dr110/engine.js`). Tests: `dr110_test` + `node dr110/tools/compare.mjs`, and `dr110_host_test` in `tools/hosttest` (loads the .vst3, plays MIDI, checks every output, saves a picture of the editor).

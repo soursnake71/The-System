@@ -208,9 +208,9 @@ public:
         sdTone.set(240 * tn[1], PI * 240 * tn[1] * 0.009 * dk[1] * sdQk, sr);
         sdHpA = onePole(1200 * tn[1] * (0.25 + 1.5 * p[mod::sdSnap]), sr); sdLpA = onePole(11000, sr);
         for (int m = 0; m < 3; ++m) {
-            const double t = tn[2 + m];
-            for (int i = 0; i < 6; ++i) osc[m][i].inc = METAL[i] * t / sr;
-            const double fc = 7800 * std::sqrt(t) * (m == 2 ? cyF : hhF);
+            const double tm = tn[2 + m];
+            for (int i = 0; i < 6; ++i) osc[m][i].inc = METAL[i] * tm / sr;
+            const double fc = 7800 * std::sqrt(tm) * (m == 2 ? cyF : hhF);
             mHi[m].set(fc, 1.2, sr); mHi2[m].set(fc, 1.2, sr);
         }
         mLo.set(3342 * std::sqrt(tn[4]) * cyF, 3, sr);
@@ -294,16 +294,16 @@ public:
                 else metal[m] = h * mE[m] * 3.2;
             }
             mE[1] *= chD;
-            mE[0] *= t[2] < ohGate * sr ? ohD : ohRel;
+            mE[0] *= (double) t[2] < ohGate * sr ? ohD : ohRel;
             if (ohChoke < 1) mE[0] *= chokeD;
             mE[2] *= cyD; cyLoE *= cyLoD;
             double hc;
             {
                 const double w = noise(); const double bp = hcBp.tick(w); hcHp += hcHpA * (w - hcHp);
-                const double tt = t[5];
+                const long long tt = t[5];
                 if (on[5]) {
-                    const double b11 = jsRound(0.011 * sr);
-                    if (tt > 0 && tt <= 3 * b11 && std::fmod(tt, b11) == 0) { hcBurst = 1; if (tt == 3 * b11) { hcTail = 1; hcLong = 1; } }
+                    const long long b11 = (long long) jsRound(0.011 * sr);
+                    if (tt > 0 && tt <= 3 * b11 && tt % b11 == 0) { hcBurst = 1; if (tt == 3 * b11) { hcTail = 1; hcLong = 1; } }
                 }
                 const double e = hcBurst * 1.5 + hcTail * 1.1 + hcLong * 0.1;
                 hc = (bp * 1.6 + (w - hcHp) * 0.35) * e;
@@ -342,7 +342,8 @@ private:
     uint32_t seed = 0x2545F491u;
     const Sample* samples[NV] = {};
     int on[NV] = {}, acc[NV] = {};
-    double t[NV] = {}, sp[NV] = {-1, -1, -1, -1, -1, -1, -1}, srate[NV] = {};
+    long long t[NV] = {};
+    double sp[NV] = {-1, -1, -1, -1, -1, -1, -1}, srate[NV] = {};
     const std::vector<float>* sbuf[NV] = {};
     double tn[NV] = {}, dk[NV] = {}, gL[NV] = {}, gR[NV] = {}, send[NV] = {};
     double accGain = 1.5, master = 1, head = 1.2, sw = 0;

@@ -140,3 +140,43 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega DR-110: the circuit model of the DR-110 voices (dr110/ in the app), played by the DAW, with the stereo mix and
+# the separate BD, SD, CP and HH/CY outputs. The recordings in dr110/samples are built in (Source: Recordings).
+if(NOT OMEGA_ONLY OR "DR110" IN_LIST OMEGA_ONLY)
+  juce_add_binary_data(DR110Samples SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/bd.wav ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/sd.wav
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/oh.wav ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/oh-long.wav
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/ch.wav ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/ch-long.wav
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/cy.wav ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/hc.wav)
+  set_target_properties(DR110Samples PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  juce_add_plugin(OmegaDR110
+    PRODUCT_NAME "Omega DR-110"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.DR110"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Od11
+    FORMATS ${OMEGA_FORMATS}
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Drum
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaDR110 PRIVATE dr110/DR110Plugin.cpp dr110/DR110Editor.cpp)
+  target_compile_definitions(OmegaDR110 PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaDR110 PRIVATE DR110Samples juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
+# DR110.h against engine.js: node dr110/tools/compare.mjs <build>/dr110_test <dir>
+add_executable(dr110_test dr110/test.cpp)
+
+# draws the DR-110 editor to PNGs without a DAW: <build>/dr110_ui_test <dir>
+if(TARGET OmegaDR110)
+  juce_add_console_app(dr110_ui_test PRODUCT_NAME "dr110_ui_test")
+  target_sources(dr110_ui_test PRIVATE dr110/uitest.cpp dr110/DR110Plugin.cpp dr110/DR110Editor.cpp)
+  target_compile_definitions(dr110_ui_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega DR-110" JucePlugin_Build_Standalone=0)
+  target_link_libraries(dr110_ui_test PRIVATE DR110Samples juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(dr110_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()

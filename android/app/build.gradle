@@ -10,7 +10,8 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator)
+  // and Omega DR-110 (the DR-110 circuit model)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -30,6 +31,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    dr110 {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.dr110'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/dr110/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/dr110/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +52,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  dr110Implementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +63,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// Omega DR-110 carries its web app inside the APK too: ../dr110 (not its tools) into its assets
+def dr110Assets = layout.buildDirectory.dir('dr110Assets')
+tasks.register('copyDr110Web', Copy) {
+  from('../../dr110') { exclude 'tools/**', '*.md' }
+  into dr110Assets.map { it.dir('dr110') }
+}
+android.sourceSets.dr110.assets.srcDirs += [dr110Assets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Dr110') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyDr110Web' }

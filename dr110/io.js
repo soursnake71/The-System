@@ -225,9 +225,10 @@ async function render(song){
   A.samples.forEach((s, v) => { if (s) e.setSample(v, s.d, s.sr, s.acc); });
   q.mem = JSON.parse(JSON.stringify(S.mem)); q.bpm = S.params[P.tempo]; q.swing = S.swing; q.song = S.song; q.pat = A.patIndex();
   q.mode = song ? 'song' : 'pattern';
-  let bars = 0, done = false;
-  const target = song ? DRSEQ.MAX_MEASURES : Math.max(1, Math.min(64, +$('wavBars').value || 4));
-  q.onStep = (step, pat, measure) => { if (step === 0) bars = measure; if (measure >= target) done = true; };
+  // a song plays once through (a D.C. repeat would wrap the measure back to 1: that's the end)
+  let last = 0, done = false;
+  const target = song ? S.mem.songs[S.song].m.length : Math.max(1, Math.min(64, +$('wavBars').value || 4));
+  q.onStep = (step, pat, measure) => { if (measure >= target || measure < last) done = true; last = measure; };
   q.onStop = () => { done = true; };
   q.start();
   const chunks = [], blk = 4096, tail = sr * 2; let tailLeft = -1, total = 0;
@@ -240,7 +241,6 @@ async function render(song){
     if (total > sr * 60 * 20) break;
     if (chunks.length % 64 === 0) await new Promise(r => setTimeout(r));
   }
-  void bars;
   const L = new Float32Array(total), R = new Float32Array(total);
   chunks.forEach(([l, r], k) => { L.set(l, k * blk); R.set(r, k * blk); });
   return wav(L, R, sr);
