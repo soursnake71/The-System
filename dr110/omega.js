@@ -202,16 +202,59 @@ knob(mk2, 'BALANCE', P.balance, 'lin', () => S.params[P.balance].toFixed(1)); kn
 document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => setTimeout(drawCurves, 0)));
 fillPresets(); buildPad(); refresh(); showPresetName();
 
+/* ---- fit to the screen: no page scrolling, in portrait or landscape (keep it this way: see CLAUDE.md).
+   Folded, or on the MACHINE tab: the machine alone, as big as fits. Expanded with a page open: in portrait the machine
+   on top and the page under it; in landscape the page alone (the MACHINE tab brings the machine back). The page is laid
+   out at the width that lets it be biggest, then scaled to fit what's left. */
+const stage = $('stage'), plateWrap = $('plateWrap');
+let view = 'machine';
+function layout(){
+  const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return;
+  const basic = document.body.classList.contains('basic');
+  const page = basic || view === 'machine' ? null : document.getElementById(view);
+  const portrait = H > W * 0.9;
+  const showPlate = !page || portrait;
+  let plateH = 0;
+  if (showPlate){
+    let w = W, h = W * 1160 / 2000;
+    const room = page ? H * 0.48 : H;
+    if (h > room){ h = room; w = h * 2000 / 1160; }
+    plateWrap.style.display = ''; plateWrap.style.width = w + 'px'; plateWrap.style.height = h + 'px';
+    plateWrap.style.left = (W - w) / 2 + 'px'; plateWrap.style.top = (page ? 0 : (H - h) / 2) + 'px';
+    plateH = h + (page ? 6 : 0);
+  } else plateWrap.style.display = 'none';
+  if (page){
+    const avH = H - plateH;
+    page.style.transform = 'none';
+    let best = null;
+    // try a few widths: wide pages get shorter; take the one that ends up biggest on screen
+    for (const k of [1, 1.25, 1.6, 2, 2.6]){
+      const nw = Math.max(320, Math.round(W * k)); page.style.width = nw + 'px';
+      const nh = Math.max(page.scrollHeight, page.offsetHeight) + 2, sc = Math.min(W / nw, avH / nh, 1);
+      if (!best || sc > best.sc + 0.001) best = {nw, nh, sc};
+    }
+    page.style.width = best.nw + 'px';
+    page.style.transform = `scale(${best.sc})`;
+    page.style.left = (W - best.nw * best.sc) / 2 + 'px'; page.style.top = plateH + 'px';
+  }
+  drawCurves();
+}
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => { view = b.dataset.tab; layout(); }));
+new ResizeObserver(() => layout()).observe(stage);
+document.querySelectorAll('.panel').forEach(p => new ResizeObserver(() => { if (p.classList.contains('on')) requestAnimationFrame(layout); }).observe(p));
+addEventListener('orientationchange', () => setTimeout(layout, 200));
+
 /* ---- expand / fold: the whole machine, or just the front panel */
 const foldBtn = $('foldBtn');
 const setFold = basic => {
   document.body.classList.toggle('basic', basic);
   foldBtn.textContent = basic ? 'EXPAND ▾' : 'FOLD ▴'; foldBtn.setAttribute('aria-pressed', String(basic));
   try { localStorage.setItem('omega-110-basic', basic ? '1' : '0'); } catch (e){}
-  if (!basic) setTimeout(drawCurves, 0);
+  requestAnimationFrame(layout);
 };
 foldBtn.onclick = () => setFold(!document.body.classList.contains('basic'));
 let startBasic = false; try { startBasic = localStorage.getItem('omega-110-basic') === '1'; } catch (e){}
 setFold(startBasic);
-window.DROMEGA = {refresh, loadPreset, fillPresets};
+layout();
+window.DROMEGA = {refresh, loadPreset, fillPresets, layout};
 })();

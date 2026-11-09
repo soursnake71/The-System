@@ -119,3 +119,28 @@ h3{margin:4px 0 10px;font-size:14px;letter-spacing:.08em}
 #foldBtn{display:block;margin:0 0 8px auto;background:linear-gradient(#ffa040,#e06a10);color:#111;border:2px solid #0d0d0d;border-radius:6px;padding:8px 14px;font-weight:900;font-size:13px;letter-spacing:.06em;cursor:pointer}
 body.basic #presetBar,body.basic #modPanel,body.basic #tabs,body.basic .panel{display:none !important}
 body.basic #plateWrap{max-height:calc(100vh - 60px);max-width:calc((100vh - 60px) * 2000 / 1160)}
+
+/* ===== Fit to the screen: no page scrolling, portrait or landscape. The toolbar takes what it needs; the stage holds
+   the machine and the open page, both scaled to fit by omega.js layout(). Keep it this way (see CLAUDE.md). ===== */
+html,body{height:100%;overflow:hidden}
+body{padding:0}
+#app{max-width:none;margin:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);height:100vh;height:100dvh;display:flex;flex-direction:column}
+#top{flex:0 0 auto;padding:4px 6px;display:flex;flex-direction:column;gap:4px;background:#1d1d1f;border-bottom:1px solid #000}
+#bar1{display:flex;gap:4px;align-items:stretch}
+#foldBtn{margin:0;padding:5px 10px;font-size:12px;flex:0 0 auto}
+#tabs{margin:0;flex:1 1 auto;display:flex;gap:3px;flex-wrap:wrap;min-width:0}
+#tabs button{min-width:0;flex:1 1 auto;padding:6px 6px;font-size:11px;border-radius:5px;letter-spacing:.03em}
+#presetBar{margin:0;max-width:none;padding:3px 4px;gap:4px;border-radius:6px;border-width:1px}
+#presetBar .pb{padding:5px 9px;font-size:12px}
+#presetBar select{font-size:13px;padding:3px 6px}
+#stage{flex:1 1 auto;position:relative;overflow:hidden;min-height:0}
+#plateWrap{position:absolute;max-width:none !important;max-height:none !important;aspect-ratio:auto;margin:0}
+#plate{border-radius:6px}
+.panel{position:absolute;left:0;top:0;transform-origin:0 0;border-radius:10px;margin:0;box-shadow:none}
+#modPanel{margin:0;max-width:none}
+#modPanel:not(.on){display:none !important}
+body.basic #tabs,body.basic #presetBar{display:none !important}
+body.basic #plateWrap{max-height:none;max-width:none}
+.panel:not(.on){display:none !important}
+/* folded: no toolbar row, just EXPAND floating in the corner, so the machine gets the whole screen */
+body.basic #top{position:absolute;z-index:5;left:env(safe-area-inset-left);top:env(safe-area-inset-top);background:none;border:0;padding:4px}
