@@ -11,6 +11,10 @@
 #include "DR110.h"
 
 namespace dr110 {
+#include "Presets.inc"
+}
+
+namespace dr110 {
 
 class DR110Processor : public juce::AudioProcessor {
 public:
@@ -26,10 +30,10 @@ public:
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 4.0; }
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram(int) override {}
-    const juce::String getProgramName(int) override { return "Default"; }
+    int getNumPrograms() override { return kPresets; }
+    int getCurrentProgram() override { return program; }
+    void setCurrentProgram(int i) override;
+    const juce::String getProgramName(int i) override { return i >= 0 && i < kPresets ? juce::String(juce::CharPointer_UTF8(PRESETS[i].name)) : juce::String(); }
     void changeProgramName(int, const juce::String&) override {}
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
@@ -40,6 +44,12 @@ public:
     // ---- editor side (message thread)
     void hit(int v, bool accent) { const int w = qW.load(); q[(size_t) (w & 63)] = (v & 15) | (accent ? 16 : 0); qW = w + 1; }
     void sweepNow() { hit(7, false); }
+    void releaseKey(int v) { const int w = qW.load(); q[(size_t) (w & 63)] = (v & 15) | 32; qW = w + 1; }
+    // the dice: part 0 everything, 1 voices, 2 pad EQ, 3 ADSR + drive, 4 reverb + delay, 5 master (DICE_PARTS)
+    void dice(int part);
+    void setValue(int index, double v);
+    double value(int index) const { return raw[(size_t) index] ? (double) raw[(size_t) index]->load() : cur[(size_t) index]; }
+    std::function<void()> onProgram;          // the editor's preset menu follows program changes
     // the LCD: notes of the bar that's playing, by 16th (bits: 1 BD 2 SD 4 OH 8 CH 16 CY 32 HC 64 KN 128 ACC)
     std::array<std::atomic<int>, 16> grid{};
     std::atomic<int> hostStep{-1}, hostBar{0};
@@ -61,7 +71,7 @@ private:
     std::array<int, NV> notes{{36, 38, 46, 42, 49, 39, 37}};
     int accNote = 33, sweepNote = 34;
     bool accHeld = false;
-    int lastBar = -1;
+    int lastBar = -1, program = 0;
     std::vector<float> scratch[8];
 };
 

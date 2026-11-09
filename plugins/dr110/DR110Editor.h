@@ -38,26 +38,33 @@ private:
     juce::String flash; juce::uint32 flashUntil = 0;
 };
 
-class DR110Editor : public juce::AudioProcessorEditor {
+class DR110Editor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit DR110Editor(DR110Processor&);
     ~DR110Editor() override;
     void paint(juce::Graphics&) override;
     void resized() override;
 private:
-    struct Knob { std::unique_ptr<juce::Slider> s; std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> a; juce::String label; int tab; juce::Rectangle<int> r; };
-    struct Tog { std::unique_ptr<juce::TextButton> b; std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> a; int tab; juce::Rectangle<int> r; };
+    struct Knob { std::unique_ptr<juce::Slider> s; std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> a; juce::String label, suffix; int tab; juce::Rectangle<int> r; std::function<juce::String(double)> fmt; };
+    struct Tog { std::unique_ptr<juce::TextButton> b; std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> a; juce::String suffix; int tab; juce::Rectangle<int> r; };
     struct Box { juce::String title; int tab; juce::Rectangle<int> r; };
-    void addKnob(int tab, const juce::String& id, const juce::String& label, juce::Rectangle<int> r, bool white);
-    void addTog(int tab, const juce::String& id, const juce::String& label, juce::Rectangle<int> r);
+    // suffix: a pad parameter ("lsF", ...) that follows the pad picked on the PAD page; id is then ignored
+    Knob& addKnob(int tab, const juce::String& id, const juce::String& label, juce::Rectangle<int> r, bool white, const juce::String& suffix = {});
+    void addTog(int tab, const juce::String& id, const juce::String& label, juce::Rectangle<int> r, const juce::String& suffix = {});
     void showTab(int t);
+    void selectPad(int v);
+    void timerCallback() override;
+    void fillPresets();
     DR110Processor& proc;
     KnobLook look, lookWhite;
     Faceplate plate;
     std::vector<Knob> knobs; std::vector<Tog> togs; std::vector<Box> boxes;
-    juce::TextButton tabs[3], sweepBtn{"SWEEP"};
-    int tab = 0;
-    static constexpr int W = 2000, PH = 1160, MH = 780;     // design units: the plate, then the panels
+    static constexpr int NT = 5;
+    juce::TextButton tabs[NT], sweepBtn{"SWEEP"}, padBtn[NV], prevBtn{"<"}, nextBtn{">"}, diceBtn{"DICE"};
+    juce::ComboBox presetBox, partBox;
+    int tab = 0, pad = 0;
+    juce::uint32 lastParamsHash = 0;
+    static constexpr int W = 2000, PH = 1160, MH = 860, TOP = 150;     // design units: the plate, then the panels (from TOP)
 };
 
 } // namespace dr110

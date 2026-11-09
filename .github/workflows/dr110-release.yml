@@ -1,6 +1,6 @@
-# Omega DR-110: the plugin (VST3 on Windows, Mac and Linux, plus AU on Mac) and the Android APK, attached to the
+# Omega 110 (the DR-110 circuit model): the plugin (VST3 on Windows, Mac and Linux, plus AU on Mac) and the Android APK, attached to the
 # "dr110-latest" release. Runs on main and on claude/* and ccr-* branches so builds can be tried before merging.
-name: Omega DR-110 release
+name: Omega 110 release
 on:
   push:
     branches: [main, 'claude/**', 'ccr-**']
@@ -27,15 +27,17 @@ jobs:
         run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=DR110
       - name: Build
         run: cmake --build build --config Release --parallel 4 --target OmegaDR110_All dr110_test
-      - name: Test (C++ engine against the app's engine.js)
+      - name: Test (C++ engine against the app's engine.js, presets up to date)
         if: runner.os == 'Linux'
-        run: node dr110/tools/compare.mjs build/dr110_test "$RUNNER_TEMP"
+        run: |
+          node dr110/tools/compare.mjs build/dr110_test "$RUNNER_TEMP"
+          node dr110/tools/gen-presets.mjs --check
       - name: Test (load the VST3 like a DAW)
         if: runner.os == 'Linux'
         run: |
           cmake -S plugins/tools/hosttest -B host -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR="$PWD/build/_deps/juce-src"
           cmake --build host --target dr110_host_test --parallel 4
-          xvfb-run -a "$(find host -name dr110_host_test -type f -perm -u+x | head -1)" "build/OmegaDR110_artefacts/Release/VST3/Omega DR-110.vst3" "$RUNNER_TEMP"
+          xvfb-run -a "$(find host -name dr110_host_test -type f -perm -u+x | head -1)" "build/OmegaDR110_artefacts/Release/VST3/Omega 110.vst3" "$RUNNER_TEMP"
       - name: Collect
         shell: bash
         run: |
@@ -46,9 +48,9 @@ jobs:
             for b in out/*; do codesign --force --deep -s - "$b"; done
           fi
           ls out
-          cd out && 7z a -tzip "../Omega-DR-110-${{ matrix.name }}.zip" . >/dev/null
+          cd out && 7z a -tzip "../Omega-110-${{ matrix.name }}.zip" . >/dev/null
       - uses: actions/upload-artifact@v4
-        with: {name: 'dr110-${{ matrix.name }}', path: 'Omega-DR-110-${{ matrix.name }}.zip', if-no-files-found: error}
+        with: {name: 'dr110-${{ matrix.name }}', path: 'Omega-110-${{ matrix.name }}.zip', if-no-files-found: error}
   apk:
     runs-on: ubuntu-latest
     steps:
@@ -62,9 +64,9 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           gradle -p android assembleDr110Debug --no-daemon
-          cp android/app/build/outputs/apk/dr110/debug/app-dr110-debug.apk omega-dr110.apk
+          cp android/app/build/outputs/apk/dr110/debug/app-dr110-debug.apk omega-110.apk
       - uses: actions/upload-artifact@v4
-        with: {name: dr110-Android, path: omega-dr110.apk, if-no-files-found: error}
+        with: {name: dr110-Android, path: omega-110.apk, if-no-files-found: error}
   publish:
     needs: [plugin, apk]
     runs-on: ubuntu-latest
@@ -75,5 +77,5 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls dl
-          gh release view dr110-latest >/dev/null 2>&1 || gh release create dr110-latest --title "Omega DR-110 (latest)" --notes "Omega DR-110: a circuit model of the DR-110 rhythm machine. omega-dr110.apk is the Android app (open it on your phone to install). The zips hold the plugin for your DAW (the DAW is the sequencer): copy the .vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). On a Mac, if your DAW refuses it, run: xattr -cr '/Library/Audio/Plug-Ins/VST3/Omega DR-110.vst3'"
+          gh release view dr110-latest >/dev/null 2>&1 || gh release create dr110-latest --title "Omega 110 (latest)" --notes "Omega 110: a circuit model of the DR-110 rhythm machine, with 100 presets, pad EQ and ADSR, REV7-style reverb and TC-style delay. omega-110.apk is the Android app (open it on your phone to install). The zips hold the plugin for your DAW (the DAW is the sequencer): copy the .vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). On a Mac, if your DAW refuses it, run: xattr -cr '/Library/Audio/Plug-Ins/VST3/Omega 110.vst3'"
           gh release upload dr110-latest dl/* --clobber

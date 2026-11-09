@@ -1,6 +1,7 @@
 #include "DR110Plugin.h"
 #include "DR110Editor.h"
 #include "BinaryData.h"
+#include <map>
 
 namespace dr110 {
 
@@ -10,13 +11,16 @@ static juce::AudioProcessorValueTreeState::ParameterLayout layout() {
     for (int i = 0; i < NP; ++i) {
         const auto& p = ps[(size_t) i];
         if (p.id == "tempo") continue;                 // the DAW sets the tempo
-        const bool toggle = p.id == "src" || p.id.find("mute") != std::string::npos || p.id.find("Boost") != std::string::npos
-            || p.id == "bdBass" || p.id == "swTarget" || p.id == "supply";
-        const float step = toggle || p.id == "rvProg" ? 1.0f : 0.0f;
+        auto ends = [&](const char* e) { const std::string x(e); return p.id.size() >= x.size() && p.id.compare(p.id.size() - x.size(), x.size(), x) == 0; };
+        const bool toggle = p.id == "src" || ends("mute") || p.id.find("Boost") != std::string::npos
+            || p.id == "bdBass" || p.id == "swTarget" || p.id == "supply" || p.id == "bdEnv" || p.id == "dlPing";
+        const float step = toggle || p.id == "rvProg" || p.id == "odMode" || p.id == "dlSync" ? 1.0f : 0.0f;
         juce::NormalisableRange<float> r((float) p.min, (float) p.max, step);
-        if (p.id == "rvTime") r.setSkewForCentre(2.0f);
-        if (p.id == "rvCut") r.setSkewForCentre(4000.0f);
-        if (p.id.size() > 3 && p.id.compare(p.id.size() - 3, 3, "dec") == 0) r.setSkewForCentre(1.0f);
+        // log-like knobs for frequencies, times and Q (centre = the geometric middle)
+        const bool logish = p.id == "rvTime" || p.id == "rvCut" || ends("dec") || ends("F") || ends("Q") || ends("Cut") || p.id == "dlTime" || p.id == "dlModRate"
+            || ends("dcy") || ends("rel");
+        if (logish && p.min > 0) r.setSkewForCentre((float) std::sqrt(p.min * p.max));
+        if (ends("atk")) r.setSkewForCentre(0.08f);
         l.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID(p.id, 1), p.name, r, (float) p.def));
     }
     l.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID("accVel", 1), "Accent Velocity", juce::NormalisableRange<float>(1, 127, 1), 100.0f));
@@ -76,6 +80,7 @@ void DR110Processor::prepareToPlay(double sampleRate, int maxBlock) {
 void DR110Processor::readParams() {
     Params p = cur;
     for (int i = 0; i < NP; ++i) if (raw[(size_t) i]) p[(size_t) i] = raw[(size_t) i]->load();
+    p[pid::tempo] = juce::jlimit(20.0, 999.0, (double) hostBpm.load());     // the DAW's tempo (the delay's sync)
     if (p != cur && engine) { cur = p; engine->setAll(cur); }
     else cur = p;
 }
@@ -99,7 +104,11 @@ void DR110Processor::handleMidi(const juce::MidiMessage& m, double ppq) {
         if (v < 0) return;
         const bool acc = m.getVelocity() >= (int) accVel->load() || accHeld;
         engine->trigger(v, acc); markGrid(v, acc, ppq);
-    } else if (m.isNoteOff() && m.getNoteNumber() == accNote) accHeld = false;
+    } else if (m.isNoteOff()) {
+        // the end of the note: the pad's ADSR goes to its release
+        if (m.getNoteNumber() == accNote) accHeld = false;
+        for (int i = 0; i < NV; ++i) if (notes[(size_t) i] == m.getNoteNumber()) engine->release(i);
+    }
     else if (m.isAllNotesOff() || m.isAllSoundOff()) accHeld = false;
 }
 
@@ -107,7 +116,6 @@ void DR110Processor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
     juce::ScopedNoDenormals nd;
     const int n = buf.getNumSamples();
     if (!engine) { buf.clear(); return; }
-    readParams();
     // where the DAW is: the LCD shows its bar and step
     double ppq0 = -1, bpm = 120; bool playing = false;
     if (auto* ph = getPlayHead()) if (auto pos = ph->getPosition()) {
@@ -116,6 +124,7 @@ void DR110Processor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
         playing = pos->getIsPlaying();
     }
     hostBpm = (float) bpm; hostPlaying = playing;
+    readParams();
     const double ppqPerSample = bpm / 60.0 / getSampleRate();
     if (ppq0 >= 0) {
         const int bar = (int) std::floor(ppq0 / 4.0);
@@ -125,7 +134,8 @@ void DR110Processor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
     // keys pressed on the editor
     for (const int w = qW.load(); qR != w; ++qR) {
         const int e = q[(size_t) (qR & 63)];
-        if ((e & 15) == 7) engine->sweep(); else { engine->trigger(e & 15, (e & 16) != 0); markGrid(e & 15, (e & 16) != 0, ppq0); }
+        if (e & 32) engine->release(e & 15);
+        else if ((e & 15) == 7) engine->sweep(); else { engine->trigger(e & 15, (e & 16) != 0); markGrid(e & 15, (e & 16) != 0, ppq0); }
     }
     // separate outputs (or scratch when a bus is off)
     float* outs[8];
@@ -154,14 +164,62 @@ void DR110Processor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
     for (int v = 0; v < NV; ++v) { meters[(size_t) v] = std::max(meters[(size_t) v].load() * 0.85f, (float) engine->meter[v]); engine->meter[v] = 0; }
 }
 
+void DR110Processor::setValue(int index, double v) {
+    if (auto* prm = apvts.getParameter(params()[(size_t) index].id)) prm->setValueNotifyingHost(prm->convertTo0to1((float) v));
+}
+
+// a preset sets every sound parameter but TEMPO, VOLUME and SOURCE
+static bool kept(int i) { return i == pid::tempo || i == pid::volume || i == pid::src; }
+void DR110Processor::setCurrentProgram(int i) {
+    if (i < 0 || i >= kPresets) return;
+    program = i;
+    for (int k = 0; k < NP; ++k) if (!kept(k)) setValue(k, PRESETS[i].p[k]);
+    if (onProgram) onProgram();
+}
+
+// the dice (dr110/presets.js dice(), the same rules from Presets.inc)
+void DR110Processor::dice(int part) {
+    const auto ps = params();
+    std::map<std::string, int> index; for (int i = 0; i < NP; ++i) index[ps[(size_t) i].id] = i;
+    uint32_t x = (uint32_t) juce::Random::getSystemRandom().nextInt() | 1u;
+    auto r = [&x]() { x ^= x << 13; x ^= x >> 17; x ^= x << 5; return x / 4294967296.0; };
+    auto expand = [&](const std::string& id) {
+        std::vector<int> out;
+        if (id.find('*') != std::string::npos) { for (int v = 0; v < NV; ++v) { std::string k = id; k.replace(k.find('*'), 1, VOICES[v]); out.push_back(index.at(k)); } }
+        else { size_t a = 0; while (a <= id.size()) { const size_t b = std::min(id.find(',', a), id.size()); out.push_back(index.at(id.substr(a, b - a))); a = b + 1; } }
+        return out;
+    };
+    Params p{}; for (int i = 0; i < NP; ++i) p[(size_t) i] = value(i);
+    const Params d = defaults();
+    for (int pt = 1; pt < 6; ++pt) {
+        if (part != 0 && part != pt) continue;
+        for (const auto& rule : DICE_RULES) if (rule.part == pt) for (int i : expand(rule.id)) p[(size_t) i] = d[(size_t) i];
+        for (const auto& rule : DICE_RULES) if (rule.part == pt) for (int i : expand(rule.id)) {
+            if (r() >= rule.chance) continue;
+            const double u = r(); double v = p[(size_t) i];
+            switch (rule.kind) {
+                case 0: v = rule.a + (rule.b - rule.a) * u; break;
+                case 1: v = rule.a * std::pow(rule.b / rule.a, u); break;
+                case 2: v = std::floor(rule.a + (rule.b - rule.a + 1) * u); break;
+                case 3: v = rule.a; break;
+                case 4: v = v + rule.a + (rule.b - rule.a) * u; break;
+                default: v = v * (rule.a + (rule.b - rule.a) * u); break;
+            }
+            p[(size_t) i] = std::max(ps[(size_t) i].min, std::min(ps[(size_t) i].max, std::round(v * 1000) / 1000));
+        }
+    }
+    for (int k = 0; k < NP; ++k) if (!kept(k)) setValue(k, p[(size_t) k]);
+}
+
 void DR110Processor::getStateInformation(juce::MemoryBlock& mb) {
     auto st = apvts.copyState();
+    st.setProperty("program", program, nullptr);
     std::unique_ptr<juce::XmlElement> x(st.createXml());
     copyXmlToBinary(*x, mb);
 }
 void DR110Processor::setStateInformation(const void* d, int n) {
     std::unique_ptr<juce::XmlElement> x(getXmlFromBinary(d, n));
-    if (x && x->hasTagName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*x));
+    if (x && x->hasTagName(apvts.state.getType())) { auto t = juce::ValueTree::fromXml(*x); program = (int) t.getProperty("program", 0); apvts.replaceState(t); }
 }
 
 juce::AudioProcessorEditor* DR110Processor::createEditor() { return new DR110Editor(*this); }

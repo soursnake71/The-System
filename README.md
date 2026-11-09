@@ -29,16 +29,19 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
-## Omega DR-110 (`/dr110/`): the DR-110 as a circuit model
+## Omega 110 (`/dr110/`): the DR-110 as a circuit model
 The rhythm machine with its own front panel, drawn at the hardware's proportions: the LCD step grid, SHIFT functions, A-D banks of 8 rhythms (A, B presets; C, D yours), 16 or 12 steps, PLAY / WRITE SONG, STEP and TAP writing, songs I and II with D.C., and TEMPO, BALANCE, ACCENT and VOLUME.
 - Sound: every voice is a circuit model (bridged-T kick and snare, the six-square metal bank through band-passes for hats and cymbal, the four-burst clap), fitted to recordings of a real DR-110 in `dr110/samples` (`node dr110/tools/fit.mjs` compares them). SOURCE: Recordings plays those recordings instead. Added: a KNUCKLE voice (SHIFT + HAND CLAP).
-- SHIFT also latches: tap it alone and the next key gets its shift function.
-- Voice-mod panel (pitch, snap, decay, decay / bass boost, filters, mix, trig sweep from the accent) and a POWER SUPPLY switch: adapter (regulated 6 V rail) or batteries (5.4 V, less headroom).
-- Mixer (level, pan, tune, decay, mute, solo, meters, shuffle), effects mixer with a REV7-style reverb (Hall, Room, Vocal, Plate, Early Ref; RT, HIGH, DELAY, diffusion, ER level, high cut, return).
-- Import / export: backups (.json), MIDI files of a pattern or song, MIDI file into a pattern, WAV renders, your own sounds on any voice.
-- MIDI: notes in (velocity accent, ACC and SWEEP trigger notes, record in TAP), program change for A1-D8, clock in (follow), clock and notes out.
-- Android app: `omega-dr110.apk` in the `dr110-latest` release (offline, native USB / Bluetooth MIDI). Web: `https://<your-username>.github.io/<repo>/dr110/`.
-- Plugin (VST3, AU on Mac): Omega DR-110, an instrument the DAW plays from MIDI (General MIDI drum notes), with the stereo mix plus separate BD, SD, CP and HH/CY outputs, in the same release. Its engine (`plugins/dr110/DR110.h`) is a line-for-line port of `dr110/engine.js`; `dr110/tools/compare.mjs` checks they render the same.
+- 100 presets in 10 families (Factory, 808 Boom, Electro, Lo-Fi Tape, Industrial, Dub Space, Hip Hop, Techno, Ambient, Circuit Bent), your own presets, and the DICE: everything, or just the voices, pad EQ, ADSR and drive, reverb and delay, or master.
+- Every pad: a parametric EQ (low shelf, peak, high shelf), an ADSR (the gate is the key, the MIDI note or one step), drive, reverb and delay sends.
+- Voice-mod panel: pitch, snap, decay and boosts, filters, mix, trig sweep, the BASS EXTENDER (the kick rings out like an 808, up to a near-continuous tone) and the kick ENV SHAPE switch (after the Circuitbenders DR-110 mod), and a POWER SUPPLY switch: adapter (regulated 6 V rail) or batteries (5.4 V, less headroom).
+- Effects: a REV7-style reverb (Hall, Room, Vocal, Plate, Early Ref) and a TC 2290-style dynamic delay (time or tempo sync, feedback with high / low cut, modulation, ducking, ping-pong).
+- Master: a four-band parametric EQ and an overdrive / clipper (overdrive, hard clip, tube).
+- Mixer (level, pan, tune, decay, mute, solo, meters, shuffle).
+- Import / export: backups (.json, with your presets), MIDI files of a pattern or song, MIDI file into a pattern, WAV renders, your own sounds on any voice.
+- MIDI: notes in and out (velocity accent, note off releases the pad's ADSR, ACC and SWEEP trigger notes, record in TAP), program change for A1-D8, clock in and out.
+- Android app: `omega-110.apk` in the `dr110-latest` release (offline, native USB / Bluetooth MIDI). Web: `https://<your-username>.github.io/<repo>/dr110/`.
+- Plugin (VST3, AU on Mac): Omega 110, an instrument the DAW plays from MIDI (General MIDI drum notes), with the stereo mix plus separate BD, SD, CP and HH/CY outputs, the 100 presets as programs and the dice, in the same release. Its engine (`plugins/dr110/DR110.h`) is a line-for-line port of `dr110/engine.js`; `dr110/tools/compare.mjs` checks they render the same, and `node dr110/tools/gen-presets.mjs` writes the presets into the plugin.
 
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.

@@ -1,4 +1,4 @@
-/* Omega DR-110 audio thread: the engine (engine.js) and the sequencer (seq.js), loaded before this file into the same
+/* Omega 110 audio thread: the engine (engine.js) and the sequencer (seq.js), loaded before this file into the same
    AudioWorkletGlobalScope. Messages in: {type:'state', mem}, 'param', 'params', 'start', 'stop', 'select', 'mode',
    'hit', 'tap', 'bpm', 'ext', 'clock', 'sample', 'swing'. Out: 'step', 'hit' (for MIDI out), 'write', 'stop', 'meter', 'clock'. */
 'use strict';
@@ -31,6 +31,7 @@ class DR110Processor extends AudioWorkletProcessor {
         case 'clock': s.clockTick(); break;
         case 'swing': s.swing = m.v; break;
         case 'sweep': e.sweep(); break;
+        case 'release': e.release(m.v); break;
         case 'sample': e.setSample(m.v, m.d, m.sr, m.acc); break;
       }
     };

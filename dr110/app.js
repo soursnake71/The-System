@@ -1,4 +1,4 @@
-/* Omega DR-110: the front panel's behaviour (modes, SHIFT functions, pattern / song writing), the mixer, the effects
+/* Omega 110: the front panel's behaviour (modes, SHIFT functions, pattern / song writing), the mixer, the effects
    mixer and the audio. The sound itself runs in an AudioWorklet (worklet.js: engine.js + seq.js).
    io.js adds import / export and MIDI on top of this (it uses window.DRAPP). */
 'use strict';
@@ -6,13 +6,14 @@ const {P, PARAMS, NV, VOICES, VOICE_NAMES, RV_PROGS, vp, defaults} = DR110;
 const ACC = DRSEQ.ACC;
 const VNAME_SHORT = ['BASS', 'SNARE', 'O.HAT', 'C.HAT', 'CYMBAL', 'CLAP', 'KNUCKLE'];
 const STORE = 'omega-dr110-v1';
+const keyVoice = {};                              // which voice a held key started (for the ADSR release)
 
 /* ---------------- state ---------------- */
 const S = {
   power:false, mode:'pattern', bank:0, rhythm:0, song:0, measure:0, cursor:0, running:false,
   shiftHeld:false, shiftLatch:false, shiftUsed:false, accHeld:false,
   params:defaults(), mem:DRSEQ.defaultMemory(), solo:new Array(NV).fill(0), swing:0,
-  play:{step:-1, pat:0, measure:0}, flash:null, clearArm:0, candidate:0,
+  play:{step:-1, pat:0, measure:0}, flash:null, clearArm:0, candidate:0, userPresets:[], preset:0,
   midi:{in:'all', out:'', ch:9, sync:false, clockOut:false, notesOut:true, accVel:100, pc:true, notes:[36, 38, 46, 42, 49, 39, 37]},
 };
 function load(){
@@ -23,14 +24,16 @@ function load(){
 }
 let saveT = 0;
 function save(){ clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify(backup())); } catch (e){} }, 300); }
-function backup(){ return {format:'omega-dr110', version:1, mem:S.mem, params:S.params, solo:S.solo, swing:S.swing, midi:S.midi, bank:S.bank, rhythm:S.rhythm, song:S.song}; }
+function backup(){ return {format:'omega-dr110', version:1, mem:S.mem, params:S.params, solo:S.solo, swing:S.swing, midi:S.midi, bank:S.bank, rhythm:S.rhythm, song:S.song, userPresets:S.userPresets, preset:S.preset}; }
 function applyBackup(j, quiet){
-  if (!j || j.format !== 'omega-dr110') throw new Error('Not an Omega DR-110 backup');
+  if (!j || j.format !== 'omega-dr110') throw new Error('Not an Omega 110 backup');
   if (j.mem && Array.isArray(j.mem.pats) && j.mem.pats.length === 32) S.mem = j.mem;
   if (Array.isArray(j.params)) j.params.forEach((v, i) => { if (i < PARAMS.length && typeof v === 'number') S.params[i] = v; });
   if (Array.isArray(j.solo)) S.solo = j.solo.slice(0, NV);
   if (typeof j.swing === 'number') S.swing = j.swing;
   if (j.midi) Object.assign(S.midi, j.midi);
+  if (Array.isArray(j.userPresets)) S.userPresets = j.userPresets.filter(u => u && typeof u.name === 'string' && Array.isArray(u.p));
+  if (typeof j.preset === 'number') S.preset = j.preset;
   if (typeof j.bank === 'number') S.bank = j.bank; if (typeof j.rhythm === 'number') S.rhythm = j.rhythm; if (typeof j.song === 'number') S.song = j.song;
   if (!quiet){ sendAll(); refreshPanels(); draw(); }
 }
@@ -75,7 +78,7 @@ async function startAudio(){
       case 'start': seq.mode = m.mode; if (m.song !== undefined) seq.song = m.song; if (m.pat !== undefined) seq.pat = m.pat; seq.start(); if (!seq.running) onAudio({type:'stop'}); break;
       case 'stop': seq.stop(); break; case 'select': seq.select(m.pat); break; case 'hit': eng.trigger(m.v, m.acc); break;
       case 'tap': { eng.trigger(m.v, m.acc); const w = seq.tapWrite(m.v, m.acc); if (w) onAudio(Object.assign({type:'write'}, w)); break; }
-      case 'ext': seq.ext = m.on; break; case 'clock': seq.clockTick(); break; case 'swing': seq.swing = m.v; break; case 'sweep': eng.sweep(); break;
+      case 'ext': seq.ext = m.on; break; case 'clock': seq.clockTick(); break; case 'swing': seq.swing = m.v; break; case 'sweep': eng.sweep(); break; case 'release': eng.release(m.v); break;
       case 'sample': eng.setSample(m.v, m.d, m.sr, m.acc); break; } };
   }
   sendAll();
@@ -187,7 +190,7 @@ for (const [id, k] of Object.entries(UI.knobs)){
 UI.power.addEventListener('pointerdown', async e => {
   e.preventDefault();
   S.power = !S.power;
-  if (S.power){ await startAudio(); flash(['OMEGA', 'DR-110'], 900); }
+  if (S.power){ await startAudio(); flash(['OMEGA', '110'], 900); }
   else { post({type:'stop'}); S.running = false; S.shiftLatch = false; }
   draw();
 });
@@ -220,6 +223,7 @@ function press(id){
       if (v === 5) v = 6;                          // SHIFT + HAND CLAP: KNUCKLE
       else if (v !== 4) return;
     }
+    keyVoice[id] = v;
     voiceKey(v);
   }
   draw();
@@ -232,6 +236,7 @@ function release(id){
     draw();
   }
   if (id === 'acc') S.accHeld = false;
+  if (/^v\d$/.test(id) && keyVoice[id] !== undefined){ post({type:'release', v:keyVoice[id]}); delete keyVoice[id]; }
 }
 function picked(){
   const i = patIndex();
@@ -479,5 +484,5 @@ buildMod();
 buildMixer(); refreshPanels(); draw();
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidDR110) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-window.DRAPP = {S, post, press, release, draw, flash, toast, save, backup, applyBackup, memChanged, startAudio, samples, loadRecordings, decode, engineParams,
+window.DRAPP = {setParam, miniKnob, toggle, refreshers, dragKnob, norm, denorm, dnorm, sendAll, S, post, press, release, draw, flash, toast, save, backup, applyBackup, memChanged, startAudio, samples, loadRecordings, decode, engineParams,
   listeners, patIndex, userPat, startKey, stopKey, voiceKey, refreshPanels, get ctx(){ return ctx; }};

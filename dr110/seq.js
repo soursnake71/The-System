@@ -1,4 +1,4 @@
-/* Omega DR-110 sequencer: the DR-110's pattern and song memory, run inside the audio thread (worklet.js) and by the
+/* Omega 110 sequencer: the DR-110's pattern and song memory, run inside the audio thread (worklet.js) and by the
    WAV export. 32 patterns in four banks (A, B: presets; C, D: yours) of 8 rhythms, 16 or 12 steps (12 = triplets), an
    accent per step; two songs (I and II) of up to 128 measures, with D.C. (repeat from the top) at the end.
    Step bits: 1 BD, 2 SD, 4 OH, 8 CH, 16 CY, 32 HC, 64 KN, 128 ACCENT. */
@@ -48,6 +48,7 @@ class Sequencer {
     this.running = false; this.mode = 'pattern'; this.pat = 0; this.next = -1; this.song = 0; this.measure = 0;
     this.step = 0; this.countdown = 0; this.bpm = 120; this.ext = false; this.extTicks = 0;
     this.onStep = null; this.onHit = null; this.onStop = null; this.onClock = null; this.clockAcc = 0;
+    this.held = 0;
     this.swing = 0;                                 // 0..0.5: delays the even 16ths (the "SHUFFLE" in the mixer)
   }
   patLen(i){ return this.mem.pats[i] ? this.mem.pats[i].len : 16; }
@@ -60,10 +61,13 @@ class Sequencer {
     else this.measure = 0;
     if (this.next >= 0){ this.pat = this.next; this.next = -1; }
   }
-  stop(){ this.running = false; this.step = 0; if (this.onStop) this.onStop(); }
+  stop(){ this.running = false; this.step = 0; for (let v = 0; v < 7; v++) if (this.held & (1 << v)) this.e.release(v); this.held = 0; if (this.onStop) this.onStop(); }
   select(i){ if (this.running && this.mode === 'pattern') this.next = i; else { this.pat = i; this.next = -1; } }
   fire(){
     const pt = this.mem.pats[this.pat], bits = pt ? pt.st[this.step] : 0;
+    // each hit's gate lasts one step: the pads' ADSR release starts at the next step
+    for (let v = 0; v < 7; v++) if (this.held & (1 << v)) this.e.release(v);
+    this.held = bits & 127;
     if (bits & 127) for (let v = 0; v < 7; v++) if (bits & (1 << v)){ this.e.trigger(v, (bits & ACC) !== 0); if (this.onHit) this.onHit(v, (bits & ACC) !== 0); }
     if (this.onStep) this.onStep(this.step, this.pat, this.measure);
   }

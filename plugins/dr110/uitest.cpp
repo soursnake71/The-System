@@ -11,13 +11,17 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 4; ++i) p.grid[(size_t) (i * 4)] = 1 | 8 | (i == 0 ? 128 : 0);
     p.grid[4] = p.grid[4].load() | 2 | 32; p.grid[12] = p.grid[12].load() | 2; p.grid[14] = 4 | 64;
     p.hostBar = 17; p.hostStep = 6;
+    p.setCurrentProgram(13);                  // 808 Boom · Bass Extender
+    p.dice(2);                                // roll the pad EQ
+    juce::MessageManager::getInstance()->runDispatchLoopUntil(50);
     int tab = 0;
-    for (auto* c : ed->getChildren()) if (auto* b = dynamic_cast<juce::TextButton*>(c)) if (b->getButtonText() == "VOICE MOD" || b->getButtonText() == "MIXER" || b->getButtonText() == "REV 7 / EFFECTS") {
-        b->triggerClick(); juce::MessageManager::getInstance()->runDispatchLoopUntil(50);
+    for (auto* c : ed->getChildren()) if (auto* b = dynamic_cast<juce::TextButton*>(c))
+        if (b->getButtonText() == "VOICE MOD" || b->getButtonText() == "MIXER" || b->getButtonText() == "PAD EQ / ADSR" || b->getButtonText() == "REV 7 / TC DELAY" || b->getButtonText() == "MASTER") {
+        b->triggerClick(); juce::MessageManager::getInstance()->runDispatchLoopUntil(80);
         const auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
         juce::FileOutputStream os(out.getChildFile("dr110-ui-" + juce::String(tab++) + ".png")); os.setPosition(0); os.truncate();
         juce::PNGImageFormat().writeImageToStream(img, os);
     }
-    std::printf("saved %d pictures, %d x %d\n", tab, ed->getWidth(), ed->getHeight());
+    std::printf("saved %d pictures, %d x %d, program %d %s\n", tab, ed->getWidth(), ed->getHeight(), p.getCurrentProgram(), p.getProgramName(p.getCurrentProgram()).toRawUTF8());
     return 0;
 }

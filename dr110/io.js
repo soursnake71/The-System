@@ -1,4 +1,4 @@
-/* Omega DR-110: import / export and MIDI. Loaded after app.js (uses window.DRAPP).
+/* Omega 110: import / export and MIDI. Loaded after app.js (uses window.DRAPP).
    Files: backup (.json: patterns, songs, mixer, reverb, MIDI settings), MIDI files (GM drum notes, channel 10) out of a
    pattern or a song and into a pattern, WAV renders, and your own sounds on the voices.
    MIDI (Web MIDI, or the Android app's native MIDI): notes in play the voices (velocity >= the accent setting is an
@@ -75,7 +75,7 @@ function onMessage(e){
     if (S.mode === 'tap' && S.running) A.post({type:'tap', v, acc});
     else if (S.mode === 'step'){ const pi = A.patIndex(); if (A.userPat(pi)){ S.mem.pats[pi].st[S.cursor] |= (1 << v) | (acc ? DRSEQ.ACC : 0); A.memChanged(); } A.post({type:'hit', v, acc}); }
     else A.post({type:'hit', v, acc});
-  } else if (type === 0x80 || (type === 0x90 && d[2] === 0)){ if (d[1] === S.midi.accNote) accHeldMidi = false; }
+  } else if (type === 0x80 || (type === 0x90 && d[2] === 0)){ if (d[1] === S.midi.accNote) accHeldMidi = false; const v = S.midi.notes.indexOf(d[1]); if (v >= 0) A.post({type:'release', v}); }
   else if (type === 0xC0 && S.midi.pc && d[1] < 32){ S.bank = d[1] >> 3; S.rhythm = d[1] & 7; A.post({type:'select', pat:d[1]}); A.draw(); }
 }
 function hook(){
@@ -131,7 +131,7 @@ function pick(accept){
 const patName = i => 'ABCD'[i >> 3] + ((i & 7) + 1);
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
 
-$('expJson').onclick = () => saveFile(new Blob([JSON.stringify(A.backup(), null, 1)], {type:'application/json'}), `omega-dr110-${stamp()}.json`).catch(e => A.toast(e.message));
+$('expJson').onclick = () => saveFile(new Blob([JSON.stringify(A.backup(), null, 1)], {type:'application/json'}), `omega-110-${stamp()}.json`).catch(e => A.toast(e.message));
 $('impJson').onclick = async () => { const f = await pick('.json,application/json'); if (!f) return;
   try { A.applyBackup(JSON.parse(await f.text())); A.save(); midiUi(); A.toast('Backup loaded'); } catch (e){ A.toast(e.message, 4000); } };
 

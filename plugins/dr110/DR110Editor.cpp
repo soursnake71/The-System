@@ -1,4 +1,5 @@
 #include "DR110Editor.h"
+#include <map>
 
 namespace dr110 {
 
@@ -308,101 +309,221 @@ void KnobLook::drawButtonText(Graphics& g, juce::TextButton& b, bool, bool) {
 }
 
 /* ---------------- editor ---------------- */
+// an EQ curve from the engine's own biquads: bands {type, freq, gain dB, q}
+static void drawEq(Graphics& g, Rectangle<float> r, const std::vector<std::array<double, 4>>& bands) {
+    g.setColour(Colour(0xff141a12)); g.fillRoundedRectangle(r, 8);
+    g.setColour(Colour(0x267cff8a));
+    for (double f : {50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0}) { const float x = r.getX() + (float) (std::log(f / 20) / std::log(1000.0)) * r.getWidth(); g.drawVerticalLine((int) x, r.getY(), r.getBottom()); }
+    for (int d : {-12, -6, 0, 6, 12}) { const float y = r.getCentreY() - (float) d / 18 * r.getHeight() / 2; g.drawHorizontalLine((int) y, r.getX(), r.getRight()); }
+    std::vector<Biquad> bq(bands.size());
+    for (size_t k = 0; k < bands.size(); ++k) bq[k].set((int) bands[k][0], bands[k][1], bands[k][2], bands[k][3], 48000);
+    Path p;
+    for (int i = 0; i <= 200; ++i) {
+        const double f = 20 * std::pow(1000.0, i / 200.0), w = 2 * PI * f / 48000; double mag = 0;
+        for (const auto& b : bq) { if (!b.on) continue;
+            const double cr = std::cos(w), ci = -std::sin(w), c2r = std::cos(2 * w), c2i = -std::sin(2 * w);
+            const double nr = b.b0 + b.b1 * cr + b.b2 * c2r, ni = b.b1 * ci + b.b2 * c2i, dr = 1 + b.a1 * cr + b.a2 * c2r, di = b.a1 * ci + b.a2 * c2i;
+            mag += 10 * std::log10((nr * nr + ni * ni) / (dr * dr + di * di)); }
+        const float x = r.getX() + (float) i / 200 * r.getWidth(), y = r.getCentreY() - (float) juce::jlimit(-18.0, 18.0, mag) / 18 * (r.getHeight() / 2 - 4);
+        if (i == 0) p.startNewSubPath(x, y); else p.lineTo(x, y);
+    }
+    g.setColour(Colour(0xff7cff8a)); g.strokePath(p, juce::PathStrokeType(3.5f));
+}
+static void drawAdsr(Graphics& g, Rectangle<float> r, double a, double d, double s, double rel) {
+    g.setColour(Colour(0xff141a12)); g.fillRoundedRectangle(r, 8);
+    const bool hold = rel >= 3.999; const double dd = std::min(d, 1.5), total = a + dd + 0.4 + (hold ? 0.6 : std::min(rel, 2.0));
+    auto X = [&](double t) { return r.getX() + 10 + (float) (t / total) * (r.getWidth() - 20); };
+    auto Y = [&](double v) { return r.getBottom() - 10 - (float) v * (r.getHeight() - 20); };
+    Path p; p.startNewSubPath(X(0), Y(a > 0 ? 0 : 1)); p.lineTo(X(a), Y(1));
+    for (int i = 1; i <= 30; ++i) { const double t = dd * i / 30; p.lineTo(X(a + t), Y(s + (1 - s) * std::exp(-t / (d / 3)))); }
+    const double sv = s + (1 - s) * std::exp(-dd / (d / 3)), t0 = a + dd + 0.4; p.lineTo(X(t0), Y(sv));
+    if (hold) p.lineTo(X(total), Y(sv));
+    else { const double rr = std::min(rel, 2.0); for (int i = 1; i <= 30; ++i) { const double t = rr * i / 30; p.lineTo(X(t0 + t), Y(sv * std::exp(-t / (rel / 3)))); } }
+    g.setColour(Colour(0xff7cff8a)); g.strokePath(p, juce::PathStrokeType(3.5f));
+    txt(g, X(t0) + 6, r.getY() + 26, hold ? "release: hold" : "release", 18, Colour(0x997cff8a), -1);
+}
+
 DR110Editor::DR110Editor(DR110Processor& p) : juce::AudioProcessorEditor(p), proc(p), plate(p) {
     lookWhite.pointer = Colour(0xfff4f4f4);
     addAndMakeVisible(plate);
-    const char* tn[] = {"VOICE MOD", "MIXER", "REV 7 / EFFECTS"};
-    for (int i = 0; i < 3; ++i) { tabs[i].setButtonText(tn[i]); tabs[i].setLookAndFeel(&look); tabs[i].setClickingTogglesState(false); tabs[i].onClick = [this, i] { showTab(i); }; addAndMakeVisible(tabs[i]); }
-    // design units for the panels: x 0..2000, y 0..MH under the plate; boxes are 300 wide
+    const char* tn[NT] = {"VOICE MOD", "MIXER", "PAD EQ / ADSR", "REV 7 / TC DELAY", "MASTER"};
+    for (int i = 0; i < NT; ++i) { tabs[i].setButtonText(tn[i]); tabs[i].setLookAndFeel(&look); tabs[i].onClick = [this, i] { showTab(i); }; addAndMakeVisible(tabs[i]); }
+    // presets and the dice
+    for (auto* b : {&prevBtn, &nextBtn, &diceBtn}) { b->setLookAndFeel(&look); addAndMakeVisible(*b); }
+    prevBtn.onClick = [this] { proc.setCurrentProgram((proc.getCurrentProgram() + kPresets - 1) % kPresets); };
+    nextBtn.onClick = [this] { proc.setCurrentProgram((proc.getCurrentProgram() + 1) % kPresets); };
+    diceBtn.onClick = [this] { proc.dice(partBox.getSelectedItemIndex()); };
+    fillPresets();
+    presetBox.onChange = [this] { const int id = presetBox.getSelectedId(); if (id > 0 && id - 1 != proc.getCurrentProgram()) proc.setCurrentProgram(id - 1); };
+    const char* parts[] = {"Everything", "Voices + mods", "Pad EQ", "ADSR + drive", "Reverb + delay", "Master EQ + drive"};
+    for (int i = 0; i < 6; ++i) partBox.addItem(parts[i], i + 1);
+    partBox.setSelectedItemIndex(0, juce::dontSendNotification);
+    for (auto* c : {&presetBox, &partBox}) {
+        c->setColour(juce::ComboBox::backgroundColourId, Colour(0xff141a12)); c->setColour(juce::ComboBox::textColourId, Colour(0xff7cff8a));
+        c->setColour(juce::ComboBox::outlineColourId, juce::Colours::black); c->setColour(juce::ComboBox::arrowColourId, Colour(0xff7cff8a));
+        addAndMakeVisible(*c);
+    }
+    proc.onProgram = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<DR110Editor>(this)] { if (sp) sp->presetBox.setSelectedId(sp->proc.getCurrentProgram() + 1, juce::dontSendNotification); }); };
+
     auto R = [](int x, int y, int w, int h) { return Rectangle<int>(x, y, w, h); };
-    // ---- VOICE MOD (the boxed sections of the mod panel)
-    const int bw = 318, k = 118, top = 120;
+    // ---- VOICE MOD
+    const int bw = 318, k = 118, top = 70;
     const int bx[] = {20, 350, 680, 1010, 1340};
-    boxes.push_back({"Kick", 0, R(bx[0], 80, bw, 680)}); boxes.push_back({"Snare", 0, R(bx[1], 80, bw, 680)}); boxes.push_back({"HiHat", 0, R(bx[2], 80, bw, 680)});
-    boxes.push_back({"Cymbal", 0, R(bx[3], 80, bw, 250)}); boxes.push_back({"TRIG SWEEP (EXT / ACCENT)", 0, R(bx[3], 345, bw, 415)}); boxes.push_back({"Clap", 0, R(bx[4], 80, bw, 680)});
+    for (int i : {0, 1, 2, 4}) boxes.push_back({i == 0 ? "Kick" : i == 1 ? "Snare" : i == 2 ? "HiHat" : "Clap", 0, R(bx[i], 30, bw, 680)});
+    boxes.push_back({"Cymbal", 0, R(bx[3], 30, bw, 250)}); boxes.push_back({"TRIG SWEEP (EXT / ACCENT)", 0, R(bx[3], 295, bw, 415)});
     auto col = [&](int b, int row) { return R(bx[b] + 20, top + row * 140, bw - 40, k); };
-    addKnob(0, "BDtune", "PITCH", col(0, 0), true); addKnob(0, "bdSnap", "SNAP", col(0, 1), true); addKnob(0, "BDdec", "DECAY", col(0, 2), true);
-    addTog(0, "bdBoost", "DECAY BOOST", R(bx[0] + 40, top + 430, bw - 80, 50)); addTog(0, "bdBass", "BASS BOOST", R(bx[0] + 40, top + 495, bw - 80, 50));
+    auto half = [&](int b, int row, int side) { return R(bx[b] + 10 + side * 153, top + row * 140, 145, k); };
+    addKnob(0, "BDtune", "PITCH", half(0, 0, 0), true); addKnob(0, "bdSnap", "SNAP", half(0, 0, 1), true);
+    addKnob(0, "BDdec", "DECAY", half(0, 1, 0), true); addKnob(0, "bdExtend", "BASS EXTEND", half(0, 1, 1), true);
+    addTog(0, "bdBoost", "DECAY BOOST", R(bx[0] + 40, top + 290, bw - 80, 50)); addTog(0, "bdBass", "BASS BOOST", R(bx[0] + 40, top + 355, bw - 80, 50));
+    addTog(0, "bdEnv", "ENV SHAPE", R(bx[0] + 40, top + 420, bw - 80, 50));
     addKnob(0, "SDtune", "PITCH", col(1, 0), true); addKnob(0, "sdSnap", "SNAP", col(1, 1), true); addKnob(0, "SDdec", "DECAY", col(1, 2), true);
     addTog(0, "sdBoost", "DECAY BOOST", R(bx[1] + 40, top + 430, bw - 80, 50)); addKnob(0, "sdMix", "MIX", R(bx[1] + 20, top + 495, bw - 40, k), true);
-    addKnob(0, "CHtune", "PITCH (CH)", R(bx[2] + 10, top, 145, k), true); addKnob(0, "OHtune", "PITCH (OH)", R(bx[2] + 163, top, 145, k), true);
-    addKnob(0, "hhFilter", "FILTER", col(2, 1), true); addKnob(0, "CHdec", "CH DECAY", R(bx[2] + 10, top + 280, 145, k), true); addKnob(0, "OHdec", "OH DECAY", R(bx[2] + 163, top + 280, 145, k), true);
+    addKnob(0, "CHtune", "PITCH (CH)", half(2, 0, 0), true); addKnob(0, "OHtune", "PITCH (OH)", half(2, 0, 1), true);
+    addKnob(0, "hhFilter", "FILTER", col(2, 1), true); addKnob(0, "CHdec", "CH DECAY", half(2, 2, 0), true); addKnob(0, "OHdec", "OH DECAY", half(2, 2, 1), true);
     addKnob(0, "hhMix", "MIX", R(bx[2] + 20, top + 495, bw - 40, k), true);
-    addKnob(0, "cyFilter", "FILTER", R(bx[3] + 10, top, 145, k), true); addKnob(0, "CYdec", "DECAY", R(bx[3] + 163, top, 145, k), true);
-    addTog(0, "swTarget", "BD PITCH / CH DECAY", R(bx[3] + 30, 400, bw - 60, 50));
-    addKnob(0, "swDecay", "DECAY", R(bx[3] + 10, 475, 145, k), true); addKnob(0, "swAmount", "AMOUNT", R(bx[3] + 163, 475, 145, k), true);
+    addKnob(0, "cyFilter", "FILTER", half(3, 0, 0), true); addKnob(0, "CYdec", "DECAY", half(3, 0, 1), true);
+    addTog(0, "swTarget", "BD PITCH / CH DECAY", R(bx[3] + 30, 350, bw - 60, 50));
+    addKnob(0, "swDecay", "DECAY", R(bx[3] + 10, 425, 145, k), true); addKnob(0, "swAmount", "AMOUNT", R(bx[3] + 163, 425, 145, k), true);
     sweepBtn.setLookAndFeel(&look); sweepBtn.onClick = [this] { proc.sweepNow(); }; addAndMakeVisible(sweepBtn);
     addKnob(0, "HCtune", "PITCH", col(4, 0), true); addKnob(0, "hcFilter", "FILTER", col(4, 1), true); addKnob(0, "HCdec", "DECAY", col(4, 2), true);
     addTog(0, "hcBoost", "DECAY BOOST", R(bx[4] + 40, top + 430, bw - 80, 50));
-    boxes.push_back({"POWER / KNUCKLE", 0, R(1670, 80, 310, 680)});
+    boxes.push_back({"POWER / KNUCKLE", 0, R(1670, 30, 310, 680)});
     addTog(0, "supply", "BATTERIES 5.4 V", R(1700, top, 250, 50)); addTog(0, "src", "RECORDINGS", R(1700, top + 65, 250, 50));
     addKnob(0, "KNtune", "KNUCKLE PITCH", R(1690, top + 140, 270, k), true); addKnob(0, "KNdec", "KNUCKLE DECAY", R(1690, top + 280, 270, k), true);
     addKnob(0, "accVel", "ACCENT VELOCITY", R(1690, top + 420, 270, k), true);
-    // ---- MIXER: a strip per voice
+    // ---- MIXER
     for (int v = 0; v < NV; ++v) {
         const int x = 20 + v * 283;
-        boxes.push_back({VOICE_NAMES[v], 1, R(x, 80, 270, 680)});
+        boxes.push_back({VOICE_NAMES[v], 1, R(x, 30, 270, 680)});
         const juce::String id(VOICES[v]);
-        addKnob(1, id + "lv", "LEVEL", R(x + 10, 125, 250, 130), false);
-        addKnob(1, id + "pan", "PAN", R(x + 10, 265, 120, 110), false); addKnob(1, id + "snd", "REV SEND", R(x + 140, 265, 120, 110), false);
-        addKnob(1, id + "tune", "TUNE", R(x + 10, 390, 120, 110), false); addKnob(1, id + "dec", "DECAY", R(x + 140, 390, 120, 110), false);
-        addTog(1, id + "mute", "MUTE", R(x + 40, 560, 190, 60));
+        addKnob(1, id + "lv", "LEVEL", R(x + 10, 75, 250, 130), false);
+        addKnob(1, id + "pan", "PAN", R(x + 10, 230, 120, 110), false); addKnob(1, id + "snd", "REV SEND", R(x + 140, 230, 120, 110), false);
+        addKnob(1, id + "tune", "TUNE", R(x + 10, 370, 120, 110), false); addKnob(1, id + "dec", "DECAY", R(x + 140, 370, 120, 110), false);
+        addKnob(1, id + "dls", "DELAY SEND", R(x + 75, 505, 120, 110), false);
+        addTog(1, id + "mute", "MUTE", R(x + 40, 640, 190, 50));
     }
-    // ---- REV 7 and the machine's own knobs
-    boxes.push_back({"REV 7 DIGITAL REVERBERATOR", 2, R(20, 80, 1420, 680)});
-    addKnob(2, "rvProg", "PROGRAM", R(50, 140, 220, 200), false); addKnob(2, "rvTime", "REV TIME", R(290, 140, 220, 200), false);
-    addKnob(2, "rvHigh", "HIGH", R(530, 140, 220, 200), false); addKnob(2, "rvDelay", "DELAY", R(770, 140, 220, 200), false);
-    addKnob(2, "rvDiff", "DIFFUSION", R(1010, 140, 220, 200), false); addKnob(2, "rvEr", "ER LEVEL", R(290, 400, 220, 200), false);
-    addKnob(2, "rvCut", "HIGH CUT", R(530, 400, 220, 200), false); addKnob(2, "rvLevel", "RETURN", R(770, 400, 220, 200), false);
-    boxes.push_back({"MASTER", 2, R(1460, 80, 520, 680)});
-    addKnob(2, "balance", "BALANCE", R(1480, 140, 230, 200), false); addKnob(2, "accent", "ACCENT", R(1730, 140, 230, 200), false);
-    addKnob(2, "volume", "VOLUME", R(1605, 400, 230, 200), false);
+    // ---- PAD EQ / ADSR: the pad picked here
+    for (int v = 0; v < NV; ++v) { padBtn[v].setButtonText(juce::String(VOICE_NAMES[v]).toUpperCase()); padBtn[v].setLookAndFeel(&look); padBtn[v].onClick = [this, v] { selectPad(v); }; addAndMakeVisible(padBtn[v]); }
+    boxes.push_back({"PARAMETRIC EQ", 2, R(20, 100, 1080, 610)}); boxes.push_back({"ADSR / DRIVE / DELAY SEND", 2, R(1120, 100, 860, 610)});
+    const char* eqs[][2] = {{"lsF", "LOW FREQ"}, {"lsG", "LOW GAIN"}, {"pkF", "MID FREQ"}, {"pkG", "MID GAIN"}, {"pkQ", "MID Q"}, {"hsF", "HIGH FREQ"}, {"hsG", "HIGH GAIN"}};
+    for (int i = 0; i < 7; ++i) addKnob(2, "", eqs[i][1], R(40 + i * 150, 480, 140, 150), false, eqs[i][0]);
+    const char* envs[][2] = {{"atk", "ATTACK"}, {"dcy", "DECAY"}, {"sus", "SUSTAIN"}, {"rel", "RELEASE"}, {"drv", "DRIVE"}, {"dls", "DELAY SEND"}};
+    for (int i = 0; i < 6; ++i) addKnob(2, "", envs[i][1], R(1135 + i * 140, 480, 130, 150), false, envs[i][0]);
+    // ---- REV 7 / TC DELAY
+    boxes.push_back({"REV 7 DIGITAL REVERBERATOR", 3, R(20, 30, 1000, 680)});
+    const char* rv[][2] = {{"rvProg", "PROGRAM"}, {"rvTime", "REV TIME"}, {"rvHigh", "HIGH"}, {"rvDelay", "DELAY"}, {"rvDiff", "DIFFUSION"}, {"rvEr", "ER LEVEL"}, {"rvCut", "HIGH CUT"}, {"rvLevel", "RETURN"}};
+    for (int i = 0; i < 8; ++i) addKnob(3, rv[i][0], rv[i][1], R(40 + (i % 4) * 240, 100 + (i / 4) * 300, 220, 200), false);
+    boxes.push_back({"TC 2290-STYLE DYNAMIC DELAY", 3, R(1040, 30, 940, 680)});
+    const char* dl[][2] = {{"dlTime", "TIME"}, {"dlSync", "SYNC"}, {"dlFb", "FEEDBACK"}, {"dlHiCut", "HIGH CUT"}, {"dlLoCut", "LOW CUT"}, {"dlModRate", "MOD RATE"},
+        {"dlModDepth", "MOD DEPTH"}, {"dlDuck", "DUCKING"}, {"dlLevel", "RETURN"}};
+    for (int i = 0; i < 9; ++i) addKnob(3, dl[i][0], dl[i][1], R(1060 + (i % 3) * 300, 85 + (i / 3) * 195, 280, 140), false);
+    addTog(3, "dlPing", "PING-PONG", R(1360, 650, 300, 50));
+    // ---- MASTER
+    boxes.push_back({"MASTER PARAMETRIC EQ", 4, R(20, 30, 1200, 680)});
+    const char* meq[][2] = {{"mLsF", "LOW FREQ"}, {"mLsG", "LOW GAIN"}, {"mP1F", "MID 1 FREQ"}, {"mP1G", "MID 1 GAIN"}, {"mP1Q", "MID 1 Q"},
+        {"mP2F", "MID 2 FREQ"}, {"mP2G", "MID 2 GAIN"}, {"mP2Q", "MID 2 Q"}, {"mHsF", "HIGH FREQ"}, {"mHsG", "HIGH GAIN"}};
+    for (int i = 0; i < 10; ++i) addKnob(4, meq[i][0], meq[i][1], R(40 + (i % 5) * 235, 330 + (i / 5) * 190, 220, 140), false);
+    boxes.push_back({"OVERDRIVE / CLIPPER", 4, R(1240, 30, 740, 330)});
+    const char* odk[][2] = {{"odDrive", "DRIVE"}, {"odMode", "MODE"}, {"odMix", "MIX"}, {"odOut", "OUTPUT"}};
+    for (int i = 0; i < 4; ++i) addKnob(4, odk[i][0], odk[i][1], R(1255 + i * 180, 90, 170, 200), false);
+    boxes.push_back({"MACHINE", 4, R(1240, 380, 740, 330)});
+    const char* mk[][2] = {{"balance", "BALANCE"}, {"accent", "ACCENT"}, {"volume", "VOLUME"}};
+    for (int i = 0; i < 3; ++i) addKnob(4, mk[i][0], mk[i][1], R(1270 + i * 235, 440, 220, 200), false);
+    selectPad(0);
     showTab(0);
     setResizable(true, true);
     getConstrainer()->setFixedAspectRatio((double) W / (PH + MH));
     setResizeLimits(700, (int) (700.0 * (PH + MH) / W), 2400, (int) (2400.0 * (PH + MH) / W));
     setSize(1100, (int) (1100.0 * (PH + MH) / W));
+    startTimerHz(15);
 }
 DR110Editor::~DR110Editor() {
+    stopTimer();
+    proc.onProgram = nullptr;
     for (auto& t : tabs) t.setLookAndFeel(nullptr);
-    sweepBtn.setLookAndFeel(nullptr);
-    for (auto& k : knobs) k.s->setLookAndFeel(nullptr);
+    for (auto& b : padBtn) b.setLookAndFeel(nullptr);
+    for (auto* b : {&sweepBtn, &prevBtn, &nextBtn, &diceBtn}) b->setLookAndFeel(nullptr);
+    for (auto& k : knobs) { k.a.reset(); k.s->setLookAndFeel(nullptr); }
     for (auto& t : togs) t.b->setLookAndFeel(nullptr);
 }
-void DR110Editor::addKnob(int t, const juce::String& id, const juce::String& label, Rectangle<int> r, bool white) {
+void DR110Editor::fillPresets() {
+    presetBox.clear(juce::dontSendNotification);
+    juce::String fam;
+    for (int i = 0; i < kPresets; ++i) {
+        const juce::String name(juce::CharPointer_UTF8(PRESETS[i].name));
+        const juce::String f = name.upToFirstOccurrenceOf(juce::String::fromUTF8(" \xc2\xb7 "), false, false);
+        if (f != fam) { fam = f; presetBox.addSectionHeading(fam); }
+        presetBox.addItem(juce::String(i + 1).paddedLeft('0', 3) + " " + name.fromFirstOccurrenceOf(juce::String::fromUTF8(" \xc2\xb7 "), false, false), i + 1);
+    }
+    presetBox.setSelectedId(proc.getCurrentProgram() + 1, juce::dontSendNotification);
+}
+DR110Editor::Knob& DR110Editor::addKnob(int t, const juce::String& id, const juce::String& label, Rectangle<int> r, bool white, const juce::String& suffix) {
     Knob k; k.s = std::make_unique<juce::Slider>(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
     k.s->setLookAndFeel(white ? &lookWhite : &look);
     k.s->setColour(juce::Slider::textBoxTextColourId, TXT); k.s->setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     k.s->setRotaryParameters(juce::degreesToRadians(-135.0f) + juce::MathConstants<float>::twoPi, juce::degreesToRadians(135.0f) + juce::MathConstants<float>::twoPi, true);
-    k.s->setNumDecimalPlacesToDisplay(2);
-    k.a = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id, *k.s);
-    // read-outs: semitones, decay as a factor, seconds, ms, Hz, or two decimals
-    if (id == "rvProg") k.s->textFromValueFunction = [](double v) { return juce::String(RV_PROGS[juce::jlimit(0, 4, (int) std::round(v))]); };
-    else if (id.endsWith("tune")) k.s->textFromValueFunction = [](double v) { return (v > 0 ? "+" : "") + juce::String(v, 1) + " st"; };
-    else if (id.endsWith("dec")) k.s->textFromValueFunction = [](double v) { return juce::String::fromUTF8("\xc3\x97") + juce::String(v, 2); };
-    else if (id == "rvTime") k.s->textFromValueFunction = [](double v) { return juce::String(v, 1) + " s"; };
-    else if (id == "rvDelay") k.s->textFromValueFunction = [](double v) { return juce::String((int) std::round(v)) + " ms"; };
-    else if (id == "rvCut") k.s->textFromValueFunction = [](double v) { return juce::String(v / 1000.0, 1) + " kHz"; };
-    else if (id == "accVel" || id == "rvDiff") k.s->textFromValueFunction = [](double v) { return juce::String((int) std::round(v)); };
-    else if (id.endsWith("pan")) k.s->textFromValueFunction = [](double v) { return std::abs(v) < 0.005 ? juce::String("C") : (v < 0 ? "L" : "R") + juce::String((int) std::round(std::abs(v) * 100)); };
-    else k.s->textFromValueFunction = [](double v) { return juce::String(v, 2); };
+    if (suffix.isEmpty()) k.a = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id, *k.s);
+    const juce::String f = suffix.isNotEmpty() ? suffix : id;
+    auto hz = [](double v) { return v >= 1000 ? juce::String(v / 1000.0, v >= 10000 ? 1 : 2) + " kHz" : juce::String((int) std::round(v)) + " Hz"; };
+    auto secs = [](double v) { return v >= 1 ? juce::String(v, 2) + " s" : juce::String((int) std::round(v * 1000)) + " ms"; };
+    auto pct = [](double v) { return juce::String((int) std::round(v * 100)) + "%"; };
+    auto dB = [](double v) { return (v > 0 ? "+" : "") + juce::String(v, 1) + " dB"; };
+    auto ends = [&](const char* e) { return f.endsWith(e); };
+    std::function<juce::String(double)> fn = [](double v) { return juce::String(v, 2); };
+    if (f == "rvProg") fn = [](double v) { return juce::String(RV_PROGS[juce::jlimit(0, 4, (int) std::round(v))]); };
+    else if (f == "odMode") fn = [](double v) { return juce::String(OD_MODES[juce::jlimit(0, 2, (int) std::round(v))]); };
+    else if (f == "dlSync") fn = [](double v) { return juce::String(DL_DIV_NAMES[juce::jlimit(0, 13, (int) std::round(v))]); };
+    else if (ends("tune")) fn = [](double v) { return (v > 0 ? "+" : "") + juce::String(v, 1) + " st"; };
+    else if (ends("dec")) fn = [](double v) { return juce::String::fromUTF8("\xc3\x97") + juce::String(v, 2); };
+    else if (f == "rvTime") fn = [](double v) { return juce::String(v, 1) + " s"; };
+    else if (f == "rvDelay" || f == "dlTime") fn = [](double v) { return juce::String((int) std::round(v)) + " ms"; };
+    else if (ends("F") || ends("Cut")) fn = hz;
+    else if (ends("G") || f == "odOut") fn = dB;
+    else if (f == "dlModRate") fn = [](double v) { return juce::String(v, 2) + " Hz"; };
+    else if (ends("atk") || ends("dcy")) fn = secs;
+    else if (ends("rel")) fn = [secs](double v) { return v >= 3.999 ? juce::String("HOLD") : secs(v); };
+    else if (f == "sus" || ends("drv") || ends("dls") || ends("snd") || ends("sus") || f == "dlFb" || f == "dlModDepth" || f == "dlDuck" || f == "dlLevel" || f == "odDrive" || f == "odMix" || f == "bdExtend") fn = pct;
+    else if (f == "accVel" || f == "rvDiff") fn = [](double v) { return juce::String((int) std::round(v)); };
+    else if (ends("pan")) fn = [](double v) { return std::abs(v) < 0.005 ? juce::String("C") : (v < 0 ? "L" : "R") + juce::String((int) std::round(std::abs(v) * 100)); };
+    k.s->textFromValueFunction = fn; k.fmt = fn;
     k.s->updateText();
-    k.label = label; k.tab = t; k.r = r;
+    k.label = label; k.suffix = suffix; k.tab = t; k.r = r.translated(0, TOP);
     addAndMakeVisible(*k.s);
     knobs.push_back(std::move(k));
+    return knobs.back();
 }
-void DR110Editor::addTog(int t, const juce::String& id, const juce::String& label, Rectangle<int> r) {
+void DR110Editor::addTog(int t, const juce::String& id, const juce::String& label, Rectangle<int> r, const juce::String& suffix) {
     Tog g; g.b = std::make_unique<juce::TextButton>(label); g.b->setClickingTogglesState(true); g.b->setLookAndFeel(&look);
     g.a = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.apvts, id, *g.b);
-    g.tab = t; g.r = r; addAndMakeVisible(*g.b); togs.push_back(std::move(g));
+    g.tab = t; g.r = r.translated(0, TOP); g.suffix = suffix; addAndMakeVisible(*g.b); togs.push_back(std::move(g));
+}
+void DR110Editor::selectPad(int v) {
+    pad = v;
+    for (int i = 0; i < NV; ++i) padBtn[i].setToggleState(i == v, juce::dontSendNotification);
+    for (auto& k : knobs) if (k.suffix.isNotEmpty()) {
+        k.a.reset();
+        k.a = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, juce::String(VOICES[v]) + k.suffix, *k.s);
+        k.s->textFromValueFunction = k.fmt;          // the attachment brings the parameter's own text: put ours back
+        k.s->updateText();
+    }
+    repaint();
 }
 void DR110Editor::showTab(int t) {
     tab = t;
-    for (int i = 0; i < 3; ++i) tabs[i].setToggleState(i == t, juce::dontSendNotification);
+    for (int i = 0; i < NT; ++i) tabs[i].setToggleState(i == t, juce::dontSendNotification);
     for (auto& k : knobs) k.s->setVisible(k.tab == t);
     for (auto& g : togs) g.b->setVisible(g.tab == t);
+    for (auto& b : padBtn) b.setVisible(t == 2);
     sweepBtn.setVisible(t == 0);
     repaint();
+}
+// the curves follow the knobs (and presets / the dice)
+void DR110Editor::timerCallback() {
+    if (tab != 2 && tab != 4) return;
+    juce::uint32 h = 7;
+    for (int i = 0; i < NP; ++i) h = h * 31 + (juce::uint32) (proc.value(i) * 1000);
+    if (h != lastParamsHash) { lastParamsHash = h; repaint(); }
 }
 void DR110Editor::paint(Graphics& g) {
     const float s = (float) getWidth() / (float) W;
@@ -411,11 +532,21 @@ void DR110Editor::paint(Graphics& g) {
     g.addTransform(juce::AffineTransform::scale(s).translated(0, (float) plate.getBottom()));
     g.setGradientFill(juce::ColourGradient(Colour(0xffe9e9ec), 0, 0, Colour(0xffd7d7da), 0, (float) MH, false));
     g.fillRect(0, 0, W, MH);
+    g.setColour(Colour(0xff1d1d1f)); g.fillRoundedRectangle(14, 80, W - 28, 58, 10);
     for (const auto& b : boxes) if (b.tab == tab) {
-        g.setColour(Colour(0xff2a2a2a)); g.drawRoundedRectangle(b.r.toFloat(), 14, 3);
-        txt(g, (float) b.r.getCentreX(), (float) b.r.getY() + 34, b.title, b.title.length() > 12 ? 22.0f : 34.0f, TXT, 0, std::min((float) b.r.getWidth() - 20, (float) b.title.length() * (b.title.length() > 12 ? 13.0f : 22.0f)));
+        const auto r = b.r.translated(0, TOP).toFloat();
+        g.setColour(Colour(0xff2a2a2a)); g.drawRoundedRectangle(r, 14, 3);
+        txt(g, r.getCentreX(), r.getY() + 34, b.title, b.title.length() > 12 ? 22.0f : 34.0f, TXT, 0, std::min(r.getWidth() - 20, (float) b.title.length() * (b.title.length() > 12 ? 13.0f : 22.0f)));
     }
     for (const auto& k : knobs) if (k.tab == tab) txt(g, (float) k.r.getCentreX(), (float) k.r.getBottom() + 18, k.label, 17, TXT, 0, std::min((float) k.r.getWidth(), (float) k.label.length() * 10.5f));
+    static const std::map<juce::String, int> index = [] { std::map<juce::String, int> m; const auto ps = params(); for (int i = 0; i < NP; ++i) m[juce::String(ps[(size_t) i].id)] = i; return m; }();
+    auto v = [this](const juce::String& id) { const auto it = index.find(id); return it == index.end() ? 0.0 : proc.value(it->second); };
+    if (tab == 2) {
+        const juce::String P(VOICES[pad]);
+        drawEq(g, Rectangle<float>(40, TOP + 150, 1040, 300), {{0, v(P + "lsF"), v(P + "lsG"), 0.707}, {1, v(P + "pkF"), v(P + "pkG"), v(P + "pkQ")}, {2, v(P + "hsF"), v(P + "hsG"), 0.707}});
+        drawAdsr(g, Rectangle<float>(1140, TOP + 150, 820, 300), v(P + "atk"), v(P + "dcy"), v(P + "sus"), v(P + "rel"));
+    } else if (tab == 4)
+        drawEq(g, Rectangle<float>(40, TOP + 80, 1160, 220), {{0, v("mLsF"), v("mLsG"), 0.707}, {1, v("mP1F"), v("mP1G"), v("mP1Q")}, {1, v("mP2F"), v("mP2G"), v("mP2Q")}, {2, v("mHsF"), v("mHsG"), 0.707}});
     g.restoreState();
 }
 void DR110Editor::resized() {
@@ -423,10 +554,13 @@ void DR110Editor::resized() {
     plate.setBounds(0, 0, getWidth(), (int) std::round(PH * s));
     const int y0 = plate.getBottom();
     auto sc = [&](Rectangle<int> r) { return Rectangle<int>((int) std::round(r.getX() * s), y0 + (int) std::round(r.getY() * s), (int) std::round(r.getWidth() * s), (int) std::round(r.getHeight() * s)); };
-    for (int i = 0; i < 3; ++i) tabs[i].setBounds(sc({20 + i * 330, 12, 320, 56}));
+    for (int i = 0; i < NT; ++i) tabs[i].setBounds(sc({20 + i * 392, 12, 382, 56}));
+    prevBtn.setBounds(sc({24, 86, 70, 46})); presetBox.setBounds(sc({100, 86, 900, 46})); nextBtn.setBounds(sc({1006, 86, 70, 46}));
+    diceBtn.setBounds(sc({1110, 86, 200, 46})); partBox.setBounds(sc({1320, 86, 330, 46}));
+    for (int v = 0; v < NV; ++v) padBtn[v].setBounds(sc({20 + v * 283, TOP + 30, 270, 56}));
     for (auto& k : knobs) { k.s->setBounds(sc(k.r)); k.s->setTextBoxStyle(juce::Slider::TextBoxBelow, false, (int) (k.r.getWidth() * s), std::max(12, (int) (24 * s))); }
     for (auto& g : togs) g.b->setBounds(sc(g.r));
-    sweepBtn.setBounds(sc({1010 + 90, 690, 140, 50}));
+    sweepBtn.setBounds(sc({1010 + 90, TOP + 640, 140, 50}));
 }
 
 } // namespace dr110

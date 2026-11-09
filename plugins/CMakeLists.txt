@@ -151,7 +151,7 @@ if(NOT OMEGA_ONLY OR "DR110" IN_LIST OMEGA_ONLY)
     ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/cy.wav ${CMAKE_CURRENT_SOURCE_DIR}/../dr110/samples/hc.wav)
   set_target_properties(DR110Samples PROPERTIES POSITION_INDEPENDENT_CODE ON)
   juce_add_plugin(OmegaDR110
-    PRODUCT_NAME "Omega DR-110"
+    PRODUCT_NAME "Omega 110"
     COMPANY_NAME "The Omega System"
     BUNDLE_ID "com.thesnakedevice.omega.DR110"
     PLUGIN_MANUFACTURER_CODE Omga
@@ -176,7 +176,7 @@ add_executable(dr110_test dr110/test.cpp)
 if(TARGET OmegaDR110)
   juce_add_console_app(dr110_ui_test PRODUCT_NAME "dr110_ui_test")
   target_sources(dr110_ui_test PRIVATE dr110/uitest.cpp dr110/DR110Plugin.cpp dr110/DR110Editor.cpp)
-  target_compile_definitions(dr110_ui_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega DR-110" JucePlugin_Build_Standalone=0)
+  target_compile_definitions(dr110_ui_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega 110" JucePlugin_Build_Standalone=0)
   target_link_libraries(dr110_ui_test PRIVATE DR110Samples juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(dr110_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()

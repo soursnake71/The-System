@@ -38,10 +38,10 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Omega DR-110 with the web app bundled inside (assets/dr110), so it works offline and needs no website.
+/** Omega 110 with the web app bundled inside (assets/dr110), so it works offline and needs no website.
  *  Android's WebView has no Web MIDI or file downloads, so this activity supplies them natively:
  *  - AndroidMidi: USB / Bluetooth MIDI devices through android.media.midi, shaped like Web MIDI by io.js,
- *  - AndroidDR110.save: exports (backups, MIDI files, WAVs) go to Downloads/Omega DR-110. */
+ *  - AndroidDR110.save: exports (backups, MIDI files, WAVs) go to Downloads/Omega 110. */
 public class DR110Activity extends Activity {
   static final String HOME = "https://appassets.androidplatform.net/assets/dr110/index.html";
   static final int PICK = 7;
@@ -120,12 +120,12 @@ public class DR110Activity extends Activity {
           ContentValues v = new ContentValues();
           v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
           v.put(MediaStore.Downloads.MIME_TYPE, mime);
-          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Omega DR-110");
+          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Omega 110");
           Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
           try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
-          return "Download/Omega DR-110/" + safe;
+          return "Download/Omega 110/" + safe;
         }
-        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Omega DR-110");
+        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Omega 110");
         dir.mkdirs();
         File f = new File(dir, safe);
         try (FileOutputStream o = new FileOutputStream(f)) { o.write(data); }

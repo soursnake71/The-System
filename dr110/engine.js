@@ -1,4 +1,4 @@
-/* Omega DR-110: a circuit model of the Boss DR-110 rhythm machine (1983), plus a mixer, an effects mixer and a
+/* Omega 110: a circuit model of the Boss DR-110 rhythm machine (1983), plus a mixer, an effects mixer and a
    REV7-style digital reverb. This file is the whole sound engine: the app runs it in an AudioWorklet and the
    plugin runs a line-for-line C++ port (plugins/dr110/DR110.h). dr110/tools/compare.mjs checks they render the same.
 
@@ -20,8 +20,8 @@
 const NV = 7;                                    // voices: BD SD OH CH CY HC KN (the order of the buttons)
 const VOICES = ['BD', 'SD', 'OH', 'CH', 'CY', 'HC', 'KN'];
 const VOICE_NAMES = ['Bass Drum', 'Snare Drum', 'Open Hihat', 'Closed Hihat', 'Cymbal', 'Hand Clap', 'Knuckle'];
-const GROUP = [0, 0, 1, 1, 1, 0, 0];             
-const OUTS = [0, 1, 3, 3, 3, 2, 2];              // separate outputs (the rear panel): BD, SD, CP (clap, knuckle), HH/CY             // 0 = drums, 1 = metal (the BALANCE knob)
+const GROUP = [0, 0, 1, 1, 1, 0, 0];             // 0 = drums, 1 = metal (the BALANCE knob)
+const OUTS = [0, 1, 3, 3, 3, 2, 2];              // separate outputs (the rear panel): BD, SD, CP (clap, knuckle), HH/CY
 const VGAIN = [2.07, 0.2, 0.81, 1.05, 1.15, 0.26, 0.053];  // voice levels relative to each other (as the DR-110 mix)
 const METAL = [163.25, 230.5, 263.0, 299.25, 371.5, 378.0];
 const RV_PROGS = ['HALL', 'ROOM', 'VOCAL', 'PLATE', 'EARLY REF'];
@@ -60,6 +60,36 @@ PARAMS.push(
   ['hcFilter', 'Clap Filter', 0, 1, 0.5], ['hcBoost', 'Clap Decay Boost', 0, 1, 0],
   ['swTarget', 'Trig Sweep Target', 0, 1, 0], ['swDecay', 'Trig Sweep Decay', 0, 1, 0.3], ['swAmount', 'Trig Sweep Amount', 0, 1, 0],
   ['supply', 'Supply', 0, 1, 0]);              // 0: 9 V adapter (regulated 6 V rail), 1: four AA cells (5.4 V)
+// Omega 110 additions. Defaults leave the sound exactly as above (every stage bypassed).
+PARAMS.push(
+  // the bass extender (808-style long ring) and the bass drum envelope switch (the Circuitbenders mod)
+  ['bdExtend', 'Bass Extender', 0, 1, 0], ['bdEnv', 'Kick Envelope Shape', 0, 1, 0],
+  // master parametric EQ: low shelf, two peaks, high shelf
+  ['mLsF', 'Master Low Freq', 20, 500, 80], ['mLsG', 'Master Low Gain', -15, 15, 0],
+  ['mP1F', 'Master Mid 1 Freq', 40, 8000, 250], ['mP1G', 'Master Mid 1 Gain', -15, 15, 0], ['mP1Q', 'Master Mid 1 Q', 0.3, 8, 1],
+  ['mP2F', 'Master Mid 2 Freq', 200, 16000, 2500], ['mP2G', 'Master Mid 2 Gain', -15, 15, 0], ['mP2Q', 'Master Mid 2 Q', 0.3, 8, 1],
+  ['mHsF', 'Master High Freq', 1000, 18000, 8000], ['mHsG', 'Master High Gain', -15, 15, 0],
+  // master overdrive / clipper: soft overdrive, hard clipper, asymmetric tube
+  ['odDrive', 'Overdrive', 0, 1, 0], ['odMode', 'Overdrive Mode', 0, 2, 0], ['odMix', 'Overdrive Mix', 0, 1, 1], ['odOut', 'Overdrive Output', -12, 12, 0],
+  // TC 2290-style dynamic delay
+  ['dlTime', 'Delay Time', 10, 2000, 375], ['dlSync', 'Delay Sync', 0, 13, 0], ['dlFb', 'Delay Feedback', 0, 0.95, 0.35],
+  ['dlHiCut', 'Delay High Cut', 1000, 20000, 6000], ['dlLoCut', 'Delay Low Cut', 20, 1000, 100],
+  ['dlModRate', 'Delay Mod Rate', 0.05, 5, 0.6], ['dlModDepth', 'Delay Mod Depth', 0, 1, 0.2], ['dlDuck', 'Delay Ducking', 0, 1, 0.4],
+  ['dlPing', 'Delay Ping-Pong', 0, 1, 1], ['dlLevel', 'Delay Return', 0, 1, 0.4]);
+const NG2 = PARAMS.length;                        // then 13 per pad: EQ (7), ADSR (4), drive, delay send
+for (let v = 0; v < NV; v++){
+  const n = VOICE_NAMES[v] + ' ', id = VOICES[v];
+  PARAMS.push([id + 'lsF', n + 'Low Freq', 20, 1000, 100], [id + 'lsG', n + 'Low Gain', -15, 15, 0],
+    [id + 'pkF', n + 'Mid Freq', 40, 16000, 1000], [id + 'pkG', n + 'Mid Gain', -15, 15, 0], [id + 'pkQ', n + 'Mid Q', 0.3, 10, 1],
+    [id + 'hsF', n + 'High Freq', 1000, 18000, 6000], [id + 'hsG', n + 'High Gain', -15, 15, 0],
+    [id + 'atk', n + 'Attack', 0, 1, 0], [id + 'dcy', n + 'Env Decay', 0.005, 4, 0.3], [id + 'sus', n + 'Sustain', 0, 1, 1], [id + 'rel', n + 'Release', 0.005, 4, 4],
+    [id + 'drv', n + 'Drive', 0, 1, 0], [id + 'dls', n + 'Delay Send', 0, 1, 0]);
+}
+const vq = (v, f) => NG2 + v * 13 + f;           // f: 0 lsF 1 lsG 2 pkF 3 pkG 4 pkQ 5 hsF 6 hsG 7 atk 8 dcy 9 sus 10 rel 11 drv 12 dls
+// delay sync divisions, in beats: off, 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/4T, 1/8D, 1/4, 1/2T, 1/4D, 1/2, 1/1
+const DL_DIVS = [0, 0.125, 1 / 6, 0.25, 1 / 3, 0.375, 0.5, 2 / 3, 0.75, 1, 4 / 3, 1.5, 2, 4];
+const DL_DIV_NAMES = ['OFF', '1/32', '1/16T', '1/16', '1/8T', '1/16.', '1/8', '1/4T', '1/8.', '1/4', '1/2T', '1/4.', '1/2', '1/1'];
+const OD_MODES = ['OVERDRIVE', 'HARD CLIP', 'TUBE'];
 const P = {}; PARAMS.forEach((q, i) => P[q[0]] = i);
 const NG = 13;                                   // number of global parameters (voice v, field f is NG + v * 6 + f)
 const vp = (v, f) => NG + v * 6 + f;
@@ -78,6 +108,26 @@ class SVF {
   }
 }
 const onePole = (f, sr) => 1 - Math.exp(-TAU * f / sr);
+// RBJ biquad (transposed direct form II): 0 low shelf, 1 peak, 2 high shelf. off when the gain is ~0 dB.
+class Biquad {
+  constructor(){ this.b0 = 1; this.b1 = 0; this.b2 = 0; this.a1 = 0; this.a2 = 0; this.z1 = 0; this.z2 = 0; this.on = false; }
+  set(type, f, gainDb, q, sr){
+    this.on = Math.abs(gainDb) >= 0.01;
+    if (!this.on){ this.z1 = 0; this.z2 = 0; return; }
+    const A = Math.pow(10, gainDb / 40), w = TAU * Math.min(f, sr * 0.45) / sr, cw = Math.cos(w), sw = Math.sin(w);
+    let b0, b1, b2, a0, a1, a2;
+    if (type === 1){ const al = sw / (2 * q); b0 = 1 + al * A; b1 = -2 * cw; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * cw; a2 = 1 - al / A; }
+    else {
+      const al = sw / 2 * Math.SQRT2, sa = 2 * Math.sqrt(A) * al;
+      if (type === 0){ b0 = A * ((A + 1) - (A - 1) * cw + sa); b1 = 2 * A * ((A - 1) - (A + 1) * cw); b2 = A * ((A + 1) - (A - 1) * cw - sa);
+        a0 = (A + 1) + (A - 1) * cw + sa; a1 = -2 * ((A - 1) + (A + 1) * cw); a2 = (A + 1) + (A - 1) * cw - sa; }
+      else { b0 = A * ((A + 1) + (A - 1) * cw + sa); b1 = -2 * A * ((A - 1) + (A + 1) * cw); b2 = A * ((A + 1) + (A - 1) * cw - sa);
+        a0 = (A + 1) - (A - 1) * cw + sa; a1 = 2 * ((A - 1) - (A + 1) * cw); a2 = (A + 1) - (A - 1) * cw - sa; }
+    }
+    this.b0 = b0 / a0; this.b1 = b1 / a0; this.b2 = b2 / a0; this.a1 = a1 / a0; this.a2 = a2 / a0;
+  }
+  tick(x){ if (!this.on) return x; const y = this.b0 * x + this.z1; this.z1 = this.b1 * x - this.a1 * y + this.z2; this.z2 = this.b2 * x - this.a2 * y; return y; }
+}
 const decayCoef = (tau, sr) => Math.exp(-1 / (tau * sr));
 // PolyBLEP square wave, +-1
 class Square {
@@ -116,6 +166,13 @@ class Engine {
     // KN
     this.kn1 = new SVF(); this.kn2 = new SVF(); this.knPulse = 0; this.knClickE = 0; this.knClick = new SVF();
     // output
+    // per pad: EQ (low shelf, peak, high shelf), ADSR, drive; master EQ (two channels x four bands); the delay
+    this.eq = []; for (let v = 0; v < NV; v++) this.eq.push([new Biquad(), new Biquad(), new Biquad()]);
+    this.env = new Float64Array(NV); this.stage = new Int32Array(NV); this.envOn = new Array(NV).fill(false);
+    this.envA = new Float64Array(NV); this.envD = new Float64Array(NV); this.envS = new Float64Array(NV); this.envR = new Float64Array(NV);
+    this.drv = new Float64Array(NV); this.dls = new Float64Array(NV);
+    this.meq = [[new Biquad(), new Biquad(), new Biquad(), new Biquad()], [new Biquad(), new Biquad(), new Biquad(), new Biquad()]];
+    this.dl = new TCDelay(sr);
     this.sw = 0; this.grp = new Float64Array(8); this.dcL = 0; this.dcR = 0; this.meter = new Float64Array(NV);
     this.rv = new Rev7(sr);
     this.update();
@@ -172,17 +229,39 @@ class Engine {
     this.kn2.set(1650 * this.tn[6], Math.PI * 1650 * this.tn[6] * 0.011 * this.dk[6], sr);
     this.knClick.set(3000 * this.tn[6], 0.9, sr); this.knClickD = decayCoef(0.0015, sr);
     this.sdToneD = decayCoef(0.009, sr); this.sdNoiseD = decayCoef(0.025 * this.sdDk, sr);
-    this.bdPitchD = decayCoef(BD_PTAU, sr);
-    this.bdQ = Math.PI * 50 * BD_TAU * this.bdDk * (this.bdBassK > 1 ? 1.15 : 1);
+    this.bdPitchD = decayCoef(BD_PTAU * (p[P.bdEnv] >= 0.5 ? 2.5 : 1), sr);
+    // bass extender: the bridged-T's Q raised toward an 808-style ring; decay is longest around the middle of the pitch
+    // range (as on the Circuitbenders mod), and fully up with long decay it nearly sings on its own
+    const tn0 = p[vp(0, 2)] / 12, ext = p[P.bdExtend];
+    this.bdExt = (1 + 17 * ext * ext) * (1 - 0.5 * tn0 * tn0); this.bdExtIn = Math.sqrt(this.bdExt);
+    this.bdQ = Math.PI * 50 * BD_TAU * this.bdDk * (this.bdBassK > 1 ? 1.15 : 1) * this.bdExt;
+    this.bdSweepK = p[P.bdEnv] >= 0.5 ? 0.6 : 1;
     this.bdOut.set(700, 0.707, sr);
     this.dcA = onePole(18, sr);
     this.rv.setParams(Math.round(p[P.rvProg]), p[P.rvTime], p[P.rvHigh], p[P.rvDelay], p[P.rvDiff], p[P.rvEr], p[P.rvCut]);
     this.rvLevel = p[P.rvLevel];
+    // per pad EQ, ADSR, drive, delay send
+    for (let v = 0; v < NV; v++){
+      const e = this.eq[v];
+      e[0].set(0, p[vq(v, 0)], p[vq(v, 1)], 0.707, sr); e[1].set(1, p[vq(v, 2)], p[vq(v, 3)], p[vq(v, 4)], sr); e[2].set(2, p[vq(v, 5)], p[vq(v, 6)], 0.707, sr);
+      const a = p[vq(v, 7)], d = p[vq(v, 8)], su = p[vq(v, 9)], r = p[vq(v, 10)];
+      this.envOn[v] = !(a <= 0 && su >= 0.999 && r >= 3.999);
+      this.envA[v] = a > 0 ? 1 / (a * sr) : 1; this.envD[v] = decayCoef(d / 3, sr); this.envS[v] = su; this.envR[v] = r >= 3.999 ? 1 : decayCoef(r / 3, sr);
+      this.drv[v] = p[vq(v, 11)];
+      this.dls[v] = p[vp(v, 4)] >= 0.5 ? 0 : p[vq(v, 12)] * p[vp(v, 0)] * (GROUP[v] === 0 ? (b > 0 ? 1 - b : 1) : (b < 0 ? 1 + b : 1));
+    }
+    const mf = [[0, P.mLsF, P.mLsG, -1], [1, P.mP1F, P.mP1G, P.mP1Q], [1, P.mP2F, P.mP2G, P.mP2Q], [2, P.mHsF, P.mHsG, -1]];
+    for (let c = 0; c < 2; c++) for (let k = 0; k < 4; k++){ const [ty, f, g, q] = mf[k]; this.meq[c][k].set(ty, p[f], p[g], q < 0 ? 0.707 : p[q], sr); }
+    this.od = p[P.odDrive]; this.odMode = Math.round(p[P.odMode]); this.odMix = p[P.odMix]; this.odOut = Math.pow(10, p[P.odOut] / 20);
+    const div = DL_DIVS[Math.max(0, Math.min(13, Math.round(p[P.dlSync])))];
+    this.dl.setParams(div > 0 ? 60 / p[P.tempo] * div * 1000 : p[P.dlTime], p[P.dlFb], p[P.dlHiCut], p[P.dlLoCut], p[P.dlModRate], p[P.dlModDepth], p[P.dlDuck], p[P.dlPing] >= 0.5);
+    this.dlLevel = p[P.dlLevel];
   }
   // a hit: voice 0..6, accented or not
   trigger(v, accent){
     const sr = this.sr;
     this.on[v] = 1; this.acc[v] = accent ? 1 : 0; this.t[v] = 0;
+    this.stage[v] = 0; if (this.envA[v] < 1) this.env[v] = 0; else { this.env[v] = 1; this.stage[v] = 1; }
     if (accent) this.sw = 1;                       // TRIG SWEEP: started by the accent trigger
     const s = this.p[P.src] >= 0.5 ? this.samples[v] : null;
     if (s){ this.sbuf[v] = accent && s.acc ? s.acc : s.d; this.sp[v] = 0; this.srate[v] = s.sr / sr * this.tn[v]; }
@@ -196,6 +275,16 @@ class Engine {
       case 5: this.hcBurst = 1; this.hcTail = 0; this.hcLong = 0; break;
       case 6: this.knPulse = Math.max(1, Math.round(0.0003 * sr)); this.knClickE = 1; break;
     }
+  }
+  // the end of a hit (note off, key up, the next step): the ADSR goes to its release
+  release(v){ if (v >= 0 && v < NV) this.stage[v] = 3; }
+  // master overdrive / clipper: 0 soft (tanh), 1 hard clip, 2 asymmetric tube; wet / dry mix and output level
+  overdrive(x){
+    const g = 1 + this.od * 20; let y;
+    if (this.odMode === 1) y = Math.max(-1, Math.min(1, x * g)) * 0.8;
+    else if (this.odMode === 2) y = (Math.tanh(x * g + 0.3) - Math.tanh(0.3)) * 0.85;
+    else y = Math.tanh(x * g) * 0.85;
+    return (x * (1 - this.odMix) + y * this.odMix) * this.odOut;
   }
   // the rear panel's SWEEP trigger (ACC starts it too)
   sweep(){ this.sw = 1; }
@@ -217,11 +306,11 @@ class Engine {
       // ---- BD: bridged-T struck by the trigger pulse; the pulse loads the network and pulls the pitch up
       let bd = 0;
       const swp = this.swBd ? 1 + this.swAmt * this.sw * 2 : 1; this.sw *= this.swD;
-      { const f = 50 * this.tn[0] * swp * (1 + BD_SWEEP * this.bdPitch);
-        this.bd.set(f, this.bdQ * (1 + BD_SWEEP * this.bdPitch), sr);
+      { const f = 50 * this.tn[0] * swp * (1 + BD_SWEEP * this.bdSweepK * this.bdPitch);
+        this.bd.set(f, this.bdQ * (1 + BD_SWEEP * this.bdSweepK * this.bdPitch), sr);
         const x = this.bdPulse > 0 ? Math.sin(Math.PI * this.bdPulse / this.bdPulseN) : 0; if (this.bdPulse > 0) this.bdPulse--;
         this.bdPitch *= this.bdPitchD;
-        bd = this.bd.tick(x * 0.9) * 2.2;
+        bd = this.bd.tick(x * 0.9 * this.bdExtIn) * 2.2;
         bd = this.bdOut.tick(bd) * this.bdBassK + x * this.bdClick * 0.35; }
       // ---- SD: bridged-T at 240 Hz plus high-passed noise
       let sd = 0;
@@ -264,24 +353,72 @@ class Engine {
         this.knClickE *= this.knClickD; }
       ins[0] = bd * VGAIN[0]; ins[1] = sd * VGAIN[1]; ins[2] = metal[0] * VGAIN[2]; ins[3] = metal[1] * VGAIN[3]; ins[4] = metal[2] * VGAIN[4]; ins[5] = hc * VGAIN[5]; ins[6] = kn * VGAIN[6];
       // ---- mixer
-      let l = 0, r = 0, snd = 0;
+      let l = 0, r = 0, snd = 0, dsnd = 0;
       const g = this.grp; g.fill(0);
       for (let v = 0; v < NV; v++){
         let y = src && this.sp[v] >= 0 ? this.playSample(v) : (src && this.samples[v] ? 0 : ins[v]);
         if (!this.on[v]) y = 0;
+        if (this.envOn[v]){
+          let e = this.env[v];
+          switch (this.stage[v]){
+            case 0: e += this.envA[v]; if (e >= 1){ e = 1; this.stage[v] = 1; } break;
+            case 1: e = this.envS[v] + (e - this.envS[v]) * this.envD[v]; break;
+            case 3: e *= this.envR[v]; break;
+          }
+          this.env[v] = e; y *= e;
+        }
         y = this.amp(v, y);
+        if (this.drv[v] > 0){ const d = this.drv[v]; y = Math.tanh(y * (1 + d * 15)) / (1 + d); }
+        const eq = this.eq[v]; y = eq[2].tick(eq[1].tick(eq[0].tick(y)));
         const ay = Math.abs(y); if (ay > this.meter[v]) this.meter[v] = ay;
-        l += y * this.gL[v]; r += y * this.gR[v]; snd += y * this.send[v];
+        l += y * this.gL[v]; r += y * this.gR[v]; snd += y * this.send[v]; dsnd += y * this.dls[v];
         g[OUTS[v] * 2] += y * this.gL[v]; g[OUTS[v] * 2 + 1] += y * this.gR[v];
         this.t[v]++;
       }
       const rv = this.rv.tick(snd);
       l += rv[0] * this.rvLevel; r += rv[1] * this.rvLevel;
+      const dl = this.dl.tick(dsnd);
+      l += dl[0] * this.dlLevel; r += dl[1] * this.dlLevel;
+      // master EQ, then the overdrive / clipper
+      for (let k = 0; k < 4; k++){ l = this.meq[0][k].tick(l); r = this.meq[1][k].tick(r); }
+      if (this.od > 0){ l = this.overdrive(l); r = this.overdrive(r); }
       l *= this.master; r *= this.master;
       this.dcL += this.dcA * (l - this.dcL); this.dcR += this.dcA * (r - this.dcR);
       L[off + s] = Math.tanh(l - this.dcL); R[off + s] = Math.tanh(r - this.dcR);
       if (outs) for (let k = 0; k < 8; k++) outs[k][off + s] = Math.tanh(g[k] * this.master);
     }
+  }
+}
+
+/* ---- TC 2290-style dynamic delay: stereo, modulated, filtered feedback, ping-pong, and ducking (the repeats duck
+   under the dry signal and swell up in the gaps, the 2290's "dynamic delay"). Time in ms or synced to the tempo. */
+class TCDelay {
+  constructor(sr){
+    this.sr = sr; this.n = Math.ceil(sr * 3) + 8; this.bL = new Float64Array(this.n); this.bR = new Float64Array(this.n); this.w = 0;
+    this.cur = -1; this.target = sr * 0.375; this.glide = onePole(3, sr); this.ph = 0; this.env = 0;
+    this.lpL = 0; this.lpR = 0; this.hpL = 0; this.hpR = 0; this.out = [0, 0];
+    this.envA = onePole(1 / (TAU * 0.005), sr); this.envR = onePole(1 / (TAU * 0.25), sr);
+    this.setParams(375, 0.35, 6000, 100, 0.6, 0.2, 0.4, true);
+  }
+  setParams(ms, fb, hiCut, loCut, rate, depth, duck, ping){
+    const sr = this.sr;
+    this.target = Math.max(4, Math.min(this.n - 8 - sr * 0.004, ms * sr / 1000)); if (this.cur < 0) this.cur = this.target;
+    this.fb = fb; this.lpA = onePole(hiCut, sr); this.hpA = onePole(loCut, sr); this.inc = rate / sr; this.depth = depth * 0.003 * sr; this.duck = duck; this.ping = ping;
+  }
+  read(b, d){ let pos = this.w - d; while (pos < 0) pos += this.n; const i = Math.floor(pos), fr = pos - i, j = i + 1 >= this.n ? 0 : i + 1; return b[i] + (b[j] - b[i]) * fr; }
+  tick(x){
+    const ax = Math.abs(x); this.env += (ax > this.env ? this.envA : this.envR) * (ax - this.env);
+    this.cur += (this.target - this.cur) * this.glide;
+    this.ph += this.inc; if (this.ph >= 1) this.ph -= 1;
+    const m = Math.sin(TAU * this.ph) * this.depth;
+    const yl = this.read(this.bL, this.cur + this.depth + m), yr = this.read(this.bR, this.cur + this.depth - m);
+    this.lpL += this.lpA * (yl - this.lpL); this.hpL += this.hpA * (this.lpL - this.hpL);
+    this.lpR += this.lpA * (yr - this.lpR); this.hpR += this.hpA * (this.lpR - this.hpR);
+    const fl = (this.lpL - this.hpL) * this.fb, fr = (this.lpR - this.hpR) * this.fb;
+    if (this.ping){ this.bL[this.w] = x + fr; this.bR[this.w] = fl; } else { this.bL[this.w] = x + fl; this.bR[this.w] = x + fr; }
+    this.w = this.w + 1 >= this.n ? 0 : this.w + 1;
+    const g = 1 / (1 + this.duck * this.env * 12);
+    this.out[0] = yl * g; this.out[1] = yr * g; return this.out;
   }
 }
 
@@ -369,7 +506,7 @@ class Rev7 {
   }
 }
 
-const API = {OUTS, setBd(a, b, c, d){ BD_PULSE = a; BD_SWEEP = b; BD_PTAU = c; BD_TAU = d; }, Engine, Rev7, PARAMS, P, NG, NV, VOICES, VOICE_NAMES, RV_PROGS, METAL, vp, defaults};
+const API = {Biquad, NG2, vq, DL_DIVS, DL_DIV_NAMES, OD_MODES, OUTS, setBd(a, b, c, d){ BD_PULSE = a; BD_SWEEP = b; BD_PTAU = c; BD_TAU = d; }, Engine, Rev7, PARAMS, P, NG, NV, VOICES, VOICE_NAMES, RV_PROGS, METAL, vp, defaults};
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 else root.DR110 = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

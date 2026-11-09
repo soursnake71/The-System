@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
     std::vector<float> L((size_t) n), R((size_t) n); std::vector<std::vector<float>> O(8, std::vector<float>((size_t) n));
     long pos = 0; size_t h = 0;
     while (pos < n) {
-        while (h < hits.size() && hits[h][0] <= pos) { if (hits[h][1] == 7) e.sweep(); else e.trigger((int) hits[h][1], hits[h][2] != 0); ++h; }
+        while (h < hits.size() && hits[h][0] <= pos) { if (hits[h][1] == 7) e.sweep(); else if (hits[h][1] >= 8) e.release((int) hits[h][1] - 8); else e.trigger((int) hits[h][1], hits[h][2] != 0); ++h; }
         long end = h < hits.size() ? std::min(n, hits[h][0]) : n;
         end = std::min(end, pos + 128);
         float* op[8]; for (int k = 0; k < 8; ++k) op[k] = O[(size_t) k].data() + pos;
@@ -23,6 +23,6 @@ int main(int argc, char** argv) {
     }
     std::ofstream o(argv[5], std::ios::binary);
     o.write((const char*) L.data(), (std::streamsize) (n * 4)); o.write((const char*) R.data(), (std::streamsize) (n * 4));
-    for (auto& c : O) o.write((const char*) c.data(), (std::streamsize) (n * 4));
+    for (auto& ch : O) o.write((const char*) ch.data(), (std::streamsize) (n * 4));
     return 0;
 }

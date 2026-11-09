@@ -1,6 +1,6 @@
 {
-  "name": "Omega DR-110",
-  "short_name": "DR-110",
+  "name": "Omega 110",
+  "short_name": "Omega 110",
   "description": "A circuit model of the DR-110 rhythm machine with its front panel, a voice-mod panel, mixer, REV7-style reverb and MIDI.",
   "start_url": "./",
   "scope": "./",

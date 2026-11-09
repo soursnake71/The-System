@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#2b2b2b">
-<title>Omega DR-110</title>
+<title>Omega 110</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
@@ -12,14 +12,19 @@
 <body>
 <main id="app">
   <!-- the front panel: drawn by faceplate.js at the hardware's proportions (2000 x 1160) -->
-  <div id="plateWrap"><svg id="plate" viewBox="0 0 2000 1160" aria-label="DR-110 front panel"></svg></div>
+  <div id="plateWrap"><svg id="plate" viewBox="0 0 2000 1160" aria-label="Omega 110 front panel"></svg></div>
+
+  <!-- presets: 100 factory sounds, yours, and the dice -->
+  <div id="presetBar"></div>
 
   <!-- the voice-mod panel under the machine: per-voice controls, trig sweep and the power supply -->
   <section id="modPanel" aria-label="Voice mod panel"></section>
 
   <nav id="tabs">
     <button data-tab="mixer" class="on">MIXER</button>
-    <button data-tab="fx">EFFECTS · REV 7</button>
+    <button data-tab="pads">PAD EQ · ADSR</button>
+    <button data-tab="fx">EFFECTS · REV 7 · TC DELAY</button>
+    <button data-tab="masterTab">MASTER</button>
     <button data-tab="file">IMPORT / EXPORT</button>
     <button data-tab="midi">MIDI</button>
     <button data-tab="help">HOW TO</button>
@@ -41,9 +46,13 @@
       <div class="revProgs" id="revProgs"></div>
       <div class="revKnobs" id="revKnobs"></div>
     </div>
-    <h3>EFFECTS MIXER · REVERB SENDS</h3>
+    <div class="tcd" id="tcd"></div>
+    <h3>EFFECTS MIXER · REVERB AND DELAY SENDS</h3>
     <div id="sends" class="strips sends"></div>
   </section>
+
+  <section id="pads" class="panel"></section>
+  <section id="masterTab" class="panel"></section>
 
   <section id="file" class="panel">
     <div class="grid2">
@@ -104,8 +113,10 @@
 <div id="toast"></div>
 <script src="engine.js"></script>
 <script src="seq.js"></script>
+<script src="presets.js"></script>
 <script src="faceplate.js"></script>
 <script src="app.js"></script>
+<script src="omega.js"></script>
 <script src="io.js"></script>
 </body>
 </html>
