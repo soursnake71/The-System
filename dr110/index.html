@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#2b2b2b">
+<title>Omega DR-110</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+  <!-- the front panel: drawn by faceplate.js at the hardware's proportions (2000 x 1160) -->
+  <div id="plateWrap"><svg id="plate" viewBox="0 0 2000 1160" aria-label="DR-110 front panel"></svg></div>
+
+  <!-- the voice-mod panel under the machine: per-voice controls, trig sweep and the power supply -->
+  <section id="modPanel" aria-label="Voice mod panel"></section>
+
+  <nav id="tabs">
+    <button data-tab="mixer" class="on">MIXER</button>
+    <button data-tab="fx">EFFECTS · REV 7</button>
+    <button data-tab="file">IMPORT / EXPORT</button>
+    <button data-tab="midi">MIDI</button>
+    <button data-tab="help">HOW TO</button>
+  </nav>
+
+  <section id="mixer" class="panel on">
+    <div class="row top">
+      <label class="pill">SOURCE
+        <select id="src"><option value="0">Circuit model</option><option value="1">Recordings (samples/)</option></select></label>
+      <label class="pill">SHUFFLE <input id="swing" type="range" min="0" max="0.5" step="0.01" value="0"><output id="swingOut">0%</output></label>
+      <button id="mixReset" class="small">RESET MIXER</button>
+    </div>
+    <div id="strips" class="strips"></div>
+  </section>
+
+  <section id="fx" class="panel">
+    <div class="rev">
+      <div class="revHead"><b>REV 7</b><span>DIGITAL REVERBERATOR</span><span id="revProgName" class="revLcd">01 HALL</span></div>
+      <div class="revProgs" id="revProgs"></div>
+      <div class="revKnobs" id="revKnobs"></div>
+    </div>
+    <h3>EFFECTS MIXER · REVERB SENDS</h3>
+    <div id="sends" class="strips sends"></div>
+  </section>
+
+  <section id="file" class="panel">
+    <div class="grid2">
+      <div class="box"><h3>Backup</h3>
+        <p>All 32 patterns, both songs, the mixer, the reverb and the MIDI settings.</p>
+        <button id="expJson">EXPORT BACKUP (.json)</button>
+        <button id="impJson">IMPORT BACKUP</button></div>
+      <div class="box"><h3>MIDI files</h3>
+        <p>General MIDI drum notes on channel 10. Import puts the first bar into the pattern on screen (bank C or D).</p>
+        <button id="expMidPat">EXPORT PATTERN (.mid)</button>
+        <button id="expMidSong">EXPORT SONG (.mid)</button>
+        <button id="impMid">IMPORT .mid TO PATTERN</button></div>
+      <div class="box"><h3>Audio</h3>
+        <p>Renders with everything you hear: source, mixer, reverb.</p>
+        <label>Bars of the pattern <input id="wavBars" type="number" min="1" max="64" value="4"></label>
+        <label>Rate <select id="wavRate"><option>44100</option><option selected>48000</option></select></label>
+        <button id="expWavPat">EXPORT PATTERN (.wav)</button>
+        <button id="expWavSong">EXPORT SONG (.wav)</button></div>
+      <div class="box"><h3>Your sounds</h3>
+        <p>Load a WAV / MP3 onto a voice; it plays when SOURCE is Recordings. Built-in recordings come back with RESET.</p>
+        <div id="sampleRows"></div></div>
+    </div>
+    <input type="file" id="filePick" hidden>
+  </section>
+
+  <section id="midi" class="panel">
+    <div class="grid2">
+      <div class="box"><h3>Ports</h3>
+        <label>Input <select id="midiIn"><option value="all">All inputs</option><option value="none">None</option></select></label>
+        <label>Output <select id="midiOut"><option value="">None</option></select></label>
+        <label>Channel <select id="midiCh"></select></label>
+        <p id="midiStatus" class="dim">Web MIDI not started.</p></div>
+      <div class="box"><h3>Sync &amp; notes</h3>
+        <label><input type="checkbox" id="midiSync"> Follow MIDI clock in (start / stop / continue)</label>
+        <label><input type="checkbox" id="midiClockOut"> Send MIDI clock and start / stop</label>
+        <label><input type="checkbox" id="midiNotesOut" checked> Send the notes the machine plays</label>
+        <label>Accent from velocity &ge; <input id="midiAccVel" type="number" min="1" max="127" value="100"></label>
+        <label><input type="checkbox" id="midiPc" checked> Program change 0-31 selects A1-D8</label></div>
+      <div class="box wide"><h3>Note map</h3><div id="noteMap" class="noteMap"></div></div>
+    </div>
+  </section>
+
+  <section id="help" class="panel">
+    <div class="help">
+      <p><b>POWER</b>: slide the ON-OFF switch (top right) to switch the machine on.</p>
+      <p><b>SHIFT</b> works like the original: hold it and press a key for the function printed above the key. It also <b>latches</b>: tap SHIFT on its own and the next key gets its shift function (SHIFT shows on the display); tap SHIFT again to cancel.</p>
+      <p><b>Play a pattern</b>: A|B|C|D picks the bank (A, B presets, C, D yours), 1-8 the rhythm, START / STOP. While it runs a new choice waits for the end of the bar.</p>
+      <p><b>Write: STEP</b> (SHIFT+4): the cursor blinks on the display. The voice keys put a note in or take it out at the cursor, ACCENT the accent; START moves on a step, STOP goes back. You can also tap the display grid.</p>
+      <p><b>Write: TAP</b> (SHIFT+5): START, then play the voice keys in time (hold ACCENT for accents); notes land on the nearest step.</p>
+      <p><b>12/16</b> (SHIFT+6): 12 steps (triplets) or 16. <b>PATTERN CLEAR</b> (SHIFT+7, twice) empties the pattern.</p>
+      <p><b>Write: SONG</b> (SHIFT+3): pick bank and rhythm, then ENTER (SHIFT+O.HIHAT) puts it at this measure and moves on. MEASURE DOWN / UP (SHIFT+BASS / SNARE) move, MEASURE RESET (SHIFT+8) goes to 1, D.C. (SHIFT+C.HIHAT) ends the song here and repeats it (press again for no repeat). SHIFT+I·II picks song I or II.</p>
+      <p><b>Play: SONG</b> (SHIFT+1) and START. <b>Play: PATTERN</b> is SHIFT+2.</p>
+      <p><b>KNUCKLE</b>: SHIFT+HAND CLAP plays (and writes) the knuckle, a voice the original doesn't have; it shows in the BASS DRUM row as an open square. On the display the cymbal shows in the O.HIHAT row and the hand clap in the SNARE DRUM row the same way.</p>
+      <p><b>Knobs</b>: drag up / down (double-tap for the default). TEMPO shows the BPM on the display while you turn it.</p>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="engine.js"></script>
+<script src="seq.js"></script>
+<script src="faceplate.js"></script>
+<script src="app.js"></script>
+<script src="io.js"></script>
+</body>
+</html>
