@@ -1,5 +1,5 @@
 // Omega 110: works offline once opened (cache first, then the network refreshes the cache).
-const CACHE = 'omega-110-v3';
+const CACHE = 'omega-110-v4';
 const FILES = ['./', 'index.html', 'style.css', 'engine.js', 'seq.js', 'presets.js', 'faceplate.js', 'app.js', 'omega.js', 'io.js', 'worklet.js', 'manifest.webmanifest', 'icon.svg',
   'samples/bd.wav', 'samples/sd.wav', 'samples/oh.wav', 'samples/oh-long.wav', 'samples/ch.wav', 'samples/ch-long.wav', 'samples/cy.wav', 'samples/hc.wav'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });

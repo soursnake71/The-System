@@ -96,6 +96,9 @@ function build(svg){
   grad('gGrille', [[0, '#cfcfd2'], [1, '#f4f4f6']]);
   const fl = el('filter', {id:'shadow', x:'-20%', y:'-20%', width:'140%', height:'150%'}, defs);
   el('feDropShadow', {dx:0, dy:5, stdDeviation:4, 'flood-color':'#000', 'flood-opacity':.45}, fl);
+  // keys sit up off the panel: a soft shadow under each cap
+  const ks = el('filter', {id:'keyShadow', x:'-20%', y:'-20%', width:'140%', height:'160%'}, defs);
+  el('feDropShadow', {dx:0, dy:6, stdDeviation:5, 'flood-color':'#000', 'flood-opacity':.55}, ks);
 
   // case and panel
   el('rect', {x:0, y:0, width:2000, height:1160, fill:'#f3f3f4'}, svg);
@@ -190,7 +193,7 @@ function build(svg){
   for (const [id, x, y, w, h] of LAYOUT.buttons){
     const g = el('g', {class:'key hit', 'data-b':id}, svg);
     el('rect', {x:x - 7, y:y - 7, width:w + 14, height:h + 16, rx:9, fill:'#0d0d0d'}, g);
-    const cap = el('g', {class:'cap'}, g);
+    const cap = el('g', {class:'cap', filter:'url(#keyShadow)'}, g);
     el('rect', {x, y, width:w, height:h, rx:5, fill:'url(#gBtn)', stroke:'#0f4a85', 'stroke-width':2}, cap);
     el('rect', {x:x + 5, y:y + 4, width:w - 10, height:6, rx:3, fill:'#fff', opacity:.25}, cap);
     const cx = x + w / 2, cy = y + h / 2;

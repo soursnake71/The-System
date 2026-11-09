@@ -82,8 +82,6 @@ h3{margin:4px 0 10px;font-size:14px;letter-spacing:.08em}
 .modSec h4{margin:0;font-size:20px;font-weight:900;letter-spacing:.02em;font-family:'Arial Black','Helvetica Neue',Arial,sans-serif}
 .modSec .knobRow{font-size:11px;color:#111;letter-spacing:.06em}
 .modSec .knobRow .val{color:#555;font-weight:600}
-.mk.white circle{fill:#121212}
-.mk.white line{stroke:#f4f4f4}
 .tog{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:800;letter-spacing:.06em;text-align:center;cursor:pointer;background:none;border:0;padding:0;color:#111}
 .tog i{display:block;width:16px;height:30px;border-radius:8px;background:#9c9ca2;border:2px solid #333;position:relative}
 .tog i::after{content:'';position:absolute;left:1px;width:10px;height:12px;border-radius:5px;background:#f2f2f2;border:1px solid #444;top:13px;transition:top .1s}
@@ -144,3 +142,202 @@ body.basic #plateWrap{max-height:none;max-width:none}
 .panel:not(.on){display:none !important}
 /* folded: no toolbar row, just EXPAND floating in the corner, so the machine gets the whole screen */
 body.basic #top{position:absolute;z-index:5;left:env(safe-area-inset-left);top:env(safe-area-inset-top);background:none;border:0;padding:4px}
+
+/* ===================== Omega 110: no-scroll pages and the hardware look ===================== */
+html,body{height:100%;overflow:hidden;background:#111113}
+body{background:radial-gradient(ellipse at 50% 35%,#2c2c30 0%,#121214 70%)}
+#app{position:relative;display:block;height:100vh;height:100dvh;padding:0;margin:0;max-width:none}
+#rail,#stage,#machineView,#plateWrap,#presetBar,.panel{position:absolute;box-sizing:border-box}
+#stage{overflow:hidden}
+/* the page-button rail: dark hardware strip, keys light up blue */
+#rail{display:flex;flex-direction:column;gap:5px;padding:6px 6px;background:linear-gradient(90deg,#2b2b2f,#18181a);box-shadow:inset -1px 0 0 #000,3px 0 14px rgba(0,0,0,.6);z-index:4}
+body.port #rail{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:1fr;gap:4px;padding:4px 6px;box-shadow:0 3px 10px rgba(0,0,0,.6)}
+#rail button{flex:1 1 0;min-height:0;font:800 11px/1.05 'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em;color:#e9e9eb;background:linear-gradient(#4b4b50,#2b2b2e);border:1px solid #000;border-radius:6px;box-shadow:0 3px 0 #050505,0 4px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.2);cursor:pointer;padding:2px 3px;margin:0 0 3px}
+#rail button.on{background:linear-gradient(#45a2f0,#1d6fbf);color:#fff;box-shadow:0 1px 0 #050505,0 0 12px rgba(69,162,240,.55),inset 0 1px 0 rgba(255,255,255,.35);transform:translateY(2px)}
+#rail #foldBtn{background:linear-gradient(#ffb060,#d9620c);color:#151515}
+body.basic #rail{background:none;box-shadow:none;padding:0}
+body.basic #rail [data-tab]{display:none}
+/* the machine: wooden end cheeks, a real drop shadow */
+#plateWrap{display:flex;max-width:none !important;max-height:none !important;aspect-ratio:auto;margin:0;filter:drop-shadow(0 10px 12px rgba(0,0,0,.7)) drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+#plateWrap .cheek{flex:0 0 3.27%;height:100%;border-radius:5px;
+  background:repeating-linear-gradient(90deg,rgba(60,30,8,.18) 0 1px,transparent 1px 5px),repeating-linear-gradient(0deg,rgba(255,220,170,.06) 0 3px,transparent 3px 11px),linear-gradient(90deg,#6e4118,#b77d40 30%,#d6a15e 52%,#a76c32 78%,#5f3714);
+  box-shadow:inset 0 0 6px rgba(0,0,0,.55),inset 2px 0 0 rgba(255,255,255,.15)}
+#plate{flex:0 0 93.46%;width:93.46%;height:100%;border-radius:3px;box-shadow:none}
+/* the preset / dice module: brushed metal box with an LCD */
+#presetBar{display:flex;flex-direction:column;justify-content:center;gap:7px;padding:9px 8px;margin:0;border:1px solid #8d8d93;border-radius:9px;max-width:none;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,rgba(0,0,0,.035) 1px 3px),linear-gradient(#e6e6e9,#c9cace);
+  box-shadow:0 8px 16px rgba(0,0,0,.6),inset 0 1px 0 #fff,inset 0 -2px 0 rgba(0,0,0,.2)}
+body.port #presetBar{flex-direction:row;align-items:stretch;padding:5px 6px;gap:5px;border-radius:7px}
+.lcdBox{background:linear-gradient(#d4e0c0,#b8c8a0);color:#24301f;border:3px solid #141414;border-radius:4px;padding:4px 6px;box-shadow:inset 0 2px 7px rgba(0,0,0,.4);font-family:ui-monospace,Consolas,monospace;display:flex;flex-direction:column;line-height:1.15;overflow:hidden;min-height:0;flex:1 1 auto}
+.lcdBox b{font-size:24px;letter-spacing:.06em}
+.lcdBox span{font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcdBox #pTitle{font-size:12px}
+.lcdBox em{font-size:10px;font-style:normal;font-weight:900;color:#7a2a10}
+body.port .lcdBox{flex-direction:row;align-items:center;gap:7px;padding:2px 6px}
+body.port .lcdBox b{font-size:18px}
+.mRow{display:flex;gap:6px}
+.mRow .key{flex:1}
+/* keys: the machine's blue keys, raised, with a shadow; they press down */
+.key,.panel button:not(.ch):not(.pBtn):not(.tog):not(.padBtn){background:linear-gradient(#45a2f0,#1f76c9 50%,#155ea6);color:#fff;border:2px solid #0b0b0b;border-radius:6px;font:800 13px 'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em;
+  box-shadow:0 3px 0 #000,0 5px 9px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.35);padding:7px 10px;cursor:pointer;margin:0}
+.key:active,.panel button:not(.ch):not(.pBtn):not(.tog):not(.padBtn):active{transform:translateY(2px);box-shadow:0 1px 0 #000,0 2px 4px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.2)}
+.key.dice{background:linear-gradient(#ffbe70,#e06a10);color:#141414;font-size:15px}
+.key.small,.panel button.small{font-size:11px;padding:5px 8px}
+.key.on,.panel .revProgs button.on{background:linear-gradient(#ffb060,#d9620c) !important;color:#141414}
+/* pages: brushed aluminium plates with screws in the corners */
+.panel{display:none !important;padding:0;margin:0;border-radius:10px;border:1px solid #8d8d93;overflow:hidden;transform:none !important;
+  background:radial-gradient(circle at 11px 11px,#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),radial-gradient(circle at calc(100% - 11px) 11px,#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),
+    radial-gradient(circle at 11px calc(100% - 11px),#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),radial-gradient(circle at calc(100% - 11px) calc(100% - 11px),#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,rgba(0,0,0,.035) 1px 3px),linear-gradient(#ebebee,#cbccd0);
+  box-shadow:0 10px 22px rgba(0,0,0,.65),inset 0 1px 0 #fff,inset 0 -2px 0 rgba(0,0,0,.22)}
+.panel.on{display:flex !important;flex-direction:column}
+.pageHead{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 24px 2px;min-height:38px}
+.pageHead b{font:900 15px 'Arial Black','Helvetica Neue',Arial,sans-serif;letter-spacing:.1em;color:#1a1a1a;text-shadow:0 1px 0 rgba(255,255,255,.75)}
+.pgBtns{display:flex;gap:5px}
+.panel .pgBtns .key{padding:3px 11px;font-size:13px;min-width:32px}
+.pageBody{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-wrap:wrap;align-content:flex-start;justify-content:center;gap:8px;padding:2px 12px 12px}
+.pageBody>*{flex:0 0 auto;margin:0 !important}
+/* blocks: engraved section boxes like the mod panel */
+.pageBody .box,.pageBody .modSec,.pageBody .strip,.pageBody .row.top,.pageBody>p,.pageBody .modBrand{border:2px solid #2a2a2a;border-radius:10px;background:linear-gradient(rgba(255,255,255,.22),rgba(255,255,255,.06));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 1px 0 rgba(255,255,255,.6),inset 0 0 0 1px rgba(255,255,255,.15);padding:6px 9px}
+.pageBody h3{margin:0 0 6px;font:900 12px 'Arial Black',Arial,sans-serif;letter-spacing:.08em;color:#1a1a1a}
+.pageBody .box p{font-size:12px;margin:0 0 6px}
+/* knobs */
+.mk{width:46px;height:46px;touch-action:none;cursor:ns-resize;overflow:visible}
+.mk .tk line{stroke:#2b2b2b;stroke-width:1.7;stroke-linecap:round}
+.mk .ptr{stroke:#ff7a1a}
+.mk.white .ptr{stroke:#f6f6f6}
+.knobRow{gap:1px;font-size:9px;letter-spacing:.06em;color:#151515;font-weight:900;text-align:center}
+.knobRow .val{font-size:9px;color:#4a4a4a;font-weight:700;white-space:nowrap}
+/* voice mod sections: three knobs across, like the panel in the photo */
+.pageBody .modSec{width:186px;display:grid;grid-template-columns:repeat(3,1fr);justify-items:center;align-content:start;gap:4px 2px;padding:6px 6px 8px}
+.pageBody .modSec h4{grid-column:1/-1;font-size:17px;margin:0}
+.pageBody .modSec .modSec{grid-column:1/-1;width:auto;border-width:1.5px;padding:4px}
+.pageBody .modSec .modSec h4{font-size:11px !important}
+.pageBody .modBrand{width:120px;justify-content:center;gap:10px;font-size:11px}
+.tog i{width:15px;height:28px;border-radius:8px;background:linear-gradient(90deg,#7c7c80,#e9e9ec 50%,#7c7c80);border:1.5px solid #2a2a2a;box-shadow:0 2px 3px rgba(0,0,0,.4)}
+.tog i::after{left:1px;width:11px;height:13px;border-radius:5px;background:radial-gradient(circle at 40% 35%,#fff,#9a9a9e);border:1px solid #333}
+.tog.on i{background:linear-gradient(90deg,#c25a0a,#ffb060 50%,#c25a0a)}
+/* mixer strips: level, pan, tune, decay knobs; an LED meter; mute, solo, play */
+.pageBody .strip{width:108px;display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:3px 2px;padding:5px 5px 7px}
+.pageBody .strip h4{grid-column:1/-1;font-size:11px;margin:0}
+.pageBody .strip .mk{width:40px;height:40px}
+.pageBody .strip .meter{grid-column:1/-1;width:90%;height:7px;background:#0b0b0b;border-radius:3px;position:relative;overflow:hidden;box-shadow:inset 0 1px 2px #000}
+.pageBody .strip .meter i{position:absolute;left:0;top:0;bottom:0;height:auto;width:0;background:linear-gradient(90deg,#33d16a 0,#33d16a 65%,#f2c230 82%,#ff4b2b 100%);background-size:100px 100%}
+.pageBody .strip .btns,.pageBody .strip>button{grid-column:1/-1}
+.pageBody .sends .strip,.pageBody .strip:has(> .knobRow:only-of-type){width:84px}
+.ch{border:2px solid #0b0b0b;border-radius:5px;padding:4px 9px;font-weight:900;font-size:11px;background:linear-gradient(#d9d9dd,#a9a9ae);color:#222;box-shadow:0 2px 0 #000,inset 0 1px 0 #fff;cursor:pointer}
+.ch.on.m{background:linear-gradient(#ffb060,#e06a10)}.ch.on.s{background:linear-gradient(#ffe070,#e0b010)}
+.pageBody .row.top{width:470px;gap:8px;padding:6px 8px}
+/* REV 7 and the TC delay: black rack units with ears, screws and glowing displays */
+.pageBody .rev,.pageBody .tcd{width:476px;padding:8px 26px 10px;border-radius:4px;border:1px solid #000;margin:0;
+  background:radial-gradient(circle at 10px 18px,#c8c8c8 0 2px,#555 2.5px 3.5px,transparent 4px),radial-gradient(circle at calc(100% - 10px) 18px,#c8c8c8 0 2px,#555 2.5px 3.5px,transparent 4px),
+    radial-gradient(circle at 10px calc(100% - 18px),#c8c8c8 0 2px,#555 2.5px 3.5px,transparent 4px),radial-gradient(circle at calc(100% - 10px) calc(100% - 18px),#c8c8c8 0 2px,#555 2.5px 3.5px,transparent 4px),
+    linear-gradient(90deg,#3a3a3e 0 20px,transparent 20px calc(100% - 20px),#3a3a3e calc(100% - 20px)),repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),linear-gradient(#2e2f34,#17181b);
+  box-shadow:0 6px 14px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.15)}
+.rev .knobRow,.tcd .knobRow,.rev .tog,.tcd .tog{color:#e4e4e4}
+.rev .knobRow .val,.tcd .knobRow .val{color:#9fd8ff}
+.rev .mk .tk line,.tcd .mk .tk line{stroke:#bdbdbd}
+.revHead,.tcHead{margin-bottom:6px;gap:10px}
+.revHead b,.tcHead b{font-size:20px}
+.revLcd{text-shadow:0 0 6px rgba(124,255,138,.8);font-size:15px !important}
+.tcd .revLcd{text-shadow:0 0 6px rgba(255,75,58,.85)}
+.revProgs{gap:5px;margin-bottom:6px}.revProgs button{font-size:11px !important;padding:5px 8px !important;background:linear-gradient(#5a5a5f,#333) !important}
+.revKnobs{gap:6px 10px;justify-content:center}
+/* pads, master, presets, files, MIDI, help */
+.pageBody .padTabs{flex:0 0 100%;display:flex;gap:5px;margin:0}
+.padBtn{flex:1 1 0;padding:7px 2px;font-size:10px;border-radius:6px;border:2px solid #0b0b0b;background:linear-gradient(#e0e0e3,#aeaeb3);box-shadow:0 3px 0 #000,inset 0 1px 0 #fff;font-weight:900;cursor:pointer}
+.padBtn.on{background:linear-gradient(#45a2f0,#155ea6);color:#fff}
+#pads .box:first-of-type,#masterTab .box:first-child{width:476px}
+#pads .box{width:430px}
+.eqc{height:92px;border-width:2px;margin-bottom:6px;box-shadow:inset 0 2px 8px rgba(0,0,0,.6)}
+.kRow{gap:6px 10px;margin:2px 0;justify-content:center}
+#masterTab .box{width:232px}
+.pageBody .fam{width:300px}
+.pGrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.pBtn{display:flex;gap:6px;align-items:center;text-align:left;padding:5px 6px;border:1.5px solid #111;border-radius:5px;background:linear-gradient(#f2f2f4,#c4c4c8);box-shadow:0 2px 0 #000,inset 0 1px 0 #fff;font:800 11px 'Helvetica Neue',Arial,sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pBtn i{font-style:normal;font-family:ui-monospace,monospace;color:#6a6a6a;font-size:10px}
+.pBtn.on{background:linear-gradient(#ffb060,#e06a10)}
+.pGrid.acts{margin-top:6px;grid-template-columns:1fr 1fr 1fr}
+#file .box,#midi .box{width:300px}
+#midi .box.wide{width:470px}
+.noteMap{grid-template-columns:repeat(3,1fr);gap:4px}
+.noteMap label{padding:3px 5px;font-size:11px}
+.noteMap input{width:48px}
+.pageBody>p{width:300px;font-size:12px;line-height:1.45;margin:0;color:#1b1b1b}
+#help .help{display:block}
+
+/* phone-sized pages: nothing wider than the screen; the mixer as a console of rows */
+.pageBody>*{max-width:100%}
+.pageHead{min-height:32px;padding:3px 22px 0}
+.pageBody .mixRow{width:440px;padding:4px 8px 6px}
+.mixGrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;justify-items:center}
+.mixCell{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.mixCell .mk{width:40px;height:40px}
+.mixCell .knobRow span:not(.val){font-size:8.5px}
+.mixCell .meter{width:36px;height:6px;background:#0b0b0b;border-radius:3px;position:relative;overflow:hidden;box-shadow:inset 0 1px 2px #000}
+.mixCell .meter i{position:absolute;left:0;top:0;bottom:0;height:auto;width:0;background:linear-gradient(90deg,#33d16a 0,#33d16a 65%,#f2c230 82%,#ff4b2b 100%);background-size:36px 100%}
+.mixCell .btns{display:flex;gap:2px}
+.mixCell .ch{padding:2px 5px;font-size:10px}
+.pageBody .rev,.pageBody .tcd{width:600px}
+.pageBody .famTabs{width:600px}
+.fGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.fBtn{justify-content:center;font-size:10px}
+.pageBody .fam{width:600px}
+.pageBody .fam .pGrid{grid-template-columns:repeat(5,1fr)}
+#pads .box{width:300px}
+#pads .box .mk{width:42px;height:42px}
+#pads .kRow{gap:4px 6px}
+#masterTab .box:first-child{width:310px}
+#masterTab .box:first-child .kRow{gap:4px 8px}
+
+.pageBody .modSec .mk{width:40px;height:40px}
+.pageBody .modSec{gap:2px 2px;padding:4px 5px 6px}
+.pageBody .modSec .knobRow{gap:0}
+.pageBody .modSec .tog i{height:24px}
+#masterTab .eqc{height:68px}
+#masterTab .box .mk{width:42px;height:42px}
+#pads .box{width:290px}
+#pads .eqc{height:70px}
+#file .box{width:280px}
+#file .box p{font-size:11px}
+
+/* the old page-button rule must not dress switches, preset and pad buttons as big keys */
+.panel button.tog{background:none !important;border:0 !important;box-shadow:none !important;padding:0 !important;color:#151515;font-size:9px;letter-spacing:.04em}
+.panel button.tog span{font-size:8.5px;font-weight:900;line-height:1.05}
+.panel button.pBtn{background:linear-gradient(#f4f4f6,#c3c3c8);color:#151515;border:1.5px solid #111;box-shadow:0 2px 0 #000,inset 0 1px 0 #fff;padding:4px 5px;margin:0;font:800 10px/1.15 'Helvetica Neue',Arial,sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:0;white-space:normal;text-align:left;border-radius:5px;min-width:0}
+.panel button.pBtn i{font-size:9px}
+.panel button.pBtn.on{background:linear-gradient(#ffbe70,#e06a10)}
+.panel button.fBtn{align-items:center;justify-content:center;font-size:10.5px;padding:6px 4px}
+.panel button.padBtn{background:linear-gradient(#ececef,#b4b4b9);color:#151515;border:2px solid #0b0b0b;box-shadow:0 3px 0 #000,inset 0 1px 0 #fff;padding:6px 2px;margin:0;font:900 10px 'Helvetica Neue',Arial,sans-serif;border-radius:6px;min-width:0}
+.panel button.padBtn.on{background:linear-gradient(#45a2f0,#155ea6);color:#fff}
+.panel button.ch{background:linear-gradient(#d9d9dd,#a9a9ae);color:#222;margin:0}
+.panel button.ch.on.m{background:linear-gradient(#ffb060,#e06a10)}.panel button.ch.on.s{background:linear-gradient(#ffe070,#e0b010)}
+#modPanel{background:radial-gradient(circle at 11px 11px,#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),radial-gradient(circle at calc(100% - 11px) 11px,#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),
+    radial-gradient(circle at 11px calc(100% - 11px),#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),radial-gradient(circle at calc(100% - 11px) calc(100% - 11px),#d8d8d8 0 2px,#6b6b6b 2.5px 3.6px,transparent 4.2px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,rgba(0,0,0,.035) 1px 3px),linear-gradient(#ebebee,#cbccd0);grid-template-columns:none;gap:0;padding:0}
+#presetBar .key{padding:6px 4px;font-size:13px}
+#presetBar .key.small{font-size:10px;padding:4px 2px}
+.mmRow{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:6px}
+.mmRow .pill{padding:4px 6px;font-size:10px}
+.mmRow select{font-size:12px;padding:3px}
+#masterTab .box:nth-child(3){width:250px}
+
+#presetBar{flex-wrap:nowrap}
+#presetBar .lcdBox{flex:1 1 auto;max-height:46%}
+body.port #presetBar .lcdBox{max-height:none}
+/* the pad picker sits in the page's title bar */
+.pageHead .padTabs{display:flex;gap:3px;flex:1 1 auto;justify-content:center;margin:0}
+.pageHead .padTabs .padBtn{flex:0 1 46px;padding:4px 2px;font-size:10px}
+.pageHead{flex-wrap:wrap;row-gap:3px}
+body.port .pageHead .padTabs{order:3;flex:1 1 100%}
+body.port #presetBar .key{flex:0 0 auto;padding:4px 9px}
+body.port #presetBar .key.dice{font-size:13px;padding:4px 8px}
+body.port #presetBar .key.small{flex:0 0 52px;font-size:10px}
+body.port #presetBar .mRow{flex:0 0 auto}
+body.port .lcdBox span#pFam{display:none}
+body.port .pageBody .modSec{width:158px}
+body.port .pageBody .modSec .mk{width:38px;height:38px}
+#presetBar #pPart{flex:0 0 auto}
+body.port #presetBar #pPart{flex:0 0 52px}
+#pads .box:first-of-type{width:290px}

@@ -353,11 +353,17 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { const id = KEYMAP[e.code]; if (!id) return; const k = UI.buttons[id]; if (k) k.g.classList.remove('down'); release(id); });
 
 /* ---------------- mixer and effects mixer ---------------- */
+// a knob like the hardware's: tick ring, drop shadow, knurled skirt, shaded cap, pointer (orange, or white with .white)
+const KNOB_SVG = `<svg class="mk" viewBox="0 0 60 60"><g class="tk"><line x1="10.91" y1="49.09" x2="9.14" y2="50.86"/><line x1="4.32" y1="38.34" x2="1.94" y2="39.12"/><line x1="3.33" y1="25.78" x2="0.86" y2="25.39"/><line x1="8.16" y1="14.13" x2="6.13" y2="12.66"/><line x1="17.74" y1="5.94" x2="16.61" y2="3.72"/><line x1="30.00" y1="3.00" x2="30.00" y2="0.50"/><line x1="42.26" y1="5.94" x2="43.39" y2="3.72"/><line x1="51.84" y1="14.13" x2="53.87" y2="12.66"/><line x1="56.67" y1="25.78" x2="59.14" y2="25.39"/><line x1="55.68" y1="38.34" x2="58.06" y2="39.12"/><line x1="49.09" y1="49.09" x2="50.86" y2="50.86"/></g>
+  <ellipse cx="30" cy="34" rx="21" ry="20" fill="rgba(0,0,0,.45)"/><circle cx="30" cy="30" r="21" fill="url(#kSkirt)"/>
+  <circle cx="30" cy="30" r="19.6" fill="none" stroke="#454548" stroke-width="2.6" stroke-dasharray="1.1 1.5"/>
+  <circle cx="30" cy="30" r="16.5" fill="url(#kCap)" stroke="#000" stroke-width=".8"/><ellipse cx="25" cy="22" rx="7" ry="3.5" fill="rgba(255,255,255,.12)"/>
+  <line class="ptr" x1="30" y1="28" x2="30" y2="13.5" stroke-width="3.6" stroke-linecap="round"/></svg>`;
 function miniKnob(parent, label, get, set, fmt, dflt){
   const w = document.createElement('div'); w.className = 'knobRow';
-  w.innerHTML = `<svg class="mk" viewBox="0 0 60 60"><circle cx="30" cy="30" r="25" fill="#151515" stroke="#000" stroke-width="2"/><line x1="30" y1="30" x2="30" y2="9" stroke="#ff7a1a" stroke-width="5" stroke-linecap="round"/></svg><span>${label}</span><span class="val"></span>`;
+  w.innerHTML = `${KNOB_SVG}<span>${label}</span><span class="val"></span>`;
   parent.appendChild(w);
-  const line = w.querySelector('line'), val = w.querySelector('.val'), svg = w.querySelector('svg');
+  const line = w.querySelector('line.ptr'), val = w.querySelector('.val'), svg = w.querySelector('svg');
   const show = () => { const n = get(); line.setAttribute('transform', `rotate(${-135 + 270 * n} 30 30)`); val.textContent = fmt(); };
   dragKnob(svg, get, n => { set(Math.max(0, Math.min(1, n))); show(); }, dflt);
   show(); w.refresh = show; return w;
@@ -368,41 +374,30 @@ const dnorm = i => (PARAMS[i][4] - PARAMS[i][2]) / (PARAMS[i][3] - PARAMS[i][2])
 const refreshers = [];
 let meterEls = [];
 function buildMixer(){
+  // the mixer as a console: one row per control across the seven voices (fits a phone without scrolling)
   const strips = document.getElementById('strips'); strips.innerHTML = ''; meterEls = [];
+  const row = (parent, title) => { const b = document.createElement('div'); b.className = 'box mixRow'; b.innerHTML = `<h3>${title}</h3>`; const g = document.createElement('div'); g.className = 'mixGrid'; b.appendChild(g); parent.appendChild(b); return g; };
+  const cell = g => { const c = document.createElement('div'); c.className = 'mixCell'; g.appendChild(c); return c; };
+  const lvRow = row(strips, 'LEVEL · MUTE · SOLO'), panRow = row(strips, 'PAN'), tuneRow = row(strips, 'TUNE'), decRow = row(strips, 'DECAY');
   for (let v = 0; v < NV; v++){
-    const s = document.createElement('div'); s.className = 'strip';
-    s.innerHTML = `<h4>${VNAME_SHORT[v]}</h4>`;
-    const pan = vp(v, 1), tune = vp(v, 2), dec = vp(v, 3), lv = vp(v, 0), mute = vp(v, 4), snd = vp(v, 5);
-    refreshers.push(miniKnob(s, 'TUNE', () => norm(tune), n => setParam(tune, Math.round(denorm(tune, n) * 2) / 2), () => (S.params[tune] > 0 ? '+' : '') + S.params[tune] + ' st', dnorm(tune)).refresh);
-    refreshers.push(miniKnob(s, 'DECAY', () => Math.log(S.params[dec] / .25) / Math.log(16), n => setParam(dec, Math.round(.25 * Math.pow(16, n) * 100) / 100), () => '×' + S.params[dec].toFixed(2), .5).refresh);
-    refreshers.push(miniKnob(s, 'PAN', () => norm(pan), n => setParam(pan, Math.round(denorm(pan, n) * 20) / 20), () => S.params[pan] === 0 ? 'C' : (S.params[pan] < 0 ? 'L' : 'R') + Math.round(Math.abs(S.params[pan]) * 100), .5).refresh);
-    const f = document.createElement('div'); f.className = 'fader';
-    f.innerHTML = `<input type="range" min="0" max="1.5" step="0.01" aria-label="${VOICE_NAMES[v]} level"><div class="meter"><i></i></div>`;
-    const r = f.querySelector('input'); r.value = S.params[lv];
-    r.addEventListener('input', () => setParam(lv, +r.value)); r.addEventListener('dblclick', () => { r.value = 1; setParam(lv, 1); });
-    refreshers.push(() => { r.value = S.params[lv]; });
-    s.appendChild(f); meterEls.push(f.querySelector('.meter i'));
-    const b = document.createElement('div'); b.className = 'btns';
-    b.innerHTML = `<button class="ch m">M</button><button class="ch s">S</button>`;
-    const [mb, sb] = b.querySelectorAll('button');
+    const pan = vp(v, 1), tune = vp(v, 2), dec = vp(v, 3), lv = vp(v, 0), mute = vp(v, 4);
+    const c = cell(lvRow);
+    refreshers.push(miniKnob(c, VNAME_SHORT[v], () => S.params[lv] / 1.5, n => setParam(lv, Math.round(n * 150) / 100), () => Math.round(S.params[lv] * 100) + '%', 1 / 1.5).refresh);
+    const f = document.createElement('div'); f.className = 'meter'; f.innerHTML = '<i></i>'; c.appendChild(f); meterEls.push(f.querySelector('i'));
+    const bt = document.createElement('div'); bt.className = 'btns'; bt.innerHTML = `<button class="ch m">M</button><button class="ch s">S</button>`; c.appendChild(bt);
+    const [mb, sb] = bt.querySelectorAll('button');
     mb.onclick = () => { setParam(mute, S.params[mute] >= .5 ? 0 : 1); mb.classList.toggle('on', S.params[mute] >= .5); };
     sb.onclick = () => { S.solo[v] = S.solo[v] ? 0 : 1; sb.classList.toggle('on', !!S.solo[v]); post({type:'params', p:engineParams()}); save(); };
     refreshers.push(() => { mb.classList.toggle('on', S.params[mute] >= .5); sb.classList.toggle('on', !!S.solo[v]); });
-    s.appendChild(b);
-    const hit = document.createElement('button'); hit.className = 'small'; hit.textContent = 'PLAY';
-    hit.onclick = async () => { if (!S.power){ S.power = true; await startAudio(); draw(); } post({type:'hit', v, acc:false}); };
-    s.appendChild(hit);
-    strips.appendChild(s);
-    void snd;
+    refreshers.push(miniKnob(cell(panRow), VNAME_SHORT[v], () => norm(pan), n => setParam(pan, Math.round(denorm(pan, n) * 20) / 20), () => S.params[pan] === 0 ? 'C' : (S.params[pan] < 0 ? 'L' : 'R') + Math.round(Math.abs(S.params[pan]) * 100), .5).refresh);
+    refreshers.push(miniKnob(cell(tuneRow), VNAME_SHORT[v], () => norm(tune), n => setParam(tune, Math.round(denorm(tune, n) * 2) / 2), () => (S.params[tune] > 0 ? '+' : '') + S.params[tune] + ' st', dnorm(tune)).refresh);
+    refreshers.push(miniKnob(cell(decRow), VNAME_SHORT[v], () => Math.log(S.params[dec] / .25) / Math.log(16), n => setParam(dec, Math.round(.25 * Math.pow(16, n) * 100) / 100), () => '×' + S.params[dec].toFixed(2), .5).refresh);
   }
-  // the effects mixer: one send per voice
+  // the effects mixer: a row of reverb sends (omega.js adds the delay-send row)
   const sends = document.getElementById('sends'); sends.innerHTML = '';
-  for (let v = 0; v < NV; v++){
-    const s = document.createElement('div'); s.className = 'strip'; s.innerHTML = `<h4>${VNAME_SHORT[v]}</h4>`;
-    const snd = vp(v, 5);
-    refreshers.push(miniKnob(s, 'REV SEND', () => norm(snd), n => setParam(snd, Math.round(n * 100) / 100), () => Math.round(S.params[snd] * 100) + '%', dnorm(snd)).refresh);
-    sends.appendChild(s);
-  }
+  const rvRow = row(sends, 'REVERB SEND');
+  for (let v = 0; v < NV; v++){ const snd = vp(v, 5);
+    refreshers.push(miniKnob(cell(rvRow), VNAME_SHORT[v], () => norm(snd), n => setParam(snd, Math.round(n * 100) / 100), () => Math.round(S.params[snd] * 100) + '%', dnorm(snd)).refresh); }
   // REV 7
   const progs = document.getElementById('revProgs'); progs.innerHTML = '';
   RV_PROGS.forEach((name, i) => {
@@ -468,11 +463,11 @@ function buildMod(){
   br.insertAdjacentHTML('beforeend', '<b>VOICE MOD<br>110</b>');
 }
 function refreshPanels(){ for (const f of refreshers) f(); }
-function showMeters(m){ for (let v = 0; v < NV && v < meterEls.length; v++){ const db = 20 * Math.log10(Math.max(1e-4, m[v] * 1.4)); meterEls[v].style.height = Math.max(0, Math.min(100, (db + 48) / 48 * 100)) + '%'; } }
+function showMeters(m){ for (let v = 0; v < NV && v < meterEls.length; v++){ const db = 20 * Math.log10(Math.max(1e-4, m[v] * 1.4)); meterEls[v].style.width = Math.max(0, Math.min(100, (db + 48) / 48 * 100)) + '%'; } }
 
 // tabs
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+document.querySelectorAll('#rail [data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#rail [data-tab]').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === b.dataset.tab));
 });
 

@@ -10,32 +10,37 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- shared knob shading (every knob on the pages uses these) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <radialGradient id="kCap" cx="38%" cy="30%" r="80%"><stop offset="0" stop-color="#5a5a5e"/><stop offset=".45" stop-color="#1c1c1e"/><stop offset="1" stop-color="#050505"/></radialGradient>
+  <linearGradient id="kSkirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a3c"/><stop offset="1" stop-color="#0a0a0a"/></linearGradient>
+</defs></svg>
 <main id="app">
-  <!-- Everything fits the screen, portrait and landscape, with no page scrolling: the toolbar on top, then the stage,
-       where the machine and the open page are scaled to fit (omega.js layout()). -->
-  <header id="top">
-    <div id="bar1">
-      <!-- EXPAND shows the presets and every page; FOLD goes back to the bare machine -->
-      <button id="foldBtn" aria-pressed="false">FOLD ▴</button>
-      <nav id="tabs">
-        <button data-tab="machine" class="on">MACHINE</button>
-        <button data-tab="modPanel">VOICE MOD</button>
-        <button data-tab="mixer">MIXER</button>
-        <button data-tab="pads">PAD EQ · ADSR</button>
-        <button data-tab="fx">REV 7 · TC DELAY</button>
-        <button data-tab="masterTab">MASTER</button>
-        <button data-tab="file">FILES</button>
-        <button data-tab="midi">MIDI</button>
-        <button data-tab="help">HOW TO</button>
-      </nav>
-    </div>
-    <!-- presets: 100 factory sounds, yours, and the dice -->
-    <div id="presetBar"></div>
-  </header>
+  <!-- No page ever scrolls (see CLAUDE.md). The rail holds the page buttons; the stage shows the machine or one page.
+       A page that doesn't fit is split into numbered pages (buttons and swipe). Layout: omega.js layout(). -->
+  <nav id="rail">
+    <button id="foldBtn" aria-pressed="false">FOLD</button>
+    <button data-tab="machine" class="on">MACHINE</button>
+    <button data-tab="modPanel">VOICE MOD</button>
+    <button data-tab="mixer">MIXER</button>
+    <button data-tab="pads">PADS</button>
+    <button data-tab="fx">FX</button>
+    <button data-tab="masterTab">MASTER</button>
+    <button data-tab="presets">PRESETS</button>
+    <button data-tab="file">FILES</button>
+    <button data-tab="midi">MIDI</button>
+    <button data-tab="help">HOW TO</button>
+  </nav>
 
   <div id="stage">
-  <!-- the front panel: drawn by faceplate.js at the hardware's proportions (2000 x 1160) -->
-  <div id="plateWrap"><svg id="plate" viewBox="0 0 2000 1160" aria-label="Omega 110 front panel"></svg></div>
+  <div id="machineView">
+    <!-- the front panel (faceplate.js, 2000 x 1160) between wooden end cheeks -->
+    <div id="plateWrap"><i class="cheek l"></i><svg id="plate" viewBox="0 0 2000 1160" aria-label="Omega 110 front panel"></svg><i class="cheek r"></i></div>
+    <!-- the preset / dice module beside the machine -->
+    <div id="presetBar" class="module"></div>
+  </div>
+
+  <section id="presets" class="panel"></section>
 
   <!-- the voice-mod panel: per-voice controls, trig sweep and the power supply -->
   <section id="modPanel" class="panel" aria-label="Voice mod panel"></section>
@@ -47,7 +52,7 @@
       <label class="pill">SHUFFLE <input id="swing" type="range" min="0" max="0.5" step="0.01" value="0"><output id="swingOut">0%</output></label>
       <button id="mixReset" class="small">RESET MIXER</button>
     </div>
-    <div id="strips" class="strips"></div>
+    <div id="strips" class="strips flat"></div>
   </section>
 
   <section id="fx" class="panel">
@@ -57,15 +62,14 @@
       <div class="revKnobs" id="revKnobs"></div>
     </div>
     <div class="tcd" id="tcd"></div>
-    <h3>EFFECTS MIXER · REVERB AND DELAY SENDS</h3>
-    <div id="sends" class="strips sends"></div>
+    <div id="sends" class="strips sends flat"></div>
   </section>
 
   <section id="pads" class="panel"></section>
   <section id="masterTab" class="panel"></section>
 
   <section id="file" class="panel">
-    <div class="grid2">
+    <div class="grid2 flat">
       <div class="box"><h3>Backup</h3>
         <p>All 32 patterns, both songs, the mixer, the reverb and the MIDI settings.</p>
         <button id="expJson">EXPORT BACKUP (.json)</button>
@@ -89,7 +93,7 @@
   </section>
 
   <section id="midi" class="panel">
-    <div class="grid2">
+    <div class="grid2 flat">
       <div class="box"><h3>Ports</h3>
         <label>Input <select id="midiIn"><option value="all">All inputs</option><option value="none">None</option></select></label>
         <label>Output <select id="midiOut"><option value="">None</option></select></label>
@@ -106,7 +110,8 @@
   </section>
 
   <section id="help" class="panel">
-    <div class="help">
+    <div class="help flat">
+      <p><b>PAGES</b>: nothing scrolls. The buttons on the side (or under the machine) pick a page; when a page has more than fits, ◀ ▶ and the numbers at its top (or a swipe) turn it. FOLD shows the bare machine as big as it gets; EXPAND brings the rest back.</p>
       <p><b>POWER</b>: slide the ON-OFF switch (top right) to switch the machine on.</p>
       <p><b>SHIFT</b> works like the original: hold it and press a key for the function printed above the key. It also <b>latches</b>: tap SHIFT on its own and the next key gets its shift function (SHIFT shows on the display); tap SHIFT again to cancel.</p>
       <p><b>Play a pattern</b>: A|B|C|D picks the bank (A, B presets, C, D yours), 1-8 the rhythm, START / STOP. While it runs a new choice waits for the end of the bar.</p>
@@ -116,6 +121,7 @@
       <p><b>Write: SONG</b> (SHIFT+3): pick bank and rhythm, then ENTER (SHIFT+O.HIHAT) puts it at this measure and moves on. MEASURE DOWN / UP (SHIFT+BASS / SNARE) move, MEASURE RESET (SHIFT+8) goes to 1, D.C. (SHIFT+C.HIHAT) ends the song here and repeats it (press again for no repeat). SHIFT+I·II picks song I or II.</p>
       <p><b>Play: SONG</b> (SHIFT+1) and START. <b>Play: PATTERN</b> is SHIFT+2.</p>
       <p><b>KNUCKLE</b>: SHIFT+HAND CLAP plays (and writes) the knuckle, a voice the original doesn't have; it shows in the BASS DRUM row as an open square. On the display the cymbal shows in the O.HIHAT row and the hand clap in the SNARE DRUM row the same way.</p>
+      <p><b>PADS</b>: each pad's parametric EQ, ADSR (it shapes the hit on top of the circuit's own decay; the gate is the key press, the MIDI note or one step of the pattern; sustain 100% and release at maximum leave the pad as it was), drive and delay send.</p>
       <p><b>Knobs</b>: drag up / down (double-tap for the default). TEMPO shows the BPM on the display while you turn it.</p>
     </div>
   </section>
