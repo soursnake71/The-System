@@ -363,7 +363,11 @@ DR110Editor::DR110Editor(DR110Processor& p) : juce::AudioProcessorEditor(p), pro
         c->setColour(juce::ComboBox::outlineColourId, juce::Colours::black); c->setColour(juce::ComboBox::arrowColourId, Colour(0xff7cff8a));
         addAndMakeVisible(*c);
     }
-    proc.onProgram = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<DR110Editor>(this)] { if (sp) sp->presetBox.setSelectedId(sp->proc.getCurrentProgram() + 1, juce::dontSendNotification); }); };
+    // the preset menu follows program changes (from the DAW too); MSVC wants the safe pointer made outside the lambda
+    proc.onProgram = [this] {
+        juce::Component::SafePointer<DR110Editor> safe(this);
+        juce::MessageManager::callAsync([safe] { if (auto* ed = safe.getComponent()) ed->presetBox.setSelectedId(ed->proc.getCurrentProgram() + 1, juce::dontSendNotification); });
+    };
 
     auto R = [](int x, int y, int w, int h) { return Rectangle<int>(x, y, w, h); };
     // ---- VOICE MOD
