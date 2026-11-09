@@ -201,5 +201,17 @@ knob(mk2, 'BALANCE', P.balance, 'lin', () => S.params[P.balance].toFixed(1)); kn
 // curves: redraw when their page opens
 document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => setTimeout(drawCurves, 0)));
 fillPresets(); buildPad(); refresh(); showPresetName();
+
+/* ---- expand / fold: the whole machine, or just the front panel */
+const foldBtn = $('foldBtn');
+const setFold = basic => {
+  document.body.classList.toggle('basic', basic);
+  foldBtn.textContent = basic ? 'EXPAND ▾' : 'FOLD ▴'; foldBtn.setAttribute('aria-pressed', String(basic));
+  try { localStorage.setItem('omega-110-basic', basic ? '1' : '0'); } catch (e){}
+  if (!basic) setTimeout(drawCurves, 0);
+};
+foldBtn.onclick = () => setFold(!document.body.classList.contains('basic'));
+let startBasic = false; try { startBasic = localStorage.getItem('omega-110-basic') === '1'; } catch (e){}
+setFold(startBasic);
 window.DROMEGA = {refresh, loadPreset, fillPresets};
 })();

@@ -114,7 +114,7 @@ void Faceplate::paint(Graphics& g) {
     {   // outlined OMEGA
         juce::GlyphArrangement ga; ga.addFittedText(font(64, true), "OMEGA", 198, 126 - 64 * 0.82f, 255, 64 * 1.05f, juce::Justification::left, 1, 0.3f);
         Path p; ga.createPath(p); g.setColour(Colour(0xffe6e6e6)); g.strokePath(p, juce::PathStrokeType(4.5f)); }
-    txt(g, 890, 137, "DR-110", 62, Colour(0xfff2f2f2), 1, 195);
+    txt(g, 890, 137, "110", 66, Colour(0xfff2f2f2), 1, 118);
     g.setColour(Colour(0xff1d1d1d)); g.fillRoundedRectangle(103, 150, 815, 452, 22); g.setColour(Colour(0xff3b3b3b)); g.drawRoundedRectangle(103, 150, 815, 452, 22, 4);
     g.setColour(Colour(0xff0d0d0d)); g.fillRoundedRectangle(150, 162, 720, 428, 10);
     g.setGradientFill(juce::ColourGradient(Colour(0xffd9e4c8), 0, 172, Colour(0xffc6d3b0), 0, 578, false)); g.fillRoundedRectangle(165, 172, 690, 406, 6);
@@ -432,10 +432,10 @@ DR110Editor::DR110Editor(DR110Processor& p) : juce::AudioProcessorEditor(p), pro
     for (int i = 0; i < 3; ++i) addKnob(4, mk[i][0], mk[i][1], R(1270 + i * 235, 440, 220, 200), false);
     selectPad(0);
     showTab(0);
+    // EXPAND / FOLD: the whole machine, or the front panel alone (remembered with the session)
+    foldBtn.setLookAndFeel(&look); foldBtn.onClick = [this] { setFolded(!folded); }; addAndMakeVisible(foldBtn);
     setResizable(true, true);
-    getConstrainer()->setFixedAspectRatio((double) W / (PH + MH));
-    setResizeLimits(700, (int) (700.0 * (PH + MH) / W), 2400, (int) (2400.0 * (PH + MH) / W));
-    setSize(1100, (int) (1100.0 * (PH + MH) / W));
+    setFolded((bool) proc.apvts.state.getProperty("folded", false));
     startTimerHz(15);
 }
 DR110Editor::~DR110Editor() {
@@ -443,9 +443,22 @@ DR110Editor::~DR110Editor() {
     proc.onProgram = nullptr;
     for (auto& t : tabs) t.setLookAndFeel(nullptr);
     for (auto& b : padBtn) b.setLookAndFeel(nullptr);
-    for (auto* b : {&sweepBtn, &prevBtn, &nextBtn, &diceBtn}) b->setLookAndFeel(nullptr);
+    for (auto* b : {&sweepBtn, &prevBtn, &nextBtn, &diceBtn, &foldBtn}) b->setLookAndFeel(nullptr);
     for (auto& k : knobs) { k.a.reset(); k.s->setLookAndFeel(nullptr); }
     for (auto& t : togs) t.b->setLookAndFeel(nullptr);
+}
+void DR110Editor::setFolded(bool f) {
+    folded = f;
+    proc.apvts.state.setProperty("folded", f, nullptr);
+    foldBtn.setButtonText(f ? "EXPAND" : "FOLD");
+    for (int i = 0; i < NT; ++i) tabs[i].setVisible(!f);
+    for (auto* c : std::initializer_list<juce::Component*>{&prevBtn, &nextBtn, &diceBtn, &presetBox, &partBox}) c->setVisible(!f);
+    if (f) { for (auto& k : knobs) k.s->setVisible(false); for (auto& g : togs) g.b->setVisible(false); for (auto& b : padBtn) b.setVisible(false); sweepBtn.setVisible(false); }
+    else showTab(tab);
+    const int h = f ? PH : PH + MH, w = getWidth() > 0 ? getWidth() : 1100;
+    getConstrainer()->setFixedAspectRatio((double) W / h);
+    setResizeLimits(700, (int) (700.0 * h / W), 2400, (int) (2400.0 * h / W));
+    setSize(w, (int) std::round((double) w * h / W));
 }
 void DR110Editor::fillPresets() {
     presetBox.clear(juce::dontSendNotification);
@@ -511,6 +524,7 @@ void DR110Editor::selectPad(int v) {
 }
 void DR110Editor::showTab(int t) {
     tab = t;
+    if (folded) return;
     for (int i = 0; i < NT; ++i) tabs[i].setToggleState(i == t, juce::dontSendNotification);
     for (auto& k : knobs) k.s->setVisible(k.tab == t);
     for (auto& g : togs) g.b->setVisible(g.tab == t);
@@ -528,6 +542,7 @@ void DR110Editor::timerCallback() {
 void DR110Editor::paint(Graphics& g) {
     const float s = (float) getWidth() / (float) W;
     g.fillAll(Colour(0xff2b2b2d));
+    if (folded) return;
     g.saveState();
     g.addTransform(juce::AffineTransform::scale(s).translated(0, (float) plate.getBottom()));
     g.setGradientFill(juce::ColourGradient(Colour(0xffe9e9ec), 0, 0, Colour(0xffd7d7da), 0, (float) MH, false));
@@ -552,6 +567,7 @@ void DR110Editor::paint(Graphics& g) {
 void DR110Editor::resized() {
     const float s = (float) getWidth() / (float) W;
     plate.setBounds(0, 0, getWidth(), (int) std::round(PH * s));
+    foldBtn.setBounds((int) std::round(1720 * s), (int) std::round(1112 * s), (int) std::round(230 * s), (int) std::round(46 * s));
     const int y0 = plate.getBottom();
     auto sc = [&](Rectangle<int> r) { return Rectangle<int>((int) std::round(r.getX() * s), y0 + (int) std::round(r.getY() * s), (int) std::round(r.getWidth() * s), (int) std::round(r.getHeight() * s)); };
     for (int i = 0; i < NT; ++i) tabs[i].setBounds(sc({20 + i * 392, 12, 382, 56}));

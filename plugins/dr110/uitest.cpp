@@ -22,6 +22,14 @@ int main(int argc, char** argv) {
         juce::FileOutputStream os(out.getChildFile("dr110-ui-" + juce::String(tab++) + ".png")); os.setPosition(0); os.truncate();
         juce::PNGImageFormat().writeImageToStream(img, os);
     }
+    for (auto* c : ed->getChildren()) if (auto* b = dynamic_cast<juce::TextButton*>(c)) if (b->getButtonText() == "FOLD") {
+        b->triggerClick(); juce::MessageManager::getInstance()->runDispatchLoopUntil(80);
+        const auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        juce::FileOutputStream os(out.getChildFile("dr110-ui-folded.png")); os.setPosition(0); os.truncate();
+        juce::PNGImageFormat().writeImageToStream(img, os);
+        std::printf("folded %d x %d\n", ed->getWidth(), ed->getHeight());
+        break;
+    }
     std::printf("saved %d pictures, %d x %d, program %d %s\n", tab, ed->getWidth(), ed->getHeight(), p.getCurrentProgram(), p.getProgramName(p.getCurrentProgram()).toRawUTF8());
     return 0;
 }

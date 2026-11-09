@@ -114,3 +114,8 @@ h3{margin:4px 0 10px;font-size:14px;letter-spacing:.08em}
 .tcHead span{font-size:11px;letter-spacing:.2em;color:#aaa}
 .tcd .revLcd{color:#ff4b3a !important;background:#1a0b0a}
 .tcd .knobRow,.tcd .tog{color:#ddd}
+
+/* expand / fold: folded is the bare machine, the front panel alone */
+#foldBtn{display:block;margin:0 0 8px auto;background:linear-gradient(#ffa040,#e06a10);color:#111;border:2px solid #0d0d0d;border-radius:6px;padding:8px 14px;font-weight:900;font-size:13px;letter-spacing:.06em;cursor:pointer}
+body.basic #presetBar,body.basic #modPanel,body.basic #tabs,body.basic .panel{display:none !important}
+body.basic #plateWrap{max-height:calc(100vh - 60px);max-width:calc((100vh - 60px) * 2000 / 1160)}

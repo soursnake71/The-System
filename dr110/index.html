@@ -12,6 +12,8 @@
 <body>
 <main id="app">
   <!-- the front panel: drawn by faceplate.js at the hardware's proportions (2000 x 1160) -->
+  <!-- EXPAND shows the presets, the voice-mod panel and every page; FOLD goes back to the bare machine -->
+  <button id="foldBtn" aria-pressed="false">FOLD ▴</button>
   <div id="plateWrap"><svg id="plate" viewBox="0 0 2000 1160" aria-label="Omega 110 front panel"></svg></div>
 
   <!-- presets: 100 factory sounds, yours, and the dice -->

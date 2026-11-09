@@ -55,6 +55,9 @@ private:
     void selectPad(int v);
     void timerCallback() override;
     void fillPresets();
+    void setFolded(bool f);
+    bool folded = false;
+    juce::TextButton foldBtn{"FOLD"};
     DR110Processor& proc;
     KnobLook look, lookWhite;
     Faceplate plate;
