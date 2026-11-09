@@ -55,7 +55,7 @@ struct Recorder {
     std::string start(Engine& eng, SongEntry* e, int track, double fromBeat) {
         if (!e || !eng.song.load()) return "NO SONG";
         rs.track = std::clamp(track, 0, SONG_TRK - 1); from = std::max(0.0, fromBeat);
-        if (!e->song->used[rs.track]) { auto ns = std::make_unique<MidiSong>(*e->song); ns->used[rs.track] = true; e->song = std::move(ns); eng.song = e->song.get(); }
+        if (!e->song->used[rs.track]) { auto ns = std::make_unique<MidiSong>(*e->song); ns->used[rs.track] = true; e->retired.push_back(std::move(e->song)); e->song = std::move(ns); eng.song = e->song.get(); }   // the old version kept: the audio thread may be playing it
         evs.clear(); Engine::RecEv ev; while (eng.recPop(ev)) {}
         const double barBeats = e->song->num * 4.0 / std::max(1, e->song->den);
         eng.extSync = false;

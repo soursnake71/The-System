@@ -226,6 +226,33 @@ int main(int argc, char** argv) {
     ed.reset();
     p.padEd.close(); p.resetAll(false);
     std::printf("clear all: master %.2f, pads %s\n", p.get("master"), p.padKitName.toRawUTF8()); ok &= std::fabs(p.get("master") - 1.f) < 1e-3;
+    if (const char* nf = std::getenv("CMI_STATE_FUZZ")) {   // crash test: damaged project data, then every page drawn
+        juce::MemoryBlock good; p.getStateInformation(good);
+        std::unique_ptr<juce::XmlElement> x(juce::AudioProcessor::getXmlFromBinary(good.getData(), (int) good.getSize()));
+        const juce::String xml = x ? x->toString() : juce::String();
+        juce::Random rnd(77); const int runs = std::atoi(nf);
+        for (int i = 0; i < runs; ++i) {
+            juce::String m = xml;
+            for (int k = 0, nm = 1 + rnd.nextInt(6); k < nm && m.isNotEmpty(); ++k) {
+                const int at = rnd.nextInt(m.length());
+                switch (rnd.nextInt(5)) {
+                    case 0: m = m.substring(0, at) + juce::String(rnd.nextInt(2000000) - 1000000) + m.substring(at + 1); break;
+                    case 1: m = m.substring(0, at); break;
+                    case 2: m = m.substring(0, at) + "\"-1e30\" " + m.substring(at); break;
+                    case 3: m = m.replace("slot=\"", "slot=\"9" + juce::String(rnd.nextInt(99999))); break;
+                    default: m = m.substring(0, at) + m.substring(at + rnd.nextInt(200)); break;
+                }
+            }
+            juce::MemoryBlock mb;   // as copyXmlToBinary stores it: a magic number, the length, the text
+            { juce::MemoryOutputStream o(mb, false); o.writeInt(0x21324356); o.writeInt((int) m.getNumBytesAsUTF8() + 1); o.write(m.toRawUTF8(), m.getNumBytesAsUTF8() + 1); }
+            p.setStateInformation(mb.getData(), (int) mb.getSize());
+            run(4, [](int b, juce::MidiBuffer& mm) { if (b == 0) mm.addEvent(juce::MidiMessage::noteOn(10, 38, (juce::uint8) 100), 0); });
+            if (i % 25 == 0) { std::unique_ptr<juce::AudioProcessorEditor> e2(p.createEditor()); auto* c2 = dynamic_cast<cmi::CmiEditor*>(e2.get());
+                for (char pg : { 'R', 'S', '2', '7', 'D', '8', 'M', '5', 'F', 'E', 'P', 'W', 'K' }) { c2->showPage(pg); (void) e2->createComponentSnapshot(e2->getLocalBounds(), true, 1.0f); } }
+        }
+        std::printf("project data damaged %d ways, every page drawn: no crash\n", runs);
+        p.setStateInformation(good.getData(), (int) good.getSize());
+    }
     std::puts(ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
 }

@@ -423,7 +423,7 @@ FN(jstring, songTrack)(JNIEnv* env, jclass, jint t) {
     const MidiSong* s = app()->engine.song.load();
     if (!s || t < 0 || t >= SONG_TRK) return env->NewStringUTF("");
     char buf[256];
-    std::snprintf(buf, sizeof buf, "%s\t%d\t%d\t%d", s->trackName[t].c_str(), app()->engine.songVoice[t], (int) s->used[t], (int) app()->engine.songMute[t]);
+    std::snprintf(buf, sizeof buf, "%s\t%d\t%d\t%d", s->trackName[t].c_str(), app()->engine.songVoice[t].load(), (int) s->used[t], (int) app()->engine.songMute[t].load());
     return env->NewStringUTF(buf);
 }
 FN(void, setSongVoice)(JNIEnv*, jclass, jint t, jint v) { if (t < 0 || t >= SONG_TRK) return; if (auto* e = app()->songs.at(curSongIdx())) e->voice[t] = v; app()->engine.songVoice[t] = v; }

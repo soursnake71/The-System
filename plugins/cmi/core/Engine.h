@@ -347,9 +347,9 @@ public:
     bool recPop(RecEv& e) { const uint32_t r = recR.load(std::memory_order_relaxed); if (r == recW.load(std::memory_order_acquire)) return false; e = recQ[r % recQ.size()]; recR.store(r + 1, std::memory_order_release); return true; }
     // the click (metronome): while the song plays, accented on the bar
     std::atomic<bool> clickOn { false }; std::atomic<float> clickLevel { 0.5f };
-    int songVoice[SONG_TRK] {};                            // a sound index, or GM_KIT
-    bool songMute[SONG_TRK] {};
-    bool songMono[SONG_TRK] {};                            // mono: a track's new note cuts the one before (a 4 ms fade)
+    std::atomic<int> songVoice[SONG_TRK] {};               // a sound index, or GM_KIT (set from the screen, read by the audio)
+    std::atomic<bool> songMute[SONG_TRK] {};
+    std::atomic<bool> songMono[SONG_TRK] {};                            // mono: a track's new note cuts the one before (a 4 ms fade)
     std::atomic<double> songGain { 0.5 };
     std::atomic<double> drumLift { 2.0 };                 // the drum kit's level on top (+6 dB)
     std::atomic<float> loopBlend { 0.5f };   // crossfade at loop points, 0 (the original card: none) .. 1                // a whole band on 32 cards: headroom for the summing amp

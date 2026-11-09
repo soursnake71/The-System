@@ -73,15 +73,15 @@ inline bool parseSmf(const uint8_t* d, size_t n, const std::string& name, MidiSo
             if (st == 0xFF) {
                 if (q >= end) break;
                 const uint8_t type = d[q++]; const uint32_t ml = vlq();
-                if (q + ml > end) break;
+                if (ml > (uint32_t) (end - q)) break;
                 if (type == 0x51 && ml >= 3) tempo.push_back({ tick, 60000000.0 / std::max(1u, (uint32_t) (d[q] << 16 | d[q + 1] << 8 | d[q + 2])) });
-                else if (type == 0x58 && ml >= 2) { num = d[q]; den = 1 << d[q + 1]; }
+                else if (type == 0x58 && ml >= 2) { num = d[q]; den = 1 << std::min<int>(d[q + 1], 6); }
                 else if (type == 0x01 && ml > 17 && !std::memcmp(d + q, "OMEGA CMI LENGTH ", 17)) minLen = std::atof(std::string((const char*) d + q + 17, ml - 17).c_str());
                 else if ((type == 0x03 || type == 0x01) && trkNames[t].empty()) trkNames[t].assign((const char*) d + q, ml);
                 else if (type == 0x2F) { q += ml; break; }
                 q += ml; continue;
             }
-            if (st == 0xF0 || st == 0xF7) { const uint32_t sl = vlq(); q += sl; continue; }
+            if (st == 0xF0 || st == 0xF7) { const uint32_t sl = vlq(); if (sl > (uint32_t) (end - q)) break; q += sl; continue; }
             if (!(st & 0x80)) break;   // no running status to use: give up on this track
             const int hi = st & 0xF0, need = (hi == 0xC0 || hi == 0xD0) ? 1 : 2;
             if (q + (size_t) need > end) break;

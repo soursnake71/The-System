@@ -46,6 +46,7 @@ inline bool unpackImd(const uint8_t* d, size_t n, std::vector<uint8_t>& out, std
     while (p + 5 <= n) {
         const int cyl = d[p + 1], headRaw = d[p + 2], count = d[p + 3], sizeCode = d[p + 4];
         p += 5;
+        if (sizeCode > 6) { err = "BAD IMD SECTOR SIZE"; return false; }   // 128 .. 8192 bytes
         const int size = 128 << sizeCode;
         if (count <= 0 || count > 64 || p + (size_t) count > n) { err = "BAD IMD TRACK"; return false; }
         const uint8_t* smap = d + p; p += (size_t) count;
