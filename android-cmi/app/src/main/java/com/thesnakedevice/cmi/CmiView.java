@@ -392,6 +392,7 @@ public class CmiView extends View {
     private void pads(Canvas c, RectF b) {
         final int cur = Native.padPreset();
         text(c, "DRUM PADS  " + Native.padKitName(), b.left, b.top + dp(14), 12, INK);
+        { p.setTextAlign(Paint.Align.RIGHT); p.setTextSize(dp(9)); p.setColor(DIM); c.drawText("TOUCH TO SOUND ~" + Math.round(Native.outputLatencyMs()) + " MS", b.right, b.top + dp(14), p); p.setTextAlign(Paint.Align.LEFT); }
         // the kit row: presets, the dice, samples
         float y = b.top + dp(20);
         final float bw = (b.width() - dp(24)) / 5;

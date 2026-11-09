@@ -162,6 +162,7 @@ final class Native {
     static native void clearPadRR(int note);
     static native int[] editChop(int n);
     static native int padBanks();
+    static native float outputLatencyMs();
     static native float kickLift();
     static native void setKickLift(float v);
     static native float humanize();

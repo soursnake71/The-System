@@ -7,6 +7,7 @@
 #include <mutex>
 #include <thread>
 #include <unistd.h>
+#include <ctime>
 #include "Disk.h"
 #include "Song.h"
 #include "Catalog.h"
@@ -138,8 +139,25 @@ struct App {
 
 App* app() { static App* a = new App(); return a; }
 
-aaudio_data_callback_result_t dataCb(AAudioStream*, void*, void* audio, int32_t frames) {
+// the output as quick as the phone allows: one burst of buffer, another added each time it runs dry (up to four);
+// and how late what we write is heard (the touch to the ear), so live notes recorded into a song land on the beat
+static int32_t xruns = 0, tuneLeft = 0;
+aaudio_data_callback_result_t dataCb(AAudioStream* st, void*, void* audio, int32_t frames) {
     app()->render((float*) audio, frames);
+    if ((tuneLeft -= frames) <= 0) {
+        tuneLeft = (int32_t) (app()->rate * 0.25);
+        const int32_t x = AAudioStream_getXRunCount(st), burst = AAudioStream_getFramesPerBurst(st), size = AAudioStream_getBufferSizeInFrames(st);
+        if (x > xruns && size < burst * 4) AAudioStream_setBufferSizeInFrames(st, size + burst);
+        xruns = x;
+        int64_t fp = 0, tns = 0;
+        if (AAudioStream_getTimestamp(st, CLOCK_MONOTONIC, &fp, &tns) == AAUDIO_OK) {
+            timespec now {}; clock_gettime(CLOCK_MONOTONIC, &now);
+            const double nowNs = now.tv_sec * 1e9 + now.tv_nsec;
+            const double heardAt = tns + (AAudioStream_getFramesWritten(st) - fp) * 1e9 / app()->rate;
+            const double lat = std::clamp((heardAt - nowNs) / 1e9, 0.0, 0.3);
+            app()->engine.liveLatency = lat + 0.015;   // and the touch screen's own, about 15 ms
+        }
+    }
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 void openStream();
@@ -152,19 +170,20 @@ void openStream() {
     if (AAudio_createStreamBuilder(&b) != AAUDIO_OK) return;
     AAudioStreamBuilder_setDirection(b, AAUDIO_DIRECTION_OUTPUT);
     AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
-    AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
+    AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_EXCLUSIVE);   // the direct (MMAP) path where the phone has it
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
     AAudioStreamBuilder_setChannelCount(b, 2);
     AAudioStreamBuilder_setDataCallback(b, dataCb, nullptr);
     AAudioStreamBuilder_setErrorCallback(b, errorCb, nullptr);
     AAudioStream* s = nullptr;
-    if (AAudioStreamBuilder_openStream(b, &s) == AAUDIO_OK) {
+    if (AAudioStreamBuilder_openStream(b, &s) != AAUDIO_OK) { s = nullptr; AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED); if (AAudioStreamBuilder_openStream(b, &s) != AAUDIO_OK) s = nullptr; }
+    if (s) {
         app()->rate = AAudioStream_getSampleRate(s);
         app()->engine.prepare(app()->rate);
-        AAudioStream_setBufferSizeInFrames(s, AAudioStream_getFramesPerBurst(s) * 2);
+        AAudioStream_setBufferSizeInFrames(s, AAudioStream_getFramesPerBurst(s)); xruns = 0; tuneLeft = 0;
         AAudioStream_requestStart(s);
         app()->stream = s;
-        LOG("AAudio %d Hz, burst %d", (int) app()->rate, AAudioStream_getFramesPerBurst(s));
+        LOG("AAudio %d Hz, burst %d, %s", (int) app()->rate, AAudioStream_getFramesPerBurst(s), AAudioStream_getSharingMode(s) == AAUDIO_SHARING_MODE_EXCLUSIVE ? "exclusive" : "shared");
     }
     AAudioStreamBuilder_delete(b);
 }
@@ -941,6 +960,7 @@ FN(jintArray, editChop)(JNIEnv* env, jclass, jint n) {
     jint v[2] = { bank, made }; jintArray r = env->NewIntArray(2); env->SetIntArrayRegion(r, 0, 2, v); return r;
 }
 FN(jint, padBanks)(JNIEnv*, jclass) { return PAD_BANKS; }
+FN(jfloat, outputLatencyMs)(JNIEnv*, jclass) { return (float) (app()->engine.liveLatency.load() * 1000); }
 // REC on the pads: onto the song's drum track (a new song if none; track 10 made the kit if it has none), click on
 FN(jstring, recordPads)(JNIEnv* env, jclass) {
     auto* a = app();

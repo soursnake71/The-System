@@ -333,7 +333,11 @@ public:
     std::atomic<bool> ch10Kit { true };
     // the kick's lift after the card (a kick's energy is low, where the ear hears least: at the same level as the snare
     // it sounds about 6 dB quieter); 1 = none. And humanize: each drum hit's velocity and pitch varied a little (0..1)
-    std::atomic<float> kickLift { 2.0f }, humanize { 0.0f };   // MIDI channel 10 plays the kit, as General MIDI does
+    std::atomic<float> kickLift { 2.0f }, humanize { 0.0f };
+    // how late a live note is heard after it's played (the output's buffers and the touch screen), seconds: notes
+    // recorded live go into the song that much earlier, where the player meant them
+    std::atomic<double> liveLatency { 0.0 };
+    double liveBeat() const { const double bpm = curSong ? curSong->bpmAt(sbeat) : 120.0; return std::max(0.0, sbeat - liveLatency.load() * bpm / 60.0); }   // MIDI channel 10 plays the kit, as General MIDI does
     void padTap(int note, int vel = 110) { padPush(note, vel | 0x100); }   // a hit let go by itself 0.3 s later (an audition)
     void padPush(int note, int vel) { std::lock_guard<std::mutex> g(padLock); const uint32_t w = padW.load(std::memory_order_relaxed); if (w - padR.load(std::memory_order_acquire) >= padQ.size()) return; padQ[w % padQ.size()] = { note, vel }; padW.store(w + 1, std::memory_order_release); }
     void clearKit() { kitRROn = false; for (int n = 0; n < KIT_SLOTS; ++n) { kitFilt[(size_t) n] = kitLfoR[(size_t) n] = kitLfoD[(size_t) n] = -1; kitRRn[(size_t) n] = 0; kitSound[(size_t) n] = -1; kitLevel[(size_t) n] = 1; kitPan[(size_t) n] = -1; kitTune[(size_t) n] = 0; kitMeter[(size_t) n] = 0; kitMute[(size_t) n] = false; kitSolo[(size_t) n] = false; kitEnvA[(size_t) n] = kitEnvD[(size_t) n] = kitEnvS[(size_t) n] = kitEnvR[(size_t) n] = -1; } }
@@ -396,7 +400,7 @@ public:
         if (recOn.load() && song.load() && (st == 0x90 || st == 0x80) && len >= 3 && !toTrack) {   // recording
             const int vel = st == 0x80 ? 0 : m[2];
             songNote(recTrack.load(), m[1], vel);
-            if (songRun.load() && (vel == 0 || sbeat >= recFrom.load() - 1e-6)) recPush({ sbeat, m[1], vel });
+            if (songRun.load() && (vel == 0 || sbeat >= recFrom.load() - 1e-6)) recPush({ liveBeat(), m[1], vel });
             return true;
         }
         if (st == 0x90 && len >= 3 && m[2] > 0) {
@@ -500,7 +504,7 @@ public:
             if (h.second & 0x100) { h.second &= 0xFF; if (h.first >= 0 && h.first < KIT_SLOTS) tapLeft[(size_t) h.first] = (int) (fs * 0.3); }
             if (recOn.load() && song.load() && songVoice[clampi(recTrack.load(), 0, SONG_TRK - 1)] == GM_KIT) {   // recording onto the kit track
                 songNote(recTrack.load(), h.first, h.second);
-                if (songRun.load() && (h.second == 0 || sbeat >= recFrom.load() - 1e-6)) recPush({ sbeat, h.first, h.second });
+                if (songRun.load() && (h.second == 0 || sbeat >= recFrom.load() - 1e-6)) recPush({ liveBeat(), h.first, h.second });
             } else padHit(h.first, h.second);
         }
         for (int k = 0; k < KIT_SLOTS; ++k) if (tapLeft[(size_t) k] > 0 && (tapLeft[(size_t) k] -= n) <= 0) { tapLeft[(size_t) k] = 0; padHit(k, 0); }
