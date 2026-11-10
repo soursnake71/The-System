@@ -222,18 +222,19 @@ inline void render_pluck(std::vector<float>& out, const PluckSpec& p, Rng& rng, 
         double a = std::fabs(std::sin(kPi * k * beta)) / std::pow(k, 1.15);
         if (k == 1 && f0 < 50) a *= 0.45;  // weak fundamental on the low strings (pickup / speaker)
         amp[k - 1] = a;
-        norm += a;
+        norm += a * a;
         ph[k - 1] = rng.uni(0, 2 * kPi);
         dec[k - 1] = std::exp(-1.0 / (tau0 / (1 + 0.12 * (k - 1)) * sr));
         ratio[k - 1] = k * std::sqrt(1 + B * k * k);
     }
-    for (auto& a : amp) a *= p.gain * 0.9 / norm;
+    norm = std::sqrt(norm);  // equal loudness (RMS) across the range: the note's gain is its level
+    for (auto& a : amp) a *= p.gain * 0.25 / norm;
     const double tau_mute = 0.007, tau_damp = 0.003;
     const long tail = std::lround((p.legato ? 8 * tau_damp : 9 * tau_mute) * sr);
     const long nlast = std::min<long>(long(out.size()), p.n_end + tail);
     const long ramp = std::lround(0.0004 * sr);
     const double kmute = std::exp(-1.0 / ((p.legato ? tau_damp : tau_mute) * sr));
-    double gmute = 1, lp = 0, nenv = 0.35 * p.gain;
+    double gmute = 1, lp = 0, nenv = 0.1 * p.gain;
     const double knoise = std::exp(-1.0 / (0.0025 * sr)), alp = 1 - std::exp(-2 * kPi * 2500.0 / sr);
     std::vector<double> env(K, 1.0);
     for (long n = p.n0; n < nlast; ++n) {

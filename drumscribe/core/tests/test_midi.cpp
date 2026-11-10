@@ -292,7 +292,7 @@ static void verify(const std::string& name, const std::string& path, const Song&
         int missing = 0;
         for (size_t i = 0; i < bass.size(); ++i)
             for (auto& pb : bass[i].bends) {
-                const int v = std::max(0, std::min(16383, (int) std::lround(8192 + pb.semitones / 12 * 8192)));
+                const int v = std::max(0, std::min(16383, (int) std::lround(8192 + (bass[i].cents / 100.0 + pb.semitones) / 12 * 8192)));
                 bool found = false;
                 for (auto& e : bt)
                     if (e.st == 0xE1 && (e.d[0] | e.d[1] << 7) == v &&

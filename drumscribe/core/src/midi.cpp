@@ -285,7 +285,7 @@ void write_midi(const std::string& path, const std::vector<DrumHit>& drums, cons
             for (auto& pb : n.bends) {
                 const double bt = pb.time < n.time - 1e-6 ? n.time + pb.time : pb.time;  // absolute, or relative to the onset
                 if (bt > end) continue;
-                const int v = bend14(pb.semitones);
+                const int v = bend14(n.cents / 100.0 + pb.semitones);  // bends are relative to the held pitch
                 if (v == state) continue;
                 bend(std::max(on, tm.ticks(bt)), 4, v);
                 state = v;
