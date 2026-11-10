@@ -98,7 +98,7 @@ static double pctl(std::vector<double> v, double q) {
 }
 
 // ---- reference pitch: plain YIN on a 4x decimated signal (independent of the engine's tracker)
-struct RefPitch { double hop; std::vector<double> midi; };  // NaN = unvoiced
+struct RefPitch { double hop; std::vector<double> midi, edb; };  // NaN = unvoiced; edb = frame level rel. loud part
 static RefPitch ref_pitch(const Signal& x, int sr) {
     const int D = 4;
     const double srd = double(sr) / D;
@@ -131,6 +131,7 @@ static RefPitch ref_pitch(const Signal& x, int sr) {
         pw.push_back(e / W);
     }
     double ref = pctl(pw, 0.99);
+    for (double p : pw) r.edb.push_back(10 * std::log10(p / ref + 1e-12));
     std::vector<double> d(T + 1), dp(T + 1);
     size_t fi = 0;
     for (size_t s0 = 0; s0 + W + T < y.size(); s0 += hop, ++fi) {
@@ -302,12 +303,14 @@ int main(int argc, char** argv) {
     double F = P + R > 0 ? 2 * P * R / (P + R) : 0;
     // (b) pitch vs the reference track of the isolated stem
     RefPitch rp = ref_pitch(iso, sri);
-    int voiced = 0, covered = 0, within = 0, octave = 0, noteframes = 0, silentnote = 0;
+    int voiced = 0, covered = 0, within = 0, octave = 0, noteframes = 0, silentnote = 0, gapvoiced = 0;
     for (size_t k = 0; k < rp.midi.size(); ++k) {
         double t = (k + 0.5) * rp.hop + 0.023;  // frame centre
         double tp = note_pitch_at(ni, t);
         bool v = !std::isnan(rp.midi[k]);
-        if (!std::isnan(tp)) { ++noteframes; if (!v) ++silentnote; }
+        // a note sounding where the stem is silent (> 30 dB below its loud part): a release that comes too late
+        if (!std::isnan(tp)) { ++noteframes; if (rp.edb[k] < -30) ++silentnote; }
+        if (std::isnan(tp) && rp.edb[k] > -20 && v) ++gapvoiced;
         if (!v) continue;
         ++voiced;
         if (std::isnan(tp)) continue;
@@ -334,9 +337,9 @@ int main(int argc, char** argv) {
     std::printf("  agreement iso vs demucs: iso %d demucs %d match %d  P %.3f R %.3f F %.3f  onset MAE %.1f ms  end MAE %.1f ms\n",
                 int(ni.size()), int(nd.size()), m.tp, P, R, F, m.don.empty() ? 0 : std::accumulate(m.don.begin(), m.don.end(), 0.0) / m.don.size(),
                 m.doff.empty() ? 0 : std::accumulate(m.doff.begin(), m.doff.end(), 0.0) / m.doff.size());
-    std::printf("  iso pitch vs ref YIN: voiced frames %d, covered %.3f, within 50c %.3f (of covered), octave %.3f; note frames ref-silent %.3f\n",
+    std::printf("  iso pitch vs ref YIN: voiced frames %d, covered %.3f, within 50c %.3f (of covered), octave %.3f; note frames over silence (<-30 dB) %.3f, loud voiced frames without a note %d\n",
                 voiced, voiced ? double(covered) / voiced : 0, covered ? double(within) / covered : 0,
-                covered ? double(octave) / covered : 0, noteframes ? double(silentnote) / noteframes : 0);
+                covered ? double(octave) / covered : 0, noteframes ? double(silentnote) / noteframes : 0, gapvoiced);
     std::printf("  energy onsets %d: found by notes %.3f; notes on an energy onset %.3f\n", int(eo.size()),
                 eo.empty() ? 0 : double(ohit) / eo.size(), ni.empty() ? 0 : double(nhit) / ni.size());
     for (int pass = 0; pass < 2; ++pass) {
@@ -346,9 +349,9 @@ int main(int argc, char** argv) {
                     s.len_med, s.len_p90);
     }
     std::printf("  resynth low-band log-spectrogram corr %.3f\n", sc);
-    std::printf("SUMMARY %s notes_iso=%d notes_dem=%d F=%.3f within50=%.3f octave=%.3f slides_iso=%d slides_dem=%d bent_iso=%d bent_dem=%d legato_iso=%.2f legato_dem=%.2f acc_iso=%d acc_dem=%d onsetP=%.2f onsetR=%.2f corr=%.3f\n",
+    std::printf("SUMMARY %s notes_iso=%d notes_dem=%d F=%.3f within50=%.3f octave=%.3f slides_iso=%d slides_dem=%d bent_iso=%d bent_dem=%d legato_iso=%.2f legato_dem=%.2f silent=%.3f acc_iso=%d acc_dem=%d onsetP=%.2f onsetR=%.2f corr=%.3f\n",
                 name.c_str(), int(ni.size()), int(nd.size()), F, covered ? double(within) / covered : 0,
-                covered ? double(octave) / covered : 0, si.slides, sd.slides, si.bent, sd.bent, si.legato, sd.legato,
+                covered ? double(octave) / covered : 0, si.slides, sd.slides, si.bent, sd.bent, si.legato, sd.legato, noteframes ? double(silentnote) / noteframes : 0,
                 si.accents, sd.accents, ni.empty() ? 0 : double(nhit) / ni.size(), eo.empty() ? 0 : double(ohit) / eo.size(), sc);
     if (std::getenv("EVAL_DUMP")) {
         for (int pass = 0; pass < 2; ++pass) {

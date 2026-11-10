@@ -612,11 +612,37 @@ int octave_up(const Sig& s, long a, long b, double f) {
     // ... and the "fundamental" is bleed (a kick's sine): it dies away much faster than the even partials (a real
     // bass whose pickup position starves the odd partials keeps all of them decaying together)
     const long m = (a + b) / 2;
-    if (m - a < long(2 * s.sr / f)) return 0;
+    if (m - a < long(1.2 * s.sr / f)) return 0;
     double f1a = tone_power(s, a, m, f), f1b = tone_power(s, m, b, f);
     double f2a = tone_power(s, a, m, 2 * f), f2b = tone_power(s, m, b, 2 * f);
     double drop1 = db(f1a + 1e-30) - db(f1b + 1e-30), drop2 = db(f2a + 1e-30) - db(f2b + 1e-30);
-    return drop1 - drop2 > 6 ? 12 : 0;
+    return drop1 - drop2 > 2.5 ? 12 : 0;
+}
+
+// lowest short-window periodicity (best normalized autocorrelation over lags between the two periods, one longer
+// period long, every ms) in [a, b): a glide stays periodic all the way, a re-attack breaks the waveform
+double min_periodicity(const Sig& s, long a, long b, double PA, double PB) {
+    const double lo = std::min(PA, PB), hi = std::max(PA, PB);
+    const long L = long(hi) + 1, t0 = std::max(1L, long(lo * 0.95)), t1 = long(hi * 1.05) + 1;
+    double rmin = 1;
+    for (long m = a; m < b; m += s.msl(1)) {
+        const long st = m - L / 2;
+        double e0 = 0;
+        for (long j = st; j < st + L; ++j) e0 += s.at(j) * s.at(j);
+        if (e0 <= 0) continue;
+        double bc = -1;
+        for (long t = t0; t <= t1; t += 2) {
+            double xy = 0, e1 = 0;
+            for (long j = st; j < st + L; ++j) {
+                double u = s.at(j + t);
+                xy += s.at(j) * u;
+                e1 += u * u;
+            }
+            if (e1 > 0) bc = std::max(bc, xy / std::sqrt(e0 * e1));
+        }
+        rmin = std::min(rmin, bc);
+    }
+    return rmin;
 }
 
 // ---------------------------------------------------------------------------------------------------- glide model
@@ -910,6 +936,18 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             ons.push_back(o);
         }
         std::sort(ons.begin(), ons.end(), [](const Onset& a, const Onset& b) { return a.n < b.n; });
+        // candidates of the different detectors for the same event: one candidate (the earliest position, refined
+        // on the band only when no energy / residual detector saw it)
+        std::vector<Onset> o2;
+        for (auto& o : ons) {
+            if (!o2.empty() && o.n - o2.back().n < s.msl(15)) {
+                o2.back().band = o2.back().band && o.band;
+                o2.back().strength = std::max(o2.back().strength, o.strength);
+                continue;
+            }
+            o2.push_back(o);
+        }
+        ons.swap(o2);
     }
     // refine each onset to the sample
     for (size_t i = 0; i < ons.size(); ++i) {
@@ -1257,6 +1295,17 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             }
             return (t20 < 0 || t80 < 0) ? 0.0 : t80 - t20;
         };
+        // a held level that sits between semitones, close to its neighbour, is that note bent (or a wobble while the
+        // string is released), not a new note: a fretted note is in tune
+        for (size_t j = 1; j < nl.size();) {
+            double dev = std::fabs(nl[j].pitch - w.tune - std::round(nl[j].pitch - w.tune));
+            if (nl[j].stable && dev > 0.3 && std::fabs(nl[j].pitch - nl[j - 1].pitch) < 1.6) {
+                nl[j - 1].k1 = nl[j].k1;
+                nl.erase(nl.begin() + j);
+            } else {
+                ++j;
+            }
+        }
         // merge equal neighbours, drop slow, small excursions that return (bends)
         for (bool changed = true; changed;) {
             changed = false;
@@ -1346,14 +1395,34 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                     const double te = std::min(gl.t0 + 0.06, tend - 0.01);
                     for (long k = w.kof(std::lround((gl.t0 - 0.005) * sr)); k <= w.kof(std::lround(te * sr)); ++k)
                         if (k >= 0 && k < K && Ob[k] > bm) { bm = Ob[k]; bk = k; }
+                    // the waveform: a dip in the (pitch-synchronous) level, or the periodicity breaking during a small
+                    // interval, also mark a re-attack (a glide keeps both)
+                    auto per = [&](double m) { return sr / (440.0 * std::pow(2.0, (m - 69) / 12.0)); };
+                    const double PA = per(nl[j - 1].pitch), interval = std::fabs(nl[j].pitch - nl[j - 1].pitch);
+                    double e0 = db(s.pow(std::lround((gl.t0 - 0.04) * sr), std::lround((gl.t0 - 0.01) * sr)));
+                    double emin = 1e9, temin = gl.t0;
+                    for (double t = gl.t0 - 0.01; t < te; t += 0.002) {
+                        long c = std::lround(t * sr);
+                        double e1 = db(s.pow(c - long(PA / 2), c + long(PA / 2)));
+                        if (e1 < emin) { emin = e1; temin = t; }
+                    }
+                    double rmin = interval <= 3 ? min_periodicity(s, std::lround((gl.t0 - 0.01) * sr), std::lround(te * sr),
+                                                                  PA, per(nl[j].pitch))
+                                                : 1.0;
+                    bool bright = bm >= 3.5 && bk >= 0, dip = e0 - emin >= 4 && interval <= 5, brk = rmin < 0.45;
                     if (std::getenv("BASS_DBG"))
-                        std::fprintf(stderr, "trans %.4f %.2f->%.2f slid %d brightmax %.1f at %.4f\n", gl.t0,
-                                     nl[j - 1].pitch, nl[j].pitch, pt.slid, bm, bk >= 0 ? w.tk(bk) : -1.0);
-                    if (pt.slid && bm >= 5 && bk >= 0) {
+                        std::fprintf(stderr, "trans %.4f %.2f->%.2f slid %d bright %.1f dip %.1f rmin %.2f\n", gl.t0,
+                                     nl[j - 1].pitch, nl[j].pitch, pt.slid, bm, e0 - emin, rmin);
+                    if (pt.slid && (bright || dip || brk)) {
                         pt.slid = false;
                         Onset o;
-                        o.n = bk * H;
-                        refine_band_onset(s, o, std::max(on + s.msl(10), o.n - s.msl(30)), ref_band);
+                        if (bright) {
+                            o.n = bk * H;
+                            refine_band_onset(s, o, std::max(on + s.msl(10), o.n - s.msl(30)), ref_band);
+                        } else {
+                            o.n = std::lround(temin * sr);
+                            refine_onset(s, o, std::max(on + s.msl(10), o.n - s.msl(20)), PA, ref_pow);
+                        }
                         pt.t0 = double(o.n) / sr;
                         band_attack = true;
                     }
