@@ -206,7 +206,8 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
     out["findings"] = json::array();
     if (bg.beats.size() < 2) { out["error"] = "no beat grid"; return out; }
     const Grid G(bg);
-    const int steps = bpb * 4;
+    const int spb = compound ? 3 : 4;  // steps per beat: 16ths, or the three 8ths of a dotted beat in 6/8
+    const int steps = bpb * spb;
 
     // ---- events
     std::vector<Ev> ev;
@@ -293,7 +294,7 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
 
     // ---- swing: coordinate ascent of (s8, s16), then per-instrument precise means
     double s8 = 0.5, s16 = 0.5;
-    {
+    if (!compound) {
         double best = swing_score(ev, s8, s16);
         for (int round = 0; round < 3; ++round) {
             for (int pass = 0; pass < 2; ++pass)
@@ -313,23 +314,24 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
         const double fl = std::floor(e.p), f = e.p - fl;
         double bd = 2;
         int bk = 0;
-        for (int k = 0; k <= 4; ++k) {
-            const double q = k == 4 ? 1.0 : step_pos(k, s8, s16);
+        auto posk = [&](int k) { return compound ? k / 3.0 : step_pos(k, s8, s16); };
+        for (int k = 0; k <= spb; ++k) {
+            const double q = k == spb ? 1.0 : posk(k);
             if (std::abs(f - q) < bd) { bd = std::abs(f - q); bk = k; }
         }
-        e.beat = (int) fl + (bk == 4 ? 1 : 0);
-        e.k = bk == 4 ? 0 : bk;
-        e.off_sw = (e.t - G.time(e.beat + step_pos(e.k, s8, s16))) * 1000;
-        e.off_st = (e.t - G.time(e.beat + e.k / 4.0)) * 1000;
+        e.beat = (int) fl + (bk == spb ? 1 : 0);
+        e.k = bk == spb ? 0 : bk;
+        e.off_sw = (e.t - G.time(e.beat + posk(e.k))) * 1000;
+        e.off_st = (e.t - G.time(e.beat + (double) e.k / spb)) * 1000;
         int start, len;
         G.bar_of(e.beat, e.bar, start, len);
-        e.step = len == bpb ? (e.beat - start) * 4 + e.k : -1;
+        e.step = len == bpb ? (e.beat - start) * spb + e.k : -1;
     }
     {
         json sw;
         Stat a8, a16;
         json per = json::object();
-        for (int in = 0; in < NINST; ++in) {
+        for (int in = 0; in < NINST && !compound; ++in) {
             if (in == CRASH) continue;
             // ratios against the instrument's OWN neighbouring hits where they exist (immune to grid error and to
             // the instrument's lag), else against the grid minus the instrument's mean on-beat offset
@@ -385,6 +387,7 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
         if (a16.n >= 4 && e16 >= 53) F.push_back(fmt("16ths swung %.1f%%", e16));
         if ((a8.n < 4 || e8 < 53) && (a16.n < 4 || e16 < 53) && !compound)
             F.push_back(fmt("Straight feel (8ths at %.1f%%)", a8.n ? e8 : 50.0));
+        if (compound) F.push_back("Compound meter: 6/8, the beat is a dotted quarter (three 8ths)");
     }
 
     // ---- per instrument: microtiming, dynamics, density, syncopation
@@ -402,8 +405,9 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
     // metrical weights (LHL): bar 0, half bar (4/4) -1, beat -2, 8th -3, 16th -4
     std::vector<int> mw(steps);
     for (int s = 0; s < steps; ++s) {
-        const int beat = s / 4, k = s % 4;
-        mw[s] = s == 0 ? 0 : k == 0 ? (bpb == 4 && beat == 2 ? -1 : -2) : k == 2 ? -3 : -4;
+        const int beat = s / spb, k = s % spb;
+        if (compound) mw[s] = s == 0 ? 0 : k == 0 ? -1 : -3;  // 6/8: bar, dotted beat, 8th
+        else mw[s] = s == 0 ? 0 : k == 0 ? (bpb == 4 && beat == 2 ? -1 : -2) : k == 2 ? -3 : -4;
     }
     auto lhl = [&](const std::vector<int>& insts) {
         // onset grid over all bars (regular bars only), syncopation summed per bar, averaged over active bars
@@ -512,7 +516,7 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
         }
         json cnt = json::array();
         for (auto& s : off) cnt.push_back((int) s.n);
-        out["template"] = {{"steps", steps}, {"grid", "straight 16ths"}, {"offset_ms", arr_or_null(off)},
+        out["template"] = {{"steps", steps}, {"grid", compound ? "8ths (3 per dotted beat)" : "straight 16ths"}, {"offset_ms", arr_or_null(off)},
                            {"velocity", arr_or_null(vel, false, 1)}, {"count", cnt}, {"per_instrument", per}};
     }
 
@@ -589,7 +593,7 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
             const auto& d = dyn[kKey[in]];
             const auto& ps = d["per_step"];
             Stat onb, offb;
-            for (int s = 0; s < steps; ++s) if (!ps[s].is_null()) (s % 4 == 0 ? onb : offb).add(ps[s].get<double>());
+            for (int s = 0; s < steps; ++s) if (!ps[s].is_null()) (s % spb == 0 ? onb : offb).add(ps[s].get<double>());
             if (onb.n && offb.n && std::abs(onb.mean() - offb.mean()) >= 8)
                 F.push_back(std::string(kName[in]) + (onb.mean() > offb.mean() ? " accents the beats" : " accents the off-beats") +
                             fmt(" (%.0f vs %.0f)", std::max(onb.mean(), offb.mean()), std::min(onb.mean(), offb.mean())));

@@ -149,9 +149,11 @@ void write_midi(const std::string& path, const std::vector<DrumHit>& drums, cons
     const auto& B = grid.beats;
     const bool use_map = o.tempo_map && B.size() >= 2;
     if (use_map) {
-        // pre-roll beat for [0, first beat), then a tempo per beat with error diffusion
+        // [0, first beat): when it is at least half a beat long it becomes a pre-roll beat of its own (tempo within
+        // 1x..2x of the band's); a shorter gap is absorbed by stretching beat 0 back to time 0 (tick 0 = beat 0), so
+        // no absurd tempo is ever written. Then a tempo per beat with error diffusion.
         long off = 0;
-        if (B[0] > 5e-5) {
+        if (B[0] >= 0.5 * (B[1] - B[0])) {
             off = TPB;
             tm.add(0, std::lround(B[0] * 1e6 / q_per_beat));
         }

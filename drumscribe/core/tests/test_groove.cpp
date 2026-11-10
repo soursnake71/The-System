@@ -115,6 +115,22 @@ int main()
         }
         for (auto& f : r["findings"]) std::printf("    finding: %s\n", f.get<std::string>().c_str());
     }
+    // ---- E: 6/8 (two dotted beats per bar, three 8ths each), hats accent the dotted beats
+    Opts e;
+    e.style = Style::sixeight; e.bpm = [](int) { return 64.0; }; e.jitter_ms = 2; e.lag_ms = {{"snare", 5.0}}; e.seed = 25;
+    const Song se = make_song(e);
+    {
+        const json r = ds::analyze_groove(se.drums, se.bass, se.grid(), se.duration);
+        std::printf("E 6/8 at 64 dotted-quarter BPM, snare +5 ms\n");
+        check("meter 6/8", r["meter"]["signature"] == "6/8" ? 1 : 0, 1, 0);
+        check("template steps (6 8ths)", num(r["template"]["steps"]), 6, 0);
+        check("snare microtiming mean_ms", num(r["microtiming"]["snare"]["mean_ms"]), 5, 1.0);
+        check("hihat velocity step 1 (2nd 8th)", num(r["dynamics"]["hihat"]["per_step"][1]), 70, 0.01);
+        std::printf("    hihat pattern %s\n", r["dynamics"]["hihat"]["pattern"].get<std::string>().c_str());
+        check("hihat pattern == XxxXxx", r["dynamics"]["hihat"]["pattern"] == "XxxXxx" ? 1 : 0, 1, 0);
+        check("syncopation index (= 0)", num(r["syncopation"]["index"]), 0, 0.001);
+        check("kick per bar", num(r["density"]["per_bar"]["kick"]), 2, 0.01);
+    }
     std::printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }

@@ -14,6 +14,8 @@ struct Case {
     Opts o;
     double fixed = 0;
     double max_mean_err_ms;
+    double gap0 = -1, gap1 = -1;  // drop every event in [gap0, gap1) s (a break)
+    bool no_hats = false;
 };
 
 int main()
@@ -37,6 +39,10 @@ int main()
     add("6/8 at 66 (dotted) jit 5", Style::sixeight, [](int) { return 66.0; }, 5, 5.0, 0.5, 0.5, 9);
     add("rock 174 jit 5", Style::rock, [](int) { return 174.0; }, 5, 4.0, 0.5, 0.5, 10);
     add("rock 78 jit 8", Style::rock, [](int) { return 78.0; }, 8, 6.0, 0.5, 0.5, 11);
+    add("break: 4 silent bars, 112", Style::rock, [](int) { return 112.0; }, 5, 4.0, 0.5, 0.5, 13);
+    cases.back().gap0 = 0.8 + 12 * 4 * 60 / 112.0 - 0.05; cases.back().gap1 = 0.8 + 16 * 4 * 60 / 112.0 - 0.05;
+    add("kick + snare only, 104", Style::rock, [](int) { return 104.0; }, 5, 4.0, 0.5, 0.5, 14);
+    cases.back().no_hats = true; cases.back().o.bass = false; cases.back().o.crashes = false;
     {
         Case c;
         c.name = "fixed_bpm=120, t0=0.8137";
@@ -48,7 +54,14 @@ int main()
     int fails = 0;
     std::printf("%-26s %6s %8s %8s %6s %5s %7s %7s\n", "case", "F", "mean ms", "max ms", "downb", "meter", "bpm", "err");
     for (auto& c : cases) {
-        const Song s = make_song(c.o);
+        Song s = make_song(c.o);
+        std::vector<ds::DrumHit> d;
+        for (auto& h : s.drums)
+            if (!(h.time >= c.gap0 && h.time < c.gap1) && !(c.no_hats && h.piece.rfind("hh", 0) == 0)) d.push_back(h);
+        s.drums = d;
+        std::vector<ds::BassNote> bn;
+        for (auto& n : s.bass) if (!(n.time >= c.gap0 && n.time < c.gap1)) bn.push_back(n);
+        s.bass = bn;
         const ds::BeatGrid g = ds::track_beats(s.drums, s.bass, s.duration, c.fixed);
         const BeatScore sc = score_beats(s.beats, s.downbeats, g.beats, g.downbeats, 0, s.duration);
         const double true_bpm = s.grid().mean_bpm, terr = std::abs(g.mean_bpm - true_bpm);
@@ -57,6 +70,12 @@ int main()
                         g.beats.back() >= s.duration && g.bpm_at_beat.size() == g.beats.size();
         std::printf("%-26s %6.3f %8.2f %8.2f %6.3f %3d/%d %7.2f %7.3f %s\n", c.name.c_str(), sc.f, sc.mean_err_ms,
                     sc.max_err_ms, sc.downbeat_acc, g.beats_per_bar, s.bpb, g.mean_bpm, terr, ok ? "ok" : "FAIL");
+        if (!ok) ++fails;
+    }
+    {   // nothing transcribed: a constant 120 BPM grid over the duration
+        const ds::BeatGrid g = ds::track_beats({}, {}, 10.0);
+        const bool ok = !g.beats.empty() && g.beats.front() >= 0 && g.beats.back() >= 10.0 && std::abs(g.mean_bpm - 120) < 1e-9;
+        std::printf("%-26s %zu beats, %.1f BPM %s\n", "empty input", g.beats.size(), g.mean_bpm, ok ? "ok" : "FAIL");
         if (!ok) ++fails;
     }
     std::printf("%s (%d failures)\n", fails ? "FAILED" : "all passed", fails);

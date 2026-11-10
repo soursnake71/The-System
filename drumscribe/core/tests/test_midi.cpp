@@ -67,10 +67,10 @@ static MFile read_midi(const std::string& path)
                 e.d.insert(e.d.end(), b.begin() + p, b.begin() + p + n);
                 p += n;
             }
-            ev.push_back(e);
+            ev.push_back(std::move(e));
         }
         p = end;
-        m.tracks.push_back(ev);
+        m.tracks.push_back(std::move(ev));
     }
     return m;
 }
@@ -155,7 +155,7 @@ static void verify(const std::string& name, const std::string& path, const Song&
     }
     check("GM System On SysEx F0 7E 7F 09 01 F7", sysex == 1);
     check("copyright 'Drum Scribe' + text events", copyright == 1 && texts >= (groove.empty() ? 1 : 5), f2("%.0f texts", texts));
-    const bool pre = g.beats[0] > 5e-5;
+    const bool pre = g.beats[0] >= 0.5 * (g.beats[1] - g.beats[0]);  // pre-roll beat (else beat 0 stretched to t = 0)
     const size_t want_tempi = o.tempo_map ? g.beats.size() - 1 + (pre ? 1 : 0) : 1;
     check("tempo events count", ft.t.size() == want_tempi, f2("%.0f vs %.0f", (double) ft.t.size(), (double) want_tempi));
     check("bar markers 'Bar N', one per downbeat", markers == (int) g.downbeats.size() && markers_named,
@@ -165,11 +165,14 @@ static void verify(const std::string& name, const std::string& path, const Song&
         // beats must sit on whole beats of the file, at their exact times; tempo values must be the beat lengths
         const long TPB = compound ? 1440 : 960, off = pre ? TPB : 0;
         double worst = 0, worst_tempo = 0;
-        for (size_t i = 0; i < g.beats.size(); ++i) worst = std::max(worst, (double) std::abs(ft.time(off + (long) i * TPB) - (long double) g.beats[i]));
-        for (size_t i = 0; i + 1 < g.beats.size(); ++i) {
+        for (size_t i = pre ? 0 : 1; i < g.beats.size(); ++i) worst = std::max(worst, (double) std::abs(ft.time(off + (long) i * TPB) - (long double) g.beats[i]));
+        for (size_t i = pre ? 0 : 1; i + 1 < g.beats.size(); ++i) {
             const double want_us = (g.beats[i + 1] - g.beats[i]) * 1e6 * 960 / TPB;
             worst_tempo = std::max(worst_tempo, std::abs(ft.t[i + (pre ? 1 : 0)].second - want_us));
         }
+        check(pre ? "pre-roll beat for [0, first beat)" : "beat 0 stretched back to t=0 (gap < half a beat)",
+              pre ? ft.t[0].first == 0 && std::abs(ft.t[0].second - g.beats[0] * 1e6 * 960 / TPB) <= 0.5
+                  : std::abs((double) ft.time(TPB) - g.beats[1]) < 1e-6);
         check("tempo map: every beat at its tracked time (< 1 us)", worst < 1e-6, f2("worst %.3f us", worst * 1e6));
         check("tempo values = beat lengths (+-1 us)", worst_tempo <= 1.0, f2("worst %.3f us", worst_tempo));
         bool mk = true;
@@ -363,7 +366,7 @@ int main()
         ds::MidiOptions o;
         ds::write_midi(p, s.drums, {}, g2, nlohmann::json::object(), o);
         const MFile m = read_midi(p);
-        const long off = g2.beats[0] > 5e-5 ? 960 : 0;
+        const long off = g2.beats[0] >= 0.5 * (g2.beats[1] - g2.beats[0]) ? 960 : 0;
         std::vector<std::pair<long, int>> sigs;
         for (auto& e : m.tracks[0]) if (e.st == 0xFF && e.d[0] == 0x58) sigs.push_back({e.tick, e.d[1]});
         bool ok = false;

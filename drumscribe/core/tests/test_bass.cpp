@@ -133,6 +133,8 @@ static Result evaluate(const bsynth::Line& L, int debug) {
                 std::printf("  %s t=%8.4f n=%d don=%+6.2f drel=%+7.2f slide %d/%d acc %d/%d bend %d/%zu v=%d c=%+.0f\n",
                             bad ? "DIFF" : "ok  ", t.time, t.note, don, drel, t.slide, e.slide_to_next, t.accent,
                             e.accent, t.bend, e.bends.size(), e.velocity, e.cents);
+            if (debug > 2 && (bad || debug > 3))
+                for (auto& b : e.bends) std::printf("        bend %.4f %+.3f\n", b.time, b.semitones);
         }
         for (int j = 0; j < int(est.size()); ++j)
             if (me[j] < 0)

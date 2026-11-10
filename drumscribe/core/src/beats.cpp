@@ -120,26 +120,47 @@ double range_prior(double bpm)  // flat 70..180, falls off outside (0.2 octave s
 }
 
 // comb argmax over 50..220 BPM (flat prior 70..180) and the octave family around it, each re-centred on the comb
+// Global tempo profile = sum over 8 s windows (hop 1 s) of each window's comb, normalised to its maximum: robust to
+// drift (a whole-song autocorrelation smears its peaks when the tempo wanders). Its best peak (flat prior 70..180) and
+// the related tempi x1/2, 2, 2/3, 3/2, 3/4, 4/3 are the candidates, each re-centred on the profile.
 std::vector<double> tempo_candidates(const std::vector<Ev>& ev)
 {
-    Hist h;
-    h.span = std::max(1.0, ev.back().t - ev.front().t);
-    for (auto& p : pairs_of(ev)) h.add(p.lag, p.w);
-    double best = 120, bs = -1;
-    for (double b = 50; b <= 220; b += 0.1) {
-        const double s = h.comb(60 / b) * range_prior(b);
-        if (s > bs) { bs = s; best = b; }
-    }
-    std::vector<double> out;
-    for (double m : {1.0, 0.5, 2.0, 2.0 / 3, 1.5}) {
-        const double b = best * m;
-        if (b < 50 || b > 230) continue;
-        double lb = b, ls = -1;
-        for (double x = b * 0.97; x <= b * 1.03; x += 0.05) {
-            const double s = h.comb(60 / x);
-            if (s > ls) { ls = s; lb = x; }
+    std::vector<Pair> pr = pairs_of(ev);
+    std::sort(pr.begin(), pr.end(), [](const Pair& a, const Pair& b) { return a.t < b.t; });
+    const double step = 0.005, lo_bpm = 48;
+    const int S = (int) std::ceil(std::log2(235 / lo_bpm) / step) + 1;
+    std::vector<double> bpm(S), prof(S, 0.0);
+    for (int i = 0; i < S; ++i) bpm[i] = lo_bpm * std::pow(2.0, i * step);
+    const double W = 8, t0 = ev.front().t, t1 = ev.back().t;
+    for (double c = t0 + std::min(W / 2, (t1 - t0) / 2); ; c += 1.0) {
+        Hist h;
+        h.span = W;
+        const double w0 = c - W / 2, w1 = c + W / 2;
+        auto it = std::lower_bound(pr.begin(), pr.end(), w0, [](const Pair& p, double v) { return p.t < v; });
+        bool any = false;
+        for (; it != pr.end() && it->t <= w1; ++it)
+            if (it->t + it->lag <= w1) { h.add(it->lag, it->w); any = true; }
+        if (any) {
+            std::vector<double> sc(S);
+            double mx = 0;
+            for (int i = 0; i < S; ++i) { sc[i] = h.comb(60 / bpm[i]); mx = std::max(mx, sc[i]); }
+            if (mx > 0) for (int i = 0; i < S; ++i) prof[i] += sc[i] / mx;
         }
-        out.push_back(lb);
+        if (c + W / 2 >= t1) break;
+    }
+    int bi = 0;
+    for (int i = 0; i < S; ++i) if (prof[i] * range_prior(bpm[i]) > prof[bi] * range_prior(bpm[bi])) bi = i;
+    std::vector<double> out;
+    for (double m : {1.0, 0.5, 2.0, 2.0 / 3, 1.5, 0.75, 4.0 / 3}) {
+        const double b = bpm[bi] * m;
+        if (b < 50 || b > 230) continue;
+        int lb = -1;
+        for (int i = 0; i < S; ++i)
+            if (bpm[i] >= b * 0.97 && bpm[i] <= b * 1.03 && (lb < 0 || prof[i] > prof[lb])) lb = i;
+        const double x = lb >= 0 ? bpm[lb] : b;
+        bool dup = false;
+        for (double y : out) dup |= std::abs(std::log2(x / y)) < 0.02;
+        if (!dup) out.push_back(x);
     }
     return out;
 }
@@ -345,10 +366,27 @@ double beat_salience(const std::vector<double>& b, const std::vector<Ev>& ev)
     int f = 0;
     for (int i = lo; i <= hi; ++i) f += filled[i];
     const double fill = (double) f / (hi - lo + 1);
+    // pattern repetition: the hits, quantized to 12 slots per beat, must repeat after a whole number of beats
+    // (2, 3 or 4: a bar or half bar). A tempo whose bar is not a whole number of beats (x2/3, x4/3) fails here.
+    std::vector<double> slot((size_t) n * 12 + 12, 0.0);
+    for (auto& e : ev) {
+        if (e.c == CRASH) continue;
+        const long q = std::lround(beat_pos(b, e.t) * 12);
+        if (q >= 0 && q < (long) slot.size()) slot[q] += e.w;
+    }
+    double sim = 0;
+    for (int L : {2, 3, 4}) {
+        double xy = 0, xx = 0, yy = 0;
+        for (size_t i = 0; i + 12 * L < slot.size(); ++i) {
+            const double x = slot[i], y = slot[i + 12 * L];
+            xy += x * y; xx += x * x; yy += y * y;
+        }
+        if (xx > 0 && yy > 0) sim = std::max(sim, xy / std::sqrt(xx * yy));
+    }
     const double bpm = 60.0 * (n - 1) / (b.back() - b.front());
     const double o = bpm < 60 ? std::log2(60 / bpm) : bpm > 190 ? std::log2(bpm / 190) : 0.0;
     const double pr = std::exp(-0.5 * (o / 0.3) * (o / 0.3));  // flat 60..190 BPM
-    return on / all * fill * pr;
+    return on / all * fill * sim * sim * pr;
 }
 
 double median_of(std::vector<double> v)
