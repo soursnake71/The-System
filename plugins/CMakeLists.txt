@@ -128,6 +128,31 @@ foreach(variant "Twelve|Omega Twelve|Otw1|0" "TwelveInst|Omega Twelve Instrument
   target_link_libraries(Omega${tgt} PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endforeach()
 
+# Omega Drum Scribe: a song link or audio file in, every drum hit out as MIDI (drag it onto a track). The analysis runs
+# in the Drum Scribe engine (drumscribe/engine); the plugin passes audio through and reads the host tempo. Also a
+# standalone app.
+if(NOT OMEGA_ONLY OR "DrumScribe" IN_LIST OMEGA_ONLY)
+  set(fmts ${OMEGA_FORMATS})
+  list(APPEND fmts Standalone)
+  juce_add_plugin(OmegaDrumScribe
+    PRODUCT_NAME "Omega Drum Scribe"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.DrumScribe"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Odsc
+    FORMATS ${fmts}
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Fx Analyzer
+    AU_MAIN_TYPE kAudioUnitType_Effect
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaDrumScribe PRIVATE drumscribe/DrumScribe.cpp)
+  target_compile_definitions(OmegaDrumScribe PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaDrumScribe PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
 add_executable(twelve_test twelve/test.cpp)
 

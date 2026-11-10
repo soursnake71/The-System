@@ -1,3 +1,5 @@
 *.apk
 *.zip
 /Omega-Twelve-Setup-*.exe
+__pycache__/
+*.pyc

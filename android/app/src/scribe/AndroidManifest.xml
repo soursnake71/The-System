@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drum Scribe: a native app (no web view). Paste or share a YouTube / Spotify / SoundCloud link, or pick an audio
+     file; the Drum Scribe engine (drumscribe/engine, on a computer on the same Wi-Fi) does the analysis and the app saves
+     the drum MIDI to Downloads/Drum Scribe and can share it to a DAW app. Plain http on the home network needs cleartext. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <application android:usesCleartextTraffic="true">
+    <activity android:name="com.google.androidbrowserhelper.trusted.LauncherActivity" tools:node="remove" />
+    <activity android:name=".TvActivity" tools:node="remove" />
+    <activity android:name=".ScribeActivity" android:exported="true" android:label="@string/app_name"
+      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|uiMode"
+      android:theme="@android:style/Theme.Material.NoActionBar" android:windowSoftInputMode="adjustResize"
+      android:launchMode="singleTask">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <!-- "Share" from the YouTube, YouTube Music, Spotify or SoundCloud app -->
+      <intent-filter android:label="@string/share_label">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+      <!-- "Share" or "Open with" an audio file -->
+      <intent-filter android:label="@string/share_label">
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="audio/*" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

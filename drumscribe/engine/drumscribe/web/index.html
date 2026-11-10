@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drum Scribe</title>
+<style>
+  :root { --bg:#111317; --panel:#1b1e24; --line:#2c313a; --text:#e8eaee; --dim:#9aa1ad; --accent:#f2a33a; --ok:#5fc27e; --bad:#e5615b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; margin: 4px 0 2px; letter-spacing: .5px; }
+  .sub { color: var(--dim); margin: 0 0 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  label { display:block; color:var(--dim); font-size:13px; margin-bottom:6px; }
+  input[type=text], input[type=number], select { width:100%; background:#0d0f12; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:15px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+  .row > * { flex:1 1 160px; }
+  button { background:var(--accent); color:#1a1205; border:0; border-radius:8px; padding:11px 16px; font-weight:600; font-size:15px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--text); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:default; }
+  .bar { height:8px; background:#0d0f12; border-radius:4px; overflow:hidden; margin:10px 0 6px; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition: width .3s; }
+  .msg { color:var(--dim); font-size:14px; min-height:20px; }
+  .err { color:var(--bad); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:5px 4px; border-bottom:1px solid var(--line); }
+  td.n { text-align:right; color:var(--dim); font-variant-numeric: tabular-nums; }
+  canvas { width:100%; height:260px; background:#0d0f12; border-radius:8px; display:block; }
+  .tempo { font-size:18px; font-weight:600; }
+  .hint { color:var(--dim); font-size:13px; margin-top:8px; }
+  a.dl { display:inline-block; margin:8px 8px 0 0; }
+  @media (max-width:520px) { canvas { height:200px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>DRUM SCRIBE</h1>
+  <p class="sub">A song link in, every drum hit out as MIDI: unquantized, with velocities, every piece of the kit.</p>
+
+  <div class="card">
+    <label for="link">YouTube, Spotify or SoundCloud link</label>
+    <input id="link" type="text" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+    <div class="row">
+      <div><label for="q">Separation</label>
+        <select id="q"><option value="best">Best (slower)</option><option value="fast">Fast</option></select></div>
+      <div><label for="tempo">Your project tempo (optional)</label>
+        <input id="tempo" type="number" step="0.01" min="30" max="300" placeholder="detect"></div>
+    </div>
+    <div class="row">
+      <button id="go">Make drum MIDI</button>
+      <button id="up" class="ghost">Or pick an audio file</button>
+      <input id="file" type="file" accept="audio/*,video/*" hidden>
+    </div>
+    <div class="bar"><div id="fill"></div></div>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div id="out" class="card" hidden>
+    <div class="tempo" id="title"></div>
+    <div id="bpm" class="hint"></div>
+    <div>
+      <a class="dl" id="dl1"><button>Download MIDI</button></a>
+      <a class="dl" id="dl2"><button class="ghost">One track per piece</button></a>
+      <a class="dl" id="dl3"><button class="ghost">Drum stem (WAV)</button></a>
+    </div>
+    <div class="row">
+      <div><label for="retempo">Rewrite at another tempo</label><input id="retempo" type="number" step="0.01" min="30" max="300"></div>
+      <div style="align-self:end"><button id="rt" class="ghost">Rewrite</button></div>
+    </div>
+    <p class="hint">Notes sit exactly where the drummer played them. Set your project to the tempo above before you drag the
+      file in, and put it at the same start as the song's audio.</p>
+    <canvas id="roll"></canvas>
+    <table id="pieces"></table>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const token = new URLSearchParams(location.search).get('token') || '';
+const tq = token ? ('token=' + encodeURIComponent(token)) : '';
+const withTok = (u) => tq ? u + (u.includes('?') ? '&' : '?') + tq : u;
+let job = null, timer = null;
+
+function setMsg(t, bad) { $('msg').textContent = t || ''; $('msg').className = 'msg' + (bad ? ' err' : ''); }
+function busy(b) { $('go').disabled = b; $('up').disabled = b; }
+
+async function start(body, upload) {
+  busy(true); $('out').hidden = true; setMsg('Sending...'); $('fill').style.width = '0';
+  const tempo = $('tempo').value;
+  try {
+    let r;
+    if (upload) {
+      const qs = new URLSearchParams({name: upload.name, quality: $('q').value, tempo});
+      r = await fetch(withTok('/api/upload?' + qs), {method: 'POST', body: upload});
+    } else {
+      r = await fetch(withTok('/api/jobs'), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({link: body, quality: $('q').value, tempo: tempo || null})});
+    }
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    job = j.id; poll();
+  } catch (e) { setMsg(e.message, true); busy(false); }
+}
+
+async function poll() {
+  clearTimeout(timer);
+  try {
+    const r = await fetch(withTok('/api/jobs/' + job + '?hits=1'));
+    const j = await r.json();
+    $('fill').style.width = Math.round((j.progress || 0) * 100) + '%';
+    if (j.state === 'error') { setMsg(j.message || j.error, true); busy(false); return; }
+    if (j.state === 'done') { setMsg('Done: ' + j.message); busy(false); show(j.result); return; }
+    setMsg((j.message || j.state) + ' (' + Math.round((j.progress || 0) * 100) + '%)');
+  } catch (e) { setMsg('Lost the engine: ' + e.message, true); }
+  timer = setTimeout(poll, 1000);
+}
+
+const NAMES = {36:'Kick',38:'Snare',37:'Side stick',42:'HH closed',44:'HH pedal',46:'HH open',50:'Tom high',48:'Tom hi-mid',
+  47:'Tom low-mid',45:'Tom low',43:'Floor high',41:'Floor low',49:'Crash 1',57:'Crash 2',51:'Ride',53:'Ride bell'};
+
+function show(res) {
+  $('out').hidden = false;
+  $('title').textContent = res.title;
+  $('bpm').textContent = res.tempo + ' BPM · ' + res.hits.length + ' hits · ' + Math.round(res.duration) + ' s';
+  $('retempo').value = res.tempo;
+  $('dl1').href = withTok('/api/jobs/' + job + '/midi');
+  $('dl2').href = withTok('/api/jobs/' + job + '/midi?split=1');
+  $('dl3').href = withTok('/api/jobs/' + job + '/drums');
+  $('pieces').innerHTML = res.pieces.map(p => `<tr><td>${p.label}</td><td class="n">note ${p.note}</td><td class="n">${p.count}</td></tr>`).join('');
+  draw(res);
+}
+
+function draw(res) {
+  const c = $('roll'), dpr = window.devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+  const g = c.getContext('2d');
+  const notes = res.pieces.map(p => p.note);
+  const lane = c.height / Math.max(1, notes.length);
+  g.fillStyle = '#0d0f12'; g.fillRect(0, 0, c.width, c.height);
+  g.font = (11 * dpr) + 'px system-ui'; g.textBaseline = 'middle';
+  notes.forEach((n, i) => {
+    g.fillStyle = i % 2 ? '#14171c' : '#101317'; g.fillRect(0, i * lane, c.width, lane);
+  });
+  const w = c.width / Math.max(1, res.duration);
+  for (const [t, n, v] of res.hits) {
+    const i = notes.indexOf(n); if (i < 0) continue;
+    g.fillStyle = `hsl(${30 + i * 23}, 80%, ${35 + v / 127 * 35}%)`;
+    g.fillRect(t * w, i * lane + lane * 0.15, Math.max(1, dpr), lane * 0.7);
+  }
+  notes.forEach((n, i) => { g.fillStyle = '#9aa1ad'; g.fillText(NAMES[n] || n, 4 * dpr, i * lane + lane / 2); });
+}
+
+$('go').onclick = () => { const l = $('link').value.trim(); if (!l) return setMsg('Paste a link first.', true); start(l); };
+$('up').onclick = () => $('file').click();
+$('file').onchange = () => { const f = $('file').files[0]; if (f) start(null, f); };
+$('rt').onclick = async () => {
+  const t = parseFloat($('retempo').value); if (!t) return;
+  setMsg('Rewriting...');
+  const r = await fetch(withTok('/api/jobs/' + job + '/tempo'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tempo: t})});
+  if (r.ok) poll(); else setMsg((await r.json()).error, true);
+};
+const shared = new URLSearchParams(location.search).get('link');
+if (shared) { $('link').value = shared; }
+</script>
+</body>
+</html>

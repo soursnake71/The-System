@@ -24,6 +24,13 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/?app=vox']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/?app=vox"'
     }
+    // Drum Scribe: song link in, drum MIDI out (native app; the analysis runs in drumscribe/engine)
+    scribe {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.drumscribe'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/"'
+    }
     twelve {
       dimension 'app'
       applicationId 'com.thesnakedevice.twelve'
