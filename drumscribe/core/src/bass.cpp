@@ -357,39 +357,52 @@ void refine_onset(const Sig& s, Onset& o, long lo, double Pprev, double ref_pow)
         q[n - pr0] = std::max(0.0, std::fabs(s.at(n)) - std::fabs(xh));
     }
     auto R = [&](long n) { return r[n - pr0]; };
-    auto Q = [&](long n) { return q[n - pr0]; };
-    double sig2 = 0;
-    long cnt = 0;
-    for (long n = std::max(pr0, s0 - s.msl(10)); n < s0; ++n) { sig2 += Q(n) * Q(n); ++cnt; }
-    sig2 = std::max(cnt ? sig2 / cnt : 0.0, ref_pow * 1e-9);
-    double A = 0;
-    for (long n = s0; n < e1; ++n) A = std::max(A, Q(n));
-    if (std::getenv("DS_REFINE_DEBUG")) {
-        double t = std::atof(std::getenv("DS_REFINE_DEBUG"));
-        if (std::fabs(double(nc) / s.sr - t) < 0.03) {
-            std::fprintf(stderr, "refine nc %.4f s0 %.4f P %.1f prP %.2f g %.3f sig %.2e A %.2e\n", double(nc) / s.sr,
-                         double(s0) / s.sr, Pprev, pr.P, pr.g, std::sqrt(sig2), A);
-            for (long n = pr0; n < e1; n += s.msl(1))
-                std::fprintf(stderr, "   %.4f q %.2e x %.2e\n", double(n) / s.sr, Q(n), s.at(n));
-        }
-    }
-    o.clarity = db(A * A) - db(sig2);
-    if (A * A >= 30 * sig2) {
-        double qmax = 0;  // the attack must exceed anything the old note left unexplained before
-        for (long n = pr0; n < s0; ++n) qmax = std::max(qmax, Q(n));
-        double thr = std::max({4 * std::sqrt(sig2), 0.1 * A, 1.2 * qmax});
-        long n1 = s0;
-        while (n1 < e1 - 1 && Q(n1) <= thr) ++n1;
+    auto X = [&](long n) { return s.at(n) - R(n); };  // the old note's prediction
+    // change point of a residual series v: threshold above anything seen before s0, then CUSUM back to where the
+    // excess starts. Returns -1 when there is no clear change.
+    auto detect = [&](const std::vector<double>& v, long from, double* clar) -> long {
+        auto V = [&](long n) { return std::fabs(v[n - pr0]); };
+        double sig2 = 0, vmax = 0;
+        long cnt = 0;
+        for (long n = std::max(pr0, s0 - s.msl(10)); n < s0; ++n) { sig2 += V(n) * V(n); ++cnt; }
+        for (long n = pr0; n < s0; ++n) vmax = std::max(vmax, V(n));
+        sig2 = std::max(cnt ? sig2 / cnt : 0.0, ref_pow * 1e-9);
+        double A = 0;
+        for (long n = from; n < e1; ++n) A = std::max(A, V(n));
+        if (clar) *clar = db(A * A) - db(sig2);
+        if (A * A < 30 * sig2) return -1;
+        double thr = std::max({4 * std::sqrt(sig2), 0.1 * A, 1.2 * vmax});
+        long n1 = from;
+        while (n1 < e1 - 1 && V(n1) <= thr) ++n1;
         double c = 0, cmin = 0;
-        long nb = s0;
-        for (long n = s0; n <= n1; ++n) {
+        long nb = from;
+        for (long n = from; n <= n1; ++n) {
             if (c < cmin) { cmin = c; nb = n; }
-            c += Q(n) * Q(n) - 4 * sig2;
+            c += V(n) * V(n) - 4 * sig2;
         }
-        o.n = nb;
-        if (std::getenv("DS_REFINE_DEBUG") && std::fabs(double(nc) / s.sr - std::atof(std::getenv("DS_REFINE_DEBUG"))) < 0.03)
-            std::fprintf(stderr, "  -> n1 %.4f nb %.4f thr %.2e\n", double(n1) / s.sr, double(nb) / s.sr, thr);
+        return nb;
+    };
+    double clar = 0;
+    long nr = detect(r, s0, &clar);
+    if (nr >= 0) {
+        // the old note may only be dying away fast here (mute / gate-off before a gap): then the attack is where |x|
+        // rises above the old note's prediction
+        if (pr.P > 0) {
+            double c2 = 0;
+            long nq = detect(q, nr, &c2);
+            if (nq >= nr + s.msl(3)) {
+                double ex = 0, eh = 0;
+                for (long n = nr; n < nq; ++n) { ex += s.at(n) * s.at(n); eh += X(n) * X(n); }
+                if (ex < 0.3 * eh) { nr = nq; clar = c2; }  // [nr, nq) is only the old note dying away
+            }
+        }
+        o.n = nr;
     }
+    o.clarity = clar;
+    if (const char* rd = std::getenv("DS_REFINE_DEBUG"))
+        if (std::fabs(double(nc) / s.sr - std::atof(rd)) < 0.03)
+            std::fprintf(stderr, "refine nc %.4f s0 %.4f prP %.1f g %.3f -> %.4f clar %.1f\n", double(nc) / s.sr,
+                         double(s0) / s.sr, pr.P, pr.g, double(o.n) / s.sr, clar);
     // novelty: how much of the signal right after the onset the previous note cannot explain
     if (pr.P > 0) {
         double er = 0, ex = 0;
@@ -734,9 +747,11 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             if (!std::isnan(m) && m > lo && m < hi) ++inter;
         }
         double im = inter * hop_ms;
-        bool g = Z >= 14 || (Z >= 8 && im >= 10) || (Z < 0 && im >= 10);
+        // the zone measure includes ~0.6 of the longer period from its pitch-synchronous smoothing
+        double Zc = Z - 0.6e3 * std::max(per(mb), per(ma)) / sr;
+        bool g = Z >= 0 ? (Zc >= 8 || (Zc >= 3 && im >= 10)) : im >= 10;
         if (std::getenv("DS_BASS_DEBUG") && dbg_on(double(n) / sr))
-            std::fprintf(stderr, "   glide_at %.4f %.2f->%.2f Z %.1f inter %.1f -> %d\n", double(n) / sr, mb, ma, Z, im, g);
+            std::fprintf(stderr, "   glide_at %.4f %.2f->%.2f Z %.1f Zc %.1f inter %.1f -> %d\n", double(n) / sr, mb, ma, Z, Zc, im, g);
         return g;
     };
     // drop onsets that are only bleed on a held note: same pitch before/after, no dip, previous note explains it
@@ -797,7 +812,7 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         const long on = ons[i].n;
         const long next = i + 1 < ons.size() ? ons[i + 1].n : s.N;
         const double ton = double(on) / sr, tnext = double(next) / sr;
-        const double gfull = 0.8 * w.Wsec / 2;
+        const double gfull = w.Wsec / 2 + 0.002;
         const double g1 = (prev_end < 0 || ton - prev_end >= 0.010) ? 0.003 : gfull;
         // voiced frames (conservative end guard)
         auto frames = [&](double ta, double tb, std::vector<long>& ks) {
@@ -1127,9 +1142,17 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 tstart_obs = gl.t0 + 3 * gl.tau + w.Wsec / 2;
             }
             double tstop_obs = j + 1 < parts.size() ? parts[j + 1].t0 - w.Wsec / 2 : pt.t1;
-            for (size_t f = 0; f < F; ++f)
-                if (tt[f] >= tstart_obs && tt[f] <= tstop_obs && tr.dp[ks[f]] < 0.35)
-                    pts.push_back({tt[f], mm[f] - ref});
+            {   // observed frames, 7-frame median (drops single-frame glitches at attacks / releases)
+                std::vector<std::pair<double, double>> ob;
+                for (size_t f = 0; f < F; ++f)
+                    if (tt[f] >= tstart_obs + 0.004 && tt[f] <= tstop_obs - 0.004 && tr.dp[ks[f]] < 0.35)
+                        ob.push_back({tt[f], mm[f]});
+                for (size_t q = 0; q < ob.size(); ++q) {
+                    std::vector<double> v;
+                    for (size_t r = q >= 3 ? q - 3 : 0; r <= std::min(ob.size() - 1, q + 3); ++r) v.push_back(ob[r].second);
+                    pts.push_back({ob[q].first, median(v) - ref});
+                }
+            }
             double mx = 0;
             for (auto& b : pts) mx = std::max(mx, std::fabs(b.semitones));
             if (mx >= 0.2 && !pts.empty()) {
