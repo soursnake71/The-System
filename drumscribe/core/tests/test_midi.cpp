@@ -2,7 +2,8 @@
 // every note's time is converted through the FILE's tempo map and compared with the input time (must be within half a
 // tick), in tempo-map and constant-tempo mode, merged and split drums, 4/4 with tempo drift + a section change and 6/8.
 // Also: lengths, channels, GM SysEx, tempo event count / values, time signatures, bar markers, the RPN pitch-bend
-// range, program, bend values and resets, slide overlaps with portamento, accents. Writes build-groove/sample.mid.
+// range, program, bend values and resets, slide overlaps with portamento, accents. Writes sample.mid in the working folder.
+#include <cstdlib>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -337,7 +338,8 @@ int main()
     }
     bass.back().slide_to_next = false;
 
-    const std::string dir = "/home/user/The-System/build-groove/";
+    // files go next to the test (ctest runs it in the build folder), or where DS_TEST_OUT says
+    const std::string dir = std::getenv("DS_TEST_OUT") ? std::string(std::getenv("DS_TEST_OUT")) + "/" : std::string("./");
     for (int mode = 0; mode < 4; ++mode) {
         ds::MidiOptions o;
         o.tempo_map = mode < 2;

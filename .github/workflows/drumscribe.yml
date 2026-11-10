@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - {os: ubuntu-22.04, name: Linux}
-          - {os: macos-14, name: Mac}
+          - {os: macos-latest, name: Mac}
           - {os: windows-latest, name: Windows}
     runs-on: ${{ matrix.os }}
     steps:
