@@ -1333,7 +1333,10 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 if (dbg(ton))
                     std::fprintf(stderr, "  glide t0 %.4f tau %.4f target %.2f rmse %.3f from %.2f stable %d\n", gl.t0, gl.tau,
                                  gl.target, gl.rmse, nl[j - 1].pitch, nl[j].stable);
-                if (!nl[j].stable) pt.pitch = gl.target;
+                if (!nl[j].stable) {  // still arriving: extrapolate toward the fitted target, at most half a semitone
+                    double dir = nl[j].pitch > nl[j - 1].pitch ? 1 : -1;
+                    pt.pitch = nl[j].pitch + dir * std::clamp(dir * (gl.target - nl[j].pitch), 0.0, 0.5);
+                }
                 parts.back().t1 = pt.t0;
             }
             if (nl[j].stable) {  // held pitch: median of the later part of the level

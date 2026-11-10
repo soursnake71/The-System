@@ -148,10 +148,11 @@ int main() {
     int debug = dbg ? std::atoi(dbg) : 0;
     struct Spec { bsynth::Line L; double minF, maxOn, maxRel, minSlideF, minAccF; };
     std::vector<Spec> specs;
-    bsynth::Line a = bsynth::make_acid(7), b = bsynth::make_fingered(11);
+    const uint64_t so = std::getenv("BASS_SEED") ? std::strtoull(std::getenv("BASS_SEED"), nullptr, 10) : 0;
+    bsynth::Line a = bsynth::make_acid(7 + so), b = bsynth::make_fingered(11 + so);
     bsynth::Line ac = a, bc = b;
-    bsynth::add_bleed(ac, -12, -50, -40, 21);
-    bsynth::add_bleed(bc, -12, -50, -40, 23);
+    bsynth::add_bleed(ac, -12, -50, -40, 21 + so);
+    bsynth::add_bleed(bc, -12, -50, -40, 23 + so);
     // thresholds: what the algorithm achieves, with margin
     specs.push_back({a, 0.97, 2.0, 10.0, 0.90, 0.80});
     specs.push_back({b, 0.97, 2.0, 10.0, 0.90, 0.70});
