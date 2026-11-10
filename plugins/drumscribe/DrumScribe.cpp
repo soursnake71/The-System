@@ -29,13 +29,13 @@ juce::String Client::request(const juce::String& method, const juce::String& pat
     juce::URL url(base + path);
     juce::String headers;
     if (token.isNotEmpty()) headers << "X-Token: " << token << "\r\n";
-    auto opts = juce::URL::InputStreamOptions(body ? juce::URL::ParameterHandling::inPostData : juce::URL::ParameterHandling::inAddress);
     if (body != nullptr) {
         url = url.withPOSTData(*body);
         headers << "Content-Type: " << contentType << "\r\n";
     }
     int code = 0;
-    opts = opts.withExtraHeaders(headers).withConnectionTimeoutMs(timeoutMs).withStatusCode(&code).withHttpRequestCmd(method);
+    const auto opts = juce::URL::InputStreamOptions(body ? juce::URL::ParameterHandling::inPostData : juce::URL::ParameterHandling::inAddress)
+                          .withExtraHeaders(headers).withConnectionTimeoutMs(timeoutMs).withStatusCode(&code).withHttpRequestCmd(method);
     auto in = url.createInputStream(opts);
     if (in == nullptr) return "can't reach the Drum Scribe engine at " + base + " (is it running?)";
     juce::MemoryBlock data;

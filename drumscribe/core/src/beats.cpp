@@ -282,6 +282,9 @@ std::vector<double> refine(const std::vector<double>& beats, const std::vector<E
         double best = 0, bcost = 1e18;
         bool ok = false;
         const int wins[3][2] = {{-2, 2}, {-3, 0}, {0, 3}};
+        // the centred window weights its ends by 1/2 so odd and even beats weigh the same: an alternating pattern
+        // (snare late on 2 and 4) then leaves no alternating bias in the beats
+        auto xw = [](int w, int x) { return w == 0 && (x == -2 || x == 2) ? 0.5 : 1.0; };
         for (int w = 0; w < 3; ++w) {
             double sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
             int cnt = 0, nx = 0;
@@ -289,7 +292,7 @@ std::vector<double> refine(const std::vector<double>& beats, const std::vector<E
                 const int k = j + x;
                 if (k < 0 || k >= n || on[k].empty()) continue;
                 ++nx;
-                for (auto& [t, wt] : on[k]) { sw += wt; sx += wt * x; sy += wt * t; sxx += wt * x * x; sxy += wt * x * t; ++cnt; }
+                for (auto& [t, w0] : on[k]) { const double wt = w0 * xw(w, x); sw += wt; sx += wt * x; sy += wt * t; sxx += wt * x * x; sxy += wt * x * t; ++cnt; }
             }
             if (sw <= 0) continue;
             double a, b;
@@ -306,7 +309,7 @@ std::vector<double> refine(const std::vector<double>& beats, const std::vector<E
             for (int x = wins[w][0]; x <= wins[w][1]; ++x) {
                 const int k = j + x;
                 if (k < 0 || k >= n) continue;
-                for (auto& [t, wt] : on[k]) { const double r = t - (a + b * x); ssr += wt * r * r; }
+                for (auto& [t, w0] : on[k]) { const double r = t - (a + b * x); ssr += w0 * xw(w, x) * r * r; }
             }
             double cost = ssr / sw * (cnt > 2 ? (double) cnt / (cnt - 2) : 4.0) + 1e-8;
             if (w == 0) cost *= 0.8;

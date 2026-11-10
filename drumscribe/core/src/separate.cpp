@@ -415,7 +415,7 @@ Stems separate(const Stereo& song, Quality q, const std::string& model_dir, cons
     const double tot = w_demucs + w_sep;
     auto sub = [&](double a, double b, const char* msg) -> Progress {
         if (!p) return {};
-        return [&p, a, b, msg](double f, const std::string&) { p((a + f * (b - a)) / tot, msg); };
+        return [&p, a, b, msg, tot](double f, const std::string&) { p((a + f * (b - a)) / tot, msg); };
     };
 
     Stems out;
