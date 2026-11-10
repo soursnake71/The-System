@@ -471,8 +471,10 @@ void remove_bleed(std::map<std::string, std::vector<Hit>>& hits, const std::map<
                 const Added& oy = it->second;
                 if (oy.add_db < oy.after_db - 3 && !near_hit(other, h.h.time)) continue;  // no attack in Y here
                 const double d = add_db[name][i] - oy.after_db;
+                // the snare wires buzz when the kick is hit: a snare "hit" far under the snare's own strokes, right
+                // on a much louder kick, is that buzz, not a stroke
+                if (name == "snare" && other == "kick" && h.h.level_db < h.ref_db - 20 && d < -20 && near_hit("kick", h.h.time)) { bleed = true; break; }
                 if (d > -louder_db) continue;
-                if (d < -(name == "snare" ? 32.0 : 24.0)) { bleed = true; break; }
                 if (sx < -1.5) {
                     std::vector<double> s;
                     for (size_t j : ex[name]) if (j != i) s.push_back(dot(prof[name][j], v));
@@ -484,7 +486,13 @@ void remove_bleed(std::map<std::string, std::vector<Hit>>& hits, const std::map<
                     for (size_t j : ex[other]) s.push_back(dot(prof[other][j], v));
                     so = top3_mean(s);
                 }
-                if (std::max(dot(unit(oy.prof), v), so) > sx) { bleed = true; break; }
+                const double like_other = std::max(dot(unit(oy.prof), v), so);
+                // far under the other attack: bleed unless it clearly sounds like its own drum (a crash 26 dB under
+                // a kick is real; the kick leaking into the snare stem is not). Snare: a ghost note, i.e. not far
+                // under the snare's own strokes, gets 32 dB.
+                const bool ghost = name == "snare" && h.h.level_db > h.ref_db - 15;
+                if (d < -(ghost ? 32.0 : 24.0) && sx < like_other + 0.10) { bleed = true; break; }
+                if (like_other > sx) { bleed = true; break; }
             }
             if (!bleed) kept.push_back(h);
             if (prog && (++done % 256) == 0) prog(0.6 + 0.3 * (double) done / (double) total, "Rejecting bleed between the drums");
@@ -741,6 +749,20 @@ std::vector<DrumHit> transcribe_drums(const std::map<std::string, Signal>& kit, 
         if (prog) prog(0.6 * k / (double) kit.size(), "Finding the " + name + " hits");
         hits[name] = detect_stem(name, x, sr);
         ++k;
+    }
+    // kit-wide gate: a stem the drummer barely uses still holds the separator's leftovers of the others, 40-70 dB
+    // down; its own loudest "hits" are those leftovers. A hit has to be within 34 dB of the loudest drum's typical hit
+    // (snare 40 dB, for ghost notes).
+    double kit_ref = -200;
+    for (auto& [name, hl] : hits)
+        if (!hl.empty()) {
+            std::vector<double> lv;
+            for (auto& h : hl) lv.push_back(h.h.level_db);
+            kit_ref = std::max(kit_ref, percentile(lv, 98));
+        }
+    for (auto& [name, hl] : hits) {
+        const double gate = kit_ref - (name == "snare" ? 40.0 : 34.0);
+        hl.erase(std::remove_if(hl.begin(), hl.end(), [&](const Hit& h) { return h.h.level_db < gate; }), hl.end());
     }
     remove_bleed(hits, kit, sr, prog);
     std::vector<DrumHit> out;

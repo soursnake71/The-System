@@ -3,6 +3,7 @@
 // The stems come from DrumSep on the dataset's drum-only track. Scores per class at +-50 ms (the usual tolerance for
 // drum transcription) and +-20 ms; timing vs. the annotations (hand annotations are only good to a few ms).
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -36,6 +37,7 @@ int main(int argc, char** argv)
     std::map<std::string, ds::Signal> kit;
     for (auto& s : ds::stem_names()) kit[s] = ds::to_mono(ds::load_audio(std::string(argv[1]) + "/" + s + ".wav"));
     auto hits = ds::transcribe_drums(kit, ds::kSR);
+    if (std::getenv("DUMP")) for (auto& h : hits) std::printf("HIT %.4f %s %d %.1f\n", h.time, h.piece.c_str(), h.velocity, h.level_db);
     std::vector<std::pair<double, std::string>> truth;
     std::ifstream f(argv[2]);
     for (std::string line; std::getline(f, line);) {
