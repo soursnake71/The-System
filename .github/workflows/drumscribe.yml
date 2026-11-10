@@ -1,0 +1,106 @@
+# Drum Scribe: the C++ engine (server + command line) for Windows, macOS and Linux, its accuracy tests, the Android app
+# and the VST3 plugin (+ standalone), all attached to the "drumscribe-latest" release.
+name: Drum Scribe
+on:
+  push:
+    branches: [main, 'claude/**', 'ccr-**']
+    paths: ['drumscribe/**', 'plugins/drumscribe/**', 'plugins/CMakeLists.txt', 'android/**', '.github/workflows/drumscribe.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  engine:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, name: Linux}
+          - {os: macos-14, name: Mac}
+          - {os: windows-latest, name: Windows}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S drumscribe/core -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Accuracy tests (exact ground truth)
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -maxdepth 3 -type f \( -name 'drumscribe-server' -o -name 'drumscribe-cli' -o -name 'drumscribe-server.exe' -o -name 'drumscribe-cli.exe' -o -name '*.dll' -o -name '*.dylib' -o -name 'libonnxruntime*.so*' \) -exec cp {} out/ \;
+          cp drumscribe/core/tools/get_models.* out/ 2>/dev/null || true
+          cp drumscribe/README.md out/ 2>/dev/null || true
+          ls -la out
+          cd out && 7z a -tzip "../DrumScribe-Engine-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'engine-${{ matrix.name }}', path: 'DrumScribe-Engine-${{ matrix.name }}.zip'}
+  plugin:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=DrumScribe
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune -name 'Omega Drum Scribe*' -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls out
+          cd out && 7z a -tzip "../DrumScribe-Plugin-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'plugin-${{ matrix.name }}', path: 'DrumScribe-Plugin-${{ matrix.name }}.zip'}
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android assembleScribeDebug --no-daemon
+          cp android/app/build/outputs/apk/scribe/debug/app-scribe-debug.apk drum-scribe.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: apk, path: drum-scribe.apk, if-no-files-found: error}
+  publish:
+    needs: [engine, plugin, apk]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls -la dl
+          notes="Drum Scribe (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a song link in, every drum hit and bass note out as MIDI, with the maths of the groove.
+
+          1. Engine (runs the analysis): unzip DrumScribe-Engine-<your OS>.zip, run get_models once, then drumscribe-server. Needs ffmpeg and yt-dlp on the PATH.
+          2. Android: install drum-scribe.apk, enter the engine address shown by drumscribe-server, then share a song from YouTube / Spotify to Drum Scribe.
+          3. DAW: DrumScribe-Plugin-<your OS>.zip has the VST3 (and AU on Mac) and a standalone app."
+          gh release view drumscribe-latest >/dev/null 2>&1 || gh release create drumscribe-latest --title "Drum Scribe (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit drumscribe-latest --notes "$notes"
+          gh release upload drumscribe-latest dl/* --clobber

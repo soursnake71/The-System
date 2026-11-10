@@ -1,5 +1,5 @@
-// Omega Drum Scribe: a song link (YouTube, Spotify, SoundCloud) or audio file in, every drum hit out as MIDI, in the
-// DAW. The analysis runs in the Drum Scribe engine (drumscribe/engine, a local server: separating the drums takes
+// Omega Drum Scribe: a song link (YouTube, Spotify, SoundCloud) or audio file in, every drum hit and bass note out as
+// MIDI (lengths, velocities, 303 slides), plus the maths of the groove, in the DAW. The analysis runs in the Drum Scribe engine (drumscribe/engine, a local server: separating the drums takes
 // PyTorch models that don't belong inside a plugin); this plugin talks to it, asks for the MIDI at the host's tempo so
 // it lines up with the project, shows the hits, and lets you drag the MIDI onto a track or save it.
 // Audio passes through untouched.
@@ -15,11 +15,16 @@ struct Hit { double time; int note; int vel; };
 
 struct Piece { juce::String label; int note; int count; };
 
+struct BassNote { double time, end; int note, vel; bool slide, accent; };
+
 struct Result {
     juce::String title, midiName, splitName;
     double tempo = 120, duration = 0;
     std::vector<Hit> hits;
     std::vector<Piece> pieces;
+    std::vector<BassNote> bass;
+    juce::String grooveText;
+    juce::StringArray findings;
     juce::File midiFile, splitFile;  // local copies (for dragging into the DAW)
 };
 
@@ -32,6 +37,7 @@ public:
     struct Status { juce::String state = "idle", message, error; double progress = 0; };
 
     juce::String server = "http://127.0.0.1:8765", token;
+    std::atomic<bool> tempoMap{true};  // MIDI with a tempo change on every beat (grid follows the band)
     void startLink(const juce::String& link, bool fast, double tempo);
     void startFile(const juce::File& f, bool fast, double tempo);
     void resume(const juce::String& jobId);
@@ -91,7 +97,7 @@ public:
 
     Client client;
     juce::String lastLink;
-    bool fast = false, useHostTempo = true, splitTracks = false;
+    bool fast = false, useHostTempo = true, splitTracks = false, tempoMap = false;
 
 private:
     std::atomic<double> bpm{0};

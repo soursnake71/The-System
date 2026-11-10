@@ -103,7 +103,7 @@ def _lan_ip():
         return "127.0.0.1"
 
 
-PAGE = os.path.join(os.path.dirname(__file__), "web", "index.html")
+PAGE = os.path.join(os.path.dirname(__file__), "..", "..", "core", "web", "index.html")  # shared with the C++ server
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -110,6 +110,13 @@ bool Client::fetchResult()
         for (auto& h : *hs)
             if (auto* a = h.getArray(); a && a->size() >= 3)
                 res2->hits.push_back({ (double) (*a)[0], (int) (*a)[1], (int) (*a)[2] });
+    if (auto* bs = r.getProperty("bass", juce::var()).getArray())
+        for (auto& b : *bs)
+            res2->bass.push_back({ (double) b.getProperty("t", 0.0), (double) b.getProperty("end", 0.0), (int) b.getProperty("note", 0),
+                                   (int) b.getProperty("vel", 0), (bool) b.getProperty("slide", false), (bool) b.getProperty("accent", false) });
+    res2->grooveText = r.getProperty("groove_text", "").toString();
+    if (auto* fs = r.getProperty("groove", juce::var()).getProperty("findings", juce::var()).getArray())
+        for (auto& f : *fs) res2->findings.add(f.toString());
     if (auto* ps = r.getProperty("pieces", juce::var()).getArray())
         for (auto& p : *ps)
             res2->pieces.push_back({ p.getProperty("label", "").toString(), (int) p.getProperty("note", 0), (int) p.getProperty("count", 0) });
@@ -118,7 +125,8 @@ bool Client::fetchResult()
     dir.createDirectory();
     for (int split = 0; split < 2; ++split) {
         juce::MemoryBlock mid;
-        auto err = request("GET", "/api/jobs/" + id + "/midi" + (split ? "?split=1" : ""), nullptr, {}, &mid, 60000);
+        const juce::String q = juce::String("?part=all&split=") + (split ? "1" : "0") + (tempoMap ? "" : "&tempo=constant");
+        auto err = request("GET", "/api/jobs/" + id + "/midi" + q, nullptr, {}, &mid, 60000);
         if (err.isNotEmpty()) { set("error", err); return false; }
         auto f = dir.getChildFile(juce::File::createLegalFileName(split ? res2->splitName : res2->midiName));
         f.replaceWithData(mid.getData(), mid.getSize());
@@ -211,6 +219,7 @@ void Processor::getStateInformation(juce::MemoryBlock& out)
     t.setProperty("fast", fast, nullptr);
     t.setProperty("hostTempo", useHostTempo, nullptr);
     t.setProperty("split", splitTracks, nullptr);
+    t.setProperty("tempoMap", tempoMap, nullptr);
     juce::MemoryOutputStream s(out, false);
     t.writeToStream(s);
 }
@@ -225,6 +234,8 @@ void Processor::setStateInformation(const void* data, int size)
     fast = t.getProperty("fast", false);
     useHostTempo = t.getProperty("hostTempo", true);
     splitTracks = t.getProperty("split", false);
+    tempoMap = t.getProperty("tempoMap", false);
+    client.tempoMap = tempoMap;
     auto job = t.getProperty("job", "").toString();
     if (job.isNotEmpty() && ! client.busy()) client.resume(job);
 }
@@ -265,8 +276,8 @@ struct Lanes : juce::Component {
             g.drawText("The hits show here.", getLocalBounds(), juce::Justification::centred);
             return;
         }
-        const int n = (int) r->pieces.size();
-        const float lane = (float) getHeight() / (float) n, w = (float) getWidth();
+        const int n = (int) r->pieces.size(), bassLanes = r->bass.empty() ? 0 : 3;
+        const float lane = (float) getHeight() / (float) (n + bassLanes), w = (float) getWidth();
         std::map<int, int> idx;
         for (int i = 0; i < n; ++i) {
             idx[r->pieces[(size_t) i].note] = i;
@@ -279,6 +290,20 @@ struct Lanes : juce::Component {
             if (it == idx.end()) continue;
             g.setColour(juce::Colour::fromHSV((30.f + (float) it->second * 23.f) / 360.f, 0.8f, 0.35f + 0.65f * (float) h.vel / 127.f, 1.f));
             g.fillRect((float) (h.time / dur) * w, ((float) it->second + 0.15f) * lane, 1.2f, lane * 0.7f);
+        }
+        if (bassLanes) {
+            int lo = 127, hi = 0;
+            for (auto& b : r->bass) { lo = juce::jmin(lo, b.note); hi = juce::jmax(hi, b.note); }
+            const float top = (float) n * lane, h = 3 * lane, row = h / (float) (hi - lo + 2);
+            g.setColour(juce::Colour(0xff0f1215));
+            g.fillRect(0.f, top, w, h);
+            for (auto& b : r->bass) {
+                g.setColour(b.slide ? BAD : b.accent ? ACCENT : juce::Colour(0xff5fc27e));
+                g.fillRect((float) (b.time / dur) * w, top + h - (float) (b.note - lo + 1) * row, juce::jmax(1.f, (float) ((b.end - b.time) / dur) * w), juce::jmax(2.f, row));
+            }
+            g.setColour(DIM);
+            g.setFont(juce::FontOptions(12.f));
+            g.drawText("Bass  " + juce::String((int) r->bass.size()) + "  (red: slide, orange: accent)", 6, (int) top, 400, (int) lane, juce::Justification::centredLeft);
         }
         g.setFont(juce::FontOptions(juce::jmin(12.f, lane * 0.7f)));
         g.setColour(DIM);
@@ -356,6 +381,20 @@ public:
         split.setButtonText("One track per kit piece");
         split.setToggleState(p.splitTracks, juce::dontSendNotification);
         split.onClick = [this] { proc.splitTracks = split.getToggleState(); repaint(); drag.repaint(); };
+        addAndMakeVisible(tempoMapBox);
+        tempoMapBox.setButtonText("Tempo map (grid follows the band)");
+        tempoMapBox.setToggleState(p.tempoMap, juce::dontSendNotification);
+        tempoMapBox.onClick = [this] { proc.tempoMap = proc.client.tempoMap = tempoMapBox.getToggleState(); if (auto id = proc.client.jobId(); id.isNotEmpty()) proc.client.resume(id); };
+        proc.client.tempoMap = p.tempoMap;
+        addAndMakeVisible(grooveBtn);
+        grooveBtn.setButtonText("Groove maths");
+        grooveBtn.setClickingTogglesState(true);
+        grooveBtn.onClick = [this] { groove.setVisible(grooveBtn.getToggleState()); lanes.setVisible(! grooveBtn.getToggleState()); };
+        addChildComponent(groove);
+        groove.setMultiLine(true);
+        groove.setReadOnly(true);
+        groove.setScrollbarsShown(true);
+        groove.setFont(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 13.f, juce::Font::plain));
         addAndMakeVisible(save);
         save.setButtonText("Save MIDI...");
         save.onClick = [this] { saveMidi(); };
@@ -386,7 +425,7 @@ public:
         g.drawText("DRUM SCRIBE", 16, 10, 300, 28, juce::Justification::centredLeft);
         g.setColour(DIM);
         g.setFont(juce::FontOptions(13.f));
-        g.drawText("song link in, every drum hit out: unquantized, with velocities, every kit piece", 170, 10, getWidth() - 186, 28,
+        g.drawText("song link in, every drum hit and bass note out: unquantized, lengths, velocities, slides", 170, 10, getWidth() - 186, 28,
                    juce::Justification::centredLeft);
         if (auto r = proc.client.result()) {
             g.setColour(TEXT);
@@ -432,9 +471,13 @@ public:
         c.removeFromLeft(8);
         rewrite.setBounds(c);
         r3.removeFromTop(4);
-        split.setBounds(r3);
+        split.setBounds(r3.removeFromLeft(r3.getWidth() / 2));
+        tempoMapBox.setBounds(r3);
         b.removeFromBottom(8);
+        grooveBtn.setBounds(b.removeFromTop(26).removeFromRight(130));
+        b.removeFromTop(4);
         lanes.setBounds(b);
+        groove.setBounds(b);
     }
 
 private:
@@ -497,6 +540,7 @@ private:
             text << " - start it with: drumscribe serve";
         status.setText(text, juce::dontSendNotification);
         lanes.r = proc.client.result();
+        if (lanes.r) groove.setText((lanes.r->findings.isEmpty() ? juce::String() : "- " + lanes.r->findings.joinIntoString("\n- ") + "\n\n") + lanes.r->grooveText, false);
         lanes.repaint();
         drag.repaint();
         repaint();
@@ -507,8 +551,9 @@ private:
     juce::Label linkLabel, serverLabel, tempoLabel, status;
     juce::TextEditor link, server, tempo;
     juce::ComboBox quality;
-    juce::ToggleButton hostTempo, split;
-    juce::TextButton go, pick, rewrite, save;
+    juce::ToggleButton hostTempo, split, tempoMapBox;
+    juce::TextButton go, pick, rewrite, save, grooveBtn;
+    juce::TextEditor groove;
     double progress = 0;
     juce::ProgressBar bar { progress };
     Lanes lanes;

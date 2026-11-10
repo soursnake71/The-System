@@ -3,3 +3,6 @@
 /Omega-Twelve-Setup-*.exe
 __pycache__/
 *.pyc
+android/local.properties
+build-*/
+build-plug.log

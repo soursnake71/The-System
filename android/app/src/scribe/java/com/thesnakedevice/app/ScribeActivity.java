@@ -61,9 +61,9 @@ public class ScribeActivity extends Activity {
   SharedPreferences prefs;
   EditText server, link, tempo, token;
   Spinner quality;
-  Button go, pick, save, saveSplit, share;
+  Button go, pick, save, saveSplit, share, saveConst, saveDrums, saveBass;
   ProgressBar bar;
-  TextView status, title, info;
+  TextView status, title, info, grooveView;
   LinearLayout results, pieceList;
   HitsView hitsView;
   String jobId;
@@ -239,10 +239,14 @@ public class ScribeActivity extends Activity {
     save = button("Save MIDI", true);
     saveSplit = button("Track per piece", false);
     results.addView(row(save, saveSplit));
+    saveConst = button("Constant tempo", false);
+    saveDrums = button("Drums only", false);
+    saveBass = button("Bass only", false);
+    results.addView(row(saveConst, saveDrums, saveBass));
     share = button("Send MIDI to an app (DAW, Drive...)", false);
     results.addView(row(share));
     TextView hint = new TextView(this);
-    hint.setText("Notes sit exactly where the drummer played them. Set your project to the tempo above before importing, and line the MIDI up with the start of the song.");
+    hint.setText("Notes sit exactly where they were played. The main file has a tempo map (the grid follows the band); for DAWs that ignore file tempos use Constant tempo and set the project to the tempo above. Line the MIDI up with the start of the song.");
     hint.setTextColor(DIM);
     hint.setTextSize(13);
     hint.setPadding(0, dp(10), 0, dp(10));
@@ -253,6 +257,13 @@ public class ScribeActivity extends Activity {
     pieceList = new LinearLayout(this);
     pieceList.setOrientation(LinearLayout.VERTICAL);
     results.addView(pieceList);
+    results.addView(label("The groove, in numbers"));
+    grooveView = new TextView(this);
+    grooveView.setTypeface(Typeface.MONOSPACE);
+    grooveView.setTextColor(TEXT);
+    grooveView.setTextSize(11);
+    grooveView.setTextIsSelectable(true);
+    results.addView(grooveView);
     root.addView(results);
 
     LinearLayout c3 = card();
@@ -276,9 +287,12 @@ public class ScribeActivity extends Activity {
       i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {"audio/*", "video/*"});
       startActivityForResult(i, PICK_AUDIO);
     });
-    save.setOnClickListener(v -> download(false, false));
-    saveSplit.setOnClickListener(v -> download(true, false));
-    share.setOnClickListener(v -> download(false, true));
+    save.setOnClickListener(v -> download("?part=all", false));
+    saveSplit.setOnClickListener(v -> download("?part=all&split=1", false));
+    saveConst.setOnClickListener(v -> download("?part=all&tempo=constant", false));
+    saveDrums.setOnClickListener(v -> download("?part=drums", false));
+    saveBass.setOnClickListener(v -> download("?part=bass", false));
+    share.setOnClickListener(v -> download("?part=all", true));
     test.setOnClickListener(v -> {
       remember();
       new Thread(() -> {
@@ -435,7 +449,16 @@ public class ScribeActivity extends Activity {
     results.setVisibility(View.VISIBLE);
     title.setText(r.optString("title"));
     JSONArray hits = r.optJSONArray("hits");
-    info.setText(String.format(Locale.US, "%.2f BPM  ·  %d hits  ·  %d s", r.optDouble("tempo"), hits == null ? 0 : hits.length(), (int) r.optDouble("duration")));
+    JSONArray bass = r.optJSONArray("bass");
+    info.setText(String.format(Locale.US, "%.2f BPM  ·  %d drum hits  ·  %d bass notes  ·  %d s", r.optDouble("tempo"),
+        hits == null ? 0 : hits.length(), bass == null ? 0 : bass.length(), (int) r.optDouble("duration")));
+    StringBuilder g = new StringBuilder();
+    JSONObject groove = r.optJSONObject("groove");
+    JSONArray findings = groove == null ? null : groove.optJSONArray("findings");
+    for (int i = 0; findings != null && i < findings.length(); i++) g.append("• ").append(findings.optString(i)).append('\n');
+    if (g.length() > 0) g.append('\n');
+    g.append(r.optString("groove_text"));
+    grooveView.setText(g.toString());
     pieceList.removeAllViews();
     JSONArray ps = r.optJSONArray("pieces");
     List<Integer> notes = new ArrayList<>();
@@ -455,12 +478,14 @@ public class ScribeActivity extends Activity {
     hitsView.set(hits, notes, names, r.optDouble("duration", 1));
   }
 
-  void download(boolean split, boolean thenShare) {
+  void download(String query, boolean thenShare) {
     if (jobId == null || result == null) return;
-    String name = result.optString(split ? "midi_split" : "midi", "drums.mid");
+    String title = result.optString("title", "drums").replaceAll("[\\\\/:*?\"<>|]", "_");
+    String name = title + (query.contains("drums") ? " - drums" : query.contains("bass") ? " - bass" : " - drums + bass")
+        + (query.contains("split") ? " (track per piece)" : "") + (query.contains("constant") ? " (constant tempo)" : "") + ".mid";
     new Thread(() -> {
       try {
-        byte[] data = http("GET", "/api/jobs/" + jobId + "/midi" + (split ? "?split=1" : ""), null, null);
+        byte[] data = http("GET", "/api/jobs/" + jobId + "/midi" + query, null, null);
         Uri u = saveToDownloads(name, data);
         ui.post(() -> {
           toast("Saved to Download/Drum Scribe/" + name);
@@ -529,7 +554,8 @@ public class ScribeActivity extends Activity {
         float v = e.optInt(2) / 127f;
         p.setColor(Color.HSVToColor(new float[] {30 + i * 23, 0.8f, 0.35f + 0.65f * v}));
         float x = (float) (e.optDouble(0) / dur * w);
-        c.drawRect(x, i * lane + lane * 0.15f, x + px, (i + 0.85f) * lane, p);
+        float len = (float) (e.optDouble(3, 0) / dur * w);
+        c.drawRect(x, i * lane + lane * 0.15f, x + Math.max(px, len), (i + 0.85f) * lane, p);
       }
       p.setColor(DIM);
       p.setTextSize(Math.min(lane * 0.6f, 11 * px));

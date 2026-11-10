@@ -36,7 +36,7 @@
 <body>
 <main>
   <h1>DRUM SCRIBE</h1>
-  <p class="sub">A song link in, every drum hit out as MIDI: unquantized, with velocities, every piece of the kit.</p>
+  <p class="sub">A song link in, every drum hit and bass note out as MIDI: unquantized, with lengths, velocities, slides, every piece of the kit, and the maths of the groove.</p>
 
   <div class="card">
     <label for="link">YouTube, Spotify or SoundCloud link</label>
@@ -60,18 +60,30 @@
     <div class="tempo" id="title"></div>
     <div id="bpm" class="hint"></div>
     <div>
-      <a class="dl" id="dl1"><button>Download MIDI</button></a>
-      <a class="dl" id="dl2"><button class="ghost">One track per piece</button></a>
-      <a class="dl" id="dl3"><button class="ghost">Drum stem (WAV)</button></a>
+      <a class="dl" id="dl1"><button>Drums + bass MIDI</button></a>
+      <a class="dl" id="dl4"><button class="ghost">Constant tempo</button></a>
+      <a class="dl" id="dl2"><button class="ghost">Track per kit piece</button></a>
+      <a class="dl" id="dl5"><button class="ghost">Drums only</button></a>
+      <a class="dl" id="dl6"><button class="ghost">Bass only</button></a>
+      <a class="dl" id="dl3"><button class="ghost">Drum stem</button></a>
+      <a class="dl" id="dl7"><button class="ghost">Bass stem</button></a>
+      <a class="dl" id="dl8"><button class="ghost">Groove report</button></a>
     </div>
     <div class="row">
       <div><label for="retempo">Rewrite at another tempo</label><input id="retempo" type="number" step="0.01" min="30" max="300"></div>
       <div style="align-self:end"><button id="rt" class="ghost">Rewrite</button></div>
     </div>
-    <p class="hint">Notes sit exactly where the drummer played them. Set your project to the tempo above before you drag the
-      file in, and put it at the same start as the song's audio.</p>
+    <p class="hint">Notes sit exactly where they were played. The main file carries a tempo map (a tempo change on every
+      beat), so the grid follows the band in DAWs that read it (Logic, Cubase, Reaper, Studio One, Pro Tools). Ableton and FL
+      ignore file tempos: use "Constant tempo" and set the project to the tempo above. Bass slides are legato overlaps +
+      portamento + pitch bend (range 12).</p>
     <canvas id="roll"></canvas>
     <table id="pieces"></table>
+  </div>
+  <div id="groove" class="card" hidden>
+    <div class="tempo">The groove, in numbers</div>
+    <ul id="findings"></ul>
+    <pre id="gtext" style="white-space:pre-wrap;font-size:12px;color:var(--dim);overflow-x:auto"></pre>
   </div>
 </main>
 <script>
@@ -121,11 +133,20 @@ const NAMES = {36:'Kick',38:'Snare',37:'Side stick',42:'HH closed',44:'HH pedal'
 function show(res) {
   $('out').hidden = false;
   $('title').textContent = res.title;
-  $('bpm').textContent = res.tempo + ' BPM · ' + res.hits.length + ' hits · ' + Math.round(res.duration) + ' s';
+  $('bpm').textContent = res.tempo + ' BPM · ' + res.hits.length + ' drum hits · ' + (res.bass || []).length + ' bass notes · ' + Math.round(res.duration) + ' s';
   $('retempo').value = res.tempo;
   $('dl1').href = withTok('/api/jobs/' + job + '/midi');
   $('dl2').href = withTok('/api/jobs/' + job + '/midi?split=1');
   $('dl3').href = withTok('/api/jobs/' + job + '/drums');
+  $('dl4').href = withTok('/api/jobs/' + job + '/midi?tempo=constant');
+  $('dl5').href = withTok('/api/jobs/' + job + '/midi?part=drums');
+  $('dl6').href = withTok('/api/jobs/' + job + '/midi?part=bass');
+  $('dl7').href = withTok('/api/jobs/' + job + '/bass');
+  $('dl8').href = withTok('/api/jobs/' + job + '/groove.txt');
+  $('groove').hidden = !res.groove_text;
+  $('gtext').textContent = res.groove_text || '';
+  const f = (res.groove && res.groove.findings) || [];
+  $('findings').innerHTML = f.map(x => '<li>' + String(x).replace(/</g, '&lt;') + '</li>').join('');
   $('pieces').innerHTML = res.pieces.map(p => `<tr><td>${p.label}</td><td class="n">note ${p.note}</td><td class="n">${p.count}</td></tr>`).join('');
   draw(res);
 }
@@ -135,17 +156,27 @@ function draw(res) {
   c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
   const g = c.getContext('2d');
   const notes = res.pieces.map(p => p.note);
-  const lane = c.height / Math.max(1, notes.length);
+  const bass = res.bass || [];
+  const lanes = notes.length + (bass.length ? 3 : 0);
+  const lane = c.height / Math.max(1, lanes);
   g.fillStyle = '#0d0f12'; g.fillRect(0, 0, c.width, c.height);
   g.font = (11 * dpr) + 'px system-ui'; g.textBaseline = 'middle';
-  notes.forEach((n, i) => {
-    g.fillStyle = i % 2 ? '#14171c' : '#101317'; g.fillRect(0, i * lane, c.width, lane);
-  });
+  for (let i = 0; i < lanes; i++) { g.fillStyle = i % 2 ? '#14171c' : '#101317'; g.fillRect(0, i * lane, c.width, lane); }
   const w = c.width / Math.max(1, res.duration);
-  for (const [t, n, v] of res.hits) {
+  for (const [t, n, v, len] of res.hits) {
     const i = notes.indexOf(n); if (i < 0) continue;
     g.fillStyle = `hsl(${30 + i * 23}, 80%, ${35 + v / 127 * 35}%)`;
-    g.fillRect(t * w, i * lane + lane * 0.15, Math.max(1, dpr), lane * 0.7);
+    g.fillRect(t * w, i * lane + lane * 0.15, Math.max(dpr, (len || 0) * w), lane * 0.7);
+  }
+  if (bass.length) {
+    const lo = Math.min(...bass.map(b => b.note)), hi = Math.max(...bass.map(b => b.note)) + 1;
+    const top = notes.length * lane, h = 3 * lane;
+    for (const b of bass) {
+      const y = top + h - (b.note - lo + 1) / (hi - lo + 1) * h;
+      g.fillStyle = b.slide ? '#e5615b' : (b.accent ? '#f2a33a' : '#5fc27e');
+      g.fillRect(b.t * w, y, Math.max(dpr, (b.end - b.t) * w), Math.max(2 * dpr, h / (hi - lo + 2)));
+    }
+    g.fillStyle = '#9aa1ad'; g.fillText('Bass (red: slide, orange: accent)', 4 * dpr, top + lane / 2);
   }
   notes.forEach((n, i) => { g.fillStyle = '#9aa1ad'; g.fillText(NAMES[n] || n, 4 * dpr, i * lane + lane / 2); });
 }
