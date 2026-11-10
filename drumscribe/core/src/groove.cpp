@@ -51,7 +51,8 @@ double r1(double x) { return std::round(x * 10) / 10; }
 
 struct Stat {
     double n = 0, s = 0, ss = 0;
-    void add(double x) { n += 1; s += x; ss += x * x; }
+    std::vector<double> v;
+    void add(double x) { n += 1; s += x; ss += x * x; v.push_back(x); }
     double mean() const { return n ? s / n : 0; }
     double sd() const { return n > 1 ? std::sqrt(std::max(0.0, (ss - s * s / n) / (n - 1))) : 0; }
 };
@@ -367,25 +368,30 @@ json analyze_groove(const std::vector<DrumHit>& drums, const std::vector<BassNot
             }
             if (!i8.n && !i16.n) continue;
             json j;
-            j["eighths_pct"] = i8.n ? json(r2(100 * i8.mean())) : json(nullptr);
-            j["sixteenths_pct"] = i16.n ? json(r2(100 * i16.mean())) : json(nullptr);
+            // a swing figure needs enough notes on those positions; the median, so stray notes can't drag it
+            j["eighths_pct"] = i8.n >= 8 ? json(r2(100 * median(i8.v))) : json(nullptr);
+            j["sixteenths_pct"] = i16.n >= 8 ? json(r2(100 * median(i16.v))) : json(nullptr);
             j["n_eighths"] = (int) i8.n;
             j["n_sixteenths"] = (int) i16.n;
             per[kKey[in]] = j;
         }
-        sw["eighths_pct"] = a8.n ? json(r2(100 * a8.mean())) : json(nullptr);
-        sw["sixteenths_pct"] = a16.n ? json(r2(100 * a16.mean())) : json(nullptr);
+        // evidence: 8 off-beat 8ths; 16 notes on the "e"/"a" 16ths and 5% of all hits (a straight rock beat has a
+        // few stray ones, which say nothing about swing)
+        const bool ok8 = a8.n >= 8, ok16 = a16.n >= 16 && a16.n >= 0.05 * (double) ev.size();
+        sw["eighths_pct"] = ok8 ? json(r2(100 * median(a8.v))) : json(nullptr);
+        sw["sixteenths_pct"] = ok16 ? json(r2(100 * median(a16.v))) : json(nullptr);
         sw["grid_eighths_pct"] = r2(100 * s8);
         sw["grid_sixteenths_pct"] = r2(100 * s16);
         sw["per_instrument"] = per;
         out["swing"] = sw;
-        const double e8 = a8.n ? 100 * a8.mean() : 50, e16 = a16.n ? 100 * a16.mean() : 50;
-        out["meter"]["subdivision"] = compound ? "ternary" : s8 >= 0.62 ? "swung (triplet feel)" : s8 >= 0.53 || s16 >= 0.53 ? "swung" : "straight";
+        const double e8 = ok8 ? 100 * median(a8.v) : 50, e16 = ok16 ? 100 * median(a16.v) : 50;
+        out["meter"]["subdivision"] = compound ? "ternary" : (ok8 && e8 >= 62) ? "swung (triplet feel)"
+                                    : (ok8 && e8 >= 53) || (ok16 && e16 >= 53) ? "swung" : "straight";
         out["meter"]["compound"] = compound;
         auto& F = out["findings"];
-        if (a8.n >= 4 && e8 >= 53) F.push_back(fmt("8ths swung %.1f%% (straight 50, triplet 66.7)", e8));
-        if (a16.n >= 4 && e16 >= 53) F.push_back(fmt("16ths swung %.1f%%", e16));
-        if ((a8.n < 4 || e8 < 53) && (a16.n < 4 || e16 < 53) && !compound)
+        if (ok8 && e8 >= 53) F.push_back(fmt("8ths swung %.1f%% (straight 50, triplet 66.7)", e8));
+        if (ok16 && e16 >= 53) F.push_back(fmt("16ths swung %.1f%%", e16));
+        if ((!ok8 || e8 < 53) && (!ok16 || e16 < 53) && !compound)
             F.push_back(fmt("Straight feel (8ths at %.1f%%)", a8.n ? e8 : 50.0));
         if (compound) F.push_back("Compound meter: 6/8, the beat is a dotted quarter (three 8ths)");
     }

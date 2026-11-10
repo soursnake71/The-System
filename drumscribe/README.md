@@ -72,6 +72,17 @@ Through the real separation models (Python prototype, a synthetic song with bass
 toms 1.00, with sub-millisecond timing. Synthetic cymbals aren't recognised by DrumSep (it was trained on real drums),
 so cymbals are measured on real recordings instead (MDB Drums), see below.
 
+Bass (`tests/test_bass.cpp`, 4 seeds each, exact ground truth): 303 acid line with slides and accents F 0.995 (onsets
+0.6 ms, slides found 95%, no false ones); fingered bass F 1.000 (0.3 ms); both with kick bleed and noise F 0.94 – 0.96;
+compressed picked legato F 0.96. Real songs (MDB, `tools/eval_bass_real.cpp`, transcribed pitch vs. an independent
+pitch track of the isolated bass, and the isolated vs. the Demucs-separated bass): Rock, Punk, Funk Jazz, 80s Rock:
+96 – 99% of the time within 50 cents, octave errors 0.3 – 2%, separated-vs-isolated agreement F 0.75 – 0.87. Disco
+(chromatic glisses, trills, muted ghost notes) is the weak one: F 0.65, its glisses written as chains of slides.
+
+Beats / groove / MIDI (`test_beats`, `test_groove`, `test_midi`): beat F 1.000 on 15 cases (drift, sudden tempo
+change, ritardando, shuffle, 3/4, 6/8, 78 – 174 BPM); swing, snare lag, accents, bass-kick offset recovered to within
+a few tenths of a percent / ms; every MIDI note within half a tick of its time through the tempo map (150 checks).
+
 ## Run the engine
 
 ```
