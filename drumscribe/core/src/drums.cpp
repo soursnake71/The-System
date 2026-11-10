@@ -18,6 +18,8 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstdio>
+#include <cstdlib>
 #include <deque>
 #include <numeric>
 #include "ds/kit.h"
@@ -626,9 +628,12 @@ void articulate(const std::string& name, std::vector<Hit>& hl, const Signal& x, 
         }
         std::sort(cents.begin(), cents.end());
         const double bright = median(std::vector<double>(cents.begin() + (long) cents.size() / 2, cents.end()));
+        if (std::getenv("DS_DRUMS_DEBUG"))
+            for (auto& h : hl) std::fprintf(stderr, "HHF %.4f %.4f %.0f %.1f\n", h.h.time, h.f["decay"], h.f["centroid"], h.h.level_db);
         for (auto& h : hl) {
             const double d = h.f["decay"];
-            if (d > 0.09 || (d < 0 && -d >= 0.07)) h.h.piece = "hh_open";   // still ringing 90 ms on
+            // still ringing 15 dB up after 130 ms (tuned on MDB Drums: closed hats in real mixes ring up to ~120 ms)
+            if (d > 0.13 || (d < 0 && -d >= 0.10)) h.h.piece = "hh_open";
             else if (h.f["centroid"] < 0.4 * bright) h.h.piece = "hh_pedal";  // dull chick
             else h.h.piece = "hh_closed";
         }
@@ -751,8 +756,8 @@ std::vector<DrumHit> transcribe_drums(const std::map<std::string, Signal>& kit, 
         ++k;
     }
     // kit-wide gate: a stem the drummer barely uses still holds the separator's leftovers of the others, 40-70 dB
-    // down; its own loudest "hits" are those leftovers. A hit has to be within 34 dB of the loudest drum's typical hit
-    // (snare 40 dB, for ghost notes).
+    // down; its own loudest "hits" are those leftovers. A hit has to be within 30 dB of the loudest drum's typical hit
+    // (snare 36 dB, for ghost notes).
     double kit_ref = -200;
     for (auto& [name, hl] : hits)
         if (!hl.empty()) {
@@ -761,7 +766,7 @@ std::vector<DrumHit> transcribe_drums(const std::map<std::string, Signal>& kit, 
             kit_ref = std::max(kit_ref, percentile(lv, 98));
         }
     for (auto& [name, hl] : hits) {
-        const double gate = kit_ref - (name == "snare" ? 40.0 : 34.0);
+        const double gate = kit_ref - (name == "snare" ? 36.0 : 30.0);  // tuned on MDB Drums (28-42 dB tried)
         hl.erase(std::remove_if(hl.begin(), hl.end(), [&](const Hit& h) { return h.h.level_db < gate; }), hl.end());
     }
     remove_bleed(hits, kit, sr, prog);

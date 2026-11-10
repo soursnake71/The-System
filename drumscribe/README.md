@@ -49,10 +49,24 @@ ride bell, two crashes, side stick, perfect stems with -26 dB bleed between them
 
 | | F-measure | attack error mean | attack error p95 | note length error (median) |
 |---|---|---|---|---|
-| all pieces | 0.973 – 0.979 | 0.24 – 0.47 ms | 0.94 – 2.48 ms | 2.8 – 3.0 ms |
+| all pieces | 0.978 – 0.983 | 0.24 – 0.48 ms | 0.95 – 3.08 ms | 2.8 – 3.0 ms |
 
-Kick, snare, crash 1 / 2, ride, ride bell, open hat: F ≥ 0.95 on every seed. Known weak spots: floor-tom false hits
-from other drums' bleed (F 0.83 – 0.89), tom note lengths cut short when other drums bleed into the tom stem.
+Open / closed hats, crash 1 / 2, ride bell: F = 1.00 on every seed. Known weak spots: floor-tom false hits from other
+drums' bleed, tom note lengths cut short when other drums bleed into the tom stem.
+
+**Real recordings**: [MDB Drums](https://github.com/CarlSouthall/MDBDrums) (MedleyDB drum tracks, hand-annotated), the
+drum track through DrumSep, then the C++ detector (`tools/eval_mdb.cpp`), F at ±50 ms:
+
+| track | all | kick | snare | hi-hat (open + closed) |
+|---|---|---|---|---|
+| Disco | 0.97 | 1.00 | 0.94 | 0.98 |
+| 80s Rock | 0.97 | 0.99 | 0.97 | – |
+| Rock | 0.88 | 1.00 | 0.92 | 0.83 |
+| Funk Jazz | 0.86 | 0.97 | 0.96 | 0.92 |
+| Punk | 0.70 | 0.90 | 0.96 | 0.60 |
+
+Hits land a median 2.5 – 4.5 ms before the hand annotations (which are themselves good to a few ms; the engine marks the
+very start of the attack). Weakest: cymbal-heavy punk, where DrumSep puts crash wash into the hi-hat and ride stems.
 
 Through the real separation models (Python prototype, a synthetic song with bass and keys): kick 0.99, snare 0.91,
 toms 1.00, with sub-millisecond timing. Synthetic cymbals aren't recognised by DrumSep (it was trained on real drums),

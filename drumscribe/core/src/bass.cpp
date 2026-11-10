@@ -334,6 +334,8 @@ struct Onset {
     bool dip = false;    // the level dropped just before the onset
     double hf = 0;       // high-band rise at the onset (dB): a pluck / filter-envelope transient
     double clarity = 0;  // peak of the unexplained part over its level before (dB): how clear the attack is
+    bool decay = false;  // only the previous note dying away (release), no attack
+    double cont = 0;     // phase continuity of the previous note across the onset (1 = it just goes on)
 };
 
 // refine a coarse onset to the attack start
@@ -390,10 +392,14 @@ void refine_onset(const Sig& s, Onset& o, long lo, double Pprev, double ref_pow)
         if (pr.P > 0) {
             double c2 = 0;
             long nq = detect(q, nr, &c2);
-            if (nq >= nr + s.msl(3)) {
+            long ne = nq >= 0 ? nq : std::min(e1, nr + s.msl(10));
+            if (ne >= nr + s.msl(3)) {
                 double ex = 0, eh = 0;
-                for (long n = nr; n < nq; ++n) { ex += s.at(n) * s.at(n); eh += X(n) * X(n); }
-                if (ex < 0.3 * eh) { nr = nq; clar = c2; }  // [nr, nq) is only the old note dying away
+                for (long n = nr; n < ne; ++n) { ex += s.at(n) * s.at(n); eh += X(n) * X(n); }
+                if (ex < 0.3 * eh) {  // [nr, ne) is only the old note dying away
+                    if (nq >= 0) { nr = nq; clar = c2; }
+                    else o.decay = true;
+                }
             }
         }
         o.n = nr;
@@ -460,25 +466,14 @@ long periodicity_break(const Sig& s, long fa, long fb, long sb, double P) {
         }
         if (sse < best) { best = sse; bt = t0; }
     }
+    if (const char* pd = std::getenv("DS_PBREAK_DEBUG"))
+        if (std::fabs(double(fb) / s.sr - std::atof(pd)) < 0.05) {
+            std::fprintf(stderr, "pbreak P %.1f g %.3f base %.2e ymax %.2e end %.4f bt %.4f\n", pr.P, pr.g, base, ymax,
+                         t[end] / s.sr, bt / s.sr);
+            for (size_t i = 0; i < t.size(); i += 4) std::fprintf(stderr, "   %.4f %.3e\n", t[i] / s.sr, y[i]);
+        }
     if (bt < 0 || ymax < 3 * std::max(base, 1e-12)) return -1;
     return std::lround(bt);
-}
-
-// how periodic the signal is right after n with a period near P (looking forward, so the new note predicts itself):
-// ~1 when a new note starts at n at its own pitch, low while a glide is still moving
-double settled_after(const Sig& s, long n, double P) {
-    if (P <= 2) return 0;
-    const long a = n + s.msl(3), L = std::max(s.msl(12), long(1.2 * P));
-    double best = 0;
-    for (int i = -30; i <= 30; ++i) {
-        double Pq = P * (1 + 0.001 * i), xx = 0, yy = 0, xy = 0;
-        for (long m = a; m < a + L; ++m) {
-            double u = s.at(m), v = s.frac(m + Pq);
-            xx += u * u; yy += v * v; xy += u * v;
-        }
-        if (xx > 0 && yy > 0) best = std::max(best, xy / std::sqrt(xx * yy));
-    }
-    return best;
 }
 
 // length (s) of the stretch around n that neither the old note (forward prediction, period PA) nor the new note
@@ -503,6 +498,90 @@ double transition_zone(const Sig& s, long n, double PA, double PB) {
         if (std::min(ea, eb) > 0.2 * ex) ++cnt;
     }
     return double(cnt) / s.sr;
+}
+
+// time (s) the waveform spends at periods between PA and PB (inner 50 % of the interval) around n, from a short-window
+// (one period) normalized autocorrelation every 0.5 ms: a glide passes through them, a re-attack jumps over them
+double fine_intermediate(const Sig& s, long n, double PA, double PB) {
+    const double lo = std::min(PA, PB), hi = std::max(PA, PB);
+    const long L = long(hi) + 1;
+    const long t0 = std::max(1L, long(lo * 0.97)), t1 = long(hi * 1.03) + 1;
+    const double ilo = lo + 0.25 * (hi - lo), ihi = hi - 0.25 * (hi - lo);
+    const long step = std::max(1L, s.msl(0.5));
+    std::vector<double> c(t1 - t0 + 1);
+    long cnt = 0;
+    for (long m = n - s.msl(20); m < n + s.msl(70); m += step) {
+        const long a = m - L / 2 - long(lo / 2);
+        double e0 = 0;
+        for (long j = a; j < a + L; ++j) e0 += s.at(j) * s.at(j);
+        if (e0 <= 0) continue;
+        long bt = -1;
+        double bc = -1;
+        for (long t = t0; t <= t1; ++t) {
+            double xy = 0, e1 = 0;
+            for (long j = a; j < a + L; ++j) {
+                double u = s.at(j + t);
+                xy += s.at(j) * u;
+                e1 += u * u;
+            }
+            c[t - t0] = e1 > 0 ? xy / std::sqrt(e0 * e1) : 0;
+            if (c[t - t0] > bc) { bc = c[t - t0]; bt = t; }
+        }
+        if (bt > t0 && bt < t1 && bc > 0.9) {
+            double y0 = c[bt - 1 - t0], y1 = c[bt - t0], y2 = c[bt + 1 - t0], den = y0 - 2 * y1 + y2;
+            double tf = bt + (den < 0 ? 0.5 * (y0 - y2) / den : 0.0);
+            if (tf > ilo && tf < ihi) ++cnt;
+        }
+    }
+    return double(cnt * step) / s.sr;
+}
+
+// does the note before n simply continue through n (something else, e.g. a kick, was laid on top)? Normalized
+// correlation of x 70..100 ms after n with x a whole number of the old periods earlier (before n): a held note keeps
+// its phase, a re-attack (even at the same pitch) does not.
+double continuity(const Sig& s, long n, double P0, double back_ms) {
+    if (P0 <= 2) return 0;
+    const long e = n - s.msl(back_ms);
+    Predictor pr = fit_predictor(s, e - s.msl(36), e, P0);
+    if (pr.P <= 0) return 0;
+    const long a = n + s.msl(70), b = n + s.msl(100);
+    if (b >= s.N) return 0;
+    const double kP = std::ceil((b - e) / pr.P) * pr.P;
+    double xy = 0, xx = 0, yy = 0;
+    for (long m = a; m < b; ++m) {
+        double u = s.at(m), v = s.frac(m - kP);
+        xy += u * v; xx += u * u; yy += v * v;
+    }
+    return (xx > 0 && yy > 0) ? xy / std::sqrt(xx * yy) : 0;
+}
+
+// Goertzel power of x[a, b) (Hann window) at frequency f
+double tone_power(const Sig& s, long a, long b, double f) {
+    const long n = b - a;
+    if (n < 16) return 0;
+    const double w = 2 * kPi * f / s.sr, c = 2 * std::cos(w);
+    double s1 = 0, s2 = 0;
+    for (long i = 0; i < n; ++i) {
+        double h = 0.5 - 0.5 * std::cos(2 * kPi * i / (n - 1));
+        double s0 = h * s.at(a + i) + c * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    return std::max(0.0, s1 * s1 + s2 * s2 - c * s1 * s2);
+}
+
+// octave check: if the tracked pitch f has strong even harmonics but (almost) no odd ones above the fundamental,
+// what was tracked is a sub-octave (e.g. kick bleed landing on f/2): returns 12, else 0
+int octave_up(const Sig& s, long a, long b, double f) {
+    if (b - a < long(2.5 * s.sr / f) || f * 7 > 0.45 * s.sr) return 0;
+    double ev = 0, od = 0, tot = 0;
+    for (int h = 1; h <= 8; ++h) {
+        double p = tone_power(s, a, b, h * f);
+        tot += p;
+        if (h % 2 == 0) ev += p;
+        else if (h > 1) od += p;
+    }
+    return (tot > 0 && ev > 0.3 * tot && od < 0.08 * ev) ? 12 : 0;
 }
 
 // ---------------------------------------------------------------------------------------------------- glide model
@@ -567,6 +646,64 @@ struct Work {
     }
 };
 
+// Sub-harmonic rescue: a short run of frames whose pitch is an integer fraction (1/2, 1/3, 1/4) of the pitch held
+// just before or after it, while a candidate at that held pitch is still present in its frames, is interference
+// (typically kick-drum bleed adding a low sine) pulling the tracker down: take the held pitch's candidate instead.
+void rescue_subharmonics(Track& tr) {
+    const long K = long(tr.f0.size());
+    auto midi = [&](long k) { return tr.f0[k] > 0 ? hz_midi(tr.f0[k]) : std::nan(""); };
+    // runs of voiced frames with pitch within 0.6 st of the run's first frame
+    struct Run { long a, b; double m; };
+    std::vector<Run> runs;
+    for (long k = 0; k < K;) {
+        if (tr.f0[k] <= 0) { ++k; continue; }
+        long j = k;
+        double m0 = midi(k);
+        while (j + 1 < K && tr.f0[j + 1] > 0 && std::fabs(midi(j + 1) - m0) < 0.6) ++j;
+        std::vector<double> v;
+        for (long q = k; q <= j; ++q) v.push_back(midi(q));
+        runs.push_back({k, j, median(v)});
+        k = j + 1;
+    }
+    const long maxlen = std::lround(0.25 * tr.srd * tr.D / tr.H), gap = std::lround(0.03 * tr.srd * tr.D / tr.H);
+    for (size_t i = 0; i < runs.size(); ++i) {
+        const Run& R = runs[i];
+        if (R.b - R.a > maxlen) continue;
+        for (int side = 0; side < 2; ++side) {
+            const Run* N = nullptr;
+            if (side == 0 && i > 0 && R.a - runs[i - 1].b <= gap) N = &runs[i - 1];
+            if (side == 1 && i + 1 < runs.size() && runs[i + 1].a - R.b <= gap) N = &runs[i + 1];
+            if (!N || N->b - N->a < (R.b - R.a) / 2) continue;
+            double d = N->m - R.m;
+            int k = 0;
+            if (std::fabs(d - 12) < 0.5) k = 2;
+            else if (std::fabs(d - 19.02) < 0.5) k = 3;
+            else if (std::fabs(d - 24) < 0.5) k = 4;
+            if (!k) continue;
+            const double ftgt = 440.0 * std::pow(2.0, (N->m - 69) / 12.0);
+            long hit = 0;
+            std::vector<float> nf(R.b - R.a + 1, 0.f), nd(R.b - R.a + 1, 1.f);
+            for (long q = R.a; q <= R.b; ++q) {
+                for (auto& c : tr.cands[q]) {
+                    double f = tr.srd / c.tau;
+                    if (std::fabs(12 * std::log2(f / ftgt)) < 0.7 && c.dp < 0.85) {
+                        nf[q - R.a] = float(f);
+                        nd[q - R.a] = c.dp;
+                        ++hit;
+                        break;
+                    }
+                }
+            }
+            if (hit * 10 < (R.b - R.a + 1) * 7) continue;
+            for (long q = R.a; q <= R.b; ++q) {
+                tr.f0[q] = nf[q - R.a];  // 0 (unvoiced) where the held pitch is missing
+                tr.dp[q] = nd[q - R.a];
+            }
+            break;
+        }
+    }
+}
+
 }  // namespace
 
 std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress& p) {
@@ -601,6 +738,7 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
     }
 
     Track tr = track_pitch(s, p);
+    rescue_subharmonics(tr);
     Work w(s, tr);
     w.Wsec = double(tr.W) / tr.srd;
     const long K = long(tr.f0.size());
@@ -654,7 +792,7 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         for (long n = 0; n < s.N; ++n) {
             long k = std::lround(double(n) / H) - lag;
             double P = w.period(k);
-            double v = P > 0 ? s.x[n] - s.frac(n - P) : s.x[n];
+            double v = P > 0 ? std::max(0.0, std::fabs(s.x[n]) - std::fabs(s.frac(n - P))) : s.x[n];  // one-sided: no decays
             SR[n + 1] = SR[n] + v * v;
         }
         auto pr = [&](long a, long b) {
@@ -704,6 +842,12 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         double P = w.period(kp);
         if (P <= 0) P = w.period(kp - 5);
         refine_onset(s, ons[i], lo, P, ref_pow);
+        // continuity, measured from before any disturbance just ahead of the onset
+        for (double back : {4.0, 50.0, 90.0}) {
+            double Pb = w.period(w.kof(ons[i].n - s.msl(back + 20)));
+            if (Pb <= 0) Pb = P;
+            ons[i].cont = std::max(ons[i].cont, continuity(s, ons[i].n, Pb, back));
+        }
         // dip before the onset: backward-window level 30 ms earlier vs. the minimum just before the onset
         double L = Lk[std::clamp(w.kof(ons[i].n), 0L, K - 1)];
         long Ll = std::lround(std::min(L, s.ms(20)));
@@ -747,11 +891,19 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             if (!std::isnan(m) && m > lo && m < hi) ++inter;
         }
         double im = inter * hop_ms;
-        // the zone measure includes ~0.6 of the longer period from its pitch-synchronous smoothing
+        // the zone measure includes ~0.6 of the longer period from its pitch-synchronous smoothing; a long zone means
+        // a glide (large intervals), otherwise a glide shows as time spent at intermediate periods (short-window
+        // autocorrelation), which a re-attack jumps over
         double Zc = Z - 0.6e3 * std::max(per(mb), per(ma)) / sr;
-        bool g = Z >= 0 ? (Zc >= 8 || (Zc >= 3 && im >= 10)) : im >= 10;
+        double fi = -1;
+        bool g = Zc >= 20;
+        if (!g) {
+            fi = 1e3 * fine_intermediate(s, n, per(mb), per(ma));
+            g = fi >= 5;
+        }
         if (std::getenv("DS_BASS_DEBUG") && dbg_on(double(n) / sr))
-            std::fprintf(stderr, "   glide_at %.4f %.2f->%.2f Z %.1f Zc %.1f inter %.1f -> %d\n", double(n) / sr, mb, ma, Z, Zc, im, g);
+            std::fprintf(stderr, "   glide_at %.4f %.2f->%.2f Z %.1f Zc %.1f inter %.1f fine %.1f -> %d\n", double(n) / sr, mb,
+                         ma, Z, Zc, im, fi, g);
         return g;
     };
     // drop onsets that are only bleed on a held note: same pitch before/after, no dip, previous note explains it
@@ -769,9 +921,15 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             double mb = medm(o.n - s.msl(45), o.n - s.msl(20)), ma = medm(o.n + s.msl(20), o.n + s.msl(45));
             bool same = !std::isnan(mb) && !std::isnan(ma) && std::fabs(ma - mb) < 0.5;
             if (std::getenv("DS_BASS_DEBUG") && dbg_on(double(o.n) / sr))
-                std::fprintf(stderr, "cand %.4f str %.1f nov %.2f dip %d hf %.1f mb %.2f ma %.2f clar %.1f Z %.3f\n", double(o.n) / sr,
+                std::fprintf(stderr, "cand %.4f cont %.2f str %.1f nov %.2f dip %d hf %.1f mb %.2f ma %.2f clar %.1f Z %.3f\n", double(o.n) / sr, o.cont,
                              o.strength, o.novelty, o.dip, o.hf, mb, ma, o.clarity,
                              (std::isnan(ma) || std::isnan(mb)) ? -1.0 : 1e3 * transition_zone(s, o.n, sr / (440.0 * std::pow(2.0, (mb - 69) / 12.0)), sr / (440.0 * std::pow(2.0, (ma - 69) / 12.0))));
+            if (o.decay) continue;
+            // weak or ambiguous attacks: a real attack stands far above what came before it (from silence > 30 dB,
+            // a legato re-pluck > 20 dB); bleed on a held note leaves the note's phase running on
+            if (o.clarity < 12) continue;
+            if (!o.dip && o.clarity < 15) continue;
+            if (o.cont > 0.75 && (!o.dip || o.clarity < 20)) continue;
             if (same && !o.dip && o.novelty < 0.5) continue;
             // a glide (pitch moving continuously through intermediate values) without a clear energy attack is a
             // slide inside a note, not a new attack
@@ -806,8 +964,13 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         bool attacked = true;
     };
     std::vector<Raw> raw;
-    double prev_end = -1;  // end (s) of the previous kept note
     const double hop_s = double(H) / sr;
+    // segments that turn out not to be notes (unvoiced, kick thumps, bleed) give their onset up and are analysed again
+    // as part of the note before them, so a thump on a held note does not cut it
+    for (int pass = 0; pass < 4; ++pass) {
+    raw.clear();
+    std::vector<size_t> dropped;
+    double prev_end = -1;  // end (s) of the previous kept note
     for (size_t i = 0; i < ons.size(); ++i) {
         const long on = ons[i].n;
         const long next = i + 1 < ons.size() ? ons[i + 1].n : s.N;
@@ -825,7 +988,7 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         if (ks.size() * hop_s < 0.025) {
             // maybe a short note followed closely by the next onset: relax the end guard
             frames(ton + g1, tnext - 0.003, ks);
-            if (ks.size() * hop_s < 0.025) continue;
+            if (ks.size() * hop_s < 0.018) { dropped.push_back(i); continue; }
         }
         // period of the end part
         std::vector<double> pe;
@@ -853,8 +1016,9 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 long ka = std::max(kpk + 2, kd - long(0.25 / hop_s));
                 long kb = kd;
                 // follow the fall to -40 dB, the floor, or the point where the level stops falling
-                while (kb < k1 - long(L / 2 / H) && e[kb - k0] > std::max(epk - 40, floor_db + 6) &&
-                       e[kb + 1 - k0] <= e[kb - k0] + 0.5)
+                const long k5 = std::max(1L, long(0.005 / hop_s)), kmax = kd + long(0.06 / hop_s);
+                while (kb < k1 - long(L / 2 / H) && kb < kmax && e[kb - k0] > std::max(epk - 40, floor_db + 6) &&
+                       e[kb + 1 - k0] <= e[kb - k0] + 0.5 && !(kb - k5 >= kd && e[kb - k0] > e[kb - k5 - k0] - 0.5))
                     ++kb;
                 kb = std::max(kb, kd + 3);
                 kb = std::min(kb, k1);
@@ -904,6 +1068,8 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                     if (den > 0) fq += std::clamp(0.5 * (y0 - y2) / den, -0.5, 0.5);
                 }
                 tend = std::min(tnext, fq * hop_s);
+                if (dbg(ton))
+                    std::fprintf(stderr, "  release kd %.4f ka %.4f kb %.4f kq %.4f\n", w.tk(kd), w.tk(ka), w.tk(kb), fq * hop_s);
             }
         }
         if (tend - ton < 0.02) tend = std::min(tnext, ton + 0.02);
@@ -915,21 +1081,28 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         const double g2 = (tnext - tend >= 0.010) ? 0.003 : gfull;
         frames(ton + g1, tend - g2, ks);
         if (ks.size() < 8) frames(ton + 0.003, tend - 0.003, ks);
-        if (ks.size() * hop_s < 0.025) continue;
+        if (ks.size() * hop_s < 0.018) { dropped.push_back(i); continue; }
         std::vector<double> tt, mm;
         for (long k : ks) { tt.push_back(w.tk(k)); mm.push_back(w.midi(k)); }
-        // kick-bleed thump: starts well above its held pitch and sweeps down, decays fast
+        // kick-bleed thump: low, decays fast, and its pitch either sweeps down or only becomes periodic late (the sweep
+        // itself is too fast for the tracker); a bass note is periodic right away and holds its pitch
         {
+            const double tv = tt[0];
             std::vector<double> early, late;
             for (size_t j = 0; j < tt.size(); ++j) {
-                if (tt[j] < ton + 0.015) early.push_back(mm[j]);
-                else if (tt[j] > ton + 0.045 && tt[j] < ton + 0.09) late.push_back(mm[j]);
+                if (tt[j] < tv + 0.010) early.push_back(mm[j]);
+                else if (tt[j] > tv + 0.030 && tt[j] < tv + 0.070) late.push_back(mm[j]);
             }
             long k120 = w.kof(on + s.msl(120));
             bool fast_decay = k120 > k1 || e[std::min(k120, k1) - k0] < epk - 12;
-            if (!early.empty() && !late.empty() && median(early) - median(late) > 4 && fast_decay) continue;
+            bool low = !late.empty() && median(late) < 36.5;
+            bool falls = !early.empty() && !late.empty() && median(early) - median(late) > 2.5;
+            bool late_voicing = tv - ton > 0.025;
+            if (dbg(ton))
+                std::fprintf(stderr, "  thump? fast %d low %d falls %d late %d\n", fast_decay, low, falls, late_voicing);
+            if (fast_decay && low && (falls || late_voicing)) { dropped.push_back(i); continue; }
         }
-        if (epk < w.ref_db - 38) continue;  // far below the line: bleed / noise
+        if (epk < w.ref_db - 38) { dropped.push_back(i); continue; }  // far below the line: bleed / noise
         // ---- semitone DP -> levels
         const size_t F = mm.size();
         int smin = 1000, smax = -1000;
@@ -1057,6 +1230,34 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 }
             }
         }
+        // abrupt switches without an attack to a harmonically related pitch (octave / twelfth / two octaves), or short
+        // abrupt excursions that come back, are interference (kick bleed pulling the tracker to a sub-harmonic), not
+        // notes: drop them and mask their frames
+        std::vector<char> bad(F, 0);
+        for (bool changed = true; changed;) {
+            changed = false;
+            for (size_t j = 1; j < nl.size() && !changed; ++j) {
+                const Level &A = nl[j - 1], &B = nl[j];
+                double d = std::fabs(B.pitch - A.pitch);
+                bool harm = std::fabs(d - 12) < 0.5 || std::fabs(d - 19.02) < 0.5 || std::fabs(d - 24) < 0.5;
+                bool back = j + 1 < nl.size() && nl[j + 1].semi == A.semi && tt[B.k1] - tt[B.k0] < 0.15;
+                if (!harm && !back) continue;
+                long nt = std::lround(0.5 * (tt[A.k1] + tt[B.k0]) * sr);
+                // an excursion that returns within 60 ms, or an octave-related one that returns, is never a
+                // played slide; otherwise only an abrupt switch is an artifact
+                bool sure = back && (harm || tt[B.k1] - tt[B.k0] < 0.06);
+                if (!sure && glide_at(nt, A.pitch, B.pitch)) continue;
+                long f1 = j + 1 < nl.size() ? nl[j + 1].k0 - 1 : long(F) - 1;
+                for (long f = A.k1 + 1; f <= f1; ++f) bad[f] = 1;
+                if (j + 1 < nl.size() && nl[j + 1].semi == A.semi) {
+                    nl[j - 1].k1 = nl[j + 1].k1;
+                    nl.erase(nl.begin() + j, nl.begin() + j + 2);
+                } else {
+                    nl.erase(nl.begin() + j);
+                }
+                changed = true;
+            }
+        }
         // build the notes
         struct Part { double t0, t1; double pitch; Glide gin; bool slid; };
         std::vector<Part> parts;
@@ -1116,6 +1317,14 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             pt.t1 = tend;
             parts.push_back(pt);
         }
+        std::vector<int> oshift(parts.size(), 0);
+        for (size_t j = 0; j < parts.size(); ++j) {
+            double f = 440.0 * std::pow(2.0, (parts[j].pitch - 69) / 12.0);
+            long a = std::lround((parts[j].t0 + 0.010) * sr), b = std::lround((parts[j].t1 - 0.005) * sr);
+            b = std::min(b, a + s.msl(150));
+            oshift[j] = octave_up(s, a, b, f);
+            parts[j].pitch += oshift[j];
+        }
         for (size_t j = 0; j < parts.size(); ++j) {
             Raw rn;
             const Part& pt = parts[j];
@@ -1138,19 +1347,19 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 const Glide& gl = pt.gin;
                 double from = nl[j - 1].pitch;
                 for (double t = gl.t0; t < gl.t0 + 4 * gl.tau; t += 0.002)
-                    pts.push_back({t, gl.target + (from - gl.target) * std::exp(-(t - gl.t0) / gl.tau) - ref});
+                    pts.push_back({t, gl.target + oshift[j] + (from - gl.target) * std::exp(-(t - gl.t0) / gl.tau) - ref});
                 tstart_obs = gl.t0 + 3 * gl.tau + w.Wsec / 2;
             }
             double tstop_obs = j + 1 < parts.size() ? parts[j + 1].t0 - w.Wsec / 2 : pt.t1;
             {   // observed frames, 7-frame median (drops single-frame glitches at attacks / releases)
                 std::vector<std::pair<double, double>> ob;
                 for (size_t f = 0; f < F; ++f)
-                    if (tt[f] >= tstart_obs + 0.004 && tt[f] <= tstop_obs - 0.004 && tr.dp[ks[f]] < 0.35)
+                    if (!bad[f] && tt[f] >= tstart_obs + 0.004 && tt[f] <= tstop_obs - 0.004 && tr.dp[ks[f]] < 0.35)
                         ob.push_back({tt[f], mm[f]});
                 for (size_t q = 0; q < ob.size(); ++q) {
                     std::vector<double> v;
                     for (size_t r = q >= 3 ? q - 3 : 0; r <= std::min(ob.size() - 1, q + 3); ++r) v.push_back(ob[r].second);
-                    pts.push_back({ob[q].first, median(v) - ref});
+                    pts.push_back({ob[q].first, median(v) + oshift[j] - ref});
                 }
             }
             double mx = 0;
@@ -1167,6 +1376,9 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         }
         prev_end = tend;
     }
+    if (dropped.empty() || pass == 3) break;
+    for (size_t q = dropped.size(); q-- > 0;) ons.erase(ons.begin() + dropped[q]);
+    }
     if (p) p(0.92, "bass: velocity");
 
     // -------------------------------------------------------------- velocity, accent
@@ -1179,11 +1391,17 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         raw[i].n.velocity = int(std::clamp(std::lround(v), 1L, 127L));
         if (!raw[i].attacked) continue;
         std::vector<double> nb;
-        for (int d = -1; d >= -4 && int(i) + d >= 0; --d)
-            if (raw[i + d].attacked) nb.push_back(raw[i + d].peak_db);
-        for (size_t j = i + 1, c = 0; j < raw.size() && c < 4; ++j)
+        // the neighbourhood's normal level: lower quartile of up to 8 attacked notes on either side (accents can be
+        // dense, so not the median)
+        for (size_t j = i, c = 0; j-- > 0 && c < 8;)
             if (raw[j].attacked) { nb.push_back(raw[j].peak_db); ++c; }
-        if (nb.size() >= 2) raw[i].n.accent = raw[i].peak_db - median(nb) >= 3.5;
+        for (size_t j = i + 1, c = 0; j < raw.size() && c < 8; ++j)
+            if (raw[j].attacked) { nb.push_back(raw[j].peak_db); ++c; }
+        if (nb.size() >= 3) raw[i].n.accent = raw[i].peak_db - percentile(nb, 0.25) >= 4.5;
+        if (const char* dv = std::getenv("DS_ACCENT_DEBUG"))
+            if (std::fabs(raw[i].n.time - std::atof(dv)) < 1.5)
+                std::fprintf(stderr, "acc %.4f n %d peak %.1f med %.1f -> %d\n", raw[i].n.time, raw[i].n.note,
+                             raw[i].peak_db, nb.empty() ? 0.0 : percentile(nb, 0.25), raw[i].n.accent);
     }
     for (auto& r : raw) out.push_back(std::move(r.n));
     if (p) p(1.0, "bass: done");
