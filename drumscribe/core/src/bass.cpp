@@ -48,6 +48,7 @@ struct Sig {
     std::vector<double> x;   // DC-blocked input
     std::vector<double> S;   // prefix sums of x^2
     std::vector<double> SH;  // prefix sums of the high band (> ~1.2 kHz, causal) squared: pluck / attack transients
+    std::vector<double> SA;  // prefix sums of the signal above ~250 Hz squared: note level without kick-drum bleed
     int sr = kSR;
     long N = 0;
     double ms(double m) const { return m * 1e-3 * sr; }
@@ -57,6 +58,11 @@ struct Sig {
         if (b <= a) return 0;
         long aa = std::clamp(a, 0L, N), bb = std::clamp(b, 0L, N);
         return (S[bb] - S[aa]) / double(b - a);
+    }
+    double powa(long a, long b) const {
+        if (b <= a) return 0;
+        long aa = std::clamp(a, 0L, N), bb = std::clamp(b, 0L, N);
+        return (SA[bb] - SA[aa]) / double(b - a);
     }
     double powh(long a, long b) const {
         if (b <= a) return 0;
@@ -724,6 +730,22 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
     }
     s.S.assign(s.N + 1, 0.0);
     for (long n = 0; n < s.N; ++n) s.S[n + 1] = s.S[n] + s.x[n] * s.x[n];
+    {  // 4th-order high-pass at 250 Hz (two biquads): the level of the bass harmonics above kick-drum bleed
+        const double f = 250.0, wc = 2 * kPi * f / sr, cw = std::cos(wc);
+        std::vector<double> y(s.x);
+        for (double q : {0.5412, 1.3066}) {
+            const double al = std::sin(wc) / (2 * q), a0 = 1 + al;
+            const double b0 = (1 + cw) / 2 / a0, b1 = -(1 + cw) / a0, b2 = b0, a1 = -2 * cw / a0, a2 = (1 - al) / a0;
+            double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+            for (long n = 0; n < s.N; ++n) {
+                double v = b0 * y[n] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+                x2 = x1; x1 = y[n]; y2 = y1; y1 = v;
+                y[n] = v;
+            }
+        }
+        s.SA.assign(s.N + 1, 0.0);
+        for (long n = 0; n < s.N; ++n) s.SA[n + 1] = s.SA[n] + y[n] * y[n];
+    }
     {  // causal 2nd-order Butterworth high-pass at 1.2 kHz
         const double f = 1200.0, q = std::sqrt(0.5), wc = 2 * kPi * f / sr, al = std::sin(wc) / (2 * q),
                      cw = std::cos(wc), a0 = 1 + al;
@@ -1335,10 +1357,13 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             rn.n.slide_to_next = j + 1 < parts.size() && parts[j + 1].slid;
             rn.attacked = j == 0 || !pt.slid;
             // peak level
+            // peak level of the harmonics above 250 Hz in the first 60 ms (pitch-synchronous window)
             double pk = -300;
-            for (long k = std::max(k0, w.kof(std::lround(pt.t0 * sr))); k <= std::min(k1, w.kof(std::lround(pt.t1 * sr))); ++k)
-                pk = std::max(pk, e[k - k0]);
-            rn.peak_db = j == 0 ? epk : pk;
+            {
+                long a = std::lround(pt.t0 * sr), b = std::min(std::lround(pt.t1 * sr), a + s.msl(60));
+                for (long n = a; n <= b; n += s.msl(1)) pk = std::max(pk, db(s.powa(n - L / 2, n - L / 2 + L) + ref_pow * 1e-12));
+            }
+            rn.peak_db = pk;
             // bends: model glide at the start of a slid-into note, then the observed frames
             const double ref = pt.pitch;
             std::vector<PitchBend> pts;
