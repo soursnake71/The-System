@@ -191,6 +191,9 @@ struct PluckSpec {
     double midi = 40, gain = 1;
     // pitch modulation (semitones) as a function of time since the onset
     int kind = 0;  // 0 none, 1 bend up and back, 2 slide into the note from below, 3 vibrato
+    // legato on a real bass: the fretting hand moves to the next note's fret a little before the pluck, so the ringing
+    // string already slides to the next pitch over the last pre_s seconds (0 = off)
+    double pre_s = 0, pre_to = 0;  // duration, target pitch (MIDI)
 };
 
 inline double pluck_mod(const PluckSpec& p, double t) {
@@ -240,6 +243,12 @@ inline void render_pluck(std::vector<float>& out, const PluckSpec& p, Rng& rng, 
     for (long n = p.n0; n < nlast; ++n) {
         double t = double(n - p.n0) / sr;
         double f = f0 * std::pow(2.0, pluck_mod(p, t) / 12.0);
+        if (p.pre_s > 0 && n >= p.n_end - long(p.pre_s * sr) && n < p.n_end) {
+            double u = double(n - (p.n_end - long(p.pre_s * sr))) / (p.pre_s * sr);
+            f *= std::pow(2.0, u * (p.pre_to - p.midi) / 12.0);
+        } else if (p.pre_s > 0 && n >= p.n_end) {
+            f *= std::pow(2.0, (p.pre_to - p.midi) / 12.0);
+        }
         double s = 0;
         for (int k = 0; k < K; ++k) {
             double fk = f * ratio[k];
@@ -336,6 +345,69 @@ inline Line make_fingered(uint64_t seed, int sr = 44100) {
         tn.accent = acc[i];
         tn.bend = ps[i].kind != 0;
         L.notes.push_back(tn);
+    }
+    return L;
+}
+
+// ------------------------------------------------------------------------------------------------ picked, compressed
+// Modelled on real rock / punk bass stems (MedleyDB MusicDelta): mostly legato eighths, the fretting hand reaching the
+// next pitch 15-35 ms before the pluck (the old string audibly slides there), a strong compressor flattening the level
+// so note changes have almost no level dip, repeated same-pitch notes. Every note is plucked: no slides in the truth.
+inline Line make_picked(uint64_t seed, int sr = 44100) {
+    Line L;
+    L.name = "d: picked legato, compressed";
+    L.bpm = 110;
+    L.first_beat = 0.2;
+    Rng rng(seed);
+    const double e8 = 60.0 / L.bpm / 2;
+    const int scale[] = {0, 2, 3, 5, 7, 8, 10};
+    std::vector<PluckSpec> ps;
+    int deg = 2;
+    for (int i = 0; i < 64; ++i) {
+        if (rng.uni() < 0.6) deg += rng.pick(5) - 2;  // otherwise repeat the note
+        int d = ((deg % 7) + 7) % 7, o = (deg - d) / 7, m = 31 + 12 * o + scale[d];
+        while (m < 28) m += 12, deg += 7;
+        while (m > 50) m -= 12, deg -= 7;
+        PluckSpec p;
+        p.midi = m;
+        p.gain = std::pow(10.0, rng.uni(-2, 2) / 20);
+        p.n0 = std::lround((L.first_beat + i * e8 + rng.uni(-0.006, 0.006)) * sr);
+        ps.push_back(p);
+    }
+    for (size_t i = 0; i < ps.size(); ++i) {
+        long next = i + 1 < ps.size() ? ps[i + 1].n0 : ps[i].n0 + std::lround(e8 * sr);
+        if (i + 1 < ps.size() && rng.uni() < 0.85) {
+            ps[i].legato = true;
+            ps[i].n_end = next;
+            if (ps[i + 1].midi != ps[i].midi) {
+                ps[i].pre_s = rng.uni(0.015, 0.035);
+                ps[i].pre_to = ps[i + 1].midi;
+            }
+        } else {
+            ps[i].n_end = next - std::lround(rng.uni(0.02, 0.06) * sr);
+        }
+    }
+    long N = ps.back().n_end + std::lround(0.5 * sr);
+    L.sig.assign(N, 0.f);
+    for (size_t i = 0; i < ps.size(); ++i) {
+        render_pluck(L.sig, ps[i], rng, sr);
+        TruthNote tn;
+        tn.time = double(ps[i].n0) / sr;
+        tn.end = double(ps[i].n_end) / sr;
+        tn.note = int(ps[i].midi);
+        L.notes.push_back(tn);
+    }
+    // compressor: 5 ms attack, 80 ms release, 6:1 above -24 dB of the peak (feed-forward on the RMS envelope)
+    float peak = 0;
+    for (float v : L.sig) peak = std::max(peak, std::fabs(v));
+    const double thr = peak * peak * std::pow(10.0, -24.0 / 10), ka = std::exp(-1.0 / (0.005 * sr)),
+                 kr = std::exp(-1.0 / (0.08 * sr));
+    double env = 0;
+    for (auto& v : L.sig) {
+        double x2 = double(v) * v;
+        env = x2 > env ? ka * env + (1 - ka) * x2 : kr * env + (1 - kr) * x2;
+        double g = env > thr ? std::pow(env / thr, -0.5 * (1 - 1.0 / 6)) : 1.0;
+        v = float(v * g);
     }
     return L;
 }

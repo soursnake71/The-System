@@ -365,6 +365,8 @@ int main(int argc, char** argv) {
                 std::printf("   %7.3f-%7.3f n=%d c=%+.0f v=%d%s%s bends=%zu  ref %.2f (%zu fr)\n", n.time, n.end, n.note,
                             n.cents, n.velocity, n.slide_to_next ? " SLIDE" : "", n.accent ? " ACC" : "", n.bends.size(),
                             v.empty() ? 0.0 : median(v), v.size());
+                if (std::getenv("EVAL_BENDS"))
+                    for (auto& b : n.bends) std::printf("        bend %.3f %+.2f\n", b.time, b.semitones);
             }
         }
     }

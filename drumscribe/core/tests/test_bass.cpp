@@ -160,24 +160,27 @@ int main() {
     const char* dbg = std::getenv("BASS_DEBUG");
     const int debug = dbg ? std::atoi(dbg) : 0;
     // every line kind is rendered with 4 seeds (different notes, timing, phases, bleed) and the numbers pooled;
-    // BASS_SEED=n runs only seed n, BASS_ONLY=k only line kind k (0 a, 1 b, 2 a+bleed, 3 b+bleed)
+    // BASS_SEED=n runs only seed n, BASS_ONLY=k only line kind k (0 a, 1 b, 2 a+bleed, 3 b+bleed, 4 d)
     std::vector<uint64_t> seeds = {0, 1, 2, 3};
     if (const char* sd = std::getenv("BASS_SEED")) seeds = {std::strtoull(sd, nullptr, 10)};
-    struct Spec { std::string name; double minF, maxOn, maxRel, minSlideF, minAccF; };
+    // maxFalse: on a line without slides, the share of matched notes that may be flagged slide_to_next
+    struct Spec { std::string name; double minF, maxOn, maxRel, minSlideF, minAccF, maxFalse; };
     // thresholds: what the algorithm achieves, with margin
-    const Spec specs[4] = {{"a: 303 acid", 0.97, 2.0, 5.0, 0.90, 0.90},
-                           {"b: fingered bass", 0.97, 2.0, 5.0, 0.80, 0.80},
-                           {"c: a + kick bleed -12 dB, noise", 0.93, 2.0, 8.0, 0.80, 0.85},
-                           {"c: b + kick bleed -12 dB, noise", 0.93, 2.0, 15.0, 0.00, 0.60}};
-    Acc acc[4];
+    const Spec specs[5] = {{"a: 303 acid", 0.97, 2.0, 5.0, 0.90, 0.90, 0},
+                           {"b: fingered bass", 0.97, 2.0, 5.0, 0.80, 0.80, 0.04},
+                           {"c: a + kick bleed -12 dB, noise", 0.93, 2.0, 8.0, 0.80, 0.85, 0},
+                           {"c: b + kick bleed -12 dB, noise", 0.93, 2.0, 15.0, 0.00, 0.60, 0.04},
+                           // modelled on real rock/punk stems: pitch reaches the next note before the pluck, compressed
+                           {"d: picked legato, compressed", 0.93, 5.0, 25.0, 0.00, 0.90, 0.15}};
+    Acc acc[5];
     const char* only = std::getenv("BASS_ONLY");
     for (uint64_t so : seeds) {
         bsynth::Line a = bsynth::make_acid(7 + so), b = bsynth::make_fingered(11 + so);
-        bsynth::Line ac = a, bc = b;
+        bsynth::Line ac = a, bc = b, d = bsynth::make_picked(31 + so);
         bsynth::add_bleed(ac, -12, -50, -40, 21 + so);
         bsynth::add_bleed(bc, -12, -50, -40, 23 + so);
-        const bsynth::Line* L[4] = {&a, &b, &ac, &bc};
-        for (int k = 0; k < 4; ++k)
+        const bsynth::Line* L[5] = {&a, &b, &ac, &bc, &d};
+        for (int k = 0; k < 5; ++k)
             if (!only || std::atoi(only) == k) evaluate(*L[k], debug, acc[k]);
     }
     bool ok = true;
@@ -185,7 +188,7 @@ int main() {
                 "nest", "P", "R", "F", "onMAE", "onP95", "relMAE", "relP95", "pitch", "c_err", "slP", "slR", "accP",
                 "accR");
     std::vector<Result> res;
-    for (int k = 0; k < 4; ++k) {
+    for (int k = 0; k < 5; ++k) {
         if (only && std::atoi(only) != k) continue;
         const Spec& sp = specs[k];
         Result r = finish(sp.name, acc[k]);
@@ -202,12 +205,11 @@ int main() {
                     r.name.c_str(), r.ntruth, r.nest, r.P, r.R, r.F, r.on_mae, r.on_p95, r.rel_mae, r.rel_p95,
                     r.pitch_acc, r.cents_mae, slp, slr, r.acc_p, r.acc_r);
         double accF = r.acc_p + r.acc_r > 0 ? 2 * r.acc_p * r.acc_r / (r.acc_p + r.acc_r) : 0;
-        // a line without slides: false slides must stay under 4 % of the matched notes
-        bool slides_ok = acc[k].sl_tru > 0 ? r.slide_f >= sp.minSlideF : acc[k].sl_est <= 0.04 * acc[k].tp;
+        bool slides_ok = acc[k].sl_tru > 0 ? r.slide_f >= sp.minSlideF : acc[k].sl_est <= sp.maxFalse * acc[k].tp;
         bool pass = r.F >= sp.minF && r.on_mae < sp.maxOn && r.rel_mae < sp.maxRel && slides_ok && accF >= sp.minAccF;
         if (!pass) {
-            std::printf("  FAIL (need F>=%.2f onMAE<%.1f relMAE<%.1f slideF>=%.2f (or <4%% false slides) accentF>=%.2f)\n",
-                        sp.minF, sp.maxOn, sp.maxRel, sp.minSlideF, sp.minAccF);
+            std::printf("  FAIL (need F>=%.2f onMAE<%.1f relMAE<%.1f slideF>=%.2f (or <%.0f%% false slides) accentF>=%.2f)\n",
+                        sp.minF, sp.maxOn, sp.maxRel, sp.minSlideF, 100 * sp.maxFalse, sp.minAccF);
             ok = false;
         }
     }
