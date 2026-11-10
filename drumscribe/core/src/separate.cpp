@@ -155,7 +155,10 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
         for (long k = 0; k < n; ++k) sum_w[o + k] += weight[k];
     }
 
-    const int nthreads = std::max(1, std::min<int>(num_threads(), (int)offs.size()));
+    // each worker needs ~1.2 GB (demucs.cpp segment buffers + attention temporaries): $DS_DEMUCS_THREADS caps them
+    int want = num_threads();
+    if (const char* e = std::getenv("DS_DEMUCS_THREADS"); e && std::atoi(e) > 0) want = std::atoi(e);
+    const int nthreads = std::max(1, std::min<int>(want, (int)offs.size()));
     std::atomic<int> next{0};
     std::mutex mx;
     std::condition_variable cv;
@@ -409,9 +412,9 @@ Stems separate(const Stereo& song, Quality q, const std::string& model_dir, cons
     for (auto it = g_demucs.begin(); it != g_demucs.end();)
         it = (std::find(need.begin(), need.end(), fs::path(it->first)) == need.end()) ? g_demucs.erase(it) : ++it;
 
-    // progress shares (measured on a 4-core CPU: htdemucs ~1x, DrumSep at overlap 2 ~1x, 4 ~2x the Demucs time)
+    // progress shares (measured on a 4-core CPU, 30 s clip: one Demucs model ~105 s, DrumSep ~40 s per overlap)
     const int ov = drumsep_overlap(q);
-    const double w_demucs = (q == Quality::best ? 2.0 : 1.0), w_sep = 0.5 * ov;
+    const double w_demucs = (q == Quality::best ? 2.0 : 1.0), w_sep = 0.4 * ov;
     const double tot = w_demucs + w_sep;
     auto sub = [&](double a, double b, const char* msg) -> Progress {
         if (!p) return {};

@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: cmake -S drumscribe/core -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S drumscribe/core -B build -DCMAKE_BUILD_TYPE=Release -DDS_SEP_NATIVE=OFF
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Accuracy tests (exact ground truth)
@@ -30,7 +30,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          find build -maxdepth 3 -type f \( -name 'drumscribe-server' -o -name 'drumscribe-cli' -o -name 'drumscribe-server.exe' -o -name 'drumscribe-cli.exe' -o -name '*.dll' -o -name '*.dylib' -o -name 'libonnxruntime*.so*' \) -exec cp {} out/ \;
+          find build -maxdepth 4 -type f \( -name 'drumscribe-server' -o -name 'drumscribe-cli' -o -name 'drumscribe-server.exe' -o -name 'drumscribe-cli.exe' -o -name '*.dll' -o -name '*.dylib' -o -name 'libonnxruntime*.so*' \) -exec cp {} out/ \;
+          find build -path '*onnxruntime*' \( -name 'libonnxruntime*' -o -name 'onnxruntime*.dll' \) -exec cp {} out/ \; 2>/dev/null || true
           cp drumscribe/core/tools/get_models.* out/ 2>/dev/null || true
           cp drumscribe/README.md out/ 2>/dev/null || true
           ls -la out

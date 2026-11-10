@@ -918,7 +918,7 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         // autocorrelation), which a re-attack jumps over
         double Zc = Z - 0.6e3 * std::max(per(mb), per(ma)) / sr;
         double fi = -1;
-        bool g = Zc >= 20;
+        bool g = Zc >= 20 || (im >= 25 && Zc >= 5);
         if (!g) {
             fi = 1e3 * fine_intermediate(s, n, per(mb), per(ma));
             g = fi >= 5;
@@ -950,6 +950,9 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             // weak or ambiguous attacks: a real attack stands far above what came before it (from silence > 30 dB,
             // a legato re-pluck > 20 dB); bleed on a held note leaves the note's phase running on
             if (o.clarity < 12) continue;
+            // no energy rise, the old note still explains what follows, and the pitch is lost right after: the start
+            // of a fast glide (slide), not an attack
+            if (!o.dip && o.strength < 3 && o.novelty < 0.3 && !std::isnan(mb) && std::isnan(ma)) continue;
             if (!o.dip && o.clarity < 15) continue;
             if (o.cont > 0.75 && (!o.dip || o.clarity < 20)) continue;
             if (same && !o.dip && o.novelty < 0.5) continue;
@@ -982,7 +985,8 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
     // -------------------------------------------------------------- segments -> notes
     struct Raw {
         BassNote n;
-        double peak_db = -300;
+        double peak_db = -300;  // full band
+        double peak_hp = -300;  // above 250 Hz
         bool attacked = true;
     };
     std::vector<Raw> raw;
@@ -1120,9 +1124,13 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             bool low = !late.empty() && median(late) < 36.5;
             bool falls = !early.empty() && !late.empty() && median(early) - median(late) > 2.5;
             bool late_voicing = tv - ton > 0.025;
+            const double hpr = db(s.powa(on, on + s.msl(80)) + 1e-30) - db(s.pow(on, on + s.msl(80)) + 1e-30);
+            if (std::getenv("DS_THUMP_DEBUG") && fast_decay && low && (falls || late_voicing))
+                std::fprintf(stderr, "thump %.4f hpr %.1f\n", ton, hpr);
             if (dbg(ton))
-                std::fprintf(stderr, "  thump? fast %d low %d falls %d late %d\n", fast_decay, low, falls, late_voicing);
-            if (fast_decay && low && (falls || late_voicing)) { dropped.push_back(i); continue; }
+                std::fprintf(stderr, "  thump? fast %d low %d falls %d late %d hpr %.1f\n", fast_decay, low, falls, late_voicing, hpr);
+            // ... and a kick is (nearly) a pure low sine: little energy above 250 Hz, unlike a bass note's harmonics
+            if (fast_decay && low && (falls || late_voicing) && hpr < -15) { dropped.push_back(i); continue; }
         }
         if (epk < w.ref_db - 38) { dropped.push_back(i); continue; }  // far below the line: bleed / noise
         // ---- semitone DP -> levels
@@ -1363,7 +1371,11 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 long a = std::lround(pt.t0 * sr), b = std::min(std::lround(pt.t1 * sr), a + s.msl(60));
                 for (long n = a; n <= b; n += s.msl(1)) pk = std::max(pk, db(s.powa(n - L / 2, n - L / 2 + L) + ref_pow * 1e-12));
             }
-            rn.peak_db = pk;
+            double pkf = -300;  // full band
+            for (long k = std::max(k0, w.kof(std::lround(pt.t0 * sr))); k <= std::min(k1, w.kof(std::lround(pt.t0 * sr) + s.msl(60))); ++k)
+                pkf = std::max(pkf, e[k - k0]);
+            rn.peak_db = pkf;
+            rn.peak_hp = pk;
             // bends: model glide at the start of a slid-into note, then the observed frames
             const double ref = pt.pitch;
             std::vector<PitchBend> pts;
@@ -1407,6 +1419,21 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
     if (p) p(0.92, "bass: velocity");
 
     // -------------------------------------------------------------- velocity, accent
+    {   // a note whose full-band peak stands out from its harmonics' level by much more than usual has bleed (a kick)
+        // on its attack: estimate its level from the harmonics instead
+        // (the full-band / harmonics ratio depends on the pitch, so compare with notes of similar pitch)
+        std::vector<double> fix(raw.size(), 0);
+        for (size_t i = 0; i < raw.size(); ++i) {
+            std::vector<double> d;
+            for (auto& r : raw)
+                if (std::abs(r.n.note - raw[i].n.note) <= 5) d.push_back(r.peak_db - r.peak_hp);
+            if (d.size() < 5) continue;
+            double md = median(d);
+            if (raw[i].peak_db - raw[i].peak_hp > md + 3) fix[i] = raw[i].peak_hp + md;
+        }
+        for (size_t i = 0; i < raw.size(); ++i)
+            if (fix[i] != 0) raw[i].peak_db = fix[i];
+    }
     std::vector<double> pk;
     for (auto& r : raw)
         if (r.attacked) pk.push_back(r.peak_db);
