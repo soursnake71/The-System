@@ -55,16 +55,16 @@ static MFile read_midi(const std::string& path)
                 const uint8_t type = b[p++];
                 const uint32_t len = vlq();
                 e.d.push_back(type);
-                e.d.insert(e.d.end(), b.begin() + p, b.begin() + p + len);
+                for (uint32_t k = 0; k < len; ++k) e.d.push_back(b[p + k]);
                 p += len;
             } else if (st == 0xF0 || st == 0xF7) {
                 const uint32_t len = vlq();
-                e.d.insert(e.d.end(), b.begin() + p, b.begin() + p + len);
+                for (uint32_t k = 0; k < len; ++k) e.d.push_back(b[p + k]);
                 p += len;
             } else {
                 run = st;
                 const int n = (st & 0xF0) == 0xC0 || (st & 0xF0) == 0xD0 ? 1 : 2;
-                e.d.insert(e.d.end(), b.begin() + p, b.begin() + p + n);
+                for (int k = 0; k < n; ++k) e.d.push_back(b[p + k]);
                 p += n;
             }
             ev.push_back(std::move(e));

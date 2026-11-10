@@ -663,9 +663,11 @@ std::string groove_text(const json& g)
     }
     if (g.contains("swing")) {
         const auto& s = g["swing"];
-        std::snprintf(b, sizeof b, "Swing   8ths %.1f%%  16ths %.1f%%  (50 straight, 66.7 triplet)\n", num(s, "eighths_pct", 50),
-                      num(s, "sixteenths_pct", 50));
-        o << b;
+        auto pct = [&](const char* k) {
+            const double v = num(s, k);
+            return std::isnan(v) ? std::string("-") : fmt("%.1f%%", v);
+        };
+        o << "Swing   8ths " << pct("eighths_pct") << "  16ths " << pct("sixteenths_pct") << "  (50 straight, 66.7 triplet)\n";
     }
     if (g.contains("microtiming")) {
         o << "            offset ms   sd ms   vel  vel sd  ghost  /bar  accents\n";
