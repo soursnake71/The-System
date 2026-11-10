@@ -44,6 +44,8 @@ foreach(prog server cli)
     add_executable(drumscribe-${prog} src/${prog}_main.cpp)
     target_link_libraries(drumscribe-${prog} PRIVATE dscore httplib::httplib)
     target_include_directories(drumscribe-${prog} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/gen src)
+    # an upload sent without a content type is parsed as a form: let those be as big as any audio file
+    target_compile_definitions(drumscribe-${prog} PRIVATE CPPHTTPLIB_FORM_URL_ENCODED_PAYLOAD_MAX_LENGTH=1073741824)
     if(WIN32)
       target_link_libraries(drumscribe-${prog} PRIVATE ws2_32)
     endif()

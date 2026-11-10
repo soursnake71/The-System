@@ -25,6 +25,8 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <cstdio>
+#include <cstdlib>  // DEBUG
 
 #include "ds/modules.h"
 
@@ -50,6 +52,7 @@ struct Sig {
     std::vector<double> x;   // DC-blocked input
     std::vector<double> S;   // prefix sums of x^2
     std::vector<double> SA;  // prefix sums of the signal above ~250 Hz squared: note level without kick-drum bleed
+    std::vector<double> xb;  // the signal above ~250 Hz (causal 4th-order high-pass): pluck / attack brightness
     int sr = kSR;
     long N = 0;
     double ms(double m) const { return m * 1e-3 * sr; }
@@ -336,6 +339,8 @@ struct Onset {
     bool dip = false;    // the level dropped just before the onset
     double clarity = 0;  // peak of the unexplained part over its level before (dB): how clear the attack is
     bool decay = false;  // only the previous note dying away (release), no attack
+    double bright = 0;   // rise of the band above 250 Hz at the onset (dB): a pick / finger / filter-envelope attack
+    bool band = false;   // found by the band (brightness) detector
     double cont = 0;     // phase continuity of the previous note across the onset (1 = it just goes on)
 };
 
@@ -421,6 +426,31 @@ void refine_onset(const Sig& s, Onset& o, long lo, double Pprev, double ref_pow)
         }
         o.novelty = ex > 0 ? er / ex : 1;
     }
+}
+
+// refine a brightness candidate on the band above 250 Hz: CUSUM back to where its energy starts to rise
+void refine_band_onset(const Sig& s, Onset& o, long lo, double ref_band) {
+    const long nc = o.n;
+    const long s0 = std::max(lo, nc - s.msl(15)), e1 = std::min(s.N, nc + s.msl(10));
+    const long p0 = std::max(lo - s.msl(10), s0 - s.msl(25));
+    if (e1 <= s0 || s0 - p0 < s.msl(3)) return;
+    auto B = [&](long n) { return (n >= 0 && n < s.N) ? s.xb[n] * s.xb[n] : 0.0; };
+    double sig2 = 0;
+    for (long n = p0; n < s0; ++n) sig2 += B(n);
+    sig2 = std::max(sig2 / (s0 - p0), ref_band * 1e-8);
+    double A = 0;
+    for (long n = s0; n < e1; ++n) A = std::max(A, B(n));
+    o.clarity = db(A) - db(sig2);
+    if (A < 10 * sig2) return;
+    long n1 = s0;
+    while (n1 < e1 - 1 && B(n1) <= std::max(9 * sig2, 0.05 * A)) ++n1;
+    double c = 0, cmin = 0;
+    long nb = s0;
+    for (long n = s0; n <= n1; ++n) {
+        if (c < cmin) { cmin = c; nb = n; }
+        c += B(n) - 3 * sig2;
+    }
+    o.n = nb;
 }
 
 // where the waveform stops repeating with period P: a long-term predictor fitted on [fa, fb); its residual amplitude
@@ -578,7 +608,15 @@ int octave_up(const Sig& s, long a, long b, double f) {
         if (h % 2 == 0) ev += p;
         else if (h > 1) od += p;
     }
-    return (tot > 0 && ev > 0.3 * tot && od < 0.08 * ev) ? 12 : 0;
+    if (!(tot > 0 && ev > 0.3 * tot && od < 0.08 * ev)) return 0;
+    // ... and the "fundamental" is bleed (a kick's sine): it dies away much faster than the even partials (a real
+    // bass whose pickup position starves the odd partials keeps all of them decaying together)
+    const long m = (a + b) / 2;
+    if (m - a < long(2 * s.sr / f)) return 0;
+    double f1a = tone_power(s, a, m, f), f1b = tone_power(s, m, b, f);
+    double f2a = tone_power(s, a, m, 2 * f), f2b = tone_power(s, m, b, 2 * f);
+    double drop1 = db(f1a + 1e-30) - db(f1b + 1e-30), drop2 = db(f2a + 1e-30) - db(f2b + 1e-30);
+    return drop1 - drop2 > 6 ? 12 : 0;
 }
 
 // ---------------------------------------------------------------------------------------------------- glide model
@@ -736,6 +774,7 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         }
         s.SA.assign(s.N + 1, 0.0);
         for (long n = 0; n < s.N; ++n) s.SA[n + 1] = s.SA[n] + y[n] * y[n];
+        s.xb = std::move(y);
     }
 
     Track tr = track_pitch(s, p);
@@ -809,9 +848,43 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             if (s.pow(n, n + L) < ref_pow * std::pow(10.0, -4.0)) Ot[k] = 0;
         }
     }
+    // brightness ODF: the band above 250 Hz, 8 ms after vs. 2-14 ms before. A plucked / picked note re-attacks the
+    // upper partials even when the overall level hardly moves (compressed legato playing); a slide does not.
+    std::vector<double> Ob(K, 0);
+    double ref_band = 0;
+    {
+        std::vector<double> pw;
+        for (long n = 0; n + s.msl(10) <= s.N; n += s.msl(5)) pw.push_back(s.powa(n, n + s.msl(10)));
+        ref_band = std::max(percentile(pw, 0.99), 1e-24);
+        const double eps = ref_band * 1e-5;
+        for (long k = 0; k < K; ++k) {
+            // windows of at least one period: the upper partials of a low, resonant tone pulse once per period
+            long n = k * H, L = std::max(s.msl(8), std::lround(Lk[k]));
+            double af = s.powa(n, n + L);
+            Ob[k] = af < ref_band * 1e-4 ? 0.0 : db(af + eps) - db(s.powa(n - L - s.msl(2), n - s.msl(2)) + eps);
+        }
+    }
+    auto bright_at = [&](long n) {
+        double b = -100;
+        for (long k = w.kof(n - s.msl(3)); k <= w.kof(n + s.msl(5)); ++k)
+            if (k >= 0 && k < K) b = std::max(b, Ob[k]);
+        return b;
+    };
     std::vector<Onset> ons;
     {
         const long r = std::lround(s.ms(10) / H);
+        for (long k = 1; k + 1 < K; ++k) {  // brightness candidates
+            if (Ob[k] < 8.0) continue;
+            bool mx = true;
+            for (long j = std::max(0L, k - r); j <= std::min(K - 1, k + r) && mx; ++j)
+                if (Ob[j] > Ob[k] || (Ob[j] == Ob[k] && j < k)) mx = false;
+            if (!mx) continue;
+            Onset o;
+            o.n = k * H;
+            o.strength = std::max(0.0, O[k]);
+            o.band = true;
+            ons.push_back(o);
+        }
         for (long k = 1; k + 1 < K; ++k) {
             if (O[k] < 3.0) continue;
             bool mx = true;
@@ -845,7 +918,9 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         long kp = w.kof(std::max(0L, ons[i].n - s.msl(35)));
         double P = w.period(kp);
         if (P <= 0) P = w.period(kp - 5);
-        refine_onset(s, ons[i], lo, P, ref_pow);
+        if (ons[i].band) refine_band_onset(s, ons[i], lo, ref_band);
+        else refine_onset(s, ons[i], lo, P, ref_pow);
+        ons[i].bright = bright_at(ons[i].n);
         // continuity, measured from before any disturbance just ahead of the onset
         for (double back : {4.0, 50.0, 90.0}) {
             double Pb = w.period(w.kof(ons[i].n - s.msl(back + 20)));
@@ -866,7 +941,10 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         std::vector<Onset> o2;
         for (auto& o : ons) {
             if (!o2.empty() && o.n - o2.back().n < s.msl(25)) {
-                if (o.clarity > o2.back().clarity) o2.back() = o;
+                // keep the one where the attack (brightness) is, else the clearer change
+                // (an attack out of a gap - dip - is never displaced by a later one)
+                bool bo = o.bright >= 8, bb = o2.back().bright >= 8;
+                if (!o2.back().dip && (bo != bb ? bo : o.clarity > o2.back().clarity)) o2.back() = o;
                 continue;
             }
             o2.push_back(o);
@@ -891,8 +969,11 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
         // a glide (large intervals), otherwise a glide shows as time spent at intermediate periods (short-window
         // autocorrelation), which a re-attack jumps over
         double Zc = Z - 0.6e3 * std::max(per(mb), per(ma)) / sr;
+        double fi = 1e3 * fine_intermediate(s, n, per(mb), per(ma));
+        if (std::getenv("BASS_DBG"))
+            std::fprintf(stderr, "glide_at %.4f %.2f->%.2f Z %.1f Zc %.1f im %.1f fi %.1f\n", double(n) / sr, mb, ma, Z, Zc, im, fi);
         if (Zc >= 20 || im >= 25) return true;
-        return 1e3 * fine_intermediate(s, n, per(mb), per(ma)) >= 3.5;
+        return fi >= 3.5;
     };
     // drop onsets that are only bleed on a held note: same pitch before/after, no dip, previous note explains it
     {
@@ -908,7 +989,11 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             };
             double mb = medm(o.n - s.msl(45), o.n - s.msl(20)), ma = medm(o.n + s.msl(20), o.n + s.msl(45));
             bool same = !std::isnan(mb) && !std::isnan(ma) && std::fabs(ma - mb) < 0.5;
+            if (std::getenv("BASS_DBG"))
+                std::fprintf(stderr, "cand %.4f str %.1f nov %.2f dip %d clar %.1f cont %.2f decay %d bright %.1f band %d mb %.2f ma %.2f\n",
+                             double(o.n) / sr, o.strength, o.novelty, o.dip, o.clarity, o.cont, o.decay, o.bright, o.band, mb, ma);
             if (o.decay) continue;
+            if (o.bright >= 8 && !(o.cont > 0.75)) { o2.push_back(o); continue; }  // a real (bright) attack
             // weak or ambiguous attacks: a real attack stands far above what came before it (from silence > 30 dB,
             // a legato re-pluck > 20 dB); bleed on a held note leaves the note's phase running on
             if (o.clarity < 12) continue;
@@ -1253,7 +1338,27 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
                 pt.gin = gl;
                 pt.t0 = gl.t0;
                 pt.slid = glide_at(std::lround(gl.t0 * sr), nl[j - 1].pitch, nl[j].stable ? nl[j].pitch : gl.target);
-                if (!pt.slid) {  // a new note at its own pitch without an energy attack: refine like an onset
+                bool band_attack = false;
+                {   // a pick / finger attack (the band above 250 Hz jumps) during the change: a re-attacked note, not a
+                    // slide - on a real bass the fretting hand moves first and the pluck lands 10-60 ms later
+                    double bm = -100;
+                    long bk = -1;
+                    const double te = std::min(gl.t0 + 0.06, tend - 0.01);
+                    for (long k = w.kof(std::lround((gl.t0 - 0.005) * sr)); k <= w.kof(std::lround(te * sr)); ++k)
+                        if (k >= 0 && k < K && Ob[k] > bm) { bm = Ob[k]; bk = k; }
+                    if (std::getenv("BASS_DBG"))
+                        std::fprintf(stderr, "trans %.4f %.2f->%.2f slid %d brightmax %.1f at %.4f\n", gl.t0,
+                                     nl[j - 1].pitch, nl[j].pitch, pt.slid, bm, bk >= 0 ? w.tk(bk) : -1.0);
+                    if (pt.slid && bm >= 5 && bk >= 0) {
+                        pt.slid = false;
+                        Onset o;
+                        o.n = bk * H;
+                        refine_band_onset(s, o, std::max(on + s.msl(10), o.n - s.msl(30)), ref_band);
+                        pt.t0 = double(o.n) / sr;
+                        band_attack = true;
+                    }
+                }
+                if (!pt.slid && !band_attack) {  // a new note at its own pitch without an energy attack: refine like an onset
                     Onset o;
                     o.n = std::lround(gl.t0 * sr);
                     double PA = sr / (440.0 * std::pow(2.0, (nl[j - 1].pitch - 69) / 12.0));
