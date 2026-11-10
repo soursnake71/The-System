@@ -1346,11 +1346,14 @@ std::vector<BassNote> transcribe_bass(const Signal& bass, int sr, const Progress
             }
             double mx = 0;
             for (auto& b : pts) mx = std::max(mx, std::fabs(b.semitones));
-            if (mx >= 0.25 && !pts.empty()) {
+            // only real bends: half a semitone or more (pitch drift, string inharmonicity and kick bleed move the
+            // tracked pitch by a few tens of cents, which would turn into hundreds of wobbling bend events), and
+            // written in 10-cent steps
+            if (mx >= 0.5 && !pts.empty()) {
                 std::vector<PitchBend> dec;
                 dec.push_back(pts.front());
                 for (size_t q = 1; q < pts.size(); ++q)
-                    if (std::fabs(pts[q].semitones - dec.back().semitones) > 0.05) dec.push_back(pts[q]);
+                    if (std::fabs(pts[q].semitones - dec.back().semitones) > 0.10) dec.push_back(pts[q]);
                 if (std::fabs(pts.back().semitones - dec.back().semitones) > 0.02) dec.push_back(pts.back());
                 rn.n.bends = dec;
             }
