@@ -1,0 +1,28 @@
+# The phone's model pack for Drum Scribe ("Analyse on this phone"): fast Demucs + DrumSep with 16-bit weights and
+# models.json, attached to the "drumscribe-models" release, where the Android app downloads it from.
+# Run by hand (Actions > Drum Scribe models > Run workflow): it downloads ~700 MB of models and converts them.
+name: Drum Scribe models
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Converter tools
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install onnx pyyaml numpy
+      - name: Build the pack
+        run: PYTHON=python drumscribe/core/tools/make_mobile_models.sh pack "$RUNNER_TEMP/models"
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          notes="Models for Drum Scribe on Android (downloaded by the app on first use, about 300 MB).
+          Demucs v4 htdemucs (Meta, MIT) converted for demucs.cpp; MDX23C DrumSep (aufr33 & jarredou) exported to ONNX with 16-bit weights."
+          gh release view drumscribe-models >/dev/null 2>&1 || gh release create drumscribe-models --title "Drum Scribe models" --notes "$notes" --target "$GITHUB_SHA"
+          gh release upload drumscribe-models pack/* --clobber
