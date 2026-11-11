@@ -1,0 +1,41 @@
+// Drum Scribe for Android: the whole engine (drumscribe/core, C++) runs on the phone as libdrumscribe.so (+ ONNX
+// Runtime); "Use my computer" still talks to drumscribe-server over HTTP.
+//   gradle -p drumscribe/android assembleDebug        (needs the NDK and CMake 3.31 from the SDK manager)
+//   -Pabis=arm64-v8a,x86_64 also builds for the emulator
+plugins { id 'com.android.application' }
+android {
+  namespace 'com.thesnakedevice.drumscribe'
+  compileSdk 35
+  ndkVersion '27.2.12479018'
+  defaultConfig {
+    applicationId 'com.thesnakedevice.drumscribe'
+    minSdk 26
+    targetSdk 35
+    versionCode 25
+    versionName '25.0'
+    ndk { abiFilters.addAll((project.findProperty('abis') ?: 'arm64-v8a').toString().split(',')) }
+    externalNativeBuild {
+      cmake {
+        arguments '-DANDROID_STL=c++_shared', '-DCMAKE_BUILD_TYPE=Release'
+        if (project.findProperty('ortAar')) arguments "-DDS_ORT_ANDROID_AAR=${project.findProperty('ortAar')}"
+      }
+    }
+  }
+  externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.31.6' } }
+  signingConfigs {
+    release {
+      storeFile file(System.getenv('SNAKE_KEYSTORE') ?: 'missing.jks')
+      storePassword System.getenv('SNAKE_KEYPASS') ?: ''
+      keyAlias 'snake'
+      keyPassword System.getenv('SNAKE_KEYPASS') ?: ''
+    }
+  }
+  buildTypes {
+    // the native code is always built optimized (a debug Demucs would take many hours on a phone)
+    debug { externalNativeBuild { cmake { arguments '-DCMAKE_BUILD_TYPE=Release' } } }
+    release { minifyEnabled false; signingConfig signingConfigs.release }
+  }
+  // the .so files stay compressed in the APK (a smaller download; Android extracts them at install)
+  packaging { jniLibs { useLegacyPackaging true } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

@@ -28,6 +28,11 @@ if(DS_WITH_SEPARATION)
   include(cmake/separation.cmake)  # defines dsseparate (src/separate.cpp + demucs.cpp + onnxruntime)
 endif()
 
+# Android (drumscribe/android builds this folder as part of libdrumscribe.so): only the libraries
+if(ANDROID)
+  return()
+endif()
+
 # the engine programs (server + command line), when their sources exist
 FetchContent_Declare(httplib GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git GIT_TAG v0.18.3 GIT_SHALLOW TRUE)
 set(HTTPLIB_REQUIRE_OPENSSL OFF CACHE INTERNAL "")

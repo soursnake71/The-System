@@ -165,6 +165,7 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
     int done = 0;
     std::vector<float> frac(nthreads, 0.f);  // progress inside the segment each worker is on (racy reads are fine)
     std::exception_ptr err;
+    std::atomic<bool> stop{false};  // the progress callback threw (a cancelled job): stop inside the segment too
 
     auto worker = [&](int wi) {
         try {
@@ -184,7 +185,10 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
                         buf.mix(c, j) = (idx >= 0 && idx < P) ? padded[c][idx] : 0.f;
                     }
                 demucscpp::model_inference(*model, buf, stft_buf,
-                                           [&frac, wi](float f, const std::string&) { frac[wi] = f; }, 0.f, 1.f);
+                                           [&frac, &stop, wi](float f, const std::string&) {
+                                               if (stop) throw std::runtime_error("stopped");
+                                               frac[wi] = f;
+                                           }, 0.f, 1.f);
                 // center_trim to n, weight, accumulate (at most 2 segments overlap: a+b == b+a, so the
                 // result doesn't depend on which thread finishes first)
                 const long t0 = delta / 2;
@@ -214,7 +218,14 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
             if (p) {
                 double f = done;
                 for (int i = 0; i < nthreads; ++i) f += std::clamp(frac[i], 0.f, 1.f);
-                p(std::min(1.0, f / offs.size()), "demucs");
+                try {
+                    p(std::min(1.0, f / offs.size()), "demucs");
+                } catch (...) {  // let the workers finish before the exception leaves (they use this frame)
+                    err = std::current_exception();
+                    next = (int)offs.size();
+                    stop = true;
+                    break;
+                }
             }
         }
     }

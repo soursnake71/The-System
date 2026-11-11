@@ -12,6 +12,15 @@ Stereo load_audio(const std::string& path);
 void save_wav(const std::string& path, const Signal& mono, int sr = kSR);          // 32-bit float WAV
 void save_wav(const std::string& path, const Stereo& st, int sr = kSR);
 Signal to_mono(const Stereo& s);
+// read a WAV file without ffmpeg: 32-bit float (what save_wav writes) or 16/24/32-bit PCM, any channel count (more
+// than two: the first two), returned at the file's own rate (*sr_out, if given)
+Stereo load_wav(const std::string& path, int* sr_out = nullptr);
+
+// ---------------------------------------------------------------- resample.cpp
+// band-limited resampling (Kaiser-windowed sinc, 120 dB stopband, flat to 0.4535 x the lower rate): any rate to any rate
+Signal resample(const Signal& x, int sr_in, int sr_out);
+// interleaved float PCM (any rate; mono doubled, 5.1 downmixed, otherwise the first two channels) -> 44.1 kHz stereo
+Stereo to_stereo_44k(const float* interleaved, size_t frames, int channels, int sr);
 
 // ---------------------------------------------------------------- separate.cpp (DS_WITH_SEPARATION)
 enum class Quality { fast, best };

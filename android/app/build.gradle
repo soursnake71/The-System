@@ -10,7 +10,7 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project (Drum Scribe has its own project, drumscribe/android): the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -23,13 +23,6 @@ android {
       applicationId 'com.thesnakedevice.vox'
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/?app=vox']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/?app=vox"'
-    }
-    // Drum Scribe: song link in, drum MIDI out (native app; the analysis runs in drumscribe/engine)
-    scribe {
-      dimension 'app'
-      applicationId 'com.thesnakedevice.drumscribe'
-      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/']
-      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/"'
     }
     twelve {
       dimension 'app'

@@ -217,11 +217,13 @@ struct Job {
     double tempo = 0;  // > 0: constant grid at this tempo
     fs::path work;
     std::atomic<double> progress{0};
+    std::atomic<bool> cancel{false};  // set from another thread: the job stops at its next progress report
     std::mutex m;
     std::string state = "queued", stage = "queued", message = "Waiting", error;
     json result;
     void set(const std::string& st, double p, const std::string& msg)
     {
+        if (cancel) throw std::runtime_error("Cancelled");
         std::lock_guard<std::mutex> l(m);
         stage = st;
         progress = p;
@@ -303,6 +305,17 @@ inline std::map<std::string, Signal> load_kit(const fs::path& dir)
     return kit;
 }
 
+inline void finish_job(Job& job, const json& r)
+{
+    std::lock_guard<std::mutex> l(job.m);
+    job.result = r;
+    job.state = "done";
+    job.stage = "done";
+    job.progress = 1;
+    job.message = std::to_string(r["hits"].size()) + " drum hits, " + std::to_string(r["bass"].size()) + " bass notes, " +
+                  std::to_string(r["tempo"].get<double>()).substr(0, 6) + " BPM";
+}
+
 inline void run_job(Job& job, const std::string& model_dir)
 {
     auto stage = [&](const char* st, Span s, double f, const std::string& msg) { job.set(st, s.a + (s.b - s.a) * f, msg); };
@@ -336,13 +349,50 @@ inline void run_job(Job& job, const std::string& model_dir)
         if (src.path.rfind(job.work.string(), 0) == 0) fs::remove(src.path);  // the download isn't needed any more
     }
     auto r = analyze(job, load_kit(stems), to_mono(load_audio((stems / "bass.wav").string())), duration, title);
-    std::lock_guard<std::mutex> l(job.m);
-    job.result = r;
-    job.state = "done";
-    job.stage = "done";
-    job.progress = 1;
-    job.message = std::to_string(r["hits"].size()) + " drum hits, " + std::to_string(r["bass"].size()) + " bass notes, " +
-                  std::to_string(r["tempo"].get<double>()).substr(0, 6) + " BPM";
+    finish_job(job, r);
+}
+
+// The same job from audio that is already decoded to 44.1 kHz stereo (no download, no ffmpeg): the Android app, which
+// decodes with MediaCodec. An empty `song` is fine when job.work already has the stems from an earlier run. The stems
+// are cached in job.work/stems as 32-bit float WAV and read back with load_wav.
+inline void run_job_audio(Job& job, Stereo song, const std::string& title, const std::string& model_dir)
+{
+    auto stage = [&](const char* st, Span s, double f, const std::string& msg) { job.set(st, s.a + (s.b - s.a) * f, msg); };
+    fs::create_directories(job.work);
+    const fs::path stems = job.work / "stems", meta = job.work / "source.json";
+    std::string name = title;
+    double duration;
+    std::map<std::string, Signal> kit;
+    Signal bass;
+    if (fs::exists(stems / "bass.wav") && fs::exists(meta)) {
+        json m = json::parse(std::ifstream(meta));
+        name = m["title"];
+        duration = m["duration"];
+        stage("kit", P_SEP, 1, "Using the stems from last time");
+        for (auto& s : stem_names()) kit[s] = to_mono(load_wav((stems / (s + ".wav")).string()));
+        bass = to_mono(load_wav((stems / "bass.wav").string()));
+    } else {
+        if (song.size() == 0) throw std::runtime_error("No audio.");
+        duration = (double) song.size() / kSR;
+#ifdef DS_HAVE_SEPARATION
+        stage("drums", P_SEP, 0, "Separating the drums and the bass");
+        auto st = separate(song, job.quality == "fast" ? Quality::fast : Quality::best, model_dir,
+                           [&](double f, const std::string& m) { stage(f < 0.5 ? "drums" : "kit", P_SEP, f, m); });
+        song = Stereo{};  // free the mix before the analysis
+        fs::create_directories(stems);
+        save_wav((stems / "drums.wav").string(), st.drums);
+        save_wav((stems / "bass.wav").string(), st.bass);
+        for (auto& [k, x] : st.kit) save_wav((stems / (k + ".wav")).string(), x);
+        bass = to_mono(st.bass);
+        kit = std::move(st.kit);
+#else
+        (void) model_dir;
+        throw std::runtime_error("this engine was built without separation (DS_WITH_SEPARATION=OFF)");
+#endif
+        std::ofstream(meta) << json{{"title", name}, {"duration", duration}, {"origin", title}}.dump();
+    }
+    auto r = analyze(job, kit, bass, duration, name);
+    finish_job(job, r);
 }
 
 inline fs::path default_dir(const char* env, const char* sub)

@@ -1,12 +1,17 @@
 # Neural source separation for Drum Scribe, all C++ at run time:
 #   Demucs v4 (htdemucs / htdemucs_ft) via demucs.cpp (github.com/sevagh/demucs.cpp, MIT, Eigen)
-#   MDX23C DrumSep via ONNX Runtime (prebuilt 1.20.1 release archive)
+#   MDX23C DrumSep via ONNX Runtime (prebuilt 1.20.1 release archive; on Android the official 1.20.0 Maven AAR)
 # Defines the static library `dsseparate` (src/separate.cpp) and the optional check program `ds-sep-check`.
 # Models are NOT part of the build: tools/get_models.sh downloads and converts them (default ~/.cache/drumscribe/models).
 include(FetchContent)
 
-option(DS_SEP_NATIVE "Compile the separation maths with -march=native (fast here, but not portable to older CPUs)" ON)
-option(DS_SEP_CHECK "Build tools/sep_check.cpp (C++ vs PyTorch separation check)" ON)
+if(ANDROID OR CMAKE_CROSSCOMPILING)
+  set(_ds_native_default OFF)  # cross builds: no -march=native (arm64 Android has NEON by default)
+else()
+  set(_ds_native_default ON)
+endif()
+option(DS_SEP_NATIVE "Compile the separation maths with -march=native (fast here, but not portable to older CPUs)" ${_ds_native_default})
+option(DS_SEP_CHECK "Build tools/sep_check.cpp (C++ vs PyTorch separation check)" ${_ds_native_default})
 
 # ---- demucs.cpp: only its src/ is compiled (its own CMakeLists builds CLI apps, gtest, libnyquist, global flags).
 # SOURCE_SUBDIR points at a folder without a CMakeLists.txt so MakeAvailable only downloads.
@@ -23,7 +28,20 @@ FetchContent_Declare(ds_eigen
 # ---- ONNX Runtime prebuilt
 set(_ort_ver 1.20.1)
 set(_ort_base https://github.com/microsoft/onnxruntime/releases/download/v${_ort_ver})
-if(WIN32)
+if(ANDROID)
+  # the AAR (a zip) holds headers/ and jni/<abi>/libonnxruntime.so; Maven Central first, then Google's mirror of it.
+  # -DDS_ORT_ANDROID_AAR=/path/to/onnxruntime-android-1.20.0.aar uses a file already downloaded.
+  set(_ort_ver 1.20.0)
+  set(_ort_path com/microsoft/onnxruntime/onnxruntime-android/${_ort_ver}/onnxruntime-android-${_ort_ver}.aar)
+  set(_ort_sha 07a8f71ef890afed8c6087a56220e6d558a492804276ee2dd7cb7f6262242027)
+  if(DS_ORT_ANDROID_AAR)
+    set(_ort_urls file://${DS_ORT_ANDROID_AAR})
+  else()
+    set(_ort_urls https://repo1.maven.org/maven2/${_ort_path}
+                  https://maven-central.storage-download.googleapis.com/maven2/${_ort_path}
+                  https://repo.maven.apache.org/maven2/${_ort_path})
+  endif()
+elseif(WIN32)
   set(_ort_pkg onnxruntime-win-x64-${_ort_ver}.zip)
   set(_ort_sha 78d447051e48bd2e1e778bba378bec4ece11191c9e538cf7b2c4a4565e8f5581)
 elseif(APPLE)
@@ -36,24 +54,35 @@ else()
   set(_ort_pkg onnxruntime-linux-x64-${_ort_ver}.tgz)
   set(_ort_sha 67db4dc1561f1e3fd42e619575c82c601ef89849afc7ea85a003abbac1a1a105)
 endif()
-FetchContent_Declare(ds_onnxruntime URL ${_ort_base}/${_ort_pkg} URL_HASH SHA256=${_ort_sha}
-  SOURCE_SUBDIR _no_cmake_ DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+if(ANDROID)
+  FetchContent_Declare(ds_onnxruntime URL ${_ort_urls} URL_HASH SHA256=${_ort_sha}
+    DOWNLOAD_NAME onnxruntime-android-${_ort_ver}.zip SOURCE_SUBDIR _no_cmake_ DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+else()
+  FetchContent_Declare(ds_onnxruntime URL ${_ort_base}/${_ort_pkg} URL_HASH SHA256=${_ort_sha}
+    SOURCE_SUBDIR _no_cmake_ DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
 
 FetchContent_MakeAvailable(demucscpp ds_eigen ds_onnxruntime)
 
 # ONNX Runtime as an imported shared library
 add_library(ds_onnxruntime SHARED IMPORTED GLOBAL)
-set_target_properties(ds_onnxruntime PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${ds_onnxruntime_SOURCE_DIR}/include)
-if(WIN32)
-  set_target_properties(ds_onnxruntime PROPERTIES
-    IMPORTED_LOCATION ${ds_onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll
-    IMPORTED_IMPLIB ${ds_onnxruntime_SOURCE_DIR}/lib/onnxruntime.lib)
-elseif(APPLE)
-  set_target_properties(ds_onnxruntime PROPERTIES IMPORTED_LOCATION ${ds_onnxruntime_SOURCE_DIR}/lib/libonnxruntime.dylib)
+if(ANDROID)
+  set(DS_ONNXRUNTIME_LIB_DIR ${ds_onnxruntime_SOURCE_DIR}/jni/${ANDROID_ABI} CACHE INTERNAL "ONNX Runtime shared library")
+  set_target_properties(ds_onnxruntime PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${ds_onnxruntime_SOURCE_DIR}/headers
+    IMPORTED_LOCATION ${DS_ONNXRUNTIME_LIB_DIR}/libonnxruntime.so)
 else()
-  set_target_properties(ds_onnxruntime PROPERTIES IMPORTED_LOCATION ${ds_onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so)
+  set(DS_ONNXRUNTIME_LIB_DIR ${ds_onnxruntime_SOURCE_DIR}/lib CACHE INTERNAL "ONNX Runtime shared libraries (ship them with the programs)")
+  set_target_properties(ds_onnxruntime PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${ds_onnxruntime_SOURCE_DIR}/include)
+  if(WIN32)
+    set_target_properties(ds_onnxruntime PROPERTIES
+      IMPORTED_LOCATION ${ds_onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll
+      IMPORTED_IMPLIB ${ds_onnxruntime_SOURCE_DIR}/lib/onnxruntime.lib)
+  elseif(APPLE)
+    set_target_properties(ds_onnxruntime PROPERTIES IMPORTED_LOCATION ${ds_onnxruntime_SOURCE_DIR}/lib/libonnxruntime.dylib)
+  else()
+    set_target_properties(ds_onnxruntime PROPERTIES IMPORTED_LOCATION ${ds_onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so)
+  endif()
 endif()
-set(DS_ONNXRUNTIME_LIB_DIR ${ds_onnxruntime_SOURCE_DIR}/lib CACHE INTERNAL "ONNX Runtime shared libraries (ship them with the programs)")
 
 # -march=native flags (the pinned Eigen doesn't compile with AVX512-FP16, so that extension is switched off)
 set(DS_SEP_ARCH_FLAGS "")
