@@ -18,8 +18,11 @@ namespace gsynth {
 struct Rng {
     std::mt19937 g;
     explicit Rng(unsigned s) : g(s) {}
-    double uni(double a, double b) { return std::uniform_real_distribution<double>(a, b)(g); }
-    double norm(double m, double s) { return s > 0 ? std::normal_distribution<double>(m, s)(g) : m; }
+    // portable: the standard distributions give different numbers on libstdc++, libc++ and MSVC; mt19937's raw
+    // output is the same everywhere, so the tests see the same drummer on every platform
+    double u01() { return ((double) g() + 0.5) / 4294967296.0; }
+    double uni(double a, double b) { return a + (b - a) * u01(); }
+    double norm(double m, double s) { return s > 0 ? m + s * std::sqrt(-2 * std::log(u01())) * std::cos(6.283185307179586 * u01()) : m; }
 };
 
 enum class Style { rock, funk16, waltz, shuffle, sixeight };
