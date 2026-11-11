@@ -138,7 +138,7 @@ function build(svg){
   el('rect', {x:1640, y:10, width:120, height:140, fill:'transparent'}, power);
   // product name
   if (B.logo === 'image'){
-    // on the silver panel: the logo in dark ink, the name in a thin wordmark in the 110 blue, then GRAPHIC
+    // on the silver panel: the logo in the 110 blue, the name in a thin wordmark in the 110 blue, then GRAPHIC
     el('image', {href:B.imageDark, x:1040, y:124, width:104, height:112, preserveAspectRatio:'xMidYMid meet'}, svg);
     txt(svg, 1158, 203, B.name, 74, {a:'start', fill:'#1f6fc4', w:400, fit:440, extra:{'font-family':"'Quicksand','Century Gothic','Avenir Next','Helvetica Neue',Arial,sans-serif"}});
     txt(svg, 1615, 203, 'GRAPHIC', 54, {a:'start', fill:'#2a2a2a', w:600, fit:235});
