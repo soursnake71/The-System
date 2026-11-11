@@ -112,15 +112,13 @@ function build(svg){
   // logo (the house mark: a framed Omega) and model name
   const lg = el('g', {}, svg), B = window.BRAND || {logo:'omega', model:'110', script:'Omega Rhythm'};
   if (B.logo === 'image'){
-    // a friend's edition: their logo printed light on the black block, their name in a thin wordmark
-    el('image', {href:B.image, x:112, y:44, width:94, height:100, preserveAspectRatio:'xMidYMid meet'}, lg);
-    txt(lg, 222, 126, B.word, 70, {a:'start', fill:'#ececec', w:300, fit:270, extra:{'font-family':"'Quicksand','Century Gothic','Avenir Next','Helvetica Neue',Arial,sans-serif", 'letter-spacing':1}});
+    // a friend's edition: the black block stays plain; their logo and name go on the silver panel (below)
   } else {
     el('rect', {x:125, y:72, width:58, height:56, fill:'none', stroke:'#e6e6e6', 'stroke-width':5}, lg);
     txt(lg, 154, 118, 'Ω', 44, {fill:'#e6e6e6', w:700});
     txt(lg, 198, 126, 'OMEGA', 64, {a:'start', fill:'none', w:900, fit:255, extra:{stroke:'#e6e6e6', 'stroke-width':4.5}});
   }
-  txt(lg, 890, 137, B.model, 66, {a:'end', fill:'#f2f2f2', w:700, fit:118});
+  if (B.logo !== 'image') txt(lg, 890, 137, B.model, 66, {a:'end', fill:'#f2f2f2', w:700, fit:118});
   // LCD bezel and glass
   el('rect', {x:103, y:150, width:815, height:452, rx:22, fill:'#1d1d1d', stroke:'#3b3b3b', 'stroke-width':4}, svg);
   el('rect', {x:150, y:162, width:720, height:428, rx:10, fill:'#0d0d0d'}, svg);
@@ -139,8 +137,15 @@ function build(svg){
   const powerKnob = el('rect', {id:'powerKnob', x:1664, y:29, width:34, height:24, rx:4, fill:'#9a9a9a', stroke:'#555'}, power);
   el('rect', {x:1640, y:10, width:120, height:140, fill:'transparent'}, power);
   // product name
-  txt(svg, 1062, 203, (window.BRAND || {}).script || 'Omega Rhythm', 80, {a:'start', fill:'#1f6fc4', w:900, fit:385, extra:{'font-style':'italic'}});
-  txt(svg, 1475, 205, 'GRAPHIC', 60, {a:'start', fill:'#2a2a2a', w:600, fit:265});
+  if (B.logo === 'image'){
+    // on the silver panel: the logo in dark ink, the name in a thin wordmark in the 110 blue, then GRAPHIC
+    el('image', {href:B.imageDark, x:1040, y:124, width:104, height:112, preserveAspectRatio:'xMidYMid meet'}, svg);
+    txt(svg, 1158, 203, B.name, 74, {a:'start', fill:'#1f6fc4', w:400, fit:440, extra:{'font-family':"'Quicksand','Century Gothic','Avenir Next','Helvetica Neue',Arial,sans-serif"}});
+    txt(svg, 1615, 203, 'GRAPHIC', 54, {a:'start', fill:'#2a2a2a', w:600, fit:235});
+  } else {
+    txt(svg, 1062, 203, B.script || 'Omega Rhythm', 80, {a:'start', fill:'#1f6fc4', w:900, fit:385, extra:{'font-style':'italic'}});
+    txt(svg, 1475, 205, 'GRAPHIC', 60, {a:'start', fill:'#2a2a2a', w:600, fit:265});
+  }
 
   // ---- knobs
   const knobs = {};
