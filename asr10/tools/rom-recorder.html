@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASR-10 ROM Recorder</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --muted: #666; --line: #ddd; --ok: #1a7f37; --bad: #b42318; --bar: #2f6fde; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161616; --fg: #eee; --muted: #aaa; --line: #333; --ok: #4ac26b; --bad: #f97066; --bar: #6b9cff; }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px 16px; }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { margin: 8px 0; }
+  .muted { color: var(--muted); }
+  ol { padding-left: 20px; }
+  button, select { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  button.primary { background: var(--bar); border-color: var(--bar); color: #fff; }
+  button:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+  .bar { height: 14px; background: var(--line); border-radius: 7px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--bar); transition: width .2s; }
+  .stats { font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>ASR-10 ROM Recorder</h1>
+  <p class="muted">Records the boot ROM that the explorer test disk sends on MIDI Out.</p>
+  <ol>
+    <li>Close Ableton and MIDI-OX (only one program can use a MIDI port).</li>
+    <li>Click <b>Connect</b> and allow MIDI access (including "system exclusive") when Chrome asks.</li>
+    <li>Pick the input your ASR-10 MIDI Out is plugged into. Choose <b>All inputs</b> if unsure.</li>
+    <li>Boot the ASR-10 with the test disk. Wait until the bar is full (about 3-4 minutes).</li>
+    <li>Click <b>Save</b> and upload the <code>.syx</code> file.</li>
+  </ol>
+
+  <div class="row">
+    <button id="connect" class="primary">Connect</button>
+    <select id="input" disabled><option>No inputs yet</option></select>
+  </div>
+  <p id="status" class="muted">Not connected.</p>
+
+  <div class="bar"><div id="fill"></div></div>
+  <p class="stats" id="stats">0 of 1024 chunks</p>
+
+  <div class="row">
+    <button id="save" disabled>Save .syx</button>
+    <button id="reset" disabled>Start over</button>
+  </div>
+</main>
+<script>
+"use strict";
+// Message format, see tools/syx2rom.py: F0 7D 'A' 'S' 'R', 4 address bytes
+// (7 bits each), 512 nibbles, 7-bit sum of nibbles, F7.
+const ROM_START = 0xF80000, ROM_END = 0xFC0000, CHUNK = 256;
+const TOTAL = (ROM_END - ROM_START) / CHUNK, MSG_LEN = 5 + 4 + 2 * CHUNK + 2;
+const $ = id => document.getElementById(id);
+let access = null, chunks = new Map(), bad = 0, other = 0, listening = [];
+
+function check(m) {
+  if (m.length !== MSG_LEN || m[0] !== 0xF0 || m[1] !== 0x7D || m[2] !== 0x41 ||
+      m[3] !== 0x53 || m[4] !== 0x52 || m[MSG_LEN - 1] !== 0xF7) return null;
+  let sum = 0;
+  for (let i = 9; i < 9 + 2 * CHUNK; i++) { if (m[i] > 15) return null; sum += m[i]; }
+  if ((sum & 0x7F) !== m[MSG_LEN - 2]) return null;
+  const addr = (m[5] << 21) | (m[6] << 14) | (m[7] << 7) | m[8];
+  return (addr >= ROM_START && addr < ROM_END && addr % CHUNK === 0) ? addr : null;
+}
+
+function onMessage(e) {
+  const m = e.data;
+  if (m[0] !== 0xF0) { other++; return show(); }
+  const addr = check(m);
+  if (addr === null) bad++;
+  else if (!chunks.has(addr)) chunks.set(addr, new Uint8Array(m));
+  show();
+}
+
+function show() {
+  const n = chunks.size;
+  $("fill").style.width = (100 * n / TOTAL) + "%";
+  let text = `${n} of ${TOTAL} chunks`;
+  if (bad) text += `, ${bad} damaged (skipped)`;
+  if (other) text += `, ${other} other MIDI messages`;
+  $("stats").textContent = text;
+  if (n === TOTAL) $("stats").innerHTML = `<span class="ok">Complete: all ${TOTAL} chunks. Click Save.</span>`;
+  $("save").disabled = n === 0;
+  $("reset").disabled = n === 0 && !bad && !other;
+}
+
+function listen() {
+  for (const inp of listening) inp.onmidimessage = null;
+  listening = [];
+  const pick = $("input").value;
+  for (const inp of access.inputs.values()) {
+    if (pick === "all" || pick === inp.id) { inp.onmidimessage = onMessage; listening.push(inp); }
+  }
+  $("status").textContent = listening.length
+    ? `Listening on: ${listening.map(i => i.name).join(", ")}`
+    : "No input selected.";
+}
+
+function fillInputs() {
+  const sel = $("input"), keep = sel.value;
+  sel.innerHTML = "";
+  const all = new Option("All inputs", "all"); sel.add(all);
+  for (const inp of access.inputs.values()) sel.add(new Option(inp.name, inp.id));
+  sel.disabled = false;
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : "all";
+  if (access.inputs.size === 0) $("status").innerHTML = '<span class="bad">Chrome sees no MIDI inputs. Replug the interface, then reload this page.</span>';
+  else listen();
+}
+
+$("connect").onclick = async () => {
+  if (!navigator.requestMIDIAccess) {
+    $("status").innerHTML = '<span class="bad">This browser has no Web MIDI. Use Chrome or Edge.</span>';
+    return;
+  }
+  try {
+    access = await navigator.requestMIDIAccess({ sysex: true });
+  } catch (err) {
+    $("status").innerHTML = `<span class="bad">MIDI access refused (${err.name}). Allow MIDI and system exclusive for this page, then try again.</span>`;
+    return;
+  }
+  $("connect").disabled = true;
+  access.onstatechange = fillInputs;
+  fillInputs();
+};
+
+$("input").onchange = listen;
+
+$("save").onclick = () => {
+  const parts = [...chunks.keys()].sort((a, b) => a - b).map(a => chunks.get(a));
+  const blob = new Blob(parts, { type: "application/octet-stream" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = chunks.size === TOTAL ? "asr10rom.syx" : `asr10rom-partial-${chunks.size}.syx`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+$("reset").onclick = () => { chunks = new Map(); bad = 0; other = 0; show(); };
+</script>
+</body>
+</html>

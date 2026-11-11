@@ -1,0 +1,267 @@
+# ASR-10 hardware notes
+
+Target unit: ASR-10 keyboard (reported as 49 keys, see note below), SCSI
+board fitted, RAM fully expanded, boots OS 3.53 from a Gotek running
+FlashFloppy.
+
+> The standard ASR-10 keyboard has 61 keys; the ASR-10R is the rack. If your
+> unit really has 49 keys it may be a different model or modified, so check
+> the label on the back panel.
+
+Confidence levels:
+- **from OS 1.61**: read out of the OS 1.61 disk (archive.org,
+  `asr-10-os-v-161`, SHA-1 `c4847578…`) by disassembly. Strong, but not yet
+  seen on real hardware, and not yet checked against 3.53.
+- **MAME**: from MAME's source. Its ASR-10 driver is a skeleton marked
+  "not working", so treat as a lead.
+- **guess**: unverified.
+
+## Chips
+
+| Part | Chip | Source |
+|---|---|---|
+| CPU | Motorola MC68302 | MAME; OS 1.61 uses 68302 registers |
+| Sound | Ensoniq ES5506 "OTTO" | MAME |
+| Effects | Ensoniq ES5510 "ESP" | MAME |
+| Floppy controller | NEC uPD72069 | MAME |
+| UART | 2681 DUART | MAME; OS 1.61 |
+| Display | 2 x 40 vacuum fluorescent | front panel |
+
+## Memory map (from OS 1.61)
+
+| Address | What | Notes |
+|---|---|---|
+| `0x000000-0x00FFFF` | RAM | vector table at 0, OS loads from `0x000E00` |
+| `0xF80000-0xFBFFFF` | boot ROM, 256 KB | the OS calls ~1000 routines here; exception handlers live here |
+| `0xFC2000` | unknown 8-bit device, odd bytes | used a lot near disk code; maybe the floppy controller |
+| `0xFC4800` | 2681 DUART, odd bytes: register *n* at `0xFC4801 + 2n` | |
+| `0xFC6000` | MC68302 internal RAM (`+0x000`) and registers (`+0x800`) | |
+| `0xFF8000-0xFFFFFF` | RAM, 32 KB | separate from `0x8000-0xFFFF`: OS loads different data into each |
+
+Most of the operating system (all the screen text, for example) is in the
+boot ROM. The OS file on disk adds code the ROM calls through the vector
+table, traps and jump tables.
+
+## DUART (from OS 1.61)
+
+| Channel | Use | Evidence |
+|---|---|---|
+| A | MIDI | sends a buffer through `0xFC4807` and checks for SysEx `F0`/`F7` |
+| B | front panel | reads `0xFC4817`; codes `0xC0` and up are handled separately |
+
+The disk OS never writes to channel B, so display output is done by the
+ROM. MAME runs the VFX panel link at 62,500 baud, 8N2.
+
+**MIDI Out (confirmed on hardware):** when our code takes over, channel A
+is not set up yet: status `00`, and enabling the transmitter (CRA `04`,
+as OS 3.53 does) leaves it at `00`. Setting it up from scratch works and
+the computer receives the data: reset Tx/Rx/errors, MR1 `13` (8 bits, no
+parity), MR2 `07` (1 stop bit, no handshake), CSRA `EE` (both directions
+from the external clock pins at 16x, so those pins carry 500 kHz as on
+MAME's VFX), then CRA `05`. Status then reads `0C` (ready, empty).
+
+## Panel input (confirmed on hardware)
+
+With the panel explorer running, every panel button (arrows and LOAD
+included) sends codes on DUART channel B, which the explorer printed.
+The keyboard sends nothing there, and neither does the data entry slider.
+
+- Keyboard: read by other hardware. The ASR-10 "tunes" its keyboard at
+  power-up, and forum reports describe four LC oscillators under the keybed
+  that measure key position. That measurement is what fails calibration on
+  this unit. Code for it is in the boot ROM.
+- Slider: in MAME's Ensoniq drivers the slider, wheels, pedal and battery
+  voltage are analog inputs read through the sound chip's ADC port; the
+  ASR-10 probably works the same way.
+
+Button codes (confirmed): pressing button n sends `80+n`, releasing it
+sends `n` (button 2: `82`, then `02`), as in MAME's Ensoniq panel model.
+
+With the ROM's start-up commands (`E7`, `71`), then `66` (clear) and
+`60 nn` (cursor), our text appeared where placed, but all of it blinked.
+
+**Confirmed on hardware:** `77 c` writes character c steady at the cursor;
+a bare character blinks. `60 00` is the top-left corner and `60 14` (20)
+the middle of the top line; `60 28` (40) the start of the bottom line,
+so the display is 2 x 40 with positions 0-79.
+
+## Boot ROM (dumped)
+
+Dumped from the user's ASR-10 over MIDI with the explorer OS
+(`tools/syx2rom.py`), 1024 of 1024 chunks with no damage. Split into even
+and odd bytes it matches MAME's `asr10` set exactly: ROM **1.5b**, hi CRC
+`b37cd3b6`, lo CRC `8e437843`. Kept in `local/asr10rom.bin`, not committed.
+The 68000 reset vectors at its start are SSP `0x300`, PC `0x00000C`, i.e.
+it boots at address 0 and runs from `0xF80000` afterwards.
+
+### Panel protocol (from the ROM)
+
+- Normal display output is interrupt driven: a ring buffer at RAM
+  `0x378-0x3B7` is fed to DUART B one byte per interrupt (`0xF89AA4`).
+- Handshaked command send (`0xF89C46`): write the byte, wait about 8000
+  loop passes, check RxRDY; retry up to 100 times; the reply comes back
+  in d1. Our `panel_tx` does the same thing, which is why it worked.
+- Start-up (`0xF89BD6`, called from the RAM test, boot and error paths):
+  drain 64 bytes from the panel, then send `E7` (up to 15 tries) and `71`
+  (up to 10 tries). MAME's EPS panel model replies to exactly these two.
+- `66` then plain ASCII (`0xF89C94`): used for the boot-loader messages
+  ("FATAL SYSTEM ERROR", "BAD DISK/NOT EPS DISK", "ERROR - REBOOT ?").
+  `66` is ASCII "f", which MAME's EPS display model treats as **clear
+  screen**: the ASR-10 panel speaks the EPS-family protocol, not the VFX
+  one (`D6`/`83` did nothing).
+- `0xF89CF6` sends `7F`, waits, `FF`, waits, `FD`, then waits for a reply;
+  reply `C9` sets carry (the failure path). MAME's model treats `FD` after
+  `FB` as a calibration request answered with `FF` = calibration OK. This
+  is the likely source of the keyboard calibration message. Not called
+  directly by the ROM; OS 3.53 calls it.
+
+### Keyboard tuning at start-up (OS 3.53)
+
+- Start-up code at `0x17136` copies a word from ROM `0xF80086` to RAM
+  `0x3BE` and sets RAM `0x3BD` = 1 ("tune the keyboard") on every boot.
+- `0x13096`: if `0x3BD` is set, show a message, then call the ROM's
+  `7F FF FD` request up to 4 times; a `C9` reply means the tuning failed.
+- After 4 failures, a yes/no prompt: yes retries, no clears `0x3BD`,
+  shows a message, and continues at `0x7228`, the same place the OS goes
+  when the flag was never set.
+- `tools/patch_os.py skip-keyboard-tune` changes that `move.b #1,$3BD`
+  to `#0` (one byte, file offset `0x1CB43`), so the OS skips tuning and
+  the prompt, like answering no. It doesn't fix the failure itself:
+  the panel controller reports `C9`, i.e. the keybed measurement fails,
+  which forum reports put down to hardware (connectors, the coil board,
+  trimmers).
+- `0xF89D46` is a crash handler: shows "ERROR - REBOOT ?" and lets the
+  panel buttons dump registers.
+
+### Display commands (from the ROM)
+
+OS 3.53 sends display bytes through ROM routines it installs as traps:
+trap 10 = one byte in d2 (`0xF89A5A`), trap 11 = zero-terminated string
+at a2 (`0xF89A34`; a `16` in a string goes out as `00`). The ROM's own
+message screens send:
+
+- `66` clear screen
+- `60 nn` cursor to position nn (`60 00` = top left)
+- `74 n` / `75 n` / `76 n`: button light n off / on / blinking
+  (`0xF8938E`, from the light bits at RAM `0x306`/`0x307`)
+- `77+k c` / `7A+k c` per character (`0xF8A7E0`): `77 c` = steady
+  character (confirmed); `7A` presumably the blinking form; k (0-2) to check
+
+### Memory and devices (from running the ROM in emu/asr10.py)
+
+- RAM: the ROM sizes it by aliasing (writes 0/1111/2222/3333 at 0x008000,
+  0x408000, 0x808000, 0xC08000). Fully expanded: 15.5 MB at 0x000000-
+  0xF7FFFF, shared between CPU and samples (`0xC62` = 0xF80000).
+- Floppy: uPD72069 at 0xFC4000, MSR at +1, data at +3, uPD765 commands
+  (sense drive status 04, seek 0F, read data 46 with 512-byte sectors
+  numbered from 0, gap 1B, EOT 0x13 for HD). Writes to +1 are the
+  72069's own extra registers.
+- Disk detection on DUART input pins: IP0 = index pulse (a disk is in when
+  IPCR shows IP0 changing), IP2 low = high density.
+- SCSI WD33C93 at 0xFC5000 (aux status at +1).
+- DUART interrupt: IRQ6, vector 86; the ROM handler dispatches RxRDYB,
+  RxRDYA/break, TxRDYA and counter-ready through RAM pointers 0xDE/0xE2/0xE6.
+- 68302: GIMR 0x8040 (vectors 0x40-0x5F); timer 2 is the ROM's tick;
+  OS 3.53 enables SCC1, SCC2, PB9-11 interrupts; port B pin 3 is a
+  periodic clock it waits on (ERROR 009 if it never toggles).
+- OS 3.53 sets MIDI (channel A) to CSR EE, the same as our OS.
+
+## Display commands (guess)
+
+MAME has three Ensoniq display models. All print `0x20`-`0x5F` at the
+cursor, so plain uppercase text is safe. Their control codes disagree:
+
+| | SQ-1 (MAME's ASR-10) | VFX / SD-1 |
+|---|---|---|
+| clear | `0x83` | `0xD6` |
+| cursor | `0x87 rc` | `0x80 + position` (0-79) |
+
+Which one the ASR-10 uses is still open. Watching what the ROM sends would
+settle it.
+
+**On the ASR-10 (try 2):** sending `D6 83 " THE SYSTEM "` back to back,
+polling only TxRDY, left the screen showing `e     loading system`: one
+letter got through and the ROM's text stayed. MAME's EPS panel answers
+every byte the main board sends; if the ASR-10 panel does the same, the
+board has to wait for that reply before sending the next byte. Try 3
+waits for a reply (or a few ms) after each byte.
+
+**Try 3 worked:** the user reported the display reading "the system
+system". Our text arrived, and neither `D6` nor `83` cleared the screen, so
+" THE SYSTEM " overwrote the start of the ROM's "LOADING SYSTEM" and its
+last word stayed. **Confirmed on hardware:** the OS file layout and
+takeover, DUART channel B at `0xFC4800` as the panel link, and plain
+uppercase text printing at the cursor. The ROM prints lowercase on screen,
+or the user typed it that way; to check.
+
+## The OS file (from OS 1.61)
+
+Directory file type 32. The first two blocks are a header that is an image
+of RAM `0x000-0x3FF`:
+
+- `0x000-0x15F`: 68000 vectors 0-87. Most point at ROM handlers;
+  traps 10 and 11 point into the OS at `0xFF88E8`/`0xFF88E2`.
+- `0x160-0x19F`: settings, including the disk label `DISK000` at `0x184`.
+- `0x1C0`: load table, entries of (destination, block count), each 32-bit
+  big-endian, ended by zero:
+
+| File offset | Loads to | Blocks |
+|---|---|---|
+| `0x00400` | `0x000E00` | `0x39` |
+| `0x07600` | `0xFF8000` | `0x40` |
+| `0x0F600` | `0x009C00` | `0x31` |
+| `0x15800` | `0xFC6000` | `0x01` |
+
+The table covers the file exactly (2 + 171 = 173 blocks).
+
+**OS 3.53** (from the user's own boot disk) uses the same header and the
+same ROM handler addresses. Its load table differs only in the third
+segment: `0x9C00`, `0x102` blocks, so low RAM runs to at least `0x2A000`.
+The file is 382 blocks. Evidence: 1291 of
+1726 short calls into `0xFF8000+` land after a return or branch with this
+layout. So do 121 of 170 long calls into `0x8000-0xFFFF`, and 13 of 13
+calls into `0xFC6000+`.
+
+The ROM uses the vectors it finds in the header *while it loads the rest
+of the file*. First test on the ASR-10: pointing every vector at our code
+hung the machine at "LOADING SYSTEM" with the drive selected, almost
+certainly because a disk or timer interrupt jumped into code not yet
+loaded. So only the vectors whose stock handler is in the OS itself are
+safe to take over. In 3.53 those are vectors 4 and 11 (to `0xFC6000`/
+`0xFC6014`), traps 10 and 11, and 68302 interrupts 74, 75, 77 and 81. The
+longs at `0x0C0`-`0x0FF` (vectors 48-63) are settings data, not vectors.
+
+**Still unknown:** where the ROM jumps after loading. The jump table at
+`0xFF801E` is OS services, not a start address. Our OS doesn't need to
+know: every vector points at our code, and every unused byte of the
+segments is a NOP slide into it (`tools/make_os.py`).
+
+## Floppy format
+
+Checked against OS 1.61 and nine of the user's disks (HD and DD): layout
+matches. HD disk, 3200 blocks, FAT at block 5 (19 blocks), data from
+block 24. DD disk, 1600 blocks.
+
+Disks written by the ASR-10 can leave FAT chains from deleted files that
+no directory entry owns. The free count in block 2 counts those blocks as
+free, so it can be higher than the number of zero FAT entries. The disk
+tool trusts block 2 and adjusts it by the change in size.
+
+## HFE files (the Gotek's format)
+
+From the user's HFE files: HFE v1, MFM, 80 cylinders, 2 sides, sectors
+numbered from 0, gap 3 = 36, index mark at byte 95, first sector ID at
+byte 161, sectors 610 bytes apart. HD: 500 kbit/s, interface mode 1, about
+50,024 bytes per track. DD: 250 kbit/s, interface mode 0, 25,088. Track
+length varies a little between files. `tools/hfe.py` writes this layout;
+Greaseweazle's `ensoniq.1600` decoder reads it back unchanged.
+
+## Next questions
+
+1. Does OS 3.53 use the same header and load table? Run `make disk` on your
+   image; `make_os.py` checks the table against the file size.
+2. Does the first test boot? See README.
+3. What does the ROM send to the panel at start-up? That settles the display
+   commands.
+4. What is at `0xFC2000`? Then the OTTO and ESP addresses, from code that
+   plays sounds and loads effects.
