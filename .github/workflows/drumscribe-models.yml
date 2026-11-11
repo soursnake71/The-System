@@ -1,9 +1,12 @@
 # The phone's model pack for Drum Scribe ("Analyse on this phone"): fast Demucs + DrumSep with 16-bit weights and
 # models.json, attached to the "drumscribe-models" release, where the Android app downloads it from.
-# Run by hand (Actions > Drum Scribe models > Run workflow): it downloads ~700 MB of models and converts them.
+# Runs when the pack's tools change, or by hand (Actions > Drum Scribe models > Run workflow); it downloads ~700 MB
+# of models and converts them.
 name: Drum Scribe models
 on:
   workflow_dispatch:
+  push:
+    paths: ['.github/workflows/drumscribe-models.yml', 'drumscribe/core/tools/make_mobile_models.sh', 'drumscribe/core/tools/export_drumsep_mobile.py']
 permissions:
   contents: write
 jobs:
