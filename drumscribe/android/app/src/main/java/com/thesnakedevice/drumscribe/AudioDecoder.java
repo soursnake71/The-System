@@ -103,7 +103,7 @@ final class AudioDecoder {
       for (int n; (n = in.read(b)) > 0; ) md.update(b, 0, n);
     }
     StringBuilder s = new StringBuilder();
-    for (byte x : md.digest()) s.append(String.format("%02x", x));
+    for (byte x : md.digest()) s.append(String.format(java.util.Locale.ROOT, "%02x", x));
     return s.substring(0, 16);
   }
 }

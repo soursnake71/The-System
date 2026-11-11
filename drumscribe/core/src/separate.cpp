@@ -109,8 +109,10 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
                                int shift_offset, const Progress& p) {
     const long L = (long)song.size();
     std::vector<Stereo> res(sources.size());
-    for (auto& s : res) s.l.assign(L, 0.f), s.r.assign(L, 0.f);
-    if (L == 0) return res;
+    if (L == 0) {
+        for (auto& s : res) s.l.assign(L, 0.f), s.r.assign(L, 0.f);
+        return res;
+    }
     auto model = get_demucs(model_file);
     const float* ch[2] = {song.l.data(), song.r.size() == song.l.size() ? song.r.data() : song.l.data()};
 
@@ -231,14 +233,18 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
     }
     for (auto& t : th) t.join();
     if (err) std::rethrow_exception(err);
+    for (auto& v : padded) std::vector<float>().swap(v);
 
-    // out /= sum_weight; out = shifted_out[..., max_shift - offset:][:L]; out * std + mean
+    // out /= sum_weight; out = shifted_out[..., max_shift - offset:][:L]; out * std + mean (accumulators freed as
+    // they are copied: memory)
     const long b = kMaxShift - offset;
     for (int si = 0; si < ns; ++si)
         for (int c = 0; c < 2; ++c) {
             Signal& dst = c ? res[si].r : res[si].l;
-            const auto& a = acc[si * 2 + c];
+            auto& a = acc[si * 2 + c];
+            dst.resize(L);
             for (long i = 0; i < L; ++i) dst[i] = (float)((a[b + i] / sum_w[b + i]) * sd + mean);
+            std::vector<float>().swap(a);
         }
     return res;
 }
@@ -320,8 +326,10 @@ static Ort::Session& get_drumsep(const std::string& file) {
 std::vector<Stereo> drumsep_run(const std::string& onnx_file, const Stereo& drums, int overlap, const Progress& p) {
     const long L = (long)drums.size();
     std::vector<Stereo> res(kNumStems);
-    for (auto& s : res) s.l.assign(L, 0.f), s.r.assign(L, 0.f);
-    if (L == 0) return res;
+    if (L == 0) {
+        for (auto& s : res) s.l.assign(L, 0.f), s.r.assign(L, 0.f);
+        return res;
+    }
     Ort::Session* sess;
     try {
         sess = &get_drumsep(onnx_file);
@@ -390,12 +398,14 @@ std::vector<Stereo> drumsep_run(const std::string& onnx_file, const Stereo& drum
         }
         if (p) p((double)(k + 1) / nchunks, "drumsep");
     }
-    // accumulated / overlap, then [chunk - hop : -(pad + chunk - hop)]
+    // accumulated / overlap, then [chunk - hop : -(pad + chunk - hop)]; each accumulator freed once copied (memory)
     for (int s = 0; s < kNumStems; ++s)
         for (int c = 0; c < 2; ++c) {
             Signal& dst = c ? res[s].r : res[s].l;
-            const auto& a = acc[s * 2 + c];
+            auto& a = acc[s * 2 + c];
+            dst.resize(L);
             for (long i = 0; i < L; ++i) dst[i] = a[lead + i] / (float)overlap;
+            std::vector<float>().swap(a);
         }
     return res;
 }
@@ -446,6 +456,10 @@ Stems separate(const Stereo& song, Quality q, const std::string& model_dir, cons
         out.bass = std::move(r[1]);
     }
     if (song.r.empty()) out.drums.r.clear(), out.bass.r.clear();  // mono in, mono out
+    // $DS_LOW_MEMORY=1 (the Android app): drop the Demucs model before DrumSep, and the DrumSep session after it
+    const char* lm = std::getenv("DS_LOW_MEMORY");
+    const bool low_memory = lm && *lm == '1';
+    if (low_memory) g_demucs.clear();
 
     // DrumSep on the drum stem scaled to 0.5 peak (as the prototype did), scaled back: the kit pieces stay at
     // the drum stem's level, no per-stem normalization; each piece is the mean of its two channels
@@ -457,10 +471,13 @@ Stems separate(const Stereo& song, Quality q, const std::string& model_dir, cons
     for (auto& v : scaled.l) v *= gain;
     for (auto& v : scaled.r) v *= gain;
     auto kit = drumsep_run((dir / kDrumSep).string(), scaled, ov, sub(w_demucs, tot, "splitting the kit (DrumSep)"));
+    scaled = Stereo{};
+    if (low_memory) g_ort_session.reset(), g_ort_path.clear();
     for (int s = 0; s < kNumStems; ++s) {
         Signal m(kit[s].l.size());
         for (size_t i = 0; i < m.size(); ++i) m[i] = 0.5f * (kit[s].l[i] + kit[s].r[i]) / gain;
         out.kit[kKitStems[s]] = std::move(m);
+        kit[s] = Stereo{};
     }
     if (p) p(1.0, "separation done");
     return out;

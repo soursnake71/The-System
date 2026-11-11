@@ -4,7 +4,7 @@ name: Drum Scribe
 on:
   push:
     branches: [main, 'claude/**', 'ccr-**']
-    paths: ['drumscribe/**', 'plugins/drumscribe/**', 'plugins/CMakeLists.txt', 'android/**', '.github/workflows/drumscribe.yml']
+    paths: ['drumscribe/**', 'plugins/drumscribe/**', 'plugins/CMakeLists.txt', '.github/workflows/drumscribe.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -78,12 +78,18 @@ jobs:
         with: {distribution: temurin, java-version: '17'}
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.14.3'}
+      # the app (drumscribe/android) builds the whole engine for the phone: NDK + CMake through Gradle
+      - name: NDK and CMake
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "cmake;3.31.6" > /dev/null
       - name: Build
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          gradle -p android assembleScribeDebug --no-daemon
-          cp android/app/build/outputs/apk/scribe/debug/app-scribe-debug.apk drum-scribe.apk
+          echo "sdk.dir=$ANDROID_HOME" > drumscribe/android/local.properties
+          gradle -p drumscribe/android assembleDebug --no-daemon
+          cp drumscribe/android/app/build/outputs/apk/debug/app-debug.apk drum-scribe.apk
+          unzip -l drum-scribe.apk | grep 'lib/arm64-v8a/'
       - uses: actions/upload-artifact@v4
         with: {name: apk, path: drum-scribe.apk, if-no-files-found: error}
   publish:
@@ -100,7 +106,7 @@ jobs:
           notes="Drum Scribe (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a song link in, every drum hit and bass note out as MIDI, with the maths of the groove.
 
           1. Engine (runs the analysis): unzip DrumScribe-Engine-<your OS>.zip, run get_models once, then drumscribe-server. Needs ffmpeg and yt-dlp on the PATH.
-          2. Android: install drum-scribe.apk, enter the engine address shown by drumscribe-server, then share a song from YouTube / Spotify to Drum Scribe.
+          2. Android: install drum-scribe.apk. On the phone: download the models once in the app, then pick or share an audio / video file (the whole analysis runs on the phone). With your computer: enter the address shown by drumscribe-server, then share a song from YouTube / Spotify to Drum Scribe.
           3. DAW: DrumScribe-Plugin-<your OS>.zip has the VST3 (and AU on Mac) and a standalone app."
           gh release view drumscribe-latest >/dev/null 2>&1 || gh release create drumscribe-latest --title "Drum Scribe (latest)" --notes "$notes" --target "$GITHUB_SHA"
           gh release edit drumscribe-latest --notes "$notes"

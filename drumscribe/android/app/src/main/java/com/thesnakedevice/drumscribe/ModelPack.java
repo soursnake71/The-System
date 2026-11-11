@@ -66,7 +66,7 @@ final class ModelPack {
           e = new Entry();
           e.name = need;
           e.size = f.getLong("size");
-          e.sha256 = f.getString("sha256").toLowerCase();
+          e.sha256 = f.getString("sha256").toLowerCase(java.util.Locale.ROOT);
         }
       }
       if (e == null) throw new Exception("the model list has no " + need);
@@ -142,7 +142,7 @@ final class ModelPack {
       for (int n; (n = in.read(b)) > 0; ) md.update(b, 0, n);
     }
     StringBuilder s = new StringBuilder();
-    for (byte x : md.digest()) s.append(String.format("%02x", x));
+    for (byte x : md.digest()) s.append(String.format(java.util.Locale.ROOT, "%02x", x));
     return s.toString();
   }
 }

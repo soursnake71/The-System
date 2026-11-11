@@ -8,7 +8,7 @@ microtiming per instrument, tempo drift, syncopation, a 16-step groove template)
 | Part | Where | What it is |
 |---|---|---|
 | Engine | `drumscribe/core` (C++17) | does all the analysis; runs on your computer as `drumscribe-server` (or `drumscribe-cli`) |
-| Android app | `android/` flavor `scribe` → `drum-scribe.apk` | paste a link, or Share a song from YouTube / Spotify to it |
+| Android app | `drumscribe/android` → `drum-scribe.apk` | the whole engine on the phone (pick / share an audio or video file), or a remote for the engine on your computer (links) |
 | VST3 / AU plugin + standalone app | `plugins/drumscribe` → *Omega Drum Scribe* | in your DAW: reads the project tempo, drag the MIDI onto a track |
 | Browser page | served by the engine at `http://<computer>:8765/` | the same thing from any browser |
 | Reference prototype | `drumscribe/engine` (Python) | the first version; the C++ is checked against it |
@@ -82,6 +82,25 @@ pitch track of the isolated bass, and the isolated vs. the Demucs-separated bass
 Beats / groove / MIDI (`test_beats`, `test_groove`, `test_midi`): beat F 1.000 on 15 cases (drift, sudden tempo
 change, ritardando, shuffle, 3/4, 6/8, 78 – 174 BPM); swing, snare lag, accents, bass-kick offset recovered to within
 a few tenths of a percent / ms; every MIDI note within half a tick of its time through the tempo map (150 checks).
+
+## On the phone (`drumscribe/android`)
+
+The app builds `drumscribe/core` with the NDK (Gradle `externalNativeBuild`, CMake) into `libdrumscribe.so` (JNI bridge in
+`app/src/main/cpp/drumscribe_jni.cpp`) next to `libonnxruntime.so` from the official ONNX Runtime 1.20.0 Android AAR
+(`cmake/separation.cmake` fetches and unpacks it). arm64-v8a only (`-Pabis=arm64-v8a,x86_64` adds the emulator).
+- **Analyse on this phone**: an audio or video file (picked, shared, or opened with the app) is decoded by
+  MediaCodec to PCM, converted to 44.1 kHz stereo by `src/resample.cpp`, and run through `run_job_audio` (`pipeline.h`:
+  the server's job without download / ffmpeg) with the fast separation (htdemucs + DrumSep) and one Demucs worker, in a
+  foreground service with a wake lock (it keeps going with the screen off). Results and stems are kept per song (the
+  file's SHA-256), so opening a song again is instant. Links can't be downloaded on the phone: use the computer for them.
+- The models (`ggml-model-htdemucs-4s-f16.bin`, `drumsep_mdx23c.onnx`) are downloaded once from the
+  `drumscribe-models` release (sizes and SHA-256 in its `models.json`; resumable, checked).
+- **Use my computer**: the app talks to `drumscribe-server` over HTTP, as before (links, best quality).
+
+Resampler (`tests/test_resample.cpp`, analytic exponential sweeps 20 Hz – 20 kHz converted to 44.1 kHz and compared with
+the sweep evaluated at the output times): 48 kHz 133 dB SNR (worst slice of 16: 131 dB), 96 kHz 131 dB, 88.2 kHz
+130 dB, 32 kHz 132 dB, 22.05 kHz 132 dB, an odd 44.056 kHz (interpolated phases) 132 dB; a 23 kHz tone at 48 kHz is
+rejected by 134 dB. Kaiser-windowed sinc, 120 dB stopband, flat to 0.4535 × the lower rate.
 
 ## Run the engine
 

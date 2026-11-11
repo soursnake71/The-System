@@ -94,6 +94,7 @@ JNIEXPORT jboolean JNICALL Java_com_thesnakedevice_drumscribe_Engine_start(
     if (g_thread.joinable()) g_thread.join();
     // each Demucs worker needs ~1.2 GB: one on a phone (more only if asked); ONNX Runtime / iSTFT: up to 4 threads
     setenv("DS_DEMUCS_THREADS", std::to_string(std::max(1, (int) demucs_threads)).c_str(), 1);
+    setenv("DS_LOW_MEMORY", "1", 1);  // models dropped as soon as they are done with (separate.cpp)
     setenv("DS_THREADS", std::to_string(std::max(1u, std::min(4u, std::thread::hardware_concurrency()))).c_str(), 1);
     g_job = std::make_unique<ds::Job>();
     ds::Job* job = g_job.get();
