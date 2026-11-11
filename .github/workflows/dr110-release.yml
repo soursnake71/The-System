@@ -63,10 +63,17 @@ jobs:
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          gradle -p android assembleDr110Debug --no-daemon
+          gradle -p android assembleDr110Debug assembleJayquanDebug --no-daemon
           cp android/app/build/outputs/apk/dr110/debug/app-dr110-debug.apk omega-110.apk
+          # JayQuan-110: the same machine for a friend, with his logo and name
+          cp android/app/build/outputs/apk/jayquan/debug/app-jayquan-debug.apk jayquan-110.apk
       - uses: actions/upload-artifact@v4
-        with: {name: dr110-Android, path: omega-110.apk, if-no-files-found: error}
+        with:
+          name: dr110-Android
+          path: |
+            omega-110.apk
+            jayquan-110.apk
+          if-no-files-found: error
   publish:
     needs: [plugin, apk]
     runs-on: ubuntu-latest

@@ -43,7 +43,8 @@ import org.json.JSONObject;
  *  - AndroidMidi: USB / Bluetooth MIDI devices through android.media.midi, shaped like Web MIDI by io.js,
  *  - AndroidDR110.save: exports (backups, MIDI files, WAVs) go to Downloads/Omega 110. */
 public class DR110Activity extends Activity {
-  static final String HOME = "https://appassets.androidplatform.net/assets/dr110/index.html";
+  // the page and the name come from the flavor: Omega 110, or a friend's edition (JayQuan-110: index.html?brand=jayquan)
+  static final String HOME = "https://appassets.androidplatform.net/assets/dr110/index.html" + BuildConfig.BRAND_QUERY;
   static final int PICK = 7;
   WebView web;
   ValueCallback<Uri[]> pending;
@@ -120,12 +121,12 @@ public class DR110Activity extends Activity {
           ContentValues v = new ContentValues();
           v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
           v.put(MediaStore.Downloads.MIME_TYPE, mime);
-          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Omega 110");
+          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + getString(R.string.app_name));
           Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
           try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
-          return "Download/Omega 110/" + safe;
+          return "Download/" + getString(R.string.app_name) + "/" + safe;
         }
-        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Omega 110");
+        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), getString(R.string.app_name));
         dir.mkdirs();
         File f = new File(dir, safe);
         try (FileOutputStream o = new FileOutputStream(f)) { o.write(data); }

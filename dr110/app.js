@@ -190,7 +190,7 @@ for (const [id, k] of Object.entries(UI.knobs)){
 UI.power.addEventListener('pointerdown', async e => {
   e.preventDefault();
   S.power = !S.power;
-  if (S.power){ await startAudio(); flash(['OMEGA', '110'], 900); }
+  if (S.power){ await startAudio(); flash((window.BRAND || {}).flash || ['OMEGA', '110'], 900); }
   else { post({type:'stop'}); S.running = false; S.shiftLatch = false; }
   draw();
 });

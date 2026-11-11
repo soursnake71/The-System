@@ -36,6 +36,15 @@ android {
       applicationId 'com.thesnakedevice.dr110'
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/dr110/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/dr110/"'
+      buildConfigField 'String', 'BRAND_QUERY', '""'
+    }
+    // JayQuan-110: the same machine for a friend, with his logo and name (installs next to Omega 110)
+    jayquan {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.jayquan110'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/dr110/?brand=jayquan']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/dr110/?brand=jayquan"'
+      buildConfigField 'String', 'BRAND_QUERY', '"?brand=jayquan"'
     }
   }
   signingConfigs {
@@ -53,6 +62,7 @@ dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
   dr110Implementation 'androidx.webkit:webkit:1.12.1'
+  jayquanImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -71,4 +81,7 @@ tasks.register('copyDr110Web', Copy) {
   into dr110Assets.map { it.dir('dr110') }
 }
 android.sourceSets.dr110.assets.srcDirs += [dr110Assets]
-tasks.matching { it.name.startsWith('merge') && it.name.contains('Dr110') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyDr110Web' }
+// JayQuan-110 runs the same web app and activity as Omega 110, with its own name, icon and manifest
+android.sourceSets.jayquan.assets.srcDirs += [dr110Assets]
+android.sourceSets.jayquan.java.srcDirs += ['src/dr110/java']
+tasks.matching { it.name.startsWith('merge') && (it.name.contains('Dr110') || it.name.contains('Jayquan')) && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyDr110Web' }
