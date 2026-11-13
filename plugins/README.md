@@ -15,6 +15,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
 | Omega 110 (DR-110 circuit model, the DAW is the sequencer, 100 presets) | instrument, stereo mix + BD / SD / CP / HH-CY outputs |
+| Omega Traks (Drumtraks circuit model with its whole front panel and sequencer, follows the DAW, 100 presets) | instrument (and standalone), stereo mix + CH1-CH6 outputs |
 
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
 
@@ -27,3 +28,5 @@ app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelv
 loads the built .vst3 like a DAW).
 
 Omega 110 lives in `dr110/` (DR110.h is a port of `dr110/engine.js`; Presets.inc comes from `dr110/presets.js` via `node dr110/tools/gen-presets.mjs`). Tests: `dr110_test` + `node dr110/tools/compare.mjs`, and `dr110_host_test` in `tools/hosttest` (loads the .vst3, plays MIDI, checks every output, saves a picture of the editor).
+
+Omega Traks lives in `traks/` (Traks.h and Machine.h are ports of `traks/engine.js` and `traks/machine.js`; it uses the 110's reverb, delay and filters from DR110.h; Presets.inc comes from `traks/presets.js` via `node traks/tools/gen-presets.mjs`; the ROM `traks/rom/traks.rom` from `node traks/tools/make-rom.mjs`). Tests: `traks_test` + `node traks/tools/compare.mjs`, `traks_ui_test` (pictures of the editor), and `traks_host_test` in `tools/hosttest`.

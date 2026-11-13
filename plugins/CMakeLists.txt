@@ -180,3 +180,39 @@ if(TARGET OmegaDR110)
   target_link_libraries(dr110_ui_test PRIVATE DR110Samples juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(dr110_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega Traks: the Drumtraks circuit model (traks/ in the app) with its front panel and sequencer working in the DAW,
+# the stereo mix and CH1-CH6. The sound ROM (traks/rom/traks.rom) is built in.
+if(NOT OMEGA_ONLY OR "TRAKS" IN_LIST OMEGA_ONLY)
+  juce_add_binary_data(TraksRom SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../traks/rom/traks.rom)
+  set_target_properties(TraksRom PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  juce_add_plugin(OmegaTraks
+    PRODUCT_NAME "Omega Traks"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Traks"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Otrk
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Drum
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaTraks PRIVATE traks/TraksPlugin.cpp traks/TraksEditor.cpp)
+  target_compile_definitions(OmegaTraks PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaTraks PRIVATE TraksRom juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
+# Machine.h + Traks.h against machine.js + engine.js: node traks/tools/compare.mjs <build>/traks_test <dir>
+add_executable(traks_test traks/test.cpp)
+
+# draws the Traks editor to PNGs without a DAW: <build>/traks_ui_test <dir>
+if(TARGET OmegaTraks)
+  juce_add_console_app(traks_ui_test PRODUCT_NAME "traks_ui_test")
+  target_sources(traks_ui_test PRIVATE traks/uitest.cpp traks/TraksPlugin.cpp traks/TraksEditor.cpp)
+  target_compile_definitions(traks_ui_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Traks" JucePlugin_Build_Standalone=0)
+  target_link_libraries(traks_ui_test PRIVATE TraksRom juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(traks_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()

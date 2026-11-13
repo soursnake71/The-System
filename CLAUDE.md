@@ -34,3 +34,12 @@
   4. Bug hunt at S23 sizes: patterns, songs, MIDI (note off, clock, program change), import/export, presets, fold, persistence.
 - Owner's feedback to keep in mind: no scrolling ever; it must look like the real hardware in the photos; make it easy
   to make music on a phone. Deliver APK (and VST3 / source when asked) as files in the chat.
+
+## Omega Traks (Drumtraks)
+- `traks/engine.js` + `traks/machine.js` (JS) and `plugins/traks/Traks.h` + `Machine.h` (C++) are line-for-line ports: change both, then
+  build `traks_test` and run `node traks/tools/compare.mjs <build>/traks_test <dir>` (audio, displays after every key, memory).
+- machine.js is the firmware: the panel's keys, the displays, patterns / songs, the sequencer. The app runs it in the worklet; the plugin on its audio thread.
+- The panel layout (plate units 2000 x 916 + 60-unit wooden cheeks) is the same numbers in `traks/faceplate.js` and `TraksEditor.cpp` (namespace lay).
+- ROM: `node traks/tools/make-rom.mjs` writes `traks/rom/traks.rom` (original synthesized sounds, 8-bit mu-law, 25 kHz). Presets: `node traks/tools/gen-presets.mjs`.
+- The logo on the panel reads "omegatraks" (the Omega's, like the 110's OMEGA) in the place and style of the hardware's.
+- CI: `.github/workflows/traks-release.yml` -> release `traks-latest` (omega-traks.apk, Omega-Traks-{Windows,Mac,Linux}.zip).

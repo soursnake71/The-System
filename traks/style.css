@@ -1,0 +1,97 @@
+/* Omega Traks: the machine's own look everywhere: a black textured panel, white outlined boxes, white lettering,
+   red LED displays and LEDs, dark keys with the light bar, wooden end cheeks. Nothing scrolls (see CLAUDE.md). */
+:root{--ink:#f0f0ee;--dim:#9a9a9a;--red:#ff2440;--redDim:#260709;--panel:#161616;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#0c0c0c;color:var(--ink);font-family:'Helvetica Neue',Arial,'Liberation Sans',sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body{background:radial-gradient(ellipse at 50% 35%,#242424 0%,#0a0a0a 75%)}
+#app{position:relative;height:100vh;height:100dvh;margin:0;padding:0}
+#rail,#stage,#machineView,#plateWrap,#presetBar,.panel{position:absolute;box-sizing:border-box}
+#stage{overflow:hidden}
+button{font:inherit;color:inherit}
+/* the page-button rail: black keys that light red */
+#rail{display:flex;flex-direction:column;gap:4px;padding:6px;background:linear-gradient(90deg,#1c1c1c,#0e0e0e);box-shadow:inset -1px 0 0 #000,3px 0 14px rgba(0,0,0,.6);z-index:4}
+body.port #rail{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:1fr;gap:4px;padding:4px 6px}
+#rail button{flex:1 1 0;min-height:0;font:800 10.5px/1.05 'Helvetica Neue',Arial,sans-serif;letter-spacing:.04em;color:#eee;background:linear-gradient(#383838,#1b1b1b);border:1px solid #000;border-radius:5px;
+  box-shadow:0 3px 0 #000,0 4px 7px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.14);cursor:pointer;padding:2px 3px;margin:0 0 3px;position:relative}
+#rail button.on{color:#fff;box-shadow:0 1px 0 #000,inset 0 0 0 2px var(--red),0 0 10px rgba(255,36,64,.4);transform:translateY(2px)}
+#rail #foldBtn{background:linear-gradient(#5a3a1e,#2e1b0b);color:#f3d6b0}
+body.basic #rail{background:none;box-shadow:none;padding:0}
+body.basic #rail [data-tab]{display:none}
+#plateWrap{filter:drop-shadow(0 10px 12px rgba(0,0,0,.8))}
+#plate{width:100%;height:100%;display:block;touch-action:none}
+#plate .pt{fill:var(--ink);font-family:'Arial Black','Helvetica Neue',Arial,sans-serif;font-weight:900;letter-spacing:.06em;pointer-events:none}
+#plate .logo{font-family:'Arial Rounded MT Bold','Helvetica Neue',Arial,sans-serif;font-style:italic;letter-spacing:-.02em;font-weight:900}
+#plate .seg{fill:var(--redDim)}
+#plate .seg.on{fill:var(--red);filter:drop-shadow(0 0 3px rgba(255,36,64,.8))}
+#plate .led .dot{fill:#3a1418}#plate .led .glow{fill:transparent}
+#plate .led.on .dot{fill:#ff2a3a}#plate .led.on .glow{fill:rgba(255,42,58,.35)}
+#plate .key{cursor:pointer}
+#plate .key .cap{transition:transform .03s}
+#plate .key.down .cap{transform:translateY(3px);filter:brightness(.8)}
+#plate .knob{cursor:ns-resize}
+/* the preset / dice module: a black rack unit with a red LED readout */
+#presetBar{display:flex;flex-direction:column;justify-content:center;gap:7px;padding:9px 8px;border:1px solid #000;border-radius:6px;background:linear-gradient(#1f1f1f,#0d0d0d);box-shadow:0 8px 16px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 2px #2a2a2a}
+body.port #presetBar{flex-direction:row;align-items:stretch;padding:5px 6px;gap:5px}
+.lcdBox{background:#1d0507;color:var(--red);border:3px solid #050505;border-radius:4px;padding:4px 6px;box-shadow:inset 0 2px 7px rgba(0,0,0,.6);font-family:ui-monospace,Consolas,monospace;display:flex;flex-direction:column;line-height:1.15;overflow:hidden;min-height:0;flex:1 1 auto;text-shadow:0 0 4px rgba(255,36,64,.6)}
+.lcdBox b{font-size:22px;letter-spacing:.06em}
+.lcdBox span{font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcdBox em{font-size:10px;font-style:normal;font-weight:900;color:#ff9a3a}
+body.port .lcdBox{flex-direction:row;align-items:center;gap:7px;padding:2px 6px}
+body.port .lcdBox b{font-size:17px}
+.mRow{display:flex;gap:6px}
+.mRow .key{flex:1}
+/* keys: the machine's dark keys with the light bar on the right */
+.key,.panel button{background:linear-gradient(135deg,#363636,#151515);color:#f0f0ee;border:2px solid #000;border-radius:4px;font:800 12px 'Helvetica Neue',Arial,sans-serif;letter-spacing:.05em;
+  box-shadow:0 3px 0 #000,0 5px 9px rgba(0,0,0,.5),inset -6px 0 0 -3px rgba(255,255,255,.55);padding:7px 14px 7px 10px;cursor:pointer;margin:0;position:relative}
+.key:active,.panel button:active{transform:translateY(2px);box-shadow:0 1px 0 #000,inset -6px 0 0 -3px rgba(255,255,255,.4)}
+.key.on,.panel button.on{box-shadow:0 1px 0 #000,inset 0 0 0 2px var(--red),inset -6px 0 0 -3px rgba(255,255,255,.55);transform:translateY(1px)}
+.key.dice{color:#ffb4bf}
+.key.small,.panel button.small{font-size:10.5px;padding:5px 10px 5px 7px}
+/* pages: the black panel with white outlined boxes */
+.panel{display:none !important;padding:0;margin:0;border-radius:6px;overflow:hidden;background:#161616 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='3' y='5' width='2' height='2' fill='rgba(255,255,255,.05)'/%3E%3Crect x='15' y='11' width='2' height='2' fill='rgba(0,0,0,.3)'/%3E%3C/svg%3E");
+  box-shadow:0 10px 22px rgba(0,0,0,.65),inset 0 0 0 1px #000;border-left:10px solid #9a5320;border-right:10px solid #9a5320}
+.panel.on{display:flex !important;flex-direction:column}
+.pageHead{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px 2px;min-height:36px}
+.pageHead b{font:900 14px 'Arial Black','Helvetica Neue',Arial,sans-serif;letter-spacing:.12em;color:var(--ink)}
+.pgBtns{display:flex;gap:5px}
+.panel .pgBtns .key{padding:3px 11px;font-size:13px;min-width:32px}
+.pageBody{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-wrap:wrap;align-content:flex-start;justify-content:center;gap:8px;padding:2px 10px 10px}
+.pageBody>*{flex:0 0 auto;margin:0 !important}
+.box{border:2.5px solid var(--ink);border-radius:12px;padding:6px 10px 8px}
+.box h3{margin:0 0 6px;font:900 12px 'Arial Black',Arial,sans-serif;letter-spacing:.1em;text-align:center}
+.box p{font-size:12px;margin:0 0 6px;color:#cfcfcf;line-height:1.35;max-width:440px}
+.box label{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+select,input[type=number]{font:inherit;font-size:13px;padding:4px 6px;border-radius:4px;border:1px solid #555;background:#0d0d0d;color:var(--ink)}
+.kRow{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-start;justify-content:center;max-width:470px}
+.knobRow{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:9px;font-weight:900;letter-spacing:.06em;text-align:center;min-width:52px}
+.knobRow .val{font-size:10px;color:var(--red);font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+.mk{width:44px;height:44px;touch-action:none;cursor:ns-resize;overflow:visible}
+.sel13{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:470px}
+.sel13 button{padding:6px 2px !important;font-size:9.5px !important}
+.eqc{width:440px;height:120px;display:block;border-radius:6px;border:2px solid #000;margin:0 auto 6px;background:#1d0507}
+.revProgs{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin:4px 0}
+.revLcd{font-family:ui-monospace,Consolas,monospace;color:var(--red);background:#1d0507;padding:3px 8px;border-radius:3px;font-size:14px;text-shadow:0 0 4px rgba(255,36,64,.6)}
+/* big pads (PADS page) */
+.padGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;width:460px}
+.padGrid button{height:58px;font-size:11px !important;display:flex;align-items:flex-end;justify-content:flex-start;padding:5px 7px !important}
+.padGrid button.hit{background:linear-gradient(135deg,#5a2028,#2a0d10)}
+.stepGrid{display:grid;gap:2px;width:460px}
+.stepGrid i{display:block;height:14px;background:#262626;border-radius:2px;cursor:pointer}
+.stepGrid i.beat{background:#323232}
+.stepGrid i.on{background:var(--red);box-shadow:0 0 4px rgba(255,36,64,.7)}
+.stepGrid i.acc{background:#ff9aa8}
+.stepGrid i.now{outline:1px solid #fff}
+.stepGrid b{font-size:8.5px;line-height:14px;white-space:nowrap;overflow:hidden}
+.strip{display:flex;flex-direction:column;align-items:center;gap:3px;border:2px solid var(--ink);border-radius:9px;padding:4px 3px 6px;width:66px}
+.strip h4{margin:0;font-size:9px;letter-spacing:.03em}
+.strip .meter{width:80%;height:6px;background:#000;border-radius:3px;overflow:hidden}
+.strip .meter i{display:block;height:100%;width:0;background:var(--red)}
+.strip button{padding:3px 6px !important;font-size:9px !important}
+.help{max-width:560px;font-size:12.5px;line-height:1.45}
+.help p{margin:0 0 7px}
+.pBtnGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;width:460px}
+.pBtnGrid button{font-size:11px !important;text-align:left}
+.pBtnGrid button i{font-style:normal;color:var(--red);margin-right:6px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000;color:#fff;border:1px solid var(--red);padding:9px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:9}
+#toast.on{opacity:.95}
+body.port .padGrid button{height:70px}

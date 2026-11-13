@@ -11,7 +11,7 @@ android {
   }
   buildFeatures { buildConfig true }
   // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator)
-  // and Omega DR-110 (the DR-110 circuit model)
+  // Omega DR-110 (the DR-110 circuit model) and Omega Traks (the Drumtraks circuit model)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -36,6 +36,14 @@ android {
       applicationId 'com.thesnakedevice.dr110'
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/dr110/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/dr110/"'
+      buildConfigField 'String', 'BRAND_QUERY', '""'
+    }
+    // Omega Traks: the Drumtraks circuit model
+    traks {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.traks'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/traks/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/traks/"'
       buildConfigField 'String', 'BRAND_QUERY', '""'
     }
     // JayQuan-110: the same machine for a friend, with his logo and name (installs next to Omega 110)
@@ -63,6 +71,7 @@ dependencies {
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
   dr110Implementation 'androidx.webkit:webkit:1.12.1'
   jayquanImplementation 'androidx.webkit:webkit:1.12.1'
+  traksImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -85,3 +94,12 @@ android.sourceSets.dr110.assets.srcDirs += [dr110Assets]
 android.sourceSets.jayquan.assets.srcDirs += [dr110Assets]
 android.sourceSets.jayquan.java.srcDirs += ['src/dr110/java']
 tasks.matching { it.name.startsWith('merge') && (it.name.contains('Dr110') || it.name.contains('Jayquan')) && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyDr110Web' }
+
+// Omega Traks carries its web app inside the APK too: ../traks (not its tools) into its assets
+def traksAssets = layout.buildDirectory.dir('traksAssets')
+tasks.register('copyTraksWeb', Copy) {
+  from('../../traks') { exclude 'tools/**', '*.md' }
+  into traksAssets.map { it.dir('traks') }
+}
+android.sourceSets.traks.assets.srcDirs += [traksAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Traks') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTraksWeb' }

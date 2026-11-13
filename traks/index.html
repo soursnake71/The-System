@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#111111">
+<title>Omega Traks</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- shared knob shading for the pages' knobs (kept outside the machine, which hides on some pages) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <radialGradient id="gMk" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#3c3c3c"/><stop offset="1" stop-color="#050505"/></radialGradient>
+</defs></svg>
+<main id="app">
+  <!-- No page ever scrolls (see CLAUDE.md). The rail holds the page buttons; the stage shows the machine or one page.
+       A page that doesn't fit is split into numbered pages (buttons and swipe). Layout: app.js layout(). -->
+  <nav id="rail">
+    <button id="foldBtn" aria-pressed="false">FOLD</button>
+    <button data-tab="machine" class="on">MACHINE</button>
+    <button data-tab="pads">PADS</button>
+    <button data-tab="sound">SOUND</button>
+    <button data-tab="padeq">PAD EQ</button>
+    <button data-tab="mixer">MIXER</button>
+    <button data-tab="fx">FX</button>
+    <button data-tab="master">MASTER</button>
+    <button data-tab="presets">PRESETS</button>
+    <button data-tab="file">FILES</button>
+    <button data-tab="midi">MIDI</button>
+    <button data-tab="help">HOW TO</button>
+  </nav>
+  <div id="stage">
+    <div id="machineView">
+      <div id="plateWrap"><svg id="plate" viewBox="0 0 2120 916" aria-label="Omega Traks front panel"></svg></div>
+      <div id="presetBar" class="module"></div>
+    </div>
+    <section id="pads" class="panel"></section>
+    <section id="sound" class="panel"></section>
+    <section id="padeq" class="panel"></section>
+    <section id="mixer" class="panel"></section>
+    <section id="fx" class="panel"></section>
+    <section id="master" class="panel"></section>
+    <section id="presets" class="panel"></section>
+    <section id="file" class="panel"></section>
+    <section id="midi" class="panel"></section>
+    <section id="help" class="panel"></section>
+  </div>
+</main>
+<div id="toast"></div>
+<input type="file" id="filePick" hidden>
+<script src="engine.js"></script>
+<script src="machine.js"></script>
+<script src="presets.js"></script>
+<script src="faceplate.js"></script>
+<script src="app.js"></script>
+<script src="io.js"></script>
+</body>
+</html>
