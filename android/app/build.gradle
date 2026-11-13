@@ -98,7 +98,7 @@ tasks.matching { it.name.startsWith('merge') && (it.name.contains('Dr110') || it
 // Omega Traks carries its web app inside the APK too: ../traks (not its tools) into its assets
 def traksAssets = layout.buildDirectory.dir('traksAssets')
 tasks.register('copyTraksWeb', Copy) {
-  from('../../traks') { exclude 'tools/**', '*.md' }
+  from('../../traks') { exclude 'tools/**', 'samples/**', '*.md' }
   into traksAssets.map { it.dir('traks') }
 }
 android.sourceSets.traks.assets.srcDirs += [traksAssets]
