@@ -501,17 +501,26 @@ function layout(){
     place(rail, 0, 0, rw, H);
     const x0 = rw + 4, w = W - x0;
     if (!pageId){
+      // the machine as big as it goes: full width, the preset module as a strip under it (or beside it on tall screens)
       machineView.style.display = ''; place(machineView, x0, 0, w, H);
-      const mw = Math.max(92, Math.min(140, w * 0.15));
-      $('presetBar').style.display = '';
-      const {pw, ph} = fitPlate(0, 0, w - mw - 6, H);
-      const px = parseFloat(plateWrap.style.left);
-      place($('presetBar'), Math.min(px + pw + 6, w - mw), (H - ph) / 2, mw, ph);
+      const pb = $('presetBar'); pb.style.display = '';
+      const sh = 44, under = w / PLATE_AR + sh + 6 <= H || (H - sh - 6) * PLATE_AR > (w - 150) ;
+      pb.classList.toggle('strip', under);
+      if (under){
+        const {pw, ph} = fitPlate(0, 0, w, H - sh - 6, 'top');
+        const py = Math.max(0, (H - ph - sh - 6) / 2); plateWrap.style.top = py + 'px';
+        place(pb, parseFloat(plateWrap.style.left), py + ph + 6, pw, sh);
+      } else {
+        const mw = Math.max(92, Math.min(140, w * 0.15));
+        const {pw, ph} = fitPlate(0, 0, w - mw - 6, H);
+        const px = parseFloat(plateWrap.style.left);
+        place(pb, Math.min(px + pw + 6, w - mw), (H - ph) / 2, mw, ph);
+      }
     } else { machineView.style.display = 'none'; paginate($(pageId), x0, 0, w, H); }
   } else {
     machineView.style.display = ''; place(machineView, 0, 0, W, W / PLATE_AR + 52);
     const {ph} = fitPlate(0, 0, W, W / PLATE_AR, 'top');
-    const pb = $('presetBar'); pb.style.display = ''; place(pb, 0, ph + 4, W, 46);
+    const pb = $('presetBar'); pb.style.display = ''; pb.classList.add('strip'); place(pb, 0, ph + 4, W, 46);
     const ry = ph + 54, rh = Math.min(84, Math.max(62, H * 0.1));
     place(rail, 0, ry, W, rh);
     paginate($(pageId), 0, ry + rh + 4, W, H - ry - rh - 4);

@@ -31,13 +31,13 @@ body.basic #rail [data-tab]{display:none}
 #plate .knob{cursor:ns-resize}
 /* the preset / dice module: a black rack unit with a red LED readout */
 #presetBar{display:flex;flex-direction:column;justify-content:center;gap:7px;padding:9px 8px;border:1px solid #000;border-radius:6px;background:linear-gradient(#1f1f1f,#0d0d0d);box-shadow:0 8px 16px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 2px #2a2a2a}
-body.port #presetBar{flex-direction:row;align-items:stretch;padding:5px 6px;gap:5px}
+#presetBar.strip,body.port #presetBar{flex-direction:row;align-items:stretch;padding:5px 6px;gap:5px}
 .lcdBox{background:#1d0507;color:var(--red);border:3px solid #050505;border-radius:4px;padding:4px 6px;box-shadow:inset 0 2px 7px rgba(0,0,0,.6);font-family:ui-monospace,Consolas,monospace;display:flex;flex-direction:column;line-height:1.15;overflow:hidden;min-height:0;flex:1 1 auto;text-shadow:0 0 4px rgba(255,36,64,.6)}
 .lcdBox b{font-size:22px;letter-spacing:.06em}
 .lcdBox span{font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lcdBox em{font-size:10px;font-style:normal;font-weight:900;color:#ff9a3a}
-body.port .lcdBox{flex-direction:row;align-items:center;gap:7px;padding:2px 6px}
-body.port .lcdBox b{font-size:17px}
+#presetBar.strip .lcdBox,body.port .lcdBox{flex-direction:row;align-items:center;gap:7px;padding:2px 6px}
+#presetBar.strip .lcdBox b,body.port .lcdBox b{font-size:17px}
 .mRow{display:flex;gap:6px}
 .mRow .key{flex:1}
 /* keys: the machine's dark keys with the light bar on the right */

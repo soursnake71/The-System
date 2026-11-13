@@ -132,7 +132,7 @@ function build(svg, brand){
   el('path', {d:`M1293 206V${PAT_Y[3]}M1293 ${PAT_Y[2]}H1330M1293 ${PAT_Y[3]}H1330`, stroke:'#f0f0ee', 'stroke-width':2.5, fill:'none'}, p);
   T(p, 'METRONOME', 1741, 232, 15); T(p, 'VOLUME', 1741, 258, 15); T(p, 'MASTER', 1741, 418, 15); T(p, 'VOLUME', 1741, 444, 15);
   // the logo: the Omega's, where the hardware has its own, in the same style
-  T(p, (brand && brand.logo) || 'omegatraks', 1810, 530, 58, 'end', {class:'logo'});
+  T(p, (brand && brand.logo) || 'omegatraks', 1810, 530, 58, 'end', {class:'pt logo'});
   for (let i = 0; i < 3; i++){ const r = 8 + i * 7, ry = 12 + i * 7; el('path', {d:`M${1822 + r * Math.cos(-1.07)} ${514 + ry * Math.sin(-1.07)} A${r} ${ry} 0 0 1 ${1822 + r * Math.cos(1.03)} ${514 + ry * Math.sin(1.03)}`, stroke:'#f0f0ee', 'stroke-width':2.2, fill:'none'}, p); }
   T(p, 'VOLUME', 217, 678, 15); T(p, 'TUNING', 400, 678, 15);
   el('path', {d:'M240 682V694H260M358 694H378V682', stroke:'#f0f0ee', 'stroke-width':2, fill:'none'}, p);
