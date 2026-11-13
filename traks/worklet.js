@@ -28,6 +28,7 @@ class TraksProcessor extends AudioWorkletProcessor {
         case 'state': m.pat = m.ppat = x.pat; m.song = x.song; m.quant = x.quant; break;
         case 'edit': m.edit(x.p, x.t, x.v, x.on, x.acc); break;
         case 'knob': m.knobMoved(); break;
+        case 'recmode': m.group = 0; m.patFn = x.on ? 1 : 0; m.entry = ''; m.recording = m.running && m.recActive(); m.changed(); break;
         case 'sel': m.sel = x.v; break;
         case 'ext': m.ext = x.on; break;
         case 'clock': m.clockTick(); break;

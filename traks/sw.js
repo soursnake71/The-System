@@ -1,5 +1,5 @@
 // Omega Traks: works offline once opened (cache first, then the network refreshes the cache).
-const CACHE = 'omega-traks-v5';
+const CACHE = 'omega-traks-v6';
 const FILES = ['./', 'index.html', 'style.css', 'engine.js', 'machine.js', 'presets.js', 'faceplate.js', 'app.js', 'io.js', 'worklet.js', 'manifest.webmanifest', 'icon.svg', 'rom/traks.rom'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

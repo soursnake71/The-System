@@ -63,7 +63,7 @@ function onAudio(m){
   switch (m.type){
     case 'disp': S.disp = m; if (m.d.sel !== S.sel){ S.sel = m.d.sel; selectPad(S.sel); }
       if (m.pat !== S.pat || m.song !== S.song || m.quant !== S.quant){ S.pat = m.pat; S.song = m.song; S.quant = m.quant; save(); }
-      draw(); showMeters(m.meter); drawGrid(); break;
+      draw(); showMeters(m.meter); drawGrid(); if (view === 'pads' || view === 'machine') for (const f of padRefresh) f(); break;
     case 'mem': S.mem = m.mem; save(); drawGrid(true); break;
   }
   for (const f of listeners) f(m);
@@ -135,7 +135,7 @@ UI.knobs.forEach((k, i) => dragKnob(k.g, () => knobNorm(i), n => {
 setInterval(() => { if (flash || casUntil) draw(); }, 250);
 
 /* ---------------- page widgets ---------------- */
-const refreshers = [];
+const refreshers = [], padRefresh = [];
 function refresh(){ for (const f of refreshers) f(); drawCurves(); draw(); }
 function miniKnob(parent, label, get, set, fmt, dflt){
   const w = el('div', 'knobRow', parent);
@@ -206,10 +206,17 @@ function selectPad(v){ S.pad = v; refresh(); }
 /* ---------------- PADS: big pads and the step grid ---------------- */
 {
   const pg = $('pads');
-  const bx = el('div', 'box', pg, '<h3>PADS</h3>'), grid = el('div', 'padGrid', bx);
-  const order = [0, 1, 2, 9, 3, 4, 7, 8, 5, 6, 10, 11, 12];
+  const bx = el('div', 'box padsBox', pg, '<h3>PADS</h3>');
+  // the transport on its own row at the top, like the hardware's RUN/STOP and ACCENT box, then the 13 pads by channel
+  const tr = el('div', 'transport', bx);
+  const ctl = (label, f) => { const b = el('button', '', tr, label); b.addEventListener('pointerdown', async e => { e.preventDefault(); if (!S.power) await startAudio(); f(true, b); });
+    const up = () => f(false, b); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); return b; };
+  const runB = ctl('RUN / STOP', d => d && post({type:'key', id:K.RUN, down:true}));
+  const recB = ctl('RECORD', d => { if (d) post({type:'recmode', on:!S.disp.rec && !(S.disp.group === 0 && S.disp.patFn >= 1 && S.disp.patFn <= 3)}); });
+  ctl('ACCENT', (d, b) => { post({type:'key', id:K.ACCENT, down:d}); b.classList.toggle('on', d); });
+  padRefresh.push(() => { const recFn = S.disp.group === 0 && S.disp.patFn >= 1 && S.disp.patFn <= 3; recB.classList.toggle('on', recFn); runB.classList.toggle('on', !!S.disp.running); });
   const padEls = [];
-  for (const v of order){
+  for (const row of [[0, 1, 2, 9], [3, 4, 7, 8], [5, 6, 10, 11, 12]]){ const grid = el('div', 'padRow', bx); for (const v of row){
     const b = el('button', '', grid, KEY_NAMES[v]); padEls[v] = b;
     b.addEventListener('pointerdown', async e => { e.preventDefault(); if (!S.power) await startAudio();
       const r = b.getBoundingClientRect(), vel = Math.max(0.35, Math.min(1, 1.15 - (e.clientY - r.top) / r.height * 0.8));
@@ -217,15 +224,9 @@ function selectPad(v){ S.pad = v; refresh(); }
       b.classList.add('hit'); });
     const up = () => { if (b.classList.contains('hit')){ b.classList.remove('hit'); post({type:'off', v}); } };
     b.addEventListener('pointerup', up); b.addEventListener('pointerleave', up); b.addEventListener('pointercancel', up);
-  }
-  const ctl = (label, f) => { const b = el('button', '', grid, label); b.addEventListener('pointerdown', async e => { e.preventDefault(); if (!S.power) await startAudio(); f(true, b); });
-    b.addEventListener('pointerup', () => f(false, b)); return b; };
-  ctl('RUN / STOP', d => d && post({type:'key', id:K.RUN, down:true}));
-  ctl('ACCENT', (d, b) => { post({type:'key', id:K.ACCENT, down:d}); b.classList.toggle('on', d); });
-  const recB = ctl('RECORD', d => { if (!d) return; post({type:'key', id:K.PATFN, down:true}); if (S.disp.patFn !== 0 || S.disp.group !== 0) return; });
-  refreshers.push(() => recB.classList.toggle('on', !!S.disp.rec));
+  } }
   // step grid: the pattern on screen, one measure at a time, in steps of ERROR CORRECT (1/16 if off)
-  const sb = el('div', 'box', pg, '<h3>STEP GRID</h3>');
+  const sb = el('div', 'box padsBox', pg, '<h3>STEP GRID</h3>');
   const head = el('div', 'kRow', sb);
   const info = el('span', 'revLcd', head);
   let meas = 0;
@@ -461,6 +462,13 @@ function showPage(panel){
   drawCurves(); drawGrid(true);
 }
 function paginate(panel, x, y, w, h, again){
+  if (panel.id === 'pads'){
+    // the pads fill the page: the box takes the page's width (up to 560) and the rows share its height
+    const bw = Math.min(560, w - 34), avail = h - 36 - 14 - 26 - 50 - 3 * 8 - 16;
+    panel.style.setProperty('--padW', bw + 'px');
+    panel.style.setProperty('--padH', Math.max(54, Math.min(130, Math.floor(avail / 3))) + 'px');
+    panel.style.setProperty('--stepH', Math.max(14, Math.min(34, Math.floor((h - 36 - 14 - 26 - (w < 420 ? 84 : 44) - 30) / 13) - 2)) + 'px');
+  }
   const blocks = blocksOf(panel), body = panel.__body;
   Object.assign(panel.style, {left:x + 'px', top:y + 'px', width:w + 'px', height:h + 'px'});
   blocks.forEach(b => { b.style.display = 'none'; b.style.zoom = ''; });

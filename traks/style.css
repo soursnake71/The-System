@@ -72,16 +72,19 @@ select,input[type=number]{font:inherit;font-size:13px;padding:4px 6px;border-rad
 .revProgs{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin:4px 0}
 .revLcd{font-family:ui-monospace,Consolas,monospace;color:var(--red);background:#1d0507;padding:3px 8px;border-radius:3px;font-size:14px;text-shadow:0 0 4px rgba(255,36,64,.6)}
 /* big pads (PADS page) */
-.padGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;width:460px}
-.padGrid button{height:58px;font-size:11px !important;display:flex;align-items:flex-end;justify-content:flex-start;padding:5px 7px !important}
-.padGrid button.hit{background:linear-gradient(135deg,#5a2028,#2a0d10)}
-.stepGrid{display:grid;gap:2px;width:460px}
-.stepGrid i{display:block;height:14px;background:#262626;border-radius:2px;cursor:pointer}
+.padsBox{width:var(--padW,460px)}
+.transport{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px}
+.transport button{height:46px;font-size:13px !important;letter-spacing:.08em}
+.padRow{display:flex;gap:7px;margin-top:8px}
+.padRow button{flex:1 1 0;min-width:0;height:var(--padH,58px);font-size:11px !important;display:flex;align-items:flex-end;justify-content:flex-start;padding:5px 7px !important}
+.padRow button.hit{background:linear-gradient(135deg,#5a2028,#2a0d10)}
+.stepGrid{display:grid;gap:2px;width:100%}
+.stepGrid i{display:block;height:var(--stepH,14px);background:#262626;border-radius:2px;cursor:pointer}
 .stepGrid i.beat{background:#323232}
 .stepGrid i.on{background:var(--red);box-shadow:0 0 4px rgba(255,36,64,.7)}
 .stepGrid i.acc{background:#ff9aa8}
 .stepGrid i.now{outline:1px solid #fff}
-.stepGrid b{font-size:8.5px;line-height:14px;white-space:nowrap;overflow:hidden}
+.stepGrid b{font-size:8.5px;line-height:var(--stepH,14px);white-space:nowrap;overflow:hidden}
 .strip{display:flex;flex-direction:column;align-items:center;gap:3px;border:2px solid var(--ink);border-radius:9px;padding:4px 3px 6px;width:66px}
 .strip h4{margin:0;font-size:9px;letter-spacing:.03em}
 .strip .meter{width:80%;height:6px;background:#000;border-radius:3px;overflow:hidden}
@@ -94,4 +97,4 @@ select,input[type=number]{font:inherit;font-size:13px;padding:4px 6px;border-rad
 .pBtnGrid button i{font-style:normal;color:var(--red);margin-right:6px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000;color:#fff;border:1px solid var(--red);padding:9px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:9}
 #toast.on{opacity:.95}
-body.port .padGrid button{height:70px}
+.padRow:last-child button{font-size:9.5px !important;letter-spacing:0}
