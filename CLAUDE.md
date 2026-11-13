@@ -14,6 +14,10 @@
 - Omega 110 (`dr110/`): `layout()` / `paginate()` in `dr110/omega.js` place the rail, the machine and the page; a page's
   direct children (or children of `.flat` containers) are the blocks that get paged; `.headBlock` goes in the title bar.
 
+## Standing rule: drum machine sounds
+- **Never use synthesized sounds for a drum machine.** Its sounds are real recordings (the owner's samples). A sound with no
+  recording stays empty / silent until the owner provides one; never fill it with a synthesized stand-in.
+
 ## Omega 110
 - `dr110/engine.js` (JS) and `plugins/dr110/DR110.h` (C++) are line-for-line ports: change both, then run
   `node dr110/tools/compare.mjs <build>/dr110_test <dir>`.
@@ -40,6 +44,6 @@
   build `traks_test` and run `node traks/tools/compare.mjs <build>/traks_test <dir>` (audio, displays after every key, memory).
 - machine.js is the firmware: the panel's keys, the displays, patterns / songs, the sequencer. The app runs it in the worklet; the plugin on its audio thread.
 - The panel layout (plate units 2000 x 916 + 60-unit wooden cheeks) is the same numbers in `traks/faceplate.js` and `TraksEditor.cpp` (namespace lay).
-- ROM: `node traks/tools/make-rom.mjs` writes `traks/rom/traks.rom` (the owner's Drumtraks recordings in `traks/samples/*.wav` at their own 15625 Hz rate; the ride, which has no recording, synthesized at 25 kHz; 8-bit mu-law). Presets: `node traks/tools/gen-presets.mjs`.
+- ROM: `node traks/tools/make-rom.mjs` writes `traks/rom/traks.rom` (the owner's 13 Drumtraks recordings in `traks/samples/*.wav`, stored at their own rate (44.1 kHz), 8-bit mu-law; a sound without a recording would be EMPTY). Presets: `node traks/tools/gen-presets.mjs`.
 - The logo on the panel reads "omegatraks" (the Omega's, like the 110's OMEGA) in the place and style of the hardware's.
 - CI: `.github/workflows/traks-release.yml` -> release `traks-latest` (omega-traks.apk, Omega-Traks-{Windows,Mac,Linux}.zip).

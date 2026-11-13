@@ -278,10 +278,10 @@ function drawGrid(force){ if (window.drawGridImpl) window.drawGridImpl(force); }
   const t = el('div', 'kRow', b2);
   toggleBtn(t, 'REVERSE', f(6)); toggleBtn(t, 'MUTE', f(4));
   const rn = el('p', '', b2);
-  refreshers.push(() => { const r = S.roms[S.sel]; rn.innerHTML = `ROM: <b>${r ? r.name : 'factory'}</b>. Load your own sound onto this key: it's burned into the ROM (25 kHz, 8-bit companded) and plays through the machine like the original.`; });
+  refreshers.push(() => { const r = S.roms[S.sel]; rn.innerHTML = `ROM: <b>${r ? r.name : factory && factory[S.sel] && factory[S.sel].codes.length <= 2 ? 'EMPTY (no recording yet)' : 'Drumtraks'}</b>. Load your own sound onto this key: it's burned into the ROM (25 kHz, 8-bit companded) and plays through the machine like the original.`; });
   const t2 = el('div', 'kRow', b2);
   el('button', 'small', t2, 'LOAD SOUND').onclick = () => window.TRAKSIO && TRAKSIO.loadSound(S.sel);
-  el('button', 'small', t2, 'FACTORY SOUND').onclick = () => { delete S.roms[S.sel]; sendRoms(); save(); refresh(); toast('Factory ROM back on ' + KEY_NAMES[S.sel]); };
+  el('button', 'small', t2, 'BUILT-IN SOUND').onclick = () => { delete S.roms[S.sel]; sendRoms(); save(); refresh(); toast('Built-in ROM back on ' + KEY_NAMES[S.sel]); };
   const b3 = el('div', 'box', pg, '<h3>ACCENT · METRONOME</h3>');
   const k3 = el('div', 'kRow', b3);
   pknob(k3, 'ACCENT', P.accent, 'lin', v => '+' + v.toFixed(1) + 'dB'); pknob(k3, 'METRONOME', P.metro, 'lin', v => v.toFixed(1)); pknob(k3, 'TEMPO', P.tempo, 'int', v => v + ' BPM');

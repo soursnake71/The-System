@@ -6,7 +6,7 @@
    The machine's sound path, as modelled:
    - 13 sounds in ROM (traks/rom/traks.rom), each stored as 8-bit companded codes (mu-law segment coding: sign,
      3-bit chord, 4-bit step: about 12 bits of range from 8 bits of memory) at their own sample clock (the Drumtraks
-     recordings in traks/samples at 15625 Hz; the synthesized ride and sounds you load at 25 kHz).
+     recordings in traks/samples, 44.1 kHz; sounds you load, 25 kHz).
    - TUNING changes the sound's sample clock: higher is shorter and brighter, lower is longer and darker, and the
      playback is drop-sample (the DAC holds each code until the next clock), so retuned sounds alias the way the
      hardware does. VOLUME scales the DAC's reference (a multiplying DAC), so level comes before the analog stages.

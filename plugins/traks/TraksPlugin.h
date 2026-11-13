@@ -55,6 +55,8 @@ public:
     bool loadSound(int v, const juce::File&);
     void resetSound(int v);
     juce::String romName(int v) const { return romNames[(size_t) v]; }
+    // the built-in ROM: the Drumtraks recordings; a sound with no recording is empty (never synthesized)
+    juce::String factoryName(int v) const { return factoryRom[(size_t) v].codes.size() <= 2 ? "EMPTY (no recording yet)" : "Drumtraks"; }
     void setMetroAlways(bool b) { metroAlways = b; }
     bool getMetroAlways() const { return metroAlways; }
 

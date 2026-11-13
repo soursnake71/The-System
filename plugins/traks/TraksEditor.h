@@ -65,7 +65,7 @@ private:
     Faceplate plate;
     std::vector<Knob> knobs; std::vector<Tog> togs; std::vector<Box> boxes;
     static constexpr int NT = 5;
-    juce::TextButton tabs[NT], padBtn[NV], prevBtn{"<"}, nextBtn{">"}, diceBtn{"DICE"}, foldBtn{"FOLD"}, loadBtn{"LOAD SOUND..."}, factBtn{"FACTORY SOUND"}, metroBtn{"METRONOME ALWAYS"};
+    juce::TextButton tabs[NT], padBtn[NV], prevBtn{"<"}, nextBtn{">"}, diceBtn{"DICE"}, foldBtn{"FOLD"}, loadBtn{"LOAD SOUND..."}, factBtn{"BUILT-IN SOUND"}, metroBtn{"METRONOME ALWAYS"};
     juce::ComboBox presetBox, partBox;
     std::unique_ptr<juce::FileChooser> chooser;
     int tab = 0, pad = 0, lastSel = -1;

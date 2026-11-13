@@ -42,7 +42,7 @@ TraksProcessor::TraksProcessor()
     factoryRom = parseRom((const uint8_t*) BinaryData::traks_rom, (size_t) BinaryData::traks_romSize);
     factoryRom.resize(NV);
     rom = factoryRom;
-    for (auto& n : romNames) n = "factory";
+    for (int v = 0; v < NV; ++v) romNames[(size_t) v] = factoryName(v);
     for (auto& m : meters) m = 0;
     engine = std::make_unique<Engine>(48000.0);
     machine = std::make_unique<Machine>(*engine, 48000.0);
@@ -257,7 +257,7 @@ juce::String TraksProcessor::backupJson() {
     juce::Array<juce::var> ps; for (int i = 0; i < NP; ++i) ps.add(value(i));
     o->setProperty("params", ps);
     auto* roms = new juce::DynamicObject();
-    for (int v = 0; v < NV; ++v) if (romNames[(size_t) v] != "factory") {
+    for (int v = 0; v < NV; ++v) if (romNames[(size_t) v] != factoryName(v)) {
         auto* r = new juce::DynamicObject(); r->setProperty("rate", rom[(size_t) v].rate); r->setProperty("name", romNames[(size_t) v]);
         r->setProperty("codes", juce::Base64::toBase64(rom[(size_t) v].codes.data(), rom[(size_t) v].codes.size()));
         roms->setProperty(juce::String(v), juce::var(r));
@@ -274,7 +274,7 @@ bool TraksProcessor::restoreJson(const juce::String& s) {
         if (j.hasProperty("pat")) { machine->pat = machine->ppat = juce::jlimit(0, 99, (int) j["pat"]); }
         if (j.hasProperty("song")) machine->song = juce::jlimit(0, 99, (int) j["song"]);
         if (j.hasProperty("quant")) machine->quant = (int) j["quant"];
-        rom = factoryRom; for (auto& n : romNames) n = "factory";
+        rom = factoryRom; for (int v = 0; v < NV; ++v) romNames[(size_t) v] = factoryName(v);
         if (auto* ro = j["roms"].getDynamicObject()) for (const auto& pr : ro->getProperties()) {
             const int v = pr.name.toString().getIntValue(); if (v < 0 || v >= NV) continue;
             juce::MemoryOutputStream mo; if (!juce::Base64::convertFromBase64(mo, pr.value["codes"].toString())) continue;
@@ -304,7 +304,7 @@ bool TraksProcessor::loadSound(int v, const juce::File& f) {
     { const juce::ScopedLock sl(memLock); rom[(size_t) v] = ro; romNames[(size_t) v] = f.getFileNameWithoutExtension(); romDirty = true; }
     return true;
 }
-void TraksProcessor::resetSound(int v) { const juce::ScopedLock sl(memLock); rom[(size_t) v] = factoryRom[(size_t) v]; romNames[(size_t) v] = "factory"; romDirty = true; }
+void TraksProcessor::resetSound(int v) { const juce::ScopedLock sl(memLock); rom[(size_t) v] = factoryRom[(size_t) v]; romNames[(size_t) v] = factoryName(v); romDirty = true; }
 
 void TraksProcessor::getStateInformation(juce::MemoryBlock& mb) {
     auto st = apvts.copyState();
