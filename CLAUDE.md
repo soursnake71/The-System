@@ -44,6 +44,6 @@
   build `traks_test` and run `node traks/tools/compare.mjs <build>/traks_test <dir>` (audio, displays after every key, memory).
 - machine.js is the firmware: the panel's keys, the displays, patterns / songs, the sequencer. The app runs it in the worklet; the plugin on its audio thread.
 - The panel layout (plate units 2000 x 916 + 60-unit wooden cheeks) is the same numbers in `traks/faceplate.js` and `TraksEditor.cpp` (namespace lay).
-- ROM: `node traks/tools/make-rom.mjs` writes `traks/rom/traks.rom` (the owner's 13 Drumtraks recordings in `traks/samples/*.wav`, stored at their own rate (44.1 kHz), 8-bit mu-law; a sound without a recording would be EMPTY). Presets: `node traks/tools/gen-presets.mjs`.
+- ROM: `node traks/tools/make-rom.mjs` writes `traks/rom/traks.rom` (the owner's 13 Drumtraks recordings in `traks/samples/*.wav`, stored at their own rate (15625 Hz; the owner wants these 16k sounds; the ride was resampled from its 44.1 kHz file with a windowed sinc, peak-matched), 8-bit mu-law; a sound without a recording would be EMPTY). Presets: `node traks/tools/gen-presets.mjs`.
 - The logo on the panel reads "omegatraks" (the Omega's, like the 110's OMEGA) in the place and style of the hardware's.
 - CI: `.github/workflows/traks-release.yml` -> release `traks-latest` (omega-traks.apk, Omega-Traks-{Windows,Mac,Linux}.zip).

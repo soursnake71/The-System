@@ -1,7 +1,7 @@
 // Burns the Omega Traks sound ROM (traks/rom/traks.rom): the 13 voices of the machine, each stored the way the
 // Drumtraks stores its sounds: 8-bit companded codes (mu-law segment coding, the scheme of the companding DACs of the
 // period), read out by a sample clock that the TUNING control varies.
-// The sounds are the owner's Drumtraks recordings in traks/samples/<name>.wav (16-bit mono, 44.1 kHz), stored at their
+// The sounds are the owner's Drumtraks recordings in traks/samples/<name>.wav (16-bit mono, 15625 Hz; the ride resampled from its 44.1 kHz recording to match), stored at their
 // own rate. Never synthesized: a sound with no recording is left EMPTY (silent) until one is added.
 // Your own sounds (or EPROM dumps) can be loaded onto any voice in the app and the plugin.
 // usage: node traks/tools/make-rom.mjs            (writes traks/rom/traks.rom)
