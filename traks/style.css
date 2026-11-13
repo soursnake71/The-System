@@ -74,8 +74,9 @@ select,input[type=number]{font:inherit;font-size:13px;padding:4px 6px;border-rad
 /* big pads (PADS page) */
 .padsBox{width:var(--padW,460px)}
 .transport{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px}
-.transport button{height:46px;font-size:13px !important;letter-spacing:.08em}
-.padRow{display:flex;gap:7px;margin-top:8px}
+.transport button{height:42px;font-size:13px !important;letter-spacing:.08em}
+.padRow{display:flex;gap:7px;margin-top:7px}
+.pads1{padding:6px 7px 7px}
 .padRow button{flex:1 1 0;min-width:0;height:var(--padH,58px);font-size:11px !important;display:flex;align-items:flex-end;justify-content:flex-start;padding:5px 7px !important}
 .padRow button.hit{background:linear-gradient(135deg,#5a2028,#2a0d10)}
 .stepGrid{display:grid;gap:2px;width:100%}

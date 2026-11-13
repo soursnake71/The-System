@@ -206,7 +206,7 @@ function selectPad(v){ S.pad = v; refresh(); }
 /* ---------------- PADS: big pads and the step grid ---------------- */
 {
   const pg = $('pads');
-  const bx = el('div', 'box padsBox', pg, '<h3>PADS</h3>');
+  const bx = el('div', 'box padsBox pads1', pg);
   // the transport on its own row at the top, like the hardware's RUN/STOP and ACCENT box, then the 13 pads by channel
   const tr = el('div', 'transport', bx);
   const ctl = (label, f) => { const b = el('button', '', tr, label); b.addEventListener('pointerdown', async e => { e.preventDefault(); if (!S.power) await startAudio(); f(true, b); });
@@ -464,9 +464,9 @@ function showPage(panel){
 function paginate(panel, x, y, w, h, again){
   if (panel.id === 'pads'){
     // the pads fill the page: the box takes the page's width (up to 560) and the rows share its height
-    const bw = Math.min(560, w - 34), avail = h - 36 - 14 - 26 - 50 - 3 * 8 - 16;
+    const bw = Math.min(760, w - 26), avail = h - 36 - 12 - 46 - 3 * 7 - 12;
     panel.style.setProperty('--padW', bw + 'px');
-    panel.style.setProperty('--padH', Math.max(54, Math.min(130, Math.floor(avail / 3))) + 'px');
+    panel.style.setProperty('--padH', Math.max(60, Math.min(150, Math.floor(avail / 3))) + 'px');
     panel.style.setProperty('--stepH', Math.max(14, Math.min(34, Math.floor((h - 36 - 14 - 26 - (w < 420 ? 84 : 44) - 30) / 13) - 2)) + 'px');
   }
   const blocks = blocksOf(panel), body = panel.__body;

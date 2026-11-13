@@ -99,7 +99,8 @@ function keyCap(p, [id, cx, cy, s, style, cap]){
     el('rect', {x, y, width:s, height:s, rx:3, fill:'url(#gKey)', stroke:'#4a4a4a', 'stroke-width':1.5}, c);
     if (style === 2) el('rect', {x:x + s * 0.76, y:y + s * 0.1, width:s * 0.1, height:s * 0.8, rx:2, fill:'url(#gBar)'}, c);
   }
-  el('rect', {x:x - 8, y:y - 8, width:s + 16, height:s + 16, fill:'transparent', class:'hit'}, g);
+  if (style === 2) el('rect', {x:cx - 47, y:y - 30, width:94, height:s + 100, fill:'transparent', class:'hit'}, g);
+  else el('rect', {x:x - 12, y:y - 12, width:s + 24, height:s + 24, fill:'transparent', class:'hit'}, g);
   return g;
 }
 
@@ -119,31 +120,31 @@ function build(svg, brand){
   el('rect', {x:0, y:0, width:2000, height:60, fill:'url(#gSheen)'}, p);
   for (const [x, y, w, h] of BOXES) el('rect', {x, y, width:w, height:h, rx:16, fill:'none', stroke:'#f0f0ee', 'stroke-width':3.2}, p);
   const ui = {keys:{}, knobs:[], leds:{song:[], pat:[]}};
-  T(p, 'CASSETTE', 307, 113, 17); ui.leds.save = led(p, 256, 144); ui.leds.load = led(p, 358, 144);
-  T(p, 'SAVE', 254, 243, 16); T(p, 'LOAD', 358, 243, 16);
-  T(p, 'TEMPO', 307, 323, 17); T(p, 'SLOWER', 256, 446, 15); T(p, 'FASTER', 358, 446, 15);
-  T(p, 'SELECT  SONG  FUNCTIONS', 561, 153, 17, 'start');
-  SONG_NAMES.forEach((n, i) => { const sub = i >= 4; ui.leds.song.push(led(p, sub ? 612 : 572, SONG_Y[i], 4.5)); T(p, n, sub ? 628 : 588, SONG_Y[i] + 6, 16, 'start'); });
+  T(p, 'CASSETTE', 307, 113, 21); ui.leds.save = led(p, 256, 144); ui.leds.load = led(p, 358, 144);
+  T(p, 'SAVE', 254, 243, 19); T(p, 'LOAD', 358, 243, 19);
+  T(p, 'TEMPO', 307, 323, 21); T(p, 'SLOWER', 256, 446, 18); T(p, 'FASTER', 358, 446, 18);
+  T(p, 'SELECT SONG FUNCTIONS', 561, 154, 19, 'start');
+  SONG_NAMES.forEach((n, i) => { const sub = i >= 4; ui.leds.song.push(led(p, sub ? 612 : 572, SONG_Y[i], 4.5)); T(p, n, sub ? 628 : 588, SONG_Y[i] + 6.5, 18, 'start'); });
   el('path', {d:`M572 252V386H606` + [4, 5, 6, 7, 8].map(i => `M572 ${SONG_Y[i]}H604`).join(''), stroke:'#f0f0ee', 'stroke-width':2.5, fill:'none'}, p);
-  T(p, 'ENTER', 698, 393, 16);
+  T(p, 'ENTER', 706, 393, 19);
   ui.dispL = display2(p, 888, 72); ui.dispR = display2(p, 1047, 72);
-  T(p, 'SELECT  PATTERN  FUNCTIONS', 1294, 148, 17, 'start');
-  PAT_NAMES.forEach((n, i) => { const sub = i === 2 || i === 3; ui.leds.pat.push(led(p, sub ? 1337 : 1293, PAT_Y[i], 4.5)); T(p, n, sub ? 1352 : 1310, PAT_Y[i] + 6, 16, 'start'); });
+  T(p, 'SELECT PATTERN FUNCTIONS', 1292, 149, 19, 'start');
+  PAT_NAMES.forEach((n, i) => { const sub = i === 2 || i === 3; ui.leds.pat.push(led(p, sub ? 1337 : 1293, PAT_Y[i], 4.5)); T(p, n, sub ? 1352 : 1310, PAT_Y[i] + 6.5, 18, 'start'); });
   el('path', {d:`M1293 206V${PAT_Y[3]}M1293 ${PAT_Y[2]}H1330M1293 ${PAT_Y[3]}H1330`, stroke:'#f0f0ee', 'stroke-width':2.5, fill:'none'}, p);
-  T(p, 'METRONOME', 1741, 232, 15); T(p, 'VOLUME', 1741, 258, 15); T(p, 'MASTER', 1741, 418, 15); T(p, 'VOLUME', 1741, 444, 15);
+  T(p, 'METRONOME', 1741, 232, 18); T(p, 'VOLUME', 1741, 258, 18); T(p, 'MASTER', 1741, 418, 18); T(p, 'VOLUME', 1741, 444, 18);
   // the logo: the Omega's, where the hardware has its own, in the same style
-  T(p, (brand && brand.logo) || 'omegatraks', 1810, 530, 58, 'end', {class:'pt logo'});
+  T(p, (brand && brand.logo) || 'omega-traks', 1810, 530, 58, 'end', {class:'pt logo'});
   for (let i = 0; i < 3; i++){ const r = 8 + i * 7, ry = 12 + i * 7; el('path', {d:`M${1822 + r * Math.cos(-1.07)} ${514 + ry * Math.sin(-1.07)} A${r} ${ry} 0 0 1 ${1822 + r * Math.cos(1.03)} ${514 + ry * Math.sin(1.03)}`, stroke:'#f0f0ee', 'stroke-width':2.2, fill:'none'}, p); }
-  T(p, 'VOLUME', 217, 678, 15); T(p, 'TUNING', 400, 678, 15);
-  el('path', {d:'M240 682V694H260M358 694H378V682', stroke:'#f0f0ee', 'stroke-width':2, fill:'none'}, p);
-  T(p, 'PER INSTRUMENT', 309, 700, 13);
+  T(p, 'VOLUME', 217, 678, 18); T(p, 'TUNING', 400, 678, 18);
+  el('path', {d:'M226 684V696H240M378 696H392V684', stroke:'#f0f0ee', 'stroke-width':2, fill:'none'}, p);
+  T(p, 'PER INSTRUMENT', 309, 701, 15);
   ui.leds.run = led(p, 246, 722, 5);
-  T(p, 'RUN/STOP', 238, 845, 15); T(p, 'ACCENT', 416, 845, 15);
-  ['CH 1', 'CH 2', 'CH 3', 'CH 4', 'CH 5', 'CH 6'].forEach((n, c) => T(p, n, BOXES[7 + c][0] + BOXES[7 + c][2] / 2, 620, 17));
+  T(p, 'RUN/STOP', 238, 845, 18); T(p, 'ACCENT', 416, 845, 18);
+  ['CH 1', 'CH 2', 'CH 3', 'CH 4', 'CH 5', 'CH 6'].forEach((n, c) => T(p, n, BOXES[7 + c][0] + BOXES[7 + c][2] / 2, 620, 21));
   ui.sel = [];
-  KEY_NAMES.forEach((n, v) => { T(p, n, INST_X[v] - 6, 840, 14); ui.sel.push(el('rect', {x:INST_X[v] - 46, y:858, width:80, height:5, rx:2, fill:'rgba(255,255,255,.18)', opacity:0}, p)); });
+  KEY_NAMES.forEach((n, v) => { T(p, n, INST_X[v] - 6, 840, 17); ui.sel.push(el('rect', {x:INST_X[v] - 46, y:858, width:80, height:5, rx:2, fill:'rgba(255,255,255,.18)', opacity:0}, p)); });
   for (const [a, b, c] of [[1094, 1194, 1146], [1292, 1392, 1344]]) el('path', {d:`M${a} 848V862H${c - 40}M${c + 40} 862H${b}V848`, stroke:'#f0f0ee', 'stroke-width':2, fill:'none'}, p);
-  T(p, 'CYMBAL', 1146, 868, 13); T(p, 'HI HAT', 1344, 868, 13);
+  T(p, 'CYMBAL', 1146, 868, 16); T(p, 'HI HAT', 1344, 868, 16);
   for (const k of KEYS) ui.keys[k[0]] = keyCap(p, k);
   KNOBS.forEach(([x, y, r], i) => ui.knobs.push(knob(p, x, y, r, i >= 2)));
   return ui;

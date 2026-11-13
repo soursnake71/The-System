@@ -119,7 +119,8 @@ static void knob(Graphics& g, float cx, float cy, float r, float n, bool scale) 
 Faceplate::Faceplate(TraksProcessor& p) : proc(p) { startTimerHz(30); }
 juce::Point<float> Faceplate::toPlate(juce::Point<float> p) const { return {p.x * (float) TraksEditor::W / (float) getWidth() - lay::CHEEK, p.y * (float) TraksEditor::PH / (float) getHeight()}; }
 int Faceplate::keyAt(juce::Point<float> p) const {
-    for (int i = 0; i < lay::NK; ++i) { const auto& k = lay::KEYS[i]; if (std::abs(p.x - k.cx) <= k.s / 2 + 8 && std::abs(p.y - k.cy) <= k.s / 2 + 8) return i; }
+    for (int i = 0; i < lay::NK; ++i) { const auto& k = lay::KEYS[i];
+        if (k.style == 2 ? (std::abs(p.x - k.cx) <= 47 && p.y >= k.cy - k.s / 2 - 30 && p.y <= k.cy + k.s / 2 + 70) : (std::abs(p.x - k.cx) <= k.s / 2 + 12 && std::abs(p.y - k.cy) <= k.s / 2 + 12)) return i; }
     return -1;
 }
 int Faceplate::knobAt(juce::Point<float> p) const {
@@ -196,51 +197,51 @@ void Faceplate::paint(Graphics& g) {
     const bool fl = juce::Time::getMillisecondCounter() < flashUntil;
     const juce::uint32 now = juce::Time::getMillisecondCounter();
     // cassette, tempo
-    txt(g, 307, 113, "CASSETTE", 17); led(g, 256, 144, casLed == 0 && now < casUntil); led(g, 358, 144, casLed == 1 && now < casUntil);
-    txt(g, 254, 243, "SAVE", 16); txt(g, 358, 243, "LOAD", 16);
-    txt(g, 307, 323, "TEMPO", 17); txt(g, 256, 446, "SLOWER", 15); txt(g, 358, 446, "FASTER", 15);
+    txt(g, 307, 113, "CASSETTE", 21); led(g, 256, 144, casLed == 0 && now < casUntil); led(g, 358, 144, casLed == 1 && now < casUntil);
+    txt(g, 254, 243, "SAVE", 19); txt(g, 358, 243, "LOAD", 19);
+    txt(g, 307, 323, "TEMPO", 21); txt(g, 256, 446, "SLOWER", 18); txt(g, 358, 446, "FASTER", 18);
     // song functions
-    txt(g, 561, 153, "SELECT  SONG  FUNCTIONS", 17, WHITE, -1);
+    txt(g, 561, 154, "SELECT SONG FUNCTIONS", 19, WHITE, -1);
     const char* sn[9] = {"SONG#", "ERASE  SONG", "COPY/APPEND  TO", "BUILD  MODE", "PATTERN#", "VOL  CHANGE", "TEMPO  CHANGE", "INSERT", "DELETE"};
-    for (int i = 0; i < 9; ++i) { const bool sub = i >= 4; led(g, sub ? 612.0f : 572.0f, SONG_Y[i], (d.ls >> i) & 1, 4.5f); txt(g, sub ? 628.0f : 588.0f, SONG_Y[i] + 6, sn[i], 16, WHITE, -1); }
+    for (int i = 0; i < 9; ++i) { const bool sub = i >= 4; led(g, sub ? 612.0f : 572.0f, SONG_Y[i], (d.ls >> i) & 1, 4.5f); txt(g, sub ? 628.0f : 588.0f, SONG_Y[i] + 6.5f, sn[i], 18, WHITE, -1); }
     g.setColour(WHITE); g.drawLine(572, 252, 572, 386, 2.5f); g.drawLine(572, 386, 606, 386, 2.5f);
     for (int i = 4; i < 9; ++i) g.drawLine(572, SONG_Y[i], 604, SONG_Y[i], 2.5f);
-    txt(g, 698, 393, "ENTER", 16);
+    txt(g, 706, 393, "ENTER", 19);
     // keypad and displays
     if (fl) { display2(g, 888, 72, flashL); display2(g, 1047, 72, flashR); }
     else { display2(g, 888, 72, d.l); display2(g, 1047, 72, d.r); }
     // pattern functions
-    txt(g, 1294, 148, "SELECT  PATTERN  FUNCTIONS", 17, WHITE, -1);
+    txt(g, 1292, 149, "SELECT PATTERN FUNCTIONS", 19, WHITE, -1);
     const char* pn[9] = {"PATTERN#", "RECORD  MODE", "ERASE  INSTRUMENT", "ERROR  CORRECT", "SWING%", "TIME  SIGNATURE", "#OF  MEASURES", "ERASE  PATTERN", "COPY / APPEND  TO"};
-    for (int i = 0; i < 9; ++i) { const bool sub = i == 2 || i == 3; led(g, sub ? 1337.0f : 1293.0f, PAT_Y[i], (d.lp >> i) & 1, 4.5f); txt(g, sub ? 1352.0f : 1310.0f, PAT_Y[i] + 6, pn[i], 16, WHITE, -1); }
+    for (int i = 0; i < 9; ++i) { const bool sub = i == 2 || i == 3; led(g, sub ? 1337.0f : 1293.0f, PAT_Y[i], (d.lp >> i) & 1, 4.5f); txt(g, sub ? 1352.0f : 1310.0f, PAT_Y[i] + 6.5f, pn[i], 18, WHITE, -1); }
     g.setColour(WHITE); g.drawLine(1293, 206, 1293, PAT_Y[3], 2.5f); for (int i = 2; i < 4; ++i) g.drawLine(1293, PAT_Y[i], 1330, PAT_Y[i], 2.5f);
     // metronome / master volume
-    txt(g, 1741, 232, "METRONOME", 15); txt(g, 1741, 258, "VOLUME", 15); txt(g, 1741, 418, "MASTER", 15); txt(g, 1741, 444, "VOLUME", 15);
+    txt(g, 1741, 232, "METRONOME", 18); txt(g, 1741, 258, "VOLUME", 18); txt(g, 1741, 418, "MASTER", 18); txt(g, 1741, 444, "VOLUME", 18);
     // the logo (the Omega's; the hardware's is in this place, in this style)
     {
         g.setColour(WHITE); g.setFont(juce::Font(juce::FontOptions(58.0f, juce::Font::bold | juce::Font::italic)));
-        g.drawText("omegatraks", Rectangle<float>(1470, 486, 340, 60), juce::Justification::centredRight, false);
+        g.drawText("omega-traks", Rectangle<float>(1400, 486, 410, 60), juce::Justification::centredRight, false);
         for (int i = 0; i < 3; ++i) { Path a; a.addCentredArc(1822, 514, 8.0f + i * 7, 12.0f + i * 7, 0, 0.5f, 2.6f, true); g.strokePath(a, juce::PathStrokeType(2.2f)); }
     }
     // bottom left: per-instrument knobs, run / stop, accent
-    txt(g, 217, 678, "VOLUME", 15); txt(g, 400, 678, "TUNING", 15);
-    g.setColour(WHITE); g.drawLine(240, 682, 240, 694, 2); g.drawLine(240, 694, 260, 694, 2); g.drawLine(378, 694, 358, 694, 2); g.drawLine(378, 682, 378, 694, 2);
-    txt(g, 309, 700, "PER INSTRUMENT", 13);
+    txt(g, 217, 678, "VOLUME", 18); txt(g, 400, 678, "TUNING", 18);
+    g.setColour(WHITE); g.drawLine(226, 684, 226, 696, 2); g.drawLine(226, 696, 240, 696, 2); g.drawLine(392, 696, 378, 696, 2); g.drawLine(392, 684, 392, 696, 2);
+    txt(g, 309, 701, "PER INSTRUMENT", 15);
     led(g, 246, 722, d.run || d.rec, 5);
-    txt(g, 238, 845, "RUN/STOP", 15); txt(g, 416, 845, "ACCENT", 15);
+    txt(g, 238, 845, "RUN/STOP", 18); txt(g, 416, 845, "ACCENT", 18);
     // channels
     const char* chn[6] = {"CH 1", "CH 2", "CH 3", "CH 4", "CH 5", "CH 6"};
-    for (int c = 0; c < 6; ++c) txt(g, BOXES[7 + c].x + BOXES[7 + c].w / 2, 620, chn[c], 17);
+    for (int c = 0; c < 6; ++c) txt(g, BOXES[7 + c].x + BOXES[7 + c].w / 2, 620, chn[c], 21);
     for (int v = 0; v < NV; ++v) {
         const auto& k = KEYS[NK - NV + v];
-        txt(g, k.cx - 6, 840, KEY_NAMES[v], 14);
+        txt(g, k.cx - 6, 840, KEY_NAMES[v], 17);
         if (v == d.sel) { g.setColour(Colour(0x30ffffff)); g.fillRoundedRectangle(k.cx - 46, 860, 80, 5, 2); }
     }
     g.setColour(WHITE);
     for (auto br : {std::array<float, 3>{1094, 1194, 1146}, std::array<float, 3>{1292, 1392, 1344}}) {
         g.drawLine(br[0], 848, br[0], 862, 2); g.drawLine(br[0], 862, br[2] - 40, 862, 2); g.drawLine(br[2] + 40, 862, br[1], 862, 2); g.drawLine(br[1], 848, br[1], 862, 2);
     }
-    txt(g, 1146, 868, "CYMBAL", 13); txt(g, 1344, 868, "HI HAT", 13);
+    txt(g, 1146, 868, "CYMBAL", 16); txt(g, 1344, 868, "HI HAT", 16);
     // keys and knobs
     for (int i = 0; i < NK; ++i) keyCap(g, KEYS[i], i == down);
     for (int k = 0; k < 4; ++k) knob(g, KNOBS[k].x, KNOBS[k].y, KNOBS[k].r, knobNorm(k), k >= 2);
