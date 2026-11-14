@@ -30,9 +30,9 @@ const FUNC_BUTTONS = {
   1:'MASTER TUNE', 2:'POLY/MONO', 3:'P BEND RANGE', 4:'P BEND STEP', 5:'PORTA MODE', 6:'PORTA GLISS', 7:'PORTA TIME', 8:'MIDI',
   9:'EDIT RECALL', 10:'VOICE INIT', 11:'LOAD FILE', 12:'SAVE BANK', 13:'SAVE VOICE', 14:'CART > INT', 15:'INT > CART', 16:'BATTERY',
   17:'MW RANGE', 18:'MW ASSIGN', 19:'FC RANGE', 20:'FC ASSIGN', 21:'BC RANGE', 22:'BC ASSIGN', 23:'AT RANGE', 24:'AT ASSIGN',
-  25:'ARPEGGIATOR', 26:'TEMPO/CLOCK', 27:'SEQUENCER', 28:'STEP EDIT', 29:'MOTION', 30:'CONVERTER', 31:'MIDI FILE', 32:'SYSEX'
+  25:'ARPEGGIATOR', 26:'TEMPO/CLOCK', 27:'SEQUENCER', 28:'STEP EDIT', 29:'MOTION', 30:'DAC/EFFECTS', 31:'MIDI FILE', 32:'SYSEX'
 };
-const FUNC_SUBS = {8:5, 18:3, 20:3, 22:3, 24:3, 25:7, 26:2, 27:7, 29:8, 31:5, 32:3};
+const FUNC_SUBS = {8:5, 10:2, 18:3, 20:3, 22:3, 24:3, 25:7, 26:2, 27:7, 29:8, 30:8, 31:5, 32:3};
 // characters typed by the 32 buttons while naming a voice
 const NAME_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ -./0';
 
@@ -43,7 +43,8 @@ function motionName(id){
   const p = DX.VPARAMS[id];
   return p.op ? 'OP' + p.op + ' ' + p.short : p.short;
 }
-const MOTION_IDS = (() => { const a = [-1]; for (let i = 0; i <= 144; i++) a.push(i); for (let i = 0; i < 14; i++) a.push(200 + i); return a; })();
+const MOTION_IDS = (() => { const a = [-1]; for (let i = 0; i <= 144; i++) a.push(i); for (let i = 0; i < 14; i++) a.push(200 + i); for (let i = 20; i < DX.FUNC_DEF.length; i++) a.push(200 + i); return a; })();
+const FX_KEYS = ['dac', 'chorus', 'chorusRate', 'delayMix', 'delayTime', 'delayFb', 'revMix', 'revSize'];
 
 class Panel {
   constructor(host){
@@ -270,7 +271,7 @@ class Panel {
       case 5: return this.fn('portaMode'); case 6: return this.fn('gliss'); case 7: return this.fn('portaTime');
       case 8: return [this.fn('rxCh'), this.fn('sysInfo'), this.fn('txCh'), {action:() => this.h.request('sendVoice')}, {action:() => this.h.request('sendBank')}][s];
       case 9: return {action:() => this.editRecall()};
-      case 10: return {action:() => { this.h.setVoice(DX.initVoice()); this.edited = true; this.flash('VOICE INIT', 'DONE'); }};
+      case 10: return s ? {action:() => this.random()} : {action:() => { this.h.setVoice(DX.initVoice()); this.edited = true; this.flash('VOICE INIT', 'DONE'); }};
       case 11: return {action:() => this.h.request('loadFile')};
       case 12: return {action:() => this.h.request('saveBank', this.src)};
       case 13: return {action:() => this.h.request('saveVoice')};
@@ -298,7 +299,7 @@ class Panel {
         if (s >= 4) return {get:() => l.smooth ? 1 : 0, set:v => { l.smooth = !!v; ch(); }, max:1};
         return {get:() => Math.max(0, MOTION_IDS.indexOf(l.param)), set:v => { const id = MOTION_IDS[v]; if (id !== l.param){ l.param = id; l.vals.fill(-1); } ch(); }, max:MOTION_IDS.length - 1};
       }
-      case 30: return this.fn('dac');
+      case 30: return this.fn(FX_KEYS[s]);
       case 31: return [{action:() => this.h.request('midiPlay'), noAction:() => this.h.request('midiStop')},
         {action:() => this.h.request('midiImport')}, {action:() => this.h.request('midiExport')},
         {action:() => this.h.request('recStart'), noAction:() => this.h.request('recStop')},
@@ -306,6 +307,19 @@ class Panel {
       case 32: return [{action:() => this.h.request('sendBank')}, {action:() => this.h.request('requestBank')}, {action:() => this.h.request('requestVoice')}][s];
     }
     return null;
+  }
+  // the dice: a random voice into the edit buffer (STORE keeps it); reset: back to the voice as stored
+  random(seed){
+    const v = DX.randomVoice(seed != null ? seed : Math.floor(Math.random() * 4294967295));
+    this.h.setVoice(v); this.edited = true;
+    this.flash('RANDOM VOICE', DX.voiceName(v));
+  }
+  resetVoice(){
+    const b = this.h.bank(this.src);
+    if (!b){ this.flash('CARTRIDGE', 'NOT READY  (11)'); return; }
+    if (this.compare) this.endCompare();
+    this.h.setVoice(b[this.num]); this.edited = false;
+    this.flash('VOICE RESET', (this.src === 'int' ? 'INT ' : 'CRT ') + (this.num + 1));
   }
   editRecall(){
     if (!this.recall){ this.flash('EDIT RECALL', 'NOTHING TO RECALL'); return; }
@@ -336,7 +350,7 @@ class Panel {
       case 8: l2 = [line('MIDI CH', '=' + (f.rxCh ? rpad(f.rxCh, 3) : 'OMNI')), 'SYS INFO ' + (f.sysInfo ? 'AVAIL' : 'UNAVAIL'), line('MIDI TX CH', '=' + rpad(f.txCh + 1, 3)),
         'SEND VOICE?  YES', 'SEND BANK ?  YES'][s]; break;
       case 9: l2 = 'EDIT RECALL? YES'; break;
-      case 10: l2 = 'VOICE INIT ? YES'; break;
+      case 10: l2 = s ? 'RANDOM VOICE?YES' : 'VOICE INIT ? YES'; break;
       case 11: l2 = 'LOAD .SYX ?  YES'; break;
       case 12: l2 = 'SAVE ' + (this.src === 'int' ? 'INT' : 'CRT') + ' BANK?YES'; break;
       case 13: l2 = 'SAVE VOICE ? YES'; break;
@@ -357,7 +371,7 @@ class Panel {
         break;
       }
       case 29: { const l = q.pats[q.pat].lanes[s & 3]; l2 = s < 4 ? 'L' + (s + 1) + '=' + motionName(l.param) : line('L' + ((s & 3) + 1) + ' SMOOTH', '=' + ONOFF(l.smooth)); break; }
-      case 30: l2 = f.dac ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I'; break;
+      case 30: l2 = s === 0 ? (f.dac ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I') : line(['', 'CHORUS DEPTH', 'CHORUS RATE', 'DELAY MIX', 'DELAY TIME', 'DELAY FDBACK', 'REVERB MIX', 'REVERB SIZE'][s], '=' + rpad(f[FX_KEYS[s]], 3)); break;
       case 31: { const ps = this.h.playerState(); l2 = ['PLAY ' + (ps.playing ? 'ON  NO=STOP' : 'OFF YES=FILE'), 'IMPORT>PAT ? YES', 'EXPORT PAT ? YES', 'RECORD ' + (ps.rec ? 'ON  NO=SAVE' : 'OFF YES=GO'), line('LOOP', '=' + ONOFF(this.h.playerLoop()))][s]; break; }
       case 32: l2 = ['SEND BANK  ? YES', 'REQUEST BANK?YES', 'REQUEST VOICE?YS'][s]; break;
     }

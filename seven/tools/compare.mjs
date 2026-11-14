@@ -20,6 +20,9 @@ const cases = [
   ['fixed-frequency snare, clean DAC', 48000, 1.0, [[0, 'voice', V.FACTORY[14]], [0, 'f', F('dac'), 1], [0, 'on', 38, 127], [12000, 'on', 38, 60], [30000, 'off', 38]]],
   ['16-voice stealing, bells', 48000, 2.0, [[0, 'voice', V.FACTORY[15]], ...Array.from({length:22}, (_, i) => [i * 2000, 'on', 40 + i * 2, 70 + i])]],
   ['live edits while sounding', 48000, 1.5, [[0, 'voice', V.FACTORY[4]], [0, 'on', 36, 100], [10000, 'p', DX.opBase(2) + 16, 60], [20000, 'p', DX.opBase(1) + 18, 2], [30000, 'p', 155, 0b101111], [40000, 'p', 137, 90], [50000, 'off', 36]]],
+  ['random voice, chorus + delay + reverb', 48000, 2.5, [[0, 'rnd', 987654321], [0, 'f', F('chorus'), 60], [0, 'f', F('chorusRate'), 40], [0, 'f', F('delayMix'), 50], [0, 'f', F('delayTime'), 50], [0, 'f', F('delayFb'), 70],
+    [0, 'f', F('revMix'), 60], [0, 'f', F('revSize'), 80], ...chord(0, [52, 59, 64], 100, 40000)]],
+  ['random voices at 44.1k with reverb', 44100, 2.0, [[0, 'f', F('revMix'), 40], ...Array.from({length:8}, (_, i) => [[i * 11025, 'rnd', 1000 + i * 7919], [i * 11025, 'on', 48 + i * 3, 100], [i * 11025 + 9000, 'off', 48 + i * 3]]).flat()]],
   ['pitch EG sweep, master tune, transpose', 48000, 1.2, [[0, 'voice', V.FACTORY[16]], [0, 'f', F('tune'), 100], [0, 'p', 144, 30], [0, 'on', 60, 127], [40000, 'off', 60]]]
 ];
 let fail = 0;
@@ -29,22 +32,22 @@ for (const [name, fs_, secs, evs] of cases){
   fs.writeFileSync(dir + '/s.txt', sorted.map(e => e[1] === 'voice' ? `${e[0]} voice ${Array.from(e[2]).join(' ')}` : e.join(' ')).join('\n'));
   const info = execFileSync(bin, [dir + '/s.txt', String(fs_), String(frames), dir + '/s.out']).toString().trim();
   const b = fs.readFileSync(dir + '/s.out'), cpp = new Float32Array(b.buffer, b.byteOffset, b.length / 4);
-  // the same with engine.js
-  const syn = new DX.Synth(fs_), js = new Float32Array(frames);
+  // the same with engine.js (left then right, like the C++)
+  const syn = new DX.Synth(fs_), js = new Float32Array(frames * 2), jsL = js.subarray(0, frames), jsR = js.subarray(frames);
   let pos = 0, ei = 0;
   while (pos < frames){
     while (ei < sorted.length && sorted[ei][0] <= pos){
       const [, c, a, bb] = sorted[ei];
-      if (c === 'voice') syn.loadVoice(a); else if (c === 'on') syn.noteOn(a, bb); else if (c === 'off') syn.noteOff(a); else if (c === 'p') syn.setParam(a, bb);
+      if (c === 'voice') syn.loadVoice(a); else if (c === 'rnd') syn.loadVoice(DX.randomVoice(a)); else if (c === 'on') syn.noteOn(a, bb); else if (c === 'off') syn.noteOff(a); else if (c === 'p') syn.setParam(a, bb);
       else if (c === 'f') syn.setFunc(DX.FUNC_DEF[a][0], bb); else if (c === 'bend') syn.setBend(a); else if (c === 'wheel') syn.setCtl('wheel', a); else if (c === 'at') syn.setCtl('at', a); else if (c === 'sus') syn.sustain(!!a);
       ei++;
     }
     const next = ei < sorted.length ? Math.min(frames, sorted[ei][0]) : frames, n = Math.max(1, next - pos);
-    syn.render(js, pos, Math.min(n, frames - pos)); pos += n;
+    syn.renderStereo(jsL, jsR, pos, Math.min(n, frames - pos)); pos += n;
   }
   let err = 0, pk = 0, at = 0;
-  for (let i = 0; i < frames; i++){ const d = Math.abs(cpp[i] - js[i]); if (d > err){ err = d; at = i; } pk = Math.max(pk, Math.abs(js[i])); }
-  const ok = cpp.length === frames && err < 1e-4 && pk > 0.005;
+  for (let i = 0; i < frames * 2; i++){ const d = Math.abs(cpp[i] - js[i]); if (d > err){ err = d; at = i; } pk = Math.max(pk, Math.abs(js[i])); }
+  const ok = cpp.length === frames * 2 && err < 1e-4 && pk > 0.005;
   if (!ok) fail++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}: max diff ${err.toExponential(2)} at ${at} (peak ${pk.toFixed(3)}) [C++ ${info}, JS voices ${syn.activeVoices()}]`);
 }

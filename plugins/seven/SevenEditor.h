@@ -38,6 +38,7 @@ private:
     int keyAt(juce::Point<float> p) const;
     void memoryMenu();
     void midiMenu();
+    void fxMenu();
     void say(const juce::String& s) { toastText = s; toastUntil = juce::Time::getMillisecondCounter() + 3500; repaint(); }
     template <class F> void withPanel(F&& f) { const juce::ScopedLock l(proc.lock); f(proc.panel); }
 

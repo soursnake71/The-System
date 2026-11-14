@@ -34,9 +34,9 @@ bool SevenProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
     const auto o = l.getMainOutputChannelSet();
     return o == juce::AudioChannelSet::mono() || o == juce::AudioChannelSet::stereo();
 }
-void SevenProcessor::prepareToPlay(double sampleRate, int) {
+void SevenProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     const juce::ScopedLock l(lock);
-    fs = sampleRate; syn.setRate(sampleRate); toTick = 0;
+    fs = sampleRate; syn.setRate(sampleRate); toTick = 0; stereoScratch.assign((size_t) std::max(1, maxBlock) * 2, 0.0f);
 }
 
 /* ---------------- edits from the panel (message thread) ---------------- */
@@ -232,7 +232,7 @@ void SevenProcessor::handleMidi(const juce::MidiMessage& m, juce::MidiBuffer& ou
     const auto r = syn.midi(raw, (size_t) len);
     if (r.kind == MidiResult::func) pushParams = true;
 }
-void SevenProcessor::renderTo(float* L, int from, int to) {
+void SevenProcessor::renderTo(float* L, float* R, int from, int to) {
     const double spt = fs * 60.0 / (std::max(20.0, sq.s.tempo) * PPQ);
     int p = from;
     while (p < to) {
@@ -251,7 +251,7 @@ void SevenProcessor::renderTo(float* L, int from, int to) {
                 else handleMidi(juce::MidiMessage(d.data(), (int) d.size()), dummy, p);
             });
         }
-        syn.render(L + p, chunk);
+        syn.renderStereo(L + p, R + p, chunk);
         if (clocked) toTick -= chunk;
         p += chunk;
     }
@@ -283,14 +283,17 @@ void SevenProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBu
     pendingMsgs.clear();
     pendingOut.clear();
     float* L = buffer.getWritePointer(0);
+    if (stereoScratch.size() < (size_t) n) stereoScratch.resize((size_t) n);
+    float* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : stereoScratch.data();
     int pos = 0;
     for (const auto meta : midi) {
         const int at = juce::jlimit(0, n, meta.samplePosition);
-        renderTo(L, pos, at); pos = at;
+        renderTo(L, R, pos, at); pos = at;
         handleMidi(meta.getMessage(), out, at);
     }
-    renderTo(L, pos, n);
-    for (int c = 1; c < buffer.getNumChannels(); ++c) buffer.copyFrom(c, 0, buffer, 0, 0, n);
+    renderTo(L, R, pos, n);
+    if (buffer.getNumChannels() == 1) for (int i = 0; i < n; ++i) L[i] = 0.5f * (L[i] + R[i]);
+    for (int c = 2; c < buffer.getNumChannels(); ++c) buffer.clear(c, 0, n);
     out.addEvents(pendingOut, 0, n, 0);
     midi.swapWith(out);
     frames += n;

@@ -78,6 +78,22 @@ int main(int argc, char** argv) {
     { std::vector<TickMsg> ev; for (int i = 0; i < 8; ++i) { ev.push_back({(int64_t) i * 48, {0x90, (uint8_t) (60 + i), 100}}); ev.push_back({(int64_t) i * 48 + 40, {0x80, (uint8_t) (60 + i), 0}}); }
       const auto f = writeMidiFile(ev, 96, 120, "t"); juce::MemoryBlock fb(f.data(), f.size()); p.loadBytes(fb, "t.mid", "play"); }
     check(run(1.0, nullptr) > 1e-3 && p.playerPlaying(), "MIDI file player sounds");
+    // the dice and reset, and the effects in stereo
+    { const juce::ScopedLock l(p.lock); p.panel.memSelect(false); p.panel.button(1); p.panel.random(424242); }
+    check(voiceName(p.voice()) == voiceName(randomVoice(424242)) && p.panel.edited, "the dice: " + juce::String(voiceName(p.voice())));
+    { const juce::ScopedLock l(p.lock); p.panel.resetVoice(); }
+    check(voiceName(p.voice()) == voiceName((*p.bank(false))[0]) && !p.panel.edited, "reset back to the stored voice");
+    for (int k : {F::chorus, F::delayMix, F::revMix}) p.setFunc(k, 60);
+    {
+        double diff = 0, e = 0; const int n = (int) sr;
+        for (int pos = 0; pos < n; pos += block) {
+            juce::AudioBuffer<float> b(2, block); b.clear(); juce::MidiBuffer m; if (!pos) m.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0);
+            p.processBlock(b, m);
+            for (int i = 0; i < block; ++i) { diff += std::abs(b.getSample(0, i) - b.getSample(1, i)); e += std::abs(b.getSample(0, i)); }
+        }
+        check(e > 1 && diff > 0.05 * e, "chorus + delay + reverb give a stereo output");
+    }
+    for (int k : {F::chorus, F::delayMix, F::revMix}) p.setFunc(k, 0);
     // pictures of the window: play mode, and EDIT with the sequencer page open
     {
         std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());

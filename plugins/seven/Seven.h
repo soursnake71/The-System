@@ -255,14 +255,17 @@ inline SysexFile parseSysexFile(const uint8_t* d, size_t len) {
 
 /* ---------------- function settings ---------------- */
 struct FuncDef { const char* key; const char* name; int max, def, num; };
-static const FuncDef FUNC_DEF[20] = {
+static const FuncDef FUNC_DEF[27] = {
     {"mono", "POLY/MONO", 1, 0, 64}, {"pbRange", "P BEND RANGE", 12, 2, 65}, {"pbStep", "P BEND STEP", 12, 0, 66}, {"portaMode", "PORTA MODE", 1, 0, 67},
     {"gliss", "PORTA GLISS", 1, 0, 68}, {"portaTime", "PORTA TIME", 99, 0, 69}, {"mwRange", "MOD WHEEL RANGE", 99, 50, 70}, {"mwAssign", "MOD WHEEL ASSIGN", 7, 1, 71},
     {"fcRange", "FOOT CTRL RANGE", 99, 0, 72}, {"fcAssign", "FOOT CTRL ASSIGN", 7, 0, 73}, {"bcRange", "BREATH CTRL RANGE", 99, 0, 74}, {"bcAssign", "BREATH ASSIGN", 7, 0, 75},
     {"atRange", "AFTERTOUCH RANGE", 99, 0, 76}, {"atAssign", "AFTERTOUCH ASSIGN", 7, 0, 77},
     {"tune", "MASTER TUNE", 127, 64, -1}, {"rxCh", "MIDI RECEIVE CH", 16, 0, -1}, {"txCh", "MIDI TRANSMIT CH", 15, 0, -1}, {"sysInfo", "SYS INFO", 1, 1, -1},
-    {"dac", "CONVERTER", 1, 0, -1}, {"volume", "VOLUME", 99, 80, -1}};
-enum F { mono, pbRange, pbStep, portaMode, gliss, portaTime, mwRange, mwAssign, fcRange, fcAssign, bcRange, bcAssign, atRange, atAssign, tune, rxCh, txCh, sysInfo, dac, volume, FCOUNT };
+    {"dac", "CONVERTER", 1, 0, -1}, {"volume", "VOLUME", 99, 80, -1},
+    {"chorus", "CHORUS DEPTH", 99, 0, -1}, {"chorusRate", "CHORUS RATE", 99, 30, -1}, {"delayMix", "DELAY MIX", 99, 0, -1}, {"delayTime", "DELAY TIME", 99, 60, -1},
+    {"delayFb", "DELAY FEEDBACK", 99, 35, -1}, {"revMix", "REVERB MIX", 99, 0, -1}, {"revSize", "REVERB SIZE", 99, 60, -1}};
+enum F { mono, pbRange, pbStep, portaMode, gliss, portaTime, mwRange, mwAssign, fcRange, fcAssign, bcRange, bcAssign, atRange, atAssign, tune, rxCh, txCh, sysInfo, dac, volume,
+    chorus, chorusRate, delayMix, delayTime, delayFb, revMix, revSize, FCOUNT };
 inline int funcByKey(const std::string& k) { for (int i = 0; i < FCOUNT; ++i) if (k == FUNC_DEF[i].key) return i; return -1; }
 inline int funcByNum(int n) { for (int i = 0; i < FCOUNT; ++i) if (FUNC_DEF[i].num == n) return i; return -1; }
 struct Func { int v[FCOUNT]; Func() { for (int i = 0; i < FCOUNT; ++i) v[i] = FUNC_DEF[i].def; } int& operator[](int i) { return v[i]; } int operator[](int i) const { return v[i]; } };
@@ -461,6 +464,118 @@ struct Resampler {
 struct Ctl { int wheel = 0, foot = 0, breath = 0, at = 0, bend = 0; bool sustain = false, portaSw = true; int volume = 127, expression = 127; };
 struct MidiResult { enum Kind { none, program, func, param, voice, bankDump, reqBank, reqVoice } kind = none; int a = 0, b = 0; bool bad = false; Voice156 v {}; Bank bank {}; };
 
+/* ---------------- effects: stereo chorus, ping-pong delay, reverb (Freeverb topology) ---------------- */
+class Fx {
+public:
+    explicit Fx(double rate = 48000) { init(rate); }
+    void init(double rate) {
+        fs = rate;
+        chL.assign((size_t) chSize, 0.0); chW = 0; chPh = 0;
+        dSize = 1; while (dSize < fs * 1.1) dSize *= 2;
+        dL.assign((size_t) dSize, 0.0); dR.assign((size_t) dSize, 0.0); dW = 0; lpL = lpR = 0;
+        static const int COMBS[8] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617}, APS[4] = {556, 441, 341, 225};
+        const double k = fs / 44100;
+        for (int c = 0; c < 2; ++c) {
+            for (int i = 0; i < 8; ++i) { auto& cb = combs[c][i]; cb.buf.assign((size_t) std::max(1, (int) std::floor((COMBS[i] + c * 23) * k)), 0.0); cb.i = 0; cb.st = 0; }
+            for (int i = 0; i < 4; ++i) { auto& ap = aps[c][i]; ap.buf.assign((size_t) std::max(1, (int) std::floor((APS[i] + c * 23) * k)), 0.0); ap.i = 0; }
+        }
+    }
+    void process(float* L, float* R, int n, const Func& f) {
+        const double cd = f[F::chorus] / 99.0 * 3, cr = 0.1 * std::pow(2.0, f[F::chorusRate] / 99.0 * 6) / fs;
+        const double dm = f[F::delayMix] / 99.0; const int64_t dt = std::min<int64_t>(dSize - 2, (int64_t) std::floor(20 * std::pow(2.0, f[F::delayTime] / 99.0 * 5.6) * fs / 1000));
+        const double dfb = f[F::delayFb] / 99.0 * 0.9;
+        const double rm = f[F::revMix] / 99.0 * 3, room = 0.7 + f[F::revSize] / 99.0 * 0.28, damp = 0.45 - f[F::revSize] / 99.0 * 0.25;
+        for (int j = 0; j < n; ++j) {
+            const double x = L[j];
+            double l = x, r = x;
+            if (cd > 0) {
+                const int64_t cm = chSize - 1;
+                chL[(size_t) (chW & cm)] = x;
+                auto tri = [](double p) { const double q = p - std::floor(p); return q < 0.5 ? q * 4 - 1 : 3 - q * 4; };
+                auto tapd = [&](double d) { const double pos = (double) chW - d * fs / 1000; const int64_t ip = (int64_t) std::floor(pos); const double fr = pos - (double) ip;
+                    return chL[(size_t) (ip & cm)] * (1 - fr) + chL[(size_t) ((ip + 1) & cm)] * fr; };
+                const double a = tapd(7 + cd * tri(chPh)), b = tapd(7 + cd * tri(chPh + 0.5));
+                l = 0.7 * (x + a); r = 0.7 * (x + b);
+                chW++; chPh += cr; if (chPh >= 1) chPh -= 1;
+            }
+            if (dm > 0) {
+                const int64_t m = dSize - 1; const double rl = dL[(size_t) ((dW - dt) & m)], rr = dR[(size_t) ((dW - dt) & m)];
+                lpL += (rl - lpL) * 0.35; lpR += (rr - lpR) * 0.35;
+                dL[(size_t) (dW & m)] = (l + r) * 0.5 + dfb * lpR;
+                dR[(size_t) (dW & m)] = dfb * lpL;
+                dW++;
+                l += dm * rl; r += dm * rr;
+            }
+            if (rm > 0) {
+                const double inp = (l + r) * 0.015;
+                double oL = 0, oR = 0;
+                for (int c = 0; c < 2; ++c) {
+                    double o = 0;
+                    for (auto& cb : combs[c]) {
+                        const double y = cb.buf[cb.i];
+                        cb.st = y * (1 - damp) + cb.st * damp;
+                        cb.buf[cb.i] = inp + cb.st * room;
+                        if (++cb.i >= cb.buf.size()) cb.i = 0;
+                        o += y;
+                    }
+                    for (auto& ap : aps[c]) {
+                        const double b = ap.buf[ap.i];
+                        ap.buf[ap.i] = o + b * 0.5;
+                        if (++ap.i >= ap.buf.size()) ap.i = 0;
+                        o = b - o;
+                    }
+                    if (c == 0) oL = o; else oR = o;
+                }
+                l += rm * oL; r += rm * oR;
+            }
+            L[j] = (float) l; R[j] = (float) r;
+        }
+    }
+private:
+    struct Comb { std::vector<double> buf; size_t i = 0; double st = 0; };
+    struct Ap { std::vector<double> buf; size_t i = 0; };
+    double fs = 48000;
+    static constexpr int64_t chSize = 8192;
+    std::vector<double> chL; int64_t chW = 0; double chPh = 0;
+    int64_t dSize = 1; std::vector<double> dL, dR; int64_t dW = 0; double lpL = 0, lpR = 0;
+    Comb combs[2][8]; Ap aps[2][4];
+};
+
+/* ---------------- the dice: a random voice that plays (randomVoice in engine.js, same numbers) ---------------- */
+inline Voice156 randomVoice(uint32_t seed) {
+    uint32_t st = seed ? seed : 1;
+    auto rnd = [&]() { st ^= st << 13; st ^= st >> 17; st ^= st << 5; return st / 4294967296.0; };
+    auto ri = [&](int a, int b) { return a + (int) std::floor(rnd() * (b - a + 1)); };
+    Voice156 v = initVoice();
+    const int alg = ri(0, 31); const Alg& A = algs()[(size_t) alg];
+    static const int COARSE[19] = {0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9, 11, 14};
+    const bool perc = rnd() < 0.4;
+    for (int op = 1; op <= 6; ++op) {
+        const int b = opBase(op), car = A.car[op - 1];
+        auto V = [&](int i, int x) { v[(size_t) (b + i)] = (uint8_t) x; };
+        V(0, car ? (perc ? ri(85, 99) : ri(45, 95)) : ri(40, 99));
+        V(1, ri(20, 85)); V(2, ri(10, 75)); V(3, ri(30, 80));
+        V(4, car ? 99 : ri(75, 99)); V(5, perc ? ri(40, 85) : ri(75, 99)); V(6, perc ? ri(0, 30) : ri(60, 95)); V(7, 0);
+        V(8, ri(30, 60)); V(9, ri(0, 30)); V(10, ri(0, 40)); V(11, ri(0, 3)); V(12, ri(0, 3));
+        V(13, ri(0, 4)); V(14, rnd() < 0.15 ? ri(1, 2) : 0); V(15, ri(0, 4));
+        V(16, car ? ri(88, 99) : ri(40, 86));
+        const bool fixed = !car && rnd() < 0.06;
+        V(17, fixed ? 1 : 0);
+        V(18, fixed ? ri(1, 3) : COARSE[ri(0, 18)]);
+        V(19, rnd() < 0.8 ? 0 : ri(1, 99));
+        V(20, ri(4, 10));
+    }
+    v[P::ALG] = (uint8_t) alg; v[P::FB] = (uint8_t) ri(0, 7); v[P::OKS] = 1;
+    v[P::LFS] = (uint8_t) ri(15, 55); v[P::LFD] = (uint8_t) ri(0, 60); v[P::LPMD] = (uint8_t) ri(0, 8);
+    v[P::LAMD] = (uint8_t) (rnd() < 0.2 ? ri(5, 30) : 0); v[P::LFKS] = 0;
+    static const int W[6] = {0, 4, 4, 0, 1, 2}; v[P::LFW] = (uint8_t) W[ri(0, 5)]; v[P::LPMS] = (uint8_t) ri(1, 4);
+    for (int i = 0; i < 4; ++i) { v[(size_t) (P::PR + i)] = 99; v[(size_t) (P::PL + i)] = 50; }
+    if (rnd() < 0.15) { v[P::PR] = (uint8_t) ri(70, 99); v[P::PL + 3] = (uint8_t) ri(44, 56); v[P::PL] = v[P::PL + 3]; }
+    v[P::TRNSP] = 24;
+    char nm[16]; std::snprintf(nm, sizeof nm, "RANDOM %03u", seed % 1000); setName(v, nm);
+    return v;
+}
+
 class Synth {
 public:
     double fs = 48000;
@@ -473,15 +588,15 @@ public:
     int blockPos = 0;
     int pitchMod = 0, ampMod = 0, egMod = 127;
     int zoh = 4; double fin = DX_RATE * 4;
-    Biquad bq[2]; Resampler rs;
+    Biquad bq[2]; Resampler rs; Fx fx;
     double peak = 0;
 
     explicit Synth(double rate = 48000) {
         fs = rate; lfo.reset(voice); recalcCtl();
         bq[0] = Biquad::lowpass(16000, fin, 0.5412); bq[1] = Biquad::lowpass(16000, fin, 1.3066);
-        rs.init(fin, fs);
+        rs.init(fin, fs); fx.init(fs);
     }
-    void setRate(double rate) { fs = rate; rs.init(fin, fs); }
+    void setRate(double rate) { fs = rate; rs.init(fin, fs); fx.init(fs); }
 
     void loadVoice(const Voice156& v) { voice = v; clampVoice(voice); voiceChanged(); }
     void setParam(int n, int val) {
@@ -711,6 +826,7 @@ public:
             const double ay = y < 0 ? -y : y; if (ay > peak) peak = ay;
         }
     }
+    void renderStereo(float* L, float* R, int n) { render(L, n); fx.process(L, R, n, func); }
     int activeVoices() const { int c = 0; for (auto& v : voices) if (v.active) c++; return c; }
 };
 

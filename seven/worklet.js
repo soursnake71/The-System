@@ -23,6 +23,7 @@ class SevenProcessor extends AudioWorkletProcessor {
     this.port.onmessage = e => this.msg(e.data);
   }
   midiOut(d){ this.out.push(d); }
+  spare(n){ if (!this._spare || this._spare.length !== n) this._spare = new Float32Array(n); return this._spare; }
   record(d){ if (this.rec) this.rec.push({sec:this.frame / sampleRate, data:d.slice()}); }
   // a key: to the arpeggiator / sequencer when they take it, else to the synth (and MIDI out when it came from the screen)
   key(on, n, v, screen){
@@ -79,7 +80,7 @@ class SevenProcessor extends AudioWorkletProcessor {
     }
   }
   process(inputs, outputs){
-    const o = outputs[0], L = o[0], n = L.length, sq = this.seq;
+    const o = outputs[0], L = o[0], R = o[1] || this.spare(L.length), n = L.length, sq = this.seq;
     const clocked = !sq.s.ext && (sq.playing || (sq.s.arp.on && sq.arpRun));
     this.spt = sampleRate * 60 / (Math.max(20, sq.s.tempo) * DXS.PPQ);
     // MIDI clock while the sequencer or arpeggiator runs on the internal tempo
@@ -88,12 +89,11 @@ class SevenProcessor extends AudioWorkletProcessor {
       let chunk = n - pos;
       if (clocked){ if (this.toTick <= 0){ sq.doTick(); if (sq.playing && (this.clockDiv++ & 3) === 0) this.midiOut([0xF8]); this.toTick += this.spt; } chunk = Math.min(chunk, Math.max(1, Math.ceil(this.toTick))); }
       if (this.player.playing) this.player.run(chunk / sampleRate, d => this.midi(d));
-      this.syn.render(L, pos, chunk);
+      this.syn.renderStereo(L, R, pos, chunk);
       if (clocked) this.toTick -= chunk;
       pos += chunk;
     }
     if (!clocked) this.toTick = 0;
-    for (let c = 1; c < o.length; c++) o[c].set(L);
     this.frame += n;
     if (this.frame - this.lastStat > sampleRate / 30 || this.out.length > 32){
       this.lastStat = this.frame;

@@ -247,7 +247,10 @@ const FUNC_DEF = [
   ['fcRange', 'FOOT CTRL RANGE', 99, 0, 72], ['fcAssign', 'FOOT CTRL ASSIGN', 7, 0, 73], ['bcRange', 'BREATH CTRL RANGE', 99, 0, 74], ['bcAssign', 'BREATH ASSIGN', 7, 0, 75],
   ['atRange', 'AFTERTOUCH RANGE', 99, 0, 76], ['atAssign', 'AFTERTOUCH ASSIGN', 7, 0, 77],
   ['tune', 'MASTER TUNE', 127, 64, -1], ['rxCh', 'MIDI RECEIVE CH', 16, 0, -1], ['txCh', 'MIDI TRANSMIT CH', 15, 0, -1], ['sysInfo', 'SYS INFO', 1, 1, -1],
-  ['dac', 'CONVERTER', 1, 0, -1], ['volume', 'VOLUME', 99, 80, -1]
+  ['dac', 'CONVERTER', 1, 0, -1], ['volume', 'VOLUME', 99, 80, -1],
+  // effects after the output stage (not on the 1983 instrument; the chorus, delay and reverb it was usually played through)
+  ['chorus', 'CHORUS DEPTH', 99, 0, -1], ['chorusRate', 'CHORUS RATE', 99, 30, -1], ['delayMix', 'DELAY MIX', 99, 0, -1], ['delayTime', 'DELAY TIME', 99, 60, -1],
+  ['delayFb', 'DELAY FEEDBACK', 99, 35, -1], ['revMix', 'REVERB MIX', 99, 0, -1], ['revSize', 'REVERB SIZE', 99, 60, -1]
 ];
 function defaultFunc(){ const f = {}; for (const [k, , , d] of FUNC_DEF) f[k] = d; return f; }
 const FUNC_BY_NUM = {}; for (const d of FUNC_DEF) if (d[4] >= 0) FUNC_BY_NUM[d[4]] = d[0];
@@ -440,9 +443,10 @@ class Synth {
     this.fin = DX_RATE * this.zoh;
     this.bq = [lowpass(16000, this.fin, 0.5412), lowpass(16000, this.fin, 1.3066)];
     this.rs = makeResampler(this.fin, this.fs);
+    this.fx = new Fx(this.fs);
     this.peak = 0;
   }
-  setRate(fs){ this.fs = fs; this.rs = makeResampler(this.fin, fs); }
+  setRate(fs){ this.fs = fs; this.rs = makeResampler(this.fin, fs); this.fx = new Fx(fs); }
 
   /* ----- voice edits ----- */
   loadVoice(v){
@@ -695,7 +699,109 @@ class Synth {
       const ay = y < 0 ? -y : y; if (ay > this.peak) this.peak = ay;
     }
   }
+  // the synth then the effects, in stereo
+  renderStereo(L, R, off, n){
+    this.render(L, off, n);
+    this.fx.process(L, R, off, n, this.func);
+  }
   activeVoices(){ let c = 0; for (const v of this.voices) if (v.active) c++; return c; }
+}
+
+/* ---------------- effects: stereo chorus, ping-pong delay, plate-style reverb (Freeverb topology) ---------------- */
+const COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617], ALLPASSES = [556, 441, 341, 225], SPREAD = 23;
+class Fx {
+  constructor(fs){
+    this.fs = fs;
+    this.chSize = 8192; this.chL = new Float64Array(this.chSize); this.chW = 0; this.chPh = 0;
+    let ds = 1; while (ds < fs * 1.1) ds *= 2;
+    this.dSize = ds; this.dL = new Float64Array(ds); this.dR = new Float64Array(ds); this.dW = 0; this.lpL = 0; this.lpR = 0;
+    const k = fs / 44100;
+    this.combs = [0, 1].map(c => COMBS.map(t => ({buf:new Float64Array(Math.max(1, Math.floor((t + c * SPREAD) * k))), i:0, st:0})));
+    this.aps = [0, 1].map(c => ALLPASSES.map(t => ({buf:new Float64Array(Math.max(1, Math.floor((t + c * SPREAD) * k))), i:0})));
+  }
+  process(L, R, off, n, f){
+    const fs = this.fs;
+    const cd = f.chorus / 99 * 3, cr = 0.1 * Math.pow(2, f.chorusRate / 99 * 6) / fs;
+    const dm = f.delayMix / 99, dt = Math.min(this.dSize - 2, Math.floor(20 * Math.pow(2, f.delayTime / 99 * 5.6) * fs / 1000)), dfb = f.delayFb / 99 * 0.9;
+    const rm = f.revMix / 99 * 3, room = 0.7 + f.revSize / 99 * 0.28, damp = 0.45 - f.revSize / 99 * 0.25;
+    for (let j = off; j < off + n; j++){
+      const x = L[j];
+      let l = x, r = x;
+      if (cd > 0){
+        // two taps 7 ms +- depth, swept by a triangle in opposite phases
+        const cm = this.chSize - 1;
+        this.chL[this.chW & cm] = x;
+        const tri = p => { const q = p - Math.floor(p); return q < 0.5 ? q * 4 - 1 : 3 - q * 4; };
+        const tapd = d => { const pos = this.chW - d * fs / 1000, ip = Math.floor(pos), fr = pos - ip; return this.chL[ip & cm] * (1 - fr) + this.chL[(ip + 1) & cm] * fr; };
+        const a = tapd(7 + cd * tri(this.chPh)), b = tapd(7 + cd * tri(this.chPh + 0.5));
+        l = 0.7 * (x + a); r = 0.7 * (x + b);
+        this.chW++; this.chPh += cr; if (this.chPh >= 1) this.chPh -= 1;
+      }
+      if (dm > 0){
+        const m = this.dSize - 1, rl = this.dL[(this.dW - dt) & m], rr = this.dR[(this.dW - dt) & m];
+        this.lpL += (rl - this.lpL) * 0.35; this.lpR += (rr - this.lpR) * 0.35;
+        this.dL[this.dW & m] = (l + r) * 0.5 + dfb * this.lpR;
+        this.dR[this.dW & m] = dfb * this.lpL;
+        this.dW++;
+        l += dm * rl; r += dm * rr;
+      }
+      if (rm > 0){
+        const inp = (l + r) * 0.015;
+        let oL = 0, oR = 0;
+        for (let c = 0; c < 2; c++){
+          let o = 0;
+          for (const cb of this.combs[c]){
+            const y = cb.buf[cb.i];
+            cb.st = y * (1 - damp) + cb.st * damp;
+            cb.buf[cb.i] = inp + cb.st * room;
+            if (++cb.i >= cb.buf.length) cb.i = 0;
+            o += y;
+          }
+          for (const ap of this.aps[c]){
+            const b = ap.buf[ap.i];
+            ap.buf[ap.i] = o + b * 0.5;
+            if (++ap.i >= ap.buf.length) ap.i = 0;
+            o = b - o;
+          }
+          if (c === 0) oL = o; else oR = o;
+        }
+        l += rm * oL; r += rm * oR;
+      }
+      L[j] = l; R[j] = r;
+    }
+  }
+}
+
+/* ---------------- the dice: a random voice that plays (seeded, the same in the plugin) ---------------- */
+function randomVoice(seed){
+  let st = (seed >>> 0) || 1;
+  const rnd = () => { st ^= st << 13; st >>>= 0; st ^= st >>> 17; st ^= st << 5; st >>>= 0; return st / 4294967296; };
+  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  const v = initVoice();
+  const alg = ri(0, 31), A = ALGS[alg];
+  const COARSE = [0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9, 11, 14];
+  const perc = rnd() < 0.4;                       // plucked / struck, or held
+  for (let op = 1; op <= 6; op++){
+    const b = opBase(op), car = A.car[op - 1];
+    v[b] = car ? (perc ? ri(85, 99) : ri(45, 95)) : ri(40, 99);
+    v[b + 1] = ri(20, 85); v[b + 2] = ri(10, 75); v[b + 3] = ri(30, 80);
+    v[b + 4] = car ? 99 : ri(75, 99); v[b + 5] = perc ? ri(40, 85) : ri(75, 99); v[b + 6] = perc ? ri(0, 30) : ri(60, 95); v[b + 7] = 0;
+    v[b + 8] = ri(30, 60); v[b + 9] = ri(0, 30); v[b + 10] = ri(0, 40); v[b + 11] = ri(0, 3); v[b + 12] = ri(0, 3);
+    v[b + 13] = ri(0, 4); v[b + 14] = rnd() < 0.15 ? ri(1, 2) : 0; v[b + 15] = ri(0, 4);
+    v[b + 16] = car ? ri(88, 99) : ri(40, 86);
+    const fixed = !car && rnd() < 0.06;
+    v[b + 17] = fixed ? 1 : 0;
+    v[b + 18] = fixed ? ri(1, 3) : COARSE[ri(0, COARSE.length - 1)];
+    v[b + 19] = rnd() < 0.8 ? 0 : ri(1, 99);
+    v[b + 20] = ri(4, 10);
+  }
+  v[P.ALG] = alg; v[P.FB] = ri(0, 7); v[P.OKS] = 1;
+  v[P.LFS] = ri(15, 55); v[P.LFD] = ri(0, 60); v[P.LPMD] = ri(0, 8); v[P.LAMD] = rnd() < 0.2 ? ri(5, 30) : 0; v[P.LFKS] = 0; v[P.LFW] = [0, 4, 4, 0, 1, 2][ri(0, 5)]; v[P.LPMS] = ri(1, 4);
+  for (let i = 0; i < 4; i++){ v[P.PR + i] = 99; v[P.PL + i] = 50; }
+  if (rnd() < 0.15){ v[P.PR] = ri(70, 99); v[P.PL + 3] = ri(44, 56); v[P.PL + 0] = v[P.PL + 3]; }
+  v[P.TRNSP] = 24;
+  setName(v, 'RANDOM ' + String(seed % 1000).padStart(3, '0'));
+  return v;
 }
 
 /* ---------------- output stage pieces ---------------- */
@@ -752,7 +858,7 @@ function freqText(v, op){
   return r.toFixed(2);
 }
 
-const api = {DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
+const api = {Fx, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
   bankToSysex, voiceToSysex, paramChange, parseSysexFile, parseSysexMessage, checksum, defaultFunc, Synth, Voice, Env, Lfo, PitchEnv, noteName, bpName, CURVES, WAVES,
   freqText, oscLogFreq, phaseInc, makeResampler, LOGSIN, EXPT, VOICE_SIZE};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

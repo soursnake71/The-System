@@ -80,7 +80,8 @@ private:
     void syncParamsToHost();
     void handleMidi(const juce::MidiMessage& m, juce::MidiBuffer& out, int pos);
     void key(bool on, int n, int v);
-    void renderTo(float* L, int from, int to);
+    void renderTo(float* L, float* R, int from, int to);
+    std::vector<float> stereoScratch;
     void stopSeq();
     juce::var seqToVar() const;
     void seqFromVar(const juce::var& v);

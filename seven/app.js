@@ -286,7 +286,7 @@ part('logo', 'logo', `<svg viewBox="0 0 520 110">
     <text x="128" y="88" stroke-width="2.4">SEVEN</text><text x="131" y="85" stroke-width="1" opacity=".6">SEVEN</text></g>
   <text x="132" y="106" font-family="Helvetica, Arial" font-weight="700" font-size="9.5" letter-spacing="1.6" fill="#e9ecec">6-OPERATOR FM ALGORITHM SYNTHESIZER</text></svg>`);
 part('tools', 'tools', `<button class="tool" data-dlg="dlgLib">Memory</button><button class="tool" data-dlg="dlgSeq">Seq / Arp</button><button class="tool" data-dlg="dlgMidi">MIDI</button>
-  <button class="tool" data-dlg="dlgHelp">Help</button><button class="tool" id="viewBtn">View</button><button class="tool" id="octDn">Oct&minus;</button><button class="tool" id="octUp">Oct+</button>
+  <button class="tool" id="diceBtn" title="A random voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><rect x="1.5" y="1.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="1.7" fill="currentColor"/><circle cx="10" cy="10" r="1.7" fill="currentColor"/><circle cx="14" cy="14" r="1.7" fill="currentColor"/><circle cx="14" cy="6" r="1.7" fill="currentColor"/><circle cx="6" cy="14" r="1.7" fill="currentColor"/></svg>Random</button><button class="tool" id="resetBtn" title="Back to the stored voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><path d="M15.5 6.5A7 7 0 1 0 17 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M16.8 1.8v5.4h-5.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Reset</button><button class="tool" data-dlg="dlgFx">FX</button><button class="tool" data-dlg="dlgHelp">Help</button><button class="tool" id="viewBtn">View</button><button class="tool" id="octDn">Oct&minus;</button><button class="tool" id="octUp">Oct+</button>
   <button class="tool" id="panic">Panic</button><div class="meter"><b id="meterB"></b></div>`);
 part('cart', 'cart', '<div class="ct" id="cartT"></div>');
 lbl('cartL', 'CARTRIDGE', 'small');
@@ -642,6 +642,8 @@ $$('[data-dlg]').forEach(b => b.addEventListener('click', () => openDlg(b.datase
 $('#viewBtn').addEventListener('click', () => { S.view = compact ? 'full' : (window.innerHeight > window.innerWidth * 1.05 ? 'auto' : 'compact'); layout(); dirty(); });
 $('#octDn').addEventListener('click', () => { S.octave = Math.max(-3, S.octave - 1); buildKeys(); dirty(); });
 $('#octUp').addEventListener('click', () => { S.octave = Math.min(3, S.octave + 1); buildKeys(); dirty(); });
+$('#diceBtn').addEventListener('click', () => { audio(); panel.random(); paint(); dirty(); });
+$('#resetBtn').addEventListener('click', () => { panel.resetVoice(); paint(); dirty(); });
 $('#panic').addEventListener('click', () => { post({t:'panic'}); S.seq.arp.on = false; for (const n of keyEls.keys()) keyLight(n, false); midiSend([0xB0 | S.func.txCh, 123, 0]); toast('All notes off'); });
 
 /* ----- painting: display, LED, lights ----- */
@@ -684,7 +686,7 @@ function frame(){
 }
 
 /* ---------------- dialogs ---------------- */
-function openDlg(id){ const d = $('#' + id); if (id === 'dlgLib') drawLib(); if (id === 'dlgSeq') drawSeq(); if (id === 'dlgMidi') drawMidi(); if (id === 'dlgHelp') drawHelp(); if (!d.open) d.showModal(); }
+function openDlg(id){ const d = $('#' + id); if (id === 'dlgFx') drawFx(); if (id === 'dlgLib') drawLib(); if (id === 'dlgSeq') drawSeq(); if (id === 'dlgMidi') drawMidi(); if (id === 'dlgHelp') drawHelp(); if (!d.open) d.showModal(); }
 $$('dialog').forEach(d => { d.querySelector('[data-close]').addEventListener('click', () => d.close()); d.addEventListener('click', e => { if (e.target === d) d.close(); }); });
 
 /* ----- memory and cartridge ----- */
@@ -867,6 +869,20 @@ function drawMidi(){
   b.querySelectorAll('[data-r]').forEach(x => x.onclick = () => request(x.dataset.r));
 }
 
+/* ----- effects ----- */
+const FX_UI = [['chorus', 'Chorus depth'], ['chorusRate', 'Chorus rate'], ['delayMix', 'Delay mix'], ['delayTime', 'Delay time'], ['delayFb', 'Delay feedback'], ['revMix', 'Reverb mix'], ['revSize', 'Reverb size']];
+const FX_PRESETS = {'Dry':[0, 30, 0, 60, 35, 0, 60], 'Chorus':[55, 30, 0, 60, 35, 0, 60], 'Studio':[40, 25, 18, 62, 30, 22, 55], 'Big hall':[30, 20, 0, 60, 35, 45, 90], 'Echo':[0, 30, 40, 66, 55, 15, 50], 'Dream':[70, 18, 30, 74, 60, 50, 95]};
+function drawFx(){
+  const b = $('#fxBody'), f = S.func;
+  b.innerHTML = `<p class="hint">After the converter and output filter (the hardware's own sound stays as it is): a stereo chorus, a ping-pong delay and a reverb. Also on the panel: FUNCTION 30, pushed again.</p>
+    <div class="row">${Object.keys(FX_PRESETS).map(k => `<button class="btn" data-fxp="${k}">${k}</button>`).join('')}</div>
+    <div class="row"><label><input type="checkbox" id="fxDac" ${f.dac ? '' : 'checked'}> Mark I 12-bit converter (off = clean 16-bit)</label></div>
+    ${FX_UI.map(([k, n]) => `<div class="row"><label style="width:130px">${n}</label><input type="range" min="0" max="99" value="${f[k]}" data-fx="${k}" style="flex:1"><span style="width:28px;text-align:right">${f[k]}</span></div>`).join('')}`;
+  b.querySelectorAll('[data-fx]').forEach(x => x.oninput = () => { host.setFunc(x.dataset.fx, +x.value); x.nextElementSibling.textContent = x.value; });
+  b.querySelectorAll('[data-fxp]').forEach(x => x.onclick = () => { FX_PRESETS[x.dataset.fxp].forEach((v, i) => host.setFunc(FX_UI[i][0], v)); drawFx(); });
+  $('#fxDac').onchange = e => host.setFunc('dac', e.target.checked ? 0 : 1);
+}
+
 /* ----- help ----- */
 function drawHelp(){
   $('#helpBody').innerHTML = `
@@ -878,11 +894,12 @@ function drawHelp(){
   <h4>Storing</h4><p>Turn <b>MEMORY PROTECT</b> off (push it, then NO), push <b>STORE</b>, then the number to write the edited voice to. The display's * means the voice has been edited and not stored. FUNCTION 9 (edit recall) brings back edits you left for another voice.</p>
   <h4>Function (FUNCTION)</h4><ul>
   <li>1 master tune · 2 poly / mono · 3 / 4 pitch bend range and step · 5–7 portamento mode, glissando and time · 8 MIDI: receive channel, sys info, transmit channel, send voice, send bank</li>
-  <li>9 edit recall · 10 voice init · 11 load a .syx into the cartridge (or a .mid to play) · 12 save the selected bank · 13 save the edit voice · 14 / 15 copy cartridge to internal and back · 16 battery</li>
+  <li>9 edit recall · 10 voice init (pushed again: random voice) · 11 load a .syx into the cartridge (or a .mid to play) · 12 save the selected bank · 13 save the edit voice · 14 / 15 copy cartridge to internal and back · 16 battery</li>
   <li>17–24 mod wheel, foot, breath and aftertouch: range, then (pushed again) pitch / amplitude / EG bias on or off</li>
   <li>25 arpeggiator: on, mode, octaves, rate, gate, latch, swing · 26 tempo and clock source · 27 sequencer: pattern, play / stop, record, length, step, swing, key transpose</li>
   <li>28 step edit: buttons 1–16 pick a step (again: on / off), 17–20 the page, 21 clears the step, 22 the pattern; play notes to write them; the slider sets the gate (up to TIE); YES / NO move</li>
-  <li>29 motion lanes 1–4: which parameter each one moves, then smooth on / off · 30 converter: 12-bit Mark I or 16-bit clean · 31 MIDI files: play, import into the pattern, export the pattern, record, loop · 32 sysex: send bank, request bank or voice</li></ul>
+  <li>29 motion lanes 1–4: which parameter each one moves, then smooth on / off · 30 converter (12-bit Mark I or 16-bit clean), then the effects: chorus depth and rate, delay mix, time and feedback, reverb mix and size · 31 MIDI files: play, import into the pattern, export the pattern, record, loop · 32 sysex: send bank, request bank or voice</li></ul>
+  <h4>Random and reset</h4><p><b>Random</b> (the die) makes a new playable voice in the edit buffer: a random algorithm with musical ratios and envelopes. Keep it with STORE. <b>Reset</b> goes back to the voice as stored in memory.</p><h4>Effects</h4><p><b>FX</b> (or FUNCTION 30 pushed again) sets a stereo chorus, a ping-pong delay and a reverb after the converter, with a few starting points.</p>
   <h4>Files</h4><p>Banks are standard 32-voice sysex dumps (4104 bytes) and single voices are 163-byte dumps, so banks from the original instrument, librarians and other emulators load here and what you save loads there. MIDI files: type 0 and 1.</p>
   <h4>The sound</h4><p>Six operators per voice, 16 voices, computed at the original 49.096 kHz with log-sine and exponential tables, the original envelope, LFO and scaling behaviour, then the Mark I converter: 12-bit samples whose range switches in 6 dB steps, held between samples and smoothed by the output filter. FUNCTION 30 swaps in a clean 16-bit converter for comparison.</p>`;
 }
