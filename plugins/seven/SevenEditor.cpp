@@ -441,8 +441,8 @@ void SevenEditor::fxMenu() {
     for (int i = 0; i < (int) pres.size(); ++i) m.addItem(1 + i, juce::String("Effects: ") + pres[(size_t) i].name);
     m.addSeparator();
     juce::PopupMenu prog;
-    for (int p = 0; p < 5; ++p) prog.addItem(50 + p, juce::String("REV7 ") + RV_PROGS[p], true, proc.func()[F::rvProg] == p);
-    m.addSubMenu("REV7 program", prog);
+    for (int p = 0; p < 35; ++p) { if (p == REV7_FULL) prog.addSeparator(); prog.addItem(100 + p, p < REV7_FULL ? juce::String("110: ") + RV_PROGS[p] : juce::String(p - REV7_FULL + 1) + " " + RV_PROGS[p], true, proc.func()[F::rvProg] == p); }
+    m.addSubMenu("REV7 program (the 110's five, then the 30 factory programs)", prog);
     juce::PopupMenu sync;
     for (int d = 0; d < 14; ++d) sync.addItem(60 + d, d ? juce::String("Delay sync ") + DL_DIV_NAMES[d] : juce::String("Delay time in ms"), true, proc.func()[F::dlSync] == d);
     m.addSubMenu("Delay sync", sync);
@@ -452,7 +452,7 @@ void SevenEditor::fxMenu() {
     m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [this](int r) {
         if (r >= 1 && r <= (int) pres.size()) { for (auto& kv : pres[(size_t) r - 1].v) proc.setFunc(kv.first, kv.second); say(juce::String("Effects: ") + pres[(size_t) r - 1].name); }
         else if (r == 10) proc.setFunc(F::dac, proc.func()[F::dac] ? 0 : 1);
-        else if (r >= 50 && r < 55) proc.setFunc(F::rvProg, r - 50);
+        else if (r >= 100 && r < 135) proc.setFunc(F::rvProg, r - 100);
         else if (r >= 60 && r < 74) proc.setFunc(F::dlSync, r - 60);
         repaint();
     });

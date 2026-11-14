@@ -383,7 +383,7 @@ public:
         const int k = FX_KEYS[s], v = f[k];
         switch (k) {
             case F::dac: return v ? "DAC=16BIT CLEAN" : "DAC=12BIT MARK I";
-            case F::rvProg: return line("REV7", std::string("=") + RV_PROGS[v]);
+            case F::rvProg: return v < REV7_FULL ? line("REV7", std::string("=") + RV_PROGS[v]) : pad(rpad(v - REV7_FULL + 1, 2) + " " + RV_PROGS[v], 16);
             case F::dlSync: return line("DELAY SYNC", std::string("=") + DL_DIV_NAMES[v]);
             case F::dlPing: return line("PING-PONG", "=" + onOff(v));
             case F::delayTime: return line("DELAY TIME", "=" + rpad(v, 4) + "ms");

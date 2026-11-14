@@ -33,7 +33,7 @@ const FX_LABELS = {hiss:'DAC NOISE', chorus:'CHORUS DEPTH', chorusRate:'CHORUS R
 function fxLine(k, f){
   const v = f[k];
   if (k === 'dac') return v ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I';
-  if (k === 'rvProg') return line('REV7', '=' + DX.RV_PROGS[v]);
+  if (k === 'rvProg') return v < DX.REV7_FULL ? line('REV7', '=' + DX.RV_PROGS[v]) : pad(rpad(v - DX.REV7_FULL + 1, 2) + ' ' + DX.RV_PROGS[v], 16);
   if (k === 'dlSync') return line('DELAY SYNC', '=' + DX.DL_DIV_NAMES[v]);
   if (k === 'dlPing') return line('PING-PONG', '=' + ONOFF(v));
   if (k === 'delayTime') return line('DELAY TIME', '=' + rpad(v, 4) + 'ms');

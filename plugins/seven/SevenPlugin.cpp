@@ -55,6 +55,8 @@ void SevenProcessor::setVoice(const Voice156& v) {
 void SevenProcessor::setFunc(int k, int v) {
     const juce::ScopedLock l(lock);
     syn.setFunc(k, v); pushParams = true;
+    // a full-REV7 program: the time / high / delay / diffusion controls take its factory values
+    if (k == F::rvProg && syn.func[k] >= REV7_FULL) { const auto c = rev7Controls(syn.func[k]); const int ks[4] = {F::revSize, F::rvHigh, F::rvDelay, F::rvDiff}; for (int i = 0; i < 4; ++i) syn.setFunc(ks[i], c[(size_t) i]); }
     if (FUNC_DEF[k].num >= 0 && syn.func[F::sysInfo]) pendingMsgs.push_back(paramChange(syn.func[F::txCh], 2, FUNC_DEF[k].num, syn.func[k]));
 }
 void SevenProcessor::store(bool c, int i, const Voice156& v) { const juce::ScopedLock l(lock); if (c) { if (cart) (*cart)[(size_t) i] = v; } else internal[(size_t) i] = v; updateHostDisplay(); }

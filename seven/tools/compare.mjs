@@ -4,6 +4,7 @@ import {createRequire} from 'module';
 import fs from 'fs';
 import {execFileSync} from 'child_process';
 const require = createRequire(import.meta.url);
+globalThis.DXR = require('../rev7.js');
 const DX = globalThis.DX = require('../engine.js');
 const V = require('../voices.js');
 const [bin, dir] = process.argv.slice(2);
@@ -24,6 +25,9 @@ const cases = [
     [0, 'f', F('dlModDepth'), 60], [0, 'f', F('dlDuck'), 70], [0, 'f', F('revMix'), 60], [0, 'f', F('revSize'), 40], [0, 'f', F('rvProg'), 3], [0, 'f', F('rvDelay'), 35], ...chord(0, [52, 59, 64], 100, 40000)]],
   ['REV7 hall + early ref, synced delay, 96k', 96000, 1.5, [[0, 'voice', V.FACTORY[1]], [0, 'f', F('revMix'), 70], [0, 'f', F('rvProg'), 0], [0, 'f', F('delayMix'), 40], [0, 'f', F('dlSync'), 3],
     [0, 'f', F('dlPing'), 0], [0, 'on', 60, 110], [20000, 'off', 60], [60000, 'f', F('rvProg'), 4], [60000, 'on', 67, 90], [90000, 'off', 67]]],
+  ['full REV7: large hall, then stereo echo, then gate reverb with edits', 48000, 3.0, [[0, 'voice', V.FACTORY[1]], [0, 'f', F('revMix'), 60], [0, 'f', F('rvProg'), 5],
+    [0, 'on', 60, 110], [20000, 'off', 60], [48000, 'f', F('rvProg'), 12], [48000, 'on', 64, 100], [60000, 'off', 64], [96000, 'f', F('rvProg'), 27], [96000, 'on', 55, 120],
+    [110000, 'f', F('revSize'), 12], [110000, 'f', F('rvDelay'), 5], [120000, 'off', 55]]],
   ['random voices at 44.1k with reverb', 44100, 2.0, [[0, 'f', F('revMix'), 40], ...Array.from({length:8}, (_, i) => [[i * 11025, 'rnd', 1000 + i * 7919], [i * 11025, 'on', 48 + i * 3, 100], [i * 11025 + 9000, 'off', 48 + i * 3]]).flat()]],
   ['pitch EG sweep, master tune, transpose', 48000, 1.2, [[0, 'voice', V.FACTORY[16]], [0, 'f', F('tune'), 100], [0, 'p', 144, 30], [0, 'on', 60, 127], [40000, 'off', 60]]]
 ];

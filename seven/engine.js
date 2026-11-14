@@ -254,7 +254,7 @@ const FUNC_DEF = [
   ['delayFb', 'DELAY FEEDBACK', 95, 35, -1], ['revMix', 'REVERB RETURN', 99, 0, -1], ['revSize', 'REVERB TIME', 100, 26, -1],
   // the converter's analog faults: 50 = as measured on a working unit, 0 = none, 99 = a tired one
   ['hiss', 'DAC NOISE', 99, 50, -1],
-  ['rvProg', 'REVERB PROGRAM', 4, 0, -1], ['rvHigh', 'REVERB HIGH', 10, 6, -1], ['rvDelay', 'REVERB DELAY', 200, 22, -1], ['rvDiff', 'REVERB DIFFUSION', 10, 8, -1],
+  ['rvProg', 'REVERB PROGRAM', 34, 0, -1], ['rvHigh', 'REVERB HIGH', 10, 6, -1], ['rvDelay', 'REVERB DELAY', 200, 22, -1], ['rvDiff', 'REVERB DIFFUSION', 10, 8, -1],
   ['rvEr', 'REVERB ER LEVEL', 99, 35, -1], ['rvCut', 'REVERB HIGH CUT', 120, 90, -1], ['dlSync', 'DELAY SYNC', 13, 0, -1], ['dlHiCut', 'DELAY HIGH CUT', 200, 60, -1],
   ['dlLoCut', 'DELAY LOW CUT', 99, 10, -1], ['dlModRate', 'DELAY MOD RATE', 99, 12, -1], ['dlModDepth', 'DELAY MOD DEPTH', 99, 20, -1], ['dlDuck', 'DELAY DUCKING', 99, 40, -1],
   ['dlPing', 'DELAY PING-PONG', 1, 1, -1]
@@ -771,7 +771,17 @@ class Mk1Dac {
 /* ---------------- effects: stereo chorus, then the Omega 110's TC 2290-style delay and REV7-style reverb ---------------- */
 const TAU = 2 * Math.PI;
 const onePole = (f, sr) => 1 - Math.exp(-TAU * f / sr);
-const RV_PROGS = ['HALL', 'ROOM', 'VOCAL', 'PLATE', 'EARLY REF'];
+// 0-4: the Omega 110's REV7-style programs; 5-34: the full REV7 model's 30 factory programs (rev7.js, from the service manual)
+const RV_PROGS = ['HALL', 'ROOM', 'VOCAL', 'PLATE', 'EARLY REF', 'LARGE HALL', 'SMALL HALL', 'VOCAL PLATE', 'PERCUSSION PLATE', 'EARLY REF. 1', 'EARLY REF. 2', 'DELAY L,R',
+  'STEREO ECHO', 'STEREO FLANGE', 'REVERB FLANGE', 'CHORUS A', 'CHORUS B', 'STEREO PHASING', 'TREMOLO', 'SYMPHONIC', 'REVERB ROOM', 'ECHO ROOM', 'STRINGS',
+  'ELECTRIC BASS A', 'ELECTRIC BASS B', 'KICK', 'SNARE', 'GATE REVERB', 'REVERSE GATE', 'PIANO', 'ORGAN', 'BRASS', 'GUITAR', 'HANDCLAPS', 'LIVE REFERENCE'];
+const REV7_FULL = 5;
+// what a full-REV7 program sets the shared controls to (REVERB TIME, HIGH, DELAY, DIFFUSION), so they show its values
+function rev7Controls(prog){
+  const R = (typeof globalThis !== 'undefined' && globalThis.DXR) || require('./rev7.js');
+  const v = R.factoryValues(prog - REV7_FULL + 1), P7 = R.P;
+  return {revSize:Math.round(v[P7.RT] * 10), rvHigh:Math.round(v[P7.HI] * 10), rvDelay:Math.round(v[P7.IDLY]), rvDiff:Math.round(v[P7.DIFF])};
+}
 // delay sync divisions, in beats: off, 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/4T, 1/8D, 1/4, 1/2T, 1/4D, 1/2, 1/1
 const DL_DIVS = [0, 0.125, 1 / 6, 0.25, 1 / 3, 0.375, 0.5, 2 / 3, 0.75, 1, 4 / 3, 1.5, 2, 4];
 const DL_DIV_NAMES = ['MS', '1/32', '1/16T', '1/16', '1/8T', '1/16D', '1/8', '1/4T', '1/8D', '1/4', '1/2T', '1/4D', '1/2', '1/1'];
@@ -890,6 +900,23 @@ class Fx {
     this.fs = fs; this.tempo = 120;
     this.chSize = 8192; this.chL = new Float64Array(this.chSize); this.chW = 0; this.chPh = 0;
     this.dl = new TCDelay(fs); this.rv = new Rev7(fs); this.key = '';
+    this.full = null; this.fullProg = -1; this.fullBase = null;     // the full REV7 model, made when first used
+    this.send = new Float32Array(0); this.wl = new Float32Array(0); this.wr = new Float32Array(0);
+  }
+  // the full REV7: a program change loads its factory settings; afterwards the shared controls edit it
+  setupFull(f){
+    if (!this.full){
+      const R = (typeof globalThis !== 'undefined' && globalThis.DXR) || require('./rev7.js');
+      this.R = R; this.full = new R.Rev7Full(); this.full.prepare(this.fs);
+    }
+    const P7 = this.R.P, now = [f.revSize, f.rvHigh, f.rvDelay, f.rvDiff];
+    if (f.rvProg !== this.fullProg){ this.fullProg = f.rvProg; this.full.loadFactory(f.rvProg - REV7_FULL + 1); this.fullBase = now; return; }
+    const b = this.fullBase;
+    if (now[0] !== b[0]) this.full.set(P7.RT, Math.max(3, now[0]) / 10);
+    if (now[1] !== b[1]) this.full.set(P7.HI, Math.max(1, now[1]) / 10);
+    if (now[2] !== b[2]) this.full.set(P7.IDLY, Math.max(0.1, now[2]));
+    if (now[3] !== b[3]) this.full.set(P7.DIFF, now[3]);
+    this.fullBase = now;
   }
   // the delay and reverb settings, from the function values (only when they change)
   setup(f){
@@ -904,8 +931,12 @@ class Fx {
   process(L, R, off, n, f){
     const fs = this.fs;
     const cd = f.chorus / 99 * 3, cr = 0.1 * Math.pow(2, f.chorusRate / 99 * 6) / fs;
-    const dm = f.delayMix / 99, rm = f.revMix / 99;
+    const dm = f.delayMix / 99, rm = f.revMix / 99, full = rm > 0 && f.rvProg >= REV7_FULL;
     if (dm > 0 || rm > 0) this.setup(f);
+    if (full){
+      this.setupFull(f);
+      if (this.send.length < n){ this.send = new Float32Array(n); this.wl = new Float32Array(n); this.wr = new Float32Array(n); }
+    }
     for (let j = off; j < off + n; j++){
       const x = L[j];
       let l = x, r = x;
@@ -923,8 +954,13 @@ class Fx {
       const send = (l + r) * 0.5;
       let ol = l, or = r;
       if (dm > 0){ const d = this.dl.tick(send); ol += d[0] * dm; or += d[1] * dm; }
-      if (rm > 0){ const v = this.rv.tick(send); ol += v[0] * rm; or += v[1] * rm; }
+      if (full) this.send[j - off] = send;
+      else if (rm > 0){ const v = this.rv.tick(send); ol += v[0] * rm; or += v[1] * rm; }
       L[j] = ol; R[j] = or;
+    }
+    if (full){
+      this.full.process(this.send, this.wl, this.wr, 0, n);
+      for (let j = 0; j < n; j++){ L[off + j] += this.wl[j] * rm; R[off + j] += this.wr[j] * rm; }
     }
   }
 }
@@ -1042,10 +1078,10 @@ function randomFx(seed){
   const syncs = [0, 0, 3, 6, 8, 9];
   return {chorus:rnd() < 0.5 ? 0 : ri(20, 65), chorusRate:ri(10, 60), delayMix:rnd() < 0.4 ? 0 : ri(15, 55), delayTime:ri(120, 700), dlSync:syncs[ri(0, 5)],
     delayFb:ri(15, 70), dlHiCut:ri(20, 90), dlLoCut:ri(5, 30), dlModRate:ri(5, 40), dlModDepth:ri(0, 60), dlDuck:ri(0, 80), dlPing:ri(0, 1),
-    revMix:ri(10, 70), rvProg:ri(0, 4), revSize:ri(8, 60), rvHigh:ri(3, 9), rvDelay:ri(0, 80), rvDiff:ri(4, 10), rvEr:ri(10, 80), rvCut:ri(40, 120)};
+    revMix:ri(10, 70), rvProg:ri(0, 34), revSize:ri(8, 60), rvHigh:ri(3, 9), rvDelay:ri(0, 80), rvDiff:ri(4, 10), rvEr:ri(10, 80), rvCut:ri(40, 120)};
 }
 
-const api = {DICE_PARTS, DICE_NAMES, rollPart, randomFx, Fx, TCDelay, Rev7, RV_PROGS, DL_DIVS, DL_DIV_NAMES, Mk1Dac, MK1, VOL_STEPS, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
+const api = {REV7_FULL, rev7Controls, DICE_PARTS, DICE_NAMES, rollPart, randomFx, Fx, TCDelay, Rev7, RV_PROGS, DL_DIVS, DL_DIV_NAMES, Mk1Dac, MK1, VOL_STEPS, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
   bankToSysex, voiceToSysex, paramChange, parseSysexFile, parseSysexMessage, checksum, defaultFunc, Synth, Voice, Env, Lfo, PitchEnv, noteName, bpName, CURVES, WAVES,
   freqText, oscLogFreq, phaseInc, makeResampler, LOGSIN, EXPT, VOICE_SIZE};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

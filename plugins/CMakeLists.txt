@@ -164,6 +164,11 @@ if(NOT OMEGA_ONLY OR "Seven" IN_LIST OMEGA_ONLY)
   target_link_libraries(OmegaSeven PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
   # Seven.h against engine.js: node seven/tools/compare.mjs <build>/seven_test <dir>
   add_executable(seven_test seven/test.cpp)
+  # no fused multiply-adds: the plugin's arithmetic stays the same as the web engine's on every platform
+  if(NOT MSVC)
+    target_compile_options(OmegaSeven PRIVATE -ffp-contract=off)
+    target_compile_options(seven_test PRIVATE -ffp-contract=off)
+  endif()
 endif()
 if(TARGET OmegaSeven)
   juce_add_console_app(seven_proc_test PRODUCT_NAME "seven_proc_test")

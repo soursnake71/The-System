@@ -8,9 +8,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+#include "Rev7Full.h"
 
 namespace seven {
 
@@ -264,7 +266,7 @@ static const FuncDef FUNC_DEF[41] = {
     {"dac", "CONVERTER", 1, 0, -1}, {"volume", "VOLUME", 99, 80, -1},
     {"chorus", "CHORUS DEPTH", 99, 0, -1}, {"chorusRate", "CHORUS RATE", 99, 30, -1}, {"delayMix", "DELAY RETURN", 99, 0, -1}, {"delayTime", "DELAY TIME MS", 2000, 375, -1},
     {"delayFb", "DELAY FEEDBACK", 95, 35, -1}, {"revMix", "REVERB RETURN", 99, 0, -1}, {"revSize", "REVERB TIME", 100, 26, -1}, {"hiss", "DAC NOISE", 99, 50, -1},
-    {"rvProg", "REVERB PROGRAM", 4, 0, -1}, {"rvHigh", "REVERB HIGH", 10, 6, -1}, {"rvDelay", "REVERB DELAY", 200, 22, -1}, {"rvDiff", "REVERB DIFFUSION", 10, 8, -1},
+    {"rvProg", "REVERB PROGRAM", 34, 0, -1}, {"rvHigh", "REVERB HIGH", 10, 6, -1}, {"rvDelay", "REVERB DELAY", 200, 22, -1}, {"rvDiff", "REVERB DIFFUSION", 10, 8, -1},
     {"rvEr", "REVERB ER LEVEL", 99, 35, -1}, {"rvCut", "REVERB HIGH CUT", 120, 90, -1}, {"dlSync", "DELAY SYNC", 13, 0, -1}, {"dlHiCut", "DELAY HIGH CUT", 200, 60, -1},
     {"dlLoCut", "DELAY LOW CUT", 99, 10, -1}, {"dlModRate", "DELAY MOD RATE", 99, 12, -1}, {"dlModDepth", "DELAY MOD DEPTH", 99, 20, -1}, {"dlDuck", "DELAY DUCKING", 99, 40, -1},
     {"dlPing", "DELAY PING-PONG", 1, 1, -1}};
@@ -472,7 +474,17 @@ struct MidiResult { enum Kind { none, program, func, param, voice, bankDump, req
 /* ---------------- effects: chorus, then the Omega 110's TC 2290-style delay and REV7-style reverb (engine.js) ---------------- */
 constexpr double TAU = 2 * kPi;
 inline double onePole(double f, double sr) { return 1 - std::exp(-TAU * f / sr); }
-static const char* const RV_PROGS[5] = {"HALL", "ROOM", "VOCAL", "PLATE", "EARLY REF"};
+// 0-4: the Omega 110's REV7-style programs; 5-34: the full REV7 model's 30 factory programs (Rev7Full.h)
+static const char* const RV_PROGS[35] = {"HALL", "ROOM", "VOCAL", "PLATE", "EARLY REF", "LARGE HALL", "SMALL HALL", "VOCAL PLATE", "PERCUSSION PLATE", "EARLY REF. 1",
+    "EARLY REF. 2", "DELAY L,R", "STEREO ECHO", "STEREO FLANGE", "REVERB FLANGE", "CHORUS A", "CHORUS B", "STEREO PHASING", "TREMOLO", "SYMPHONIC", "REVERB ROOM",
+    "ECHO ROOM", "STRINGS", "ELECTRIC BASS A", "ELECTRIC BASS B", "KICK", "SNARE", "GATE REVERB", "REVERSE GATE", "PIANO", "ORGAN", "BRASS", "GUITAR", "HANDCLAPS",
+    "LIVE REFERENCE"};
+constexpr int REV7_FULL = 5;
+// what a full-REV7 program sets the shared controls to (rev7Controls in engine.js)
+inline std::array<int, 4> rev7Controls(int prog) {
+    rev7::Rev7Full t; t.loadFactory(prog - REV7_FULL + 1);
+    return {(int) jsRound(t.get(rev7::RT) * 10), (int) jsRound(t.get(rev7::HI) * 10), (int) jsRound(t.get(rev7::IDLY)), (int) jsRound(t.get(rev7::DIFF))};
+}
 static const double DL_DIVS[14] = {0, 0.125, 1.0 / 6, 0.25, 1.0 / 3, 0.375, 0.5, 2.0 / 3, 0.75, 1, 4.0 / 3, 1.5, 2, 4};
 static const char* const DL_DIV_NAMES[14] = {"MS", "1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/4T", "1/8D", "1/4", "1/2T", "1/4D", "1/2", "1/1"};
 
@@ -600,6 +612,18 @@ public:
     void init(double rate) {
         fs = rate; chL.assign((size_t) chSize, 0.0); chW = 0; chPh = 0;
         dl.init(rate); rv.init(rate); haveKey = false;
+        full.reset(); fullProg = -1;
+    }
+    // the full REV7: a program change loads its factory settings; afterwards the shared controls edit it
+    void setupFull(const Func& f) {
+        if (!full) { full = std::make_unique<rev7::Rev7Full>(); full->prepare(fs); }
+        const int now[4] = {f[F::revSize], f[F::rvHigh], f[F::rvDelay], f[F::rvDiff]};
+        if (f[F::rvProg] != fullProg) { fullProg = f[F::rvProg]; full->loadFactory(f[F::rvProg] - REV7_FULL + 1); std::copy(now, now + 4, fullBase); return; }
+        if (now[0] != fullBase[0]) full->set(rev7::RT, std::max(3, now[0]) / 10.0);
+        if (now[1] != fullBase[1]) full->set(rev7::HI, std::max(1, now[1]) / 10.0);
+        if (now[2] != fullBase[2]) full->set(rev7::IDLY, std::max(0.1, (double) now[2]));
+        if (now[3] != fullBase[3]) full->set(rev7::DIFF, now[3]);
+        std::copy(now, now + 4, fullBase);
     }
     void setup(const Func& f) {
         const double div = DL_DIVS[std::max(0, std::min(13, f[F::dlSync]))];
@@ -614,8 +638,9 @@ public:
     }
     void process(float* L, float* R, int n, const Func& f) {
         const double cd = f[F::chorus] / 99.0 * 3, cr = 0.1 * std::pow(2.0, f[F::chorusRate] / 99.0 * 6) / fs;
-        const double dm = f[F::delayMix] / 99.0, rm = f[F::revMix] / 99.0;
+        const double dm = f[F::delayMix] / 99.0, rm = f[F::revMix] / 99.0; const bool useFull = rm > 0 && f[F::rvProg] >= REV7_FULL;
         if (dm > 0 || rm > 0) setup(f);
+        if (useFull) { setupFull(f); if ((int) send.size() < n) { send.resize((size_t) n); wl.resize((size_t) n); wr.resize((size_t) n); } }
         for (int j = 0; j < n; ++j) {
             const double x = L[j];
             double l = x, r = x;
@@ -632,8 +657,13 @@ public:
             const double send = (l + r) * 0.5;
             double ol = l, orr = r;
             if (dm > 0) { double a, b; dl.tick(send, a, b); ol += a * dm; orr += b * dm; }
-            if (rm > 0) { double a, b; rv.tick(send, a, b); ol += a * rm; orr += b * rm; }
+            if (useFull) this->send[(size_t) j] = (float) send;
+            else if (rm > 0) { double a, b; rv.tick(send, a, b); ol += a * rm; orr += b * rm; }
             L[j] = (float) ol; R[j] = (float) orr;
+        }
+        if (useFull) {
+            full->process(this->send.data(), wl.data(), wr.data(), n);
+            for (int j = 0; j < n; ++j) { L[j] = (float) (L[j] + wl[(size_t) j] * rm); R[j] = (float) (R[j] + wr[(size_t) j] * rm); }
         }
     }
 private:
@@ -641,6 +671,7 @@ private:
     static constexpr int64_t chSize = 8192;
     std::vector<double> chL; int64_t chW = 0; double chPh = 0;
     TCDelay dl; Rev7 rv; double key[15] {}; bool haveKey = false;
+    std::unique_ptr<rev7::Rev7Full> full; int fullProg = -1; int fullBase[4] {}; std::vector<float> send, wl, wr;
 };
 
 /* ---------------- the dice: a random voice that plays (randomVoice in engine.js, same numbers) ---------------- */
@@ -706,7 +737,7 @@ inline std::vector<std::pair<int, int>> randomFx(uint32_t seed) {
     f.push_back({F::chorus, rnd() < 0.5 ? 0 : ri(20, 65)}); f.push_back({F::chorusRate, ri(10, 60)}); f.push_back({F::delayMix, rnd() < 0.4 ? 0 : ri(15, 55)});
     f.push_back({F::delayTime, ri(120, 700)}); f.push_back({F::dlSync, syncs[ri(0, 5)]}); f.push_back({F::delayFb, ri(15, 70)}); f.push_back({F::dlHiCut, ri(20, 90)});
     f.push_back({F::dlLoCut, ri(5, 30)}); f.push_back({F::dlModRate, ri(5, 40)}); f.push_back({F::dlModDepth, ri(0, 60)}); f.push_back({F::dlDuck, ri(0, 80)});
-    f.push_back({F::dlPing, ri(0, 1)}); f.push_back({F::revMix, ri(10, 70)}); f.push_back({F::rvProg, ri(0, 4)}); f.push_back({F::revSize, ri(8, 60)});
+    f.push_back({F::dlPing, ri(0, 1)}); f.push_back({F::revMix, ri(10, 70)}); f.push_back({F::rvProg, ri(0, 34)}); f.push_back({F::revSize, ri(8, 60)});
     f.push_back({F::rvHigh, ri(3, 9)}); f.push_back({F::rvDelay, ri(0, 80)}); f.push_back({F::rvDiff, ri(4, 10)}); f.push_back({F::rvEr, ri(10, 80)}); f.push_back({F::rvCut, ri(40, 120)});
     return f;
 }

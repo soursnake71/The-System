@@ -49,7 +49,7 @@ function post(m){ if (node) node.port.postMessage(m); }
 function audio(){
   if (!audioReady) audioReady = (async () => {
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
-    for (const f of ['engine.js', 'seq.js', 'worklet.js']) await ctx.audioWorklet.addModule(f);
+    for (const f of ['rev7.js', 'engine.js', 'seq.js', 'worklet.js']) await ctx.audioWorklet.addModule(f);
     node = new AudioWorkletNode(ctx, 'omega-seven', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
     node.port.onmessage = e => onWorklet(e.data);
     node.connect(ctx.destination);
@@ -84,6 +84,8 @@ const host = {
   setFunc(k, v){
     const d = DX.FUNC_DEF.find(x => x[0] === k); if (!d) return;
     S.func[k] = Math.max(0, Math.min(d[2], v)); post({t:'func', k, v:S.func[k]});
+    // a full-REV7 program: the time / high / delay / diffusion controls take its factory values
+    if (k === 'rvProg' && S.func[k] >= DX.REV7_FULL){ const c = DX.rev7Controls(S.func[k]); for (const q in c){ S.func[q] = c[q]; post({t:'func', k:q, v:c[q]}); } }
     if (d[4] >= 0 && S.func.sysInfo) midiSend(DX.paramChange(S.func.txCh, 2, d[4], S.func[k]));
     dirty();
   },
@@ -892,7 +894,7 @@ const FX_SECTIONS = [
   ['TC 2290-style dynamic delay', [['delayMix', 'Return', 0, 99], ['delayTime', 'Time (ms)', 10, 2000], ['dlSync', 'Sync', 0, 13, v => DX.DL_DIV_NAMES[v]], ['delayFb', 'Feedback', 0, 95],
     ['dlHiCut', 'High cut', 10, 200, v => (v / 10).toFixed(1) + ' kHz'], ['dlLoCut', 'Low cut', 2, 99, v => v * 10 + ' Hz'], ['dlModRate', 'Mod rate', 1, 99, v => (v * 0.05).toFixed(2) + ' Hz'],
     ['dlModDepth', 'Mod depth', 0, 99], ['dlDuck', 'Ducking', 0, 99], ['dlPing', 'Ping-pong', 0, 1, v => v ? 'on' : 'off']]],
-  ['REV7-style reverb', [['revMix', 'Return', 0, 99], ['rvProg', 'Program', 0, 4, v => DX.RV_PROGS[v]], ['revSize', 'Reverb time', 3, 100, v => (v / 10).toFixed(1) + ' s'],
+  ['REV7 reverb (0-4: the Omega 110\'s programs, then the 30 REV7 factory programs)', [['revMix', 'Return', 0, 99], ['rvProg', 'Program', 0, 34, v => (v >= DX.REV7_FULL ? 'REV7 ' + (v - DX.REV7_FULL + 1) + ' ' : '110 ') + DX.RV_PROGS[v]], ['revSize', 'Reverb time', 3, 100, v => (v / 10).toFixed(1) + ' s'],
     ['rvHigh', 'High (HF ratio)', 1, 10, v => (v / 10).toFixed(1)], ['rvDelay', 'Pre-delay', 0, 200, v => v + ' ms'], ['rvDiff', 'Diffusion', 0, 10], ['rvEr', 'ER level', 0, 99],
     ['rvCut', 'High cut', 10, 120, v => (v / 10).toFixed(1) + ' kHz']]]
 ];
@@ -917,6 +919,7 @@ function drawFx(){
     ${FX_SECTIONS.map(([t, rows]) => `<h4 style="margin:12px 0 4px;color:var(--tan);font:700 12px var(--sans);letter-spacing:.6px">${t.toUpperCase()}</h4>${rows.map(row).join('')}`).join('')}`;
   const fmts = {}; for (const [, rows] of FX_SECTIONS) for (const r of rows) fmts[r[0]] = r[4];
   b.querySelectorAll('[data-fx]').forEach(x => x.oninput = () => { const k = x.dataset.fx; host.setFunc(k, +x.value); x.nextElementSibling.textContent = fmts[k] ? fmts[k](+x.value) : x.value; });
+  b.querySelectorAll('[data-fx=rvProg]').forEach(x => x.onchange = () => drawFx());
   b.querySelectorAll('[data-fxp]').forEach(x => x.onclick = () => { const p = FX_PRESETS[x.dataset.fxp]; for (const k in p) host.setFunc(k, p[k]); drawFx(); });
   $('#fxDac').onchange = e => host.setFunc('dac', e.target.checked ? 0 : 1);
 }
