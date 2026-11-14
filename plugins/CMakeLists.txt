@@ -140,3 +140,39 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega DMX: the drum machine (dmx/ in the app) as an instrument, plus a standalone app. Kits from dmx/kits are
+# embedded as "<kit>__<file>.wav"; kits, factory patterns and the MIDI note map come from dmx/kits.js (dmx/tools/gen.mjs).
+if(NOT OMEGA_ONLY OR "DMX" IN_LIST OMEGA_ONLY)
+  file(GLOB dmx_wavs "${CMAKE_CURRENT_SOURCE_DIR}/../dmx/kits/*/*.wav")
+  set(dmx_data "")
+  foreach(w ${dmx_wavs})
+    get_filename_component(kitdir "${w}" DIRECTORY)
+    get_filename_component(kitname "${kitdir}" NAME)
+    get_filename_component(fname "${w}" NAME)
+    set(dst "${CMAKE_CURRENT_BINARY_DIR}/dmxdata/${kitname}__${fname}")
+    configure_file("${w}" "${dst}" COPYONLY)
+    list(APPEND dmx_data "${dst}")
+  endforeach()
+  juce_add_binary_data(OmegaDmxData SOURCES ${dmx_data})
+  juce_add_plugin(OmegaDMX
+    PRODUCT_NAME "Omega DMX"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.DMX"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Odmx
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Drum
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaDMX PRIVATE dmx/DmxPlugin.cpp dmx/DmxEditor.cpp)
+  target_compile_definitions(OmegaDMX PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaDMX PRIVATE OmegaDmxData juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
+# DmxEngine.h on its own: <build>/dmx_test <repo>/dmx/kits
+add_executable(dmx_test dmx/test.cpp)

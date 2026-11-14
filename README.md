@@ -29,6 +29,14 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## Omega DMX (`/dmx/`): digital drum machine
+A drum machine laid out like the DMX: eight faders (Bass, Snare, Hi-Hat, Toms, Cymbal, Perc 1, Perc 2, Volume), a red LED display, square voice keys, a 0–9 keypad and a white Play / Stop.
+- Four kits: real DMX recordings, plus Kit A, Kit B and Kit C from your own sample sets (the numbered sounds in Kit B and Kit C were named by ear: long-press a voice to rename it).
+- Ten patterns per kit (16 steps, accents), picked on the keypad and switched at the end of the bar; song mode, copy, swing 50–71%, tempo typed on the keypad, live record, click.
+- MIDI in: General MIDI drum notes and every voice from C3 up, MIDI clock and start / stop. WAV export.
+- Android app: the `omega-dmx` release (`omega-dmx.apk`, built by `.github/workflows/dmx-release.yml`). Web: `https://<your-username>.github.io/<repo>/dmx/`.
+- VST3 / AU instrument and standalone app (Windows, Mac, Linux installers in the `omega-dmx` release): the same kits, patterns and panel; it follows the host's transport. The engine is `plugins/dmx/DmxEngine.h`; the kits and patterns come from `dmx/kits.js` (`node dmx/tools/gen.mjs`), and `dmx_test` checks the engine.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 

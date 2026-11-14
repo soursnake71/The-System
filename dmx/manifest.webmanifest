@@ -1,0 +1,2 @@
+{"name":"Omega DMX","short_name":"DMX","description":"Digital drum machine: DMX faders, keys and keypad, real DMX recordings plus your own kits, patterns, song mode, swing, MIDI and WAV export.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#0b0b0d","theme_color":"#0b0b0d",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

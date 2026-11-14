@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Omega DMX</title>
+<meta name="description" content="Digital drum machine: the DMX's faders, keys and keypad, real DMX recordings plus your own kits, 10 patterns per kit, song mode, swing, live record, MIDI and WAV export.">
+<meta name="theme-color" content="#0b0b0d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --face:#0d0e12; --stripe:rgba(64,112,224,.62); --print:#e9ebf0; --dim:#9aa0ad; --led:#ff2a1a; --ledOff:#3a0d0a; --ledBg:#1a0303;
+  --key1:#46474d; --key2:#202125; --key3:#16171a; --red1:#d8261c; --red2:#8a100a; --wood1:#3a1c0c; --wood2:#7a4424; --wood3:#5a2e16;
+  --cond:"sans-serif-condensed", "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --mono:"Courier New", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:#050506; touch-action:none;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; font-family:var(--cond); color:var(--print)}
+button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:none; cursor:pointer}
+#stage{position:fixed; inset:0; overflow:hidden}
+/* the panel is laid out at one size and scaled to fit the screen: nothing scrolls */
+.dmx{position:absolute; left:0; top:0; transform-origin:0 0; display:grid; gap:14px; padding:16px 22px;
+  background:repeating-linear-gradient(180deg, transparent 0 11px, var(--stripe) 11px 12px), linear-gradient(180deg, #17181c, #0a0a0c);
+  border-left:30px solid var(--wood3); border-right:30px solid var(--wood3); border-image:linear-gradient(90deg, var(--wood1), var(--wood2) 35%, var(--wood3) 65%, #2e1408) 1;
+  box-shadow:0 10px 40px rgba(0,0,0,.8)}
+.dmx.land{width:1280px; height:720px; grid-template-columns:190px 1fr 330px; grid-template-rows:150px 1fr 196px;
+  grid-template-areas:"logo faders led" "grid grid pad" "keys keys ctl"}
+.dmx.port{width:720px; height:1360px; grid-template-columns:1fr 1fr; grid-template-rows:96px 170px 1fr 250px 330px;
+  grid-template-areas:"logo led" "faders faders" "grid grid" "keys keys" "pad ctl"}
+.logo{grid-area:logo; display:flex; flex-direction:column; justify-content:center; gap:10px}
+.logo b{font:italic 900 74px/1 Arial, Helvetica, sans-serif; color:#0b0b0d; -webkit-text-stroke:2.4px #e8e8ea; transform:skewX(-6deg) scaleX(1.18); transform-origin:left; display:block; letter-spacing:1px}
+.logo i{font:700 11px var(--cond); letter-spacing:.3em; font-style:normal; color:var(--dim)}
+.port .logo{flex-direction:row; align-items:center; gap:18px}.port .logo i{display:none}.port .logo b{font-size:64px}
+/* LED display */
+.led{grid-area:led; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:8px; min-width:0}
+.ledrow{display:flex; align-items:center; gap:12px}
+.digits{background:var(--ledBg); border:3px solid #000; border-radius:3px; padding:6px 12px; font:700 44px/1 var(--mono); color:var(--led);
+  text-shadow:0 0 10px rgba(255,40,20,.85); letter-spacing:.14em; box-shadow:inset 0 0 14px #000; white-space:pre; min-width:236px; text-align:right}
+.pwr{width:14px; height:24px; border-radius:2px; background:#b3140e; box-shadow:0 0 10px #ff3020}
+.msg{font:700 12px var(--cond); letter-spacing:.2em; color:#cfd3dc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; text-transform:uppercase}
+.minis{display:flex; gap:8px}.minis button{font:800 11px var(--cond); letter-spacing:.12em; padding:6px 10px; border:1px solid #000; border-radius:2px;
+  background:linear-gradient(180deg, #3c3d42, #1d1e22); box-shadow:0 2px 0 #000}
+.minis button.on{color:var(--led)}
+.midibox{overflow:visible; align-self:center}.midi{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ledOff); margin-left:4px; vertical-align:middle}.midi.on{background:var(--led); box-shadow:0 0 6px var(--led)}
+/* faders */
+.faders{grid-area:faders; display:grid; grid-template-columns:repeat(8, 1fr); gap:6px; background:rgba(0,0,0,.6); padding:10px 8px 6px; border-radius:3px}
+.fader{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0}
+.slot{position:relative; flex:1; width:46px; touch-action:none; cursor:ns-resize}
+.slot::before{content:""; position:absolute; left:50%; top:4px; bottom:4px; width:6px; margin-left:-3px; background:#000; border:1px solid #444; border-radius:2px}
+.cap{position:absolute; left:50%; width:42px; height:24px; margin:-12px 0 0 -21px; border-radius:3px; border:1px solid #111;
+  background:linear-gradient(180deg, #f2f2f2, #a4a4a8 44%, #4e4e52 50%, #c8c8cc); box-shadow:0 3px 4px rgba(0,0,0,.7)}
+.fader span{font:800 12px var(--cond); letter-spacing:.06em; white-space:nowrap}
+/* step grid: red LEDs */
+.grid{grid-area:grid; background:#100303; border:3px solid #000; box-shadow:inset 0 0 16px #000; border-radius:3px; padding:6px 8px; display:flex; flex-direction:column; gap:2px; min-height:0}
+.row{flex:1; display:grid; grid-template-columns:118px repeat(16, 1fr); gap:3px; align-items:center; min-height:0; border-radius:2px}
+.row.sel{background:rgba(255,50,30,.13)}
+.row b{font:700 12px var(--mono); color:#ff6a5a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; padding-left:3px}
+.row i{justify-self:center; height:min(78%, 16px); aspect-ratio:1; border-radius:50%; border:1.5px solid #3a1210; touch-action:none; cursor:pointer}
+.row i.beat{border-color:#7a2a24}
+.row i.on{background:#c8180e; box-shadow:0 0 5px #ff2a1a}
+.row i.acc{background:#ff6a4a; box-shadow:0 0 9px #ff4a2a; border-color:#ffb0a0}
+.row i.now{outline:2px solid rgba(255,255,255,.55); outline-offset:1px}
+.steps{display:grid; grid-template-columns:118px repeat(16, 1fr); gap:3px; padding-bottom:2px}
+.steps em{justify-self:center; font:700 9px var(--mono); color:#7a2a24; font-style:normal}.steps em.now{color:var(--led)}
+/* keys */
+.keys{grid-area:keys; display:grid; grid-template-columns:repeat(11, 1fr); gap:10px 9px; align-content:center}
+.port .keys{grid-template-columns:repeat(7, 1fr)}
+.key{display:flex; flex-direction:column; align-items:center; gap:5px; font:800 11px var(--cond); letter-spacing:.05em; min-width:0}
+.key span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.key i{display:block; width:100%; max-width:74px; height:44px; border-radius:3px; border:1px solid #000;
+  background:linear-gradient(180deg, var(--key1), var(--key2) 60%, var(--key3)); box-shadow:0 4px 0 #000, inset 0 1px 0 rgba(255,255,255,.18)}
+.key:active i, .key.hit i{transform:translateY(3px); box-shadow:0 1px 0 #000}
+.key.on{color:#ff5a4a}.key.on i{background:linear-gradient(180deg, #66676e, #3a3b40 60%, #2a2b2f); box-shadow:0 4px 0 #000, 0 0 0 1.5px #ff3a2a, 0 0 10px rgba(255,50,30,.6)}
+.key.red i{background:linear-gradient(180deg, #5a1410, #320806)}.key.red.on i{background:linear-gradient(180deg, var(--red1), #9a120c); box-shadow:0 4px 0 #000, 0 0 12px rgba(255,50,30,.7)}
+/* keypad */
+.pad{grid-area:pad; display:grid; grid-template-columns:repeat(3, 1fr); grid-auto-rows:1fr; gap:10px; background:rgba(0,0,0,.6); padding:12px; border-radius:3px}
+.pad button{font:700 28px var(--mono); border:1px solid #000; border-radius:3px; background:linear-gradient(180deg, var(--key1), var(--key2) 60%, var(--key3));
+  box-shadow:0 3px 0 #000; position:relative}
+.pad button:active{transform:translateY(2px); box-shadow:0 1px 0 #000}
+.pad button.on{color:var(--led); box-shadow:0 3px 0 #000, 0 0 0 1.5px #ff3a2a}
+.pad button.used::after{content:""; position:absolute; right:6px; top:6px; width:6px; height:6px; border-radius:50%; background:#ff5a3a; box-shadow:0 0 4px #ff3a1a}
+/* control: play / stop and the function keys */
+.ctl{grid-area:ctl; display:grid; grid-template-columns:96px 1fr; gap:12px; align-items:center}
+.port .ctl{grid-template-columns:1fr; grid-template-rows:auto 1fr; justify-items:center}
+.play{display:flex; flex-direction:column; align-items:center; gap:6px; font:800 12px var(--cond); letter-spacing:.08em}
+.play i{width:84px; height:76px; border-radius:3px; border:1px solid #000; background:linear-gradient(180deg, #fff, #d4d4d4); box-shadow:0 5px 0 #000}
+.play:active i{transform:translateY(3px); box-shadow:0 2px 0 #000}
+.play.on i{box-shadow:0 5px 0 #000, 0 0 18px rgba(255,255,255,.75)}
+.fn{display:grid; grid-template-columns:repeat(4, 1fr); gap:10px 8px; width:100%}
+.fn .key i{height:36px}
+.brand{grid-column:1 / -1; justify-self:end; font:italic 900 22px/1 Arial, sans-serif; display:flex; align-items:center; gap:8px; letter-spacing:-.01em}
+.brand::before{content:""; width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 40% 40%, #fff 0 20%, #bbb 22% 45%, #222 48%); border:1px solid #ddd}
+dialog{background:#141519; color:var(--print); border:1px solid #444; border-radius:6px; max-width:min(92vw, 520px); font:15px/1.45 var(--cond)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 8px; font-size:20px}dialog li{margin-bottom:4px}
+dialog .act{display:flex; gap:8px; justify-content:flex-end; margin-top:12px}
+dialog button.b{padding:8px 14px; border:1px solid #000; border-radius:3px; background:linear-gradient(180deg, #3c3d42, #1d1e22); font-weight:700}
+dialog input{width:100%; font:inherit; padding:8px; background:#000; color:#fff; border:1px solid #555; border-radius:3px}
+.kitlist button{display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:6px; border:1px solid #000; border-radius:3px; background:linear-gradient(180deg, #3c3d42, #1d1e22)}
+.kitlist button.on{outline:2px solid var(--led)}.kitlist small{display:block; color:var(--dim)}
+#toast{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:rgba(20,0,0,.92); color:#ffd0c8; border:1px solid #ff3a2a; padding:8px 14px;
+  border-radius:4px; font:700 14px var(--cond); letter-spacing:.06em; opacity:0; transition:opacity .2s; pointer-events:none; z-index:9; max-width:90vw; text-align:center}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage"><div class="dmx land" id="dmx">
+  <div class="logo"><b>DMX</b><i>OMEGA DIGITAL DRUMS</i></div>
+  <div class="faders" id="faders"></div>
+  <div class="led">
+    <div class="ledrow"><div class="digits" id="digits" aria-live="polite"></div><i class="pwr" aria-hidden="true"></i></div>
+    <div class="msg" id="msg"></div>
+    <div class="minis"><button id="kitBtn">KIT</button><button id="clickBtn">CLICK</button><button id="exportBtn">EXPORT WAV</button><button id="helpBtn">?</button><span class="msg midibox">MIDI<i class="midi" id="midiLed"></i></span></div>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="pad" id="pad" role="group" aria-label="Keypad"></div>
+  <div class="keys" id="keys"></div>
+  <div class="ctl">
+    <button class="play" id="play"><i></i>PLAY / STOP</button>
+    <div class="fn" id="fn"></div>
+    <div class="brand">Omega</div>
+  </div>
+</div></div>
+<dialog id="kitDlg"><h2>Kit</h2><div class="kitlist" id="kitList"></div><div class="act"><button class="b" data-close>Close</button></div></dialog>
+<dialog id="nameDlg"><h2 id="nameTtl">Rename</h2><input id="nameIn" maxlength="16"><div class="act"><button class="b" id="nameReset">Original name</button><button class="b" data-close>Cancel</button><button class="b" id="nameOk">OK</button></div></dialog>
+<dialog id="helpDlg"><h2>Omega DMX</h2><ul>
+  <li><b>Grid</b>: tap a light to place a hit (with ACCENT lit, an accented hit), tap again to clear. Drag to paint. Tap a name to pick the voice; long-press it to rename.</li>
+  <li><b>Voice keys</b> play the sounds. With <b>RECORD</b> lit and the pattern playing they record where you play them.</li>
+  <li><b>Keypad</b>: 1–9 and 0 pick the ten patterns of the kit (a dot marks the ones with hits); &lt; &gt; step through them. A new pattern starts when the playing one ends.</li>
+  <li><b>TEMPO</b>: then type the tempo on the keypad, or &lt; &gt; for one step. <b>SWING</b> steps 50–71%.</li>
+  <li><b>SONG</b>: then keypad numbers add patterns to the song, ERASE takes the last one off; SONG again to leave. With a song, PLAY runs it.</li>
+  <li><b>COPY</b>: then a number copies this pattern there. <b>ERASE</b> clears the picked voice, <b>CLEAR</b> the whole pattern (press twice). <b>FACTORY</b> puts the factory pattern back.</li>
+  <li><b>Faders</b> set Bass, Snare, Hi-Hat, Toms, Cymbal, Perc 1, Perc 2 and the master Volume.</li>
+  <li><b>MIDI</b>: General MIDI drum notes play the kit (36 kick, 38 snare, 42 hat …); every voice also sits on its own note from C3 (60) up. MIDI clock and start / stop drive the sequencer.</li>
+  <li><b>EXPORT WAV</b> saves the pattern (four times) or the song.</li></ul>
+  <div class="act"><button class="b" data-close>Close</button></div></dialog>
+<div id="toast"></div>
+<script src="kits.js"></script>
+<script src="io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

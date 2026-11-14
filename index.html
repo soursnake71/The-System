@@ -579,6 +579,7 @@ html #dmxCard .dmx-faders input[type=range]::-webkit-slider-thumb{-webkit-appear
 .dmx-keys{display:grid;grid-template-columns:repeat(3,34px);gap:5px;background:rgba(0,0,0,.55);padding:5px;border-radius:2px;align-content:start}
 .dmx-keys button{height:30px;padding:0 !important;font:700 13px var(--f-mono) !important;background:linear-gradient(180deg,#46474d,#202125 60%,#16171a) !important;color:#f2f2f2 !important;border:1px solid #000 !important;box-shadow:0 2px 0 #000;min-width:0}
 .dmx-keys button.on{color:#ff4a3a !important;box-shadow:0 2px 0 #000,0 0 0 1px #ff3a2a}
+.dmx .dm-app{display:block;margin-top:8px;text-align:center;font:800 11px var(--f-display);letter-spacing:.08em;color:#ff6a5a;text-decoration:none;padding:6px}
 .dmx .dm-load{background:linear-gradient(180deg,#3c3d42,#1d1e22) !important;color:#e9ebf0 !important;border:1px solid #000 !important}
 .dmach > *{break-inside:avoid}
 .dm-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}.dm-head b{font:900 16px/1 "Barlow",sans-serif;letter-spacing:.15em}.dm-head span{font:900 22px/1 "Barlow",sans-serif}.dm-head i{font:700 9px "Barlow",sans-serif;letter-spacing:.25em;font-style:normal;opacity:.8}
@@ -12367,7 +12368,8 @@ function renderDrumMachine(id){
     <div class="dmx-bot"><div class="dmx-left"><button class="nolearn dmx-play${playing ? ' on' : ''}" data-a="play"><i></i>PLAY / STOP</button>
       <div class="dmx-acts"><button class="nolearn" data-a="clr">ERASE ${list[st.sel][0]}</button><button class="nolearn red" data-a="clrall">CLEAR ALL</button></div><div class="dmx-brand">Oberheim</div></div>
       <div class="dmx-keys" role="group" aria-label="Patterns">${['7', '8', '9', '4', '5', '6', '1', '2', '3', '<', '0', '>'].map(k => { const n = k === '0' ? 9 : +k - 1; return `<button class="nolearn${/\d/.test(k) && n === st.pat ? ' on' : ''}" data-k="${k}" aria-label="${/\d/.test(k) ? 'Pattern ' + (n + 1) + ': ' + pats[n] : k === '<' ? 'Previous pattern' : 'Next pattern'}">${k}</button>`; }).join('')}</div></div>
-    <button class="grow nolearn dm-load" data-a="load">${loaded ? 'Reload' : 'Load'} the DMX sounds onto the pads</button>`;
+    <button class="grow nolearn dm-load" data-a="load">${loaded ? 'Reload' : 'Load'} the DMX sounds onto the pads</button>
+    <a class="dm-app" href="dmx/" target="_blank" rel="noopener">Open Omega DMX, the full drum machine app ↗</a>`;
   } else box.innerHTML = `<div class="dm-head"><b>${M.brand}</b><span>${M.model}</span><i>${M.sub}</i></div>
     <select class="dm-pat nolearn" aria-label="Patterns">${presetOptions(DM_PATTERNS[id] || {}, 'Patterns…')}</select>
     ${sets}${lcd}${keys}

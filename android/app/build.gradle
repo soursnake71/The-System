@@ -10,7 +10,7 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator) and Omega DMX (drum machine)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -30,6 +30,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    dmx {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.dmx'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/dmx/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/dmx/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +51,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  dmxImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +62,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// Omega DMX carries its web app and kits inside the APK too: ../dmx (not its tools) into assets/dmx
+def dmxAssets = layout.buildDirectory.dir('dmxAssets')
+tasks.register('copyDmxWeb', Copy) {
+  from('../../dmx') { exclude 'tools/**', '*.md' }
+  into dmxAssets.map { it.dir('dmx') }
+}
+android.sourceSets.dmx.assets.srcDirs += [dmxAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Dmx') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyDmxWeb' }
