@@ -33,7 +33,7 @@ jobs:
       - name: Test (C++ engine against the app's engine.js, sample for sample)
         if: runner.os == 'Linux'
         run: node seven/tools/compare.mjs build/seven_test "$RUNNER_TEMP"
-      - name: Test (the processor: sysex, panel, arpeggiator, sequencer, MIDI files, state)
+      - name: 'Test (the processor - sysex, panel, arpeggiator, sequencer, MIDI files, state)'
         if: runner.os == 'Linux'
         run: |
           cmake --build build --config Release --parallel 4 --target seven_proc_test
