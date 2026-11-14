@@ -32,7 +32,7 @@ const FUNC_BUTTONS = {
   17:'MW RANGE', 18:'MW ASSIGN', 19:'FC RANGE', 20:'FC ASSIGN', 21:'BC RANGE', 22:'BC ASSIGN', 23:'AT RANGE', 24:'AT ASSIGN',
   25:'ARPEGGIATOR', 26:'TEMPO/CLOCK', 27:'SEQUENCER', 28:'STEP EDIT', 29:'MOTION', 30:'DAC/EFFECTS', 31:'MIDI FILE', 32:'SYSEX'
 };
-const FUNC_SUBS = {8:5, 10:2, 18:3, 20:3, 22:3, 24:3, 25:7, 26:2, 27:7, 29:8, 30:8, 31:5, 32:3};
+const FUNC_SUBS = {8:5, 10:2, 18:3, 20:3, 22:3, 24:3, 25:7, 26:2, 27:7, 29:8, 30:9, 31:5, 32:3};
 // characters typed by the 32 buttons while naming a voice
 const NAME_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ -./0';
 
@@ -44,7 +44,7 @@ function motionName(id){
   return p.op ? 'OP' + p.op + ' ' + p.short : p.short;
 }
 const MOTION_IDS = (() => { const a = [-1]; for (let i = 0; i <= 144; i++) a.push(i); for (let i = 0; i < 14; i++) a.push(200 + i); for (let i = 20; i < DX.FUNC_DEF.length; i++) a.push(200 + i); return a; })();
-const FX_KEYS = ['dac', 'chorus', 'chorusRate', 'delayMix', 'delayTime', 'delayFb', 'revMix', 'revSize'];
+const FX_KEYS = ['dac', 'hiss', 'chorus', 'chorusRate', 'delayMix', 'delayTime', 'delayFb', 'revMix', 'revSize'];
 
 class Panel {
   constructor(host){
@@ -371,7 +371,7 @@ class Panel {
         break;
       }
       case 29: { const l = q.pats[q.pat].lanes[s & 3]; l2 = s < 4 ? 'L' + (s + 1) + '=' + motionName(l.param) : line('L' + ((s & 3) + 1) + ' SMOOTH', '=' + ONOFF(l.smooth)); break; }
-      case 30: l2 = s === 0 ? (f.dac ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I') : line(['', 'CHORUS DEPTH', 'CHORUS RATE', 'DELAY MIX', 'DELAY TIME', 'DELAY FDBACK', 'REVERB MIX', 'REVERB SIZE'][s], '=' + rpad(f[FX_KEYS[s]], 3)); break;
+      case 30: l2 = s === 0 ? (f.dac ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I') : line(['', 'DAC NOISE', 'CHORUS DEPTH', 'CHORUS RATE', 'DELAY MIX', 'DELAY TIME', 'DELAY FDBACK', 'REVERB MIX', 'REVERB SIZE'][s], '=' + rpad(f[FX_KEYS[s]], 3)); break;
       case 31: { const ps = this.h.playerState(); l2 = ['PLAY ' + (ps.playing ? 'ON  NO=STOP' : 'OFF YES=FILE'), 'IMPORT>PAT ? YES', 'EXPORT PAT ? YES', 'RECORD ' + (ps.rec ? 'ON  NO=SAVE' : 'OFF YES=GO'), line('LOOP', '=' + ONOFF(this.h.playerLoop()))][s]; break; }
       case 32: l2 = ['SEND BANK  ? YES', 'REQUEST BANK?YES', 'REQUEST VOICE?YS'][s]; break;
     }

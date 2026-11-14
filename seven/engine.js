@@ -250,7 +250,9 @@ const FUNC_DEF = [
   ['dac', 'CONVERTER', 1, 0, -1], ['volume', 'VOLUME', 99, 80, -1],
   // effects after the output stage (not on the 1983 instrument; the chorus, delay and reverb it was usually played through)
   ['chorus', 'CHORUS DEPTH', 99, 0, -1], ['chorusRate', 'CHORUS RATE', 99, 30, -1], ['delayMix', 'DELAY MIX', 99, 0, -1], ['delayTime', 'DELAY TIME', 99, 60, -1],
-  ['delayFb', 'DELAY FEEDBACK', 99, 35, -1], ['revMix', 'REVERB MIX', 99, 0, -1], ['revSize', 'REVERB SIZE', 99, 60, -1]
+  ['delayFb', 'DELAY FEEDBACK', 99, 35, -1], ['revMix', 'REVERB MIX', 99, 0, -1], ['revSize', 'REVERB SIZE', 99, 60, -1],
+  // the converter's analog faults: 50 = as measured on a working unit, 0 = none, 99 = a tired one
+  ['hiss', 'DAC NOISE', 99, 50, -1]
 ];
 function defaultFunc(){ const f = {}; for (const [k, , , d] of FUNC_DEF) f[k] = d; return f; }
 const FUNC_BY_NUM = {}; for (const d of FUNC_DEF) if (d[4] >= 0) FUNC_BY_NUM[d[4]] = d[0];
@@ -444,6 +446,7 @@ class Synth {
     this.bq = [lowpass(16000, this.fin, 0.5412), lowpass(16000, this.fin, 1.3066)];
     this.rs = makeResampler(this.fin, this.fs);
     this.fx = new Fx(this.fs);
+    this.dac = new Mk1Dac();
     this.peak = 0;
   }
   setRate(fs){ this.fs = fs; this.rs = makeResampler(this.fin, fs); this.fx = new Fx(fs); }
@@ -644,7 +647,7 @@ class Synth {
       if (silent) vc.active = false;
     }
   }
-  // one sample at the hardware rate: the accumulator value (signed 16-bit range)
+  // one sample at the hardware rate: the converter's output (signed 16-bit range)
   dxSample(){
     if (this.blockPos === 0) this.control();
     const i = this.blockPos; this.blockPos = (this.blockPos + 1) & (N - 1);
@@ -677,13 +680,8 @@ class Synth {
     }
     // the accumulator saturates at 16 bits
     if (acc > 32767) acc = 32767; else if (acc < -32768) acc = -32768;
-    if (this.func.dac === 0){
-      // Mark I converter: 12-bit mantissa, range switched in 6 dB steps (the low bits drop out as the level rises)
-      let e = 0;
-      while (e < 4 && (acc >= (2048 << e) || acc < -(2048 << e))) e++;
-      acc = (acc >> e) << e;
-    }
-    return acc;
+    if (this.func.dac !== 0) return acc;
+    return this.dac.convert(acc, this.func.hiss / 50);
   }
   // render n samples at the host rate into out (mono; the hardware has one output)
   render(out, off, n){
@@ -705,6 +703,49 @@ class Synth {
     this.fx.process(L, R, off, n, this.func);
   }
   activeVoices(){ let c = 0; for (const v of this.voices) if (v.active) c++; return c; }
+}
+
+/* ---------------- the Mark I converter, analog side included ----------------
+ * A 12-bit DAC fed a mantissa, its output scaled by a switched attenuator by 2^e (e = 0..4, picked per sample from the
+ * size of the sample): 12 bits of resolution riding on the signal, so the error follows the sound (the crunch).
+ * Modeled faults, all fixed per unit like real component tolerances:
+ *   - the DAC ladder: each bit's weight a little off (differential nonlinearity, grit on quiet and decaying notes),
+ *   - the range attenuator: each 6 dB step a little off, so the waveform jumps where the range switches,
+ *   - noise: the DAC and its op-amp (scaled by the range, so it rises and falls with the note) plus the output stage's
+ *     own floor (the steady hiss you hear between notes, under the volume slider).
+ * `amount` scales the faults: 1 = a typical unit. */
+const MK1 = {
+  bitErr:[0.0011, -0.0007, 0.0005, -0.0004, 0.0003, -0.0002, 0.00015, -0.0001, 0, 0, 0, 0],   // MSB first (fraction of the bit's weight)
+  rangeErr:[0, 0.0045, -0.0035, 0.006, -0.005],          // gain error of each attenuator step
+  dacNoise:0.28,                                          // DAC + op-amp noise, in 12-bit LSBs (rms), before the attenuator
+  floorNoise:1.05                                         // output stage noise, in 16-bit LSBs (rms), after it
+};
+class Mk1Dac {
+  constructor(){
+    // the analog value of every 12-bit code, from the bit weights
+    this.ladder = new Float64Array(4096); this.ideal = new Float64Array(4096);
+    for (let c = 0; c < 4096; c++){
+      let v = 0, id = 0;
+      const u = c ^ 2048;                                 // two's complement -> offset binary
+      for (let b = 11; b >= 0; b--) if (u >> b & 1){ const w = Math.pow(2, b); v += w * (1 + MK1.bitErr[11 - b]); id += w; }
+      this.ladder[c] = v - 2048; this.ideal[c] = id - 2048;
+    }
+    this.seed = 0x2545F491;
+  }
+  // roughly gaussian, unit variance (sum of four uniforms)
+  noise(){
+    let s = 0;
+    for (let i = 0; i < 4; i++){ let x = this.seed; x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; this.seed = x; s += x / 4294967296; }
+    return (s - 2) * 1.7320508075688772;
+  }
+  convert(acc, amount){
+    let e = 0;
+    while (e < 4 && (acc >= (2048 << e) || acc < -(2048 << e))) e++;
+    const m = acc >> e, c = m & 4095;
+    const code = this.ideal[c] + (this.ladder[c] - this.ideal[c]) * amount;
+    const n1 = this.noise() * MK1.dacNoise * amount, n2 = this.noise() * MK1.floorNoise * amount;
+    return (code + n1) * Math.pow(2, e) * (1 + MK1.rangeErr[e] * amount) + n2;
+  }
 }
 
 /* ---------------- effects: stereo chorus, ping-pong delay, plate-style reverb (Freeverb topology) ---------------- */
@@ -858,7 +899,7 @@ function freqText(v, op){
   return r.toFixed(2);
 }
 
-const api = {Fx, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
+const api = {Fx, Mk1Dac, MK1, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
   bankToSysex, voiceToSysex, paramChange, parseSysexFile, parseSysexMessage, checksum, defaultFunc, Synth, Voice, Env, Lfo, PitchEnv, noteName, bpName, CURVES, WAVES,
   freqText, oscLogFreq, phaseInc, makeResampler, LOGSIN, EXPT, VOICE_SIZE};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

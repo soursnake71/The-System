@@ -34,11 +34,11 @@ static const char* const FUNC_BUTTONS[33] = {"", "MASTER TUNE", "POLY/MONO", "P 
     "VOICE INIT", "LOAD FILE", "SAVE BANK", "SAVE VOICE", "CART > INT", "INT > CART", "BATTERY", "MW RANGE", "MW ASSIGN", "FC RANGE", "FC ASSIGN", "BC RANGE", "BC ASSIGN",
     "AT RANGE", "AT ASSIGN", "ARPEGGIATOR", "TEMPO/CLOCK", "SEQUENCER", "STEP EDIT", "MOTION", "DAC/EFFECTS", "MIDI FILE", "SYSEX"};
 inline int editSubs(int n) { switch (n) { case 15: case 16: case 23: case 24: return 2; case 20: case 21: case 28: case 29: return 4; default: return 0; } }
-inline int funcSubs(int n) { switch (n) { case 8: return 5; case 18: case 20: case 22: case 24: return 3; case 25: return 7; case 26: return 2; case 27: return 7; case 29: return 8; case 10: return 2; case 30: return 8; case 31: return 5; case 32: return 3; default: return 0; } }
+inline int funcSubs(int n) { switch (n) { case 8: return 5; case 18: case 20: case 22: case 24: return 3; case 25: return 7; case 26: return 2; case 27: return 7; case 29: return 8; case 10: return 2; case 30: return 9; case 31: return 5; case 32: return 3; default: return 0; } }
 static const char* const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ -./0";
 inline std::vector<int> motionIds() { std::vector<int> a {-1}; for (int i = 0; i <= 144; ++i) a.push_back(i); for (int i = 0; i < 14; ++i) a.push_back(200 + i); for (int i = F::chorus; i < FCOUNT; ++i) a.push_back(200 + i); return a; }
-static const int FX_KEYS[8] = {F::dac, F::chorus, F::chorusRate, F::delayMix, F::delayTime, F::delayFb, F::revMix, F::revSize};
-static const char* const FX_NAMES[8] = {"", "CHORUS DEPTH", "CHORUS RATE", "DELAY MIX", "DELAY TIME", "DELAY FDBACK", "REVERB MIX", "REVERB SIZE"};
+static const int FX_KEYS[9] = {F::dac, F::hiss, F::chorus, F::chorusRate, F::delayMix, F::delayTime, F::delayFb, F::revMix, F::revSize};
+static const char* const FX_NAMES[9] = {"", "DAC NOISE", "CHORUS DEPTH", "CHORUS RATE", "DELAY MIX", "DELAY TIME", "DELAY FDBACK", "REVERB MIX", "REVERB SIZE"};
 inline std::string motionName(int id) {
     if (id < 0) return "OFF";
     if (id >= 200) return id - 200 < FCOUNT ? FUNC_DEF[id - 200].name : "?";

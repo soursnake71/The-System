@@ -255,7 +255,7 @@ inline SysexFile parseSysexFile(const uint8_t* d, size_t len) {
 
 /* ---------------- function settings ---------------- */
 struct FuncDef { const char* key; const char* name; int max, def, num; };
-static const FuncDef FUNC_DEF[27] = {
+static const FuncDef FUNC_DEF[28] = {
     {"mono", "POLY/MONO", 1, 0, 64}, {"pbRange", "P BEND RANGE", 12, 2, 65}, {"pbStep", "P BEND STEP", 12, 0, 66}, {"portaMode", "PORTA MODE", 1, 0, 67},
     {"gliss", "PORTA GLISS", 1, 0, 68}, {"portaTime", "PORTA TIME", 99, 0, 69}, {"mwRange", "MOD WHEEL RANGE", 99, 50, 70}, {"mwAssign", "MOD WHEEL ASSIGN", 7, 1, 71},
     {"fcRange", "FOOT CTRL RANGE", 99, 0, 72}, {"fcAssign", "FOOT CTRL ASSIGN", 7, 0, 73}, {"bcRange", "BREATH CTRL RANGE", 99, 0, 74}, {"bcAssign", "BREATH ASSIGN", 7, 0, 75},
@@ -263,9 +263,9 @@ static const FuncDef FUNC_DEF[27] = {
     {"tune", "MASTER TUNE", 127, 64, -1}, {"rxCh", "MIDI RECEIVE CH", 16, 0, -1}, {"txCh", "MIDI TRANSMIT CH", 15, 0, -1}, {"sysInfo", "SYS INFO", 1, 1, -1},
     {"dac", "CONVERTER", 1, 0, -1}, {"volume", "VOLUME", 99, 80, -1},
     {"chorus", "CHORUS DEPTH", 99, 0, -1}, {"chorusRate", "CHORUS RATE", 99, 30, -1}, {"delayMix", "DELAY MIX", 99, 0, -1}, {"delayTime", "DELAY TIME", 99, 60, -1},
-    {"delayFb", "DELAY FEEDBACK", 99, 35, -1}, {"revMix", "REVERB MIX", 99, 0, -1}, {"revSize", "REVERB SIZE", 99, 60, -1}};
+    {"delayFb", "DELAY FEEDBACK", 99, 35, -1}, {"revMix", "REVERB MIX", 99, 0, -1}, {"revSize", "REVERB SIZE", 99, 60, -1}, {"hiss", "DAC NOISE", 99, 50, -1}};
 enum F { mono, pbRange, pbStep, portaMode, gliss, portaTime, mwRange, mwAssign, fcRange, fcAssign, bcRange, bcAssign, atRange, atAssign, tune, rxCh, txCh, sysInfo, dac, volume,
-    chorus, chorusRate, delayMix, delayTime, delayFb, revMix, revSize, FCOUNT };
+    chorus, chorusRate, delayMix, delayTime, delayFb, revMix, revSize, hiss, FCOUNT };
 inline int funcByKey(const std::string& k) { for (int i = 0; i < FCOUNT; ++i) if (k == FUNC_DEF[i].key) return i; return -1; }
 inline int funcByNum(int n) { for (int i = 0; i < FCOUNT; ++i) if (FUNC_DEF[i].num == n) return i; return -1; }
 struct Func { int v[FCOUNT]; Func() { for (int i = 0; i < FCOUNT; ++i) v[i] = FUNC_DEF[i].def; } int& operator[](int i) { return v[i]; } int operator[](int i) const { return v[i]; } };
@@ -576,6 +576,35 @@ inline Voice156 randomVoice(uint32_t seed) {
     return v;
 }
 
+/* ---------------- the Mark I converter, analog side included (Mk1Dac in engine.js) ---------------- */
+struct Mk1Params { double bitErr[12]; double rangeErr[5]; double dacNoise, floorNoise; };
+static const Mk1Params MK1 = {{0.0011, -0.0007, 0.0005, -0.0004, 0.0003, -0.0002, 0.00015, -0.0001, 0, 0, 0, 0}, {0, 0.0045, -0.0035, 0.006, -0.005}, 0.28, 1.05};
+class Mk1Dac {
+public:
+    Mk1Dac() {
+        for (int c = 0; c < 4096; ++c) {
+            double v = 0, id = 0; const int u = c ^ 2048;
+            for (int b = 11; b >= 0; --b) if ((u >> b) & 1) { const double w = std::pow(2.0, b); v += w * (1 + MK1.bitErr[11 - b]); id += w; }
+            ladder[c] = v - 2048; ideal[c] = id - 2048;
+        }
+    }
+    double noise() {
+        double s = 0;
+        for (int i = 0; i < 4; ++i) { uint32_t x = seed; x ^= x << 13; x ^= x >> 17; x ^= x << 5; seed = x; s += x / 4294967296.0; }
+        return (s - 2) * 1.7320508075688772;
+    }
+    double convert(int acc, double amount) {
+        int e = 0;
+        while (e < 4 && (acc >= (2048 << e) || acc < -(2048 << e))) e++;
+        const int m = acc >> e, c = m & 4095;
+        const double code = ideal[c] + (ladder[c] - ideal[c]) * amount;
+        const double n1 = noise() * MK1.dacNoise * amount, n2 = noise() * MK1.floorNoise * amount;
+        return (code + n1) * std::pow(2.0, e) * (1 + MK1.rangeErr[e] * amount) + n2;
+    }
+private:
+    double ladder[4096], ideal[4096]; uint32_t seed = 0x2545F491u;
+};
+
 class Synth {
 public:
     double fs = 48000;
@@ -588,7 +617,7 @@ public:
     int blockPos = 0;
     int pitchMod = 0, ampMod = 0, egMod = 127;
     int zoh = 4; double fin = DX_RATE * 4;
-    Biquad bq[2]; Resampler rs; Fx fx;
+    Biquad bq[2]; Resampler rs; Fx fx; Mk1Dac dac;
     double peak = 0;
 
     explicit Synth(double rate = 48000) {
@@ -776,7 +805,7 @@ public:
             if (silent) vc.active = false;
         }
     }
-    int dxSample() {
+    double dxSample() {
         if (blockPos == 0) control();
         const int i = blockPos; blockPos = (blockPos + 1) & (N - 1);
         const Alg& alg = algs()[voice[P::ALG]]; const int fbAmt = voice[P::FB];
@@ -807,12 +836,8 @@ public:
             acc += sum;
         }
         if (acc > 32767) acc = 32767; else if (acc < -32768) acc = -32768;
-        if (func[F::dac] == 0) {
-            int e = 0;
-            while (e < 4 && (acc >= (2048 << e) || acc < -(2048 << e))) e++;
-            acc = (acc >> e) * (1 << e);
-        }
-        return acc;
+        if (func[F::dac] != 0) return acc;
+        return dac.convert(acc, func[F::hiss] / 50.0);
     }
     void render(float* out, int n) {
         const double vol = func[F::volume] / 99.0, gain = 2.0 / 32768 * vol * vol * (ctl.volume / 127.0) * (ctl.expression / 127.0);
