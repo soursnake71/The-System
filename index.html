@@ -546,7 +546,40 @@ html.frying main{animation:fryShake .11s steps(2) infinite}
 .m-emax{background:linear-gradient(180deg,#d9d6cf,#aeaba3);color:#1c2a3a}.m-emax .label,.m-emax .knob .klab{color:#1c2a3a !important}
 .dmach{border-radius:5px !important;padding:10px !important}
 .dmach.dr110,#sheetBody > .card.dmach.dr110{background:linear-gradient(180deg,#d2d0c8,#b6b3aa) !important;color:#222}
-.dmach.dmx,#sheetBody > .card.dmach.dmx{background:linear-gradient(180deg,#1c1c1e,#0b0b0c) !important;color:#eee;border-top:3px solid #c8a23a}
+.dmach.dmx,#sheetBody > .card.dmach.dmx{background:repeating-linear-gradient(180deg,transparent 0 9px,rgba(64,112,224,.62) 9px 10px),linear-gradient(180deg,#17181c,#0a0a0c) !important;color:#eee;border:0 !important;border-left:13px solid #5a2e16 !important;border-right:13px solid #5a2e16 !important;border-image:linear-gradient(90deg,#3a1c0c,#7a4424 35%,#5a2e16 65%,#2e1408) 1 !important;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.dmx-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dmx-logo{font:italic 900 34px/1 "Barlow",sans-serif;letter-spacing:.02em;color:#0b0b0d;-webkit-text-stroke:1.4px #e8e8ea;transform:skewX(-6deg) scaleX(1.25);transform-origin:left;margin-right:14px}
+.dmx-led{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px;min-width:0}
+.dmx-led b{background:#1a0303;border:2px solid #000;border-radius:2px;padding:3px 7px;font:700 20px/1 var(--f-mono);color:#ff2a1a;text-shadow:0 0 6px rgba(255,40,20,.85);letter-spacing:.12em;box-shadow:inset 0 0 8px #000;white-space:nowrap}
+.dmx-led i{font:700 8px "Barlow",sans-serif;letter-spacing:.18em;font-style:normal;color:#cfd3dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.dmx-pwr{width:9px;height:14px;border-radius:2px;background:#b3140e;box-shadow:0 0 6px #ff3020;align-self:flex-start;flex:none}
+.dmx-faders{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-bottom:8px;background:rgba(0,0,0,.55);padding:6px 2px 4px;border-radius:2px}
+.dmx-faders label{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+html #dmxCard .dmx-faders input[type=range]{writing-mode:vertical-lr;direction:rtl;-webkit-appearance:none;appearance:none;width:24px !important;max-width:24px !important;height:84px !important;touch-action:none;margin:0;padding:0 !important;background:transparent !important;border:0 !important}
+html #dmxCard .dmx-faders input[type=range]::-webkit-slider-runnable-track{width:4px;height:100%;background:#000;border:1px solid #444;border-radius:1px}
+html #dmxCard .dmx-faders input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px !important;height:13px !important;margin:0 0 0 -10px !important;border-radius:2px;background:linear-gradient(180deg,#f2f2f2,#9a9a9e 45%,#5e5e62 50%,#c8c8cc);border:1px solid #111;box-shadow:0 2px 3px rgba(0,0,0,.7)}
+.dmx-faders span{font:800 8px var(--f-display);letter-spacing:.04em;color:#e9ebf0;white-space:nowrap;text-transform:uppercase}
+.dmx .dm-lcd{background:#120404;border:2px solid #000;box-shadow:inset 0 0 10px #000}
+.dmx .dm-sets button{background:linear-gradient(180deg,#3c3d42,#1d1e22) !important;color:#e9ebf0 !important;border:1px solid #000 !important;box-shadow:0 2px 0 #000}
+.dmx .dm-sets button.on{background:linear-gradient(180deg,#5a5b62,#33343a) !important;color:#ff4a3a !important}
+.dmx .dm-btns{grid-template-columns:repeat(6,1fr);gap:6px 5px}
+.dmx .dm-btns button{display:flex !important;flex-direction:column;align-items:center;gap:3px;background:none !important;border:0 !important;box-shadow:none !important;padding:0 !important;color:#e9ebf0 !important;font:800 9px var(--f-display) !important;letter-spacing:.06em;min-height:0}
+.dmx .dm-btns button i{display:block;width:100%;max-width:44px;height:30px;border-radius:2px;background:linear-gradient(180deg,#46474d,#202125 60%,#16171a);border:1px solid #000;box-shadow:0 3px 0 #000,inset 0 1px 0 rgba(255,255,255,.18)}
+.dmx .dm-btns button:active i{transform:translateY(2px);box-shadow:0 1px 0 #000}
+.dmx .dm-btns button.on,#dmxCard.dmx .dm-btns button.on,#sheetBody #dmxCard.dmx .dm-btns button.on{background:none !important;color:#ff4a3a !important}.dmx .dm-btns button.on i{background:linear-gradient(180deg,#66676e,#3a3b40 60%,#2a2b2f);box-shadow:0 3px 0 #000,0 0 0 1px #ff3a2a,0 0 8px rgba(255,50,30,.6)}
+.dmx .dm-btns button.acc.on{background:none !important;color:#ff4a3a !important}.dmx .dm-btns button.acc i{background:linear-gradient(180deg,#d8261c,#9a120c)}.dmx .dm-btns button.acc:not(.on) i{background:linear-gradient(180deg,#5a1410,#320806)}
+.dmx-bot{display:flex;gap:10px;align-items:stretch;margin-bottom:8px}
+.dmx-left{flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0}
+.dmx-play{display:flex;flex-direction:column;align-items:center;gap:4px;background:none !important;border:0 !important;padding:0 !important;color:#e9ebf0 !important;font:800 9px var(--f-display) !important;letter-spacing:.08em;box-shadow:none !important}
+.dmx-play i{width:48px;height:44px;border-radius:2px;background:linear-gradient(180deg,#ffffff,#d6d6d6);border:1px solid #000;box-shadow:0 3px 0 #000}
+.dmx-play.on i{background:linear-gradient(180deg,#fff,#e6e6e6);box-shadow:0 3px 0 #000,0 0 10px rgba(255,255,255,.7)}
+.dmx-acts{display:flex;gap:6px}.dmx-acts button{flex:1;padding:7px 2px !important;font:800 9px var(--f-display) !important;letter-spacing:.06em;background:linear-gradient(180deg,#3c3d42,#1d1e22) !important;color:#e9ebf0 !important;border:1px solid #000 !important;box-shadow:0 2px 0 #000}
+.dmx-acts button.red{background:linear-gradient(180deg,#d8261c,#8a100a) !important;color:#fff !important}
+.dmx-brand{font:900 italic 18px/1 "Barlow",sans-serif;color:#f2f2f2;letter-spacing:-.01em;display:flex;align-items:center;gap:6px}.dmx-brand::before{content:"";width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#fff 0 20%,#bbb 22% 45%,#222 48%);border:1px solid #ddd}
+.dmx-keys{display:grid;grid-template-columns:repeat(3,34px);gap:5px;background:rgba(0,0,0,.55);padding:5px;border-radius:2px;align-content:start}
+.dmx-keys button{height:30px;padding:0 !important;font:700 13px var(--f-mono) !important;background:linear-gradient(180deg,#46474d,#202125 60%,#16171a) !important;color:#f2f2f2 !important;border:1px solid #000 !important;box-shadow:0 2px 0 #000;min-width:0}
+.dmx-keys button.on{color:#ff4a3a !important;box-shadow:0 2px 0 #000,0 0 0 1px #ff3a2a}
+.dmx .dm-load{background:linear-gradient(180deg,#3c3d42,#1d1e22) !important;color:#e9ebf0 !important;border:1px solid #000 !important}
 .dmach > *{break-inside:avoid}
 .dm-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}.dm-head b{font:900 16px/1 "Barlow",sans-serif;letter-spacing:.15em}.dm-head span{font:900 22px/1 "Barlow",sans-serif}.dm-head i{font:700 9px "Barlow",sans-serif;letter-spacing:.25em;font-style:normal;opacity:.8}
 .dr110 .dm-head b{color:#c8102e}.dmx .dm-head b{color:#c8a23a}
@@ -554,12 +587,12 @@ html.frying main{animation:fryShake .11s steps(2) infinite}
 .dm-lcd{background:#b9c7a4;border:3px solid #333;border-radius:3px;padding:5px;margin-bottom:8px}
 .dmx .dm-lcd{background:#0d140d;border-color:#000}
 .dm-row{display:grid;grid-template-columns:34px repeat(16,1fr);gap:2px;align-items:center;margin-bottom:2px;cursor:pointer}
-.dm-row span{font:700 10px var(--f-mono);color:#223}.dmx .dm-row span{color:#7dff7d}
+.dm-row span{font:700 10px var(--f-mono);color:#223}.dmx .dm-row span{color:#ff6a5a}
 .dm-row i{height:13px;border:1px solid #6a7a5a;border-radius:1px;background:transparent}.dm-row i.beat{border-color:#3a4a2a}
-.dmx .dm-row i{border-color:#2a4a2a}.dmx .dm-row i.beat{border-color:#4a7a4a}
+.dmx .dm-row i{border-color:#3a1210;border-radius:50%;height:11px;width:11px;justify-self:center}.dmx .dm-row i.beat{border-color:#7a2a24}
 .dm-row i.on{background:#22301a}.dm-row i.acc{background:#000;box-shadow:inset 0 0 0 2px #b9c7a4}
-.dmx .dm-row i.on{background:#3ad83a}.dmx .dm-row i.acc{background:#b8ff6a}
-.dm-row.sel{background:rgba(0,0,0,.12)}.dmx .dm-row.sel{background:rgba(60,255,60,.1)}
+.dmx .dm-row i.on{background:#c8180e;box-shadow:0 0 4px #ff2a1a}.dmx .dm-row i.acc{background:#ff5a3a;box-shadow:0 0 7px #ff4a2a,inset 0 0 0 2px #ffb0a0}
+.dm-row.sel{background:rgba(0,0,0,.12)}.dmx .dm-row.sel{background:rgba(255,50,30,.12)}
 .dm-btns{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px}
 .dm-btns button{padding:7px 0 !important;font:800 10px var(--f-display) !important}
 .dr110 .dm-btns button{background:linear-gradient(180deg,#fafaf6,#d8d6cf) !important;color:#222 !important;border:1px solid #555 !important}
@@ -12198,7 +12231,15 @@ const DRUM_MACHINES = {
       Perc:[['BD', 'kick', 'Kick'], ['SD', 'snare', 'Snare'], ['RIM', 'rimshot', 'Rimshot'], ['CLP', 'clap', 'Clap'], ['HHT', 'hi-hat-tight', 'Hat Tight'], ['HHM', 'hi-hat-medium', 'Hat Medium'], ['HHO', 'hi-hat-open', 'Hat Open'],
       ['SHK', 'shaker', 'Shaker'], ['SH>', 'shaker-accent', 'Shaker Accent'], ['TMB', 'tambourine', 'Tambourine'], ['TM>', 'tambourine-accent', 'Tamb Accent'], ['RDE', 'ride', 'Ride'], ['RD>', 'ride-accent', 'Ride Accent'], ['CRS', 'crash', 'Crash'], ['T1', 'tom-1', 'Tom 1'], ['T4', 'tom-4', 'Tom 4']]}, choke:['HHT', 'HHM', 'HHO']},
 };
-const dmState = {dr110:{sel:0, acc:true, set:'Kit'}, dmx:{sel:0, acc:true, set:'Kit'}};
+const dmState = {dr110:{sel:0, acc:true, set:'Kit'}, dmx:{sel:0, acc:true, set:'Kit', pat:-1}};
+// the DMX's faders: one per voice group, like the hardware, plus the master Volume; they set the level of the loaded DMX pads
+const DMX_FADERS = [['bass', 'Bass'], ['snare', 'Snare'], ['hat', 'Hi-Hat'], ['toms', 'Toms'], ['cym', 'Cymbal'], ['perc1', 'Perc 1'], ['perc2', 'Perc 2'], ['vol', 'Volume']];
+const DMX_GROUP = {BD:'bass', SD:'snare', HHT:'hat', HHM:'hat', HHO:'hat', T1:'toms', T2:'toms', T3:'toms', T4:'toms', T5:'toms', T6:'toms', CRS:'cym', RDE:'cym', 'RD>':'cym', RIM:'perc1', TMB:'perc1', 'TM>':'perc1', CLP:'perc2', SHK:'perc2', 'SH>':'perc2'};
+function dmxMix(){ if (!S.dmxMix) S.dmxMix = {bass:.85, snare:.85, hat:.85, toms:.85, cym:.85, perc1:.85, perc2:.85, vol:1}; return S.dmxMix; }
+function dmxApplyMix(){
+  const m = dmxMix(), list = DRUM_MACHINES.dmx.sets[dmState.dmx.set];
+  list.forEach(([ab], i) => { const p = S.drum.pads[i]; if (i < 16 && p && (p.name || '').startsWith('DMX ') && DMX_GROUP[ab]) p.vol = Math.round(clamp(m[DMX_GROUP[ab]] * m.vol, 0, 1) * 100) / 100; });
+}
 // more presets for the analog models, the CZ-101, the samplers and the drum machines
 Object.assign(ANA_PRESETS.juno60, {
   'Bass · Deep House Bass':{m1:0, m2:1, pw:.5, sub:.7, cut:.28, res:.2, fenv:.35, d:.3, s:.4, r:.12, chorus:0}, 'Bass · Juno Reese':{m1:1, m2:1, pwm:.5, lfoRate:.12, sub:.5, cut:.35, res:.1, fenv:.2, s:.8, r:.15, chorus:3},
@@ -12309,28 +12350,44 @@ async function dmLoad(id){
   const M = DRUM_MACHINES[id], st = dmState[id], list = M.sets[st.set]; ensureAudio(); toast('Loading the ' + M.model + '…');
   for (let i = 0; i < list.length && i < 16; i++){ try { const ab = await (await fetch('kits/' + M.dir + '/' + list[i][1] + '.wav')).arrayBuffer(); const buf = await decodeAny(ab);
       await setPadBuffer(i, buf, (id === 'dmx' ? 'DMX ' : 'DR ') + list[i][2], true); S.drum.pads[i].choke = M.choke.includes(list[i][0]) ? 1 : 0; } catch(e){ toast('Could not load ' + list[i][2]); } }
-  save(); renderPads(); renderPadEditor(); toast(M.model + ' ' + st.set.toLowerCase() + ' on A01–A' + String(Math.min(16, list.length)).padStart(2, '0') + '.');
+  if (id === 'dmx') dmxApplyMix(); save(); renderPads(); renderPadEditor(); toast(M.model + ' ' + st.set.toLowerCase() + ' on A01–A' + String(Math.min(16, list.length)).padStart(2, '0') + '.');
 }
 function renderDrumMachine(id){
   const M = DRUM_MACHINES[id], box = $(M.card); if (!box) return; const st = dmState[id], list = M.sets[st.set]; box.classList.add('dmach', M.cls);
   const steps = 16, L = S.bars * TPB, stepT = L / steps, has = (pi, s) => S.drum.notes.find(n => n.p === pi && n.t < L && Math.round(n.t / stepT) === s);
-  const loaded = (S.drum.pads[0].name || '').startsWith(id === 'dmx' ? 'DMX ' : 'DR ');
-  box.innerHTML = `<div class="dm-head"><b>${M.brand}</b><span>${M.model}</span><i>${M.sub}</i></div>
+  const pref = id === 'dmx' ? 'DMX ' : 'DR ', loaded = (S.drum.pads[0].name || '').startsWith(pref), dmx = id === 'dmx', pats = Object.keys(DM_PATTERNS[id] || {});
+  const sets = Object.keys(M.sets).length > 1 ? `<div class="dm-sets">${Object.keys(M.sets).map(k => `<button class="nolearn${k === st.set ? ' on' : ''}" data-set="${k}">${k.toUpperCase()}</button>`).join('')}</div>` : '';
+  const lcd = `<div class="dm-lcd">${list.map(([ab], pi) => `<div class="dm-row${pi === st.sel ? ' sel' : ''}" data-p="${pi}"><span>${ab}</span>${Array.from({length:steps}, (_, s) => { const n = has(pi, s); return `<i data-s="${s}" class="${n ? (n.v >= .95 ? 'on acc' : 'on') : ''}${s % 4 === 0 ? ' beat' : ''}"></i>`; }).join('')}</div>`).join('')}</div>`;
+  const keys = `<div class="dm-btns">${list.map(([ab], i) => `<button class="nolearn${i === st.sel ? ' on' : ''}" data-i="${i}">${dmx ? '<i></i>' : ''}${ab}</button>`).join('')}<button class="nolearn pwr acc${st.acc ? ' on' : ''}" data-a="acc">${dmx ? '<i></i>' : ''}ACCENT</button></div>`;
+  if (dmx){
+    const m = dmxMix(), pn = st.pat >= 0 ? String(st.pat + 1).padStart(2, '0') : '--';
+    box.innerHTML = `<div class="dmx-top"><div class="dmx-logo">DMX</div><div class="dmx-led"><b>${pn}&nbsp;${String(Math.round(S.bpm)).padStart(3, ' ')}</b><i>${st.pat >= 0 ? 'PATTERN ' + (st.pat + 1) + ' · ' + pats[st.pat].toUpperCase() : 'PATTERN · TEMPO'}</i></div><i class="dmx-pwr" aria-hidden="true"></i></div>
+    <div class="dmx-faders">${DMX_FADERS.map(([k, n]) => `<label><input type="range" class="nolearn" min="0" max="1" step=".01" value="${m[k]}" data-f="${k}" aria-label="${n} level"><span>${n}</span></label>`).join('')}</div>
+    ${lcd}${sets}${keys}
+    <div class="dmx-bot"><div class="dmx-left"><button class="nolearn dmx-play${playing ? ' on' : ''}" data-a="play"><i></i>PLAY / STOP</button>
+      <div class="dmx-acts"><button class="nolearn" data-a="clr">ERASE ${list[st.sel][0]}</button><button class="nolearn red" data-a="clrall">CLEAR ALL</button></div><div class="dmx-brand">Oberheim</div></div>
+      <div class="dmx-keys" role="group" aria-label="Patterns">${['7', '8', '9', '4', '5', '6', '1', '2', '3', '<', '0', '>'].map(k => { const n = k === '0' ? 9 : +k - 1; return `<button class="nolearn${/\d/.test(k) && n === st.pat ? ' on' : ''}" data-k="${k}" aria-label="${/\d/.test(k) ? 'Pattern ' + (n + 1) + ': ' + pats[n] : k === '<' ? 'Previous pattern' : 'Next pattern'}">${k}</button>`; }).join('')}</div></div>
+    <button class="grow nolearn dm-load" data-a="load">${loaded ? 'Reload' : 'Load'} the DMX sounds onto the pads</button>`;
+  } else box.innerHTML = `<div class="dm-head"><b>${M.brand}</b><span>${M.model}</span><i>${M.sub}</i></div>
     <select class="dm-pat nolearn" aria-label="Patterns">${presetOptions(DM_PATTERNS[id] || {}, 'Patterns…')}</select>
-    ${Object.keys(M.sets).length > 1 ? `<div class="dm-sets">${Object.keys(M.sets).map(k => `<button class="nolearn${k === st.set ? ' on' : ''}" data-set="${k}">${k.toUpperCase()}</button>`).join('')}</div>` : ''}
-    <div class="dm-lcd">${list.map(([ab], pi) => `<div class="dm-row${pi === st.sel ? ' sel' : ''}" data-p="${pi}"><span>${ab}</span>${Array.from({length:steps}, (_, s) => { const n = has(pi, s); return `<i data-s="${s}" class="${n ? (n.v >= .95 ? 'on acc' : 'on') : ''}${s % 4 === 0 ? ' beat' : ''}"></i>`; }).join('')}</div>`).join('')}</div>
-    <div class="dm-btns">${list.map(([ab], i) => `<button class="nolearn${i === st.sel ? ' on' : ''}" data-i="${i}">${ab}</button>`).join('')}<button class="nolearn pwr acc${st.acc ? ' on' : ''}" data-a="acc">ACCENT</button></div>
+    ${sets}${lcd}${keys}
     <div class="row"><button class="grow nolearn" data-a="load">${loaded ? 'Reload' : 'Load'} the ${M.model} sounds onto the pads</button><button class="nolearn" data-a="clr">Clear ${list[st.sel][0]}</button><button class="rst nolearn" data-a="clrall">↺ CLEAR ALL</button></div>`;
   const q = s2 => box.querySelector(s2);
+  const usePat = async n => { if (!n) return; if (!(S.drum.pads[0].name || '').startsWith(pref)){ const need = Object.keys(DM_PATTERNS[id][n]), k = Object.keys(M.sets).find(k => need.every(ab => M.sets[k].some(r => r[0] === ab))); if (k) st.set = k; await dmLoad(id); } dmPattern(id, n); st.pat = pats.indexOf(n); renderDrumMachine(id); toast(n + ' pattern'); };
   q('[data-a="load"]').addEventListener('click', async () => { await dmLoad(id); renderDrumMachine(id); });
-  q('.dm-pat').addEventListener('change', async e => { const n = e.target.value; if (!n) return; if (!(S.drum.pads[0].name || '').startsWith(id === 'dmx' ? 'DMX ' : 'DR ')){ const need = Object.keys(DM_PATTERNS[id][n]), k = Object.keys(M.sets).find(k => need.every(ab => M.sets[k].some(r => r[0] === ab))); if (k) st.set = k; await dmLoad(id); } dmPattern(id, n); renderDrumMachine(id); toast(n + ' pattern'); });
+  if (q('.dm-pat')) q('.dm-pat').addEventListener('change', e => usePat(e.target.value));
   q('[data-a="clr"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p !== st.sel); changed(); renderDrumMachine(id); });
   q('[data-a="acc"]').addEventListener('click', () => { st.acc = !st.acc; renderDrumMachine(id); });
-  q('[data-a="clrall"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p >= list.length); st.sel = 0; st.acc = true; changed(); renderDrumMachine(id); toast(M.model + ' pattern cleared.'); });
+  q('[data-a="clrall"]').addEventListener('click', () => { pushUndo(); S.drum.notes = S.drum.notes.filter(n => n.p >= list.length); st.sel = 0; st.acc = true; if ('pat' in st) st.pat = -1; changed(); renderDrumMachine(id); toast(M.model + ' pattern cleared.'); });
   box.querySelectorAll('[data-set]').forEach(b => b.addEventListener('click', () => { st.set = b.dataset.set; st.sel = 0; renderDrumMachine(id); }));
   box.querySelectorAll('.dm-btns button[data-i]').forEach(b => b.addEventListener('click', () => { st.sel = +b.dataset.i; ensureAudio(); padDown(st.sel, {timeStamp:performance.now()}, st.acc ? 1 : .7); setTimeout(() => padUp(st.sel), 80); renderDrumMachine(id); }));
   box.querySelectorAll('.dm-row').forEach(r => r.addEventListener('click', e => { const pi = +r.dataset.p, c = e.target.closest('i'); st.sel = pi; if (!c){ renderDrumMachine(id); return; }
     const s = +c.dataset.s, n = has(pi, s); pushUndo(); if (n) S.drum.notes = S.drum.notes.filter(x => x !== n); else S.drum.notes.push({p:pi, t:Math.round(s * stepT), v:st.acc ? 1 : .7}); changed(); renderDrumMachine(id); }));
+  if (!dmx) return;
+  q('[data-a="play"]').addEventListener('click', () => { ensureAudio(); $('#play').click(); setTimeout(() => renderDrumMachine(id), 40); });
+  box.querySelectorAll('.dmx-faders input').forEach(f => f.addEventListener('input', () => { dmxMix()[f.dataset.f] = +f.value; dmxApplyMix(); save(); }));
+  box.querySelectorAll('.dmx-keys button').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k, N = pats.length;
+    const n = k === '<' ? (st.pat <= 0 ? N - 1 : st.pat - 1) : k === '>' ? (st.pat + 1) % N : k === '0' ? 9 : +k - 1; if (n < N) usePat(pats[n]); }));
 }
 
 $('#anaPreset').addEventListener('change', e => { const tr = curSynth(), model = tr.inst, P = (ANA_PRESETS[model] || {})[e.target.value]; if (!P) return; tr['ana_' + model] = Object.assign({}, ANA_COMMON, ANA_MODELS[model].base, P, {preset:e.target.value}); solCfg(tr); save(); renderAna(tr); const r = hearRoot(); hearChord(tr, ANA_MODELS[model].base.mono ? [r - 12] : [r, r + 4, r + 7], .9); });
