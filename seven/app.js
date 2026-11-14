@@ -314,13 +314,18 @@ part('keys', 'keys');
 /* ----- two layouts: the whole instrument, and a larger panel for phones ----- */
 const FULL = {W:1880, H:800, kb:[36, 96]};
 const COMPACT = {W:1000, H:600, kb:[48, 72]};
+const PORTRAIT = {W:600, H:1000, kb:[48, 72]};
 function place(id, x, y, w, h, extra){ const e = E[id]; if (!e) return; e.style.display = ''; Object.assign(e.style, {left:x + 'px', top:y + 'px', width:w != null ? w + 'px' : '', height:h != null ? h + 'px' : ''}, extra || {}); }
 function hide(...ids){ for (const id of ids) if (E[id]) E[id].style.display = 'none'; }
-let L = FULL, compact = false;
+let L = FULL, compact = false, portrait = false, lastLabels = '';
 function layout(){
+  // a phone held upright gets the stacked portrait panel (unless the full instrument was asked for)
+  portrait = window.innerHeight > window.innerWidth * 1.05 && S.view !== 'full';
   const auto = window.innerWidth < 1150 || window.innerHeight < 430;
-  compact = S.view === 'compact' || (S.view === 'auto' && auto);
-  L = compact ? COMPACT : FULL;
+  compact = portrait || S.view === 'compact' || (S.view === 'auto' && auto);
+  L = portrait ? PORTRAIT : compact ? COMPACT : FULL;
+  // tall phones: the portrait panel grows downwards and the keys get the room
+  if (portrait) L = {W:600, H:Math.round(Math.max(1000, Math.min(1400, 600 * window.innerHeight / window.innerWidth))), kb:PORTRAIT.kb};
   root.style.width = L.W + 'px'; root.style.height = L.H + 'px';
   for (const k in E) E[k].style.display = '';
   if (!compact){
@@ -350,6 +355,28 @@ function layout(){
     place('pwL', 112, 500, 40, 230); place('pwLL', 102, 482, 60, 10);
     place('mwL', 196, 500, 40, 230); place('mwLL', 176, 482, 80, 10);
     place('keys', 282, 432, 1548, 352);
+  } else if (portrait){
+    hide('cheekL', 'cheekR', 'screw0', 'screw1', 'screw2', 'screw3', 'logo', 'rule1', 'rule2', 'ol', 'volT', 'dataT', 'bankL1', 'bankL2', 'playL', 'cartL', 'memL', 'protL');
+    for (let i = 1; i <= 32; i++) hide('bf' + i);
+    place('tools', 8, 8, 584, 66, {flexWrap:'wrap', alignContent:'flex-start', rowGap:'6px'});
+    place('led', 8, 84, 70, 54); place('lcd', 86, 80, 506, 84);
+    place('chart', 8, 172, 150, 86); place('eg', 166, 172, 180, 86); place('cart', 354, 172, 238, 86);
+    const kh = L.H - 708;
+    place('volL', 4, 270, 60, 10); place('vol', 28, 288, 12, 150);
+    place('dataL', 60, 270, 80, 10); place('data', 94, 288, 12, 150);
+    place('noL', 132, 384, 56, 10); place('yesL', 196, 384, 56, 10); place('no', 134, 398, 56, 40); place('yes', 198, 398, 56, 40);
+    place('storeL', 268, 270, 74, 10); place('protIL', 348, 270, 74, 10); place('protCL', 428, 270, 74, 10); place('opL', 508, 266, 80, 18);
+    place('store', 272, 286, 70, 40); place('protI', 352, 286, 70, 40); place('protC', 432, 286, 70, 40); place('opSel', 512, 286, 70, 40);
+    place('editL', 268, 348, 74, 10); place('memIL', 348, 348, 74, 10); place('memCL', 428, 348, 74, 10); place('funcL', 508, 348, 80, 10);
+    place('edit', 272, 364, 70, 40); place('memI', 352, 364, 70, 40); place('memC', 432, 364, 70, 40); place('func', 512, 364, 70, 40);
+    place('playBar', 352, 412, 150, 3);
+    for (let i = 1; i <= 32; i++){
+      const r = Math.floor((i - 1) / 8), c = (i - 1) % 8, x = 8 + c * 73, y = 470 + r * 56;
+      place('b' + i, x, y, 66, 38); place('be' + i, x - 3, y - 14, 72, 13, {whiteSpace:'nowrap', overflow:'hidden', fontSize:'8px', display:'block'});
+    }
+    place('pwL', 14, 718, 36, kh - 22); place('pwLL', 4, 702, 56, 10);
+    place('mwL', 64, 718, 36, kh - 22); place('mwLL', 50, 702, 64, 10);
+    place('keys', 114, 700, 478, kh);
   } else {
     hide('cheekL', 'cheekR', 'screw0', 'screw1', 'screw2', 'screw3', 'logo', 'rule1', 'rule2', 'ol', 'volT', 'dataT', 'bankL1', 'bankL2', 'playL', 'cartL', 'memL', 'protL');
     for (let i = 1; i <= 32; i++) hide('bf' + i);
@@ -372,6 +399,9 @@ function layout(){
     place('mwL', 64, 368, 36, 220); place('mwLL', 50, 352, 64, 10);
     place('keys', 114, 346, 880, 250);
   }
+  // the printed labels in the full view; the compact panels relabel the buttons by mode (paint)
+  lastLabels = '';
+  if (!compact) for (let i = 1; i <= 32; i++) E['be' + i].innerHTML = DXP.EDIT_BUTTONS[i] || (i <= 6 ? 'OP ' + i + '<br>ON/OFF' : '');
   buildKeys(); drawChart(); fit();
 }
 function fit(){
@@ -380,7 +410,12 @@ function fit(){
   root.style.left = Math.max(0, (window.innerWidth - L.W * sc) / 2) + 'px';
   root.style.top = Math.max(0, (window.innerHeight - L.H * sc) / 2) + 'px';
 }
-window.addEventListener('resize', () => layout());
+// relayout on rotation (some phones report the new size a moment after the event)
+let relay = 0;
+const relayout = () => { layout(); clearTimeout(relay); relay = setTimeout(layout, 300); };
+window.addEventListener('resize', relayout);
+window.addEventListener('orientationchange', relayout);
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', relayout);
 
 /* ----- the algorithm chart: the 32 algorithms as on the panel (compact: the current one) ----- */
 function algGeometry(ai){
@@ -603,13 +638,14 @@ press('edit', () => panel.editBtn()); press('memI', () => panel.memSelect('int')
 for (let i = 1; i <= 32; i++) press('b' + i, () => panel.button(i));
 E.cart.addEventListener('click', () => openDlg('dlgLib'));
 $$('[data-dlg]').forEach(b => b.addEventListener('click', () => openDlg(b.dataset.dlg)));
-$('#viewBtn').addEventListener('click', () => { S.view = compact ? 'full' : 'compact'; layout(); dirty(); });
+// View: the whole instrument, or the larger panel (upright phones use the portrait panel unless the whole instrument is chosen)
+$('#viewBtn').addEventListener('click', () => { S.view = compact ? 'full' : (window.innerHeight > window.innerWidth * 1.05 ? 'auto' : 'compact'); layout(); dirty(); });
 $('#octDn').addEventListener('click', () => { S.octave = Math.max(-3, S.octave - 1); buildKeys(); dirty(); });
 $('#octUp').addEventListener('click', () => { S.octave = Math.min(3, S.octave + 1); buildKeys(); dirty(); });
 $('#panic').addEventListener('click', () => { post({t:'panic'}); S.seq.arp.on = false; for (const n of keyEls.keys()) keyLight(n, false); midiSend([0xB0 | S.func.txCh, 123, 0]); toast('All notes off'); });
 
 /* ----- painting: display, LED, lights ----- */
-let lastL1 = '', lastL2 = '', lastLed = '', lastLabels = '';
+let lastL1 = '', lastL2 = '', lastLed = '';
 function paint(){
   const [l1, l2] = panel.lines();
   if (l1 !== lastL1 || l2 !== lastL2){ $('#lcdT').textContent = l1 + '\n' + l2; lastL1 = l1; lastL2 = l2; }
