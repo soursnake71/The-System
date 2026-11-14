@@ -1,0 +1,419 @@
+diff --git a/drumscribe/core/CMakeLists.txt b/drumscribe/core/CMakeLists.txt
+index 1949251..2e6180b 100644
+--- a/drumscribe/core/CMakeLists.txt
++++ b/drumscribe/core/CMakeLists.txt
+@@ -28,8 +28,9 @@ if(DS_WITH_SEPARATION)
+   include(cmake/separation.cmake)  # defines dsseparate (src/separate.cpp + demucs.cpp + onnxruntime)
+ endif()
+ 
+-# Android (drumscribe/android builds this folder as part of libdrumscribe.so): only the libraries
+-if(ANDROID)
++# Android (drumscribe/android builds this folder as part of libdrumscribe.so) and WebAssembly (drumscribe/web):
++# only the libraries
++if(ANDROID OR EMSCRIPTEN)
+   return()
+ endif()
+ 
+diff --git a/drumscribe/core/cmake/separation.cmake b/drumscribe/core/cmake/separation.cmake
+index bd4bbc3..9018a84 100644
+--- a/drumscribe/core/cmake/separation.cmake
++++ b/drumscribe/core/cmake/separation.cmake
+@@ -2,6 +2,8 @@
+ #   Demucs v4 (htdemucs / htdemucs_ft) via demucs.cpp (github.com/sevagh/demucs.cpp, MIT, Eigen)
+ #   MDX23C DrumSep via ONNX Runtime (prebuilt 1.20.1 release archive; on Android the official 1.20.0 Maven AAR)
+ # Defines the static library `dsseparate` (src/separate.cpp) and the optional check program `ds-sep-check`.
++# WebAssembly (Emscripten, drumscribe/web): no ONNX Runtime here (onnxruntime-web runs DrumSep in the page), so
++# separate.cpp is built with DS_SEP_NO_ORT (Demucs + DrumSep's STFT / chunking only).
+ # Models are NOT part of the build: tools/get_models.sh downloads and converts them (default ~/.cache/drumscribe/models).
+ include(FetchContent)
+ 
+@@ -25,6 +27,20 @@ FetchContent_Declare(ds_eigen
+   URL https://gitlab.com/libeigen/eigen/-/archive/dd8c71e62852b2fe429edb6682ac91fd1c578a26/eigen-dd8c71e62852b2fe429edb6682ac91fd1c578a26.tar.gz
+   SOURCE_SUBDIR _no_cmake_ DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+ 
++if(EMSCRIPTEN)
++  FetchContent_MakeAvailable(demucscpp ds_eigen)
++  file(GLOB _demucs_src ${demucscpp_SOURCE_DIR}/src/*.cpp)
++  add_library(ds_demucscpp STATIC ${_demucs_src})
++  target_include_directories(ds_demucscpp SYSTEM PUBLIC ${demucscpp_SOURCE_DIR}/src ${ds_eigen_SOURCE_DIR})
++  target_compile_definitions(ds_demucscpp PUBLIC NDEBUG)
++  target_compile_options(ds_demucscpp PRIVATE -O3 -w)
++  add_library(dsseparate STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/separate.cpp)
++  target_link_libraries(dsseparate PUBLIC dscore ds_demucscpp)
++  target_compile_definitions(dsseparate PUBLIC DS_SEP_NO_ORT=1)
++  target_compile_options(dsseparate PRIVATE -O3)
++  return()
++endif()
++
+ # ---- ONNX Runtime prebuilt
+ set(_ort_ver 1.20.1)
+ set(_ort_base https://github.com/microsoft/onnxruntime/releases/download/v${_ort_ver})
+diff --git a/drumscribe/core/src/separate.cpp b/drumscribe/core/src/separate.cpp
+index 6eb19ba..2ca047a 100644
+--- a/drumscribe/core/src/separate.cpp
++++ b/drumscribe/core/src/separate.cpp
+@@ -5,6 +5,8 @@
+ //   2. MDX23C DrumSep (aufr33 & jarredou) on the drum stem -> kick snare toms hh ride crash, the net exported to
+ //      ONNX (tools/export_drumsep_onnx.py) run with ONNX Runtime; STFT / iSTFT / chunking here, reproducing
+ //      python-audio-separator's MDXCSeparator.
++// The WebAssembly build (drumscribe/web) compiles this file with DS_SEP_NO_ORT: Demucs as here, and DrumSep's
++// STFT / iSTFT / chunking (DrumSepDemix) here too, with the net itself run by onnxruntime-web from JavaScript.
+ // Models: tools/get_models.sh. Checked against PyTorch by tools/sep_check.cpp.
+ #include <algorithm>
+ #include <array>
+@@ -23,7 +25,9 @@
+ #include <stdexcept>
+ #include <thread>
+ 
++#ifndef DS_SEP_NO_ORT
+ #include <onnxruntime_cxx_api.h>
++#endif
+ #include <unsupported/Eigen/FFT>
+ 
+ #include "dsp.hpp"
+@@ -32,6 +36,10 @@
+ 
+ namespace fs = std::filesystem;
+ 
++#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
++#define DS_SINGLE_THREAD 1  // WebAssembly built without threads: no std::thread at all
++#endif
++
+ namespace ds::sep {
+ 
+ const char* const kKitStems[6] = {"kick", "snare", "toms", "hh", "ride", "crash"};
+@@ -63,9 +71,11 @@ static void need_file(const fs::path& f) {
+ // loaded (release_models() frees them). All access is under g_mutex (separate() is serialized).
+ static std::mutex g_mutex;
+ static std::map<std::string, std::shared_ptr<demucscpp::demucs_model>> g_demucs;
++#ifndef DS_SEP_NO_ORT
+ static std::unique_ptr<Ort::Env> g_ort_env;
+ static std::unique_ptr<Ort::Session> g_ort_session;
+ static std::string g_ort_path;
++#endif
+ 
+ static std::shared_ptr<demucscpp::demucs_model> get_demucs(const std::string& file) {
+     auto it = g_demucs.find(file);
+@@ -91,8 +101,10 @@ static std::shared_ptr<demucscpp::demucs_model> get_demucs(const std::string& fi
+ void release_models() {
+     std::lock_guard<std::mutex> lk(g_mutex);
+     g_demucs.clear();
++#ifndef DS_SEP_NO_ORT
+     g_ort_session.reset();
+     g_ort_path.clear();
++#endif
+ }
+ 
+ // ------------------------------------------------------------------------------------------------ Demucs
+@@ -187,9 +199,12 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
+                         buf.mix(c, j) = (idx >= 0 && idx < P) ? padded[c][idx] : 0.f;
+                     }
+                 demucscpp::model_inference(*model, buf, stft_buf,
+-                                           [&frac, &stop, wi](float f, const std::string&) {
++                                           [&, wi](float f, const std::string&) {
+                                                if (stop) throw std::runtime_error("stopped");
+                                                frac[wi] = f;
++#ifdef DS_SINGLE_THREAD
++                                               if (p) p(std::min(1.0, (done + std::clamp(f, 0.f, 1.f)) / offs.size()), "demucs");
++#endif
+                                            }, 0.f, 1.f);
+                 // center_trim to n, weight, accumulate (at most 2 segments overlap: a+b == b+a, so the
+                 // result doesn't depend on which thread finishes first)
+@@ -211,6 +226,10 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
+             cv.notify_all();
+         }
+     };
++#ifdef DS_SINGLE_THREAD
++    // no threads (WebAssembly without SharedArrayBuffer): the one worker runs here and reports progress itself
++    worker(0);
++#else
+     std::vector<std::thread> th;
+     for (int i = 0; i < nthreads; ++i) th.emplace_back(worker, i);
+     {
+@@ -232,6 +251,7 @@ std::vector<Stereo> demucs_run(const std::string& model_file, const Stereo& song
+         }
+     }
+     for (auto& t : th) t.join();
++#endif
+     if (err) std::rethrow_exception(err);
+     for (auto& v : padded) std::vector<float>().swap(v);
+ 
+@@ -309,6 +329,113 @@ struct Stft {
+ };
+ }  // namespace
+ 
++// ------------------------------------------------------------------------------------------------ DrumSepDemix
++struct DrumSepDemix::Impl {
++    long L = 0, hop = 0, pad = 0, lead = 0, PL = 0, nchunks = 0;
++    int overlap = 1, nth = 1;
++    std::vector<float> mix[2];
++    std::vector<std::vector<float>> acc, ychunk;
++    std::vector<Stft> stft;
++};
++
++DrumSepDemix::DrumSepDemix(const Stereo& drums, int overlap) : d(std::make_unique<Impl>()) {
++    Impl& m = *d;
++    m.L = (long)drums.size();
++    const float* ch[2] = {drums.l.data(), drums.r.size() == drums.l.size() ? drums.r.data() : drums.l.data()};
++    // MDXCSeparator.demix: hop = chunk // overlap; zero padding chunk-hop in front, pad + chunk-hop behind
++    m.overlap = std::clamp(overlap, 1, kChunk);
++    m.hop = kChunk / m.overlap;
++    m.pad = m.hop - (((m.L - kChunk) % m.hop) + m.hop) % m.hop;  // python's modulo
++    m.lead = kChunk - m.hop;
++    m.PL = m.L + m.pad + 2 * m.lead;
++    for (int c = 0; c < 2; ++c) {
++        m.mix[c].assign(m.PL, 0.f);
++        if (m.L) std::copy(ch[c], ch[c] + m.L, m.mix[c].begin() + m.lead);
++    }
++    m.nchunks = m.L ? (m.PL - kChunk) / m.hop + 1 : 0;  // unfold(1, chunk, hop)
++    m.acc.assign(kNumStems * 2, std::vector<float>(m.PL, 0.f));
++#ifdef DS_SINGLE_THREAD
++    m.nth = 1;
++#else
++    m.nth = std::max(1, std::min(num_threads(), 2 * kNumStems));
++#endif
++    m.stft.resize(m.nth);
++    m.ychunk.assign(kNumStems * 2, std::vector<float>(kChunk));
++}
++
++DrumSepDemix::~DrumSepDemix() = default;
++
++long DrumSepDemix::chunks() const { return d->nchunks; }
++
++void DrumSepDemix::input(long k, float* spec) {
++    Impl& m = *d;
++    const long plane = (long)kDimF * kFrames, st = k * m.hop;
++    m.stft[0].forward(m.mix[0].data() + st, spec, spec + plane);
++    m.stft[0].forward(m.mix[1].data() + st, spec + 2 * plane, spec + 3 * plane);
++}
++
++void DrumSepDemix::add(long k, const float* o) {
++    Impl& m = *d;
++    const long plane = (long)kDimF * kFrames, st = k * m.hop;
++    // iSTFT of the 12 (stem, channel) spectrograms on worker threads
++    std::atomic<int> nx{0};
++    auto job = [&](int wi) {
++        std::vector<float> ola;
++        for (int j; (j = nx.fetch_add(1)) < kNumStems * 2;) {
++            const float* base = o + (long)j * 2 * plane;  // [stem][ch*2 + reim]
++            m.stft[wi].inverse(base, base + plane, m.ychunk[j].data(), ola);
++        }
++    };
++#ifdef DS_SINGLE_THREAD
++    job(0);
++#else
++    std::vector<std::thread> th;
++    for (int i = 1; i < m.nth; ++i) th.emplace_back(job, i);
++    job(0);
++    for (auto& t : th) t.join();
++#endif
++    for (int j = 0; j < kNumStems * 2; ++j) {
++        float* a = m.acc[j].data() + st;
++        const float* y = m.ychunk[j].data();
++        for (long i = 0; i < kChunk; ++i) a[i] += y[i];
++    }
++}
++
++std::vector<Stereo> DrumSepDemix::finish() {
++    Impl& m = *d;
++    std::vector<Stereo> res(kNumStems);
++    // accumulated / overlap, then [chunk - hop : -(pad + chunk - hop)]; each accumulator freed once copied (memory)
++    for (int s = 0; s < kNumStems; ++s)
++        for (int c = 0; c < 2; ++c) {
++            Signal& dst = c ? res[s].r : res[s].l;
++            auto& a = m.acc[s * 2 + c];
++            dst.resize(m.L);
++            for (long i = 0; i < m.L; ++i) dst[i] = a[m.lead + i] / (float)m.overlap;
++            std::vector<float>().swap(a);
++        }
++    for (auto& v : m.mix) std::vector<float>().swap(v);
++    return res;
++}
++
++float drumsep_input_gain(const Stereo& drums) {
++    float peak = 0;
++    for (float v : drums.l) peak = std::max(peak, std::fabs(v));
++    for (float v : drums.r) peak = std::max(peak, std::fabs(v));
++    return peak > 0 ? 0.5f / peak : 1.f;
++}
++
++std::map<std::string, Signal> drumsep_kit(std::vector<Stereo>& kit, float gain) {
++    std::map<std::string, Signal> out;
++    for (int s = 0; s < kNumStems; ++s) {
++        Signal m(kit[s].l.size());
++        for (size_t i = 0; i < m.size(); ++i) m[i] = 0.5f * (kit[s].l[i] + kit[s].r[i]) / gain;
++        out[kKitStems[s]] = std::move(m);
++        kit[s] = Stereo{};
++    }
++    return out;
++}
++
++#ifndef DS_SEP_NO_ORT
+ static Ort::Session& get_drumsep(const std::string& file) {
+     if (g_ort_session && g_ort_path == file) return *g_ort_session;
+     need_file(file);
+@@ -325,8 +452,8 @@ static Ort::Session& get_drumsep(const std::string& file) {
+ 
+ std::vector<Stereo> drumsep_run(const std::string& onnx_file, const Stereo& drums, int overlap, const Progress& p) {
+     const long L = (long)drums.size();
+-    std::vector<Stereo> res(kNumStems);
+     if (L == 0) {
++        std::vector<Stereo> res(kNumStems);
+         for (auto& s : res) s.l.assign(L, 0.f), s.r.assign(L, 0.f);
+         return res;
+     }
+@@ -336,36 +463,15 @@ std::vector<Stereo> drumsep_run(const std::string& onnx_file, const Stereo& drum
+     } catch (const Ort::Exception& e) {
+         throw std::runtime_error("could not load DrumSep model " + onnx_file + ": " + e.what());
+     }
+-    const float* ch[2] = {drums.l.data(), drums.r.size() == drums.l.size() ? drums.r.data() : drums.l.data()};
+-
+-    // MDXCSeparator.demix: hop = chunk // overlap; zero padding chunk-hop in front, pad + chunk-hop behind
+-    overlap = std::clamp(overlap, 1, kChunk);
+-    const long hop = kChunk / overlap;
+-    const long pad = hop - (((L - kChunk) % hop) + hop) % hop;  // python's modulo
+-    const long lead = kChunk - hop;
+-    const long PL = L + pad + 2 * lead;
+-    std::vector<float> mix[2];
+-    for (int c = 0; c < 2; ++c) {
+-        mix[c].assign(PL, 0.f);
+-        std::copy(ch[c], ch[c] + L, mix[c].begin() + lead);
+-    }
+-    const long nchunks = (PL - kChunk) / hop + 1;  // unfold(1, chunk, hop)
+-    std::vector<std::vector<float>> acc(kNumStems * 2, std::vector<float>(PL, 0.f));
+-
+-    const long plane = (long)kDimF * kFrames;
+-    std::vector<float> in(4 * plane);
++    DrumSepDemix demix(drums, overlap);
++    const long nchunks = demix.chunks();
++    std::vector<float> in(DrumSepDemix::kInputSize);
+     std::array<int64_t, 4> in_shape{1, 4, kDimF, kFrames};
+     Ort::MemoryInfo mi = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+     const char* in_names[] = {"spec"};
+     const char* out_names[] = {"out"};
+-    const int nth = std::max(1, std::min(num_threads(), 2 * kNumStems));
+-    std::vector<Stft> stft(nth);
+-    std::vector<std::vector<float>> ychunk(kNumStems * 2, std::vector<float>(kChunk));
+-
+     for (long k = 0; k < nchunks; ++k) {
+-        const long st = k * hop;
+-        stft[0].forward(mix[0].data() + st, in.data(), in.data() + plane);
+-        stft[0].forward(mix[1].data() + st, in.data() + 2 * plane, in.data() + 3 * plane);
++        demix.input(k, in.data());
+         std::vector<Ort::Value> outs;
+         try {
+             Ort::Value x = Ort::Value::CreateTensor<float>(mi, in.data(), in.size(), in_shape.data(), in_shape.size());
+@@ -377,41 +483,16 @@ std::vector<Stereo> drumsep_run(const std::string& onnx_file, const Stereo& drum
+         if (shape.size() != 5 || shape[1] != kNumStems || shape[2] != 4 || shape[3] != kDimF || shape[4] != kFrames)
+             throw std::runtime_error("DrumSep model output has an unexpected shape (re-export it with "
+                                      "tools/export_drumsep_onnx.py)");
+-        const float* o = outs[0].GetTensorData<float>();
+-        // iSTFT of the 12 (stem, channel) spectrograms on worker threads
+-        std::atomic<int> nx{0};
+-        auto job = [&](int wi) {
+-            std::vector<float> ola;
+-            for (int j; (j = nx.fetch_add(1)) < kNumStems * 2;) {
+-                const float* base = o + (long)j * 2 * plane;  // [stem][ch*2 + reim]
+-                stft[wi].inverse(base, base + plane, ychunk[j].data(), ola);
+-            }
+-        };
+-        std::vector<std::thread> th;
+-        for (int i = 1; i < nth; ++i) th.emplace_back(job, i);
+-        job(0);
+-        for (auto& t : th) t.join();
+-        for (int j = 0; j < kNumStems * 2; ++j) {
+-            float* a = acc[j].data() + st;
+-            const float* y = ychunk[j].data();
+-            for (long i = 0; i < kChunk; ++i) a[i] += y[i];
+-        }
++        demix.add(k, outs[0].GetTensorData<float>());
+         if (p) p((double)(k + 1) / nchunks, "drumsep");
+     }
+-    // accumulated / overlap, then [chunk - hop : -(pad + chunk - hop)]; each accumulator freed once copied (memory)
+-    for (int s = 0; s < kNumStems; ++s)
+-        for (int c = 0; c < 2; ++c) {
+-            Signal& dst = c ? res[s].r : res[s].l;
+-            auto& a = acc[s * 2 + c];
+-            dst.resize(L);
+-            for (long i = 0; i < L; ++i) dst[i] = a[lead + i] / (float)overlap;
+-            std::vector<float>().swap(a);
+-        }
+-    return res;
++    return demix.finish();
+ }
++#endif  // DS_SEP_NO_ORT
+ 
+ }  // namespace ds::sep
+ 
++#ifndef DS_SEP_NO_ORT
+ namespace ds {
+ 
+ Stems separate(const Stereo& song, Quality q, const std::string& model_dir, const Progress& p) {
+@@ -463,24 +544,17 @@ Stems separate(const Stereo& song, Quality q, const std::string& model_dir, cons
+ 
+     // DrumSep on the drum stem scaled to 0.5 peak (as the prototype did), scaled back: the kit pieces stay at
+     // the drum stem's level, no per-stem normalization; each piece is the mean of its two channels
+-    float peak = 0;
+-    for (float v : out.drums.l) peak = std::max(peak, std::fabs(v));
+-    for (float v : out.drums.r) peak = std::max(peak, std::fabs(v));
+-    const float gain = peak > 0 ? 0.5f / peak : 1.f;
++    const float gain = drumsep_input_gain(out.drums);
+     Stereo scaled = out.drums;
+     for (auto& v : scaled.l) v *= gain;
+     for (auto& v : scaled.r) v *= gain;
+     auto kit = drumsep_run((dir / kDrumSep).string(), scaled, ov, sub(w_demucs, tot, "splitting the kit (DrumSep)"));
+     scaled = Stereo{};
+     if (low_memory) g_ort_session.reset(), g_ort_path.clear();
+-    for (int s = 0; s < kNumStems; ++s) {
+-        Signal m(kit[s].l.size());
+-        for (size_t i = 0; i < m.size(); ++i) m[i] = 0.5f * (kit[s].l[i] + kit[s].r[i]) / gain;
+-        out.kit[kKitStems[s]] = std::move(m);
+-        kit[s] = Stereo{};
+-    }
++    out.kit = drumsep_kit(kit, gain);
+     if (p) p(1.0, "separation done");
+     return out;
+ }
+ 
+ }  // namespace ds
++#endif  // DS_SEP_NO_ORT
+diff --git a/drumscribe/core/src/separate_impl.h b/drumscribe/core/src/separate_impl.h
+index c20a838..8983fb0 100644
+--- a/drumscribe/core/src/separate_impl.h
++++ b/drumscribe/core/src/separate_impl.h
+@@ -1,6 +1,7 @@
+ // Drum Scribe separation internals (src/separate.cpp). Private: used by separate() and tools/sep_check.cpp.
+ #pragma once
+ #include <map>
++#include <memory>
+ #include <string>
+ #include <vector>
+ 
+@@ -32,6 +33,27 @@ int demucs_default_shift();
+ std::vector<Stereo> drumsep_run(const std::string& onnx_file, const Stereo& drums, int overlap, const Progress& p);
+ int drumsep_overlap(Quality q);  // fast 2, best 4, or $DS_DRUMSEP_OVERLAP (audio-separator's default is 44)
+ 
++// MDXCSeparator.demix step by step, whatever runs the net (ONNX Runtime in drumsep_run; onnxruntime-web in the
++// browser build): input(k) writes the net's input for chunk k (spec [1][4][1024][256]: ch0 re, ch0 im, ch1 re, ch1 im),
++// add(k, out) overlap-adds the net's output for it (out [1][6][4][1024][256]), finish() returns the stems.
++class DrumSepDemix {
++public:
++    static constexpr long kInputSize = 4L * 1024 * 256, kOutputSize = 6 * kInputSize;
++    DrumSepDemix(const Stereo& drums, int overlap);
++    ~DrumSepDemix();
++    long chunks() const;
++    void input(long k, float* spec);
++    void add(long k, const float* out);
++    std::vector<Stereo> finish();  // kKitStems order, stereo; frees the buffers
++private:
++    struct Impl;
++    std::unique_ptr<Impl> d;
++};
++// separate() runs DrumSep on the drum stem scaled to 0.5 peak (this gain), and turns its stereo output into the mono
++// kit pieces at the drum stem's level (drumsep_kit; frees `kit`)
++float drumsep_input_gain(const Stereo& drums);
++std::map<std::string, Signal> drumsep_kit(std::vector<Stereo>& kit, float gain);
++
+ void release_models();  // drop the cached models / ONNX session (they're kept between separate() calls)
+ 
+ }  // namespace ds::sep
