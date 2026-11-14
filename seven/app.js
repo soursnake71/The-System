@@ -309,7 +309,7 @@ for (let i = 1; i <= 32; i++){
 lbl('bankL1', 'VOICE / PARAMETER SELECT', 'small'); lbl('bankL2', 'FUNCTION', 'small tan');
 part('pwL', 'wheelwell', '<div class="wheel"><div class="mark"></div></div>'); lbl('pwLL', 'PITCH', 'small');
 part('mwL', 'wheelwell', '<div class="wheel"><div class="mark"></div></div>'); lbl('mwLL', 'MODULATION', 'small');
-part('keys', 'keys');
+part('keys', 'keys'); part('keys2', 'keys');
 
 /* ----- two layouts: the whole instrument, and a larger panel for phones ----- */
 const FULL = {W:1880, H:800, kb:[36, 96]};
@@ -328,6 +328,7 @@ function layout(){
   if (portrait) L = {W:600, H:Math.round(Math.max(1000, Math.min(1400, 600 * window.innerHeight / window.innerWidth))), kb:PORTRAIT.kb};
   root.style.width = L.W + 'px'; root.style.height = L.H + 'px';
   for (const k in E) E[k].style.display = '';
+  hide('keys2');
   if (!compact){
     place('cheekL', 0, 0, 44, 800); place('cheekR', 1836, 0, 44, 800);
     place('screw0', 64, 18); place('screw1', 1804, 18); place('screw2', 64, 380); place('screw3', 1804, 380);
@@ -361,7 +362,9 @@ function layout(){
     place('tools', 8, 8, 584, 66, {flexWrap:'wrap', alignContent:'flex-start', rowGap:'6px'});
     place('led', 8, 84, 70, 54); place('lcd', 86, 80, 506, 84);
     place('chart', 8, 172, 150, 86); place('eg', 166, 172, 180, 86); place('cart', 354, 172, 238, 86);
-    const kh = L.H - 708;
+    // keys no longer than a real key: tall phones get a second keyboard an octave pair up instead of stretched keys
+    const room = L.H - 708, two = room >= 2 * 230 + 12;
+    const kh = Math.min(300, two ? Math.floor((room - 12) / 2) : room);
     place('volL', 4, 270, 60, 10); place('vol', 28, 288, 12, 150);
     place('dataL', 60, 270, 80, 10); place('data', 94, 288, 12, 150);
     place('noL', 132, 384, 56, 10); place('yesL', 196, 384, 56, 10); place('no', 134, 398, 56, 40); place('yes', 198, 398, 56, 40);
@@ -374,9 +377,12 @@ function layout(){
       const r = Math.floor((i - 1) / 8), c = (i - 1) % 8, x = 8 + c * 73, y = 470 + r * 56;
       place('b' + i, x, y, 66, 38); place('be' + i, x - 3, y - 14, 72, 13, {whiteSpace:'nowrap', overflow:'hidden', fontSize:'8px', display:'block'});
     }
-    place('pwL', 14, 718, 36, kh - 22); place('pwLL', 4, 702, 56, 10);
-    place('mwL', 64, 718, 36, kh - 22); place('mwLL', 50, 702, 64, 10);
-    place('keys', 114, 700, 478, kh);
+    const kTop = two ? 700 + kh + 12 : 700;          // the lower (main) keyboard
+    if (two) place('keys2', 114, 700, 478, kh); else hide('keys2');
+    place('pwL', 14, kTop + 18, 36, kh - 22); place('pwLL', 4, kTop + 2, 56, 10);
+    place('mwL', 64, kTop + 18, 36, kh - 22); place('mwLL', 50, kTop + 2, 64, 10);
+    place('keys', 114, kTop, 478, kh);
+    L.H = kTop + kh + 8; root.style.height = L.H + 'px';
   } else {
     hide('cheekL', 'cheekR', 'screw0', 'screw1', 'screw2', 'screw3', 'logo', 'rule1', 'rule2', 'ol', 'volT', 'dataT', 'bankL1', 'bankL2', 'playL', 'cartL', 'memL', 'protL');
     for (let i = 1; i <= 32; i++) hide('bf' + i);
@@ -531,8 +537,13 @@ const keyEls = new Map();
 const isBlack = n => [1, 3, 6, 8, 10].includes(n % 12);
 function kbRange(){ const [a, b] = L.kb; const o = compact ? S.octave * 12 : 0; return [a + o, b + o]; }
 function buildKeys(){
-  const k = E.keys; k.innerHTML = ''; keyEls.clear();
+  keyEls.clear(); E.keys2.innerHTML = '';
   const [lo, hi] = kbRange();
+  fillKeys(E.keys, lo, hi);
+  if (E.keys2.style.display !== 'none' && portrait) fillKeys(E.keys2, hi, hi + (hi - lo));
+}
+function fillKeys(k, lo, hi){
+  k.innerHTML = '';
   const whites = []; for (let n = lo; n <= hi; n++) if (!isBlack(n)) whites.push(n);
   const W = parseFloat(k.style.width), H = parseFloat(k.style.height), ww = W / whites.length;
   let i = 0;
@@ -540,16 +551,18 @@ function buildKeys(){
     if (isBlack(n)) continue;
     const d = el('div', 'wk', k); d.style.left = (i * ww) + 'px'; d.style.width = ww + 'px'; d.dataset.n = n;
     if (n % 12 === 0) el('div', 'cn', d, DX.noteName(n));
-    keyEls.set(n, d); i++;
+    addKeyEl(n, d); i++;
   }
   for (let n = lo; n <= hi; n++){
     if (!isBlack(n)) continue;
     const wi = whites.indexOf(n - 1); if (wi < 0) continue;
     const d = el('div', 'bk', k); const bw = ww * 0.6; d.style.left = ((wi + 1) * ww - bw / 2) + 'px'; d.style.width = bw + 'px'; d.style.height = (H * 0.62) + 'px'; d.dataset.n = n;
-    keyEls.set(n, d);
+    addKeyEl(n, d);
   }
 }
-function keyLight(n, on){ const e = keyEls.get(n); if (e) e.classList.toggle('on', on); }
+// a note can be on both keyboards (the C they share)
+function addKeyEl(n, d){ if (!keyEls.has(n)) keyEls.set(n, []); keyEls.get(n).push(d); }
+function keyLight(n, on){ for (const e of keyEls.get(n) || []) e.classList.toggle('on', on); }
 const touches = new Map();     // pointerId -> note
 function keyAt(x, y){ const e = document.elementFromPoint(x, y); return e && e.dataset && e.dataset.n != null && e.closest('.keys') ? e : null; }
 function velFrom(e, keyEl){
@@ -557,19 +570,21 @@ function velFrom(e, keyEl){
   const r = keyEl.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
   return Math.max(20, Math.min(127, Math.round(30 + f * 97)));
 }
-E.keys.addEventListener('pointerdown', e => {
-  const k = keyAt(e.clientX, e.clientY); if (!k) return;
-  e.preventDefault(); E.keys.setPointerCapture(e.pointerId);
-  const n = +k.dataset.n; touches.set(e.pointerId, n); noteDown(n, velFrom(e, k));
-});
-E.keys.addEventListener('pointermove', e => {
-  if (!touches.has(e.pointerId)) return;
-  const k = keyAt(e.clientX, e.clientY); if (!k) return;
-  const n = +k.dataset.n, was = touches.get(e.pointerId);
-  if (n !== was){ noteUp(was); touches.set(e.pointerId, n); noteDown(n, velFrom(e, k)); }
-});
 const endTouch = e => { if (!touches.has(e.pointerId)) return; noteUp(touches.get(e.pointerId)); touches.delete(e.pointerId); };
-E.keys.addEventListener('pointerup', endTouch); E.keys.addEventListener('pointercancel', endTouch);
+for (const kb of [E.keys, E.keys2]){
+  kb.addEventListener('pointerdown', e => {
+    const k = keyAt(e.clientX, e.clientY); if (!k) return;
+    e.preventDefault(); kb.setPointerCapture(e.pointerId);
+    const n = +k.dataset.n; touches.set(e.pointerId, n); noteDown(n, velFrom(e, k));
+  });
+  kb.addEventListener('pointermove', e => {
+    if (!touches.has(e.pointerId)) return;
+    const k = keyAt(e.clientX, e.clientY); if (!k) return;
+    const n = +k.dataset.n, was = touches.get(e.pointerId);
+    if (n !== was){ noteUp(was); touches.set(e.pointerId, n); noteDown(n, velFrom(e, k)); }
+  });
+  kb.addEventListener('pointerup', endTouch); kb.addEventListener('pointercancel', endTouch);
+}
 
 // computer keyboard: A W S E D F T G Y H U J K O L P ; (Z / X octave)
 const QWERTY = 'awsedftgyhujkolp;';
