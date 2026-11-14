@@ -14,6 +14,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
+| Omega Seven (6-operator FM, Mark I converter, sysex banks, arpeggiator, function sequencer; also a standalone app) | instrument with MIDI out |
 
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
 
@@ -24,3 +25,9 @@ Omega Twelve lives in `twelve/` and doesn't use the shared Spec/Editor: it has i
 app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelve_test` + `node twelve/tools/compare.mjs`
 (C++ against the app's engine), `twelve_proc_test` (sampler, MIDI, exports, analysis, state), and `tools/hosttest` (`twelve_host_test`
 loads the built .vst3 like a DAW).
+
+Omega Seven lives in `seven/`: `Seven.h` (engine, sysex, sequencer, MIDI files: a port of `../seven/engine.js` and `../seven/seq.js`), `Panel.h` (the
+front panel's logic, a port of `../seven/panel.js`), the processor and the faceplate editor. Factory voices come from `../seven/voices.js` via
+`node seven/tools/gen.mjs` (writes `Voices.inc`). Tests: `seven_test` + `node seven/tools/compare.mjs` (sample-exact against the web engine),
+`seven_proc_test` (sysex, panel, arpeggiator, sequencer on the host transport, MIDI files, state, pictures of the window) and
+`tools/hosttest` (`seven_host_test` loads the built .vst3 like a DAW).

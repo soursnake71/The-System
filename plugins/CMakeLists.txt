@@ -140,3 +140,35 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega Seven: the 6-operator FM synthesizer (seven/ in the app), as an instrument plugin and a standalone app.
+if(NOT OMEGA_ONLY OR "Seven" IN_LIST OMEGA_ONLY)
+  set(fmts ${OMEGA_FORMATS})
+  list(APPEND fmts Standalone)
+  juce_add_plugin(OmegaSeven
+    PRODUCT_NAME "Omega Seven"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Seven"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Osv7
+    FORMATS ${fmts}
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Synth
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaSeven PRIVATE seven/SevenPlugin.cpp seven/SevenEditor.cpp)
+  target_compile_definitions(OmegaSeven PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaSeven PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+  # Seven.h against engine.js: node seven/tools/compare.mjs <build>/seven_test <dir>
+  add_executable(seven_test seven/test.cpp)
+endif()
+if(TARGET OmegaSeven)
+  juce_add_console_app(seven_proc_test PRODUCT_NAME "seven_proc_test")
+  target_sources(seven_proc_test PRIVATE seven/proctest.cpp seven/SevenPlugin.cpp seven/SevenEditor.cpp)
+  target_compile_definitions(seven_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Seven")
+  target_link_libraries(seven_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(seven_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()

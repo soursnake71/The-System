@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Omega Seven</title>
+<meta name="description" content="6-operator FM synthesizer modeled on the 1983 Mark I hardware: 12-bit floating-point DAC, 32 algorithms, sysex banks in and out, arpeggiator, function sequencer, full MIDI.">
+<meta name="theme-color" content="#0d0d0e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --case:#121213; --case2:#1c1c1e; --edge:#050505; --print:#e9ecec; --dim:#9aa0a2; --tan:#d7b183;
+  --teal:#5fd6c7; --teal2:#3fb3a5; --tealHi:#a6f3e8; --red:#e34d55; --red2:#b7333b; --purple:#8e86e6; --purple2:#6c64c7; --blue:#7d97ee; --blue2:#5a74d0;
+  --brown:#d39a62; --brown2:#a8723f; --lcd:#c8cf86; --lcd2:#b4bd70; --ink:#1d2410; --led:#ff3b30;
+  --sans:"Helvetica Neue", Helvetica, Arial, sans-serif; --mono:"Courier New", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:#2b2c2e; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; font-family:var(--sans)}
+button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:none; cursor:pointer}
+#stage{position:fixed; inset:0; overflow:hidden; display:flex; align-items:center; justify-content:center}
+#synth{position:absolute; left:0; top:0; transform-origin:0 0; background:linear-gradient(180deg, var(--case2), var(--case) 30%, #0b0b0c); border-radius:10px;
+  box-shadow:0 0 0 2px var(--edge), 0 18px 40px #000a}
+#synth > *{position:absolute}
+.cheek{background:linear-gradient(90deg, #050505, #1d1d1f 40%, #0a0a0a); border-radius:8px}
+.screw{width:12px; height:12px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #5d5d5f, #1a1a1a 70%); box-shadow:0 0 0 1px #000}
+.rule{background:#000; box-shadow:inset 0 1px 0 #2c2c2e}
+/* logo */
+.logo svg{width:100%; height:100%; overflow:visible}
+.lbl{color:var(--print); font:700 10px/1 var(--sans); letter-spacing:.3px; text-align:center; white-space:nowrap; text-transform:uppercase}
+.lbl.small{font-size:8px; font-weight:400}
+.lbl.tan{color:var(--tan)}
+/* algorithm chart and diagrams */
+.chart{border:1.5px solid #cfd3d3; border-radius:2px}
+.chart svg{width:100%; height:100%; display:block}
+.chart .alg{cursor:pointer}
+.chart .alg rect.bg{fill:transparent}
+.chart .alg.on rect.bg{fill:#5fd6c74d}
+.chart .alg.on .box{fill:var(--teal); stroke:var(--teal)}
+.chart .box{fill:none; stroke:#e9ecec; stroke-width:1.1}
+.chart .ln{stroke:#e9ecec; stroke-width:1.1; fill:none}
+.chart text{fill:#e9ecec; font:700 6.5px var(--sans)}
+.chart .num{font:700 8px var(--sans)}
+.chart .on .num{fill:var(--teal)}
+.chart .opx{font:700 6px var(--sans); fill:#0d0d0e}
+.chart .head{font:700 8px var(--sans); letter-spacing:.5px}
+/* membrane buttons */
+.mb{display:block; border-radius:3px; position:relative; background:linear-gradient(180deg, var(--teal), var(--teal2)); box-shadow:0 2px 0 #0a3e38, 0 3px 4px #000c, inset 0 1px 0 #c8fff7;
+  color:#0c2a26; font:700 12px/1 var(--sans)}
+.mb::after{content:""; position:absolute; left:6px; right:6px; top:50%; height:2px; margin-top:-1px; border-radius:1px; background:#0c2a2630}
+.mb:active, .mb.dn{transform:translateY(1px); box-shadow:0 1px 0 #0a3e38, inset 0 1px 0 #c8fff7}
+.mb.lit{background:linear-gradient(180deg, var(--tealHi), #73e0d2); box-shadow:0 2px 0 #0a3e38, 0 0 12px #8ff5e6, inset 0 1px 0 #fff}
+.mb .n{position:absolute; left:4px; top:3px; font-size:10px}
+.mb.red{background:linear-gradient(180deg, var(--red), var(--red2)); box-shadow:0 2px 0 #5a141a, 0 3px 4px #000c, inset 0 1px 0 #ffb0b5}
+.mb.purple{background:linear-gradient(180deg, var(--purple), var(--purple2)); box-shadow:0 2px 0 #2c2770, 0 3px 4px #000c, inset 0 1px 0 #d9d5ff}
+.mb.blue{background:linear-gradient(180deg, var(--blue), var(--blue2)); box-shadow:0 2px 0 #23367a, 0 3px 4px #000c, inset 0 1px 0 #d6e0ff}
+.mb.brown{background:linear-gradient(180deg, var(--brown), var(--brown2)); box-shadow:0 2px 0 #573513, 0 3px 4px #000c, inset 0 1px 0 #ffe0bf}
+.mb.red.lit, .mb.purple.lit, .mb.blue.lit, .mb.brown.lit{filter:brightness(1.35); box-shadow:0 2px 0 #000, 0 0 14px #fff8}
+.mb .face{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8px; letter-spacing:.3px; color:#0b1b19c0}
+/* the play bar under a button group */
+.bar{height:3px; background:#e9ecec; border-radius:1px}
+/* sliders */
+.slot{background:#020202; border-radius:3px; box-shadow:inset 0 1px 3px #000, 0 0 0 1px #2d2d2f; touch-action:none; cursor:ns-resize}
+.slot .cap{position:absolute; left:-9px; right:-9px; height:26px; border-radius:2px; background:linear-gradient(180deg, #3b3b3d, #1c1c1d 45%, #0c0c0c 55%, #2b2b2c);
+  box-shadow:0 2px 3px #000, inset 0 1px 0 #6a6a6c}
+.slot .cap::after{content:""; position:absolute; left:3px; right:3px; top:12px; height:2px; background:#e9ecec}
+.ticks{position:absolute; top:0; bottom:0; width:10px; background:repeating-linear-gradient(180deg, #8a8f90 0 1px, transparent 1px 10%)}
+/* displays */
+.ledbox{background:#100303; border-radius:3px; box-shadow:inset 0 1px 4px #000, 0 0 0 2px #2a2a2c; color:var(--led); font:700 30px/1 var(--mono);
+  display:flex; align-items:center; justify-content:center; letter-spacing:2px; text-shadow:0 0 8px #ff3b30aa}
+.lcdbox{background:#2a2b23; border-radius:3px; padding:6px 8px; box-shadow:inset 0 2px 4px #000, 0 0 0 2px #39392f}
+.lcd{width:100%; height:100%; background:linear-gradient(180deg, var(--lcd), var(--lcd2)); border-radius:2px; color:var(--ink); font:700 19px/1.18 var(--mono);
+  padding:3px 6px; white-space:pre; overflow:hidden; box-shadow:inset 0 0 10px #7a8340; display:flex; flex-direction:column; justify-content:center}
+/* cartridge slot */
+.cart{background:#050505; border-radius:3px; box-shadow:inset 0 2px 5px #000, 0 0 0 2px #2b2b2d; cursor:pointer}
+.cart::after{content:""; position:absolute; left:8%; right:8%; top:44%; height:3px; background:#000; box-shadow:0 1px 0 #333}
+.cart.in{background:linear-gradient(180deg, #353d6e, #1f2448); box-shadow:inset 0 1px 0 #6d76b8, 0 0 0 2px #2b2b2d}
+.cart.in::after{display:none}
+.cart .ct{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font:700 9px var(--sans); color:#c9cff5; letter-spacing:.5px; text-transform:uppercase; white-space:nowrap; overflow:hidden; padding:0 4px}
+/* wheels */
+.wheelwell{background:#050505; border-radius:4px; box-shadow:inset 0 2px 6px #000; touch-action:none; cursor:ns-resize; overflow:hidden}
+.wheel{position:absolute; left:6px; right:6px; top:0; bottom:0; background:repeating-linear-gradient(180deg, #2c2c2e 0 3px, #161617 3px 6px); border-radius:6px}
+.wheel .mark{position:absolute; left:0; right:0; height:6px; background:#e9ecec; border-radius:1px}
+/* keyboard */
+.keys{background:#050505; touch-action:none}
+.wk{position:absolute; top:0; bottom:0; background:linear-gradient(180deg, #f4f4f0, #ffffff 70%, #e2e2dc); border:1px solid #1a1a1a; border-top:none; border-radius:0 0 4px 4px; box-shadow:inset 0 -6px 0 #d7d7d0}
+.bk{position:absolute; top:0; background:linear-gradient(180deg, #2b2b2b, #0a0a0a 85%, #262626); border-radius:0 0 3px 3px; box-shadow:0 3px 4px #000c, inset 0 -5px 0 #333; z-index:2}
+.wk.on{background:linear-gradient(180deg, #cde9e4, #b8e7df); box-shadow:inset 0 -2px 0 #9fd1c8}
+.bk.on{background:linear-gradient(180deg, #1c4c46, #123632)}
+.wk .cn{position:absolute; bottom:10px; left:0; right:0; text-align:center; font:700 9px var(--sans); color:#777}
+/* little tool strip on the faceplate */
+.tools{display:flex; gap:8px; align-items:center}
+.tool{font:700 11px/1 var(--sans); letter-spacing:.6px; color:var(--print); background:#232325; border-radius:3px; padding:6px 9px; white-space:nowrap; box-shadow:0 0 0 1px #3a3a3c, 0 2px 0 #000; text-transform:uppercase}
+.tool:active{transform:translateY(1px)}
+.tool.on{background:var(--teal); color:#0b2421}
+.meter{width:46px; height:6px; background:#000; border-radius:2px; overflow:hidden; box-shadow:0 0 0 1px #3a3a3c}
+.meter b{display:block; height:100%; width:0; background:linear-gradient(90deg, #3fb3a5, #e8d36a 75%, #e34d55)}
+/* dialogs */
+dialog{background:#18191b; color:var(--print); border:1px solid #3a3b3e; border-radius:8px; padding:0; max-width:min(1100px, 96vw); width:96vw; max-height:92vh; box-shadow:0 20px 60px #000c}
+dialog::backdrop{background:#000a}
+dialog header{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #2e2f32; position:sticky; top:0; background:#18191b; z-index:3}
+dialog header h3{margin:0; font:700 15px var(--sans); letter-spacing:.8px; text-transform:uppercase; flex:1}
+dialog .body{padding:12px 14px; overflow:auto; max-height:calc(92vh - 50px); touch-action:pan-y; -webkit-user-select:text; user-select:text}
+.x{font-size:22px; line-height:1; padding:2px 8px; color:var(--dim)}
+.btn{font:700 12px var(--sans); letter-spacing:.4px; text-transform:uppercase; padding:8px 11px; border-radius:4px; background:#2a2b2e; color:var(--print); box-shadow:0 0 0 1px #45464a; white-space:nowrap}
+.btn:active{background:#3a3b3f}
+.btn.pri{background:var(--teal2); color:#04211d; box-shadow:none}
+.btn.warn{background:var(--red2); box-shadow:none}
+.btn.on{background:var(--teal); color:#04211d}
+.row{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0}
+.row label{font:12px var(--sans); color:var(--dim); display:flex; gap:6px; align-items:center}
+select, input[type=number], input[type=text]{background:#0f1011; color:var(--print); border:1px solid #3a3b3e; border-radius:4px; padding:6px; font:13px var(--sans)}
+input[type=range]{accent-color:var(--teal)}
+.banks{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.bank h4{margin:4px 0 6px; font:700 12px var(--sans); letter-spacing:.6px; color:var(--tan); text-transform:uppercase}
+.vlist{display:grid; grid-template-columns:repeat(2, 1fr); gap:3px}
+.vlist button{text-align:left; font:13px/1.2 var(--mono); padding:5px 6px; border-radius:3px; background:#101113; box-shadow:0 0 0 1px #2b2c2f; white-space:pre; overflow:hidden}
+.vlist button.sel{background:var(--teal2); color:#04211d}
+.vlist button.cur{box-shadow:0 0 0 2px var(--tan)}
+.vlist button i{font-style:normal; color:var(--dim); margin-right:6px}
+.vlist button.sel i{color:#04211d}
+.hint{font:12px/1.45 var(--sans); color:var(--dim); margin:6px 0}
+.grid{display:grid; grid-template-columns:repeat(16, 1fr); gap:3px; margin:6px 0}
+.st{height:46px; border-radius:3px; background:#101113; box-shadow:0 0 0 1px #2b2c2f; font:10px/1.1 var(--mono); color:var(--dim); padding:2px; overflow:hidden; text-align:left; position:relative}
+.st.has{background:#173b37; color:#d4fff8}
+.st.off{opacity:.35}
+.st.sel{box-shadow:0 0 0 2px var(--tan)}
+.st.play{background:var(--teal); color:#04211d}
+.st .g{position:absolute; left:0; bottom:0; height:3px; background:var(--tan)}
+.st.cut{visibility:hidden}
+.lane{display:grid; grid-template-columns:repeat(16, 1fr); gap:3px; height:54px; margin:2px 0 10px}
+.lv{background:#101113; box-shadow:0 0 0 1px #2b2c2f; position:relative; border-radius:2px; touch-action:none}
+.lv b{position:absolute; left:2px; right:2px; bottom:0; background:var(--purple); border-radius:2px 2px 0 0}
+.lv.none b{display:none}
+.help h4{color:var(--tan); margin:14px 0 4px; font:700 13px var(--sans); letter-spacing:.5px; text-transform:uppercase}
+.help p, .help li{font:13px/1.5 var(--sans); color:#cfd3d3; margin:3px 0}
+.help code{background:#0f1011; padding:1px 4px; border-radius:3px}
+#toast{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:#232427; color:#fff; padding:9px 14px; border-radius:6px; font:13px var(--sans); box-shadow:0 6px 18px #000a;
+  opacity:0; pointer-events:none; transition:opacity .2s; z-index:20; max-width:90vw; text-align:center}
+#toast.show{opacity:1}
+#start{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#000b; z-index:30; color:#fff; font:700 16px var(--sans); letter-spacing:1px}
+#start.gone{display:none}
+#start div{padding:16px 24px; border-radius:8px; background:#18191b; box-shadow:0 0 0 1px #3a3b3e; text-align:center}
+#start small{display:block; font-weight:400; color:var(--dim); margin-top:6px; letter-spacing:0}
+</style>
+</head>
+<body>
+<div id="stage"><div id="synth"></div></div>
+<div id="start"><div>TAP TO POWER ON<small>Omega Seven &middot; 6-operator FM, Mark I converter</small></div></div>
+
+<dialog id="dlgLib"><header><h3>Memory &amp; cartridge</h3><button class="x" data-close>&times;</button></header><div class="body" id="libBody"></div></dialog>
+<dialog id="dlgSeq"><header><h3>Function sequencer &amp; arpeggiator</h3><button class="x" data-close>&times;</button></header><div class="body" id="seqBody"></div></dialog>
+<dialog id="dlgMidi"><header><h3>MIDI</h3><button class="x" data-close>&times;</button></header><div class="body" id="midiBody"></div></dialog>
+<dialog id="dlgHelp"><header><h3>How to program it</h3><button class="x" data-close>&times;</button></header><div class="body help" id="helpBody"></div></dialog>
+<input type="file" id="fileIn" hidden>
+<div id="toast"></div>
+
+<script src="engine.js"></script>
+<script src="voices.js"></script>
+<script src="seq.js"></script>
+<script src="panel.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
