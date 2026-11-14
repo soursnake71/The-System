@@ -83,6 +83,7 @@ class SevenProcessor extends AudioWorkletProcessor {
     const o = outputs[0], L = o[0], R = o[1] || this.spare(L.length), n = L.length, sq = this.seq;
     const clocked = !sq.s.ext && (sq.playing || (sq.s.arp.on && sq.arpRun));
     this.spt = sampleRate * 60 / (Math.max(20, sq.s.tempo) * DXS.PPQ);
+    this.syn.fx.tempo = sq.s.tempo;          // tempo-synced delay
     // MIDI clock while the sequencer or arpeggiator runs on the internal tempo
     let pos = 0;
     while (pos < n){

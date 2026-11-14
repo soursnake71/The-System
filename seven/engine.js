@@ -249,10 +249,15 @@ const FUNC_DEF = [
   ['tune', 'MASTER TUNE', 127, 64, -1], ['rxCh', 'MIDI RECEIVE CH', 16, 0, -1], ['txCh', 'MIDI TRANSMIT CH', 15, 0, -1], ['sysInfo', 'SYS INFO', 1, 1, -1],
   ['dac', 'CONVERTER', 1, 0, -1], ['volume', 'VOLUME', 99, 80, -1],
   // effects after the output stage (not on the 1983 instrument; the chorus, delay and reverb it was usually played through)
-  ['chorus', 'CHORUS DEPTH', 99, 0, -1], ['chorusRate', 'CHORUS RATE', 99, 30, -1], ['delayMix', 'DELAY MIX', 99, 0, -1], ['delayTime', 'DELAY TIME', 99, 60, -1],
-  ['delayFb', 'DELAY FEEDBACK', 99, 35, -1], ['revMix', 'REVERB MIX', 99, 0, -1], ['revSize', 'REVERB SIZE', 99, 60, -1],
+  // the delay is the Omega 110's TC 2290-style dynamic delay, the reverb its REV7-style reverb
+  ['chorus', 'CHORUS DEPTH', 99, 0, -1], ['chorusRate', 'CHORUS RATE', 99, 30, -1], ['delayMix', 'DELAY RETURN', 99, 0, -1], ['delayTime', 'DELAY TIME MS', 2000, 375, -1],
+  ['delayFb', 'DELAY FEEDBACK', 95, 35, -1], ['revMix', 'REVERB RETURN', 99, 0, -1], ['revSize', 'REVERB TIME', 100, 26, -1],
   // the converter's analog faults: 50 = as measured on a working unit, 0 = none, 99 = a tired one
-  ['hiss', 'DAC NOISE', 99, 50, -1]
+  ['hiss', 'DAC NOISE', 99, 50, -1],
+  ['rvProg', 'REVERB PROGRAM', 4, 0, -1], ['rvHigh', 'REVERB HIGH', 10, 6, -1], ['rvDelay', 'REVERB DELAY', 200, 22, -1], ['rvDiff', 'REVERB DIFFUSION', 10, 8, -1],
+  ['rvEr', 'REVERB ER LEVEL', 99, 35, -1], ['rvCut', 'REVERB HIGH CUT', 120, 90, -1], ['dlSync', 'DELAY SYNC', 13, 0, -1], ['dlHiCut', 'DELAY HIGH CUT', 200, 60, -1],
+  ['dlLoCut', 'DELAY LOW CUT', 99, 10, -1], ['dlModRate', 'DELAY MOD RATE', 99, 12, -1], ['dlModDepth', 'DELAY MOD DEPTH', 99, 20, -1], ['dlDuck', 'DELAY DUCKING', 99, 40, -1],
+  ['dlPing', 'DELAY PING-PONG', 1, 1, -1]
 ];
 function defaultFunc(){ const f = {}; for (const [k, , , d] of FUNC_DEF) f[k] = d; return f; }
 const FUNC_BY_NUM = {}; for (const d of FUNC_DEF) if (d[4] >= 0) FUNC_BY_NUM[d[4]] = d[0];
@@ -763,23 +768,144 @@ class Mk1Dac {
   }
 }
 
-/* ---------------- effects: stereo chorus, ping-pong delay, plate-style reverb (Freeverb topology) ---------------- */
-const COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617], ALLPASSES = [556, 441, 341, 225], SPREAD = 23;
+/* ---------------- effects: stereo chorus, then the Omega 110's TC 2290-style delay and REV7-style reverb ---------------- */
+const TAU = 2 * Math.PI;
+const onePole = (f, sr) => 1 - Math.exp(-TAU * f / sr);
+const RV_PROGS = ['HALL', 'ROOM', 'VOCAL', 'PLATE', 'EARLY REF'];
+// delay sync divisions, in beats: off, 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/4T, 1/8D, 1/4, 1/2T, 1/4D, 1/2, 1/1
+const DL_DIVS = [0, 0.125, 1 / 6, 0.25, 1 / 3, 0.375, 0.5, 2 / 3, 0.75, 1, 4 / 3, 1.5, 2, 4];
+const DL_DIV_NAMES = ['MS', '1/32', '1/16T', '1/16', '1/8T', '1/16D', '1/8', '1/4T', '1/8D', '1/4', '1/2T', '1/4D', '1/2', '1/1'];
+
+/* TC 2290-style dynamic delay: stereo, modulated, filtered feedback, ping-pong, and ducking (the repeats duck under the
+   dry signal and swell up in the gaps, the 2290's "dynamic delay"). Time in ms or synced to the tempo. */
+class TCDelay {
+  constructor(sr){
+    this.sr = sr; this.n = Math.ceil(sr * 3) + 8; this.bL = new Float64Array(this.n); this.bR = new Float64Array(this.n); this.w = 0;
+    this.cur = -1; this.target = sr * 0.375; this.glide = onePole(3, sr); this.ph = 0; this.env = 0;
+    this.lpL = 0; this.lpR = 0; this.hpL = 0; this.hpR = 0; this.out = [0, 0];
+    this.envA = onePole(1 / (TAU * 0.005), sr); this.envR = onePole(1 / (TAU * 0.25), sr);
+    this.setParams(375, 0.35, 6000, 100, 0.6, 0.2, 0.4, true);
+  }
+  setParams(ms, fb, hiCut, loCut, rate, depth, duck, ping){
+    const sr = this.sr;
+    this.target = Math.max(4, Math.min(this.n - 8 - sr * 0.004, ms * sr / 1000)); if (this.cur < 0) this.cur = this.target;
+    this.fb = fb; this.lpA = onePole(hiCut, sr); this.hpA = onePole(loCut, sr); this.inc = rate / sr; this.depth = depth * 0.003 * sr; this.duck = duck; this.ping = ping;
+  }
+  read(b, d){ let pos = this.w - d; while (pos < 0) pos += this.n; const i = Math.floor(pos), fr = pos - i, j = i + 1 >= this.n ? 0 : i + 1; return b[i] + (b[j] - b[i]) * fr; }
+  tick(x){
+    const ax = Math.abs(x); this.env += (ax > this.env ? this.envA : this.envR) * (ax - this.env);
+    this.cur += (this.target - this.cur) * this.glide;
+    this.ph += this.inc; if (this.ph >= 1) this.ph -= 1;
+    const m = Math.sin(TAU * this.ph) * this.depth;
+    const yl = this.read(this.bL, this.cur + this.depth + m), yr = this.read(this.bR, this.cur + this.depth - m);
+    this.lpL += this.lpA * (yl - this.lpL); this.hpL += this.hpA * (this.lpL - this.hpL);
+    this.lpR += this.lpA * (yr - this.lpR); this.hpR += this.hpA * (this.lpR - this.hpR);
+    const fl = (this.lpL - this.hpL) * this.fb, fr = (this.lpR - this.hpR) * this.fb;
+    if (this.ping){ this.bL[this.w] = x + fr; this.bR[this.w] = fl; } else { this.bL[this.w] = x + fl; this.bR[this.w] = x + fr; }
+    this.w = this.w + 1 >= this.n ? 0 : this.w + 1;
+    const g = 1 / (1 + this.duck * this.env * 12);
+    this.out[0] = yl * g; this.out[1] = yr * g; return this.out;
+  }
+}
+
+/* REV7-style digital reverb. Yamaha's REV7: programs Hall, Room, Vocal, Plate and Early Reflections; RT, HIGH (the
+   high-frequency RT as a ratio), DELAY (pre-delay), ER level, diffusion, high cut, and its ~12 kHz bandwidth.
+   Built as: pre-delay -> 12 kHz band limit -> four input diffusers -> early reflections (a 16-tap pattern per program)
+   and an 8-line feedback delay network with a Hadamard matrix and per-line absorption filters set from RT and HIGH. */
+const RV_LINES = [31.7, 37.1, 41.3, 43.9, 53.3, 59.9, 67.7, 73.1];   // ms, before the program's size
+const RV_SIZE = [1.0, 0.42, 0.7, 0.55, 0.3];
+const RV_TAPS = [   // [ms, gain] x 8 per side; L uses them as given, R offsets them
+  [[7.1, .84], [11.3, -.71], [17.9, .62], [23.3, -.55], [31.7, .47], [41.9, -.41], [53.1, .33], [67.3, -.27]],
+  [[3.1, .9], [5.3, -.8], [7.9, .7], [11.1, -.62], [13.9, .55], [17.3, -.47], [21.1, .4], [26.9, -.33]],
+  [[5.3, .8], [9.1, -.7], [13.7, .62], [19.1, -.55], [25.3, .47], [31.1, -.41], [39.7, .35], [47.3, -.3]],
+  [[1.3, .7], [2.9, -.66], [4.1, .6], [5.9, -.55], [7.3, .5], [9.7, -.45], [11.9, .41], [14.3, -.37]],
+  [[9.7, .95], [16.3, -.88], [24.1, .8], [33.7, -.72], [44.9, .64], [57.1, -.56], [71.3, .48], [89.9, -.4]],
+];
+const RV_AP = [4.771, 3.595, 12.73, 9.307];
+class Rev7 {
+  constructor(sr){
+    this.sr = sr;
+    this.pre = new Float64Array(Math.ceil(sr * 0.4) + 2); this.preW = 0;
+    this.lines = []; this.lw = []; this.len = []; this.g = []; this.damp = []; this.lz = [];
+    const maxLen = Math.ceil(sr * 0.08) + 2;
+    for (let i = 0; i < 8; i++){ this.lines.push(new Float64Array(maxLen)); this.lw.push(0); this.len.push(1); this.g.push(0); this.damp.push(0); this.lz.push(0); }
+    this.ap = []; this.apw = []; this.apLen = [];
+    for (let i = 0; i < 4; i++){ const n = Math.max(1, Math.floor(RV_AP[i] * sr / 1000)); this.ap.push(new Float64Array(n)); this.apw.push(0); this.apLen.push(n); }
+    this.bwA = onePole(12000, sr); this.bw = 0; this.cutA = 0; this.cutL = 0; this.cutR = 0;
+    this.out = [0, 0]; this.o = new Float64Array(8); this.tapL = []; this.tapR = []; this.preD = 1; this.apG = 0.6; this.er = 0.35; this.late = 1;
+  }
+  setParams(prog, rt, high, delayMs, diff, er, cut){
+    const sr = this.sr; prog = Math.max(0, Math.min(4, prog));
+    this.preD = Math.max(1, Math.floor(delayMs * sr / 1000));
+    const size = RV_SIZE[prog];
+    for (let i = 0; i < 8; i++){
+      const n = Math.max(2, Math.floor(RV_LINES[i] * size * sr / 1000));
+      if (n !== this.len[i]){ this.len[i] = n; this.lines[i].fill(0); this.lw[i] = 0; this.lz[i] = 0; }
+      const sec = n / sr, g = Math.pow(10, -3 * sec / rt);
+      this.g[i] = prog === 4 ? g * 0.35 : g;
+      const b = Math.log(10) / 4 * Math.log10(g) * (1 - 1 / (high * high));
+      this.damp[i] = Math.max(0, Math.min(0.95, b));
+    }
+    this.apG = prog === 3 ? 0.75 * diff / 10 : 0.68 * diff / 10;
+    this.tapL = []; this.tapR = [];
+    for (const [ms, gn] of RV_TAPS[prog]){ this.tapL.push([Math.floor(ms * sr / 1000), gn]); this.tapR.push([Math.floor(ms * 1.137 * sr / 1000), -gn * 0.95]); }
+    this.er = prog === 4 ? 1 : er; this.late = prog === 4 ? 0.25 : 1;
+    this.cutA = onePole(cut, sr);
+  }
+  readPre(d){ let i = this.preW - d; while (i < 0) i += this.pre.length; return this.pre[i]; }
+  tick(x){
+    this.pre[this.preW] = x;
+    this.bw += this.bwA * (this.readPre(this.preD) - this.bw);
+    let d = this.bw;
+    for (let i = 0; i < 4; i++){
+      const buf = this.ap[i], w = this.apw[i], z = buf[w], v = d + this.apG * z;
+      buf[w] = v; d = z - this.apG * v; this.apw[i] = w + 1 >= this.apLen[i] ? 0 : w + 1;
+    }
+    let eL = 0, eR = 0;
+    for (let k = 0; k < 8; k++){ eL += this.readPre(this.preD + this.tapL[k][0]) * this.tapL[k][1]; eR += this.readPre(this.preD + this.tapR[k][0]) * this.tapR[k][1]; }
+    this.preW = this.preW + 1 >= this.pre.length ? 0 : this.preW + 1;
+    const o = this.o;
+    for (let i = 0; i < 8; i++){
+      const y = this.lines[i][this.lw[i]];
+      this.lz[i] = y * (1 - this.damp[i]) + this.lz[i] * this.damp[i];
+      o[i] = this.lz[i] * this.g[i];
+    }
+    for (let h = 1; h < 8; h *= 2) for (let i = 0; i < 8; i += h * 2) for (let j = i; j < i + h; j++){ const a = o[j], b = o[j + h]; o[j] = a + b; o[j + h] = a - b; }
+    const sc = 1 / Math.sqrt(8);
+    let lL = 0, lR = 0;
+    for (let i = 0; i < 8; i++){
+      const y = this.lz[i];
+      if (i & 1) lR += y * ((i & 2) ? -1 : 1); else lL += y * ((i & 2) ? -1 : 1);
+      this.lines[i][this.lw[i]] = o[i] * sc + d * ((i & 4) ? -0.5 : 0.5);
+      this.lw[i] = this.lw[i] + 1 >= this.len[i] ? 0 : this.lw[i] + 1;
+    }
+    const l = eL * this.er * 0.5 + lL * this.late * 0.5, r = eR * this.er * 0.5 + lR * this.late * 0.5;
+    this.cutL += this.cutA * (l - this.cutL); this.cutR += this.cutA * (r - this.cutR);
+    this.out[0] = this.cutL; this.out[1] = this.cutR; return this.out;
+  }
+}
+
 class Fx {
   constructor(fs){
-    this.fs = fs;
+    this.fs = fs; this.tempo = 120;
     this.chSize = 8192; this.chL = new Float64Array(this.chSize); this.chW = 0; this.chPh = 0;
-    let ds = 1; while (ds < fs * 1.1) ds *= 2;
-    this.dSize = ds; this.dL = new Float64Array(ds); this.dR = new Float64Array(ds); this.dW = 0; this.lpL = 0; this.lpR = 0;
-    const k = fs / 44100;
-    this.combs = [0, 1].map(c => COMBS.map(t => ({buf:new Float64Array(Math.max(1, Math.floor((t + c * SPREAD) * k))), i:0, st:0})));
-    this.aps = [0, 1].map(c => ALLPASSES.map(t => ({buf:new Float64Array(Math.max(1, Math.floor((t + c * SPREAD) * k))), i:0})));
+    this.dl = new TCDelay(fs); this.rv = new Rev7(fs); this.key = '';
+  }
+  // the delay and reverb settings, from the function values (only when they change)
+  setup(f){
+    const div = DL_DIVS[Math.max(0, Math.min(13, f.dlSync))];
+    const ms = div > 0 ? 60 / Math.max(20, this.tempo) * div * 1000 : Math.max(10, f.delayTime);
+    const key = [ms, f.delayFb, f.dlHiCut, f.dlLoCut, f.dlModRate, f.dlModDepth, f.dlDuck, f.dlPing, f.rvProg, f.revSize, f.rvHigh, f.rvDelay, f.rvDiff, f.rvEr, f.rvCut].join();
+    if (key === this.key) return;
+    this.key = key;
+    this.dl.setParams(ms, f.delayFb / 100, Math.max(10, f.dlHiCut) * 100, Math.max(2, f.dlLoCut) * 10, Math.max(1, f.dlModRate) * 0.05, f.dlModDepth / 99, f.dlDuck / 99, f.dlPing >= 1);
+    this.rv.setParams(f.rvProg, Math.max(3, f.revSize) / 10, Math.max(1, f.rvHigh) / 10, f.rvDelay, f.rvDiff, f.rvEr / 99, Math.max(10, f.rvCut) * 100);
   }
   process(L, R, off, n, f){
     const fs = this.fs;
     const cd = f.chorus / 99 * 3, cr = 0.1 * Math.pow(2, f.chorusRate / 99 * 6) / fs;
-    const dm = f.delayMix / 99, dt = Math.min(this.dSize - 2, Math.floor(20 * Math.pow(2, f.delayTime / 99 * 5.6) * fs / 1000)), dfb = f.delayFb / 99 * 0.9;
-    const rm = f.revMix / 99 * 3, room = 0.7 + f.revSize / 99 * 0.28, damp = 0.45 - f.revSize / 99 * 0.25;
+    const dm = f.delayMix / 99, rm = f.revMix / 99;
+    if (dm > 0 || rm > 0) this.setup(f);
     for (let j = off; j < off + n; j++){
       const x = L[j];
       let l = x, r = x;
@@ -793,37 +919,12 @@ class Fx {
         l = 0.7 * (x + a); r = 0.7 * (x + b);
         this.chW++; this.chPh += cr; if (this.chPh >= 1) this.chPh -= 1;
       }
-      if (dm > 0){
-        const m = this.dSize - 1, rl = this.dL[(this.dW - dt) & m], rr = this.dR[(this.dW - dt) & m];
-        this.lpL += (rl - this.lpL) * 0.35; this.lpR += (rr - this.lpR) * 0.35;
-        this.dL[this.dW & m] = (l + r) * 0.5 + dfb * this.lpR;
-        this.dR[this.dW & m] = dfb * this.lpL;
-        this.dW++;
-        l += dm * rl; r += dm * rr;
-      }
-      if (rm > 0){
-        const inp = (l + r) * 0.015;
-        let oL = 0, oR = 0;
-        for (let c = 0; c < 2; c++){
-          let o = 0;
-          for (const cb of this.combs[c]){
-            const y = cb.buf[cb.i];
-            cb.st = y * (1 - damp) + cb.st * damp;
-            cb.buf[cb.i] = inp + cb.st * room;
-            if (++cb.i >= cb.buf.length) cb.i = 0;
-            o += y;
-          }
-          for (const ap of this.aps[c]){
-            const b = ap.buf[ap.i];
-            ap.buf[ap.i] = o + b * 0.5;
-            if (++ap.i >= ap.buf.length) ap.i = 0;
-            o = b - o;
-          }
-          if (c === 0) oL = o; else oR = o;
-        }
-        l += rm * oL; r += rm * oR;
-      }
-      L[j] = l; R[j] = r;
+      // sends, as on the Omega 110: the delay and the reverb each take the (mono) signal, their returns add up
+      const send = (l + r) * 0.5;
+      let ol = l, or = r;
+      if (dm > 0){ const d = this.dl.tick(send); ol += d[0] * dm; or += d[1] * dm; }
+      if (rm > 0){ const v = this.rv.tick(send); ol += v[0] * rm; or += v[1] * rm; }
+      L[j] = ol; R[j] = or;
     }
   }
 }
@@ -914,7 +1015,37 @@ function freqText(v, op){
   return r.toFixed(2);
 }
 
-const api = {Fx, Mk1Dac, MK1, VOL_STEPS, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
+/* the dice can roll one part of the sound, as on the Omega 110: the rest stays as it is */
+const DICE_PARTS = ['all', 'alg', 'freq', 'env', 'lfo', 'fx'];
+const DICE_NAMES = ['ALL', 'ALGORITHM', 'FREQUENCIES', 'ENVELOPES', 'LFO', 'EFFECTS'];
+function rollPart(base, seed, part){
+  if (part === 'all') return randomVoice(seed);
+  const r = randomVoice(seed), v = Uint8Array.from(base);
+  const take = i => { v[i] = r[i]; };
+  for (let op = 1; op <= 6; op++){
+    const b = opBase(op);
+    if (part === 'alg'){ take(b + 16); take(b + 15); }
+    if (part === 'freq') for (let i = 17; i <= 20; i++) take(b + i);
+    if (part === 'env'){ for (let i = 0; i < 8; i++) take(b + i); take(b + 13); }
+    if (part === 'lfo') take(b + 14);
+  }
+  if (part === 'alg'){ take(P.ALG); take(P.FB); }
+  if (part === 'env') for (let i = 0; i < 8; i++) take(P.PR + i);
+  if (part === 'lfo') for (let i = P.LFS; i <= P.LPMS; i++) take(i);
+  return v;
+}
+// random effect settings (function values)
+function randomFx(seed){
+  let st = (seed >>> 0) || 1;
+  const rnd = () => { st ^= st << 13; st >>>= 0; st ^= st >>> 17; st ^= st << 5; st >>>= 0; return st / 4294967296; };
+  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  const syncs = [0, 0, 3, 6, 8, 9];
+  return {chorus:rnd() < 0.5 ? 0 : ri(20, 65), chorusRate:ri(10, 60), delayMix:rnd() < 0.4 ? 0 : ri(15, 55), delayTime:ri(120, 700), dlSync:syncs[ri(0, 5)],
+    delayFb:ri(15, 70), dlHiCut:ri(20, 90), dlLoCut:ri(5, 30), dlModRate:ri(5, 40), dlModDepth:ri(0, 60), dlDuck:ri(0, 80), dlPing:ri(0, 1),
+    revMix:ri(10, 70), rvProg:ri(0, 4), revSize:ri(8, 60), rvHigh:ri(3, 9), rvDelay:ri(0, 80), rvDiff:ri(4, 10), rvEr:ri(10, 80), rvCut:ri(40, 120)};
+}
+
+const api = {DICE_PARTS, DICE_NAMES, rollPart, randomFx, Fx, TCDelay, Rev7, RV_PROGS, DL_DIVS, DL_DIV_NAMES, Mk1Dac, MK1, VOL_STEPS, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
   bankToSysex, voiceToSysex, paramChange, parseSysexFile, parseSysexMessage, checksum, defaultFunc, Synth, Voice, Env, Lfo, PitchEnv, noteName, bpName, CURVES, WAVES,
   freqText, oscLogFreq, phaseInc, makeResampler, LOGSIN, EXPT, VOICE_SIZE};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

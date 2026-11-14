@@ -20,8 +20,10 @@ const cases = [
   ['fixed-frequency snare, clean DAC', 48000, 1.0, [[0, 'voice', V.FACTORY[14]], [0, 'f', F('dac'), 1], [0, 'on', 38, 127], [12000, 'on', 38, 60], [30000, 'off', 38]]],
   ['16-voice stealing, bells', 48000, 2.0, [[0, 'voice', V.FACTORY[15]], ...Array.from({length:22}, (_, i) => [i * 2000, 'on', 40 + i * 2, 70 + i])]],
   ['live edits while sounding', 48000, 1.5, [[0, 'voice', V.FACTORY[4]], [0, 'on', 36, 100], [10000, 'p', DX.opBase(2) + 16, 60], [20000, 'p', DX.opBase(1) + 18, 2], [30000, 'p', 155, 0b101111], [40000, 'p', 137, 90], [50000, 'off', 36]]],
-  ['random voice, chorus + delay + reverb', 48000, 2.5, [[0, 'rnd', 987654321], [0, 'f', F('chorus'), 60], [0, 'f', F('chorusRate'), 40], [0, 'f', F('delayMix'), 50], [0, 'f', F('delayTime'), 50], [0, 'f', F('delayFb'), 70],
-    [0, 'f', F('revMix'), 60], [0, 'f', F('revSize'), 80], ...chord(0, [52, 59, 64], 100, 40000)]],
+  ['random voice, chorus + delay + reverb', 48000, 2.5, [[0, 'rnd', 987654321], [0, 'f', F('chorus'), 60], [0, 'f', F('chorusRate'), 40], [0, 'f', F('delayMix'), 50], [0, 'f', F('delayTime'), 280], [0, 'f', F('delayFb'), 70],
+    [0, 'f', F('dlModDepth'), 60], [0, 'f', F('dlDuck'), 70], [0, 'f', F('revMix'), 60], [0, 'f', F('revSize'), 40], [0, 'f', F('rvProg'), 3], [0, 'f', F('rvDelay'), 35], ...chord(0, [52, 59, 64], 100, 40000)]],
+  ['REV7 hall + early ref, synced delay, 96k', 96000, 1.5, [[0, 'voice', V.FACTORY[1]], [0, 'f', F('revMix'), 70], [0, 'f', F('rvProg'), 0], [0, 'f', F('delayMix'), 40], [0, 'f', F('dlSync'), 3],
+    [0, 'f', F('dlPing'), 0], [0, 'on', 60, 110], [20000, 'off', 60], [60000, 'f', F('rvProg'), 4], [60000, 'on', 67, 90], [90000, 'off', 67]]],
   ['random voices at 44.1k with reverb', 44100, 2.0, [[0, 'f', F('revMix'), 40], ...Array.from({length:8}, (_, i) => [[i * 11025, 'rnd', 1000 + i * 7919], [i * 11025, 'on', 48 + i * 3, 100], [i * 11025 + 9000, 'off', 48 + i * 3]]).flat()]],
   ['pitch EG sweep, master tune, transpose', 48000, 1.2, [[0, 'voice', V.FACTORY[16]], [0, 'f', F('tune'), 100], [0, 'p', 144, 30], [0, 'on', 60, 127], [40000, 'off', 60]]]
 ];

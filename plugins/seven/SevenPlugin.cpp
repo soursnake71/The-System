@@ -234,6 +234,7 @@ void SevenProcessor::handleMidi(const juce::MidiMessage& m, juce::MidiBuffer& ou
 }
 void SevenProcessor::renderTo(float* L, float* R, int from, int to) {
     const double spt = fs * 60.0 / (std::max(20.0, sq.s.tempo) * PPQ);
+    syn.fx.tempo = sq.s.tempo;   // the tempo-synced delay
     int p = from;
     while (p < to) {
         const bool clocked = sq.playing || (sq.s.arp.on && sq.arpRun);

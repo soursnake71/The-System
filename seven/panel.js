@@ -26,13 +26,32 @@ const EDIT_BUTTONS = {
   31:'VOICE NAME', 32:'OP COPY'
 };
 const EDIT_SUBS = {15:2, 16:2, 20:4, 21:4, 23:2, 24:2, 28:4, 29:4};
+// the effect pages of FUNCTION 30, as the display shows them
+const FX_LABELS = {hiss:'DAC NOISE', chorus:'CHORUS DEPTH', chorusRate:'CHORUS RATE', delayMix:'DELAY RETURN', delayTime:'DELAY TIME', dlSync:'DELAY SYNC', delayFb:'DELAY FDBACK',
+  dlHiCut:'DLY HIGH CUT', dlLoCut:'DLY LOW CUT', dlModRate:'DLY MOD RATE', dlModDepth:'DLY MOD DPTH', dlDuck:'DLY DUCKING', dlPing:'PING-PONG', revMix:'REV RETURN',
+  rvProg:'REV7', revSize:'REV TIME', rvHigh:'REV HIGH', rvDelay:'REV DELAY', rvDiff:'REV DIFFUSE', rvEr:'REV ER LEVEL', rvCut:'REV HIGH CUT'};
+function fxLine(k, f){
+  const v = f[k];
+  if (k === 'dac') return v ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I';
+  if (k === 'rvProg') return line('REV7', '=' + DX.RV_PROGS[v]);
+  if (k === 'dlSync') return line('DELAY SYNC', '=' + DX.DL_DIV_NAMES[v]);
+  if (k === 'dlPing') return line('PING-PONG', '=' + ONOFF(v));
+  if (k === 'delayTime') return line('DELAY TIME', '=' + rpad(v, 4) + 'ms');
+  if (k === 'revSize') return line('REV TIME', '=' + (Math.max(3, v) / 10).toFixed(1) + 's');
+  if (k === 'rvHigh') return line('REV HIGH', '=' + (Math.max(1, v) / 10).toFixed(1));
+  if (k === 'rvDelay') return line('REV DELAY', '=' + rpad(v, 3) + 'ms');
+  if (k === 'rvCut') return line('REV HIGH CUT', '=' + (Math.max(10, v) / 10).toFixed(1) + 'k');
+  if (k === 'dlHiCut') return line('DLY HIGH CUT', '=' + (Math.max(10, v) / 10).toFixed(1) + 'k');
+  if (k === 'dlLoCut') return line('DLY LOW CUT', '=' + rpad(Math.max(2, v) * 10, 4));
+  return line(FX_LABELS[k], '=' + rpad(v, 3));
+}
 const FUNC_BUTTONS = {
   1:'MASTER TUNE', 2:'POLY/MONO', 3:'P BEND RANGE', 4:'P BEND STEP', 5:'PORTA MODE', 6:'PORTA GLISS', 7:'PORTA TIME', 8:'MIDI',
   9:'EDIT RECALL', 10:'VOICE INIT', 11:'LOAD FILE', 12:'SAVE BANK', 13:'SAVE VOICE', 14:'CART > INT', 15:'INT > CART', 16:'BATTERY',
   17:'MW RANGE', 18:'MW ASSIGN', 19:'FC RANGE', 20:'FC ASSIGN', 21:'BC RANGE', 22:'BC ASSIGN', 23:'AT RANGE', 24:'AT ASSIGN',
   25:'ARPEGGIATOR', 26:'TEMPO/CLOCK', 27:'SEQUENCER', 28:'STEP EDIT', 29:'MOTION', 30:'DAC/EFFECTS', 31:'MIDI FILE', 32:'SYSEX'
 };
-const FUNC_SUBS = {8:5, 10:2, 18:3, 20:3, 22:3, 24:3, 25:7, 26:2, 27:7, 29:8, 30:9, 31:5, 32:3};
+const FUNC_SUBS = {8:5, 10:2, 18:3, 20:3, 22:3, 24:3, 25:7, 26:2, 27:7, 29:8, 30:22, 31:5, 32:3};
 // characters typed by the 32 buttons while naming a voice
 const NAME_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ -./0';
 
@@ -44,7 +63,8 @@ function motionName(id){
   return p.op ? 'OP' + p.op + ' ' + p.short : p.short;
 }
 const MOTION_IDS = (() => { const a = [-1]; for (let i = 0; i <= 144; i++) a.push(i); for (let i = 0; i < 14; i++) a.push(200 + i); for (let i = 20; i < DX.FUNC_DEF.length; i++) a.push(200 + i); return a; })();
-const FX_KEYS = ['dac', 'hiss', 'chorus', 'chorusRate', 'delayMix', 'delayTime', 'delayFb', 'revMix', 'revSize'];
+const FX_KEYS = ['dac', 'hiss', 'chorus', 'chorusRate', 'delayMix', 'delayTime', 'dlSync', 'delayFb', 'dlHiCut', 'dlLoCut', 'dlModRate', 'dlModDepth', 'dlDuck', 'dlPing',
+  'revMix', 'rvProg', 'revSize', 'rvHigh', 'rvDelay', 'rvDiff', 'rvEr', 'rvCut'];
 
 class Panel {
   constructor(host){
@@ -310,10 +330,20 @@ class Panel {
   }
   // the dice: a random voice into the edit buffer (STORE keeps it); reset: back to the voice as stored
   random(seed){
-    const v = DX.randomVoice(seed != null ? seed : Math.floor(Math.random() * 4294967295));
+    if (seed == null) seed = Math.floor(Math.random() * 4294967295);
+    const part = DX.DICE_PARTS[this.dicePart || 0];
+    if (part === 'fx'){
+      const f = DX.randomFx(seed);
+      for (const k in f) this.h.setFunc(k, f[k]);
+      this.flash('RANDOM EFFECTS', DX.RV_PROGS[f.revMix ? f.rvProg : 0] + (f.delayMix ? ' + DELAY' : ''));
+      return;
+    }
+    const v = DX.rollPart(this.v, seed, part);
     this.h.setVoice(v); this.edited = true;
-    this.flash('RANDOM VOICE', DX.voiceName(v));
+    this.flash(part === 'all' ? 'RANDOM VOICE' : 'RANDOM ' + DX.DICE_NAMES[this.dicePart], DX.voiceName(v));
   }
+  // what the dice rolls: all, algorithm, frequencies, envelopes, LFO, effects
+  nextDicePart(){ this.dicePart = ((this.dicePart || 0) + 1) % DX.DICE_PARTS.length; this.flash('DICE ROLLS', DX.DICE_NAMES[this.dicePart]); }
   resetVoice(){
     const b = this.h.bank(this.src);
     if (!b){ this.flash('CARTRIDGE', 'NOT READY  (11)'); return; }
@@ -371,7 +401,7 @@ class Panel {
         break;
       }
       case 29: { const l = q.pats[q.pat].lanes[s & 3]; l2 = s < 4 ? 'L' + (s + 1) + '=' + motionName(l.param) : line('L' + ((s & 3) + 1) + ' SMOOTH', '=' + ONOFF(l.smooth)); break; }
-      case 30: l2 = s === 0 ? (f.dac ? 'DAC=16BIT CLEAN' : 'DAC=12BIT MARK I') : line(['', 'DAC NOISE', 'CHORUS DEPTH', 'CHORUS RATE', 'DELAY MIX', 'DELAY TIME', 'DELAY FDBACK', 'REVERB MIX', 'REVERB SIZE'][s], '=' + rpad(f[FX_KEYS[s]], 3)); break;
+      case 30: l2 = fxLine(FX_KEYS[s], f); break;
       case 31: { const ps = this.h.playerState(); l2 = ['PLAY ' + (ps.playing ? 'ON  NO=STOP' : 'OFF YES=FILE'), 'IMPORT>PAT ? YES', 'EXPORT PAT ? YES', 'RECORD ' + (ps.rec ? 'ON  NO=SAVE' : 'OFF YES=GO'), line('LOOP', '=' + ONOFF(this.h.playerLoop()))][s]; break; }
       case 32: l2 = ['SEND BANK  ? YES', 'REQUEST BANK?YES', 'REQUEST VOICE?YS'][s]; break;
     }

@@ -255,17 +255,22 @@ inline SysexFile parseSysexFile(const uint8_t* d, size_t len) {
 
 /* ---------------- function settings ---------------- */
 struct FuncDef { const char* key; const char* name; int max, def, num; };
-static const FuncDef FUNC_DEF[28] = {
+static const FuncDef FUNC_DEF[41] = {
     {"mono", "POLY/MONO", 1, 0, 64}, {"pbRange", "P BEND RANGE", 12, 2, 65}, {"pbStep", "P BEND STEP", 12, 0, 66}, {"portaMode", "PORTA MODE", 1, 0, 67},
     {"gliss", "PORTA GLISS", 1, 0, 68}, {"portaTime", "PORTA TIME", 99, 0, 69}, {"mwRange", "MOD WHEEL RANGE", 99, 50, 70}, {"mwAssign", "MOD WHEEL ASSIGN", 7, 1, 71},
     {"fcRange", "FOOT CTRL RANGE", 99, 0, 72}, {"fcAssign", "FOOT CTRL ASSIGN", 7, 0, 73}, {"bcRange", "BREATH CTRL RANGE", 99, 0, 74}, {"bcAssign", "BREATH ASSIGN", 7, 0, 75},
     {"atRange", "AFTERTOUCH RANGE", 99, 0, 76}, {"atAssign", "AFTERTOUCH ASSIGN", 7, 0, 77},
     {"tune", "MASTER TUNE", 127, 64, -1}, {"rxCh", "MIDI RECEIVE CH", 16, 0, -1}, {"txCh", "MIDI TRANSMIT CH", 15, 0, -1}, {"sysInfo", "SYS INFO", 1, 1, -1},
     {"dac", "CONVERTER", 1, 0, -1}, {"volume", "VOLUME", 99, 80, -1},
-    {"chorus", "CHORUS DEPTH", 99, 0, -1}, {"chorusRate", "CHORUS RATE", 99, 30, -1}, {"delayMix", "DELAY MIX", 99, 0, -1}, {"delayTime", "DELAY TIME", 99, 60, -1},
-    {"delayFb", "DELAY FEEDBACK", 99, 35, -1}, {"revMix", "REVERB MIX", 99, 0, -1}, {"revSize", "REVERB SIZE", 99, 60, -1}, {"hiss", "DAC NOISE", 99, 50, -1}};
+    {"chorus", "CHORUS DEPTH", 99, 0, -1}, {"chorusRate", "CHORUS RATE", 99, 30, -1}, {"delayMix", "DELAY RETURN", 99, 0, -1}, {"delayTime", "DELAY TIME MS", 2000, 375, -1},
+    {"delayFb", "DELAY FEEDBACK", 95, 35, -1}, {"revMix", "REVERB RETURN", 99, 0, -1}, {"revSize", "REVERB TIME", 100, 26, -1}, {"hiss", "DAC NOISE", 99, 50, -1},
+    {"rvProg", "REVERB PROGRAM", 4, 0, -1}, {"rvHigh", "REVERB HIGH", 10, 6, -1}, {"rvDelay", "REVERB DELAY", 200, 22, -1}, {"rvDiff", "REVERB DIFFUSION", 10, 8, -1},
+    {"rvEr", "REVERB ER LEVEL", 99, 35, -1}, {"rvCut", "REVERB HIGH CUT", 120, 90, -1}, {"dlSync", "DELAY SYNC", 13, 0, -1}, {"dlHiCut", "DELAY HIGH CUT", 200, 60, -1},
+    {"dlLoCut", "DELAY LOW CUT", 99, 10, -1}, {"dlModRate", "DELAY MOD RATE", 99, 12, -1}, {"dlModDepth", "DELAY MOD DEPTH", 99, 20, -1}, {"dlDuck", "DELAY DUCKING", 99, 40, -1},
+    {"dlPing", "DELAY PING-PONG", 1, 1, -1}};
 enum F { mono, pbRange, pbStep, portaMode, gliss, portaTime, mwRange, mwAssign, fcRange, fcAssign, bcRange, bcAssign, atRange, atAssign, tune, rxCh, txCh, sysInfo, dac, volume,
-    chorus, chorusRate, delayMix, delayTime, delayFb, revMix, revSize, hiss, FCOUNT };
+    chorus, chorusRate, delayMix, delayTime, delayFb, revMix, revSize, hiss,
+    rvProg, rvHigh, rvDelay, rvDiff, rvEr, rvCut, dlSync, dlHiCut, dlLoCut, dlModRate, dlModDepth, dlDuck, dlPing, FCOUNT };
 inline int funcByKey(const std::string& k) { for (int i = 0; i < FCOUNT; ++i) if (k == FUNC_DEF[i].key) return i; return -1; }
 inline int funcByNum(int n) { for (int i = 0; i < FCOUNT; ++i) if (FUNC_DEF[i].num == n) return i; return -1; }
 struct Func { int v[FCOUNT]; Func() { for (int i = 0; i < FCOUNT; ++i) v[i] = FUNC_DEF[i].def; } int& operator[](int i) { return v[i]; } int operator[](int i) const { return v[i]; } };
@@ -464,27 +469,153 @@ struct Resampler {
 struct Ctl { int wheel = 0, foot = 0, breath = 0, at = 0, bend = 0; bool sustain = false, portaSw = true; int volume = 127, expression = 127; };
 struct MidiResult { enum Kind { none, program, func, param, voice, bankDump, reqBank, reqVoice } kind = none; int a = 0, b = 0; bool bad = false; Voice156 v {}; Bank bank {}; };
 
-/* ---------------- effects: stereo chorus, ping-pong delay, reverb (Freeverb topology) ---------------- */
+/* ---------------- effects: chorus, then the Omega 110's TC 2290-style delay and REV7-style reverb (engine.js) ---------------- */
+constexpr double TAU = 2 * kPi;
+inline double onePole(double f, double sr) { return 1 - std::exp(-TAU * f / sr); }
+static const char* const RV_PROGS[5] = {"HALL", "ROOM", "VOCAL", "PLATE", "EARLY REF"};
+static const double DL_DIVS[14] = {0, 0.125, 1.0 / 6, 0.25, 1.0 / 3, 0.375, 0.5, 2.0 / 3, 0.75, 1, 4.0 / 3, 1.5, 2, 4};
+static const char* const DL_DIV_NAMES[14] = {"MS", "1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/4T", "1/8D", "1/4", "1/2T", "1/4D", "1/2", "1/1"};
+
+class TCDelay {
+public:
+    void init(double rate) {
+        sr = rate; n = (int) std::ceil(sr * 3) + 8; bL.assign((size_t) n, 0.0); bR.assign((size_t) n, 0.0); w = 0;
+        cur = -1; target = sr * 0.375; glide = onePole(3, sr); ph = 0; env = 0; lpL = lpR = hpL = hpR = 0;
+        envA = onePole(1 / (TAU * 0.005), sr); envR = onePole(1 / (TAU * 0.25), sr);
+        setParams(375, 0.35, 6000, 100, 0.6, 0.2, 0.4, true);
+    }
+    void setParams(double ms, double f, double hiCut, double loCut, double rate, double dep, double dk, bool pp) {
+        target = std::max(4.0, std::min(n - 8 - sr * 0.004, ms * sr / 1000)); if (cur < 0) cur = target;
+        fb = f; lpA = onePole(hiCut, sr); hpA = onePole(loCut, sr); inc = rate / sr; depth = dep * 0.003 * sr; duck = dk; ping = pp;
+    }
+    double read(const std::vector<double>& b, double d) const {
+        double pos = w - d; while (pos < 0) pos += n;
+        const int i = (int) std::floor(pos); const double fr = pos - i; const int j = i + 1 >= n ? 0 : i + 1;
+        return b[(size_t) i] + (b[(size_t) j] - b[(size_t) i]) * fr;
+    }
+    void tick(double x, double& oL, double& oR) {
+        const double ax = std::abs(x); env += (ax > env ? envA : envR) * (ax - env);
+        cur += (target - cur) * glide;
+        ph += inc; if (ph >= 1) ph -= 1;
+        const double m = std::sin(TAU * ph) * depth;
+        const double yl = read(bL, cur + depth + m), yr = read(bR, cur + depth - m);
+        lpL += lpA * (yl - lpL); hpL += hpA * (lpL - hpL);
+        lpR += lpA * (yr - lpR); hpR += hpA * (lpR - hpR);
+        const double fl = (lpL - hpL) * fb, fr = (lpR - hpR) * fb;
+        if (ping) { bL[(size_t) w] = x + fr; bR[(size_t) w] = fl; } else { bL[(size_t) w] = x + fl; bR[(size_t) w] = x + fr; }
+        w = w + 1 >= n ? 0 : w + 1;
+        const double g = 1 / (1 + duck * env * 12);
+        oL = yl * g; oR = yr * g;
+    }
+private:
+    double sr = 48000; int n = 1, w = 0; std::vector<double> bL, bR;
+    double cur = -1, target = 0, glide = 0, ph = 0, env = 0, lpL = 0, lpR = 0, hpL = 0, hpR = 0, envA = 0, envR = 0;
+    double fb = 0, lpA = 0, hpA = 0, inc = 0, depth = 0, duck = 0; bool ping = true;
+};
+
+class Rev7 {
+public:
+    void init(double rate) {
+        sr = rate;
+        pre.assign((size_t) std::ceil(sr * 0.4) + 2, 0.0); preW = 0;
+        const size_t maxLen = (size_t) std::ceil(sr * 0.08) + 2;
+        for (int i = 0; i < 8; ++i) { lines[i].assign(maxLen, 0.0); lw[i] = 0; len[i] = 1; g[i] = 0; damp[i] = 0; lz[i] = 0; }
+        static const double AP[4] = {4.771, 3.595, 12.73, 9.307};
+        for (int i = 0; i < 4; ++i) { const int nn = std::max(1, (int) std::floor(AP[i] * sr / 1000)); ap[i].assign((size_t) nn, 0.0); apw[i] = 0; apLen[i] = nn; }
+        bwA = onePole(12000, sr); bw = 0; cutA = 0; cutL = cutR = 0; preD = 1; apG = 0.6; er = 0.35; late = 1;
+        for (int k = 0; k < 8; ++k) { tapL[k] = tapR[k] = 0; gL[k] = gR[k] = 0; }
+    }
+    void setParams(int prog, double rt, double high, double delayMs, double diff, double erl, double cut) {
+        static const double LINES[8] = {31.7, 37.1, 41.3, 43.9, 53.3, 59.9, 67.7, 73.1};
+        static const double SIZE[5] = {1.0, 0.42, 0.7, 0.55, 0.3};
+        static const double TAPS[5][8][2] = {
+            {{7.1, .84}, {11.3, -.71}, {17.9, .62}, {23.3, -.55}, {31.7, .47}, {41.9, -.41}, {53.1, .33}, {67.3, -.27}},
+            {{3.1, .9}, {5.3, -.8}, {7.9, .7}, {11.1, -.62}, {13.9, .55}, {17.3, -.47}, {21.1, .4}, {26.9, -.33}},
+            {{5.3, .8}, {9.1, -.7}, {13.7, .62}, {19.1, -.55}, {25.3, .47}, {31.1, -.41}, {39.7, .35}, {47.3, -.3}},
+            {{1.3, .7}, {2.9, -.66}, {4.1, .6}, {5.9, -.55}, {7.3, .5}, {9.7, -.45}, {11.9, .41}, {14.3, -.37}},
+            {{9.7, .95}, {16.3, -.88}, {24.1, .8}, {33.7, -.72}, {44.9, .64}, {57.1, -.56}, {71.3, .48}, {89.9, -.4}}};
+        prog = std::max(0, std::min(4, prog));
+        preD = std::max(1, (int) std::floor(delayMs * sr / 1000));
+        const double size = SIZE[prog];
+        for (int i = 0; i < 8; ++i) {
+            const int nn = std::max(2, (int) std::floor(LINES[i] * size * sr / 1000));
+            if (nn != len[i]) { len[i] = nn; std::fill(lines[i].begin(), lines[i].end(), 0.0); lw[i] = 0; lz[i] = 0; }
+            const double sec = (double) nn / sr, gg = std::pow(10.0, -3 * sec / rt);
+            g[i] = prog == 4 ? gg * 0.35 : gg;
+            const double b = std::log(10.0) / 4 * std::log10(gg) * (1 - 1 / (high * high));
+            damp[i] = std::max(0.0, std::min(0.95, b));
+        }
+        apG = prog == 3 ? 0.75 * diff / 10 : 0.68 * diff / 10;
+        for (int k = 0; k < 8; ++k) {
+            const double ms = TAPS[prog][k][0], gn = TAPS[prog][k][1];
+            tapL[k] = (int) std::floor(ms * sr / 1000); gL[k] = gn;
+            tapR[k] = (int) std::floor(ms * 1.137 * sr / 1000); gR[k] = -gn * 0.95;
+        }
+        er = prog == 4 ? 1 : erl; late = prog == 4 ? 0.25 : 1;
+        cutA = onePole(cut, sr);
+    }
+    double readPre(int d) const { int i = preW - d; while (i < 0) i += (int) pre.size(); return pre[(size_t) i]; }
+    void tick(double x, double& oL, double& oR) {
+        pre[(size_t) preW] = x;
+        bw += bwA * (readPre(preD) - bw);
+        double d = bw;
+        for (int i = 0; i < 4; ++i) {
+            auto& buf = ap[i]; const int ww = apw[i]; const double z = buf[(size_t) ww], v = d + apG * z;
+            buf[(size_t) ww] = v; d = z - apG * v; apw[i] = ww + 1 >= apLen[i] ? 0 : ww + 1;
+        }
+        double eL = 0, eR = 0;
+        for (int k = 0; k < 8; ++k) { eL += readPre(preD + tapL[k]) * gL[k]; eR += readPre(preD + tapR[k]) * gR[k]; }
+        preW = preW + 1 >= (int) pre.size() ? 0 : preW + 1;
+        double o[8];
+        for (int i = 0; i < 8; ++i) {
+            const double y = lines[i][(size_t) lw[i]];
+            lz[i] = y * (1 - damp[i]) + lz[i] * damp[i];
+            o[i] = lz[i] * g[i];
+        }
+        for (int hh = 1; hh < 8; hh *= 2) for (int i = 0; i < 8; i += hh * 2) for (int j = i; j < i + hh; ++j) { const double a = o[j], b = o[j + hh]; o[j] = a + b; o[j + hh] = a - b; }
+        const double sc = 1 / std::sqrt(8.0);
+        double lL = 0, lR = 0;
+        for (int i = 0; i < 8; ++i) {
+            const double y = lz[i];
+            if (i & 1) lR += y * ((i & 2) ? -1 : 1); else lL += y * ((i & 2) ? -1 : 1);
+            lines[i][(size_t) lw[i]] = o[i] * sc + d * ((i & 4) ? -0.5 : 0.5);
+            lw[i] = lw[i] + 1 >= len[i] ? 0 : lw[i] + 1;
+        }
+        const double l = eL * er * 0.5 + lL * late * 0.5, r = eR * er * 0.5 + lR * late * 0.5;
+        cutL += cutA * (l - cutL); cutR += cutA * (r - cutR);
+        oL = cutL; oR = cutR;
+    }
+private:
+    double sr = 48000; std::vector<double> pre; int preW = 0;
+    std::vector<double> lines[8]; int lw[8] {}, len[8] {}; double g[8] {}, damp[8] {}, lz[8] {};
+    std::vector<double> ap[4]; int apw[4] {}, apLen[4] {};
+    double bwA = 0, bw = 0, cutA = 0, cutL = 0, cutR = 0; int preD = 1; double apG = 0.6, er = 0.35, late = 1;
+    int tapL[8] {}, tapR[8] {}; double gL[8] {}, gR[8] {};
+};
+
 class Fx {
 public:
+    double tempo = 120;
     explicit Fx(double rate = 48000) { init(rate); }
     void init(double rate) {
-        fs = rate;
-        chL.assign((size_t) chSize, 0.0); chW = 0; chPh = 0;
-        dSize = 1; while (dSize < fs * 1.1) dSize *= 2;
-        dL.assign((size_t) dSize, 0.0); dR.assign((size_t) dSize, 0.0); dW = 0; lpL = lpR = 0;
-        static const int COMBS[8] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617}, APS[4] = {556, 441, 341, 225};
-        const double k = fs / 44100;
-        for (int c = 0; c < 2; ++c) {
-            for (int i = 0; i < 8; ++i) { auto& cb = combs[c][i]; cb.buf.assign((size_t) std::max(1, (int) std::floor((COMBS[i] + c * 23) * k)), 0.0); cb.i = 0; cb.st = 0; }
-            for (int i = 0; i < 4; ++i) { auto& ap = aps[c][i]; ap.buf.assign((size_t) std::max(1, (int) std::floor((APS[i] + c * 23) * k)), 0.0); ap.i = 0; }
-        }
+        fs = rate; chL.assign((size_t) chSize, 0.0); chW = 0; chPh = 0;
+        dl.init(rate); rv.init(rate); haveKey = false;
+    }
+    void setup(const Func& f) {
+        const double div = DL_DIVS[std::max(0, std::min(13, f[F::dlSync]))];
+        const double ms = div > 0 ? 60 / std::max(20.0, tempo) * div * 1000 : (double) std::max(10, f[F::delayTime]);
+        const double k[15] = {ms, (double) f[F::delayFb], (double) f[F::dlHiCut], (double) f[F::dlLoCut], (double) f[F::dlModRate], (double) f[F::dlModDepth], (double) f[F::dlDuck],
+            (double) f[F::dlPing], (double) f[F::rvProg], (double) f[F::revSize], (double) f[F::rvHigh], (double) f[F::rvDelay], (double) f[F::rvDiff], (double) f[F::rvEr], (double) f[F::rvCut]};
+        if (haveKey && std::equal(k, k + 15, key)) return;
+        std::copy(k, k + 15, key); haveKey = true;
+        dl.setParams(ms, f[F::delayFb] / 100.0, std::max(10, f[F::dlHiCut]) * 100.0, std::max(2, f[F::dlLoCut]) * 10.0, std::max(1, f[F::dlModRate]) * 0.05,
+            f[F::dlModDepth] / 99.0, f[F::dlDuck] / 99.0, f[F::dlPing] >= 1);
+        rv.setParams(f[F::rvProg], std::max(3, f[F::revSize]) / 10.0, std::max(1, f[F::rvHigh]) / 10.0, f[F::rvDelay], f[F::rvDiff], f[F::rvEr] / 99.0, std::max(10, f[F::rvCut]) * 100.0);
     }
     void process(float* L, float* R, int n, const Func& f) {
         const double cd = f[F::chorus] / 99.0 * 3, cr = 0.1 * std::pow(2.0, f[F::chorusRate] / 99.0 * 6) / fs;
-        const double dm = f[F::delayMix] / 99.0; const int64_t dt = std::min<int64_t>(dSize - 2, (int64_t) std::floor(20 * std::pow(2.0, f[F::delayTime] / 99.0 * 5.6) * fs / 1000));
-        const double dfb = f[F::delayFb] / 99.0 * 0.9;
-        const double rm = f[F::revMix] / 99.0 * 3, room = 0.7 + f[F::revSize] / 99.0 * 0.28, damp = 0.45 - f[F::revSize] / 99.0 * 0.25;
+        const double dm = f[F::delayMix] / 99.0, rm = f[F::revMix] / 99.0;
+        if (dm > 0 || rm > 0) setup(f);
         for (int j = 0; j < n; ++j) {
             const double x = L[j];
             double l = x, r = x;
@@ -498,47 +629,18 @@ public:
                 l = 0.7 * (x + a); r = 0.7 * (x + b);
                 chW++; chPh += cr; if (chPh >= 1) chPh -= 1;
             }
-            if (dm > 0) {
-                const int64_t m = dSize - 1; const double rl = dL[(size_t) ((dW - dt) & m)], rr = dR[(size_t) ((dW - dt) & m)];
-                lpL += (rl - lpL) * 0.35; lpR += (rr - lpR) * 0.35;
-                dL[(size_t) (dW & m)] = (l + r) * 0.5 + dfb * lpR;
-                dR[(size_t) (dW & m)] = dfb * lpL;
-                dW++;
-                l += dm * rl; r += dm * rr;
-            }
-            if (rm > 0) {
-                const double inp = (l + r) * 0.015;
-                double oL = 0, oR = 0;
-                for (int c = 0; c < 2; ++c) {
-                    double o = 0;
-                    for (auto& cb : combs[c]) {
-                        const double y = cb.buf[cb.i];
-                        cb.st = y * (1 - damp) + cb.st * damp;
-                        cb.buf[cb.i] = inp + cb.st * room;
-                        if (++cb.i >= cb.buf.size()) cb.i = 0;
-                        o += y;
-                    }
-                    for (auto& ap : aps[c]) {
-                        const double b = ap.buf[ap.i];
-                        ap.buf[ap.i] = o + b * 0.5;
-                        if (++ap.i >= ap.buf.size()) ap.i = 0;
-                        o = b - o;
-                    }
-                    if (c == 0) oL = o; else oR = o;
-                }
-                l += rm * oL; r += rm * oR;
-            }
-            L[j] = (float) l; R[j] = (float) r;
+            const double send = (l + r) * 0.5;
+            double ol = l, orr = r;
+            if (dm > 0) { double a, b; dl.tick(send, a, b); ol += a * dm; orr += b * dm; }
+            if (rm > 0) { double a, b; rv.tick(send, a, b); ol += a * rm; orr += b * rm; }
+            L[j] = (float) ol; R[j] = (float) orr;
         }
     }
 private:
-    struct Comb { std::vector<double> buf; size_t i = 0; double st = 0; };
-    struct Ap { std::vector<double> buf; size_t i = 0; };
     double fs = 48000;
     static constexpr int64_t chSize = 8192;
     std::vector<double> chL; int64_t chW = 0; double chPh = 0;
-    int64_t dSize = 1; std::vector<double> dL, dR; int64_t dW = 0; double lpL = 0, lpR = 0;
-    Comb combs[2][8]; Ap aps[2][4];
+    TCDelay dl; Rev7 rv; double key[15] {}; bool haveKey = false;
 };
 
 /* ---------------- the dice: a random voice that plays (randomVoice in engine.js, same numbers) ---------------- */
@@ -574,6 +676,39 @@ inline Voice156 randomVoice(uint32_t seed) {
     v[P::TRNSP] = 24;
     char nm[16]; std::snprintf(nm, sizeof nm, "RANDOM %03u", seed % 1000); setName(v, nm);
     return v;
+}
+
+/* the dice can roll one part of the sound (rollPart / randomFx in engine.js) */
+static const char* const DICE_PARTS[6] = {"all", "alg", "freq", "env", "lfo", "fx"};
+static const char* const DICE_NAMES[6] = {"ALL", "ALGORITHM", "FREQUENCIES", "ENVELOPES", "LFO", "EFFECTS"};
+inline Voice156 rollPart(const Voice156& base, uint32_t seed, int part) {
+    if (part == 0) return randomVoice(seed);
+    const Voice156 r = randomVoice(seed); Voice156 v = base;
+    auto take = [&](int i) { v[(size_t) i] = r[(size_t) i]; };
+    for (int op = 1; op <= 6; ++op) {
+        const int b = opBase(op);
+        if (part == 1) { take(b + 16); take(b + 15); }
+        if (part == 2) for (int i = 17; i <= 20; ++i) take(b + i);
+        if (part == 3) { for (int i = 0; i < 8; ++i) take(b + i); take(b + 13); }
+        if (part == 4) take(b + 14);
+    }
+    if (part == 1) { take(P::ALG); take(P::FB); }
+    if (part == 3) for (int i = 0; i < 8; ++i) take(P::PR + i);
+    if (part == 4) for (int i = P::LFS; i <= P::LPMS; ++i) take(i);
+    return v;
+}
+inline std::vector<std::pair<int, int>> randomFx(uint32_t seed) {
+    uint32_t st = seed ? seed : 1;
+    auto rnd = [&]() { st ^= st << 13; st ^= st >> 17; st ^= st << 5; return st / 4294967296.0; };
+    auto ri = [&](int a, int b) { return a + (int) std::floor(rnd() * (b - a + 1)); };
+    static const int syncs[6] = {0, 0, 3, 6, 8, 9};
+    std::vector<std::pair<int, int>> f;
+    f.push_back({F::chorus, rnd() < 0.5 ? 0 : ri(20, 65)}); f.push_back({F::chorusRate, ri(10, 60)}); f.push_back({F::delayMix, rnd() < 0.4 ? 0 : ri(15, 55)});
+    f.push_back({F::delayTime, ri(120, 700)}); f.push_back({F::dlSync, syncs[ri(0, 5)]}); f.push_back({F::delayFb, ri(15, 70)}); f.push_back({F::dlHiCut, ri(20, 90)});
+    f.push_back({F::dlLoCut, ri(5, 30)}); f.push_back({F::dlModRate, ri(5, 40)}); f.push_back({F::dlModDepth, ri(0, 60)}); f.push_back({F::dlDuck, ri(0, 80)});
+    f.push_back({F::dlPing, ri(0, 1)}); f.push_back({F::revMix, ri(10, 70)}); f.push_back({F::rvProg, ri(0, 4)}); f.push_back({F::revSize, ri(8, 60)});
+    f.push_back({F::rvHigh, ri(3, 9)}); f.push_back({F::rvDelay, ri(0, 80)}); f.push_back({F::rvDiff, ri(4, 10)}); f.push_back({F::rvEr, ri(10, 80)}); f.push_back({F::rvCut, ri(40, 120)});
+    return f;
 }
 
 /* ---------------- the Mark I converter, analog side included (Mk1Dac in engine.js: see the notes there) ---------------- */

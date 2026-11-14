@@ -286,7 +286,7 @@ part('logo', 'logo', `<svg viewBox="0 0 520 110">
     <text x="132" y="94" font-size="112" stroke-width="2.6">7</text><text x="136" y="90" font-size="112" stroke-width="1" opacity=".6">7</text></g>
   <text x="132" y="106" font-family="Helvetica, Arial" font-weight="700" font-size="9.5" letter-spacing="1.6" fill="#e9ecec">6-OPERATOR FM ALGORITHM SYNTHESIZER</text></svg>`);
 part('tools', 'tools', `<button class="tool" data-dlg="dlgLib">Memory</button><button class="tool" data-dlg="dlgSeq">Seq / Arp</button><button class="tool" data-dlg="dlgMidi">MIDI</button>
-  <button class="tool" id="diceBtn" title="A random voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><rect x="1.5" y="1.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="1.7" fill="currentColor"/><circle cx="10" cy="10" r="1.7" fill="currentColor"/><circle cx="14" cy="14" r="1.7" fill="currentColor"/><circle cx="14" cy="6" r="1.7" fill="currentColor"/><circle cx="6" cy="14" r="1.7" fill="currentColor"/></svg>Random</button><button class="tool" id="resetBtn" title="Back to the stored voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><path d="M15.5 6.5A7 7 0 1 0 17 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M16.8 1.8v5.4h-5.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Reset</button><button class="tool" data-dlg="dlgFx">FX</button><button class="tool" data-dlg="dlgHelp">Help</button><button class="tool" id="viewBtn">View</button><button class="tool" id="octDn">Oct&minus;</button><button class="tool" id="octUp">Oct+</button>
+  <button class="tool" id="diceBtn" title="A random voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><rect x="1.5" y="1.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="1.7" fill="currentColor"/><circle cx="10" cy="10" r="1.7" fill="currentColor"/><circle cx="14" cy="14" r="1.7" fill="currentColor"/><circle cx="14" cy="6" r="1.7" fill="currentColor"/><circle cx="6" cy="14" r="1.7" fill="currentColor"/></svg>Random</button><button class="tool" id="dicePart" title="What the dice rolls">ALL</button><button class="tool" id="resetBtn" title="Back to the stored voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><path d="M15.5 6.5A7 7 0 1 0 17 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M16.8 1.8v5.4h-5.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Reset</button><button class="tool" data-dlg="dlgFx">FX</button><button class="tool" data-dlg="dlgHelp">Help</button><button class="tool" id="viewBtn">View</button><button class="tool" id="octDn">Oct&minus;</button><button class="tool" id="octUp">Oct+</button>
   <button class="tool" id="panic">Panic</button><div class="meter"><b id="meterB"></b></div>`);
 part('cart', 'cart', '<div class="ct" id="cartT"></div>');
 lbl('cartL', 'CARTRIDGE', 'small');
@@ -657,7 +657,8 @@ $$('[data-dlg]').forEach(b => b.addEventListener('click', () => openDlg(b.datase
 $('#viewBtn').addEventListener('click', () => { S.view = compact ? 'full' : (window.innerHeight > window.innerWidth * 1.05 ? 'auto' : 'compact'); layout(); dirty(); });
 $('#octDn').addEventListener('click', () => { S.octave = Math.max(-3, S.octave - 1); buildKeys(); dirty(); });
 $('#octUp').addEventListener('click', () => { S.octave = Math.min(3, S.octave + 1); buildKeys(); dirty(); });
-$('#diceBtn').addEventListener('click', () => { audio(); panel.random(); paint(); dirty(); });
+$('#diceBtn').addEventListener('click', () => { audio(); panel.random(); paint(); dirty(); if ($('#dlgFx').open) drawFx(); });
+$('#dicePart').addEventListener('click', () => { panel.nextDicePart(); $('#dicePart').textContent = ['ALL', 'ALG', 'FREQ', 'ENV', 'LFO', 'FX'][panel.dicePart]; paint(); });
 $('#resetBtn').addEventListener('click', () => { panel.resetVoice(); paint(); dirty(); });
 $('#panic').addEventListener('click', () => { post({t:'panic'}); S.seq.arp.on = false; for (const n of keyEls.keys()) keyLight(n, false); midiSend([0xB0 | S.func.txCh, 123, 0]); toast('All notes off'); });
 
@@ -885,18 +886,38 @@ function drawMidi(){
 }
 
 /* ----- effects ----- */
-const FX_UI = [['chorus', 'Chorus depth'], ['chorusRate', 'Chorus rate'], ['delayMix', 'Delay mix'], ['delayTime', 'Delay time'], ['delayFb', 'Delay feedback'], ['revMix', 'Reverb mix'], ['revSize', 'Reverb size']];
-const FX_PRESETS = {'Dry':[0, 30, 0, 60, 35, 0, 60], 'Chorus':[55, 30, 0, 60, 35, 0, 60], 'Studio':[40, 25, 18, 62, 30, 22, 55], 'Big hall':[30, 20, 0, 60, 35, 45, 90], 'Echo':[0, 30, 40, 66, 55, 15, 50], 'Dream':[70, 18, 30, 74, 60, 50, 95]};
+// [key, label, min, max, shown value]
+const FX_SECTIONS = [
+  ['Chorus', [['chorus', 'Depth', 0, 99], ['chorusRate', 'Rate', 0, 99]]],
+  ['TC 2290-style dynamic delay', [['delayMix', 'Return', 0, 99], ['delayTime', 'Time (ms)', 10, 2000], ['dlSync', 'Sync', 0, 13, v => DX.DL_DIV_NAMES[v]], ['delayFb', 'Feedback', 0, 95],
+    ['dlHiCut', 'High cut', 10, 200, v => (v / 10).toFixed(1) + ' kHz'], ['dlLoCut', 'Low cut', 2, 99, v => v * 10 + ' Hz'], ['dlModRate', 'Mod rate', 1, 99, v => (v * 0.05).toFixed(2) + ' Hz'],
+    ['dlModDepth', 'Mod depth', 0, 99], ['dlDuck', 'Ducking', 0, 99], ['dlPing', 'Ping-pong', 0, 1, v => v ? 'on' : 'off']]],
+  ['REV7-style reverb', [['revMix', 'Return', 0, 99], ['rvProg', 'Program', 0, 4, v => DX.RV_PROGS[v]], ['revSize', 'Reverb time', 3, 100, v => (v / 10).toFixed(1) + ' s'],
+    ['rvHigh', 'High (HF ratio)', 1, 10, v => (v / 10).toFixed(1)], ['rvDelay', 'Pre-delay', 0, 200, v => v + ' ms'], ['rvDiff', 'Diffusion', 0, 10], ['rvEr', 'ER level', 0, 99],
+    ['rvCut', 'High cut', 10, 120, v => (v / 10).toFixed(1) + ' kHz']]]
+];
+const FX_PRESETS = {
+  'Dry':{chorus:0, delayMix:0, revMix:0},
+  'Chorus':{chorus:55, chorusRate:30, delayMix:0, revMix:0},
+  'Studio':{chorus:35, chorusRate:25, delayMix:18, dlSync:6, delayFb:30, dlDuck:50, revMix:25, rvProg:1, revSize:14, rvHigh:6, rvDelay:12},
+  'Big hall':{chorus:25, delayMix:0, revMix:45, rvProg:0, revSize:36, rvHigh:6, rvDelay:30, rvDiff:9, rvEr:35, rvCut:90},
+  'Plate':{chorus:0, delayMix:0, revMix:40, rvProg:3, revSize:20, rvHigh:8, rvDelay:5, rvDiff:10, rvCut:110},
+  'Dub echo':{chorus:0, delayMix:55, dlSync:8, delayFb:70, dlHiCut:30, dlLoCut:25, dlModDepth:30, dlDuck:70, dlPing:1, revMix:20, rvProg:0, revSize:30},
+  'Dream':{chorus:70, chorusRate:18, delayMix:30, dlSync:9, delayFb:60, dlModDepth:60, revMix:50, rvProg:2, revSize:60, rvHigh:7, rvDelay:40}
+};
 function drawFx(){
   const b = $('#fxBody'), f = S.func;
-  b.innerHTML = `<p class="hint">After the converter and output filter (the hardware's own sound stays as it is): a stereo chorus, a ping-pong delay and a reverb. Also on the panel: FUNCTION 30, pushed again.</p>
+  const row = ([k, n, lo, hi, fmt]) => `<div class="row"><label style="width:130px">${n}</label><input type="range" min="${lo}" max="${hi}" value="${f[k]}" data-fx="${k}" style="flex:1"><span style="width:70px;text-align:right" data-fmt="${k}">${fmt ? fmt(f[k]) : f[k]}</span></div>`;
+  b.innerHTML = `<p class="hint">After the converter and output filter (the hardware's own sound stays as it is): a stereo chorus, then the Omega 110's TC 2290-style dynamic delay and REV7-style reverb as sends. All on the panel too: FUNCTION 30, pushed again for each page.</p>
     <div class="row">${Object.keys(FX_PRESETS).map(k => `<button class="btn" data-fxp="${k}">${k}</button>`).join('')}</div>
+    <h4 style="margin:12px 0 4px;color:var(--tan);font:700 12px var(--sans);letter-spacing:.6px">MARK I CONVERTER</h4>
     <div class="row"><label><input type="checkbox" id="fxDac" ${f.dac ? '' : 'checked'}> Mark I 12-bit converter (off = clean 16-bit)</label></div>
-    <div class="row"><label style="width:130px">DAC noise &amp; grit</label><input type="range" min="0" max="99" value="${f.hiss}" data-fx="hiss" style="flex:1"><span style="width:28px;text-align:right">${f.hiss}</span></div>
-    <p class="hint">The Mark I converter: each voice converted on its own (12-bit DAC, range divider with 1 % resistors), hiss from the DAC and the output stage. 50 = a typical unit, 0 = perfect parts, 99 = a tired one. The volume slider moves in 8 steps, as on the original (it picks the DAC's reference voltage).</p>
-    ${FX_UI.map(([k, n]) => `<div class="row"><label style="width:130px">${n}</label><input type="range" min="0" max="99" value="${f[k]}" data-fx="${k}" style="flex:1"><span style="width:28px;text-align:right">${f[k]}</span></div>`).join('')}`;
-  b.querySelectorAll('[data-fx]').forEach(x => x.oninput = () => { host.setFunc(x.dataset.fx, +x.value); x.nextElementSibling.textContent = x.value; });
-  b.querySelectorAll('[data-fxp]').forEach(x => x.onclick = () => { FX_PRESETS[x.dataset.fxp].forEach((v, i) => host.setFunc(FX_UI[i][0], v)); drawFx(); });
+    ${row(['hiss', 'DAC noise & grit', 0, 99])}
+    <p class="hint">Each voice converted on its own (12-bit DAC, range divider with 1 % resistors), hiss from the DAC and the output stage. 50 = a typical unit, 0 = perfect parts, 99 = a tired one. The volume slider moves in 8 steps, as on the original.</p>
+    ${FX_SECTIONS.map(([t, rows]) => `<h4 style="margin:12px 0 4px;color:var(--tan);font:700 12px var(--sans);letter-spacing:.6px">${t.toUpperCase()}</h4>${rows.map(row).join('')}`).join('')}`;
+  const fmts = {}; for (const [, rows] of FX_SECTIONS) for (const r of rows) fmts[r[0]] = r[4];
+  b.querySelectorAll('[data-fx]').forEach(x => x.oninput = () => { const k = x.dataset.fx; host.setFunc(k, +x.value); x.nextElementSibling.textContent = fmts[k] ? fmts[k](+x.value) : x.value; });
+  b.querySelectorAll('[data-fxp]').forEach(x => x.onclick = () => { const p = FX_PRESETS[x.dataset.fxp]; for (const k in p) host.setFunc(k, p[k]); drawFx(); });
   $('#fxDac').onchange = e => host.setFunc('dac', e.target.checked ? 0 : 1);
 }
 
@@ -915,8 +936,8 @@ function drawHelp(){
   <li>17–24 mod wheel, foot, breath and aftertouch: range, then (pushed again) pitch / amplitude / EG bias on or off</li>
   <li>25 arpeggiator: on, mode, octaves, rate, gate, latch, swing · 26 tempo and clock source · 27 sequencer: pattern, play / stop, record, length, step, swing, key transpose</li>
   <li>28 step edit: buttons 1–16 pick a step (again: on / off), 17–20 the page, 21 clears the step, 22 the pattern; play notes to write them; the slider sets the gate (up to TIE); YES / NO move</li>
-  <li>29 motion lanes 1–4: which parameter each one moves, then smooth on / off · 30 converter (12-bit Mark I or 16-bit clean), then the effects: chorus depth and rate, delay mix, time and feedback, reverb mix and size · 31 MIDI files: play, import into the pattern, export the pattern, record, loop · 32 sysex: send bank, request bank or voice</li></ul>
-  <h4>Random and reset</h4><p><b>Random</b> (the die) makes a new playable voice in the edit buffer: a random algorithm with musical ratios and envelopes. Keep it with STORE. <b>Reset</b> goes back to the voice as stored in memory.</p><h4>Effects</h4><p><b>FX</b> (or FUNCTION 30 pushed again) sets a stereo chorus, a ping-pong delay and a reverb after the converter, with a few starting points.</p>
+  <li>29 motion lanes 1–4: which parameter each one moves, then smooth on / off · 30 converter (12-bit Mark I or 16-bit clean), DAC noise, then every chorus, delay and REV7 setting · 31 MIDI files: play, import into the pattern, export the pattern, record, loop · 32 sysex: send bank, request bank or voice</li></ul>
+  <h4>Random and reset</h4><p><b>Random</b> (the die) makes a new playable voice in the edit buffer: a random algorithm with musical ratios and envelopes. Keep it with STORE. The button beside it (as on the Omega 110) picks what it rolls: ALL, ALG (algorithm, feedback, levels), FREQ (ratios), ENV (envelopes), LFO, or FX (the effects). <b>Reset</b> goes back to the voice as stored in memory.</p><h4>Effects</h4><p><b>FX</b> (or FUNCTION 30 pushed again) sets the chorus, the Omega 110's TC 2290-style dynamic delay (time or tempo sync, feedback, high / low cut, modulation, ducking, ping-pong) and its REV7-style reverb (Hall, Room, Vocal, Plate, Early Ref; time, HF ratio, pre-delay, diffusion, ER level, high cut).</p>
   <h4>Files</h4><p>Banks are standard 32-voice sysex dumps (4104 bytes) and single voices are 163-byte dumps, so banks from the original instrument, librarians and other emulators load here and what you save loads there. MIDI files: type 0 and 1.</p>
   <h4>The sound</h4><p>Six operators per voice, 16 voices, computed at the original 49.096 kHz with log-sine and exponential tables, the original envelope, LFO and scaling behaviour, then the Mark I converter: 12-bit samples whose range switches in 6 dB steps, held between samples and smoothed by the output filter. FUNCTION 30 swaps in a clean 16-bit converter for comparison.</p>`;
 }

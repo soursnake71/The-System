@@ -48,18 +48,19 @@ void SevenEditor::buildHits() {
         const int r = i <= 16 ? 0 : 1, c = (i - 1) % 16;
         add("b" + juce::String(i), {1226.0f + c * 37, r ? 334.0f : 262.0f, 32, 26}, [this, i] { withPanel([i](Panel& p) { p.button(i); }); });
     }
-    const char* tools[] = {"MEMORY", "SEQ / ARP", "MIDI FILES", "FX", "RANDOM", "RESET", "HELP", "PANIC"};
+    const char* tools[] = {"MEMORY", "SEQ / ARP", "MIDI FILES", "FX", "RANDOM", "ALL", "RESET", "HELP", "PANIC"};
     float x = 104;
-    for (int i = 0; i < 8; ++i) {
-        const float w = 18 + 8.2f * (float) std::strlen(tools[i]) + (i == 4 || i == 5 ? 18.0f : 0.0f);
+    for (int i = 0; i < 9; ++i) {
+        const float w = i == 5 ? 52.0f : 18 + 8.2f * (float) std::strlen(tools[i]) + (i == 4 || i == 6 ? 18.0f : 0.0f);
         add("tool" + juce::String(i), {x, 170, w, 26}, [this, i] {
             if (i == 0) memoryMenu();
             else if (i == 1) { showSeq = !showSeq; showHelp = false; }
             else if (i == 2) midiMenu();
             else if (i == 3) fxMenu();
             else if (i == 4) withPanel([](Panel& p) { p.random(); });
-            else if (i == 5) withPanel([](Panel& p) { p.resetVoice(); });
-            else if (i == 6) { showHelp = !showHelp; showSeq = false; }
+            else if (i == 5) withPanel([](Panel& p) { p.nextDicePart(); });
+            else if (i == 6) withPanel([](Panel& p) { p.resetVoice(); });
+            else if (i == 7) { showHelp = !showHelp; showSeq = false; }
             else { proc.panic(); lit.clear(); say("All notes off"); }
         });
         x += w + 8;
@@ -100,10 +101,11 @@ void SevenEditor::paint(juce::Graphics& g) {
     }
     g.setFont(sans(9.5f)); g.drawText("6-OPERATOR FM ALGORITHM SYNTHESIZER", juce::Rectangle<float>(236, 150, 420, 14), juce::Justification::left);
     // tools
-    const juce::StringArray tools {"MEMORY", "SEQ / ARP", "MIDI FILES", "FX", "RANDOM", "RESET", "HELP", "PANIC"};
+    const juce::StringArray tools {"MEMORY", "SEQ / ARP", "MIDI FILES", "FX", "RANDOM", juce::String("ALL,ALG,FREQ,ENV,LFO,FX").upToFirstOccurrenceOf(",", false, false), "RESET", "HELP", "PANIC"};
+    const juce::StringArray partNames = juce::StringArray::fromTokens("ALL,ALG,FREQ,ENV,LFO,FX", ",", "");
     for (auto& h : hits) if (h.id.startsWith("tool")) {
         const int i = h.id.substring(4).getIntValue();
-        const bool on = (i == 1 && showSeq) || (i == 6 && showHelp) || h.id == downId;
+        const bool on = (i == 1 && showSeq) || (i == 7 && showHelp) || h.id == downId;
         g.setColour(on ? col::teal : juce::Colour(0xff232325)); g.fillRoundedRectangle(h.r, 3);
         g.setColour(juce::Colour(0xff3a3a3c)); g.drawRoundedRectangle(h.r, 3, 1);
         const juce::Colour ink = on ? juce::Colour(0xff0b2421) : col::print;
@@ -113,17 +115,17 @@ void SevenEditor::paint(juce::Graphics& g) {
             g.setColour(ink); g.drawRoundedRectangle(d, 3, 1.6f);
             for (auto pt : {juce::Point<float>(4, 4), {7, 7}, {10, 10}, {10, 4}, {4, 10}}) g.fillEllipse(d.getX() + pt.x - 1.4f, d.getY() + pt.y - 1.4f, 2.8f, 2.8f);
             r = r.withTrimmedLeft(18);
-        } else if (i == 5) {   // a circular arrow
+        } else if (i == 6) {   // a circular arrow
             juce::Path a; const float cx = r.getX() + 14, cy = r.getCentreY();
             a.addCentredArc(cx, cy, 6, 6, 0, 0.6f, 5.6f, true);
             g.setColour(ink); g.strokePath(a, juce::PathStrokeType(1.8f));
             juce::Path t; t.addTriangle(cx + 3.5f, cy - 9, cx + 7.5f, cy - 4, cx + 1.5f, cy - 3.5f); g.fillPath(t);
             r = r.withTrimmedLeft(18);
         }
-        drawLabel(g, tools[i], r, 11, ink);
+        drawLabel(g, i == 5 ? partNames[proc.panel.dicePart] : tools[i], r, 11, ink);
     }
     {
-        const juce::Rectangle<float> m(800, 178, 60, 8);
+        const juce::Rectangle<float> m(820, 178, 50, 8);
         g.setColour(juce::Colours::black); g.fillRoundedRectangle(m, 2);
         g.setColour(col::teal2); g.fillRoundedRectangle(m.withWidth(60 * juce::jlimit(0.0f, 1.0f, proc.peak.load())), 2);
     }
@@ -389,7 +391,7 @@ void SevenEditor::drawHelp(juce::Graphics& g) {
         "FUNCTION  1 tune  2 poly/mono  3-4 bend range/step  5-7 portamento  8 MIDI channels, sys info, send voice / bank  9 edit recall  10 voice init (again: random)  11 load .syx / .mid\n"
         "12 save bank  13 save voice  14 cart > int  15 int > cart  17-24 wheel, foot, breath, aftertouch range and assign  25 arpeggiator  26 tempo / host sync\n"
         "27 sequencer (pattern, play, record, length, step, swing, key transpose)  28 step edit  29 motion lanes  30 converter (12-bit Mark I / 16-bit clean), then chorus, delay and reverb  31 MIDI files  32 sysex\n\n"
-        "RANDOM (the die) makes a new playable voice in the edit buffer (STORE keeps it); RESET goes back to the voice as stored. FX: chorus, delay, reverb after the converter.\n\n"
+        "RANDOM (the die) rolls a new voice (STORE keeps it); the button beside it picks what it rolls (ALL, ALG, FREQ, ENV, LFO, FX); RESET goes back to the stored voice.\nFX: chorus, then the Omega 110's TC 2290-style dynamic delay and REV7-style reverb (Hall, Room, Vocal, Plate, Early Ref).\n\n"
         "FILES  Standard 32-voice bank dumps (4104 bytes) and single voices (163 bytes) load and save, so banks from the original instrument and librarians work here and back.\n"
         "All voice and function parameters can be automated by the host. With FUNCTION 26 set to MIDI/HOST, the sequencer and arpeggiator follow the host's tempo and transport.";
     g.setColour(col::print); g.setFont(sans(14, false));
@@ -426,17 +428,32 @@ void SevenEditor::memoryMenu() {
 }
 // effects: starting points and the converter; each amount is on FUNCTION 30 (pushed again) and automatable by the host
 void SevenEditor::fxMenu() {
-    static const char* names[6] = {"Dry", "Chorus", "Studio", "Big hall", "Echo", "Dream"};
-    static const int presets[6][7] = {{0, 30, 0, 60, 35, 0, 60}, {55, 30, 0, 60, 35, 0, 60}, {40, 25, 18, 62, 30, 22, 55}, {30, 20, 0, 60, 35, 45, 90}, {0, 30, 40, 66, 55, 15, 50}, {70, 18, 30, 74, 60, 50, 95}};
+    struct Pre { const char* name; std::vector<std::pair<int, int>> v; };
+    static const std::vector<Pre> pres = {
+        {"Dry", {{F::chorus, 0}, {F::delayMix, 0}, {F::revMix, 0}}},
+        {"Chorus", {{F::chorus, 55}, {F::chorusRate, 30}, {F::delayMix, 0}, {F::revMix, 0}}},
+        {"Studio", {{F::chorus, 35}, {F::chorusRate, 25}, {F::delayMix, 18}, {F::dlSync, 6}, {F::delayFb, 30}, {F::dlDuck, 50}, {F::revMix, 25}, {F::rvProg, 1}, {F::revSize, 14}, {F::rvHigh, 6}, {F::rvDelay, 12}}},
+        {"Big hall", {{F::chorus, 25}, {F::delayMix, 0}, {F::revMix, 45}, {F::rvProg, 0}, {F::revSize, 36}, {F::rvHigh, 6}, {F::rvDelay, 30}, {F::rvDiff, 9}, {F::rvEr, 35}, {F::rvCut, 90}}},
+        {"Plate", {{F::chorus, 0}, {F::delayMix, 0}, {F::revMix, 40}, {F::rvProg, 3}, {F::revSize, 20}, {F::rvHigh, 8}, {F::rvDelay, 5}, {F::rvDiff, 10}, {F::rvCut, 110}}},
+        {"Dub echo", {{F::chorus, 0}, {F::delayMix, 55}, {F::dlSync, 8}, {F::delayFb, 70}, {F::dlHiCut, 30}, {F::dlLoCut, 25}, {F::dlModDepth, 30}, {F::dlDuck, 70}, {F::dlPing, 1}, {F::revMix, 20}, {F::rvProg, 0}, {F::revSize, 30}}},
+        {"Dream", {{F::chorus, 70}, {F::chorusRate, 18}, {F::delayMix, 30}, {F::dlSync, 9}, {F::delayFb, 60}, {F::dlModDepth, 60}, {F::revMix, 50}, {F::rvProg, 2}, {F::revSize, 60}, {F::rvHigh, 7}, {F::rvDelay, 40}}}};
     juce::PopupMenu m;
-    for (int i = 0; i < 6; ++i) m.addItem(1 + i, juce::String("Effects: ") + names[i]);
+    for (int i = 0; i < (int) pres.size(); ++i) m.addItem(1 + i, juce::String("Effects: ") + pres[(size_t) i].name);
     m.addSeparator();
+    juce::PopupMenu prog;
+    for (int p = 0; p < 5; ++p) prog.addItem(50 + p, juce::String("REV7 ") + RV_PROGS[p], true, proc.func()[F::rvProg] == p);
+    m.addSubMenu("REV7 program", prog);
+    juce::PopupMenu sync;
+    for (int d = 0; d < 14; ++d) sync.addItem(60 + d, d ? juce::String("Delay sync ") + DL_DIV_NAMES[d] : juce::String("Delay time in ms"), true, proc.func()[F::dlSync] == d);
+    m.addSubMenu("Delay sync", sync);
     m.addItem(10, "Mark I 12-bit converter", true, proc.func()[F::dac] == 0);
     m.addSeparator();
-    for (int k = F::chorus; k < FCOUNT; ++k) m.addItem(100 + k, juce::String(FUNC_DEF[k].name) + " = " + juce::String(proc.func()[k]) + "   (FUNCTION 30)", false);
+    m.addItem(11, "Every amount: FUNCTION 30 (push again for each page), or automate from the host", false);
     m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [this](int r) {
-        if (r >= 1 && r <= 6) { for (int k = 0; k < 7; ++k) proc.setFunc(F::chorus + k, presets[r - 1][k]); say(juce::String("Effects: ") + names[r - 1]); }
+        if (r >= 1 && r <= (int) pres.size()) { for (auto& kv : pres[(size_t) r - 1].v) proc.setFunc(kv.first, kv.second); say(juce::String("Effects: ") + pres[(size_t) r - 1].name); }
         else if (r == 10) proc.setFunc(F::dac, proc.func()[F::dac] ? 0 : 1);
+        else if (r >= 50 && r < 55) proc.setFunc(F::rvProg, r - 50);
+        else if (r >= 60 && r < 74) proc.setFunc(F::dlSync, r - 60);
         repaint();
     });
 }

@@ -34,11 +34,13 @@ static const char* const FUNC_BUTTONS[33] = {"", "MASTER TUNE", "POLY/MONO", "P 
     "VOICE INIT", "LOAD FILE", "SAVE BANK", "SAVE VOICE", "CART > INT", "INT > CART", "BATTERY", "MW RANGE", "MW ASSIGN", "FC RANGE", "FC ASSIGN", "BC RANGE", "BC ASSIGN",
     "AT RANGE", "AT ASSIGN", "ARPEGGIATOR", "TEMPO/CLOCK", "SEQUENCER", "STEP EDIT", "MOTION", "DAC/EFFECTS", "MIDI FILE", "SYSEX"};
 inline int editSubs(int n) { switch (n) { case 15: case 16: case 23: case 24: return 2; case 20: case 21: case 28: case 29: return 4; default: return 0; } }
-inline int funcSubs(int n) { switch (n) { case 8: return 5; case 18: case 20: case 22: case 24: return 3; case 25: return 7; case 26: return 2; case 27: return 7; case 29: return 8; case 10: return 2; case 30: return 9; case 31: return 5; case 32: return 3; default: return 0; } }
+inline int funcSubs(int n) { switch (n) { case 8: return 5; case 18: case 20: case 22: case 24: return 3; case 25: return 7; case 26: return 2; case 27: return 7; case 29: return 8; case 10: return 2; case 30: return 22; case 31: return 5; case 32: return 3; default: return 0; } }
 static const char* const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ -./0";
 inline std::vector<int> motionIds() { std::vector<int> a {-1}; for (int i = 0; i <= 144; ++i) a.push_back(i); for (int i = 0; i < 14; ++i) a.push_back(200 + i); for (int i = F::chorus; i < FCOUNT; ++i) a.push_back(200 + i); return a; }
-static const int FX_KEYS[9] = {F::dac, F::hiss, F::chorus, F::chorusRate, F::delayMix, F::delayTime, F::delayFb, F::revMix, F::revSize};
-static const char* const FX_NAMES[9] = {"", "DAC NOISE", "CHORUS DEPTH", "CHORUS RATE", "DELAY MIX", "DELAY TIME", "DELAY FDBACK", "REVERB MIX", "REVERB SIZE"};
+static const int FX_KEYS[22] = {F::dac, F::hiss, F::chorus, F::chorusRate, F::delayMix, F::delayTime, F::dlSync, F::delayFb, F::dlHiCut, F::dlLoCut, F::dlModRate,
+    F::dlModDepth, F::dlDuck, F::dlPing, F::revMix, F::rvProg, F::revSize, F::rvHigh, F::rvDelay, F::rvDiff, F::rvEr, F::rvCut};
+static const char* const FX_NAMES[22] = {"", "DAC NOISE", "CHORUS DEPTH", "CHORUS RATE", "DELAY RETURN", "DELAY TIME", "DELAY SYNC", "DELAY FDBACK", "DLY HIGH CUT", "DLY LOW CUT",
+    "DLY MOD RATE", "DLY MOD DPTH", "DLY DUCKING", "PING-PONG", "REV RETURN", "REV7", "REV TIME", "REV HIGH", "REV DELAY", "REV DIFFUSE", "REV ER LEVEL", "REV HIGH CUT"};
 inline std::string motionName(int id) {
     if (id < 0) return "OFF";
     if (id >= 200) return id - 200 < FCOUNT ? FUNC_DEF[id - 200].name : "?";
@@ -217,12 +219,22 @@ public:
         return {};
     }
     // the dice: a random voice into the edit buffer (STORE keeps it); reset: back to the voice as stored
+    int dicePart = 0;   // what the dice rolls: all, algorithm, frequencies, envelopes, LFO, effects
     void random(uint32_t seed = 0) {
         if (!seed) seed = (uint32_t) (h.nowMs() * 2654435761u) ^ 0x9e3779b9u;
-        const Voice156 v = randomVoice(seed);
+        if (dicePart == 5) {
+            const auto f = randomFx(seed);
+            int prog = 0, rev = 0, dly = 0;
+            for (auto& kv : f) { h.setFunc(kv.first, kv.second); if (kv.first == F::rvProg) prog = kv.second; if (kv.first == F::revMix) rev = kv.second; if (kv.first == F::delayMix) dly = kv.second; }
+            flash("RANDOM EFFECTS", std::string(RV_PROGS[rev ? prog : 0]) + (dly ? " + DELAY" : ""));
+            return;
+        }
+        const Voice156 v = rollPart(v_(), seed, dicePart);
         h.setVoice(v); edited = true;
-        flash("RANDOM VOICE", voiceName(v));
+        flash(dicePart == 0 ? "RANDOM VOICE" : std::string("RANDOM ") + DICE_NAMES[dicePart], voiceName(v));
     }
+    Voice156 v_() { return h.voice(); }
+    void nextDicePart() { dicePart = (dicePart + 1) % 6; flash("DICE ROLLS", DICE_NAMES[dicePart]); }
     void resetVoice() {
         auto* b = h.bank(cart);
         if (!b) { flash("CARTRIDGE", "NOT READY  (11)"); return; }
@@ -366,6 +378,24 @@ public:
         }
         return {l1, l2};
     }
+    static std::string fx1(double v) { char b[16]; std::snprintf(b, sizeof b, "%.1f", v); return b; }
+    std::string fxLine(int s, Func& f) {
+        const int k = FX_KEYS[s], v = f[k];
+        switch (k) {
+            case F::dac: return v ? "DAC=16BIT CLEAN" : "DAC=12BIT MARK I";
+            case F::rvProg: return line("REV7", std::string("=") + RV_PROGS[v]);
+            case F::dlSync: return line("DELAY SYNC", std::string("=") + DL_DIV_NAMES[v]);
+            case F::dlPing: return line("PING-PONG", "=" + onOff(v));
+            case F::delayTime: return line("DELAY TIME", "=" + rpad(v, 4) + "ms");
+            case F::revSize: return line("REV TIME", "=" + fx1(std::max(3, v) / 10.0) + "s");
+            case F::rvHigh: return line("REV HIGH", "=" + fx1(std::max(1, v) / 10.0));
+            case F::rvDelay: return line("REV DELAY", "=" + rpad(v, 3) + "ms");
+            case F::rvCut: return line("REV HIGH CUT", "=" + fx1(std::max(10, v) / 10.0) + "k");
+            case F::dlHiCut: return line("DLY HIGH CUT", "=" + fx1(std::max(10, v) / 10.0) + "k");
+            case F::dlLoCut: return line("DLY LOW CUT", "=" + rpad(std::max(2, v) * 10, 4));
+            default: return line(FX_NAMES[s], "=" + rpad(v, 3));
+        }
+    }
     std::pair<std::string, std::string> funcLines() {
         if (stepEdit) return stepLines();
         const int n = fBtn, s = fSub; auto& f = h.func(); auto& q = h.seq(); auto& a = q.arp;
@@ -405,7 +435,7 @@ public:
                     default: l2 = line("KEY TRANSP", "=" + onOff(q.keyTrans)); }
                 break; }
             case 29: { auto& l = q.pats[(size_t) q.pat].lanes[(size_t) (s & 3)]; l2 = s < 4 ? "L" + std::to_string(s + 1) + "=" + motionName(l.param) : line("L" + std::to_string((s & 3) + 1) + " SMOOTH", "=" + onOff(l.smooth)); break; }
-            case 30: l2 = s == 0 ? (f[F::dac] ? "DAC=16BIT CLEAN" : "DAC=12BIT MARK I") : line(FX_NAMES[s], "=" + rpad(f[FX_KEYS[s]], 3)); break;
+            case 30: l2 = fxLine(s, f); break;
             case 31: switch (s) { case 0: l2 = std::string("PLAY ") + (h.playerPlaying() ? "ON  NO=STOP" : "OFF YES=FILE"); break; case 1: l2 = "IMPORT>PAT ? YES"; break; case 2: l2 = "EXPORT PAT ? YES"; break;
                 case 3: l2 = std::string("RECORD ") + (h.playerRec() ? "ON  NO=SAVE" : "OFF YES=GO"); break; default: l2 = line("LOOP", "=" + onOff(h.playerLoop())); } break;
             case 32: l2 = s == 0 ? "SEND BANK  ? YES" : s == 1 ? "REQUEST BANK?YES" : "REQUEST VOICE?YS"; break;
