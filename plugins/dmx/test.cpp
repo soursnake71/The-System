@@ -94,6 +94,22 @@ int main(int argc, char** argv) {
             auto x = render(f, .6, sr); CHECK(peak(x, 0, x.size()) > .05f, "kit %s pattern %d silent", kKitDefs[k].id, p + 1);
         }
     }
+    {   // the circuit: on by default for the user kits, off for the DMX kit (recorded from a DMX); cards in the DMX's stereo mix
+        Engine e; load(e, dir); e.prepare(sr);
+        CHECK(!e.circuitOn(0) && e.circuitOn(1) && e.circuitOn(2) && e.circuitOn(3), "circuit defaults");
+        e.setKit(1); std::vector<float> L(48000), R(48000);
+        e.hit(2, 1); e.process(L.data(), R.data(), 24000, {});   // Snare 1: the snare card sits left (8.2k) of right (20k)
+        float pl = 0, pr = 0; for (int i = 0; i < 24000; ++i) { pl = std::max(pl, std::fabs(L[(size_t) i])); pr = std::max(pr, std::fabs(R[(size_t) i])); }
+        CHECK(pl > .1f && std::fabs(pr / pl - 8.2f / 20.f) < .02f, "snare card pan L %f R %f", pl, pr);
+        // the card's ROM: 4096 samples at the snare card's ~40.8 kHz, so it stops after ~0.1 s
+        std::vector<float> M(9600); e.hit(2, 1); e.process(M.data(), nullptr, 9600, {}); float tail = peak(M, 6000, 9600);
+        CHECK(tail < .01f, "snare card stops at its ROM's end: %f after 0.125 s", tail);
+        // TUNE: the trimmer up makes the clock faster: higher and shorter
+        auto lenAt = [&](int t) { e.setTune(2, t); std::vector<float> y(24000); e.process(y.data(), nullptr, 24000, {}); size_t last = 0; for (size_t i = 0; i < y.size(); ++i) if (std::fabs(y[i]) > 1e-3f) last = i; return last; };
+        const size_t l50 = lenAt(50), l90 = lenAt(90), l10 = lenAt(10);
+        CHECK(l90 < l50 && l50 < l10, "tune lengths %zu %zu %zu", l10, l50, l90);
+        e.setCircuit(false); CHECK(!e.circuitOn(), "circuit off");
+    }
     std::printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails ? 1 : 0;
 }

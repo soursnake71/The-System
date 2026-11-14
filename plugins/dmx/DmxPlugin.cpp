@@ -73,7 +73,8 @@ void DmxProcessor::getStateInformation(juce::MemoryBlock& out) {
     x.setAttribute("kit", engine.kit); x.setAttribute("tempo", engine.tempo); x.setAttribute("swing", engine.swing);
     for (int k = 0; k < kKits; ++k) {
         auto* kx = x.createNewChildElement("Kit");
-        kx->setAttribute("id", kKitDefs[k].id); kx->setAttribute("pattern", engine.cur[(size_t) k]); kx->setAttribute("useSong", engine.useSong[(size_t) k]);
+        kx->setAttribute("id", kKitDefs[k].id); kx->setAttribute("pattern", engine.cur[(size_t) k]); kx->setAttribute("circuit", engine.circuitState[(size_t) k]);
+        juce::StringArray tn; for (int v = 0; v < kKitDefs[k].voices; ++v) tn.add(juce::String(engine.tune[(size_t) k][(size_t) v])); kx->setAttribute("tune", tn.joinIntoString(",")); kx->setAttribute("useSong", engine.useSong[(size_t) k]);
         juce::StringArray sg; for (int p : engine.song[(size_t) k]) sg.add(juce::String(p)); kx->setAttribute("song", sg.joinIntoString(","));
         for (int v = 0; v < kKitDefs[k].voices; ++v) if (!engine.names[(size_t) k][(size_t) v].empty()) kx->setAttribute("name" + juce::String(v), juce::String(engine.names[(size_t) k][(size_t) v]));
         for (int p = 0; p < kPatterns; ++p) {
@@ -90,6 +91,7 @@ void DmxProcessor::setStateInformation(const void* data, int size) {
     auto x = getXmlFromBinary(data, size);
     if (!x || !x->hasTagName("OmegaDMX")) return;
     if (auto* p = x->getChildByName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*p));
+    {
     Locked l(engine.lock);
     engine.kit = juce::jlimit(0, kKits - 1, x->getIntAttribute("kit", 0)); engine.tempo = x->getDoubleAttribute("tempo", 112);
     engine.swing = x->getIntAttribute("swing", 50);
@@ -97,6 +99,8 @@ void DmxProcessor::setStateInformation(const void* data, int size) {
         int k = -1; for (int i = 0; i < kKits; ++i) if (kx->getStringAttribute("id") == kKitDefs[i].id) k = i;
         if (k < 0) continue;
         engine.cur[(size_t) k] = juce::jlimit(0, kPatterns - 1, kx->getIntAttribute("pattern")); engine.useSong[(size_t) k] = kx->getBoolAttribute("useSong");
+        engine.circuitState[(size_t) k] = juce::jlimit(-1, 1, kx->getIntAttribute("circuit", -1));
+        { auto tn = juce::StringArray::fromTokens(kx->getStringAttribute("tune"), ",", ""); for (int v = 0; v < kKitDefs[k].voices; ++v) engine.tune[(size_t) k][(size_t) v] = v < tn.size() && tn[v].isNotEmpty() ? juce::jlimit(0, 100, tn[v].getIntValue()) : 50; }
         engine.song[(size_t) k].clear();
         for (auto& s : juce::StringArray::fromTokens(kx->getStringAttribute("song"), ",", "")) if (s.isNotEmpty()) engine.song[(size_t) k].push_back(juce::jlimit(0, kPatterns - 1, s.getIntValue()));
         for (int v = 0; v < kKitDefs[k].voices; ++v) engine.names[(size_t) k][(size_t) v] = kx->getStringAttribute("name" + juce::String(v)).toStdString();
@@ -108,6 +112,8 @@ void DmxProcessor::setStateInformation(const void* data, int size) {
             for (int v = 0; v < kKitDefs[k].voices && v < rows.size(); ++v) Engine::setRow(P, v, rows[v].toStdString());
         }
     }
+    }
+    engine.refresh();   // the restored kit's cards with its tuning
 }
 
 juce::AudioProcessorEditor* DmxProcessor::createEditor() { return new DmxEditor(*this); }

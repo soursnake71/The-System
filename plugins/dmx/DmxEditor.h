@@ -32,9 +32,10 @@ private:
     std::vector<std::pair<int, juce::Rectangle<float>>> groupHeads() const;  // fader group, heading
     juce::Rectangle<float> padKey(int i) const;        // 0..11: 7 8 9 4 5 6 1 2 3 < 0 >
     juce::Rectangle<float> fnKey(int i) const;         // SWING SONG EDIT KIT / RECORD ERASE COPY CLEAR
-    juce::Rectangle<float> smallKey(int i) const;      // TEMPO ACCENT FACTORY
+    juce::Rectangle<float> smallKey(int i) const;      // TEMPO TUNE ACCENT FACTORY
     juce::Rectangle<float> playKey() const { return {playR.getCentreX() - 48, playR.getY() + 28, 96, 84}; }
     juce::Rectangle<float> helpR() const { return {infoR.getX(), infoR.getBottom() - 40, 70, 26}; }
+    juce::Rectangle<float> circR() const { return {infoR.getX() + 80, infoR.getBottom() - 40, 130, 26}; }
     void drawKey(juce::Graphics&, juce::Rectangle<float> r, const juce::String& label, bool on, bool red = false, bool hitNow = false);
     void fnPress(const std::string& f);
     void rename(int v);
@@ -49,8 +50,8 @@ private:
     static constexpr const char* kPad = "789456123<0>";
     static constexpr const char* kFn[8] = {"swing", "song", "edit", "kit", "rec", "erase", "copy", "clear"};
     static constexpr const char* kFnName[8] = {"SWING", "SONG", "EDIT", "KIT", "RECORD", "ERASE", "COPY", "CLEAR"};
-    static constexpr const char* kSmall[3] = {"tempo", "acc", "factory"};
-    static constexpr const char* kSmallName[3] = {"TEMPO", "ACCENT", "FACTORY"};
+    static constexpr const char* kSmall[4] = {"tempo", "tune", "acc", "factory"};
+    static constexpr const char* kSmallName[4] = {"TEMPO", "TUNE", "ACCENT", "FACTORY"};
 };
 
 }  // namespace dmx

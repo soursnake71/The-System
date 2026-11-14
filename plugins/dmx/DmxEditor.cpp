@@ -67,7 +67,7 @@ juce::Rectangle<float> DmxEditor::fnKey(int i) const {
     const float cw = (fnR.getWidth() - 30) / 4.f;
     return {fnR.getX() + (i % 4) * (cw + 10) + (cw - 58) / 2, fnR.getY() + 18 + (i / 4) * 58.f, 58, 40};
 }
-juce::Rectangle<float> DmxEditor::smallKey(int i) const { return {smallR.getCentreX() - 29, smallR.getY() + i * 110.f, 58, 40}; }
+juce::Rectangle<float> DmxEditor::smallKey(int i) const { return {smallR.getCentreX() - 29, smallR.getY() + i * 83.f, 58, 40}; }
 
 // ---------------- drawing ----------------
 void DmxEditor::drawKey(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& label, bool on, bool red, bool hitNow) {
@@ -141,8 +141,8 @@ void DmxEditor::paint(juce::Graphics& g) {
         }
     }
     // TEMPO / ACCENT / FACTORY, keypad
-    const bool son[3] = {e.mode == "tempo", e.acc, false};
-    for (int i = 0; i < 3; ++i) drawKey(g, smallKey(i), kSmallName[i], son[i]);
+    const bool son[4] = {e.mode == "tempo", e.mode == "tune", e.acc, false};
+    for (int i = 0; i < 4; ++i) drawKey(g, smallKey(i), kSmallName[i], son[i]);
     for (int i = 0; i < 12; ++i) {
         const auto r = padKey(i); const char k = kPad[i]; const bool digit = k >= '0' && k <= '9'; const int n = k == '0' ? 9 : k - '1';
         const bool on = digit && n == e.current() && e.mode.empty();
@@ -172,6 +172,9 @@ void DmxEditor::paint(juce::Graphics& g) {
     {   const auto r = helpR(); g.setColour(juce::Colours::black); g.fillRoundedRectangle(r.translated(0, 2), 2);
         g.setGradientFill(juce::ColourGradient(juce::Colour(0xff34353a), 0, r.getY(), juce::Colour(0xff1b1c20), 0, r.getBottom(), false)); g.fillRoundedRectangle(r, 2);
         g.setColour(col::print); g.setFont(sans(11)); g.drawText("HELP", r, juce::Justification::centred); }
+    {   const auto r = circR(); g.setColour(juce::Colours::black); g.fillRoundedRectangle(r.translated(0, 2), 2);
+        g.setGradientFill(juce::ColourGradient(juce::Colour(0xff34353a), 0, r.getY(), juce::Colour(0xff1b1c20), 0, r.getBottom(), false)); g.fillRoundedRectangle(r, 2);
+        g.setColour(e.circuitOn() ? col::led : col::print); g.setFont(sans(11)); g.drawText(e.circuitOn() ? "CIRCUIT: DMX" : "CIRCUIT: CLEAN", r, juce::Justification::centred); }
 }
 
 void DmxEditor::timerCallback() {
@@ -179,6 +182,7 @@ void DmxEditor::timerCallback() {
     if (toastT > 0) --toastT;
     const int f = e.flashVoice.exchange(-1); if (f >= 0) { flashV = f; flashT = 3; }
     if (flashT > 0) --flashT;
+    const int t = e.takePendingTune(); if (t >= 0) e.setTune(e.sel, t);   // TUNE typed on the keypad: re-render that voice's card
     repaint();
 }
 
@@ -205,7 +209,8 @@ void DmxEditor::mouseDown(const juce::MouseEvent& ev) {
         }
     }
     if (!edit) for (auto& [v, r] : voiceKeys()) if (r.withHeight(68).contains(p)) { e.sel = v; e.hit(v, kVel[e.acc ? 2 : 1]); return; }
-    for (int i = 0; i < 3; ++i) if (smallKey(i).withHeight(58).contains(p)) { fnPress(kSmall[i]); return; }
+    for (int i = 0; i < 4; ++i) if (smallKey(i).withHeight(58).contains(p)) { fnPress(kSmall[i]); return; }
+    if (circR().contains(p)) { e.setCircuit(!e.circuitOn()); return; }
     for (int i = 0; i < 12; ++i) if (padKey(i).contains(p)) { e.keypad(kPad[i]); return; }
     for (int i = 0; i < 8; ++i) if (fnKey(i).withHeight(58).contains(p)) { fnPress(kFn[i]); return; }
     if (playKey().contains(p)) { e.internalPlay = !e.internalPlay.load(); return; }
@@ -245,6 +250,8 @@ void DmxEditor::showHelp() {
         "TEMPO then type it on the keypad, or < > (the host's tempo rules while it plays). SWING steps 50-71%.\n"
         "SONG then numbers add patterns, ERASE takes the last off; SONG again to leave. COPY then a number copies the pattern there.\n"
         "ERASE clears the picked voice, CLEAR the pattern (twice), FACTORY restores the factory pattern. KIT picks the kit.\n"
+        "TUNE then 00-99 on the keypad, or < > for 5: the picked voice's pitch trimmer (50 = centre); higher is faster and shorter, as on the hardware.\n"
+        "CIRCUIT: DMX plays each sound as a DMX voice card would (ROM of AM6070 codes at the card's 555 clock, decay on the DAC's reference, three Sallen-Key filters, the DMX's stereo mix and audio-taper faders); CLEAN plays them as recorded. The DMX kit starts clean: it was recorded from a DMX.\n"
         "Faders: the seven voice groups, the Metronome (down: no click) and the Volume.\n"
         "The sequencer follows the host's transport; PLAY / STOP runs it on its own (and in the standalone app).\n"
         "MIDI: General MIDI drum notes (36 kick, 38 snare, 42 hat...) and every voice from C3 (60) up; program change picks the pattern.",

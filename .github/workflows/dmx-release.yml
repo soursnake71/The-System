@@ -33,7 +33,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           node dmx/tools/gen.mjs && git diff --exit-code plugins/dmx/Kits.inc
-          cmake --build build --target dmx_test && build/dmx_test dmx/kits
+          cmake --build build --target dmx_test dmx_circuit_dump && build/dmx_test dmx/kits
+          node dmx/tools/compare.mjs build/dmx_circuit_dump "$RUNNER_TEMP/dmx-circuit"
       - name: Collect
         shell: bash
         run: |
