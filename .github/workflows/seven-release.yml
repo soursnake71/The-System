@@ -1,7 +1,7 @@
-# Omega Seven (6-operator FM synthesizer): VST3 + standalone app for Windows, macOS (plus AU) and Linux, and the
+# Omega 7 (6-operator FM synthesizer): VST3 + standalone app for Windows, macOS (plus AU) and Linux, and the
 # Android APK, all attached to the "omega-seven" release. Runs on main and on claude/* branches so builds can be tried
 # before merging. The C++ engine is checked against the web app's engine (bit for bit) before anything is published.
-name: Omega Seven release
+name: Omega 7 release
 on:
   push:
     branches: [main, 'claude/**']
@@ -42,16 +42,16 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          find build -path '*Release/VST3/*.vst3' -prune -name 'Omega Seven.vst3' -exec cp -R {} out/ \;
-          find build -path '*Release/Standalone/*' -prune \( -name 'Omega Seven' -o -name 'Omega Seven.exe' -o -name 'Omega Seven.app' \) -exec cp -R {} out/ \;
+          find build -path '*Release/VST3/*.vst3' -prune -name 'Omega 7.vst3' -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega 7' -o -name 'Omega 7.exe' -o -name 'Omega 7.app' \) -exec cp -R {} out/ \;
           if [ "$RUNNER_OS" = macOS ]; then
-            find build -path '*Release/AU/*.component' -prune -name 'Omega Seven.component' -exec cp -R {} out/ \;
+            find build -path '*Release/AU/*.component' -prune -name 'Omega 7.component' -exec cp -R {} out/ \;
             for b in out/*; do codesign --force --deep -s - "$b"; done
           fi
           ls -la out
-          cd out && 7z a -tzip "../Omega-Seven-${{ matrix.name }}.zip" . >/dev/null
+          cd out && 7z a -tzip "../Omega-7-${{ matrix.name }}.zip" . >/dev/null
       - uses: actions/upload-artifact@v4
-        with: {name: 'seven-${{ matrix.name }}', path: 'Omega-Seven-${{ matrix.name }}.zip', if-no-files-found: error}
+        with: {name: 'seven-${{ matrix.name }}', path: 'Omega-7-${{ matrix.name }}.zip', if-no-files-found: error}
   apk:
     runs-on: ubuntu-latest
     steps:
@@ -65,9 +65,9 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           gradle -p android assembleSevenDebug --no-daemon
-          cp android/app/build/outputs/apk/seven/debug/app-seven-debug.apk omega-seven.apk
+          cp android/app/build/outputs/apk/seven/debug/app-seven-debug.apk omega-7.apk
       - uses: actions/upload-artifact@v4
-        with: {name: seven-Android, path: omega-seven.apk, if-no-files-found: error}
+        with: {name: seven-Android, path: omega-7.apk, if-no-files-found: error}
   publish:
     needs: [plugins, apk]
     # publish whatever built: a Mac runner that never starts shouldn't hold back the others
@@ -80,13 +80,13 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls -la dl
-          notes="Omega Seven $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): 6-operator FM synthesizer, Mark I 12-bit converter, sysex banks, arpeggiator, function sequencer, full MIDI.
+          notes="Omega 7 $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): 6-operator FM synthesizer, Mark I 12-bit converter, sysex banks, arpeggiator, function sequencer, full MIDI.
 
-          - Android: open omega-seven.apk on the phone and allow installing from your browser or files app. Works offline; USB and Bluetooth MIDI (sysex too). Saved banks and MIDI files go to Download/Omega Seven.
-          - Windows: unzip Omega-Seven-Windows.zip, copy Omega Seven.vst3 into C:\\Program Files\\Common Files\\VST3. Omega Seven.exe runs on its own.
-          - Mac: unzip Omega-Seven-Mac.zip, copy Omega Seven.vst3 into /Library/Audio/Plug-Ins/VST3 and Omega Seven.component into /Library/Audio/Plug-Ins/Components. If refused: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
-          - Linux: unzip Omega-Seven-Linux.zip, copy Omega Seven.vst3 into ~/.vst3.
+          - Android: open omega-7.apk on the phone and allow installing from your browser or files app. Works offline; USB and Bluetooth MIDI (sysex too). Saved banks and MIDI files go to Download/Omega 7.
+          - Windows: unzip Omega-7-Windows.zip, copy Omega 7.vst3 into C:\\Program Files\\Common Files\\VST3. Omega 7.exe runs on its own.
+          - Mac: unzip Omega-7-Mac.zip, copy Omega 7.vst3 into /Library/Audio/Plug-Ins/VST3 and Omega 7.component into /Library/Audio/Plug-Ins/Components. If refused: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
+          - Linux: unzip Omega-7-Linux.zip, copy Omega 7.vst3 into ~/.vst3.
           VST3 hosts don't pass sysex to plugins: load .syx banks with MEMORY (or FUNCTION 11) in the plugin; the standalone app, the AU and the Android app take sysex over MIDI too."
-          gh release view omega-seven >/dev/null 2>&1 || gh release create omega-seven --title "Omega Seven (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release view omega-seven >/dev/null 2>&1 || gh release create omega-seven --title "Omega 7 (latest)" --notes "$notes" --target "$GITHUB_SHA"
           gh release edit omega-seven --notes "$notes"
           gh release upload omega-seven dl/* --clobber

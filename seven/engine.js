@@ -1,4 +1,4 @@
-/* Omega Seven: a 6-operator FM synthesizer modeled on the first-generation (Mark I) 1983 hardware, sound engine.
+/* Omega 7: a 6-operator FM synthesizer modeled on the first-generation (Mark I) 1983 hardware, sound engine.
  *
  * The signal path follows the original boards:
  *   - operators computed the way the OPS chip does it: a log-sine table plus an exponential table (attenuation in

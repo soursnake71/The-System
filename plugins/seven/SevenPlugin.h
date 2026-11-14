@@ -1,4 +1,4 @@
-// Omega Seven as a plugin (VST3 / AU / standalone): the FM engine, internal memory and cartridge, the front panel, the
+// Omega 7 as a plugin (VST3 / AU / standalone): the FM engine, internal memory and cartridge, the front panel, the
 // arpeggiator and function sequencer (on its own tempo or locked to the host), the MIDI file player and recorder.
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -19,7 +19,7 @@ public:
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-    const juce::String getName() const override { return "Omega Seven"; }
+    const juce::String getName() const override { return "Omega 7"; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }

@@ -1,4 +1,4 @@
-// Omega Seven: the 6-operator FM engine (Mark I hardware model), sysex codec, arpeggiator, function sequencer and
+// Omega 7: the 6-operator FM engine (Mark I hardware model), sysex codec, arpeggiator, function sequencer and
 // MIDI files. A line-for-line port of the web app's seven/engine.js and seven/seq.js; seven/tools/compare.mjs renders
 // the same performance with both and compares them sample by sample. No JUCE in here (the test runner is plain C++).
 #pragma once
@@ -1192,14 +1192,14 @@ inline std::vector<uint8_t> patternToMidi(const Pattern& p, const Voice156* voic
         if (a.tick != b.tick) return a.tick < b.tick;
         return ((a.data[0] & 0xF0) == 0x80 ? -1 : 0) < ((b.data[0] & 0xF0) == 0x80 ? -1 : 0);
     });
-    return writeMidiFile(ev, 96, tempo, "Omega Seven pattern");
+    return writeMidiFile(ev, 96, tempo, "Omega 7 pattern");
 }
 struct RecEvent { double sec; std::vector<uint8_t> data; };
 inline std::vector<uint8_t> recordingToMidi(const std::vector<RecEvent>& evs, const Voice156* voice, int ch) {
     std::vector<TickMsg> ev; const int ppq = 480;
     if (voice) ev.push_back({0, voiceToSysex(*voice, ch)});
     for (auto& e : evs) ev.push_back({(int64_t) jsRound(e.sec * 2 * ppq), e.data});
-    return writeMidiFile(ev, ppq, 120, "Omega Seven performance");
+    return writeMidiFile(ev, ppq, 120, "Omega 7 performance");
 }
 class FilePlayer {
 public:

@@ -1,4 +1,4 @@
-const CACHE = 'omega-seven-v2', FILES = ['./', 'index.html', 'app.js', 'engine.js', 'voices.js', 'seq.js', 'panel.js', 'worklet.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'omega-seven-v3', FILES = ['./', 'index.html', 'app.js', 'engine.js', 'voices.js', 'seq.js', 'panel.js', 'worklet.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k.startsWith('omega-seven')).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 // network first so updates arrive; the cache keeps it working offline

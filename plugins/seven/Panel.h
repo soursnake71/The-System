@@ -1,4 +1,4 @@
-// Omega Seven front panel logic: a line-for-line port of seven/panel.js (buttons, data entry, the 2 x 16 display).
+// Omega 7 front panel logic: a line-for-line port of seven/panel.js (buttons, data entry, the 2 x 16 display).
 #pragma once
 #include "Seven.h"
 #include <functional>

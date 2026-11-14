@@ -35,8 +35,8 @@ jobs:
         run: |
           mkdir -p out
           find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
-          # Omega Twelve and Omega Seven also run on their own (no DAW needed)
-          find build -path '*Release/Standalone/*' -prune \( -name 'Omega Twelve' -o -name 'Omega Twelve.exe' -o -name 'Omega Twelve.app' -o -name 'Omega Seven' -o -name 'Omega Seven.exe' -o -name 'Omega Seven.app' \) -exec cp -R {} out/ \;
+          # Omega Twelve and Omega 7 also run on their own (no DAW needed)
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega Twelve' -o -name 'Omega Twelve.exe' -o -name 'Omega Twelve.app' -o -name 'Omega 7' -o -name 'Omega 7.exe' -o -name 'Omega 7.app' \) -exec cp -R {} out/ \;
           if [ "$RUNNER_OS" = macOS ]; then
             find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
             for b in out/*; do codesign --force --deep -s - "$b"; done

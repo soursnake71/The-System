@@ -11,7 +11,7 @@ android {
   }
   buildFeatures { buildConfig true }
   // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator)
-  // and Omega Seven (6-operator FM synthesizer)
+  // and Omega 7 (6-operator FM synthesizer)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -64,7 +64,7 @@ tasks.register('copyTwelveWeb', Copy) {
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
 
-// Omega Seven carries its web app inside the APK too: ../seven (the app's files, not its tools)
+// Omega 7 carries its web app inside the APK too: ../seven (the app's files, not its tools)
 def sevenAssets = layout.buildDirectory.dir('sevenAssets')
 tasks.register('copySevenWeb', Copy) {
   from('../../seven') { exclude 'tools/**', '*.md' }

@@ -1,4 +1,4 @@
-/* Omega Seven: arpeggiator, function sequencer (16 patterns of up to 64 steps, notes plus motion lanes that move any
+/* Omega 7: arpeggiator, function sequencer (16 patterns of up to 64 steps, notes plus motion lanes that move any
  * voice or function parameter step by step, in the manner of the 2016 FM groovebox's v1.10 firmware), the MIDI file
  * player, MIDI file import / export and the performance recorder. Clocked at 96 ticks per quarter note by the
  * internal tempo, MIDI clock, or (in the plugin) the host's transport. Ported line for line to plugins/seven/Seven.h. */
@@ -330,7 +330,7 @@ function patternToMidi(p, voice, tempo, ch, loops){
   }
   // note-offs before note-ons at the same tick
   ev.sort((a, b) => a.tick - b.tick || ((a.data[0] & 0xF0) === 0x80 ? -1 : 0) - ((b.data[0] & 0xF0) === 0x80 ? -1 : 0));
-  return writeMidiFile(ev, ppq, tempo, 'Omega Seven pattern');
+  return writeMidiFile(ev, ppq, tempo, 'Omega 7 pattern');
 }
 // the recorder's events ({sec, data}) as a MIDI file at 120 BPM, 480 ticks per quarter
 function recordingToMidi(evs, voice, ch){
@@ -338,7 +338,7 @@ function recordingToMidi(evs, voice, ch){
   const ppq = 480, ev = [];
   if (voice) ev.push({tick:0, data:Array.from(DX.voiceToSysex(voice, ch || 0))});
   for (const e of evs) ev.push({tick:Math.round(e.sec * 2 * ppq), data:e.data});
-  return writeMidiFile(ev, ppq, 120, 'Omega Seven performance');
+  return writeMidiFile(ev, ppq, 120, 'Omega 7 performance');
 }
 
 /* ---------------- MIDI file player ---------------- */

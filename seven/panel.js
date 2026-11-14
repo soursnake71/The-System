@@ -1,4 +1,4 @@
-/* Omega Seven front panel: the state machine behind the buttons, the data entry slider and the 2 x 16 display, so the
+/* Omega 7 front panel: the state machine behind the buttons, the data entry slider and the 2 x 16 display, so the
  * synth is programmed the way the 1983 hardware is: MEMORY SELECT (play), EDIT / COMPARE, FUNCTION, STORE, MEMORY
  * PROTECT, OPERATOR SELECT, the 32 numbered buttons, YES / NO (+1 / -1) and DATA ENTRY. No drawing here: app.js (web)
  * and SevenEditor.cpp (plugin, through Panel.h, a line-for-line port) draw it and pass presses in.

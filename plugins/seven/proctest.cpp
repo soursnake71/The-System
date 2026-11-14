@@ -1,4 +1,4 @@
-// Drives the Omega Seven processor directly (no plugin wrapper): sysex banks and parameter changes in, the panel,
+// Drives the Omega 7 processor directly (no plugin wrapper): sysex banks and parameter changes in, the panel,
 // the arpeggiator and sequencer on the host transport, MIDI files, and the state. usage: seven_proc_test <dir>
 #include "SevenPlugin.h"
 #include "SevenEditor.h"

@@ -94,7 +94,7 @@ void SevenEditor::paint(juce::Graphics& g) {
     g.setColour(col::print); g.setFont(sans(26)); g.drawText("OMEGA", juce::Rectangle<float>(108, 112, 120, 30), juce::Justification::left);
     {
         juce::Path p; juce::GlyphArrangement ga;
-        ga.addLineOfText(juce::Font(juce::FontOptions(86.0f, juce::Font::bold | juce::Font::italic)), "SEVEN", 232, 140);
+        ga.addLineOfText(juce::Font(juce::FontOptions(112.0f, juce::Font::bold | juce::Font::italic)), "7", 236, 146);
         ga.createPath(p);
         g.setColour(col::print); g.strokePath(p, juce::PathStrokeType(2.4f));
     }

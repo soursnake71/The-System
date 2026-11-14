@@ -141,12 +141,12 @@ if(TARGET OmegaTwelve)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 
-# Omega Seven: the 6-operator FM synthesizer (seven/ in the app), as an instrument plugin and a standalone app.
+# Omega 7: the 6-operator FM synthesizer (seven/ in the app), as an instrument plugin and a standalone app.
 if(NOT OMEGA_ONLY OR "Seven" IN_LIST OMEGA_ONLY)
   set(fmts ${OMEGA_FORMATS})
   list(APPEND fmts Standalone)
   juce_add_plugin(OmegaSeven
-    PRODUCT_NAME "Omega Seven"
+    PRODUCT_NAME "Omega 7"
     COMPANY_NAME "The Omega System"
     BUNDLE_ID "com.thesnakedevice.omega.Seven"
     PLUGIN_MANUFACTURER_CODE Omga
@@ -168,7 +168,7 @@ endif()
 if(TARGET OmegaSeven)
   juce_add_console_app(seven_proc_test PRODUCT_NAME "seven_proc_test")
   target_sources(seven_proc_test PRIVATE seven/proctest.cpp seven/SevenPlugin.cpp seven/SevenEditor.cpp)
-  target_compile_definitions(seven_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Seven")
+  target_compile_definitions(seven_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega 7")
   target_link_libraries(seven_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(seven_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()

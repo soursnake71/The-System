@@ -1,4 +1,4 @@
-/* Omega Seven on the audio thread (AudioWorklet), after engine.js and seq.js. Runs the synth, the arpeggiator and
+/* Omega 7 on the audio thread (AudioWorklet), after engine.js and seq.js. Runs the synth, the arpeggiator and
  * sequencer on their clock (internal tempo or incoming MIDI clock), the MIDI file player and the recorder.
  * The page owns the voice and settings and sends them here; this sends back the sequencer position, notes for MIDI
  * out and what was recorded. */

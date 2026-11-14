@@ -1,4 +1,4 @@
-// Omega Seven plugin window: the faceplate (the same layout as the web app's full view), drawn at 1880 x 800 and
+// Omega 7 plugin window: the faceplate (the same layout as the web app's full view), drawn at 1880 x 800 and
 // scaled to the window. Every press goes to the shared Panel logic.
 #pragma once
 #include "SevenPlugin.h"

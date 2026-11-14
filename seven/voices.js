@@ -1,4 +1,4 @@
-/* Omega Seven: the 32 voices in the internal memory when nothing has been stored yet. Original programs (no factory
+/* Omega 7: the 32 voices in the internal memory when nothing has been stored yet. Original programs (no factory
  * ROM data), written with the same parameters as the panel. Each operator: ratio (or {hz}), output level, EG rates,
  * EG levels, and extras. Works in the browser and in Node; plugins/seven/Voices.inc is generated from this file. */
 (function(root){

@@ -1,4 +1,4 @@
-// Headless check of Omega Seven's .vst3 like a DAW: programs, automation, the state round trip and a picture of the window.
+// Headless check of Omega 7's .vst3 like a DAW: programs, automation, the state round trip and a picture of the window.
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -6,7 +6,7 @@ struct Transport : juce::AudioPlayHead {
     double ppq = 0, bpm = 120; bool playing = false;
     juce::Optional<PositionInfo> getPosition() const override { PositionInfo p; p.setIsPlaying(playing); p.setBpm(bpm); p.setPpqPosition(ppq); return p; }
 };
-// usage: seven_host_test <Omega Seven.vst3> <outdir>
+// usage: seven_host_test <Omega 7.vst3> <outdir>
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI gui;
     if (argc < 3) { std::puts("usage: seven_host_test plugin.vst3 outdir"); return 2; }

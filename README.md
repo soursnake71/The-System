@@ -29,7 +29,7 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
-## Omega Seven (`/seven/`): 6-operator FM synthesizer
+## Omega 7 (`/seven/`): 6-operator FM synthesizer
 A Mark I-era FM synthesizer on your phone, in your DAW or on its own, played and programmed from a faceplate laid out like the 1983 instrument's (STORE, MEMORY PROTECT, OPERATOR SELECT, EDIT / COMPARE, MEMORY SELECT, FUNCTION, DATA ENTRY, YES / NO, the 32 numbered buttons, the 2 x 16 display, the algorithm chart).
 - The hardware's signal path: six operators per voice with log-sine and exponential tables (14-bit operator outputs, 0.0235 dB envelope steps), the 32 algorithms with two-sample feedback, the envelope generators, pitch envelope, LFO (six waves, delay, key sync), keyboard level and rate scaling, velocity, fixed / ratio oscillators and detune, 16 voices, all at the original 49.096 kHz. Then the Mark I converter: a 12-bit DAC whose range switches in 6 dB steps (floating point, 12-bit mantissa), held between samples and smoothed by the output filter. FUNCTION 30 swaps in a clean 16-bit converter to compare.
 - Voices: standard sysex. 32-voice bank dumps (4104 bytes, packed) and single voices (163 bytes) load and save, so banks from the original, librarians and other emulators work here and the other way round. Internal memory plus a cartridge slot (load any bank into it), memory protect, store, compare, edit recall, voice init, operator copy, naming.
@@ -38,14 +38,14 @@ A Mark I-era FM synthesizer on your phone, in your DAW or on its own, played and
 - Full MIDI: notes, velocity, bend, mod wheel, breath, foot, aftertouch, sustain, portamento, volume, expression, program change, mono / poly, all notes off; voice and bank dumps, parameter changes and dump requests in and out; clock in and out (the plugin follows the host's tempo and transport). MIDI files: play through the synth, import into a pattern, export a pattern (voice and motion included as sysex), record a performance to .mid.
 - A die for a random playable voice (random algorithm, musical ratios and envelopes; STORE keeps it) and reset back to the stored voice; effects after the converter: stereo chorus, ping-pong delay and reverb, with starting points (FX, or FUNCTION 30 pushed again), all automatable in the plugin.
 - 32 original voices (no factory ROM data).
-- Android app: the `omega-seven` release (`omega-seven.apk`, built by `.github/workflows/seven-release.yml`), offline, USB / Bluetooth MIDI with sysex. Web: `https://<your-username>.github.io/<repo>/seven/`.
-- VST3 (and AU on Mac, plus a standalone app): Omega Seven in the same release. Its engine (`plugins/seven/Seven.h`) is a line-for-line port of `seven/engine.js` and `seven/seq.js`; `seven/tools/compare.mjs` checks they produce the same samples (bit for bit). VST3 hosts don't pass sysex to plugins: load banks from the plugin's MEMORY menu or FUNCTION 11.
+- Android app: the `omega-seven` release (`omega-7.apk`, built by `.github/workflows/seven-release.yml`), offline, USB / Bluetooth MIDI with sysex. Web: `https://<your-username>.github.io/<repo>/seven/`.
+- VST3 (and AU on Mac, plus a standalone app): Omega 7 in the same release. Its engine (`plugins/seven/Seven.h`) is a line-for-line port of `seven/engine.js` and `seven/seq.js`; `seven/tools/compare.mjs` checks they produce the same samples (bit for bit). VST3 hosts don't pass sysex to plugins: load banks from the plugin's MEMORY menu or FUNCTION 11.
 
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
 ## Credits
-- Omega Seven's envelope, LFO, pitch envelope and scaling curves follow the measurements in Music Synthesizer for Android (Google, Apache 2.0) and the published reverse engineering of the OPS / EGS chips.
+- Omega 7's envelope, LFO, pitch envelope and scaling curves follow the measurements in Music Synthesizer for Android (Google, Apache 2.0) and the published reverse engineering of the OPS / EGS chips.
 - SP-1200 audio path data (filter prototypes, pitch table, converter behaviour) from [libmd12](https://github.com/Mudb0y/libmd12) (MIT).
 - SVC-350 vocoder modeled from the Roland SVC-350 service notes (Dec. 8, 1979), [archive.org](https://archive.org/details/roland_SVC-350_SERVICE_NOTES).
 - Solina String Ensemble modeled from the Eminent/ARP Solina schematic set, [archive.org](https://archive.org/details/ARP_Solina_Schematics).

@@ -45,10 +45,10 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Omega Seven with the web app bundled inside (assets/seven), so it works offline and needs no website.
+/** Omega 7 with the web app bundled inside (assets/seven), so it works offline and needs no website.
  *  Android's WebView has no Web MIDI or file downloads, so this activity supplies them natively:
  *  - AndroidMidi: USB / Bluetooth MIDI devices through android.media.midi, shaped like Web MIDI by app.js (sysex included),
- *  - AndroidSeven.save: banks, voices and MIDI files go to Downloads/Omega Seven,
+ *  - AndroidSeven.save: banks, voices and MIDI files go to Downloads/Omega 7,
  *  - .syx and .mid files opened from a file manager load straight into the synth. */
 public class SevenActivity extends Activity {
   static final String HOME = "https://appassets.androidplatform.net/assets/seven/index.html";
@@ -156,12 +156,12 @@ public class SevenActivity extends Activity {
           ContentValues v = new ContentValues();
           v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
           v.put(MediaStore.Downloads.MIME_TYPE, mime);
-          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Omega Seven");
+          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Omega 7");
           Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
           try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
-          return "Download/Omega Seven/" + safe;
+          return "Download/Omega 7/" + safe;
         }
-        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Omega Seven");
+        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Omega 7");
         dir.mkdirs();
         File f = new File(dir, safe);
         try (FileOutputStream o = new FileOutputStream(f)) { o.write(data); }

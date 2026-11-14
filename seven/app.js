@@ -1,4 +1,4 @@
-/* Omega Seven app: the faceplate (drawn from the 1983 front panel's layout), the keyboard and wheels, memory and the
+/* Omega 7 app: the faceplate (drawn from the 1983 front panel's layout), the keyboard and wheels, memory and the
  * cartridge (sysex banks), the sequencer editor, MIDI in / out and files. The sound runs in worklet.js; the panel's
  * logic is panel.js. */
 'use strict';
@@ -283,7 +283,7 @@ part('rule1', 'rule'); part('rule2', 'rule');
 part('logo', 'logo', `<svg viewBox="0 0 520 110">
   <text x="4" y="86" font-family="Helvetica, Arial" font-weight="700" font-size="26" letter-spacing="1" fill="#e9ecec">OMEGA</text>
   <g fill="none" stroke="#e9ecec" stroke-width="2.2" font-family="Helvetica, Arial" font-weight="800" font-size="86" font-style="italic" letter-spacing="-2">
-    <text x="128" y="88" stroke-width="2.4">SEVEN</text><text x="131" y="85" stroke-width="1" opacity=".6">SEVEN</text></g>
+    <text x="132" y="94" font-size="112" stroke-width="2.6">7</text><text x="136" y="90" font-size="112" stroke-width="1" opacity=".6">7</text></g>
   <text x="132" y="106" font-family="Helvetica, Arial" font-weight="700" font-size="9.5" letter-spacing="1.6" fill="#e9ecec">6-OPERATOR FM ALGORITHM SYNTHESIZER</text></svg>`);
 part('tools', 'tools', `<button class="tool" data-dlg="dlgLib">Memory</button><button class="tool" data-dlg="dlgSeq">Seq / Arp</button><button class="tool" data-dlg="dlgMidi">MIDI</button>
   <button class="tool" id="diceBtn" title="A random voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><rect x="1.5" y="1.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="6" r="1.7" fill="currentColor"/><circle cx="10" cy="10" r="1.7" fill="currentColor"/><circle cx="14" cy="14" r="1.7" fill="currentColor"/><circle cx="14" cy="6" r="1.7" fill="currentColor"/><circle cx="6" cy="14" r="1.7" fill="currentColor"/></svg>Random</button><button class="tool" id="resetBtn" title="Back to the stored voice"><svg viewBox="0 0 20 20" width="15" height="15" style="vertical-align:-3px;margin-right:4px"><path d="M15.5 6.5A7 7 0 1 0 17 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M16.8 1.8v5.4h-5.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Reset</button><button class="tool" data-dlg="dlgFx">FX</button><button class="tool" data-dlg="dlgHelp">Help</button><button class="tool" id="viewBtn">View</button><button class="tool" id="octDn">Oct&minus;</button><button class="tool" id="octUp">Oct+</button>
@@ -877,6 +877,8 @@ function drawFx(){
   b.innerHTML = `<p class="hint">After the converter and output filter (the hardware's own sound stays as it is): a stereo chorus, a ping-pong delay and a reverb. Also on the panel: FUNCTION 30, pushed again.</p>
     <div class="row">${Object.keys(FX_PRESETS).map(k => `<button class="btn" data-fxp="${k}">${k}</button>`).join('')}</div>
     <div class="row"><label><input type="checkbox" id="fxDac" ${f.dac ? '' : 'checked'}> Mark I 12-bit converter (off = clean 16-bit)</label></div>
+    <div class="row"><label style="width:130px">DAC noise &amp; grit</label><input type="range" min="0" max="99" value="${f.hiss}" data-fx="hiss" style="flex:1"><span style="width:28px;text-align:right">${f.hiss}</span></div>
+    <p class="hint">The Mark I converter: each voice converted on its own (12-bit DAC, range divider with 1 % resistors), hiss from the DAC and the output stage. 50 = a typical unit, 0 = perfect parts, 99 = a tired one. The volume slider moves in 8 steps, as on the original (it picks the DAC's reference voltage).</p>
     ${FX_UI.map(([k, n]) => `<div class="row"><label style="width:130px">${n}</label><input type="range" min="0" max="99" value="${f[k]}" data-fx="${k}" style="flex:1"><span style="width:28px;text-align:right">${f[k]}</span></div>`).join('')}`;
   b.querySelectorAll('[data-fx]').forEach(x => x.oninput = () => { host.setFunc(x.dataset.fx, +x.value); x.nextElementSibling.textContent = x.value; });
   b.querySelectorAll('[data-fxp]').forEach(x => x.onclick = () => { FX_PRESETS[x.dataset.fxp].forEach((v, i) => host.setFunc(FX_UI[i][0], v)); drawFx(); });
