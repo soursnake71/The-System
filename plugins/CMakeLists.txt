@@ -216,3 +216,39 @@ if(TARGET OmegaTraks)
   target_link_libraries(traks_ui_test PRIVATE TraksRom juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(traks_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega Linn: the LinnDrum circuit model (linn/ in the app) with its front panel, mixer and sequencer working in the DAW,
+# the stereo mix and OUT 1-8. The sound ROM (linn/rom/linn.rom: the owner's two sets of LinnDrum recordings) is built in.
+if(NOT OMEGA_ONLY OR "LINN" IN_LIST OMEGA_ONLY)
+  juce_add_binary_data(LinnRom SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../linn/rom/linn.rom)
+  set_target_properties(LinnRom PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  juce_add_plugin(OmegaLinn
+    PRODUCT_NAME "Omega Linn"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Linn"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Olnn
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Drum
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaLinn PRIVATE linn/LinnPlugin.cpp linn/LinnEditor.cpp)
+  target_compile_definitions(OmegaLinn PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaLinn PRIVATE LinnRom juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
+# Machine.h + Linn.h + Kit.h against machine.js + engine.js + kit.js: node linn/tools/compare.mjs <build>/linn_test <dir>
+add_executable(linn_test linn/test.cpp)
+
+# draws the Linn editor to PNGs without a DAW: <build>/linn_ui_test <dir>
+if(TARGET OmegaLinn)
+  juce_add_console_app(linn_ui_test PRODUCT_NAME "linn_ui_test")
+  target_sources(linn_ui_test PRIVATE linn/uitest.cpp linn/LinnPlugin.cpp linn/LinnEditor.cpp)
+  target_compile_definitions(linn_ui_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Linn" JucePlugin_Build_Standalone=0)
+  target_link_libraries(linn_ui_test PRIVATE LinnRom juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(linn_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()

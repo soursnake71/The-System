@@ -56,7 +56,7 @@ async function download(name, data, type){
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
 function pick(accept){ return new Promise(res => { const f = $('filePick'); f.value = ''; f.accept = accept; f.onchange = () => res(f.files[0] || null); f.click(); }); }
-function pickMany(folder){ return new Promise(res => { const f = $(folder ? 'folderPick' : 'multiPick'); f.value = ''; f.onchange = () => res([...f.files]); f.click(); }); }
+function pickMany(folder){ return new Promise(res => { const f = $(folder ? 'folderPick' : 'multiPick'); f.value = ''; if (folder && window.AndroidLinn && AndroidLinn.folderNext) AndroidLinn.folderNext(); f.onchange = () => res([...f.files]); f.click(); }); }
 
 /* ---- STORE / LOAD */
 async function saveTape(){ download('omega-linn.json', JSON.stringify(T.backup()), 'application/json'); T.toast('Stored the machine (patterns, songs, sounds, settings)'); }

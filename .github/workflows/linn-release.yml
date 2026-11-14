@@ -1,0 +1,88 @@
+# Omega Linn (the LinnDrum circuit model): the plugin (VST3 on Windows, Mac and Linux, plus AU on Mac, and a standalone
+# app) and the Android APK, attached to the "linn-latest" release. Runs on main and on claude/* and ccr-* branches.
+name: Omega Linn release
+on:
+  push:
+    branches: [main, 'claude/**', 'ccr-**']
+    paths: ['linn/**', 'plugins/linn/**', 'plugins/CMakeLists.txt', 'plugins/tools/hosttest/**', 'android/**', '.github/workflows/linn-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  plugin:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev xvfb
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=LINN
+      - name: Build
+        run: cmake --build build --config Release --parallel 4 --target OmegaLinn_All linn_test
+      - name: Test (C++ engine and firmware against the app's, ROM and presets up to date)
+        if: runner.os == 'Linux'
+        run: |
+          node linn/tools/compare.mjs build/linn_test "$RUNNER_TEMP"
+          node linn/tools/make-rom.mjs --check
+          node linn/tools/gen-presets.mjs --check
+          node linn/tools/hat-check.mjs
+      - name: Test (load the VST3 like a DAW)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S plugins/tools/hosttest -B host -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR="$PWD/build/_deps/juce-src"
+          cmake --build host --target linn_host_test --parallel 4
+          xvfb-run -a "$(find host -name linn_host_test -type f -perm -u+x | head -1)" "build/OmegaLinn_artefacts/Release/VST3/Omega Linn.vst3" "$RUNNER_TEMP"
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            find build -path '*Release/Standalone/*.app' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          elif [ "$RUNNER_OS" = Windows ]; then
+            find build -path '*Release/Standalone/*.exe' -exec cp {} out/ \;
+          else
+            find build -path '*Release/Standalone/*' -type f -perm -u+x -exec cp {} out/ \;
+          fi
+          ls out
+          cd out && 7z a -tzip "../Omega-Linn-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'linn-${{ matrix.name }}', path: 'Omega-Linn-${{ matrix.name }}.zip', if-no-files-found: error}
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android assembleLinnDebug --no-daemon
+          cp android/app/build/outputs/apk/linn/debug/app-linn-debug.apk omega-linn.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: 'linn-Android', path: omega-linn.apk, if-no-files-found: error}
+  publish:
+    needs: [plugin, apk]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls dl
+          gh release view linn-latest >/dev/null 2>&1 || gh release create linn-latest --title "Omega Linn (latest)" --notes "Omega Linn: a circuit model of the LinnDrum with its whole front panel working (49 patterns, 49 songs, real-time and step recording, error correct, shuffle, per-sound tuning and the 15-channel mixer, eight outputs, MIDI in/out and MIDI file import, load a kit from a folder, the hi-hat trick), plus pad EQ / ADSR, REV7-style reverb, TC-style delay, master EQ and overdrive, 100 presets and the dice. omega-linn.apk is the Android app (open it on your phone to install). The zips hold the plugin (VST3, AU on Mac) and a standalone app: copy the .vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). On a Mac, if your DAW refuses it, run: xattr -cr '/Library/Audio/Plug-Ins/VST3/Omega Linn.vst3'"
+          gh release upload linn-latest dl/* --clobber

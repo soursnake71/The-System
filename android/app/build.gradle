@@ -46,6 +46,14 @@ android {
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/traks/"'
       buildConfigField 'String', 'BRAND_QUERY', '""'
     }
+    // Omega Linn: the LinnDrum circuit model
+    linn {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.linn'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/linn/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/linn/"'
+      buildConfigField 'String', 'BRAND_QUERY', '""'
+    }
     // JayQuan-110: the same machine for a friend, with his logo and name (installs next to Omega 110)
     jayquan {
       dimension 'app'
@@ -72,6 +80,7 @@ dependencies {
   dr110Implementation 'androidx.webkit:webkit:1.12.1'
   jayquanImplementation 'androidx.webkit:webkit:1.12.1'
   traksImplementation 'androidx.webkit:webkit:1.12.1'
+  linnImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -103,3 +112,12 @@ tasks.register('copyTraksWeb', Copy) {
 }
 android.sourceSets.traks.assets.srcDirs += [traksAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Traks') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTraksWeb' }
+
+// Omega Linn carries its web app inside the APK too: ../linn (not its tools or source samples; the ROM holds the sounds)
+def linnAssets = layout.buildDirectory.dir('linnAssets')
+tasks.register('copyLinnWeb', Copy) {
+  from('../../linn') { exclude 'tools/**', 'samples/**', '*.md' }
+  into linnAssets.map { it.dir('linn') }
+}
+android.sourceSets.linn.assets.srcDirs += [linnAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Linn') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyLinnWeb' }

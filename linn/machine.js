@@ -141,9 +141,11 @@ class Machine {
         else if (this.mode === 1 && this.isHeld(K.ENTER)){ const s = this.mem.songs[this.song]; s.steps.length = Math.min(s.steps.length, this.cursor); this.changed(); }
         break;
       case K.DELETE: if (this.mode === 1){ const s = this.mem.songs[this.song]; if (this.cursor < s.steps.length){ s.steps.splice(this.cursor, 1); this.changed(); } } break;
-      case K.LEFT: if (this.mode === 1){ this.cursor = Math.max(0, this.cursor - 1); this.changed(); } break;
+      case K.LEFT:                  // LENGTH in pattern mode
+        if (this.mode === 1){ this.cursor = Math.max(0, this.cursor - 1); this.changed(); }
+        else if (this.isHeld(KP.RECORD)) this.armLength();
+        break;
       case K.RIGHT: if (this.mode === 1){ this.cursor = Math.min(this.mem.songs[this.song].steps.length, this.cursor + 1); this.changed(); } break;
-      case KP.LENGTH: if (this.mode === 0 && this.isHeld(KP.RECORD)) this.armLength(); break;
     }
   }
   drum(k, down){

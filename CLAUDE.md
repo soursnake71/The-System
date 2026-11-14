@@ -47,3 +47,17 @@
 - ROM: `node traks/tools/make-rom.mjs` writes `traks/rom/traks.rom` (the owner's 13 Drumtraks recordings in `traks/samples/*.wav`, stored at their own rate (15625 Hz; the owner wants these 16k sounds; the ride was resampled from its 44.1 kHz file with a windowed sinc, peak-matched), 8-bit mu-law; a sound without a recording would be EMPTY). Presets: `node traks/tools/gen-presets.mjs`.
 - The logo on the panel reads "omega-traks" (the Omega's, like the 110's OMEGA) in the place and style of the hardware's.
 - CI: `.github/workflows/traks-release.yml` -> release `traks-latest` (omega-traks.apk, Omega-Traks-{Windows,Mac,Linux}.zip).
+
+## Omega Linn (LinnDrum)
+- `linn/engine.js` + `linn/machine.js` + `linn/kit.js` (JS) and `plugins/linn/Linn.h` + `Machine.h` + `Kit.h` (C++) are line-for-line ports:
+  change both, then build `linn_test` and run `node linn/tools/compare.mjs <build>/linn_test <dir>`.
+- Circuit values come from MAME's linndrum.cpp (mux clock, snare/tom clocks, dynamics, the hat EG and CEM3360 VCA, mixer, click).
+  HAT MODE: LINN (the hi-hat trick: the ROM counter is not restarted while the hat is still counting), RESTART, LM-1 LOOP.
+  `node linn/tools/hat-check.mjs` fits HIHAT DECAY against the owner's closed-hat recordings in `linn/tools/ref`.
+- Firmware is the owner's manual: 49 patterns / 49 songs (11-77), 192 PPQ, error correct, shuffle A-F, the held-key functions.
+- The owner's two sample sets: `linn/samples/set1` and `set2` (soft/mid/hard dynamics); `node linn/tools/make-rom.mjs` writes
+  `linn/rom/linn.rom` (OLIN v2). set1 has no toms, sidestick or tambourine; set2 fills them. reallinn.wav is a demo loop, not a sound.
+- Panel layout (2000 x 1090 + 60-unit cheeks) is the same numbers in `linn/faceplate.js` and `LinnEditor.cpp` (namespace lay).
+- Presets: `linn/presets.js`, then `node linn/tools/gen-presets.mjs` (writes `plugins/linn/Presets.inc` and `Factory.inc`).
+- Load a kit from a folder: web `webkitdirectory`; Android `LinnActivity` opens a folder tree when the page calls `AndroidLinn.folderNext()`.
+- CI: `.github/workflows/linn-release.yml` -> release `linn-latest` (omega-linn.apk, Omega-Linn-{Windows,Mac,Linux}.zip).
