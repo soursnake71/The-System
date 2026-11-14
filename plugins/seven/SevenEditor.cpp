@@ -21,7 +21,11 @@ SevenEditor::SevenEditor(SevenProcessor& p) : juce::AudioProcessorEditor(p), pro
     setSize(1316, 560);
     setWantsKeyboardFocus(true);
     volPos = proc.func()[F::volume] / 99.0f;
-    proc.toast = [this](const juce::String& s) { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<SevenEditor>(this), s] { if (sp) sp->say(s); }); };
+    juce::Component::SafePointer<SevenEditor> self(this);
+    proc.toast = [self](const juce::String& msg) {
+        const juce::String text(msg);
+        juce::MessageManager::callAsync([self, text]() { if (auto* e = self.getComponent()) e->say(text); });
+    };
     buildHits();
     startTimerHz(30);
 }
