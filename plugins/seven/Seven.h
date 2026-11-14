@@ -576,9 +576,13 @@ inline Voice156 randomVoice(uint32_t seed) {
     return v;
 }
 
-/* ---------------- the Mark I converter, analog side included (Mk1Dac in engine.js) ---------------- */
-struct Mk1Params { double bitErr[12]; double rangeErr[5]; double dacNoise, floorNoise; };
-static const Mk1Params MK1 = {{0.0011, -0.0007, 0.0005, -0.0004, 0.0003, -0.0002, 0.00015, -0.0001, 0, 0, 0, 0}, {0, 0.0045, -0.0035, 0.006, -0.005}, 0.28, 1.05};
+/* ---------------- the Mark I converter, analog side included (Mk1Dac in engine.js: see the notes there) ---------------- */
+struct Mk1Params { double bitErr[12]; double rangeErr[4]; double dacNoise, floorNoise; };
+static const Mk1Params MK1 = {{0.0012, -0.0008, 0.0006, -0.0004, 0.0003, -0.0002, 0.00015, -0.0001, 0, 0, 0, 0}, {0, -0.0072, 0.0058, -0.0091}, 0.30, 1.05};
+inline const std::array<double, 8>& volSteps() {
+    static const std::array<double, 8> v = [] { const double d[8] = {0, -36, -28, -21, -15, -10, -5, 0}; std::array<double, 8> r {}; for (int i = 1; i < 8; ++i) r[(size_t) i] = std::pow(10.0, d[i] / 20); return r; }();
+    return v;
+}
 class Mk1Dac {
 public:
     Mk1Dac() {
@@ -593,13 +597,17 @@ public:
         for (int i = 0; i < 4; ++i) { uint32_t x = seed; x ^= x << 13; x ^= x >> 17; x ^= x << 5; seed = x; s += x / 4294967296.0; }
         return (s - 2) * 1.7320508075688772;
     }
-    double convert(int acc, double amount) {
+    double voice(int v, double amount) {
+        if (v > 16383) v = 16383; else if (v < -16384) v = -16384;
         int e = 0;
-        while (e < 4 && (acc >= (2048 << e) || acc < -(2048 << e))) e++;
-        const int m = acc >> e, c = m & 4095;
-        const double code = ideal[c] + (ladder[c] - ideal[c]) * amount;
-        const double n1 = noise() * MK1.dacNoise * amount, n2 = noise() * MK1.floorNoise * amount;
-        return (code + n1) * std::pow(2.0, e) * (1 + MK1.rangeErr[e] * amount) + n2;
+        while (e < 3 && (v >= (2048 << e) || v < -(2048 << e))) e++;
+        const int c = (v >> e) & 4095;
+        const double code = ideal[c] + (ladder[c] - ideal[c]) * amount + noise() * MK1.dacNoise * amount;
+        return code * std::pow(2.0, e) * (1 + MK1.rangeErr[e] * amount);
+    }
+    double out(double sum, double vol, int idle, double amount) {
+        const double idleNoise = noise() * MK1.dacNoise * amount * std::sqrt((double) idle);
+        return (sum + idleNoise) * vol + noise() * MK1.floorNoise * amount;
     }
 private:
     double ladder[4096], ideal[4096]; uint32_t seed = 0x2545F491u;
@@ -810,9 +818,11 @@ public:
         const int i = blockPos; blockPos = (blockPos + 1) & (N - 1);
         const Alg& alg = algs()[voice[P::ALG]]; const int fbAmt = voice[P::FB];
         const auto& T = tables();
-        int acc = 0;
+        const bool mk1 = func[F::dac] == 0; const double amt = func[F::hiss] / 50.0;
+        int acc = 0, live = 0; double an = 0;
         for (auto& vc : voices) {
             if (!vc.active) continue;
+            live++;
             int sum = 0;
             for (int k = 5; k >= 0; --k) {
                 const int a = vc.att0[k] + (((vc.att1[k] - vc.att0[k]) * i) >> 6);
@@ -833,14 +843,14 @@ public:
                 if (alg.car[k]) sum += y;
                 vc.phase[k] += vc.inc[k];
             }
-            acc += sum;
+            if (mk1) an += dac.voice(sum, amt); else acc += sum;
         }
+        if (mk1) return dac.out(an, volSteps()[(size_t) jsRound(func[F::volume] / 99.0 * 7)], VOICES - live, amt);
         if (acc > 32767) acc = 32767; else if (acc < -32768) acc = -32768;
-        if (func[F::dac] != 0) return acc;
-        return dac.convert(acc, func[F::hiss] / 50.0);
+        return acc;
     }
     void render(float* out, int n) {
-        const double vol = func[F::volume] / 99.0, gain = 2.0 / 32768 * vol * vol * (ctl.volume / 127.0) * (ctl.expression / 127.0);
+        const double vol = func[F::dac] == 0 ? 1.0 : func[F::volume] / 99.0, gain = 2.0 / 32768 * vol * vol * (ctl.volume / 127.0) * (ctl.expression / 127.0);
         for (int j = 0; j < n; ++j) {
             while (rs.count < rs.need) {
                 const double x = dxSample();

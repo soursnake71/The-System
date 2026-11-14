@@ -652,9 +652,11 @@ class Synth {
     if (this.blockPos === 0) this.control();
     const i = this.blockPos; this.blockPos = (this.blockPos + 1) & (N - 1);
     const alg = ALGS[this.voice[P.ALG]], fbAmt = this.voice[P.FB], fbShift = fbAmt ? Math.pow(2, 12 + fbAmt) : 0;
-    let acc = 0;
+    const mk1 = this.func.dac === 0, amt = this.func.hiss / 50, dac = this.dac;
+    let acc = 0, live = 0;
     for (const vc of this.voices){
       if (!vc.active) continue;
+      live++;
       const out = vc.out;
       let sum = 0;
       for (let k = 5; k >= 0; k--){
@@ -676,17 +678,19 @@ class Synth {
         if (alg.car[k]) sum += y;
         vc.phase[k] = (vc.phase[k] + vc.inc[k]) >>> 0;
       }
-      acc += sum;
+      // Mark I: each voice has its own slot on the converter, the slots add up in the analog stage
+      if (mk1) acc += dac.voice(sum, amt); else acc += sum;
     }
-    // the accumulator saturates at 16 bits
+    if (mk1) return dac.out(acc, VOL_STEPS[Math.round(this.func.volume / 99 * 7)], VOICES - live, amt);
+    // clean 16-bit converter: one digital mix that saturates at 16 bits
     if (acc > 32767) acc = 32767; else if (acc < -32768) acc = -32768;
-    if (this.func.dac !== 0) return acc;
-    return this.dac.convert(acc, this.func.hiss / 50);
+    return acc;
   }
   // render n samples at the host rate into out (mono; the hardware has one output)
   render(out, off, n){
     const r = this.rs, bq = this.bq, z = this.zoh;
-    const vol = this.func.volume / 99, gain = 2 / 32768 * vol * vol * (this.ctl.volume / 127) * (this.ctl.expression / 127);
+    // Mark I: the slider picks one of 8 DAC reference voltages (applied in the converter); clean: a smooth slider
+    const vol = this.func.dac === 0 ? 1 : this.func.volume / 99, gain = 2 / 32768 * vol * vol * (this.ctl.volume / 127) * (this.ctl.expression / 127);
     for (let j = 0; j < n; j++){
       while (r.have < r.need){
         const x = this.dxSample();
@@ -706,20 +710,25 @@ class Synth {
 }
 
 /* ---------------- the Mark I converter, analog side included ----------------
- * A 12-bit DAC fed a mantissa, its output scaled by a switched attenuator by 2^e (e = 0..4, picked per sample from the
- * size of the sample): 12 bits of resolution riding on the signal, so the error follows the sound (the crunch).
- * Modeled faults, all fixed per unit like real component tolerances:
- *   - the DAC ladder: each bit's weight a little off (differential nonlinearity, grit on quiet and decaying notes),
- *   - the range attenuator: each 6 dB step a little off, so the waveform jumps where the range switches,
- *   - noise: the DAC and its op-amp (scaled by the range, so it rises and falls with the note) plus the output stage's
- *     own floor (the steady hiss you hear between notes, under the volume slider).
- * `amount` scales the faults: 1 = a typical unit. */
+ * As on the board (service manual; K. Shirriff's die analysis of the OPS chip):
+ *   - the OPS sends the 16 voices to the DAC one after another (16 x 49.096 kHz); each voice's 15-bit sum is shifted
+ *     left until it has two leading zeros (0-3 places) and its top 12 bits go to a 12-bit DAC (BA9221); a resistor
+ *     divider switched by a 4066 divides the result back by 1, 2, 4 or 8 (a floating-point DAC: 12-bit resolution
+ *     riding on each voice), then sample-and-holds and the ~16 kHz Sallen-Key filter add the voices up,
+ *   - the volume slider picks one of 8 reference voltages for the DAC (a 4051), so volume moves in 8 steps and the
+ *     DAC's noise moves with it, while the op-amps after it add a steady floor.
+ * Modeled faults, fixed per unit like real component tolerances: each DAC bit's weight a little off (grit on quiet and
+ * decaying notes), each divider step off by up to about 1 % (1 % metal-film resistors: the decay distorts in four
+ * stages as it passes through the ranges), DAC noise per voice slot divided down with the voice's range (so the
+ * noise follows each note) and the output stage's hiss. `amount` scales the faults: 1 = a typical unit. */
 const MK1 = {
-  bitErr:[0.0011, -0.0007, 0.0005, -0.0004, 0.0003, -0.0002, 0.00015, -0.0001, 0, 0, 0, 0],   // MSB first (fraction of the bit's weight)
-  rangeErr:[0, 0.0045, -0.0035, 0.006, -0.005],          // gain error of each attenuator step
-  dacNoise:0.28,                                          // DAC + op-amp noise, in 12-bit LSBs (rms), before the attenuator
-  floorNoise:1.05                                         // output stage noise, in 16-bit LSBs (rms), after it
+  bitErr:[0.0012, -0.0008, 0.0006, -0.0004, 0.0003, -0.0002, 0.00015, -0.0001, 0, 0, 0, 0],   // MSB first (fraction of the bit's weight)
+  rangeErr:[0, -0.0072, 0.0058, -0.0091],                 // gain error of the divide-by-1/2/4/8 steps (largest step = reference)
+  dacNoise:0.30,                                          // DAC + its op-amp, rms in 12-bit LSBs, per voice slot, before the divider
+  floorNoise:1.05                                         // the output stage, rms in 16-bit LSBs, after the volume
 };
+// the 8 reference voltages the volume slider picks (dB: off, -36, -28, -21, -15, -10, -5, 0)
+const VOL_STEPS = [0, -36, -28, -21, -15, -10, -5, 0].map((d, i) => i ? Math.pow(10, d / 20) : 0);
 class Mk1Dac {
   constructor(){
     // the analog value of every 12-bit code, from the bit weights
@@ -738,13 +747,19 @@ class Mk1Dac {
     for (let i = 0; i < 4; i++){ let x = this.seed; x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; this.seed = x; s += x / 4294967296; }
     return (s - 2) * 1.7320508075688772;
   }
-  convert(acc, amount){
+  // one voice slot: 15-bit sum -> 12-bit code + range, with its noise
+  voice(v, amount){
+    if (v > 16383) v = 16383; else if (v < -16384) v = -16384;
     let e = 0;
-    while (e < 4 && (acc >= (2048 << e) || acc < -(2048 << e))) e++;
-    const m = acc >> e, c = m & 4095;
-    const code = this.ideal[c] + (this.ladder[c] - this.ideal[c]) * amount;
-    const n1 = this.noise() * MK1.dacNoise * amount, n2 = this.noise() * MK1.floorNoise * amount;
-    return (code + n1) * Math.pow(2, e) * (1 + MK1.rangeErr[e] * amount) + n2;
+    while (e < 3 && (v >= (2048 << e) || v < -(2048 << e))) e++;
+    const c = (v >> e) & 4095;
+    const code = this.ideal[c] + (this.ladder[c] - this.ideal[c]) * amount + this.noise() * MK1.dacNoise * amount;
+    return code * Math.pow(2, e) * (1 + MK1.rangeErr[e] * amount);
+  }
+  // the analog sum through the volume reference, plus the silent slots' DAC noise and the output stage's floor
+  out(sum, vol, idle, amount){
+    const idleNoise = this.noise() * MK1.dacNoise * amount * Math.sqrt(idle);
+    return (sum + idleNoise) * vol + this.noise() * MK1.floorNoise * amount;
   }
 }
 
@@ -899,7 +914,7 @@ function freqText(v, op){
   return r.toFixed(2);
 }
 
-const api = {Fx, Mk1Dac, MK1, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
+const api = {Fx, Mk1Dac, MK1, VOL_STEPS, randomVoice, DX_RATE, N, VOICES, ALGS, ALG_DEF, VPARAMS, P, FUNC_DEF, FUNC_BY_NUM, opBase, initVoice, setName, voiceName, clampVoice, packVoice, unpackVoice,
   bankToSysex, voiceToSysex, paramChange, parseSysexFile, parseSysexMessage, checksum, defaultFunc, Synth, Voice, Env, Lfo, PitchEnv, noteName, bpName, CURVES, WAVES,
   freqText, oscLogFreq, phaseInc, makeResampler, LOGSIN, EXPT, VOICE_SIZE};
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
