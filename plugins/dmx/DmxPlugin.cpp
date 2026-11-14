@@ -8,8 +8,8 @@ static juce::String fid(int g) { return "fader" + juce::String(g); }
 
 juce::AudioProcessorValueTreeState::ParameterLayout DmxProcessor::layout() {
     juce::AudioProcessorValueTreeState::ParameterLayout l;
-    const float def[kGroups] = {.8f, .8f, .8f, .8f, .8f, .8f, .8f, .85f};
-    const char* const names[kGroups] = {"Bass", "Snare", "Hi-Hat", "Toms", "Cymbal", "Perc 1", "Perc 2", "Volume"};
+    const float def[kGroups] = {.8f, .8f, .8f, .8f, .8f, .8f, .8f, 0.f, .85f};
+    const char* const names[kGroups] = {"Bass", "Snare", "Hi-Hat", "Toms", "Cymbal", "Perc 1", "Perc 2", "Metronome", "Volume"};
     for (int g = 0; g < kGroups; ++g)
         l.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID(fid(g), 1), names[g], juce::NormalisableRange<float>(0.f, 1.f), def[g]));
     return l;
@@ -70,7 +70,7 @@ void DmxProcessor::getStateInformation(juce::MemoryBlock& out) {
     juce::XmlElement x("OmegaDMX");
     x.addChildElement(st.createXml().release());
     Locked l(engine.lock);
-    x.setAttribute("kit", engine.kit); x.setAttribute("tempo", engine.tempo); x.setAttribute("swing", engine.swing); x.setAttribute("click", engine.click);
+    x.setAttribute("kit", engine.kit); x.setAttribute("tempo", engine.tempo); x.setAttribute("swing", engine.swing);
     for (int k = 0; k < kKits; ++k) {
         auto* kx = x.createNewChildElement("Kit");
         kx->setAttribute("id", kKitDefs[k].id); kx->setAttribute("pattern", engine.cur[(size_t) k]); kx->setAttribute("useSong", engine.useSong[(size_t) k]);
@@ -92,7 +92,7 @@ void DmxProcessor::setStateInformation(const void* data, int size) {
     if (auto* p = x->getChildByName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*p));
     Locked l(engine.lock);
     engine.kit = juce::jlimit(0, kKits - 1, x->getIntAttribute("kit", 0)); engine.tempo = x->getDoubleAttribute("tempo", 112);
-    engine.swing = x->getIntAttribute("swing", 50); engine.click = x->getBoolAttribute("click", false);
+    engine.swing = x->getIntAttribute("swing", 50);
     for (auto* kx : x->getChildWithTagNameIterator("Kit")) {
         int k = -1; for (int i = 0; i < kKits; ++i) if (kx->getStringAttribute("id") == kKitDefs[i].id) k = i;
         if (k < 0) continue;

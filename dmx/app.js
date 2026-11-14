@@ -9,8 +9,9 @@ const VEL = [0, .72, 1];                  // step value 1 = hit, 2 = accent
 const KEY = 'omega-dmx-v1';
 
 /* ---------------- state (saved) ---------------- */
-const S = Object.assign({kit:'dmx', tempo:112, swing:50, click:false, fader:{bass:.8, snare:.8, hat:.8, toms:.8, cym:.8, perc1:.8, perc2:.8, vol:.85},
-  pat:{}, pats:{}, names:{}, song:{}, useSong:{}}, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } })());
+const FADER0 = {bass:.8, snare:.8, hat:.8, toms:.8, cym:.8, perc1:.8, perc2:.8, met:0, vol:.85};   // metronome down: no click
+const S = Object.assign({kit:'dmx', tempo:112, swing:50, pat:{}, pats:{}, names:{}, song:{}, useSong:{}, edit:false}, (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } })());
+S.fader = Object.assign({}, FADER0, S.fader); delete S.click;
 let saveT = 0;
 function save(){ clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }, 300); }
 const kit = () => DMX_KITS.find(k => k.id === S.kit) || DMX_KITS[0];
@@ -29,7 +30,7 @@ function ensureAudio(){
   if (R.ctx){ if (R.ctx.state !== 'running') R.ctx.resume(); return R.ctx; }
   const C = window.AudioContext || window.webkitAudioContext; R.ctx = new C({latencyHint:'interactive'});
   R.out = R.ctx.createGain(); R.out.connect(R.ctx.destination);
-  for (const [g] of DMX_FADERS) if (g !== 'vol'){ R.groups[g] = R.ctx.createGain(); R.groups[g].connect(R.out); }
+  for (const [g] of DMX_FADERS) if (g !== 'vol' && g !== 'met'){ R.groups[g] = R.ctx.createGain(); R.groups[g].connect(R.out); }
   levels(); return R.ctx;
 }
 // fader to gain: the same curve in the plugin
@@ -50,7 +51,9 @@ function hit(c, dest, open, k, bufs, vi, when, vel){
   const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; g.gain.value = vel; s.connect(g); g.connect(dest[v[2]] || dest.vol); s.start(when);
   if (isOpen(v)){ const o = {s, g}; open.push(o); s.onended = () => { const i = open.indexOf(o); if (i >= 0) open.splice(i, 1); }; }
 }
-function clickAt(c, dest, when, down){ const o = c.createOscillator(), g = c.createGain(); o.frequency.value = down ? 1800 : 1200; g.gain.setValueAtTime(.25, when); g.gain.exponentialRampToValueAtTime(.001, when + .03); o.connect(g); g.connect(dest); o.start(when); o.stop(when + .04); }
+// the metronome: its own fader, straight to the output (the plugin does the same)
+const clickOn = () => S.fader.met > .02;
+function clickAt(c, dest, when, down){ const o = c.createOscillator(), g = c.createGain(); o.frequency.value = down ? 1800 : 1200; g.gain.setValueAtTime(.3 * fgain(S.fader.met), when); g.gain.exponentialRampToValueAtTime(.001, when + .03); o.connect(g); g.connect(dest); o.start(when); o.stop(when + .04); }
 
 /* ---------------- sequencer ---------------- */
 const stepDur = () => 60 / S.tempo / 4;
@@ -69,7 +72,7 @@ function scheduler(){
     if (R.step === 16){ R.step = 0; R.play = nextPattern(); paint(); }
     const p = pats()[R.play], t = R.nextT + swingOff(R.step);
     p.rows.forEach((row, vi) => { if (row[R.step] && vi < k.voices.length) hit(c, R.groups, R.open, k, bufs, vi, t, VEL[row[R.step]]); });
-    if (S.click && R.step % 4 === 0) clickAt(c, R.out, t, R.step === 0);
+    if (clickOn() && R.step % 4 === 0) clickAt(c, c.destination, t, R.step === 0);
     R.q.push({t, step:R.step, pat:R.play}); if (R.q.length > 64) R.q.shift();
     R.step++; R.nextT += stepDur();
   }
@@ -121,12 +124,11 @@ function msg(){
 function paint(){
   $('#digits').textContent = led(); $('#msg').textContent = msg();
   $('#play').classList.toggle('on', R.playing);
-  $('#clickBtn').classList.toggle('on', S.click); $('#kitBtn').textContent = 'KIT: ' + kit().name;
+  $('#dmx').classList.toggle('edit', !!S.edit);
   document.querySelectorAll('#pad button[data-n]').forEach(b => { const n = +b.dataset.n; b.classList.toggle('on', n === curPat() && !R.mode); b.classList.toggle('used', pats()[n].rows.some(r => r.some(x => x))); });
-  const fk = {swing:R.mode === 'swing', song:R.mode === 'song' || !!(S.useSong[S.kit] && song().length), copy:R.mode === 'copy', tempo:R.mode === 'tempo', rec:R.rec, clear:!!R.clearArm};
-  document.querySelectorAll('#fn .key').forEach(b => b.classList.toggle('on', !!fk[b.dataset.f]));
-  document.querySelectorAll('#keys .key[data-v]').forEach(b => b.classList.toggle('on', +b.dataset.v === R.sel));
-  $('#accKey').classList.toggle('on', R.acc);
+  const fk = {swing:R.mode === 'swing', song:R.mode === 'song' || !!(S.useSong[S.kit] && song().length), copy:R.mode === 'copy', tempo:R.mode === 'tempo', rec:R.rec, clear:!!R.clearArm, edit:!!S.edit, acc:R.acc};
+  document.querySelectorAll('#fn .key, #small .key').forEach(b => b.classList.toggle('on', !!fk[b.dataset.f]));
+  document.querySelectorAll('#mat .key[data-v]').forEach(b => b.classList.toggle('on', +b.dataset.v === R.sel));
   paintGrid();
 }
 function buildGrid(){
@@ -137,7 +139,7 @@ function buildGrid(){
   g.onpointerdown = e => {
     const i = e.target.closest('.row i'), r = e.target.closest('.row'); if (!r) return;
     const vi = +r.dataset.v; R.sel = vi;
-    if (!i){ holdRename(e, vi); paint(); return; }
+    if (!i){ play(vi, VEL[R.acc ? 2 : 1]); holdRename(e, vi); paint(); return; }
     const p = pats()[R.playing ? R.play : curPat()], s = +i.dataset.s, want = R.acc ? 2 : 1;
     paintV = p.rows[vi][s] === want ? 0 : want; p.rows[vi][s] = paintV; g._row = vi; save(); paint();
     if (paintV && !R.playing) play(vi, VEL[paintV]);
@@ -172,14 +174,15 @@ function buildFaders(){
   });
 }
 function posFader(sl){ const v = S.fader[sl.dataset.g], cap = sl.firstElementChild; cap.style.top = `calc(8px + (100% - 16px) * ${1 - v})`; sl.setAttribute('aria-valuenow', Math.round(v * 100)); }
-function buildKeys(){
-  const k = kit();
-  $('#keys').innerHTML = k.voices.map((v, vi) => `<button class="key" data-v="${vi}"><i></i><span>${vname(vi).toUpperCase()}</span></button>`).join('') + `<button class="key red" id="accKey"><i></i><span>ACCENT</span></button>`;
-  document.querySelectorAll('#keys .key[data-v]').forEach(b => {
+// the voice keys in columns under their fader groups, three to a column, as on the hardware
+function buildMat(){
+  const k = kit(), groups = DMX_FADERS.filter(([g]) => g !== 'met' && g !== 'vol');
+  $('#mat').innerHTML = groups.map(([g, n]) => { const vs = k.voices.map((v, vi) => [v, vi]).filter(([v]) => v[2] === g); if (!vs.length) return '';
+    return `<div class="grp" style="flex:${Math.ceil(vs.length / 3)}"><b>${n}</b><div class="cols">${vs.map(([v, vi]) => `<button class="key" data-v="${vi}"><i></i><span>${vname(vi)}</span></button>`).join('')}</div></div>`; }).join('');
+  document.querySelectorAll('#mat .key[data-v]').forEach(b => {
     const vi = +b.dataset.v;
     b.addEventListener('pointerdown', e => { e.preventDefault(); R.sel = vi; play(vi, VEL[R.acc ? 2 : 1]); holdRename(e, vi); paint(); });
   });
-  $('#accKey').addEventListener('pointerdown', e => { e.preventDefault(); R.acc = !R.acc; paint(); });
 }
 let holdT = 0;
 function holdRename(e, vi){
@@ -220,14 +223,21 @@ function keypad(k){
   if (R.playing){ R.queued = to; } else S.pat[S.kit] = to;
   save(); paint();
 }
-const FN = [['swing', 'SWING'], ['song', 'SONG'], ['copy', 'COPY'], ['tempo', 'TEMPO'], ['rec', 'RECORD'], ['erase', 'ERASE'], ['clear', 'CLEAR'], ['factory', 'FACTORY']];
+// bottom right as on the hardware (SWING SONG EDIT … / RECORD ERASE COPY …); TEMPO, ACCENT and FACTORY sit by the keypad
+const FN = [['swing', 'SWING'], ['song', 'SONG'], ['edit', 'EDIT'], ['kit', 'KIT'], ['rec', 'RECORD'], ['erase', 'ERASE'], ['copy', 'COPY'], ['clear', 'CLEAR']];
+const SMALL = [['tempo', 'TEMPO'], ['acc', 'ACCENT'], ['factory', 'FACTORY']];
 function buildFn(){
-  $('#fn').innerHTML = FN.map(([f, n]) => `<button class="key${f === 'rec' ? ' red' : ''}" data-f="${f}"><i></i><span>${n}</span></button>`).join('');
-  $('#fn').addEventListener('pointerdown', e => { const b = e.target.closest('.key'); if (!b) return; e.preventDefault(); fn(b.dataset.f); });
+  const k = ([f, n]) => `<button class="key${f === 'rec' ? ' red' : ''}" data-f="${f}"><i></i><span>${n}</span></button>`;
+  $('#fn').innerHTML = `<div class="hdr">CHECK · PLAY · RECORD</div>` + FN.map(k).join('') + `<div class="brand">Omega</div>`;
+  $('#small').innerHTML = SMALL.map(k).join('');
+  for (const box of [$('#fn'), $('#small')]) box.addEventListener('pointerdown', e => { const b = e.target.closest('.key'); if (!b) return; e.preventDefault(); fn(b.dataset.f); });
 }
 function fn(f){
   const ps = pats(), p = ps[curPat()];
   if (f !== 'clear') R.clearArm = 0;
+  if (f === 'acc'){ R.acc = !R.acc; paint(); return; }
+  if (f === 'kit'){ kitDialog(); return; }
+  if (f === 'edit'){ S.edit = !S.edit; save(); paint(); return; }
   if (f === 'swing'){ if (R.mode === 'swing') S.swing = SWINGS[(SWINGS.indexOf(S.swing) + 1) % SWINGS.length]; R.mode = 'swing'; save(); }
   else if (f === 'tempo'){ R.mode = R.mode === 'tempo' ? '' : 'tempo'; R.typed = ''; }
   else if (f === 'copy') R.mode = R.mode === 'copy' ? '' : 'copy';
@@ -243,7 +253,7 @@ function fn(f){
   } else if (f === 'factory'){ ps[curPat()] = dmxFactory(kit(), curPat()); save(); toast('Factory pattern: ' + ps[curPat()].name); }
   paint();
 }
-function rebuild(){ buildGrid(); buildKeys(); paint(); }
+function rebuild(){ buildGrid(); buildMat(); paint(); }
 
 /* ---------------- kits ---------------- */
 function kitDialog(){
@@ -264,7 +274,7 @@ async function exportWav(){
   const order = useSong ? sg : [curPat(), curPat(), curPat(), curPat()], dur = order.length * 16 * stepDur() + 2;
   const c = new OfflineAudioContext(2, Math.ceil(dur * sr), sr), out = c.createGain(), groups = {}, open = [];
   out.gain.value = fgain(S.fader.vol); out.connect(c.destination);
-  for (const [g] of DMX_FADERS) if (g !== 'vol'){ groups[g] = c.createGain(); groups[g].gain.value = fgain(S.fader[g]); groups[g].connect(out); }
+  for (const [g] of DMX_FADERS) if (g !== 'vol' && g !== 'met'){ groups[g] = c.createGain(); groups[g].gain.value = fgain(S.fader[g]); groups[g].connect(out); }
   let t = .02;
   for (const pi of order) for (let s = 0; s < 16; s++, t += stepDur()){ const row = pats()[pi].rows; row.forEach((r, vi) => { if (r[s]) hit(c, groups, open, k, bufs, vi, t + swingOff(s), VEL[r[s]]); }); }
   toast('Rendering…', 900);
@@ -300,7 +310,7 @@ function scheduler1(){
   if (R.step === 16){ R.step = 0; R.play = nextPattern(); paint(); }
   const p = pats()[R.play], t = R.nextT;
   p.rows.forEach((row, vi) => { if (row[R.step]) hit(c, R.groups, R.open, k, bufs, vi, t, VEL[row[R.step]]); });
-  if (S.click && R.step % 4 === 0) clickAt(c, R.out, t, R.step === 0);
+  if (clickOn() && R.step % 4 === 0) clickAt(c, c.destination, t, R.step === 0);
   R.q.push({t, step:R.step, pat:R.play}); if (R.q.length > 64) R.q.shift(); R.step++;
 }
 function hookMidi(){
@@ -312,7 +322,7 @@ function hookMidi(){
 function fit(){
   const W = innerWidth, H = innerHeight, el = $('#dmx'), land = W > H * 1.05;
   el.classList.toggle('land', land); el.classList.toggle('port', !land);
-  const w = land ? 1280 : 720, h = land ? 720 : 1360, s = Math.min(W / w, H / h);
+  const w = land ? 1280 : 720, h = land ? 720 : 1380, s = Math.min(W / w, H / h);
   el.style.transform = `translate(${(W - w * s) / 2}px, ${(H - h * s) / 2}px) scale(${s})`;
 }
 
@@ -320,8 +330,6 @@ function fit(){
 buildFaders(); buildPad(); buildFn(); rebuild(); fit();
 addEventListener('resize', fit); addEventListener('orientationchange', () => setTimeout(fit, 200));
 $('#play').addEventListener('pointerdown', e => { e.preventDefault(); if (R.playing) stop(); else start(); });
-$('#kitBtn').addEventListener('click', kitDialog);
-$('#clickBtn').addEventListener('click', () => { S.click = !S.click; save(); paint(); });
 $('#exportBtn').addEventListener('click', exportWav);
 $('#helpBtn').addEventListener('click', () => $('#helpDlg').showModal());
 document.querySelectorAll('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));

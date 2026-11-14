@@ -18,7 +18,7 @@ namespace dmx {
 inline float fgain(float v) { return v * v * 1.25f; }       // fader position to gain, as in the app
 constexpr float kVel[3] = {0.f, .72f, 1.f};                  // step value: off, hit, accent
 constexpr int kSwings[6] = {50, 54, 58, 62, 66, 71};
-constexpr int kVol = kGroups - 1;                            // the last fader is the master volume
+constexpr int kVol = kGroups - 1, kMet = kGroups - 2;       // the last two faders: the metronome (down = no click) and the master volume
 
 struct Sample { std::vector<float> d; double sr = 44100; };
 
@@ -82,8 +82,8 @@ public:
     std::array<std::vector<int>, kKits> song;
     std::array<bool, kKits> useSong {};
     std::array<std::array<std::string, kMaxVoices>, kKits> names;
-    float fader[kGroups] = {.8f, .8f, .8f, .8f, .8f, .8f, .8f, .85f};
-    double tempo = 112; int swing = 50; bool click = false;
+    float fader[kGroups] = {.8f, .8f, .8f, .8f, .8f, .8f, .8f, 0.f, .85f};
+    double tempo = 112; int swing = 50;
     // ---- panel ----
     int sel = 0; bool acc = false, rec = false; std::string mode, typed; int clearArm = 0;
     std::string toast;                                        // a message for the panel to show (message thread)
@@ -141,7 +141,7 @@ public:
         for (int g = 0; g < kGroups; ++g) {
             const float to = fgain(fader[g]), from = gNow[g]; gNow[g] = to;
             const float* b = bus[(size_t) g].data();
-            if (g == kVol) continue;
+            if (g == kVol || g == kMet) continue;
             for (int i = 0; i < n; ++i) L[i] += b[i] * (from + (to - from) * (float) i / (float) n);
         }
         const float vFrom = vNow, vTo = fgain(fader[kVol]); vNow = vTo;
@@ -238,7 +238,7 @@ private:
         if (bar != lastBar || started) { playing = patternForBar(bar); lastBar = bar; started = false; }
         const Pattern& P = pats[(size_t) kit][(size_t) playing];
         for (int v = 0; v < voices(); ++v) if (P.rows[v][s]) start(v, kVel[P.rows[v][s]], offset);
-        if (click && s % 4 == 0) startClick(s == 0, offset);
+        if (fader[kMet] > .02f && s % 4 == 0) startClick(s == 0, offset);
         nowStep = s; nowPattern = playing;
     }
     void recordAt(const Hit& h, double ppq) {
@@ -255,7 +255,7 @@ private:
         if (def.group == 2 && !def.open) for (auto& v : vs) if (v.on && v.open && v.chokeAt < 0) v.chokeAt = offset;   // a closed hat cuts the open one
         Voice* v = freeVoice(); *v = Voice(); v->s = &smp[(size_t) vi]; v->inc = v->s->sr / sr; v->gain = vel; v->group = def.group; v->open = def.open; v->on = true; v->startAt = offset;
     }
-    void startClick(bool down, int offset) { Voice* v = freeVoice(); *v = Voice(); v->s = down ? &clickHi : &clickLo; v->inc = v->s->sr / sr; v->gain = .25f; v->group = kVol; v->on = true; v->startAt = offset; }
+    void startClick(bool down, int offset) { Voice* v = freeVoice(); *v = Voice(); v->s = down ? &clickHi : &clickLo; v->inc = v->s->sr / sr; v->gain = .3f * fgain(fader[kMet]); v->group = kVol; v->on = true; v->startAt = offset; }
     void renderVoice(Voice& v, int n) {
         float* out = bus[(size_t) v.group].data(); const auto& d = v.s->d; const double len = (double) d.size() - 1;
         const float fadeStep = 1.f / (float) std::max(1.0, sr * .012);   // the choke: about 12 ms down (the app's 4 ms time constant)

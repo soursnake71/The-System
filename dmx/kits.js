@@ -25,8 +25,8 @@ const DMX_KITS = [
     ['tom-hi', 'Tom Hi', 'toms', 'T1'], ['tom-mid', 'Tom Mid', 'toms', 'T2'], ['tom-lo', 'Tom Lo', 'toms', 'T3'], ['tom-floor', 'Tom Floor', 'toms', 'T4'],
     ['ride-bell', 'Ride Bell', 'cym', 'RD'], ['cowbell', 'Cowbell', 'perc1', 'CB'], ['bell', 'Bell', 'perc1', ''], ['shaker', 'Shaker', 'perc2', 'SH'], ['tambourine', 'Tambourine', 'perc2', 'TB']]}];
 
-// the faders, left to right, as on the hardware (Metronome left out: the click is a key here)
-const DMX_FADERS = [['bass', 'BASS'], ['snare', 'SNARE'], ['hat', 'HI-HAT'], ['toms', 'TOMS'], ['cym', 'CYMBAL'], ['perc1', 'PERC 1'], ['perc2', 'PERC 2'], ['vol', 'VOLUME']];
+// the faders, left to right, as on the hardware: seven voice groups, the metronome (down = no click) and the master volume
+const DMX_FADERS = [['bass', 'BASS'], ['snare', 'SNARE'], ['hat', 'HI-HAT'], ['toms', 'TOMS'], ['cym', 'CYMBAL'], ['perc1', 'PERC 1'], ['perc2', 'PERC 2'], ['met', 'METRONOME'], ['vol', 'VOLUME']];
 
 // ten factory patterns, 16 steps: x = hit, X = accent. A role a kit lacks falls back (HM to CH, CR to RD, CB to RS, T3 to T2 ...)
 const DMX_PATTERNS = [

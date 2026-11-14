@@ -30,7 +30,7 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
 ## Omega DMX (`/dmx/`): digital drum machine
-A drum machine laid out like the DMX: eight faders (Bass, Snare, Hi-Hat, Toms, Cymbal, Perc 1, Perc 2, Volume), a red LED display, square voice keys, a 0–9 keypad and a white Play / Stop.
+A drum machine laid out like the DMX: nine faders (Bass, Snare, Hi-Hat, Toms, Cymbal, Perc 1, Perc 2, Metronome, Volume), the red LED window and power switch, the voice keys in columns under their groups, the 0–9 keypad, the white Play / Stop and the function keys. EDIT swaps the keys for the pattern's steps as red lights.
 - Four kits: real DMX recordings, plus Kit A, Kit B and Kit C from your own sample sets (the numbered sounds in Kit B and Kit C were named by ear: long-press a voice to rename it).
 - Ten patterns per kit (16 steps, accents), picked on the keypad and switched at the end of the bar; song mode, copy, swing 50–71%, tempo typed on the keypad, live record, click.
 - MIDI in: General MIDI drum notes and every voice from C3 up, MIDI clock and start / stop. WAV export.
