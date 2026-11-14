@@ -35,7 +35,7 @@ A drum machine laid out like the DMX: eight faders (Bass, Snare, Hi-Hat, Toms, C
 - Ten patterns per kit (16 steps, accents), picked on the keypad and switched at the end of the bar; song mode, copy, swing 50–71%, tempo typed on the keypad, live record, click.
 - MIDI in: General MIDI drum notes and every voice from C3 up, MIDI clock and start / stop. WAV export.
 - Android app: the `omega-dmx` release (`omega-dmx.apk`, built by `.github/workflows/dmx-release.yml`). Web: `https://<your-username>.github.io/<repo>/dmx/`.
-- VST3 / AU instrument and standalone app (Windows, Mac, Linux installers in the `omega-dmx` release): the same kits, patterns and panel; it follows the host's transport. The engine is `plugins/dmx/DmxEngine.h`; the kits and patterns come from `dmx/kits.js` (`node dmx/tools/gen.mjs`), and `dmx_test` checks the engine.
+- VST3 / AU instrument and standalone app (Windows, Mac, Linux installers in the `omega-dmx` release): the same kits, patterns and panel; it follows the host's transport. The engine is `plugins/dmx/DmxEngine.h`; the kits and patterns come from `dmx/kits.js` (`node dmx/tools/gen.mjs`), and `dmx_test` checks the engine, `dmx_proc_test` the processor and panel, `dmx_host_test` the built VST3 in a host.
 
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.

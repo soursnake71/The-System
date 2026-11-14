@@ -176,3 +176,11 @@ endif()
 
 # DmxEngine.h on its own: <build>/dmx_test <repo>/dmx/kits
 add_executable(dmx_test dmx/test.cpp)
+# the processor and panel without a host (embedded kits, a pattern, a picture of the panel): <build>/dmx_proc_test <dir>
+if(TARGET OmegaDMX)
+  juce_add_console_app(dmx_proc_test PRODUCT_NAME "dmx_proc_test")
+  target_sources(dmx_proc_test PRIVATE dmx/proctest.cpp dmx/DmxPlugin.cpp dmx/DmxEditor.cpp)
+  target_compile_definitions(dmx_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega DMX")
+  target_link_libraries(dmx_proc_test PRIVATE OmegaDmxData juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(dmx_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
