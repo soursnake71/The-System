@@ -85,7 +85,9 @@ foreach(entry ${OMEGA_PLUGINS})
 endforeach()
 
 # a plain C++ test runner for the DSP engines (no JUCE), used by tools/check
-add_executable(omega_dsp_test tools/dsp_test.cpp)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/dsp_test.cpp)
+  add_executable(omega_dsp_test tools/dsp_test.cpp)
+endif()
 
 # Omega Twelve: the 12-bit sampler emulator (twelve/ in the app). Two builds from one source: an effect that also
 # plays samples from MIDI (plus a standalone app), and an instrument for hosts that only send MIDI to instruments.
@@ -129,7 +131,9 @@ foreach(variant "Twelve|Omega Twelve|Otw1|0" "TwelveInst|Omega Twelve Instrument
 endforeach()
 
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
-add_executable(twelve_test twelve/test.cpp)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/twelve/test.cpp)
+  add_executable(twelve_test twelve/test.cpp)
+endif()
 
 # drives the Twelve processor directly (sampler, MIDI, exports, analysis): <build>/twelve_proc_test <dir>
 if(TARGET OmegaTwelve)
