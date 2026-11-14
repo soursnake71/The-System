@@ -32,7 +32,7 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
-    juce::AudioProcessorValueTreeState apvts;   // the eight faders, automatable
+    juce::AudioProcessorValueTreeState apvts;   // the nine faders, automatable
     Engine engine;
     void setFader(int g, float v);
 private:

@@ -1,5 +1,5 @@
 /* Omega DMX: a digital drum machine laid out like the DMX. Kits are real recordings (kits.js); 10 patterns per kit of
-   16 steps with accents, song mode, swing, live record, eight faders, MIDI in (notes, clock, start / stop) and WAV export.
+   16 steps with accents, song mode, swing, live record, nine faders, MIDI in (notes, clock, start / stop) and WAV export.
    The plugin (plugins/dmx) plays the same kits and patterns with the same timing, levels and choke. */
 'use strict';
 const $ = s => document.querySelector(s);
