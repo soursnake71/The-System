@@ -98,10 +98,10 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .brand{grid-column:1 / -1; justify-self:end; align-self:end; font:italic 900 26px/1 Arial, sans-serif; display:flex; align-items:center; gap:8px; letter-spacing:-.01em}
 .brand::before{content:""; width:24px; height:24px; border-radius:50%; background:radial-gradient(circle at 40% 40%, #fff 0 20%, #bbb 22% 45%, #222 48%); border:1px solid #ddd}
 /* info: what the LED can't say, and the extras, printed small */
-.info{grid-area:info; display:flex; flex-direction:column; justify-content:flex-end; gap:8px; min-width:0}
+.info{grid-area:info; display:flex; flex-direction:column; justify-content:flex-end; gap:6px; min-width:0}
 .msg{font:700 12px var(--cond); letter-spacing:.14em; color:#cfd3dc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-transform:uppercase}
-.links{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
-.links button{font:700 11px var(--cond); letter-spacing:.12em; padding:6px 9px; border:1px solid #000; border-radius:2px; background:linear-gradient(180deg, #34353a, #1b1c20); box-shadow:0 2px 0 #000}
+.links{display:grid; grid-template-columns:repeat(3, 1fr); gap:5px}.msgrow{display:flex; align-items:center; gap:6px; min-width:0}.msgrow .msg{flex:1}.midil{font:700 10px var(--cond); letter-spacing:.1em; color:var(--dim); white-space:nowrap}
+.links button{font:800 10px var(--cond); letter-spacing:.04em; padding:6px 2px; white-space:nowrap; border:1px solid #000; border-radius:2px; background:linear-gradient(180deg, #34353a, #1b1c20); box-shadow:0 2px 0 #000}
 .links button.on{color:var(--led)}.links span{font:700 11px var(--cond); letter-spacing:.12em; color:var(--dim)}
 .midi{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ledOff); margin-left:5px; vertical-align:middle}.midi.on{background:var(--led); box-shadow:0 0 6px var(--led)}
 dialog{background:#141519; color:var(--print); border:1px solid #444; border-radius:6px; max-width:min(92vw, 540px); font:15px/1.45 var(--cond)}
@@ -112,6 +112,36 @@ dialog button.b{padding:8px 14px; border:1px solid #000; border-radius:3px; back
 dialog input{width:100%; font:inherit; padding:8px; background:#000; color:#fff; border:1px solid #555; border-radius:3px}
 .kitlist button{display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:6px; border:1px solid #000; border-radius:3px; background:linear-gradient(180deg, #3c3d42, #1d1e22)}
 .kitlist button.on{outline:2px solid var(--led)}.kitlist small{display:block; color:var(--dim)}
+/* the Omega pages (as on the Omega 110 and Omega Traks): over the keys, keypad and the keys by it */
+.pages{display:grid; grid-template-columns:repeat(3, 1fr); gap:5px}
+.pages button{font:800 10px var(--cond); letter-spacing:.06em; padding:6px 2px; border:1px solid #000; border-radius:2px; background:linear-gradient(180deg, #2c2d33, #17181b); box-shadow:0 2px 0 #000; white-space:nowrap}
+.pages button.on{color:var(--led); box-shadow:0 2px 0 #000, 0 0 0 1px #ff3a2a}
+.page{display:none; position:relative; z-index:3; background:linear-gradient(180deg, rgba(14,15,19,.97), rgba(8,8,10,.97)); border:2px solid #000; border-radius:3px; box-shadow:inset 0 0 0 1px #2a2c33; padding:8px 12px; flex-direction:column; gap:6px; min-height:0; overflow:hidden}
+.land .page{grid-row:2; grid-column:1 / -1}.port .page{grid-row:3 / 5; grid-column:1 / -1}
+.dmx.paged .page{display:flex}
+.land.paged .mat, .land.paged .grid, .land.paged .small, .land.paged .pad, .port.paged .mat, .port.paged .grid, .port.paged .small{visibility:hidden}
+.phead{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.phead > b{font:900 14px var(--cond); letter-spacing:.18em; color:var(--led); margin-right:6px}
+.phead > i{font:700 11px var(--cond); color:var(--dim); font-style:normal; letter-spacing:.06em}
+.cards{display:flex; gap:4px; flex-wrap:wrap}
+.cards button, .pbtn{font:800 10px var(--cond); letter-spacing:.06em; padding:5px 7px; border:1px solid #000; border-radius:2px; background:linear-gradient(180deg, #34353a, #1b1c20); box-shadow:0 2px 0 #000; white-space:nowrap}
+.cards button.on, .pbtn.on{color:var(--led); box-shadow:0 2px 0 #000, 0 0 0 1px #ff3a2a}
+.cards button.none{opacity:.35}
+.pbody{flex:1; display:flex; flex-wrap:wrap; align-content:flex-start; gap:6px 14px; min-height:0}
+.sec{display:flex; flex-direction:column; gap:4px}
+.sec > h5{margin:0; font:800 10px var(--cond); letter-spacing:.16em; color:var(--dim); border-bottom:1px solid #3a3d45; padding-bottom:2px}
+.sec > div{display:flex; flex-wrap:wrap; gap:4px 8px}
+.kn{width:62px; display:flex; flex-direction:column; align-items:center; gap:1px; touch-action:none; cursor:ns-resize}
+.kn svg{width:40px; height:40px}
+.kn b{font:800 9px var(--cond); letter-spacing:.04em; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.kn span{font:700 10px var(--mono); color:#ff6a5a; white-space:nowrap}
+.tg{width:62px; display:flex; flex-direction:column; align-items:center; gap:3px; font:800 9px var(--cond)}
+.tg i{width:34px; height:20px; border-radius:2px; border:1px solid #000; background:linear-gradient(180deg, #46474d, #1d1e22); box-shadow:0 2px 0 #000}
+.tg.on i{background:linear-gradient(180deg, #e0281c, #8e0f08); box-shadow:0 2px 0 #000, 0 0 8px rgba(255,40,30,.6)}
+.plist{display:grid; grid-template-columns:repeat(5, 1fr); gap:4px; width:100%}
+.port .plist{grid-template-columns:repeat(3, 1fr)}
+.plist button{font:700 11px var(--cond); text-align:left; padding:6px 7px; border:1px solid #000; border-radius:2px; background:linear-gradient(180deg, #2c2d33, #17181b); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.plist button.on{color:var(--led); outline:1px solid #ff3a2a}
 #toast{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:rgba(20,0,0,.92); color:#ffd0c8; border:1px solid #ff3a2a; padding:8px 14px;
   border-radius:4px; font:700 14px var(--cond); letter-spacing:.06em; opacity:0; transition:opacity .2s; pointer-events:none; z-index:9; max-width:90vw; text-align:center}
 #toast.on{opacity:1}
@@ -126,8 +156,10 @@ dialog input{width:100%; font:inherit; padding:8px; background:#000; color:#fff;
   <div class="grid" id="grid"></div>
   <div class="small" id="small"></div>
   <div class="pad" id="pad" role="group" aria-label="Keypad"></div>
-  <div class="info"><div class="msg" id="msg"></div>
-    <div class="links"><button id="circBtn">CIRCUIT</button><button id="exportBtn">EXPORT WAV</button><button id="helpBtn">HELP</button><span>MIDI<i class="midi" id="midiLed"></i></span></div></div>
+  <div class="info"><div class="msgrow"><div class="msg" id="msg"></div><span class="midil">MIDI<i class="midi" id="midiLed"></i></span></div>
+    <div class="pages" id="pageBtns"></div>
+    <div class="links"><button id="circBtn">CIRCUIT</button><button id="exportBtn">EXPORT</button><button id="helpBtn">HELP</button></div></div>
+  <div class="page" id="page"></div>
   <button class="play" id="play"><i></i>PLAY / STOP</button>
   <div class="fn" id="fn"></div>
 </div></div>
@@ -149,6 +181,9 @@ dialog input{width:100%; font:inherit; padding:8px; background:#000; color:#fff;
 <div id="toast"></div>
 <script src="kits.js"></script>
 <script src="circuit.js"></script>
+<script src="fx.js"></script>
+<script src="engine.js"></script>
+<script src="presets.js"></script>
 <script src="io.js"></script>
 <script src="app.js"></script>
 </body>

@@ -24,67 +24,69 @@ const curPat = () => S.pat[S.kit] || 0;
 const song = () => S.song[S.kit] || (S.song[S.kit] = []);
 const vname = (i, k = kit()) => ((S.names[k.id] || {})[i]) || k.voices[i][1];
 
-/* ---------------- audio ---------------- */
-const R = {ctx:null, out:null, groups:{}, bufs:{}, src:{}, roms:{}, playing:false, step:0, nextT:0, timer:0, q:[], play:null, queued:-1, songPos:0, open:[], ext:null, sel:0, acc:false, rec:false, mode:'', typed:'', clearArm:0};
+/* ---------------- audio: the engine (engine.js) in an AudioWorklet ---------------- */
+const R = {ctx:null, node:null, ready:null, bufs:{}, src:{}, roms:{}, meter:[], playing:false, step:0, nextT:0, timer:0, q:[], play:null, queued:-1, songPos:0, ext:null, sel:0, acc:false, rec:false, mode:'', typed:'', clearArm:0};
+const GROUPS = DMX_FADERS.slice(0, 7).map(f => f[0]);
+// the sound parameters (engine.js PARAMS): VOICE MOD, the Omega controls, pad EQ / ADSR, effects and master
+S.params = Array.isArray(S.params) && S.params.length === DMXE.PARAMS.length ? S.params : DMXE.defaults();
 function ensureAudio(){
   if (R.ctx){ if (R.ctx.state !== 'running') R.ctx.resume(); return R.ctx; }
   const C = window.AudioContext || window.webkitAudioContext; R.ctx = new C({latencyHint:'interactive'});
-  R.out = R.ctx.createGain(); R.out.connect(R.ctx.destination);
-  for (const [g] of DMX_FADERS) if (g !== 'vol' && g !== 'met'){ R.groups[g] = R.ctx.createGain(); R.groups[g].connect(R.out); }
-  levels(); return R.ctx;
+  R.ready = (async () => {
+    for (const f of ['fx.js', 'engine.js', 'worklet.js']) await R.ctx.audioWorklet.addModule(f);
+    R.node = new AudioWorkletNode(R.ctx, 'dmx', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
+    R.node.connect(R.ctx.destination);
+    R.node.port.onmessage = ({data:x}) => { if (x.type === 'meter') R.meter = x.m; };
+    post({type:'params', p:S.params}); post({type:'tempo', bpm:S.tempo}); levels(); if (R.bufs[kit().id]) sendSounds();
+  })();
+  return R.ctx;
 }
-// fader to gain: the same curve in the plugin
-// faders: the clean engine's curve, or (CIRCUIT) the DMX's audio-taper pots; both sit at the same level at .8
-const fgain = v => v * v * 1.25;
+const post = m => { if (R.node) R.node.port.postMessage(m); };
 const circuitOn = (k = kit()) => S.circuit[k.id] != null ? !!S.circuit[k.id] : k.id !== 'dmx';   // the DMX kit is recorded from a DMX already
-const fader = (v, k) => circuitOn(k) ? DMXC.potLaw(v) * DMXC.MIX_K : fgain(v);
 const tuneOf = (vi, k = kit()) => ((S.tune[k.id] || {})[vi] ?? 50);
-function levels(){ if (!R.ctx) return; for (const g in R.groups) R.groups[g].gain.setTargetAtTime(fader(S.fader[g]), R.ctx.currentTime, .01); R.out.gain.setTargetAtTime(fader(S.fader.vol), R.ctx.currentTime, .01); }
+// where a kit voice sits: its card (index in engine.js CARDS), trigger mode, fader group; its trimmer with the card's TUNE offset
+function placeOf(k, vi){ const [g, cn, mode] = DMXC.cardFor(k, vi); return {g:GROUPS.indexOf(g), cn, c:DMXE.CARDS.indexOf(cn), card:DMXC.CARDS[cn], mode}; }
+const tuneEff = (k, vi) => clamp(tuneOf(vi, k) + S.params[DMXE.cp(placeOf(k, vi).c, 6)], 0, 100);
+function levels(){ post({type:'circuit', on:circuitOn()}); post({type:'faders', f:DMX_FADERS.map(([g]) => S.fader[g])}); }
 // a kit: the WAVs read at their own rate (as the plugin reads them), each voice's ROM for its card, and what plays:
-// the card's output rendered through the circuit model, or (CIRCUIT off) the sound itself
+// the card's output rendered through the circuit model (with its VOICE MOD set), or (CIRCUIT off) the sound itself
 async function loadKit(k){
+  ensureAudio(); await R.ready;
   if (R.bufs[k.id]) return R.bufs[k.id];
-  const c = ensureAudio();
   R.src[k.id] = await Promise.all(k.voices.map(async v => { try { return DMXC.parseWav(await (await fetch('kits/' + k.id + '/' + v[0] + '.wav')).arrayBuffer()); } catch(e){ return null; } }));
-  R.roms[k.id] = k.voices.map((v, vi) => { const s = R.src[k.id][vi]; return s ? DMXC.makeRom(s.x, s.sr, DMXC.CARDS[DMXC.cardFor(k, vi)[1]]) : null; });
-  R.bufs[k.id] = k.voices.map((v, vi) => voiceBuf(c, k, vi));
+  R.roms[k.id] = k.voices.map((v, vi) => { const s = R.src[k.id][vi]; return s ? DMXC.makeRom(s.x, s.sr, placeOf(k, vi).card) : null; });
+  R.bufs[k.id] = k.voices.map((v, vi) => voiceBuf(k, vi));
+  if (k === kit()) sendSounds();
   return R.bufs[k.id];
 }
-function voiceBuf(c, k, vi, rate = c.sampleRate){
+function voiceBuf(k, vi, rate = R.ctx.sampleRate){
   const s = R.src[k.id] && R.src[k.id][vi]; if (!s) return null;
-  let d, sr;
-  if (circuitOn(k)){ const [, cn, mode] = DMXC.cardFor(k, vi); d = DMXC.render(R.roms[k.id][vi], DMXC.CARDS[cn], mode, tuneOf(vi, k), rate); sr = rate; }
-  else { d = Float32Array.from(s.x); sr = s.sr; }
-  if (!d.length) return null;
-  const b = c.createBuffer(1, d.length, sr); b.copyToChannel(d, 0); return b;
+  const pl = placeOf(k, vi), m = DMXE.mods(S.params, pl.c);
+  if (circuitOn(k)) return {d:DMXC.render(R.roms[k.id][vi], pl.card, pl.mode, tuneEff(k, vi), rate, m), rate};
+  const d = Float32Array.from(s.x); if (m.rev) d.reverse(); return {d, rate:s.sr};
 }
-// re-render after TUNE or CIRCUIT changes (one voice, or the whole kit)
-let retuneT = 0;
-function rerender(vi){ const k = kit(); if (!R.bufs[k.id]) return; clearTimeout(retuneT);
-  retuneT = setTimeout(() => { const c = ensureAudio(); if (vi == null) R.bufs[k.id] = k.voices.map((v, i) => voiceBuf(c, k, i)); else R.bufs[k.id][vi] = voiceBuf(c, k, vi); levels(); }, 120); }
-const isOpen = dmxIsOpen;
-// one hit: the voice through its fader group; a closed or medium hat chokes a ringing open hat
-function hit(c, dest, open, k, bufs, vi, when, vel){
-  const b = bufs && bufs[vi]; if (!b) return;
-  const v = k.voices[vi], to = dest[v[2]] || dest.vol;
-  if (v[2] === 'hat' && !isOpen(v)) for (const o of open.splice(0)){ try { o.g.gain.setTargetAtTime(0, when, .004); o.s.stop(when + .05); } catch(e){} }
-  const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; g.gain.value = vel; s.connect(g);
-  if (circuitOn(k)){   // the card's place in the DMX's stereo mix
-    const [pl, pr] = DMXC.pan(DMXC.CARDS[DMXC.cardFor(k, vi)[1]]), m = c.createChannelMerger(2), l = c.createGain(), r = c.createGain();
-    l.gain.value = pl; r.gain.value = pr; g.connect(l); g.connect(r); l.connect(m, 0, 0); r.connect(m, 0, 1); m.connect(to);
-  } else {   // clean: the trimmer moves the pitch as on the hardware (the clock's ratio to its centre)
-    const [, cn, mode] = DMXC.cardFor(k, vi), card = DMXC.CARDS[cn]; s.playbackRate.value = DMXC.rate(card, mode, tuneOf(vi, k)) / DMXC.rate(card, mode, 50); g.connect(to);
-  }
-  s.start(when);
-  if (isOpen(v)){ const o = {s, g}; open.push(o); s.onended = () => { const i = open.indexOf(o); if (i >= 0) open.splice(i, 1); }; }
+// the engine's copy of a voice: its sound, card, group, choke, its place in the DMX's stereo mix, the clean trimmer's pitch
+function soundMsg(k, vi, b){
+  const pl = placeOf(k, vi), circ = circuitOn(k), [pL, pR] = circ ? DMXC.pan(pl.card) : [1, 1];
+  const ratio = circ ? 1 : DMXC.rate(pl.card, pl.mode, tuneEff(k, vi)) / DMXC.rate(pl.card, pl.mode, 50);
+  return {type:'sound', vi, d:b ? b.d : null, rate:b ? b.rate : 1, card:pl.c, group:pl.g, open:dmxIsOpen(k.voices[vi]), panL:pL, panR:pR, ratio};
 }
-// the metronome: its own fader, straight to the output (the plugin does the same)
+function sendSounds(){ const k = kit(), B = R.bufs[k.id]; if (!B) return; k.voices.forEach((v, vi) => post(soundMsg(k, vi, B[vi]))); post({type:'nosound', from:k.voices.length}); }
+// re-render after TUNE, VOICE MOD or CIRCUIT changes (one voice, a card's voices, or the whole kit)
+let retuneT = 0, retuneSet = new Set();
+function rerender(which){ const k = kit(); if (!R.bufs[k.id]) return; clearTimeout(retuneT);
+  if (which == null) k.voices.forEach((v, i) => retuneSet.add(i)); else if (Array.isArray(which)) which.forEach(i => retuneSet.add(i)); else retuneSet.add(which);
+  retuneT = setTimeout(() => { const B = R.bufs[k.id]; for (const i of retuneSet){ B[i] = voiceBuf(k, i); post(soundMsg(k, i, B[i])); } retuneSet.clear(); levels(); }, 120); }
+const cardVoices = c => kit().voices.map((v, i) => i).filter(i => placeOf(kit(), i).c === c);
+function setParam(i, v){
+  S.params[i] = v; post({type:'params', p:S.params}); S.edited = true; save();
+  if (i >= DMXE.NG && (i - DMXE.NG) % DMXE.NF < DMXE.RENDER_FIELDS){ const c = Math.floor((i - DMXE.NG) / DMXE.NF); if (circuitOn() || (i - DMXE.NG) % DMXE.NF === 5) rerender(cardVoices(c)); else rerender(cardVoices(c)); }
+}
+function setAllParams(p){ S.params = p.slice(); post({type:'params', p:S.params}); save(); rerender(); }
+// a hit: the engine places it at its sample; gate (s): when the pad's ADSR releases (-1: on release())
+const sendHit = (vi, t, vel, gate) => post({type:'hit', vi, vel, t, gate});
 const clickOn = () => S.fader.met > .02;
-// the metronome: the DMX's 1 ms pulse, loud on the bar and quiet on the beats, through its own fader
-function clickAt(c, dest, when, down){
-  const b = c.createBuffer(1, Math.max(1, Math.round(c.sampleRate * .001)), c.sampleRate); b.getChannelData(0).fill(1);
-  const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; g.gain.value = DMXC.MET_V[down ? 0 : 1] * fader(S.fader.met); s.connect(g); g.connect(dest); s.start(when);
-}
+const clickAt = (t, loud) => post({type:'click', t, loud});
 
 /* ---------------- sequencer ---------------- */
 const stepDur = () => 60 / S.tempo / 4;
@@ -98,12 +100,12 @@ function nextPattern(){
   return curPat();
 }
 function scheduler(){
-  const c = R.ctx, k = kit(), bufs = R.bufs[k.id];
+  const c = R.ctx, k = kit();
   while (R.nextT < c.currentTime + .12){
     if (R.step === 16){ R.step = 0; R.play = nextPattern(); paint(); }
     const p = pats()[R.play], t = R.nextT + swingOff(R.step);
-    p.rows.forEach((row, vi) => { if (row[R.step] && vi < k.voices.length) hit(c, R.groups, R.open, k, bufs, vi, t, VEL[row[R.step]]); });
-    if (clickOn() && R.step % 4 === 0) clickAt(c, c.destination, t, R.step === 0);
+    p.rows.forEach((row, vi) => { if (row[R.step] && vi < k.voices.length) sendHit(vi, t, VEL[row[R.step]], stepDur()); });
+    if (clickOn() && R.step % 4 === 0) clickAt(t, R.step === 0);
     R.q.push({t, step:R.step, pat:R.play}); if (R.q.length > 64) R.q.shift();
     R.step++; R.nextT += stepDur();
   }
@@ -120,9 +122,9 @@ function stop(){ R.playing = false; clearInterval(R.timer); R.timer = 0; R.q = [
 function nowStep(){ if (!R.playing || !R.ctx) return null; const t = R.ctx.currentTime - (R.ctx.outputLatency || 0); let cur = null; for (const e of R.q) if (e.t <= t + stepDur() / 2) cur = e; return cur; }
 
 /* ---------------- playing the keys ---------------- */
-async function play(vi, vel){
-  const c = ensureAudio(), k = kit(), bufs = await loadKit(k);
-  hit(c, R.groups, R.open, k, bufs, vi, c.currentTime, vel); flash(vi);
+async function play(vi, vel, gate = stepDur()){
+  const c = ensureAudio(), k = kit(); await loadKit(k);
+  sendHit(vi, c.currentTime, vel, gate); flash(vi);
   if (R.rec && R.playing){
     const e = nowStep(); if (!e) return;
     const t = c.currentTime - (c.outputLatency || 0), d = t - e.t, s = d > stepDur() / 2 ? (e.step + 1) % 16 : e.step;
@@ -294,8 +296,8 @@ function fn(f){
   paint();
 }
 function rebuild(){ buildGrid(); buildMat(); paint(); }
-function setTune(k, vi, v){ (S.tune[k.id] = S.tune[k.id] || {})[vi] = clamp(Math.round(v), 0, 100); save(); if (circuitOn(k)) rerender(vi); play(vi, VEL[2]); }
-function paintCircuit(){ const b = $('#circBtn'); b.textContent = 'CIRCUIT: ' + (circuitOn() ? 'DMX' : 'CLEAN'); b.classList.toggle('on', circuitOn()); }
+function setTune(k, vi, v){ (S.tune[k.id] = S.tune[k.id] || {})[vi] = clamp(Math.round(v), 0, 100); save(); rerender(vi); setTimeout(() => play(vi, VEL[2]), 150); }
+function paintCircuit(){ const b = $('#circBtn'); b.textContent = circuitOn() ? 'CIRCUIT DMX' : 'CLEAN'; b.classList.toggle('on', circuitOn()); }
 
 /* ---------------- kits ---------------- */
 function kitDialog(){
@@ -312,16 +314,22 @@ async function setKit(id){
 
 /* ---------------- WAV export: the pattern four times, or the song, rendered offline ---------------- */
 async function exportWav(){
-  const k = kit(), bufs = await loadKit(k), sr = 48000, sg = song(), useSong = S.useSong[S.kit] && sg.length;
-  const order = useSong ? sg : [curPat(), curPat(), curPat(), curPat()], dur = order.length * 16 * stepDur() + 2;
-  const c = new OfflineAudioContext(2, Math.ceil(dur * sr), sr), out = c.createGain(), groups = {}, open = [];
-  out.gain.value = fader(S.fader.vol); out.connect(c.destination);
-  for (const [g] of DMX_FADERS) if (g !== 'vol' && g !== 'met'){ groups[g] = c.createGain(); groups[g].gain.value = fader(S.fader[g]); groups[g].connect(out); }
-  let t = .02;
-  for (const pi of order) for (let s = 0; s < 16; s++, t += stepDur()){ const row = pats()[pi].rows; row.forEach((r, vi) => { if (r[s]) hit(c, groups, open, k, bufs, vi, t + swingOff(s), VEL[r[s]]); }); }
-  toast('Rendering…', 900);
-  const b = await c.startRendering(), n = Math.min(b.length, Math.ceil((t + 1.5) * sr));
-  const L = b.getChannelData(0), Rr = b.getChannelData(1), data = new DataView(new ArrayBuffer(44 + n * 4));
+  // the same engine as the audio thread, run here: every hit at its sample, the effects, the master
+  const k = kit(); await loadKit(k); const sr = R.ctx.sampleRate, sg = song(), useSong = S.useSong[S.kit] && sg.length;
+  const order = useSong ? sg : [curPat(), curPat(), curPat(), curPat()];
+  const E = new DMXE.Engine(sr); E.setAll(S.params); E.setTempo(S.tempo); E.setCircuit(circuitOn()); E.setFaders(DMX_FADERS.map(([g]) => S.fader[g]));
+  const B = R.bufs[k.id]; k.voices.forEach((v, vi) => { const m = soundMsg(k, vi, B[vi]); E.setSound(vi, m.d, m.rate, m.card, m.group, m.open, m.panL, m.panR, m.ratio); });
+  const ev = []; let t = .02;
+  for (const pi of order) for (let st = 0; st < 16; st++, t += stepDur()){ pats()[pi].rows.forEach((r, vi) => { if (r[st]) ev.push([Math.round((t + swingOff(st)) * sr), vi, VEL[r[st]]]); }); }
+  ev.sort((x, y) => x[0] - y[0]);
+  toast('Rendering…', 900); await new Promise(r => setTimeout(r, 30));
+  const n = Math.ceil((t + 2.5) * sr), L = new Float32Array(n), Rr = new Float32Array(n), bl = new Float64Array(128), br = new Float64Array(128), gate = Math.round(stepDur() * sr);
+  for (let f0 = 0, e = 0; f0 < n; f0 += 128){
+    const m = Math.min(128, n - f0);
+    while (e < ev.length && ev[e][0] < f0 + m){ E.trigger(ev[e][1], ev[e][2], Math.max(0, ev[e][0] - f0), gate); e++; }
+    E.process(bl, br, m); L.set(bl.subarray(0, m), f0); Rr.set(br.subarray(0, m), f0);
+  }
+  const data = new DataView(new ArrayBuffer(44 + n * 4));
   let pk = 0; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(L[i]), Math.abs(Rr[i]));
   if (pk > .98){ const k = .98 / pk; for (let i = 0; i < n; i++){ L[i] *= k; Rr[i] *= k; } }   // no clipping in the file: turned down to fit
   const w = (o, s) => [...s].forEach((ch, i) => data.setUint8(o + i, ch.charCodeAt(0)));
@@ -337,7 +345,8 @@ const noteVoice = n => dmxNoteVoice(kit(), n);
 function midiIn(e){
   const [st, d1, d2] = e.data, ty = st & 0xf0;
   $('#midiLed').classList.add('on'); clearTimeout(midiIn.t); midiIn.t = setTimeout(() => $('#midiLed').classList.remove('on'), 120);
-  if (ty === 0x90 && d2 > 0){ const vi = noteVoice(d1); if (vi >= 0){ R.sel = vi; play(vi, d2 >= 100 || R.acc ? 1 : Math.max(.25, d2 / 127 * .9)); paint(); } return; }
+  if (ty === 0x90 && d2 > 0){ const vi = noteVoice(d1); if (vi >= 0){ R.sel = vi; play(vi, d2 >= 100 || R.acc ? 1 : Math.max(.25, d2 / 127 * .9), -1); paint(); } return; }
+  if (ty === 0x80 || (ty === 0x90 && d2 === 0)){ const vi = noteVoice(d1); if (vi >= 0) post({type:'release', vi}); return; }   // note off: the pad's ADSR releases
   if (st === 0xFA || st === 0xFB){ if (R.playing) stop(); R.ext = {n:0, last:0, bpm:0}; start(); return; }
   if (st === 0xFC){ stop(); R.ext = null; return; }
   if (st === 0xF8 && R.ext && R.playing && R.ctx){
@@ -350,11 +359,10 @@ function midiIn(e){
 }
 // one step now (MIDI clock drives the sequencer step by step)
 function scheduler1(){
-  const c = R.ctx, k = kit(), bufs = R.bufs[k.id];
   if (R.step === 16){ R.step = 0; R.play = nextPattern(); paint(); }
   const p = pats()[R.play], t = R.nextT;
-  p.rows.forEach((row, vi) => { if (row[R.step]) hit(c, R.groups, R.open, k, bufs, vi, t, VEL[row[R.step]]); });
-  if (clickOn() && R.step % 4 === 0) clickAt(c, c.destination, t, R.step === 0);
+  p.rows.forEach((row, vi) => { if (row[R.step]) sendHit(vi, t, VEL[row[R.step]], stepDur()); });
+  if (clickOn() && R.step % 4 === 0) clickAt(t, R.step === 0);
   R.q.push({t, step:R.step, pat:R.play}); if (R.q.length > 64) R.q.shift(); R.step++;
 }
 function hookMidi(){
@@ -370,8 +378,135 @@ function fit(){
   el.style.transform = `translate(${(W - w * s) / 2}px, ${(H - h * s) / 2}px) scale(${s})`;
 }
 
+/* ---------------- the Omega pages (as on the Omega 110 and Omega Traks) ----------------
+   VOICE MOD (each card's circuit mods), SOUND (level, pan, decay, filter, start, mute, sends), PAD EQ (EQ, ADSR, drive),
+   FX (the REV7-style reverb and the TC 2290-style delay), MASTER (EQ, overdrive) and PRESETS (the 100, the dice, yours). */
+const E_ = DMXE, PNAME = DMXE.PARAMS.map(q => q[0]);
+const ENUMS = {rvProg:E_.RV_PROGS, dlSync:E_.DL_DIV_NAMES, odMode:E_.OD_MODES, dmod:E_.DECAY_MODS, early:E_.START_MODS, filt:E_.FILTER_MODS, dac:E_.DAC_MODS};
+const TOGGLES = new Set(['rev', 'mute', 'dlPing']);
+const PAGES = [['mods', 'VOICE MOD'], ['sound', 'SOUND'], ['padeq', 'PAD EQ'], ['fx', 'FX'], ['master', 'MASTER'], ['presets', 'PRESETS']];
+R.page = ''; R.card = 0; R.family = 0;
+S.preset = S.preset ?? 0; S.userPresets = S.userPresets || [];
+const fieldOf = id => { const i = PNAME.indexOf(id); return i >= E_.NG ? id.slice(2) : id; };
+const isLog = q => q[2] > 0 && q[3] / q[2] >= 20;
+const toNorm = (q, v) => isLog(q) ? Math.log(v / q[2]) / Math.log(q[3] / q[2]) : (v - q[2]) / (q[3] - q[2]);
+const fromNorm = (q, n) => isLog(q) ? q[2] * Math.pow(q[3] / q[2], n) : q[2] + (q[3] - q[2]) * n;
+function fmtParam(id, v){
+  const f = fieldOf(id);
+  if (ENUMS[f]) return ENUMS[f][Math.round(v)];
+  if (f === 'cut' && v >= 19999) return 'OFF';
+  if (/F$/.test(f) || f === 'cut' || f === 'rvCut' || f === 'dlHiCut' || f === 'dlLoCut') return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : Math.round(v) + '';
+  if (/G$/.test(f) || f === 'odOut') return (v > 0 ? '+' : '') + v.toFixed(1);
+  if (f === 'dec') return v >= 2.999 ? 'OFF' : v.toFixed(2) + 's';
+  if (f === 'rel') return v >= 3.999 ? 'HOLD' : v.toFixed(2) + 's';
+  if (f === 'tune') return (v > 0 ? '+' : '') + Math.round(v);
+  if (f === 'pan') return Math.abs(v) < .01 ? 'C' : (v < 0 ? 'L' : 'R') + Math.round(Math.abs(v) * 100);
+  if (f === 'cap') return '×' + v.toFixed(2);
+  if (f === 'dlTime' || f === 'rvDelay') return Math.round(v) + 'ms';
+  if (f === 'rvTime' || f === 'atk' || f === 'dcy') return v.toFixed(2) + 's';
+  return Math.abs(v) >= 100 ? Math.round(v) + '' : v.toFixed(2);
+}
+function knobSvg(n){ const a0 = -135, a = a0 + 270 * n, rad = d => (d - 90) * Math.PI / 180, pt = (d, r) => [20 + r * Math.cos(rad(d)), 20 + r * Math.sin(rad(d))];
+  const arc = (from, to, r) => { const [x0, y0] = pt(from, r), [x1, y1] = pt(to, r); return `M${x0.toFixed(1)} ${y0.toFixed(1)}A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+  const [lx, ly] = pt(a, 11);
+  return `<svg viewBox="0 0 40 40"><path d="${arc(a0, 135, 16)}" stroke="#2a1010" stroke-width="3.5" fill="none" stroke-linecap="round"/>${n > .001 ? `<path d="${arc(a0, a, 16)}" stroke="#ff3a2a" stroke-width="3.5" fill="none" stroke-linecap="round"/>` : ''}<circle cx="20" cy="20" r="12" fill="url(#kg)" stroke="#000"/><line x1="20" y1="20" x2="${lx.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="#eee" stroke-width="2.4" stroke-linecap="round"/><defs><radialGradient id="kg" cx=".4" cy=".35"><stop offset="0" stop-color="#5a5b62"/><stop offset="1" stop-color="#16171a"/></radialGradient></defs></svg>`; }
+// a control for the parameter `id`: a knob (drag up / down, double-tap for its default) or a switch
+function ctl(parent, id, label){
+  const i = PNAME.indexOf(id), q = E_.PARAMS[i], f = fieldOf(id);
+  if (TOGGLES.has(f)){
+    const b = document.createElement('button'); b.className = 'tg'; b.innerHTML = `<i></i>${label}`;
+    const show = () => b.classList.toggle('on', S.params[i] >= .5); show();
+    b.onclick = () => { setParam(i, S.params[i] >= .5 ? 0 : 1); show(); }; parent.appendChild(b); return;
+  }
+  const w = document.createElement('div'); w.className = 'kn'; w.title = q[1];
+  const draw = () => { w.innerHTML = knobSvg(toNorm(q, S.params[i])) + `<b>${label}</b><span>${fmtParam(id, S.params[i])}</span>`; }; draw();
+  const set = n => { let v = fromNorm(q, clamp(n, 0, 1)); if (ENUMS[f]) v = Math.round(v); else v = Math.round(v * 1000) / 1000; if (v !== S.params[i]){ setParam(i, v); draw(); } };
+  let y0 = 0, n0 = 0, lastTap = 0;
+  w.addEventListener('pointerdown', e => { e.preventDefault(); w.setPointerCapture(e.pointerId); y0 = e.clientY; n0 = toNorm(q, S.params[i]);
+    const now = Date.now(); if (now - lastTap < 320){ setParam(i, q[4]); draw(); } lastTap = now;
+    w.onpointermove = ev => set(n0 + (y0 - ev.clientY) / (ENUMS[f] ? 60 : 160) * (ev.shiftKey ? .2 : 1)); });
+  const up = () => { w.onpointermove = null; }; w.addEventListener('pointerup', up); w.addEventListener('pointercancel', up);
+  w.addEventListener('wheel', e => { e.preventDefault(); set(toNorm(q, S.params[i]) - Math.sign(e.deltaY) * (ENUMS[f] ? 1 / Math.max(1, q[3] - q[2]) : .02)); }, {passive:false});
+  parent.appendChild(w);
+}
+function sec(parent, title){ const d = document.createElement('div'); d.className = 'sec'; d.innerHTML = `<h5>${title}</h5><div></div>`; parent.appendChild(d); return d.lastChild; }
+function cardBar(head){
+  const k = kit(), has = new Set(k.voices.map((v, vi) => placeOf(k, vi).c));
+  const d = document.createElement('div'); d.className = 'cards';
+  E_.CARD_NAMES.forEach((n, c) => { const b = document.createElement('button'); b.textContent = n.toUpperCase(); b.className = (c === R.card ? 'on' : '') + (has.has(c) ? '' : ' none'); b.onclick = () => { R.card = c; buildPage(); }; d.appendChild(b); });
+  head.appendChild(d);
+  const vs = k.voices.map((v, vi) => [v, vi]).filter(([, vi]) => placeOf(k, vi).c === R.card).map(([, vi]) => vname(vi));
+  head.insertAdjacentHTML('beforeend', `<i>${vs.length ? vs.join(' · ') : 'no voice of this kit on this card'}</i>`);
+}
+function buildPage(){
+  const pg = $('#page'), id = R.page; pg.innerHTML = '';
+  $('#dmx').classList.toggle('paged', !!id);
+  document.querySelectorAll('#pageBtns button').forEach(b => b.classList.toggle('on', b.dataset.p === id));
+  if (!id) return;
+  const head = document.createElement('div'); head.className = 'phead'; head.innerHTML = `<b>${PAGES.find(p => p[0] === id)[1]}</b>`; pg.appendChild(head);
+  const body = document.createElement('div'); body.className = 'pbody'; pg.appendChild(body);
+  const C = E_.CARD_IDS[R.card];
+  if (id === 'mods'){
+    cardBar(head);
+    let s1 = sec(body, 'CLOCK');
+    ctl(s1, C + 'tune', 'TUNE');
+    s1 = sec(body, 'DECAY (C3, EG)'); ctl(s1, C + 'cap', 'CAP'); ctl(s1, C + 'dmod', 'DECAY'); ctl(s1, C + 'early', 'START');
+    s1 = sec(body, 'OUTPUT FILTER'); ctl(s1, C + 'filt', 'FILTER');
+    s1 = sec(body, 'DAC AND ROM'); ctl(s1, C + 'dac', 'DAC'); ctl(s1, C + 'rev', 'REVERSE');
+    body.insertAdjacentHTML('beforeend', `<p style="flex-basis:100%;margin:0;font:700 11px var(--cond);color:var(--dim);letter-spacing:.04em">${circuitOn() ? 'Mods to the voice card: TUNE moves its 555 trimmer for every voice on the card, CAP changes the decay capacitor C3, DECAY fits or removes the decay envelope, START moves where the decay begins (counter bit 6 or 10), FILTER swaps the card\'s Sallen-Key set (LOW ~10 kHz, HIGH ~16 kHz) or bypasses it, DAC swaps the AM6070 for a linear 8- or 6-bit DAC, REVERSE reads the ROM backwards.' : 'CIRCUIT is CLEAN: only TUNE and REVERSE act. Switch CIRCUIT to DMX for the card mods.'}</p>`);
+  } else if (id === 'sound'){
+    cardBar(head);
+    let s1 = sec(body, 'LEVEL'); ctl(s1, C + 'lv', 'LEVEL'); ctl(s1, C + 'pan', 'PAN'); ctl(s1, C + 'mute', 'MUTE');
+    s1 = sec(body, 'SHAPE'); ctl(s1, C + 'dec', 'DECAY'); ctl(s1, C + 'start', 'START');
+    s1 = sec(body, 'FILTER'); ctl(s1, C + 'cut', 'CUTOFF'); ctl(s1, C + 'res', 'RESO');
+    s1 = sec(body, 'SENDS'); ctl(s1, C + 'snd', 'REV7'); ctl(s1, C + 'dls', 'DELAY');
+  } else if (id === 'padeq'){
+    cardBar(head);
+    let s1 = sec(body, 'EQ'); ctl(s1, C + 'lsF', 'LOW F'); ctl(s1, C + 'lsG', 'LOW'); ctl(s1, C + 'pkF', 'MID F'); ctl(s1, C + 'pkG', 'MID'); ctl(s1, C + 'pkQ', 'MID Q'); ctl(s1, C + 'hsF', 'HIGH F'); ctl(s1, C + 'hsG', 'HIGH');
+    s1 = sec(body, 'ADSR'); ctl(s1, C + 'atk', 'ATTACK'); ctl(s1, C + 'dcy', 'DECAY'); ctl(s1, C + 'sus', 'SUSTAIN'); ctl(s1, C + 'rel', 'RELEASE');
+    s1 = sec(body, 'DRIVE'); ctl(s1, C + 'drv', 'DRIVE');
+  } else if (id === 'fx'){
+    head.insertAdjacentHTML('beforeend', '<i>sends: SOUND page, per card</i>');
+    let s1 = sec(body, 'REV7 REVERB');
+    for (const [p, l] of [['rvProg', 'PROGRAM'], ['rvTime', 'RT'], ['rvHigh', 'HIGH'], ['rvDelay', 'DELAY'], ['rvDiff', 'DIFFUSION'], ['rvEr', 'ER LEVEL'], ['rvCut', 'HIGH CUT'], ['rvLevel', 'RETURN']]) ctl(s1, p, l);
+    s1 = sec(body, 'TC 2290 DELAY');
+    for (const [p, l] of [['dlTime', 'TIME'], ['dlSync', 'SYNC'], ['dlFb', 'FEEDBACK'], ['dlHiCut', 'HIGH CUT'], ['dlLoCut', 'LOW CUT'], ['dlModRate', 'MOD RATE'], ['dlModDepth', 'MOD DEPTH'], ['dlDuck', 'DUCKING'], ['dlPing', 'PING-PONG'], ['dlLevel', 'RETURN']]) ctl(s1, p, l);
+  } else if (id === 'master'){
+    let s1 = sec(body, 'MASTER EQ');
+    for (const [p, l] of [['mLsF', 'LOW F'], ['mLsG', 'LOW'], ['mP1F', 'MID1 F'], ['mP1G', 'MID 1'], ['mP1Q', 'MID1 Q'], ['mP2F', 'MID2 F'], ['mP2G', 'MID 2'], ['mP2Q', 'MID2 Q'], ['mHsF', 'HIGH F'], ['mHsG', 'HIGH']]) ctl(s1, p, l);
+    s1 = sec(body, 'OVERDRIVE'); for (const [p, l] of [['odDrive', 'DRIVE'], ['odMode', 'MODE'], ['odMix', 'MIX'], ['odOut', 'OUTPUT']]) ctl(s1, p, l);
+  } else if (id === 'presets'){
+    const P_ = DMXPRESETS, cur = S.preset;
+    head.insertAdjacentHTML('beforeend', `<i>${typeof cur === 'number' ? P_.PRESETS[cur].name : cur}${S.edited ? ' (edited)' : ''}</i>`);
+    const btn = (parent, t, fn, on) => { const b = document.createElement('button'); b.className = 'pbtn' + (on ? ' on' : ''); b.textContent = t; b.onclick = fn; parent.appendChild(b); return b; };
+    const fam = document.createElement('div'); fam.className = 'cards'; body.appendChild(fam);
+    P_.FAMILIES.forEach((f, fi) => btn(fam, f.name.toUpperCase(), () => { R.family = fi; buildPage(); }, fi === R.family));
+    if (S.userPresets.length) btn(fam, 'YOURS', () => { R.family = -1; buildPage(); }, R.family === -1);
+    const list = document.createElement('div'); list.className = 'plist'; body.appendChild(list);
+    if (R.family >= 0) P_.PRESETS.forEach((pr, pi) => { if (pr.family !== P_.FAMILIES[R.family].name) return; const b = btn(list, pr.name.split(' · ')[1], () => loadPreset(pi), pi === cur); b.className = pi === cur ? 'on' : ''; });
+    else S.userPresets.forEach((u, ui) => { const b = btn(list, u.name, () => loadPreset(u.name), u.name === cur); b.className = u.name === cur ? 'on' : ''; });
+    const row = document.createElement('div'); row.className = 'cards'; body.appendChild(row);
+    btn(row, '◀', () => stepPreset(-1)); btn(row, '▶', () => stepPreset(1));
+    row.insertAdjacentHTML('beforeend', '<span style="width:10px"></span>');
+    for (const part of P_.DICE_PARTS) btn(row, '🎲 ' + part.toUpperCase(), () => { setAllParams(P_.dice(S.params, part)); S.preset = 'Dice'; S.edited = false; save(); toast('Dice: ' + part); buildPage(); });
+    row.insertAdjacentHTML('beforeend', '<span style="width:10px"></span>');
+    btn(row, 'SAVE AS…', () => { const n = (prompt('Name for your preset', typeof cur === 'string' ? cur : '') || '').trim(); if (!n) return; S.userPresets = S.userPresets.filter(u => u.name !== n).concat([{name:n, p:S.params.slice()}]); S.preset = n; S.edited = false; save(); R.family = -1; buildPage(); toast('Saved ' + n); });
+    if (typeof cur === 'string' && S.userPresets.some(u => u.name === cur)) btn(row, 'DELETE', () => { S.userPresets = S.userPresets.filter(u => u.name !== cur); S.preset = 0; save(); buildPage(); });
+    btn(row, 'RESET', () => { setAllParams(DMXE.defaults()); S.preset = 0; S.edited = false; save(); buildPage(); });
+  }
+}
+function loadPreset(which){
+  const P_ = DMXPRESETS, u = typeof which === 'string' ? S.userPresets.find(x => x.name === which) : null;
+  setAllParams(u ? u.p : P_.PRESETS[which].p); S.preset = which; S.edited = false; save(); buildPage(); toast(u ? u.name : P_.PRESETS[which].name);
+}
+function stepPreset(d){ const n = DMXPRESETS.PRESETS.length, cur = typeof S.preset === 'number' ? S.preset : 0, nx = (cur + d + n) % n; R.family = DMXPRESETS.FAMILIES.findIndex(f => f.name === DMXPRESETS.PRESETS[nx].family); loadPreset(nx); }
+function buildPageBtns(){
+  $('#pageBtns').innerHTML = PAGES.map(([id, n]) => `<button data-p="${id}">${n}</button>`).join('');
+  $('#pageBtns').onclick = e => { const b = e.target.closest('button'); if (!b) return; R.page = R.page === b.dataset.p ? '' : b.dataset.p; if (R.page && R.page !== 'presets' && R.page !== 'fx' && R.page !== 'master'){ const k = kit(); R.card = placeOf(k, R.sel).c; } buildPage(); };
+}
+
 /* ---------------- start ---------------- */
-buildFaders(); buildPad(); buildFn(); rebuild(); fit();
+buildFaders(); buildPad(); buildFn(); buildPageBtns(); rebuild(); fit();
 addEventListener('resize', fit); addEventListener('orientationchange', () => setTimeout(fit, 200));
 $('#play').addEventListener('pointerdown', e => { e.preventDefault(); if (R.playing) stop(); else start(); });
 $('#exportBtn').addEventListener('click', exportWav);

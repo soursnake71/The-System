@@ -53,12 +53,16 @@ const DMXC = (() => {
     if (mode === 1) return (a * b * VCC + R8 * a * VD + R8 * b * VD) / (R8 * a * b + a * b * R9 + R8 * b * R9 + R8 * a * R9) / max;
     return (a * VCC + R8 * VD) / (a * R8 + R8 * R9 + a * R9) / max;
   }
-  // decay: [time constant in s, counter value it starts at] or null
-  function decay(card, mode){
-    const on = card.decay === 'on' || (card.decay === 'tr12' && mode !== 3); if (!on || !card.c3) return null;
+  /* decay: [time constant in s, counter value it starts at] or null. The VOICE MOD set (m) can change the card:
+     cap: C3 times 0.25..4; dmod: 0 stock, 1 decay fitted (a 3.3 uF C3 on cards without one), 2 decay removed;
+     early: 0 stock, 1 early (counter bit 6), 2 late (bit 10) */
+  const C3_FITTED = 3.3e-6;
+  function decay(card, mode, m){
+    const dmod = m ? m.dmod : 0, c3 = (card.c3 || (dmod === 1 ? C3_FITTED : 0)) * (m ? m.cap : 1);
+    const on = dmod === 1 || (dmod === 0 && (card.decay === 'on' || (card.decay === 'tr12' && mode !== 3))); if (!on || !c3) return null;
     const r = card.pitch || mode === 3 ? R8 + R9 : mode === 1 ? R8 + par(R9, card.r12, card.r17) : R8 + par(R9, card.r12);
-    const early = card.early === 'on' || (card.early === 'tr1' && mode === 1);
-    return [r * card.c3, early ? 64 : 1024];
+    const em = m ? m.early : 0, early = em === 1 || (em === 0 && (card.early === 'on' || (card.early === 'tr1' && mode === 1)));
+    return [r * c3, early ? 64 : 1024];
   }
   // DAC76 decode of an 8-bit code (bit 7 sign, 6..4 chord, 3..0 step) to [-1, 1]
   function decode(code){
@@ -108,11 +112,15 @@ const DMXC = (() => {
       h[i] = (d === 0 ? fc : Math.sin(Math.PI * fc * d) / (Math.PI * d)) * w; s += h[i]; }
     for (let i = 0; i < TAPS; i++) h[i] /= s; return h;
   })();
-  // play a ROM through the card: tune 0..100, trigger mode 1..3; returns the card's output at fs (1 = full-scale DAC)
-  function render(R, card, mode, tune, fs){
-    const f = rate(card, mode, tune), F = fs * OS, I0 = iref(card, mode), dec = decay(card, mode);
+  /* play a ROM through the card: tune 0..100, trigger mode 1..3, the VOICE MOD set m (optional: see decay(); filt 0 stock,
+     1 the LOW set, 2 the HIGH set, 3 no filters; dac 0 the AM6070, 1 / 2 a linear 8 / 6-bit DAC; rev the ROM read
+     backwards); returns the card's output at fs (1 = full-scale DAC) */
+  const q8 = v => Math.floor(v * 127 + .5) / 127, q6 = v => Math.floor(v * 31 + .5) / 31;
+  function render(R, card, mode, tune, fs, m){
+    const f = rate(card, mode, tune), F = fs * OS, I0 = iref(card, mode), dec = decay(card, mode, m);
     const tEnd = R.len / f, n = Math.ceil((tEnd + .01) * F) + TAPS, x = new Float64Array(n);
-    const val = k => k < R.len ? decode(R.rom[k]) : 0;
+    const dac = m ? m.dac : 0, rev = m ? m.rev : false;
+    const val = k => { if (k >= R.len) return 0; const v = decode(R.rom[rev ? R.len - 1 - k : k]); return dac === 1 ? q8(v) : dac === 2 ? q6(v) : v; };
     for (let i = 0; i < n; i++){
       const t0 = i / F, t1 = (i + 1) / F, k0 = Math.floor(t0 * f), k1 = Math.floor(t1 * f); let v;
       if (k0 === k1) v = val(k0);
@@ -121,12 +129,13 @@ const DMXC = (() => {
       if (dec){ const td = dec[1] / f; if (tm > td) g *= Math.exp(-(tm - td) / dec[0]); }
       x[i] = v * g;
     }
-    for (const st of FILTERS[card.filter]){
+    const filt = m ? m.filt : 0;
+    for (const st of filt === 3 ? [] : FILTERS[filt === 1 ? 'low' : filt === 2 ? 'high' : card.filter]){
       const c = skCoefs(st, F); if (!c) continue; let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
       for (let i = 0; i < n; i++){ const y = c[0] * x[i] + c[1] * x1 + c[2] * x2 - c[3] * y1 - c[4] * y2; x2 = x1; x1 = x[i]; y2 = y1; y1 = y; x[i] = y; }
     }
-    const m = Math.floor((n - TAPS) / OS), out = new Float32Array(m);
-    for (let j = 0; j < m; j++){ let s = 0; const b = j * OS; for (let k = 0; k < TAPS; k++) s += decim[k] * x[b + k]; out[j] = s; }
+    const nOut = Math.floor((n - TAPS) / OS), out = new Float32Array(nOut);
+    for (let j = 0; j < nOut; j++){ let s = 0; const b = j * OS; for (let k = 0; k < TAPS; k++) s += decim[k] * x[b + k]; out[j] = s; }
     return out;
   }
   // which card and trigger mode a kit voice gets: by fader group, toms split small / large, hats by kind
