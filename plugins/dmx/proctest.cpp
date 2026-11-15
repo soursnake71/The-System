@@ -2,6 +2,7 @@
 // usage: dmx_proc_test <outdir>
 #include "DmxPlugin.h"
 #include "DmxEditor.h"
+#include "Mixer.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 
 int main(int argc, char** argv) {
@@ -20,7 +21,16 @@ int main(int argc, char** argv) {
     std::printf("kit A, circuit %s: peak L %.3f R %.3f\n", p.engine.circuitOn() ? "on" : "off", pl, pr); ok &= p.engine.circuitOn() && pl > .1 && pr > .1 && std::abs(pl - pr) > .01;
     p.engine.fn("rec"); p.engine.acc = true;
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor()); ed->setSize(1280, 720);
-    auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
-    const auto f = dir.getChildFile("dmx-editor.png"); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo);
+    auto shot = [&](const juce::String& name) { auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+        const auto f = dir.getChildFile(name); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo); };
+    shot("dmx-editor.png");
+    // the Omega pages, and a preset and the dice through the processor
+    auto* de = dynamic_cast<dmx::DmxEditor*>(ed.get());
+    const char* names[6] = {"mods", "sound", "padeq", "fx", "master", "presets"};
+    p.loadPreset(75); juce::MessageManager::getInstance()->runDispatchLoopUntil(80);
+    std::printf("preset %s: delay return %.3f in the engine\n", p.presetName.toRawUTF8(), p.engine.sp[(size_t) dmx::Mixer::index("dlLevel")]);
+    ok &= std::abs(p.engine.sp[(size_t) dmx::Mixer::index("dlLevel")] - dmx::kPresetValues[75][dmx::Mixer::index("dlLevel")]) < 1e-3;
+    for (int i = 0; i < 6; ++i) { de->showPage(i); shot(juce::String("dmx-page-") + names[i] + ".png"); de->showPage(i); }
+    p.dice(0); std::printf("dice: %s\n", p.presetName.toRawUTF8());
     std::puts(ok ? "PASS" : "FAIL"); return ok ? 0 : 1;
 }

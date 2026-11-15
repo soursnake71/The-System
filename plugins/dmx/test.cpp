@@ -26,6 +26,8 @@ static std::vector<float> render(Engine& e, double secs, double sr, Engine::Host
     for (size_t i = 0; i < out.size(); i += B) { const int n = (int) std::min<size_t>(B, out.size() - i); Engine::Host hh = h; if (h.playing) hh.ppq = h.ppq + (double) i / sr * h.bpm / 60; e.process(out.data() + i, nullptr, n, hh); }
     return out;
 }
+// the timing and length checks want the dry sound: the REV7 and delay returns off
+static void dry(Engine& e) { auto p = e.sp; p[(size_t) Mixer::index("rvLevel")] = 0; p[(size_t) Mixer::index("dlLevel")] = 0; e.setSoundParams(p.data()); }
 static std::vector<size_t> onsets(const std::vector<float>& x, float thr) {
     // a hit = the first sample over thr after 3000 samples without one; the onset is where it rose out of silence
     std::vector<size_t> o; long last = -100000;
@@ -38,7 +40,7 @@ int main(int argc, char** argv) {
     const std::string dir = argc > 1 ? argv[1] : "dmx/kits";
     const double sr = 48000;
     {   // Boom Bap on the DMX kit, kick only: hits on steps 0 (accent), 7, 10 at 120 BPM = 6000 samples a step
-        Engine e; load(e, dir); e.prepare(sr); e.tempo = 120;
+        Engine e; load(e, dir); e.prepare(sr); dry(e); e.tempo = 120;
         for (int g = 1; g < kVol; ++g) e.fader[g] = 0;
         e.internalPlay = true; auto x = render(e, 4.0, sr);
         auto o = onsets(x, .02f);
@@ -51,15 +53,15 @@ int main(int argc, char** argv) {
         CHECK(std::fabs(peak(x, 42000, 46000) - raw * g * .72f) < .02f, "hit level %f want %f", peak(x, 42000, 46000), raw * g * .72f);
     }
     {   // swing 66%: odd steps late by a third of a step (2000 samples at 120 BPM)
-        Engine e; load(e, dir); e.prepare(sr); e.tempo = 120; e.swing = 66;
+        Engine e; load(e, dir); e.prepare(sr); dry(e); e.tempo = 120; e.swing = 66;
         for (int g = 1; g < kVol; ++g) e.fader[g] = 0;
         e.internalPlay = true; auto x = render(e, 1.0, sr); auto o = onsets(x, .02f);
         CHECK(o.size() >= 2 && o[1] + 64 >= 42000 + 1920 && o[1] <= 42000 + 1920 + 64, "swung step 7 at %zu", o.size() > 1 ? o[1] : 0);
     }
     {   // the choke: an open hat stops when a closed hat plays
-        Engine e; load(e, dir); e.prepare(sr); for (auto& P : e.pats[0]) std::memset(P.rows, 0, sizeof P.rows);
+        Engine e; load(e, dir); e.prepare(sr); dry(e); for (auto& P : e.pats[0]) std::memset(P.rows, 0, sizeof P.rows);
         e.pattern(0).rows[6][0] = 2; e.internalPlay = true; auto a = render(e, .3, sr);
-        Engine f; load(f, dir); f.prepare(sr); for (auto& P : f.pats[0]) std::memset(P.rows, 0, sizeof P.rows);
+        Engine f; load(f, dir); f.prepare(sr); dry(f); for (auto& P : f.pats[0]) std::memset(P.rows, 0, sizeof P.rows);
         f.pattern(0).rows[6][0] = 2; f.fader[2] = .8f; f.internalPlay = true; f.tempo = 120;
         f.pattern(0).rows[4][1] = 1; auto b = render(f, .5, sr);
         // after the closed hat (6000) plus its own length, the open hat is gone in b but still rings in a
@@ -95,7 +97,7 @@ int main(int argc, char** argv) {
         }
     }
     {   // the circuit: on by default for the user kits, off for the DMX kit (recorded from a DMX); cards in the DMX's stereo mix
-        Engine e; load(e, dir); e.prepare(sr);
+        Engine e; load(e, dir); e.prepare(sr); dry(e);
         CHECK(!e.circuitOn(0) && e.circuitOn(1) && e.circuitOn(2) && e.circuitOn(3), "circuit defaults");
         e.setKit(1); std::vector<float> L(48000), R(48000);
         e.hit(2, 1); e.process(L.data(), R.data(), 24000, {});   // Snare 1: the snare card sits left (8.2k) of right (20k)

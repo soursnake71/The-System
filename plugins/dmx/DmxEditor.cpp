@@ -9,7 +9,46 @@ const juce::Colour face1 {0xff16171b}, face2 {0xff0b0b0d}, stripe {0xb33a68d6}, 
 static juce::Font sans(float h, bool bold = true) { return juce::Font(juce::FontOptions(h, bold ? juce::Font::bold : juce::Font::plain)); }
 static juce::Font mono(float h) { return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), h, juce::Font::bold)); }
 
+// ---------------- the pages' look ----------------
+DmxLook::DmxLook() {
+    setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xffff6a5a)); setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextButton::textColourOffId, col::print); setColour(juce::TextButton::textColourOnId, col::led);
+}
+void DmxLook::drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h, float pos, float a0, float a1, juce::Slider&) {
+    const float r = (float) juce::jmin(w, h) / 2 - 4, cx = (float) x + (float) w / 2, cy = (float) y + (float) h / 2, a = a0 + pos * (a1 - a0);
+    juce::Path bg; bg.addCentredArc(cx, cy, r, r, 0, a0, a1, true); g.setColour(juce::Colour(0xff2a1010)); g.strokePath(bg, juce::PathStrokeType(3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    if (pos > .001f) { juce::Path v; v.addCentredArc(cx, cy, r, r, 0, a0, a, true); g.setColour(col::led); g.strokePath(v, juce::PathStrokeType(3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded)); }
+    const float k = r * .74f;
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff5a5b62), cx - k * .3f, cy - k * .4f, juce::Colour(0xff16171a), cx + k, cy + k, true)); g.fillEllipse(cx - k, cy - k, 2 * k, 2 * k);
+    g.setColour(juce::Colours::black); g.drawEllipse(cx - k, cy - k, 2 * k, 2 * k, 1);
+    g.setColour(juce::Colour(0xffeeeeee)); g.drawLine(cx, cy, cx + std::sin(a) * k * .9f, cy - std::cos(a) * k * .9f, 2.4f);
+}
+void DmxLook::drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour&, bool, bool down) {
+    auto r = b.getLocalBounds().toFloat().reduced(.5f); const bool on = b.getToggleState();
+    g.setColour(juce::Colours::black); g.fillRoundedRectangle(r.translated(0, 2), 2);
+    g.setGradientFill(juce::ColourGradient(on ? juce::Colour(0xff4a1a16) : juce::Colour(0xff34353a), 0, r.getY(), on ? juce::Colour(0xff26100e) : juce::Colour(0xff1b1c20), 0, r.getBottom(), false));
+    g.fillRoundedRectangle(r.translated(0, down ? 1.f : 0.f), 2);
+    g.setColour(on ? col::led : juce::Colours::black); g.drawRoundedRectangle(r, 2, on ? 1.2f : 1.f);
+}
+void DmxLook::drawButtonText(juce::Graphics& g, juce::TextButton& b, bool, bool) {
+    g.setColour(b.getToggleState() ? col::led : col::print); g.setFont(sans(10.5f));
+    g.drawFittedText(b.getButtonText(), b.getLocalBounds().reduced(3, 0), juce::Justification::centred, 1, .7f);
+}
+juce::Label* DmxLook::createSliderTextBox(juce::Slider& s) { auto* l = LookAndFeel_V4::createSliderTextBox(s); l->setFont(mono(10)); l->setJustificationType(juce::Justification::centred); return l; }
+void PageView::paint(juce::Graphics& g) {
+    auto r = getLocalBounds().toFloat();
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xf80e0f13), 0, 0, juce::Colour(0xf8080809), 0, r.getHeight(), false)); g.fillRoundedRectangle(r, 3);
+    g.setColour(juce::Colours::black); g.drawRoundedRectangle(r.reduced(1), 3, 2); g.setColour(juce::Colour(0xff2a2c33)); g.drawRoundedRectangle(r.reduced(3), 3, 1);
+    g.setColour(col::led); g.setFont(sans(14)); g.drawText(title, juce::Rectangle<float>(12, 8, 160, 20), juce::Justification::centredLeft);
+    g.setColour(col::dim); g.setFont(sans(11, false)); g.drawFittedText(sub, juce::Rectangle<int>(12, getHeight() - 22, getWidth() - 24, 16), juce::Justification::centredLeft, 1, .8f);
+    for (auto& t : texts) {
+        if (t.head) { g.setColour(col::dim); g.setFont(sans(10)); g.drawText(t.s, t.r, juce::Justification::centredLeft); g.setColour(juce::Colour(0xff3a3d45)); g.fillRect(t.r.getX(), t.r.getBottom() + 1, t.r.getWidth(), 1.f); }
+        else { g.setColour(col::print); g.setFont(sans(9.5f)); g.drawFittedText(t.s, t.r.toNearestInt(), juce::Justification::centred, 1, .7f); }
+    }
+}
+
 DmxEditor::DmxEditor(DmxProcessor& p) : AudioProcessorEditor(p), proc(p), e(p.engine) {
+    addChildComponent(pageView);
     setResizable(true, true);
     getConstrainer()->setFixedAspectRatio((double) W / H);
     setResizeLimits(W / 2, H / 2, W * 2, H * 2);
@@ -81,6 +120,90 @@ void DmxEditor::drawKey(juce::Graphics& g, juce::Rectangle<float> r, const juce:
     if (label.isNotEmpty()) { g.setColour(on ? juce::Colour(0xffff5a4a) : col::print); g.setFont(sans(11)); g.drawFittedText(label.toUpperCase(), juce::Rectangle<int>((int) r.getX() - 10, (int) r.getBottom() + 5, (int) r.getWidth() + 20, 14), juce::Justification::centred, 1, .7f); }
 }
 
+// ---------------- the pages ----------------
+void DmxEditor::showPage(int p) {
+    page = page == p ? -1 : p;
+    if (page >= 0 && page <= 2) pageCard = e.cardOf(e.kit, e.sel);
+    if (page == 5) for (int i = 0; i < kPresets; ++i) if (proc.presetName == juce::String(juce::CharPointer_UTF8(kPresetNames[i]))) family = i / 10;
+    buildPage(); repaint();
+}
+void DmxEditor::buildPage() {
+    sAtt.clear(); bAtt.clear(); sliders.clear(); buttons.clear(); pageView.texts.clear(); pageView.removeAllChildren();
+    if (page < 0) { pageView.setVisible(false); return; }
+    pageView.setBounds(pageR.toNearestInt()); layoutPage(); pageView.setVisible(true); pageView.toFront(false);
+    pageView.title = kPages[page];
+    const float Wd = pageR.getWidth() - 24; float x = 12, y = 40; const float rowH = 108;
+    auto btn = [&](const juce::String& t, juce::Rectangle<float> r, bool on, std::function<void()> fn) {
+        auto b = std::make_unique<juce::TextButton>(t); b->setLookAndFeel(&look); b->setBounds(r.toNearestInt()); b->setToggleState(on, juce::dontSendNotification); b->onClick = fn;
+        pageView.addAndMakeVisible(*b); buttons.push_back(std::move(b)); };
+    auto section = [&](const juce::String& title, std::vector<std::pair<juce::String, juce::String>> ctls) {
+        const float w = 72.f * (float) ctls.size();
+        if (x + w > Wd && x > 12) { x = 12; y += rowH; }
+        pageView.texts.push_back({title, {x, y, w - 6, 14}, true});
+        float cx = x;
+        for (auto& [id, label] : ctls) {
+            const juce::String f = id.length() > 2 && juce::String("BA SN HH ST LT P1 P2 CY").contains(id.substring(0, 2)) && id.substring(2).containsAnyOf("abcdefghijklmnopqrstuvwxyz") ? id.substring(2) : id;
+            if (f == "rev" || f == "mute" || f == "dlPing") {
+                auto b = std::make_unique<juce::TextButton>("ON"); b->setLookAndFeel(&look); b->setClickingTogglesState(true); b->setBounds(juce::Rectangle<float>(cx + 12, y + 34, 48, 26).toNearestInt());
+                pageView.addAndMakeVisible(*b); bAtt.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.apvts, id, *b)); buttons.push_back(std::move(b));
+            } else {
+                auto sl = std::make_unique<juce::Slider>(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
+                sl->setLookAndFeel(&look); sl->setTextBoxStyle(juce::Slider::TextBoxBelow, true, 70, 15); sl->setBounds(juce::Rectangle<float>(cx, y + 18, 72, 72).toNearestInt());
+                pageView.addAndMakeVisible(*sl); sAtt.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id, *sl)); sliders.push_back(std::move(sl));
+            }
+            pageView.texts.push_back({label, {cx, y + 90, 72, 13}, false});
+            cx += 72;
+        }
+        x += w + 14;
+    };
+    const juce::String C = kCardIds[pageCard];
+    auto cards = [&]() {
+        for (int c = 0; c < kCards; ++c) btn(juce::String(kCardNames[c]).toUpperCase(), {130.f + c * 92.f, 8, 88, 22}, c == pageCard, [this, c] { pageCard = c; buildPage(); });
+        juce::StringArray vs; for (int v = 0; v < e.voices(); ++v) if (e.cardOf(e.kit, v) == pageCard) vs.add(e.voiceName(v));
+        pageView.sub = vs.isEmpty() ? juce::String("no voice of this kit on this card") : vs.joinIntoString(" - ");
+    };
+    pageView.sub = {};
+    if (page == 0) {
+        cards();
+        section("CLOCK", {{C + "tune", "TUNE"}});
+        section("DECAY (C3, EG)", {{C + "cap", "CAP"}, {C + "dmod", "DECAY"}, {C + "early", "START"}});
+        section("OUTPUT FILTER", {{C + "filt", "FILTER"}});
+        section("DAC AND ROM", {{C + "dac", "DAC"}, {C + "rev", "REVERSE"}});
+        if (!e.circuitOn()) pageView.sub = "CIRCUIT is CLEAN: only TUNE and REVERSE act. Switch CIRCUIT to DMX for the card mods.";
+    } else if (page == 1) {
+        cards();
+        section("LEVEL", {{C + "lv", "LEVEL"}, {C + "pan", "PAN"}, {C + "mute", "MUTE"}});
+        section("SHAPE", {{C + "dec", "DECAY"}, {C + "start", "START"}});
+        section("FILTER", {{C + "cut", "CUTOFF"}, {C + "res", "RESO"}});
+        section("SENDS", {{C + "snd", "REV7"}, {C + "dls", "DELAY"}});
+    } else if (page == 2) {
+        cards();
+        section("EQ", {{C + "lsF", "LOW F"}, {C + "lsG", "LOW"}, {C + "pkF", "MID F"}, {C + "pkG", "MID"}, {C + "pkQ", "MID Q"}, {C + "hsF", "HIGH F"}, {C + "hsG", "HIGH"}});
+        section("ADSR", {{C + "atk", "ATTACK"}, {C + "dcy", "DECAY"}, {C + "sus", "SUSTAIN"}, {C + "rel", "RELEASE"}});
+        section("DRIVE", {{C + "drv", "DRIVE"}});
+    } else if (page == 3) {
+        pageView.sub = "Sends: the SOUND page, per card.";
+        section("REV7 REVERB", {{"rvProg", "PROGRAM"}, {"rvTime", "RT"}, {"rvHigh", "HIGH"}, {"rvDelay", "DELAY"}, {"rvDiff", "DIFFUSION"}, {"rvEr", "ER LEVEL"}, {"rvCut", "HIGH CUT"}, {"rvLevel", "RETURN"}});
+        section("TC 2290 DELAY", {{"dlTime", "TIME"}, {"dlSync", "SYNC"}, {"dlFb", "FEEDBACK"}, {"dlHiCut", "HIGH CUT"}, {"dlLoCut", "LOW CUT"}, {"dlModRate", "MOD RATE"}, {"dlModDepth", "MOD DEPTH"}, {"dlDuck", "DUCKING"}, {"dlPing", "PING-PONG"}, {"dlLevel", "RETURN"}});
+    } else if (page == 4) {
+        section("MASTER EQ", {{"mLsF", "LOW F"}, {"mLsG", "LOW"}, {"mP1F", "MID1 F"}, {"mP1G", "MID 1"}, {"mP1Q", "MID1 Q"}, {"mP2F", "MID2 F"}, {"mP2G", "MID 2"}, {"mP2Q", "MID2 Q"}, {"mHsF", "HIGH F"}, {"mHsG", "HIGH"}});
+        section("OVERDRIVE", {{"odDrive", "DRIVE"}, {"odMode", "MODE"}, {"odMix", "MIX"}, {"odOut", "OUTPUT"}});
+    } else {
+        pageView.sub = proc.presetName + (proc.edited ? " (edited)" : "");
+        const char* fams[10] = {"FACTORY", "TUNED DOWN", "TUNED UP", "CIRCUIT BENT", "ELECTRO", "HIP HOP", "80S GATED", "DUB SPACE", "INDUSTRIAL", "AMBIENT"};
+        for (int f = 0; f < 10; ++f) btn(fams[f], {12.f + f * 114.f, 40, 110, 24}, f == family, [this, f] { family = f; buildPage(); });
+        for (int i = 0; i < 10; ++i) {
+            const int pi = family * 10 + i; const juce::String n = juce::String(juce::CharPointer_UTF8(kPresetNames[pi])).fromFirstOccurrenceOf(juce::String::fromUTF8(" \xc2\xb7 "), false, false);
+            btn(n, {12.f + (i % 5) * 228.f, 74.f + (i / 5) * 30.f, 224, 26}, proc.presetName == juce::String(juce::CharPointer_UTF8(kPresetNames[pi])), [this, pi] { proc.loadPreset(pi); buildPage(); });
+        }
+        btn(juce::String::fromUTF8("\xe2\x97\x80"), {12, 146, 40, 26}, false, [this] { int c = 0; for (int i = 0; i < kPresets; ++i) if (proc.presetName == juce::String(juce::CharPointer_UTF8(kPresetNames[i]))) c = i; const int n = (c + kPresets - 1) % kPresets; family = n / 10; proc.loadPreset(n); buildPage(); });
+        btn(juce::String::fromUTF8("\xe2\x96\xb6"), {56, 146, 40, 26}, false, [this] { int c = -1; for (int i = 0; i < kPresets; ++i) if (proc.presetName == juce::String(juce::CharPointer_UTF8(kPresetNames[i]))) c = i; const int n = (c + 1) % kPresets; family = n / 10; proc.loadPreset(n); buildPage(); });
+        for (int d = 0; d < kDiceParts; ++d) btn("DICE " + juce::String(kDicePartNames[d]).toUpperCase(), {116.f + d * 96.f, 146, 92, 26}, false, [this, d] { proc.dice(d); buildPage(); });
+        btn("RESET", {116.f + kDiceParts * 96.f + 10, 146, 80, 26}, false, [this] { proc.loadPreset(0); buildPage(); });
+    }
+}
+void DmxEditor::layoutPage() { pageView.setTransform(juce::AffineTransform::scale((float) getWidth() / W)); }
+
 void DmxEditor::paint(juce::Graphics& g) {
     const float s = (float) getWidth() / W;
     g.addTransform(juce::AffineTransform::scale(s));
@@ -118,8 +241,9 @@ void DmxEditor::paint(juce::Graphics& g) {
         juce::Rectangle<float> pw(ledR.getRight() - 22, w.getCentreY() - 20, 22, 40);
         g.setGradientFill(juce::ColourGradient(juce::Colour(0xffe0281c), 0, pw.getY(), juce::Colour(0xff8e0f08), 0, pw.getBottom(), false)); g.fillRoundedRectangle(pw, 3);
         g.setColour(juce::Colour(0x55ff3020)); g.drawRoundedRectangle(pw.expanded(3), 5, 4); }
-    // the voice keys, or (EDIT) the pattern's steps as red lights
-    if (!edit) {
+    // the voice keys, or (EDIT) the pattern's steps as red lights; under a page, nothing
+    if (page >= 0) {}
+    else if (!edit) {
         for (auto& [gi, r] : groupHeads()) { g.setColour(col::dim); g.setFont(sans(11)); g.drawText(kGroupNames[gi], r.withHeight(14), juce::Justification::centred);
             g.setColour(juce::Colour(0xff4a4d55)); g.fillRect(r.getX(), r.getY() + 16, r.getWidth(), 1.f); }
         for (auto& [v, r] : voiceKeys()) drawKey(g, r, e.voiceName(v), v == e.sel, false, v == flashV && flashT > 0);
@@ -142,8 +266,8 @@ void DmxEditor::paint(juce::Graphics& g) {
     }
     // TEMPO / ACCENT / FACTORY, keypad
     const bool son[4] = {e.mode == "tempo", e.mode == "tune", e.acc, false};
-    for (int i = 0; i < 4; ++i) drawKey(g, smallKey(i), kSmallName[i], son[i]);
-    for (int i = 0; i < 12; ++i) {
+    if (page < 0) for (int i = 0; i < 4; ++i) drawKey(g, smallKey(i), kSmallName[i], son[i]);
+    if (page < 0) for (int i = 0; i < 12; ++i) {
         const auto r = padKey(i); const char k = kPad[i]; const bool digit = k >= '0' && k <= '9'; const int n = k == '0' ? 9 : k - '1';
         const bool on = digit && n == e.current() && e.mode.empty();
         drawKey(g, r, {}, on);
@@ -168,15 +292,24 @@ void DmxEditor::paint(juce::Graphics& g) {
         g.setColour(juce::Colour(0xffbbbbbb)); g.fillEllipse(fnR.getRight() - 124, fnR.getBottom() - 20, 20, 20); g.setColour(juce::Colours::white); g.fillEllipse(fnR.getRight() - 119, fnR.getBottom() - 15, 7, 7); }
     // what the LED can't say, and HELP
     g.setColour(juce::Colour(0xffcfd3dc)); g.setFont(sans(12));
-    g.drawFittedText(toastT > 0 ? toast.toUpperCase() : juce::String(e.msg()).toUpperCase(), juce::Rectangle<int>((int) infoR.getX(), (int) infoR.getBottom() - 74, (int) (playR.getCentreX() - 70 - infoR.getX()), 28), juce::Justification::bottomLeft, 2, .7f);
+    g.drawFittedText(toastT > 0 ? toast.toUpperCase() : juce::String(e.msg()).toUpperCase(), juce::Rectangle<int>((int) infoR.getX(), (int) infoR.getY(), (int) (playR.getCentreX() - 70 - infoR.getX()), 18), juce::Justification::centredLeft, 1, .6f);
+    for (int i = 0; i < 6; ++i) {   // the page buttons
+        const auto r = tabR(i); const bool on = i == page;
+        g.setColour(juce::Colours::black); g.fillRoundedRectangle(r.translated(0, 2), 2);
+        g.setGradientFill(juce::ColourGradient(juce::Colour(0xff2c2d33), 0, r.getY(), juce::Colour(0xff17181b), 0, r.getBottom(), false)); g.fillRoundedRectangle(r, 2);
+        if (on) { g.setColour(col::led); g.drawRoundedRectangle(r, 2, 1); }
+        g.setColour(on ? col::led : col::print); g.setFont(sans(10)); g.drawFittedText(kPages[i], r.toNearestInt(), juce::Justification::centred, 1, .7f);
+    }
     {   const auto r = helpR(); g.setColour(juce::Colours::black); g.fillRoundedRectangle(r.translated(0, 2), 2);
         g.setGradientFill(juce::ColourGradient(juce::Colour(0xff34353a), 0, r.getY(), juce::Colour(0xff1b1c20), 0, r.getBottom(), false)); g.fillRoundedRectangle(r, 2);
         g.setColour(col::print); g.setFont(sans(11)); g.drawText("HELP", r, juce::Justification::centred); }
     {   const auto r = circR(); g.setColour(juce::Colours::black); g.fillRoundedRectangle(r.translated(0, 2), 2);
         g.setGradientFill(juce::ColourGradient(juce::Colour(0xff34353a), 0, r.getY(), juce::Colour(0xff1b1c20), 0, r.getBottom(), false)); g.fillRoundedRectangle(r, 2);
-        g.setColour(e.circuitOn() ? col::led : col::print); g.setFont(sans(11)); g.drawText(e.circuitOn() ? "CIRCUIT: DMX" : "CIRCUIT: CLEAN", r, juce::Justification::centred); }
+        g.setColour(e.circuitOn() ? col::led : col::print); g.setFont(sans(10)); g.drawText(e.circuitOn() ? "CIRCUIT DMX" : "CLEAN", r, juce::Justification::centred); }
 }
 
+void DmxEditor::resized() { layoutPage(); }
+DmxEditor::~DmxEditor() { sAtt.clear(); bAtt.clear(); for (auto& sl : sliders) sl->setLookAndFeel(nullptr); for (auto& b : buttons) b->setLookAndFeel(nullptr); }
 void DmxEditor::timerCallback() {
     if (!e.toast.empty()) { Locked l(e.lock); toast = e.toast; e.toast.clear(); toastT = 60; }
     if (toastT > 0) --toastT;
@@ -210,7 +343,8 @@ void DmxEditor::mouseDown(const juce::MouseEvent& ev) {
     }
     if (!edit) for (auto& [v, r] : voiceKeys()) if (r.withHeight(68).contains(p)) { e.sel = v; e.hit(v, kVel[e.acc ? 2 : 1]); return; }
     for (int i = 0; i < 4; ++i) if (smallKey(i).withHeight(58).contains(p)) { fnPress(kSmall[i]); return; }
-    if (circR().contains(p)) { e.setCircuit(!e.circuitOn()); return; }
+    if (circR().contains(p)) { e.setCircuit(!e.circuitOn()); if (page == 0) buildPage(); return; }
+    for (int i = 0; i < 6; ++i) if (tabR(i).contains(p)) { showPage(i); return; }
     for (int i = 0; i < 12; ++i) if (padKey(i).contains(p)) { e.keypad(kPad[i]); return; }
     for (int i = 0; i < 8; ++i) if (fnKey(i).withHeight(58).contains(p)) { fnPress(kFn[i]); return; }
     if (playKey().contains(p)) { e.internalPlay = !e.internalPlay.load(); return; }
@@ -254,7 +388,8 @@ void DmxEditor::showHelp() {
         "CIRCUIT: DMX plays each sound as a DMX voice card would (ROM of AM6070 codes at the card's 555 clock, decay on the DAC's reference, three Sallen-Key filters, the DMX's stereo mix and audio-taper faders); CLEAN plays them as recorded. The DMX kit starts clean: it was recorded from a DMX.\n"
         "Faders: the seven voice groups, the Metronome (down: no click) and the Volume.\n"
         "The sequencer follows the host's transport; PLAY / STOP runs it on its own (and in the standalone app).\n"
-        "MIDI: General MIDI drum notes (36 kick, 38 snare, 42 hat...) and every voice from C3 (60) up; program change picks the pattern.",
+        "MIDI: General MIDI drum notes (36 kick, 38 snare, 42 hat...) and every voice from C3 (60) up; note off releases the pad's ADSR; program change picks the pattern.\n"
+        "Pages (as on the Omega 110 and Omega Traks): VOICE MOD (each card's mods), SOUND (level, pan, decay, start, filter, sends), PAD EQ (EQ, ADSR, drive), FX (REV7-style reverb, TC 2290-style delay), MASTER (EQ, overdrive), PRESETS (100 in 10 families, the dice). Every control is also a plugin parameter.",
         "OK", this);
 }
 

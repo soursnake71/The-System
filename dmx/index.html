@@ -176,7 +176,14 @@ dialog input{width:100%; font:inherit; padding:8px; background:#000; color:#fff;
   <li><b>CIRCUIT: DMX</b> plays each sound the way a DMX voice card would: written into the card's ROM (8-bit AM6070 codes, at the card's own clock, cut to the ROM's size), clocked out by its 555, held between ticks, its decay envelope on the DAC's reference, its three Sallen-Key filters, and the DMX's stereo mix and audio-taper faders. <b>CIRCUIT: CLEAN</b> plays the sounds as recorded. The DMX kit starts clean, since it was recorded from a DMX.</li>
   <li><b>Faders</b>: Bass, Snare, Hi-Hat, Toms, Cymbal, Perc 1, Perc 2, the Metronome (all the way down: no click) and the master Volume.</li>
   <li><b>MIDI</b>: General MIDI drum notes play the kit (36 kick, 38 snare, 42 hat …); every voice also sits on its own note from C3 (60) up. MIDI clock and start / stop drive the sequencer.</li>
-  <li><b>EXPORT WAV</b> saves the pattern (four times) or the song.</li></ul>
+  <li><b>EXPORT</b> saves the pattern (four times) or the song as a WAV.</li>
+  <li><b>The Omega pages</b> (the buttons under the status line, as on the Omega 110 and Omega Traks); tap a page's button again to go back to the keys:
+    <b>VOICE MOD</b> mods each of the DMX's eight voice cards: TUNE (its 555 trimmer for every voice on the card), CAP (the decay capacitor), DECAY (fit or remove the decay envelope), START (early or late decay), FILTER (the LOW or HIGH Sallen-Key set, or none), DAC (a linear 8- or 6-bit DAC in place of the AM6070) and REVERSE.
+    <b>SOUND</b>: level, pan, decay, start point, low-pass with resonance, mute, and the REV7 and delay sends, per card.
+    <b>PAD EQ</b>: a three-band EQ, an ADSR (the gate is one step, or the MIDI note held) and drive, per card.
+    <b>FX</b>: a REV7-style reverb (Hall, Room, Vocal, Plate, Early Ref; RT, HIGH, pre-delay, diffusion, ER level, high cut) and a TC 2290-style dynamic delay (time or tempo sync, feedback, high and low cut, modulation, ducking, ping-pong).
+    <b>MASTER</b>: a four-band EQ and an overdrive (overdrive, hard clip, tube).
+    <b>PRESETS</b>: 100 presets in 10 families, ◀ ▶, the dice (everything, or just the voices, mods, EQ, envelopes, effects or master), and your own. A preset sets the sound; the patterns, kit, faders and each voice's TUNE stay.</li></ul>
   <div class="act"><button class="b" data-close>Close</button></div></dialog>
 <div id="toast"></div>
 <script src="kits.js"></script>

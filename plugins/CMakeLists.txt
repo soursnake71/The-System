@@ -178,6 +178,8 @@ endif()
 add_executable(dmx_test dmx/test.cpp)
 # Circuit.h against the app's dmx/circuit.js: node dmx/tools/compare.mjs <build>/dmx_circuit_dump <dir>
 add_executable(dmx_circuit_dump dmx/circuit_dump.cpp)
+# Mixer.h (the engine) and the dice against dmx/engine.js and dmx/presets.js: the fourth argument of compare.mjs
+add_executable(dmx_mixer_dump dmx/mixer_dump.cpp)
 # the processor and panel without a host (embedded kits, a pattern, a picture of the panel): <build>/dmx_proc_test <dir>
 if(TARGET OmegaDMX)
   juce_add_console_app(dmx_proc_test PRODUCT_NAME "dmx_proc_test")

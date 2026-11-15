@@ -6,11 +6,29 @@
 
 namespace dmx {
 
+// the pages' knobs and buttons, drawn like the app's (red arc, dark key caps)
+class DmxLook : public juce::LookAndFeel_V4 {
+public:
+    DmxLook();
+    void drawRotarySlider(juce::Graphics&, int x, int y, int w, int h, float pos, float a0, float a1, juce::Slider&) override;
+    void drawButtonBackground(juce::Graphics&, juce::Button&, const juce::Colour&, bool over, bool down) override;
+    void drawButtonText(juce::Graphics&, juce::TextButton&, bool over, bool down) override;
+    juce::Label* createSliderTextBox(juce::Slider&) override;
+};
+// a page over the keys, keypad and the keys by it (in panel units, scaled with the window): its headings and knob labels
+class PageView : public juce::Component {
+public:
+    void paint(juce::Graphics&) override;
+    struct Text { juce::String s; juce::Rectangle<float> r; bool head; };
+    std::vector<Text> texts; juce::String title, sub;
+};
+
 class DmxEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit DmxEditor(DmxProcessor&);
     void paint(juce::Graphics&) override;
-    void resized() override {}
+    void resized() override;
+    ~DmxEditor() override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
@@ -18,6 +36,7 @@ public:
     bool keyPressed(const juce::KeyPress&) override;
 
     static constexpr int W = 1280, H = 720;
+    void showPage(int p);                              // -1: none; 0..5 VOICE MOD, SOUND, PAD EQ, FX, MASTER, PRESETS (same page again closes it)
 private:
     void timerCallback() override;
     juce::Point<float> toPanel(const juce::MouseEvent& ev) const { const float s = (float) getWidth() / W; return {ev.position.x / s, ev.position.y / s}; }
@@ -34,16 +53,26 @@ private:
     juce::Rectangle<float> fnKey(int i) const;         // SWING SONG EDIT KIT / RECORD ERASE COPY CLEAR
     juce::Rectangle<float> smallKey(int i) const;      // TEMPO TUNE ACCENT FACTORY
     juce::Rectangle<float> playKey() const { return {playR.getCentreX() - 48, playR.getY() + 28, 96, 84}; }
-    juce::Rectangle<float> helpR() const { return {infoR.getX(), infoR.getBottom() - 40, 70, 26}; }
-    juce::Rectangle<float> circR() const { return {infoR.getX() + 80, infoR.getBottom() - 40, 130, 26}; }
+    juce::Rectangle<float> helpR() const { return {infoR.getX() + 136, infoR.getY() + 90, 64, 25}; }
+    juce::Rectangle<float> circR() const { return {infoR.getX(), infoR.getY() + 90, 132, 25}; }
     void drawKey(juce::Graphics&, juce::Rectangle<float> r, const juce::String& label, bool on, bool red = false, bool hitNow = false);
     void fnPress(const std::string& f);
+    // the Omega pages (as on the Omega 110 and Omega Traks): VOICE MOD, SOUND, PAD EQ, FX, MASTER, PRESETS
+    juce::Rectangle<float> pageR {58, 208, 1164, 322};
+    juce::Rectangle<float> tabR(int i) const { return {infoR.getX() + (i % 3) * 68.f, infoR.getY() + 22 + (i / 3) * 30.f, 64, 25}; }
+    void buildPage();
+    void layoutPage();
     void rename(int v);
     void showHelp();
 
     DmxProcessor& proc;
     Engine& e;
     bool edit = false;
+    int page = -1, pageCard = 0, family = 0;
+    DmxLook look; PageView pageView;
+    std::vector<std::unique_ptr<juce::Slider>> sliders; std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sAtt;
+    std::vector<std::unique_ptr<juce::TextButton>> buttons; std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> bAtt;
+    static constexpr const char* kPages[6] = {"VOICE MOD", "SOUND", "PAD EQ", "FX", "MASTER", "PRESETS"};
     int dragFader = -1, paintRow = -1, paintValue = 0, flashV = -1, flashT = 0;
     juce::String toast; int toastT = 0;
     std::unique_ptr<juce::AlertWindow> dialog;

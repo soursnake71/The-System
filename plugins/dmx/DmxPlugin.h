@@ -4,13 +4,17 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "DmxEngine.h"
+#include "Presets.h"
 
 namespace dmx {
 
-class DmxProcessor : public juce::AudioProcessor {
+juce::String fmtParam(int i, double v);
+
+class DmxProcessor : public juce::AudioProcessor, private juce::Timer {
 public:
     DmxProcessor();
-    void prepareToPlay(double sampleRate, int) override { engine.prepare(sampleRate); }
+    ~DmxProcessor() override { stopTimer(); }
+    void prepareToPlay(double sampleRate, int maxBlock) override { syncParams(); engine.prepare(sampleRate, maxBlock); }
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout& l) const override;
     using AudioProcessor::processBlock;
@@ -32,11 +36,22 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
-    juce::AudioProcessorValueTreeState apvts;   // the nine faders, automatable
+    juce::AudioProcessorValueTreeState apvts;   // the nine faders and the 256 sound parameters (dmx/engine.js PARAMS), automatable
     Engine engine;
     void setFader(int g, float v);
+    // the sound parameters: set (as the host would), a factory preset, the dice
+    void setSound(int i, double v);
+    void loadPreset(int i);
+    void dice(int part);
+    juce::String presetName { "Factory · Stock DMX" };
+    bool edited = false;
+    static juce::String pid(int i) { return kParamDefs[i].id; }
 private:
+    void timerCallback() override { syncParams(); }
+    void syncParams();                          // parameter values into the engine (message thread: VOICE MOD changes re-render)
     std::array<std::atomic<float>*, kGroups> raw {};
+    std::array<std::atomic<float>*, kParams> sraw {};
+    bool loading = false;
     static juce::AudioProcessorValueTreeState::ParameterLayout layout();
 };
 
