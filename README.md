@@ -29,6 +29,11 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## 14-Day Reset (`/reset/`)
+An Android app that runs you through a 14-day, 7-habit reset: no liquid calories, hand-portioned plates, a walk after the biggest meal, 8,000–10,000 steps, a 20–25 minute bodyweight circuit three times a week, 7–8 hours of sleep with a fixed wake-up time, and repeat meals with the kitchen closed after dinner.
+- A walkthrough of each habit, a daily checklist, a walk timer, a guided circuit timer (squats, push-ups, lunges, towel rows, plank), a sleep log, step counting with the phone's step sensor, daily reminders and a 14-day progress grid. Works offline; everything stays on the phone.
+- APK: `reset/reset-14.apk`, or the `reset-latest` release (built by `.github/workflows/reset-apk.yml`). Build it yourself with `gradle -p reset assembleDebug`.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 

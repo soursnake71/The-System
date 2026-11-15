@@ -1,0 +1,30 @@
+# Builds the 14-Day Reset app (reset/) and attaches the APK to the "reset-latest" release.
+# Debug-signed, so it installs on your own phone without a private release key.
+name: 14-Day Reset APK
+on:
+  push:
+    branches: [main]
+    paths: ['reset/**', '.github/workflows/reset-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > reset/local.properties
+          gradle -p reset assembleDebug --no-daemon
+      - name: Publish
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          cp reset/app/build/outputs/apk/debug/app-debug.apk reset-14.apk
+          gh release view reset-latest >/dev/null 2>&1 || gh release create reset-latest --title "14-Day Reset (latest)" --notes "Android app for the 14-day, 7-habit reset. Download reset-14.apk on your phone and open it to install (allow installs from your browser when Android asks)."
+          gh release upload reset-latest reset-14.apk --clobber

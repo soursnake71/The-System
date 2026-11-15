@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>14-Day Reset</title>
+<style>
+:root{--bg:#0f1512;--card:#18211c;--card2:#202b25;--line:#2c3a32;--text:#eef3ef;--mut:#9aab9f;--acc:#3ddc84;--acc2:#1f7a4a;--warn:#f2b94b;--bad:#ef6b6b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Roboto,sans-serif}
+body{padding-bottom:76px}
+h1,h2,h3{margin:0 0 8px;line-height:1.2}
+h1{font-size:24px}h2{font-size:20px}h3{font-size:17px}
+p{margin:0 0 10px}
+.mut{color:var(--mut)}.small{font-size:13px}
+.wrap{max-width:640px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.grow{flex:1;min-width:0}
+button{font:inherit;color:inherit;border:0;border-radius:12px;padding:12px 16px;background:var(--card2);cursor:pointer}
+button.pri{background:var(--acc);color:#06210f;font-weight:700}
+button.ghost{background:transparent;border:1px solid var(--line)}
+button.sm{padding:7px 12px;font-size:14px;border-radius:10px}
+button:disabled{opacity:.4}
+.block{display:block;width:100%}
+input,select{font:inherit;color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+input[type=time]{color-scheme:dark}
+label.f{display:block;margin:10px 0 4px;color:var(--mut);font-size:14px}
+.chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none;font-size:18px;background:transparent;padding:0}
+.chk.on{background:var(--acc);border-color:var(--acc);color:#06210f}
+.num{width:30px;height:30px;border-radius:9px;background:var(--card2);display:grid;place-items:center;font-weight:700;flex:none;font-size:15px}
+.habit.done{border-color:var(--acc2)}
+.habit.done .num{background:var(--acc2)}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--mut)}
+.bar{height:10px;border-radius:99px;background:var(--card2);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--acc);border-radius:99px;transition:width .3s}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{padding:8px 12px;border-radius:99px;background:var(--card2);border:1px solid var(--line);font-size:14px}
+.pill.on{background:var(--acc2);border-color:var(--acc)}
+nav{position:fixed;left:0;right:0;bottom:0;background:#0b100d;border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:transparent;padding:8px 2px;font-size:12px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button b{font-size:20px;font-weight:400}
+nav button.on{color:var(--acc)}
+.grid14{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dcell{aspect-ratio:1;border-radius:10px;background:var(--card2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;border:1px solid transparent;padding:0}
+.dcell b{font-size:15px}
+.dcell.today{border-color:var(--acc)}
+.dcell.fut{opacity:.35}
+.ring{width:92px;height:92px;flex:none}
+.big{font-size:56px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:1px}
+.center{text-align:center}
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;display:none}
+.overlay.show{display:block}
+.plate{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.plate div{background:var(--card2);border-radius:12px;padding:10px 6px;text-align:center;font-size:13px}
+.plate div b{display:block;font-size:22px}
+ul{margin:0 0 10px;padding-left:20px}
+li{margin-bottom:4px}
+.dots{display:flex;gap:6px;justify-content:center;margin:14px 0}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--acc);width:20px;border-radius:99px}
+.hide{display:none!important}
+.ex{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.ex:first-child{border-top:0}
+.ex.cur{color:var(--acc);font-weight:700}
+.ex.past{opacity:.45}
+.mealrow{display:flex;gap:8px;margin-top:8px}
+.mealrow input{flex:1}
+</style>
+</head>
+<body>
+
+<div id="main" class="wrap"></div>
+
+<nav id="nav">
+  <button data-tab="today" class="on"><b>&#9745;</b>Today</button>
+  <button data-tab="progress"><b>&#9638;</b>Progress</button>
+  <button data-tab="guide"><b>&#9776;</b>The 7 habits</button>
+  <button data-tab="settings"><b>&#9881;</b>Settings</button>
+</nav>
+
+<div id="ov" class="overlay"><div class="wrap" id="ovBody"></div></div>
+
+<script>
+'use strict';
+/* ---------- the 7 habits ---------- */
+const HABITS=[
+ {k:'liquid',t:'Pause liquid calories',s:'No soda, juice or alcohol today.',
+  why:'Sugary drinks and alcohol hit your blood fast. They spike insulin and push the liver to store fat, and they don\'t fill you up the way food does.',
+  how:['Drink water, sparkling water, black coffee or plain tea.','No soda, fruit juice, sweet coffee drinks, energy drinks or alcohol for the 14 days.','Craving fizz? Sparkling water with lemon or lime.']},
+ {k:'plate',t:'Build a simple plate',s:'Hand-portion each meal.',
+  why:'Your hand travels with you and scales with your body, so you can portion meals without counting calories or weighing food.',
+  how:['Protein: 1–2 palms (meat, fish, eggs, Greek yoghurt, tofu).','Vegetables: 2 fists.','Carbohydrates: 1 fist (rice, potatoes, oats, fruit, bread).','Fat: 1 thumb (oil, butter, nuts, cheese).']},
+ {k:'walk',t:'Walk after your biggest meal',s:'10–15 minutes, right after eating.',
+  why:'Walking makes your muscles pull glucose out of the blood after a meal, so less insulin is needed and the "store it" signal is weaker.',
+  how:['Start within about 15 minutes of finishing your largest meal.','An easy pace is fine. You should be able to talk.','Use the walk timer here; it ticks this habit off when it finishes.']},
+ {k:'steps',t:'Hit your daily steps',s:'8,000–10,000 steps.',
+  why:'Daily movement outside the gym is the baseline for metabolic health: it burns energy and keeps blood sugar steadier through the day.',
+  how:['The post-meal walk counts towards it.','Take calls on foot, use stairs, park further away.','The app counts steps with the phone\'s step sensor while it is in your pocket. You can also type in the number from your watch or health app.']},
+ {k:'strength',t:'Strength training',s:'20–25 min bodyweight circuit, 3× a week.',
+  why:'When you eat less, your body can burn muscle as well as fat. Resistance training tells it to keep the muscle, which keeps your metabolism up.',
+  how:['Circuit: squats, push-ups, lunges, towel rows, plank.','40 seconds of work, 20 seconds rest, 4 rounds, a minute between rounds (about 23 minutes).','Three days a week. Pick the days in Settings. On the other days this habit shows as a rest day.']},
+ {k:'sleep',t:'Protect your sleep',s:'7–8 hours, same wake-up time.',
+  why:'Short or irregular sleep raises ghrelin (hunger) and cortisol and lowers leptin (fullness), so you are hungrier and crave more the next day.',
+  how:['Get up at the same time every day, weekends too.','Count back 8 hours and start winding down before that.','Log when you went to bed and woke up each morning.']},
+ {k:'kitchen',t:'Repeat meals & close the kitchen',s:'Same go-to meals; nothing after dinner.',
+  why:'Fewer food decisions mean fewer bad ones. Closing the kitchen after dinner cuts out late-night snacking, where a lot of extra calories come from.',
+  how:['Pick 2–3 go-to breakfasts, lunches and dinners and repeat them. Write them in "My go-to meals".','Set a kitchen-closed time. After it: water, tea or sparkling water only.','Brush your teeth after dinner as a signal that eating is done.']}
+];
+const CIRCUIT=[
+ {n:'Squats',d:'Feet shoulder-width, sit back and down, chest up, stand tall.'},
+ {n:'Push-ups',d:'Hands under shoulders, body straight. Use knees or a counter to make it easier.'},
+ {n:'Lunges',d:'Step back, lower the back knee towards the floor, alternate legs.'},
+ {n:'Towel rows',d:'Loop a towel round a sturdy door handle or post, lean back with straight arms, pull your chest to your hands.'},
+ {n:'Plank',d:'On forearms, body straight from head to heels, squeeze glutes and abs.'}
+];
+const W={work:40,rest:20,rounds:4,roundRest:60};
+
+/* ---------- storage ---------- */
+const KEY='reset14';
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S)S={};
+S.settings=Object.assign({wake:'06:30',kitchen:'20:00',walk:'19:00',strengthDays:[1,3,5],stepGoal:8000,remind:true},S.settings||{});
+S.days=S.days||{};S.meals=S.meals||{b:'',l:'',d:''};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+const A=window.Android||null;
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parse=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
+const today=()=>iso(new Date());
+const dayNum=s=>Math.round((parse(s)-parse(S.start))/864e5)+1;
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const fmtDate=s=>{const d=parse(s);return DOW[d.getDay()]+' '+d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function D(s){return S.days[s]||(S.days[s]={liquid:false,plates:[false,false,false],walk:false,steps:0,manual:false,strength:false,bed:'',wakeAt:'',kitchen:false})}
+const isStrengthDay=s=>S.settings.strengthDays.includes(parse(s).getDay());
+function sleepHrs(d){
+  if(!d.bed||!d.wakeAt)return null;
+  const [bh,bm]=d.bed.split(':').map(Number),[wh,wm]=d.wakeAt.split(':').map(Number);
+  let m=(wh*60+wm)-(bh*60+bm);if(m<=0)m+=1440;return m/60;
+}
+function status(s){
+  const d=D(s);
+  return {
+    liquid:d.liquid,
+    plate:d.plates.every(Boolean),
+    walk:d.walk,
+    steps:d.steps>=S.settings.stepGoal,
+    strength:isStrengthDay(s)?d.strength:true,
+    sleep:(sleepHrs(d)||0)>=7,
+    kitchen:d.kitchen
+  };
+}
+const score=s=>Object.values(status(s)).filter(Boolean).length;
+
+/* ---------- steps from the phone's sensor ---------- */
+function syncSteps(){
+  if(!A||!A.hasStepSensor())return;
+  const c=Number(A.getSteps());if(!(c>=0))return;
+  const s=today(),d=D(s);
+  if(d.lastCounter==null){d.lastCounter=c;d.auto=d.auto||0}
+  let delta=c-d.lastCounter;if(delta<0)delta=c; // phone rebooted
+  d.auto=(d.auto||0)+delta;d.lastCounter=c;
+  if(!d.manual)d.steps=d.auto;
+  save();
+}
+
+/* ---------- reminders ---------- */
+function hm(t){return t.split(':').map(Number)}
+function minus(t,min){let [h,m]=hm(t);let x=(h*60+m-min+1440)%1440;return [Math.floor(x/60),x%60]}
+function setReminders(){
+  if(!A)return;
+  const ids=[1,2,3,4,5];
+  if(!S.settings.remind||!S.start){ids.forEach(i=>A.cancel(i));return}
+  const st=S.settings,[wh,wm]=hm(st.wake),[kh,km]=hm(st.kitchen),[ah,am]=hm(st.walk);
+  const [bh,bm]=minus(st.wake,8*60+30);
+  const [mh,mm]=minus(st.wake,-15);
+  A.schedule(1,mh,mm,'Good morning — log your sleep','Open the app to log last night\'s sleep and start counting today\'s steps.');
+  A.schedule(2,ah,am,'Time for your post-meal walk','10–15 easy minutes after your biggest meal. Tap to start the timer.');
+  A.schedule(3,kh,km,'Kitchen\'s closed','Dinner is done. Water, tea or sparkling water from here on.');
+  A.schedule(4,bh,bm,'Start winding down','Lights low, screens away. Aim for bed in 30 minutes to get 8 hours.');
+  A.schedule(5,17,0,'Daily check','How are your steps? A short walk now gets you closer to '+S.settings.stepGoal.toLocaleString()+'.');
+}
+
+/* ---------- views ---------- */
+let tab='today',viewDay=null;
+const main=document.getElementById('main');
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;if(tab==='today')viewDay=null;render()});
+
+function render(){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  if(!S.start){document.getElementById('nav').classList.add('hide');return walkthrough(0)}
+  document.getElementById('nav').classList.remove('hide');
+  ({today:renderToday,progress:renderProgress,guide:renderGuide,settings:renderSettings})[tab]();
+  window.scrollTo(0,tab===lastTab?window.scrollY:0);lastTab=tab;
+}
+let lastTab='';
+
+function ring(n,total){
+  const r=40,c=2*Math.PI*r,f=n/total;
+  return `<svg class="ring" viewBox="0 0 92 92"><circle cx="46" cy="46" r="${r}" fill="none" stroke="var(--card2)" stroke-width="8"/>
+  <circle cx="46" cy="46" r="${r}" fill="none" stroke="var(--acc)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${c*f} ${c}" transform="rotate(-90 46 46)"/>
+  <text x="46" y="52" text-anchor="middle" fill="var(--text)" font-size="20" font-weight="700">${n}/${total}</text></svg>`;
+}
+
+function renderToday(){
+  const t=today();
+  let s=viewDay||t;
+  const first=S.start,last=addDays(S.start,13);
+  if(s<first)s=first;if(s>last&&!viewDay)s=t>last?last:s;
+  const n=dayNum(s);
+  if(t>last&&!viewDay) return renderDone();
+  if(t<first&&!viewDay){
+    main.innerHTML=`<div class="card center"><h2>Day 1 starts ${fmtDate(first)}</h2><p class="mut">Read through the 7 habits, pick your go-to meals and set your times in Settings. Tomorrow it starts for real.</p><button class="pri" onclick="tab='guide';render()">Read the 7 habits</button></div>`;return;
+  }
+  if(s===t)syncSteps();
+  const d=D(s),st=status(s),sc=score(s),sd=isStrengthDay(s),hrs=sleepHrs(d);
+  const ed=s===t?'':`<span class="tag">editing a past day</span>`;
+  const head=`<div class="row between" style="margin-bottom:12px">
+    <button class="sm ghost" ${s<=first?'disabled':''} onclick="viewDay='${addDays(s,-1)}';render()">&#8249;</button>
+    <div class="center grow"><h1>Day ${n} of 14</h1><div class="mut small">${fmtDate(s)} ${ed}</div></div>
+    <button class="sm ghost" ${s>=t||s>=last?'disabled':''} onclick="viewDay='${addDays(s,1)}';render()">&#8250;</button></div>
+   <div class="card row">${ring(sc,7)}<div class="grow"><h3>${sc===7?'Perfect day.':sc>=5?'Strong day — keep going.':'Habits done today'}</h3>
+   <div class="mut small">${tip(n)}</div></div></div>`;
+  const pl=['Breakfast','Lunch','Dinner'];
+  const stepsPct=Math.min(100,d.steps/S.settings.stepGoal*100);
+  const hasSensor=A&&A.hasStepSensor();
+  const H=(i,body,extra='')=>{const h=HABITS[i],done=st[h.k];return `<div class="card habit ${done?'done':''}">
+    <div class="row"><div class="num">${i+1}</div><div class="grow"><h3 style="margin:0">${h.t}</h3><div class="mut small">${h.s}</div></div>${extra}</div>${body?'<div style="margin-top:10px">'+body+'</div>':''}</div>`};
+  const chk=(on,fn)=>`<button class="chk ${on?'on':''}" onclick="${fn}">${on?'&#10003;':''}</button>`;
+  main.innerHTML=head+
+   H(0,'',chk(d.liquid,`tog('${s}','liquid')`))+
+   H(1,`<div class="pills">${pl.map((p,i)=>`<button class="pill ${d.plates[i]?'on':''}" onclick="plate('${s}',${i})">${d.plates[i]?'&#10003; ':''}${p}</button>`).join('')}</div>
+     <div class="mut small" style="margin-top:8px">Tap each meal you built with 1–2 palms protein, 2 fists veg, 1 fist carbs, 1 thumb fat.</div>`)+
+   H(2,`<div class="row"><button class="${d.walk?'ghost':'pri'} grow" onclick="walkTimer('${s}')">${d.walk?'Walk done — walk again':'Start 15-min walk timer'}</button></div>`,chk(d.walk,`tog('${s}','walk')`))+
+   H(3,`<div class="row between small"><b style="font-size:20px">${d.steps.toLocaleString()}</b><span class="mut">of ${S.settings.stepGoal.toLocaleString()}</span></div>
+     <div class="bar" style="margin:6px 0 10px"><i style="width:${stepsPct}%"></i></div>
+     <div class="row"><input type="number" inputmode="numeric" placeholder="Or type steps" id="stepIn" class="grow"><button class="sm" onclick="setSteps('${s}')">Set</button></div>
+     <div class="mut small" style="margin-top:6px">${hasSensor?(d.manual?'Using the number you typed. <a href="#" style="color:var(--acc)" onclick="autoSteps(\''+s+'\');return false">Use the phone\'s count</a>':'Counted by your phone since you first opened the app today. Open the app when you get up so it counts the whole day.'):'No step sensor on this phone — type in your steps.'}</div>`)+
+   H(4,sd?`<button class="${d.strength?'ghost':'pri'} block" onclick="workout('${s}')">${d.strength?'Done — do it again':'Start the circuit (about 23 min)'}</button>`
+     :`<div class="mut small">Rest day. Your strength days are ${S.settings.strengthDays.map(x=>DOW[x]).join(', ')}.</div>`,sd?chk(d.strength,`tog('${s}','strength')`):'<span class="tag">rest</span>')+
+   H(5,`<div class="row"><div class="grow"><label class="f" style="margin-top:0">Went to bed</label><input type="time" value="${d.bed}" onchange="setT('${s}','bed',this.value)"></div>
+     <div class="grow"><label class="f" style="margin-top:0">Woke up</label><input type="time" value="${d.wakeAt}" onchange="setT('${s}','wakeAt',this.value)"></div></div>
+     <div class="small" style="margin-top:8px">${hrs==null?'<span class="mut">Log last night\'s sleep. Target wake-up: '+S.settings.wake+'.</span>':`<b>${hrs.toFixed(1)} h</b> ${hrs>=7?'<span style="color:var(--acc)">— on target</span>':'<span style="color:var(--warn)">— under 7 h</span>'}${wakeNote(d)}`}</div>`)+
+   H(6,`<div class="mut small">Kitchen closes at <b style="color:var(--text)">${S.settings.kitchen}</b>. Tick once the day is over and you ate nothing after dinner.</div>
+     ${(S.meals.b||S.meals.l||S.meals.d)?`<div class="small" style="margin-top:8px"><b>Go-to meals:</b> ${[S.meals.b,S.meals.l,S.meals.d].filter(Boolean).map(esc).join(' · ')}</div>`:`<button class="sm ghost" style="margin-top:8px" onclick="tab='settings';render()">Set your go-to meals</button>`}`,chk(d.kitchen,`tog('${s}','kitchen')`));
+}
+function wakeNote(d){
+  if(!d.wakeAt)return'';
+  const [a,b]=hm(d.wakeAt),[c,e]=hm(S.settings.wake);const diff=Math.abs(a*60+b-(c*60+e));
+  return diff<=30?' · wake-up time consistent':` · ${diff} min off your ${S.settings.wake} wake-up`;
+}
+function tip(n){
+  return ['Day 1. Clear the fridge of soda and juice, and pick your go-to meals.',
+  'Your body is adjusting. Water and sparkling water are your friends.',
+  'Walk right after your biggest meal — even 10 minutes counts.',
+  'Steps short? A 20-minute walk is about 2,000 steps.',
+  'Same wake time today, even if you slept badly.',
+  'Repeat yesterday\'s meals. Fewer choices, fewer slips.',
+  'One week nearly done. Look at Progress to see how far you\'ve come.',
+  'Halfway. Cravings usually fade around now.',
+  'Make the circuit a little harder: slower reps or deeper squats.',
+  'Kitchen closed means closed. Tea is fine.',
+  'Check your plates: is the veg really two fists?',
+  'Sleep is the habit that holds up the rest. Protect it tonight.',
+  'Two days left. Finish strong.',
+  'Last day. Decide which habits you keep.'][n-1]||'';
+}
+window.tog=(s,k)=>{const d=D(s);d[k]=!d[k];save();vib(20);render()};
+window.plate=(s,i)=>{const d=D(s);d.plates[i]=!d.plates[i];save();vib(20);render()};
+window.setT=(s,k,v)=>{D(s)[k]=v;save();render()};
+window.setSteps=(s)=>{const v=parseInt(document.getElementById('stepIn').value,10);if(!(v>=0))return;const d=D(s);d.steps=v;d.manual=true;save();render()};
+window.autoSteps=(s)=>{const d=D(s);d.manual=false;d.steps=d.auto||0;save();render()};
+function vib(ms){if(A)A.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms)}
+
+function renderDone(){
+  const days=[...Array(14)].map((_,i)=>addDays(S.start,i));
+  const tot=days.reduce((a,s)=>a+score(s),0);
+  const per=HABITS.map(h=>days.filter(s=>status(s)[h.k]).length);
+  main.innerHTML=`<div class="card center"><h1>Reset complete</h1><p class="mut">You finished the 14 days. You hit ${tot} of 98 habit-days (${Math.round(tot/98*100)}%).</p></div>
+  <div class="card"><h3>Days each habit was done</h3>${HABITS.map((h,i)=>`<div style="margin:8px 0"><div class="row between small"><span>${i+1}. ${h.t}</span><b>${per[i]}/14</b></div><div class="bar"><i style="width:${per[i]/14*100}%"></i></div></div>`).join('')}</div>
+  <div class="card"><p>Keep the habits that felt easy, and pick one weak habit to focus on next. When you're ready, run another 14 days.</p>
+  <button class="pri block" onclick="restart()">Start a new 14-day reset</button></div>`;
+}
+window.restart=()=>{if(!confirm('Start a new 14 days from today? Your old log stays in the Progress history.'))return;S.start=today();save();setReminders();tab='today';viewDay=null;render()};
+
+function renderProgress(){
+  const t=today(),days=[...Array(14)].map((_,i)=>addDays(S.start,i));
+  const past=days.filter(s=>s<=t);
+  const tot=past.reduce((a,s)=>a+score(s),0);
+  const per=HABITS.map(h=>past.filter(s=>status(s)[h.k]).length);
+  const steps=past.map(s=>D(s).steps).filter(x=>x>0);
+  const sl=past.map(s=>sleepHrs(D(s))).filter(x=>x!=null);
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+  main.innerHTML=`<h1>Progress</h1>
+  <div class="card"><div class="grid14">${days.map((s,i)=>{const sc=score(s),f=s>t;const a=f?0:sc/7;
+    return `<button class="dcell ${s===t?'today':''} ${f?'fut':''}" style="background:${f?'':`rgba(61,220,132,${.08+a*.75})`}" ${f?'disabled':''} onclick="viewDay='${s}';tab='today';render()"><b>${i+1}</b>${f?'':sc+'/7'}</button>`}).join('')}</div>
+  <div class="mut small" style="margin-top:8px">Tap a day to see or edit it.</div></div>
+  <div class="card row" style="justify-content:space-around;text-align:center">
+   <div><div style="font-size:26px;font-weight:800">${past.length?Math.round(tot/(past.length*7)*100):0}%</div><div class="mut small">habits done</div></div>
+   <div><div style="font-size:26px;font-weight:800">${Math.round(avg(steps)).toLocaleString()}</div><div class="mut small">avg steps</div></div>
+   <div><div style="font-size:26px;font-weight:800">${avg(sl).toFixed(1)}h</div><div class="mut small">avg sleep</div></div>
+   <div><div style="font-size:26px;font-weight:800">${past.filter(s=>isStrengthDay(s)&&D(s).strength).length}</div><div class="mut small">workouts</div></div></div>
+  <div class="card"><h3>By habit</h3>${HABITS.map((h,i)=>`<div style="margin:9px 0"><div class="row between small"><span>${i+1}. ${h.t}</span><b>${per[i]}/${past.length}</b></div><div class="bar"><i style="width:${past.length?per[i]/past.length*100:0}%"></i></div></div>`).join('')}</div>`;
+}
+
+function renderGuide(){
+  main.innerHTML=`<h1>The 7 habits</h1><p class="mut">Fourteen days, seven simple habits. No calorie counting.</p>
+  <button class="pri block" style="margin-bottom:12px" onclick="walkthrough(1,true)">Run me through it again</button>`+
+  HABITS.map((h,i)=>`<div class="card"><div class="row" style="margin-bottom:8px"><div class="num">${i+1}</div><h3 style="margin:0">${h.t}</h3></div>
+   <p>${h.why}</p>${i===1?plateHtml():''}<ul>${h.how.map(x=>`<li>${x}</li>`).join('')}</ul>
+   ${i===4?`<div class="small mut">${CIRCUIT.map(c=>`<b style="color:var(--text)">${c.n}:</b> ${c.d}`).join('<br>')}</div>`:''}</div>`).join('')+
+  `<p class="small mut">This is general guidance for healthy adults, not medical advice. Check with your doctor first if you have diabetes, take medication that affects blood sugar, are pregnant, or have heart or joint problems.</p>`;
+}
+const plateHtml=()=>`<div class="plate"><div><b>&#9995;</b>1–2 palms<br>protein</div><div><b>&#9994;&#9994;</b>2 fists<br>vegetables</div><div><b>&#9994;</b>1 fist<br>carbs</div><div><b>&#128077;</b>1 thumb<br>fat</div></div>`;
+
+function renderSettings(){
+  const st=S.settings;
+  main.innerHTML=`<h1>Settings</h1>
+  <div class="card"><h3>My go-to meals</h3><p class="mut small">Habit 7: decide once, then repeat.</p>
+   <label class="f">Breakfast</label><input value="${esc(S.meals.b)}" placeholder="e.g. 3 eggs, spinach, 1 slice toast" onchange="S.meals.b=this.value;save()">
+   <label class="f">Lunch</label><input value="${esc(S.meals.l)}" placeholder="e.g. chicken, salad, rice" onchange="S.meals.l=this.value;save()">
+   <label class="f">Dinner</label><input value="${esc(S.meals.d)}" placeholder="e.g. salmon, roast veg, potatoes" onchange="S.meals.d=this.value;save()"></div>
+  <div class="card"><h3>Times</h3>
+   <label class="f">Wake-up time (same every day)</label><input type="time" value="${st.wake}" onchange="setS('wake',this.value)">
+   <label class="f">Post-meal walk reminder (after your biggest meal)</label><input type="time" value="${st.walk}" onchange="setS('walk',this.value)">
+   <label class="f">Kitchen closes</label><input type="time" value="${st.kitchen}" onchange="setS('kitchen',this.value)"></div>
+  <div class="card"><h3>Strength days</h3><p class="mut small">Pick 3.</p><div class="pills">${DOW.map((d,i)=>`<button class="pill ${st.strengthDays.includes(i)?'on':''}" onclick="sday(${i})">${d}</button>`).join('')}</div></div>
+  <div class="card"><h3>Step goal</h3><div class="pills">${[8000,9000,10000].map(v=>`<button class="pill ${st.stepGoal===v?'on':''}" onclick="setS('stepGoal',${v})">${v.toLocaleString()}</button>`).join('')}</div></div>
+  <div class="card row between"><div><h3 style="margin:0">Reminders</h3><div class="mut small">Morning check-in, walk, steps, kitchen closed, wind-down</div></div>
+   <button class="chk ${st.remind?'on':''}" onclick="setS('remind',!S.settings.remind)">${st.remind?'&#10003;':''}</button></div>
+  <div class="card"><h3>Your reset</h3><p class="mut small">Started ${fmtDate(S.start)}. Day 14 is ${fmtDate(addDays(S.start,13))}.</p>
+   <button class="ghost block" onclick="restart()">Restart from today</button></div>`;
+}
+window.setS=(k,v)=>{S.settings[k]=v;save();setReminders();render()};
+window.sday=i=>{const a=S.settings.strengthDays;const j=a.indexOf(i);if(j>=0)a.splice(j,1);else a.push(i);a.sort();save();render()};
+
+/* ---------- walkthrough ("run me through it") ---------- */
+let wtFromGuide=false;
+window.walkthrough=(i,fromGuide)=>{
+  if(fromGuide!==undefined)wtFromGuide=fromGuide;
+  const ov=document.getElementById('ov'),b=document.getElementById('ovBody');ov.classList.add('show');ov.scrollTop=0;
+  const total=HABITS.length+2;
+  const dots=`<div class="dots">${[...Array(total)].map((_,k)=>`<i class="${k===i?'on':''}"></i>`).join('')}</div>`;
+  if(i===0){
+    b.innerHTML=`${dots}<h1 style="margin-top:20px">Your 14-day reset</h1>
+    <p>Seven habits, fourteen days. Each habit is small. Together they bring blood sugar, hunger and energy back under control — without counting a single calorie.</p>
+    <div class="card">${HABITS.map((h,k)=>`<div class="row" style="margin:6px 0"><div class="num">${k+1}</div><div>${h.t}</div></div>`).join('')}</div>
+    <p class="mut">I'll run you through each one, then you set your times and start.</p>
+    <button class="pri block" onclick="walkthrough(1)">Let's go</button>`;
+  }else if(i<=HABITS.length){
+    const h=HABITS[i-1];
+    b.innerHTML=`${dots}<div class="mut small">Habit ${i} of 7</div><h1>${h.t}</h1><p style="font-size:17px">${h.s}</p>
+    <div class="card"><h3>Why it works</h3><p>${h.why}</p></div>
+    ${i===2?plateHtml():''}
+    <div class="card"><h3>How to do it</h3><ul>${h.how.map(x=>`<li>${x}</li>`).join('')}</ul>
+    ${i===5?`<div class="small">${CIRCUIT.map(c=>`<div style="margin-top:6px"><b>${c.n}</b> — <span class="mut">${c.d}</span></div>`).join('')}</div>`:''}</div>
+    <div class="row"><button class="ghost" onclick="walkthrough(${i-1})">Back</button><button class="pri grow" onclick="walkthrough(${i+1})">${i===7?'Set up my reset':'Next habit'}</button></div>`;
+  }else{
+    if(wtFromGuide){closeOv();return}
+    const st=S.settings;
+    b.innerHTML=`${dots}<h1>Set up</h1>
+    <label class="f">Wake-up time (keep it the same every day)</label><input type="time" id="wWake" value="${st.wake}">
+    <label class="f">Usual time of your biggest meal's walk</label><input type="time" id="wWalk" value="${st.walk}">
+    <label class="f">Kitchen closes at</label><input type="time" id="wKit" value="${st.kitchen}">
+    <label class="f">Strength days (pick 3)</label><div class="pills" id="wDays">${DOW.map((d,k)=>`<button class="pill ${st.strengthDays.includes(k)?'on':''}" data-d="${k}" onclick="this.classList.toggle('on')">${d}</button>`).join('')}</div>
+    <label class="f">When does Day 1 start?</label>
+    <div class="row"><button class="pri grow" onclick="startReset(0)">Today</button><button class="ghost grow" onclick="startReset(1)">Tomorrow</button></div>
+    <button class="ghost block" style="margin-top:10px" onclick="walkthrough(${HABITS.length})">Back</button>`;
+  }
+};
+window.startReset=off=>{
+  const st=S.settings;st.wake=document.getElementById('wWake').value||st.wake;st.walk=document.getElementById('wWalk').value||st.walk;st.kitchen=document.getElementById('wKit').value||st.kitchen;
+  const ds=[...document.querySelectorAll('#wDays .on')].map(e=>+e.dataset.d);if(ds.length)st.strengthDays=ds;
+  S.start=addDays(today(),off);save();setReminders();closeOv();tab=off?'guide':'today';render();
+};
+function closeOv(){document.getElementById('ov').classList.remove('show');stopTimer();if(A)A.keepScreenOn(false);render()}
+window.closeOv=closeOv;
+
+/* ---------- timers: walk + workout ---------- */
+let timer=null,ac=null;
+function beep(f=880,dur=.15,n=1){
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+   for(let k=0;k<n;k++){const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);
+    const t0=ac.currentTime+k*(dur+.08);g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(.4,t0+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);o.start(t0);o.stop(t0+dur+.02)}}catch(e){}
+}
+function stopTimer(){if(timer){clearInterval(timer);timer=null}}
+const mmss=s=>Math.floor(s/60)+':'+pad(Math.max(0,Math.ceil(s%60)))
+
+window.walkTimer=(s)=>{
+  const ov=document.getElementById('ov'),b=document.getElementById('ovBody');ov.classList.add('show');
+  let len=15*60,end=0,paused=true,left=len;
+  if(A)A.keepScreenOn(true);
+  const draw=()=>{b.innerHTML=`<div class="center" style="padding-top:40px"><div class="mut">Habit 3 · Post-meal walk</div>
+    <div class="big" style="margin:30px 0 10px">${mmss(left)}</div>
+    <div class="bar" style="margin:0 20px 30px"><i style="width:${(1-left/len)*100}%"></i></div>
+    <div class="pills" style="justify-content:center;margin-bottom:20px">${[10,15,20].map(m=>`<button class="pill ${len===m*60?'on':''}" ${!paused||left<len?'disabled':''} onclick="wSet(${m})">${m} min</button>`).join('')}</div>
+    <button class="pri block" onclick="wGo()">${paused?(left<len?'Resume':'Start walking'):'Pause'}</button>
+    <button class="ghost block" style="margin-top:10px" onclick="closeOv()">Close</button>
+    <p class="mut small" style="margin-top:20px">Easy pace — you should be able to talk. Keep the phone in your pocket; the steps count too.</p></div>`};
+  window.wSet=m=>{len=left=m*60;draw()};
+  window.wGo=()=>{
+    if(paused){paused=false;end=Date.now()+left*1000;beep(660,.15,2);
+      timer=setInterval(()=>{left=(end-Date.now())/1000;
+        if(left<=0){stopTimer();left=0;D(s).walk=true;save();beep(880,.2,3);vib(600);
+          b.innerHTML=`<div class="center" style="padding-top:80px"><div style="font-size:64px">&#10003;</div><h1>Walk done</h1><p class="mut">Habit 3 ticked off for ${fmtDate(s)}.</p><button class="pri block" onclick="closeOv()">Back to today</button></div>`;if(A)A.keepScreenOn(false);return}
+        draw()},250)}
+    else{paused=true;stopTimer();draw()}
+    draw();
+  };
+  draw();
+};
+
+window.workout=(s)=>{
+  const ov=document.getElementById('ov'),b=document.getElementById('ovBody');ov.classList.add('show');
+  // build the schedule
+  const steps=[{type:'ready',len:10,n:'Get ready',d:CIRCUIT[0].n+' first. '+CIRCUIT[0].d}];
+  for(let r=1;r<=W.rounds;r++){CIRCUIT.forEach((c,i)=>{
+    steps.push({type:'work',len:W.work,n:c.n,d:c.d,r,i});
+    const lastEx=i===CIRCUIT.length-1;
+    if(!lastEx)steps.push({type:'rest',len:W.rest,n:'Rest',d:'Next: '+CIRCUIT[i+1].n,r,i:i+1});
+    else if(r<W.rounds)steps.push({type:'rest',len:W.roundRest,n:'Round rest',d:'Shake it out. Next: '+CIRCUIT[0].n,r:r+1,i:0});
+  })}
+  const totalLen=steps.reduce((a,x)=>a+x.len,0);
+  let k=0,left=steps[0].len,end=0,paused=true;
+  if(A)A.keepScreenOn(true);
+  const elapsed=()=>steps.slice(0,k).reduce((a,x)=>a+x.len,0)+(steps[k].len-left);
+  const draw=()=>{const st=steps[k],col=st.type==='work'?'var(--acc)':st.type==='ready'?'var(--warn)':'var(--mut)';
+    const r=st.r||1,ci=st.type==='work'?st.i:(st.i??0);
+    b.innerHTML=`<div class="center" style="padding-top:16px"><div class="mut">Habit 5 · Strength circuit · Round ${r} of ${W.rounds}</div>
+     <div style="color:${col};font-size:28px;font-weight:800;margin-top:18px">${st.n}</div>
+     <div class="big" style="color:${col}">${Math.ceil(left)}</div>
+     <p class="mut" style="min-height:44px">${st.d}</p>
+     <div class="bar" style="margin:8px 0 6px"><i style="width:${elapsed()/totalLen*100}%"></i></div>
+     <div class="mut small" style="margin-bottom:14px">${mmss(totalLen-elapsed())} left</div>
+     <div class="row"><button class="ghost" onclick="wkSkip(-1)">&#8249;</button><button class="pri grow" onclick="wkGo()">${paused?(elapsed()>0?'Resume':'Start'):'Pause'}</button><button class="ghost" onclick="wkSkip(1)">&#8250;</button></div></div>
+     <div class="card" style="margin-top:16px">${CIRCUIT.map((c,i)=>`<div class="ex ${i===ci&&st.type!=='ready'?'cur':''}"><div class="num">${i+1}</div>${c.n}</div>`).join('')}</div>
+     <button class="ghost block" onclick="if(confirm('Stop the workout?'))closeOv()">Stop</button>`};
+  const next=()=>{k++;if(k>=steps.length){stopTimer();D(s).strength=true;save();beep(880,.25,3);vib(800);if(A)A.keepScreenOn(false);
+      b.innerHTML=`<div class="center" style="padding-top:80px"><div style="font-size:64px">&#128170;</div><h1>Circuit done</h1><p class="mut">Habit 5 ticked off for ${fmtDate(s)}. Protein at your next meal.</p><button class="pri block" onclick="closeOv()">Back to today</button></div>`;return false}
+    left=steps[k].len;end=Date.now()+left*1000;
+    if(steps[k].type==='work'){beep(990,.3);vib(300)}else{beep(520,.2,2);vib(150)}return true};
+  const tick=()=>{left=(end-Date.now())/1000;
+    if(left<=3.05&&left>0&&Math.ceil(left)!==tick.last){tick.last=Math.ceil(left);beep(660,.08)}
+    if(left<=0){if(!next())return}draw()};
+  window.wkGo=()=>{if(paused){paused=false;end=Date.now()+left*1000;if(elapsed()===0)beep(660,.1);timer=setInterval(tick,200)}else{paused=true;stopTimer()}draw()};
+  window.wkSkip=dir=>{const nk=k+dir;if(nk<0||nk>=steps.length)return;k=nk;left=steps[k].len;end=Date.now()+left*1000;draw()};
+  draw();
+};
+
+/* ---------- back button & resume ---------- */
+window.onBack=()=>{
+  const ov=document.getElementById('ov');
+  if(ov.classList.contains('show')){if(!S.start)return true;if(timer&&!confirm('Stop the timer?'))return true;closeOv();return true}
+  if(tab!=='today'||viewDay){tab='today';viewDay=null;render();return true}
+  return false;
+};
+window.onAppResume=()=>{if(tab==='today'&&!document.getElementById('ov').classList.contains('show'))render()};
+setInterval(()=>{if(tab==='today'&&!viewDay&&!document.getElementById('ov').classList.contains('show')&&document.activeElement.tagName!=='INPUT')render()},30000);
+
+render();
+if(S.start)setReminders();
+</script>
+</body>
+</html>
