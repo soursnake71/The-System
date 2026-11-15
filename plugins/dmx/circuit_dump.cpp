@@ -1,5 +1,5 @@
 // Renders every kit voice through the C++ circuit model (Circuit.h) for dmx/tools/compare.mjs.
-// usage: dmx_circuit_dump <repo>/dmx/kits <outdir> [fs]   writes <kit>_<voice>_<tune>.f32 (float32, mono)
+// usage: dmx_circuit_dump <repo>/dmx/kits <outdir> [fs]   writes <kit>_<voice>_<tune>_<mods>.f32 (float32, mono)
 #include "DmxEngine.h"
 #include "Circuit.h"
 #include <cstdio>
@@ -18,9 +18,14 @@ int main(int argc, char** argv) {
             dmx::Sample s; if (!dmx::readWav(b.data(), b.size(), s)) { std::printf("cannot read %s/%s\n", K.id, K.v[v].file); return 1; }
             const auto pl = dmx::circuit::cardFor(f.data(), nm.data(), g.data(), K.voices, v); const auto& card = dmx::circuit::CARDS[pl.card];
             const auto rom = dmx::circuit::makeRom(std::vector<double>(s.d.begin(), s.d.end()), s.sr, card);
-            for (int tune : {50, 20, 85}) {
-                const auto y = dmx::circuit::render(rom, card, pl.mode, tune, fs);
-                std::ofstream o(out + "/" + K.id + "_" + std::to_string(v) + "_" + std::to_string(tune) + ".f32", std::ios::binary);
+            dmx::circuit::Mods mA; mA.cap = 2; mA.dmod = 1; mA.early = 2; mA.filt = 3; mA.dac = 1; mA.rev = true;
+            dmx::circuit::Mods mB; mB.cap = .5; mB.dmod = 2; mB.early = 1; mB.filt = 1; mB.dac = 2;
+            dmx::circuit::Mods mC; mC.cap = 3; mC.filt = 2;
+            const dmx::circuit::Mods none, *mods[4] = {&none, &mA, &mB, &mC};
+            for (int tune : {50, 20, 85}) for (int mi = 0; mi < 4; ++mi) {
+                if (mi && tune != 50) continue;
+                const auto y = dmx::circuit::render(rom, card, pl.mode, tune, fs, *mods[mi]);
+                std::ofstream o(out + "/" + K.id + "_" + std::to_string(v) + "_" + std::to_string(tune) + "_" + std::to_string(mi) + ".f32", std::ios::binary);
                 o.write(reinterpret_cast<const char*>(y.data()), (std::streamsize) (y.size() * sizeof(float))); ++files;
             }
         }

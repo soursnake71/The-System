@@ -61,13 +61,18 @@ inline double iref(const Card& c, int mode) {
     if (mode == 1) return (a * b * VCC + R8 * a * VD + R8 * b * VD) / (R8 * a * b + a * b * R9 + R8 * b * R9 + R8 * a * R9) / mx;
     return (a * VCC + R8 * VD) / (a * R8 + R8 * R9 + a * R9) / mx;
 }
+// the VOICE MOD set (circuit.js render's m): cap C3 x; dmod 0 stock / 1 fitted / 2 removed; early 0 stock / 1 early / 2 late;
+// filt 0 stock / 1 LOW / 2 HIGH / 3 none; dac 0 AM6070 / 1 linear 8-bit / 2 linear 6-bit; rev the ROM backwards
+struct Mods { double cap = 1; int dmod = 0, early = 0, filt = 0, dac = 0; bool rev = false; };
+constexpr double C3_FITTED = 3.3e-6;
 // decay {time constant, counter start}; tau 0 = none
-inline std::pair<double, int> decay(const Card& c, int mode) {
-    const bool on = c.decay == DecayOn || (c.decay == DecayTr12 && mode != 3);
-    if (!on || !(c.c3 > 0)) return {0, 0};
+inline std::pair<double, int> decay(const Card& c, int mode, const Mods& m = {}) {
+    const double c3 = (c.c3 > 0 ? c.c3 : (m.dmod == 1 ? C3_FITTED : 0)) * m.cap;
+    const bool on = m.dmod == 1 || (m.dmod == 0 && (c.decay == DecayOn || (c.decay == DecayTr12 && mode != 3)));
+    if (!on || !(c3 > 0)) return {0, 0};
     const double r = c.pitch || mode == 3 ? R8 + R9 : mode == 1 ? R8 + par3(R9, c.r12, c.r17) : R8 + par2(R9, c.r12);
-    const bool early = c.early == EarlyOn || (c.early == EarlyTr1 && mode == 1);
-    return {r * c.c3, early ? 64 : 1024};
+    const bool early = m.early == 1 || (m.early == 0 && (c.early == EarlyOn || (c.early == EarlyTr1 && mode == 1)));
+    return {r * c3, early ? 64 : 1024};
 }
 inline double decode(int code) {
     const int chord = (code >> 4) & 7, step = code & 15; const double v = (double) (LEVEL[chord] + step * (2 << chord)) / FULL;
@@ -118,10 +123,13 @@ inline const std::array<double, TAPS>& decim() {
         return t; }();
     return h;
 }
-inline std::vector<float> render(const Rom& R, const Card& card, int mode, double tune, double fs) {
-    const double f = rate(card, mode, tune), F = fs * OS, I0 = iref(card, mode); const auto dec = decay(card, mode);
+inline std::vector<float> render(const Rom& R, const Card& card, int mode, double tune, double fs, const Mods& m = {}) {
+    const double f = rate(card, mode, tune), F = fs * OS, I0 = iref(card, mode); const auto dec = decay(card, mode, m);
     const double tEnd = R.len / f; const size_t n = (size_t) std::ceil((tEnd + .01) * F) + TAPS; std::vector<double> x(n);
-    auto val = [&](long k) { return k < R.len ? decode(R.rom[(size_t) k]) : 0.0; };
+    auto val = [&](long k) {
+        if (k >= R.len) return 0.0;
+        const double v = decode(R.rom[(size_t) (m.rev ? R.len - 1 - k : k)]);
+        return m.dac == 1 ? std::floor(v * 127 + .5) / 127 : m.dac == 2 ? std::floor(v * 31 + .5) / 31 : v; };
     for (size_t i = 0; i < n; ++i) {
         const double t0 = (double) i / F, t1 = (double) (i + 1) / F; const long k0 = (long) std::floor(t0 * f), k1 = (long) std::floor(t1 * f); double v;
         if (k0 == k1) v = val(k0);
@@ -130,12 +138,13 @@ inline std::vector<float> render(const Rom& R, const Card& card, int mode, doubl
         if (dec.first > 0) { const double td = dec.second / f; if (tm > td) g *= std::exp(-(tm - td) / dec.first); }
         x[i] = v * g;
     }
-    for (int s = 0; s < 3; ++s) {
-        double c[5]; if (!skCoefs(FILTERS[card.lowFilter ? 0 : 1][s], F, c)) continue; double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    const int set = m.filt == 1 ? 0 : m.filt == 2 ? 1 : card.lowFilter ? 0 : 1;
+    for (int s = 0; s < (m.filt == 3 ? 0 : 3); ++s) {
+        double c[5]; if (!skCoefs(FILTERS[set][s], F, c)) continue; double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
         for (size_t i = 0; i < n; ++i) { const double y = c[0] * x[i] + c[1] * x1 + c[2] * x2 - c[3] * y1 - c[4] * y2; x2 = x1; x1 = x[i]; y2 = y1; y1 = y; x[i] = y; }
     }
-    const size_t m = (n - TAPS) / OS; std::vector<float> out(m); const auto& h = decim();
-    for (size_t j = 0; j < m; ++j) { double s = 0; const size_t b = j * OS; for (int k = 0; k < TAPS; ++k) s += h[(size_t) k] * x[b + (size_t) k]; out[j] = (float) s; }
+    const size_t nOut = (n - TAPS) / OS; std::vector<float> out(nOut); const auto& h = decim();
+    for (size_t j = 0; j < nOut; ++j) { double s = 0; const size_t b = j * OS; for (int k = 0; k < TAPS; ++k) s += h[(size_t) k] * x[b + (size_t) k]; out[j] = (float) s; }
     return out;
 }
 inline std::pair<double, double> pan(const Card& c) { return {R_FB / c.mixL / MIX_NORM, R_FB / c.mixR / MIX_NORM}; }

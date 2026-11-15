@@ -36,7 +36,7 @@ function ensureAudio(){
     for (const f of ['fx.js', 'engine.js', 'worklet.js']) await R.ctx.audioWorklet.addModule(f);
     R.node = new AudioWorkletNode(R.ctx, 'dmx', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2]});
     R.node.connect(R.ctx.destination);
-    R.node.port.onmessage = ({data:x}) => { if (x.type === 'meter') R.meter = x.m; };
+    R.node.port.onmessage = ({data:x}) => { if (x.type === 'meter'){ R.meter = x.m; } };
     post({type:'params', p:S.params}); post({type:'tempo', bpm:S.tempo}); levels(); if (R.bufs[kit().id]) sendSounds();
   })();
   return R.ctx;
