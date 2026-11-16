@@ -35,6 +35,7 @@ const Colour violet  { 0xffb06cff };
 const Colour deck[2] { Colour(0xff2b9bff), Colour(0xffff7a29) };
 }
 
+String U(const char* utf8) { return String::fromUTF8(utf8); }
 Font font(float h, bool bold = false) { return Font(FontOptions(h, bold ? Font::bold : Font::plain)); }
 Font mono(float h, bool bold = false) { return Font(FontOptions(Font::getDefaultMonospacedFontName(), h, bold ? Font::bold : Font::plain)); }
 
@@ -122,8 +123,8 @@ struct WheelLook : LookAndFeel_V4
         g.setColour(pal::edge); g.fillRect(w - 1, 3, 1, h - 6);
         g.setColour(pal::dim); g.setFont(font(11.5f, true));
         String n = name;
-        if ((flags & TableHeaderComponent::sortedForwards) != 0) n << "  \xe2\x96\xb4";
-        if ((flags & TableHeaderComponent::sortedBackwards) != 0) n << "  \xe2\x96\xbe";
+        if ((flags & TableHeaderComponent::sortedForwards) != 0) n << U("  \xe2\x96\xb4");
+        if ((flags & TableHeaderComponent::sortedBackwards) != 0) n << U("  \xe2\x96\xbe");
         g.drawText(n.toUpperCase(), 6, 0, w - 10, h, Justification::centredLeft, true);
     }
     void drawScrollbar(Graphics& g, ScrollBar&, int x, int y, int w, int h, bool vertical, int thumbPos, int thumbSize, bool over, bool) override
@@ -283,7 +284,7 @@ struct PButton : Component
         g.setColour(l ? litCol.withAlpha(solid ? .9f : .85f) : Colours::black.withAlpha(.7f));
         g.drawRoundedRectangle(r, rad, l && !solid ? 1.4f : 1.0f);
         if (!l) { g.setColour(Colours::white.withAlpha(.07f)); g.drawLine(r.getX() + rad, r.getY() + 1, r.getRight() - rad, r.getY() + 1, 1); }
-        float fh = jmin(13.0f * ctx.S, r.getHeight() * .46f) * fontScale;
+        float fh = jmin(13.0f * ctx.S, r.getHeight() * .52f) * fontScale;
         g.setFont(font(fh, true));
         g.setColour(l ? (solid ? Colours::black.withAlpha(.85f) : litCol.brighter(.3f)) : pal::dim.brighter(isMouseOver() ? .3f : 0));
         if (sub.isNotEmpty())
@@ -649,7 +650,7 @@ struct WaveView : Component
         if (t == nullptr)
         {
             g.setColour(pal::faint); g.setFont(font(13 * ctx.S, true));
-            g.drawText(ctx.proc.loading[d].load() ? "LOADING\xe2\x80\xa6" : String("DECK ") + (d == 0 ? "A" : "B") + "  \xc2\xb7  LOAD A TRACK FROM THE LIBRARY", getLocalBounds(), Justification::centred);
+            g.drawText(ctx.proc.loading[d].load() ? U("LOADING\xe2\x80\xa6") : String("DECK ") + (d == 0 ? "A" : "B") + U("  \xc2\xb7  LOAD A TRACK FROM THE LIBRARY"), getLocalBounds(), Justification::centred);
             g.setColour(Colours::white.withAlpha(.6f)); g.fillRect(cx - 1, 0.0f, 2.0f, (float) H);
             return;
         }
@@ -869,7 +870,7 @@ struct InfoRow : Component
         g.drawText(bpm > 0 ? String(bpm, 1) : "---.-", bpmR.withTrimmedBottom(bpmR.getHeight() * .38f), Justification::bottomRight);
         double pp = ctx.pitchPct(d);
         g.setFont(mono(11 * S)); g.setColour(std::abs(pp) < .005 ? pal::dim : pal::amber);
-        g.drawText((pp >= 0 ? "+" : "") + String(pp, 2) + "%  \xc2\xb1" + String((int) std::round(ctx.rangePct(d))) + (ctx.rpm45(d) ? "  45" : ""),
+        g.drawText((pp >= 0 ? "+" : "") + String(pp, 2) + U("%  \xc2\xb1") + String((int) std::round(ctx.rangePct(d))) + (ctx.rpm45(d) ? "  45" : ""),
                    bpmR.withTrimmedTop(bpmR.getHeight() * .62f), Justification::topRight);
         right.removeFromRight(12 * S);
         auto keyR = right.removeFromRight(70 * S).reduced(0, r.getHeight() * .22f);
@@ -894,7 +895,7 @@ struct InfoRow : Component
         if (ctx.proc.loading[d].load())
         {
             g.setColour(pal::amber); g.setFont(font(15 * S, true));
-            g.drawText("Loading\xe2\x80\xa6" + String::repeatedString(".", (int) (Time::getMillisecondCounter() / 300 % 3)), txt, Justification::centredLeft, true);
+            g.drawText(U("Loading\xe2\x80\xa6") + String::repeatedString(".", (int) (Time::getMillisecondCounter() / 300 % 3)), txt, Justification::centredLeft, true);
         }
         else if (ctx.proc.loadError[d].isNotEmpty() && t == nullptr)
         {
@@ -910,7 +911,7 @@ struct InfoRow : Component
             g.setColour(pal::dim); g.setFont(font(12 * S));
             String sub = artist;
             if (ctx.proc.loadError[d].isNotEmpty()) sub = ctx.proc.loadError[d];
-            if (t->fromSerato) sub << "   \xe2\x97\x86 Serato";
+            if (t->fromSerato) sub << U("   \xe2\x97\x86 Serato");
             g.drawText(sub, txt.withTrimmedTop(txt.getHeight() * .58f), Justification::topLeft, true);
         }
         else { g.setColour(pal::faint); g.setFont(font(14 * S, true)); g.drawText("No track", txt, Justification::centredLeft); }
@@ -1048,7 +1049,7 @@ struct Platter : Component
             g.setFont(font(lr * .15f));
             g.drawFittedText(artist, Rectangle<float>(cx - lr * .75f, cy + lr * .22f, lr * 1.5f, lr * .26f).toNearestInt(), Justification::centred, 1, .7f);
             g.setFont(font(lr * .13f, true));
-            g.drawText(ctx.rpm45(d) ? "45 RPM" : "33\xe2\x85\x93 RPM", Rectangle<float>(cx - lr * .6f, cy + lr * .5f, lr * 1.2f, lr * .2f), Justification::centred);
+            g.drawText(ctx.rpm45(d) ? "45 RPM" : U("33\xe2\x85\x93 RPM"), Rectangle<float>(cx - lr * .6f, cy + lr * .5f, lr * 1.2f, lr * .2f), Justification::centred);
             // the marker on the record edge Serato draws (and a sticker on the vinyl to see it turn)
             g.setColour(Colours::white.withAlpha(.9f));
             g.fillRoundedRectangle(cx - 1.5f, cy - R * .89f, 3.0f, R * .2f, 1.5f);
@@ -1086,7 +1087,8 @@ struct Tonearm : Component
         float S = ctx.S;
         float L = pivot.getDistanceFrom(centre) * .97f;
         Point<float> tip;
-        if (progress < 0) tip = pivot + Point<float>(-L * .06f, L);   // on the rest
+        auto restAt = pivot + Point<float>(R * .17f, R * .5f);
+        if (progress < 0) tip = pivot + (restAt - pivot) / restAt.getDistanceFrom(pivot) * L;   // on the rest
         else
         {
             float rs = R * (.86f - .46f * progress);
@@ -1100,7 +1102,7 @@ struct Tonearm : Component
             tip = p1.x > p2.x ? p1 : p2;
         }
         // arm rest
-        auto rest = pivot + Point<float>(-L * .06f, L * .93f);
+        auto rest = restAt;
         g.setColour(Colour(0xff2a2d31)); g.fillEllipse(rest.x - 6 * S, rest.y - 6 * S, 12 * S, 12 * S);
         g.setColour(Colour(0xff6a6f77)); g.drawEllipse(rest.x - 6 * S, rest.y - 6 * S, 12 * S, 12 * S, 1);
         // base
@@ -1145,12 +1147,12 @@ struct Turntable : Component
 {
     Turntable(Ctx& c, int deck) : ctx(c), d(deck), platter(c, deck), arm(c, deck),
         pitchF(c, c.dp(deck, "pitch"), Fader::pitch, pal::deck[deck]),
-        startStop(c, "START\xc2\xb7STOP", pal::text, deckParam(deck, "play")),
+        startStop(c, "START", pal::text, deckParam(deck, "play")),
         r33(c, "33", pal::amber, deckParam(deck, "rpm45")), r45(c, "45", pal::amber, deckParam(deck, "rpm45")),
-        range(c, "\xc2\xb1" "8", pal::amber, deckParam(deck, "range")),
+        range(c, U("\xc2\xb1" "8"), pal::amber, deckParam(deck, "range")),
         cue(c, "CUE", pal::amber, deckParam(deck, "cue")), sync(c, "SYNC", pal::cyan, deckParam(deck, "sync")),
         keylock(c, "KEY LOCK", pal::amber, deckParam(deck, "keylock")), slip(c, "SLIP", pal::violet, deckParam(deck, "slip")),
-        nudgeM(c, "\xe2\x97\x80 NUDGE", pal::text, deckParam(deck, "nudge")), nudgeP(c, "NUDGE \xe2\x96\xb6", pal::text, deckParam(deck, "nudge")),
+        nudgeM(c, U("\xe2\x97\x80 NUDGE"), pal::text, deckParam(deck, "nudge")), nudgeP(c, U("NUDGE \xe2\x96\xb6"), pal::text, deckParam(deck, "nudge")),
         censor(c, "CENSOR", pal::red, deckParam(deck, "censor")), load(c, "LOAD", pal::deck[deck]), quant(c, "Q", pal::green, deckParam(deck, "quant"))
     {
         addAndMakeVisible(platter);
@@ -1164,7 +1166,7 @@ struct Turntable : Component
         r45.lit = [this] { return ctx.rpm45(d); };
         r33.press = [this](bool dn) { if (dn) Ctx::setNorm(ctx.dp(d, "rpm45"), 0); };
         r45.press = [this](bool dn) { if (dn) Ctx::setNorm(ctx.dp(d, "rpm45"), 1); };
-        range.dynText = [this] { return "\xc2\xb1" + String((int) std::round(ctx.rangePct(d))) + "%"; };
+        range.dynText = [this] { return U("\xc2\xb1") + String((int) std::round(ctx.rangePct(d))) + "%"; };
         range.press = [this](bool dn) { if (dn) cycleRange(); };
         cue.solid = true;
         cue.lit = [&st] { return !st.playing.load() || st.touched.load(); };
@@ -1183,7 +1185,7 @@ struct Turntable : Component
         censor.press = [this](bool dn) { ctx.send(Cmd::censor, d, 0, dn); };
         load.press = [this](bool dn) { if (dn && ctx.selectedFile) { auto f = ctx.selectedFile(); if (f.existsAsFile()) ctx.proc.loadTrack(d, f); } };
         load.lit = [this] { return ctx.proc.loading[d].load(); };
-        startStop.fontScale = .8f;
+        startStop.sub = "STOP";
     }
     Ctx& ctx;
     int d;
@@ -1268,11 +1270,6 @@ struct Turntable : Component
         ColourGradient lg(Colour(motor ? 0xffffb347 : 0xff6a3a10), lc.x, lc.y, Colour(motor ? 0xffd2400a : 0xff2a1606), lc.x + lr, lc.y + lr, true);
         g.setGradientFill(lg); g.fillEllipse(lampR);
         // deck name + brand
-        g.setColour(pal::dim); g.setFont(font(10 * S, true));
-        g.drawText(String("DECK ") + (d == 0 ? "A" : "B"), Rectangle<float>(b.getX() + 10, b.getBottom() - 16 * S, 80 * S, 12 * S).withX(pb.getRight() - 70 * S), Justification::centredRight);
-        g.setColour(Colours::white.withAlpha(.55f)); g.setFont(font(12 * S, true));
-        auto brand = Rectangle<float>(pb.getRight() + 6 * S, b.getBottom() - 18 * S, 140 * S, 14 * S);
-        ignoreUnused(brand);
         // pitch readout
         double pp = ctx.pitchPct(d);
         g.setColour(Colours::black); g.fillRoundedRectangle(pitchRead.reduced(1), 3);
@@ -1292,7 +1289,7 @@ struct MixerPanel : Component
         master(c, c.par("master"), "MASTER", pal::text), cueMix(c, c.par("cuemix"), "CUE MIX", pal::text, true),
         cueGain(c, c.par("cuegain"), "PHONES", pal::text),
         hamster(c, "HAMSTER", pal::amber, "hamster"),
-        mMaster([&c] { return std::make_pair(c.proc.meter(2), c.proc.meter(3)); }, 18)
+        mMaster([&c] { return std::make_pair(c.proc.meter(2), c.proc.meter(3)); }, 20)
     {
         for (int d = 0; d < 2; ++d)
         {
@@ -1318,7 +1315,7 @@ struct MixerPanel : Component
                 Ctx::setVal(p, (float) v);
             };
             s.meter = std::make_unique<Meter>([&c, dd] { const auto& st = c.proc.status(dd); float m = c.proc.meter(dd); float pk = jmax(st.peakL.load(), st.peakR.load(), 1.0e-6f);
-                                                         float k = m > 0 ? m / pk : 1.0f; return std::make_pair(st.peakL.load() * k, st.peakR.load() * k); }, 16);
+                                                         float k = m > 0 ? m / pk : 1.0f; return std::make_pair(st.peakL.load() * k, st.peakR.load() * k); }, 20);
             for (Component* comp : std::initializer_list<Component*> { s.trim.get(), s.hi.get(), s.mid.get(), s.low.get(), s.filter.get(), s.fader.get(), s.pfl.get(), s.xfa.get(), s.meter.get() })
                 addAndMakeVisible(comp);
         }
@@ -1339,27 +1336,29 @@ struct MixerPanel : Component
     {
         float S = ctx.S;
         auto b = getLocalBounds().toFloat().reduced(8 * S, 8 * S);
-        b.removeFromTop(14 * S);   // the name plate
-        auto xfRow = b.removeFromBottom(58 * S);
+        b.removeFromTop(10 * S);   // the name plate
+        auto xfRow = b.removeFromBottom(46 * S);
         float cw = b.getWidth() * .2f, sw = (b.getWidth() - cw) / 2;
         auto left = b.removeFromLeft(sw), right = b.removeFromRight(sw), centre = b;
         auto layoutStrip = [&](Strip& s, Rectangle<float> r, bool isLeft) {
-            float k = jmin(r.getWidth() * .45f, 50 * S);
+            float k = jmin(r.getWidth() * .42f, 42 * S);
             auto row1 = r.removeFromTop(k + 2);
             s.trim->setBounds(row1.removeFromLeft(row1.getWidth() * .5f).withSizeKeepingCentre(k, k).toNearestInt());
             s.filter->setBounds(row1.withSizeKeepingCentre(k, k).toNearestInt());
-            auto eqCol = r.removeFromTop(k * 3 + 6);
-            for (auto* kk : { s.hi.get(), s.mid.get(), s.low.get() }) kk->setBounds(eqCol.removeFromTop(k + 2).withSizeKeepingCentre(k, k).toNearestInt());
+            r.removeFromTop(2 * S);
+            // a tall LED meter on the inner side, from the EQ down to the fader
+            auto meterR = isLeft ? r.removeFromRight(13 * S) : r.removeFromLeft(13 * S);
+            s.meter->setBounds(meterR.reduced(0, 2 * S).toNearestInt());
+            auto eqCol = r.removeFromTop((k + 1) * 3);
+            for (auto* kk : { s.hi.get(), s.mid.get(), s.low.get() }) kk->setBounds(eqCol.removeFromTop(k + 1).withSizeKeepingCentre(k, k).toNearestInt());
             r.removeFromTop(4 * S);
             auto btns = r.removeFromTop(22 * S);
-            s.pfl->setBounds(btns.removeFromLeft(btns.getWidth() * .5f).reduced(3 * S, 0).toNearestInt());
-            s.xfa->setBounds(btns.reduced(3 * S, 0).toNearestInt());
+            s.pfl->setBounds(btns.removeFromLeft(btns.getWidth() * .5f).reduced(2 * S, 0).toNearestInt());
+            s.xfa->setBounds(btns.reduced(2 * S, 0).toNearestInt());
             s.xfa->fontScale = .82f;
-            r.removeFromTop(6 * S);
-            auto meterR = isLeft ? r.removeFromRight(14 * S) : r.removeFromLeft(14 * S);
-            s.meter->setBounds(meterR.reduced(0, 6 * S).toNearestInt());
-            auto fr = r.withSizeKeepingCentre(jmin(r.getWidth(), 46 * S), r.getHeight());
-            s.fader->setBounds(fr.toNearestInt());
+            r.removeFromTop(4 * S);
+            r.removeFromBottom(12 * S);   // the channel name under the fader
+            s.fader->setBounds(r.withSizeKeepingCentre(jmin(r.getWidth(), 46 * S), r.getHeight()).toNearestInt());
         };
         layoutStrip(ch[0], left, true);
         layoutStrip(ch[1], right, false);
@@ -1371,7 +1370,7 @@ struct MixerPanel : Component
         cueMix.setBounds(bottom.removeFromTop(k + 2).withSizeKeepingCentre(k, k).toNearestInt());
         cueGain.setBounds(bottom.withSizeKeepingCentre(k, k).toNearestInt());
         // crossfader row
-        xfRow.removeFromTop(8 * S);
+        xfRow.removeFromTop(4 * S);
         float kk = jmin(xfRow.getHeight(), 46 * S);
         fCurve.setBounds(xfRow.removeFromLeft(kk + 8 * S).withSizeKeepingCentre(kk, kk).toNearestInt());
         xfCurve.setBounds(xfRow.removeFromLeft(kk + 8 * S).withSizeKeepingCentre(kk, kk).toNearestInt());
@@ -1396,13 +1395,13 @@ struct MixerPanel : Component
             g.setColour(Colour(0xff50555c)); g.drawLine(p.x - 2.5f, p.y, p.x + 2.5f, p.y, 1);
         }
         g.setColour(pal::dim); g.setFont(font(10.5f * S, true));
-        g.drawText("OMEGA  \xc2\xb7  ROTARY / SCRATCH MIXER", b.withHeight(22 * S).translated(0, 4 * S), Justification::centred);
+        g.drawText(U("OMEGA  \xc2\xb7  ROTARY / SCRATCH MIXER"), b.withHeight(22 * S).translated(0, 4 * S), Justification::centred);
         // channel strip separators and labels
         for (int d = 0; d < 2; ++d)
         {
             auto fb = ch[d].fader->getBounds().toFloat();
             g.setColour(pal::deck[d]); g.setFont(font(11 * S, true));
-            g.drawText(d == 0 ? "1  \xc2\xb7  A" : "2  \xc2\xb7  B", Rectangle<float>(fb.getX() - 20 * S, fb.getBottom() + 1, fb.getWidth() + 40 * S, 12 * S), Justification::centred);
+            g.drawText(d == 0 ? U("1  \xc2\xb7  A") : U("2  \xc2\xb7  B"), Rectangle<float>(fb.getX() - 20 * S, fb.getBottom(), fb.getWidth() + 40 * S, 12 * S), Justification::centred);
         }
         g.setColour(Colours::black.withAlpha(.35f)); g.fillRoundedRectangle(xfWell, 4);
         g.setColour(pal::dim); g.setFont(font(9.5f * S, true));
@@ -1488,7 +1487,7 @@ struct PadButton : Component
 struct PadSection : Component
 {
     PadSection(Ctx& c, int deck) : ctx(c), d(deck),
-        loopIn(c, "IN", pal::green), loopOut(c, "OUT", pal::green), reloop(c, "RELOOP", pal::green), halve(c, "\xc2\xbd", pal::green), dbl(c, "\xc3\x97" "2", pal::green),
+        loopIn(c, "IN", pal::green), loopOut(c, "OUT", pal::green), reloop(c, "RELOOP", pal::green), halve(c, U("\xc2\xbd"), pal::green), dbl(c, U("\xc3\x97" "2"), pal::green),
         fxOn(c, "FX ON", pal::red, deckParam(deck, "fxon")),
         fxType(c, c.dp(deck, "fxtype"), { "OFF", "ECHO", "PING PONG", "REVERB", "FLANGER", "PHASER", "CRUSH", "GATE" }, { 0, 1, 2, 3, 4, 5, 6, 7 }),
         fxBeats(c, c.dp(deck, "fxbeats"), { "1/16", "1/8", "1/4", "1/2", "3/4", "1", "2", "4", "8" }, { .0625f, .125f, .25f, .5f, .75f, 1, 2, 4, 8 }),
@@ -1501,7 +1500,6 @@ struct PadSection : Component
             auto b = std::make_unique<PButton>(c, names[m], cols[m], m == 0 ? String("padmode") : String());
             b->lit = [&c, m] { return (int) c.proc.padMode() == m; };
             b->press = [&c, m](bool dn) { if (dn) Ctx::setVal(c.par("padmode"), (float) m); };
-            b->fontScale = .82f;
             addAndMakeVisible(*b);
             modes.push_back(std::move(b));
         }
@@ -1579,7 +1577,7 @@ struct PadSection : Component
         float y = b.getY() + 3 * S;
         auto lab = [&](Rectangle<float> r, const String& t) { g.drawText(t, Rectangle<float>(r.getX(), y, r.getWidth(), 11 * S), Justification::centredLeft); };
         lab(modes[0]->getBounds().toFloat(), "PAD MODE");
-        lab(padBox, String("PADS \xc2\xb7 DECK ") + (d == 0 ? "A  (MPC PADS 1-2 \xc2\xb7 5-6 \xc2\xb7 9-10 \xc2\xb7 13-14)" : "B  (MPC PADS 3-4 \xc2\xb7 7-8 \xc2\xb7 11-12 \xc2\xb7 15-16)"));
+        lab(padBox, d == 0 ? U("PADS  \xc2\xb7  MPC 1-2 / 5-6 / 9-10 / 13-14") : U("PADS  \xc2\xb7  MPC 3-4 / 7-8 / 11-12 / 15-16"));
         lab(loopBox, "LOOP");
         lab(fxBox, "BEAT FX");
     }
@@ -1603,9 +1601,10 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
     using Component::keyPressed;
     explicit LibraryPanel(Ctx& c) : ctx(c), tracks(*this), pool(ThreadPoolOptions{}.withNumberOfThreads(1).withThreadName("wheel library"))
     {
-        chooseBtn.setButtonText("Choose SD card / folder\xe2\x80\xa6");
+        chooseBtn.setButtonText(U("Choose SD card / folder\xe2\x80\xa6"));
         chooseBtn.onClick = [this] { choose(); };
-        loadA.setButtonText("LOAD A  \xe2\x87\xa7\xe2\x86\x90"); loadB.setButtonText("LOAD B  \xe2\x87\xa7\xe2\x86\x92");
+        loadA.setButtonText("LOAD A"); loadB.setButtonText("LOAD B");
+        loadA.setTooltip("Load the selected track on deck A (Shift+Left)"); loadB.setTooltip("Load the selected track on deck B (Shift+Right)");
         loadA.onClick = [this] { loadSelected(0); };
         loadB.onClick = [this] { loadSelected(1); };
         search.setTextToShowWhenEmpty("Search title / artist / album", pal::faint);
@@ -1627,7 +1626,7 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
         h.addColumn("BPM", 4, 60, 40, 90);
         h.addColumn("Key", 5, 66, 40, 100);
         h.addColumn("Length", 6, 66, 40, 100);
-        h.addColumn("\xe2\x97\x86", 7, 28, 24, 40);
+        h.addColumn(U("\xe2\x97\x86"), 7, 28, 24, 40);
         h.setStretchToFitActive(true);
         h.setPopupMenuActive(false);
         for (Component* comp : std::initializer_list<Component*> { &chooseBtn, &loadA, &loadB, &search, &crates, &table }) addAndMakeVisible(comp);
@@ -1665,7 +1664,7 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
     void setRoot(const File& dir)
     {
         ctx.proc.lastRoot = dir;
-        busy = true; status = "Scanning " + dir.getFullPathName() + "\xe2\x80\xa6"; repaint();
+        busy = true; status = "Scanning " + dir.getFullPathName() + U("\xe2\x80\xa6"); repaint();
         int g = ++gen;
         Component::SafePointer<LibraryPanel> safe(this);
         auto* lib = &ctx.proc.library;
@@ -1689,7 +1688,7 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
         auto crate = crateList[row];
         auto text = search.getText().trim();
         int g = ++gen;
-        busy = true; status = "Reading " + crate.name + "\xe2\x80\xa6"; repaint();
+        busy = true; status = "Reading " + crate.name + U("\xe2\x80\xa6"); repaint();
         Component::SafePointer<LibraryPanel> safe(this);
         auto* lib = &ctx.proc.library;
         pool.addJob([safe, lib, crate, text, g] {
@@ -1748,7 +1747,7 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
         const auto& c = crateList.getReference(row);
         if (sel) { g.setColour(pal::deck[0].withAlpha(.28f)); g.fillRect(0, 0, w, h); g.setColour(pal::deck[0]); g.fillRect(0, 0, 3, h); }
         float x = 8.0f + (float) c.depth * 14.0f;
-        String icon = c.kind == Crate::all ? "\xe2\x99\xab" : c.kind == Crate::serato ? "\xe2\x97\x86" : c.kind == Crate::playlist ? "\xe2\x89\xa1" : "\xe2\x96\xb8";
+        String icon = c.kind == Crate::all ? U("\xe2\x99\xab") : c.kind == Crate::serato ? U("\xe2\x97\x86") : c.kind == Crate::playlist ? U("\xe2\x89\xa1") : U("\xe2\x96\xb8");
         g.setColour(c.kind == Crate::serato ? pal::amber : pal::dim); g.setFont(font(12, true));
         g.drawText(icon, (int) x, 0, 14, h, Justification::centred);
         g.setColour(sel ? pal::text : pal::text.withAlpha(.85f)); g.setFont(font(13, c.kind == Crate::all));
@@ -1797,7 +1796,7 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
                 break;
             }
             case 6: t = e.length > 0 ? fmtTime(e.length, false) : String("-"); j = Justification::centredRight; f = mono(12); break;
-            case 7: t = e.serato ? "\xe2\x97\x86" : ""; c = pal::amber; j = Justification::centred; break;
+            case 7: t = e.serato ? U("\xe2\x97\x86") : ""; c = pal::amber; j = Justification::centred; break;
             default: break;
         }
         g.setColour(c); g.setFont(f);
@@ -1829,7 +1828,7 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
         g.setColour(pal::panel); g.fillRoundedRectangle(b, 6);
         g.setColour(Colours::white.withAlpha(.06f)); g.drawRoundedRectangle(b.reduced(.5f), 6, 1);
         g.setFont(font(12 * ctx.S)); g.setColour(busy ? pal::amber : pal::dim);
-        String s = status.isNotEmpty() ? status : (ctx.proc.library.root().isDirectory() ? ctx.proc.library.root().getFullPathName() + "   \xc2\xb7   " + String(entries.size()) + " tracks" : String("No library yet: pick your SD card, USB drive or music folder"));
+        String s = status.isNotEmpty() ? status : (ctx.proc.library.root().isDirectory() ? ctx.proc.library.root().getFullPathName() + U("   \xc2\xb7   ") + String(entries.size()) + " tracks" : String("No library yet: pick your SD card, USB drive or music folder"));
         g.drawText(s, rootArea, Justification::centredLeft, true);
     }
 };
@@ -1852,7 +1851,7 @@ struct MidiPanel : Component, Timer
         help.setColour(TextEditor::backgroundColourId, Colours::transparentBlack);
         help.setColour(TextEditor::outlineColourId, Colours::transparentBlack);
         help.setText(
-            "PLAYING IT FROM AN MPC\n"
+            U("PLAYING IT FROM AN MPC\n"
             "\xe2\x80\xa2 Load Omega Wheel of Steel as a plugin instrument on a track and arm it (MIDI to the plugin).\n"
             "\xe2\x80\xa2 PADS: the 16 pads are the performance pads. Left two columns = deck A, right two = deck B "
             "(pad 1 bottom-left). Pad base sets the note of MPC pad 1 (37 by default; 36 for chromatic C1). "
@@ -1867,7 +1866,7 @@ struct MidiPanel : Component, Timer
             "\xe2\x80\xa2 MIDI channel 2 notes play deck A's 8 slots, channel 3 deck B's (note mod 8).\n\n"
             "MIDI LEARN (any controller)\n"
             "Press LEARN, click a control or pad on the screen, then move the knob / hit the pad. Learned controls override the defaults "
-            "and are saved with the project. Esc or LEARN again to finish.");
+            "and are saved with the project. Esc or LEARN again to finish."));
         for (Component* comp : std::initializer_list<Component*> { &learnBtn, &clearBtn, &closeBtn, &map, &help }) addAndMakeVisible(comp);
         startTimerHz(4);
     }
@@ -2087,8 +2086,8 @@ struct WheelEditor::Impl : KeyListener
             midiBtn.setBounds(tb.removeFromRight((int) (110 * S)).reduced(0, (int) (3 * S)));
         }
         b.removeFromTop((int) (4 * S));
-        int infoH = (int) (36 * S), ovH = (int) (26 * S);
-        int waveH = jmax(60, (int) ((float) b.getHeight() * .105f));
+        int infoH = (int) (34 * S), ovH = (int) (24 * S);
+        int waveH = jmax(56, (int) ((float) b.getHeight() * .1f));
         info[0]->setBounds(b.removeFromTop(infoH));
         over[0]->setBounds(b.removeFromTop(ovH).reduced(0, (int) (2 * S)));
         wave[0]->setBounds(b.removeFromTop(waveH));
@@ -2097,7 +2096,7 @@ struct WheelEditor::Impl : KeyListener
         over[1]->setBounds(b.removeFromTop(ovH).reduced(0, (int) (2 * S)));
         info[1]->setBounds(b.removeFromTop(infoH));
         b.removeFromTop((int) (6 * S));
-        int deckH = (int) (300 * S), padH = (int) (112 * S);
+        int deckH = (int) (272 * S), padH = (int) (100 * S);
         auto mid = b.removeFromTop(deckH + padH + (int) (4 * S));
         int mixW = (int) ((float) mid.getWidth() * .25f);
         int dw = (mid.getWidth() - mixW - (int) (12 * S)) / 2;
