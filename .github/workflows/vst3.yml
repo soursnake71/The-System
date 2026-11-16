@@ -19,7 +19,7 @@ jobs:
           - {os: ubuntu-22.04, name: Linux}
           # 64-bit ARM Linux (aarch64), the CPU family inside MPC Live / One / X / Key hardware; built natively on
           # GitHub's ARM runners, kept optional so a missing runner never blocks the release
-          - {os: ubuntu-22.04-arm, name: Linux-ARM64, optional: true}
+          - {os: ubuntu-22.04-arm, name: Linux-ARM64, optional: true, cmake: -DOMEGA_STATIC_CXX=ON}
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional == true }}
     steps:
@@ -28,7 +28,7 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb patchelf
       - name: Configure
-        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake }}
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Test Omega Twelve (C++ engine against the app's engine.js)

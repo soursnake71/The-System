@@ -9,6 +9,13 @@ if(APPLE)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "" FORCE)
 endif()
 
+# -DOMEGA_STATIC_CXX=ON: link the C++ runtime into each plugin (for a bare device whose libstdc++ may be older, such
+# as an SD-card OS on the MPC Sample)
+option(OMEGA_STATIC_CXX "Link libstdc++ / libgcc statically" OFF)
+if(OMEGA_STATIC_CXX AND UNIX AND NOT APPLE)
+  add_link_options(-static-libstdc++ -static-libgcc)
+endif()
+
 # JUCE: a local checkout (-DJUCE_DIR=...) or fetched
 if(JUCE_DIR)
   add_subdirectory(${JUCE_DIR} JUCE)
