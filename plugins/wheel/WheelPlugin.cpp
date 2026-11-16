@@ -53,7 +53,14 @@ enum MapMode : int { mAbs, mRel2c, mRel64, mDetect };
 bool same(double a, double b) { return std::abs(a - b) < 1e-9; }
 
 using Range = juce::NormalisableRange<float>;
-using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
+// parameters are collected, then handed to the host in the order a hardware controller wants them: hosts that
+// auto-assign knobs (the MPC's Q-Links, Push, Komplete Kontrol...) take them in this order, so the crossfader is first
+struct Layout {
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> v;
+    template <class P> void add(std::unique_ptr<P> p) { v.push_back(std::move(p)); }
+};
+const char* const kPerformanceOrder[] = { "xfader", "a_fader", "b_fader", "a_platter", "b_platter", "a_pitch", "b_pitch",
+                                          "a_filter", "b_filter", "a_low", "b_low", "a_mid", "b_mid", "a_hi", "b_hi", "a_fxdepth", "b_fxdepth" };
 juce::String sgn(float v, int dec) { return (v > 0 ? "+" : "") + juce::String(v, dec); }
 
 void addFloat(Layout& l, const juce::String& id, const juce::String& name, Range r, float def, std::function<juce::String(float)> fmt) {
@@ -67,7 +74,7 @@ void addChoice(Layout& l, const juce::String& id, const juce::String& name, cons
     l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { id, 1 }, name, c, def));
 }
 
-Layout makeLayout() {
+juce::AudioProcessorValueTreeState::ParameterLayout makeLayout() {
     Layout l;
     const auto db = [](float v) { return v <= -25.9f ? juce::String("KILL") : sgn(v, 1) + " dB"; };
     const auto pct = [](float v) { return juce::String(juce::roundToInt(v * 100)) + "%"; };
@@ -122,7 +129,11 @@ Layout makeLayout() {
     addChoice(l, pid::globalIds[gPadmode], "Pad Mode", { "Cues", "Loops", "Rolls", "Transport" }, 0);
     l.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID { pid::globalIds[gPadbase], 1 }, "Pad Base Note", 0, 108, 37));
     addBool(l, pid::globalIds[gHostsync], "Host Tempo Sync", false);
-    return l;
+    juce::AudioProcessorValueTreeState::ParameterLayout out;
+    for (const char* id : kPerformanceOrder)
+        for (auto& p : l.v) if (p != nullptr && p->getParameterID() == id) out.add(std::move(p));
+    for (auto& p : l.v) if (p != nullptr) out.add(std::move(p));
+    return out;
 }
 
 Cmd mk(Cmd::Type t, int deck, int i = 0, double v = 0, bool on = false) {
@@ -276,7 +287,12 @@ struct WheelProcessor::Impl {
     std::atomic<int> learnTarget { -1 };
     juce::String learnName; juce::SpinLock learnLock;
     int detKey = -1, detN = 0, detV[3] {};
-    void clearMaps() { for (int i = 0; i < kMapSize; ++i) { ccMap[i].store(-1); noteMap[i].store(-1); ccMode[i].store(mAbs); ccPadDown[i] = false; } }
+    void clearMaps() {
+        for (int i = 0; i < kMapSize; ++i) { ccMap[i].store(-1); noteMap[i].store(-1); ccMode[i].store(mAbs); ccPadDown[i] = false; }
+        // out of the box a fader is the crossfader: CC 1 (mod wheel / touch strip in CC mode) on any channel; learning
+        // another control for the crossfader replaces these
+        for (int ch = 0; ch < 16 && ch * 128 + 1 < kMapSize; ++ch) ccMap[ch * 128 + 1].store(gpi(gXfader));
+    }
     static bool isPlatter(int t) { return t >= 0 && t < 2 * kDeckParams && t % kDeckParams == pPlatter; }
 
     // a MIDI value for parameter t (normalised): buttons fire their edges now; everything takes effect this block
@@ -349,8 +365,8 @@ struct WheelProcessor::Impl {
                 }
                 paramInput(t, (float) v / 127.f);
             } else if (m.isPitchWheel()) {
-                // pitch bend (an MPC touch strip): channel 1 = deck A pitch, channel 2 = deck B
-                if (ch <= 2) midiVal[dpi(ch - 1, pPitch)].store(juce::jlimit(0.f, 1.f, .5f + (float) (m.getPitchWheelValue() - 8192) / 16384.f));
+                // pitch bend = the crossfader (an MPC touch strip or fader, any channel): bottom / left = deck A, top = B
+                paramInput(gpi(gXfader), juce::jlimit(0.f, 1.f, (float) m.getPitchWheelValue() / 16383.f));
             }
         }
     }
@@ -677,7 +693,7 @@ juce::String WheelProcessor::mappingSummary() const {
     const int base = (int) std::lround(d->val(gpi(gPadbase)));
     juce::String s;
     s << "Pads: notes " << base << "-" << base + 15 << " (MPC pad 1-16), mode notes " << base + 16 << "-" << base + 19
-      << " (Cues/Loops/Rolls/Transport); ch 2 / ch 3 notes = deck A / B slots (note % 8); pitch bend ch 1 / 2 = deck A / B pitch\n";
+      << " (Cues/Loops/Rolls/Transport); ch 2 / ch 3 notes = deck A / B slots (note % 8); pitch bend or CC 1 (any channel) = crossfader\n";
     for (int k = 0; k < kMapSize; ++k) {
         const int t = d->ccMap[k].load();
         if (t < 0) continue;
@@ -886,6 +902,8 @@ void WheelProcessor::setStateInformation(const void* data, int size) {
 
     D.learnTarget.store(-1);
     D.clearMaps();
+    // saved mappings replace the defaults (a crossfader learned elsewhere must not come back on CC 1)
+    for (auto c : x) if (c.hasType("MAP")) { for (int i = 0; i < kMapSize; ++i) D.ccMap[i].store(-1); break; }
     for (auto c : x) {
         if (c.hasType("MAP")) {
             const int ch = juce::jlimit(1, 16, (int) c.getProperty("ch", 1)), num = juce::jlimit(0, 127, (int) c.getProperty("num", 0));

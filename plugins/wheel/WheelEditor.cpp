@@ -1861,12 +1861,14 @@ struct MidiPanel : Component, Timer
             "(turn the Q-Link to scratch: it moves the record like your hand), \"Deck A Pitch\", \"Deck A Filter\", \"Deck A EQ High/Mid/Low\", "
             "\"Deck A Play\", \"Deck A Cue\", \"Pad Mode\" \xe2\x80\xa6 "
             "Every control on this screen is a parameter.\n"
-            "\xe2\x80\xa2 A good scratch setup: Q-Link 1 = Deck A Platter, Q-Link 2 = Crossfader, Q-Link 3 = Deck A Fader, "
-            "Q-Link 4 = Deck A Filter; pads in Hot Cue mode.\n"
+            "\xe2\x80\xa2 FADER = CROSSFADER out of the box: the touch strip (pitch bend) or any fader sending CC 1, on any channel. "
+            "The parameters are listed crossfader first, then the channel faders and the platters, so Q-Links assigned in order land there.\n"
+            "\xe2\x80\xa2 A good scratch setup: touch strip = Crossfader, Q-Link 1 = Deck A Platter, Q-Link 2 = Deck A Fader, "
+            "Q-Link 3 = Deck A Filter; pads in Hot Cue mode.\n"
             "\xe2\x80\xa2 MIDI channel 2 notes play deck A's 8 slots, channel 3 deck B's (note mod 8).\n\n"
             "MIDI LEARN (any controller)\n"
             "Press LEARN, click a control or pad on the screen, then move the knob / hit the pad. Learned controls override the defaults "
-            "and are saved with the project. Esc or LEARN again to finish."));
+            "and are saved with the project (CLEAR ALL goes back to the defaults). Esc or LEARN again to finish."));
         for (Component* comp : std::initializer_list<Component*> { &learnBtn, &clearBtn, &closeBtn, &map, &help }) addAndMakeVisible(comp);
         startTimerHz(4);
     }

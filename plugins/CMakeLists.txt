@@ -159,6 +159,12 @@ if(NOT OMEGA_ONLY OR "Wheel" IN_LIST OMEGA_ONLY)
   target_sources(wheel_lib_test PRIVATE wheel/tests/lib_test.cpp wheel/Library.cpp)
   target_compile_definitions(wheel_lib_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(wheel_lib_test PRIVATE juce::juce_audio_formats juce::juce_dsp juce::juce_recommended_config_flags)
+  # the processor's MIDI defaults (fader = crossfader), parameter order and mapping state: <build>/wheel_midi_test
+  juce_add_console_app(wheel_midi_test PRODUCT_NAME "wheel_midi_test")
+  target_sources(wheel_midi_test PRIVATE wheel/tests/midi_test.cpp wheel/Engine.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp)
+  target_compile_definitions(wheel_midi_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Wheel of Steel" JUCE_MODAL_LOOPS_PERMITTED=1
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(wheel_midi_test PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags)
 endif()
 
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>

@@ -17,12 +17,16 @@ jobs:
           - {os: windows-latest, name: Windows}
           - {os: macos-latest, name: Mac}
           - {os: ubuntu-22.04, name: Linux}
+          # 64-bit ARM Linux (aarch64), the CPU family inside MPC Live / One / X / Key hardware; built natively on
+          # GitHub's ARM runners, kept optional so a missing runner never blocks the release
+          - {os: ubuntu-22.04-arm, name: Linux-ARM64, optional: true}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
     steps:
       - uses: actions/checkout@v4
       - name: Linux libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb
       - name: Configure
         run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -33,9 +37,10 @@ jobs:
       - name: Test Omega Wheel of Steel (decks, mixer, crates, Serato tags, analysis)
         if: runner.os == 'Linux'
         run: |
-          cmake --build build --target wheel_engine_test wheel_lib_test --parallel 4
+          cmake --build build --target wheel_engine_test wheel_lib_test wheel_midi_test --parallel 4
           build/wheel_engine_test
           find build -name wheel_lib_test -type f -perm -u+x | head -1 | xargs -I{} sh -c '{}'
+          find build -name wheel_midi_test -type f -perm -u+x | head -1 | xargs -I{} xvfb-run -a sh -c '{}'
       - name: Collect
         shell: bash
         run: |

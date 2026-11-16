@@ -61,7 +61,10 @@ load Omega Wheel of Steel on a plugin track (or use any DAW, or the standalone a
 B Channel Fader, Pitch, Filter, HI / MID / LOW, FX depth... **Deck A / B Platter (Scratch)** on a Q-Link or the touch
 strip scratches: one full sweep of the knob is one turn of the record (1.8 s), and the hand lifts 60 ms after you stop.
 For an endless jog wheel, use MIDI learn with a relative (endless) encoder.
-The MPC touch strip / pitch bend: channel 1 bends deck A's pitch, channel 2 deck B's.
+**Fader = crossfader, out of the box.** The touch strip (pitch bend) or a fader sending CC 1, on any MIDI channel,
+moves the crossfader with no setup. The plugin lists its parameters crossfader first, then Deck A / B Channel Fader,
+Deck A / B Platter, pitch, filter and EQ, so Q-Links assigned in order land on the DJ controls. MIDI learn another
+control for the crossfader and it replaces CC 1; CLEAR ALL goes back to the defaults.
 
 **Pads.** Left two columns = deck A, right two = deck B (pad 1 is bottom left). Pad base note 37 matches MPC pad 1
 (set it to 36 for a chromatic C1 layout). Pads of bank B 1-4 (base + 16..19) switch the pad mode.
