@@ -128,6 +128,39 @@ foreach(variant "Twelve|Omega Twelve|Otw1|0" "TwelveInst|Omega Twelve Instrument
   target_link_libraries(Omega${tgt} PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
 endforeach()
 
+# Omega Wheel of Steel: two turntables and a DJ mixer as an instrument, played from an MPC (Q-Links, pads) or any
+# MIDI controller; loads crates (Serato or folders) from an SD card / drive. Also a standalone app.
+if(NOT OMEGA_ONLY OR "Wheel" IN_LIST OMEGA_ONLY)
+  set(wfmts ${OMEGA_FORMATS})
+  list(APPEND wfmts Standalone)
+  juce_add_plugin(OmegaWheel
+    PRODUCT_NAME "Omega Wheel of Steel"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Wheel"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Owhl
+    FORMATS ${wfmts}
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Sampler
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaWheel PRIVATE wheel/Engine.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp)
+  target_compile_definitions(OmegaWheel PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1 JUCE_USE_WINDOWS_MEDIA_FORMAT=1)
+  target_link_libraries(OmegaWheel PRIVATE juce::juce_audio_utils juce::juce_dsp PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+
+  # the deck / mixer / FX engine on its own (no JUCE): <build>/wheel_engine_test
+  add_executable(wheel_engine_test wheel/tests/engine_test.cpp wheel/Engine.cpp)
+  # crates, Serato tags, decoding and analysis: <build>/wheel_lib_test
+  juce_add_console_app(wheel_lib_test PRODUCT_NAME "wheel_lib_test")
+  target_sources(wheel_lib_test PRIVATE wheel/tests/lib_test.cpp wheel/Library.cpp)
+  target_compile_definitions(wheel_lib_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(wheel_lib_test PRIVATE juce::juce_audio_formats juce::juce_dsp juce::juce_recommended_config_flags)
+endif()
+
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
 add_executable(twelve_test twelve/test.cpp)
 
