@@ -29,6 +29,12 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## Omega Wheel of Steel (plugin): two turntables for the MPC
+Two SL-1200s and a scratch mixer, Serato style, as a VST3 / AU instrument and standalone app: loads crates (Serato or
+folders) from your SD card with Serato cues, loops and beatgrids, scratching, key lock, hot cues, loops, rolls, slip,
+sync to the MPC's tempo, kill EQs, filter, crossfader curves and beat FX, with Q-Links and pads mapped for an MPC.
+In the `vst3-latest` release; details in `plugins/README.md`.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
