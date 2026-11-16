@@ -1436,7 +1436,7 @@ struct PadButton : Component
         const auto& st = ctx.proc.status(d);
         switch (mode)
         {
-            case PadMode::cues: { const auto& hc = at(ctx.cues[d], slot); on = hc.set(); c = on ? cueColour(hc) : pal::faint; break; }
+            case PadMode::cues: { const auto& hc = at(ctx.cues[d], slot); on = hc.set(); c = on ? cueColour(hc) : pal::faint; if (on && !hc.name.empty()) l = String::fromUTF8(hc.name.c_str()); break; }
             case PadMode::loops: c = pal::green; on = st.looping.load(); break;
             case PadMode::rolls: c = pal::cyan; on = st.rolling.load(); break;
             case PadMode::transport:

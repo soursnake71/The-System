@@ -791,6 +791,10 @@ void WheelProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBu
     for (int dk = 0; dk < 2; ++dk) { const double b = engineDeck[dk].currentBpm(); fxBpm[dk] = b > 0 ? b : hb > 0 ? hb : 120; }
     for (int done = 0; done < n && outR != nullptr;) {
         const int m = juce::jmin(D.cap, n - done);
+        for (int dk = 0; dk < 2; ++dk) {   // beat-locked FX (flanger / phaser / gate) follow the grid
+            const auto* t = engineDeck[dk].track(); const double bl = engineDeck[dk].beatLength();
+            if (t != nullptr && bl > 0) fx[dk].setBeatPos((engineDeck[dk].st.pos.load() - (t->firstBeat + D.gridShift[dk].load())) / bl);
+        }
         engineDeck[0].render(aL, aR, m); engineDeck[1].render(bL, bR, m);
         fx[0].process(aL, aR, m, D.fxs[0], fxBpm[0]); fx[1].process(bL, bR, m, D.fxs[1], fxBpm[1]);
         mixer.process(aL, aR, bL, bR, outL + done, outR + done, cueL ? cueL + done : nullptr, cueR ? cueR + done : nullptr, m, D.ms);
