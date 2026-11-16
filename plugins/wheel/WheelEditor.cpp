@@ -1969,12 +1969,412 @@ struct LearnOverlay : Component
     }
 };
 
+// ------------------------------------------------------------------------------------------------ MPC screen
+// The 320 x 240 view for the MPC's screen: everything sits inside a 12 px safe margin (the MPC's own menus can cover
+// the borders), in bold blocks and heavy text: no hairlines, no small print. Two deck headers, two waveform strips,
+// two platters with PLAY / CUE, a centre strip (pad mode, crossfader, browse, full view), 8 pads per deck, and a
+// full-screen crate browser. Laid out at 320 x 240 and scaled if the host gives it more room.
+struct MpcScreen : Component, Timer
+{
+    static constexpr int W = 320, H = 240, M = 12;
+    MpcScreen(Ctx& c, LibraryPanel& l) : ctx(c), lib(l) { setOpaque(true); startTimerHz(30); }
+    Ctx& ctx;
+    LibraryPanel& lib;
+    std::function<void()> onFull;
+    bool browsing = false, inCrate = false;
+    int scroll = 0, sel = -1;
+    // gestures
+    enum Grab { none, platterA, platterB, xfade, listDrag };
+    Grab grab = none; double lastAng = 0; float grabY = 0, grabScroll = 0; bool moved = false;
+    int padDown = -1;
+    double spin[2] { 0, 0 };
+
+    // ---- colours: pure black, white and two loud deck colours
+    static Colour ink() { return Colours::white; }
+    static Colour deckCol(int d) { return d == 0 ? Colour(0xff26a6ff) : Colour(0xffff8a1a); }
+    static Colour grey() { return Colour(0xff3a3f46); }
+    static Font bold(float h) { return Font(FontOptions(h, Font::bold)); }
+
+    // ---- layout (logical 320 x 240 coordinates)
+    static Rectangle<float> content() { return { (float) M, (float) M, (float) (W - 2 * M), (float) (H - 2 * M) }; }
+    static Rectangle<float> header(int d) { return { (float) (d == 0 ? M : W / 2 + 4), (float) M, 144, 36 }; }
+    static Rectangle<float> strip(int d) { return { (float) M, (float) (M + 40 + d * 24), (float) (W - 2 * M), 20 }; }
+    static Rectangle<float> platter(int d) { return { d == 0 ? (float) M : (float) (W - M - 64), 100, 64, 64 }; }
+    static Rectangle<float> playBtn(int d) { return { d == 0 ? (float) (M + 68) : (float) (W - M - 68 - 40), 100, 40, 30 }; }
+    static Rectangle<float> cueBtn(int d) { return { d == 0 ? (float) (M + 68) : (float) (W - M - 68 - 40), 134, 40, 30 }; }
+    static Rectangle<float> centre() { float x = (float) (M + 112), w = (float) (W - 2 * M - 224); return { x, 100, w, 64 }; }
+    static Rectangle<float> modeBtn() { return centre().withHeight(20); }
+    static Rectangle<float> xfader() { return centre().withY(122).withHeight(20); }
+    static Rectangle<float> browseBtn() { auto c = centre(); return { c.getX(), 144, c.getWidth() / 2 - 2, 20 }; }
+    static Rectangle<float> fullBtn() { auto c = centre(); return { c.getCentreX() + 2, 144, c.getWidth() / 2 - 2, 20 }; }
+    static Rectangle<float> padRect(int d, int slot)
+    {
+        // 4 x 2 per deck: bottom row slots 1-4, top row 5-8 (like the pads under your fingers)
+        int col = slot % 4, row = slot / 4;
+        float x0 = d == 0 ? (float) M : (float) (W / 2 + 4), pw = (144 - 3 * 4) / 4.0f;
+        return { x0 + (float) col * (pw + 4), (float) (H - M - 24 - row * 28), pw, 24 };
+    }
+    // deck slot (0..7) -> MPC pad index (0..15): left two columns deck A, right two deck B, rows bottom to top
+    static int padIndex(int d, int slot) { return (slot / 2) * 4 + slot % 2 + (d == 1 ? 2 : 0); }
+
+    Point<float> logical(Point<float> p) const { float s = (float) getWidth() / W; return p / jmax(.01f, s); }
+
+    void timerCallback() override
+    {
+        for (int d = 0; d < 2; ++d) spin[d] = ctx.proc.status(d).angle.load();
+        repaint();
+    }
+
+    // ---- drawing helpers
+    static void block(Graphics& g, Rectangle<float> r, Colour fill, Colour border, float rad = 4)
+    {
+        g.setColour(fill); g.fillRoundedRectangle(r, rad);
+        if (border.getAlpha() > 0) { g.setColour(border); g.drawRoundedRectangle(r.reduced(1), rad, 2); }
+    }
+    static void label(Graphics& g, const String& s, Rectangle<float> r, Colour c, float h, Justification j = Justification::centred)
+    {
+        g.setColour(c); g.setFont(bold(h)); g.drawFittedText(s, r.toNearestInt(), j, 1, .8f);
+    }
+    static String shortPad(const String& l)
+    {
+        if (l.startsWith("CUE ")) return l.fromFirstOccurrenceOf(" ", false, false);
+        if (l.startsWith("LOOP ") && l != "LOOP IN" && l != "LOOP OUT") return l.fromFirstOccurrenceOf(" ", false, false);
+        if (l.startsWith("ROLL ")) return l.fromFirstOccurrenceOf(" ", false, false);
+        if (l == "PLAY") return U("\xe2\x96\xb6");
+        if (l == "CENSOR") return "CENS";
+        if (l == "NUDGE -") return "N-";
+        if (l == "NUDGE +") return "N+";
+        if (l == "LOOP IN") return "IN";
+        if (l == "LOOP OUT") return "OUT";
+        return l;
+    }
+
+    void paint(Graphics& g) override
+    {
+        g.fillAll(Colours::black);
+        float s = (float) getWidth() / W;
+        g.addTransform(AffineTransform::scale(s));
+        if (browsing) { paintBrowser(g); return; }
+        for (int d = 0; d < 2; ++d) { paintHeader(g, d); paintStrip(g, d); paintDeck(g, d); paintPads(g, d); }
+        paintCentre(g);
+    }
+
+    void paintHeader(Graphics& g, int d)
+    {
+        auto r = header(d);
+        const auto& st = ctx.proc.status(d);
+        auto t = ctx.trk[d];
+        bool playing = st.playing.load();
+        block(g, r, Colour(0xff15181c), playing ? deckCol(d) : grey());
+        auto tag = r.removeFromLeft(20);
+        g.setColour(deckCol(d)); g.fillRoundedRectangle(tag, 4);
+        label(g, d == 0 ? "A" : "B", tag, Colours::black, 17);
+        r = r.reduced(4, 2);
+        String title = ctx.proc.loading[d].load() ? String("LOADING") : t ? String::fromUTF8(t->title.c_str()) : String("NO TRACK");
+        if (t && title.isEmpty()) title = File(String::fromUTF8(t->path.c_str())).getFileNameWithoutExtension();
+        label(g, title.toUpperCase(), r.removeFromTop(16), ink(), 13, Justification::centredLeft);
+        auto row = r;
+        double bpm = st.bpmNow.load();
+        label(g, bpm > 0 ? String(bpm, 1) : String("---"), row.removeFromLeft(48), deckCol(d), 15, Justification::centredLeft);
+        double rem = t ? t->length() - st.pos.load() : 0;
+        bool late = t && rem < 30;
+        label(g, t ? fmtTime(-rem, false) : String("--:--"), row, late ? Colour(0xffff3b30) : ink(), 15, Justification::centredRight);
+    }
+
+    void paintStrip(Graphics& g, int d)
+    {
+        auto r = strip(d);
+        g.setColour(Colour(0xff101214)); g.fillRoundedRectangle(r, 3);
+        auto t = ctx.trk[d];
+        const auto& wc = ctx.wave[d];
+        if (!t || wc.n == 0) { label(g, d == 0 ? "DECK A" : "DECK B", r, grey(), 12); return; }
+        const double pos = ctx.proc.status(d).pos.load(), span = 5.0;   // seconds across the strip
+        const float cx = r.getCentreX(), cy = r.getCentreY(), half = r.getHeight() / 2 - 1;
+        const auto col = deckCol(d);
+        // bold 2 px columns, deck colour, brighter after the playhead is passed
+        for (float x = r.getX(); x < r.getRight(); x += 2)
+        {
+            double tt = pos + (x - cx) / r.getWidth() * span;
+            int i = (int) (tt * kWaveRate);
+            if (i < 0 || i >= wc.n) continue;
+            float a = at(wc.amp, i) / 255.0f, hgt = jmax(1.0f, a * half);
+            g.setColour(x < cx ? col.withMultipliedBrightness(.55f) : col);
+            g.fillRect(x, cy - hgt, 2.0f, hgt * 2);
+        }
+        // bars: thick white ticks top and bottom
+        if (t->bpm > 0)
+        {
+            double bar = 240.0 / t->bpm, b0 = std::ceil((pos - span / 2 - t->firstBeat) / bar);
+            for (double k = b0;; k += 1)
+            {
+                double tb = t->firstBeat + k * bar; float x = cx + (float) ((tb - pos) / span) * r.getWidth();
+                if (x > r.getRight()) break;
+                g.setColour(ink()); g.fillRect(x - 1, r.getY(), 2.0f, 4.0f); g.fillRect(x - 1, r.getBottom() - 4, 2.0f, 4.0f);
+            }
+        }
+        // hot cues: solid triangles
+        for (int k = 0; k < kCues; ++k)
+        {
+            const auto& c = ctx.cues[d][(size_t) k];
+            if (!c.set()) continue;
+            float x = cx + (float) ((c.t - pos) / span) * r.getWidth();
+            if (x < r.getX() || x > r.getRight()) continue;
+            Path p; p.addTriangle(x - 5, r.getY(), x + 5, r.getY(), x, r.getY() + 8);
+            g.setColour(cueColour(c)); g.fillPath(p);
+        }
+        // loop: bright bar along the bottom
+        double la = ctx.proc.status(d).loopA.load(), lb = ctx.proc.status(d).loopB.load();
+        if (ctx.proc.status(d).looping.load() && lb > la)
+        {
+            float xa = jmax(r.getX(), cx + (float) ((la - pos) / span) * r.getWidth()), xb = jmin(r.getRight(), cx + (float) ((lb - pos) / span) * r.getWidth());
+            if (xb > xa) { g.setColour(Colour(0xff34d058)); g.fillRect(xa, r.getBottom() - 3, xb - xa, 3.0f); }
+        }
+        g.setColour(ink()); g.fillRect(cx - 1.5f, r.getY(), 3.0f, r.getHeight());
+    }
+
+    void paintDeck(Graphics& g, int d)
+    {
+        const auto& st = ctx.proc.status(d);
+        auto r = platter(d);
+        bool touched = st.touched.load() || (grab == (d == 0 ? platterA : platterB));
+        g.setColour(Colour(0xff1c1f23)); g.fillEllipse(r);
+        g.setColour(touched ? ink() : deckCol(d)); g.drawEllipse(r.reduced(2), 4);
+        // label and a fat position marker that turns with the record
+        auto c = r.getCentre(); float R = r.getWidth() / 2 - 6;
+        g.setColour(deckCol(d)); g.fillEllipse(Rectangle<float>(R * .8f, R * .8f).withCentre(c));
+        double a = spin[d] * MathConstants<double>::twoPi - MathConstants<double>::halfPi;
+        Point<float> tip(c.x + (float) std::cos(a) * R, c.y + (float) std::sin(a) * R);
+        g.setColour(ink()); g.drawLine(Line<float>(c, tip), 5);
+        g.fillEllipse(Rectangle<float>(8, 8).withCentre(c));
+        // play / cue
+        bool playing = st.playing.load();
+        auto pb = playBtn(d);
+        block(g, pb, playing ? Colour(0xff34d058) : Colour(0xff15181c), playing ? Colours::transparentBlack : Colour(0xff34d058));
+        Path p;
+        if (playing) { p.addRectangle(pb.getCentreX() - 8, pb.getCentreY() - 8, 6, 16); p.addRectangle(pb.getCentreX() + 2, pb.getCentreY() - 8, 6, 16); }
+        else p.addTriangle(pb.getCentreX() - 7, pb.getCentreY() - 9, pb.getCentreX() - 7, pb.getCentreY() + 9, pb.getCentreX() + 9, pb.getCentreY());
+        g.setColour(playing ? Colours::black : Colour(0xff34d058)); g.fillPath(p);
+        auto cb = cueBtn(d);
+        block(g, cb, Colour(0xff15181c), Colour(0xffffa21f));
+        label(g, "CUE", cb, Colour(0xffffa21f), 14);
+    }
+
+    void paintCentre(Graphics& g)
+    {
+        const char* names[] = { "CUES", "LOOPS", "ROLLS", "TRANS" };
+        int pm = jlimit(0, 3, (int) ctx.proc.padMode());
+        block(g, modeBtn(), Colour(0xffffa21f), Colours::transparentBlack);
+        label(g, names[pm], modeBtn(), Colours::black, 13);
+        // crossfader: thick track, big white cap
+        auto x = xfader();
+        g.setColour(grey()); g.fillRoundedRectangle(x.withSizeKeepingCentre(x.getWidth(), 6), 3);
+        float v = Ctx::val(ctx.par("xfader"));
+        float capX = x.getX() + 7 + (v + 1) / 2 * (x.getWidth() - 14);
+        g.setColour(ink()); g.fillRoundedRectangle(Rectangle<float>(12, x.getHeight()).withCentre({ capX, x.getCentreY() }), 2);
+        g.setColour(Colours::black); g.fillRect(capX - 1, x.getY() + 3, 2.0f, x.getHeight() - 6);
+        block(g, browseBtn(), Colour(0xff15181c), ink());
+        label(g, "LIB", browseBtn(), ink(), 12);
+        block(g, fullBtn(), Colour(0xff15181c), ink());
+        label(g, "FULL", fullBtn(), ink(), 12);
+    }
+
+    void paintPads(Graphics& g, int d)
+    {
+        bool cueMode = ctx.proc.padMode() == PadMode::cues;
+        for (int sl = 0; sl < 8; ++sl)
+        {
+            auto r = padRect(d, sl);
+            int idx = padIndex(d, sl);
+            bool down = padDown == idx;
+            Colour fill = Colour(0xff15181c), txt = ink(), border = grey();
+            if (cueMode)
+            {
+                const auto& c = ctx.cues[d][(size_t) sl];
+                if (c.set()) { fill = cueColour(c); txt = fill.getPerceivedBrightness() > .6f ? Colours::black : Colours::white; border = Colours::transparentBlack; }
+            }
+            else border = deckCol(d);
+            if (down) { fill = ink(); txt = Colours::black; }
+            block(g, r, fill, border, 3);
+            label(g, shortPad(ctx.proc.padLabel(idx)), r.reduced(1), txt, 13);
+        }
+    }
+
+    // ---- crate browser (full screen inside the margin)
+    static Rectangle<float> backBtn() { return { (float) M, (float) M, 56, 28 }; }
+    static Rectangle<float> loadBtn(int d) { return { (float) (W - M - 40 - (1 - d) * 44), (float) M, 40, 28 }; }
+    static Rectangle<float> listArea() { return { (float) M, (float) (M + 32), (float) (W - 2 * M), (float) (H - 2 * M - 32) }; }
+    static constexpr int rowH = 26;
+    int rows() const { return inCrate ? lib.entries.size() : lib.crateList.size(); }
+
+    void paintBrowser(Graphics& g)
+    {
+        block(g, backBtn(), Colour(0xff15181c), ink());
+        label(g, inCrate ? "< BACK" : "CLOSE", backBtn(), ink(), 12);
+        auto title = Rectangle<float>(backBtn().getRight() + 6, (float) M, 0, 28);
+        if (inCrate)
+        {
+            for (int d = 0; d < 2; ++d)
+            {
+                bool ok = sel >= 0;
+                block(g, loadBtn(d), ok ? deckCol(d) : Colour(0xff15181c), ok ? Colours::transparentBlack : grey());
+                label(g, d == 0 ? "A" : "B", loadBtn(d), ok ? Colours::black : grey(), 17);
+            }
+            title = title.withRight(loadBtn(0).getX() - 6);
+            int cr = lib.crates.getSelectedRow();
+            label(g, cr >= 0 && cr < lib.crateList.size() ? lib.crateList[cr].name.toUpperCase() : String(), title, ink(), 13, Justification::centredLeft);
+        }
+        else
+        {
+            title = title.withRight((float) (W - M));
+            label(g, "CRATES", title, ink(), 14, Justification::centredLeft);
+        }
+        auto area = listArea();
+        if (rows() == 0)
+        {
+            String msg = lib.busy ? String("READING CARD...") : inCrate ? String("NO TRACKS HERE") : String("TAP TO CHOOSE SD CARD");
+            block(g, area.withSizeKeepingCentre(area.getWidth(), 48), Colour(0xff15181c), lib.busy ? grey() : deckCol(0));
+            label(g, msg, area.withSizeKeepingCentre(area.getWidth(), 48), ink(), 15);
+            return;
+        }
+        g.saveState();
+        g.reduceClipRegion(area.toNearestInt());
+        for (int i = scroll / rowH; i < rows(); ++i)
+        {
+            auto r = Rectangle<float>(area.getX(), area.getY() + (float) (i * rowH - scroll), area.getWidth(), rowH - 3);
+            if (r.getY() > area.getBottom()) break;
+            bool on = inCrate && i == sel;
+            block(g, r, on ? ink() : Colour(0xff15181c), Colours::transparentBlack, 3);
+            Colour tc = on ? Colours::black : ink();
+            if (inCrate)
+            {
+                const auto& e = lib.entries.getReference(i);
+                auto rr = r.reduced(6, 0);
+                auto bpmR = rr.removeFromRight(40);
+                String nm = e.title.isNotEmpty() ? e.title : e.file.getFileNameWithoutExtension();
+                if (e.artist.isNotEmpty()) nm << "  " << e.artist;
+                label(g, nm.toUpperCase(), rr, tc, 13, Justification::centredLeft);
+                label(g, e.bpm > 0 ? String(roundToInt(e.bpm)) : String("--"), bpmR, on ? Colours::black : deckCol(1), 13, Justification::centredRight);
+                for (int d = 0; d < 2; ++d)
+                    if (ctx.trk[d] && String::fromUTF8(ctx.trk[d]->path.c_str()) == e.file.getFullPathName())
+                    { auto tag = r.withWidth(4); g.setColour(deckCol(d)); g.fillRect(tag); }
+            }
+            else
+            {
+                const auto& c = lib.crateList.getReference(i);
+                auto rr = r.reduced(6, 0).withTrimmedLeft((float) jmin(3, c.depth) * 12);
+                label(g, c.name.fromLastOccurrenceOf(" / ", false, false).toUpperCase(), rr, tc, 13, Justification::centredLeft);
+            }
+        }
+        g.restoreState();
+        // a fat scroll position bar
+        int total = rows() * rowH;
+        if (total > area.getHeight())
+        {
+            float frac = area.getHeight() / (float) total, top = (float) scroll / (float) total;
+            g.setColour(deckCol(0)); g.fillRect(area.getRight() - 4, area.getY() + top * area.getHeight(), 4.0f, frac * area.getHeight());
+        }
+    }
+
+    void openBrowser() { browsing = true; inCrate = false; scroll = 0; sel = -1; repaint(); }
+    void clampScroll() { scroll = jlimit(0, jmax(0, rows() * rowH - (int) listArea().getHeight()), scroll); }
+
+    // ---- input
+    double angleAt(int d, Point<float> p) const { auto c = platter(d).getCentre(); return std::atan2((double) (p.y - c.y), (double) (p.x - c.x)); }
+    void setX(float lx)
+    {
+        auto x = xfader();
+        float v = jlimit(-1.0f, 1.0f, (lx - x.getX() - 7) / (x.getWidth() - 14) * 2 - 1);
+        if (auto* p = ctx.par("xfader")) p->setValueNotifyingHost(p->convertTo0to1(v));
+    }
+    void mouseDown(const MouseEvent& e) override
+    {
+        auto p = logical(e.position); moved = false;
+        if (browsing)
+        {
+            if (backBtn().contains(p)) { if (inCrate) { inCrate = false; scroll = 0; sel = -1; } else browsing = false; repaint(); return; }
+            if (inCrate) for (int d = 0; d < 2; ++d) if (loadBtn(d).contains(p) && sel >= 0 && sel < lib.entries.size())
+            { lib.table.selectRow(sel); lib.loadSelected(d); browsing = false; repaint(); return; }
+            if (listArea().contains(p))
+            {
+                if (rows() == 0 && !inCrate && !lib.busy) { lib.choose(); return; }
+                grab = listDrag; grabY = p.y; grabScroll = (float) scroll;
+            }
+            return;
+        }
+        for (int d = 0; d < 2; ++d)
+        {
+            if (platter(d).contains(p))
+            {
+                grab = d == 0 ? platterA : platterB; lastAng = angleAt(d, p);
+                ctx.send(Cmd::touch, d, 0, true); return;
+            }
+            if (playBtn(d).contains(p)) { ctx.send(Cmd::playPause, d); return; }
+            if (cueBtn(d).contains(p)) { ctx.send(Cmd::cue, d, 0, true); padDown = 100 + d; return; }
+            for (int sl = 0; sl < 8; ++sl)
+                if (padRect(d, sl).contains(p))
+                {
+                    int idx = padIndex(d, sl);
+                    if (e.mods.isPopupMenu() && ctx.proc.padMode() == PadMode::cues) { ctx.send(Cmd::clearCue, d, 0, false, sl); return; }
+                    padDown = idx; ctx.proc.pad(idx, true, 1.0f); repaint(); return;
+                }
+        }
+        if (modeBtn().contains(p)) { if (auto* m = ctx.par("padmode")) { int n = ((int) ctx.proc.padMode() + 1) % 4; m->setValueNotifyingHost(m->convertTo0to1((float) n)); } return; }
+        if (xfader().expanded(0, 4).contains(p)) { grab = xfade; if (auto* x = ctx.par("xfader")) x->beginChangeGesture(); setX(p.x); return; }
+        if (browseBtn().contains(p)) { openBrowser(); return; }
+        if (fullBtn().contains(p)) { if (onFull) onFull(); return; }
+    }
+    void mouseDrag(const MouseEvent& e) override
+    {
+        auto p = logical(e.position);
+        if (grab == platterA || grab == platterB)
+        {
+            int d = grab == platterA ? 0 : 1;
+            double a = angleAt(d, p), da = a - lastAng;
+            if (da > MathConstants<double>::pi) da -= MathConstants<double>::twoPi;
+            if (da < -MathConstants<double>::pi) da += MathConstants<double>::twoPi;
+            lastAng = a;
+            ctx.send(Cmd::move, d, da / MathConstants<double>::twoPi * Ctx::secPerRev());
+        }
+        else if (grab == xfade) setX(p.x);
+        else if (grab == listDrag)
+        {
+            if (std::abs(p.y - grabY) > 4) moved = true;
+            scroll = (int) (grabScroll - (p.y - grabY)); clampScroll(); repaint();
+        }
+    }
+    void mouseUp(const MouseEvent& e) override
+    {
+        auto p = logical(e.position);
+        if (grab == platterA || grab == platterB) ctx.send(Cmd::touch, grab == platterA ? 0 : 1, 0, false);
+        if (grab == xfade) if (auto* x = ctx.par("xfader")) x->endChangeGesture();
+        if (grab == listDrag && !moved)
+        {
+            int i = (int) ((p.y - listArea().getY() + (float) scroll) / rowH);
+            if (i >= 0 && i < rows())
+            {
+                if (!inCrate) { lib.crates.selectRow(i); inCrate = true; scroll = 0; sel = -1; }
+                else sel = i;
+            }
+            repaint();
+        }
+        grab = none;
+        if (padDown >= 100) ctx.send(Cmd::cue, padDown - 100, 0, false);
+        else if (padDown >= 0) ctx.proc.pad(padDown, false);
+        padDown = -1;
+    }
+    void mouseWheelMove(const MouseEvent&, const MouseWheelDetails& w) override
+    {
+        if (!browsing) return;
+        scroll -= (int) (w.deltaY * 120); clampScroll(); repaint();
+    }
+};
+
 }  // namespace
 
 // ================================================================================================ the editor
 struct WheelEditor::Impl : KeyListener
 {
-    Impl(WheelEditor& e, WheelProcessor& p) : ed(e), ctx(p), mixer(ctx), library(ctx), midi(ctx), learnOverlay(ctx)
+    Impl(WheelEditor& e, WheelProcessor& p) : ed(e), ctx(p), mixer(ctx), library(ctx), midi(ctx), learnOverlay(ctx), mpc(ctx, library)
     {
         for (int d = 0; d < 2; ++d)
         {
@@ -2001,6 +2401,11 @@ struct WheelEditor::Impl : KeyListener
             auto q = pt + learnOverlay.getPosition();
             return (midi.isVisible() && midi.getBounds().contains(q)) || learnBtn.getBounds().contains(q) || midiBtn.getBounds().contains(q);
         };
+        mpcBtn.setButtonText("MPC VIEW");
+        mpcBtn.onClick = [this] { setCompact(true); };
+        ed.addAndMakeVisible(mpcBtn);
+        mpc.onFull = [this] { setCompact(false); };
+        ed.addChildComponent(mpc);
         ed.addKeyListener(this);
         snapshot();
     }
@@ -2017,7 +2422,19 @@ struct WheelEditor::Impl : KeyListener
     LibraryPanel library;
     MidiPanel midi;
     LearnOverlay learnOverlay;
-    TextButton midiBtn, learnBtn;
+    MpcScreen mpc;
+    bool compact = true;   // the 320 x 240 MPC screen; FULL switches to the whole Serato-style layout
+    TextButton midiBtn, learnBtn, mpcBtn;
+    void setCompact(bool c)
+    {
+        compact = c;
+        if (c) { ctx.learnMode = false; updateLearn(); midi.setVisible(false); }
+        mpc.browsing = false;
+        ed.setResizable(true, !c);   // no corner grip over the MPC screen's margin
+        if (c) { ed.setResizeLimits(MpcScreen::W, MpcScreen::H, 3200, 2000); ed.setSize(MpcScreen::W, MpcScreen::H); }
+        else { ed.setResizeLimits(1000, 680, 3200, 2000); ed.setSize(1400, 900); }
+        layout(ed.getLocalBounds()); ed.repaint();
+    }
     Rectangle<int> topBar;
     int frame = 0;
     String hostSig;
@@ -2055,6 +2472,7 @@ struct WheelEditor::Impl : KeyListener
     {
         ++frame;
         snapshot();
+        if (compact) return;   // the MPC screen repaints itself
         for (int d = 0; d < 2; ++d)
         {
             wave[d]->repaint();
@@ -2075,6 +2493,17 @@ struct WheelEditor::Impl : KeyListener
     }
     void layout(Rectangle<int> area)
     {
+        mpc.setVisible(compact);
+        for (int d = 0; d < 2; ++d)
+            for (Component* c : std::initializer_list<Component*> { wave[d].get(), over[d].get(), info[d].get(), deck[d].get(), pads[d].get() }) c->setVisible(!compact);
+        for (Component* c : std::initializer_list<Component*> { &mixer, &library, &midiBtn, &learnBtn, &mpcBtn }) c->setVisible(!compact);
+        if (compact)
+        {
+            // keep 4:3 and the safe margin: scale the 320 x 240 screen to fit, centred
+            float s = jmin((float) area.getWidth() / MpcScreen::W, (float) area.getHeight() / MpcScreen::H);
+            mpc.setBounds(area.withSizeKeepingCentre(roundToInt(MpcScreen::W * s), roundToInt(MpcScreen::H * s)));
+            return;
+        }
         float S = jlimit(.6f, 2.0f, jmin((float) area.getWidth() / 1400.0f, (float) area.getHeight() / 900.0f));
         ctx.S = S;
         auto b = area.reduced((int) (6 * S));
@@ -2084,6 +2513,8 @@ struct WheelEditor::Impl : KeyListener
             learnBtn.setBounds(tb.removeFromRight((int) (80 * S)).reduced(0, (int) (3 * S)));
             tb.removeFromRight(6);
             midiBtn.setBounds(tb.removeFromRight((int) (110 * S)).reduced(0, (int) (3 * S)));
+            tb.removeFromRight(6);
+            mpcBtn.setBounds(tb.removeFromRight((int) (100 * S)).reduced(0, (int) (3 * S)));
         }
         b.removeFromTop((int) (4 * S));
         int infoH = (int) (34 * S), ovH = (int) (24 * S);
@@ -2143,9 +2574,10 @@ WheelEditor::WheelEditor(WheelProcessor& p) : AudioProcessorEditor(p), proc(p)
     d = std::make_unique<Impl>(*this, p);
     setLookAndFeel(&d->look);
     setWantsKeyboardFocus(true);
-    setResizable(true, true);
-    setResizeLimits(1000, 680, 3200, 2000);
-    setSize(1400, 900);
+    setResizable(true, false);
+    // opens as the 320 x 240 MPC screen; FULL on it switches to the whole layout, MPC VIEW switches back
+    setResizeLimits(320, 240, 3200, 2000);
+    setSize(320, 240);
     startTimerHz(60);
 }
 
@@ -2160,7 +2592,8 @@ void WheelEditor::paint(Graphics& g)
 {
     ColourGradient bg(pal::bg.brighter(.04f), 0, 0, pal::bg, 0, (float) getHeight(), false);
     g.setGradientFill(bg); g.fillAll();
-    d->paintTop(g);
+    if (!d->compact) d->paintTop(g);
+    else g.fillAll(Colours::black);
 }
 
 void WheelEditor::resized() { d->layout(getLocalBounds()); }

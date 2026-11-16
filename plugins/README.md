@@ -45,6 +45,14 @@ sync (to the other deck, or to the MPC's tempo with Host Tempo Sync). Drag a pla
 crossfader with curve (smooth blend to a sharp scratch cut), hamster, crossfader assign, cue / headphones on an
 optional second output. **Beat FX** per deck: echo, ping-pong, reverb, flanger, phaser, bitcrush, gate.
 
+**The MPC screen.** The plugin opens as a 320 x 240 screen made for the MPC: everything sits inside a 12 px margin
+(so the MPC's own menus can cover the edges) in bold blocks and heavy text. Deck headers (title, BPM, time left), two
+waveform strips with bar ticks, cues and loops, the two platters (drag to scratch) with PLAY and CUE, the pad mode
+(tap to change), the crossfader, 8 pads per deck, LIB for a full-screen crate browser (crates, then tracks, then A or
+B to load) and FULL for the whole Serato-style layout (MPC VIEW there comes back). It scales up if given more room.
+
+![MPC screen](wheel/screenshot-mpc.png) ![crate browser](wheel/screenshot-mpc-crates.png)
+
 ### Playing it from an MPC
 An MPC running standalone can't load third-party plugins; run the MPC software on a computer (controller mode) and
 load Omega Wheel of Steel on a plugin track (or use any DAW, or the standalone app).

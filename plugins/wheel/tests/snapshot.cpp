@@ -1,7 +1,9 @@
 // Omega Wheel of Steel: renders the editor to a PNG, deterministic and headless-friendly (run under xvfb-run on a
 // machine without a display). Makes two synthetic tracks and a little library, loads them on the decks, sets cues,
 // a loop and some pitch, runs the engine for a few seconds, then snapshots the editor.
-//   wheel_snapshot <out.png> [width height] [--midi]
+//   wheel_snapshot <out.png> [width height] [--tap x,y ...] [--midi]   (taps: editor pixels, e.g. FULL on the MPC screen)
+#include <iostream>
+#include <typeinfo>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <cmath>
 #include "../WheelPlugin.h"
@@ -127,9 +129,30 @@ int main(int argc, char** argv)
     pump(100);
 
     std::unique_ptr<AudioProcessorEditor> ed(proc.createEditor());
+    ed->setVisible(true);
     ed->setSize(W, H);
     // let the editor's timers run with the engine going (platters, meters, library listing)
     for (int i = 0; i < 40; ++i) { run(1.0 / 30); pump(33); }
+    // taps: a mouse down + up on whatever is under the point (the editor opens as the 320 x 240 MPC screen)
+    for (int i = 1; i + 1 < argc; ++i)
+        if (String(argv[i]) == "--tap")
+        {
+            auto xy = StringArray::fromTokens(argv[i + 1], ",", {});
+            Point<float> pt(xy[0].getFloatValue(), xy[1].getFloatValue());
+            auto* hit = ed->getComponentAt(pt.roundToInt());
+            std::cout << "tap " << pt.toString() << " -> " << (hit ? typeid(*hit).name() : "none") << std::endl;
+            if (auto* c = hit)
+            {
+                auto local = c->getLocalPoint(ed.get(), pt);
+                auto src = Desktop::getInstance().getMainMouseSource();
+                auto now = Time::getCurrentTime();
+                MouseEvent down(src, local, ModifierKeys(ModifierKeys::leftButtonModifier), 1.0f, 0, 0, 0, 0, c, c, now, local, now, 1, false);
+                MouseEvent up(src, local, ModifierKeys(), 1.0f, 0, 0, 0, 0, c, c, now, local, now, 1, false);
+                if (auto* b = dynamic_cast<Button*>(c)) b->triggerClick();
+                else { c->mouseDown(down); c->mouseUp(up); }
+            }
+            for (int k = 0; k < 10; ++k) { run(1.0 / 30); pump(33); }
+        }
     if (midi)
     {
         // open the MIDI / MPC panel through its button
