@@ -108,8 +108,8 @@ struct Deck::Impl {
 
     Impl() { setup(48000); }
 
-    void setup(double hostSr) {
-        H = hostSr > 1000 ? hostSr : 48000;
+    void setup(double rate) {
+        H = rate > 1000 ? rate : 48000;
         Xf = std::max(16, (int) std::lround(0.004 * H));
         Hs = std::max(64, (int) std::lround(0.023 * H)); W = 2 * Hs;         // 46 ms grains, 50 % overlap
         win.assign((size_t) W + 1, 0.0f);
@@ -195,11 +195,11 @@ struct Deck::Impl {
     void spawn() {
         Grain* t = (latest >= 0 && gr[latest].on && gr[latest].fs >= 0) ? &gr[latest] : nullptr;
         const double nominal = pos + (recVel - 1.0) * Hs * r0;   // grain centre lands where the timeline will be
-        double st = nominal;
-        if (t) st = std::abs(nominal - t->rp) < 0.5 ? t->rp : search(t->rp, nominal);
+        double start = nominal;
+        if (t) start = std::abs(nominal - t->rp) < 0.5 ? t->rp : search(t->rp, nominal);
         const float f = t ? t->f : 1.0f, fs = t ? t->fs : 0.0f;
         const int i = freeGrain();
-        gr[i] = Grain { st, 0, f, fs, true };
+        gr[i] = Grain { start, 0, f, fs, true };
         latest = i; nextGrain = Hs;
     }
     // start the grain stream at 'pos' as if it had been running (a grain at its peak), optionally fading in while
@@ -598,7 +598,8 @@ void Deck::render(float* L, float* R, int n) {
             if (dp > 0 && s.pos >= s.loopB && prev < s.loopB) s.jumpTo(s.pos - len);
             else if (dp < 0 && s.pos < s.loopA && prev >= s.loopA) s.jumpTo(s.pos + len);
         }
-        if (s.pos >= s.N - 1) {
+        if (!s.rd.n) { s.pos = 0; s.recVel = 0; }
+        else if (s.pos >= s.N - 1) {
             if (!s.touched) { s.motorOn = false; s.motorNorm = 0; s.recVel = 0; s.preview = false; s.pos = s.N - 1; }
         } else if (s.pos < 0 && !s.touched && s.recVel < 0) { s.pos = 0; s.recVel = 0; }
         if (!s.slipEv) s.shadow = s.pos;
