@@ -18,7 +18,7 @@ namespace pid {
                                            "trim", "hi", "mid", "low", "filter", "fader", "pfl", "xfassign",
                                            "fxtype", "fxbeats", "fxdepth", "fxparam", "fxon" };
     // global
-    inline const char* const globalIds[] = { "xfader", "xfcurve", "fadercurve", "hamster", "master", "cuemix", "cuegain", "padmode", "padbase", "hostsync" };
+    inline const char* const globalIds[] = { "xfader", "xfcurve", "fadercurve", "hamster", "master", "cuemix", "cuegain", "padmode", "padbase", "hostsync", "controller" };
 }
 juce::String deckParam(int deck, const char* id);   // "a_play" / "b_play"
 
@@ -94,10 +94,28 @@ public:
     juce::String mappingSummary() const;
     juce::File lastRoot;
 
+    // ---- the MPC Sample's own controls (its "Control Surface" MIDI: pads on channel 10, buttons, knobs, fader and
+    // encoder on channel 1). Used when the Controller parameter is MPC Sample, or on Auto once that MIDI is seen.
+    // Buttons and knobs work on the focused deck (B1 = deck A, B2 = deck B).
+    int focusDeck() const;
+    bool shiftHeld() const;
+    bool mpcSampleActive() const;
+    // the crate browser driven by the hardware (SAMPLE / encoder / encoder press / SEQ = back), shown on the screen
+    struct HwBrowser { int mode = 0; /* 0 closed, 1 crates, 2 tracks */ juce::String title; juce::StringArray rows; juce::Array<double> bpm; int cursor = 0; bool busy = false; };
+    HwBrowser hwBrowser() const;
+    enum BrowseAction { browseToggle = 1, browseSelect = 2, browseBack = 4 };
+    void hwBrowse(int actions, int delta);   // as the hardware would (GUI / tests)
+
+    // ---- for an OS that draws the instrument screen itself: the 320 x 240 screen rendered into an image (message
+    // thread). Exported to C as omega_wheel_screen() (see WheelEditor.cpp).
+    juce::Image renderScreen(int width, int height);
+    static WheelProcessor* latest();          // the most recently created instance (C export)
+
 private:
     void timerCallback() override;
     void parameterChanged(const juce::String&, float) override;   // buttons-as-parameters -> Cmds (play, cue, sync...)
     struct Impl; std::unique_ptr<Impl> d;
+    std::unique_ptr<juce::AudioProcessorEditor> screenEditor;   // off-screen editor behind renderScreen()
     Deck engineDeck[2]; Fx fx[2]; Mixer mixer;
     std::atomic<double> hostTempo { 0 };
 };

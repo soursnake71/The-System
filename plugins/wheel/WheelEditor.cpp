@@ -8,6 +8,7 @@
 //   MidiPanel / LearnOverlay       MIDI map, MIDI learn, MPC help
 // A 60 Hz timer repaints only the moving parts (waveforms, platters, meters); everything else polls its lit state.
 #include "WheelEditor.h"
+#include "WheelFonts.h"
 #include <cmath>
 
 namespace wheel {
@@ -1995,7 +1996,13 @@ struct MpcScreen : Component, Timer
     static Colour ink() { return Colours::white; }
     static Colour deckCol(int d) { return d == 0 ? Colour(0xff26a6ff) : Colour(0xffff8a1a); }
     static Colour grey() { return Colour(0xff3a3f46); }
-    static Font bold(float h) { return Font(FontOptions(h, Font::bold)); }
+    // the font is built into the plugin (DejaVu Sans Bold), so the screen looks the same on a box with no fonts installed
+    static Typeface::Ptr face()
+    {
+        static Typeface::Ptr tf = Typeface::createSystemTypefaceFor(WheelFonts::DejaVuSansBold_ttf, (size_t) WheelFonts::DejaVuSansBold_ttfSize);
+        return tf;
+    }
+    static Font bold(float h) { auto tf = face(); return tf != nullptr ? Font(FontOptions(tf).withHeight(h)) : Font(FontOptions(h, Font::bold)); }
 
     // ---- layout (logical 320 x 240 coordinates)
     static Rectangle<float> content() { return { (float) M, (float) M, (float) (W - 2 * M), (float) (H - 2 * M) }; }
@@ -2056,6 +2063,8 @@ struct MpcScreen : Component, Timer
         g.fillAll(Colours::black);
         float s = (float) getWidth() / W;
         g.addTransform(AffineTransform::scale(s));
+        auto hw = ctx.proc.hwBrowser();
+        if (hw.mode != 0) { paintHwBrowser(g, hw); return; }
         if (browsing) { paintBrowser(g); return; }
         for (int d = 0; d < 2; ++d) { paintHeader(g, d); paintStrip(g, d); paintDeck(g, d); paintPads(g, d); }
         paintCentre(g);
@@ -2067,9 +2076,12 @@ struct MpcScreen : Component, Timer
         const auto& st = ctx.proc.status(d);
         auto t = ctx.trk[d];
         bool playing = st.playing.load();
+        // the deck the MPC Sample's buttons and knobs work on: a solid white bar under its header
+        const bool focused = ctx.proc.mpcSampleActive() && ctx.proc.focusDeck() == d;
         block(g, r, Colour(0xff15181c), playing ? deckCol(d) : grey());
+        if (focused) { g.setColour(ink()); g.fillRect(r.getX() + 2, r.getBottom() - 3, r.getWidth() - 4, 3.0f); }
         auto tag = r.removeFromLeft(20);
-        g.setColour(deckCol(d)); g.fillRoundedRectangle(tag, 4);
+        g.setColour(focused ? ink() : deckCol(d)); g.fillRoundedRectangle(tag, 4);
         label(g, d == 0 ? "A" : "B", tag, Colours::black, 17);
         r = r.reduced(4, 2);
         String title = ctx.proc.loading[d].load() ? String("LOADING") : t ? String::fromUTF8(t->title.c_str()) : String("NO TRACK");
@@ -2165,8 +2177,9 @@ struct MpcScreen : Component, Timer
     {
         const char* names[] = { "CUES", "LOOPS", "ROLLS", "TRANS" };
         int pm = jlimit(0, 3, (int) ctx.proc.padMode());
-        block(g, modeBtn(), Colour(0xffffa21f), Colours::transparentBlack);
-        label(g, names[pm], modeBtn(), Colours::black, 13);
+        const bool sh = ctx.proc.shiftHeld();
+        block(g, modeBtn(), sh ? ink() : Colour(0xffffa21f), Colours::transparentBlack);
+        label(g, sh ? String("SHIFT") : String(names[pm]), modeBtn(), Colours::black, 13);
         // crossfader: thick track, big white cap
         auto x = xfader();
         g.setColour(grey()); g.fillRoundedRectangle(x.withSizeKeepingCentre(x.getWidth(), 6), 3);
@@ -2274,6 +2287,43 @@ struct MpcScreen : Component, Timer
         {
             float frac = area.getHeight() / (float) total, top = (float) scroll / (float) total;
             g.setColour(deckCol(0)); g.fillRect(area.getRight() - 4, area.getY() + top * area.getHeight(), 4.0f, frac * area.getHeight());
+        }
+    }
+
+    // the browser the MPC Sample's encoder drives (SAMPLE opens it, turn to move, press to open a crate / load the
+    // track on the focused deck, SEQ goes back)
+    void paintHwBrowser(Graphics& g, const WheelProcessor::HwBrowser& hw)
+    {
+        const int f = ctx.proc.focusDeck();
+        auto top = Rectangle<float>((float) M, (float) M, (float) (W - 2 * M), 28);
+        auto tag = top.removeFromRight(56);
+        block(g, tag, deckCol(f), Colours::transparentBlack);
+        label(g, f == 0 ? "TO A" : "TO B", tag, Colours::black, 13);
+        label(g, hw.title.toUpperCase(), top.withTrimmedRight(6), ink(), 14, Justification::centredLeft);
+        auto area = listArea();
+        if (hw.rows.isEmpty())
+        {
+            String msg = hw.busy ? String("READING CARD...") : hw.mode == 1 ? String("NO SD CARD / MUSIC") : String("NO TRACKS HERE");
+            block(g, area.withSizeKeepingCentre(area.getWidth(), 48), Colour(0xff15181c), grey());
+            label(g, msg, area.withSizeKeepingCentre(area.getWidth(), 48), ink(), 15);
+            return;
+        }
+        const int visible = (int) (area.getHeight() / rowH);
+        const int first = jlimit(0, jmax(0, hw.rows.size() - visible), hw.cursor - visible / 2);
+        for (int i = first; i < jmin(hw.rows.size(), first + visible); ++i)
+        {
+            auto r = Rectangle<float>(area.getX(), area.getY() + (float) ((i - first) * rowH), area.getWidth(), rowH - 3);
+            const bool on = i == hw.cursor;
+            block(g, r, on ? ink() : Colour(0xff15181c), Colours::transparentBlack, 3);
+            auto rr = r.reduced(6, 0);
+            if (hw.mode == 2 && i < hw.bpm.size())
+                label(g, hw.bpm[i] > 0 ? String(roundToInt(hw.bpm[i])) : String("--"), rr.removeFromRight(40), on ? Colours::black : deckCol(1), 13, Justification::centredRight);
+            label(g, hw.rows[i].toUpperCase(), rr, on ? Colours::black : ink(), 13, Justification::centredLeft);
+        }
+        if (hw.rows.size() > visible)
+        {
+            float frac = (float) visible / (float) hw.rows.size(), topF = (float) first / (float) hw.rows.size();
+            g.setColour(deckCol(f)); g.fillRect(area.getRight() - 4, area.getY() + topF * area.getHeight(), 4.0f, frac * area.getHeight());
         }
     }
 
@@ -2602,4 +2652,49 @@ void WheelEditor::resized() { d->layout(getLocalBounds()); }
 
 void WheelEditor::timerCallback() { d->tick(); }
 
+// the 320 x 240 screen as an image, from an editor that is never put on a display (an OS that draws the screen itself)
+Image WheelProcessor::renderScreen(int width, int height)
+{
+    JUCE_ASSERT_MESSAGE_THREAD
+    if (screenEditor == nullptr) screenEditor.reset(new WheelEditor(*this));
+    if (screenEditor->getWidth() != width || screenEditor->getHeight() != height) screenEditor->setSize(width, height);
+    if (auto* ed = dynamic_cast<WheelEditor*>(screenEditor.get())) ed->refresh();
+    return screenEditor->createComponentSnapshot(screenEditor->getLocalBounds(), true, 1.0f);
+}
+
+void WheelEditor::refresh() { d->snapshot(); d->mpc.timerCallback(); }
+
 }  // namespace wheel
+
+/* C entry point for an OS that hosts the plugin headless and draws the instrument's screen itself (the MPC Sample
+   has no window system):
+
+     int omega_wheel_screen(uint32_t* pixels, int width, int height, int strideBytes);
+
+   renders the latest Omega Wheel of Steel instance's MPC screen (made for 320 x 240) into an XRGB8888 buffer, the
+   format of the MPC Sample's display (DRM XR24). Returns 1 when drawn, 0 when there is no instance. Call it at the
+   frame rate you want (about 20 fps suits the SPI panel), never from the audio thread. Find it with dlsym() on the
+   plugin's .so. omega_wheel_api_version() returns 1. */
+extern "C" __attribute__((visibility("default"))) int omega_wheel_api_version() { return 1; }
+extern "C" __attribute__((visibility("default"))) int omega_wheel_screen(uint32_t* pixels, int width, int height, int strideBytes)
+{
+    using namespace juce;
+    if (pixels == nullptr || width <= 0 || height <= 0 || strideBytes < width * 4) return 0;
+    int ok = 0;
+    auto draw = [&] {
+        auto* p = wheel::WheelProcessor::latest();
+        if (p == nullptr) return;
+        Image img = p->renderScreen(width, height);
+        Image::BitmapData bd(img, Image::BitmapData::readOnly);
+        for (int y = 0; y < height; ++y)
+        {
+            auto* row = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(pixels) + (size_t) y * (size_t) strideBytes);
+            for (int x = 0; x < width; ++x) row[x] = 0xff000000u | (bd.getPixelColour(x, y).getARGB() & 0xffffffu);
+        }
+        ok = 1;
+    };
+    auto* mm = MessageManager::getInstanceWithoutCreating();
+    if (mm == nullptr || mm->isThisTheMessageThread()) draw();
+    else mm->callFunctionOnMessageThread([](void* f) -> void* { (*static_cast<decltype(draw)*>(f))(); return nullptr; }, &draw);
+    return ok;
+}

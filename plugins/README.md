@@ -83,3 +83,44 @@ control for the crossfader and it replaces CC 1; CLEAR ALL goes back to the defa
 Notes on MIDI channel 2 play deck A's slots (note % 8), channel 3 deck B's. **MIDI learn** (the MIDI / MPC panel):
 press LEARN, click any control, platter or pad, then move a knob or hit a pad. Pad hits and Q-Link moves recorded in
 an MPC sequence play back, so a routine can be recorded and edited.
+
+### On the MPC Sample (an SD-card OS)
+The MPC Sample runs Linux on a 64-bit ARM chip (RK3566), with a 320 x 240 screen and no window system. The
+`Omega-Plugins-Linux-ARM64.zip` build is for it: an aarch64 `.vst3` that carries its own freetype / fontconfig and its
+own font, built against an older glibc than the device's.
+
+**Its own controls, no setup.** The MPC Sample's control surface sends MIDI (pads on channel 10, buttons, knobs,
+fader and encoder on channel 1). Pass that MIDI to the instrument and, with Controller on Auto (the default), it is
+recognised by its pads or its encoder; or set Controller to MPC Sample.
+
+| Control | Does |
+|---|---|
+| Fader (CC 20) | crossfader |
+| Main volume knob (CC 19) | master level |
+| K1 / K2 / K3 (CC 16 / 17 / 18) | focused deck: filter / low EQ / pitch; with SHIFT: high EQ / mid EQ / channel fader |
+| Big encoder (CC 100) | scratch the focused deck (32 clicks a turn); SHIFT + encoder: nudge; in the browser: move |
+| B1 / B2 | focus deck A / deck B (the focused deck has a white tag and bar on screen) |
+| B3 | sync the focused deck |
+| PLAY / STOP | play-pause / cue (hold) on the focused deck |
+| Pads 1-16 | performance pads as in the table above (left half deck A, right half deck B); ERASE + pad clears a hot cue |
+| PAD BANK (SHIFT: back) | pad mode: hot cues / loops / rolls / transport |
+| LOOP | 4-beat loop on the focused deck; SHIFT + LOOP: reloop / exit |
+| − / + | nudge slower / faster while held; with SHIFT: loop ½ / ×2 |
+| NOTE REPEAT | censor (hold) |
+| KNOB FX / PAD FX / MUTE / TAP TEMPO | FX on / slip / headphone cue / key lock, on the focused deck |
+| SAMPLE (or SAMPLE SELECT) | open / close the crate browser; encoder to move, encoder press to open a crate and again to load the track on the focused deck; SEQ goes back |
+
+The music: with no folder chosen it looks for the SD card at `/media/MPC SAMPLE` (then `/media`, `/run/media`,
+`/mnt`), and lists its Serato crates, playlists and folders.
+
+**The screen.** The device has no window system, so a host draws the plugin's screen itself. The plugin's `.so`
+exports a C function for that:
+
+```c
+int omega_wheel_api_version(void);   /* 1 */
+int omega_wheel_screen(uint32_t* pixels, int width, int height, int strideBytes);
+```
+
+`omega_wheel_screen` renders the latest instance's 320 x 240 screen into an XRGB8888 buffer (the MPC Sample's DRM
+format, XR24) and returns 1. Call it from your UI thread about 20 times a second (the SPI panel's rate), never from
+the audio thread, and copy the buffer to the display. Find it with `dlsym()` on the `.so` inside the `.vst3`.

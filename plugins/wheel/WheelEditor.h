@@ -14,6 +14,7 @@ public:
     ~WheelEditor() override;
     void paint(juce::Graphics&) override;
     void resized() override;
+    void refresh();   // take in the processor's state now (off-screen rendering, no timer)
 private:
     void timerCallback() override;   // 60 Hz: waveforms, platters, meters
     WheelProcessor& proc;

@@ -15,7 +15,7 @@ namespace {
 // parameter indices (order of pid::deckIds / pid::globalIds)
 enum DP { pPlay, pCue, pPitch, pRange, pRpm45, pKeylock, pSync, pSlip, pQuant, pPlatter, pTouch, pNudge, pCensor, pStart, pBrake,
           pTrim, pHi, pMid, pLow, pFilter, pFader, pPfl, pXfassign, pFxtype, pFxbeats, pFxdepth, pFxparam, pFxon, kDeckParams };
-enum GP { gXfader, gXfcurve, gFadercurve, gHamster, gMaster, gCuemix, gCuegain, gPadmode, gPadbase, gHostsync, kGlobalParams };
+enum GP { gXfader, gXfcurve, gFadercurve, gHamster, gMaster, gCuemix, gCuegain, gPadmode, gPadbase, gHostsync, gController, kGlobalParams };
 static_assert(kDeckParams == (int) (sizeof(pid::deckIds) / sizeof(pid::deckIds[0])), "deck parameter table out of step");
 static_assert(kGlobalParams == (int) (sizeof(pid::globalIds) / sizeof(pid::globalIds[0])), "global parameter table out of step");
 constexpr int kParams = 2 * kDeckParams + kGlobalParams;
@@ -45,6 +45,16 @@ int padIndexOf(int deck, int slot) { return (slot / 2) * 4 + deck * 2 + slot % 2
 
 constexpr double kRevSeconds = 1.8;        // one platter revolution at 33 1/3 rpm
 constexpr double kJogTicksPerRev = 128;    // relative CC ticks per revolution
+constexpr double kEncTicksPerRev = 32;     // the MPC Sample's big encoder: detents per platter turn when scratching
+
+// the MPC Sample's control surface (channel 10 pads, channel 1 buttons / knobs / fader / encoder)
+constexpr int kSamplePadNotes[16] = { 37, 36, 42, 82, 40, 38, 46, 44, 48, 47, 45, 43, 49, 55, 51, 53 };   // pads 1-16
+int samplePad(int note) { for (int i = 0; i < 16; ++i) if (kSamplePadNotes[i] == note) return i; return -1; }
+namespace sb { enum : int { knobFx = 0, padFx = 1, sample = 6, seq = 7, erase = 9, noteRepeat = 11, b1 = 12, b2 = 13, b3 = 14, padBank = 35,
+                            sampleSelect = 36, mute = 43, shift = 49, tapTempo = 53, plus = 54, minus = 55, loop = 74, encPress = 111,
+                            play = 82, stop = 81 }; }
+namespace scc { enum : int { k1 = 16, k2 = 17, k3 = 18, mainVolume = 19, fader = 20, encoder = 100 }; }
+enum Controller { ctrlAuto, ctrlMidi, ctrlSample };
 constexpr double kReleaseSec = .06;        // hand lifts this long after the last platter movement
 constexpr int kTargetPad = 1000;           // MIDI map target >= this: pad (target - kTargetPad)
 constexpr int kMapSize = 16 * 128;         // channel * 128 + cc / note
@@ -129,6 +139,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout makeLayout() {
     addChoice(l, pid::globalIds[gPadmode], "Pad Mode", { "Cues", "Loops", "Rolls", "Transport" }, 0);
     l.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID { pid::globalIds[gPadbase], 1 }, "Pad Base Note", 0, 108, 37));
     addBool(l, pid::globalIds[gHostsync], "Host Tempo Sync", false);
+    addChoice(l, pid::globalIds[gController], "Controller", { "Auto", "MPC / MIDI", "MPC Sample" }, 0);
     juce::AudioProcessorValueTreeState::ParameterLayout out;
     for (const char* id : kPerformanceOrder)
         for (auto& p : l.v) if (p != nullptr && p->getParameterID() == id) out.add(std::move(p));
@@ -304,10 +315,86 @@ struct WheelProcessor::Impl {
         midiVal[t].store(juce::jlimit(0.f, 1.f, norm));
     }
 
+    // ---- the MPC Sample's control surface
+    std::atomic<int> focus { 0 };
+    std::atomic<bool> shift { false }, erase { false }, sampleSeen { false }, browserOpen { false };
+    std::atomic<int> brDelta { 0 }; std::atomic<uint32_t> brReq { 0 };
+    void toggleParam(int t) { paramInput(t, isOn(t) ? 0.f : 1.f); }
+    bool sampleActive() const {
+        const int c = choice(gpi(gController), 3);
+        return c == ctrlSample || (c == ctrlAuto && sampleSeen.load());
+    }
+    // true when the message was the MPC Sample's and has been handled
+    bool sampleInput(const juce::MidiMessage& m, int ch) {
+        const int f = focus.load();
+        const bool sh = shift.load();
+        if (ch == 10) {
+            if (m.isAftertouch()) return true;   // pad pressure: not used
+            if (!m.isNoteOn() && !m.isNoteOff()) return false;
+            const int k = samplePad(m.getNoteNumber());
+            if (k < 0) return false;
+            const bool down = m.isNoteOn();
+            if (erase.load() && padMode() == (int) PadMode::cues) { if (down) exec(mk(Cmd::clearCue, padDeck(k), padSlot(k))); return true; }
+            padInput(k, down, down ? m.getFloatVelocity() : 0.f);
+            return true;
+        }
+        if (ch != 1) return false;
+        if (m.isController()) {
+            const int v = m.getControllerValue();
+            const float n = (float) v / 127.f;
+            switch (m.getControllerNumber()) {
+                case scc::fader: paramInput(gpi(gXfader), n); return true;          // the fader is the crossfader
+                case scc::mainVolume: paramInput(gpi(gMaster), n); return true;
+                case scc::k1: paramInput(dpi(f, sh ? pHi : pFilter), n); return true;
+                case scc::k2: paramInput(dpi(f, sh ? pMid : pLow), n); return true;
+                case scc::k3: paramInput(dpi(f, sh ? pFader : pPitch), n); return true;
+                case scc::encoder: {
+                    const int dl = v < 64 ? v : v - 128;
+                    if (browserOpen.load()) brDelta.fetch_add(dl);
+                    else if (sh) exec(mk(Cmd::bend, f, 0, dl * .01));                 // SHIFT + encoder: nudge the record
+                    else relRev[f] += dl / kEncTicksPerRev;                          // the encoder is the platter
+                    return true;
+                }
+                default: return true;   // other channel 1 CCs from the surface: ignore
+            }
+        }
+        if (!m.isNoteOn() && !m.isNoteOff()) return false;
+        const bool down = m.isNoteOn();
+        const auto& st = P.engineDeck[f].st;
+        switch (m.getNoteNumber()) {
+            case sb::shift: shift.store(down); return true;
+            case sb::erase: erase.store(down); return true;
+            case sb::b1: if (down) focus.store(0); return true;
+            case sb::b2: if (down) focus.store(1); return true;
+            case sb::b3: if (down) exec(mk(Cmd::sync, f)); return true;
+            case sb::play: if (down) exec(mk(Cmd::playPause, f)); return true;
+            case sb::stop: exec(mk(Cmd::cue, f, 0, 0, down)); return true;
+            case sb::padBank: if (down) padModeOv.store((padMode() + (sh ? 3 : 1)) % 4); return true;
+            case sb::loop: if (down) exec(sh ? mk(st.looping.load() ? Cmd::loopExit : Cmd::reloop, f) : mk(Cmd::autoLoop, f, 0, 4)); return true;
+            case sb::minus: if (sh) { if (down) exec(mk(Cmd::loopHalve, f)); } else exec(mk(Cmd::nudge, f, 0, down ? -1. : 0.)); return true;
+            case sb::plus: if (sh) { if (down) exec(mk(Cmd::loopDouble, f)); } else exec(mk(Cmd::nudge, f, 0, down ? 1. : 0.)); return true;
+            case sb::noteRepeat: exec(mk(Cmd::censor, f, 0, 0, down)); return true;
+            case sb::knobFx: if (down) toggleParam(dpi(f, pFxon)); return true;
+            case sb::padFx: if (down) toggleParam(dpi(f, pSlip)); return true;
+            case sb::mute: if (down) toggleParam(dpi(f, pPfl)); return true;
+            case sb::tapTempo: if (down) toggleParam(dpi(f, pKeylock)); return true;
+            case sb::sample: case sb::sampleSelect: if (down) brReq.fetch_or(WheelProcessor::browseToggle); return true;
+            case sb::encPress: if (down) brReq.fetch_or(browserOpen.load() ? WheelProcessor::browseSelect : WheelProcessor::browseToggle); return true;
+            case sb::seq: if (down) brReq.fetch_or(WheelProcessor::browseBack); return true;
+            default: return true;   // every other button of the surface: nothing (never a pad)
+        }
+    }
+
     void handleMidi(const juce::MidiBuffer& midi) {
         for (const auto meta : midi) {
             const auto m = meta.getMessage();
             const int ch = juce::jlimit(1, 16, m.getChannel());
+            if (learnTarget.load() < 0 && choice(gpi(gController), 3) != ctrlMidi) {
+                // Auto: the MPC Sample is recognised by its pads on channel 10 or its encoder (CC 100 on channel 1)
+                if (!sampleSeen.load() && ((ch == 10 && m.isNoteOn() && samplePad(m.getNoteNumber()) >= 0) || (ch == 1 && m.isController() && m.getControllerNumber() == scc::encoder)))
+                    sampleSeen.store(true);
+                if (sampleActive() && sampleInput(m, ch)) continue;
+            }
             if (m.isNoteOn() || m.isNoteOff()) {
                 const int note = m.getNoteNumber(), key = (ch - 1) * 128 + note;
                 const bool down = m.isNoteOn();
@@ -518,6 +605,61 @@ struct WheelProcessor::Impl {
         }
     }
 
+    // ---- the hardware crate browser (message thread)
+    mutable juce::CriticalSection brLock;
+    int brMode = 0, brCursor = 0, brCrate = 0, brGen = 0; bool brBusy = false, rootTried = false;
+    juce::Array<Crate> brCrates; juce::Array<Entry> brEntries;
+    void browseTick() {
+        const uint32_t req = brReq.exchange(0);
+        const int dl = brDelta.exchange(0);
+        const juce::ScopedLock l(brLock);
+        if (req & WheelProcessor::browseToggle) {
+            if (brMode == 0) { brCrates = P.library.cratesCopy(); brMode = 1; brCursor = juce::jlimit(0, juce::jmax(0, brCrates.size() - 1), brCrate); }
+            else brMode = 0;
+        }
+        if (req & WheelProcessor::browseBack) { if (brMode == 2) { brMode = 1; brCursor = brCrate; } else brMode = 0; }
+        if (req & WheelProcessor::browseSelect) {
+            if (brMode == 1 && brCursor >= 0 && brCursor < brCrates.size()) {
+                brCrate = brCursor; brMode = 2; brCursor = 0; brEntries.clear(); brBusy = true;
+                const int g = ++brGen; const Crate c = brCrates[brCrate];
+                pool.addJob([this, c, g] {
+                    auto list = P.library.list(c);
+                    const juce::ScopedLock l2(brLock);
+                    if (g == brGen) { brEntries = list; brBusy = false; }
+                });
+            } else if (brMode == 2 && brCursor >= 0 && brCursor < brEntries.size()) {
+                P.loadTrack(focus.load(), brEntries[brCursor].file);
+                brMode = 0;
+            }
+        }
+        if (brMode == 1 && brCrates.isEmpty()) brCrates = P.library.cratesCopy();
+        const int n = brMode == 1 ? brCrates.size() : brMode == 2 ? brEntries.size() : 0;
+        brCursor = juce::jlimit(0, juce::jmax(0, n - 1), brCursor + dl);
+        browserOpen.store(brMode != 0);
+    }
+    // with no music folder chosen yet, look for the SD card (the MPC Sample mounts it at /media/MPC SAMPLE)
+    void findRoot() {
+        if (rootTried || !P.library.cratesCopy().isEmpty()) return;
+        rootTried = true;
+        juce::Array<juce::File> cands;
+        if (P.lastRoot.isDirectory()) cands.add(P.lastRoot);
+        cands.add(juce::File("/media/MPC SAMPLE"));
+        for (auto base : { "/media", "/run/media", "/mnt", "/sdcard" }) {
+            juce::File b(base);
+            if (!b.isDirectory()) continue;
+            for (const auto& c : b.findChildFiles(juce::File::findDirectories, false)) {
+                cands.add(c);
+                for (const auto& c2 : c.findChildFiles(juce::File::findDirectories, false)) cands.add(c2);   // /run/media/<user>/<card>
+            }
+        }
+        for (const auto& c : cands)
+            if (c.isDirectory()) {
+                P.lastRoot = c;
+                pool.addJob([this, c] { P.library.setRoot(c); });
+                return;
+            }
+    }
+
     // ---- tracks (message thread)
     mutable juce::SpinLock trackLock;
     std::shared_ptr<const Track> current[2];
@@ -566,16 +708,45 @@ struct WheelProcessor::Impl {
 };
 
 /* ================================================================================================= processor == */
+static std::atomic<WheelProcessor*> latestInstance { nullptr };
+WheelProcessor* WheelProcessor::latest() { return latestInstance.load(); }
+
 WheelProcessor::WheelProcessor()
     : AudioProcessor(BusesProperties().withOutput("Main", juce::AudioChannelSet::stereo(), true)
                                       .withOutput("Cue", juce::AudioChannelSet::stereo(), false)),
       apvts(*this, nullptr, "WHEEL", makeLayout()) {
     d = std::make_unique<Impl>(*this);
     for (int dk = 0; dk < 2; ++dk) for (int b = 0; b < kBtns; ++b) apvts.addParameterListener(d->btnIds[dk][b], this);
+    latestInstance.store(this);
     startTimerHz(30);
 }
 
+int WheelProcessor::focusDeck() const { return d->focus.load(); }
+bool WheelProcessor::shiftHeld() const { return d->shift.load(); }
+bool WheelProcessor::mpcSampleActive() const { return d->sampleActive(); }
+void WheelProcessor::hwBrowse(int actions, int delta) { d->brReq.fetch_or((uint32_t) actions); d->brDelta.fetch_add(delta); }
+WheelProcessor::HwBrowser WheelProcessor::hwBrowser() const {
+    HwBrowser b;
+    const juce::ScopedLock l(d->brLock);
+    b.mode = d->brMode; b.cursor = d->brCursor; b.busy = d->brBusy;
+    if (b.mode == 1) {
+        b.title = "CRATES";
+        for (const auto& c : d->brCrates) b.rows.add(juce::String().paddedRight(' ', juce::jmin(3, c.depth) * 2) + c.name.fromLastOccurrenceOf(" / ", false, false));
+    } else if (b.mode == 2) {
+        b.title = d->brCrate < d->brCrates.size() ? d->brCrates[d->brCrate].name : juce::String();
+        for (const auto& e : d->brEntries) {
+            juce::String nm = e.title.isNotEmpty() ? e.title : e.file.getFileNameWithoutExtension();
+            if (e.artist.isNotEmpty()) nm << "  " << e.artist;
+            b.rows.add(nm); b.bpm.add(e.bpm);
+        }
+    }
+    return b;
+}
+
 WheelProcessor::~WheelProcessor() {
+    screenEditor.reset();
+    WheelProcessor* self = this;
+    latestInstance.compare_exchange_strong(self, nullptr);
     stopTimer();
     for (int dk = 0; dk < 2; ++dk) for (int b = 0; b < kBtns; ++b) apvts.removeParameterListener(d->btnIds[dk][b], this);
     for (auto& g : d->gen) g.fetch_add(1);   // cancel loads in flight
@@ -722,6 +893,8 @@ void WheelProcessor::parameterChanged(const juce::String& id, float v) {
 /* ---------------- timer (message thread) ---------------- */
 void WheelProcessor::timerCallback() {
     auto& D = *d;
+    D.findRoot();
+    D.browseTick();
     // values that came in by MIDI: tell the host / GUI
     for (int i = 0; i < kParams; ++i) {
         float m = D.midiVal[i].load();

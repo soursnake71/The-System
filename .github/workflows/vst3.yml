@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Linux libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb patchelf
       - name: Configure
         run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -50,6 +50,19 @@ jobs:
           find build -path '*Release/Standalone/*' -prune \( -name 'Omega Twelve' -o -name 'Omega Twelve.exe' -o -name 'Omega Twelve.app' \) -exec cp -R {} out/ \;
           # so does Omega Wheel of Steel
           find build -path '*Release/Standalone/*' -prune \( -name 'Omega Wheel of Steel' -o -name 'Omega Wheel of Steel.exe' -o -name 'Omega Wheel of Steel.app' \) -exec cp -R {} out/ \;
+          # ARM64 Linux (the MPC Sample): ship the libraries the plugins need beyond glibc / libstdc++ / ALSA (freetype,
+          # fontconfig and theirs) inside each .vst3, found through RUNPATH $ORIGIN, so a bare Yocto system loads them
+          if [ "${{ matrix.name }}" = Linux-ARM64 ]; then
+            for so in out/*.vst3/Contents/aarch64-linux/*.so; do
+              dir=$(dirname "$so")
+              ldd "$so" | awk '/=> \//{print $3}' | while read -r lib; do
+                case "$(basename "$lib")" in libc.so*|libm.so*|libdl.so*|libpthread.so*|librt.so*|ld-linux*|libstdc++.so*|libgcc_s.so*|libasound.so*) continue;; esac
+                cp "$lib" "$dir/" && patchelf --set-rpath '$ORIGIN' "$dir/$(basename "$lib")"
+              done
+              patchelf --set-rpath '$ORIGIN' "$so"
+              echo "$so:"; ls "$dir"
+            done
+          fi
           if [ "$RUNNER_OS" = macOS ]; then
             find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
             for b in out/*; do codesign --force --deep -s - "$b"; done

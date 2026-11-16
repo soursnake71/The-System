@@ -666,6 +666,7 @@ bool Library::isAudio(const juce::File& f)
 
 void Library::setRoot(const juce::File& root)
 {
+    const juce::ScopedLock scoped(scanLock);
     rootDir = root;
     seratoDir = juce::File();
     crateList.clearQuick();
@@ -777,6 +778,7 @@ juce::File resolvePath(const juce::String& rawPath, const juce::File& rootDir, c
 
 juce::Array<Entry> Library::list(const Crate& c)
 {
+    const juce::ScopedLock scoped(scanLock);
     juce::Array<Entry> out;
     const auto idx = indexFor(rootDir);
     if (c.kind == Crate::all) {
@@ -817,6 +819,7 @@ juce::Array<Entry> Library::list(const Crate& c)
 
 juce::Array<Entry> Library::search(const juce::String& text, const Crate& c)
 {
+    const juce::ScopedLock scoped(scanLock);
     juce::StringArray words;
     words.addTokens(text, " \t", "\"");
     words.trim();

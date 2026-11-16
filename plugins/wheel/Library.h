@@ -44,7 +44,10 @@ public:
 
     juce::AudioFormatManager formats;
     static bool isAudio(const juce::File& f);
+    // a copy, safe while another thread rescans
+    juce::Array<Crate> cratesCopy() const { const juce::ScopedLock l(scanLock); return crateList; }
 private:
+    mutable juce::CriticalSection scanLock;   // setRoot / list / search from several threads (GUI, hardware browser)
     juce::File rootDir, seratoDir;
     juce::Array<Crate> crateList;
 };
