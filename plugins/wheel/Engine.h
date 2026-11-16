@@ -94,6 +94,9 @@ public:
     void prepare(double sr, int maxBlock);
     void process(float* L, float* R, int n, const FxSettings& s, double bpm);  // in place
     void reset();
+    // optional: the deck's absolute beat position ((pos - firstBeat) / beatLength) at the start of the next process();
+    // locks the flanger / phaser / gate LFOs to the beatgrid. Without it they free-run at the given bpm.
+    void setBeatPos(double beats);
 private: struct Impl; std::shared_ptr<Impl> d;
 };
 
