@@ -1,0 +1,1 @@
+/home/user/The-System/android/wheel/build/intermediates/cxx/Release/585z4u6k/obj/armeabi-v7a

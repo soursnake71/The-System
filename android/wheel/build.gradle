@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+// Omega Wheel of Steel: two turntables and a scratch mixer. The engine is native C++ (src/main/cpp, which builds
+// plugins/wheel/Engine.cpp + Library.cpp for Android); the UI is plain Android Views drawn on a Canvas.
+android {
+  namespace 'com.thesnakedevice.wheel'
+  compileSdk 35
+  buildToolsVersion '35.0.0'
+  ndkVersion '27.2.12479018'
+  defaultConfig {
+    applicationId 'com.thesnakedevice.wheel'
+    minSdk 26
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+    ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+    externalNativeBuild {
+      cmake {
+        cppFlags '-std=c++17 -O2'
+        // the engine must be fast in the debug APK too (it is the one people install)
+        arguments '-DCMAKE_BUILD_TYPE=Release'
+      }
+    }
+  }
+  externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+  buildTypes {
+    release { minifyEnabled false; signingConfig signingConfigs.debug }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+  lint { abortOnError false; checkReleaseBuilds false }
+}

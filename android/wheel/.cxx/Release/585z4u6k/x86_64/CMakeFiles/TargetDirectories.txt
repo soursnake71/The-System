@@ -1,0 +1,3 @@
+/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64/CMakeFiles/wheel.dir
+/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64/CMakeFiles/edit_cache.dir
+/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64/CMakeFiles/rebuild_cache.dir

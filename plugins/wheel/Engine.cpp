@@ -31,6 +31,10 @@ struct NoDenormals {
     uint64_t old;
     NoDenormals() { asm volatile("mrs %0, fpcr" : "=r"(old)); uint64_t v = old | (1ull << 24); asm volatile("msr fpcr, %0" : : "r"(v)); }
     ~NoDenormals() { asm volatile("msr fpcr, %0" : : "r"(old)); }
+#elif defined(__arm__) && defined(__ARM_FP) && ! defined(__SOFTFP__)
+    uint32_t old;   // 32-bit ARM (armeabi-v7a, VFP): FPSCR.FZ
+    NoDenormals() { asm volatile("vmrs %0, fpscr" : "=r"(old)); asm volatile("vmsr fpscr, %0" : : "r"(old | (1u << 24))); }
+    ~NoDenormals() { asm volatile("vmsr fpscr, %0" : : "r"(old)); }
 #endif
 };
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- a turntable platter seen from above: blue rim with strobe dots, black vinyl and grooves, orange label, marker -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FF26A6FF" android:pathData="M54,20a34,34 0,1 1,0 68a34,34 0,1 1,0 -68z" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M54,24a30,30 0,1 1,0 60a30,30 0,1 1,0 -60z" />
+    <path android:strokeColor="#FF2B3036" android:strokeWidth="1.2" android:pathData="M54,29a25,25 0,1 1,0 50a25,25 0,1 1,0 -50z" />
+    <path android:strokeColor="#FF2B3036" android:strokeWidth="1.2" android:pathData="M54,34a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+    <path android:fillColor="#FFFF8A1A" android:pathData="M54,42a12,12 0,1 1,0 24a12,12 0,1 1,0 -24z" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M54,51.5a2.5,2.5 0,1 1,0 5a2.5,2.5 0,1 1,0 -5z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M52.6,24.5h2.8v17.2h-2.8z" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M54,21.2m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M78.1,30.9m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M86.8,54m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M78.1,77.1m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M54,86.8m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M29.9,77.1m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M21.2,54m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+    <path android:fillColor="#FF0A0B0D" android:pathData="M29.9,30.9m-1.3,0a1.3,1.3 0,1 1,2.6 0a1.3,1.3 0,1 1,-2.6 0" />
+</vector>

@@ -3,6 +3,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <memory>
 #include <functional>
+#include "Analysis.h"
 #include "Track.h"
 
 namespace wheel {
@@ -55,8 +56,6 @@ private:
 // building blocks (exposed for the tests)
 juce::StringArray parseCrate(const juce::MemoryBlock& data);          // the track paths in a .crate
 void readSeratoTags(const juce::File& f, Track& t, Entry* e);          // whatever Serato / ID3 / Vorbis tags say
-double detectBpm(const std::vector<float>& mono, double sr, double& firstBeat);   // 60..190 folded to 70..180-ish
-int detectKey(const std::vector<float>& mono, double sr);              // Krumhansl-Schmuckler on a chromagram
-void buildWave(const Track& t, Wave& w);
+// detectBpm / detectKey / buildWave: Analysis.h; tag and crate parsing without JUCE: SeratoTags.h
 
 }  // namespace wheel

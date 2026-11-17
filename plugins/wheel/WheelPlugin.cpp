@@ -472,12 +472,20 @@ struct WheelProcessor::Impl {
         double bpm = 0, ph = -1;
         if (master(dk, bpm, ph)) P.engineDeck[dk].syncTo(bpm, ph < 0 ? 0 : ph, phaseToo && ph >= 0);
     }
+    bool relock[2] {}; double lastRate[2] {};
     void followSync() {
         for (int dk = 0; dk < 2; ++dk) {
             auto& deck = P.engineDeck[dk];
             const bool playing = deck.st.playing.load();
-            if (deck.syncing() && !deck.st.touched.load()) syncNow(dk, playing && !wasPlaying[dk]);   // phase-lock on start
+            const double rate = deck.st.rate.load();
+            bool phase = playing && !wasPlaying[dk];   // phase-lock on start
+            // and once more when the motor has spun up (the record lags while it gets to speed)
+            if (phase) relock[dk] = true;
+            else if (relock[dk] && rate > .2 && std::abs(rate - lastRate[dk]) < 1e-4) { phase = true; relock[dk] = false; }
+            if (!playing || !deck.syncing()) relock[dk] = false;
+            if (deck.syncing() && !deck.st.touched.load()) syncNow(dk, phase);
             wasPlaying[dk] = playing;
+            lastRate[dk] = rate;
         }
     }
 

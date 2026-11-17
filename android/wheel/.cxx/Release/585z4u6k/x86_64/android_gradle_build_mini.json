@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "/home/user/The-System/android/wheel/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "wheel::@6890427a1f51a3e7e1df": {
+      "artifactName": "wheel",
+      "abi": "x86_64",
+      "output": "/home/user/The-System/android/wheel/build/intermediates/cxx/Release/585z4u6k/obj/x86_64/libwheel.so",
+      "runtimeFiles": []
+    }
+  }
+}

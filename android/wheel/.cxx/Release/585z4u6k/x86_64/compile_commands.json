@@ -1,0 +1,27 @@
+[
+{
+  "directory": "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+  "command": "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=x86_64-none-linux-android26 --sysroot=/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Dwheel_EXPORTS -I/home/user/The-System/android/wheel/src/main/cpp -I/home/user/The-System/plugins/wheel -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -O3 -DNDEBUG  -fPIC -Wall -Wextra -fvisibility=hidden -O3 -std=c++17 -o CMakeFiles/wheel.dir/wheel_jni.cpp.o -c /home/user/The-System/android/wheel/src/main/cpp/wheel_jni.cpp",
+  "file": "/home/user/The-System/android/wheel/src/main/cpp/wheel_jni.cpp"
+},
+{
+  "directory": "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+  "command": "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=x86_64-none-linux-android26 --sysroot=/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Dwheel_EXPORTS -I/home/user/The-System/android/wheel/src/main/cpp -I/home/user/The-System/plugins/wheel -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -O3 -DNDEBUG  -fPIC -Wall -Wextra -fvisibility=hidden -O3 -std=c++17 -o CMakeFiles/wheel.dir/wheel_host.cpp.o -c /home/user/The-System/android/wheel/src/main/cpp/wheel_host.cpp",
+  "file": "/home/user/The-System/android/wheel/src/main/cpp/wheel_host.cpp"
+},
+{
+  "directory": "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+  "command": "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=x86_64-none-linux-android26 --sysroot=/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Dwheel_EXPORTS -I/home/user/The-System/android/wheel/src/main/cpp -I/home/user/The-System/plugins/wheel -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -O3 -DNDEBUG  -fPIC -Wall -Wextra -fvisibility=hidden -O3 -std=c++17 -o CMakeFiles/wheel.dir/home/user/The-System/plugins/wheel/Engine.cpp.o -c /home/user/The-System/plugins/wheel/Engine.cpp",
+  "file": "/home/user/The-System/plugins/wheel/Engine.cpp"
+},
+{
+  "directory": "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+  "command": "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=x86_64-none-linux-android26 --sysroot=/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Dwheel_EXPORTS -I/home/user/The-System/android/wheel/src/main/cpp -I/home/user/The-System/plugins/wheel -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -O3 -DNDEBUG  -fPIC -Wall -Wextra -fvisibility=hidden -O3 -std=c++17 -o CMakeFiles/wheel.dir/home/user/The-System/plugins/wheel/Analysis.cpp.o -c /home/user/The-System/plugins/wheel/Analysis.cpp",
+  "file": "/home/user/The-System/plugins/wheel/Analysis.cpp"
+},
+{
+  "directory": "/home/user/The-System/android/wheel/.cxx/Release/585z4u6k/x86_64",
+  "command": "/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=x86_64-none-linux-android26 --sysroot=/tmp/claude-0/-home-user-The-System/439e829e-7b90-5dd0-a4e6-564373fd32f1/scratchpad/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Dwheel_EXPORTS -I/home/user/The-System/android/wheel/src/main/cpp -I/home/user/The-System/plugins/wheel -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -O2 -O3 -DNDEBUG  -fPIC -Wall -Wextra -fvisibility=hidden -O3 -std=c++17 -o CMakeFiles/wheel.dir/home/user/The-System/plugins/wheel/SeratoTags.cpp.o -c /home/user/The-System/plugins/wheel/SeratoTags.cpp",
+  "file": "/home/user/The-System/plugins/wheel/SeratoTags.cpp"
+}
+]

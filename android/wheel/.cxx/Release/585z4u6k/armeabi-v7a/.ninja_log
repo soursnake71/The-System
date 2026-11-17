@@ -1,0 +1,7 @@
+# ninja log v5
+0	1212	1794945747518465378	CMakeFiles/wheel.dir/wheel_host.cpp.o	36eb9680d4d80fe8
+0	1438	1794945747738465386	CMakeFiles/wheel.dir/wheel_jni.cpp.o	6dc7dba4eb2a17fd
+0	1537	1794945747846465390	CMakeFiles/wheel.dir/home/user/The-System/plugins/wheel/Engine.cpp.o	e63362245f921ece
+0	1785	1794945748090465398	CMakeFiles/wheel.dir/home/user/The-System/plugins/wheel/SeratoTags.cpp.o	f238a77b6892a906
+0	1932	1794945748242465404	CMakeFiles/wheel.dir/home/user/The-System/plugins/wheel/Analysis.cpp.o	3ceccb6aa943f691
+1932	1960	1794945748274465405	/home/user/The-System/android/wheel/build/intermediates/cxx/Release/585z4u6k/obj/armeabi-v7a/libwheel.so	c82c2059cc986594

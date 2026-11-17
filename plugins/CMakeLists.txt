@@ -157,7 +157,7 @@ if(NOT OMEGA_ONLY OR "Wheel" IN_LIST OMEGA_ONLY)
   # the screen's font, built in (the MPC Sample has no fonts installed)
   juce_add_binary_data(WheelFonts HEADER_NAME WheelFonts.h NAMESPACE WheelFonts SOURCES wheel/fonts/DejaVuSans-Bold.ttf)
   set_target_properties(WheelFonts PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  target_sources(OmegaWheel PRIVATE wheel/Engine.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp)
+  target_sources(OmegaWheel PRIVATE wheel/Engine.cpp wheel/Analysis.cpp wheel/SeratoTags.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp)
   target_link_libraries(OmegaWheel PRIVATE WheelFonts)
   if(UNIX AND NOT APPLE)
     # libraries shipped inside the .vst3 next to the .so (CI copies freetype / fontconfig there for the MPC Sample)
@@ -169,14 +169,19 @@ if(NOT OMEGA_ONLY OR "Wheel" IN_LIST OMEGA_ONLY)
 
   # the deck / mixer / FX engine on its own (no JUCE): <build>/wheel_engine_test
   add_executable(wheel_engine_test wheel/tests/engine_test.cpp wheel/Engine.cpp)
+  # the Android engine host (everything behind Native.java but JNI / AAudio): <build>/wheel_host_test
+  add_executable(wheel_host_test wheel/tests/jni_engine_test.cpp ../android/wheel/src/main/cpp/wheel_host.cpp wheel/Engine.cpp wheel/Analysis.cpp wheel/SeratoTags.cpp)
+  target_include_directories(wheel_host_test PRIVATE wheel ../android/wheel/src/main/cpp)
+  find_package(Threads REQUIRED)
+  target_link_libraries(wheel_host_test PRIVATE Threads::Threads)
   # crates, Serato tags, decoding and analysis: <build>/wheel_lib_test
   juce_add_console_app(wheel_lib_test PRODUCT_NAME "wheel_lib_test")
-  target_sources(wheel_lib_test PRIVATE wheel/tests/lib_test.cpp wheel/Library.cpp)
+  target_sources(wheel_lib_test PRIVATE wheel/tests/lib_test.cpp wheel/Analysis.cpp wheel/SeratoTags.cpp wheel/Library.cpp)
   target_compile_definitions(wheel_lib_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(wheel_lib_test PRIVATE juce::juce_audio_formats juce::juce_dsp juce::juce_recommended_config_flags)
   # the processor's MIDI defaults (fader = crossfader), parameter order and mapping state: <build>/wheel_midi_test
   juce_add_console_app(wheel_midi_test PRODUCT_NAME "wheel_midi_test")
-  target_sources(wheel_midi_test PRIVATE wheel/tests/midi_test.cpp wheel/Engine.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp)
+  target_sources(wheel_midi_test PRIVATE wheel/tests/midi_test.cpp wheel/Engine.cpp wheel/Analysis.cpp wheel/SeratoTags.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp)
   target_link_libraries(wheel_midi_test PRIVATE WheelFonts)
   target_compile_definitions(wheel_midi_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Wheel of Steel" JUCE_MODAL_LOOPS_PERMITTED=1
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)

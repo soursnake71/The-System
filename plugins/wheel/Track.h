@@ -30,7 +30,7 @@ struct Track {
     double length() const { return sr > 0 ? (double) L.size() / sr : 0; }
 };
 
-// key helpers (implemented in Library.cpp)
+// key helpers (implemented in SeratoTags.cpp)
 std::string keyName(int key);      // "Am", "F#"
 std::string camelot(int key);      // "8A"
 int parseKey(const std::string&);  // "8A", "Am", "A minor", "F#m", "Gb" -> 0..23 or -1
