@@ -78,7 +78,8 @@ final class Ctl {
             int fx = did(d, Native.D_FX_BEATS);
             if (v[fx] <= 0) v[fx] = .75f;
             v[did(d, Native.D_FX_ON)] = 0;               // effects start off
-            v[did(d, Native.D_SLIP)] = sp.getFloat("p" + did(d, Native.D_SLIP), 0);
+            int type = did(d, Native.D_FX_TYPE);
+            if (Math.round(v[type]) <= 0) v[type] = 1;    // echo, so FX ON does something out of the box
         }
         padMode = Math.max(0, Math.min(3, sp.getInt("padMode", MODE_CUES)));
         for (int id = 0; id < N_IDS; ++id) if (known(id)) Native.set(id, v[id]);

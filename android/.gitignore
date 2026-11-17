@@ -3,3 +3,4 @@ build/
 local.properties
 *.jks
 app/build/
+.cxx/

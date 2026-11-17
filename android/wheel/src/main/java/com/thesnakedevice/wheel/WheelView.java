@@ -274,7 +274,6 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         float len() { return Math.max(1, r.width() - capW()); }
         @Override boolean down(int id, float x, float y) { if (!super.down(id, x, y)) return false; set(x); return true; }
         @Override void move(MotionEvent e, int idx) {
-            // the newest position is enough here, but history keeps fast cuts exact
             set(e.getX(idx));
         }
         void set(float x) {
@@ -524,7 +523,7 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         ts = dp * clamp(Math.min(W / (800 * dp), H / (360 * dp)), .85f, 2.2f);
         zoomSec = clamp(W / dp / 110f, 6, 12);
 
-        float topH = clamp(H * .30f, 100 * dp, 320 * dp);
+        float topH = clamp(H * .34f, 110 * dp, 330 * dp);
         float hdrH = clamp(topH * .18f, 20 * dp, 42 * dp);
         float ovH = clamp(topH * .085f, 8 * dp, 22 * dp);
         float waveH = (topH - 2 * hdrH - 2 * ovH) / 2;
@@ -536,7 +535,7 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         overviews[1].r.set(0, y, W, y += ovH);
         headers[1].r.set(0, y, W, y += hdrH);
 
-        float botH = clamp(H * .31f, 100 * dp, 300 * dp);
+        float botH = clamp(H * .29f, 96 * dp, 290 * dp);
         float midTop = topH + g, midH = H - topH - botH - 2 * g;
         float mixW = clamp(W * .27f, 196 * dp, 440 * dp);
         float deckW = (W - mixW) / 2 - g;
@@ -617,16 +616,27 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         float hw = (mw - meterW - 2 * g) / 2;
         float cellH = clamp(mixRect.height() * .17f, 36 * dp, 92 * dp);
         float faderTop = my + 2 * cellH + g, faderBot = xfader.r.top - g;
+        // short screens (phones): the channel fader goes beside the knobs, so it keeps a useful throw
+        boolean side = faderBot - faderTop < 80 * dp;
         for (int d = 0; d < 2; ++d) {
             float hx = d == 0 ? mx0 : mx1 - hw;
+            float kw2 = side ? hw * .62f : hw;                      // knob block width
+            float kx0 = side ? (d == 0 ? hx : hx + hw - kw2) : hx;  // knobs on the outer side
+            float ch = side ? (faderBot - my) / 2 : cellH;
             for (int k = 0; k < 4; ++k) {
                 int colI = k % 2, row = k / 2;
-                float kx = hx + colI * hw / 2, ky = my + row * cellH;
-                eq[d][k].r.set(kx, ky, kx + hw / 2, ky + cellH);
+                float kx = kx0 + colI * kw2 / 2, ky = my + row * ch;
+                eq[d][k].r.set(kx, ky, kx + kw2 / 2, ky + ch);
             }
-            float fw = clamp(hw * .42f, 28 * dp, 60 * dp);
-            float fcx = hx + hw / 2;
-            chFader[d].r.set(fcx - fw / 2, faderTop, fcx + fw / 2, faderBot);
+            if (side) {
+                float fw = hw - kw2 - g;
+                float fx = d == 0 ? hx + kw2 + g : hx;
+                chFader[d].r.set(fx, my, fx + fw, faderBot);
+            } else {
+                float fw = clamp(hw * .42f, 28 * dp, 60 * dp);
+                float fcx = hx + hw / 2;
+                chFader[d].r.set(fcx - fw / 2, faderTop, fcx + fw / 2, faderBot);
+            }
         }
         float mcx = mx0 + hw + g, mtop = my, mbot = faderBot;
         float bw4 = (meterW - 3 * dp) / 4;
