@@ -100,6 +100,8 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
 
     @SuppressWarnings("deprecation")
     private void immersive() {
+        // the window's decor must exist before its insets controller does (asking first crashes on Android 11+)
+        getWindow().getDecorView();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             getWindow().setDecorFitsSystemWindows(false);
             WindowInsetsController c = getWindow().getInsetsController();
