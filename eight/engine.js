@@ -24,16 +24,16 @@
   add('OH.level','OH Level','Faceplate',0.65); add('OH.decay','OH Decay','Faceplate',0.45); add('CH.level','CH Level','Faceplate',0.7);
   add('mod.BD.tune','Tune','Bass Drum',0.5); add('mod.BD.sweep','Pitch Sweep','Bass Drum',0.5); add('mod.BD.longDecay','Long Decay Mod','Bass Drum',0);
   add('mod.BD.click','Click','Bass Drum',0.3); add('mod.BD.drive','Drive','Bass Drum',0);
-  add('mod.SD.tune','Tune','Snare',0.5); add('mod.SD.decay','Decay','Snare',0.5); add('mod.SD.noiseColor','Noise Color','Snare',0.5);
-  add('mod.TOM.decay','Tom Decay','Toms/Congas',0.5); add('mod.TOM.sweep','Tom Sweep','Toms/Congas',0.5); add('mod.CONGA.decay','Conga Decay','Toms/Congas',0.5);
+  add('mod.SD.tune','Tune','Snare',0.5); add('mod.SD.decay','Decay','Snare',0.5); add('mod.SD.noiseColor','Noise Color','Snare',0.5); add('mod.SD.drive','Drive','Snare',0);
+  add('mod.TOM.decay','Tom Decay','Toms/Congas',0.5); add('mod.TOM.sweep','Tom Sweep','Toms/Congas',0.5); add('mod.CONGA.decay','Conga Decay','Toms/Congas',0.5); add('mod.TOM.drive','Drive','Toms/Congas',0);
   add('mod.RS.tune','Rim Tune','Rim/Clap',0.5); add('mod.CL.tune','Claves Tune','Rim/Clap',0.5); add('mod.CP.tail','Clap Tail','Rim/Clap',0.5);
-  add('mod.CP.spread','Clap Spread','Rim/Clap',0.5); add('mod.MA.decay','Maracas Decay','Rim/Clap',0.5);
+  add('mod.CP.spread','Clap Spread','Rim/Clap',0.5); add('mod.MA.decay','Maracas Decay','Rim/Clap',0.5); add('mod.CP.drive','Clap Drive','Rim/Clap',0);
   add('mod.CB.tune','Cowbell Tune','Cowbell/Metal',0.5); add('mod.CB.decay','Cowbell Decay','Cowbell/Metal',0.5); add('mod.HH.tune','Metal Osc Tune','Cowbell/Metal',0.5);
   add('mod.CH.decay','CH Decay','Cowbell/Metal',0.5); add('mod.CY.tune','Cymbal Tune','Cowbell/Metal',0.5);
   add('mod.AC.depth','Accent Depth','Accent',0.5); add('mod.AC.punch','Accent Punch','Accent',0);
   add('mod.TRIG.src','Trigger Source','Trigger Out',0,0,3,1,['CB','CP','AC','TRIG']); add('mod.TRIG.width','Pulse Width (ms)','Trigger Out',20,1,40);
   add('mod.TRIG.level','Click Into Mix','Trigger Out',0); add('mod.TRIG.tone','Coupling Cap','Trigger Out',0.5);
-  add('mod.age','Component Age','Machine',0.25); add('mod.hiss','Hiss','Machine',0.15); add('swing','Swing','Machine',0);
+  add('mod.age','Component Age','Machine',0.25); add('mod.drive','Machine Overdrive','Machine',0); add('mod.hiss','Hiss','Machine',0.15); add('swing','Swing','Machine',0);
   for (const v of SENDV) add('rev.send.' + v, v + ' Reverb', 'Reverb Sends', v === 'SD' ? 0.12 : v === 'CP' ? 0.18 : 0);
   for (const v of SENDV) add('dly.send.' + v, v + ' Delay', 'Delay Sends', 0);
   const progs = g.Rev7 ? g.Rev7.PROGRAMS : [{name:'Plate 1', time:2.2, predelay:0, hf:0.85, diffusion:1, density:1, lpf:12000, hpf:60, er:0.1}];
@@ -95,7 +95,7 @@
       this.bufN = 4096;
       this.rIn = new Float32Array(this.bufN); this.dIn = new Float32Array(this.bufN);
       this.rL = new Float32Array(this.bufN); this.rR = new Float32Array(this.bufN); this.dL = new Float32Array(this.bufN); this.dR = new Float32Array(this.bufN);
-      this.gain = new Float64Array(NV); this.rs = new Float64Array(NV); this.ds = new Float64Array(NV);
+      this.gain = new Float64Array(NV); this.drk = new Float64Array(NV); this.drn = new Float64Array(NV); this.rs = new Float64Array(NV); this.ds = new Float64Array(NV);
       for (let i = 0; i < P.length; i++) this.apply(P[i].k, this.p[i]);
       this.dirty = 1;
     }
@@ -139,10 +139,14 @@
       // sound far louder than they measure, and much louder on phone speakers that can't play the bass drum's 54 Hz
       const TRIM = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.7, 0.85, 0.55, 0.45, 0.45, 1];
       const sr = this.sr, v = k => this.v(k);
+      this.od = v('mod.drive');
       for (let i = 0; i < VOICES.length; i++) {
         const o = OWNER[i];
         const lv = o === 'TRIG' ? v('mod.TRIG.level') : v(o + '.level');
         this.gain[i] = lv * lv * 1.4 * TRIM[i];
+        // voice drive mods: a tanh clipper after the voice, k = 1..7, normalised so full scale stays full scale
+        const dk = i === 1 ? v('mod.SD.drive') : (i >= 2 && i <= 7) ? v('mod.TOM.drive') : i === 10 ? v('mod.CP.drive') : 0;
+        this.drk[i] = 1 + 6 * dk; this.drn[i] = dk > 0.001 ? 1 / Math.tanh(this.drk[i]) : 0;
         this.rs[i] = v('rev.send.' + o); this.ds[i] = v('dly.send.' + o);
       }
       // BD
@@ -325,8 +329,18 @@
           for (let i = 0; i < 17; i++) {
             if (!this.active[i]) continue;
             if ((i >= 13 && i <= 15) && !this.smp[i]) continue;
-            const y = this.voice(i) * this.gain[i];
+            let y = this.voice(i);
+            if (this.drn[i] > 0) y = Math.tanh(y * this.drk[i]) * this.drn[i];
+            y *= this.gain[i];
             dry += y; rv += y * this.rs[i]; dl += y * this.ds[i];
+          }
+          // machine overdrive: the mixer bus and output amp pushed into clipping, asymmetric like an op-amp stage
+          // with an offset (even harmonics), with make-up so the level stays about the same. It drives the sends too
+          if (this.od > 0.001) {
+            const k = 1 + 15 * this.od, b = 0.2 * this.od, x = dry * k;
+            const yd = (Math.tanh(x + b) - Math.tanh(b)) / (1 + 2.5 * this.od);
+            const gr = Math.abs(dry) > 1e-9 ? yd / dry : k / (1 + 2.5 * this.od);
+            dry = yd; rv *= gr; dl *= gr;
           }
           this.rIn[s] = rv; this.dIn[s] = dl;
           outL[off + s0 + s] = dry; outR[off + s0 + s] = dry;

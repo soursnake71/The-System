@@ -50,6 +50,7 @@ Circuit mods (the fold-open panel). Each default is the stock circuit, so a fres
 - CB and the metal voices: `mod.CB.tune`, `mod.CB.decay`, `mod.HH.tune` (the shared 6-square-oscillator bank), `mod.CH.decay`, `mod.CY.tune`
 - Accent: `mod.AC.depth` (0.5 = stock), `mod.AC.punch` (accent also brightens and tightens; 0 = stock)
 - Trigger out (Egyptian Lover): `mod.TRIG.src` (0 CB, 1 CP, 2 AC, 3 its own TRIG track), `mod.TRIG.width` (ms, 1..40, stock 20), `mod.TRIG.level` (into the mix, 0 = off), `mod.TRIG.tone` (coupling-cap high-pass)
+- Drive: `mod.BD.drive`, `mod.SD.drive`, `mod.TOM.drive`, `mod.CP.drive`, and `mod.drive` (machine overdrive: the mixer bus and sends)
 - Whole machine: `mod.age` (component tolerance and drift), `mod.hiss`, `swing` (0..1)
 
 FX sends: `rev.send.<V>` and `dly.send.<V>` for each of the 12 tracks' voices and TRIG. Use `<V>` in `BD SD LT MT HT RS CP CB CY OH CH TRIG`. LC/MC/HC use the LT/MT/HT send, CL the RS send, MA the CP send.
