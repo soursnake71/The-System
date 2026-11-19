@@ -93,8 +93,8 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .dip .lab{font:700 12px/1.05 var(--cond); text-align:center; min-height:26px}
 .dip .val{font:400 12px/1 var(--mono); color:#ffe9a8}
 .slots{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px}
-.slotx{flex:1 1 100px; min-width:100px; background:#0004; border:1px solid #ffffff44; border-radius:6px; padding:4px 5px; display:flex; align-items:center; gap:4px; font:700 13px/1 var(--cond)}
-.slotx .nm{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 11px/1 var(--mono); opacity:.85}
+.slotx{flex:1 1 46%; min-width:0; background:#0004; border:1px solid #ffffff44; border-radius:6px; padding:4px 5px; display:flex; align-items:center; gap:4px; font:700 13px/1 var(--cond)}
+.slotx .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 11px/1 var(--mono); opacity:.85}
 .slotx button{background:#d8d2b4; color:#111; border-radius:3px; padding:4px 6px; font:700 11px/1 var(--cond)}
 .slotx button.clr{background:#5a5a5a; color:#eee}
 .slotx.has{border-color:#ffd25a}
