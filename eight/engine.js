@@ -135,11 +135,14 @@
     // continuous-time ring amplitude 1 from a pulse of n samples into the SVF bandpass
     exc(svf, amp, n) { return amp / (2 * svf.g * n); }
     prepare() {
+      // mix trims per voice (BD SD LT MT HT LC MC HC RS CL CP MA CB CY OH CH TRIG). The bright metal voices and the maracas
+      // sound far louder than they measure, and much louder on phone speakers that can't play the bass drum's 54 Hz
+      const TRIM = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.7, 0.85, 0.55, 0.45, 0.45, 1];
       const sr = this.sr, v = k => this.v(k);
       for (let i = 0; i < VOICES.length; i++) {
         const o = OWNER[i];
         const lv = o === 'TRIG' ? v('mod.TRIG.level') : v(o + '.level');
-        this.gain[i] = lv * lv * 1.4;
+        this.gain[i] = lv * lv * 1.4 * TRIM[i];
         this.rs[i] = v('rev.send.' + o); this.ds[i] = v('dly.send.' + o);
       }
       // BD
