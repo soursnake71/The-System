@@ -10,7 +10,8 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator)
+  // and Omega 808 (circuit-modelled TR-808)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -30,6 +31,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    eight {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.eight'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/eight/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/eight/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +52,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  eightImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +63,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// Omega 808 carries its web app the same way: ../eight (not its tools or notes) into assets/eight
+def eightAssets = layout.buildDirectory.dir('eightAssets')
+tasks.register('copyEightWeb', Copy) {
+  from('../../eight') { exclude 'tools/**', '*.md' }
+  into eightAssets.map { it.dir('eight') }
+}
+android.sourceSets.eight.assets.srcDirs += [eightAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Eight') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyEightWeb' }
