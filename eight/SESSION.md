@@ -24,26 +24,26 @@ roland 808 accent function. Swarm."
 ## Swarm status
 | Agent | Owns | Status |
 |---|---|---|
-| A: DSP | `eight/fx.js`, `engine.js`, `seq.js`, `worklet.js`, `tools/test.mjs` | running |
-| B: UI | `eight/index.html`, `app.js`, `sw.js`, manifest, icons | running |
-| C: presets + MIDI | `eight/presets.js`, `midi.js`, `tools/presets-check.mjs` | running |
-| D: Android + CI | `android/app/src/eight/**`, `build.gradle` flavor, `.github/workflows/eight-release.yml`, local APK build | running |
-| E: VST3 | `plugins/eight/**`, CMake `OmegaEight`, `eight/tools/compare.mjs` | starts after A finishes |
+| A: DSP | `eight/fx.js`, `engine.js`, `seq.js`, `worklet.js`, `tools/test.mjs` | done |
+| B: UI | `eight/index.html`, `app.js`, `sw.js`, manifest, icons | done |
+| C: presets + MIDI | `eight/presets.js`, `midi.js`, `tools/presets-check.mjs` | done |
+| D: Android + CI | `android/app/src/eight/**`, `build.gradle` flavor, `.github/workflows/eight-release.yml`, local APK build | done |
+| E: VST3 | `plugins/eight/**`, CMake `OmegaEight`, `eight/tools/compare.mjs` | deferred (weekly budget) |
 
 ## To-do
 - [x] Faceplate photo into `eight/faceplate.jpg`
 - [x] Shared contract `eight/CONTRACT.md`
-- [ ] A: circuit-modelled voices (BD bridged-T per Werner/Abel/Smith DAFx-14, SD, toms/congas, RS/CL, CP/MA, CB, CY/OH/CH six-oscillator metal bank, TRIG), accent, sample slots, mixer
-- [ ] A: REV7 (16+ programs incl. gate / reverse gate) and TC 2290 (sync, ping-pong, ducking)
-- [ ] A: 808 sequencer: 12 basic + 4 intro/fill, A/AB/B, I/F variation, TAP, auto fill-in, 1st/2nd part, pre-scale, swing, MIDI clock follow
-- [ ] A: Node tests pass (`node eight/tools/test.mjs <dir>`)
-- [ ] B: photo faceplate with every control mapped, step LEDs, 808-style step entry, pad mode
-- [ ] B: fold-open circuit board panel, FX rack, sample load/clear, trigger-out section
-- [ ] B: preset browser, own presets, random, state saved, WAV export
-- [ ] C: 120+ kits, 150+ original rhythms, 12+ banks, 30+ FX presets, and the checker passes
-- [ ] C: full MIDI covering notes (GM map, velocity accent), learn for every CC, program change, clock in/out, notes out, trigger-out note, Android shim
-- [ ] D: Android `eight` flavor + `EightActivity` (offline assets, MIDI, sample picker, saving), icon and banner
-- [ ] D: APK built locally (`gradle -p android assembleEightDebug`), and the CI workflow `eight-release.yml`
+- [x] A: circuit-modelled voices (BD bridged-T per Werner/Abel/Smith DAFx-14, SD, toms/congas, RS/CL, CP/MA, CB, CY/OH/CH six-oscillator metal bank, TRIG), accent, sample slots, mixer
+- [x] A: REV7 (16+ programs incl. gate / reverse gate) and TC 2290 (sync, ping-pong, ducking)
+- [x] A: 808 sequencer: 12 basic + 4 intro/fill, A/AB/B, I/F variation, TAP, auto fill-in, 1st/2nd part, pre-scale, swing, MIDI clock follow
+- [x] A: Node tests pass (`node eight/tools/test.mjs <dir>`)
+- [x] B: photo faceplate with every control mapped, step LEDs, 808-style step entry, pad mode
+- [x] B: fold-open circuit board panel, FX rack, sample load/clear, trigger-out section
+- [x] B: preset browser, own presets, random, state saved, WAV export
+- [x] C: 120+ kits, 150+ original rhythms, 12+ banks, 30+ FX presets, and the checker passes
+- [x] C: full MIDI covering notes (GM map, velocity accent), learn for every CC, program change, clock in/out, notes out, trigger-out note, Android shim
+- [x] D: Android `eight` flavor + `EightActivity` (offline assets, MIDI, sample picker, saving), icon and banner
+- [x] D: APK built locally (`gradle -p android assembleEightDebug`), and the CI workflow `eight-release.yml`
 - [ ] E: C++ port of engine/fx/seq (`plugins/eight/Eight.h`), JUCE instrument with the photo editor and fold-open mods panel, host-synced sequencer, MIDI in/out
 - [ ] E: `compare.mjs` shows the C++ matching the JS, and the VST3 builds locally (JUCE 8.0.4 fetch works here)
 - [ ] Integrate: Playwright check of the whole app, README section, commit + push each part
@@ -54,3 +54,11 @@ roland 808 accent function. Swarm."
 - Network works for GitHub (JUCE) and dl.google.com (Android SDK). The SDK goes in `/opt/android-sdk`, and is lost when the container is reclaimed.
 - Gradle is at `/opt/gradle`, Java 21 is installed, and Chromium + Playwright are preinstalled.
 - Agents don't commit. The coordinator commits and pushes each part.
+
+## Next session
+- Run the VST3 port (agent E, above). The workflow's VST3 job does nothing until `plugins/eight` and the CMake target `OmegaEight` exist.
+- Balance the voice levels: OH and CY come out quieter than the drums.
+- In the circuit panel, `dly.sync` and `dly.pingpong` show as trimpots instead of toggles. The UI should read `step:1` and `opts`.
+- Re-check the tom section's sample-slot layout with a screenshot, and have `worklet.js` read `processorOptions.init` for WAV export.
+- Add a README section, and confirm "Omega 110" with the user.
+- Every commit message lists its sources (the user asked for this).
