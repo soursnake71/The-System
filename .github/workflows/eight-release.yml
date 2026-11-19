@@ -1,0 +1,95 @@
+# Omega 808: the Android APK (web app bundled offline) and the VST3 plugin (Windows, macOS with AU, Linux),
+# all attached to the "omega-808" release. Runs on main and on claude/* branches so builds can be tried before merging.
+name: Omega 808 release
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['eight/**', 'plugins/eight/**', 'plugins/CMakeLists.txt', 'android/**', '.github/workflows/eight-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  VERSION: '1.0.${{ github.run_number }}'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Engine tests (every voice rendered, levels, accent, NaN)
+        run: node eight/tools/test.mjs "$RUNNER_TEMP/wav"
+      - name: Presets check
+        run: node eight/tools/presets-check.mjs
+  plugins:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release "-DOMEGA_ONLY=Eight"
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test (C++ engine against the app's engine.js)
+        if: runner.os == 'Linux' && hashFiles('eight/tools/compare.mjs') != ''
+        run: node eight/tools/compare.mjs build/eight_test "$RUNNER_TEMP"
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega 808' -o -name 'Omega 808.exe' -o -name 'Omega 808.app' \) -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls -la out
+          cd out && 7z a -tzip "../Omega-808-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'eight-${{ matrix.name }}', path: 'Omega-808-${{ matrix.name }}.zip', if-no-files-found: error}
+  apk:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android assembleEightDebug --no-daemon
+          cp android/app/build/outputs/apk/eight/debug/app-eight-debug.apk omega-808.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: eight-Android, path: omega-808.apk, if-no-files-found: error}
+  publish:
+    needs: [plugins, apk]
+    # publish whatever built: a Mac runner that never starts shouldn't hold back the other files
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls -la dl
+          notes="Omega 808 $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}).
+
+          - Android: open omega-808.apk on the phone and allow installing from your browser or files app. Works offline; USB / Bluetooth MIDI in and out.
+          - Windows / Mac / Linux: unzip Omega-808-<system>.zip and copy the .vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 and the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). On a Mac, if your DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*"
+          gh release view omega-808 >/dev/null 2>&1 || gh release create omega-808 --title "Omega 808 (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit omega-808 --notes "$notes"
+          gh release upload omega-808 dl/* --clobber
