@@ -1,0 +1,155 @@
+/* Omega 808: the panel is laid out at the photo's own size (2000 x 1190) and scaled to the screen, so nothing ever scrolls. */
+:root{
+  --case:#141414; --led:#ff2a1a; --pcb:#1d5a34; --pcb2:#174a2b; --silk:#f1f4ea; --trace:#2f7a48; --pad:#c9a64a;
+  --trim:#2e63c9; --trim2:#1f4aa0; --lcdbg:#1b2a3a; --lcdink:#9fe4ff; --seg:#ff3a22;
+  --cond:"Roboto Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --mono:"Courier New",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; height:100%; overflow:hidden; overscroll-behavior:none; background:var(--case); touch-action:none;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; font-family:var(--cond); color:#eee}
+button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:none; cursor:pointer}
+#stage{position:fixed; inset:0; overflow:hidden; background:radial-gradient(ellipse at 50% 40%, #262626, #0b0b0b)}
+#panel{position:absolute; left:0; top:0; width:2000px; height:1190px; transform-origin:0 0}
+
+/* ---------------- the lid (photo) ---------------- */
+#lid{position:absolute; inset:0; transform-origin:50% 0; transition:transform .9s cubic-bezier(.5,.05,.25,1), opacity .9s, filter .9s;
+  transform:perspective(2600px) rotateX(0deg); backface-visibility:hidden; z-index:2; will-change:transform}
+#photo{position:absolute; inset:0; width:2000px; height:1190px; display:block; pointer-events:none}
+#ctl{position:absolute; inset:0}
+#panel.open #lid{transform:perspective(2600px) rotateX(96deg); opacity:0; filter:brightness(.4); pointer-events:none}
+#panel.open #board{filter:none}
+#panel.off #ctl .led, #panel.off #ctl .ledsm{opacity:0 !important}
+#panel.off #lid::after{content:""; position:absolute; inset:0; background:#000a; pointer-events:none}
+#panel.off #lid .power{z-index:5}
+
+/* knobs: the photo's own knob, cut out in a circle and turned */
+.kn{position:absolute; border-radius:50%; background-image:url(faceplate.jpg); background-size:2000px 1190px; background-repeat:no-repeat;
+  pointer-events:none; will-change:transform}
+.kn i{position:absolute; left:50%; top:4%; width:4px; height:38%; margin-left:-2px; border-radius:2px; background:#ff5a2a; box-shadow:0 0 4px #ff5a2a, 0 0 1px #000;
+  transform-origin:50% 120%; opacity:.9}
+.kn.big i{width:6px; margin-left:-3px}
+.hit{position:absolute; border-radius:50%; cursor:ns-resize; touch-action:none}
+.hit.sq{border-radius:6px; cursor:pointer}
+.hit:active, .hit.on{background:#ffffff0d}
+.led{position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%; pointer-events:none; opacity:0;
+  background:radial-gradient(circle, #fff6 0 18%, var(--led) 32%, #ff1a0a88 55%, transparent 72%); transition:opacity .04s}
+.led.on{opacity:1}
+.led.run{opacity:1; filter:hue-rotate(10deg) brightness(1.3)}
+.ledsm{position:absolute; width:18px; height:18px; margin:-9px 0 0 -9px; border-radius:50%; pointer-events:none; opacity:0;
+  background:radial-gradient(circle, #fff6 0 18%, var(--led) 34%, #ff1a0a77 56%, transparent 72%)}
+.ledsm.on{opacity:1}
+/* switches drawn over the photo's own levers */
+.slot{position:absolute; background:#0d0d0d; border-radius:6px; box-shadow:inset 0 2px 4px #000; pointer-events:none}
+.lever{position:absolute; background:linear-gradient(90deg,#9a9a9a,#f4f4f4 45%,#8a8a8a); border-radius:4px; box-shadow:0 2px 3px #000a; transition:left .08s, top .08s}
+.sel{position:absolute; border-radius:3px; pointer-events:none; box-shadow:0 0 0 3px #ff6a2acc, 0 0 12px #ff6a2a88; opacity:0; transition:opacity .1s}
+.sel.on{opacity:1}
+.press{position:absolute; border-radius:6px; pointer-events:none; background:#fff; opacity:0}
+.press.on{opacity:.18}
+
+/* the readout and buttons in the blank space left of "Rhythm Composer" */
+#lcd{position:absolute; left:518px; top:632px; width:488px; height:66px; border-radius:6px; background:linear-gradient(#0f1814,#18241e);
+  box-shadow:inset 0 2px 6px #000, 0 1px 0 #ffffff14; font:700 23px/1.15 var(--mono); color:#ffb15a; padding:6px 12px; overflow:hidden;
+  text-shadow:0 0 6px #ff8a2a88; white-space:pre}
+#lcd .l2{color:#ffd49a; font-size:20px}
+.fbtns{position:absolute; left:518px; top:708px; width:488px; height:44px; display:flex; gap:7px}
+.fb{flex:1; border-radius:5px; background:linear-gradient(#efe9cf,#d6cfae); color:#1b1b1b; font:700 16px/44px var(--cond); text-align:center;
+  box-shadow:0 2px 0 #7f7a62, 0 3px 4px #000a; letter-spacing:.5px}
+.fb:active{transform:translateY(2px); box-shadow:0 0 0 #7f7a62}
+.fb.on{background:linear-gradient(#ff8a4a,#e2581c); color:#fff}
+.hinge{position:absolute; left:880px; top:1128px; width:240px; height:48px; border-radius:10px 10px 4px 4px; background:linear-gradient(#3a3a3a,#1e1e1e);
+  color:#ffb15a; font:700 18px/48px var(--cond); text-align:center; letter-spacing:2px; box-shadow:0 -2px 0 #555 inset, 0 3px 6px #000}
+
+/* ---------------- the board under the lid ---------------- */
+#board{position:absolute; inset:0; border-radius:14px; overflow:hidden; z-index:1; filter:brightness(.55); transition:filter .9s;
+  background:
+    radial-gradient(circle at 20px 20px, #b99a4a 0 7px, #6d5a26 8px, transparent 9px) 0 0/40px 40px no-repeat,
+    linear-gradient(160deg, var(--pcb), var(--pcb2));
+  color:var(--silk)}
+#board svg.traces{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; opacity:.55}
+.bhead{position:absolute; left:24px; top:16px; right:24px; height:56px; display:flex; align-items:center; gap:18px;
+  font:700 26px/1 var(--cond); letter-spacing:3px; border-bottom:2px solid #ffffff55}
+.bhead small{font:400 15px/1.2 var(--mono); letter-spacing:1px; opacity:.8}
+.bhead .sp{flex:1}
+.sect{position:absolute; border:2px solid #ffffff66; border-radius:10px; padding:30px 8px 8px; background:#00000018}
+.sect > h3{position:absolute; left:10px; top:-14px; margin:0; padding:2px 8px; font:700 19px/1 var(--cond); letter-spacing:2px;
+  background:var(--pcb); color:var(--silk); border:2px solid #ffffff66; border-radius:4px}
+.sect > h3 i{font-style:normal; font-weight:400; font-size:13px; letter-spacing:.5px; opacity:.8; margin-left:6px}
+.sect .note{font:400 13px/1.25 var(--mono); opacity:.85; margin:0 4px 8px}
+.pots{display:flex; flex-wrap:wrap; gap:6px 4px; justify-content:flex-start; align-content:flex-start}
+.tp{width:72px; display:flex; flex-direction:column; align-items:center; gap:3px; touch-action:none; cursor:ns-resize}
+.tp .pot{width:46px; height:46px; border-radius:7px; position:relative; background:linear-gradient(145deg,#4a83ea,var(--trim) 50%,var(--trim2));
+  box-shadow:0 3px 0 #0f2a66, 0 4px 6px #0008}
+.tp .pot::before{content:""; position:absolute; inset:8px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #fff, #cfd6dd 60%, #9aa4ad)}
+.tp .pot b{position:absolute; left:50%; top:9px; width:5px; height:28px; margin-left:-2.5px; background:#333; border-radius:2px; transform-origin:50% 50%}
+.tp .pot b::after{content:""; position:absolute; left:-10px; top:11px; width:25px; height:5px; background:#333; border-radius:2px}
+.tp .lab{font:700 12px/1.05 var(--cond); text-align:center; letter-spacing:.3px; min-height:26px; max-width:74px}
+.tp .val{font:400 12px/1 var(--mono); color:#ffe9a8; min-height:13px}
+.tp.mod .pot{background:linear-gradient(145deg,#f0f0f0,#d0d0d0 50%,#a9a9a9); box-shadow:0 3px 0 #555, 0 4px 6px #0008}
+.dip{width:72px; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer}
+.dip .sw{width:30px; height:46px; border-radius:4px; background:#c8231b; position:relative; box-shadow:0 3px 0 #6a120d, 0 4px 6px #0008}
+.dip .sw::after{content:""; position:absolute; left:6px; width:18px; height:18px; border-radius:2px; background:#f6f6f6; top:24px; transition:top .1s}
+.dip.on .sw::after{top:4px}
+.dip .lab{font:700 12px/1.05 var(--cond); text-align:center; min-height:26px}
+.dip .val{font:400 12px/1 var(--mono); color:#ffe9a8}
+.slots{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px}
+.slotx{flex:1 1 100px; min-width:100px; background:#0004; border:1px solid #ffffff44; border-radius:6px; padding:4px 5px; display:flex; align-items:center; gap:4px; font:700 13px/1 var(--cond)}
+.slotx .nm{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 11px/1 var(--mono); opacity:.85}
+.slotx button{background:#d8d2b4; color:#111; border-radius:3px; padding:4px 6px; font:700 11px/1 var(--cond)}
+.slotx button.clr{background:#5a5a5a; color:#eee}
+.slotx.has{border-color:#ffd25a}
+.slotx b{width:24px}
+.closeb{position:absolute; left:880px; bottom:10px; width:240px; height:44px; border-radius:4px 4px 10px 10px; background:linear-gradient(#2a2a2a,#141414);
+  color:#ffb15a; font:700 18px/44px var(--cond); letter-spacing:2px; text-align:center; z-index:3; box-shadow:0 3px 6px #000}
+.bbtn{background:#d8d2b4; color:#111; border-radius:5px; padding:8px 14px; font:700 15px/1 var(--cond); letter-spacing:1px; box-shadow:0 2px 0 #7f7a62}
+.bbtn:active{transform:translateY(2px); box-shadow:none}
+.tipq{display:inline-block; width:22px; height:22px; border-radius:50%; background:#ffd25a; color:#111; font:700 15px/22px var(--cond); text-align:center; margin-left:6px; cursor:help; letter-spacing:0}
+.egypt{font:400 13px/1.3 var(--mono); background:#0005; border-left:4px solid #ffd25a; padding:6px 8px; margin:0 4px 8px; border-radius:3px}
+
+/* rack units */
+.unit{position:absolute; border-radius:8px; padding:12px 14px; box-shadow:0 6px 14px #000c, inset 0 1px 0 #fff3}
+.unit .uname{font:700 20px/1 var(--cond); letter-spacing:2px; display:flex; align-items:baseline; gap:10px}
+.unit .uname small{font:400 12px/1 var(--cond); letter-spacing:3px; opacity:.85}
+.unit .pots{margin-top:10px}
+.rev7{background:linear-gradient(#c9ced2,#a6adb3); color:#1d2730}
+.rev7 .tp .lab{color:#1d2730}
+.rev7 .tp .val{color:#16324a}
+.rev7 .lcd{margin-top:10px; height:64px; border-radius:4px; background:linear-gradient(#22394d,#183042); color:var(--lcdink); font:700 22px/1.25 var(--mono);
+  padding:5px 10px; box-shadow:inset 0 2px 6px #000; display:flex; align-items:center; gap:10px; text-shadow:0 0 6px #7fd8ff99}
+.rev7 .lcd .num{font-size:38px; width:64px; text-align:right}
+.rev7 .lcd .pn{flex:1; white-space:pre; overflow:hidden}
+.rev7 .lcd button{background:#3d5870; color:#cfefff; width:44px; height:44px; border-radius:5px; font:700 20px/44px var(--cond)}
+.tc2290{background:linear-gradient(#2c2c2e,#161617); color:#e9e9e9}
+.tc2290 .disp{margin-top:10px; height:64px; border-radius:4px; background:#0b0303; display:flex; align-items:center; justify-content:flex-end; gap:16px;
+  padding:0 16px; box-shadow:inset 0 2px 6px #000}
+.tc2290 .seg{font:700 44px/1 var(--mono); color:var(--seg); text-shadow:0 0 10px #ff3a22aa; letter-spacing:4px}
+.tc2290 .unitlab{font:700 14px/1.2 var(--cond); color:#ff8a72}
+.tc2290 .tp .val{color:#ffb4a6}
+
+/* ---------------- dialogs ---------------- */
+dialog{border:0; padding:0; background:transparent; color:#eee; max-width:96vw; max-height:94vh}
+dialog::backdrop{background:#000a}
+.dlg{background:#1e1e1e; border:2px solid #444; border-radius:12px; width:min(900px,94vw); height:min(640px,90vh); display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 40px #000}
+.dlg.small{height:auto; width:min(520px,94vw)}
+.dhead{display:flex; align-items:center; gap:10px; padding:10px 12px; background:#2a2a2a; border-bottom:1px solid #444; flex-wrap:wrap}
+.dhead b{letter-spacing:2px; color:#ffb15a}
+.tabs{display:flex; gap:4px; flex-wrap:wrap}
+.tabs button{padding:6px 12px; border-radius:5px; background:#3a3a3a; font-weight:700}
+.tabs button.on{background:#e2581c; color:#fff}
+#psearch{flex:1; min-width:120px; background:#111; color:#eee; border:1px solid #555; border-radius:5px; padding:7px; font:inherit; -webkit-user-select:text; user-select:text}
+.x{width:36px; height:36px; border-radius:6px; background:#3a3a3a; font-size:18px}
+.plist{flex:1; overflow:auto; padding:8px; touch-action:pan-y; display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:6px; align-content:start}
+.plist .cat{grid-column:1/-1; font:700 13px/1 var(--cond); letter-spacing:2px; color:#ffb15a; margin:8px 2px 0}
+.pi{background:#2b2b2b; border:1px solid #3d3d3d; border-radius:6px; padding:9px 10px; text-align:left; display:flex; justify-content:space-between; gap:6px; align-items:center}
+.pi:active, .pi.cur{background:#4a2a18; border-color:#e2581c}
+.pi .del{color:#f77; padding:0 4px}
+.dfoot{display:flex; gap:8px; align-items:center; padding:8px 12px; border-top:1px solid #444; background:#252525}
+.dfoot #pinfo{opacity:.7; font-size:13px}
+.btn{background:#e2581c; color:#fff; padding:8px 14px; border-radius:6px; font-weight:700}
+.dbody{padding:14px; display:flex; flex-direction:column; gap:12px}
+.dbody select{background:#111; color:#eee; border:1px solid #555; border-radius:5px; padding:6px; font:inherit}
+#toast{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:#000d; color:#ffd49a; padding:9px 16px; border-radius:8px; font:700 15px/1.2 var(--cond);
+  opacity:0; transition:opacity .25s; pointer-events:none; z-index:20; max-width:90vw; text-align:center}
+#toast.on{opacity:1}
+#rotate{position:fixed; left:0; right:0; top:8px; text-align:center; font:700 14px/1 var(--cond); color:#ffb15a; display:none; letter-spacing:1px}
+@media (orientation:portrait){ #rotate{display:block} }

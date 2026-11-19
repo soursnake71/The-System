@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Omega 808</title>
+<meta name="description" content="A circuit-modelled TR-808 rhythm composer: the photo panel, a fold-open circuit-mod board, REV7 reverb and 2290 delay, trigger-out click, samples, full MIDI and lots of presets.">
+<meta name="theme-color" content="#1a1a1a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="panel">
+    <!-- under the lid: the main board with the circuit mods, the FX rack and the sample slots (built by app.js) -->
+    <div id="board" aria-hidden="true"></div>
+    <!-- the lid: the photo of the panel, with the controls laid over it (built by app.js) -->
+    <div id="lid">
+      <img id="photo" src="faceplate.jpg" alt="TR-808 front panel" draggable="false">
+      <div id="ctl"></div>
+    </div>
+  </div>
+</div>
+<div id="rotate">Turn your phone sideways for a bigger panel</div>
+<div id="toast"></div>
+
+<dialog id="presets">
+  <div class="dlg">
+    <div class="dhead">
+      <b>PRESETS</b>
+      <div class="tabs" id="ptabs"></div>
+      <input id="psearch" type="search" placeholder="Search">
+      <button class="x" data-close>✕</button>
+    </div>
+    <div class="plist" id="plist"></div>
+    <div class="dfoot">
+      <button id="prandom" class="btn">🎲 Random</button>
+      <button id="psave" class="btn">Save mine…</button>
+      <span id="pinfo"></span>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="export">
+  <div class="dlg small">
+    <div class="dhead"><b>EXPORT WAV</b><button class="x" data-close>✕</button></div>
+    <div class="dbody">
+      <label>Bars <select id="xbars"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option></select></label>
+      <label>Rhythm <select id="xwhat"><option value="cur" selected>the selected rhythm (with fills as set)</option></select></label>
+      <button id="xgo" class="btn">Render</button>
+      <div id="xmsg"></div>
+    </div>
+  </div>
+</dialog>
+
+<script src="fx.js"></script>
+<script src="seq.js"></script>
+<script src="engine.js"></script>
+<script src="presets.js"></script>
+<script src="app.js"></script>
+<script src="midi.js"></script>
+</body>
+</html>
