@@ -425,7 +425,34 @@ function trim(parent, p, cls){
   t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
 }
 let boardHooked = false;
-function boardScale(){ const b = $('#board'); if (b) b.style.setProperty('--s', scale); }
+function boardScale(){ const b = $('#board'); if (b) b.style.setProperty('--s', scale); fitPage(); }
+// the board shows one page at a time, picked with the buttons down the left and right: no scrolling.
+// fitPage sizes the open page to the space: it tries narrower scales until the page's height fits too
+const PAGES = [['BD','BD'],['SD','SD'],['TOMS','TOMS'],['RSCL','RIM'],['CPMA','CLAP'],['CB','BELL'],['CY','CYM'],
+  ['HH','HATS'],['ACC','ACCENT'],['TRIG','TRIG OUT'],['MACH','MACHINE'],['REV','REV 7'],['DLY','2290']];
+function fitPage(){
+  const G = $('#board .bgrid'), pg = G && G.querySelector('.pg.on'); if (!pg) return;
+  const W = G.clientWidth, H = G.clientHeight; if (!W || !H) return;
+  const fit = () => {
+    let sc = 1.5;
+    for (let i = 0; i < 24; i++){
+      pg.style.width = (W / sc) + 'px'; pg.style.transform = `scale(${sc})`;
+      if (Math.max(pg.scrollHeight, pg.offsetHeight) * sc + 22 <= H && Math.max(pg.scrollWidth, pg.offsetWidth) * sc <= W + 1) break;
+      sc *= 0.92;
+    }
+    return sc;
+  };
+  // try the page wrapped and in one row, keep whichever gives bigger controls
+  pg.classList.remove('row'); const a = fit();
+  pg.classList.add('row'); const b = fit();
+  if (a > b){ pg.classList.remove('row'); fit(); }
+}
+function showPage(id){
+  S.boardPage = id;
+  document.querySelectorAll('#board .pg').forEach(e => e.classList.toggle('on', e.dataset.pg === id));
+  document.querySelectorAll('#board .bnav button').forEach(e => e.classList.toggle('on', e.dataset.pg === id));
+  fitPage();
+}
 function buildBoard(){
   PMAP = {}; for (const p of PARAMS) PMAP[p.k] = p;
   const B = $('#board'); B.innerHTML = '';
@@ -455,16 +482,17 @@ function buildBoard(){
   const rnd = el('button', 'bbtn', head, 'STOCK ALL MODS');
   rnd.addEventListener('click', () => { const p = {}; for (const q of PARAMS) if (/^mod\./.test(q.k)) p[q.k] = q.def; Object.assign(S.params, p); Eight.post({t:'setMany', p}); renderAll(); save(); flash('STOCK CIRCUIT'); });
   const cb0 = el('button', 'bbtn closetop', head, 'CLOSE ▲'); cb0.addEventListener('click', () => fold(false));
-  const G = el('div', 'bgrid', V);
+  const WR = el('div', 'bwrap', V), NL = el('div', 'bnav', WR), G = el('div', 'bgrid', WR), NR = el('div', 'bnav', WR);
+  PAGES.forEach(([id, name], i) => { const b = el('button', '', i < 7 ? NL : NR, name); b.dataset.pg = id; b.addEventListener('click', () => showPage(id)); });
   const bins = {};
   for (const s of SECTS){
-    const d = el('div', 'sect' + (s.wide ? ' wide' : ''), G);
+    const d = el('div', 'sect pg' + (s.wide ? ' wide' : ''), G); d.dataset.pg = s.id;
     const h = el('h3', '', d, s.name);
     if (s.id === 'TRIG'){
       const q = el('button', 'tipq', h, '?');
       const ex = el('div', 'egypt', d);
       ex.textContent = "The 808's rear TRIGGER OUT jacks put out 20 ms pulses following the CB, CP or AC track. Egyptian Lover recorded that click as a drum sound in his records. Turn up Click Into Mix to hear it, and pick its source below.";
-      q.addEventListener('click', () => ex.classList.toggle('on'));
+      q.addEventListener('click', () => { ex.classList.toggle('on'); fitPage(); });
       const w = el('button', 'bbtn', d, 'WRITE TRIG TRACK'); w.style.margin = '0 0 10px';
       w.addEventListener('click', () => { S.trigWrite = !S.trigWrite; if (S.trigWrite && S.mode > 1) S.mode = 0; fold(false); flash(S.trigWrite ? 'WRITE TRIG TRACK' : 'TRACK ' + TRACKS[S.track]); renderAll(); });
     }
@@ -478,9 +506,9 @@ function buildBoard(){
   for (const id in bins){ if (!bins[id].sends.children.length) bins[id].sends.remove(); else bins[id].sends.insertAdjacentHTML('afterbegin', '<div class="subh">FX SENDS</div>'); }
   for (const id in bins) if (bins[id].slots){ bins[id].slots.insertAdjacentHTML('afterbegin', '<div class="subh">SAMPLES</div>'); for (const v of bins[id].v) sampleSlot(bins[id].slots, v); }
   // the FX rack under the sections
-  const R = el('div', 'rack', V);
+  const R = G;
   // REV7
-  const rv = el('div', 'unit rev7', R);
+  const rv = el('div', 'unit rev7 pg', R); rv.dataset.pg = 'REV';
   el('div', 'uname', rv, 'REV 7 <small>DIGITAL REVERBERATOR</small>');
   const lcd = el('div', 'lcd', rv, '<button>◀</button><span class="num"></span><span class="pn"></span><button>▶</button>');
   if (PMAP['rev.program']){
@@ -492,7 +520,7 @@ function buildBoard(){
   const rp = el('div', 'pots', rv);
   for (const p of PARAMS) if (sectionOf(p.k) === 'REV' && p.k !== 'rev.program') trim(rp, p);
   // TC 2290
-  const dl = el('div', 'unit tc2290', R);
+  const dl = el('div', 'unit tc2290 pg', R); dl.dataset.pg = 'DLY';
   el('div', 'uname', dl, '2290 <small>DYNAMIC DIGITAL DELAY</small>');
   const disp = el('div', 'disp', dl, '<span class="unitlab"></span><span class="seg7"></span>');
   boardCtl._disp = () => { const sync = S.params['dly.sync'] >= 0.5, dv = PMAP['dly.division'];
@@ -500,8 +528,8 @@ function buildBoard(){
     disp.querySelector('.unitlab').textContent = sync ? 'TEMPO SYNC' : 'DELAY ms'; };
   const dp = el('div', 'pots', dl);
   for (const p of PARAMS) if (sectionOf(p.k) === 'DLY') trim(dp, p);
-  const cb = el('button', 'closeb', V, 'CLOSE ▼'); cb.addEventListener('click', () => fold(false));
   bubble = el('div', 'vbubble', B);
+  showPage(PAGES.some(p => p[0] === S.boardPage) ? S.boardPage : 'BD');
   renderBoard();
 }
 function renderBoard(){ boardScale(); for (const k in boardCtl) boardCtl[k](); for (const v in slotEls) slotEls[v](); }
