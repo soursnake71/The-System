@@ -77,9 +77,9 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .bhead small{font:400 14px/1.2 var(--cond); letter-spacing:.5px; color:#d9e8d0}
 .bhead .sp{flex:1}
 @media (max-width:1100px){ .bhead{flex-wrap:nowrap; padding-top:6px; padding-bottom:6px; font-size:18px} .bhead small{display:none} }
-.bgrid{position:relative; display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:22px 12px; padding-top:14px; align-items:start}
-.sect{position:relative; border:2px solid #ffffff66; border-radius:10px; padding:24px 10px 10px; background:#0003}
-.sect.wide{grid-column:span 2}
+.bgrid{position:relative; columns:250px; column-gap:12px; padding-top:14px}
+.rack{position:relative; display:flex; flex-wrap:wrap; gap:14px; margin-top:8px}
+.sect{position:relative; break-inside:avoid; margin:0 0 26px; border:2px solid #ffffff66; border-radius:10px; padding:24px 10px 10px; background:#0003}
 .sect > h3{position:absolute; left:10px; top:-15px; margin:0; padding:3px 9px; font:700 18px/1.1 var(--cond); letter-spacing:1.5px;
   background:var(--pcb2); border:2px solid #ffffff66; border-radius:6px; display:flex; align-items:center; gap:6px}
 .subh{flex:1 0 100%; font:700 13px/1 var(--cond); letter-spacing:1.5px; color:#bfe3c8; margin:8px 0 2px; border-top:1px dashed #ffffff44; padding-top:8px}
@@ -109,14 +109,14 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .stepper button{width:40px; height:38px; border-radius:5px; background:#0b1f12; color:#ffeeb8; font:700 16px/38px var(--cond); border:2px solid #ffffff55}
 .stepper .val{font-size:17px; min-width:72px; padding:8px 6px}
 .slots{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px}
-.sect.wide .slotx{flex:1 1 45%}
+
 .slotx{flex:1 1 100%; min-width:0; background:#0006; border:1px solid #ffffff55; border-radius:6px; padding:5px 6px; display:flex; align-items:center; gap:6px; font:700 15px/1 var(--cond)}
 .slotx .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 14px/1 var(--cond); color:#d9e8d0}
 .slotx button{background:#d8d2b4; color:#111; border-radius:4px; padding:8px 10px; font:700 14px/1 var(--cond)}
 .slotx button.clr{background:#5a5a5a; color:#eee}
 .slotx.has{border-color:#ffd25a}
 .slotx.has .nm{color:#ffeeb8}
-.slotx b{width:30px}
+.slotx b{min-width:30px; padding-right:4px}
 .closeb{position:relative; display:block; margin:22px auto 0; width:220px; height:46px; border-radius:8px; background:linear-gradient(#2a2a2a,#141414);
   color:#ffb15a; font:700 18px/46px var(--cond); letter-spacing:2px; text-align:center; z-index:3; box-shadow:0 3px 6px #000}
 .bbtn{background:#d8d2b4; color:#111; border-radius:5px; padding:9px 14px; font:700 15px/1 var(--cond); letter-spacing:1px; box-shadow:0 2px 0 #7f7a62}
@@ -131,7 +131,7 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .vbubble.on{opacity:1; transform:translateX(-50%) scale(1)}
 
 /* rack units */
-.unit{position:relative; grid-column:span 2; border-radius:8px; padding:12px 14px; box-shadow:0 6px 14px #000c, inset 0 1px 0 #fff3}
+.unit{position:relative; flex:1 1 420px; border-radius:8px; padding:12px 14px; box-shadow:0 6px 14px #000c, inset 0 1px 0 #fff3}
 .unit .uname{font:700 20px/1 var(--cond); letter-spacing:2px; display:flex; align-items:baseline; gap:10px}
 .unit .uname small{font:400 13px/1 var(--cond); letter-spacing:2px; opacity:.9}
 .unit .pots{margin-top:10px}

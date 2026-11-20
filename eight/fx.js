@@ -74,7 +74,7 @@
       this.tapGR = new Float64Array(REV_TAPS);
       this.nTaps = 0; this.tapI = new Int32Array(REV_TAPS); this.dI = new Int32Array(8); this.preI = 0; this.outPk = 0; this.quiet = 0;
       this.lpfF = new OnePole(); this.lpfF2 = new OnePole(); this.hpfF = new OnePole();
-      this.lfo = 0;
+      this.lfo = 0; this.lc = 1; this.ls = 0; this.lcw = Math.cos(2 * Math.PI * 0.7 / sr); this.lsw = Math.sin(2 * Math.PI * 0.7 / sr);
       this.gEnv = 0; this.gHold = 0; this.gGain = 0;
       // parameters
       this.type = 0; this.size = 1; this.time = 2; this.predelay = 0; this.hf = 0.8; this.diffusion = 0.8; this.density = 0.8;
@@ -175,6 +175,7 @@
       // (quiet = samples with no input and no output; skip only once it's longer than the longest path through the network)
       if (inPk < 1e-7 && this.outPk < 1e-6) this.quiet += n; else this.quiet = 0;
       if (this.quiet > this.sr) { for (let s = off; s < off + n; s++) { outL[s] = 0; outR[s] = 0; } return; }
+      { const k = 1 / Math.sqrt(this.lc * this.lc + this.ls * this.ls); this.lc *= k; this.ls *= k; }   // keep the phasor on the unit circle
       let outPk = 0;
       const buf = this.buf, bl = this.bufLen, nT = this.nTaps, tapI = this.tapI, gL = this.tapGL, gR = this.tapGR, lines = this.lines, ll = this.lineLen, dI = this.dI;
       for (let s = off; s < off + n; s++) {
@@ -204,8 +205,8 @@
             this.apW[a] = p + 1 >= this.apLen[a] ? 0 : p + 1;
           }
           // FDN: read, damp, mix (Hadamard 8), write back with the input
-          this.lfo += lfoInc; if (this.lfo > 2 * Math.PI) this.lfo -= 2 * Math.PI;
-          const m = Math.sin(this.lfo) * 0.0012 * sr * 0.5;
+          { const c = this.lc * this.lcw - this.ls * this.lsw; this.ls = this.ls * this.lcw + this.lc * this.lsw; this.lc = c; }
+          const m = this.ls * 0.0012 * sr * 0.5;
           for (let k = 0; k < 8; k++) {
             let y;
             if (k === 0 || k === 5) y = this.readLine(k, this.dLen[k] + (k === 0 ? m : -m));
@@ -271,7 +272,7 @@
       this.time = 375; this.sync = 1; this.division = 6; this.feedback = 0.35; this.hicut = 6000; this.lowcut = 120;
       this.modDepth = 0.15; this.modRate = 0.6; this.pingpong = 1; this.duck = 0.3; this.bpm = 120;
       this.hcL = new OnePole(); this.hcR = new OnePole(); this.lcL = new OnePole(); this.lcR = new OnePole();
-      this.cur = 0; this.lfo = 0; this.env = 0; this.quiet = 0; this.outPk = 0;
+      this.cur = 0; this.lfo = 0; this.lc = 1; this.ls = 0; this.env = 0; this.quiet = 0; this.outPk = 0;
       this.update();
       this.cur = this.target;
     }
@@ -300,7 +301,7 @@
       this.lcL.setFc(this.lowcut, sr); this.lcR.setFc(this.lowcut, sr);
       this.fbG = clamp(this.feedback, 0, 1) * 0.98;
       this.mDepth = clamp(this.modDepth, 0, 1) * 0.006 * sr;
-      this.lfoInc = 2 * Math.PI * clamp(this.modRate, 0.01, 20) / sr;
+      this.lfoInc = 2 * Math.PI * clamp(this.modRate, 0.01, 20) / sr; this.lcw = Math.cos(this.lfoInc); this.lsw = Math.sin(this.lfoInc);
       this.smooth = 1 - Math.exp(-1 / (0.06 * sr));
       this.envAtt = 1 - Math.exp(-1 / (0.002 * sr));
       this.envRel = 1 - Math.exp(-1 / (0.25 * sr));
@@ -325,11 +326,12 @@
       for (let s = off; s < off + n; s++) { const a = Math.abs(inL[s]) + Math.abs(inR[s]); if (a > inPk) inPk = a; }
       if (inPk < 1e-7 && this.outPk < 1e-6) this.quiet += n; else this.quiet = 0;
       if (this.quiet > this.len) { for (let s = off; s < off + n; s++) { outL[s] = 0; outR[s] = 0; } return; }
+      { const k = 1 / Math.sqrt(this.lc * this.lc + this.ls * this.ls); this.lc *= k; this.ls *= k; }
       let outPk = 0;
       for (let s = off; s < off + n; s++) {
         this.cur += (this.target - this.cur) * this.smooth;
-        this.lfo += this.lfoInc; if (this.lfo > 2 * Math.PI) this.lfo -= 2 * Math.PI;
-        const mL = Math.sin(this.lfo) * this.mDepth, mR = Math.cos(this.lfo) * this.mDepth;
+        { const c = this.lc * this.lcw - this.ls * this.lsw; this.ls = this.ls * this.lcw + this.lc * this.lsw; this.lc = c; }
+        const mL = this.ls * this.mDepth, mR = this.lc * this.mDepth;
         const dL = this.readB(this.bL, this.cur + this.mDepth + mL);
         const dR = this.readB(this.bR, this.cur + this.mDepth + mR);
         const xl = inL[s], xr = inR[s];

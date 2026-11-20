@@ -86,7 +86,7 @@
       this.env = new Float64Array(NV); this.env2 = new Float64Array(NV); this.envC = new Float64Array(NV); this.env2C = new Float64Array(NV);
       this.sw = new Float64Array(NV); this.swC = new Float64Array(NV); this.amp = new Float64Array(NV); this.t = new Int32Array(NV);
       this.active = new Uint8Array(NV); this.choke = 0;
-      this.mph = new Float64Array(6); this.cph = new Float64Array(2);
+      this.mph = new Float64Array(6); this.mInc = new Float64Array(6); this.cph = new Float64Array(2);
       // samples
       this.smp = []; for (let i = 0; i < NV; i++) this.smp.push(null);
       this.spos = new Float64Array(NV); this.srate = new Float64Array(NV); this.senv = new Float64Array(NV); this.senvC = new Float64Array(NV);
@@ -190,6 +190,7 @@
       this.envC[12] = this.ec(0.012); this.env2C[12] = this.ec((0.05 + 0.3 * v('mod.CB.decay')) * this.td(12));
       // metal
       this.mT = Math.pow(2, v('mod.HH.tune') - 0.5);
+      for (let k = 0; k < 6; k++) this.mInc[k] = METAL_F[k] * this.mT / sr;
       const cyt = Math.pow(2, v('mod.CY.tune') - 0.5);
       this.f1[13].set(3440 * cyt, 1.5, sr); this.op1[13].set(7000 * cyt, sr);
       this.envC[13] = this.ec((0.3 + 1.7 * Math.pow(v('CY.decay'), 1.5)) * this.td(13)); this.env2C[13] = this.ec((0.15 + 0.4 * v('CY.decay')) * this.td(13));
@@ -263,7 +264,7 @@
           y = r.tick(x) + (pl ? this.amp[0] * this.bdClick : 0);
           y = this.op1[0].lp(y);
           if (this.bdDn > 0) y = Math.tanh(y * this.bdDk) * this.bdDn;
-          if (t > sr * 0.05 && Math.abs(r.ic1) + Math.abs(r.ic2) < 1e-6) this.active[0] = 0;
+          if (t > sr * 0.05 && Math.abs(r.ic1) + Math.abs(r.ic2) < 3e-5) this.active[0] = 0;   // about -90 dB
           return y * 0.9;
         }
         case 1: {
@@ -272,7 +273,7 @@
           const nz = this.op2[1].lp(this.op1[1].hp(this.noise())) * this.env[1] * this.sdSnap;
           this.env[1] *= this.envC[1];
           // done when the noise envelope and both resonators have died away
-          if (t > sr * 0.05 && this.env[1] < 1e-5 && Math.abs(r1.ic1) + Math.abs(r1.ic2) + Math.abs(r2.ic1) + Math.abs(r2.ic2) < 1e-6) this.active[1] = 0;
+          if (t > sr * 0.05 && this.env[1] < 1e-4 && Math.abs(r1.ic1) + Math.abs(r1.ic2) + Math.abs(r2.ic1) + Math.abs(r2.ic2) < 3e-5) this.active[1] = 0;
           return (b * 0.7 + nz) * 0.8;
         }
         case 8: { let x = this.res1[8].tick(pl ? this.pulseH[8] : 0) * 0.8 - this.res2[8].tick(pl ? this.pulseH2[8] : 0) * 0.5;
@@ -282,17 +283,17 @@
           const sp = this.cpSpread;
           if (t < 3 * sp) { if (t % sp === 0) this.env[10] = this.amp[10]; } else if (t === 3 * sp) this.env2[10] = this.amp[10] * 0.7;
           const e = this.env[10] + this.env2[10]; this.env[10] *= this.envC[10]; this.env2[10] *= this.env2C[10];
-          if (t > 3 * sp && e < 1e-5) this.active[10] = 0;
+          if (t > 3 * sp && e < 1e-4) this.active[10] = 0;
           return this.f1[10].tick(this.noise()) * e * 1.6;
         }
         case 11: { this.env2[11] += (1 - this.env2[11]) * 0.02; const e = this.env[11] * this.env2[11]; this.env[11] *= this.envC[11];
-          this.f1[11].tick(this.noise()); if (this.env[11] < 1e-5) this.active[11] = 0; return this.f1[11].hp * e * 0.9; }
+          this.f1[11].tick(this.noise()); if (this.env[11] < 1e-4) this.active[11] = 0; return this.f1[11].hp * e * 0.9; }
         case 12: {
           const f0 = 540 * this.cbT / sr, f1 = 800 * this.cbT / sr;
           this.cph[0] += f0; if (this.cph[0] >= 1) this.cph[0] -= 1; this.cph[1] += f1; if (this.cph[1] >= 1) this.cph[1] -= 1;
           const x = (sq(this.cph[0], f0) + sq(this.cph[1], f1)) * 0.5;
           const e = this.env[12] + this.env2[12]; this.env[12] *= this.envC[12]; this.env2[12] *= this.env2C[12];
-          if (e < 1e-5) this.active[12] = 0;
+          if (e < 1e-4) this.active[12] = 0;
           return this.op1[12].hp(this.f1[12].tick(x)) * e * 1.2;
         }
         case 16: {
@@ -308,7 +309,7 @@
             const f = this.tomF[j] * (1 + dep * this.sw[i]); r.set(f, Math.PI * f * this.tomTau[j], sr); }
           y = r.tick(pl ? this.pulseH[i] : 0);
           if (j < 3) { y += this.op1[2].lp(this.noise()) * this.env[i] * 0.25; this.env[i] *= this.envC[i]; }
-          if (t > sr * 0.1 && Math.abs(r.ic1) + Math.abs(r.ic2) < 1e-6) this.active[i] = 0;
+          if (t > sr * 0.1 && Math.abs(r.ic1) + Math.abs(r.ic2) < 3e-5) this.active[i] = 0;
           return y * 0.85;
         }
       }
@@ -316,35 +317,37 @@
     process(outL, outR, n, off) {
       off = off || 0;
       if (this.dirty) this.prepare();
-      const sr = this.sr;
+      const act = this.active, gain = this.gain, rs = this.rs, ds = this.ds, drn = this.drn, drk = this.drk, smp = this.smp, mph = this.mph, mInc = this.mInc;
+      const hissG = this.hissG;
+      // voices that render through voice(): any that are sounding, minus the metal three (rendered on the shared bank) unless sampled
       for (let s0 = 0; s0 < n; s0 += this.bufN) {
         const m = Math.min(this.bufN, n - s0);
         for (let s = 0; s < m; s++) {
-          let dry = this.noise() * this.hissG, rv = 0, dl = 0;
+          let dry = hissG > 0 ? this.noise() * hissG : 0, rv = 0, dl = 0;
           // shared metal bank for CY, OH, CH
-          if (this.active[13] || this.active[14] || this.active[15]) {
+          if (act[13] || act[14] || act[15]) {
             let x = 0;
-            for (let k = 0; k < 6; k++) { const f = METAL_F[k] * this.mT / sr; this.mph[k] += f; if (this.mph[k] >= 1) this.mph[k] -= 1; x += sq(this.mph[k], f); }
+            for (let k = 0; k < 6; k++) { const f = mInc[k]; let ph = mph[k] + f; if (ph >= 1) ph -= 1; mph[k] = ph; x += sq(ph, f); }
             x /= 6;
             if (this.active[13] && !this.smp[13]) {
               const lo = this.f1[13].tick(x) * this.env[13], hi = this.op1[13].hp(x) * this.env2[13]; this.env[13] *= this.envC[13]; this.env2[13] *= this.env2C[13];
               const tn = this.cyTone; const y = (lo * (1.2 * (1 - tn) + 0.2) + hi * (0.4 + tn)) * 0.9;
-              if (this.env[13] < 1e-5) this.active[13] = 0;
+              if (this.env[13] < 1e-4) this.active[13] = 0;
               dry += y * this.gain[13]; rv += y * this.gain[13] * this.rs[13]; dl += y * this.gain[13] * this.ds[13];
             }
             for (let h = 14; h <= 15; h++) if (this.active[h] && !this.smp[h]) {
               const y = this.op1[h].hp(this.f1[h].tick(x)) * this.env[h] * 1.8; this.env[h] *= this.envC[h];
-              if (this.env[h] < 1e-5) this.active[h] = 0;
+              if (this.env[h] < 1e-4) this.active[h] = 0;
               dry += y * this.gain[h]; rv += y * this.gain[h] * this.rs[h]; dl += y * this.gain[h] * this.ds[h];
             }
           }
           for (let i = 0; i < 17; i++) {
-            if (!this.active[i]) continue;
-            if ((i >= 13 && i <= 15) && !this.smp[i]) continue;
+            if (!act[i]) continue;
+            if ((i >= 13 && i <= 15) && !smp[i]) continue;
             let y = this.voice(i);
-            if (this.drn[i] > 0) y = Math.tanh(y * this.drk[i]) * this.drn[i];
-            y *= this.gain[i];
-            dry += y; rv += y * this.rs[i]; dl += y * this.ds[i];
+            if (drn[i] > 0) y = Math.tanh(y * drk[i]) * drn[i];
+            y *= gain[i];
+            dry += y; rv += y * rs[i]; dl += y * ds[i];
           }
           // machine overdrive: the mixer bus and output amp pushed into clipping, asymmetric like an op-amp stage
           // with an offset (even harmonics), with make-up so the level stays about the same. It drives the sends too

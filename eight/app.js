@@ -372,7 +372,7 @@ const boardCtl = {};
 // value with its unit, for the readouts and the drag bubble
 function fmtU(p, v){
   if (p.opts) return String(p.opts[Math.round(v - p.min)] ?? v);
-  const u = /\(([^)]+)\)\s*$/.exec(p.label || ''), t = fmt(p, v);
+  const u = /\((s|ms|Hz|kHz|dB|%)\)\s*$/.exec(p.label || ''), t = fmt(p, v);
   return u ? t + ' ' + u[1] : t;
 }
 const plainLabel = p => (p.label || p.k).replace(/\s*\([^)]*\)\s*$/, '');
@@ -477,8 +477,10 @@ function buildBoard(){
   }
   for (const id in bins){ if (!bins[id].sends.children.length) bins[id].sends.remove(); else bins[id].sends.insertAdjacentHTML('afterbegin', '<div class="subh">FX SENDS</div>'); }
   for (const id in bins) if (bins[id].slots){ bins[id].slots.insertAdjacentHTML('afterbegin', '<div class="subh">SAMPLES</div>'); for (const v of bins[id].v) sampleSlot(bins[id].slots, v); }
+  // the FX rack under the sections
+  const R = el('div', 'rack', V);
   // REV7
-  const rv = el('div', 'unit rev7', G);
+  const rv = el('div', 'unit rev7', R);
   el('div', 'uname', rv, 'REV 7 <small>DIGITAL REVERBERATOR</small>');
   const lcd = el('div', 'lcd', rv, '<button>◀</button><span class="num"></span><span class="pn"></span><button>▶</button>');
   if (PMAP['rev.program']){
@@ -490,7 +492,7 @@ function buildBoard(){
   const rp = el('div', 'pots', rv);
   for (const p of PARAMS) if (sectionOf(p.k) === 'REV' && p.k !== 'rev.program') trim(rp, p);
   // TC 2290
-  const dl = el('div', 'unit tc2290', G);
+  const dl = el('div', 'unit tc2290', R);
   el('div', 'uname', dl, '2290 <small>DYNAMIC DIGITAL DELAY</small>');
   const disp = el('div', 'disp', dl, '<span class="unitlab"></span><span class="seg7"></span>');
   boardCtl._disp = () => { const sync = S.params['dly.sync'] >= 0.5, dv = PMAP['dly.division'];
