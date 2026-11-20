@@ -71,7 +71,9 @@ function save(){ clearTimeout(saveT); saveT = setTimeout(() => { try { localStor
 /* ---------------- audio ---------------- */
 const Eight = window.Eight = {node:null, ctx:null, params:PARAMS, state:S, onStep:[], onChange:[]};
 let starting = null;
-Eight.post = m => { if (Eight.node) Eight.node.port.postMessage(m); };
+// messages sent before the worklet is up (the first START, pad or step tap starts the audio) wait here, not lost
+const pending = [];
+Eight.post = m => { if (Eight.node) Eight.node.port.postMessage(m); else if (pending.length < 500) pending.push(m); };
 Eight.start = () => starting || (starting = (async () => {
   const ctx = Eight.ctx = new AudioContext({latencyHint:'interactive'});
   try {
@@ -81,6 +83,7 @@ Eight.start = () => starting || (starting = (async () => {
     node.port.onmessage = onMsg;
     Eight.node = node;
     syncAll();
+    for (const m of pending.splice(0)) node.port.postMessage(m);
     restoreSamples();
   } catch (e) { toast('Audio engine failed: ' + e.message); }
   if (ctx.state !== 'running') ctx.resume();
@@ -142,8 +145,8 @@ function renderLcd(){
   else l1 = `${S.mode === 2 ? 'MANUAL' : 'PLAY'} R${String(S.basic + 1).padStart(2, '0')} ${S.variation}  I/F${S.fill + 1}${S.ifVar}`;
   const l2 = S.msg || `${bpm().toFixed(1)} BPM  ${S.playing ? '▶' : '■'}  FILL ${FILLS[fillIdx()] || 'MAN'}`;
   lcd.innerHTML = '';
-  el('div', '', lcd).textContent = l1.slice(0, 32);
-  el('div', 'l2', lcd).textContent = l2.slice(0, 36);
+  el('div', '', lcd).textContent = l1.slice(0, 26);
+  el('div', 'l2', lcd).textContent = l2.slice(0, 30);
 }
 const fillIdx = () => Math.max(0, FILLS.indexOf(S.bank.fillEvery || 0));
 const editVar = () => S.which === 'basic' ? (S.variation === 'B' ? 'B' : 'A') : S.ifVar;
@@ -191,21 +194,34 @@ function knob(o){
   h.addEventListener('pointerdown', e => {
     e.preventDefault(); h.setPointerCapture(e.pointerId); id = e.pointerId; sy = e.clientY; sv = o.get();
     const now = performance.now(); if (now - last < 300 && o.reset){ o.reset(); c.render(); } last = now;
+    if (o.show) o.show(); knobBubble(e.clientX, e.clientY);
   });
   h.addEventListener('pointermove', e => {
     if (e.pointerId !== id) return;
-    const d = (sy - e.clientY) / scale;
-    if (o.angles){ const n = Math.max(0, Math.min(o.angles.length - 1, sv + Math.round(d / 60))); if (n !== o.get()){ o.set(n); c.render(); } }
-    else { o.set(Math.max(0, Math.min(1, sv + d / 320))); c.render(); }
+    // screen pixels, not panel pixels, so the feel is the same at any size: 240 px for the full turn, 30 px per click
+    const d = sy - e.clientY;
+    if (o.angles){ const n = Math.max(0, Math.min(o.angles.length - 1, sv + Math.round(d / 30))); if (n !== o.get()){ o.set(n); c.render(); } }
+    else { o.set(Math.max(0, Math.min(1, sv + d / 240))); c.render(); }
+    knobBubble(e.clientX, e.clientY);
   });
-  h.addEventListener('pointerup', () => { id = null; });
+  const up = () => { id = null; knobBubble(); };
+  h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
   h.addEventListener('wheel', e => { e.preventDefault(); if (o.angles) o.set(Math.max(0, Math.min(o.angles.length - 1, o.get() + (e.deltaY < 0 ? 1 : -1)))); else o.set(Math.max(0, Math.min(1, o.get() - e.deltaY / 2000))); c.render(); }, {passive:false});
   c.render();
   return c;
 }
+// the big value bubble over the finger while a knob turns (it shows the readout's message); no args hides it
+function knobBubble(x, y){
+  let b = $('#kbubble'); if (!b){ b = el('div', '', document.body); b.id = 'kbubble'; }
+  if (x == null){ b.classList.remove('on'); return; }
+  b.textContent = S.msg || '';
+  b.style.left = Math.max(70, Math.min(innerWidth - 70, x)) + 'px'; b.style.top = (y - 130 < 8 ? y + 70 : y - 130) + 'px';
+  b.classList.toggle('on', !!S.msg);
+}
 function paramKnob(k, x, y, r, photo){
   const p = () => PMAP[k] || {min:0, max:1, def:0.5};
-  controls[k] = knob({x, y, r, photo, get:() => norm(p(), S.params[k] ?? p().def), set:n => Eight.set(k, denorm(p(), n)), reset:() => Eight.set(k, p().def)});
+  controls[k] = knob({x, y, r, photo, get:() => norm(p(), S.params[k] ?? p().def), set:n => Eight.set(k, denorm(p(), n)), reset:() => Eight.set(k, p().def),
+    show:() => flash((p().label || k) + ' ' + fmt(p(), S.params[k] ?? p().def))});
 }
 function button(x, y, w, h, fn, cls){
   const b = el('div', 'hit sq' + (cls ? ' ' + cls : ''), $('#ctl'));
@@ -241,11 +257,11 @@ function buildFace(){
     controls[k].render();
   });
   // left section: pattern write mode, instrument select, auto fill in, tempo, fine
-  controls._mode = knob({x:228, y:320, r:44, photo:-15, angles:[-70,-30,15,60,100], get:() => S.mode, set:n => { S.mode = n; S.pads = false; flash(MODES[n]); renderAll(); save(); }});
-  controls._inst = knob({x:410, y:318, r:40, photo:-70, angles:TRACKS.map((_, i) => -165 + 30 * i), get:() => S.track, set:n => { S.track = n; S.trigWrite = false; flash('TRACK ' + TRACKS[n]); renderAll(); save(); }});
-  controls._fill = knob({x:412, y:478, r:40, photo:45, angles:[-100,-45,-15,15,45,75], get:fillIdx, set:n => { S.bank.fillEvery = FILLS[n]; Eight.post({t:'bank', bank:S.bank}); flash('AUTO FILL ' + (FILLS[n] || 'MANUAL')); save(); }});
-  controls._tempo = knob({x:250, y:635, r:78, photo:-80, get:() => S.tempoK, set:n => { S.tempoK = n; Eight.post({t:'tempo', bpm:bpm()}); flash(bpm().toFixed(1) + ' BPM'); save(); }, reset:() => Eight.setTempo(120)});
-  controls._fine = knob({x:420, y:688, r:34, photo:-60, get:() => S.fine, set:n => { S.fine = n; Eight.post({t:'tempo', bpm:bpm()}); flash(bpm().toFixed(1) + ' BPM'); save(); }, reset:() => { S.fine = 0.5; Eight.post({t:'tempo', bpm:bpm()}); }});
+  controls._mode = knob({x:228, y:320, r:44, photo:-15, angles:[-70,-30,15,60,100], get:() => S.mode, show:() => flash(MODES[S.mode]), set:n => { S.mode = n; S.pads = false; flash(MODES[n]); renderAll(); save(); }});
+  controls._inst = knob({x:410, y:318, r:40, photo:-70, angles:TRACKS.map((_, i) => -165 + 30 * i), get:() => S.track, show:() => flash('TRACK ' + TRACKS[S.track]), set:n => { S.track = n; S.trigWrite = false; flash('TRACK ' + TRACKS[n]); renderAll(); save(); }});
+  controls._fill = knob({x:412, y:478, r:40, photo:45, angles:[-100,-45,-15,15,45,75], get:fillIdx, show:() => flash('AUTO FILL ' + (FILLS[fillIdx()] || 'MANUAL')), set:n => { S.bank.fillEvery = FILLS[n]; Eight.post({t:'bank', bank:S.bank}); flash('AUTO FILL ' + (FILLS[n] || 'MANUAL')); save(); }});
+  controls._tempo = knob({x:250, y:635, r:78, photo:-80, get:() => S.tempoK, show:() => flash(bpm().toFixed(1) + ' BPM'), set:n => { S.tempoK = n; Eight.post({t:'tempo', bpm:bpm()}); flash(bpm().toFixed(1) + ' BPM'); save(); }, reset:() => Eight.setTempo(120)});
+  controls._fine = knob({x:420, y:688, r:34, photo:-60, get:() => S.fine, show:() => flash(bpm().toFixed(1) + ' BPM'), set:n => { S.fine = n; Eight.post({t:'tempo', bpm:bpm()}); flash(bpm().toFixed(1) + ' BPM'); save(); }, reset:() => { S.fine = 0.5; Eight.post({t:'tempo', bpm:bpm()}); }});
   // CLEAR: hold to clear the track (write modes); hold and press a step to set the last step
   let clearT = 0;
   button(212, 408, 42, 42, (e, down) => {
@@ -326,19 +342,21 @@ function renderAll(){
 }
 
 /* ---------------- fold open: the board under the lid ---------------- */
-function fold(open){ $('#panel').classList.toggle('open', open); $('#board').setAttribute('aria-hidden', !open); if (open) renderBoard(); }
+function fold(open){ $('#panel').classList.toggle('open', open); $('#board').setAttribute('aria-hidden', !open); fit(); if (open) renderBoard(); }
 function swipe(elm, dir, fn){
   let y0 = null;
   elm.addEventListener('pointerdown', e => { y0 = e.clientY; });
   elm.addEventListener('pointerup', e => { if (y0 != null && (e.clientY - y0) * dir > 40) fn(); y0 = null; });
 }
+// The board is laid out in real screen pixels (not the panel's 2000-wide units) so its text stays readable on a
+// phone: #board holds .bview, counter-scaled by 1/scale and sized to the panel's on-screen size, and it scrolls.
 const SECTS = [
-  {id:'BD', name:'BASS DRUM', v:['BD'], at:[24,90,236,545]}, {id:'SD', name:'SNARE DRUM', v:['SD'], at:[268,90,236,545]},
-  {id:'TOMS', name:'TOMS / CONGAS', v:['LT','MT','HT','LC','MC','HC'], at:[512,90,236,545]}, {id:'RSCL', name:'RIM / CLAVES', v:['RS','CL'], at:[756,90,236,545]},
-  {id:'CPMA', name:'CLAP / MARACAS', v:['CP','MA'], at:[1000,90,236,545]}, {id:'CB', name:'COWBELL', v:['CB'], at:[1244,90,236,545]},
-  {id:'CY', name:'CYMBAL', v:['CY'], at:[1488,90,236,545]}, {id:'HH', name:'HI-HATS', v:['OH','CH'], at:[1732,90,244,545]},
-  {id:'ACC', name:'ACCENT', v:[], at:[24,668,236,455]}, {id:'TRIG', name:'TRIGGER OUT', v:['TRIG'], at:[268,668,380,455]},
-  {id:'MACH', name:'MACHINE', v:[], at:[656,668,236,455]},
+  {id:'BD', name:'BASS DRUM', v:['BD']}, {id:'SD', name:'SNARE DRUM', v:['SD']},
+  {id:'TOMS', name:'TOMS / CONGAS', v:['LT','MT','HT','LC','MC','HC'], wide:true}, {id:'RSCL', name:'RIM / CLAVES', v:['RS','CL']},
+  {id:'CPMA', name:'CLAP / MARACAS', v:['CP','MA']}, {id:'CB', name:'COWBELL', v:['CB']},
+  {id:'CY', name:'CYMBAL', v:['CY']}, {id:'HH', name:'HI-HATS', v:['OH','CH']},
+  {id:'ACC', name:'ACCENT', v:[]}, {id:'TRIG', name:'TRIGGER OUT', v:['TRIG']},
+  {id:'MACH', name:'MACHINE', v:[]},
 ];
 function sectionOf(k){
   let m = /^mod\.([A-Z]+)\./.exec(k);
@@ -351,77 +369,140 @@ function sectionOf(k){
   return 'MACH';
 }
 const boardCtl = {};
+// value with its unit, for the readouts and the drag bubble
+function fmtU(p, v){
+  if (p.opts) return String(p.opts[Math.round(v - p.min)] ?? v);
+  const u = /\(([^)]+)\)\s*$/.exec(p.label || ''), t = fmt(p, v);
+  return u ? t + ' ' + u[1] : t;
+}
+const plainLabel = p => (p.label || p.k).replace(/\s*\([^)]*\)\s*$/, '');
+let bubble = null;
+function showBubble(p, on){
+  if (!bubble) return;
+  bubble.classList.toggle('on', on);
+  if (on) bubble.innerHTML = `<small>${plainLabel(p)}</small>${fmtU(p, S.params[p.k] ?? p.def)}`;
+}
+// one control per parameter: on/off switch, segmented choice (≤4 options), stepper (more options) or trimpot
 function trim(parent, p, cls){
-  if (p.step === 1 && p.max - p.min === 1 && !p.opts){
-    const d = el('div', 'dip', parent, `<div class="sw"></div><div class="lab"></div><div class="val"></div>`);
-    d.querySelector('.lab').textContent = p.label || p.k;
-    d.addEventListener('click', () => Eight.set(p.k, S.params[p.k] ? p.min : p.max));
-    boardCtl[p.k] = () => { d.classList.toggle('on', S.params[p.k] === p.max); d.querySelector('.val').textContent = fmt(p, S.params[p.k]); };
+  const v = () => S.params[p.k] ?? p.def;
+  const n = p.step === 1 ? Math.round(p.max - p.min) + 1 : 0;
+  if (n === 2){
+    const d = el('button', 'dip', parent, `<span class="sw"></span><span class="lab"></span><span class="val"></span>`);
+    d.querySelector('.lab').textContent = plainLabel(p);
+    d.addEventListener('click', () => Eight.set(p.k, v() >= p.max ? p.min : p.max));
+    boardCtl[p.k] = () => { d.classList.toggle('on', v() >= p.max); d.querySelector('.val').textContent = p.opts ? fmtU(p, v()) : (v() >= p.max ? 'ON' : 'OFF'); };
+    return;
+  }
+  if (n > 2 && n <= 4 && p.opts){
+    const d = el('div', 'seg', parent, `<span class="lab"></span><span class="opts"></span>`);
+    d.querySelector('.lab').textContent = plainLabel(p);
+    const bs = p.opts.map((o, i) => { const b = el('button', '', d.querySelector('.opts'), o); b.addEventListener('click', () => Eight.set(p.k, p.min + i)); return b; });
+    boardCtl[p.k] = () => bs.forEach((b, i) => b.classList.toggle('on', Math.round(v() - p.min) === i));
+    return;
+  }
+  if (n > 4){
+    const d = el('div', 'stepper', parent, `<span class="lab"></span><span class="row"><button>◀</button><span class="val"></span><button>▶</button></span>`);
+    d.querySelector('.lab').textContent = plainLabel(p);
+    const [l, r] = d.querySelectorAll('button');
+    const go = dd => Eight.set(p.k, Math.max(p.min, Math.min(p.max, Math.round(v()) + dd)));
+    l.addEventListener('click', () => go(-1)); r.addEventListener('click', () => go(1));
+    boardCtl[p.k] = () => { d.querySelector('.val').textContent = fmtU(p, v()); };
     return;
   }
   const t = el('div', 'tp' + (cls ? ' ' + cls : ''), parent, `<div class="pot"><b></b></div><div class="lab"></div><div class="val"></div>`);
-  t.querySelector('.lab').textContent = p.label || p.k; t.title = p.k;
+  t.querySelector('.lab').textContent = plainLabel(p); t.title = p.k;
   const b = t.querySelector('b'), val = t.querySelector('.val');
-  boardCtl[p.k] = () => { const v = S.params[p.k] ?? p.def; b.style.transform = `rotate(${-135 + 270 * norm(p, v)}deg)`; val.textContent = fmt(p, v); };
+  boardCtl[p.k] = () => { b.style.transform = `rotate(${-135 + 270 * norm(p, v())}deg)`; val.textContent = fmtU(p, v()); };
   let sy = 0, sv = 0, id = null, last = 0;
-  t.addEventListener('pointerdown', e => { e.preventDefault(); t.setPointerCapture(e.pointerId); id = e.pointerId; sy = e.clientY; sv = norm(p, S.params[p.k] ?? p.def);
-    const now = performance.now(); if (now - last < 300) Eight.set(p.k, p.def); last = now; });
-  t.addEventListener('pointermove', e => { if (e.pointerId !== id) return; const n = sv + (sy - e.clientY) / scale / (p.opts ? 60 * (p.opts.length) : 300); Eight.set(p.k, denorm(p, n)); });
-  t.addEventListener('pointerup', () => { id = null; });
+  t.addEventListener('pointerdown', e => {
+    e.preventDefault(); t.setPointerCapture(e.pointerId); id = e.pointerId; sy = e.clientY; sv = norm(p, v());
+    const now = performance.now(); if (now - last < 300){ Eight.set(p.k, p.def, true); sv = norm(p, p.def); } last = now;
+    t.classList.add('drag'); showBubble(p, true);
+  });
+  // board pixels are screen pixels: 200 px of drag covers the whole range
+  t.addEventListener('pointermove', e => { if (e.pointerId !== id) return; Eight.set(p.k, denorm(p, sv + (sy - e.clientY) / 200), true); showBubble(p, true); });
+  const up = () => { id = null; t.classList.remove('drag'); showBubble(p, false); };
+  t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
 }
+let boardHooked = false;
+function boardScale(){ const b = $('#board'); if (b) b.style.setProperty('--s', scale); }
 function buildBoard(){
   PMAP = {}; for (const p of PARAMS) PMAP[p.k] = p;
   const B = $('#board'); B.innerHTML = '';
   for (const k in boardCtl) delete boardCtl[k];
-  // copper traces
+  if (!boardHooked){
+    boardHooked = true;
+    // keep the board in step with every change (drags, presets, MIDI). A REV7 program loads its settings, as on the unit
+    Eight.onChange.push(k => {
+      if (k === 'rev.program' && globalThis.Rev7 && Rev7.PROGRAMS && typeof Rev7.PROGRAMS[0] === 'object'){
+        const pr = Rev7.PROGRAMS[Math.round(S.params[k])];
+        if (pr) for (const kk of ['time','predelay','hf','diffusion','density','lpf','hpf','er']) if (pr[kk] != null) S.params['rev.' + kk] = pr[kk];
+        renderBoard(); return;
+      }
+      if (boardCtl[k]) boardCtl[k]();
+      if (/^dly\./.test(k) && boardCtl._disp) boardCtl._disp();
+    });
+    addEventListener('resize', boardScale);
+  }
+  boardScale();
+  const V = el('div', 'bview', B);
+  // copper traces behind everything
   let svg = '<svg class="traces" viewBox="0 0 2000 1190" preserveAspectRatio="none"><g fill="none" stroke="#3f9a5c" stroke-width="5" stroke-linecap="round">';
   for (let i = 0; i < 26; i++){ const y = 80 + i * 42, x = 30 + (i * 137) % 1800; svg += `<path d="M${x} ${y} h${180 + (i * 53) % 260} l40 40 h${120 + (i * 31) % 200}"/>`; }
-  svg += '</g><g fill="#c9a64a">'; for (let i = 0; i < 60; i++) svg += `<circle cx="${(i * 331) % 1960 + 20}" cy="${(i * 173) % 1150 + 20}" r="6"/>`;
-  B.innerHTML = svg + '</g></svg>';
-  const head = el('div', 'bhead', B, `<span>TR-808 MAIN BOARD</span><small>CIRCUIT MODS · double tap a trimpot for stock · drag to turn</small><span class="sp"></span>`);
-  const rnd = el('button', 'bbtn', head, 'STOCK ALL MODS'); rnd.addEventListener('click', () => { const p = {}; for (const q of PARAMS) if (/^mod\./.test(q.k)) p[q.k] = q.def; Object.assign(S.params, p); Eight.post({t:'setMany', p}); renderAll(); save(); flash('STOCK CIRCUIT'); });
+  svg += '</g></svg>';
+  V.insertAdjacentHTML('beforeend', svg);
+  const head = el('div', 'bhead', V, `<span>TR-808 MAIN BOARD</span><small>drag a trimpot up or down · double tap for stock</small><span class="sp"></span>`);
+  const rnd = el('button', 'bbtn', head, 'STOCK ALL MODS');
+  rnd.addEventListener('click', () => { const p = {}; for (const q of PARAMS) if (/^mod\./.test(q.k)) p[q.k] = q.def; Object.assign(S.params, p); Eight.post({t:'setMany', p}); renderAll(); save(); flash('STOCK CIRCUIT'); });
+  const cb0 = el('button', 'bbtn closetop', head, 'CLOSE ▲'); cb0.addEventListener('click', () => fold(false));
+  const G = el('div', 'bgrid', V);
   const bins = {};
   for (const s of SECTS){
-    const d = el('div', 'sect', B); Object.assign(d.style, {left:s.at[0] + 'px', top:s.at[1] + 'px', width:s.at[2] + 'px', height:s.at[3] + 'px'});
-    el('h3', '', d, s.name);
+    const d = el('div', 'sect' + (s.wide ? ' wide' : ''), G);
+    const h = el('h3', '', d, s.name);
     if (s.id === 'TRIG'){
-      el('h3', '', d).remove();
-      d.querySelector('h3').innerHTML = 'TRIGGER OUT<span class="tipq" title="The 808\'s rear TRIGGER OUT jacks put out 20 ms pulses following the CB, CP or AC track. Egyptian Lover recorded that click as a drum sound in his records">?</span>';
-      el('div', 'egypt', d).textContent = "The 808's rear TRIGGER OUT jacks put out 20 ms pulses following the CB, CP or AC track. Egyptian Lover recorded that click as a drum sound in his records. Turn up LEVEL to put it in the mix.";
-      const w = el('button', 'bbtn', d, 'WRITE TRIG TRACK'); w.style.margin = '0 4px 8px';
+      const q = el('button', 'tipq', h, '?');
+      const ex = el('div', 'egypt', d);
+      ex.textContent = "The 808's rear TRIGGER OUT jacks put out 20 ms pulses following the CB, CP or AC track. Egyptian Lover recorded that click as a drum sound in his records. Turn up Click Into Mix to hear it, and pick its source below.";
+      q.addEventListener('click', () => ex.classList.toggle('on'));
+      const w = el('button', 'bbtn', d, 'WRITE TRIG TRACK'); w.style.margin = '0 0 10px';
       w.addEventListener('click', () => { S.trigWrite = !S.trigWrite; if (S.trigWrite && S.mode > 1) S.mode = 0; fold(false); flash(S.trigWrite ? 'WRITE TRIG TRACK' : 'TRACK ' + TRACKS[S.track]); renderAll(); });
     }
-    bins[s.id] = {pots:el('div', 'pots', d), slots:s.v.length ? el('div', 'slots', d) : null, v:s.v};
+    bins[s.id] = {pots:el('div', 'pots', d), sends:el('div', 'pots sends', d), slots:s.v.length ? el('div', 'slots', d) : null, v:s.v};
   }
-  for (const p of PARAMS){ const s = sectionOf(p.k); if (!s || s === 'REV' || s === 'DLY') continue; trim((bins[s] || bins.MACH).pots, p, /send/.test(p.k) ? '' : 'mod'); }
-  for (const id in bins) if (bins[id].slots) for (const v of bins[id].v) sampleSlot(bins[id].slots, v);
+  for (const p of PARAMS){
+    const s = sectionOf(p.k); if (!s || s === 'REV' || s === 'DLY') continue;
+    const bin = bins[s] || bins.MACH, send = /send/.test(p.k);
+    trim(send ? bin.sends : bin.pots, p, send ? 'send' : 'mod');
+  }
+  for (const id in bins){ if (!bins[id].sends.children.length) bins[id].sends.remove(); else bins[id].sends.insertAdjacentHTML('afterbegin', '<div class="subh">FX SENDS</div>'); }
+  for (const id in bins) if (bins[id].slots){ bins[id].slots.insertAdjacentHTML('afterbegin', '<div class="subh">SAMPLES</div>'); for (const v of bins[id].v) sampleSlot(bins[id].slots, v); }
   // REV7
-  const rv = el('div', 'unit rev7', B); Object.assign(rv.style, {left:'900px', top:'668px', width:'520px', height:'455px'});
+  const rv = el('div', 'unit rev7', G);
   el('div', 'uname', rv, 'REV 7 <small>DIGITAL REVERBERATOR</small>');
   const lcd = el('div', 'lcd', rv, '<button>◀</button><span class="num"></span><span class="pn"></span><button>▶</button>');
-  const pp = PMAP['rev.program'];
-  if (pp){
+  if (PMAP['rev.program']){
     const [l, r] = lcd.querySelectorAll('button'), n = PROGRAMS().length;
-    const step = d => Eight.set('rev.program', (Math.round(S.params['rev.program'] || 0) + d + n) % n, true);
+    const step = d => Eight.set('rev.program', (Math.round(S.params['rev.program'] || 0) + d + n) % n);
     l.addEventListener('click', () => step(-1)); r.addEventListener('click', () => step(1));
     boardCtl['rev.program'] = () => { const i = Math.round(S.params['rev.program'] || 0); lcd.querySelector('.num').textContent = String(i + 1).padStart(2, '0'); lcd.querySelector('.pn').textContent = (PROGRAMS()[i] || '').toUpperCase(); };
   }
   const rp = el('div', 'pots', rv);
   for (const p of PARAMS) if (sectionOf(p.k) === 'REV' && p.k !== 'rev.program') trim(rp, p);
   // TC 2290
-  const dl = el('div', 'unit tc2290', B); Object.assign(dl.style, {left:'1428px', top:'668px', width:'548px', height:'455px'});
+  const dl = el('div', 'unit tc2290', G);
   el('div', 'uname', dl, '2290 <small>DYNAMIC DIGITAL DELAY</small>');
-  const disp = el('div', 'disp', dl, '<span class="unitlab"></span><span class="seg"></span>');
-  boardCtl._disp = () => { const sync = S.params['dly.sync'], dv = PMAP['dly.division'];
-    disp.querySelector('.seg').textContent = sync && dv ? fmt(dv, S.params['dly.division']) : String(Math.round(S.params['dly.time'] || 0)).padStart(4, ' ');
-    disp.querySelector('.unitlab').textContent = sync ? 'TEMPO' : 'ms'; };
+  const disp = el('div', 'disp', dl, '<span class="unitlab"></span><span class="seg7"></span>');
+  boardCtl._disp = () => { const sync = S.params['dly.sync'] >= 0.5, dv = PMAP['dly.division'];
+    disp.querySelector('.seg7').textContent = sync && dv ? fmtU(dv, S.params['dly.division'] ?? dv.def) : String(Math.round(S.params['dly.time'] ?? 0));
+    disp.querySelector('.unitlab').textContent = sync ? 'TEMPO SYNC' : 'DELAY ms'; };
   const dp = el('div', 'pots', dl);
   for (const p of PARAMS) if (sectionOf(p.k) === 'DLY') trim(dp, p);
-  const cb = el('button', 'closeb', B, 'CLOSE ▼'); cb.addEventListener('click', () => fold(false));
-  swipe(cb, 1, () => fold(false));
+  const cb = el('button', 'closeb', V, 'CLOSE ▼'); cb.addEventListener('click', () => fold(false));
+  bubble = el('div', 'vbubble', B);
   renderBoard();
 }
-function renderBoard(){ for (const k in boardCtl) boardCtl[k](); for (const v in slotEls) slotEls[v](); }
+function renderBoard(){ boardScale(); for (const k in boardCtl) boardCtl[k](); for (const v in slotEls) slotEls[v](); }
 
 /* ---------------- samples ---------------- */
 const slotEls = {}, sampleNames = {};
@@ -540,10 +621,14 @@ function encodeWav(buf){
 }
 
 /* ---------------- layout ---------------- */
+// closed, the photo is cropped to the panel face (no jacks, end cheeks or feet) and scaled as big as the screen allows;
+// open, the whole 2000 x 1190 board shows. Everything sits in photo coordinates, so one transform keeps it all aligned
+const CROP = [88, 58, 1824, 1037];
 function fit(){
-  const vw = innerWidth, vh = innerHeight;
-  scale = Math.min(vw / 2000, vh / 1190);
-  $('#panel').style.transform = `translate(${(vw - 2000 * scale) / 2}px, ${(vh - 1190 * scale) / 2}px) scale(${scale})`;
+  const vw = innerWidth, vh = innerHeight, open = $('#panel').classList.contains('open');
+  const [cx, cy, cw, ch] = open ? [0, 0, 2000, 1190] : CROP;
+  scale = Math.min(vw / cw, vh / ch);
+  $('#panel').style.transform = `translate(${(vw - cw * scale) / 2 - cx * scale}px, ${(vh - ch * scale) / 2 - cy * scale}px) scale(${scale})`;
 }
 addEventListener('resize', fit);
 document.addEventListener('pointerdown', () => { if (S.power) Eight.start(); }, {capture:true, once:true});

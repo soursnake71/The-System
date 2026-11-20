@@ -72,7 +72,7 @@
       this.tapD = new Float64Array(REV_TAPS);   // tap delays (samples, after the predelay)
       this.tapGL = new Float64Array(REV_TAPS);
       this.tapGR = new Float64Array(REV_TAPS);
-      this.nTaps = 0;
+      this.nTaps = 0; this.tapI = new Int32Array(REV_TAPS); this.dI = new Int32Array(8); this.preI = 0; this.outPk = 0; this.quiet = 0;
       this.lpfF = new OnePole(); this.lpfF2 = new OnePole(); this.hpfF = new OnePole();
       this.lfo = 0;
       this.gEnv = 0; this.gHold = 0; this.gGain = 0;
@@ -138,6 +138,10 @@
         }
       }
       this.erNorm = 1 / Math.sqrt(this.nTaps * 0.45);
+      // whole-sample tap and line delays: the taps don't move, so they don't need interpolating (only lines 0 and 5 are modulated)
+      for (let i = 0; i < this.nTaps; i++) this.tapI[i] = Math.round(this.preS + this.tapD[i]);
+      for (let k = 0; k < 8; k++) this.dI[k] = Math.round(this.dLen[k]);
+      this.preI = Math.round(this.preS);
       this.holdS = clamp(this.time, 0.05, 1.0) * sr;
       this.gRel = Math.exp(-1 / (0.004 * sr));
       this.gAtt = Math.exp(-1 / (0.0005 * sr));
@@ -146,6 +150,7 @@
       // linear interpolation in the input line, d samples behind the write head
       let r = this.w - d;
       while (r < 0) r += this.bufLen;
+      if (r >= this.bufLen) r -= this.bufLen;   // -1e-13 + len rounds to len
       const i = Math.floor(r), f = r - i;
       const j = i + 1 >= this.bufLen ? 0 : i + 1;
       return this.buf[i] + (this.buf[j] - this.buf[i]) * f;
@@ -153,6 +158,7 @@
     readLine(k, d) {
       let r = this.lw - d;
       while (r < 0) r += this.lineLen;
+      if (r >= this.lineLen) r -= this.lineLen;
       const i = Math.floor(r), f = r - i;
       const j = i + 1 >= this.lineLen ? 0 : i + 1;
       const L = this.lines[k];
@@ -163,20 +169,31 @@
       const sr = this.sr, lfoInc = 2 * Math.PI * 0.7 / sr;
       const erW = this.type === 2 ? 1 : clamp(this.er, 0, 1);
       const lateW = this.type === 2 ? 0 : (1 - 0.8 * erW);
+      // nothing coming in and the tail has died away: output silence without running the network
+      let inPk = 0;
+      for (let s = off; s < off + n; s++) { const a = Math.abs(inL[s]) + Math.abs(inR[s]); if (a > inPk) inPk = a; }
+      // (quiet = samples with no input and no output; skip only once it's longer than the longest path through the network)
+      if (inPk < 1e-7 && this.outPk < 1e-6) this.quiet += n; else this.quiet = 0;
+      if (this.quiet > this.sr) { for (let s = off; s < off + n; s++) { outL[s] = 0; outR[s] = 0; } return; }
+      let outPk = 0;
+      const buf = this.buf, bl = this.bufLen, nT = this.nTaps, tapI = this.tapI, gL = this.tapGL, gR = this.tapGR, lines = this.lines, ll = this.lineLen, dI = this.dI;
       for (let s = off; s < off + n; s++) {
         let x = (inL[s] + inR[s]) * 0.5;
         x = this.hpfF.hp(this.lpfF.lp(x));
-        this.buf[this.w] = x;
+        const w = this.w;
+        buf[w] = x;
         // early reflections (after the predelay)
         let eL = 0, eR = 0;
-        for (let t = 0; t < this.nTaps; t++) {
-          const v = this.read(this.preS + this.tapD[t]);
-          eL += v * this.tapGL[t]; eR += v * this.tapGR[t];
+        for (let t = 0; t < nT; t++) {
+          let r = w - tapI[t]; if (r < 0) r += bl;
+          const v = buf[r];
+          eL += v * gL[t]; eR += v * gR[t];
         }
         eL *= this.erNorm; eR *= this.erNorm;
         let lL = 0, lR = 0;
         if (lateW > 0) {
-          let d = this.read(this.preS);
+          let r0 = w - this.preI; if (r0 < 0) r0 += bl;
+          let d = buf[r0];
           // input diffusion
           for (let a = 0; a < 4; a++) {
             const b = this.apBuf[a], p = this.apW[a];
@@ -190,8 +207,9 @@
           this.lfo += lfoInc; if (this.lfo > 2 * Math.PI) this.lfo -= 2 * Math.PI;
           const m = Math.sin(this.lfo) * 0.0012 * sr * 0.5;
           for (let k = 0; k < 8; k++) {
-            const dd = this.dLen[k] + (k === 0 ? m : k === 5 ? -m : 0);
-            const y = this.readLine(k, dd);
+            let y;
+            if (k === 0 || k === 5) y = this.readLine(k, this.dLen[k] + (k === 0 ? m : -m));
+            else { let r = this.lw - dI[k]; if (r < 0) r += ll; y = lines[k][r]; }
             // one-pole damping: DC gain fb, Nyquist gain fb*(1-p)/(1+p)
             const p = this.dp[k];
             this.ds[k] = this.fb[k] * (1 - p) * y + p * this.ds[k];
@@ -225,9 +243,11 @@
           }
         }
         this.w = this.w + 1 >= this.bufLen ? 0 : this.w + 1;
-        outL[s] = erW * eL + lateW * lL;
-        outR[s] = erW * eR + lateW * lR;
+        const yl = erW * eL + lateW * lL, yr = erW * eR + lateW * lR;
+        outL[s] = yl; outR[s] = yr;
+        const a = Math.abs(yl) + Math.abs(yr); if (a > outPk) outPk = a;
       }
+      this.outPk = outPk;
     }
   }
   Rev7.PROGRAMS = PROGRAMS;
@@ -251,7 +271,7 @@
       this.time = 375; this.sync = 1; this.division = 6; this.feedback = 0.35; this.hicut = 6000; this.lowcut = 120;
       this.modDepth = 0.15; this.modRate = 0.6; this.pingpong = 1; this.duck = 0.3; this.bpm = 120;
       this.hcL = new OnePole(); this.hcR = new OnePole(); this.lcL = new OnePole(); this.lcR = new OnePole();
-      this.cur = 0; this.lfo = 0; this.env = 0;
+      this.cur = 0; this.lfo = 0; this.env = 0; this.quiet = 0; this.outPk = 0;
       this.update();
       this.cur = this.target;
     }
@@ -288,6 +308,7 @@
     readB(b, d) {
       let r = this.w - d;
       while (r < 0) r += this.len;
+      if (r >= this.len) r -= this.len;
       const i = Math.floor(r), f = r - i;
       const i0 = i - 1 < 0 ? i - 1 + this.len : i - 1;
       const i2 = i + 1 >= this.len ? i + 1 - this.len : i + 1;
@@ -299,6 +320,12 @@
     }
     process(inL, inR, outL, outR, n, off) {
       off = off || 0;
+      // skip the work once nothing has come in or out for longer than the delay line (an echo can't still be on its way)
+      let inPk = 0;
+      for (let s = off; s < off + n; s++) { const a = Math.abs(inL[s]) + Math.abs(inR[s]); if (a > inPk) inPk = a; }
+      if (inPk < 1e-7 && this.outPk < 1e-6) this.quiet += n; else this.quiet = 0;
+      if (this.quiet > this.len) { for (let s = off; s < off + n; s++) { outL[s] = 0; outR[s] = 0; } return; }
+      let outPk = 0;
       for (let s = off; s < off + n; s++) {
         this.cur += (this.target - this.cur) * this.smooth;
         this.lfo += this.lfoInc; if (this.lfo > 2 * Math.PI) this.lfo -= 2 * Math.PI;
@@ -322,7 +349,9 @@
         let dk = this.env * 3; if (dk > 1) dk = 1;
         const gg = 1 - clamp(this.duck, 0, 1) * dk;
         outL[s] = dL * gg; outR[s] = dR * gg;
+        const a = Math.abs(dL) + Math.abs(dR); if (a > outPk) outPk = a;
       }
+      this.outPk = outPk;
     }
   }
   TC2290.DIVISIONS = DIVISIONS;

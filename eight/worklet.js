@@ -13,8 +13,14 @@ class Eight808Processor extends AudioWorkletProcessor {
   msg(m) {
     const e = this.e, s = this.s;
     switch (m.t) {
-      case 'set': e.set(m.k, m.v); if (m.k === 'swing') s.swing = m.v; if (m.k === 'rev.program') this.echoRev(); break;
-      case 'setMany': for (const k in m.p) { e.set(k, m.p[k]); if (k === 'swing') s.swing = m.p[k]; } if ('rev.program' in m.p) this.echoRev(); break;
+      case 'set': if (m.k === 'tempo') { s.setTempo(m.v); e.set('tempo', s.bpm); break; }
+        e.set(m.k, m.v); if (m.k === 'swing') s.swing = m.v; if (m.k === 'rev.program') this.echoRev(); break;
+      case 'setMany': {
+        // a REV7 program sets time, predelay and the rest: load it first so the message's own values win
+        if ('rev.program' in m.p) e.set('rev.program', m.p['rev.program']);
+        for (const k in m.p) { if (k === 'rev.program') continue; if (k === 'tempo') { s.setTempo(m.p[k]); e.set('tempo', s.bpm); continue; } e.set(k, m.p[k]); if (k === 'swing') s.swing = m.p[k]; }
+        if ('rev.program' in m.p) this.echoRev(); break;
+      }
       case 'hit': this.pend.push(m); break;
       case 'play': s.play(m.on); break;
       case 'tempo': case 'clock': s.setTempo(m.bpm); e.set('tempo', s.bpm); break;
@@ -46,7 +52,8 @@ class Eight808Processor extends AudioWorkletProcessor {
       this.port.postMessage({t:'step', step:inf.step, part:inf.part, rhythm:inf.rhythm, which:inf.which, var:inf.var, hits, acc:inf.acc, trig:e.trigFired, time:currentTime + off / sampleRate});
     });
     if (n > done) e.process(L, R, n - done, done);
-    if (R !== L && out.length < 2) {}
+    // never let one bad sample silence the machine for good: a NaN in the effects' feedback loops would stay there
+    if (!isFinite(L[n - 1]) || !isFinite(R[n - 1])) { e.resetFx(); L.fill(0); if (R !== L) R.fill(0); }
     return true;
   }
 }

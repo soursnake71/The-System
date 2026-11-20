@@ -102,7 +102,7 @@
     get(k) { const i = IDX[k]; return i == null ? 0 : this.p[i]; }
     v(k) { return this.p[IDX[k]]; }
     set(k, val) {
-      if (k === 'tempo') { if (this.dly) this.dly.setTempo(val); return; }
+      if (k === 'tempo') { this.tempo = val; if (this.dly) this.dly.setTempo(val); return; }
       const i = IDX[k]; if (i == null) return;
       const d = P[i]; val = clamp(+val, d.min, d.max); if (d.step) val = Math.round(val);
       this.p[i] = val; this.apply(k, val); this.dirty = 1;
@@ -126,6 +126,12 @@
       const n = Math.max(1, Math.floor(data.length * this.sr / sr)), out = new Float32Array(n), r = sr / this.sr;
       for (let j = 0; j < n; j++) { const x = j * r, a = Math.floor(x), f = x - a; out[j] = (data[a] || 0) + ((data[a + 1] || 0) - (data[a] || 0)) * f; }
       this.smp[i] = out; this.spos[i] = 1e12;
+    }
+    resetFx() {   // fresh effects with the current settings (only after a NaN; allocates)
+      if (g.Rev7) this.rev = new g.Rev7(this.sr); if (g.TC2290) this.dly = new g.TC2290(this.sr);
+      for (let i = 0; i < P.length; i++) this.apply(P[i].k, this.p[i]);
+      if (this.dly && this.tempo) this.dly.setTempo(this.tempo);
+      for (let i = 0; i < VOICES.length; i++) { this.active[i] = 0; this.res1[i].reset(); this.res2[i].reset(); this.f1[i].reset(); this.f2[i].reset(); this.op1[i].s = 0; this.op2[i].s = 0; }
     }
     clearSample(v) { const i = VOICES.indexOf(v); if (i >= 0) this.smp[i] = null; }
     noise() { let x = this.rng; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; this.rng = x >>> 0; return (this.rng / 2147483648) - 1; }
@@ -202,6 +208,10 @@
         this.srate[i] = Math.pow(2, (tu - 0.5) * 2);
       }
       this.hissG = v('mod.hiss') * 0.003;
+      // knob values read on every sample, looked up once here
+      this.bdSweep = v('mod.BD.sweep') * 1.2; this.bdClick = v('mod.BD.click') * 0.6;
+      const bdr = v('mod.BD.drive'); this.bdDk = 1 + 6 * bdr; this.bdDn = bdr > 0.001 ? 1 / Math.tanh(this.bdDk) : 0;
+      this.sdTone = v('SD.tone'); this.sdSnap = v('SD.snappy') * 1.6; this.cyTone = v('CY.tone'); this.tomSweep = 0.6 * v('mod.TOM.sweep');
       this.dirty = 0;
     }
     trigger(voice, acc, vel) {
@@ -248,19 +258,21 @@
       switch (i) {
         case 0: {
           const r = this.res1[0];
-          if (this.sw[0] > 1e-4) { this.sw[0] *= this.swC[0]; const f = this.bdF * (1 + this.v('mod.BD.sweep') * 1.2 * this.sw[0]); r.set(f, Math.PI * f * this.bdTau, sr); }
+          if (this.sw[0] > 1e-4) { this.sw[0] *= this.swC[0]; const f = this.bdF * (1 + this.bdSweep * this.sw[0]); r.set(f, Math.PI * f * this.bdTau, sr); }
           const x = pl ? this.pulseH[0] : 0;
-          y = r.tick(x) + (pl ? this.amp[0] * this.v('mod.BD.click') * 0.6 : 0);
+          y = r.tick(x) + (pl ? this.amp[0] * this.bdClick : 0);
           y = this.op1[0].lp(y);
-          const dr = this.v('mod.BD.drive'); if (dr > 0.001) { const k = 1 + 6 * dr; y = Math.tanh(y * k) / Math.tanh(k); }
+          if (this.bdDn > 0) y = Math.tanh(y * this.bdDk) * this.bdDn;
           if (t > sr * 0.05 && Math.abs(r.ic1) + Math.abs(r.ic2) < 1e-6) this.active[0] = 0;
           return y * 0.9;
         }
         case 1: {
-          const b = this.res1[1].tick(pl ? this.pulseH[1] : 0) * (1.1 - 0.6 * this.v('SD.tone')) + this.res2[1].tick(pl ? this.pulseH2[1] : 0) * (0.4 + 0.6 * this.v('SD.tone'));
-          const nz = this.op2[1].lp(this.op1[1].hp(this.noise())) * this.env[1] * this.v('SD.snappy') * 1.6;
+          const r1 = this.res1[1], r2 = this.res2[1], tn = this.sdTone;
+          const b = r1.tick(pl ? this.pulseH[1] : 0) * (1.1 - 0.6 * tn) + r2.tick(pl ? this.pulseH2[1] : 0) * (0.4 + 0.6 * tn);
+          const nz = this.op2[1].lp(this.op1[1].hp(this.noise())) * this.env[1] * this.sdSnap;
           this.env[1] *= this.envC[1];
-          if (t > sr * 1.5) this.active[1] = 0;
+          // done when the noise envelope and both resonators have died away
+          if (t > sr * 0.05 && this.env[1] < 1e-5 && Math.abs(r1.ic1) + Math.abs(r1.ic2) + Math.abs(r2.ic1) + Math.abs(r2.ic2) < 1e-6) this.active[1] = 0;
           return (b * 0.7 + nz) * 0.8;
         }
         case 8: { let x = this.res1[8].tick(pl ? this.pulseH[8] : 0) * 0.8 - this.res2[8].tick(pl ? this.pulseH2[8] : 0) * 0.5;
@@ -292,7 +304,7 @@
         default: {
           // toms / congas
           const j = i - 2, r = this.res1[i];
-          if (this.sw[i] > 1e-4) { this.sw[i] *= this.swC[i]; const dep = j < 3 ? 0.6 * this.v('mod.TOM.sweep') : 0.05;
+          if (this.sw[i] > 1e-4) { this.sw[i] *= this.swC[i]; const dep = j < 3 ? this.tomSweep : 0.05;
             const f = this.tomF[j] * (1 + dep * this.sw[i]); r.set(f, Math.PI * f * this.tomTau[j], sr); }
           y = r.tick(pl ? this.pulseH[i] : 0);
           if (j < 3) { y += this.op1[2].lp(this.noise()) * this.env[i] * 0.25; this.env[i] *= this.envC[i]; }
@@ -316,7 +328,7 @@
             x /= 6;
             if (this.active[13] && !this.smp[13]) {
               const lo = this.f1[13].tick(x) * this.env[13], hi = this.op1[13].hp(x) * this.env2[13]; this.env[13] *= this.envC[13]; this.env2[13] *= this.env2C[13];
-              const tn = this.v('CY.tone'); const y = (lo * (1.2 * (1 - tn) + 0.2) + hi * (0.4 + tn)) * 0.9;
+              const tn = this.cyTone; const y = (lo * (1.2 * (1 - tn) + 0.2) + hi * (0.4 + tn)) * 0.9;
               if (this.env[13] < 1e-5) this.active[13] = 0;
               dry += y * this.gain[13]; rv += y * this.gain[13] * this.rs[13]; dl += y * this.gain[13] * this.ds[13];
             }
