@@ -85,13 +85,14 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .subh{flex:1 0 100%; font:700 13px/1 var(--cond); letter-spacing:1.5px; color:#bfe3c8; margin:8px 0 2px; border-top:1px dashed #ffffff44; padding-top:8px}
 .pots{display:flex; flex-wrap:wrap; gap:10px 6px; align-content:flex-start}
 .tp{width:84px; display:flex; flex-direction:column; align-items:center; gap:4px; touch-action:none; cursor:ns-resize}
-.tp .pot{width:58px; height:58px; border-radius:8px; position:relative; background:linear-gradient(145deg,#4a83ea,var(--trim) 50%,var(--trim2));
-  box-shadow:0 3px 0 #0d2a66, 0 4px 6px #0008}
-.tp .pot::before{content:""; position:absolute; inset:9px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #fff, #cfd6dd 60%, #9aa4ad)}
-.tp .pot b{position:absolute; left:50%; top:11px; width:6px; height:36px; margin-left:-3px; background:#222; border-radius:2px; transform-origin:50% 50%}
-.tp .pot b::after{content:""; position:absolute; left:-13px; top:15px; width:32px; height:6px; background:#222; border-radius:2px}
-.tp.drag .pot{outline:3px solid #ffd25a; outline-offset:2px}
-.tp.mod .pot{background:linear-gradient(145deg,#f0f0f0,#d0d0d0 50%,#a9a9a9); box-shadow:0 3px 0 #555, 0 4px 6px #0008}
+.tp .fd{width:44px; height:130px; position:relative; border-radius:6px; background:linear-gradient(90deg,#0b0d0c,#1d2120 50%,#0b0d0c);
+  box-shadow:inset 0 0 0 2px #050606, 0 2px 4px #0007}
+.tp .fd::before{content:""; position:absolute; left:50%; top:10px; bottom:10px; width:4px; margin-left:-2px; background:#000; border-radius:2px; box-shadow:0 0 0 1px #3a3f3d}
+.tp .fd i{position:absolute; left:6px; right:6px; top:10px; bottom:10px; background:repeating-linear-gradient(#0000 0 11px,#6d7470 11px 12px); opacity:.55}
+.tp .fd b{position:absolute; left:3px; right:3px; height:24px; bottom:calc(var(--n,0) * (100% - 24px)); border-radius:3px;
+  background:linear-gradient(#eae6d8,#bdb7a4 45%,#2a2a2a 46% 54%,#bdb7a4 55%,#9d9784); box-shadow:0 3px 3px #000a}
+.tp.send .fd b{background:linear-gradient(#ff8a4c,#e0531d 45%,#2a2a2a 46% 54%,#e0531d 55%,#b23d10)}
+.tp.drag .fd{outline:3px solid #ffd25a; outline-offset:2px}
 .lab{font:700 14px/1.1 var(--cond); text-align:center; color:#fff; letter-spacing:.2px}
 .tp .lab{min-height:31px; max-width:86px; display:flex; align-items:center}
 .val{font:700 14px/1 var(--cond); color:#ffeeb8; background:#0b1f12; border-radius:4px; padding:3px 6px; min-width:54px; text-align:center; white-space:nowrap}

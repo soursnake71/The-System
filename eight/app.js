@@ -382,7 +382,7 @@ function showBubble(p, on){
   bubble.classList.toggle('on', on);
   if (on) bubble.innerHTML = `<small>${plainLabel(p)}</small>${fmtU(p, S.params[p.k] ?? p.def)}`;
 }
-// one control per parameter: on/off switch, segmented choice (≤4 options), stepper (more options) or trimpot
+// one control per parameter: on/off switch, segmented choice (≤4 options), stepper (more options) or fader
 function trim(parent, p, cls){
   const v = () => S.params[p.k] ?? p.def;
   const n = p.step === 1 ? Math.round(p.max - p.min) + 1 : 0;
@@ -409,18 +409,18 @@ function trim(parent, p, cls){
     boardCtl[p.k] = () => { d.querySelector('.val').textContent = fmtU(p, v()); };
     return;
   }
-  const t = el('div', 'tp' + (cls ? ' ' + cls : ''), parent, `<div class="pot"><b></b></div><div class="lab"></div><div class="val"></div>`);
+  const t = el('div', 'tp' + (cls ? ' ' + cls : ''), parent, `<div class="fd"><i></i><b></b></div><div class="lab"></div><div class="val"></div>`);
   t.querySelector('.lab').textContent = plainLabel(p); t.title = p.k;
   const b = t.querySelector('b'), val = t.querySelector('.val');
-  boardCtl[p.k] = () => { b.style.transform = `rotate(${-135 + 270 * norm(p, v())}deg)`; val.textContent = fmtU(p, v()); };
+  boardCtl[p.k] = () => { t.style.setProperty('--n', norm(p, v())); val.textContent = fmtU(p, v()); };
   let sy = 0, sv = 0, id = null, last = 0;
   t.addEventListener('pointerdown', e => {
     e.preventDefault(); t.setPointerCapture(e.pointerId); id = e.pointerId; sy = e.clientY; sv = norm(p, v());
     const now = performance.now(); if (now - last < 300){ Eight.set(p.k, p.def, true); sv = norm(p, p.def); } last = now;
     t.classList.add('drag'); showBubble(p, true);
   });
-  // board pixels are screen pixels: 200 px of drag covers the whole range
-  t.addEventListener('pointermove', e => { if (e.pointerId !== id) return; Eight.set(p.k, denorm(p, sv + (sy - e.clientY) / 200), true); showBubble(p, true); });
+  // faders: the cap follows the finger, 106 px of travel covers the whole range
+  t.addEventListener('pointermove', e => { if (e.pointerId !== id) return; Eight.set(p.k, denorm(p, sv + (sy - e.clientY) / 106), true); showBubble(p, true); });
   const up = () => { id = null; t.classList.remove('drag'); showBubble(p, false); };
   t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up);
 }
@@ -451,7 +451,7 @@ function buildBoard(){
   for (let i = 0; i < 26; i++){ const y = 80 + i * 42, x = 30 + (i * 137) % 1800; svg += `<path d="M${x} ${y} h${180 + (i * 53) % 260} l40 40 h${120 + (i * 31) % 200}"/>`; }
   svg += '</g></svg>';
   V.insertAdjacentHTML('beforeend', svg);
-  const head = el('div', 'bhead', V, `<span>TR-808 MAIN BOARD</span><small>drag a trimpot up or down · double tap for stock</small><span class="sp"></span>`);
+  const head = el('div', 'bhead', V, `<span>TR-808 MAIN BOARD</span><small>slide a fader · double tap for stock</small><span class="sp"></span>`);
   const rnd = el('button', 'bbtn', head, 'STOCK ALL MODS');
   rnd.addEventListener('click', () => { const p = {}; for (const q of PARAMS) if (/^mod\./.test(q.k)) p[q.k] = q.def; Object.assign(S.params, p); Eight.post({t:'setMany', p}); renderAll(); save(); flash('STOCK CIRCUIT'); });
   const cb0 = el('button', 'bbtn closetop', head, 'CLOSE ▲'); cb0.addEventListener('click', () => fold(false));
