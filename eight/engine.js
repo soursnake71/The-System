@@ -86,7 +86,7 @@
       this.env = new Float64Array(NV); this.env2 = new Float64Array(NV); this.envC = new Float64Array(NV); this.env2C = new Float64Array(NV);
       this.sw = new Float64Array(NV); this.swC = new Float64Array(NV); this.amp = new Float64Array(NV); this.t = new Int32Array(NV);
       this.active = new Uint8Array(NV); this.choke = 0;
-      this.mph = new Float64Array(6); this.mInc = new Float64Array(6); this.cph = new Float64Array(2);
+      this.mph = new Float64Array(6); this.mInc = new Float64Array(6); this.vo = new Float64Array(1); this.cph = new Float64Array(2);
       // samples
       this.smp = []; for (let i = 0; i < NV; i++) this.smp.push(null);
       this.spos = new Float64Array(NV); this.srate = new Float64Array(NV); this.senv = new Float64Array(NV); this.senvC = new Float64Array(NV);
@@ -245,15 +245,17 @@
       else if (i === 15) { this.env[i] = V; this.choke = 1; this.dirty = 1; }
     }
     fireTrig(V) { this.trigHigh = Math.max(1, Math.round(this.v('mod.TRIG.width') * 0.001 * this.sr)); this.trigAmp = V; this.trigFired = 1; this.active[16] = 1; }
+    // writes the voice's sample into this.vo[0] instead of returning it: a double returned from a function this size
+    // is boxed on the heap every call, and that garbage (17 voices x 48000 a second) made the audio thread collect constantly
     voice(i) {
       const sr = this.sr; let y = 0;
       if (this.smp[i]) {
         const d = this.smp[i], p = this.spos[i];
-        if (p >= d.length - 1) { this.active[i] = 0; return 0; }
+        if (p >= d.length - 1) { this.active[i] = 0; { this.vo[0] = 0; return; } }
         const a = Math.floor(p), f = p - a; y = (d[a] + (d[a + 1] - d[a]) * f) * this.senv[i];
         this.spos[i] = p + this.srate[i]; this.senv[i] *= this.senvC[i];
         if (i === 14 && this.choke) this.senv[i] *= 0.995;
-        return y;
+        { this.vo[0] = y; return; }
       }
       const t = this.t[i]++; const pl = t < this.pulseN[i];
       switch (i) {
@@ -265,7 +267,7 @@
           y = this.op1[0].lp(y);
           if (this.bdDn > 0) y = Math.tanh(y * this.bdDk) * this.bdDn;
           if (t > sr * 0.05 && Math.abs(r.ic1) + Math.abs(r.ic2) < 3e-5) this.active[0] = 0;   // about -90 dB
-          return y * 0.9;
+          { this.vo[0] = y * 0.9; return; }
         }
         case 1: {
           const r1 = this.res1[1], r2 = this.res2[1], tn = this.sdTone;
@@ -274,33 +276,33 @@
           this.env[1] *= this.envC[1];
           // done when the noise envelope and both resonators have died away
           if (t > sr * 0.05 && this.env[1] < 1e-4 && Math.abs(r1.ic1) + Math.abs(r1.ic2) + Math.abs(r2.ic1) + Math.abs(r2.ic2) < 3e-5) this.active[1] = 0;
-          return (b * 0.7 + nz) * 0.8;
+          { this.vo[0] = (b * 0.7 + nz) * 0.8; return; }
         }
         case 8: { let x = this.res1[8].tick(pl ? this.pulseH[8] : 0) * 0.8 - this.res2[8].tick(pl ? this.pulseH2[8] : 0) * 0.5;
-          x = this.op1[8].hp(x); if (t > sr * 0.3) this.active[8] = 0; return Math.tanh(2 * x) * 0.55; }
-        case 9: { if (t > sr * 0.3) this.active[9] = 0; return this.res1[9].tick(pl ? this.pulseH[9] : 0) * 0.7; }
+          x = this.op1[8].hp(x); if (t > sr * 0.3) this.active[8] = 0; { this.vo[0] = Math.tanh(2 * x) * 0.55; return; } }
+        case 9: { if (t > sr * 0.3) this.active[9] = 0; { this.vo[0] = this.res1[9].tick(pl ? this.pulseH[9] : 0) * 0.7; return; } }
         case 10: {
           const sp = this.cpSpread;
           if (t < 3 * sp) { if (t % sp === 0) this.env[10] = this.amp[10]; } else if (t === 3 * sp) this.env2[10] = this.amp[10] * 0.7;
           const e = this.env[10] + this.env2[10]; this.env[10] *= this.envC[10]; this.env2[10] *= this.env2C[10];
           if (t > 3 * sp && e < 1e-4) this.active[10] = 0;
-          return this.f1[10].tick(this.noise()) * e * 1.6;
+          { this.vo[0] = this.f1[10].tick(this.noise()) * e * 1.6; return; }
         }
         case 11: { this.env2[11] += (1 - this.env2[11]) * 0.02; const e = this.env[11] * this.env2[11]; this.env[11] *= this.envC[11];
-          this.f1[11].tick(this.noise()); if (this.env[11] < 1e-4) this.active[11] = 0; return this.f1[11].hp * e * 0.9; }
+          this.f1[11].tick(this.noise()); if (this.env[11] < 1e-4) this.active[11] = 0; { this.vo[0] = this.f1[11].hp * e * 0.9; return; } }
         case 12: {
           const f0 = 540 * this.cbT / sr, f1 = 800 * this.cbT / sr;
           this.cph[0] += f0; if (this.cph[0] >= 1) this.cph[0] -= 1; this.cph[1] += f1; if (this.cph[1] >= 1) this.cph[1] -= 1;
           const x = (sq(this.cph[0], f0) + sq(this.cph[1], f1)) * 0.5;
           const e = this.env[12] + this.env2[12]; this.env[12] *= this.envC[12]; this.env2[12] *= this.env2C[12];
           if (e < 1e-4) this.active[12] = 0;
-          return this.op1[12].hp(this.f1[12].tick(x)) * e * 1.2;
+          { this.vo[0] = this.op1[12].hp(this.f1[12].tick(x)) * e * 1.2; return; }
         }
         case 16: {
           const x = this.trigHigh > 0 ? this.trigAmp : 0; if (this.trigHigh > 0) this.trigHigh--;
           const yy = Math.tanh(this.trigHP.hp(x) * 3) * 0.8;
           if (this.trigHigh === 0 && Math.abs(this.trigHP.s - x) < 1e-5) this.active[16] = 0;
-          return yy;
+          { this.vo[0] = yy; return; }
         }
         default: {
           // toms / congas
@@ -310,7 +312,7 @@
           y = r.tick(pl ? this.pulseH[i] : 0);
           if (j < 3) { y += this.op1[2].lp(this.noise()) * this.env[i] * 0.25; this.env[i] *= this.envC[i]; }
           if (t > sr * 0.1 && Math.abs(r.ic1) + Math.abs(r.ic2) < 3e-5) this.active[i] = 0;
-          return y * 0.85;
+          { this.vo[0] = y * 0.85; return; }
         }
       }
     }
@@ -327,7 +329,15 @@
           // shared metal bank for CY, OH, CH
           if (act[13] || act[14] || act[15]) {
             let x = 0;
-            for (let k = 0; k < 6; k++) { const f = mInc[k]; let ph = mph[k] + f; if (ph >= 1) ph -= 1; mph[k] = ph; x += sq(ph, f); }
+            for (let k = 0; k < 6; k++) {
+              const f = mInc[k]; let ph = mph[k] + f; if (ph >= 1) ph -= 1; mph[k] = ph;
+              // sq(ph, f) written out here: called 6 times a sample, its returned double was being boxed on the heap
+              let y = ph < 0.5 ? 1 : -1, t = ph;
+              if (t < f) { t /= f; y += t + t - t * t - 1; } else if (t > 1 - f) { t = (t - 1) / f; y -= t * t + t + t + 1; }
+              t = ph + 0.5; if (t >= 1) t -= 1;
+              if (t < f) { t /= f; y -= t + t - t * t - 1; } else if (t > 1 - f) { t = (t - 1) / f; y += t * t + t + t + 1; }
+              x += y;
+            }
             x /= 6;
             if (this.active[13] && !this.smp[13]) {
               const lo = this.f1[13].tick(x) * this.env[13], hi = this.op1[13].hp(x) * this.env2[13]; this.env[13] *= this.envC[13]; this.env2[13] *= this.env2C[13];
@@ -344,7 +354,7 @@
           for (let i = 0; i < 17; i++) {
             if (!act[i]) continue;
             if ((i >= 13 && i <= 15) && !smp[i]) continue;
-            let y = this.voice(i);
+            this.voice(i); let y = this.vo[0];
             if (drn[i] > 0) y = Math.tanh(y * drk[i]) * drn[i];
             y *= gain[i];
             dry += y; rv += y * rs[i]; dl += y * ds[i];

@@ -180,7 +180,9 @@
       const buf = this.buf, bl = this.bufLen, nT = this.nTaps, tapI = this.tapI, gL = this.tapGL, gR = this.tapGR, lines = this.lines, ll = this.lineLen, dI = this.dI;
       for (let s = off; s < off + n; s++) {
         let x = (inL[s] + inR[s]) * 0.5;
-        x = this.hpfF.hp(this.lpfF.lp(x));
+        // the input LPF then HPF, written out (doubles returned from calls here get boxed on the heap, 48000 times a second)
+        { const lf = this.lpfF; let v = (x - lf.s) * lf.G, y = v + lf.s; lf.s = y + v; x = y;
+          const hf = this.hpfF; v = (x - hf.s) * hf.G; y = v + hf.s; hf.s = y + v; x -= y; }
         const w = this.w;
         buf[w] = x;
         // early reflections (after the predelay)
@@ -209,7 +211,11 @@
           const m = this.ls * 0.0012 * sr * 0.5;
           for (let k = 0; k < 8; k++) {
             let y;
-            if (k === 0 || k === 5) y = this.readLine(k, this.dLen[k] + (k === 0 ? m : -m));
+            if (k === 0 || k === 5) {
+              let r = this.lw - (this.dLen[k] + (k === 0 ? m : -m)); while (r < 0) r += ll; if (r >= ll) r -= ll;
+              const i = Math.floor(r), f = r - i, j = i + 1 >= ll ? 0 : i + 1, Lk = lines[k];
+              y = Lk[i] + (Lk[j] - Lk[i]) * f;
+            }
             else { let r = this.lw - dI[k]; if (r < 0) r += ll; y = lines[k][r]; }
             // one-pole damping: DC gain fb, Nyquist gain fb*(1-p)/(1+p)
             const p = this.dp[k];
@@ -332,13 +338,27 @@
         this.cur += (this.target - this.cur) * this.smooth;
         { const c = this.lc * this.lcw - this.ls * this.lsw; this.ls = this.ls * this.lcw + this.lc * this.lsw; this.lc = c; }
         const mL = this.ls * this.mDepth, mR = this.lc * this.mDepth;
-        const dL = this.readB(this.bL, this.cur + this.mDepth + mL);
-        const dR = this.readB(this.bR, this.cur + this.mDepth + mR);
+        // readB() for both sides, written out: 4-point Hermite at a fractional delay
+        let dL = 0, dR = 0;
+        for (let c = 0; c < 2; c++) {
+          const b = c ? this.bR : this.bL, len = this.len;
+          let r = this.w - (this.cur + this.mDepth + (c ? mR : mL)); while (r < 0) r += len; if (r >= len) r -= len;
+          const i = Math.floor(r), f = r - i;
+          const i0 = i - 1 < 0 ? i - 1 + len : i - 1, i2 = i + 1 >= len ? i + 1 - len : i + 1, i3 = i + 2 >= len ? i + 2 - len : i + 2;
+          const y0 = b[i0], y1 = b[i], y2 = b[i2], y3 = b[i3];
+          const c1 = 0.5 * (y2 - y0), c2 = y0 - 2.5 * y1 + 2 * y2 - 0.5 * y3, c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+          const y = ((c3 * f + c2) * f + c1) * f + y1;
+          if (c) dR = y; else dL = y;
+        }
         const xl = inL[s], xr = inR[s];
         const ax = Math.abs(xl) + Math.abs(xr);
         this.env += (ax - this.env) * (ax > this.env ? this.envAtt : this.envRel);
-        let fL = this.lcL.hp(this.hcL.lp(dL)) * this.fbG;
-        let fR = this.lcR.hp(this.hcR.lp(dR)) * this.fbG;
+        // feedback filters (hi cut lowpass, then low cut highpass) written out
+        let fL, fR;
+        { let o = this.hcL, v = (dL - o.s) * o.G, y = v + o.s; o.s = y + v; let z = y;
+          o = this.lcL; v = (z - o.s) * o.G; y = v + o.s; o.s = y + v; fL = (z - y) * this.fbG;
+          o = this.hcR; v = (dR - o.s) * o.G; y = v + o.s; o.s = y + v; z = y;
+          o = this.lcR; v = (z - o.s) * o.G; y = v + o.s; o.s = y + v; fR = (z - y) * this.fbG; }
         fL = Math.tanh(fL); fR = Math.tanh(fR);
         if (this.pingpong) {
           this.bL[this.w] = (xl + xr) * 0.5 + fR;

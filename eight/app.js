@@ -511,7 +511,7 @@ const slotEls = {}, sampleNames = {};
 function sampleSlot(parent, v){
   const s = el('div', 'slotx', parent, `<b>${v}</b><span class="nm">circuit</span><button>LOAD</button><button class="clr">✕</button>`);
   const [ld, cl] = s.querySelectorAll('button');
-  ld.addEventListener('click', () => { const f = el('input'); f.type = 'file'; f.accept = 'audio/*,video/*'; f.onchange = () => f.files[0] && loadSample(v, f.files[0]); f.click(); });
+  ld.addEventListener('click', () => { const f = el('input'); f.type = 'file'; f.accept = 'audio/*,video/*'; f.style.display = 'none'; document.body.appendChild(f); /* some Android WebViews only open the chooser for an input in the page */ f.onchange = () => { if (f.files[0]) loadSample(v, f.files[0]); f.remove(); }; f.click(); });
   cl.addEventListener('click', () => { delete sampleNames[v]; Eight.post({t:'sample', v, clear:true}); idb('delete', v); slotEls[v](); });
   slotEls[v] = () => { s.classList.toggle('has', !!sampleNames[v]); s.querySelector('.nm').textContent = sampleNames[v] || 'circuit'; };
 }

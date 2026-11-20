@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Engine tests (every voice rendered, levels, accent, NaN)
-        run: node eight/tools/test.mjs "$RUNNER_TEMP/wav"
+        run: node eight/tools/params-check.mjs && node eight/tools/worklet-check.mjs && node eight/tools/test.mjs "$RUNNER_TEMP/wav"
       - name: Presets check
         run: node eight/tools/presets-check.mjs
   plugins:

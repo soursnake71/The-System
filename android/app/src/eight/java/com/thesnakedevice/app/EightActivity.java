@@ -67,8 +67,23 @@ public class EightActivity extends Activity {
       @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
         if (pending != null) pending.onReceiveValue(null);
         pending = cb;
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
-          .putExtra(Intent.EXTRA_MIME_TYPES, new String[] {"audio/*", "application/octet-stream", "application/json", "audio/midi", "audio/x-midi"});
+        // honour the page's accept="..." (audio/* for sample slots, .json for presets, .mid for MIDI files) and multiple
+        java.util.ArrayList<String> mimes = new java.util.ArrayList<>();
+        for (String t : p.getAcceptTypes()) for (String one : t.split(",")) {
+          String m = one.trim().toLowerCase();
+          if (m.isEmpty()) continue;
+          if (m.startsWith(".")) {
+            String ext = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(m.substring(1));
+            m = ext != null ? ext : (m.equals(".json") ? "application/json" : m.equals(".mid") || m.equals(".midi") ? "audio/midi" : null);
+            if (m == null) continue;
+          }
+          if (!mimes.contains(m)) mimes.add(m);
+        }
+        // audio files often arrive as octet-stream from file managers and cloud drives
+        if (mimes.contains("audio/*") && !mimes.contains("application/octet-stream")) mimes.add("application/octet-stream");
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+        if (!mimes.isEmpty()) i.putExtra(Intent.EXTRA_MIME_TYPES, mimes.toArray(new String[0]));
+        if (p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         try { startActivityForResult(i, PICK); }
         catch (ActivityNotFoundException e) { pending = null; cb.onReceiveValue(null); toast("No file picker on this device"); }
         return true;
@@ -230,7 +245,12 @@ public class EightActivity extends Activity {
   @Override protected void onActivityResult(int req, int res, Intent data) {
     if (req != PICK || pending == null) { super.onActivityResult(req, res, data); return; }
     Uri[] out = null;
-    if (res == RESULT_OK && data != null && data.getData() != null) out = new Uri[] { data.getData() };
+    if (res == RESULT_OK && data != null) {
+      if (data.getClipData() != null) {
+        out = new Uri[data.getClipData().getItemCount()];
+        for (int k = 0; k < out.length; k++) out[k] = data.getClipData().getItemAt(k).getUri();
+      } else if (data.getData() != null) out = new Uri[] { data.getData() };
+    }
     pending.onReceiveValue(out); pending = null;
   }
 
