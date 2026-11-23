@@ -608,10 +608,10 @@ std::vector<double> hfEnv(const std::vector<float>& x, int win) {
     for (size_t i = 0; i + (size_t) win <= x.size(); i += kHop) e.push_back(c[i + (size_t) win] - c[i]);
     return e;
 }
-struct Hit { int k8 = 0; double peak = 0, echo = 0; };
-// Every 8th-note hit of the drum loop in a keylocked render (found around where the timeline says it should be):
-// its HF envelope peak (1 ms windows) and the biggest re-rise of the envelope (2 ms windows) within 40 ms either side
-// of the peak, relative to the peak: a doubled / flammed onset or a pre-echo shows up as a second attack.
+struct Hit { int k8 = 0; double peak = 0; std::vector<double> shape; };
+// Every 8th-note hit of the drum loop in a keylocked render, found around where the timeline says it should be: its
+// HF envelope peak (1 ms windows) and its envelope shape (2 ms windows, +-40 ms around the peak, relative to it).
+constexpr long kShapeR = 40 * 48 / kHop;
 std::vector<Hit> findHits(const Track& src, const std::vector<float>& out, const std::vector<double>& posAt, int block) {
     const std::vector<double> e1 = hfEnv(out, 48), e2 = hfEnv(out, 96);
     const double e8 = 30.0 / src.bpm;
@@ -622,36 +622,42 @@ std::vector<Hit> findHits(const Track& src, const std::vector<float>& out, const
         if (te > posAt.back() - 0.1) break;
         size_t b = 0; while (b + 1 < posAt.size() && posAt[b + 1] < te) ++b;   // output block where the timeline gets there
         const double oi = ((double) b + (te - posAt[b]) / std::max(1e-9, posAt[b + 1] - posAt[b])) * block;
-        const long c = (long) (oi / kHop), R = 40 * 48 / kHop;
+        const long c = (long) (oi / kHop);
         long pk = -1; double pv = 0;
-        for (long f = c - R; f <= c + R; ++f) if (f >= 0 && f < (long) e1.size() && e1[(size_t) f] > pv) { pv = e1[(size_t) f]; pk = f; }
-        if (pk < 0 || pv <= 0) continue;
+        for (long f = c - kShapeR; f <= c + kShapeR; ++f) if (f >= 0 && f < (long) e1.size() && e1[(size_t) f] > pv) { pv = e1[(size_t) f]; pk = f; }
+        if (pk < kShapeR + 8 || pv <= 0 || pk + kShapeR + 8 >= (long) e2.size()) continue;
         long p2 = pk - 2; double p2v = 0;   // the 2 ms envelope's own peak next to the 1 ms one
-        for (long f = pk - 6; f <= pk + 2; ++f) if (f >= 0 && f < (long) e2.size() && e2[(size_t) f] > p2v) { p2v = e2[(size_t) f]; p2 = f; }
-        double echo = 0, mn = 1e30;
-        for (long f = p2; f <= p2 + R && f < (long) e2.size(); ++f) if (f >= 0) { mn = std::min(mn, e2[(size_t) f]); echo = std::max(echo, e2[(size_t) f] - mn); }
-        mn = 1e30;
-        for (long f = p2; f >= p2 - R && f >= 0; --f) if (f < (long) e2.size()) { mn = std::min(mn, e2[(size_t) f]); echo = std::max(echo, e2[(size_t) f] - mn); }
-        Hit h; h.k8 = k8; h.peak = pv; h.echo = echo / std::max(p2v, 1e-30);
+        for (long f = pk - 6; f <= pk + 2; ++f) if (e2[(size_t) f] > p2v) { p2v = e2[(size_t) f]; p2 = f; }
+        Hit h; h.k8 = k8; h.peak = pv;
+        for (long f = p2 - kShapeR; f <= p2 + kShapeR; ++f) h.shape.push_back(e2[(size_t) f] / p2v);
         hs.push_back(h);
     }
     return hs;
 }
 struct HitStats { double worstEcho = -99, meanEcho = 0, worstPeak = 99, meanPeak = 0; int hits = 0, doubled = 0; };
-// the hits of a render against the same hits of a reference render (key lock at pitch 0: the source itself)
+// The hits of a render against the same hits in a reference render (key lock at pitch 0: the source itself).
+// echo: the most envelope energy, 3..40 ms before or after the peak, beyond what the reference hit has there,
+// relative to the peak: a doubled / flammed attack or a pre-echo. peak: the attack's level (smearing loses it).
 HitStats hitStats(const std::vector<Hit>& out, const std::vector<Hit>& ref) {
     HitStats h; double sumE = 0, sumP = 0;
+    const long g = 3 * 48 / kHop;
     for (const Hit& o : out) {
         const Hit* r = nullptr;
         for (const Hit& x : ref) if (x.k8 == o.k8) r = &x;
         if (!r) continue;
-        // echo: how much more second-attack energy than the same hit has at pitch 0 (its own body / neighbours)
-        const double echoDb = 10 * std::log10(std::max(o.echo, 1e-6) / std::max(r->echo, 1e-6)), peakDb = 10 * std::log10(o.peak / r->peak);
-        if (std::getenv("WHEEL_DEBUG") && (echoDb > 3 || peakDb < -1))
-            std::printf("    hit %d (%s): echo %+.1f dB (%.1f vs %.1f) peak %.2f dB\n", o.k8, o.k8 % 2 ? "hat" : (o.k8 / 2) % 2 ? "snare" : "kick", echoDb,
-                        10 * std::log10(std::max(o.echo, 1e-12)), 10 * std::log10(std::max(r->echo, 1e-12)), peakDb);
+        double ex = 1e-6; long at = 0;
+        for (long k = 0; k < (long) o.shape.size(); ++k) {
+            if (std::abs(k - kShapeR) < g) continue;
+            double rv = 0;   // the reference within +-0.5 ms (peak alignment is only as good as a hop or two)
+            for (long j = std::max(0L, k - 2); j <= std::min((long) r->shape.size() - 1, k + 2); ++j) rv = std::max(rv, r->shape[(size_t) j]);
+            const double v = o.shape[(size_t) k] - rv;
+            if (v > ex) { ex = v; at = k - kShapeR; }
+        }
+        const double echoDb = 10 * std::log10(ex), peakDb = 10 * std::log10(o.peak / r->peak);
+        if (std::getenv("WHEEL_DEBUG") && (echoDb > -15 || peakDb < -1))
+            std::printf("    hit %d (%s): echo %.1f dB at %+.1f ms, peak %.2f dB\n", o.k8, o.k8 % 2 ? "hat" : (o.k8 / 2) % 2 ? "snare" : "kick", echoDb, at * kHop / 48.0, peakDb);
         h.worstEcho = std::max(h.worstEcho, echoDb); h.worstPeak = std::min(h.worstPeak, peakDb);
-        if (echoDb > 6) ++h.doubled;
+        if (echoDb > -10) ++h.doubled;
         sumE += echoDb; sumP += peakDb; ++h.hits;
     }
     if (h.hits) { h.meanEcho = sumE / h.hits; h.meanPeak = sumP / h.hits; }
@@ -701,7 +707,7 @@ static void testKeylockTransients(const std::string& wavDir) {
             keylockRender(*t, 0.0, 10.0, r0, pos0);
             const HitStats h = hitStats(findHits(**t, r.L, posAt, 64), findHits(**t, r0.L, pos0, 64));
             const std::string nm = fmt("keylock %+.0f %% drums (%.1f kHz): one sharp attack per hit", pct, (*t)->sr / 1000);
-            check(h.hits > 20 && h.doubled == 0 && h.worstEcho < 6 && h.meanEcho < 1.5 && h.worstPeak > -1.5 && h.meanPeak > -0.75, nm.c_str(),
+            check(h.hits > 20 && h.doubled == 0 && h.meanEcho < -20 && h.worstPeak > -1.5 && h.meanPeak > -0.75, nm.c_str(),
                   fmt("%.0f hits, %.0f doubled; echo worst %+.1f", (double) h.hits, (double) h.doubled, h.worstEcho) + fmt(" / mean %+.1f dB; peak worst %.2f / mean %.2f dB", h.meanEcho, h.worstPeak, h.meanPeak));
         }
     }
