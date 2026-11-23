@@ -131,6 +131,11 @@ endforeach()
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
 add_executable(twelve_test twelve/test.cpp)
 
+# Omega 808's C++ engine (eight/Engine.h, Fx.h, Seq.h) against the app's JS: node eight/tools/compare.mjs <build>/eight_test <dir>
+if(NOT OMEGA_ONLY OR "Eight" IN_LIST OMEGA_ONLY)
+  add_executable(eight_test eight/test.cpp)
+endif()
+
 # drives the Twelve processor directly (sampler, MIDI, exports, analysis): <build>/twelve_proc_test <dir>
 if(TARGET OmegaTwelve)
   juce_add_console_app(twelve_proc_test PRODUCT_NAME "twelve_proc_test")
