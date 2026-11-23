@@ -2675,8 +2675,13 @@ void WheelEditor::refresh() { d->snapshot(); d->mpc.timerCallback(); }
    format of the MPC Sample's display (DRM XR24). Returns 1 when drawn, 0 when there is no instance. Call it at the
    frame rate you want (about 20 fps suits the SPI panel), never from the audio thread. Find it with dlsym() on the
    plugin's .so. omega_wheel_api_version() returns 1. */
-extern "C" __attribute__((visibility("default"))) int omega_wheel_api_version() { return 1; }
-extern "C" __attribute__((visibility("default"))) int omega_wheel_screen(uint32_t* pixels, int width, int height, int strideBytes)
+#if defined(_WIN32)
+ #define OMEGA_WHEEL_EXPORT __declspec(dllexport)
+#else
+ #define OMEGA_WHEEL_EXPORT __attribute__((visibility("default")))
+#endif
+extern "C" OMEGA_WHEEL_EXPORT int omega_wheel_api_version() { return 1; }
+extern "C" OMEGA_WHEEL_EXPORT int omega_wheel_screen(uint32_t* pixels, int width, int height, int strideBytes)
 {
     using namespace juce;
     if (pixels == nullptr || width <= 0 || height <= 0 || strideBytes < width * 4) return 0;
