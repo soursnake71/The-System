@@ -29,6 +29,14 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## MXR Flanger (`/flanger/`): M-117 circuit model
+The MXR M-117 Flanger, with a photo of the real pedal as the panel: turn the knobs on the photo, stomp the footswitch to bypass.
+- Circuit model, block by block: input coupling, 2-pole anti-alias filter, a 1024-stage bucket-brigade delay simulated tick by tick at its own clock (42 kHz to 2 MHz, so 0.25 to 12 ms, darker and grittier at long delays like the hardware), charge-transfer loss, bucket clipping and BBD hiss, a triangle LFO (SPEED, 16 s to 1/6 s per sweep) driving the clock VCO around MANUAL by WIDTH, the reconstruction filter, the REGEN loop back into the BBD, and the 50/50 dry/delay mix. Component values are approximations chosen to match the pedal's published delay and sweep ranges, not read off a schematic.
+- Extras beyond the pedal: Mix (50% is stock; 100% gives vibrato), Stereo (LFO offset between left and right) and Level.
+- 40 presets (`flanger/presets.json`), including "As Found (Photo)": the knob positions in the photo.
+- One engine in two languages: `plugins/flanger/M117.h` (plugin) and `flanger/engine.js` (app); `node flanger/tools/compare.mjs build/flanger_test <dir>` checks they render identical samples for every preset.
+- Android app (`mxr-flanger.apk`), VST3 for Windows / Mac / Linux (plus AU and a standalone app) and a source zip are in the `mxr-flanger` release, built by `.github/workflows/flanger-release.yml`. Web: `https://<your-username>.github.io/<repo>/flanger/`.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 
