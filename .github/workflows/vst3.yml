@@ -6,6 +6,15 @@ on:
     branches: [main]
     paths: ['plugins/**', 'twelve/engine.js', 'twelve/sp1200.js', 'twelve/tools/compare.mjs', '.github/workflows/vst3.yml']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Attach the zips to the vst3-latest release (off: only keep them as run artifacts)'
+        type: boolean
+        default: true
+      only:
+        description: 'Build only these plugin targets, e.g. Wheel (empty: all)'
+        type: string
+        default: ''
 permissions:
   contents: write
 jobs:
@@ -28,11 +37,11 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev xvfb patchelf
       - name: Configure
-        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake }}
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake }} ${{ inputs.only != '' && format('-DOMEGA_ONLY={0}', inputs.only) || '' }}
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Test Omega Twelve (C++ engine against the app's engine.js)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && (inputs.only == '' || inputs.only == null || contains(inputs.only, 'Twelve'))
         run: node twelve/tools/compare.mjs build/twelve_test "$RUNNER_TEMP"
       - name: Test Omega Wheel of Steel (decks, mixer, crates, Serato tags, analysis)
         if: runner.os == 'Linux'
@@ -73,6 +82,7 @@ jobs:
         with: {name: 'Omega-Plugins-${{ matrix.name }}', path: 'Omega-Plugins-${{ matrix.name }}.zip'}
   publish:
     needs: build
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
