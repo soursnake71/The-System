@@ -131,6 +131,30 @@ endforeach()
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>
 add_executable(twelve_test twelve/test.cpp)
 
+# Omega 808: the circuit-modelled TR-808 (eight/ in the app) as an instrument with MIDI in and out, plus a standalone app.
+# The editor's faceplate is the app's photo (eight/faceplate.jpg).
+if(NOT OMEGA_ONLY OR "Eight" IN_LIST OMEGA_ONLY)
+  juce_add_plugin(OmegaEight
+    PRODUCT_NAME "Omega 808"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Eight"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Oe08
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Drum
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  juce_add_binary_data(OmegaEightData SOURCES ../eight/faceplate.jpg)
+  target_sources(OmegaEight PRIVATE eight/EightPlugin.cpp eight/EightEditor.cpp)
+  target_compile_definitions(OmegaEight PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(OmegaEight PRIVATE OmegaEightData juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+
 # Omega 808's C++ engine (eight/Engine.h, Fx.h, Seq.h) against the app's JS: node eight/tools/compare.mjs <build>/eight_test <dir>
 if(NOT OMEGA_ONLY OR "Eight" IN_LIST OMEGA_ONLY)
   add_executable(eight_test eight/test.cpp)

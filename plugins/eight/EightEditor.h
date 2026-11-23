@@ -78,6 +78,14 @@ private:
     void layoutPage();
 };
 
+/** faders with a cream (or orange, for sends) cap like the app's, and bold button text */
+class EightLnF : public juce::LookAndFeel_V4 {
+public:
+    void drawLinearSlider(juce::Graphics&, int x, int y, int w, int h, float pos, float minPos, float maxPos, juce::Slider::SliderStyle, juce::Slider&) override;
+    int getSliderThumbRadius(juce::Slider&) override { return 14; }
+    juce::Font getTextButtonFont(juce::TextButton&, int h) override { return juce::Font(juce::FontOptions(juce::jmin(20.f, h * 0.42f), juce::Font::bold)); }
+};
+
 class EightEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit EightEditor(EightProcessor&);
@@ -88,9 +96,9 @@ public:
     EightProcessor& proc;
 private:
     void timerCallback() override;
+    EightLnF lnf;   // first, so it outlives the views that use it
     FaceView face;
     BoardView board;
-    juce::LookAndFeel_V4 lnf;
 };
 
 }  // namespace eight

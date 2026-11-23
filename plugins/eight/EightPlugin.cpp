@@ -27,7 +27,7 @@ static constexpr int kTrigNote = 76, kOutCh = 10;
 juce::AudioProcessorValueTreeState::ParameterLayout EightProcessor::layout() {
     juce::AudioProcessorValueTreeState::ParameterLayout l;
     for (auto& p : params()) {
-        const juce::String id = paramId(p.k), name = juce::String(p.group) + " " + p.label;
+        const juce::String id = paramId(p.key), name = juce::String(p.group) + " " + p.label;
         if (!p.opts.empty()) {
             juce::StringArray o; for (auto& s : p.opts) o.add(s);
             l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{id, 1}, name, o, juce::jlimit(0, o.size() - 1, (int) std::lround(p.def - p.min))));
@@ -48,7 +48,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EightProcessor::layout() {
 EightProcessor::EightProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "Omega808", layout()) {
-    for (auto& p : params()) raw.push_back({p.k, apvts.getRawParameterValue(paramId(p.k))});
+    for (auto& p : params()) raw.push_back({p.key, apvts.getRawParameterValue(paramId(p.key))});
     last.assign(raw.size(), -1e9f);
     pSync = apvts.getRawParameterValue("syncHost"); pRun = apvts.getRawParameterValue("run"); pTempo = apvts.getRawParameterValue("tempo");
     pVar = apvts.getRawParameterValue("variation"); pIfVar = apvts.getRawParameterValue("ifVariation");
@@ -67,7 +67,7 @@ void EightProcessor::prepareToPlay(double rate, int) {
     m = std::make_unique<Machine>(rate);
     std::fill(last.begin(), last.end(), -1e9f);
     pushParams(true);
-    m->seq.setBank(bank);
+    m->setBank(bank);
     lastVar = lastIfVar = lastBasic = -1;
     applySelect();
     {
@@ -84,7 +84,7 @@ void EightProcessor::pushParams(bool all) {
         if (all || v != last[i]) {
             last[i] = v;
             const auto& p = params()[i];
-            m->eng.set(raw[i].first, p.opts.empty() ? (double) v : p.min + v);   // a choice's raw value is its index
+            m->set(raw[i].first, p.opts.empty() ? (double) v : p.min + v);   // a choice's raw value is its index (Machine::set routes swing to the sequencer)
         }
     }
 }
@@ -120,7 +120,7 @@ void EightProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
         }
         hostWasPlaying = play;
     }
-    if (bpm != lastBpm) { lastBpm = bpm; m->seq.setTempo(bpm); m->eng.set("tempo", bpm); tempoShown = bpm; }
+    if (bpm != lastBpm) { lastBpm = bpm; m->setTempo(bpm); tempoShown = bpm; }
     if (play != m->seq.playing()) { m->seq.play(play); if (!play) runStep = -1; }
     running = play;
 
@@ -135,7 +135,7 @@ void EightProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
         if (upTo <= pos) return;
         const int base = pos;
         m->process(L + pos, R + pos, upTo - pos, [&](int off, const StepInfo& s) {
-            runStep = s.step; runRhythm = s.rhythm;
+            runStep = s.step; runRhythm = basic.load();
             const int at = juce::jlimit(0, n - 1, base + off), len = (int) (sr * 0.05);
             for (auto& h : s.hits) {
                 const int note = voiceNote(h); if (note < 0) continue;
@@ -197,13 +197,16 @@ bool EightProcessor::getStep(int t, int s) {
 void EightProcessor::toggleStep(int t, int s) {
     const juce::ScopedLock l(getCallbackLock());
     auto& p = editPat(bank, basic.load(), (int) pVar->load());
-    if (mode.load() == 1 && p.parts < 2) p.parts = 2;
+    const bool grew = mode.load() == 1 && p.parts < 2;
+    if (grew) p.parts = 2;
     const int total = p.len * p.parts, i = s + (mode.load() == 1 ? p.len : 0);
     if (i >= total) return;
     auto& str = p.steps[TRACKS[t]];
     if ((int) str.size() < total) str.resize((size_t) total, '.');
     str[(size_t) i] = str[(size_t) i] == 'x' ? '.' : 'x';
-    if (m) m->seq.setBank(bank);
+    // edit in place (setBank would also reset the tempo to the bank's)
+    if (m && grew) { m->setBank(bank); lastBpm = 0; }
+    else if (m) m->seq.edit(false, basic.load(), (int) pVar->load() == 2 ? 'B' : 'A', TRACKS[t], i, str[(size_t) i] == 'x');
 }
 void EightProcessor::selectRhythm(int b) { basic = juce::jlimit(0, 11, b); }
 void EightProcessor::hit(const juce::String& v, bool acc) {
@@ -280,7 +283,7 @@ void EightProcessor::bankFromVar(const juce::var& v) {
     b.tempo = (double) v.getProperty("tempo", 120.0); b.swing = (double) v.getProperty("swing", 0.0); b.fillEvery = (int) v.getProperty("fillEvery", 0);
     const juce::ScopedLock l(getCallbackLock());
     bank = b;
-    if (m) m->seq.setBank(bank);
+    if (m) { m->setBank(bank); lastBpm = 0; }   // our tempo (host or knob) goes back in on the next block
 }
 
 /* ---------------- programs: the app's banks and kits ---------------- */
