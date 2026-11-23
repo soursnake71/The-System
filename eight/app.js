@@ -667,6 +667,42 @@ $('#psearch').addEventListener('input', renderPresetList);
 $('#prandom').addEventListener('click', () => { Eight.start(); randomPreset(); });
 $('#psave').addEventListener('click', () => { const name = prompt('Name for this preset'); if (!name) return; const u = userPresets(); u.push({name, cat:'Mine', params:Object.assign({}, S.params), bank:S.bank, tempo:bpm()}); localStorage.setItem(USTORE, JSON.stringify(u)); ptab = 'Mine'; openPresets(); });
 $('#xgo').addEventListener('click', exportWav);
+/* ---------------- MIDI files: import to the drum tracks, export the rhythms (midifile.js) ---------------- */
+function saveBytes(u8, name, mime){
+  if (window.AndroidEight && AndroidEight.save){
+    let bin = ''; for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return AndroidEight.save(btoa(bin), name, mime);
+  }
+  const a = el('a'); a.href = URL.createObjectURL(new Blob([u8], {type:mime})); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  return name;
+}
+async function importMidi(file){
+  try {
+    const mf = EightMidiFile.parse(await file.arrayBuffer());
+    const thr = (window.EightMidi && EightMidi.state && EightMidi.state.accThr) || 100;
+    const r = EightMidiFile.toPatterns(mf, {accThr:thr});
+    if (!r.patterns.length || !r.used) { toast('No drum notes found in ' + file.name); return; }
+    const b = JSON.parse(JSON.stringify(S.bank));
+    r.patterns.forEach((p, i) => { b.basic[i] = {A:p, B:JSON.parse(JSON.stringify(p))}; });
+    Eight.loadBank(b, r.tempo ? Math.round(r.tempo) : null);
+    if (Eight.selectRhythm) Eight.selectRhythm({basic:0, variation:'A'});
+    $('#presets').close && $('#presets').close();
+    toast(`${file.name}: ${r.patterns.length} bar${r.patterns.length > 1 ? 's' : ''} into rhythms 1-${r.patterns.length}` +
+      (r.tempo ? `, ${Math.round(r.tempo)} BPM` : '') + `, channel ${r.ch}` + (r.skipped ? `, ${r.skipped} notes with no 808 voice skipped` : '') +
+      (r.dropped ? `, ${r.dropped} bars past 12 left out` : ''));
+  } catch (e) { toast("Couldn't read that MIDI file: " + e.message); }
+}
+$('#pmidiin').addEventListener('click', () => {
+  const f = el('input'); f.type = 'file'; f.accept = '.mid,.midi,audio/midi,audio/x-midi,audio/mid'; f.style.display = 'none'; document.body.appendChild(f);
+  f.onchange = () => { if (f.files[0]) importMidi(f.files[0]); f.remove(); }; f.click();
+});
+$('#pmidiout').addEventListener('click', () => {
+  const pats = [], has = p => p && Object.keys(p.steps || {}).some(k => k !== 'AC' && /x/.test(p.steps[k]));
+  for (const r of S.bank.basic){ if (has(r.A)) pats.push(r.A); if (has(r.B) && JSON.stringify(r.B.steps) !== JSON.stringify(r.A.steps)) pats.push(r.B); }
+  if (!pats.length) { toast('No rhythms with notes to export'); return; }
+  const name = `Omega-808-${Math.round(bpm())}bpm.mid`;
+  toast('Saved: ' + saveBytes(EightMidiFile.build(pats, bpm()), name, 'audio/midi'));
+});
 if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'appassets.androidplatform.net') navigator.serviceWorker.register('sw.js').catch(() => {});
 
 loadState();
