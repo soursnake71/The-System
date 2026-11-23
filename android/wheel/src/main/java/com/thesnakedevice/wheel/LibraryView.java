@@ -242,6 +242,19 @@ final class LibraryView extends LinearLayout {
             trackAdapter.notifyDataSetChanged();
         } else if (selected != null) cb.load(deck, selected);
     }
+    /** MixTrack Go browse push: in the crates, go into the tracks (first one selected); in the tracks, nothing. */
+    void midiEnter() {
+        if (focusList != 0) return;
+        focusList = 1;
+        if (selected == null && !shown.isEmpty()) selected = shown.get(0);
+        trackAdapter.notifyDataSetChanged();
+        crateAdapter.notifyDataSetChanged();
+    }
+    /** A track went on a deck from the controller (LOAD A / B): the A / B marks follow. */
+    void markLoaded(int deck, String rel) {
+        deckPaths[deck] = rel;
+        trackAdapter.notifyDataSetChanged();
+    }
     void midiBack() {
         if (focusList == 1) { focusList = 0; trackAdapter.notifyDataSetChanged(); crateAdapter.notifyDataSetChanged(); }
         else cb.closeLibrary();

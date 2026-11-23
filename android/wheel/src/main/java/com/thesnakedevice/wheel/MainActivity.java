@@ -25,8 +25,8 @@ import android.widget.TextView;
  * the background (BACK only sends the app behind; it does not stop the mix); it stops in onDestroy. While it runs,
  * {@link PlaybackService} keeps the process in the foreground so Android doesn't kill the mix in the background.
  */
-public final class MainActivity extends Activity implements WheelView.Host, LibraryView.Callbacks, Library.Listener {
-    private static final int REQ_TREE = 7, REQ_NOTIFY = 8;
+public final class MainActivity extends Activity implements WheelView.Host, LibraryView.Callbacks, Library.Listener, BleView.Callbacks {
+    private static final int REQ_TREE = 7, REQ_NOTIFY = 8, REQ_BLE = 9;
 
     private SharedPreferences prefs;
     private final Ctl ctl = new Ctl();
@@ -35,6 +35,8 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
     private MidiIn midi;
     private WheelView wheel;
     private LibraryView libView;
+    private BleView bleView;
+    private BleMidi ble;
     private boolean engineStarted;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private volatile boolean libOpen;
@@ -63,6 +65,8 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
             @Override public void select(int deck) { ui.post(() -> { if (libView != null) libView.midiSelect(deck); }); }
             @Override public void back() { ui.post(() -> { if (libView != null) libView.midiBack(); }); }
             @Override public boolean isOpen() { return libOpen; }
+            @Override public void enter() { ui.post(() -> { if (libView != null) libView.midiEnter(); }); }
+            @Override public void load(int deck) { ui.post(() -> loadFromBrowser(deck)); }
         };
 
         FrameLayout root = new FrameLayout(this);
@@ -72,6 +76,14 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
         libView = new LibraryView(this, library, this);
         libView.setVisibility(View.GONE);
         root.addView(libView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        bleView = new BleView(this, this);
+        bleView.setVisibility(View.GONE);
+        root.addView(bleView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        ble = new BleMidi(this);
+        ble.listener = new BleMidi.Listener() {
+            @Override public void onFound(java.util.List<BleMidi.Found> all) { bleView.setDevices(all); }
+            @Override public void onScanState(boolean scanning, String message) { bleView.setStatus(scanning, message); }
+        };
         setContentView(root);
 
         // the folder chosen last time, if Android still lets us read it
@@ -103,6 +115,10 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
         super.onRequestPermissionsResult(req, perms, results);
         // granted or not, the service is already running; with permission its notification now shows
         if (req == REQ_NOTIFY && serviceStarted) PlaybackService.start(this);
+        if (req == REQ_BLE) {
+            if (BleMidi.granted(this)) { showBle(); bleScan(); }
+            else { showBle(); bleView.setStatus(false, "Bluetooth MIDI needs the Nearby devices (Bluetooth) permission"); }
+        }
     }
 
     private void showFatal(String msg) {
@@ -165,6 +181,7 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
         if (serviceStarted) { PlaybackService.stop(this); serviceStarted = false; }
         if (loader != null) {
             ctl.save();
+            ble.stop();
             midi.stop();
             loader.shutdown();
             library.shutdown();
@@ -175,6 +192,7 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
 
     @SuppressWarnings("deprecation")
     @Override public void onBackPressed() {
+        if (bleView != null && bleView.getVisibility() == View.VISIBLE) { bleClose(); return; }
         if (libOpen) { closeLibrary(); return; }
         if (wheel != null && wheel.sheetOpen()) { wheel.closeSheet(); return; }
         moveTaskToBack(true);   // never stop the mix by accident
@@ -208,10 +226,91 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
     @Override public String midiStatus() {
         String s = midi != null ? midi.status : "";
         if (ctl.sampleSeen) s += "  ·  MPC Sample: deck " + (ctl.focus == 0 ? "A" : "B");
+        if (ctl.mixtrackSeen) s += "  ·  jog " + (ctl.vinyl[0] ? "VINYL" : "NUDGE") + " / " + (ctl.vinyl[1] ? "VINYL" : "NUDGE")
+                + (ctl.filterLow ? "  ·  knob LOW" : "");
         return s;
     }
 
     @Override public TrackLoader loader() { return loader; }
+
+    // ---- BLUETOOTH MIDI (SETUP sheet): permissions are asked only now, when the button is pressed
+    @Override public void bluetoothMidi() {
+        if (ble == null) return;
+        if (!BleMidi.supported(this)) { showBle(); bleView.setStatus(false, "This device has no Bluetooth LE MIDI"); return; }
+        if (!BleMidi.granted(this)) {
+            try { requestPermissions(BleMidi.permissions(), REQ_BLE); } catch (RuntimeException e) { showBle(); }
+            return;
+        }
+        showBle();
+        bleScan();
+    }
+
+    /** Shows the Bluetooth MIDI screen (no scan). */
+    void showBle() {
+        if (bleView == null) return;
+        if (wheel != null) { wheel.closeSheet(); wheel.releaseAll(); }
+        bleView.setReconnect(prefs.getString("bleAddr", null) == null ? null : prefs.getString("bleName", prefs.getString("bleAddr", null)));
+        bleView.setDevices(ble.found());
+        bleView.setVisibility(View.VISIBLE);
+    }
+
+    @Override public void bleClose() {
+        if (ble != null) ble.stop();
+        if (bleView != null) bleView.setVisibility(View.GONE);
+        immersive();
+    }
+
+    @Override public void bleScan() {
+        if (ble == null) return;
+        if (!BleMidi.granted(this)) { bluetoothMidi(); return; }
+        ble.start();
+    }
+
+    @Override public void bleConnect(BleMidi.Found f) {
+        if (f == null || f.device == null || midi == null) return;
+        ble.stop();
+        bleView.connecting = f.address;
+        bleView.setDevices(ble.found());
+        bleView.setStatus(false, "Connecting to " + f.label() + "…");
+        connectBle(f.device, f.address, f.label());
+    }
+
+    @Override public void bleReconnect() {
+        String addr = prefs.getString("bleAddr", null);
+        if (addr == null || ble == null || midi == null) return;
+        if (!BleMidi.granted(this)) { bluetoothMidi(); return; }
+        android.bluetooth.BluetoothAdapter a = ble.adapter();
+        if (a == null || !a.isEnabled()) { bleView.setStatus(false, "Bluetooth is off: switch it on first"); return; }
+        android.bluetooth.BluetoothDevice d;
+        try { d = a.getRemoteDevice(addr); } catch (IllegalArgumentException e) { return; }
+        ble.stop();
+        String name = prefs.getString("bleName", addr);
+        bleView.connecting = addr;
+        bleView.setStatus(false, "Connecting to " + name + "…");
+        connectBle(d, addr, name);
+    }
+
+    private void connectBle(android.bluetooth.BluetoothDevice d, String addr, String label) {
+        midi.openBluetooth(d, (ok, name) -> ui.post(() -> {
+            bleView.connecting = null;
+            if (ok) {
+                String n = name != null && !name.isEmpty() ? name : label;
+                prefs.edit().putString("bleAddr", addr).putString("bleName", n).apply();
+                bleView.connected.add(addr);
+                bleView.setReconnect(n);
+                bleView.setStatus(false, "Connected: " + n);
+            } else bleView.setStatus(false, "Could not connect to " + label + ". Is it on and not used by another app?");
+            bleView.setDevices(ble.found());
+        }));
+    }
+
+    /** LOAD A / B on the MixTrack Go: the library's selected track goes on the deck; the library stays open. */
+    private void loadFromBrowser(int deck) {
+        Library.Track t = libView != null ? libView.selected : null;
+        if (t == null || library.tree == null) return;
+        loadTrack(deck, t);
+        libView.markLoaded(deck, t.rel);
+    }
 
     // ---- LibraryView.Callbacks
     @Override public void chooseFolder() {

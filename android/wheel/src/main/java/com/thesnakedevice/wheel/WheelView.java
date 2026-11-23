@@ -34,6 +34,8 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         String selectedTitle();
         String midiStatus();
         TrackLoader loader();
+        /** SETUP's BLUETOOTH MIDI: find and connect a Bluetooth LE MIDI controller (asks for permission first). */
+        void bluetoothMidi();
     }
 
     private final Ctl ctl;
@@ -459,7 +461,7 @@ final class WheelView extends View implements Choreographer.FrameCallback {
     private final Knob[] trimK = new Knob[2], fxParamK = new Knob[2];
     private final Btn[][] xfAssign = new Btn[2][3];
     private final Btn[][] deckSw = new Btn[2][3];        // 33/45, quantize, cue
-    private Btn hamsterBtn, doneBtn;
+    private Btn hamsterBtn, doneBtn, jogSensBtn, bleBtn;
     private Knob chCurve;
 
     private void add(Ctrl c) { ctrls.add(c); }
@@ -559,8 +561,16 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         addSheet(hamsterBtn = new Btn("HAMSTER", Pal.AMBER, () -> ctl.get(Ctl.gid(Native.G_HAMSTER)) > .5f,
                 down -> { if (down) ctl.set(Ctl.gid(Native.G_HAMSTER), ctl.get(Ctl.gid(Native.G_HAMSTER)) > .5f ? 0f : 1f); }));
         addSheet(chCurve = new Knob(Ctl.gid(Native.G_FADER_CURVE), "CURVE", Pal.AMBER, false, .3f, LIN01));
+        addSheet(jogSensBtn = new Btn(() -> "JOG SENSITIVITY ×" + jogSensText(ctl.jogSens), Pal.TEXT, null, down -> { if (down) ctl.nextJogSens(); }));
+        jogSensBtn.textMax = 11;
+        addSheet(bleBtn = new Btn("BLUETOOTH MIDI", Pal.CYAN, null, down -> { if (down) host.bluetoothMidi(); }));
+        bleBtn.textMax = 12;
         addSheet(doneBtn = new Btn("DONE", Pal.GREEN, null, down -> { if (down) closeSheet(); }));
         doneBtn.textMax = 14;
+    }
+
+    static String jogSensText(float k) {
+        return Math.abs(k - Math.round(k)) < .01f ? String.valueOf(Math.round(k)) : String.format(java.util.Locale.US, "%.2f", k).replaceAll("0+$", "");
     }
 
     private int fxBeatIndex(int d) {
@@ -759,10 +769,17 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         float y = sheetMid.top + capH;
         hamsterBtn.r.set(sheetMid.left, y, sheetMid.right, y + rowH);
         y += rowH + g + capH;
-        float kh = Math.min(knobsH, sheetMid.bottom - y - capH * 2);
+        // controller block at the bottom: caption, jog sensitivity, Bluetooth MIDI
+        float cRow = Math.min(rowH, (sheetMid.height() - 3 * capH) * .2f);
+        float cTop = sheetMid.bottom - 2 * cRow - g - capH;
+        float kh = Math.max(capH, Math.min(knobsH, cTop - y - g));
         float kw = Math.min(sheetMid.width(), kh * 1.25f);
         chCurve.r.set(sheetMid.centerX() - kw / 2, y, sheetMid.centerX() + kw / 2, y + kh);
+        ctrlCapY = cTop + capH * .8f;
+        jogSensBtn.r.set(sheetMid.left, cTop + capH, sheetMid.right, cTop + capH + cRow);
+        bleBtn.r.set(sheetMid.left, jogSensBtn.r.bottom + g, sheetMid.right, jogSensBtn.r.bottom + g + cRow);
     }
+    private float ctrlCapY;
 
     // =================================================================================================== touch
     @SuppressLint("ClickableViewAccessibility")
@@ -936,6 +953,7 @@ final class WheelView extends View implements Choreographer.FrameCallback {
         }
         label(c, "MIXER", sheetMid.centerX(), sheetMid.top + cap * 1.1f, cap, Pal.DIM, Paint.Align.CENTER, sheetMid.width());
         label(c, "CHANNEL FADERS", sheetMid.centerX(), chCurve.r.top - cap * .4f, cap, Pal.DIM, Paint.Align.CENTER, sheetMid.width());
+        label(c, "CONTROLLER", sheetMid.centerX(), ctrlCapY, cap, Pal.DIM, Paint.Align.CENTER, sheetMid.width());
         for (Ctrl k : sheetCtrls) k.draw(c);
     }
 
