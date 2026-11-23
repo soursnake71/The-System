@@ -46,10 +46,11 @@ jobs:
       - name: Test Omega Wheel of Steel (decks, mixer, crates, Serato tags, analysis)
         if: runner.os == 'Linux'
         run: |
-          cmake --build build --target wheel_engine_test wheel_lib_test wheel_midi_test --parallel 4
+          cmake --build build --target wheel_engine_test wheel_lib_test wheel_midi_test wheel_host_test --parallel 4
           build/wheel_engine_test
+          build/wheel_host_test
           find build -name wheel_lib_test -type f -perm -u+x | head -1 | xargs -I{} sh -c '{}'
-          find build -name wheel_midi_test -type f -perm -u+x | head -1 | xargs -I{} xvfb-run -a sh -c '{}'
+          find build -name wheel_midi_test -type f -perm -u+x | head -1 | xargs -I{} sh -c 'env -u DISPLAY "{}"'
       - name: Collect
         shell: bash
         run: |
