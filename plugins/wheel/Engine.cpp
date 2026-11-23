@@ -70,7 +70,83 @@ struct Reader {
         oL *= (float) g; oR *= (float) g;
     }
     inline float mono(int64_t k) const { return (k >= 0 && k < n) ? 0.5f * (L[k] + R[k]) : 0.0f; }
+    inline double edgeGain(double pos) const {
+        double g = 1;
+        if (pos < edge) g = std::max(0.0, pos / edge);
+        if (pos > (double) n - 1 - edge) g = std::min(g, std::max(0.0, ((double) n - 1 - pos) / edge));
+        return g;
+    }
 };
+
+// ---- band-limited reading for fast playback (anti-aliasing) ----
+// Reading the record faster than one track sample per output sample folds everything above the output Nyquist back
+// down (hard scratches, 45 rpm + wide pitch, 88.2/96 kHz files). Above kBlA the reader switches (crossfaded by
+// speed up to kBlB) from the 4-point Hermite to a Kaiser-windowed sinc whose cutoff follows the speed: zero crossings
+// every step / kBlFc track samples, so the passband ends at kBlFc of the output Nyquist whatever the speed. The kernel
+// is symmetric and the whole track is in memory, so it costs no latency (scratches stay as tight as before); at
+// normal speed nothing changes and it costs nothing.
+constexpr int kSincZ = 12;            // zero crossings per side
+constexpr int kSincP = 128;           // table points per zero crossing (linear interpolation: ~-80 dB error)
+constexpr double kBlFc = 0.86;        // cutoff, fraction of the output Nyquist
+constexpr double kBlA = 1.04, kBlB = 1.16, kBlMax = 6.0;   // crossfade range; above kBlMax the kernel stops widening (CPU)
+struct SincTable {
+    float t[kSincZ * kSincP + 2];
+    SincTable() : t() {
+        const double beta = 7.0;
+        auto i0 = [](double x) { double s = 1, term = 1; for (int k = 1; k < 50; ++k) { const double h = x / (2.0 * k); term *= h * h; s += term; } return s; };
+        const double den = i0(beta);
+        for (int i = 0; i <= kSincZ * kSincP; ++i) {
+            const double x = (double) i / kSincP, r = x / kSincZ;
+            const double sn = i == 0 ? 1.0 : std::sin(kPi * x) / (kPi * x);
+            t[i] = (float) (sn * (r < 1 ? i0(beta * std::sqrt(1 - r * r)) / den : 0.0));
+        }
+        t[kSincZ * kSincP + 1] = 0;
+    }
+};
+const SincTable gSinc;
+
+// 'step' = |track samples per output sample| (> 1)
+inline void readBL(const Reader& r, double pos, double step, float& oL, float& oR) {
+    if (r.n == 0 || pos <= -1.0 || pos >= (double) r.n) { oL = oR = 0; return; }
+    const double str = std::min(step, kBlMax) / kBlFc;           // track samples per zero crossing
+    const double span = kSincZ * str;
+    const int64_t j0 = (int64_t) std::ceil(pos - span), j1 = (int64_t) std::floor(pos + span);
+    const float du = (float) (kSincP / str);
+    float u = (float) (((double) j0 - pos) * (kSincP / str));
+    const float* tb = gSinc.t;
+    constexpr float uMax = (float) (kSincZ * kSincP);
+    float sw = 0, sl = 0, sr = 0;
+    if (j0 >= 0 && j1 < r.n) {
+        const float* l = r.L + j0; const float* rr = r.R + j0;
+        const int m = (int) (j1 - j0) + 1;
+        for (int k = 0; k < m; ++k, u += du) {
+            const float a = std::min(std::abs(u), uMax);
+            const int ia = (int) a; const float fr = a - (float) ia;
+            const float w = tb[ia] + (tb[ia + 1] - tb[ia]) * fr;
+            sw += w; sl += w * l[k]; sr += w * rr[k];
+        }
+    } else {
+        for (int64_t j = j0; j <= j1; ++j, u += du) {
+            const float a = std::min(std::abs(u), uMax);
+            const int ia = (int) a; const float fr = a - (float) ia;
+            const float w = tb[ia] + (tb[ia + 1] - tb[ia]) * fr;
+            sw += w;
+            if (j >= 0 && j < r.n) { sl += w * r.L[j]; sr += w * r.R[j]; }
+        }
+    }
+    const float g = sw > 1e-6f ? (float) r.edgeGain(pos) / sw : 0.0f;
+    oL = sl * g; oR = sr * g;
+}
+// the Hermite reader below kBlA, the band-limited one above kBlB, crossfaded in between
+inline void readAt(const Reader& r, double pos, double step, float& oL, float& oR) {
+    const double a = std::abs(step);
+    if (a <= kBlA) { r.read(pos, oL, oR); return; }
+    float bl, br; readBL(r, pos, a, bl, br);
+    if (a >= kBlB) { oL = bl; oR = br; return; }
+    float hl, hr; r.read(pos, hl, hr);
+    const float b = (float) ((a - kBlA) / (kBlB - kBlA));
+    oL = hl + (bl - hl) * b; oR = hr + (br - hr) * b;
+}
 }  // namespace
 
 // ================================================================================================================
@@ -79,7 +155,7 @@ struct Reader {
 struct Deck::Impl {
     // host
     double H = 48000; int Xf = 192, W = 2208, Hs = 1104;
-    std::vector<float> win, xfw, bufT, bufC;
+    std::vector<float> win, xfw, bufT, bufC, bufW;
     double kHand = 0, kSpeed = 0, kNudgeC = 0, kBend = 0, kSync = 0, kSg = 0, kKl = 0;
     float dcR = 0.9993f;
     // track
@@ -101,11 +177,23 @@ struct Deck::Impl {
     // loops
     double loopA = -1, loopB = -1, svA = -1, svB = -1; bool looping = false, rolling = false, svLooping = false;
     double rollStack[8] {}; int rollN = 0;
-    // click-free jumps (vinyl path): the old read position fades out while the new one fades in
-    struct Fade { Reader rd; double pos = 0, vel = 0; int k = 0; bool on = false; } fade;
-    // key lock: WSOLA grains
-    struct Grain { double rp = 0; int age = 0; float f = 1, fs = 0; bool on = false; } gr[8];
+    // click-free jumps (vinyl path): every jump turns the read position into a fade voice (fading out from the gain
+    // it had) while the new position fades in. Several voices, so jumps that come faster than the fade (rapid hot
+    // cue drumming, a loop wrap right after a cue) never cut a voice that is still audible.
+    static constexpr int kFades = 4;
+    struct Fade { Reader rd; double pos = 0, vel = 0; float g0 = 1; int k = 0; bool on = false; } fades[kFades];
+    int mainK = 1 << 30;   // fade-in progress of the main read position (>= Xf: full)
+    // key lock: WSOLA grains (hold > 0: the grain sits at its window peak; used to play a transient from one grain)
+    static constexpr int kGrains = 12;
+    struct Grain { double rp = 0; int age = 0; float f = 1, fs = 0; bool on = false; int hold = 0; } gr[kGrains];
     int latest = -1, nextGrain = 0; bool klRun = false, klWant = false; double klMix = 0;
+    // key lock transients: an onset scanner runs ~25 ms ahead of the grains on the source. Just before a grain (or
+    // the timeline) reaches an onset, the stream switches (XL crossfade) to a single grain at its window peak that
+    // holds for HL samples, so the attack is played once, at full gain, by one grain: no flams, no smearing. Later
+    // grains may not start before the attack (no echo of it when slowing down).
+    int Fo = 64, XL = 96, HL = 576; double LA = 1100, floorMargin = 88;
+    double scanPos = 0, bgE = 0, bgD = 0, onset = -1, klFloor = -1e300, refrUntil = -1e300;
+    int bgN = 0;
     // tone / output
     float lpL = 0, lpR = 0, sg = 0, dcxL = 0, dcxR = 0, dcyL = 0, dcyR = 0, pkL = 0, pkR = 0;
     double angle = 0;
@@ -120,13 +208,24 @@ struct Deck::Impl {
         for (int i = 0; i <= W; ++i) win[(size_t) i] = (float) (0.5 - 0.5 * std::cos(2 * kPi * i / W));   // periodic Hann: sums to 1
         xfw.assign((size_t) Xf + 1, 0.0f);
         for (int i = 0; i <= Xf; ++i) xfw[(size_t) i] = (float) (0.5 + 0.5 * std::cos(kPi * i / Xf));
-        bufT.assign(16384, 0.0f); bufC.assign(16384, 0.0f);
+        bufT.assign(16384, 0.0f); bufC.assign(16384, 0.0f); bufW.assign(16384, 0.0f);
         kHand = coef(0.0022, H); kSpeed = coef(0.04, H); kNudgeC = coef(0.015, H); kBend = coef(0.012, H);
         kSync = coef(0.25, H); kSg = coef(0.0015, H); kKl = 1.0 / (0.015 * H);
         dcR = (float) (1.0 - 2 * kPi * 5.0 / H);
+        XL = std::max(16, (int) std::lround(0.002 * H)); HL = std::max(64, (int) std::lround(0.012 * H));
         r0 = T / H; moveIv = 0.01 * H;
+        trackRates();
         for (auto& g : gr) g.on = false;
-        klRun = false; klMix = 0; fade.on = false;
+        for (auto& f : fades) f.on = false;
+        klRun = false; klMix = 0; mainK = 1 << 30;
+    }
+    void trackRates() {   // source-rate dependent constants (after setup or a load)
+        Fo = std::max(32, (int) std::lround(0.0015 * T));
+        LA = 0.025 * T; floorMargin = 0.002 * T;
+        // similarity-search template weights (see search()): favour the middle of the overlap
+        const int D = std::max(1, (int) std::lround(T / 11025.0));
+        const int Ld = std::min(6000, std::max(4, std::max(16, (int) (Hs * r0)) / D));
+        for (int k = 0; k < Ld; ++k) bufW[(size_t) k] = (float) (0.25 + 0.75 * std::sin(kPi * (k + 0.5) / Ld));
     }
 
     double beatLen() const { return bpm > 0 ? 60.0 / bpm : 0.5; }
@@ -140,32 +239,63 @@ struct Deck::Impl {
     void startInstant() { motorOn = true; motorNorm = 1; recVel = speedSm * (1.0 + kNudge * nudgeSm); }
     void stopInstant() { motorOn = false; motorNorm = 0; recVel = 0; }
 
+    // ---- jump fades ----
+    float mainGain() const { return mainK >= Xf ? 1.0f : 1.0f - xfw[(size_t) mainK]; }
+    float fadeGain(const Fade& f) const { return f.g0 * xfw[(size_t) std::min(f.k, Xf)]; }
+    // the current read position becomes a fade voice (fading from its present gain); the main one restarts at 0
+    void pushFade(double vel) {
+        int i = 0; float bw = 2;
+        for (int k = 0; k < kFades; ++k) {
+            if (!fades[k].on) { i = k; bw = -1; break; }
+            const float w = fadeGain(fades[k]);
+            if (w < bw) { bw = w; i = k; }
+        }
+        const float g = mainGain();
+        if (g > 1e-6f) fades[i] = Fade { rd, pos, vel, g, 0, true };
+        mainK = 0;
+    }
+
     // ---- key lock (WSOLA) ----
     int freeGrain() {
         int best = 0; float bw = 1e9f;
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < kGrains; ++i) {
             if (!gr[i].on) return i;
             const float w = gr[i].f * win[(size_t) std::min(gr[i].age, W)];
             if (w < bw) { bw = w; best = i; }
         }
         return best;
     }
-    // best start near 'nominal' whose first half continues the template (what the previous grain plays next)
-    double search(double tplPos, double nominal) {
+    // best start near 'nominal' (and not before 'floor') whose first half continues the template (what the previous
+    // grain plays next). Normalised cross-correlation on a 4x decimated mono signal, the template weighted towards
+    // the middle of the overlap (where both grains are loud), with a mild pull towards 'nominal' so the timing stays
+    // tight (WSOLA's rhythmic jitter); then refined at full resolution.
+    double search(double tplPos, double nominal, double floorPos) {
         const int64_t tp = (int64_t) std::floor(tplPos); const double fr = tplPos - (double) tp;
-        const int64_t c0 = (int64_t) std::llround(nominal - fr);
+        int64_t c0 = (int64_t) std::llround(nominal - fr);
         const int D = std::max(1, (int) std::lround(T / 11025.0));
         const int Lt = std::max(16, (int) (Hs * r0));
         int Sd = std::max(2, (int) (0.012 * T) / D), Ld = std::max(4, Lt / D);
         Ld = std::min(Ld, 6000); Sd = std::min(Sd, 4000);
+        // offsets o in [oLo, 2 Sd]: candidate start c0 + (o - Sd) D; o = Sd is nominal
+        int oLo = 0;
+        const double fl = floorPos - fr;
+        if ((double) (c0 - (int64_t) Sd * D) < fl) {
+            oLo = (int) std::ceil((fl - (double) c0) / D) + Sd;
+            if (oLo > Sd) { c0 += (int64_t) (oLo - Sd) * D; oLo = Sd; }   // far behind the floor: search just past it
+            oLo = std::max(0, oLo);
+        }
         const int nc = Ld + 2 * Sd;
         double et = 0;
         for (int k = 0; k < Ld; ++k) {
             float s = 0; const int64_t b = tp + (int64_t) k * D;
             for (int j = 0; j < D; ++j) s += rd.mono(b + j);
-            bufT[(size_t) k] = s; et += (double) s * s;
+            const float w = bufW[(size_t) k];
+            bufT[(size_t) k] = s * w; et += (double) s * s * w * w;
         }
-        if (et < 1e-9) return nominal;
+        if (et < 1e-9) {
+            const double st = (double) c0 + fr;
+            return oLo > 0 ? std::max(st, (double) (c0 + (int64_t) (oLo - Sd) * D) + fr) : st;
+        }
         const int64_t cb = c0 - (int64_t) Sd * D;
         for (int k = 0; k < nc; ++k) {
             float s = 0; const int64_t b = cb + (int64_t) k * D;
@@ -173,21 +303,24 @@ struct Deck::Impl {
             bufC[(size_t) k] = s;
         }
         double e = 0;
-        for (int k = 0; k < Ld; ++k) e += (double) bufC[(size_t) k] * bufC[(size_t) k];
-        double best = -1e30; int bo = Sd;
+        for (int k = 0; k < Ld; ++k) { const float c = bufC[(size_t) (k + oLo)]; e += (double) c * c; }
+        double best = -1e30; int bo = std::max(Sd, oLo);
         const float* tb = bufT.data();
-        for (int o = 0; o <= 2 * Sd; ++o) {
+        const double inv = 1.0 / std::sqrt(et), bias = 0.12 / ((double) Sd * Sd);
+        for (int o = oLo; o <= 2 * Sd; ++o) {
             const float* cbp = bufC.data() + o;
             float num = 0;
             for (int k = 0; k < Ld; ++k) num += tb[k] * cbp[k];
-            const double sc = num / std::sqrt(e + 1e-9);
+            const double sc = num * inv / std::sqrt(e + 1e-9) - bias * (double) (o - Sd) * (o - Sd);
             if (sc > best) { best = sc; bo = o; }
             if (o + Ld < nc) { e += (double) cbp[Ld] * cbp[Ld] - (double) cbp[0] * cbp[0]; if (e < 0) e = 0; }
         }
         int64_t bp = c0 + (int64_t) (bo - Sd) * D;
         if (D > 1) {   // refine at full resolution
             const int64_t pc = bp; best = -1e30;
+            const double flo = floorPos - fr;
             for (int64_t p = pc - D + 1; p <= pc + D - 1; ++p) {
+                if ((double) p < flo && p != pc) continue;
                 double num = 0, en = 0;
                 for (int k = 0; k < Lt; k += 2) { const float a = rd.mono(tp + k), b = rd.mono(p + k); num += a * b; en += b * b; }
                 const double sc = num / std::sqrt(en + 1e-9);
@@ -199,11 +332,11 @@ struct Deck::Impl {
     void spawn() {
         Grain* t = (latest >= 0 && gr[latest].on && gr[latest].fs >= 0) ? &gr[latest] : nullptr;
         const double nominal = pos + (recVel - 1.0) * Hs * r0;   // grain centre lands where the timeline will be
-        double start = nominal;
-        if (t) start = std::abs(nominal - t->rp) < 0.5 ? t->rp : search(t->rp, nominal);
+        double start = std::max(nominal, klFloor);
+        if (t) start = (std::abs(nominal - t->rp) < 0.5 && t->rp >= klFloor) ? t->rp : search(t->rp, nominal, klFloor);
         const float f = t ? t->f : 1.0f, fs = t ? t->fs : 0.0f;
         const int i = freeGrain();
-        gr[i] = Grain { start, 0, f, fs, true };
+        gr[i] = Grain { start, 0, f, fs, true, 0 };
         latest = i; nextGrain = Hs;
     }
     // start the grain stream at 'pos' as if it had been running (a grain at its peak), optionally fading in while
@@ -214,15 +347,72 @@ struct Deck::Impl {
             if (crossfade) { g.fs = -1.0f / (float) Xf; } else g.on = false;
         }
         const int i = freeGrain();
-        gr[i] = Grain { pos, Hs, crossfade ? 0.0f : 1.0f, crossfade ? 1.0f / (float) Xf : 0.0f, true };
+        gr[i] = Grain { pos, Hs, crossfade ? 0.0f : 1.0f, crossfade ? 1.0f / (float) Xf : 0.0f, true, 0 };
         latest = i;
+        // the onset scanner restarts here, learning the background from the few ms before
+        onset = -1; klFloor = -1e300; refrUntil = pos; bgN = 0; bgE = bgD = 0;
+        scanPos = std::floor(pos) - 4.0 * Fo;
         spawn();
+    }
+    // one onset-detection frame at scanPos: energy and first-difference (HF) energy against a ~6 ms background
+    void scanFrame() {
+        const int64_t b = (int64_t) scanPos;
+        double ef = 0, ed = 0; float pv = rd.mono(b - 1);
+        for (int j = 0; j < Fo; ++j) { const float x = rd.mono(b + j), dd = x - pv; pv = x; ef += (double) x * x; ed += (double) dd * dd; }
+        if (bgN >= 3 && scanPos >= refrUntil) {
+            const double fl = 1e-6 * Fo;   // -60 dBFS
+            if ((ed > 5.0 * bgD && ed > 0.02 * fl) || (ef > 5.0 * bgE && ef > fl)) {
+                // the attack: first sample (from one frame back) whose step reaches a quarter of the frame's biggest
+                float mx = 0; pv = rd.mono(b - Fo - 1);
+                for (int j = -Fo; j < Fo; ++j) { const float x = rd.mono(b + j); mx = std::max(mx, std::abs(x - pv)); pv = x; }
+                int at = 0; pv = rd.mono(b - Fo - 1);
+                for (int j = -Fo; j < Fo; ++j) { const float x = rd.mono(b + j); if (std::abs(x - pv) >= 0.25f * mx) { at = j; break; } pv = x; }
+                onset = (double) (b + at) - 0.1 * Fo;
+                refrUntil = scanPos + 0.04 * T;   // 40 ms: one event per hit
+            }
+        }
+        const double a = bgN < 3 ? 1.0 / (bgN + 1) : 0.25;
+        bgE += (ef - bgE) * a; bgD += (ed - bgD) * a; ++bgN;
+        scanPos += Fo;
+    }
+    // per output sample while key lock runs: scan ahead, and switch to a transient grain just before an onset
+    void klTransients() {
+        if (onset < 0) {
+            double front = pos;
+            for (const auto& g : gr) if (g.on && g.rp > front) front = g.rp;
+            front += LA;
+            for (int b = 0; b < 3 && onset < 0 && scanPos < front; ++b) scanFrame();
+            if (onset < 0) return;
+        }
+        const double lead = XL * r0;
+        const double trig = onset - lead;
+        int ref = -1; float rw = -1; bool behind = false;
+        for (int i = 0; i < kGrains; ++i) {
+            const Grain& g = gr[i];
+            if (!g.on || g.fs < 0) continue;
+            if (g.rp < onset) behind = true;
+            if (g.rp >= trig && g.rp < onset) { const float w = g.f * win[(size_t) g.age]; if (w > rw) { rw = w; ref = i; } }
+        }
+        double start;
+        if (ref >= 0) start = gr[ref].rp;   // a grain is about to play it: continue that grain, coherently
+        else if (pos >= onset - lead * std::max(0.2, recVel) && pos < onset) {
+            start = trig;                   // the timeline gets there first: the attack lands on time
+            for (const auto& g : gr) if (g.on && std::abs(g.rp - start) < 0.5) { start = g.rp; break; }
+        } else {
+            if (!behind && pos >= onset) { klFloor = onset + floorMargin; onset = -1; }   // missed (all past it)
+            return;
+        }
+        const float k = 1.0f / (float) XL;
+        for (auto& g : gr) if (g.on) g.fs = -k;
+        const int i = freeGrain();
+        gr[i] = Grain { start, Hs, 0.0f, k, true, HL };
+        latest = i; nextGrain = HL + 1;
+        klFloor = onset + floorMargin; onset = -1;
     }
 
     void jumpTo(double np) {
         if (rd.n == 0) { pos = np; return; }
-        if (!(fade.on && fade.k < Xf / 2)) { fade.pos = pos; fade.rd = rd; }
-        fade.vel = lastDp; fade.k = 0; fade.on = true;
+        pushFade(lastDp);
         const double dl = np - pos;
         pos = np;
         if (touched) { handT += dl; handR += dl; y1 += dl; y2 += dl; }
@@ -242,13 +432,14 @@ void Deck::prepare(double sr, int maxBlock) {
 
 void Deck::load(std::shared_ptr<const Track> t) {
     WHEEL_IMPL;
-    if (s.rd.n && (std::abs(s.lastDp) > 1e-6 || s.klRun)) {   // fade the old record out
-        s.fade.rd = s.rd; s.fade.pos = s.pos; s.fade.vel = s.lastDp; s.fade.k = 0; s.fade.on = true;
-    }
+    // fade voices still on the record before the previous one would outlive it (s.prev only keeps one alive)
+    for (auto& f : s.fades) if (f.on && f.rd.L != s.rd.L) f.on = false;
+    if (s.rd.n && (std::abs(s.lastDp) > 1e-6 || s.klRun)) s.pushFade(s.lastDp);   // fade the old record out
     s.prev = trk;
     trk = std::move(t);
     s.rd.set(trk.get());
     s.T = trk && trk->sr > 0 ? trk->sr : 44100; s.r0 = s.T / s.H; s.N = (double) s.rd.n;
+    s.trackRates();
     bpmOverride = 0; gridOff = 0; syncOn = false;
     s.bpm = trk ? trk->bpm : 0; s.first = trk ? trk->firstBeat : 0;
     if (trk) cues = trk->cues; else cues = {};
@@ -469,14 +660,21 @@ void Deck::savedLoop(int i) {
 void Deck::syncTo(double masterBpm, double masterBeatPhase, bool phase) {
     WHEEL_IMPL;
     if (!trk || s.bpm <= 0 || masterBpm <= 0) return;
-    double r = masterBpm / s.bpm, mult = 1;
-    if (std::abs(std::log(r * 0.5)) < std::abs(std::log(r))) { r *= 0.5; mult = 2; }       // 70 vs 140: half time
-    else if (std::abs(std::log(r * 2)) < std::abs(std::log(r))) { r *= 2; mult = 0.5; }
+    double r = masterBpm / s.bpm;
+    int mode = 0;   // 0: 1:1; 1: half time (one of our beats = two master beats); 2: double time (two of ours = one)
+    if (std::abs(std::log(r * 0.5)) < std::abs(std::log(r))) { r *= 0.5; mode = 1; }       // 70 vs 140: half time
+    else if (std::abs(std::log(r * 2)) < std::abs(std::log(r))) { r *= 2; mode = 2; }
     s.syncSpeed = clampv(r, 0.25, 4.0); s.syncLatched = true; s.latchPitch = set.pitch;
-    if (phase && mult == 1 && s.motorOn && !s.touched && !s.looping) {
-        double e = masterBeatPhase - beatPhase();
+    if (phase && s.motorOn && !s.touched && !s.looping) {
+        // compare on the faster of the two grids: half time locks our half beats to the master's beats, double time
+        // locks our beats to the master's half beats (the nearest one: either downbeat pairing is a valid lock)
+        const double p = beatPhase(), m = clampv(masterBeatPhase, 0.0, 1.0);
+        double e, unit;                                  // phase error and the length of its unit, in our beats
+        if (mode == 1) { const double p2 = 2 * p; e = m - (p2 - std::floor(p2)); unit = 0.5; }
+        else if (mode == 2) { const double m2 = 2 * m; e = (m2 - std::floor(m2)) - p; unit = 1; }
+        else { e = m - p; unit = 1; }
         e -= std::round(e);
-        const double shift = e * s.beatLen() * s.T;
+        const double shift = e * unit * s.beatLen() * s.T;
         if (std::abs(e) > 0.03) { s.syncBend = 0; s.jumpTo(clampv(s.pos + shift, 0.0, s.N)); }
         else s.syncBend = shift;
     }
@@ -505,7 +703,9 @@ void Deck::render(float* L, float* R, int n) {
     NoDenormals nd;
     WHEEL_IMPL;
     if (n <= 0) return;
-    if (!s.rd.n && !s.fade.on) {
+    bool fading = false;
+    for (const auto& f : s.fades) fading = fading || f.on;
+    if (!s.rd.n && !fading) {
         std::fill(L, L + n, 0.0f); std::fill(R, R + n, 0.0f);
         const float dec = (float) std::exp(-n / (0.3 * s.H));
         s.pkL *= dec; s.pkR *= dec;
@@ -557,7 +757,7 @@ void Deck::render(float* L, float* R, int n) {
     for (int i = 0; i < n; ++i) {
         // motor: torque-limited run-up, quartz-locked landing; electronic brake
         const double tgt = s.motorOn ? 1.0 : 0.0, e = tgt - s.motorNorm;
-        if (e != 0) {
+        if (e > 0 || e < 0) {
             const double a = e > 0 ? std::min(aStart, e * kStart) : std::max(-aBrake, e * kBrake);
             s.motorNorm += a * dt;
             const double e2 = tgt - s.motorNorm;
@@ -582,12 +782,12 @@ void Deck::render(float* L, float* R, int n) {
             const double tv = s.censor ? -platter : platter, ve = tv - s.recVel, F = s.censor ? 60.0 : 30.0;
             s.recVel += clampv(ve * 150.0, -F, F) * dt;
             s.pos += s.recVel * s.r0;
-            if (s.bendA != 0 || s.bendB != 0) {
+            if (std::abs(s.bendA) + std::abs(s.bendB) > 0) {
                 const double t1 = s.bendA * s.kBend; s.bendA -= t1; s.bendB += t1;
                 const double t2 = s.bendB * s.kBend; s.bendB -= t2; s.pos += t2;
                 if (std::abs(s.bendA) + std::abs(s.bendB) < 1e-3) s.bendA = s.bendB = 0;
             }
-            if (s.syncBend != 0 && s.motorOn) {
+            if (std::abs(s.syncBend) > 0 && s.motorOn) {
                 const double lim = 0.02 * s.r0, stp = clampv(s.syncBend * s.kSync, -lim, lim);
                 s.syncBend -= stp; s.pos += stp;
                 if (std::abs(s.syncBend) < 1e-3) s.syncBend = 0;
@@ -610,17 +810,20 @@ void Deck::render(float* L, float* R, int n) {
 
         float oL = 0, oR = 0;
         const double av = std::abs(s.recVel);
-        float fw = 0, fL = 0, fR = 0;
-        if (s.fade.on) {
-            fw = s.xfw[(size_t) s.fade.k];
-            if (s.klMix < 1.0) s.fade.rd.read(s.fade.pos, fL, fR);
-            s.fade.pos += s.fade.vel;
-            if (++s.fade.k > s.Xf) s.fade.on = false;
+        const bool vinyl = s.klMix < 1.0;
+        float fL = 0, fR = 0;
+        for (auto& f : s.fades) {
+            if (!f.on) continue;
+            if (vinyl) { float a, b; readAt(f.rd, f.pos, f.vel, a, b); const float w = s.fadeGain(f); fL += a * w; fR += b * w; }
+            f.pos += f.vel;
+            if (++f.k > s.Xf) f.on = false;
         }
-        if (s.klMix < 1.0) {
+        const float mg = s.mainGain();
+        if (s.mainK < s.Xf) ++s.mainK;
+        if (vinyl) {
             float a, b;
-            s.rd.read(s.pos, a, b);
-            a = a * (1 - fw) + fL * fw; b = b * (1 - fw) + fR * fw;
+            readAt(s.rd, s.pos, dp, a, b);
+            a = a * mg + fL; b = b * mg + fR;
             // a stylus that is not moving is silent; slow drags lose their top end (like the real thing)
             const float sgT = (float) std::min(1.0, av / 0.04);
             s.sg += (sgT - s.sg) * (float) s.kSg;
@@ -629,17 +832,21 @@ void Deck::render(float* L, float* R, int n) {
             oL = s.lpL * s.sg; oR = s.lpR * s.sg;
         }
         if (s.klRun) {
+            s.klTransients();
             if (--s.nextGrain <= 0) s.spawn();
             float kl = 0, kr = 0;
             for (auto& g : s.gr) {
                 if (!g.on) continue;
                 float a, b;
-                s.rd.read(g.rp, a, b);
+                readAt(s.rd, g.rp, s.r0, a, b);
                 const float w = s.win[(size_t) g.age] * g.f;
                 kl += a * w; kr += b * w;
                 g.rp += s.r0;
-                if (g.fs != 0) { g.f += g.fs; if (g.fs > 0 && g.f >= 1) { g.f = 1; g.fs = 0; } }
-                if (++g.age >= s.W || (g.fs < 0 && g.f <= 0)) g.on = false;
+                if (g.fs > 0) { g.f += g.fs; if (g.f >= 1) { g.f = 1; g.fs = 0; } }
+                else if (g.fs < 0) g.f += g.fs;
+                if (g.hold > 0) --g.hold;
+                else if (++g.age >= s.W) g.on = false;
+                if (g.fs < 0 && g.f <= 0) g.on = false;
             }
             const float m = (float) s.klMix;
             oL = oL * (1 - m) + kl * m; oR = oR * (1 - m) + kr * m;
@@ -834,7 +1041,7 @@ void Fx::process(float* L, float* R, int n, const FxSettings& s, double bpm) {
                     wl = x * f.gateG; wr = y * f.gateG;
                     break;
                 }
-                default: break;
+                case FxType::off: case FxType::echo: case FxType::pingpong: case FxType::reverb: case FxType::count: break;
             }
             x += (wl - x) * f.insMix; y += (wr - y) * f.insMix;
         }

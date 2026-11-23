@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <random>
@@ -563,6 +564,291 @@ static void testFx(const std::string& wavDir) {
     if (!wavDir.empty()) writeWav(wavDir + "/wheel_fx.wav", all.L, all.R, (int) kHost);
 }
 
+// ---- sound quality: key lock transients, anti-aliasing, rapid jumps, half / double time phase ----
+namespace {
+// a dry drum loop: kick on the beat (sweep + click), snare on 2 and 4, a closed hat on every off-beat 8th, a quiet
+// bass. Every hit is short and 250 ms from the next, so each one can be looked at on its own.
+std::shared_ptr<Track> drumTrack(double sr = 48000, double secs = 20, double bpm = 120, double first = 0.1) {
+    auto t = std::make_shared<Track>();
+    t->sr = sr; t->bpm = bpm; t->firstBeat = first; t->title = "drums";
+    const size_t n = (size_t) (secs * sr);
+    t->L.assign(n, 0.0f); t->R.assign(n, 0.0f);
+    std::mt19937 rng(7); std::uniform_real_distribution<float> u(-1, 1);
+    const double bl = 60.0 / bpm, e8 = bl / 2;
+    double kp = 0; float pn = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const double ts = (double) i / sr - first;
+        double v = 0.08 * std::sin(2 * kPi * 55 * (double) i / sr);
+        if (ts >= 0) {
+            const int k8 = (int) std::floor(ts / e8); const double ph = ts - k8 * e8;
+            const float nz = u(rng), hf = nz - pn; pn = nz;
+            if (k8 % 2 == 0) {   // beat: kick, plus snare on 2 and 4
+                const double kf = 50 + 110 * std::exp(-ph * 35);
+                kp += 2 * kPi * kf / sr;
+                v += 0.6 * std::exp(-ph * 14) * std::sin(kp) + 0.25 * std::exp(-ph * 900) * hf;
+                if ((k8 / 2) % 2 == 1) v += 0.3 * std::exp(-ph * 60) * nz + 0.2 * std::exp(-ph * 30) * std::sin(2 * kPi * 190 * ph);
+            } else {
+                kp = 0;
+                v += 0.35 * std::exp(-ph * 250) * hf;   // hat: 4 ms decay, all top end
+            }
+        }
+        t->L[i] = t->R[i] = (float) v;
+    }
+    return t;
+}
+// high-frequency energy envelope: second difference, 'win'-sample windows every 12 samples (0.25 ms)
+constexpr int kHop = 12;
+std::vector<double> hfEnv(const std::vector<float>& x, int win) {
+    std::vector<double> c(x.size() + 1, 0.0);
+    for (size_t i = 0; i < x.size(); ++i) {
+        const double d = i < 2 ? 0.0 : (double) x[i] - 2.0 * x[i - 1] + x[i - 2];
+        c[i + 1] = c[i] + d * d;
+    }
+    std::vector<double> e;
+    for (size_t i = 0; i + (size_t) win <= x.size(); i += kHop) e.push_back(c[i + (size_t) win] - c[i]);
+    return e;
+}
+struct Hit { int k8 = 0; double peak = 0, echo = 0; };
+// Every 8th-note hit of the drum loop in a keylocked render (found around where the timeline says it should be):
+// its HF envelope peak (1 ms windows) and the biggest re-rise of the envelope (2 ms windows) within 40 ms either side
+// of the peak, relative to the peak: a doubled / flammed onset or a pre-echo shows up as a second attack.
+std::vector<Hit> findHits(const Track& src, const std::vector<float>& out, const std::vector<double>& posAt, int block) {
+    const std::vector<double> e1 = hfEnv(out, 48), e2 = hfEnv(out, 96);
+    const double e8 = 30.0 / src.bpm;
+    std::vector<Hit> hs;
+    for (int k8 = 0; ; ++k8) {
+        const double te = src.firstBeat + k8 * e8;
+        if (te < posAt.front() + 0.06) continue;
+        if (te > posAt.back() - 0.1) break;
+        size_t b = 0; while (b + 1 < posAt.size() && posAt[b + 1] < te) ++b;   // output block where the timeline gets there
+        const double oi = ((double) b + (te - posAt[b]) / std::max(1e-9, posAt[b + 1] - posAt[b])) * block;
+        const long c = (long) (oi / kHop), R = 40 * 48 / kHop;
+        long pk = -1; double pv = 0;
+        for (long f = c - R; f <= c + R; ++f) if (f >= 0 && f < (long) e1.size() && e1[(size_t) f] > pv) { pv = e1[(size_t) f]; pk = f; }
+        if (pk < 0 || pv <= 0) continue;
+        long p2 = pk - 2; double p2v = 0;   // the 2 ms envelope's own peak next to the 1 ms one
+        for (long f = pk - 6; f <= pk + 2; ++f) if (f >= 0 && f < (long) e2.size() && e2[(size_t) f] > p2v) { p2v = e2[(size_t) f]; p2 = f; }
+        double echo = 0, mn = 1e30;
+        for (long f = p2; f <= p2 + R && f < (long) e2.size(); ++f) if (f >= 0) { mn = std::min(mn, e2[(size_t) f]); echo = std::max(echo, e2[(size_t) f] - mn); }
+        mn = 1e30;
+        for (long f = p2; f >= p2 - R && f >= 0; --f) if (f < (long) e2.size()) { mn = std::min(mn, e2[(size_t) f]); echo = std::max(echo, e2[(size_t) f] - mn); }
+        Hit h; h.k8 = k8; h.peak = pv; h.echo = echo / std::max(p2v, 1e-30);
+        hs.push_back(h);
+    }
+    return hs;
+}
+struct HitStats { double worstEcho = -99, meanEcho = 0, worstPeak = 99, meanPeak = 0; int hits = 0; };
+// the hits of a render against the same hits of a reference render (key lock at pitch 0: the source itself)
+HitStats hitStats(const std::vector<Hit>& out, const std::vector<Hit>& ref) {
+    HitStats h; double sumE = 0, sumP = 0;
+    for (const Hit& o : out) {
+        const Hit* r = nullptr;
+        for (const Hit& x : ref) if (x.k8 == o.k8) r = &x;
+        if (!r) continue;
+        const double echoDb = 10 * std::log10(std::max(o.echo, 1e-12)), peakDb = 10 * std::log10(o.peak / r->peak);
+        if (std::getenv("WHEEL_DEBUG") && (echoDb > -15 || peakDb < -1.5))
+            std::printf("    hit %d (%s): echo %.1f dB (ref %.1f) peak %.2f dB\n", o.k8, o.k8 % 2 ? "hat" : (o.k8 / 2) % 2 ? "snare" : "kick", echoDb, 10 * std::log10(std::max(r->echo, 1e-12)), peakDb);
+        h.worstEcho = std::max(h.worstEcho, echoDb); h.worstPeak = std::min(h.worstPeak, peakDb);
+        sumE += echoDb; sumP += peakDb; ++h.hits;
+    }
+    if (h.hits) { h.meanEcho = sumE / h.hits; h.meanPeak = sumP / h.hits; }
+    return h;
+}
+// keylocked render of the drum loop at a pitch; returns the audio and the timeline per block
+void keylockRender(std::shared_ptr<const Track> t, double pitchPct, double secs, Rec& rec, std::vector<double>& posAt) {
+    Deck d; fresh(d, std::move(t));
+    d.set.startTime = 0.05f; d.set.pitchRange = 0.16f; d.set.pitch = (float) (pitchPct / 16.0); d.set.keyLock = true;
+    d.seek(1.0); d.playPause(); run(d, 0.5);
+    posAt.clear(); posAt.push_back(d.st.pos.load());
+    run(d, secs, &rec, 64, [&](int k) { if (k > 0) posAt.push_back(d.st.pos.load()); });
+    posAt.push_back(d.st.pos.load());
+}
+// a sweep (log, lo..hi Hz) at 0.5
+std::shared_ptr<Track> sweepTrack(double lo, double hi, double secs = 12, double sr = 44100) {
+    auto t = std::make_shared<Track>();
+    t->sr = sr; t->bpm = 120; t->firstBeat = 0; t->title = "sweep";
+    const size_t n = (size_t) (secs * sr);
+    t->L.resize(n); t->R.resize(n);
+    double ph = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const double f = lo * std::pow(hi / lo, (double) i / (double) n);
+        ph += 2 * kPi * f / sr;
+        t->L[i] = t->R[i] = (float) (0.5 * std::sin(ph));
+    }
+    return t;
+}
+// hand-drag the record at a steady 'rate' for 'secs' (64-sample controller steps); returns the output RMS after
+// the first 0.15 s
+double dragRms(std::shared_ptr<const Track> t, double rate, double secs, Rec* keep = nullptr) {
+    Deck d; fresh(d, std::move(t));
+    d.seek(0.5); d.touch(true); run(d, 0.05);
+    Rec r; run(d, secs, &r, 64, [&](int) { d.move(rate * 64 / kHost); });
+    if (keep) { keep->L.insert(keep->L.end(), r.L.begin(), r.L.end()); keep->R.insert(keep->R.end(), r.R.begin(), r.R.end()); }
+    const size_t s0 = (size_t) (0.15 * kHost);
+    return rms(r.L.data() + s0, r.L.size() - s0);
+}
+}  // namespace
+
+static void testKeylockTransients(const std::string& wavDir) {
+    auto t48 = drumTrack(48000), t44 = drumTrack(44100);
+    for (double pct : { -16.0, -8.0, 8.0, 16.0 }) {
+        for (auto* t : { &t48, &t44 }) {
+            Rec r, r0; std::vector<double> posAt, pos0;
+            keylockRender(*t, pct, 8.0, r, posAt);
+            keylockRender(*t, 0.0, 10.0, r0, pos0);
+            const HitStats h = hitStats(findHits(**t, r.L, posAt, 64), findHits(**t, r0.L, pos0, 64));
+            const std::string nm = fmt("keylock %+.0f %% drums (%.1f kHz): one sharp attack per hit", pct, (*t)->sr / 1000);
+            check(h.hits > 20 && h.worstEcho < -12 && h.meanEcho < -20 && h.worstPeak > -3.0 && h.meanPeak > -1.5, nm.c_str(),
+                  fmt("echo worst %.1f / mean %.1f dB, peak worst %.2f", h.worstEcho, h.meanEcho, h.worstPeak) + fmt(" / mean %.2f dB", h.meanPeak));
+        }
+    }
+    {   // pitch 0: the key lock is transparent, onsets and all: the grains continue each other sample for sample, so
+        // the output is the source (read at the grains' fractional offset, through the deck's 5 Hz DC blocker)
+        auto t = drumTrack(48000);
+        Deck d; fresh(d, t);
+        d.set.startTime = 0.05f; d.set.keyLock = true;
+        d.seek(1.0); d.playPause(); run(d, 0.5);
+        const double p0 = std::floor(d.st.pos.load() * 48000);
+        Rec r; run(d, 3.0, &r);
+        const float* x = t->L.data();
+        auto herm = [x](double ps) {
+            const long i = (long) std::floor(ps); const float u = (float) (ps - (double) i); const float* q = x + i - 1;
+            const float c = (q[2] - q[0]) * 0.5f, v = q[1] - q[2], w = c + v, a = w + v + (q[3] - q[1]) * 0.5f, b = w + a;
+            return ((a * u - b) * u + c) * u + q[1];
+        };
+        long bo = 0; double bc = -1e30;   // where the grain stream sits relative to the timeline (within +-30 ms)
+        for (long off = -1500; off <= 1500; ++off) {
+            double c = 0; for (size_t k = 0; k < 4000; ++k) c += (double) r.L[k] * x[(size_t) ((long) p0 + off + (long) k)];
+            if (c > bc) { bc = c; bo = off; }
+        }
+        const float R = (float) (1.0 - 2 * kPi * 5.0 / kHost);
+        auto resid = [&](double fr) {
+            float x1 = 0, y1 = 0; double se = 0, ss = 0;
+            for (long k = -48000; k < (long) r.L.size(); ++k) {
+                const float v = herm(p0 + (double) bo + fr + (double) k), y = v - x1 + R * y1; x1 = v; y1 = y;
+                if (k >= 4800) { const double e = (double) r.L[(size_t) k] - y; se += e * e; ss += (double) y * y; }
+            }
+            return 10 * std::log10(se / ss + 1e-30);
+        };
+        double best = 1e9, bf = 0;
+        for (double fr = -1; fr <= 1; fr += 0.01) { const double v = resid(fr); if (v < best) { best = v; bf = fr; } }
+        for (double fr = bf - 0.01; fr <= bf + 0.01; fr += 0.0002) best = std::min(best, resid(fr));
+        check(best < -80, "keylock at pitch 0 is transparent (drums, onsets)", fmt("residual %.1f dB", best));
+    }
+    if (!wavDir.empty()) {
+        Rec all;
+        for (double pct : { 8.0, 16.0, -8.0, -16.0 }) {
+            Rec r; std::vector<double> posAt;
+            keylockRender(t44, pct, 4.0, r, posAt);
+            all.L.insert(all.L.end(), r.L.begin(), r.L.end()); all.R.insert(all.R.end(), r.R.begin(), r.R.end());
+            all.L.insert(all.L.end(), 24000, 0.0f); all.R.insert(all.R.end(), 24000, 0.0f);
+        }
+        writeWav(wavDir + "/wheel_keylock_drums.wav", all.L, all.R, (int) kHost);
+        Rec m; std::vector<double> posAt;
+        keylockRender(musicTrack(), 12.0, 8.0, m, posAt);
+        writeWav(wavDir + "/wheel_keylock_music_+12.wav", m.L, m.R, (int) kHost);
+    }
+}
+
+static void testAntiAlias(const std::string& wavDir) {
+    // x3 hand drag of a 8.5 .. 20 kHz sweep (44.1 kHz): all of it lands above the output Nyquist (25.5 .. 60 kHz),
+    // so a clean resampler outputs (almost) nothing; a plain interpolator folds it back as audible whistles.
+    const double ref = 0.5 / std::sqrt(2.0);
+    const double a3 = 20 * std::log10(dragRms(sweepTrack(8500, 20000), 3.0, 1.5) / ref);
+    check(a3 < -50, "x3 scratch: aliasing of an 8.5-20 kHz sweep", fmt("%.1f dB re the input", a3));
+    // a tone inside the band still comes through at x3 (2 kHz -> 6 kHz), and a x1 drag is unchanged (Hermite path)
+    const double in3 = 20 * std::log10(dragRms(sineTrack(2000, 6, 120, 0, 44100), 3.0, 1.0) / ref);
+    const double in1 = 20 * std::log10(dragRms(sineTrack(6000, 6, 120, 0, 44100), 1.0, 1.0) / ref);
+    check(std::abs(in3) < 0.5 && std::abs(in1) < 1.5, "x3 scratch keeps the passband (2 kHz -> 6 kHz)", fmt("x3 %.2f dB, x1 %.2f dB", in3, in1));
+    // 45 rpm + 50 % pitch (x2.025): a 12-20 kHz sweep (-> 24.3-40.5 kHz) on the motor, no hand
+    {
+        Deck d; fresh(d, sweepTrack(12000, 20000));
+        d.set.rpm45 = true; d.set.pitchRange = 0.5f; d.set.pitch = 1; d.set.startTime = 0.05f;
+        d.seek(0.5); d.playPause(); run(d, 0.3);
+        Rec r; run(d, 1.5, &r);
+        const double a2 = 20 * std::log10(rms(r.L.data(), r.L.size()) / ref);
+        check(a2 < -50, "45 rpm +50 %: aliasing of a 12-20 kHz sweep", fmt("%.1f dB re the input", a2));
+    }
+    if (!wavDir.empty()) {   // a x3 baby scratch on the music: forward-back at up to x3
+        Deck m; fresh(m, musicTrack());
+        m.set.startTime = 0.05f; m.seek(4.0); m.playPause();
+        Rec rec; run(m, 1.0, &rec);
+        m.touch(true);
+        double ph = 0, last = 0;
+        run(m, 3.0, &rec, 64, [&](int) {
+            ph += 3.0 * 64 / kHost;
+            const double x = 0.2 * (0.5 - 0.5 * std::cos(2 * kPi * ph)) / (kPi * 0.5) * 3.0;   // peak speed ~ x3
+            m.move(x - last); last = x;
+        });
+        m.touch(false); run(m, 1.0, &rec);
+        Rec sw; dragRms(sweepTrack(8500, 20000), 3.0, 2.0, &sw);
+        rec.L.insert(rec.L.end(), sw.L.begin(), sw.L.end()); rec.R.insert(rec.R.end(), sw.R.begin(), sw.R.end());
+        writeWav(wavDir + "/wheel_scratch_x3.wav", rec.L, rec.R, (int) kHost);
+    }
+}
+
+static void testRapidJumps() {
+    // jumps closer together than the 4 ms crossfade (hot-cue drumming, a cue right before a loop wrap) stay smooth
+    const double limit = 0.05;   // as testClickFree: a 440 Hz sine at 0.5 has steps of 0.029
+    Deck d; fresh(d, sineTrack());
+    d.set.startTime = 0.05f;
+    d.seek(3.0); d.playPause(); run(d, 0.3);
+    Rec rec;
+    const int gaps[] = { 16, 48, 64, 96, 128, 160, 200 };
+    int j = 0;
+    for (int g : gaps) {
+        for (int rep = 0; rep < 3; ++rep, ++j) {
+            d.seek(2.0 + 0.3713 * j); run(d, g / kHost, &rec, g);
+            d.seek(9.0 + 0.2911 * j); run(d, g / kHost, &rec, g);
+            d.seek(15.0 + 0.1777 * j); run(d, 0.03, &rec);
+        }
+    }
+    const double m = maxDelta(rec.L);
+    check(m < limit, "rapid double / triple jumps (0.3-4 ms apart) are click-free", fmt("max step %.4f", m));
+    // the same under key lock
+    d.set.keyLock = true; d.set.pitch = 0.5f; run(d, 0.5);
+    Rec k;
+    for (int g : gaps) {
+        for (int rep = 0; rep < 2; ++rep, ++j) {
+            d.seek(2.0 + 0.3713 * j); run(d, g / kHost, &k, g);
+            d.seek(9.0 + 0.2911 * j); run(d, g / kHost, &k, g);
+            d.seek(15.0 + 0.1777 * j); run(d, 0.06, &k);
+        }
+    }
+    const double mk = maxDelta(k.L);
+    check(mk < limit * 1.08, "rapid jumps under key lock are click-free", fmt("max step %.4f", mk));
+}
+
+static void testHalfDoubleSync() {
+    auto lockErr = [](Deck& master, Deck& slave, int mode) {
+        slave.setSync(true);
+        std::vector<float> l(64), r(64);
+        for (int k = 0; k < (int) (3.0 * kHost / 64); ++k) {
+            slave.syncTo(master.currentBpm(), master.beatPhase(), true);
+            master.render(l.data(), r.data(), 64); slave.render(l.data(), r.data(), 64);
+        }
+        const double pm = master.beatPhase(), ps = slave.beatPhase();
+        auto fr = [](double x) { return x - std::floor(x); };
+        double e = mode == 1 ? fr(2 * ps) - pm : fr(2 * pm) - ps;
+        e -= std::round(e);
+        return std::abs(e);
+    };
+    {   // 62 bpm against 123.6: half time, the slave's half beats on the master's beats
+        Deck a, b; fresh(a, clickTrack(120)); fresh(b, clickTrack(62, 30, 0.37));
+        a.set.startTime = b.set.startTime = 0.05f; a.set.pitch = 0.375f;
+        a.playPause(); b.playPause(); run(a, 0.5); run(b, 0.7);
+        const double e = lockErr(a, b, 1);
+        check(e < 0.01 && std::abs(b.currentBpm() - 61.8) < 0.05, "half-time sync locks the phase", fmt("error %.4f beats, bpm %.3f", e, b.currentBpm()));
+    }
+    {   // 128 bpm against 62: double time, two slave beats per master beat
+        Deck a, b; fresh(a, clickTrack(62)); fresh(b, clickTrack(128, 30, 0.21));
+        a.set.startTime = b.set.startTime = 0.05f;
+        a.playPause(); b.playPause(); run(a, 0.5); run(b, 0.9);
+        const double e = lockErr(a, b, 2);
+        check(e < 0.01 && std::abs(b.currentBpm() - 124) < 0.05, "double-time sync locks the phase", fmt("error %.4f beats, bpm %.3f", e, b.currentBpm()));
+    }
+}
+
 static void testPerformance() {
     Deck a, b; Fx fa, fb; Mixer m;
     fresh(a, musicTrack(120, 30)); fresh(b, musicTrack(124, 30));
@@ -595,6 +881,10 @@ int main(int argc, char** argv) {
     testSync();
     testMixer();
     testFx(wavDir);
+    testKeylockTransients(wavDir);
+    testAntiAlias(wavDir);
+    testRapidJumps();
+    testHalfDoubleSync();
     testPerformance();
     std::printf("\n%d passed, %d failed\n", passes, failures);
     return failures ? 1 : 0;
