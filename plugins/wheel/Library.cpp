@@ -224,6 +224,21 @@ void Library::setRoot(const juce::File& root)
             return a.parts.size() < b.parts.size();
         });
         for (const auto& c : cs) crateList.add({ c.parts.joinIntoString(" / "), c.parts.size() - 1, Crate::serato, c.f });
+
+        // smart crates: a group, then each one (nested names "Parent%%Child" as for crates)
+        const juce::File smartDir = seratoDir.getChildFile("SmartCrates");
+        std::vector<C> ss;
+        for (const auto& e : juce::RangedDirectoryIterator(smartDir, false, "*.scrate")) {
+            juce::StringArray parts;
+            parts.addTokens(e.getFile().getFileNameWithoutExtension().replace("%%", "\x01"), "\x01", "");
+            parts.removeEmptyStrings();
+            if (! parts.isEmpty()) ss.push_back({ parts, e.getFile() });
+        }
+        std::sort(ss.begin(), ss.end(), [](const C& a, const C& b) { return a.parts.joinIntoString("/").compareNatural(b.parts.joinIntoString("/")) < 0; });
+        if (! ss.empty()) {
+            crateList.add({ "Smart crates", 0, Crate::smart, smartDir });
+            for (const auto& c : ss) crateList.add({ "Smart crates / " + c.parts.joinIntoString(" / "), c.parts.size(), Crate::smart, c.f });
+        }
     }
 
     // one walk: every audio file (for "All tracks" and matching crate paths), playlists, folders with audio
@@ -305,6 +320,14 @@ juce::Array<Entry> Library::list(const Crate& c)
     const juce::ScopedLock scoped(scanLock);
     juce::Array<Entry> out;
     const auto idx = indexFor(rootDir);
+    if (c.kind == Crate::smart) {
+        juce::Array<juce::File> seen;
+        if (c.source.isDirectory()) {   // the group: every smart crate's tracks
+            for (const auto& cc : crateList)
+                if (cc.kind == Crate::smart && cc.source.existsAsFile()) listSmart(cc.source, idx.get(), out, seen);
+        } else listSmart(c.source, idx.get(), out, seen);
+        return out;
+    }
     if (c.kind == Crate::all) {
         if (idx) for (const auto& f : idx->audio) out.add(readEntry(f));
         return out;
@@ -341,6 +364,36 @@ juce::Array<Entry> Library::list(const Crate& c)
     return out;
 }
 
+// a smart crate's tracks: its rules over every track under the root (when every rule is one smartMatch evaluates),
+// else the track list stored in the file, else the rules it can evaluate (the others never match)
+void Library::listSmart(const juce::File& f, const void* index, juce::Array<Entry>& out, juce::Array<juce::File>& seen)
+{
+    const auto* idx = static_cast<const RootIndex*>(index);
+    juce::MemoryBlock mb;
+    if (! f.loadFileAsData(mb)) return;
+    const SmartCrate sc = parseSmartCrate((const uint8_t*) mb.getData(), mb.getSize());
+    bool all = ! sc.rules.empty();
+    for (const auto& r : sc.rules) all = all && smartRuleSupported(r);
+    if (! all && ! sc.paths.empty()) {
+        juce::File lastBase;
+        for (const auto& p : sc.paths) {
+            const juce::File t = resolvePath(fromStd(p), rootDir, seratoDir, {}, idx, lastBase);
+            if (t.existsAsFile() && ! seen.contains(t)) { seen.add(t); out.add(readEntry(t)); }
+        }
+        return;
+    }
+    if (sc.rules.empty() || idx == nullptr) return;
+    for (const auto& t : idx->audio) {
+        if (seen.contains(t)) continue;
+        Entry e = readEntry(t);
+        SmartFields sf;
+        sf.fileName = t.getFileName().toStdString();
+        sf.title = e.title.toStdString(); sf.artist = e.artist.toStdString(); sf.album = e.album.toStdString();
+        sf.genre = e.genre.toStdString(); sf.keyText = e.keyText.toStdString(); sf.bpm = e.bpm;
+        if (smartMatch(sc, sf)) { seen.add(t); out.add(std::move(e)); }
+    }
+}
+
 juce::Array<Entry> Library::search(const juce::String& text, const Crate& c)
 {
     const juce::ScopedLock scoped(scanLock);
@@ -371,6 +424,7 @@ void applyFileTags(const juce::File& f, Tags g, Track& t, Entry* e)
         e->title = title;
         e->artist = artist;
         e->album = fromStd(g.album);
+        e->genre = fromStd(g.genre);
         e->keyText = fromStd(g.keyText);
         e->bpm = t.bpm;
         e->serato = g.serato;

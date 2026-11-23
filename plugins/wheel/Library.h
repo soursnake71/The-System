@@ -11,17 +11,19 @@ namespace wheel {
 // one row in the browser (cheap: tags only, no audio decoded)
 struct Entry {
     juce::File file;
-    juce::String title, artist, album, keyText;   // keyText as tagged ("8A", "Am")
+    juce::String title, artist, album, genre, keyText;   // keyText as tagged ("8A", "Am")
     double bpm = 0, length = 0;
     bool serato = false;
 };
 
-// a crate: a Serato .crate (from <drive>/_Serato_/Subcrates, nested crates "Parent%%Child"), a folder, or "All tracks"
+// a crate: a Serato .crate (from <drive>/_Serato_/Subcrates, nested crates "Parent%%Child"), a Serato smart crate
+// (_Serato_/SmartCrates/*.scrate, listed under a "Smart crates" group whose source is that folder: the group lists
+// every smart crate's tracks), a folder, a playlist, or "All tracks"
 struct Crate {
     juce::String name;           // display, with nesting shown as "Parent / Child"
     int depth = 0;
-    enum Kind { all, serato, folder, playlist } kind = folder;
-    juce::File source;           // the .crate file, the folder, or the .m3u/.m3u8
+    enum Kind { all, serato, folder, playlist, smart } kind = folder;
+    juce::File source;           // the .crate / .scrate file, the folder, or the .m3u/.m3u8
 };
 
 class Library {
@@ -51,6 +53,7 @@ private:
     mutable juce::CriticalSection scanLock;   // setRoot / list / search from several threads (GUI, hardware browser)
     juce::File rootDir, seratoDir;
     juce::Array<Crate> crateList;
+    void listSmart(const juce::File& scrate, const void* rootIndex, juce::Array<Entry>& out, juce::Array<juce::File>& seen);
 };
 
 // building blocks (exposed for the tests)

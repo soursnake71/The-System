@@ -111,7 +111,32 @@ recognised by its pads or its encoder; or set Controller to MPC Sample.
 | SAMPLE (or SAMPLE SELECT) | open / close the crate browser; encoder to move, encoder press to open a crate and again to load the track on the focused deck; SEQ goes back |
 
 The music: with no folder chosen it looks for the SD card at `/media/MPC SAMPLE` (then `/media`, `/run/media`,
-`/mnt`), and lists its Serato crates, playlists and folders.
+`/mnt`), and lists its Serato crates, smart crates, playlists and folders. Smart crates (`_Serato_/SmartCrates/*.scrate`)
+sit under a "Smart crates" group; their rules are evaluated on the card's tracks: file name, title, artist, album, genre
+and key with contains / does not contain / is / is not, and BPM at least / at most, matching all or any. A smart crate
+with a rule it can't evaluate (comment, year, date added, plays...) shows the track list stored in the file if there is
+one (otherwise that rule never matches). The `.scrate` layout comes from community reverse engineering, not from
+Serato. The project remembers the crate the hardware browser last opened, the focused deck, each deck's loop and sync.
+
+**Lights.** In MPC Sample mode the instrument sends LED feedback on its MIDI out (route the instrument's MIDI out
+back to the MPC Sample's control surface): pads and buttons update when something changes, at most every 30 ms, and
+everything is sent again whenever MPC Sample mode starts. Nothing is sent in any other mode.
+
+| LED | Shows |
+|---|---|
+| Pads (SysEx `F0 47 7F 5C 65 00 04 <pad> <R> <G> <B> F7`, 0-127 each) | Cues: each hot cue's colour, off when empty, white while held; Loops (green): bright on the active loop's size; Rolls (cyan); Transport: PLAY / CUE / SYNC / CENSOR / NUDGE / LOOP colours, bright while on. Dim otherwise, bright while held |
+| PLAY (`B0 82`) | the focused deck is playing |
+| B1 / B2 (`B0 12` / `B0 13`) | which deck has the focus |
+| B3 (`B0 14`) | sync on the focused deck |
+| LOOP (`B0 74`) | the focused deck is looping |
+| KNOB FX / PAD FX / MUTE / TAP TEMPO (`B0 0` / `1` / `43` / `53`) | FX on / slip / headphone cue / key lock on the focused deck |
+| SHIFT (`B0 49`) | held |
+
+Buttons are 1 (dim) when off and 127 when on. Both message formats come from community reverse engineering of Akai's
+controller protocol and are unverified on the MPC Sample itself; the SysEx pad byte is taken to be the MPC pad number
+minus 1 (pad 1, bottom left = 0, rows going up), and `kSysexPadFromTop` in `WheelPlugin.cpp` flips it if the device
+counts from the top row. VST3 hosts may not pass SysEx from a plugin's MIDI out; the button CCs go through either way.
+The MPC software's own pads can't be lit from a plugin.
 
 **The screen.** The device has no window system, so a host draws the plugin's screen itself. The plugin's `.so`
 exports a C function for that:

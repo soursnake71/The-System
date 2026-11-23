@@ -1748,8 +1748,8 @@ struct LibraryPanel : Component, ListBoxModel, KeyListener
         const auto& c = crateList.getReference(row);
         if (sel) { g.setColour(pal::deck[0].withAlpha(.28f)); g.fillRect(0, 0, w, h); g.setColour(pal::deck[0]); g.fillRect(0, 0, 3, h); }
         float x = 8.0f + (float) c.depth * 14.0f;
-        String icon = c.kind == Crate::all ? U("\xe2\x99\xab") : c.kind == Crate::serato ? U("\xe2\x97\x86") : c.kind == Crate::playlist ? U("\xe2\x89\xa1") : U("\xe2\x96\xb8");
-        g.setColour(c.kind == Crate::serato ? pal::amber : pal::dim); g.setFont(font(12, true));
+        String icon = c.kind == Crate::all ? U("\xe2\x99\xab") : c.kind == Crate::serato ? U("\xe2\x97\x86") : c.kind == Crate::playlist ? U("\xe2\x89\xa1") : c.kind == Crate::smart ? U("\xe2\x97\x87") : U("\xe2\x96\xb8");
+        g.setColour(c.kind == Crate::serato || c.kind == Crate::smart ? pal::amber : pal::dim); g.setFont(font(12, true));
         g.drawText(icon, (int) x, 0, 14, h, Justification::centred);
         g.setColour(sel ? pal::text : pal::text.withAlpha(.85f)); g.setFont(font(13, c.kind == Crate::all));
         String name = c.name.fromLastOccurrenceOf(" / ", false, false);

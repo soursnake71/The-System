@@ -1,5 +1,6 @@
 // wheel_lib_test: crates, Serato tags, decoding and analysis on generated files (plus any real audio found here).
 #include "../Library.h"
+#include "../SeratoTags.h"
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <cmath>
 #include <cstdio>
@@ -209,6 +210,32 @@ juce::MemoryBlock makeCrate(const juce::StringArray& paths)
     return m.getMemoryBlock();
 }
 
+// a Serato smart crate (.scrate), laid out as community tools (serato-tools) read and write them
+struct SmartRuleSpec { int field; const char* op; juce::String text; int num = -1; };
+juce::MemoryBlock makeSmartCrate(bool matchAll, const std::vector<SmartRuleSpec>& rules, const juce::StringArray& paths = {})
+{
+    auto u32 = [](uint32_t v) { juce::MemoryOutputStream m; put32(m, v); return m.getMemoryBlock(); };
+    auto flag = [](bool on) { juce::MemoryOutputStream b; const char v = on ? 1 : 0; crateRecord(b, "brut", juce::MemoryBlock(&v, 1)); return b.getMemoryBlock(); };
+    juce::MemoryOutputStream m;
+    crateRecord(m, "vrsn", utf16be("1.0/Serato ScratchLive Smart Crate"));
+    crateRecord(m, "rlut", flag(true));
+    crateRecord(m, "rart", flag(matchAll));
+    for (const auto& r : rules) {
+        juce::MemoryOutputStream x;
+        crateRecord(x, "trft", utf16be(r.op));
+        crateRecord(x, "urkt", u32((uint32_t) r.field));
+        if (r.num >= 0) crateRecord(x, "urpt", u32((uint32_t) r.num));
+        else crateRecord(x, "trpt", utf16be(r.text));
+        crateRecord(m, "rurt", x.getMemoryBlock());
+    }
+    for (const auto& p : paths) {
+        juce::MemoryOutputStream t;
+        crateRecord(t, "ptrk", utf16be(p));
+        crateRecord(m, "otrk", t.getMemoryBlock());
+    }
+    return m.getMemoryBlock();
+}
+
 void id3Frame(juce::MemoryOutputStream& m, const char* id, const juce::MemoryBlock& body)
 {
     m.write(id, 4);
@@ -288,6 +315,7 @@ juce::MemoryBlock id3Tag()
     id3Frame(frames, "TIT2", textFrame("Cue Test"));
     id3Frame(frames, "TPE1", textFrame("Serato Tester"));
     id3Frame(frames, "TKEY", textFrame("8A"));
+    id3Frame(frames, "TCON", textFrame("(35)"));   // ID3v1 genre 35 = House
     id3Frame(frames, "GEOB", geob("Serato Markers2", markers2()));
     id3Frame(frames, "GEOB", geob("Serato BeatGrid", beatGrid(0.1f, 128.0f)));
     juce::MemoryOutputStream m;
@@ -368,6 +396,13 @@ int main(int argc, char** argv)
         save("Hip Hop", { "Music/Hip Hop/DJ Test - Boom Bap 90.wav" });
         save("Hip Hop%%Boom Bap", { "Users/someone/Music/Hip Hop/DJ Test - Boom Bap 90.wav", "Music/Cues/cued.wav" });
         save("100% Bangers", { "Music/House/house126.wav" });
+        const auto smart = root.getChildFile("_Serato_/SmartCrates");
+        auto saveSmart = [&](const juce::String& name, const juce::MemoryBlock& mb) { smart.getChildFile(name + ".scrate").replaceWithData(mb.getData(), mb.getSize()); };
+        saveSmart("Bangers 128", makeSmartCrate(true, { { 15, "cond_greq_uint", {}, 125 }, { 7, "cond_con_str", "SERATO" } }));
+        saveSmart("Boom or Am", makeSmartCrate(false, { { 6, "cond_con_str", "boom" }, { 51, "cond_is_str", "A minor" } }));
+        saveSmart("Genre House", makeSmartCrate(true, { { 9, "cond_is_str", "house" }, { 15, "cond_lseq_uint", {}, 130 } }));
+        saveSmart("Played", makeSmartCrate(true, { { 79, "cond_greq_uint", {}, 3 } }, { "Music/House/house126.wav" }));
+        saveSmart("Sets%%Warmup", makeSmartCrate(true, { { 4, "cond_con_str", "chords" }, { 7, "cond_dnc_str", "tester" } }));
     }
 
     // ---- parseCrate round trip ----
@@ -389,12 +424,12 @@ int main(int argc, char** argv)
     std::printf("setRoot: %.1f ms, crates:\n", juce::Time::getMillisecondCounterHiRes() - t0);
     for (const auto& c : lib.crates())
         std::printf("   %*s%s  [%s]\n", c.depth * 2, "", c.name.toRawUTF8(),
-                    c.kind == Crate::all ? "all" : c.kind == Crate::serato ? "serato" : c.kind == Crate::folder ? "folder" : "playlist");
+                    c.kind == Crate::all ? "all" : c.kind == Crate::serato ? "serato" : c.kind == Crate::folder ? "folder" : c.kind == Crate::smart ? "smart" : "playlist");
     lib.setRoot(root);
     std::printf("crates from the card root:\n");
     for (const auto& c : lib.crates())
         std::printf("   %*s%s  [%s]\n", c.depth * 2, "", c.name.toRawUTF8(),
-                    c.kind == Crate::all ? "all" : c.kind == Crate::serato ? "serato" : c.kind == Crate::folder ? "folder" : "playlist");
+                    c.kind == Crate::all ? "all" : c.kind == Crate::serato ? "serato" : c.kind == Crate::folder ? "folder" : c.kind == Crate::smart ? "smart" : "playlist");
     const auto& cr = lib.crates();
     check(! cr.isEmpty() && cr[0].kind == Crate::all && cr[0].name == "All tracks", "All tracks first");
     const Crate* hip = findCrate(lib, "Hip Hop");
@@ -406,6 +441,32 @@ int main(int argc, char** argv)
     check(hou && hou->kind == Crate::serato, "Serato crate 'House'");
     const Crate* pl = findCrate(lib, "set");
     check(pl && pl->kind == Crate::playlist, "m3u8 playlist found");
+    {   // Serato smart crates: a group, then each crate with its rules evaluated over the card
+        const Crate* grp = findCrate(lib, "Smart crates");
+        check(grp && grp->kind == Crate::smart && grp->depth == 0, "'Smart crates' group listed");
+        const Crate* bang = findCrate(lib, "Smart crates / Bangers 128");
+        const Crate* warm = findCrate(lib, "Smart crates / Sets / Warmup");
+        check(bang && bang->kind == Crate::smart && bang->depth == 1 && warm && warm->depth == 2, "smart crates under it (nested names too)");
+        auto names = [&](const Crate* c) {
+            juce::StringArray n;
+            if (c) for (const auto& e : lib.list(*c)) n.add(e.file.getFileName());
+            n.sort(true);
+            return n.joinIntoString(",");
+        };
+        check(names(bang) == "cued.wav", "match all: BPM >= 125 and artist contains: " + names(bang));
+        check(names(findCrate(lib, "Smart crates / Boom or Am")) == "cued.wav,DJ Test - Boom Bap 90.wav", "match any: title contains / key is (8A = A minor): " + names(findCrate(lib, "Smart crates / Boom or Am")));
+        check(names(findCrate(lib, "Smart crates / Genre House")) == "cued.wav", "genre is (ID3 '(35)' = House) and BPM <= 130: " + names(findCrate(lib, "Smart crates / Genre House")));
+        check(names(findCrate(lib, "Smart crates / Played")) == "house126.wav", "a rule it can't evaluate (plays): the stored track list: " + names(findCrate(lib, "Smart crates / Played")));
+        check(names(warm) == "chords_am.wav", "file name contains / artist does not contain: " + names(warm));
+        check(names(grp) == "chords_am.wav,cued.wav,DJ Test - Boom Bap 90.wav,house126.wav", "the group lists every smart crate's tracks once: " + names(grp));
+        const auto sc = parseSmartCrate((const uint8_t*) makeSmartCrate(false, { { 15, "cond_greq_uint", {}, 90 } }).getData(), 0);
+        check(sc.rules.empty(), "parseSmartCrate: empty input");
+        const auto mb = makeSmartCrate(false, { { 15, "cond_lseq_uint", {}, 90 }, { 21, "cond_con_str", "YT" } }, { "a.mp3" });
+        const auto sc2 = parseSmartCrate((const uint8_t*) mb.getData(), mb.getSize());
+        check(! sc2.matchAll && sc2.liveUpdate && sc2.rules.size() == 2 && sc2.rules[0].field == 15 && sc2.rules[0].hasNum && sc2.rules[0].num == 90
+                  && sc2.rules[1].op == "cond_con_str" && sc2.rules[1].text == "YT" && ! smartRuleSupported(sc2.rules[1]) && sc2.paths.size() == 1,
+              "parseSmartCrate: match any, live update, rules (u32 / text values), stored tracks");
+    }
     const Crate* fMusic = findCrate(lib, "Music");
     bool folderHouse = false, junk = false;
     for (const auto& c : cr) {

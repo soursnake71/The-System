@@ -29,13 +29,14 @@ enum class PadMode { cues, loops, rolls, transport, count };
 struct Cmd {
     enum Type { load, playPause, play, cue, hotCue, clearCue, autoLoop, loopIn, loopOut, reloop, loopExit, loopHalve, loopDouble,
                 loopMove, roll, savedLoop, touch, move, bend, nudge, censor, seek, sync, syncOff, gridShift, gridBpm, tapBpm,
-                setCuePoint } type;
+                setCuePoint, setLoop } type;
     // fields: hotCue/clearCue/savedLoop i = slot; autoLoop/roll/loopMove v = beats (roll: on = held); cue/touch/censor/
     // play on = down/on; move/bend/seek/gridShift v = seconds; nudge v = -1..1 (0 releases); gridBpm v = BPM;
     // tapBpm v = tap time in ms (Time::getMillisecondCounterHiRes) or 0 = now; sync: on = true turns sync on (and
-    // matches tempo + phase now), on = false toggles; syncOff turns it off; setCuePoint v = seconds (unquantized).
+    // matches tempo + phase now), on = false toggles; syncOff turns it off; setCuePoint v = seconds (unquantized);
+    // setLoop v..v2 = the loop region in seconds (unquantized), on = looping (project recall).
 
-    int deck = 0; int i = 0; double v = 0; bool on = false;
+    int deck = 0; int i = 0; double v = 0, v2 = 0; bool on = false;
     std::shared_ptr<const Track> track;   // for load
 };
 
@@ -52,14 +53,16 @@ public:
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
+    bool producesMidi() const override { return true; }    // LED feedback to the MPC Sample
     double getTailLengthSeconds() const override { return 0; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
     const juce::String getProgramName(int) override { return "Default"; }
     void changeProgramName(int, const juce::String&) override {}
-    void getStateInformation(juce::MemoryBlock&) override;   // params, library root, loaded files + positions, cues, MIDI map
+    // params, library root, loaded files + positions, cues, saved loops, the loop region, sync, MIDI map, the focused
+    // deck and the hardware browser's crate
+    void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
     // ---- message thread API (editor) ----
@@ -100,6 +103,10 @@ public:
     int focusDeck() const;
     bool shiftHeld() const;
     bool mpcSampleActive() const;
+    // LED feedback (audio thread, MPC Sample mode only): processBlock's MIDI out carries the pad colours as SysEx
+    // (F0 47 7F 5C 65 00 04 <pad> <R> <G> <B> F7, 0..127 each) and the button lights as CC on channel 1
+    // (B0 <button note> <0 off / 1 dim / 127 on), changes only, at most every kLedIntervalMs.
+    static constexpr int kLedIntervalMs = 30;
     // the crate browser driven by the hardware (SAMPLE / encoder / encoder press / SEQ = back), shown on the screen
     struct HwBrowser { int mode = 0; /* 0 closed, 1 crates, 2 tracks */ juce::String title; juce::StringArray rows; juce::Array<double> bpm; int cursor = 0; bool busy = false; };
     HwBrowser hwBrowser() const;

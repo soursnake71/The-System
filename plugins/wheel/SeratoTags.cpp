@@ -3,6 +3,7 @@
 #include "SeratoTags.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #if ! defined(_WIN32)
@@ -138,6 +139,30 @@ std::string trim(const std::string& s)
 
 std::string upper(std::string s) { for (auto& c : s) if (c >= 'a' && c <= 'z') c = (char) (c - 'a' + 'A'); return s; }
 std::string lower(std::string s) { for (auto& c : s) if (c >= 'A' && c <= 'Z') c = (char) (c - 'A' + 'a'); return s; }
+
+// ID3 TCON: "(17)Rock" / "(17)" / "Rock"; a bare ID3v1 number keeps only the commonest DJ genres' names
+std::string id3Genre(const std::string& s)
+{
+    std::string g = s;
+    size_t k = 0;
+    if (! g.empty() && g[0] == '(') {
+        k = 1;
+        while (k < g.size() && g[k] >= '0' && g[k] <= '9') ++k;
+        if (k > 1 && k < g.size() && g[k] == ')') {
+            const int n = std::atoi(g.substr(1, k - 1).c_str());
+            g = trim(g.substr(k + 1));
+            if (! g.empty()) return g;
+            g = std::to_string(n);
+        } else return g;
+    }
+    if (g.empty() || g.find_first_not_of("0123456789") != std::string::npos) return g;
+    static const std::pair<int, const char*> names[] = { { 0, "Blues" }, { 2, "Country" }, { 3, "Dance" }, { 5, "Funk" }, { 7, "Hip-Hop" },
+        { 8, "Jazz" }, { 13, "Pop" }, { 14, "R&B" }, { 15, "Rap" }, { 16, "Reggae" }, { 17, "Rock" }, { 18, "Techno" }, { 26, "Ambient" },
+        { 31, "Trance" }, { 35, "House" }, { 42, "Soul" }, { 52, "Electronic" } };
+    const int n = std::atoi(g.c_str());
+    for (const auto& x : names) if (x.first == n) return x.second;
+    return g;
+}
 bool startsWith(const std::string& s, const char* p) { return s.compare(0, std::strlen(p), p) == 0; }
 bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
@@ -348,6 +373,7 @@ void parseId3(const uint8_t* u, size_t n, Tags& out)
         if (id == "TIT2") out.title = trim(id3Text(f + 1, fn - 1, enc));
         else if (id == "TPE1") out.artist = trim(id3Text(f + 1, fn - 1, enc));
         else if (id == "TALB") out.album = trim(id3Text(f + 1, fn - 1, enc));
+        else if (id == "TCON") out.genre = id3Genre(trim(id3Text(f + 1, fn - 1, enc)));
         else if (id == "TKEY") out.keyText = trim(id3Text(f + 1, fn - 1, enc));
         else if (id == "TBPM") { const double v = toDouble(id3Text(f + 1, fn - 1, enc)); if (v > 20 && v < 400) out.tagBpm = v; }
         else if (id == "GEOB") {
@@ -381,6 +407,7 @@ void vorbisComment(const std::string& c, Tags& out)
     if (key == "TITLE") out.title = trim(val);
     else if (key == "ARTIST") out.artist = trim(val);
     else if (key == "ALBUM") out.album = trim(val);
+    else if (key == "GENRE") out.genre = trim(val);
     else if (key == "BPM" || key == "TEMPO") { const double v = toDouble(val); if (v > 20 && v < 400) out.tagBpm = v; }
     else if (key == "INITIALKEY" || key == "KEY") out.keyText = trim(val);
     else if (startsWith(key, "SERATO_MARKERS") || key == "SERATO_BEATGRID") {
@@ -505,6 +532,7 @@ void readRiff(ByteSource& in, bool aiff, Tags& out)
                     if (sid == "INAM" && out.title.empty()) out.title = v;
                     else if (sid == "IART" && out.artist.empty()) out.artist = v;
                     else if (sid == "IPRD" && out.album.empty()) out.album = v;
+                    else if (sid == "IGNR" && out.genre.empty()) out.genre = v;
                     q += 8 + sl + (sl & 1);
                 }
             }
@@ -553,6 +581,7 @@ void mp4Atoms(const uint8_t* b, size_t n, Tags& out, int depth)
                 if (is("\xA9nam")) out.title = trim(s);
                 else if (is("\xA9" "ART")) out.artist = trim(s);
                 else if (is("\xA9" "alb")) out.album = trim(s);
+                else if (is("\xA9" "gen")) out.genre = trim(s);
                 else if (is("tmpo") && dataLen >= 2 && dataType != 1) { const double v = (data[0] << 8) | data[1]; if (v > 20 && v < 400) out.tagBpm = v; }
                 else if (is("----")) {
                     const std::string nm = lower(meanName);
@@ -648,6 +677,112 @@ std::vector<std::string> parseCrate(const uint8_t* u, size_t n)
     };
     walk(0, n, 0);
     return paths;
+}
+
+// a Serato smart crate (.scrate): the same tag / length / payload records as a .crate. Layout from community reverse
+// engineering (serato-tools): "rart" / "rlut" hold a "brut" byte (match all / live update); each "rurt" rule holds
+// "trft" (comparison, UTF-16BE), "urkt" (field id, u32) and one value: "trpt" (text), "urpt" (u32) or "trtt" (time).
+SmartCrate parseSmartCrate(const uint8_t* u, size_t n)
+{
+    SmartCrate sc;
+    if (u == nullptr) return sc;
+    sc.paths = parseCrate(u, n);
+    // the first "brut" byte inside a record (or the record's own byte when it is just one)
+    const auto flag = [u](size_t b, size_t e, bool def) {
+        if (e - b == 1) return u[b] != 0;
+        for (size_t p = b; p + 8 <= e;) {
+            const size_t len = be32(u + p + 4), q = p + 8;
+            if (q + len > e) break;
+            if (std::memcmp(u + p, "brut", 4) == 0 && len >= 1) return u[q] != 0;
+            p = q + len;
+        }
+        return def;
+    };
+    for (size_t p = 0; p + 8 <= n;) {
+        const size_t len = be32(u + p + 4), b = p + 8, e = std::min(n, b + len);
+        if (std::memcmp(u + p, "rart", 4) == 0) sc.matchAll = flag(b, e, true);
+        else if (std::memcmp(u + p, "rlut", 4) == 0) sc.liveUpdate = flag(b, e, false);
+        else if (std::memcmp(u + p, "rurt", 4) == 0) {
+            SmartRule r;
+            for (size_t q = b; q + 8 <= e;) {
+                const size_t l2 = be32(u + q + 4), c = q + 8;
+                if (c + l2 > e) break;
+                const auto tag = [&](const char* t) { return std::memcmp(u + q, t, 4) == 0; };
+                if (tag("trft")) r.op = utf16(u + c, l2, true);
+                else if (tag("urkt") && l2 >= 4) r.field = (int) be32(u + c);
+                else if (tag("trpt")) r.text = utf16(u + c, l2, true);
+                else if ((tag("urpt") || tag("trtt")) && l2 >= 4) { r.num = be32(u + c); r.hasNum = true; }
+                q = c + l2;
+            }
+            sc.rules.push_back(std::move(r));
+        }
+        if (b + len > n) break;
+        p = b + len;
+    }
+    return sc;
+}
+
+namespace {
+bool strOp(const std::string& op) { return op == "cond_con_str" || op == "cond_dnc_str" || op == "cond_is_str" || op == "cond_isn_str"; }
+bool numOp(const std::string& op) { return op == "cond_greq_uint" || op == "cond_lseq_uint"; }
+const std::string* textField(int field, const SmartFields& f)
+{
+    switch (field) {
+        case smartField::fileName: return &f.fileName;
+        case smartField::title: return &f.title;
+        case smartField::artist: return &f.artist;
+        case smartField::album: return &f.album;
+        case smartField::genre: return &f.genre;
+        default: return nullptr;
+    }
+}
+}  // namespace
+
+bool smartRuleSupported(const SmartRule& r)
+{
+    if (r.field == smartField::bpm) return numOp(r.op);
+    if (r.field == smartField::key) return strOp(r.op);
+    SmartFields none;
+    return textField(r.field, none) != nullptr && strOp(r.op);
+}
+
+int smartRuleMatch(const SmartRule& r, const SmartFields& f)
+{
+    if (! smartRuleSupported(r)) return -1;
+    if (r.field == smartField::bpm) {
+        if (f.bpm <= 0) return 0;
+        const double want = r.hasNum ? (double) r.num : std::atof(r.text.c_str());
+        const double have = std::round(f.bpm);   // Serato shows (and compares) whole BPM
+        return r.op == "cond_greq_uint" ? have >= want : have <= want;
+    }
+    const std::string want = lower(trim(r.text));
+    bool is = false, has = false;
+    if (r.field == smartField::key) {
+        const int a = parseKey(f.keyText), b = parseKey(r.text);
+        if (a >= 0 && b >= 0) is = a == b;
+        else is = lower(trim(f.keyText)) == want;
+        has = is || lower(f.keyText).find(want) != std::string::npos
+              || (a >= 0 && (lower(keyName(a)).find(want) != std::string::npos || lower(camelot(a)).find(want) != std::string::npos));
+    } else {
+        const std::string have = lower(*textField(r.field, f));
+        is = trim(have) == want;
+        has = have.find(want) != std::string::npos;
+    }
+    if (r.op == "cond_con_str") return has;
+    if (r.op == "cond_dnc_str") return ! has;
+    if (r.op == "cond_is_str") return is;
+    return ! is;   // cond_isn_str
+}
+
+bool smartMatch(const SmartCrate& c, const SmartFields& f)
+{
+    if (c.rules.empty()) return false;
+    for (const auto& r : c.rules) {
+        const bool ok = smartRuleMatch(r, f) == 1;   // a rule this can't evaluate never matches
+        if (c.matchAll && ! ok) return false;
+        if (! c.matchAll && ok) return true;
+    }
+    return c.matchAll;
 }
 
 void nameFromFileName(const std::string& fileName, std::string& title, std::string& artist)

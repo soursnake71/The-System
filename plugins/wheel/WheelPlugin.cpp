@@ -55,6 +55,24 @@ namespace sb { enum : int { knobFx = 0, padFx = 1, sample = 6, seq = 7, erase = 
                             play = 82, stop = 81 }; }
 namespace scc { enum : int { k1 = 16, k2 = 17, k3 = 18, mainVolume = 19, fader = 20, encoder = 100 }; }
 enum Controller { ctrlAuto, ctrlMidi, ctrlSample };
+
+// LED feedback to the MPC Sample (its MIDI in, from the host's MIDI out). From community reverse engineering of the
+// MPC's controller protocol, not from Akai: pads take RGB as SysEx F0 47 7F 5C 65 00 04 <pad> <R> <G> <B> F7 (7 bits
+// each), buttons light from CC on channel 1 with the button's note number as the controller (0 off, 1 dim, 2+ on).
+// Pad numbering in the SysEx is assumed to be the MPC pad number - 1 (pad 1, bottom left = 0, rows of 4 going up, the
+// same as the pad indices here); if the device counts from the top row, set kSysexPadFromTop.
+constexpr bool kSysexPadFromTop = false;
+int sysexPad(int p) { return kSysexPadFromTop ? (3 - p / 4) * 4 + p % 4 : p; }
+constexpr uint8_t kSysexHead[7] = { 0xF0, 0x47, 0x7F, 0x5C, 0x65, 0x00, 0x04 };
+constexpr int kSysexLen = 12;
+constexpr int kLedOff = 0, kLedDim = 1, kLedOn = 127;
+// the lit buttons: PLAY (focused deck playing), B1 / B2 (focus), B3 (sync), LOOP (looping), KNOB FX (FX on), PAD FX
+// (slip), MUTE (headphone cue), TAP TEMPO (key lock), SHIFT (held)
+constexpr int kLedNotes[] = { sb::play, sb::b1, sb::b2, sb::b3, sb::loop, sb::knobFx, sb::padFx, sb::mute, sb::tapTempo, sb::shift };
+constexpr int kLedBtns = (int) (sizeof(kLedNotes) / sizeof(kLedNotes[0]));
+constexpr int kLedMaxBytes = 16 * (kSysexLen + 8) + kLedBtns * (3 + 8);   // MidiBuffer stores ~6 bytes per event header
+constexpr float kPadDim = .2f;
+constexpr uint32_t kRgbGreen = 0x34d058, kRgbCyan = 0x2fd4ff, kRgbAmber = 0xffa21f, kRgbRed = 0xff3b30, kRgbWhite = 0xffffff;
 constexpr double kReleaseSec = .06;        // hand lifts this long after the last platter movement
 constexpr int kTargetPad = 1000;           // MIDI map target >= this: pad (target - kTargetPad)
 constexpr int kMapSize = 16 * 128;         // channel * 128 + cc / note
@@ -170,6 +188,10 @@ struct WheelProcessor::Impl {
             for (int i = 0; i < kCues; ++i) { snap[dk].t[i].store(-1); snap[dk].rgb[i].store(0); pubT[dk][i] = -1; pubRgb[dk][i] = 0; }
         }
         for (auto& h : heldMode) for (auto& m : h) m = -1;
+        for (auto& x : syncPub) x.store(false);
+        std::copy(std::begin(kSysexHead), std::end(kSysexHead), sysex);
+        sysex[kSysexLen - 1] = 0xF7;
+        ledReset();
         clearMaps();
     }
 
@@ -473,6 +495,7 @@ struct WheelProcessor::Impl {
         if (master(dk, bpm, ph)) P.engineDeck[dk].syncTo(bpm, ph < 0 ? 0 : ph, phaseToo && ph >= 0);
     }
     bool relock[2] {}; double lastRate[2] {};
+    std::atomic<bool> syncPub[2];   // each deck's sync switch, for the project state
     void followSync() {
         for (int dk = 0; dk < 2; ++dk) {
             auto& deck = P.engineDeck[dk];
@@ -484,6 +507,7 @@ struct WheelProcessor::Impl {
             else if (relock[dk] && rate > .2 && std::abs(rate - lastRate[dk]) < 1e-4) { phase = true; relock[dk] = false; }
             if (!playing || !deck.syncing()) relock[dk] = false;
             if (deck.syncing() && !deck.st.touched.load()) syncNow(dk, phase);
+            syncPub[dk].store(deck.syncing());
             wasPlaying[dk] = playing;
             lastRate[dk] = rate;
         }
@@ -536,6 +560,15 @@ struct WheelProcessor::Impl {
                     const double bpm = 60000.0 * (nTaps[dk] - 1) / (taps[dk][nTaps[dk] - 1] - taps[dk][0]);
                     if (bpm > 40 && bpm < 300) { deck.gridBpm(bpm); gridBpm[dk].store(bpm); }
                 }
+                break;
+            }
+            case Cmd::setLoop: {
+                if (c.v < 0 || c.v2 <= c.v) break;
+                const bool qz = deck.set.quantize;
+                deck.set.quantize = false;
+                deck.seek(c.v); deck.loopIn(); deck.seek(c.v2); deck.loopOut();
+                if (!c.on) deck.loopExit();
+                deck.set.quantize = qz;
                 break;
             }
             case Cmd::setCuePoint: {
@@ -613,16 +646,92 @@ struct WheelProcessor::Impl {
         }
     }
 
+    // ---- LED feedback to the MPC Sample (audio thread; no allocation once the host's MIDI buffer has room)
+    int ledPadSent[16][3] {}; int ledBtnSent[kLedBtns] {}; bool ledActive = false; juce::int64 ledLast = 0;
+    uint8_t sysex[kSysexLen] {};
+    void ledReset() { for (auto& p : ledPadSent) for (auto& c : p) c = -1; for (auto& b : ledBtnSent) b = -1; }
+    static int led7(uint32_t rgb, int shift, float level) {
+        return juce::jlimit(0, 127, (int) std::lround((float) ((rgb >> shift) & 0xffu) * level * (127.f / 255.f)));
+    }
+    // a pad's colour and brightness: Cues = the hot cue's colour (empty = off); Loops / Rolls / Transport = the mode's
+    // colour, dim, full while held or while what it does is on. A held pad in Cues mode is white.
+    uint32_t padRgb(int p, float& level) const {
+        const int dk = padDeck(p), s = padSlot(p);
+        const bool pressed = heldMode[1][p] >= 0;
+        const auto& deck = P.engineDeck[dk];
+        const auto& st = deck.st;
+        level = pressed ? 1.f : kPadDim;
+        switch (padMode()) {
+            case (int) PadMode::cues: {
+                const auto& hc = deck.cues[(size_t) s];
+                if (pressed) return kRgbWhite;
+                level = deck.track() != nullptr && hc.set() ? 1.f : 0.f;
+                return hc.rgb;
+            }
+            case (int) PadMode::loops: {
+                const double bl = deck.beatLength(), len = st.loopB.load() - st.loopA.load();
+                if (st.looping.load() && !st.rolling.load() && bl > 0 && std::abs(len / bl - kLoopBeats[s]) < .02 * kLoopBeats[s]) level = 1.f;
+                return kRgbGreen;
+            }
+            case (int) PadMode::rolls: return kRgbCyan;
+            default: {
+                const bool on = (s == 0 && st.playing.load()) || (s == 2 && st.synced.load()) || (s == 3 && st.censoring.load()) || (s >= 6 && st.looping.load());
+                if (on) level = 1.f;
+                return s == 0 ? kRgbGreen : s == 1 ? kRgbAmber : s == 2 ? kRgbCyan : s == 3 ? kRgbRed : s >= 6 ? kRgbGreen : kRgbWhite;
+            }
+        }
+    }
+    void ledFeedback(juce::MidiBuffer& out) {
+        if (!sampleActive()) { ledActive = false; return; }
+        const auto interval = (juce::int64) (sr * WheelProcessor::kLedIntervalMs / 1000.0);
+        if (!ledActive) { ledReset(); ledActive = true; }       // (re)entering MPC Sample mode: send everything
+        else if (now - ledLast < interval) return;
+        ledLast = now;
+        out.ensureSize((size_t) kLedMaxBytes);
+        const int f = focus.load();
+        const auto& deck = P.engineDeck[f];
+        const auto lit = [](bool on) { return on ? kLedOn : kLedDim; };
+        const int want[kLedBtns] = { lit(deck.st.playing.load()), lit(f == 0), lit(f == 1), lit(deck.syncing()), lit(deck.st.looping.load()),
+                                     lit(isOn(dpi(f, pFxon))), lit(isOn(dpi(f, pSlip))), lit(isOn(dpi(f, pPfl))), lit(isOn(dpi(f, pKeylock))),
+                                     lit(shift.load()) };
+        for (int i = 0; i < kLedBtns; ++i) {
+            if (want[i] == ledBtnSent[i]) continue;
+            const uint8_t cc[3] = { 0xB0, (uint8_t) kLedNotes[i], (uint8_t) want[i] };
+            out.addEvent(cc, 3, 0);
+            ledBtnSent[i] = want[i];
+        }
+        for (int p = 0; p < 16; ++p) {
+            float level = 0;
+            const uint32_t rgb = padRgb(p, level);
+            const int c[3] = { led7(rgb, 16, level), led7(rgb, 8, level), led7(rgb, 0, level) };
+            if (c[0] == ledPadSent[p][0] && c[1] == ledPadSent[p][1] && c[2] == ledPadSent[p][2]) continue;
+            sysex[7] = (uint8_t) sysexPad(p);
+            for (int k = 0; k < 3; ++k) { sysex[8 + k] = (uint8_t) c[k]; ledPadSent[p][k] = c[k]; }
+            out.addEvent(sysex, kSysexLen, 0);
+        }
+    }
+
     // ---- the hardware crate browser (message thread)
     mutable juce::CriticalSection brLock;
     int brMode = 0, brCursor = 0, brCrate = 0, brGen = 0; bool brBusy = false, rootTried = false;
     juce::Array<Crate> brCrates; juce::Array<Entry> brEntries;
+    juce::String brPending;   // the crate a recalled project had last opened (found by name once the crates are listed)
+    void applyPendingCrate() {
+        if (brPending.isEmpty() || brCrates.isEmpty()) return;
+        for (int i = 0; i < brCrates.size(); ++i)
+            if (brCrates[i].name == brPending) { brCrate = i; if (brMode == 1) brCursor = i; break; }
+        brPending.clear();
+    }
+    juce::String browserCrate() const {
+        const juce::ScopedLock l(brLock);
+        return brPending.isNotEmpty() || brCrate >= brCrates.size() ? brPending : brCrates[brCrate].name;
+    }
     void browseTick() {
         const uint32_t req = brReq.exchange(0);
         const int dl = brDelta.exchange(0);
         const juce::ScopedLock l(brLock);
         if (req & WheelProcessor::browseToggle) {
-            if (brMode == 0) { brCrates = P.library.cratesCopy(); brMode = 1; brCursor = juce::jlimit(0, juce::jmax(0, brCrates.size() - 1), brCrate); }
+            if (brMode == 0) { brCrates = P.library.cratesCopy(); brMode = 1; applyPendingCrate(); brCursor = juce::jlimit(0, juce::jmax(0, brCrates.size() - 1), brCrate); }
             else brMode = 0;
         }
         if (req & WheelProcessor::browseBack) { if (brMode == 2) { brMode = 1; brCursor = brCrate; } else brMode = 0; }
@@ -640,7 +749,7 @@ struct WheelProcessor::Impl {
                 brMode = 0;
             }
         }
-        if (brMode == 1 && brCrates.isEmpty()) brCrates = P.library.cratesCopy();
+        if (brMode == 1 && brCrates.isEmpty()) { brCrates = P.library.cratesCopy(); applyPendingCrate(); }
         const int n = brMode == 1 ? brCrates.size() : brMode == 2 ? brEntries.size() : 0;
         brCursor = juce::jlimit(0, juce::jmax(0, n - 1), brCursor + dl);
         browserOpen.store(brMode != 0);
@@ -674,7 +783,11 @@ struct WheelProcessor::Impl {
     juce::File currentFile[2];
     std::vector<std::shared_ptr<const Track>> keep;   // every track the audio thread may hold; freed here once only we hold it
 
-    struct Restore { bool on = false; double pos = 0, cuePoint = -1, gridShift = 0, gridBpm = 0; bool hasCues = false; std::array<HotCue, kCues> cues; };
+    struct Restore {
+        bool on = false; double pos = 0, cuePoint = -1, gridShift = 0, gridBpm = 0; bool hasCues = false; std::array<HotCue, kCues> cues;
+        bool hasLoops = false; std::array<SavedLoop, kCues> loops;              // saved loops as they were
+        double loopA = -1, loopB = -1; bool looping = false, sync = false;     // the loop region, the sync switch
+    };
     struct Done { int deck = 0, gen = 0; juce::File file; std::shared_ptr<Track> track; juce::String err; Restore r; };
     juce::ThreadPool pool { juce::ThreadPoolOptions {}.withThreadName("Wheel loader").withNumberOfThreads(2) };
     std::atomic<int> gen[2];
@@ -695,10 +808,11 @@ struct WheelProcessor::Impl {
     }
     // a decoded track goes to its deck (false: no room in the FIFO yet)
     bool finishLoad(Done& x) {
-        if (fifo.getFreeSpace() < (x.r.on ? 3 : 1)) return false;
+        if (fifo.getFreeSpace() < (x.r.on ? 5 : 1)) return false;
         auto& t = *x.track;
         if (x.r.on) {
             if (x.r.hasCues) t.cues = x.r.cues;
+            if (x.r.hasLoops) t.loops = x.r.loops;
             if (std::abs(x.r.gridShift) > 1e-9) t.firstBeat += x.r.gridShift;
             if (x.r.gridBpm > 0) t.bpm = x.r.gridBpm;
         }
@@ -709,7 +823,9 @@ struct WheelProcessor::Impl {
         { const juce::SpinLock::ScopedLockType l(trackLock); currentFile[x.deck] = x.file; }
         if (x.r.on) {
             if (x.r.cuePoint >= 0) P.send(mk(Cmd::setCuePoint, x.deck, 0, x.r.cuePoint));
+            if (x.r.loopA >= 0 && x.r.loopB > x.r.loopA) { Cmd c2 = mk(Cmd::setLoop, x.deck, 0, x.r.loopA, x.r.looping); c2.v2 = x.r.loopB; P.send(c2); }
             P.send(mk(Cmd::seek, x.deck, 0, x.r.pos));
+            if (x.r.sync) P.send(mk(Cmd::sync, x.deck, 0, 0, true));
         }
         return true;
     }
@@ -999,6 +1115,7 @@ void WheelProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBu
     }
     D.now += n;
     D.publishCues();
+    D.ledFeedback(midi);
 }
 
 /* ---------------- state ---------------- */
@@ -1008,6 +1125,8 @@ void WheelProcessor::getStateInformation(juce::MemoryBlock& dest) {
     juce::ValueTree x("WHEEL");
     x.setProperty("root", library.root().getFullPathName(), nullptr);
     x.setProperty("lastRoot", lastRoot.getFullPathName(), nullptr);
+    x.setProperty("focus", D.focus.load(), nullptr);
+    if (const auto crate = D.browserCrate(); crate.isNotEmpty()) x.setProperty("hwCrate", crate, nullptr);
     for (int dk = 0; dk < 2; ++dk) {
         juce::ValueTree dt("DECK");
         dt.setProperty("index", dk, nullptr);
@@ -1032,6 +1151,20 @@ void WheelProcessor::getStateInformation(juce::MemoryBlock& dest) {
                 dt.appendChild(ct, nullptr);
             }
             dt.setProperty("cues", true, nullptr);
+            for (int i = 0; i < kCues; ++i) {
+                const auto& l = trk->loops[(size_t) i];
+                if (!l.set()) continue;
+                juce::ValueTree lt("LOOP");
+                lt.setProperty("i", i, nullptr); lt.setProperty("a", l.a, nullptr); lt.setProperty("b", l.b, nullptr);
+                dt.appendChild(lt, nullptr);
+            }
+            dt.setProperty("loops", true, nullptr);
+            const double la = status(dk).loopA.load(), lb = status(dk).loopB.load();
+            if (la >= 0 && lb > la && !status(dk).rolling.load()) {   // (a roll's region is not a loop)
+                dt.setProperty("loopA", la, nullptr); dt.setProperty("loopB", lb, nullptr);
+                dt.setProperty("looping", status(dk).looping.load(), nullptr);
+            }
+            dt.setProperty("sync", D.syncPub[dk].load(), nullptr);
         }
         x.appendChild(dt, nullptr);
     }
@@ -1073,6 +1206,13 @@ void WheelProcessor::setStateInformation(const void* data, int size) {
     if (!x.isValid()) return;
 
     lastRoot = juce::File(x.getProperty("lastRoot").toString());
+    D.focus.store(juce::jlimit(0, 1, (int) x.getProperty("focus", 0)));
+    {
+        const juce::ScopedLock l(D.brLock);
+        D.brPending = x.getProperty("hwCrate").toString();
+        if (D.brMode == 0) D.brCrates.clearQuick();
+        D.applyPendingCrate();
+    }
     const juce::String root = x.getProperty("root").toString();
     if (root.isNotEmpty()) {
         const juce::File rf(root);
@@ -1107,6 +1247,9 @@ void WheelProcessor::setStateInformation(const void* data, int size) {
             r.pos = c.getProperty("pos", 0); r.cuePoint = c.getProperty("cue", -1);
             r.gridShift = c.getProperty("gridShift", 0); r.gridBpm = c.getProperty("gridBpm", 0);
             r.hasCues = c.getProperty("cues", false);
+            r.hasLoops = c.getProperty("loops", false);
+            r.loopA = c.getProperty("loopA", -1); r.loopB = c.getProperty("loopB", -1); r.looping = c.getProperty("looping", false);
+            r.sync = c.getProperty("sync", false);
             for (auto cc : c)
                 if (cc.hasType("CUE")) {
                     const int i = (int) cc.getProperty("i", -1);
@@ -1114,6 +1257,10 @@ void WheelProcessor::setStateInformation(const void* data, int size) {
                     auto& hc = r.cues[(size_t) i];
                     hc.t = cc.getProperty("t", -1); hc.rgb = (uint32_t) (juce::int64) cc.getProperty("rgb", 0xCC0000);
                     hc.name = cc.getProperty("name").toString().toStdString();
+                } else if (cc.hasType("LOOP")) {
+                    const int i = (int) cc.getProperty("i", -1);
+                    if (i < 0 || i >= kCues) continue;
+                    r.loops[(size_t) i] = { (double) cc.getProperty("a", -1), (double) cc.getProperty("b", -1) };
                 }
             loadError[dk].clear();
             D.startLoad(dk, f, r);

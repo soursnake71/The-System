@@ -38,7 +38,7 @@ struct FdSource : ByteSource {
 
 // everything the tags say
 struct Tags {
-    std::string title, artist, album, keyText;   // keyText as tagged ("8A", "Am")
+    std::string title, artist, album, genre, keyText;   // keyText as tagged ("8A", "Am")
     double tagBpm = 0, autoBpm = 0, gridBpm = 0, gridFirst = 0, length = 0;
     bool hasGrid = false, serato = false;
     std::array<HotCue, kCues> cues;
@@ -54,6 +54,24 @@ inline double hintBpm(const Tags& g) { return g.autoBpm > 0 ? g.autoBpm : g.tagB
 
 // the track paths in a Serato .crate ("otrk" records holding UTF-16BE "ptrk" paths), in order
 std::vector<std::string> parseCrate(const uint8_t* data, size_t n);
+
+// Serato smart crates (_Serato_/SmartCrates/*.scrate). The layout is from community reverse engineering, not a spec:
+// rules are (field id, comparison, value). Evaluated here: file name, title, artist, album, genre and key with
+// contains / does not contain / is / is not, and BPM >= / <=. Other fields (comment, year, date added, plays...) are
+// kept but never match.
+namespace smartField { enum : int { fileName = 4, title = 6, artist = 7, album = 8, genre = 9, bpm = 15, comment = 17, grouping = 19,
+                                    remixer = 20, label = 21, composer = 22, year = 23, added = 25, key = 51, plays = 79 }; }
+struct SmartRule { int field = 0; std::string op /* "cond_con_str"... */, text; uint32_t num = 0; bool hasNum = false; };
+struct SmartCrate {
+    bool matchAll = true, liveUpdate = false;
+    std::vector<SmartRule> rules;
+    std::vector<std::string> paths;   // any track list stored in the file (as in a .crate)
+};
+SmartCrate parseSmartCrate(const uint8_t* data, size_t n);
+struct SmartFields { std::string fileName, title, artist, album, genre, keyText; double bpm = 0; };
+bool smartRuleSupported(const SmartRule& r);
+int smartRuleMatch(const SmartRule& r, const SmartFields& f);   // 1 / 0, -1 = a rule this can't evaluate
+bool smartMatch(const SmartCrate& c, const SmartFields& f);      // all / any of the rules; no rules: false
 
 // "Artist - Title.mp3", "01 - Artist - Title.mp3", "01. Title.mp3" -> fills title / artist where empty
 void nameFromFileName(const std::string& fileName, std::string& title, std::string& artist);
