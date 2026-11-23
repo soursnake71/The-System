@@ -32,7 +32,7 @@ void addKick(std::vector<float>& x, double t, float g)
         const long j = s0 + i;
         if (j < 0 || j >= (long) x.size()) continue;
         const double tt = (double) i / kSr, f = 45 + 110 * std::exp(-tt * 30);
-        ph += 2 * M_PI * f / kSr;
+        ph += 2 * 3.14159265358979323846 * f / kSr;
         x[(size_t) j] += g * (float) (std::sin(ph) * std::exp(-tt * 9));
     }
 }
@@ -72,7 +72,7 @@ void addTone(std::vector<float>& x, double t, double dur, double hz, float g)
         const double tt = (double) i / kSr;
         const float env = (float) std::min(1.0, std::min(tt * 50, (dur - tt) * 20));
         float v = 0;
-        for (int h = 1; h <= 6; ++h) v += (float) std::sin(2 * M_PI * hz * h * tt) / (float) h;   // saw-ish
+        for (int h = 1; h <= 6; ++h) v += (float) std::sin(2 * 3.14159265358979323846 * hz * h * tt) / (float) h;   // saw-ish
         x[(size_t) j] += g * env * v;
     }
 }
