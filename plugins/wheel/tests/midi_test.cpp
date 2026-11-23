@@ -207,9 +207,229 @@ static void test() {
     dir.deleteRecursively();
 }
 
+// ---- the Numark MixTrack Go (controllers/MixtrackGo.md)
+static juce::MidiMessage on(int ch, int note) { return juce::MidiMessage::noteOn(ch, note, (juce::uint8) 127); }
+static juce::MidiMessage offN(int ch, int note) { return juce::MidiMessage::noteOff(ch, note); }
+static juce::MidiMessage cc(int ch, int n, int v) { return juce::MidiMessage::controllerEvent(ch, n, v); }
+static void press(WheelProcessor& p, int ch, int note) { send(p, on(ch, note)); send(p, offN(ch, note)); }
+static int ledNote(const juce::MidiBuffer& m, int ch, int note) {   // last LED velocity sent for (ch, note), -1 none
+    int v = -1;
+    for (const auto meta : m) { const auto x = meta.getMessage(); if (x.isNoteOn() && x.getChannel() == ch && x.getNoteNumber() == note) v = x.getVelocity(); }
+    return v;
+}
+static float prm(WheelProcessor& p, const char* id) { return p.apvts.getRawParameterValue(id)->load(); }
+static void blocks(WheelProcessor& p, int n, const juce::MidiMessage* each = nullptr) {
+    for (int i = 0; i < n; ++i) { juce::MidiBuffer m; if (each) m.addEvent(*each, 0); block(p, m); }
+}
+
+static void testMixtrack() {
+    // no false detection: MPC software pads (notes 36-55 on the track channel), Q-Links, the MPC Sample's surface
+    {
+        std::unique_ptr<WheelProcessor> q((WheelProcessor*) createPluginFilter());
+        q->prepareToPlay(44100, 128);
+        for (int ch : { 1, 2, 5, 6, 16 }) for (int n = 36; n < 56; ++n) { send(*q, on(ch, n)); send(*q, offN(ch, n)); }
+        for (int ch : { 1, 5, 16 }) for (int c : { 1, 7, 16, 17, 18, 19, 20, 74 }) send(*q, cc(ch, c, 90));
+        check(!q->mixtrackActive() && !q->mpcSampleActive(), "MPC pads / Q-Links: no controller detected", 0);
+        check(q->controllerName() == "MPC / MIDI", "controllerName: MPC / MIDI", 0);
+        send(*q, on(10, 37)); send(*q, offN(10, 37));
+        for (int n : { 0, 1, 12, 13, 49, 82 }) press(*q, 1, n);
+        for (int c : { 16, 17, 18, 19, 20, 100 }) send(*q, cc(1, c, 1));
+        check(q->mpcSampleActive() && !q->mixtrackActive(), "MPC Sample traffic: MPC Sample, not MixTrack", 0);
+        check(q->controllerName() == "MPC Sample", "controllerName: MPC Sample", 0);
+        // and the MixTrack's deck-channel notes / jog alone don't switch away (MPC Sample uses ch 1 notes)
+        press(*q, 1, 0); send(*q, cc(1, 6, 1));
+        check(q->mpcSampleActive(), "MixTrack ch 1 notes / jog alone don't steal MPC Sample mode", 0);
+    }
+
+    juce::File dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("wheel_midi_test_mixtrack");
+    dir.deleteRecursively(); dir.getChildFile("Crate One").createDirectory();
+    juce::File wav = dir.getChildFile("Crate One").getChildFile("Test Artist - Test Beat.wav");
+    { juce::WavAudioFormat fmt; auto os = wav.createOutputStream();
+      std::unique_ptr<juce::AudioFormatWriter> w(fmt.createWriterFor(os.release(), 44100, 2, 16, {}, 0));
+      juce::AudioBuffer<float> b(2, 44100 * 30);
+      for (int i = 0; i < b.getNumSamples(); ++i) { float v = (i % 22050) < 1500 ? .8f * std::sin((float) i * .08f) : .05f * std::sin((float) i * .03f); b.setSample(0, i, v); b.setSample(1, i, v); }
+      w->writeFromAudioSampleBuffer(b, 0, b.getNumSamples()); }
+    std::unique_ptr<WheelProcessor> p((WheelProcessor*) createPluginFilter());
+    auto& P = *p;
+    P.prepareToPlay(44100, 128);
+    P.lastRoot = dir;
+    for (int i = 0; i < 100 && P.library.cratesCopy().isEmpty(); ++i) { block(P, {}); juce::Thread::sleep(20); }
+    check(!P.mixtrackActive(), "MixTrack: not active before its MIDI", 0);
+    {   // detection by the crossfader (CC 8 ch 16), every LED sent once
+        juce::MidiBuffer in; in.addEvent(cc(16, 8, 0), 0);
+        auto o = outFor(P, in);
+        check(P.mixtrackActive() && P.controllerName() == "Numark MixTrack Go", "crossfader CC 8 ch 16 detects the MixTrack Go", 1);
+        juce::Thread::sleep(80); block(P, {});
+        check(xf(P) < -.99f, "crossfader 0: full A", xf(P));
+        check(o.getNumEvents() == 26, "entering the mode sends all 26 LEDs", o.getNumEvents());
+        check(ledNote(o, 1, 80) == 127 && ledNote(o, 2, 80) == 127, "VINYL lit on both decks (default on)", ledNote(o, 1, 80));
+        check(ledNote(o, 1, 0) == 1 && ledNote(o, 2, 2) == 1 && ledNote(o, 1, 27) == 1, "PLAY / SYNC / PFL dim", ledNote(o, 1, 0));
+        check(ledNote(o, 5, 1) == 127 && ledNote(o, 5, 2) == 1 && ledNote(o, 6, 1) == 127, "pad mode LED: hot cue lit", ledNote(o, 5, 1));
+        check(ledNote(o, 5, 20) == 1 && ledNote(o, 6, 23) == 1, "pads dim (no cues)", ledNote(o, 5, 20));
+        auto again = outFor(P);
+        check(again.isEmpty(), "nothing changes: no LEDs sent", again.getNumEvents());
+    }
+    send(P, cc(16, 8, 127)); check(xf(P) > .99f, "crossfader 127: full B", xf(P));
+    send(P, cc(16, 8, 64));  check(std::abs(xf(P)) < .01f, "crossfader 64: centre", xf(P));
+    {   // with a pitch-pair detection too (fresh processor)
+        std::unique_ptr<WheelProcessor> q((WheelProcessor*) createPluginFilter());
+        q->prepareToPlay(44100, 128);
+        send(*q, cc(2, 9, 0)); send(*q, cc(2, 41, 0));
+        check(q->mixtrackActive(), "pitch fader CC 9 + CC 41 detects it", 0);
+        check(prm(*q, "b_pitch") < -.99f, "and that move reaches deck B's pitch", prm(*q, "b_pitch"));
+        std::unique_ptr<WheelProcessor> r((WheelProcessor*) createPluginFilter());
+        r->prepareToPlay(44100, 128);
+        press(*r, 5, 20);
+        check(r->mixtrackActive(), "a pad (note 20 ch 5) detects it", 0);
+    }
+
+    // browse + load: the first turn opens the browser, turns move, push opens the crate, LOAD A / B load
+    send(P, cc(16, 0, 1));
+    check(P.hwBrowser().mode == 1, "browse knob: first turn opens the crate browser", P.hwBrowser().mode);
+    int crate = -1;
+    { auto hb = P.hwBrowser(); for (int i = 0; i < hb.rows.size(); ++i) if (hb.rows[i].contains("Crate One")) crate = i; }
+    send(P, cc(16, 0, 127 - 20)); check(P.hwBrowser().cursor == 0, "browse back past the top: first row", P.hwBrowser().cursor);
+    for (int i = 0; i < crate; ++i) send(P, cc(16, 0, 1));
+    check(crate >= 0 && P.hwBrowser().cursor == crate, "browse knob moves to the crate", P.hwBrowser().cursor);
+    press(P, 16, 7);
+    for (int i = 0; i < 100 && P.hwBrowser().busy; ++i) { block(P, {}); juce::Thread::sleep(20); }
+    check(P.hwBrowser().mode == 2 && P.hwBrowser().rows.size() == 1, "browse push opens the crate", P.hwBrowser().rows.size());
+    press(P, 16, 2);
+    for (int i = 0; i < 300 && (P.loading[0].load() || !P.deckTrack(0)); ++i) { block(P, {}); juce::Thread::sleep(20); }
+    check(P.deckTrack(0) != nullptr && P.hwBrowser().mode == 2, "LOAD A loads deck A, the list stays open", P.deckTrack(0) ? 1 : 0);
+    press(P, 16, 3);
+    for (int i = 0; i < 300 && (P.loading[1].load() || !P.deckTrack(1)); ++i) { block(P, {}); juce::Thread::sleep(20); }
+    check(P.deckTrack(1) != nullptr && P.focusDeck() == 1, "LOAD B loads deck B", P.deckTrack(1) ? 1 : 0);
+    for (int i = 0; i < 10; ++i) block(P, {});
+    outFor(P);   // flush
+
+    {   // PLAY: deck A plays, its LED lights once
+        juce::MidiBuffer in; in.addEvent(on(1, 0), 0); in.addEvent(offN(1, 0), 1);
+        auto o = outFor(P, in);
+        check(P.status(0).playing.load(), "PLAY (note 0 ch 1) starts deck A", 1);
+        check(ledNote(o, 1, 0) == 127, "PLAY LED lights (90 00 7F)", ledNote(o, 1, 0));
+        int n = 0; for (const auto m : o) if (m.getMessage().getChannel() == 1 && m.getMessage().getNoteNumber() == 0) ++n;
+        check(n == 1, "sent once", n);
+    }
+    for (int i = 0; i < 100; ++i) block(P, {});   // up to speed
+    {   // jog (vinyl): scratch backwards while playing
+        const double p0 = P.status(0).pos.load();
+        const auto back = cc(1, 6, 128 - 20);
+        bool touched = false;
+        for (int i = 0; i < 10; ++i) { juce::MidiBuffer m; m.addEvent(back, 0); block(P, m); touched = touched || P.status(0).touched.load(); }
+        blocks(P, 4);
+        check(touched, "jog (CC 6) in vinyl mode puts a hand on deck A", 1);
+        check(P.status(0).pos.load() < p0 - .05, "and drags it back (200 ticks = 0.2 turn)", P.status(0).pos.load() - p0);
+        blocks(P, 60);
+        check(!P.status(0).touched.load() && P.status(0).playing.load(), "the hand lifts after the jog stops; still playing", 0);
+    }
+    {   // VINYL off: the jog nudges (bend), no hand
+        auto o = outFor(P, [] { juce::MidiBuffer m; m.addEvent(on(1, 80), 0); m.addEvent(offN(1, 80), 1); return m; }());
+        check(!P.vinylMode(0) && P.vinylMode(1), "VINYL (note 80) turns deck A's vinyl mode off", 0);
+        check(ledNote(o, 1, 80) == 1, "VINYL LED dims", ledNote(o, 1, 80));
+        blocks(P, 20);
+        const double b0 = P.status(0).pos.load();
+        blocks(P, 60);
+        const double el = P.status(0).pos.load() - b0;   // 60 blocks untouched
+        const double p0 = P.status(0).pos.load();
+        const auto fwd = cc(1, 6, 30);
+        bool touched = false;
+        for (int i = 0; i < 10; ++i) { juce::MidiBuffer m; m.addEvent(fwd, 0); block(P, m); touched = touched || P.status(0).touched.load(); }
+        blocks(P, 50);
+        const double got = P.status(0).pos.load() - p0;
+        std::printf("      60 blocks: %.3f s untouched, %.3f s with the jog\n", el, got);
+        check(!touched && got - el > .12 && got - el < .5, "jog nudges deck A ahead (300 ticks ~ +0.27 s), no scratch", got - el);
+    }
+    press(P, 16, 73); check(P.vinylMode(0) && P.vinylMode(1), "ch 16 note 73: vinyl on both decks", 0);
+    press(P, 16, 73); check(!P.vinylMode(0) && !P.vinylMode(1), "again: off on both", 0);
+    press(P, 16, 73);
+    // sync
+    press(P, 2, 2); blocks(P, 4); check(P.status(1).synced.load(), "SYNC (note 2 ch 2) syncs deck B", 0);
+    // SHIFT + SYNC: sync off (the tempo stays latched until the pitch fader moves, as in Serato)
+    press(P, 2, 3); send(P, cc(2, 9, 80)); blocks(P, 4);
+    check(!P.status(1).synced.load(), "SHIFT + SYNC (note 3) turns it off", 0);
+    press(P, 2, 84);
+    // shift layer: censor (hold), jump to start, shift + jog = seek
+    send(P, on(1, 4)); check(P.status(0).censoring.load(), "SHIFT + PLAY (note 4): censor while held", 0);
+    send(P, offN(1, 4)); check(!P.status(0).censoring.load(), "released: censor off", 0);
+    blocks(P, 20);
+    press(P, 1, 5); check(P.status(0).pos.load() < .2, "SHIFT + CUE (note 5): back to the start", P.status(0).pos.load());
+    {
+        const double p0 = P.status(0).pos.load();
+        send(P, cc(1, 43, 20));
+        check(P.status(0).pos.load() > p0 + 1.5, "SHIFT + jog (CC 43): fast seek (20 ticks ~ 2 s)", P.status(0).pos.load() - p0);
+        send(P, on(1, 32));
+        check(P.shiftHeld(), "SHIFT (note 32 ch 1) held", 0);
+        const double p1 = P.status(0).pos.load();
+        send(P, cc(1, 6, 10));
+        check(P.status(0).pos.load() > p1 + .7, "SHIFT held + jog CC 6: seeks too", P.status(0).pos.load() - p1);
+        send(P, offN(1, 32));
+        send(P, on(16, 50)); check(P.shiftHeld(), "SHIFT (note 50 ch 16) held", 0);
+        send(P, offN(16, 50)); check(!P.shiftHeld(), "released", 0);
+    }
+    // cue on a playing deck: back to the cue point and stop
+    press(P, 1, 1); blocks(P, 4);
+    check(!P.status(0).playing.load(), "CUE (note 1) on a playing deck stops it at the cue point", P.status(0).pos.load());
+    // 14-bit pitch: top = slower
+    send(P, cc(1, 9, 0)); send(P, cc(1, 41, 0));       check(prm(P, "a_pitch") < -.99f, "pitch fader top (0): -100% of range", prm(P, "a_pitch"));
+    send(P, cc(1, 9, 64)); send(P, cc(1, 41, 0));      check(std::abs(prm(P, "a_pitch")) < 1e-3f, "pitch fader centre (8192): 0", prm(P, "a_pitch"));
+    send(P, cc(1, 9, 127)); send(P, cc(1, 41, 127));   check(prm(P, "a_pitch") > .999f, "pitch fader bottom (16383): +", prm(P, "a_pitch"));
+    send(P, cc(1, 9, 64)); send(P, cc(1, 41, 64));     check(prm(P, "a_pitch") > 0 && prm(P, "a_pitch") < .01f, "the LSB refines it (8256)", prm(P, "a_pitch"));
+    send(P, cc(1, 9, 96));                             check(std::abs(prm(P, "a_pitch") - .5f) < .001f, "MSB alone works (96 -> +50%)", prm(P, "a_pitch"));
+    press(P, 1, 84);                                   check(std::abs(prm(P, "a_pitch")) < 1e-4f, "note 84: pitch reset", prm(P, "a_pitch"));
+    // channel level, filter / low
+    send(P, cc(2, 22, 0));   check(prm(P, "b_fader") < .01f, "channel level CC 22 ch 2: deck B fader down", prm(P, "b_fader"));
+    send(P, cc(2, 22, 127)); check(prm(P, "b_fader") > .99f, "and up", prm(P, "b_fader"));
+    send(P, cc(1, 26, 0));   check(prm(P, "a_filter") < -.99f, "filter knob CC 26: deck A filter (LP)", prm(P, "a_filter"));
+    send(P, cc(1, 26, 64));  check(std::abs(prm(P, "a_filter")) < 1e-4f, "64: filter off", prm(P, "a_filter"));
+    press(P, 16, 72);        check(P.filterLowMode(), "ch 16 note 72: FILTER / LOW toggle to low", 0);
+    send(P, cc(1, 26, 0));   check(prm(P, "a_low") < -25.f && std::abs(prm(P, "a_filter")) < 1e-4f, "now CC 26 kills deck A's lows, filter untouched", prm(P, "a_low"));
+    send(P, cc(1, 26, 64));  check(std::abs(prm(P, "a_low")) < .01f, "64: low EQ 0 dB", prm(P, "a_low"));
+    press(P, 16, 72);        check(!P.filterLowMode(), "toggle back to filter", 0);
+    {   // PFL
+        auto o = outFor(P, [] { juce::MidiBuffer m; m.addEvent(on(1, 27), 0); m.addEvent(offN(1, 27), 1); return m; }());
+        juce::Thread::sleep(80); block(P, {});
+        check(prm(P, "a_pfl") > .5f, "PFL (note 27): headphone cue on", prm(P, "a_pfl"));
+        check(ledNote(o, 1, 27) == 127, "PFL LED lit", ledNote(o, 1, 27));
+        press(P, 1, 27); check(prm(P, "a_pfl") < .5f, "again: off", prm(P, "a_pfl"));
+    }
+    press(P, 1, 70); check(prm(P, "a_fxon") > .5f, "note 70: FX on", 0);
+    press(P, 1, 70); check(prm(P, "a_fxon") < .5f, "again: off", 0);
+    press(P, 1, 72); check(prm(P, "a_slip") > .5f, "note 72: slip on", 0);
+    press(P, 1, 72);
+    press(P, 16, 70);
+    check(prm(P, "a_fxon") > .5f && prm(P, "b_fxon") > .5f && (int) prm(P, "a_fxtype") == 1 && (int) prm(P, "b_fxtype") == 1, "ch 16 note 70: echo on both decks", prm(P, "a_fxtype"));
+    press(P, 16, 71); check((int) prm(P, "a_fxtype") == 2 && (int) prm(P, "b_fxtype") == 2, "ch 16 note 71: next FX type on both", prm(P, "a_fxtype"));
+    press(P, 16, 70); check((int) prm(P, "a_fxtype") == 1 && prm(P, "a_fxon") > .5f, "note 70 when not all echo: echo", prm(P, "a_fxtype"));
+    press(P, 16, 70); check(prm(P, "a_fxon") < .5f && prm(P, "b_fxon") < .5f, "note 70 again: echo off on both", 0);
+    // pads in cue mode: set, shift + pad clears; LEDs follow
+    check(P.padMode() == PadMode::cues, "pad mode: hot cues", 0);
+    outFor(P);
+    {
+        auto o = outFor(P, [] { juce::MidiBuffer m; m.addEvent(on(5, 20), 0); m.addEvent(offN(5, 20), 1); return m; }());
+        check(P.cuesOf(0)[0].set(), "pad 1 (note 20 ch 5) sets deck A cue 1", P.cuesOf(0)[0].t);
+        check(ledNote(o, 5, 20) == 127, "its LED lights", ledNote(o, 5, 20));
+        press(P, 6, 23); check(P.cuesOf(1)[3].set(), "note 23 ch 6 sets deck B cue 4", P.cuesOf(1)[3].t);
+        o = outFor(P, [] { juce::MidiBuffer m; m.addEvent(on(5, 28), 0); m.addEvent(offN(5, 28), 1); return m; }());
+        check(!P.cuesOf(0)[0].set(), "SHIFT + pad 1 (note 28) clears cue 1", P.cuesOf(0)[0].t);
+        check(ledNote(o, 5, 20) == 1, "its LED dims", ledNote(o, 5, 20));
+    }
+    {   // pad mode button
+        auto o = outFor(P, [] { juce::MidiBuffer m; m.addEvent(on(6, 0), 0); m.addEvent(offN(6, 0), 1); return m; }());
+        check(P.padMode() == PadMode::loops, "pad mode button (note 0 ch 6): next mode, loops", (int) P.padMode());
+        check(ledNote(o, 5, 2) == 127 && ledNote(o, 5, 1) == 1 && ledNote(o, 6, 2) == 127, "mode LEDs: loop lit, hot cue dim", ledNote(o, 5, 2));
+        press(P, 5, 22); blocks(P, 4);
+        check(P.status(0).looping.load(), "loop mode: pad 3 (note 22) = 1-beat auto loop", P.status(0).loopB.load() - P.status(0).loopA.load());
+        press(P, 5, 0); press(P, 5, 0); press(P, 5, 0);
+        check(P.padMode() == PadMode::cues, "four presses: back to hot cues", (int) P.padMode());
+    }
+    p.reset();
+    dir.deleteRecursively();
+}
+
 int main() {
     juce::ScopedJuceInitialiser_GUI init;
-    std::thread t([] { test(); juce::MessageManager::getInstance()->stopDispatchLoop(); });
+    std::thread t([] { test(); testMixtrack(); juce::MessageManager::getInstance()->stopDispatchLoop(); });
     juce::MessageManager::getInstance()->runDispatchLoop();
     t.join();
     std::printf(fails ? "%d FAILED\n" : "ALL PASSED\n", fails);

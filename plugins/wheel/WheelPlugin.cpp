@@ -457,6 +457,7 @@ struct WheelProcessor::Impl {
         if (m.isController()) {
             const int cc = m.getControllerNumber(), prev = lastCc[ch - 1];
             lastCc[ch - 1] = cc;
+            if ((ch == 1 || ch == 2) && cc == mxcc::pitch) pitchMsb[ch - 1] = m.getControllerValue();   // for the LSB that detects it
             if (ch == 1 && cc == scc::encoder) detected.store(ctrlSample);
             else if ((ch == 16 && cc == mxcc::xfader) || ((ch == 1 || ch == 2) && cc == mxcc::pitchLsb && prev == mxcc::pitch)) detected.store(ctrlMixtrack);
         } else if (m.isNoteOn()) {
