@@ -166,7 +166,6 @@ int main(int argc, char** argv)
     for (int i = 0; i < 1200 && (proc.loading[0].load() || proc.loading[1].load() || ! proc.deckTrack(0) || ! proc.deckTrack(1)); ++i) { pump(50); run(.01); }
     if (! proc.deckTrack(0) || ! proc.deckTrack(1)) std::printf("warning: tracks did not load (%s / %s)\n", proc.loadError[0].toRawUTF8(), proc.loadError[1].toRawUTF8());
 
-    std::printf("root after loading: %s\n", proc.library.root().getFullPathName().toRawUTF8());
     wheel::PhoneHost host;
     bool closed = false;
     host.closeLibrary = [&] { closed = true; };
