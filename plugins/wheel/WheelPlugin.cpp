@@ -15,7 +15,7 @@ namespace {
 // parameter indices (order of pid::deckIds / pid::globalIds)
 enum DP { pPlay, pCue, pPitch, pRange, pRpm45, pKeylock, pSync, pSlip, pQuant, pPlatter, pTouch, pNudge, pCensor, pStart, pBrake,
           pTrim, pHi, pMid, pLow, pFilter, pFader, pPfl, pXfassign, pFxtype, pFxbeats, pFxdepth, pFxparam, pFxon, kDeckParams };
-enum GP { gXfader, gXfcurve, gFadercurve, gHamster, gMaster, gCuemix, gCuegain, gPadmode, gPadbase, gHostsync, gController, kGlobalParams };
+enum GP { gXfader, gXfcurve, gFadercurve, gHamster, gMaster, gCuemix, gCuegain, gPadmode, gPadbase, gHostsync, gController, gJogsens, kGlobalParams };
 static_assert(kDeckParams == (int) (sizeof(pid::deckIds) / sizeof(pid::deckIds[0])), "deck parameter table out of step");
 static_assert(kGlobalParams == (int) (sizeof(pid::globalIds) / sizeof(pid::globalIds[0])), "global parameter table out of step");
 constexpr int kParams = 2 * kDeckParams + kGlobalParams;
@@ -54,7 +54,29 @@ namespace sb { enum : int { knobFx = 0, padFx = 1, sample = 6, seq = 7, erase = 
                             sampleSelect = 36, mute = 43, shift = 49, tapTempo = 53, plus = 54, minus = 55, loop = 74, encPress = 111,
                             play = 82, stop = 81 }; }
 namespace scc { enum : int { k1 = 16, k2 = 17, k3 = 18, mainVolume = 19, fader = 20, encoder = 100 }; }
-enum Controller { ctrlAuto, ctrlMidi, ctrlSample };
+// the Controller parameter's choices (append only: projects store the index)
+enum Controller { ctrlAuto, ctrlMidi, ctrlSample, ctrlMixtrack, kControllers };
+
+// the Numark MixTrack Go (controllers/MixtrackGo.md, from a djay mapping file; Numark publishes no MIDI table).
+// Deck channels 1 / 2, pad channels 5 / 6, global controls channel 16.
+namespace mx { enum : int { play = 0, cue = 1, sync = 2, syncOff = 3, censor = 4, start = 5, touch = 6, pfl = 27, shift = 32,
+                            fxOn = 70, fxNext = 71, slip = 72, keylock = 73, vinyl = 80, pitchReset = 84 }; }
+namespace mxp { enum : int { mode = 0, modeLed = 1, pad = 20, padShift = 28 }; }
+namespace mxg { enum : int { loadA = 2, loadB = 3, push = 7, shift = 50, echo = 70, fxCycle = 71, lowMode = 72, vinylAll = 73 }; }
+namespace mxcc { enum : int { browse = 0, browseShift = 1, jog = 6, xfader = 8, pitch = 9, level = 22, filter = 26, pitchLsb = 41, jogShift = 43 }; }
+// Jog ticks per turn of the jog wheel. Unverified: Numark's bigger jogs (MixTrack Pro 3 / Platinum) are driven with
+// about 1000 intervals per revolution in Mixxx's scripts; the Go's is unknown. One jog turn = one platter turn (1.8 s)
+// at Jog Sensitivity 1x; the parameter scales it (0.25x .. 4x).
+constexpr double kMixJogTicksPerRev = 1000;
+constexpr double kMixBendSecPerTurn = .9;      // vinyl off: one jog turn pushes the record this far (nudge)
+constexpr double kMixSeekSecPerTick = .1;      // SHIFT + jog: fast seek
+// pitch fader: the top end sends 0 and is the slow end, like a Technics (unverified; flip if the device's top is 16383)
+constexpr bool kMixPitchTopIsMinus = true;
+constexpr int kMixDeckLedNotes[] = { mx::play, mx::cue, mx::sync, mx::pfl, mx::vinyl };   // on the deck channel
+constexpr int kMixDeckLeds = (int) (sizeof(kMixDeckLedNotes) / sizeof(kMixDeckLedNotes[0]));
+constexpr int kMixLeds = kMixDeckLeds + 4 + 4;   // + pads 20-23 and pad mode LEDs 1-4 on the pad channel
+float knob(int v) { return v <= 64 ? (float) v / 128.f : .5f + (float) (v - 64) / 126.f; }   // 64 = exactly centre
+int rel2c(int v) { return v < 64 ? v : v - 128; }
 
 // LED feedback to the MPC Sample (its MIDI in, from the host's MIDI out). From community reverse engineering of the
 // MPC's controller protocol, not from Akai: pads take RGB as SysEx F0 47 7F 5C 65 00 04 <pad> <R> <G> <B> F7 (7 bits
@@ -70,7 +92,7 @@ constexpr int kLedOff = 0, kLedDim = 1, kLedOn = 127;
 // (slip), MUTE (headphone cue), TAP TEMPO (key lock), SHIFT (held)
 constexpr int kLedNotes[] = { sb::play, sb::b1, sb::b2, sb::b3, sb::loop, sb::knobFx, sb::padFx, sb::mute, sb::tapTempo, sb::shift };
 constexpr int kLedBtns = (int) (sizeof(kLedNotes) / sizeof(kLedNotes[0]));
-constexpr int kLedMaxBytes = 16 * (kSysexLen + 8) + kLedBtns * (3 + 8);   // MidiBuffer stores ~6 bytes per event header
+constexpr int kLedMaxBytes = juce::jmax(16 * (kSysexLen + 8) + kLedBtns * (3 + 8), 2 * kMixLeds * (3 + 8));   // MidiBuffer stores ~6 bytes per event header
 constexpr float kPadDim = .2f;
 constexpr uint32_t kRgbGreen = 0x34d058, kRgbCyan = 0x2fd4ff, kRgbAmber = 0xffa21f, kRgbRed = 0xff3b30, kRgbWhite = 0xffffff;
 constexpr double kReleaseSec = .06;        // hand lifts this long after the last platter movement
@@ -157,7 +179,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout makeLayout() {
     addChoice(l, pid::globalIds[gPadmode], "Pad Mode", { "Cues", "Loops", "Rolls", "Transport" }, 0);
     l.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID { pid::globalIds[gPadbase], 1 }, "Pad Base Note", 0, 108, 37));
     addBool(l, pid::globalIds[gHostsync], "Host Tempo Sync", false);
-    addChoice(l, pid::globalIds[gController], "Controller", { "Auto", "MPC / MIDI", "MPC Sample" }, 0);
+    addChoice(l, pid::globalIds[gController], "Controller", { "Auto", "MPC / MIDI", "MPC Sample", "Mixtrack Go" }, 0);
+    Range jog(.25f, 4.f); jog.setSkewForCentre(1.f);
+    addFloat(l, pid::globalIds[gJogsens], "Jog Sensitivity", jog, 1.f, [](float v) { return juce::String(v, 2) + "x"; });
     juce::AudioProcessorValueTreeState::ParameterLayout out;
     for (const char* id : kPerformanceOrder)
         for (auto& p : l.v) if (p != nullptr && p->getParameterID() == id) out.add(std::move(p));
@@ -189,6 +213,7 @@ struct WheelProcessor::Impl {
         }
         for (auto& h : heldMode) for (auto& m : h) m = -1;
         for (auto& x : syncPub) x.store(false);
+        for (auto& v : vinyl) v.store(true);
         std::copy(std::begin(kSysexHead), std::end(kSysexHead), sysex);
         sysex[kSysexLen - 1] = 0xF7;
         ledReset();
@@ -339,12 +364,17 @@ struct WheelProcessor::Impl {
 
     // ---- the MPC Sample's control surface
     std::atomic<int> focus { 0 };
-    std::atomic<bool> shift { false }, erase { false }, sampleSeen { false }, browserOpen { false };
+    std::atomic<bool> shift { false }, erase { false }, browserOpen { false };
+    std::atomic<int> detected { ctrlAuto };   // Auto: the controller recognised from its MIDI (ctrlSample / ctrlMixtrack)
     std::atomic<int> brDelta { 0 }; std::atomic<uint32_t> brReq { 0 };
     void toggleParam(int t) { paramInput(t, isOn(t) ? 0.f : 1.f); }
     bool sampleActive() const {
-        const int c = choice(gpi(gController), 3);
-        return c == ctrlSample || (c == ctrlAuto && sampleSeen.load());
+        const int c = choice(gpi(gController), kControllers);
+        return c == ctrlSample || (c == ctrlAuto && detected.load() == ctrlSample);
+    }
+    bool mixActive() const {
+        const int c = choice(gpi(gController), kControllers);
+        return c == ctrlMixtrack || (c == ctrlAuto && detected.load() == ctrlMixtrack);
     }
     // true when the message was the MPC Sample's and has been handled
     bool sampleInput(const juce::MidiMessage& m, int ch) {
@@ -407,15 +437,148 @@ struct WheelProcessor::Impl {
         }
     }
 
+    // ---- the Numark MixTrack Go
+    std::atomic<bool> vinyl[2], lowMode { false };
+    std::atomic<int> mixShift { 0 };          // bits: shift held on channel 1, 2, 16
+    bool touchSeen[2] {};                     // the jog sent a touch note: untouched jog = nudge
+    int lastCc[16] {}, pitchMsb[2] { -1, -1 };
+    void setChoice(int t, int idx) { paramInput(t, prm[t]->convertTo0to1((float) idx)); }
+    void setPitch14(int dk, int v14) {
+        double p = juce::jlimit(-1.0, 1.0, (v14 - 8192) / 8192.0);
+        if (!kMixPitchTopIsMinus) p = -p;
+        paramInput(dpi(dk, pPitch), (float) (p + 1) * .5f);
+    }
+    void browse(int delta) {
+        if (!browserOpen.load()) brReq.fetch_or(WheelProcessor::browseToggle);   // the first turn opens the browser
+        else brDelta.fetch_add(delta);
+    }
+    // Auto: which controller this message comes from (only messages no other mode sends)
+    void detect(const juce::MidiMessage& m, int ch) {
+        if (m.isController()) {
+            const int cc = m.getControllerNumber(), prev = lastCc[ch - 1];
+            lastCc[ch - 1] = cc;
+            if (ch == 1 && cc == scc::encoder) detected.store(ctrlSample);
+            else if ((ch == 16 && cc == mxcc::xfader) || ((ch == 1 || ch == 2) && cc == mxcc::pitchLsb && prev == mxcc::pitch)) detected.store(ctrlMixtrack);
+        } else if (m.isNoteOn()) {
+            const int n = m.getNoteNumber();
+            if (ch == 10 && samplePad(n) >= 0) detected.store(ctrlSample);
+            else if (((ch == 5 || ch == 6) && n >= mxp::pad && n < mxp::padShift + 4)
+                     || (ch == 16 && (n == mxg::loadA || n == mxg::loadB || n == mxg::push))) detected.store(ctrlMixtrack);
+        }
+    }
+    // true when the message was the MixTrack's and has been handled
+    bool mixInput(const juce::MidiMessage& m, int ch) {
+        if (!m.isController() && !m.isNoteOn() && !m.isNoteOff()) return false;
+        const bool sh = mixShift.load() != 0;
+        if (ch == 1 || ch == 2) {
+            const int dk = ch - 1;
+            auto& st = P.engineDeck[dk].st;
+            if (m.isController()) {
+                const int v = m.getControllerValue();
+                switch (m.getControllerNumber()) {
+                    case mxcc::jog: case mxcc::jogShift: {
+                        const int dl = rel2c(v);
+                        if (m.getControllerNumber() == mxcc::jogShift || sh)
+                            exec(mk(Cmd::seek, dk, 0, juce::jmax(0.0, st.pos.load() + dl * kMixSeekSecPerTick)));
+                        else {
+                            const double turns = dl * (double) val(gpi(gJogsens)) / kMixJogTicksPerRev;
+                            if (vinyl[dk].load() && (touchHeld[dk] || !touchSeen[dk])) relRev[dk] += turns;   // scratch
+                            else exec(mk(Cmd::bend, dk, 0, turns * kMixBendSecPerTurn));
+                        }
+                        return true;
+                    }
+                    case mxcc::pitch: pitchMsb[dk] = v; setPitch14(dk, v << 7); return true;
+                    case mxcc::pitchLsb: if (pitchMsb[dk] >= 0) setPitch14(dk, (pitchMsb[dk] << 7) | v); return true;
+                    case mxcc::level: paramInput(dpi(dk, pFader), (float) v / 127.f); return true;
+                    case mxcc::filter: paramInput(dpi(dk, lowMode.load() ? pLow : pFilter), knob(v)); return true;
+                    default: return true;
+                }
+            }
+            const bool down = m.isNoteOn();
+            switch (m.getNoteNumber()) {
+                case mx::play: if (down) exec(mk(Cmd::playPause, dk)); return true;
+                case mx::cue: exec(mk(Cmd::cue, dk, 0, 0, down)); return true;
+                case mx::sync: if (down) exec(mk(Cmd::sync, dk)); return true;
+                case mx::syncOff: if (down) exec(mk(Cmd::syncOff, dk)); return true;
+                case mx::censor: exec(mk(Cmd::censor, dk, 0, 0, down)); return true;
+                case mx::start: if (down) exec(mk(Cmd::seek, dk, 0, 0)); return true;
+                case mx::touch: touchSeen[dk] = true; momentary(dk, bTouch, down); return true;
+                case mx::pfl: if (down) toggleParam(dpi(dk, pPfl)); return true;
+                case mx::shift: if (down) mixShift.fetch_or(1 << dk); else mixShift.fetch_and(~(1 << dk)); return true;
+                case mx::fxOn: if (down) toggleParam(dpi(dk, pFxon)); return true;
+                case mx::fxNext: if (down) setChoice(dpi(dk, pFxtype), choice(dpi(dk, pFxtype), (int) FxType::count) % ((int) FxType::count - 1) + 1); return true;
+                case mx::slip: if (down) toggleParam(dpi(dk, pSlip)); return true;
+                case mx::keylock: if (down) toggleParam(dpi(dk, pKeylock)); return true;
+                case mx::vinyl: if (down) vinyl[dk].store(!vinyl[dk].load()); return true;
+                case mx::pitchReset: if (down) paramInput(dpi(dk, pPitch), .5f); return true;
+                default: return true;
+            }
+        }
+        if (ch == 5 || ch == 6) {
+            if (!m.isNoteOn() && !m.isNoteOff()) return true;
+            const int dk = ch - 5, n = m.getNoteNumber();
+            const bool down = m.isNoteOn();
+            const float vel = down ? m.getFloatVelocity() : 0.f;
+            if (n == mxp::mode) { if (down) padModeOv.store((padMode() + (sh ? 3 : 1)) % 4); return true; }
+            if (n >= mxp::pad && n < mxp::pad + 4) { padInput(padIndexOf(dk, n - mxp::pad), down, vel); return true; }
+            if (n >= mxp::padShift && n < mxp::padShift + 4) {
+                const int p = padIndexOf(dk, 4 + n - mxp::padShift);
+                if (!down && heldMode[1][p] >= 0) padInput(p, false, 0);                       // pressed in another mode
+                else if (padMode() == (int) PadMode::cues) { if (down) exec(mk(Cmd::clearCue, dk, n - mxp::padShift)); }   // SHIFT + pad: clear
+                else padInput(p, down, vel);
+            }
+            return true;
+        }
+        if (ch != 16) return false;
+        if (m.isController()) {
+            const int v = m.getControllerValue();
+            switch (m.getControllerNumber()) {
+                case mxcc::xfader: paramInput(gpi(gXfader), knob(v)); return true;
+                case mxcc::browse: browse(rel2c(v)); return true;
+                case mxcc::browseShift: browse(rel2c(v) * 10); return true;
+                default: return true;   // main / cue level (CC 10 / 12): hardware
+            }
+        }
+        const bool down = m.isNoteOn();
+        switch (m.getNoteNumber()) {
+            case mxg::shift: if (down) mixShift.fetch_or(4); else mixShift.fetch_and(~4); return true;
+            case mxg::loadA: if (down) brReq.fetch_or(WheelProcessor::browseLoadA); return true;
+            case mxg::loadB: if (down) brReq.fetch_or(WheelProcessor::browseLoadB); return true;
+            case mxg::push: if (down) brReq.fetch_or(browserOpen.load() ? WheelProcessor::browseSelect : WheelProcessor::browseToggle); return true;
+            case mxg::lowMode: if (down) lowMode.store(!lowMode.load()); return true;
+            case mxg::vinylAll: if (down) { const bool on = !(vinyl[0].load() && vinyl[1].load()); vinyl[0].store(on); vinyl[1].store(on); } return true;
+            case mxg::echo:
+                if (down) {
+                    const int echo = (int) FxType::echo;
+                    bool all = true;
+                    for (int dk = 0; dk < 2; ++dk) all = all && isOn(dpi(dk, pFxon)) && choice(dpi(dk, pFxtype), (int) FxType::count) == echo;
+                    for (int dk = 0; dk < 2; ++dk) {
+                        if (!all) setChoice(dpi(dk, pFxtype), echo);
+                        paramInput(dpi(dk, pFxon), all ? 0.f : 1.f);
+                    }
+                }
+                return true;
+            case mxg::fxCycle:
+                if (down) {
+                    const int t = choice(dpi(0, pFxtype), (int) FxType::count) % ((int) FxType::count - 1) + 1;   // never Off
+                    for (int dk = 0; dk < 2; ++dk) setChoice(dpi(dk, pFxtype), t);
+                }
+                return true;
+            default: return true;
+        }
+    }
+
     void handleMidi(const juce::MidiBuffer& midi) {
         for (const auto meta : midi) {
             const auto m = meta.getMessage();
             const int ch = juce::jlimit(1, 16, m.getChannel());
-            if (learnTarget.load() < 0 && choice(gpi(gController), 3) != ctrlMidi) {
-                // Auto: the MPC Sample is recognised by its pads on channel 10 or its encoder (CC 100 on channel 1)
-                if (!sampleSeen.load() && ((ch == 10 && m.isNoteOn() && samplePad(m.getNoteNumber()) >= 0) || (ch == 1 && m.isController() && m.getControllerNumber() == scc::encoder)))
-                    sampleSeen.store(true);
+            const int ctl = choice(gpi(gController), kControllers);
+            if (learnTarget.load() < 0 && ctl != ctrlMidi) {
+                // Auto: the MPC Sample is recognised by its pads on channel 10 or its encoder (CC 100 on channel 1), the
+                // MixTrack Go by its crossfader, pads, browse / load buttons or 14-bit pitch fader
+                if (ctl == ctrlAuto) detect(m, ch);
                 if (sampleActive() && sampleInput(m, ch)) continue;
+                if (mixActive() && mixInput(m, ch)) continue;
             }
             if (m.isNoteOn() || m.isNoteOff()) {
                 const int note = m.getNoteNumber(), key = (ch - 1) * 128 + note;
@@ -647,9 +810,13 @@ struct WheelProcessor::Impl {
     }
 
     // ---- LED feedback to the MPC Sample (audio thread; no allocation once the host's MIDI buffer has room)
-    int ledPadSent[16][3] {}; int ledBtnSent[kLedBtns] {}; bool ledActive = false; juce::int64 ledLast = 0;
+    int ledPadSent[16][3] {}; int ledBtnSent[kLedBtns] {}; int mixSent[2][kMixLeds] {}; int ledMode = ctrlAuto; juce::int64 ledLast = 0;
     uint8_t sysex[kSysexLen] {};
-    void ledReset() { for (auto& p : ledPadSent) for (auto& c : p) c = -1; for (auto& b : ledBtnSent) b = -1; }
+    void ledReset() {
+        for (auto& p : ledPadSent) for (auto& c : p) c = -1;
+        for (auto& b : ledBtnSent) b = -1;
+        for (auto& dk : mixSent) for (auto& x : dk) x = -1;
+    }
     static int led7(uint32_t rgb, int shift, float level) {
         return juce::jlimit(0, 127, (int) std::lround((float) ((rgb >> shift) & 0xffu) * level * (127.f / 255.f)));
     }
@@ -681,13 +848,38 @@ struct WheelProcessor::Impl {
             }
         }
     }
+    // the MixTrack Go's lights: note-on on the deck channel (PLAY / CUE / SYNC / PFL / VINYL) and the pad channel
+    // (pads 1-4 = notes 20-23, pad mode LEDs = notes 1-4), velocity 127 on, 1 dim
+    void mixLeds(juce::MidiBuffer& out) {
+        const int mode = padMode();
+        for (int dk = 0; dk < 2; ++dk) {
+            const auto& deck = P.engineDeck[dk];
+            const auto& st = deck.st;
+            const bool playing = st.playing.load();
+            const bool atCue = !playing && deck.track() != nullptr && std::abs(st.pos.load() - st.cuePoint.load()) < .05;
+            bool on[kMixLeds] = { playing, atCue, deck.syncing(), isOn(dpi(dk, pPfl)), vinyl[dk].load() };
+            for (int s = 0; s < 4; ++s) { float level = 0; padRgb(padIndexOf(dk, s), level); on[kMixDeckLeds + s] = level > .99f; }
+            for (int i = 0; i < 4; ++i) on[kMixDeckLeds + 4 + i] = mode == i;
+            for (int i = 0; i < kMixLeds; ++i) {
+                const int v = on[i] ? kLedOn : kLedDim;
+                if (v == mixSent[dk][i]) continue;
+                const int ch = i < kMixDeckLeds ? dk : 4 + dk;   // 0-based: deck 1 / 2, pads 5 / 6
+                const int note = i < kMixDeckLeds ? kMixDeckLedNotes[i] : i < kMixDeckLeds + 4 ? mxp::pad + i - kMixDeckLeds : mxp::modeLed + i - kMixDeckLeds - 4;
+                const uint8_t msg[3] = { (uint8_t) (0x90 | ch), (uint8_t) note, (uint8_t) v };
+                out.addEvent(msg, 3, 0);
+                mixSent[dk][i] = v;
+            }
+        }
+    }
     void ledFeedback(juce::MidiBuffer& out) {
-        if (!sampleActive()) { ledActive = false; return; }
+        const int mode = sampleActive() ? ctrlSample : mixActive() ? ctrlMixtrack : ctrlAuto;
+        if (mode == ctrlAuto) { ledMode = ctrlAuto; return; }
         const auto interval = (juce::int64) (sr * WheelProcessor::kLedIntervalMs / 1000.0);
-        if (!ledActive) { ledReset(); ledActive = true; }       // (re)entering MPC Sample mode: send everything
+        if (mode != ledMode) { ledReset(); ledMode = mode; }    // (re)entering a controller mode: send everything
         else if (now - ledLast < interval) return;
         ledLast = now;
         out.ensureSize((size_t) kLedMaxBytes);
+        if (mode == ctrlMixtrack) { mixLeds(out); return; }
         const int f = focus.load();
         const auto& deck = P.engineDeck[f];
         const auto lit = [](bool on) { return on ? kLedOn : kLedDim; };
@@ -726,29 +918,40 @@ struct WheelProcessor::Impl {
         const juce::ScopedLock l(brLock);
         return brPending.isNotEmpty() || brCrate >= brCrates.size() ? brPending : brCrates[brCrate].name;
     }
+    // (brLock held)
+    void openBrowser() { brCrates = P.library.cratesCopy(); brMode = 1; applyPendingCrate(); brCursor = juce::jlimit(0, juce::jmax(0, brCrates.size() - 1), brCrate); }
+    void openCrate() {
+        brCrate = brCursor; brMode = 2; brCursor = 0; brEntries.clear(); brBusy = true;
+        const int g = ++brGen; const Crate c = brCrates[brCrate];
+        pool.addJob([this, c, g] {
+            auto list = P.library.list(c);
+            const juce::ScopedLock l2(brLock);
+            if (g == brGen) { brEntries = list; brBusy = false; }
+        });
+    }
     void browseTick() {
         const uint32_t req = brReq.exchange(0);
         const int dl = brDelta.exchange(0);
         const juce::ScopedLock l(brLock);
         if (req & WheelProcessor::browseToggle) {
-            if (brMode == 0) { brCrates = P.library.cratesCopy(); brMode = 1; applyPendingCrate(); brCursor = juce::jlimit(0, juce::jmax(0, brCrates.size() - 1), brCrate); }
+            if (brMode == 0) openBrowser();
             else brMode = 0;
         }
         if (req & WheelProcessor::browseBack) { if (brMode == 2) { brMode = 1; brCursor = brCrate; } else brMode = 0; }
         if (req & WheelProcessor::browseSelect) {
-            if (brMode == 1 && brCursor >= 0 && brCursor < brCrates.size()) {
-                brCrate = brCursor; brMode = 2; brCursor = 0; brEntries.clear(); brBusy = true;
-                const int g = ++brGen; const Crate c = brCrates[brCrate];
-                pool.addJob([this, c, g] {
-                    auto list = P.library.list(c);
-                    const juce::ScopedLock l2(brLock);
-                    if (g == brGen) { brEntries = list; brBusy = false; }
-                });
-            } else if (brMode == 2 && brCursor >= 0 && brCursor < brEntries.size()) {
+            if (brMode == 1 && brCursor >= 0 && brCursor < brCrates.size()) openCrate();
+            else if (brMode == 2 && brCursor >= 0 && brCursor < brEntries.size()) {
                 P.loadTrack(focus.load(), brEntries[brCursor].file);
                 brMode = 0;
             }
         }
+        for (int dk = 0; dk < 2; ++dk)   // LOAD A / B (MixTrack): the list stays open for the other deck
+            if (req & (dk == 0 ? WheelProcessor::browseLoadA : WheelProcessor::browseLoadB)) {
+                focus.store(dk);
+                if (brMode == 0) openBrowser();
+                else if (brMode == 1) { if (brCursor >= 0 && brCursor < brCrates.size()) openCrate(); }
+                else if (brCursor >= 0 && brCursor < brEntries.size()) P.loadTrack(dk, brEntries[brCursor].file);
+            }
         if (brMode == 1 && brCrates.isEmpty()) { brCrates = P.library.cratesCopy(); applyPendingCrate(); }
         const int n = brMode == 1 ? brCrates.size() : brMode == 2 ? brEntries.size() : 0;
         brCursor = juce::jlimit(0, juce::jmax(0, n - 1), brCursor + dl);
@@ -846,8 +1049,16 @@ WheelProcessor::WheelProcessor()
 }
 
 int WheelProcessor::focusDeck() const { return d->focus.load(); }
-bool WheelProcessor::shiftHeld() const { return d->shift.load(); }
+bool WheelProcessor::shiftHeld() const { return d->shift.load() || d->mixShift.load() != 0; }
 bool WheelProcessor::mpcSampleActive() const { return d->sampleActive(); }
+bool WheelProcessor::mixtrackActive() const { return d->mixActive(); }
+bool WheelProcessor::vinylMode(int deck) const { return d->vinyl[juce::jlimit(0, 1, deck)].load(); }
+bool WheelProcessor::filterLowMode() const { return d->lowMode.load(); }
+juce::String WheelProcessor::controllerName() const {
+    if (d->sampleActive()) return "MPC Sample";
+    if (d->mixActive()) return "Numark MixTrack Go";
+    return "MPC / MIDI";
+}
 void WheelProcessor::hwBrowse(int actions, int delta) { d->brReq.fetch_or((uint32_t) actions); d->brDelta.fetch_add(delta); }
 WheelProcessor::HwBrowser WheelProcessor::hwBrowser() const {
     HwBrowser b;

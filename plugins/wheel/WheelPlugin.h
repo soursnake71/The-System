@@ -18,7 +18,7 @@ namespace pid {
                                            "trim", "hi", "mid", "low", "filter", "fader", "pfl", "xfassign",
                                            "fxtype", "fxbeats", "fxdepth", "fxparam", "fxon" };
     // global
-    inline const char* const globalIds[] = { "xfader", "xfcurve", "fadercurve", "hamster", "master", "cuemix", "cuegain", "padmode", "padbase", "hostsync", "controller" };
+    inline const char* const globalIds[] = { "xfader", "xfcurve", "fadercurve", "hamster", "master", "cuemix", "cuegain", "padmode", "padbase", "hostsync", "controller", "jogsens" };
 }
 juce::String deckParam(int deck, const char* id);   // "a_play" / "b_play"
 
@@ -53,7 +53,7 @@ public:
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return true; }    // LED feedback to the MPC Sample
+    bool producesMidi() const override { return true; }    // LED feedback to the MPC Sample / MixTrack Go
     double getTailLengthSeconds() const override { return 0; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -110,8 +110,20 @@ public:
     // the crate browser driven by the hardware (SAMPLE / encoder / encoder press / SEQ = back), shown on the screen
     struct HwBrowser { int mode = 0; /* 0 closed, 1 crates, 2 tracks */ juce::String title; juce::StringArray rows; juce::Array<double> bpm; int cursor = 0; bool busy = false; };
     HwBrowser hwBrowser() const;
-    enum BrowseAction { browseToggle = 1, browseSelect = 2, browseBack = 4 };
+    // browseLoadA / B: load the track under the cursor on deck A / B and keep the list open (a closed browser opens,
+    // the crate list opens the crate under the cursor)
+    enum BrowseAction { browseToggle = 1, browseSelect = 2, browseBack = 4, browseLoadA = 8, browseLoadB = 16 };
     void hwBrowse(int actions, int delta);   // as the hardware would (GUI / tests)
+
+    // ---- the Numark MixTrack Go (map: controllers/MixtrackGo.md). Used when the Controller parameter is Mixtrack Go,
+    // or on Auto once its crossfader (CC 8 ch 16), pads (notes 20-31 ch 5 / 6), browse push / LOAD (notes 7 / 2 / 3 ch
+    // 16) or 14-bit pitch fader (CC 9 then CC 41 on ch 1 / 2) is seen. LED feedback: note-ons on its channels (127 on,
+    // 1 dim), changes only, at most every kLedIntervalMs.
+    bool mixtrackActive() const;
+    bool vinylMode(int deck) const;           // MixTrack jog: true = scratch, false = nudge (VINYL button)
+    bool filterLowMode() const;               // MixTrack FILTER / LOW toggle: true = the knobs are the low EQ
+    // the controller the MIDI is being read as: "MPC Sample", "Numark MixTrack Go" or "MPC / MIDI" (for the UI)
+    juce::String controllerName() const;
 
     // ---- for an OS that draws the instrument screen itself: the 320 x 240 screen rendered into an image (message
     // thread). Exported to C as omega_wheel_screen() (see WheelEditor.cpp).

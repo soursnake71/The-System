@@ -1,5 +1,6 @@
 package com.thesnakedevice.wheel;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.media.midi.MidiDevice;
@@ -15,14 +16,20 @@ import android.os.HandlerThread;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Opens every MIDI device that sends (USB, and Bluetooth LE MIDI devices the system knows), follows plugging and
  * unplugging, parses the byte stream (running status, realtime and sysex skipped) and hands notes / CCs / pitch bend
  * to {@link Ctl}. When one of them is an MPC Sample (its name says so, or it sends the MPC Sample's encoder / encoder
- * press), its input port is opened too and {@link SampleLeds} lights its pads and buttons.
+ * press), its input port is opened too and {@link SampleLeds} lights its pads and buttons. A Numark MixTrack Go (its
+ * name, or its crossfader / pad messages) gets the MixTrack map ({@link Ctl#mixtrackNote}) and {@link MixtrackLeds}.
+ * Bluetooth LE MIDI devices the system doesn't know (the MixTrack Go only connects when the app asks for it) are
+ * opened with {@link #openBluetooth} and then handled like any other device.
  */
 final class MidiIn {
     private final Ctl ctl;
@@ -32,9 +39,19 @@ final class MidiIn {
     private final Map<Integer, MidiDevice> devices = new HashMap<>();
     private final Map<Integer, List<MidiOutputPort>> ports = new HashMap<>();
     private final Map<Integer, String> names = new HashMap<>();
+    private final Set<Integer> mixtracks = new HashSet<>();
+    private final Set<Integer> bluetooth = new HashSet<>();
     private SampleLeds leds;
     private int ledDevice = -1;
     private MidiInputPort ledPort;
+    private MixtrackLeds mtLeds;
+    private int mtLedDevice = -1;
+    private MidiInputPort mtLedPort;
+    /** Bluetooth devices opened with openBluetooth: kept open (closing one drops the Bluetooth connection). */
+    private final List<MidiDevice> bleOpened = new ArrayList<>();
+
+    /** The result of {@link #openBluetooth} (called on the MIDI thread). */
+    interface BleResult { void done(boolean ok, String name); }
     volatile String status = "MIDI: none";
     private boolean running;
 
@@ -56,6 +73,7 @@ final class MidiIn {
         thread.start();
         handler = new Handler(thread.getLooper());
         leds = new SampleLeds(ctl, handler);
+        mtLeds = new MixtrackLeds(ctl, handler);
         try { mm.registerDeviceCallback(callback, handler); } catch (Throwable ignored) {}
         handler.post(() -> {
             try { for (MidiDeviceInfo info : mm.getDevices()) open(info); } catch (Throwable ignored) {}
@@ -71,7 +89,10 @@ final class MidiIn {
         HandlerThread t = thread;
         h.post(() -> {
             leds.lightsOff();
+            mtLeds.lightsOff();
             for (Integer id : new ArrayList<>(devices.keySet())) close(id);
+            for (MidiDevice d : bleOpened) try { d.close(); } catch (IOException ignored) {}
+            bleOpened.clear();
             t.quitSafely();
         });
         handler = null;
@@ -80,27 +101,97 @@ final class MidiIn {
 
     private void open(MidiDeviceInfo info) {
         if (!running || info.getOutputPortCount() == 0 || devices.containsKey(info.getId())) return;
-        Bundle p = info.getProperties();
-        String name = p.getString(MidiDeviceInfo.PROPERTY_PRODUCT);
-        if (name == null || name.isEmpty()) name = p.getString(MidiDeviceInfo.PROPERTY_NAME);
-        if (name == null || name.isEmpty()) name = "MIDI " + info.getId();
-        final String nm = name;
         try {
-            mm.openDevice(info, dev -> {
-                if (dev == null) return;
-                if (!running) { try { dev.close(); } catch (IOException ignored) {} return; }
-                List<MidiOutputPort> list = new ArrayList<>();
-                for (int i = 0; i < info.getOutputPortCount(); ++i) {
-                    MidiOutputPort port = dev.openOutputPort(i);
-                    if (port != null) { port.connect(new Parser(info.getId())); list.add(port); }
-                }
-                devices.put(info.getId(), dev);
-                ports.put(info.getId(), list);
-                names.put(info.getId(), nm);
-                updateStatus();
-                if (isSampleName(nm)) startLeds(info.getId());
-            }, handler);
+            mm.openDevice(info, dev -> adopt(dev), handler);
         } catch (Throwable ignored) {}
+    }
+
+    /** An opened device (the MIDI thread): its output ports go to the parser, its kind decides the map and LEDs. */
+    private void adopt(MidiDevice dev) {
+        if (dev == null) return;
+        MidiDeviceInfo info = dev.getInfo();
+        if (!running || devices.containsKey(info.getId()) || info.getOutputPortCount() == 0) {
+            try { dev.close(); } catch (IOException ignored) {}
+            return;
+        }
+        Bundle p = info.getProperties();
+        String product = p.getString(MidiDeviceInfo.PROPERTY_PRODUCT), pname = p.getString(MidiDeviceInfo.PROPERTY_NAME);
+        String name = product;
+        if (name == null || name.isEmpty()) name = pname;
+        if (name == null || name.isEmpty()) name = "MIDI " + info.getId();
+        boolean mt = isMixtrackName(product) || isMixtrackName(pname);
+        boolean bt = info.getType() == MidiDeviceInfo.TYPE_BLUETOOTH || name.toLowerCase(Locale.ROOT).contains("bluetooth");
+        int id = info.getId();
+        if (bt) bluetooth.add(id);
+        List<MidiOutputPort> list = new ArrayList<>();
+        for (int i = 0; i < info.getOutputPortCount(); ++i) {
+            MidiOutputPort port = dev.openOutputPort(i);
+            if (port != null) { port.connect(new Parser(id, mt)); list.add(port); }
+        }
+        devices.put(id, dev);
+        ports.put(id, list);
+        names.put(id, name);
+        if (mt) mixtrackFound(id);
+        updateStatus();
+        if (isSampleName(name)) startLeds(id);
+    }
+
+    /**
+     * Connects a Bluetooth LE MIDI device (found by {@link BleMidi}) and handles it like any other device. The opened
+     * device is kept open until stop(): closing it would drop the connection.
+     */
+    void openBluetooth(BluetoothDevice bd, BleResult result) {
+        Handler h = handler;
+        if (!running || mm == null || h == null) { if (result != null) result.done(false, null); return; }
+        try {
+            mm.openBluetoothDevice(bd, dev -> {
+                if (dev == null) { if (result != null) result.done(false, null); return; }
+                if (!running) { try { dev.close(); } catch (IOException ignored) {} return; }
+                bleOpened.add(dev);
+                MidiDeviceInfo info = dev.getInfo();
+                bluetooth.add(info.getId());
+                if (!devices.containsKey(info.getId())) open(info);   // its own client, like a USB device
+                String n = info.getProperties().getString(MidiDeviceInfo.PROPERTY_NAME);
+                if (result != null) result.done(true, n);
+            }, h);
+        } catch (Throwable t) {
+            if (result != null) result.done(false, null);
+        }
+    }
+
+    static boolean isMixtrackName(String name) {
+        String n = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        return n.contains("mixtrack") && n.contains("go");
+    }
+
+    /** What the status line shows for a device. */
+    static String displayName(String name, boolean mixtrack, boolean bluetooth) {
+        return mixtrack ? "Numark MixTrack Go (" + (bluetooth ? "Bluetooth" : "USB") + ")" : name;
+    }
+
+    /** Device id is a MixTrack Go (the MIDI thread): its map, and its LEDs on its own input port. */
+    private void mixtrackFound(int id) {
+        mixtracks.add(id);
+        ctl.mixtrackSeen = true;
+        updateStatus();
+        if (!running || mtLedDevice == id) return;
+        MidiDevice dev = devices.get(id);
+        if (dev == null || dev.getInfo().getInputPortCount() == 0) return;
+        if (mtLedDevice >= 0) stopMtLeds();
+        MidiInputPort in = null;
+        for (int i = 0; i < dev.getInfo().getInputPortCount() && in == null; ++i) in = dev.openInputPort(i);
+        if (in == null) return;
+        final MidiInputPort port = in;
+        mtLedDevice = id;
+        mtLedPort = in;
+        mtLeds.attach(port::send);
+    }
+
+    private void stopMtLeds() {
+        mtLeds.detach();
+        if (mtLedPort != null) try { mtLedPort.close(); } catch (IOException ignored) {}
+        mtLedPort = null;
+        mtLedDevice = -1;
     }
 
     static boolean isSampleName(String name) {
@@ -131,6 +222,10 @@ final class MidiIn {
 
     private void close(int id) {
         if (id == ledDevice) stopLeds();
+        if (id == mtLedDevice) stopMtLeds();
+        mixtracks.remove(id);
+        bluetooth.remove(id);
+        if (mixtracks.isEmpty()) ctl.mixtrackSeen = false;
         List<MidiOutputPort> list = ports.remove(id);
         if (list != null) for (MidiOutputPort port : list) try { port.close(); } catch (IOException ignored) {}
         MidiDevice d = devices.remove(id);
@@ -144,7 +239,11 @@ final class MidiIn {
         if (names.isEmpty()) { status = "MIDI: plug in an MPC or controller"; return; }
         StringBuilder sb = new StringBuilder("MIDI: ");
         boolean first = true;
-        for (String n : names.values()) { if (!first) sb.append(", "); sb.append(n); first = false; }
+        for (Map.Entry<Integer, String> e : names.entrySet()) {
+            if (!first) sb.append(", ");
+            sb.append(displayName(e.getValue(), mixtracks.contains(e.getKey()), bluetooth.contains(e.getKey())));
+            first = false;
+        }
         status = sb.toString();
     }
 
@@ -152,8 +251,8 @@ final class MidiIn {
     private final class Parser extends MidiReceiver {
         private final int device;
         private int running = 0, need = 0, have = 0, d1 = 0;
-        private boolean sysex, sample;
-        Parser(int device) { this.device = device; }
+        private boolean sysex, sample, mixtrack;
+        Parser(int device, boolean mixtrack) { this.device = device; this.mixtrack = mixtrack; }
 
         @Override public void onSend(byte[] msg, int offset, int count, long timestamp) {
             for (int i = offset; i < offset + count; ++i) {
@@ -183,11 +282,27 @@ final class MidiIn {
                 Handler h = handler;
                 if (h != null) h.post(() -> startLeds(device));
             }
+            int kind = status & 0xf0;
+            // only the MixTrack Go sends these: its crossfader (CC 8 on channel 16) and its pads (notes 20-31 on channels 5 / 6)
+            if (!mixtrack && ((kind == 0xb0 && Ctl.mixtrackSignature(true, ch, a)) || (kind == 0x90 && b > 0 && Ctl.mixtrackSignature(false, ch, a)))) {
+                mixtrack = true;
+                Handler h = handler;
+                if (h != null) h.post(() -> { if (devices.containsKey(device)) mixtrackFound(device); });
+            }
             try {
-                switch (status & 0xf0) {
-                    case 0x90: ctl.midiNote(ch, a, b, b > 0); break;
-                    case 0x80: ctl.midiNote(ch, a, 0, false); break;
-                    case 0xb0: ctl.midiCc(ch, a, b); break;
+                if (mixtrack) {
+                    switch (kind) {
+                        case 0x90: ctl.mixtrackNote(ch, a, b, b > 0); break;
+                        case 0x80: ctl.mixtrackNote(ch, a, 0, false); break;
+                        case 0xb0: ctl.mixtrackCc(ch, a, b); break;
+                        default: break;
+                    }
+                    return;
+                }
+                switch (kind) {
+                    case 0x90: ctl.otherNote(ch, a, b, b > 0); break;
+                    case 0x80: ctl.otherNote(ch, a, 0, false); break;
+                    case 0xb0: ctl.otherCc(ch, a, b); break;
                     case 0xe0: ctl.midiPitchBend(ch, a | (b << 7)); break;
                     default: break;
                 }
