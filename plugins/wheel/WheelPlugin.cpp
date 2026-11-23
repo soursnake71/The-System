@@ -973,8 +973,17 @@ struct WheelProcessor::Impl {
                 for (const auto& c2 : c.findChildFiles(juce::File::findDirectories, false)) cands.add(c2);   // /run/media/<user>/<card>
             }
         }
+        // only a folder with music in it (a quick look a few levels down, never a whole drive)
+        std::function<bool(const juce::File&, int, int&)> hasMusic = [&](const juce::File& dir, int depth, int& budget) {
+            for (const auto& f : dir.findChildFiles(juce::File::findFilesAndDirectories | juce::File::ignoreHiddenFiles, false)) {
+                if (--budget < 0) return false;
+                if (f.isDirectory()) { if (depth > 0 && hasMusic(f, depth - 1, budget)) return true; }
+                else if (Library::isAudio(f)) return true;
+            }
+            return false;
+        };
         for (const auto& c : cands)
-            if (c.isDirectory()) {
+            if (int budget = 400; c.isDirectory() && hasMusic(c, 3, budget)) {
                 P.lastRoot = c;
                 pool.addJob([this, c] { P.library.setRoot(c); });
                 return;

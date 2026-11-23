@@ -2706,7 +2706,7 @@ void WheelEditor::showMpcScreen() { if (!d->compact) d->setCompact(true); }
 
 String WheelEditor::Impl::midiStatusText() const
 {
-    if (ctx.proc.mpcSampleActive()) return "MIDI: MPC Sample";
+    if (ctx.proc.mpcSampleActive() || ctx.proc.mixtrackActive()) return "MIDI: " + ctx.proc.controllerName();
     return "MIDI: plug in an MPC or controller";
 }
 
