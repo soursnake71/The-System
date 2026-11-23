@@ -319,10 +319,10 @@ final class LibraryView extends LinearLayout {
             }
             Library.Track t = track;
             if (t == null) return;
-            // columns: mark | title | artist | BPM | key
+            // columns: mark | title | artist | length | BPM | key
             float mark = px(22);
-            float keyW = px(48), bpmW = px(56);
-            float rest = w - mark - keyW - bpmW - px(10);
+            float keyW = px(48), bpmW = px(56), lenW = px(52);
+            float rest = w - mark - keyW - bpmW - lenW - px(10);
             float titleW = rest * .56f, artistW = rest - titleW;
             String rel = t.rel;
             int onDeck = rel.equals(deckPaths[0]) ? 0 : rel.equals(deckPaths[1]) ? 1 : -1;
@@ -341,6 +341,8 @@ final class LibraryView extends LinearLayout {
             p.setTextSize(ts * .9f);
             c.drawText(fit(t.artist, artistW - px(8)), x, base, p);
             x += artistW;
+            c.drawText(fit(Library.lengthText(t.seconds), lenW - px(6)), x, base, p);
+            x += lenW;
             p.setColor(fg);
             c.drawText(fit(bpmText(t.bpm), bpmW - px(6)), x, base, p);
             x += bpmW;

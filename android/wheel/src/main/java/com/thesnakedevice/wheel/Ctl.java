@@ -24,6 +24,8 @@ final class Ctl {
     static final String[] ROLL_NAMES = { "1/32", "1/16", "1/8", "1/4", "1/2", "1", "2", "4" };
     static final String[] TRANSPORT_NAMES = { "PLAY", "CUE", "SYNC", "CENSOR", "NUDGE -", "NUDGE +", "LOOP IN", "OUT/EXIT" };
     static final String[] FX_NAMES = { "FX OFF", "ECHO", "PING-PONG", "REVERB", "FLANGER", "PHASER", "CRUSH", "GATE" };
+    /** What D_FX_PARAM does for each effect (Engine.cpp: echo / flanger / phaser feedback, reverb size, crush depth, gate chop). */
+    static final String[] FX_PARAM_NAMES = { "FX PARAM", "FEEDBACK", "FEEDBACK", "SIZE", "FEEDBACK", "FEEDBACK", "CRUSH", "CHOP" };
     static final double[] FX_BEATS = { 1. / 16, 1. / 8, .25, .5, .75, 1, 2, 4, 8 };
     static final String[] FX_BEAT_NAMES = { "1/16", "1/8", "1/4", "1/2", "3/4", "1", "2", "4", "8" };
     static final float[] RANGES = { .08f, .16f, .50f };
@@ -53,6 +55,9 @@ final class Ctl {
     volatile boolean shift, erase, sampleSeen;
     volatile Browser browser;
     volatile long lastMidiMs;
+    /** Seconds of track across the waveforms (pinch zoom); 0 = automatic from the screen width. */
+    volatile float waveZoom;
+    static final float ZOOM_MIN = 2, ZOOM_MAX = 32;
 
     static int did(int deck, int k) { return Native.deckId(deck, k); }
     static int gid(int k) { return Native.globalId(k); }
@@ -82,6 +87,8 @@ final class Ctl {
             if (Math.round(v[type]) <= 0) v[type] = 1;    // echo, so FX ON does something out of the box
         }
         padMode = Math.max(0, Math.min(3, sp.getInt("padMode", MODE_CUES)));
+        float z = sp.getFloat("waveZoom", 0);
+        waveZoom = z <= 0 ? 0 : Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
         for (int id = 0; id < N_IDS; ++id) if (known(id)) Native.set(id, v[id]);
     }
 
@@ -90,6 +97,7 @@ final class Ctl {
         SharedPreferences.Editor e = prefs.edit();
         for (int id = 0; id < N_IDS; ++id) if (known(id)) e.putFloat("p" + id, v[id]);
         e.putInt("padMode", padMode);
+        e.putFloat("waveZoom", waveZoom);
         e.apply();
         dirty = false;
     }
@@ -107,10 +115,13 @@ final class Ctl {
     void set(int deck, int k, float value) { set(did(deck, k), value); }
     void toggle(int deck, int k) { set(deck, k, on(deck, k) ? 0f : 1f); }
     void setPadMode(int m) { padMode = ((m % 4) + 4) % 4; dirty = true; }
+    void setWaveZoom(float seconds) { waveZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, seconds)); dirty = true; }
 
     // ---- EQ knob mapping: 0 = kill (-26 dB), .5 = 0 dB, 1 = +6 dB
     static float eqDb(float n) { return n < .5f ? -26f * (1f - 2f * n) : 6f * (2f * n - 1f); }
     static float eqNorm(float db) { return db < 0 ? .5f - (-db / 26f) * .5f : .5f + db / 12f; }
+    static float trimDb(float n) { return -12f + 24f * n; }
+    static float trimNorm(float db) { return (db + 12f) / 24f; }
     static float masterDb(float n) { return -24f + 30f * n; }
     static float masterNorm(float db) { return (db + 24f) / 30f; }
 

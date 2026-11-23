@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
+import android.media.midi.MidiInputPort;
 import android.media.midi.MidiManager;
 import android.media.midi.MidiOutputPort;
 import android.media.midi.MidiReceiver;
@@ -20,7 +21,8 @@ import java.util.Map;
 /**
  * Opens every MIDI device that sends (USB, and Bluetooth LE MIDI devices the system knows), follows plugging and
  * unplugging, parses the byte stream (running status, realtime and sysex skipped) and hands notes / CCs / pitch bend
- * to {@link Ctl}.
+ * to {@link Ctl}. When one of them is an MPC Sample (its name says so, or it sends the MPC Sample's encoder / encoder
+ * press), its input port is opened too and {@link SampleLeds} lights its pads and buttons.
  */
 final class MidiIn {
     private final Ctl ctl;
@@ -30,6 +32,9 @@ final class MidiIn {
     private final Map<Integer, MidiDevice> devices = new HashMap<>();
     private final Map<Integer, List<MidiOutputPort>> ports = new HashMap<>();
     private final Map<Integer, String> names = new HashMap<>();
+    private SampleLeds leds;
+    private int ledDevice = -1;
+    private MidiInputPort ledPort;
     volatile String status = "MIDI: none";
     private boolean running;
 
@@ -50,6 +55,7 @@ final class MidiIn {
         thread = new HandlerThread("wheel-midi");
         thread.start();
         handler = new Handler(thread.getLooper());
+        leds = new SampleLeds(ctl, handler);
         try { mm.registerDeviceCallback(callback, handler); } catch (Throwable ignored) {}
         handler.post(() -> {
             try { for (MidiDeviceInfo info : mm.getDevices()) open(info); } catch (Throwable ignored) {}
@@ -64,6 +70,7 @@ final class MidiIn {
         Handler h = handler;
         HandlerThread t = thread;
         h.post(() -> {
+            leds.lightsOff();
             for (Integer id : new ArrayList<>(devices.keySet())) close(id);
             t.quitSafely();
         });
@@ -85,17 +92,45 @@ final class MidiIn {
                 List<MidiOutputPort> list = new ArrayList<>();
                 for (int i = 0; i < info.getOutputPortCount(); ++i) {
                     MidiOutputPort port = dev.openOutputPort(i);
-                    if (port != null) { port.connect(new Parser()); list.add(port); }
+                    if (port != null) { port.connect(new Parser(info.getId())); list.add(port); }
                 }
                 devices.put(info.getId(), dev);
                 ports.put(info.getId(), list);
                 names.put(info.getId(), nm);
                 updateStatus();
+                if (isSampleName(nm)) startLeds(info.getId());
             }, handler);
         } catch (Throwable ignored) {}
     }
 
+    static boolean isSampleName(String name) {
+        String n = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        return n.contains("mpc") && n.contains("sample");
+    }
+
+    /** The device is an MPC Sample: open its input port (handler thread) and light it. */
+    private void startLeds(int id) {
+        if (!running || ledDevice == id) return;
+        MidiDevice dev = devices.get(id);
+        if (dev == null || dev.getInfo().getInputPortCount() == 0) return;
+        if (ledDevice >= 0) stopLeds();
+        MidiInputPort in = null;
+        for (int i = 0; i < dev.getInfo().getInputPortCount() && in == null; ++i) in = dev.openInputPort(i);
+        if (in == null) return;
+        ledDevice = id;
+        ledPort = in;
+        leds.attach(in);
+    }
+
+    private void stopLeds() {
+        leds.detach();
+        if (ledPort != null) try { ledPort.close(); } catch (IOException ignored) {}
+        ledPort = null;
+        ledDevice = -1;
+    }
+
     private void close(int id) {
+        if (id == ledDevice) stopLeds();
         List<MidiOutputPort> list = ports.remove(id);
         if (list != null) for (MidiOutputPort port : list) try { port.close(); } catch (IOException ignored) {}
         MidiDevice d = devices.remove(id);
@@ -115,8 +150,10 @@ final class MidiIn {
 
     /** A MIDI 1.0 byte-stream parser per port. */
     private final class Parser extends MidiReceiver {
+        private final int device;
         private int running = 0, need = 0, have = 0, d1 = 0;
-        private boolean sysex;
+        private boolean sysex, sample;
+        Parser(int device) { this.device = device; }
 
         @Override public void onSend(byte[] msg, int offset, int count, long timestamp) {
             for (int i = offset; i < offset + count; ++i) {
@@ -140,6 +177,12 @@ final class MidiIn {
 
         private void dispatch(int status, int a, int b) {
             int ch = (status & 0x0f) + 1;
+            // only the MPC Sample sends these on channel 1: its big encoder (CC 100) and the encoder press (note 111)
+            if (!sample && ch == 1 && (((status & 0xf0) == 0xb0 && a == Ctl.SCC_ENCODER) || ((status & 0xf0) == 0x90 && a == Ctl.SB_ENC_PRESS))) {
+                sample = true;
+                Handler h = handler;
+                if (h != null) h.post(() -> startLeds(device));
+            }
             try {
                 switch (status & 0xf0) {
                     case 0x90: ctl.midiNote(ch, a, b, b > 0); break;

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Omega Wheel of Steel</string>
+    <string name="playing_title">Omega Wheel of Steel — playing</string>
+    <string name="playing_text">The decks keep playing in the background. Tap to return.</string>
+    <string name="playback_channel">Playback</string>
 </resources>

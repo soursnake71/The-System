@@ -3,6 +3,7 @@ package com.thesnakedevice.wheel;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -36,7 +37,8 @@ import java.util.concurrent.Executors;
  * The music on an SD card / folder chosen with the Storage Access Framework: one breadth-first DocumentsContract scan
  * (not DocumentFile per file), then crates: All tracks, Serato crates (_Serato_/Subcrates/*.crate, parsed by the
  * engine), .m3u / .m3u8 playlists and every folder with music in it. Tags are read by the engine in the background
- * and cached by document id + last-modified in a small file.
+ * (the length by MediaMetadataRetriever) and cached by document id + last-modified in a small append-only file, which
+ * is rewritten with only the current tracks when it has gathered many stale or repeated lines.
  */
 final class Library {
     static final int MAX_DEPTH = 12, MAX_ENTRIES = 80000, MAX_TRACKS = 30000;
@@ -47,6 +49,7 @@ final class Library {
         long size, modified;
         String title = "", artist = "", album = "", bpm = "", key = "";
         boolean tagged, serato;
+        int seconds = -1;                  // length, -1 = not known (yet)
         String lowerSearch;
         String label() { return title.isEmpty() ? name : title; }
         String search() {
@@ -73,8 +76,11 @@ final class Library {
         t.setPriority(Thread.MIN_PRIORITY);
         return t;
     });
+    /** key -> {title, artist, album, bpm, key, serato, seconds} ("" seconds = never measured, "-1" = couldn't). */
     private final Map<String, String[]> tagCache = new HashMap<>();
     private boolean cacheLoaded;
+    private int cacheLines;   // lines in the cache file (repeats and stale entries included)
+    static final int CACHE_FIELDS = 7;
     private int scanGen;
 
     volatile Uri tree;
@@ -325,6 +331,7 @@ final class Library {
         t.bpm = tags[3] == null ? "" : tags[3];
         t.key = tags[4] == null ? "" : tags[4];
         t.serato = tags.length > 5 && "1".equals(tags[5]);
+        t.seconds = tags.length > 6 ? parseSeconds(tags[6]) : -1;
         t.tagged = true;
         t.lowerSearch = null;
     }
@@ -339,10 +346,40 @@ final class Library {
         try (BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
             String line;
             while ((line = r.readLine()) != null) {
+                ++cacheLines;
                 String[] p = line.split("\t", -1);
-                if (p.length >= 7) tagCache.put(p[0], new String[] { p[1], p[2], p[3], p[4], p[5], p[6] });
+                // v1 lines have the six tags; lines since 1.2 add the length
+                if (p.length >= 7) tagCache.put(p[0], new String[] { p[1], p[2], p[3], p[4], p[5], p[6], p.length > 7 ? p[7] : "" });
             }
         } catch (IOException ignored) {}
+    }
+
+    static int parseSeconds(String s) {
+        if (s == null || s.isEmpty()) return -1;
+        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return -1; }
+    }
+
+    /** The track's length in whole seconds from the container's metadata, -1 if it has none. */
+    static int durationSeconds(java.io.FileDescriptor fd) {
+        MediaMetadataRetriever r = new MediaMetadataRetriever();
+        try {
+            r.setDataSource(fd);
+            String ms = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            if (ms == null) return -1;
+            long v = Long.parseLong(ms.trim());
+            return v > 0 ? (int) Math.round(v / 1000.0) : -1;
+        } catch (Exception e) {
+            return -1;
+        } finally {
+            try { r.release(); } catch (Exception ignored) {}
+        }
+    }
+
+    /** "m:ss" (or "h:mm:ss"), "" when unknown. */
+    static String lengthText(int s) {
+        if (s < 0) return "";
+        int h = s / 3600, m = (s / 60) % 60, sec = s % 60;
+        return h > 0 ? String.format(Locale.US, "%d:%02d:%02d", h, m, sec) : String.format(Locale.US, "%d:%02d", m, sec);
     }
 
     private static String clean(String s) { return s == null ? "" : s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' '); }
@@ -351,42 +388,88 @@ final class Library {
         tagExec.execute(() -> {
             synchronized (tagCache) { loadCache(); }
             List<Track> todo = new ArrayList<>();
+            Map<Track, String[]> cached = new HashMap<>();   // tags known, length not yet
             synchronized (tagCache) {
-                for (Track t : all) { String[] c = tagCache.get(key(t)); if (c != null) apply(t, c); else todo.add(t); }
+                for (Track t : all) {
+                    String[] c = tagCache.get(key(t));
+                    if (c != null) apply(t, c);
+                    if (c == null || c[6].isEmpty()) { todo.add(t); if (c != null) cached.put(t, c); }
+                }
             }
             notifyChanged(true);
-            if (todo.isEmpty()) return;
+            if (todo.isEmpty()) { compactCache(all, g); return; }
             Writer w = null;
+            boolean finished = false;
             try {
                 w = new OutputStreamWriter(new FileOutputStream(cacheFile(), true), StandardCharsets.UTF_8);
                 long last = System.currentTimeMillis();
                 int done = 0;
                 for (Track t : todo) {
                     if (g != scanGen || Thread.currentThread().isInterrupted()) break;
-                    String[] tags = null;
+                    String[] tags = cached.get(t);
+                    int secs = -1;
                     try (ParcelFileDescriptor pfd = cr.openFileDescriptor(DocumentsContract.buildDocumentUriUsingTree(tree, t.docId), "r")) {
-                        if (pfd != null) tags = Native.readTags(pfd.getFd(), t.name);
+                        if (pfd != null) {
+                            if (tags == null) tags = Native.readTags(pfd.getFd(), t.name);
+                            secs = durationSeconds(pfd.getFileDescriptor());
+                        }
                     } catch (Throwable ignored) {}
                     if (tags == null) tags = new String[] { "", "", "", "", "", "0" };
-                    String[] six = new String[6];
-                    for (int i = 0; i < 6; ++i) six[i] = clean(i < tags.length ? tags[i] : "");
-                    apply(t, six);
-                    synchronized (tagCache) { tagCache.put(key(t), six); }
-                    w.write(key(t) + "\t" + String.join("\t", six) + "\n");
+                    String[] rec = new String[CACHE_FIELDS];
+                    for (int i = 0; i < 6; ++i) rec[i] = clean(i < tags.length ? tags[i] : "");
+                    rec[6] = String.valueOf(secs);
+                    apply(t, rec);
+                    synchronized (tagCache) { tagCache.put(key(t), rec); }
+                    w.write(key(t) + "\t" + String.join("\t", rec) + "\n");
+                    ++cacheLines;
                     ++done;
                     long now = System.currentTimeMillis();
                     if (now - last > 700) { last = now; w.flush(); status = "Reading tags " + done + " / " + todo.size(); notifyChanged(true); }
                 }
+                finished = true;
             } catch (IOException ignored) {
             } finally {
                 if (w != null) try { w.close(); } catch (IOException ignored) {}
             }
+            if (finished) compactCache(all, g);
             if (g == scanGen) {
                 int tracks = all.size();
                 status = tracks + " tracks" + (tree != null ? " · " + treeName : "");
                 notifyChanged(true);
             }
         });
+    }
+
+    /**
+     * Rewrites the cache file with one line per current track when more than half of it (and at least 1000 lines) is
+     * repeats (a track re-read after it changed) or tracks no longer in the library. Written to a temporary file and
+     * renamed, so a crash never leaves half a cache.
+     */
+    private void compactCache(List<Track> all, int g) {
+        if (g != scanGen) return;
+        synchronized (tagCache) {
+            Map<String, String[]> live = new LinkedHashMap<>();
+            for (Track t : all) { String k = key(t); String[] v = tagCache.get(k); if (v != null) live.put(k, v); }
+            int waste = cacheLines - live.size();
+            if (!needsCompaction(cacheLines, live.size())) return;
+            File f = cacheFile(), tmp = new File(f.getPath() + ".tmp");
+            try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
+                for (Map.Entry<String, String[]> e : live.entrySet()) w.write(e.getKey() + "\t" + String.join("\t", e.getValue()) + "\n");
+            } catch (IOException e) {
+                if (!tmp.delete()) tmp.deleteOnExit();
+                return;
+            }
+            if (!tmp.renameTo(f)) { if (!tmp.delete()) tmp.deleteOnExit(); return; }
+            tagCache.clear();
+            tagCache.putAll(live);
+            cacheLines = live.size();
+            android.util.Log.i("wheel", "tag cache compacted: " + waste + " stale / repeated lines dropped");
+        }
+    }
+
+    static boolean needsCompaction(int lines, int live) {
+        int waste = lines - live;
+        return waste >= 1000 && waste > live;
     }
 
     private void notifyChanged(boolean tagsOnly) {

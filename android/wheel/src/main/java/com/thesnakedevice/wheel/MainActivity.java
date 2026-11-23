@@ -22,10 +22,11 @@ import android.widget.TextView;
 
 /**
  * Omega Wheel of Steel: two decks and a scratch mixer. The engine (Native) plays while this activity exists, also in
- * the background (BACK only sends the app behind; it does not stop the mix); it stops in onDestroy.
+ * the background (BACK only sends the app behind; it does not stop the mix); it stops in onDestroy. While it runs,
+ * {@link PlaybackService} keeps the process in the foreground so Android doesn't kill the mix in the background.
  */
 public final class MainActivity extends Activity implements WheelView.Host, LibraryView.Callbacks, Library.Listener {
-    private static final int REQ_TREE = 7;
+    private static final int REQ_TREE = 7, REQ_NOTIFY = 8;
 
     private SharedPreferences prefs;
     private final Ctl ctl = new Ctl();
@@ -37,6 +38,7 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
     private boolean engineStarted;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private volatile boolean libOpen;
+    private boolean serviceStarted;
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -85,6 +87,22 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
         libView.refresh(false, prefs.getString("crate", null));
         midi.start(this);
         if (!engineStarted) library.status = "Audio output could not be opened";
+        askNotificationPermission();
+    }
+
+    /** Android 13+: the playing notification needs permission. Asked once; if denied the service runs without it. */
+    private void askNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        if (prefs.getBoolean("notifyAsked", false)) return;
+        prefs.edit().putBoolean("notifyAsked", true).apply();
+        try { requestPermissions(new String[] { android.Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIFY); } catch (RuntimeException ignored) {}
+    }
+
+    @Override public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(req, perms, results);
+        // granted or not, the service is already running; with permission its notification now shows
+        if (req == REQ_NOTIFY && serviceStarted) PlaybackService.start(this);
     }
 
     private void showFatal(String msg) {
@@ -133,6 +151,8 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
         if (loader != null && !engineStarted) {
             try { engineStarted = Native.start(); } catch (Throwable ignored) {}
         }
+        // in the foreground now, so Android allows the foreground service to start
+        if (loader != null && engineStarted && !serviceStarted) { PlaybackService.start(this); serviceStarted = true; }
     }
 
     @Override protected void onPause() {
@@ -142,6 +162,7 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
     }
 
     @Override protected void onDestroy() {
+        if (serviceStarted) { PlaybackService.stop(this); serviceStarted = false; }
         if (loader != null) {
             ctl.save();
             midi.stop();
@@ -155,6 +176,7 @@ public final class MainActivity extends Activity implements WheelView.Host, Libr
     @SuppressWarnings("deprecation")
     @Override public void onBackPressed() {
         if (libOpen) { closeLibrary(); return; }
+        if (wheel != null && wheel.sheetOpen()) { wheel.closeSheet(); return; }
         moveTaskToBack(true);   // never stop the mix by accident
     }
 
