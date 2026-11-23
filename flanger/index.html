@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141414">
+<title>MXR Flanger</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { --bg:#141414; --panel:#1f2021; --line:#3a3b3d; --text:#efe6d2; --dim:#a59f92; --accent:#e9dcb8; --red:#ff2a1a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  main { max-width: 760px; margin: 0 auto; padding: 10px 12px 28px; }
+  .wrap { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; }
+  #plate { position:relative; width:100%; aspect-ratio: 480 / 370; background:url(faceplate.jpg) center/100% 100% no-repeat; border-radius:10px; overflow:hidden;
+           user-select:none; -webkit-user-select:none; touch-action:none; box-shadow:0 6px 24px #000a; }
+  .knob { position:absolute; border-radius:50%; background-image:url(faceplate.jpg); background-repeat:no-repeat; cursor:grab; touch-action:none;
+          -webkit-mask-image: radial-gradient(circle, #000 76%, transparent 99%); mask-image: radial-gradient(circle, #000 76%, transparent 99%); }
+  .knob:active { cursor:grabbing; }
+  #fsw { position:absolute; border-radius:50%; cursor:pointer; background:transparent; border:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  #led { position:absolute; border-radius:50%; background:#4a1410; box-shadow: inset 0 1px 2px #000c; pointer-events:none; transition:background .08s, box-shadow .08s; }
+  #led.on { background: radial-gradient(circle at 40% 35%, #ffd2c8, var(--red) 45%, #a10d04); box-shadow: 0 0 10px 3px #ff2a1a99, 0 0 2px #ff9; }
+  #tip { position:absolute; pointer-events:none; background:#000d; color:var(--accent); border:1px solid #fff3; border-radius:6px; padding:2px 7px;
+         font: 600 14px/1.3 ui-monospace, Menlo, Consolas, monospace; transform:translate(-50%, -100%); display:none; white-space:nowrap; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; width:100%; }
+  h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:0 0 8px; font-weight:700; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row + .row { margin-top:8px; }
+  button, select, input[type=file]::file-selector-button { background:#2b2c2e; color:var(--text); border:1px solid #4a4b4e; border-radius:7px; padding:8px 12px; font:inherit; }
+  button:active { background:#3a3b3e; }
+  button.big { font-weight:700; min-width:96px; }
+  button.go { background:#e9dcb8; color:#1a1a1a; border-color:#e9dcb8; }
+  select { min-width:0; flex:1; }
+  #desc { color:var(--dim); font-size:13px; min-height:1.3em; }
+  .slider { display:grid; grid-template-columns: 62px 1fr 64px; gap:8px; align-items:center; }
+  .slider + .slider { margin-top:6px; }
+  .slider label { color:var(--dim); font-size:13px; text-transform:uppercase; letter-spacing:.06em; }
+  .slider output { text-align:right; font: 13px ui-monospace, Menlo, Consolas, monospace; }
+  input[type=range] { width:100%; accent-color: var(--accent); }
+  #meter { width:100%; height:12px; display:block; background:#0b0b0b; border-radius:4px; }
+  #status { color:var(--dim); font-size:13px; }
+  .hide { display:none !important; }
+  footer { color:#77736b; font-size:12px; margin-top:14px; text-align:center; }
+  @media (orientation: landscape) and (min-width: 700px) {
+    main { max-width: 1200px; }
+    .wrap { display:grid; grid-template-columns: min(62vw, calc((100vh - 24px) * 480 / 370)) 1fr; align-items:start; }
+    #plate { grid-row: 1 / span 3; position: sticky; top: 10px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="wrap">
+    <div id="plate" aria-label="MXR Flanger front panel">
+      <button id="fsw" aria-label="Footswitch: effect on / bypass"></button>
+      <div id="led"></div>
+      <div id="tip"></div>
+    </div>
+
+    <section>
+      <h2>Presets</h2>
+      <div class="row">
+        <button id="prev" aria-label="Previous preset">&lsaquo;</button>
+        <select id="preset"></select>
+        <button id="next" aria-label="Next preset">&rsaquo;</button>
+      </div>
+      <div class="row"><div id="desc"></div></div>
+      <div class="row">
+        <button id="save">Save as…</button>
+        <button id="del">Delete</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Mod</h2>
+      <div class="slider"><label for="mix">Mix</label><input id="mix" type="range" min="0" max="100" step="1"><output id="mixv"></output></div>
+      <div class="slider"><label for="spread">Stereo</label><input id="spread" type="range" min="0" max="180" step="1"><output id="spreadv"></output></div>
+      <div class="slider"><label for="level">Level</label><input id="level" type="range" min="-24" max="12" step="0.5"><output id="levelv"></output></div>
+    </section>
+
+    <section>
+      <h2>Audio</h2>
+      <div class="row">
+        <button id="start" class="big go">Start</button>
+        <select id="source">
+          <option value="demo">Demo loop (guitar + drums)</option>
+          <option value="file">Audio file (loops)</option>
+          <option value="live">Live input (mic / interface)</option>
+        </select>
+      </div>
+      <div class="row hide" id="fileRow"><input id="file" type="file" accept="audio/*,video/*"></div>
+      <div class="row hide" id="liveRow"><select id="device"><option value="">Default input</option></select></div>
+      <div class="row"><canvas id="meter" width="600" height="12"></canvas></div>
+      <div class="row">
+        <button id="export">Export WAV</button>
+        <span id="status"></span>
+      </div>
+    </section>
+  </div>
+  <footer>MXR M-117 Flanger circuit model · The Omega System</footer>
+</main>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

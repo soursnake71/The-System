@@ -10,7 +10,8 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator)
+  // and MXR Flanger (M-117 circuit model)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -30,6 +31,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    flanger {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.flanger'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/flanger/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/flanger/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +52,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  flangerImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +63,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// MXR Flanger carries its web app the same way: ../flanger (not its tools, notes or screenshots) into assets/flanger
+def flangerAssets = layout.buildDirectory.dir('flangerAssets')
+tasks.register('copyFlangerWeb', Copy) {
+  from('../../flanger') { exclude 'tools/**', '*.md', 'screenshot*.png' }
+  into flangerAssets.map { it.dir('flanger') }
+}
+android.sourceSets.flanger.assets.srcDirs += [flangerAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Flanger') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyFlangerWeb' }
