@@ -202,6 +202,14 @@ if(NOT OMEGA_ONLY OR "Wheel" IN_LIST OMEGA_ONLY)
   target_compile_definitions(wheel_phone_snapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Wheel of Steel" JUCE_MODAL_LOOPS_PERMITTED=1
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(wheel_phone_snapshot PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+  # the whole plugin window as the host opens it, to a PNG (xvfb-run -a <build>/wheel_snapshot out.png [W H] [--tap x,y])
+  juce_add_console_app(wheel_snapshot PRODUCT_NAME "wheel_snapshot")
+  set_target_properties(wheel_snapshot PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  target_sources(wheel_snapshot PRIVATE wheel/tests/snapshot.cpp wheel/Engine.cpp wheel/Analysis.cpp wheel/SeratoTags.cpp wheel/Library.cpp wheel/WheelPlugin.cpp wheel/WheelEditor.cpp wheel/PhoneDeckView.cpp wheel/PhoneLibraryView.cpp)
+  target_link_libraries(wheel_snapshot PRIVATE WheelFonts)
+  target_compile_definitions(wheel_snapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Wheel of Steel" JUCE_MODAL_LOOPS_PERMITTED=1
+    JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(wheel_snapshot PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags)
 endif()
 
 # Twelve.h against engine.js: node twelve/tools/compare.mjs <build>/twelve_test <dir>

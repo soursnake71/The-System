@@ -9,6 +9,7 @@
 // A 60 Hz timer repaints only the moving parts (waveforms, platters, meters); everything else polls its lit state.
 #include "WheelEditor.h"
 #include "WheelFonts.h"
+#include "PhoneUI.h"
 #include <cmath>
 
 namespace wheel {
@@ -2458,6 +2459,21 @@ struct WheelEditor::Impl : KeyListener
         ed.addAndMakeVisible(mpcBtn);
         mpc.onFull = [this] { setCompact(false); };
         ed.addChildComponent(mpc);
+        // the main view: the phone app's screen (PhoneDeckView) with its library browser over it
+        host.openLibrary = [this] { libOpen = true; phoneLib->refresh(); layout(ed.getLocalBounds()); phoneLib->toFront(true); };
+        host.closeLibrary = [this] { libOpen = false; layout(ed.getLocalBounds()); phone->grabKeyboardFocus(); };
+        host.loadSelected = [this](int dk) {
+            auto f = phoneLib->selectedFile();
+            if (!f.existsAsFile()) return false;
+            ctx.proc.loadTrack(dk, f); return true;
+        };
+        host.selectedTitle = [this] { return phoneLib->selectedTitle(); };
+        host.midiStatus = [this] { return midiStatusText(); };
+        host.showMpcScreen = [this] { setCompact(true); };
+        phone = std::make_unique<PhoneDeckView>(ctx.proc, host);
+        phoneLib = std::make_unique<PhoneLibraryView>(ctx.proc, host);
+        ed.addChildComponent(*phone);
+        ed.addChildComponent(*phoneLib);
         ed.addKeyListener(this);
         snapshot();
     }
@@ -2475,16 +2491,24 @@ struct WheelEditor::Impl : KeyListener
     MidiPanel midi;
     LearnOverlay learnOverlay;
     MpcScreen mpc;
-    bool compact = true;   // the 320 x 240 MPC screen; FULL switches to the whole Serato-style layout
+    // three views: the phone app's screen (the main one), the 320 x 240 MPC screen (for an MPC's own display; its FULL
+    // goes back to the phone screen) and the older Serato-style layout (only reachable from code now)
+    bool compact = false;     // the 320 x 240 MPC screen
+    bool phoneView = true;    // the phone app's screen
+    bool libOpen = false;     // its library browser is showing
+    PhoneHost host;
+    std::unique_ptr<PhoneDeckView> phone;
+    std::unique_ptr<PhoneLibraryView> phoneLib;
     TextButton midiBtn, learnBtn, mpcBtn;
+    String midiStatusText() const;
     void setCompact(bool c)
     {
-        compact = c;
-        if (c) { ctx.learnMode = false; updateLearn(); midi.setVisible(false); }
-        mpc.browsing = false;
+        compact = c; phoneView = !c;
+        ctx.learnMode = false; updateLearn(); midi.setVisible(false);
+        mpc.browsing = false; libOpen = false;
         ed.setResizable(true, !c);   // no corner grip over the MPC screen's margin
         if (c) { ed.setResizeLimits(MpcScreen::W, MpcScreen::H, 3200, 2000); ed.setSize(MpcScreen::W, MpcScreen::H); }
-        else { ed.setResizeLimits(1000, 680, 3200, 2000); ed.setSize(1400, 900); }
+        else { ed.setResizeLimits(800, 373, 3200, 2000); ed.setSize(1400, 653); }
         layout(ed.getLocalBounds()); ed.repaint();
     }
     Rectangle<int> topBar;
@@ -2503,6 +2527,7 @@ struct WheelEditor::Impl : KeyListener
     bool keyPressed(const KeyPress& k, Component*) override
     {
         if (k == KeyPress::escapeKey && ctx.learnMode) { ctx.learnMode = false; updateLearn(); return true; }
+        if (phoneView || compact) return false;   // the phone screen and its library handle their own keys
         return library.keyPressed(k, nullptr);
     }
     void snapshot()
@@ -2524,7 +2549,7 @@ struct WheelEditor::Impl : KeyListener
     {
         ++frame;
         snapshot();
-        if (compact) return;   // the MPC screen repaints itself
+        if (compact || phoneView) return;   // the MPC screen and the phone screen repaint themselves
         for (int d = 0; d < 2; ++d)
         {
             wave[d]->repaint();
@@ -2545,6 +2570,20 @@ struct WheelEditor::Impl : KeyListener
     }
     void layout(Rectangle<int> area)
     {
+        if (phone != nullptr)
+        {
+            phone->setVisible(phoneView);
+            phoneLib->setVisible(phoneView && libOpen);
+            if (phoneView)
+            {
+                mpc.setVisible(false);
+                for (int d = 0; d < 2; ++d)
+                    for (Component* c : std::initializer_list<Component*> { wave[d].get(), over[d].get(), info[d].get(), deck[d].get(), pads[d].get() }) c->setVisible(false);
+                for (Component* c : std::initializer_list<Component*> { &mixer, &library, &midiBtn, &learnBtn, &mpcBtn }) c->setVisible(false);
+                phone->setBounds(area); phoneLib->setBounds(area);
+                return;
+            }
+        }
         mpc.setVisible(compact);
         for (int d = 0; d < 2; ++d)
             for (Component* c : std::initializer_list<Component*> { wave[d].get(), over[d].get(), info[d].get(), deck[d].get(), pads[d].get() }) c->setVisible(!compact);
@@ -2626,10 +2665,10 @@ WheelEditor::WheelEditor(WheelProcessor& p) : AudioProcessorEditor(p), proc(p)
     d = std::make_unique<Impl>(*this, p);
     setLookAndFeel(&d->look);
     setWantsKeyboardFocus(true);
-    setResizable(true, false);
-    // opens as the 320 x 240 MPC screen; FULL on it switches to the whole layout, MPC VIEW switches back
-    setResizeLimits(320, 240, 3200, 2000);
-    setSize(320, 240);
+    // opens on the phone app's screen; an OS drawing the MPC's own display asks for the 320 x 240 screen
+    setResizable(true, true);
+    setResizeLimits(800, 373, 3200, 2000);
+    setSize(1400, 653);
     startTimerHz(60);
 }
 
@@ -2644,8 +2683,8 @@ void WheelEditor::paint(Graphics& g)
 {
     ColourGradient bg(pal::bg.brighter(.04f), 0, 0, pal::bg, 0, (float) getHeight(), false);
     g.setGradientFill(bg); g.fillAll();
-    if (!d->compact) d->paintTop(g);
-    else g.fillAll(Colours::black);
+    if (d->compact || d->phoneView) g.fillAll(Colours::black);
+    else d->paintTop(g);
 }
 
 void WheelEditor::resized() { d->layout(getLocalBounds()); }
@@ -2656,13 +2695,20 @@ void WheelEditor::timerCallback() { d->tick(); }
 Image WheelProcessor::renderScreen(int width, int height)
 {
     JUCE_ASSERT_MESSAGE_THREAD
-    if (screenEditor == nullptr) screenEditor.reset(new WheelEditor(*this));
+    if (screenEditor == nullptr) { auto* e = new WheelEditor(*this); e->showMpcScreen(); screenEditor.reset(e); }
     if (screenEditor->getWidth() != width || screenEditor->getHeight() != height) screenEditor->setSize(width, height);
     if (auto* ed = dynamic_cast<WheelEditor*>(screenEditor.get())) ed->refresh();
     return screenEditor->createComponentSnapshot(screenEditor->getLocalBounds(), true, 1.0f);
 }
 
 void WheelEditor::refresh() { d->snapshot(); d->mpc.timerCallback(); }
+void WheelEditor::showMpcScreen() { if (!d->compact) d->setCompact(true); }
+
+String WheelEditor::Impl::midiStatusText() const
+{
+    if (ctx.proc.mpcSampleActive()) return "MIDI: MPC Sample";
+    return "MIDI: plug in an MPC or controller";
+}
 
 }  // namespace wheel
 

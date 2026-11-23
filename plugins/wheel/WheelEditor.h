@@ -14,7 +14,8 @@ public:
     ~WheelEditor() override;
     void paint(juce::Graphics&) override;
     void resized() override;
-    void refresh();   // take in the processor's state now (off-screen rendering, no timer)
+    void refresh();         // take in the processor's state now (off-screen rendering, no timer)
+    void showMpcScreen();   // the 320 x 240 MPC screen (renderScreen / omega_wheel_screen)
 private:
     void timerCallback() override;   // 60 Hz: waveforms, platters, meters
     WheelProcessor& proc;
