@@ -5,6 +5,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#ifdef WHEEL_TRACE
+#include <cstdio>
+#endif
 #if defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
 #include <xmmintrin.h>
 #define WHEEL_SSE 1
@@ -191,9 +194,9 @@ struct Deck::Impl {
     // the timeline) reaches an onset, the stream switches (XL crossfade) to a single grain at its window peak that
     // holds for HL samples, so the attack is played once, at full gain, by one grain: no flams, no smearing. Later
     // grains may not start before the attack (no echo of it when slowing down).
-    int Fo = 64, XL = 96, HL = 576; double LA = 1100, floorMargin = 88;
+    int Fo = 64, XL = 96, HL = 576; double LA = 1100, floorMargin = 88, backAfterOnset = 132;
     double scanPos = 0, bgE = 0, bgD = 0, onset = -1, klFloor = -1e300, refrUntil = -1e300;
-    int bgN = 0;
+    int bgN = 0; bool postOnset = false;
     // tone / output
     float lpL = 0, lpR = 0, sg = 0, dcxL = 0, dcxR = 0, dcyL = 0, dcyR = 0, pkL = 0, pkR = 0;
     double angle = 0;
@@ -221,7 +224,7 @@ struct Deck::Impl {
     }
     void trackRates() {   // source-rate dependent constants (after setup or a load)
         Fo = std::max(32, (int) std::lround(0.0015 * T));
-        LA = 0.025 * T; floorMargin = 0.002 * T;
+        LA = 0.025 * T; floorMargin = 0.002 * T; backAfterOnset = 0.003 * T;
         // similarity-search template weights (see search()): favour the middle of the overlap
         const int D = std::max(1, (int) std::lround(T / 11025.0));
         const int Ld = std::min(6000, std::max(4, std::max(16, (int) (Hs * r0)) / D));
@@ -235,6 +238,7 @@ struct Deck::Impl {
         const double bl = beatLen() * grid, k = (t - first) / bl;
         return first + (floorMode ? std::floor(k + 1e-6) : std::round(k)) * bl;
     }
+    bool unity() const { return std::abs(recVel - 1.0) < 2e-4; }
     double platter() const { return motorNorm * speedSm * (1.0 + kNudge * nudgeSm); }
     void startInstant() { motorOn = true; motorNorm = 1; recVel = speedSm * (1.0 + kNudge * nudgeSm); }
     void stopInstant() { motorOn = false; motorNorm = 0; recVel = 0; }
@@ -332,9 +336,18 @@ struct Deck::Impl {
     void spawn() {
         Grain* t = (latest >= 0 && gr[latest].on && gr[latest].fs >= 0) ? &gr[latest] : nullptr;
         const double nominal = pos + (recVel - 1.0) * Hs * r0;   // grain centre lands where the timeline will be
-        double start = std::max(nominal, klFloor);
-        if (t) start = (std::abs(nominal - t->rp) < 0.5 && t->rp >= klFloor) ? t->rp : search(t->rp, nominal, klFloor);
+        // the first grain after a transient may not go back into its loud body either (a smeared second attack)
+        const double fl = postOnset && t ? std::max(klFloor, t->rp - backAfterOnset) : klFloor;
+        postOnset = false;
+        double start = std::max(nominal, fl);
+        // at (practically) x1 the stream just continues the last grain, sample for sample: key lock at pitch 0 is the
+        // plain record (the stream may sit a few ms off the timeline from engaging while the platter settled)
+        const double tol = unity() ? 0.006 * T : 0.5;
+        if (t) start = (std::abs(nominal - t->rp) < tol && t->rp >= fl) ? t->rp : search(t->rp, nominal, fl);
         const float f = t ? t->f : 1.0f, fs = t ? t->fs : 0.0f;
+#ifdef WHEEL_TRACE
+        std::fprintf(stderr, "spawn pos %.2f v-1 %.3g nominal-rp %.2f start-rp %.2f floor %.1f\n", pos, recVel - 1, t ? nominal - t->rp : 0, t ? start - t->rp : 0, klFloor);
+#endif
         const int i = freeGrain();
         gr[i] = Grain { start, 0, f, fs, true, 0 };
         latest = i; nextGrain = Hs;
@@ -350,7 +363,7 @@ struct Deck::Impl {
         gr[i] = Grain { pos, Hs, crossfade ? 0.0f : 1.0f, crossfade ? 1.0f / (float) Xf : 0.0f, true, 0 };
         latest = i;
         // the onset scanner restarts here, learning the background from the few ms before
-        onset = -1; klFloor = -1e300; refrUntil = pos; bgN = 0; bgE = bgD = 0;
+        onset = -1; klFloor = -1e300; refrUntil = pos; bgN = 0; bgE = bgD = 0; postOnset = false;
         scanPos = std::floor(pos) - 4.0 * Fo;
         spawn();
     }
@@ -395,7 +408,7 @@ struct Deck::Impl {
         }
         double start;
         if (ref >= 0) start = gr[ref].rp;   // a grain is about to play it: continue that grain, coherently
-        else if (pos >= onset - lead * std::max(0.2, recVel) && pos < onset) {
+        else if (!unity() && pos >= onset - lead * std::max(0.2, recVel) && pos < onset) {
             start = trig;                   // the timeline gets there first: the attack lands on time
             for (const auto& g : gr) if (g.on && std::abs(g.rp - start) < 0.5) { start = g.rp; break; }
         } else {
@@ -403,11 +416,14 @@ struct Deck::Impl {
             return;
         }
         const float k = 1.0f / (float) XL;
+#ifdef WHEEL_TRACE
+        std::fprintf(stderr, "onset %.1f pos %.2f ref %d start %.2f\n", onset, pos, ref, start);
+#endif
         for (auto& g : gr) if (g.on) g.fs = -k;
         const int i = freeGrain();
         gr[i] = Grain { start, Hs, 0.0f, k, true, HL };
         latest = i; nextGrain = HL + 1;
-        klFloor = onset + floorMargin; onset = -1;
+        klFloor = onset + floorMargin; onset = -1; postOnset = true;
     }
 
     void jumpTo(double np) {

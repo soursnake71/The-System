@@ -575,13 +575,13 @@ std::shared_ptr<Track> drumTrack(double sr = 48000, double secs = 20, double bpm
     t->L.assign(n, 0.0f); t->R.assign(n, 0.0f);
     std::mt19937 rng(7); std::uniform_real_distribution<float> u(-1, 1);
     const double bl = 60.0 / bpm, e8 = bl / 2;
-    double kp = 0; float pn = 0;
+    double kp = 0; float pn = 0, ph1 = 0;
     for (size_t i = 0; i < n; ++i) {
         const double ts = (double) i / sr - first;
         double v = 0.08 * std::sin(2 * kPi * 55 * (double) i / sr);
         if (ts >= 0) {
             const int k8 = (int) std::floor(ts / e8); const double ph = ts - k8 * e8;
-            const float nz = u(rng), hf = nz - pn; pn = nz;
+            const float nz = u(rng), d1 = nz - pn, hf = 0.5f * (d1 + ph1); pn = nz; ph1 = d1;   // top end, peaking at fs / 4
             if (k8 % 2 == 0) {   // beat: kick, plus snare on 2 and 4
                 const double kf = 50 + 110 * std::exp(-ph * 35);
                 kp += 2 * kPi * kf / sr;
@@ -596,12 +596,12 @@ std::shared_ptr<Track> drumTrack(double sr = 48000, double secs = 20, double bpm
     }
     return t;
 }
-// high-frequency energy envelope: second difference, 'win'-sample windows every 12 samples (0.25 ms)
+// high-frequency energy envelope: first difference, 'win'-sample windows every 12 samples (0.25 ms)
 constexpr int kHop = 12;
 std::vector<double> hfEnv(const std::vector<float>& x, int win) {
     std::vector<double> c(x.size() + 1, 0.0);
     for (size_t i = 0; i < x.size(); ++i) {
-        const double d = i < 2 ? 0.0 : (double) x[i] - 2.0 * x[i - 1] + x[i - 2];
+        const double d = i < 1 ? 0.0 : (double) x[i] - x[i - 1];
         c[i + 1] = c[i] + d * d;
     }
     std::vector<double> e;
@@ -637,7 +637,7 @@ std::vector<Hit> findHits(const Track& src, const std::vector<float>& out, const
     }
     return hs;
 }
-struct HitStats { double worstEcho = -99, meanEcho = 0, worstPeak = 99, meanPeak = 0; int hits = 0; };
+struct HitStats { double worstEcho = -99, meanEcho = 0, worstPeak = 99, meanPeak = 0; int hits = 0, doubled = 0; };
 // the hits of a render against the same hits of a reference render (key lock at pitch 0: the source itself)
 HitStats hitStats(const std::vector<Hit>& out, const std::vector<Hit>& ref) {
     HitStats h; double sumE = 0, sumP = 0;
@@ -645,10 +645,13 @@ HitStats hitStats(const std::vector<Hit>& out, const std::vector<Hit>& ref) {
         const Hit* r = nullptr;
         for (const Hit& x : ref) if (x.k8 == o.k8) r = &x;
         if (!r) continue;
-        const double echoDb = 10 * std::log10(std::max(o.echo, 1e-12)), peakDb = 10 * std::log10(o.peak / r->peak);
-        if (std::getenv("WHEEL_DEBUG") && (echoDb > -15 || peakDb < -1.5))
-            std::printf("    hit %d (%s): echo %.1f dB (ref %.1f) peak %.2f dB\n", o.k8, o.k8 % 2 ? "hat" : (o.k8 / 2) % 2 ? "snare" : "kick", echoDb, 10 * std::log10(std::max(r->echo, 1e-12)), peakDb);
+        // echo: how much more second-attack energy than the same hit has at pitch 0 (its own body / neighbours)
+        const double echoDb = 10 * std::log10(std::max(o.echo, 1e-6) / std::max(r->echo, 1e-6)), peakDb = 10 * std::log10(o.peak / r->peak);
+        if (std::getenv("WHEEL_DEBUG") && (echoDb > 3 || peakDb < -1))
+            std::printf("    hit %d (%s): echo %+.1f dB (%.1f vs %.1f) peak %.2f dB\n", o.k8, o.k8 % 2 ? "hat" : (o.k8 / 2) % 2 ? "snare" : "kick", echoDb,
+                        10 * std::log10(std::max(o.echo, 1e-12)), 10 * std::log10(std::max(r->echo, 1e-12)), peakDb);
         h.worstEcho = std::max(h.worstEcho, echoDb); h.worstPeak = std::min(h.worstPeak, peakDb);
+        if (echoDb > 6) ++h.doubled;
         sumE += echoDb; sumP += peakDb; ++h.hits;
     }
     if (h.hits) { h.meanEcho = sumE / h.hits; h.meanPeak = sumP / h.hits; }
@@ -698,8 +701,8 @@ static void testKeylockTransients(const std::string& wavDir) {
             keylockRender(*t, 0.0, 10.0, r0, pos0);
             const HitStats h = hitStats(findHits(**t, r.L, posAt, 64), findHits(**t, r0.L, pos0, 64));
             const std::string nm = fmt("keylock %+.0f %% drums (%.1f kHz): one sharp attack per hit", pct, (*t)->sr / 1000);
-            check(h.hits > 20 && h.worstEcho < -12 && h.meanEcho < -20 && h.worstPeak > -3.0 && h.meanPeak > -1.5, nm.c_str(),
-                  fmt("echo worst %.1f / mean %.1f dB, peak worst %.2f", h.worstEcho, h.meanEcho, h.worstPeak) + fmt(" / mean %.2f dB", h.meanPeak));
+            check(h.hits > 20 && h.doubled == 0 && h.worstEcho < 6 && h.meanEcho < 1.5 && h.worstPeak > -1.5 && h.meanPeak > -0.75, nm.c_str(),
+                  fmt("%.0f hits, %.0f doubled; echo worst %+.1f", (double) h.hits, (double) h.doubled, h.worstEcho) + fmt(" / mean %+.1f dB; peak worst %.2f / mean %.2f dB", h.meanEcho, h.worstPeak, h.meanPeak));
         }
     }
     {   // pitch 0: the key lock is transparent, onsets and all: the grains continue each other sample for sample, so
@@ -716,9 +719,9 @@ static void testKeylockTransients(const std::string& wavDir) {
             const float c = (q[2] - q[0]) * 0.5f, v = q[1] - q[2], w = c + v, a = w + v + (q[3] - q[1]) * 0.5f, b = w + a;
             return ((a * u - b) * u + c) * u + q[1];
         };
-        long bo = 0; double bc = -1e30;   // where the grain stream sits relative to the timeline (within +-30 ms)
-        for (long off = -1500; off <= 1500; ++off) {
-            double c = 0; for (size_t k = 0; k < 4000; ++k) c += (double) r.L[k] * x[(size_t) ((long) p0 + off + (long) k)];
+        long bo = 0; double bc = -1e30;   // where the grain stream sits relative to the timeline (within +-12 ms)
+        for (long off = -600; off <= 600; ++off) {
+            double c = 0; for (size_t k = 0; k < 30000; k += 2) c += (double) r.L[k] * x[(size_t) ((long) p0 + off + (long) k)];
             if (c > bc) { bc = c; bo = off; }
         }
         const float R = (float) (1.0 - 2 * kPi * 5.0 / kHost);
