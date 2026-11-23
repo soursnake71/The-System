@@ -85,11 +85,14 @@ juce::Typeface::Ptr boldFace() {
     static juce::Typeface::Ptr tf = juce::Typeface::createSystemTypefaceFor(WheelFonts::DejaVuSansBold_ttf, (size_t) WheelFonts::DejaVuSansBold_ttfSize);
     return tf;
 }
-// Android's text sizes are em sizes: JUCE's point height is the same measure
+// Android's text sizes are em sizes: JUCE's point height is the same measure. DejaVu Sans Bold is set about 14 %
+// narrower so it takes the room the phone's Roboto Bold takes (the labels fit the same buttons).
+constexpr float kBoldNarrow = .86f;
 juce::Font bold(float em) {
     em = std::max(1.f, em);
     auto tf = boldFace();
-    return tf != nullptr ? juce::Font(juce::FontOptions(tf).withPointHeight(em)) : juce::Font(juce::FontOptions(em, juce::Font::bold).withPointHeight(em));
+    return tf != nullptr ? juce::Font(juce::FontOptions(tf).withPointHeight(em).withHorizontalScale(kBoldNarrow))
+                         : juce::Font(juce::FontOptions(em, juce::Font::bold).withPointHeight(em));
 }
 juce::String monoName() {
     static const juce::String name = [] {
@@ -348,7 +351,7 @@ struct PhoneDeckView::Impl {
         if (before != after) send(Cmd::touch, d, 0, 0, after);
     }
     bool handOn(int d) const { return hand[d][0] || hand[d][1] || live[d].touched; }
-    void moveRecord(int d, double seconds) { if (seconds != 0) send(Cmd::move, d, 0, seconds, true); }
+    void moveRecord(int d, double seconds) { if (!juce::exactlyEqual(seconds, 0.0)) send(Cmd::move, d, 0, seconds, true); }
 
     // ============================================================================================== controls
     struct Ctrl {
@@ -449,7 +452,7 @@ struct PhoneDeckView::Impl {
             if (now - lastDown < 300) { setV(prm, pitch ? 0.f : 1.f, true); grabOff = 0; lastDown = 0; pointer = -1; return true; }
             lastDown = now;
             begin(prm);
-            if (grabOff == 0) setFromY(y);
+            if (juce::exactlyEqual(grabOff, 0.f)) setFromY(y);
             return true;
         }
         void setFromY(float y) {
@@ -480,7 +483,7 @@ struct PhoneDeckView::Impl {
             const Rf cap = ltrb(cx - cw / 2, capY - ch / 2, cx + cw / 2, capY + ch / 2);
             g.setColour(juce::Colour(held() ? pal::mix(pal::RAISED, color, .35f) : 0xff3b4047u));
             g.fillRoundedRectangle(cap, 4 * v.dp);
-            g.setColour(juce::Colour(pitch && value() == 0 ? pal::GREEN : color));
+            g.setColour(juce::Colour(pitch && juce::exactlyEqual(value(), 0.f) ? pal::GREEN : color));
             g.fillRect(ltrb(cap.getX() + 4 * v.dp, capY - 1.5f * v.dp, cap.getRight() - 4 * v.dp, capY + 1.5f * v.dp));
         }
     };
@@ -543,7 +546,7 @@ struct PhoneDeckView::Impl {
                 sum = dd;
             }
             lastAng = a;
-            if (sum != 0) v.moveRecord(deck, sum / (2 * kPi) * kRevSeconds);   // clockwise = forward
+            if (!juce::exactlyEqual(sum, 0.0)) v.moveRecord(deck, sum / (2 * kPi) * kRevSeconds);   // clockwise = forward
         }
         void up(bool cancel) override { Ctrl::up(cancel); v.touch(deck, HAND_PLATTER, false); }
         void draw(G& g) override { v.drawPlatter(g, *this); }
@@ -568,7 +571,7 @@ struct PhoneDeckView::Impl {
             if (!engaged) { if (std::abs(x - startX) < 4 * v.dp) return; engage(); if (!engaged) return; }
             const float dx = x - lastX;
             lastX = x;
-            if (dx != 0) v.moveRecord(deck, -dx / pxPerSec());
+            if (!juce::exactlyEqual(dx, 0.f)) v.moveRecord(deck, -dx / pxPerSec());
         }
         void tick() override { if (held() && !engaged && nowMs() - downAt > kHoldMs) engage(); }
         void up(bool cancel) override {
@@ -1189,7 +1192,7 @@ struct PhoneDeckView::Impl {
         for (int d = 0; d < 2; ++d) {
             const Rf p = pitchF[d]->r;
             const double pct = (double) get(d, kPitch) * RANGES[rangeIndex(d)] * 100;
-            label(g, signedFixed(pct, 1), p.getCentreX(), p.getY() - 3 * dp, 11 * ts, pct == 0 ? pal::GREEN : pal::DECK[d], Align::centre, p.getWidth() + 8 * dp);
+            label(g, signedFixed(pct, 1), p.getCentreX(), p.getY() - 3 * dp, 11 * ts, juce::exactlyEqual(pct, 0.0) ? pal::GREEN : pal::DECK[d], Align::centre, p.getWidth() + 8 * dp);
         }
     }
 
@@ -1223,6 +1226,7 @@ struct PhoneDeckView::Impl {
             const int k0 = (int) std::floor(std::max(0.0, t0) * cps / WaveData::kTile), k1 = (int) std::floor(std::max(0.0, t1) * cps / WaveData::kTile);
             const float tileW = (float) (WaveData::kTile / cps * pps);
             g.setImageResamplingQuality(G::mediumResamplingQuality);
+            g.setOpacity(1.f);   // drawImage takes the current colour's alpha (the loop shading's)
             for (int k = k0; k <= k1; ++k) {
                 const juce::Image img = wd.tile(k, th);
                 if (!img.isValid()) continue;
@@ -1290,7 +1294,7 @@ struct PhoneDeckView::Impl {
         g.fillRect(r);
         if (!hasTrack(d)) return;
         const juce::Image img = wave[d].overview(std::max(4, juce::roundToInt(r.getWidth() * pxScale)), std::max(4, juce::roundToInt(r.getHeight() * pxScale)));
-        if (img.isValid()) { g.setImageResamplingQuality(G::mediumResamplingQuality); g.drawImage(img, r, juce::RectanglePlacement::stretchToFit); }
+        if (img.isValid()) { g.setImageResamplingQuality(G::mediumResamplingQuality); g.setOpacity(1.f); g.drawImage(img, r, juce::RectanglePlacement::stretchToFit); }
         const double len = L.len;
         if (len <= 0) return;
         const float px = (float) (r.getX() + L.pos / len * r.getWidth());
@@ -1505,8 +1509,10 @@ struct PhoneDeckView::Impl {
         mixIn(h, (juce::uint64) padMode());
         for (int d = 0; d < 2; ++d) {
             const auto& L = live[d];
-            mixIn(h, (juce::uint64) (L.has | L.playing << 1 | L.looping << 2 | L.synced << 3 | L.censor << 4 | L.rolling << 5 | L.loading << 6
-                                     | handOn(d) << 7 | (L.err.isNotEmpty()) << 8));
+            const bool bits[] = { L.has, L.playing, L.looping, L.synced, L.censor, L.rolling, L.loading, handOn(d), L.err.isNotEmpty() };
+            juce::uint64 m = 0;
+            for (const bool bit : bits) m = (m << 1) | (bit ? 1u : 0u);
+            mixIn(h, m);
             mixIn(h, (juce::uint64) (juce::pointer_sized_int) L.trk.get());
             mixF(h, L.cue); mixF(h, L.loopA); mixF(h, L.loopB);
             for (int i = 0; i < 8; ++i) { mixF(h, L.cueT[i]); mixIn(h, L.cueRgb[i]); }
@@ -1539,12 +1545,12 @@ struct PhoneDeckView::Impl {
         const auto rep = [this](Rf r) { view.repaint(r.expanded(2 * dp).getSmallestIntegerContainer()); };
         for (int d = 0; d < 2; ++d) {
             const auto& L = live[d];
-            if (L.pos != lastPos[d] || L.bpm != lastBpm[d]) {
+            if (!juce::exactlyEqual(L.pos, lastPos[d]) || !juce::exactlyEqual(L.bpm, lastBpm[d])) {
                 lastPos[d] = L.pos; lastBpm[d] = L.bpm;
                 rep(headers[d]->r); rep(overviews[d]->r); rep(waves[d]->r);
             } else if (hasTrack(d) && L.len - L.pos < 30) rep(headers[d]->r);   // the blinking time
             else if (L.loading) rep(headers[d]->r);
-            if (L.angle != lastAngle[d] || L.loading) { lastAngle[d] = L.angle; rep(platters[d]->r); }
+            if (!juce::exactlyEqual(L.angle, lastAngle[d]) || L.loading) { lastAngle[d] = L.angle; rep(platters[d]->r); }
             for (auto* p : pads[d]) if (p->held()) rep(p->r);
         }
         bool m = false;
@@ -1577,7 +1583,7 @@ void PhoneDeckView::mouseUp(const juce::MouseEvent& e) { d->pointerUp(e.source.g
 
 void PhoneDeckView::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) {
     const float dy = (w.isReversed ? -1.f : 1.f) * (std::abs(w.deltaY) >= std::abs(w.deltaX) ? w.deltaY : -w.deltaX);
-    if (dy == 0) return;
+    if (juce::exactlyEqual(dy, 0.f)) return;
     if (e.mods.isCtrlDown() || e.mods.isCommandDown()) { d->zoomBy(std::exp(-dy * 1.5f)); return; }   // up = zoom in
     if (d->sheetOpen) {
         for (auto* c : d->sheetCtrls) if (c->hit(e.position.x, e.position.y) && c->wheel(dy)) return;

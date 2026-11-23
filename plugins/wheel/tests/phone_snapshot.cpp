@@ -144,7 +144,7 @@ int main(int argc, char** argv)
         wheel::WheelProcessor proc;
         proc.setRateAndBufferSizeDetails(48000, 512);
         proc.prepareToPlay(48000, 512);
-        Rig rig { proc };
+        Rig rig { proc, AudioBuffer<float>(4, 512), MidiBuffer() };
         // the phone starts with echo picked so FX ON does something (Ctl.init); the plugin's default is FX OFF
         for (int d = 0; d < 2; ++d) rig.set(wheel::deckParam(d, "fxtype"), 1);
         wheel::PhoneDeckView view(proc, host);
@@ -165,7 +165,7 @@ int main(int argc, char** argv)
     wheel::WheelProcessor proc;
     proc.setRateAndBufferSizeDetails(48000, 512);
     proc.prepareToPlay(48000, 512);
-    Rig rig { proc };
+    Rig rig { proc, AudioBuffer<float>(4, 512), MidiBuffer() };
     proc.loadTrack(0, f1);
     proc.loadTrack(1, f2);
     for (int i = 0; i < 600 && (proc.loading[0].load() || proc.loading[1].load() || !proc.deckTrack(0) || !proc.deckTrack(1)); ++i) { Rig::pump(50); rig.run(.01); }
