@@ -5,9 +5,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#ifdef WHEEL_TRACE
-#include <cstdio>
-#endif
 #if defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
 #include <xmmintrin.h>
 #define WHEEL_SSE 1
@@ -297,8 +294,8 @@ struct Deck::Impl {
             bufT[(size_t) k] = s * w; et += (double) s * s * w * w;
         }
         if (et < 1e-9) {
-            const double st = (double) c0 + fr;
-            return oLo > 0 ? std::max(st, (double) (c0 + (int64_t) (oLo - Sd) * D) + fr) : st;
+            const double s0 = (double) c0 + fr;
+            return oLo > 0 ? std::max(s0, (double) (c0 + (int64_t) (oLo - Sd) * D) + fr) : s0;
         }
         const int64_t cb = c0 - (int64_t) Sd * D;
         for (int k = 0; k < nc; ++k) {
@@ -345,9 +342,6 @@ struct Deck::Impl {
         const double tol = unity() ? 0.006 * T : 0.5;
         if (t) start = (std::abs(nominal - t->rp) < tol && t->rp >= fl) ? t->rp : search(t->rp, nominal, fl);
         const float f = t ? t->f : 1.0f, fs = t ? t->fs : 0.0f;
-#ifdef WHEEL_TRACE
-        std::fprintf(stderr, "spawn pos %.2f v-1 %.3g nominal-rp %.2f start-rp %.2f floor %.1f\n", pos, recVel - 1, t ? nominal - t->rp : 0, t ? start - t->rp : 0, klFloor);
-#endif
         const int i = freeGrain();
         gr[i] = Grain { start, 0, f, fs, true, 0 };
         latest = i; nextGrain = Hs;
@@ -416,9 +410,6 @@ struct Deck::Impl {
             return;
         }
         const float k = 1.0f / (float) XL;
-#ifdef WHEEL_TRACE
-        std::fprintf(stderr, "onset %.1f pos %.2f ref %d start %.2f\n", onset, pos, ref, start);
-#endif
         for (auto& g : gr) if (g.on) g.fs = -k;
         const int i = freeGrain();
         gr[i] = Grain { start, Hs, 0.0f, k, true, HL };
