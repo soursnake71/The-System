@@ -305,6 +305,25 @@ function buildFace(){
   }
   const hg = el('button', 'hinge', ctl, 'OPEN ▲'); hg.addEventListener('click', () => fold(true));
   swipe(hg, -1, () => fold(true));
+  tileFace();
+}
+// portrait: the face is cut into four tiles of the same photo, stacked down the screen (voices left / right, then the
+// sequencer left / right). Every control moves into the tile under its centre, so it keeps its photo coordinates;
+// fit() places the tiles. In landscape the tiles sit untouched on top of each other and the panel looks as before.
+const TILES = [[88, 58, 969, 712], [1057, 58, 855, 712], [88, 770, 996, 325], [1084, 770, 828, 325]];
+function tileFace(){
+  const lid = $('#lid'), ctl = $('#ctl');
+  let tiles = [...lid.querySelectorAll('.tile')];
+  if (!tiles.length) tiles = TILES.map(() => {
+    const t = el('div', 'tile', lid), im = el('img', 'tph', t);
+    im.src = 'faceplate.jpg'; im.alt = ''; im.draggable = false; el('div', 'ctl', t); return t;
+  });
+  tiles.forEach(t => { t.querySelector('.ctl').innerHTML = ''; });
+  for (const c of [...ctl.children]){
+    const cx = c.offsetLeft + c.offsetWidth / 2, cy = c.offsetTop + c.offsetHeight / 2;
+    const i = cy < 770 ? (cx < 1057 ? 0 : 1) : (cx < 1084 ? 2 : 3);
+    tiles[i].querySelector('.ctl').appendChild(c);
+  }
 }
 function stepKey(i, down, e, b){
   presses[i].classList.toggle('on', down);
@@ -655,10 +674,32 @@ function encodeWav(buf){
 // open, the whole 2000 x 1190 board shows. Everything sits in photo coordinates, so one transform keeps it all aligned
 const CROP = [88, 58, 1824, 1037];
 function fit(){
-  const vw = innerWidth, vh = innerHeight, open = $('#panel').classList.contains('open');
+  const vw = innerWidth, vh = innerHeight, open = $('#panel').classList.contains('open'), portrait = vh > vw * 1.1;
+  const panel = $('#panel'), tiles = [...document.querySelectorAll('#lid .tile')], board = $('#board');
+  document.body.classList.toggle('portrait', portrait);
+  panel.style.height = '';
+  if (board) board.style.removeProperty('--ph');
+  tiles.forEach(t => { t.style.transform = ''; t.querySelector('.tph').style.clipPath = ''; });
+  if (portrait){
+    // closed: the four tiles stacked, as big as fits; open: the board fills the whole screen
+    const tw = Math.max(...TILES.map(r => r[2])), th = TILES.reduce((a, r) => a + r[3], 0);
+    scale = open ? vw / 2000 : Math.min(vw / (tw + 40), vh / (th + 40));
+    panel.style.transform = `scale(${scale})`;
+    const W = vw / scale, H = vh / scale;
+    if (open){ panel.style.height = H + 'px'; if (board) board.style.setProperty('--ph', H + 'px'); }
+    const gap = Math.max(0, (H - th) / (TILES.length + 1));
+    let y = gap;
+    TILES.forEach(([rx, ry, rw, rh], i) => {
+      const t = tiles[i]; if (!t) return;
+      t.style.transform = `translate(${(W - rw) / 2 - rx}px, ${y - ry}px)`;
+      t.querySelector('.tph').style.clipPath = `inset(${ry}px ${2000 - rx - rw}px ${1190 - ry - rh}px ${rx}px round 10px)`;
+      y += rh + gap;
+    });
+    return;
+  }
   const [cx, cy, cw, ch] = open ? [0, 0, 2000, 1190] : CROP;
   scale = Math.min(vw / cw, vh / ch);
-  $('#panel').style.transform = `translate(${(vw - cw * scale) / 2 - cx * scale}px, ${(vh - ch * scale) / 2 - cy * scale}px) scale(${scale})`;
+  panel.style.transform = `translate(${(vw - cw * scale) / 2 - cx * scale}px, ${(vh - ch * scale) / 2 - cy * scale}px) scale(${scale})`;
 }
 addEventListener('resize', fit);
 document.addEventListener('pointerdown', () => { if (S.power) Eight.start(); }, {capture:true, once:true});

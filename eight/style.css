@@ -17,9 +17,16 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
   transform:perspective(2600px) rotateX(0deg); backface-visibility:hidden; z-index:2; will-change:transform}
 #photo{position:absolute; inset:0; width:2000px; height:1190px; display:block; pointer-events:none}
 #ctl{position:absolute; inset:0}
+/* the face tiles (see tileFace in app.js): in landscape only #photo shows and the tiles' controls sit where they always did */
+.tile, .tile .ctl{position:absolute; left:0; top:0; width:2000px; height:1190px; pointer-events:none}
+:where(.tile .ctl > *){pointer-events:auto}
+.tile .tph{position:absolute; left:0; top:0; width:2000px; height:1190px; display:none; pointer-events:none}
+body.portrait #photo{display:none}
+body.portrait #panel:not(.open) #board{visibility:hidden}
+body.portrait .tile .tph{display:block; filter:drop-shadow(0 4px 10px #000)}
 #panel.open #lid{transform:perspective(2600px) rotateX(96deg); opacity:0; filter:brightness(.4); pointer-events:none}
 #panel.open #board{filter:none}
-#panel.off #ctl .led, #panel.off #ctl .ledsm{opacity:0 !important}
+#panel.off #lid .led, #panel.off #lid .ledsm{opacity:0 !important}
 #panel.off #lid::after{content:""; position:absolute; inset:0; background:#000a; pointer-events:none}
 #panel.off #lid .power{z-index:5}
 
@@ -69,7 +76,7 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 #board{position:absolute; inset:0; border-radius:14px; overflow:hidden; z-index:1; filter:brightness(.55); transition:filter .9s;
   background:linear-gradient(160deg, var(--pcb), var(--pcb2)); color:var(--silk)}
 /* the board is laid out in screen pixels: .bview is the panel's on-screen size, counter-scaled, and scrolls */
-.bview{position:absolute; left:0; top:0; width:calc(2000px * var(--s, 1)); height:calc(1190px * var(--s, 1)); transform:scale(calc(1 / var(--s, 1)));
+.bview{position:absolute; left:0; top:0; width:calc(2000px * var(--s, 1)); height:calc(var(--ph, 1190px) * var(--s, 1)); transform:scale(calc(1 / var(--s, 1)));
   transform-origin:0 0; overflow:hidden; touch-action:none; padding:0 0 8px; display:flex; flex-direction:column}
 .bview svg.traces{position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; opacity:.4}
 .bhead{position:sticky; top:0; z-index:4; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 4px; margin:0 0 6px; padding-left:16px; padding-right:16px;
@@ -194,4 +201,11 @@ dialog::backdrop{background:#000a}
   opacity:0; transition:opacity .25s; pointer-events:none; z-index:20; max-width:90vw; text-align:center}
 #toast.on{opacity:1}
 #rotate{position:fixed; left:0; right:0; top:8px; text-align:center; font:700 14px/1 var(--cond); color:#ffb15a; display:none; letter-spacing:1px}
-@media (orientation:portrait){ #rotate{display:block} }
+
+
+/* portrait board: the page buttons run in two rows, across the top and the bottom */
+body.portrait .bwrap{flex-direction:column; gap:6px; padding:0 6px}
+body.portrait .bnav{flex-direction:row; width:auto; height:46px; padding:0; flex:none}
+body.portrait .bnav button{flex:1; min-width:0; padding:0 1px; font-size:11.5px; letter-spacing:0; line-height:1.05; white-space:normal}
+body.portrait .bhead{gap:8px; font-size:15px; letter-spacing:1px; padding:6px 8px}
+body.portrait .bhead .bbtn{padding:8px 9px; font-size:12px}
