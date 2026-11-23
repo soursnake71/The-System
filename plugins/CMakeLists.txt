@@ -140,3 +140,37 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega MXR Flanger: the MXR M-117 circuit model (flanger/M117.h, also flanger/engine.js in the app) with the photo
+# of the pedal as its panel. Effect + standalone app.
+if(NOT OMEGA_ONLY OR "Flanger" IN_LIST OMEGA_ONLY)
+  juce_add_binary_data(OmegaFlangerData SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../flanger/faceplate.jpg)
+  juce_add_plugin(OmegaFlanger
+    PRODUCT_NAME "Omega MXR Flanger"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Flanger"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Omxf
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Fx Modulation
+    AU_MAIN_TYPE kAudioUnitType_Effect
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaFlanger PRIVATE flanger/FlangerPlugin.cpp flanger/FlangerEditor.cpp)
+  target_compile_definitions(OmegaFlanger PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaFlanger PRIVATE OmegaFlangerData juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+
+  # processor + editor without a host (presets, layouts, state, panel pictures): <build>/flanger_proc_test <dir>
+  juce_add_console_app(flanger_proc_test PRODUCT_NAME "flanger_proc_test")
+  target_sources(flanger_proc_test PRIVATE flanger/proctest.cpp flanger/FlangerPlugin.cpp flanger/FlangerEditor.cpp)
+  target_compile_definitions(flanger_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+  target_link_libraries(flanger_proc_test PRIVATE OmegaFlangerData juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(flanger_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
+
+# M117.h against engine.js: node flanger/tools/compare.mjs <build>/flanger_test <dir>
+add_executable(flanger_test flanger/test.cpp)

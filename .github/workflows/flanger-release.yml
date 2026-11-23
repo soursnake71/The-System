@@ -1,0 +1,97 @@
+# MXR Flanger (M-117 circuit model): VST3 for Windows, macOS (plus AU) and Linux, the standalone app, the Android APK
+# and a source zip, all attached to the "mxr-flanger" release. Runs on main and on claude/* branches so builds can be
+# tried before merging.
+name: MXR Flanger release
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['flanger/**', 'plugins/flanger/**', 'plugins/CMakeLists.txt', 'android/**', '.github/workflows/flanger-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  VERSION: '1.0.${{ github.run_number }}'
+jobs:
+  plugins:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, name: Windows}
+          - {os: macos-latest, name: Mac}
+          - {os: ubuntu-22.04, name: Linux}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=Flanger
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test (C++ circuit model against the app's engine.js, every preset)
+        if: runner.os == 'Linux'
+        run: node flanger/tools/compare.mjs build/flanger_test "$RUNNER_TEMP"
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          find build -path '*Release/VST3/*.vst3' -prune -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'Omega MXR Flanger' -o -name 'Omega MXR Flanger.exe' -o -name 'Omega MXR Flanger.app' \) -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then
+            find build -path '*Release/AU/*.component' -prune -exec cp -R {} out/ \;
+            for b in out/*; do codesign --force --deep -s - "$b"; done
+          fi
+          ls -la out
+          test -n "$(ls out)"
+          cd out && 7z a -tzip "../MXR-Flanger-${{ matrix.name }}.zip" . >/dev/null
+      - uses: actions/upload-artifact@v4
+        with: {name: 'flanger-${{ matrix.name }}', path: 'MXR-Flanger-${{ matrix.name }}.zip', if-no-files-found: error}
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.14.3'}
+      - name: Build
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          gradle -p android assembleFlangerDebug --no-daemon
+          cp android/app/build/outputs/apk/flanger/debug/app-flanger-debug.apk mxr-flanger.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: flanger-Android, path: mxr-flanger.apk, if-no-files-found: error}
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source zip
+        run: |
+          git archive --format=zip --prefix=mxr-flanger-source/ -o mxr-flanger-source.zip HEAD \
+            flanger plugins/flanger plugins/CMakeLists.txt android .github/workflows/flanger-release.yml
+          unzip -l mxr-flanger-source.zip | tail -3
+      - uses: actions/upload-artifact@v4
+        with: {name: flanger-source, path: mxr-flanger-source.zip, if-no-files-found: error}
+  publish:
+    needs: [plugins, apk, source]
+    # publish whatever built: a Mac runner that never starts shouldn't hold back the other files
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: dl, merge-multiple: true}
+      - name: Release
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          ls -la dl
+          notes="MXR Flanger $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}): a circuit model of the MXR M-117 Flanger with your pedal's photo as the panel, 40 presets.
+
+          - Windows / Mac / Linux: unzip MXR-Flanger-<system>.zip and copy Omega MXR Flanger.vst3 into your VST3 folder (Windows C:\\Program Files\\Common Files\\VST3, Mac /Library/Audio/Plug-Ins/VST3 plus the .component into /Library/Audio/Plug-Ins/Components, Linux ~/.vst3). The standalone app is in the same zip. On a Mac, if the DAW refuses it: xattr -cr /Library/Audio/Plug-Ins/VST3/Omega*
+          - Android: open mxr-flanger.apk on the phone and allow installing from your browser or files app. Works offline; plays a demo loop, a file, or a live input (USB interface or mic).
+          - Source: mxr-flanger-source.zip (engine, plugin, app, Android flavor, build workflow)."
+          gh release view mxr-flanger >/dev/null 2>&1 || gh release create mxr-flanger --title "MXR Flanger (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit mxr-flanger --notes "$notes"
+          gh release upload mxr-flanger dl/* --clobber
