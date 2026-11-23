@@ -149,3 +149,57 @@ int omega_wheel_screen(uint32_t* pixels, int width, int height, int strideBytes)
 `omega_wheel_screen` renders the latest instance's 320 x 240 screen into an XRGB8888 buffer (the MPC Sample's DRM
 format, XR24) and returns 1. Call it from your UI thread about 20 times a second (the SPI panel's rate), never from
 the audio thread, and copy the buffer to the display. Find it with `dlsym()` on the `.so` inside the `.vst3`.
+
+### Numark MixTrack Go
+The MixTrack Go (a small two-deck USB / Bluetooth controller) plays the instrument with no MIDI learn. The map comes
+from a djay mapping file for the controller posted on the Algoriddim forum (Numark publishes no MIDI table); it is
+written out in [`wheel/controllers/MixtrackGo.md`](wheel/controllers/MixtrackGo.md).
+
+**Setup.** The plugin only sees MIDI that the host passes to its track, so make the MixTrack the track's MIDI input:
+in the MPC software, set the plugin track's MIDI input to the MixTrack Go (or All) and arm / monitor it; in a DAW,
+put the instrument on a track whose input is the MixTrack and arm or monitor it; in the standalone app, tick it under
+Options > Audio/MIDI Settings > Active MIDI inputs. For the lights, route the instrument's MIDI out (or the track's
+MIDI output) back to the MixTrack Go. With Controller on Auto (the default) it is recognised as soon as you move the
+crossfader, hit a pad, press LOAD or browse push, or move a pitch fader; or set Controller to Mixtrack Go. Its
+deck-channel buttons and the jog alone don't switch modes (the MPC Sample uses the same channel 1 notes). The UI can
+show which controller is being read (`WheelProcessor::controllerName()`: "Numark MixTrack Go").
+
+| Control (MIDI) | Does |
+|---|---|
+| PLAY (note 0, ch 1 / 2) | play / pause |
+| CUE (note 1) | CDJ cue: back to the cue point and stop; hold on a stopped deck to preview |
+| SYNC (note 2) / SHIFT + SYNC (note 3) | sync toggle / sync off |
+| SHIFT + PLAY (note 4) | censor while held |
+| SHIFT + CUE (note 5) | jump to the start |
+| Jog (CC 6, relative) | VINYL on: scratch (touching the jog, note 6, holds the record if the device sends it; without it, turning the jog is a hand on the record that lifts 60 ms after it stops). VINYL off: nudge (push the record ahead / back) |
+| SHIFT + jog (CC 43) | fast seek (0.1 s per tick) |
+| VINYL (note 80) | vinyl (scratch) / nudge jog mode for the deck (on at start) |
+| Pitch fader (CC 9 + CC 41, 14-bit) | pitch (top = slower); MSB-only works too. Note 84 resets it to 0 |
+| Channel level (CC 22) | channel fader |
+| FILTER / LOW knob (CC 26) | filter (left LP, right HP), or low EQ while FILTER / LOW is on |
+| PFL (note 27) | headphone cue toggle |
+| Notes 70 / 72 (shift: 71 / 73) | FX on / slip toggles (71: next FX type, 73: key lock) |
+| SHIFT (note 32 on ch 1 / 2, note 50 on ch 16) | held: jog seeks, pad mode goes back |
+| Pads (ch 5 = deck A, ch 6 = deck B, notes 20-23; shift 28-31) | slots 1-4 / 5-8 in the pad mode (table above); in hot cue mode SHIFT + pad clears cue 1-4 |
+| Pad mode (note 0 on ch 5 / 6) | next pad mode: hot cues / loops / rolls / transport (for both decks) |
+| Crossfader (ch 16 CC 8) | crossfader |
+| Browse (ch 16 CC 0, relative; shift CC 1) | crate browser cursor (shift: by 10); the first turn opens the browser |
+| Browse push (ch 16 note 7) | open the browser / open the crate / load the track on the last deck loaded (deck A at first) |
+| LOAD A / LOAD B (ch 16 notes 2 / 3) | load the track under the cursor on deck A / B; the list stays open (a closed browser opens) |
+| FILTER / LOW (ch 16 note 72) | the CC 26 knobs: filter / low EQ |
+| ch 16 note 73 | vinyl mode on / off for both decks |
+| ch 16 note 70 / 71 | echo on both decks (FX on, type Echo) toggle / next FX type on both decks |
+| Main / cue level (ch 16 CC 10 / 12) | hardware, ignored |
+
+**Lights.** In MixTrack mode the instrument sends note-ons on its MIDI out, velocity 127 = on and 1 = dim: PLAY
+(note 0, while playing), CUE (1, stopped at the cue point), SYNC (2), PFL (27) and VINYL (80) on the deck channel;
+pads (notes 20-23 on ch 5 / 6: hot cue set, the active loop size, held, or the transport function on) and the pad
+mode LEDs (notes 1-4: hot cue / loop / sampler = rolls / stems = transport). Changes only, at most every 30 ms, all
+of them again whenever MixTrack mode starts.
+
+**Unverified** (no device on the bench; the djay file doesn't say): the jog touch note (6, Numark's convention on
+its other controllers), the shift notes (32 / 50), the pitch fader's direction (top = 0 = slower is assumed;
+`kMixPitchTopIsMinus` in `WheelPlugin.cpp` flips it), the jog's ticks per turn (taken as 1000, about what Mixxx uses
+for Numark's bigger jogs: one jog turn = one platter turn of 1.8 s; the **Jog Sensitivity** parameter scales it from
+0.25x to 4x), and the LED note / velocity scheme (Numark's usual one). The vinyl mode of each deck is not saved with
+the project.

@@ -72,7 +72,7 @@ static void test() {
     q.reset(); p.reset();
 
     // ---- the MPC Sample's own control surface (Auto recognises it)
-    juce::File dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("wheel_midi_test_card");
+    juce::File dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("wheel_midi_test_card_" + juce::String::toHexString(juce::Random::getSystemRandom().nextInt64()));
     dir.deleteRecursively(); dir.getChildFile("Crate One").createDirectory();
     juce::File wav = dir.getChildFile("Crate One").getChildFile("Test Artist - Test Beat.wav");
     { juce::WavAudioFormat fmt; auto os = wav.createOutputStream();
@@ -241,7 +241,7 @@ static void testMixtrack() {
         check(q->mpcSampleActive(), "MixTrack ch 1 notes / jog alone don't steal MPC Sample mode", 0);
     }
 
-    juce::File dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("wheel_midi_test_mixtrack");
+    juce::File dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("wheel_midi_test_mixtrack_" + juce::String::toHexString(juce::Random::getSystemRandom().nextInt64()));
     dir.deleteRecursively(); dir.getChildFile("Crate One").createDirectory();
     juce::File wav = dir.getChildFile("Crate One").getChildFile("Test Artist - Test Beat.wav");
     { juce::WavAudioFormat fmt; auto os = wav.createOutputStream();
