@@ -30,13 +30,17 @@ Typeface::Ptr face()
     static Typeface::Ptr tf = Typeface::createSystemTypefaceFor(WheelFonts::DejaVuSansBold_ttf, (size_t) WheelFonts::DejaVuSansBold_ttfSize);
     return tf;
 }
-// Android text sizes are em sizes (Paint.setTextSize): a point height here
+// Android text sizes are em sizes (Paint.setTextSize): a point height here. DejaVu Sans Bold runs about a sixth wider
+// than the phone's Roboto Bold, so it is narrowed to take the same room (labels, columns and ellipses then match).
+constexpr float kNarrow = .84f;
 Font bold(float px)
 {
     px = jmax(1.0f, px);
     auto tf = face();
-    return tf != nullptr ? Font(FontOptions(tf).withPointHeight(px)) : Font(FontOptions(px, Font::bold));
+    return tf != nullptr ? Font(FontOptions(tf).withPointHeight(px).withHorizontalScale(kNarrow)) : Font(FontOptions(px, Font::bold));
 }
+// the search box's text and hint (an EditText: the regular system face)
+Font regular(float px) { return Font(FontOptions().withPointHeight(jmax(1.0f, px))); }
 float widthOf(const Font& f, const String& s) { return GlyphArrangement::getStringWidth(f, s); }
 
 // LibraryView.Row.fit: cut with an ellipsis to fit maxW
@@ -169,7 +173,7 @@ struct RowList : Component {
         if (total > vis * 1.01f) {
             const float tw = 3 * dp, th = jmax(24 * dp, vis * vis / total), ty = (vis - th) * off / (total - vis);
             g.setColour(Colour(0xff3c4249));
-            g.fillRect(Rectangle<float>((float) w - tw - 3 * dp, ty, tw, th));
+            g.fillRect(Rectangle<float>((float) w - tw, ty, tw, th));
         }
     }
     void mouseDown(const MouseEvent& e) override
@@ -212,7 +216,6 @@ struct PhoneLibraryView::Impl : private Timer, private KeyListener, private Comp
         loadA.setTooltip("Load the selected track on deck A (Shift+Left)");
         loadB.setTooltip("Load the selected track on deck B (Shift+Right)");
 
-        search.setTextToShowWhenEmpty("Search title / artist / key / BPM", lp::faint);
         for (auto id : { TextEditor::backgroundColourId, TextEditor::outlineColourId, TextEditor::focusedOutlineColourId, TextEditor::shadowColourId })
             search.setColour(id, Colours::transparentBlack);
         search.setColour(TextEditor::textColourId, lp::text);
@@ -224,7 +227,7 @@ struct PhoneLibraryView::Impl : private Timer, private KeyListener, private Comp
         search.setIndents(0, 0);
         search.setScrollbarsShown(false);
         search.setPopupMenuEnabled(true);
-        search.onTextChange = [this] { refilter(); };
+        search.onTextChange = [this] { refilter(); owner.repaint(searchBox.getSmallestIntegerContainer()); };
         search.onReturnKey = [this] { intoTracks(); owner.grabKeyboardFocus(); };
         search.onEscapeKey = [this] { if (host.closeLibrary) host.closeLibrary(); };
         search.addKeyListener(this);
@@ -674,6 +677,13 @@ struct PhoneLibraryView::Impl : private Timer, private KeyListener, private Comp
     {
         g.fillAll(lp::bg);
         box(g, searchBox, lp::well, lp::edgeHi, dp);
+        if (search.isEmpty()) {   // the hint, clipped at the box like the phone's (not ellipsised)
+            Graphics::ScopedSaveState s(g);
+            auto r = search.getBounds().toFloat();
+            g.reduceClipRegion(r.getSmallestIntegerContainer());
+            g.setColour(lp::faint);
+            textAt(g, regular(16 * dp), "Search title / artist / key / BPM", r.getX(), r.getCentreY() + 16 * dp * .36f);
+        }
         // status: 12 sp bold, two lines from the top of the bar
         const float ts = 12 * dp;
         const Font f = bold(ts);
@@ -704,9 +714,8 @@ struct PhoneLibraryView::Impl : private Timer, private KeyListener, private Comp
         crateList.dp = trackList.dp = dp;
         crateList.rowH = (float) px(42);
         trackList.rowH = (float) px(44);
-        search.setFont(bold(16 * dp));
-        search.applyFontToAllText(bold(16 * dp));
-        search.setTextToShowWhenEmpty("Search title / artist / key / BPM", lp::faint);
+        search.setFont(regular(16 * dp));
+        search.applyFontToAllText(regular(16 * dp));
 
         auto b = owner.getLocalBounds().reduced(px(6));
         auto bar = b.removeFromTop(px(48));
