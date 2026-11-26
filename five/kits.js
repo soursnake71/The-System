@@ -4,15 +4,16 @@
 //  * reads ZIP archives (also with data prepended, as in Bitwig .bwpreset files), WAV and AIFF/AIFC files;
 //  * names each file by its RX5 waveform (RX5_NAME_MAP, then generic drum aliases, then the pad's MIDI note);
 //  * builds a kit = {waveforms, assignments, report, pads, name}, shaped like the hardware's waveform memory:
-//      ids 0..23  the 24 INTERNAL waveforms, one per engine voice v (engine.js VOICE_NAMES order). By default these
-//                 are our synthesized models; a kit replaces some of them with recordings (assignment v -> id v).
+//      ids 0..23  the 24 INTERNAL waveforms, one per engine voice v (engine.js VOICE_NAMES order): the factory
+//                 recordings; a user kit replaces some of them (assignment v -> id v).
 //      ids 24..53 up to 30 CARTRIDGE/user waveforms. The 28 WRC-01 voices keep their cartridge number
 //                 (id = 23 + number, so SD3 = 24 ... Ooo = 51); other files take the free slots in order.
 //  * applyKit() loads the assigned waveforms into an engine.js Engine (setUserSample) and into seq.js state.
 //
-// Recordings of the real machine ('-RX5' files, the factory kit in five/kit/) already went through the hardware's
-// 12-bit DAC, filters and a mixer: those waveforms are flagged raw:true and the engine should play them without
-// re-applying its 12-bit/DAC emulation (applyKit calls engine.setVoicePath(v, 'raw'|'rx') when the engine has it).
+// Drums are never synthesized: the 24 internal waveforms ARE the factory recordings (five/kit/, 25 kHz, engine.js
+// FACTORY_MAP), the other 27 recordings fill the cartridge library. A voice without a waveform is silent.
+// Every imported waveform is converted to the RX5's native 25 kHz (Kaiser-windowed sinc) and flagged native:true,
+// so pitch changes the playback rate like the hardware; {keepRate:true} keeps the file's own rate (native:false).
 //
 // Bitwig Drum Machine presets (.bwpreset = a 'BtWg' binary object stream followed by a ZIP with samples/): the
 // per-pad data is decoded from the stream: pad key (PADnn / field 0x08e5), pad name, sample path, and every float
@@ -331,11 +332,39 @@ export function parseBitwigPreset(bytes){
     }
     i = j - 1;
   }
-  // the pad's key byte (field 0x08e5, int8) confirms/overrides the PADnn number
-  for (let k = 0; k < res.pads.length; k++){
-    const a = d.indexOf(0x50, 0), _ = a;                               // eslint quiet
-  }
   return res;
+}
+
+/* ================================================================================================ resampling */
+export const NATIVE_SR = 25000;
+// Kaiser-windowed sinc (beta 9, 32 zero crossings each side), cutoff 0.486 * min(srIn, srOut); kernel tabulated
+// at 256 points per zero crossing and linearly interpolated.
+const RS_ZC = 32, RS_OS = 256, RS_BETA = 9;
+let RS_TAB = null;
+function bessel0(x){ let s = 1, t = 1; for (let k = 1; k < 50; k++){ t *= (x / (2 * k)) ** 2; s += t; } return s; }
+export function resample(x, srIn, srOut = NATIVE_SR){
+  if (srIn === srOut) return Float32Array.from(x);
+  if (!RS_TAB){
+    RS_TAB = new Float64Array(RS_ZC * RS_OS + 2);
+    const i0 = bessel0(RS_BETA);
+    for (let k = 0; k <= RS_ZC * RS_OS; k++){
+      const z = k / RS_OS, u = z / RS_ZC, sinc = k === 0 ? 1 : Math.sin(Math.PI * z) / (Math.PI * z);
+      RS_TAB[k] = sinc * bessel0(RS_BETA * Math.sqrt(Math.max(0, 1 - u * u))) / i0;
+    }
+  }
+  const ratio = srOut / srIn, fc = 0.486 * Math.min(1, ratio) * 2;     // cutoff in units of the input Nyquist
+  const n = Math.max(2, Math.floor(x.length * ratio)), y = new Float32Array(n), half = RS_ZC / fc;
+  for (let j = 0; j < n; j++){
+    const t = j / ratio, lo = Math.max(0, Math.ceil(t - half)), hi = Math.min(x.length - 1, Math.floor(t + half));
+    let s = 0;
+    for (let i = lo; i <= hi; i++){
+      const z = Math.abs(i - t) * fc * RS_OS, k = z | 0, f = z - k;
+      if (k >= RS_ZC * RS_OS) continue;
+      s += x[i] * (RS_TAB[k] + (RS_TAB[k + 1] - RS_TAB[k]) * f);
+    }
+    y[j] = s * fc;
+  }
+  return y;
 }
 
 /* ===================================================================================================== kits */
@@ -371,9 +400,9 @@ async function expandInputs(input, warnings){
 /**
  * Builds a kit from audio files or a ZIP / .bwpreset.
  * input: [{name, bytes}] (WAV, AIFF, ZIP or .bwpreset; zips are expanded) | zip bytes (Uint8Array/ArrayBuffer).
- * opts: {trim:true (cut leading/trailing silence), raw:'auto'|true|false (auto = exact RX5 names are hardware recordings),
- *        name, source}
- * -> {name, waveforms:[{id, name, kind:'int'|'crt'|'user', sr, data, raw, source, file, v?, cart?, note?, pad?}],
+ * opts: {trim:true (cut leading/trailing silence), keepRate:false (true: keep the file's rate instead of 25 kHz),
+ *        voiceFiles: [24 file names] (force the voice assignment, e.g. engine.js FACTORY_MAP), name, source}
+ * -> {name, waveforms:[{id, name, kind:'int'|'crt'|'user', sr, data, native, source, file, v?, cart?, pad?}],
  *     assignments:[{v, libIndex, id}], pads, report:{rows:[...], warnings:[...]}}
  */
 export async function loadKit(input, opts = {}){
@@ -386,12 +415,17 @@ export async function loadKit(input, opts = {}){
     try { a = parseAudio(f.bytes); } catch (e){ warnings.push(`${f.name}: ${e.message}`); continue; }
     const pad = padOf(f.name), file = f.name.split(/[\\/]/).pop();
     const t = opts.trim === false ? {data: a.data, lead: 0, tail: 0} : trimSilence(a.data, a.sr);
-    items.push({file, path: f.name, audio: a, data: t.data, lead: t.lead, pad, exact: rx5Waveform(file), alias: aliasVoices(file), v: -1, how: 'none'});
+    const sr = opts.keepRate || a.sr === NATIVE_SR ? a.sr : NATIVE_SR, data = sr === a.sr ? t.data : resample(t.data, a.sr, NATIVE_SR);
+    items.push({file, path: f.name, audio: a, sr, data, lead: t.lead, pad, exact: rx5Waveform(file), alias: aliasVoices(file), v: -1, how: 'none'});
   }
   if (pads.length) items.sort((x, y) => (x.pad ? pads.indexOf(x.pad) : 1e9) - (y.pad ? pads.indexOf(y.pad) : 1e9));
   // assignment to the 24 voices: exact RX5 internal names, then generic aliases, then the pad's GM note
   const taken = new Array(LIB_INTERNAL).fill(null), take = (it, v, how) => { taken[v] = it; it.v = v; it.how = how; };
-  for (const it of items) if (it.exact && it.exact.kind === 'int' && !taken[it.exact.v]) take(it, it.exact.v, 'exact');
+  if (opts.voiceFiles) opts.voiceFiles.forEach((fn, v) => {
+    const it = fn && items.find((o) => o.v < 0 && o.file.toLowerCase() === String(fn).split(/[\\/]/).pop().toLowerCase());
+    if (it && !taken[v]) take(it, v, it.exact && it.exact.v === v ? 'exact' : 'map');
+  });
+  for (const it of items) if (it.v < 0 && it.exact && it.exact.kind === 'int' && !taken[it.exact.v]) take(it, it.exact.v, 'exact');
   for (const it of items) if (it.v < 0 && !it.exact && it.alias){ const v = it.alias.find((c) => !taken[c]); if (v !== undefined) take(it, v, 'alias'); }
   for (const it of items) if (it.v < 0 && !it.exact && it.pad && GM_VOICES[it.pad.note]){ const v = GM_VOICES[it.pad.note].find((c) => !taken[c]); if (v !== undefined) take(it, v, 'note'); }
   // library ids: assigned -> id v; WRC-01 names -> their cartridge slot; the rest -> free slots 24..53
@@ -407,19 +441,19 @@ export async function loadKit(input, opts = {}){
   const waveforms = [], assignments = [], rows = [];
   for (const it of items){
     if (it.id < 0) continue;
-    const w = it.v >= 0 ? (it.how === 'exact' ? INTERNAL_WAVEFORMS[it.v] : null) : it.exact && it.exact.id === it.id ? it.exact : null;
+    const w = it.v >= 0 ? (it.how === 'exact' || it.how === 'map' ? INTERNAL_WAVEFORMS[it.v] : null) : it.exact && it.exact.id === it.id ? it.exact : null;
     const kind = it.v >= 0 ? 'int' : w ? 'crt' : 'user';
-    const raw = opts.raw === true || opts.raw === false ? opts.raw : !!it.exact;
+    const native = it.sr === NATIVE_SR;
     const name = w ? w.name : it.file.replace(/\.[a-z0-9]+$/i, '').replace(/[\s_\-.]*rx[\s_\-]*5$/i, '').slice(0, 6);
-    const wf = {id: it.id, name, kind, sr: it.audio.sr, data: it.data, raw, file: it.file, source: opts.source || presetName || ''};
+    const wf = {id: it.id, name, kind, sr: it.sr, data: it.data, native, file: it.file, source: opts.source || presetName || ''};
     if (it.v >= 0) wf.v = it.v;
     if (kind === 'crt') wf.cart = w.cart;
     if (it.pad) wf.pad = {note: it.pad.note, name: it.pad.name, gain: it.pad.params.GAIN, output: it.pad.params.OUTPUT, volume: it.pad.params.VOLUME,
       pan: it.pad.params.PANORAMA, transpose: it.pad.params.TRANSPOSE};
     const libIndex = waveforms.push(wf) - 1;
     if (it.v >= 0) assignments.push({v: it.v, libIndex, id: it.id});
-    rows.push({file: it.file, id: it.id, kind, name, v: it.v, how: it.how, raw, sr: it.audio.sr, bits: it.audio.bits, channels: it.audio.channels,
-      secs: +(it.data.length / it.audio.sr).toFixed(3), leadMs: +(it.lead * 1000 / it.audio.sr).toFixed(2), note: it.pad ? it.pad.note : null,
+    rows.push({file: it.file, id: it.id, kind, name, v: it.v, how: it.how, native, srIn: it.audio.sr, sr: it.sr, bits: it.audio.bits, channels: it.audio.channels,
+      secs: +(it.data.length / it.sr).toFixed(3), leadMs: +(it.lead * 1000 / it.audio.sr).toFixed(2), note: it.pad ? it.pad.note : null,
       gain: it.pad ? it.pad.params.GAIN : null});
   }
   assignments.sort((a, b) => a.v - b.v);
@@ -431,26 +465,28 @@ export async function loadKit(input, opts = {}){
 /** Text table of a kit (for tools and logs). voiceNames: engine VOICE_NAMES (optional). */
 export function formatKitReport(kit, voiceNames){
   const pad = (s, n) => String(s ?? '').padEnd(n), L = [];
-  L.push(`${pad('file', 18)}${pad('note', 5)}${pad('gain', 6)}${pad('id', 4)}${pad('kind', 5)}${pad('name', 8)}${pad('voice', 12)}${pad('how', 6)}${pad('raw', 4)}secs`);
+  L.push(`${pad('file', 18)}${pad('note', 5)}${pad('gain', 6)}${pad('id', 4)}${pad('kind', 5)}${pad('name', 8)}${pad('voice', 12)}${pad('how', 6)}${pad('srIn', 6)}secs`);
   for (const r of kit.report.rows){
     const vn = r.v >= 0 ? `${r.v} ${voiceNames ? voiceNames[r.v] : ''}` : '-';
-    L.push(`${pad(r.file, 18)}${pad(r.note ?? '', 5)}${pad(r.gain != null ? r.gain.toFixed(2) : '', 6)}${pad(r.id, 4)}${pad(r.kind, 5)}${pad(r.name, 8)}${pad(vn, 12)}${pad(r.how, 6)}${pad(r.raw ? 'y' : 'n', 4)}${r.secs}`);
+    L.push(`${pad(r.file, 18)}${pad(r.note ?? '', 5)}${pad(r.gain != null ? r.gain.toFixed(2) : '', 6)}${pad(r.id, 4)}${pad(r.kind, 5)}${pad(r.name, 8)}${pad(vn, 12)}${pad(r.how, 6)}${pad(r.srIn, 6)}${r.secs}`);
   }
-  if (kit.report.unassignedVoices.length) L.push(`voices left on the synthesized model: ${kit.report.unassignedVoices.map((v) => voiceNames ? voiceNames[v] : v).join(', ')}`);
+  if (kit.report.unassignedVoices.length) L.push(`voices without a waveform in this kit: ${kit.report.unassignedVoices.map((v) => voiceNames ? voiceNames[v] : v).join(', ')}`);
   for (const w of kit.report.warnings) L.push(`warning: ${w}`);
   return L.join('\n');
 }
 
 /* ============================================================================================ factory kit */
-/** Loads the factory kit (five/kit/kit.json + the WAVs it lists). fetchFn(path relative to five/) may return a
-    Response, ArrayBuffer or Uint8Array; by default fetch() in the browser, the file system in Node. Every waveform is
-    a hardware recording: raw:true. */
-export async function loadFactoryKit(fetchFn){
+/** Loads the factory kit (five/kit/kit.json + the WAVs it lists, 25 kHz): the 24 voices per engine.js FACTORY_MAP
+    (voice -> file name; RX5_NAME_MAP when the engine has none), the other recordings into the cartridge library.
+    fetchFn(path relative to five/) may return a Response, ArrayBuffer or Uint8Array; by default fetch() in the
+    browser, the file system in Node. voiceFiles overrides FACTORY_MAP. */
+export async function loadFactoryKit(fetchFn, voiceFiles){
   const get = fetchFn || defaultFetch;
   const bytesOf = async (p) => { const r = await get(p); if (r && typeof r.arrayBuffer === 'function'){ if (r.ok === false) throw new Error(`${p}: HTTP ${r.status}`); return new Uint8Array(await r.arrayBuffer()); } return u8(r); };
   const meta = JSON.parse(new TextDecoder().decode(await bytesOf('kit/kit.json')));
   const files = await Promise.all(meta.files.map(async (f) => ({name: f, bytes: await bytesOf('kit/' + f)})));
-  const kit = await loadKit(files, {raw: true, name: meta.name, source: meta.source});
+  if (!voiceFiles){ try { const E = await import('./engine.js'); voiceFiles = E.FACTORY_MAP || null; } catch { voiceFiles = null; } }
+  const kit = await loadKit(files, {name: meta.name, source: meta.source, voiceFiles: voiceFiles || undefined});
   kit.factory = true;
   return kit;
 }
@@ -461,18 +497,13 @@ async function defaultFetch(p){
 }
 
 /* ============================================================================================ applying */
-function setPath(engine, v, raw){
-  if (!engine) return;
-  if (typeof engine.setVoicePath === 'function') engine.setVoicePath(v, raw ? 'raw' : 'rx');
-}
-
-/** Puts one waveform on voice v (null = back to the synthesized INT MODEL). */
+/** Puts one waveform on voice v (null = no waveform: the voice is silent). */
 export function assignWaveform(engine, state, v, wf){
   if (v < 0 || v >= LIB_INTERNAL) return;
-  if (engine){ engine.setUserSample(v, wf ? wf.data : null, wf ? wf.sr : 0); setPath(engine, v, !!(wf && wf.raw)); }
+  if (engine){ engine.setUserSample(v, wf ? wf.data : null, wf ? wf.sr : 0); }
   if (state){
     if (!state.samples) state.samples = new Array(LIB_INTERNAL).fill(null);
-    state.samples[v] = wf ? {name: wf.name, sr: wf.sr, data: wf.data, raw: !!wf.raw, lib: wf.id} : null;
+    state.samples[v] = wf ? {name: wf.name, sr: wf.sr, data: wf.data, native: !!wf.native, lib: wf.id} : null;
   }
 }
 
@@ -480,12 +511,12 @@ export function assignWaveform(engine, state, v, wf){
  * mode 'replace' (default): the kit's assigned waveforms go onto their voices (engine + state.samples) and the
  *   whole kit goes into state.library; voices the kit doesn't cover keep what they had.
  * mode 'library': only state.library is filled (choose voices later, as with KEY ASSIGN).
- * state.library = [{id, name, kind, sr, data, raw, source, file}] sorted by id (Float32Array data: the cartridge
+ * state.library = [{id, name, kind, sr, data, native, source, file}] sorted by id (Float32Array data: the cartridge
  * file writer must serialize it like state.samples).
  */
 export function applyKit(engine, state, kit, opts = {}){
   const mode = opts.mode || 'replace';
-  if (state) state.library = kit.waveforms.map((w) => ({id: w.id, name: w.name, kind: w.kind, sr: w.sr, data: w.data, raw: w.raw, source: w.source, file: w.file}))
+  if (state) state.library = kit.waveforms.map((w) => ({id: w.id, name: w.name, kind: w.kind, sr: w.sr, data: w.data, native: w.native, source: w.source, file: w.file}))
     .sort((a, b) => a.id - b.id);
   const assigned = [];
   if (mode === 'replace') for (const a of kit.assignments){ assignWaveform(engine, state, a.v, kit.waveforms[a.libIndex]); assigned.push(a.v); }

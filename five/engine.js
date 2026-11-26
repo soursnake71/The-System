@@ -1,11 +1,12 @@
-/* Omega Five sound engine: 24 circuit-modelled drum voices, the RX5-style 8/12-bit PCM playback path (EG, DAC,
-   reconstruction filter, output stage), a 12-channel mixer, a REV7-style reverb and a TC 2290-style delay.
+/* Omega Five sound engine: 24 sample voices (no drum synthesis: the factory voices are recordings of a real RX5, five/kit/,
+   loaded with setUserSample), the RX5-style 8/12-bit PCM playback path (EG, DAC, reconstruction filter, output stage),
+   a 12-channel mixer, a REV7-style reverb and a TC 2290-style delay.
    Pure JS with no DOM, an ES module used by worklet.js, by Node tests (tools/test.mjs) and by tools/render.mjs, which
    writes the reference output that plugins/five/Five.h (a line-for-line C++ port of this file) must match.
 
    Porting rules: every DSP state is a double; outputs are stored as float32. Only Math.sin/cos/tan/exp/pow/sqrt/abs/
    floor/tanh/round are used. The PRNG is xorshift32 (uint32_t in C++). process() and trigger() never allocate; the
-   voice ROMs and every delay line are allocated in the constructor (setUserSample may allocate: it is not real-time). */
+   delay lines are allocated in the constructor; voices start empty (silent) and setUserSample allocates (not real-time). */
 
 export const ROM_SR = 25000;            // native rate the voice ROMs are rendered and stored at
 const DAC_SR = 50000;                   // the playback DAC's sample-and-hold rate
@@ -52,204 +53,26 @@ class Biquad {
   run(x){ const y = this.b0 * x + this.z1; this.z1 = this.b1 * x - this.a1 * y + this.z2; this.z2 = this.b2 * x - this.a2 * y; return y; }
   reset(){ this.z1 = 0; this.z2 = 0; }
 }
-// topology-preserving state-variable filter (the 2-pole SVF of the analog voice cards); after run(): lp, bp (0 dB peak), hp
-class SVF {
-  constructor(sr, f, q){ this.sr = sr; this.c1 = 0; this.c2 = 0; this.lp = 0; this.bp = 0; this.hp = 0; this.set(f, q); }
-  set(f, q){ const g = Math.tan(Math.PI * clamp(f, 1, this.sr * .49) / this.sr); this.k = 1 / q; this.a1 = 1 / (1 + g * (g + this.k)); this.a2 = g * this.a1; this.a3 = g * this.a2; }
-  run(x){
-    const v3 = x - this.c2, v1 = this.a1 * this.c1 + this.a2 * v3, v2 = this.c2 + this.a2 * this.c1 + this.a3 * v3;
-    this.c1 = 2 * v1 - this.c1; this.c2 = 2 * v2 - this.c2;
-    this.lp = v2; this.bp = this.k * v1; this.hp = x - this.k * v1 - v2;
-    return this.bp;
-  }
-}
+// the factory kit: voice v plays five/kit/FACTORY_MAP[v] (25 kHz 16-bit mono recordings of a real RX5), loaded with {rec:true}
+export const FACTORY_MAP = ['BDrum1-RX5.wav', 'SDrum1-RX5.wav', 'Rim1-RX5.wav', 'Tom1-RX5.wav', 'Tom2-RX5.wav', 'Tom3-RX5.wav', 'Tom4-RX5.wav',
+  'CHat-RX5.wav', 'RideEdge-RX5.wav', 'Crash-RX5.wav', 'Tamb-RX5.wav', 'Shaker-RX5.wav', 'BDrum2-RX5.wav', 'SDrum2-RX5.wav', 'Rim2-RX5.wav',
+  'ETom1-RX5.wav', 'ETom2-RX5.wav', 'ETom3-RX5.wav', 'ETom4-RX5.wav', 'OHat-RX5.wav', 'RideBell-RX5.wav', 'China-RX5.wav', 'Clap-RX5.wav',
+  'Cowbell-RX5.wav'];
 
-/* =====================================================================================================================
-   Voice models. Each fills y (length n at rate sr) from a fixed seed; finish() removes DC, fades the last 20 % and scales the
-   peak to the voice's trim. Rendered once per engine at ROM_SR and then treated as the machine's PCM ROM.
-   ===================================================================================================================== */
-const sq = ph => ph < .5 ? 1 : -1;            // CMOS square (40106 Schmitt oscillator) of a phase in [0, 1)
-const wrap1 = ph => ph >= 1 ? ph - 1 : ph;
-
-// Bridged-T kick: a damped resonator whose tuning is swept by the trigger (exp pitch sweep), the trigger pulse leaking
-// through as a click, and the output transistor's soft clip.
-function genKick(y, sr, R, o){
-  const ck = new SVF(sr, o.clickF, .7);
-  let ph = o.ph0;
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr, f = o.f0 + (o.f1 - o.f0) * Math.exp(-t / o.tp);
-    const env = Math.exp(-t / o.dec) * (1 - o.punch + o.punch * Math.exp(-t / .04));
-    ck.run((2 * R() - 1) * Math.exp(-t / .0012));
-    const x = Math.sin(TWO_PI * ph) * env + o.click * ck.lp;
-    y[i] = Math.tanh(o.drive * x);
-    ph = wrap1(ph + f / sr);
+/* ---------------- recording pre-emphasis ----------------
+   A recording already carries the real machine's playback response. At pitch 0 this engine's path (linear interpolation
+   25 -> 50 kHz, 50 kHz ZOH, 3-pole 12 kHz filter) droops -1.0 dB at 5 kHz, -5.5 dB at 10 kHz, -7.2 dB at 11 kHz; REC_EQ, a
+   7-tap linear-phase FIR at 25 kHz (DC gain 1, least-squares fit to the inverse up to 11 kHz), flattens it to within
+   +-0.25 dB to 10 kHz (-0.6 dB at 11 kHz). Applied once to a 'rec' ROM when it is loaded (zero-phase: centred taps). */
+const REC_EQ = [-.0426, .1175, -.2817, 1.4136, -.2817, .1175, -.0426];
+function recEq(x){
+  const n = x.length, h = (REC_EQ.length - 1) / 2, y = new Float32Array(n);
+  for (let i = 0; i < n; i++){
+    let s = 0;
+    for (let k = 0; k < REC_EQ.length; k++){ const j = i + k - h; if (j >= 0 && j < n) s += REC_EQ[k] * x[j]; }
+    y[i] = s;
   }
-}
-// Snare: two damped drum-head modes (twin-T resonators, slight pitch drop) plus white noise through a 2-pole SVF band
-// pass and high pass (the snare wires), each with its own envelope (separate VCAs).
-function genSnare(y, sr, R, o){
-  const bp = new SVF(sr, o.nf, o.nq), hp = new SVF(sr, o.nhp, .7);
-  let p1 = 0, p2 = 0;
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr, b = 1 + .18 * Math.exp(-t / .012);
-    const head = Math.sin(TWO_PI * p1) * Math.exp(-t / o.d1) + o.m2 * Math.sin(TWO_PI * p2) * Math.exp(-t / o.d2);
-    p1 = wrap1(p1 + o.f1 * b / sr); p2 = wrap1(p2 + o.f2 * b / sr);
-    bp.run(2 * R() - 1); hp.run(bp.bp + .35 * bp.hp);
-    const nenv = (1 - Math.exp(-t / .0008)) * (Math.exp(-t / o.nd) * .85 + .15 * Math.exp(-t / (o.nd * 3)));
-    y[i] = Math.tanh(1.3 * (o.body * head + o.noise * hp.hp * nenv));
-  }
-}
-// Rim shot: the impulse response of two high-Q band passes (a 1.7 kHz-ish ping and a wood mode) plus a short noise click.
-function genRim(y, sr, R, o){
-  const hp = new SVF(sr, 2500, .7);
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr;
-    hp.run((2 * R() - 1) * Math.exp(-t / .0015));
-    y[i] = Math.sin(TWO_PI * o.f1 * t) * Math.exp(-t / o.d1) + o.m2 * Math.sin(TWO_PI * o.f2 * t) * Math.exp(-t / o.d2) + o.click * hp.hp;
-  }
-}
-// Tom: damped sine (resonator) with a downward pitch bend, a weaker inharmonic second mode and a stick click; the B set
-// runs through a darker output low pass.
-function genTom(y, sr, R, o){
-  const ck = new SVF(sr, 3500, .7), lp = new SVF(sr, o.lp, .6);
-  let p1 = 0, p2 = 0;
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr, f = o.f * (1 + o.bend * Math.exp(-t / .05));
-    ck.run((2 * R() - 1) * Math.exp(-t / .0018));
-    const x = Math.sin(TWO_PI * p1) * Math.exp(-t / o.dec) + .22 * Math.sin(TWO_PI * p2) * Math.exp(-t / (o.dec * .35)) + o.click * ck.lp;
-    p1 = wrap1(p1 + f / sr); p2 = wrap1(p2 + 1.58 * f / sr);
-    lp.run(Math.tanh(1.2 * x));
-    y[i] = lp.lp;
-  }
-}
-const F808 = [205.3, 304.4, 369.6, 522.7, 540, 800];
-// Hi-hat: six square oscillators at the 808 metallic ratios into two band passes (3.4 / 7.1 kHz) and a high pass,
-// with some white noise for the "sampled cymbal" grain; VCA decay short (closed) or long (open).
-function genHat(y, sr, R, o){
-  const b1 = new SVF(sr, 3440, 2.5), b2 = new SVF(sr, 7100, 2.5), hp = new SVF(sr, 6000, .7), nh = new SVF(sr, 7000, .7);
-  const ph = F808.map(() => R());
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr;
-    let m = 0;
-    for (let k = 0; k < 6; k++){ m += sq(ph[k]); ph[k] = wrap1(ph[k] + F808[k] * o.scale / sr); }
-    b1.run(m / 6); b2.run(m / 6); hp.run(.5 * b1.bp + b2.bp); nh.run(2 * R() - 1);
-    const env = (1 - Math.exp(-t / .0004)) * (o.a * Math.exp(-t / o.d1) + (1 - o.a) * Math.exp(-t / o.d2));
-    y[i] = (hp.hp + o.nz * nh.hp) * env;
-  }
-}
-// Cymbals: square bank ring-modulated in pairs (XOR gates, as in the 606/808 cymbal), plus noise, through a band pass
-// at the cymbal's centre and a high pass; two exponential decays (sizzle and body); optional bell partials; the china
-// is driven into its output transistor for trash.
-function genMetal(y, sr, R, o){
-  const bp = new SVF(sr, o.c, o.q), hp = new SVF(sr, o.hp, .7);
-  const ph = o.f.map(() => R());
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr;
-    const m = (sq(ph[0]) * sq(ph[1]) + sq(ph[2]) * sq(ph[3]) + sq(ph[4]) * sq(ph[5])) / 3;
-    for (let k = 0; k < 6; k++) ph[k] = wrap1(ph[k] + o.f[k] / sr);
-    bp.run(m * (1 - o.nz) + o.nz * (2 * R() - 1)); hp.run(bp.bp + o.hpm * bp.hp);
-    let x = hp.hp * (o.a * Math.exp(-t / o.d1) + (1 - o.a) * Math.exp(-t / o.d2));
-    for (let k = 0; k < o.bell.length; k++){ const b = o.bell[k]; x += b[1] * Math.sin(TWO_PI * b[0] * t) * Math.exp(-t / b[2]); }
-    y[i] = o.drive ? Math.tanh(o.drive * x) : x;
-  }
-}
-// Tambourine: noise bursts (one per jingle rattle) through a feedback comb (the jingle ring) and a band pass, plus
-// a few high sine partials for the metal discs.
-function genTamb(y, sr, R, o){
-  const D = Math.max(1, Math.round(sr / o.comb)), cb = new Float64Array(D), bp = new SVF(sr, 7500, 1.2), hp = new SVF(sr, 4000, .7);
-  const T = [0, .009, .021, .037, .06], A = [1, .7, .85, .5, .35], J = [5300, 6150, 7420, 8900, 10200];
-  let ci = 0;
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr;
-    let e = 0;
-    for (let k = 0; k < 5; k++) if (t >= T[k]) e += A[k] * Math.exp(-(t - T[k]) / .022);
-    e *= Math.exp(-t / o.dec);
-    const c = (2 * R() - 1) * e + .55 * cb[ci]; cb[ci] = c; ci = ci + 1 >= D ? 0 : ci + 1;
-    bp.run(c); hp.run(bp.bp);
-    let j = 0; for (let k = 0; k < 5; k++) j += Math.sin(TWO_PI * J[k] * t + k);
-    y[i] = hp.hp + .06 * j * e;
-  }
-}
-// Shaker: granular noise (random bead hits, density following a swell envelope) through band pass and high pass.
-function genShaker(y, sr, R, o){
-  const bp = new SVF(sr, 6000, 1.1), hp = new SVF(sr, 3500, .7), gd = Math.exp(-1 / (.0015 * sr));
-  let g = 0;
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr, sw = t < o.att ? t / o.att : Math.exp(-(t - o.att) / o.dec);
-    g = g * gd + (R() < .02 * sw * 48000 / sr ? .5 + R() : 0);
-    bp.run((2 * R() - 1) * (g + .15 * sw)); hp.run(bp.bp);
-    y[i] = hp.hp;
-  }
-}
-// Hand claps: noise through a ~1 kHz band pass, gated by 4 bursts ~10 ms apart (the 808 sawtooth retrigger) and a
-// longer "reverb" tail envelope through the same band pass.
-function genClaps(y, sr, R, o){
-  const b1 = new SVF(sr, 1100, 1.6), b2 = new SVF(sr, 2400, 2), T = [0, .011, .021, .032], A = [.8, .95, .85, 1];
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr;
-    let e = 0;
-    for (let k = 0; k < 4; k++) if (t >= T[k]) e += A[k] * Math.exp(-(t - T[k]) / .0045);
-    if (t >= T[3]) e += o.tail * Math.exp(-(t - T[3]) / o.dec);
-    const n = (2 * R() - 1) * e;
-    b1.run(n); b2.run(n);
-    y[i] = b1.bp + .35 * b2.bp;
-  }
-}
-// Cowbell: two squares at 540 / 800 Hz through a band pass, two-stage fast decay (808 cowbell VCA).
-function genCowbell(y, sr, R, o){
-  const bp = new SVF(sr, 850, 1.4), hp = new SVF(sr, 300, .7);
-  let p1 = R(), p2 = R();
-  for (let i = 0; i < y.length; i++){
-    const t = i / sr;
-    const x = .5 * sq(p1) + .5 * sq(p2);
-    p1 = wrap1(p1 + 540 / sr); p2 = wrap1(p2 + 800 / sr);
-    bp.run(x); hp.run(bp.bp + .25 * bp.hp);
-    y[i] = hp.hp * (.65 * Math.exp(-t / .012) + .35 * Math.exp(-t / .11));
-  }
-}
-
-// [model, params, length s, peak trim]
-const GEN = [
-  /* 0 BD 1   */ [genKick, {f0:52, f1:150, tp:.032, dec:.28, punch:.3, click:.35, clickF:3000, drive:1.6, ph0:.12}, .6, .99],
-  /* 1 SD 1   */ [genSnare, {f1:180, f2:330, d1:.06, d2:.04, m2:.6, nf:3200, nq:.7, nhp:900, nd:.13, body:.65, noise:.75}, .45, .99],
-  /* 2 RIM 1  */ [genRim, {f1:1700, d1:.012, f2:460, m2:.45, d2:.008, click:.6}, .12, .95],
-  /* 3 TOM 1A */ [genTom, {f:225, dec:.2, bend:.35, click:.35, lp:9000}, .7, .85],
-  /* 4 TOM 2A */ [genTom, {f:170, dec:.23, bend:.35, click:.33, lp:9000}, .8, .85],
-  /* 5 TOM 3A */ [genTom, {f:128, dec:.26, bend:.35, click:.3, lp:9000}, .9, .85],
-  /* 6 TOM 4A */ [genTom, {f:96, dec:.3, bend:.35, click:.28, lp:9000}, 1, .85],
-  /* 7 HH CLS */ [genHat, {scale:1, a:.75, d1:.022, d2:.07, nz:.35}, .18, .95],
-  /* 8 RIDE   */ [genMetal, {f:[312, 457, 589, 733, 881, 1043], c:5200, q:1.2, hp:3500, hpm:.4, nz:.25, a:.35, d1:.08, d2:1.1, bell:[[2210, .05, .7], [3460, .03, .5]], drive:0}, 2.4, .85],
-  /* 9 CRASH  */ [genMetal, {f:[245, 383, 412, 597, 653, 919], c:6000, q:.8, hp:3000, hpm:.6, nz:.55, a:.4, d1:.12, d2:.9, bell:[], drive:0}, 2.5, .9],
-  /*10 TAMB   */ [genTamb, {comb:5200, dec:.12}, .4, .85],
-  /*11 SHAKER */ [genShaker, {att:.035, dec:.06}, .25, .99],
-  /*12 BD 2   */ [genKick, {f0:46, f1:210, tp:.022, dec:.42, punch:.2, click:.5, clickF:4500, drive:2.6, ph0:.2}, .75, .99],
-  /*13 SD 2   */ [genSnare, {f1:205, f2:365, d1:.05, d2:.035, m2:.5, nf:4500, nq:.6, nhp:1500, nd:.2, body:.5, noise:.9}, .55, .99],
-  /*14 RIM 2  */ [genRim, {f1:1250, d1:.016, f2:560, m2:.6, d2:.012, click:.5}, .15, .95],
-  /*15 TOM 1B */ [genTom, {f:205, dec:.3, bend:.45, click:.2, lp:2600}, .9, .85],
-  /*16 TOM 2B */ [genTom, {f:155, dec:.34, bend:.45, click:.2, lp:2400}, 1, .85],
-  /*17 TOM 3B */ [genTom, {f:116, dec:.38, bend:.45, click:.18, lp:2200}, 1.1, .85],
-  /*18 TOM 4B */ [genTom, {f:86, dec:.44, bend:.45, click:.16, lp:2000}, 1.2, .85],
-  /*19 HH OPN */ [genHat, {scale:1, a:.3, d1:.05, d2:.38, nz:.4}, .9, .95],
-  /*20 RIDE CP*/ [genMetal, {f:[402, 533, 687, 802, 1018, 1201], c:2600, q:3, hp:1200, hpm:.3, nz:.1, a:.3, d1:.05, d2:.8, bell:[[802, .18, .6], [1201, .14, .5], [1874, .12, .45], [2650, .08, .35]], drive:0}, 2, .9],
-  /*21 CHINA  */ [genMetal, {f:[187, 271, 339, 488, 517, 703], c:3600, q:1.5, hp:1500, hpm:.5, nz:.35, a:.5, d1:.07, d2:.7, bell:[], drive:3}, 2.2, .9],
-  /*22 CLAPS  */ [genClaps, {tail:.55, dec:.11}, .6, .95],
-  /*23 COWBELL*/ [genCowbell, {}, .5, .9]
-];
-
-// DC blocker (12 Hz), raised-cosine fade over the last 20 %, peak scaled to the trim
-function finish(y, sr, trim){
-  const n = y.length, hp = new OnePole().hp(sr, 12), nf = Math.floor(n * .2);
-  for (let i = 0; i < n; i++) y[i] = hp.run(y[i]);
-  for (let k = 0; k < nf; k++) y[n - nf + k] *= .5 + .5 * Math.cos(Math.PI * (k + 1) / nf);
-  let pk = 0; for (let i = 0; i < n; i++){ const a = Math.abs(y[i]); if (a > pk) pk = a; }
-  const out = new Float32Array(n), s = pk > 0 ? trim / pk : 0;
-  for (let i = 0; i < n; i++) out[i] = y[i] * s;
-  return out;
-}
-export function makeVoiceSample(v, sr = ROM_SR){
-  const g = GEN[v], y = new Float64Array(Math.max(2, Math.round(g[2] * sr)));
-  g[0](y, sr, rng(0x5EED0000 + v * 7919), g[1]);
-  return finish(y, sr, g[3]);
+  return y;
 }
 
 /* ---------------- the ROM word ----------------
@@ -566,7 +389,7 @@ export class Engine {
     // src: the voice at full resolution (synthesized or user); roms: its quantized ROM words, requantized in place
     this.src = []; this.roms = []; this.user = new Array(NV).fill(null);
     this.recData = new Uint8Array(NV);                                      // 1: the user sample is a recording of a real RX5 (opts.rec)
-    for (let v = 0; v < NV; v++){ this.src.push(makeVoiceSample(v, ROM_SR)); this.roms.push(new Float32Array(this.src[v].length)); }
+    for (let v = 0; v < NV; v++){ this.src.push(new Float32Array(0)); this.roms.push(new Float32Array(0)); }   // silent until loaded
     this.cur = []; this.old = []; this.lp1 = []; this.lp2 = []; this.hp = [];
     const fo = sr * this.K, fc = Math.min(12000, .45 * fo);
     for (let ch = 0; ch < NCH; ch++){
@@ -665,7 +488,7 @@ export class Engine {
     this.cut(v);
     const rec = !!(opts && opts.rec) && !!data && data.length >= 2;
     this.recData[v] = rec ? 1 : 0; this.voices[v].path = rec ? 'rec' : 'rx';
-    if (!data || data.length < 2){ this.user[v] = null; this.src[v] = makeVoiceSample(v, ROM_SR); }
+    if (!data || data.length < 2){ this.user[v] = null; this.src[v] = new Float32Array(0); }
     else {
       const n = Math.max(2, Math.floor((data.length - 1) * ROM_SR / sr) + 1), out = new Float32Array(n), step = sr / ROM_SR;
       for (let k = 0; k < n; k++){

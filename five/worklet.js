@@ -44,10 +44,10 @@ class FiveProcessor extends AudioWorkletProcessor {
   // a voice plays the user's sample when it has one, else its factory kit waveform
   sample(v, smp){
     const e = this.e;
-    if (smp && smp.data && smp.data.length > 1){ e.setUserSample(v, smp.data, smp.sr); return; }
+    if (smp && smp.data && smp.data.length > 1){ e.setUserSample(v, smp.data, smp.sr, smp.raw ? {rec:true, raw:true} : undefined); return; }
     const r = this.roms && this.roms[v];
     if (!r || !r.data) return;
-    if (e.loadRom) e.loadRom(v, r.data, r.sr); else e.setUserSample(v, r.data, r.sr, {rec:true});
+    if (e.loadRom) e.loadRom(v, r.data, r.sr); else e.setUserSample(v, r.data, r.sr, {rec:true, raw:true});
   }
   msg(m){
     const s = this.state, e = this.e, p = this.player;

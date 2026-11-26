@@ -24,13 +24,13 @@ const PAD_LBL = ['BD', 'SD', 'RIM', 'TOM 1', 'TOM 2', 'TOM 3', 'TOM 4', 'HI HAT'
 // printed legend: [x, [[header, menu id, [[text, item number] ...]] ...]]; an entry may be a list of [text, no] on one line
 const LEGEND = [
   [128, [['SONG', 'song', [['01 SEARCH MARK', 1]]], ['EDIT SONG', 'esong', [['01 SEARCH MARK', 1], ['02 SET MARK', 2], ['03 SONG NAME', 3], ['04 INITIAL TEMPO', 4]]]]],
-  [200, [['EDIT VOICE', 'voice', [['01 SELECT VOICE', 1], ['02 PITCH', 2], ['03 EG', 3.1], [[['( 1 AR', 3.1], [' 2 D1R', 3.2], [' 3 D1L', 3.3]]], [[['  4 D2R', 3.4], [' 5 RR', 3.5], [' 6 GT)', 3.6]]], ['04 BEND', 4.1], [[['( 1 RATE', 4.1], [' 2 RANGE)', 4.2]]]]]]],
+  [200, [['EDIT VOICE', 'voice', [['01 SELECT VOICE', 1], ['  WAVEFORM', 1.1], ['02 PITCH', 2], ['03 EG', 3.1], [[['( 1 AR', 3.1], [' 2 D1R', 3.2], [' 3 D1L', 3.3]]], [[['  4 D2R', 3.4], [' 5 RR', 3.5], [' 6 GT)', 3.6]]], ['04 BEND', 4.1], [[['( 1 RATE', 4.1], [' 2 RANGE)', 4.2]]]]]]],
   [292, [[' ', 'voice', [['05 VOICE LEVEL', 5], ['06 LOOP', 6], ['07 STORE VOICE', 7], ['08 INITIALIZE VOICE', 8], ['09 RECALL EDIT', 9], ['10 REVERSE', 10], ['11 LOAD WAV', 11], ['12 BITS', 12]]]]],
   [372, [['CHAIN', 'chain', [['01 PLAY', 1], ['02 EDIT', 2], ['03 CHAIN NAME', 3], ['04 CLEAR', 4]]]]],
   [430, [['UTILITY', 'util', [['01 REMAINING PATTERN', 1], ['02 REMAINING SONG', 2], ['03 MEMORY PROTECT', 3], ['04 CHANGE VOICE', 4], ['05 CLEAR ALL PATTERNS', 5], ['06 CLEAR ALL SONGS', 6]]]]],
   [521, [['KEY ASSIGN', 'key', [['01 VOICE ASSIGN', 1], ['02 PARAMETER ASSIGN(*)', 2.1], ['03 MULTI VOICE', 3], ['04 MULTI STEP(*)', 4], ['05 ACCENT LEVEL', 5.1], ['06 OUTPUT CH ASSIGN', 6]]]]],
   [612, [[' ', 'key', [['07 SAVE KEY DATA', 7], ['08 LOAD KEY DATA', 8], ['09 COPY VOICE', 9], [[['*1 PITCH', 2.1], [' 2 LEVEL', 2.2]]], [[['  3 ATTACK', 2.3], [' 4 DECAY', 2.4]]], ['10 PAN', 10], ['11 REV  12 DLY SEND', 11], ['13 PAD VELOCITY', 13]]]]],
-  [688, [['CASSETTE/CARTRIDGE', 'cart', [['01-04 SAVE SLOT', 1], ['11-14 LOAD SLOT', 11], ['21 SAVE FILE', 21], ['22 LOAD FILE', 22], ['23 LOAD WAV VOICE', 23], ['24 VOICE BANK', 24], ['30 FORMAT SLOT', 30]]]]],
+  [688, [['CASSETTE/CARTRIDGE', 'cart', [['01-04 SAVE SLOT', 1], ['11-14 LOAD SLOT', 11], ['21 SAVE FILE', 21], ['22 LOAD FILE', 22], ['23 LOAD WAV VOICE', 23], ['24 VOICE BANK', 24], ['25 LOAD KIT', 25], ['30 FORMAT SLOT', 30]]]]],
   [790, [['MIDI', 'midi', [['01 CH MESSAGE', 1], ['02 RECEIVE CH', 2], ['03 TRANSMIT CH', 3], ['04 NOTE NUMBER ASSIGN', 4.1], ['05 INITIALIZE NOTE', 5], ['06 EG VELOCITY', 6], ['07 GATE TIME', 7]]]]],
   [893, [[' ', 'midi', [['08 DEVICE NUMBER', 8], ['09 RECEIVE BULK', 9], ['10 TRANSMIT BULK', 10], ['11 CLOCK OUT', 11], ['12 NOTES OUT', 12], ['13 IN PORT', 13], ['14 OUT PORT', 14], ['15 SYX FILE', 15]]]]],
   [972, [['JOB', 'job', [['01 IMPORT MIDI', 1], ['02 EXPORT MIDI', 2], ['03 EXPORT WAV', 3], ['04 RANDOMIZE', 4], ['05 INIT ALL', 5]]]]],
@@ -131,7 +131,7 @@ function fit(){
 const SQ = await import('./seq.js');
 let ENG = {}; try { ENG = await import('./engine.js'); } catch (e) { console.warn('engine.js', e.message); }
 const opt = async f => { try { return await import(f); } catch (e) { return null; } };
-const RXS = await opt('./rxsysex.js'), RXC = await opt('./rxcart.js');
+const RXS = await opt('./rxsysex.js'), RXC = await opt('./rxcart.js'), KITS = await opt('./kits.js');
 const NCHAINS = SQ.NUM_CHAINS || 3;
 
 /* ================= small helpers ================= */
@@ -177,7 +177,7 @@ const NOTE_PRESETS = SQ.NOTE_PRESETS || {gm:SQ.MIDI_GM_NOTES, ...(RX5_NOTES ? {r
 /* ================= state ================= */
 let S = SQ.newState();
 // panel settings that are not part of the cartridge
-const U = {mode:'pattern', ptn:0, song:0, chain:0, voice:0, ch:0, pad:0, page:'ptn', menu:null, item:{}, songStep:0, chainStep:0, stepPos:0, stepVoice:0,
+const U = {wave:{}, mode:'pattern', ptn:0, song:0, chain:0, voice:0, ch:0, pad:0, page:'ptn', menu:null, item:{}, songStep:0, chainStep:0, stepPos:0, stepVoice:0,
   multi:{on:false, v:0, param:0}, padVel:0, protect:false, stored:{},
   midiIn:'all', midiOut:'', bulk:0, syx:0, rnd:0, exp:0, impAt:-1, slot:0, tunable:false};
 const IDB = (() => {
@@ -243,12 +243,42 @@ function parseWav(buf){
   }
   return {data:out, sr:fmt.sr};
 }
-let kitLoaded = false;
+let kitLoaded = false, FACTORY = [];   // FACTORY: the factory kit's waveforms (library for KEY ASSIGN / EDIT VOICE)
 const kitReady = (async () => {
-  const map = factoryMap();
-  const roms = await Promise.all(map.map(async f => { try { const r = await fetch('kit/' + f); if (!r.ok) throw new Error(r.status); return parseWav(await r.arrayBuffer()); } catch (e) { console.warn('kit', f, e.message); return null; } }));
+  const roms = new Array(24).fill(null);
+  try {
+    if (!KITS) throw new Error('kits.js missing');
+    const kit = await KITS.loadFactoryKit(p => fetch(p));
+    FACTORY = kit.waveforms.map(w => ({id:w.id, name:w.name, sr:w.sr, data:w.data, file:w.file}));
+    for (const x of kit.assignments){ const w = kit.waveforms[x.libIndex]; roms[x.v] = {data:w.data, sr:w.sr}; }
+  } catch (e) {
+    console.warn('factory kit via kits.js:', e.message);
+    const map = factoryMap();
+    await Promise.all(map.map(async (f, v) => { try { const r = await fetch('kit/' + f); if (!r.ok) throw new Error(r.status); roms[v] = parseWav(await r.arrayBuffer()); FACTORY.push({id:v, name:f.replace(/-RX5\.wav$/, ''), ...roms[v], file:f}); } catch (err) { console.warn('kit', f, err.message); } }));
+  }
+  // a voice can be given another factory waveform (EDIT VOICE 01 / KEY ASSIGN): U.wave[v] = library id
+  for (let v = 0; v < 24; v++){ const id = U.wave && U.wave[v]; const w = id != null && FACTORY.find(x => x.id === id); if (w) roms[v] = {data:w.data, sr:w.sr}; }
   kitLoaded = true; return roms;
 })();
+function setWave(v, id){
+  const w = FACTORY.find(x => x.id === id); if (!w) return;
+  (U.wave = U.wave || {})[v] = id; dirty();
+  kitReady.then(roms => { roms[v] = {data:w.data, sr:w.sr}; post({t:'roms', roms}); });
+}
+const waveName = v => { if (S.samples[v]) return 'USR ' + (S.samples[v].name || '').slice(0, 6); const id = U.wave && U.wave[v]; const w = id != null ? FACTORY.find(x => x.id === id) : null; return (w ? w.name : 'INT ' + vname(v)).slice(0, 10); };
+async function loadKitFiles(files){
+  if (!KITS) return flash('LOAD KIT', 'not available');
+  if (protectedMsg()) return;
+  flash('LOADING KIT', files.length + ' file(s)', 30000);
+  const list = await Promise.all([...files].map(async f => ({name:f.webkitRelativePath || f.name, bytes:new Uint8Array(await f.arrayBuffer())})));
+  const kit = await KITS.loadKit(list, {});
+  KITS.applyKit(null, S, kit);
+  allChanged();
+  const n = kit.assignments.length;
+  flash('KIT ' + n + ' VOICES', (kit.waveforms.length - n) + ' in library', 2600);
+  if (KITS.formatKitReport) console.log(KITS.formatKitReport(kit, VOICE_NAMES));
+  if (kit.report.warnings.length) toast(kit.report.warnings.slice(0, 3).join('; '), 6000);
+}
 
 /* ================= audio: the worklet ================= */
 let ctx = null, node = null, audioReady = null, pos = null, meter = {peak:[0, 0], ch:[], max:0};
@@ -361,6 +391,8 @@ const MENUS = {
   ],
   voice:[
     {no:1, name:'SELECT VOICE', ctx:vctx, l2:() => vname(U.voice) + (S.samples[U.voice] ? ' (USER)' : ' (INT)'), inc:d => { U.voice = (U.voice + d + 24) % 24; }, data:x => { U.voice = Math.round(x * 23); }, pad:padSelVoice},
+    {no:1.1, name:'WAVEFORM', ctx:vctx, pad:padSelVoice, l2:() => waveName(U.voice), inc:d => { if (!FACTORY.length) return; const cur = U.wave && U.wave[U.voice] != null ? U.wave[U.voice] : U.voice;
+      const i = FACTORY.findIndex(x => x.id === cur); setWave(U.voice, FACTORY[(Math.max(0, i) + d + FACTORY.length) % FACTORY.length].id); }},
     vItem(2, 'PITCH', 'pitch', ...RG('voice', 'pitch', [-3600, 2400]), {step:100, fine:10, fmt:fmtCents}),
     vItem(3.1, 'EG AR', 'ar', ...RG('voice', 'ar', [1, 99])), vItem(3.2, 'EG D1R', 'd1r', ...RG('voice', 'd1r', [0, 99])), vItem(3.3, 'EG D1L', 'd1l', ...RG('voice', 'd1l', [0, 60])),
     vItem(3.4, 'EG D2R', 'd2r', ...RG('voice', 'd2r', [0, 99])), vItem(3.5, 'EG RR', 'rr', ...RG('voice', 'rr', [1, 99])),
@@ -414,6 +446,7 @@ const MENUS = {
     actItem(21, 'SAVE FILE', () => saveCartFile(), {l2:() => 'YES: .o5cart'}),
     actItem(22, 'LOAD FILE', () => pickFile('.o5cart,.json,application/json,application/gzip', loadCartFile), {l2:() => 'YES: pick a file'}),
     actItem(23, 'LOAD WAV', () => pickFile('audio/*,.wav,.aif,.aiff', loadWav), {ctx:vctx, pad:padSelVoice, l2:() => 'YES: into voice'}),
+    actItem(25, 'LOAD KIT', () => pickFile('.zip,.bwpreset,.wav,.wave,.aif,.aiff,audio/*', null, loadKitFiles), {l2:() => 'YES: zip/wavs'}),
     {no:24, name:'VOICE BANK', l2:() => ['LOAD .bin', 'SAVE .bin'][U.bankDir | 0] + ' YES', noFn:() => { const d = 1; U.bankDir = (U.bankDir | 0) ? 0 : 1; }, yes:() => voiceBank(U.bankDir | 0)},
     {no:30, name:'FORMAT SLOT', l2:() => 'slot ' + (U.slot % 4 + 1) + ' NO/YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 4) % 4; }, yes:async () => { await IDB.del('cart' + U.slot % 4); slotCache[U.slot % 4] = null; flash('SLOT ' + (U.slot % 4 + 1), 'FORMATTED'); }},
   ],
@@ -750,7 +783,7 @@ function doRandom(){
 }
 
 /* ================= files ================= */
-function pickFile(accept, fn){ const i = $('#fileIn'); i.accept = accept; i.onchange = () => { const f = i.files[0]; i.value = ''; if (f) fn(f).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); toast(String(e.message || e), 5000); }); }; i.click(); }
+function pickFile(accept, fn, multi){ const i = $('#fileIn'); i.accept = accept; i.multiple = !!multi; i.onchange = () => { const all = [...i.files], f = all[0]; i.value = ''; if (multi && all.length) return multi(all).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); }); if (f) fn(f).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); toast(String(e.message || e), 5000); }); }; i.click(); }
 const stamp = () => { const d = new Date(); return d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()); };
 async function saveFile(bytes, name, mime){
   const blob = bytes instanceof Blob ? bytes : new Blob([bytes], {type:mime});

@@ -1,4 +1,4 @@
-// Omega Five sound engine: a line-for-line C++17 port of five/engine.js (24 circuit-modelled drum voices, the RX5-style
+// Omega Five sound engine: a line-for-line C++17 port of five/engine.js (24 sample voices through the RX5-style
 // 8/12-bit PCM playback path, a 12-channel mixer, a REV7-style reverb and a TC 2290-style delay).
 // Header only, no JUCE. Every DSP state is a double, outputs are float; the same operations in the same order as the
 // JS, so tools/compare.mjs can check this against engine.js sample by sample (build with -ffp-contract=off).
@@ -69,209 +69,11 @@ struct SVF {
     }
 };
 
-/* =====================================================================================================================
-   Voice models (engine.js genKick ... genCowbell)
-   ===================================================================================================================== */
-inline double sq(double ph) { return ph < .5 ? 1 : -1; }
-inline double wrap1(double ph) { return ph >= 1 ? ph - 1 : ph; }
+// No drum is synthesized (repo rule): every voice is a sample (the factory kit of real RX5 recordings, or the user's own)
+// loaded with setUserSample(); a voice without one is silent.
 
-struct GenP {   // the union of every model's parameters
-    double f0 = 0, f1 = 0, tp = 0, dec = 0, punch = 0, click = 0, clickF = 0, drive = 0, ph0 = 0;          // kick
-    double f2 = 0, d1 = 0, d2 = 0, m2 = 0, nf = 0, nq = 0, nhp = 0, nd = 0, body = 0, noise = 0;        // snare / rim
-    double f = 0, bend = 0, lp = 0;                                                                     // tom
-    double scale = 0, a = 0, nz = 0;                                                                    // hat
-    double fm[6] = {0, 0, 0, 0, 0, 0}, c = 0, q = 0, hpf = 0, hpm = 0; double bell[4][3] = {}; int nBell = 0;   // metal
-    double comb = 0, att = 0, tail = 0;                                                                 // tamb / shaker / claps
-};
-using GenFn = void (*)(std::vector<double>&, double, Rng&, const GenP&);
-
-inline void genKick(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF ck(sr, o.clickF, .7);
-    double ph = o.ph0;
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr, f = o.f0 + (o.f1 - o.f0) * std::exp(-t / o.tp);
-        const double env = std::exp(-t / o.dec) * (1 - o.punch + o.punch * std::exp(-t / .04));
-        ck.run((2 * R() - 1) * std::exp(-t / .0012));
-        const double x = std::sin(TWO_PI * ph) * env + o.click * ck.lp;
-        y[i] = std::tanh(o.drive * x);
-        ph = wrap1(ph + f / sr);
-    }
-}
-inline void genSnare(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF bp(sr, o.nf, o.nq), hp(sr, o.nhp, .7);
-    double p1 = 0, p2 = 0;
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr, b = 1 + .18 * std::exp(-t / .012);
-        const double head = std::sin(TWO_PI * p1) * std::exp(-t / o.d1) + o.m2 * std::sin(TWO_PI * p2) * std::exp(-t / o.d2);
-        p1 = wrap1(p1 + o.f1 * b / sr); p2 = wrap1(p2 + o.f2 * b / sr);
-        bp.run(2 * R() - 1); hp.run(bp.bp + .35 * bp.hp);
-        const double nenv = (1 - std::exp(-t / .0008)) * (std::exp(-t / o.nd) * .85 + .15 * std::exp(-t / (o.nd * 3)));
-        y[i] = std::tanh(1.3 * (o.body * head + o.noise * hp.hp * nenv));
-    }
-}
-inline void genRim(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF hp(sr, 2500, .7);
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr;
-        hp.run((2 * R() - 1) * std::exp(-t / .0015));
-        y[i] = std::sin(TWO_PI * o.f1 * t) * std::exp(-t / o.d1) + o.m2 * std::sin(TWO_PI * o.f2 * t) * std::exp(-t / o.d2) + o.click * hp.hp;
-    }
-}
-inline void genTom(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF ck(sr, 3500, .7), lp(sr, o.lp, .6);
-    double p1 = 0, p2 = 0;
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr, f = o.f * (1 + o.bend * std::exp(-t / .05));
-        ck.run((2 * R() - 1) * std::exp(-t / .0018));
-        const double x = std::sin(TWO_PI * p1) * std::exp(-t / o.dec) + .22 * std::sin(TWO_PI * p2) * std::exp(-t / (o.dec * .35)) + o.click * ck.lp;
-        p1 = wrap1(p1 + f / sr); p2 = wrap1(p2 + 1.58 * f / sr);
-        lp.run(std::tanh(1.2 * x));
-        y[i] = lp.lp;
-    }
-}
-static const double F808[6] = { 205.3, 304.4, 369.6, 522.7, 540, 800 };
-inline void genHat(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF b1(sr, 3440, 2.5), b2(sr, 7100, 2.5), hp(sr, 6000, .7), nh(sr, 7000, .7);
-    double ph[6]; for (double& p : ph) p = R();
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr;
-        double m = 0;
-        for (int k = 0; k < 6; k++) { m += sq(ph[k]); ph[k] = wrap1(ph[k] + F808[k] * o.scale / sr); }
-        b1.run(m / 6); b2.run(m / 6); hp.run(.5 * b1.bp + b2.bp); nh.run(2 * R() - 1);
-        const double env = (1 - std::exp(-t / .0004)) * (o.a * std::exp(-t / o.d1) + (1 - o.a) * std::exp(-t / o.d2));
-        y[i] = (hp.hp + o.nz * nh.hp) * env;
-    }
-}
-inline void genMetal(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF bp(sr, o.c, o.q), hp(sr, o.hpf, .7);
-    double ph[6]; for (double& p : ph) p = R();
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr;
-        const double m = (sq(ph[0]) * sq(ph[1]) + sq(ph[2]) * sq(ph[3]) + sq(ph[4]) * sq(ph[5])) / 3;
-        for (int k = 0; k < 6; k++) ph[k] = wrap1(ph[k] + o.fm[k] / sr);
-        bp.run(m * (1 - o.nz) + o.nz * (2 * R() - 1)); hp.run(bp.bp + o.hpm * bp.hp);
-        double x = hp.hp * (o.a * std::exp(-t / o.d1) + (1 - o.a) * std::exp(-t / o.d2));
-        for (int k = 0; k < o.nBell; k++) { const double* b = o.bell[k]; x += b[1] * std::sin(TWO_PI * b[0] * t) * std::exp(-t / b[2]); }
-        y[i] = o.drive != 0 ? std::tanh(o.drive * x) : x;
-    }
-}
-inline void genTamb(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    const int D = (int) std::max(1.0, jsround(sr / o.comb)); std::vector<double> cb((size_t) D, 0.0);
-    SVF bp(sr, 7500, 1.2), hp(sr, 4000, .7);
-    static const double T[5] = { 0, .009, .021, .037, .06 }, A[5] = { 1, .7, .85, .5, .35 }, J[5] = { 5300, 6150, 7420, 8900, 10200 };
-    int ci = 0;
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr;
-        double e = 0;
-        for (int k = 0; k < 5; k++) if (t >= T[k]) e += A[k] * std::exp(-(t - T[k]) / .022);
-        e *= std::exp(-t / o.dec);
-        const double c = (2 * R() - 1) * e + .55 * cb[(size_t) ci]; cb[(size_t) ci] = c; ci = ci + 1 >= D ? 0 : ci + 1;
-        bp.run(c); hp.run(bp.bp);
-        double j = 0; for (int k = 0; k < 5; k++) j += std::sin(TWO_PI * J[k] * t + k);
-        y[i] = hp.hp + .06 * j * e;
-    }
-}
-inline void genShaker(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF bp(sr, 6000, 1.1), hp(sr, 3500, .7); const double gd = std::exp(-1 / (.0015 * sr));
-    double g = 0;
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr, sw = t < o.att ? t / o.att : std::exp(-(t - o.att) / o.dec);
-        const double gg = g * gd;
-        double add = 0; if (R() < .02 * sw * 48000 / sr) add = .5 + R();
-        g = gg + add;
-        bp.run((2 * R() - 1) * (g + .15 * sw)); hp.run(bp.bp);
-        y[i] = hp.hp;
-    }
-}
-inline void genClaps(std::vector<double>& y, double sr, Rng& R, const GenP& o) {
-    SVF b1(sr, 1100, 1.6), b2(sr, 2400, 2);
-    static const double T[4] = { 0, .011, .021, .032 }, A[4] = { .8, .95, .85, 1 };
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr;
-        double e = 0;
-        for (int k = 0; k < 4; k++) if (t >= T[k]) e += A[k] * std::exp(-(t - T[k]) / .0045);
-        if (t >= T[3]) e += o.tail * std::exp(-(t - T[3]) / o.dec);
-        const double n = (2 * R() - 1) * e;
-        b1.run(n); b2.run(n);
-        y[i] = b1.bp + .35 * b2.bp;
-    }
-}
-inline void genCowbell(std::vector<double>& y, double sr, Rng& R, const GenP&) {
-    SVF bp(sr, 850, 1.4), hp(sr, 300, .7);
-    double p1 = R(); double p2 = R();
-    for (size_t i = 0; i < y.size(); i++) {
-        const double t = i / sr;
-        const double x = .5 * sq(p1) + .5 * sq(p2);
-        p1 = wrap1(p1 + 540 / sr); p2 = wrap1(p2 + 800 / sr);
-        bp.run(x); hp.run(bp.bp + .25 * bp.hp);
-        y[i] = hp.hp * (.65 * std::exp(-t / .012) + .35 * std::exp(-t / .11));
-    }
-}
-
-struct GenEntry { GenFn fn; GenP p; double len, trim; };
-inline GenP kickP(double f0, double f1, double tp, double dec, double punch, double click, double clickF, double drive, double ph0) {
-    GenP p; p.f0 = f0; p.f1 = f1; p.tp = tp; p.dec = dec; p.punch = punch; p.click = click; p.clickF = clickF; p.drive = drive; p.ph0 = ph0; return p; }
-inline GenP snareP(double f1, double f2, double d1, double d2, double m2, double nf, double nq, double nhp, double nd, double body, double noise) {
-    GenP p; p.f1 = f1; p.f2 = f2; p.d1 = d1; p.d2 = d2; p.m2 = m2; p.nf = nf; p.nq = nq; p.nhp = nhp; p.nd = nd; p.body = body; p.noise = noise; return p; }
-inline GenP rimP(double f1, double d1, double f2, double m2, double d2, double click) { GenP p; p.f1 = f1; p.d1 = d1; p.f2 = f2; p.m2 = m2; p.d2 = d2; p.click = click; return p; }
-inline GenP tomP(double f, double dec, double bend, double click, double lp) { GenP p; p.f = f; p.dec = dec; p.bend = bend; p.click = click; p.lp = lp; return p; }
-inline GenP hatP(double scale, double a, double d1, double d2, double nz) { GenP p; p.scale = scale; p.a = a; p.d1 = d1; p.d2 = d2; p.nz = nz; return p; }
-inline GenP metalP(std::array<double, 6> f, double c, double q, double hp, double hpm, double nz, double a, double d1, double d2, std::vector<std::array<double, 3>> bell, double drive) {
-    GenP p; for (int k = 0; k < 6; k++) p.fm[k] = f[(size_t) k];
-    p.c = c; p.q = q; p.hpf = hp; p.hpm = hpm; p.nz = nz; p.a = a; p.d1 = d1; p.d2 = d2; p.drive = drive;
-    p.nBell = (int) bell.size(); for (int k = 0; k < p.nBell; k++) for (int j = 0; j < 3; j++) p.bell[k][j] = bell[(size_t) k][(size_t) j];
-    return p; }
-inline GenP tambP(double comb, double dec) { GenP p; p.comb = comb; p.dec = dec; return p; }
-inline GenP shakerP(double att, double dec) { GenP p; p.att = att; p.dec = dec; return p; }
-inline GenP clapsP(double tail, double dec) { GenP p; p.tail = tail; p.dec = dec; return p; }
-
-inline const std::array<GenEntry, NV>& GEN() {
-    static const std::array<GenEntry, NV> g = {{
-        /* 0 BD 1   */ { genKick, kickP(52, 150, .032, .28, .3, .35, 3000, 1.6, .12), .6, .99 },
-        /* 1 SD 1   */ { genSnare, snareP(180, 330, .06, .04, .6, 3200, .7, 900, .13, .65, .75), .45, .99 },
-        /* 2 RIM 1  */ { genRim, rimP(1700, .012, 460, .45, .008, .6), .12, .95 },
-        /* 3 TOM 1A */ { genTom, tomP(225, .2, .35, .35, 9000), .7, .85 },
-        /* 4 TOM 2A */ { genTom, tomP(170, .23, .35, .33, 9000), .8, .85 },
-        /* 5 TOM 3A */ { genTom, tomP(128, .26, .35, .3, 9000), .9, .85 },
-        /* 6 TOM 4A */ { genTom, tomP(96, .3, .35, .28, 9000), 1, .85 },
-        /* 7 HH CLS */ { genHat, hatP(1, .75, .022, .07, .35), .18, .95 },
-        /* 8 RIDE   */ { genMetal, metalP({312, 457, 589, 733, 881, 1043}, 5200, 1.2, 3500, .4, .25, .35, .08, 1.1, {{2210, .05, .7}, {3460, .03, .5}}, 0), 2.4, .85 },
-        /* 9 CRASH  */ { genMetal, metalP({245, 383, 412, 597, 653, 919}, 6000, .8, 3000, .6, .55, .4, .12, .9, {}, 0), 2.5, .9 },
-        /*10 TAMB   */ { genTamb, tambP(5200, .12), .4, .85 },
-        /*11 SHAKER */ { genShaker, shakerP(.035, .06), .25, .99 },
-        /*12 BD 2   */ { genKick, kickP(46, 210, .022, .42, .2, .5, 4500, 2.6, .2), .75, .99 },
-        /*13 SD 2   */ { genSnare, snareP(205, 365, .05, .035, .5, 4500, .6, 1500, .2, .5, .9), .55, .99 },
-        /*14 RIM 2  */ { genRim, rimP(1250, .016, 560, .6, .012, .5), .15, .95 },
-        /*15 TOM 1B */ { genTom, tomP(205, .3, .45, .2, 2600), .9, .85 },
-        /*16 TOM 2B */ { genTom, tomP(155, .34, .45, .2, 2400), 1, .85 },
-        /*17 TOM 3B */ { genTom, tomP(116, .38, .45, .18, 2200), 1.1, .85 },
-        /*18 TOM 4B */ { genTom, tomP(86, .44, .45, .16, 2000), 1.2, .85 },
-        /*19 HH OPN */ { genHat, hatP(1, .3, .05, .38, .4), .9, .95 },
-        /*20 RIDE CP*/ { genMetal, metalP({402, 533, 687, 802, 1018, 1201}, 2600, 3, 1200, .3, .1, .3, .05, .8, {{802, .18, .6}, {1201, .14, .5}, {1874, .12, .45}, {2650, .08, .35}}, 0), 2, .9 },
-        /*21 CHINA  */ { genMetal, metalP({187, 271, 339, 488, 517, 703}, 3600, 1.5, 1500, .5, .35, .5, .07, .7, {}, 3), 2.2, .9 },
-        /*22 CLAPS  */ { genClaps, clapsP(.55, .11), .6, .95 },
-        /*23 COWBELL*/ { genCowbell, GenP(), .5, .9 },
-    }};
-    return g;
-}
-
-// DC blocker (12 Hz), raised-cosine fade over the last 20 %, peak scaled to the trim
-inline std::vector<float> finish(std::vector<double>& y, double sr, double trim) {
-    const size_t n = y.size(); OnePole hp; hp.hp(sr, 12); const size_t nf = (size_t) std::floor(n * .2);
-    for (size_t i = 0; i < n; i++) y[i] = hp.run(y[i]);
-    for (size_t k = 0; k < nf; k++) y[n - nf + k] *= .5 + .5 * std::cos(PI * (double) (k + 1) / (double) nf);
-    double pk = 0; for (size_t i = 0; i < n; i++) { const double a = std::fabs(y[i]); if (a > pk) pk = a; }
-    std::vector<float> out(n); const double s = pk > 0 ? trim / pk : 0;
-    for (size_t i = 0; i < n; i++) out[i] = (float) (y[i] * s);
-    return out;
-}
-inline std::vector<float> makeVoiceSample(int v, double sr = ROM_SR) {
-    const auto& g = GEN()[(size_t) v];
-    std::vector<double> y((size_t) std::max(2.0, jsround(g.len * sr)), 0.0);
-    Rng R((uint32_t) (0x5EED0000u + (uint32_t) v * 7919u));
-    g.fn(y, sr, R, g.p);
-    return finish(y, sr, g.trim);
-}
+// REC_EQ placeholder: engine.js's recEq() (undoes the playback droop for 'rec' voices) is mirrored here once it lands.
+inline std::vector<float> recEq(const std::vector<float>& x) { return x; }
 
 /* ---------------- the ROM word ---------------- */
 inline void quantizeRom(const std::vector<float>& x, int bits, bool floatMode, std::vector<float>& out) {
@@ -291,7 +93,7 @@ inline void quantizeRom(const std::vector<float>& x, int bits, bool floatMode, s
 enum VoiceParam { vPitch, vLevel, vAr, vD1r, vD1l, vD2r, vRr, vGate, vBendRate, vBendRange, vReverse, vLoop, vAcc1, vAcc2, vBits, vCount };
 static const char* const VOICE_PARAM_NAMES[vCount] = { "pitch", "level", "ar", "d1r", "d1l", "d2r", "rr", "gate", "bendRate", "bendRange", "reverse", "loop", "acc1", "acc2", "bits" };
 static const double VOICE_RANGES[vCount][2] = { {-3600, 2400}, {0, 31}, {1, 99}, {0, 99}, {0, 60}, {0, 99}, {1, 99}, {0, 6500}, {0, 60}, {-6000, 6000}, {0, 1}, {0, 1}, {-31, 31}, {-31, 31}, {8, 12} };
-struct VoiceParams { double v[vCount]; double& operator[](int i) { return v[i]; } double operator[](int i) const { return v[i]; } };
+struct VoiceParams { double v[vCount]; bool rec = false; double& operator[](int i) { return v[i]; } double operator[](int i) const { return v[i]; } };
 inline VoiceParams voiceDefault(int voice) {
     VoiceParams p; const double d[vCount] = { 0, 25, 99, 0, 60, 0, 45, 0, 0, 0, 0, 0, 2, 4, 12 };
     std::memcpy(p.v, d, sizeof d); if (voice == 19) p.v[vRr] = 70; return p;
@@ -333,9 +135,9 @@ struct Slot {
     bool active = false; int v = -1; const float* rom = nullptr; int len = 0; double pos = 0, inc = 0, baseInc = 0;
     double pitch = 0, bend = 0, bendT = 0, bendC = 0; bool rev = false, loop = false; double ll = 0;
     int stage = 0; double lvl = 0, atk = 0, L1 = 1, c1 = 1, c2 = 1, cr = 1; double gateN = 0, n = 0;
-    double gain = 0, fade = 1;
-    void start(int v_, const std::vector<float>& r, const VoiceParams& p, int vel, int acc) {
-        v = v_; rom = r.data(); len = (int) r.size(); pos = 0;
+    double gain = 0, fade = 1; bool rec = false;
+    void start(int v_, const std::vector<float>& r, const VoiceParams& p, int vel, int acc, bool rec_) {
+        v = v_; rom = r.data(); len = (int) r.size(); pos = 0; rec = rec_;
         rev = p[vReverse] >= .5; loop = p[vLoop] >= .5; ll = (len - 1) - std::floor(len * .7);
         baseInc = (double) ROM_SR / DAC_SR * std::pow(2.0, p[vPitch] / 1200); inc = baseInc;
         pitch = p[vPitch]; bend = 0; bendT = p[vBendRange];
@@ -583,7 +385,7 @@ constexpr int QMAX = 256;
 class Engine {
 public:
     double sr; bool dacFloat; int K; double dacInc, dacPh = 0; std::vector<uint8_t> tk;
-    std::vector<float> src[NV], roms[NV]; bool hasUser[NV] = {};
+    std::vector<float> src[NV], roms[NV]; bool hasUser[NV] = {}; uint8_t recData[NV] = {};
     std::vector<float> user[NV];
     Slot cur[NCH], old[NCH]; OnePole lp1[NCH]; Biquad lp2[NCH]; OnePole hp[NCH];
     double held[NCH] = {}; uint8_t on[NCH] = {}; double peak[NCH] = {};
@@ -599,8 +401,7 @@ public:
 
     explicit Engine(double sr_, bool floatDac = false) : sr(sr_ > 0 ? sr_ : 48000), dacFloat(floatDac), revFx(sr), dlyFx(sr) {
         K = (int) std::max(1.0, jsround(192000 / sr)); dacInc = DAC_SR / (sr * K); tk.assign((size_t) K, 0);
-        for (int v = 0; v < NV; v++) { src[v] = makeVoiceSample(v, ROM_SR); roms[v].assign(src[v].size(), 0.f); }
-        const double fo = sr * K, fc = std::min(12000.0, .45 * fo);
+                const double fo = sr * K, fc = std::min(12000.0, .45 * fo);
         for (int ch = 0; ch < NCH; ch++) { lp1[ch].lp(fo, fc); lp2[ch].set(Biquad::LP, fo, fc, 1); hp[ch].hp(sr, 8); }
         pkDec = std::exp(-1 / (.15 * sr));
         ckDec = std::exp(-1 / (.008 * sr));
@@ -634,7 +435,7 @@ public:
         if (type == 0) {
             const int ch = v % NCH; Slot& a = cur[ch]; Slot& b = old[ch];
             if (a.active) { b = a; b.fade = 1; }
-            a.start(v, roms[v], voices[v], qVel[k], qAcc[k]);
+            a.start(v, roms[v], voices[v], qVel[k], qAcc[k], isRec(v));
             on[ch] = 1;
         } else if (type == 1) {
             Slot& a = cur[v % NCH];
@@ -644,7 +445,9 @@ public:
             ckN = jsround(.03 * sr); ckPh = 0; ckW = TWO_PI * f / sr; ckEnv = 1; ckA = qAcc[k] ? 1 : .6;
         }
     }
-    void requant(int v) { quantizeRom(src[v], (int) voices[v][vBits], dacFloat, roms[v]); }
+    bool isRec(int v) const { return voices[v].rec && recData[v] == 1; }
+    void requant(int v) { if (isRec(v)) roms[v] = src[v]; else quantizeRom(src[v], (int) voices[v][vBits], dacFloat, roms[v]); }
+    void setPath(int v, bool rec) { if (v < 0 || v >= NV) return; if (rec != voices[v].rec) { voices[v].rec = rec; cut(v); requant(v); } }
     void cut(int v) { const int ch = v % NCH; if (cur[ch].v == v) cur[ch].active = false; if (old[ch].v == v) old[ch].active = false; }
     void setVoiceParam(int v, int k, double value) {
         if (k < 0 || k >= vCount || v < 0 || v >= NV || !std::isfinite(value)) return;
@@ -667,22 +470,21 @@ public:
     void setVolume(double v) { if (std::isfinite(v)) volume = clampd(v, 0, 1); mixMaster(); }
     void setClick(double v) { if (std::isfinite(v)) click = clampd(v, 0, 1); mixMaster(); }
     // user sample: linear resample to ROM_SR, quantized like the factory ROM; empty restores the synthesized voice (not real-time)
-    void setUserSample(int v, const float* data, size_t length, double ssr) {
+    void setUserSample(int v, const float* data, size_t length, double ssr, bool rec = false) {
         if (v < 0 || v >= NV) return;
         cut(v);
-        if (!data || length < 2) { hasUser[v] = false; user[v].clear(); src[v] = makeVoiceSample(v, ROM_SR); }
+        rec = rec && data && length >= 2; recData[v] = rec ? 1 : 0; voices[v].rec = rec;
+        if (!data || length < 2) { hasUser[v] = false; user[v].clear(); src[v].clear(); }
         else {
             const size_t n = (size_t) std::max(2.0, std::floor((length - 1) * (double) ROM_SR / ssr) + 1); std::vector<float> out(n); const double step = ssr / ROM_SR;
             for (size_t k = 0; k < n; k++) {
                 const double x = k * step, fi = std::floor(x); const size_t i = (size_t) fi; const double f = x - fi, a = data[i], b = i + 1 < length ? data[i + 1] : a;
                 out[k] = (float) clampd(a + (b - a) * f, -1, 1);
             }
-            user[v] = out; hasUser[v] = true; src[v] = out;
+            user[v] = out; hasUser[v] = true; src[v] = rec ? recEq(out) : out;
         }
         roms[v].assign(src[v].size(), 0.f); requant(v);
     }
-    // every voice on its synthesized circuit model (the reference renders use this; the plugin defaults to the factory kit)
-    void selectModels() {}
     double voiceActive(int ch) const { return std::min(1.0, peak[ch] * 2.5); }
 
     /* ---------------- audio ---------------- */
@@ -699,7 +501,7 @@ public:
         }
         held[ch] = h;
         const double u = hp[ch].run(y) / OUT_K, au = std::fabs(u);
-        const double o = OUT_K * u / std::pow(1 + au * au * std::sqrt(au), .4);
+        const double o = a.rec ? OUT_K * u : OUT_K * u / std::pow(1 + au * au * std::sqrt(au), .4);
         if (!a.active && !b.active && h == 0) {
             OnePole& hh = hp[ch];
             if (std::fabs(f1.x1) + std::fabs(f1.y1) + std::fabs(f2.z1) + std::fabs(f2.z2) + std::fabs(hh.x1) + std::fabs(hh.y1) < 1e-9) {
