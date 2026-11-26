@@ -65,7 +65,7 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
   repeating-linear-gradient(90deg, #0000 0 1.75px, var(--lcd) 1.75px 2.16px),
   repeating-linear-gradient(180deg, #0000 0 2px, var(--lcd) 2px 2.375px); opacity:.55; pointer-events:none}
 .lcdhit{top:400px; width:90px; height:46px; cursor:pointer}
-.legend{color:var(--print); font:400 7px/1.1 Arial, Helvetica, sans-serif; white-space:nowrap}
+.legend{color:var(--print); font:400 7px/1.1 var(--cond); white-space:nowrap}
 .legend b{display:block; font-weight:700; font-size:7.6px; line-height:1; letter-spacing:.1px}
 .legend .h{border-bottom:1px solid #d8d8d8; padding-bottom:1px; margin-bottom:1px}
 .legend u{display:block; text-decoration:none; cursor:pointer; border-radius:1px; padding:0 1px}
@@ -74,13 +74,14 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 /* ---- the rail (page keys), the pages and the loupe: hardware keys on a dark plate ---- */
 #rail{position:fixed; z-index:15; display:grid; gap:5px; padding:6px; box-sizing:border-box; background:linear-gradient(90deg, #3a2614, #5a3a1e 30%, #4a2f17 70%, #2e1d0e);
   box-shadow:inset 0 0 0 1px #000, inset 0 0 12px #0008}
-body.land #rail{grid-auto-rows:1fr; grid-template-columns:1fr; align-content:stretch}
+body.land #rail{grid-auto-rows:1fr; grid-template-columns:1fr; align-content:stretch; gap:4px; padding:5px 5px}
+body.land #rail .rk{min-height:20px}
 body.land #rail .fold{grid-column:1 / -1}
 body.port #rail{grid-template-columns:repeat(6, 1fr); grid-template-rows:1fr 1fr; background:linear-gradient(180deg, #2c2b29, #1d1c1a); border-radius:6px}
 #rail.mini{display:block; background:none; box-shadow:none; padding:0}
 #rail.mini > *:not(.fold){display:none}
 #rail.mini .fold{width:100%; height:100%}
-.rk{border-radius:3px; background:linear-gradient(180deg, #4a4a47, #2c2c2a 55%, #1c1c1b); color:#ececec; font:700 10px/1.05 Arial, sans-serif; letter-spacing:.2px;
+.rk{border-radius:3px; background:linear-gradient(180deg, #4a4a47, #2c2c2a 55%, #1c1c1b); color:#ececec; font:700 10px/1.05 var(--cond); letter-spacing:.2px; overflow:hidden; white-space:nowrap;
   box-shadow:0 0 0 1.5px #9a9a97, 0 0 0 2.5px #0a0a0a, 0 3px 3px #000a, inset 0 1px 0 #444; min-height:28px; padding:2px}
 .rk:active{transform:translateY(1px)}
 .rk.on{background:linear-gradient(180deg, #ff8a92, #ed6a7c 60%, #d23d4a); color:#1a0a0c; box-shadow:0 0 10px #ff304a99, 0 0 0 1.5px #9a9a97, 0 0 0 2.5px #0a0a0a}

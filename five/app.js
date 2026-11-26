@@ -79,6 +79,7 @@ function buildPanel(){
     }
     lg.appendChild(col);
   }
+  fitLegend(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitLegend);
   // lcd cells
   for (const r of [0, 1]){ const row = $('#lcd' + r); for (let i = 0; i < 16; i++) row.appendChild(el('i')); }
   // accent, function keys, keypad, transport
@@ -119,6 +120,17 @@ function magnify(col){
   mg.style.left = Math.round(Math.max(12, Math.min(W - w - 12, cx - w / 2))) + 'px';
   mg.style.top = Math.round(Math.max(12, Math.min(H - h - 12, 470 - h / 2))) + 'px';
 }
+// the printed legend in narrow columns: phones without the narrow font draw it wider, so each column is squeezed
+// sideways to the room it has before the next column (or the logo); lines then never run into each other
+function fitLegend(){
+  const cols = [...document.querySelectorAll('#legend > .legend')].sort((a, b) => parseFloat(a.style.left) - parseFloat(b.style.left));
+  cols.forEach((c, i) => {
+    c.style.transform = ''; c.style.transformOrigin = '0 0';
+    const left = parseFloat(c.style.left), next = i + 1 < cols.length ? parseFloat(cols[i + 1].style.left) : 1040;
+    const room = next - left - 3, w = Math.max(...[...c.querySelectorAll('b, u, em')].map(e => e.scrollWidth), c.scrollWidth);
+    if (w > room) c.style.transform = `scaleX(${(room / w).toFixed(3)})`;
+  });
+}
 function makeSlider(id, left, top, h){
   const s = el('div', 'slider', {left:left + 'px', top:top + 'px', height:h + 'px'});
   const cap = el('div', 'cap'); s.appendChild(cap);
@@ -134,7 +146,8 @@ function setSlider(id, v){ const s = sliders[id]; if (!s) return; s.v = Math.max
 let scale = 1, panelBox = {x:0, y:0, w:W, h:H};
 function fitPanel(x, y, w, h, align){
   // short landscape areas: the plain ribs above the sliders and the strip under the pad names are cropped
-  const crop = w / h > 1.5 && h < 800, top = crop ? 135 : 0, bot = crop ? 70 : 0, ph = H - top - bot;
+  // (down to just above the fader caps, so the machine reaches the top edge of the screen)
+  const crop = w / h > 1.4 && h < 800, top = crop ? 148 : 0, bot = crop ? 70 : 0, ph = H - top - bot;
   scale = Math.min(w / W, h / ph);
   const px = x + (w - W * scale) / 2, py = (align === 'top' ? y : y + (h - ph * scale) / 2) - top * scale;
   P().style.transform = `translate(${Math.round(px)}px, ${Math.round(py)}px) scale(${scale})`;
@@ -150,7 +163,8 @@ function fit(){
   rail.classList.remove('mini');
   if (land){
     // 11 keys: one column on tall screens, two on short ones (a phone on its side) so each key stays tappable
-    const two = vh / 11 < 38, rw = Math.round(two ? Math.max(120, Math.min(170, vw * .17)) : Math.max(78, Math.min(118, vw * .11)));
+    // 11 keys in one narrow column (the machine gets the width); two columns only on very short screens
+    const two = vh / 11 < 26, rw = Math.round(two ? Math.max(110, Math.min(140, vw * .14)) : Math.max(70, Math.min(96, vw * .085)));
     rail.style.gridTemplateColumns = two ? '1fr 1fr' : '1fr';
     place(rail, 0, 0, rw, vh);
     if (view === 'machine'){ $('#stage').style.display = ''; pv.style.display = 'none'; fitPanel(rw + 2, 0, vw - rw - 2, vh); }
