@@ -1,4 +1,4 @@
-// Omega Five as a plugin: the RX5-style drum machine (Five.h engine, FiveSeq.h sequencer) as an instrument with MIDI
+// RX5 as a plugin: the RX5-style drum machine (Five.h engine, FiveSeq.h sequencer) as an instrument with MIDI
 // in and out. MIDI in plays the voices through the note map (or Tunable Note mode), records in REAL TIME WRITE, takes
 // SysEx (bulk receive, Omega messages, identity) and, when synced to MIDI, clock / start / stop / SPP. MIDI out carries
 // the sequencer's and pads' notes (note off after the gate time), clock, start/stop and SysEx replies. With HOST SYNC
@@ -54,7 +54,7 @@ public:
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
-    const juce::String getProgramName(int) override { return "Omega Five"; }
+    const juce::String getProgramName(int) override { return "RX5"; }
     void changeProgramName(int, const juce::String&) override {}
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;

@@ -14,7 +14,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
-| Omega Five (RX5-style drum machine, also a standalone app) | instrument with MIDI in / out, 12 optional individual outputs |
+| RX5 (RX5-style drum machine, also a standalone app) | instrument with MIDI in / out, 12 optional individual outputs |
 
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
 
@@ -26,7 +26,7 @@ app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelv
 (C++ against the app's engine), `twelve_proc_test` (sampler, MIDI, exports, analysis, state), and `tools/hosttest` (`twelve_host_test`
 loads the built .vst3 like a DAW).
 
-Omega Five lives in `five/` (its own release: `.github/workflows/five-release.yml`, built with `-DOMEGA_ONLY=Five`). `Five.h` is the engine
+RX5 lives in `five/` (its own release: `.github/workflows/five-release.yml`, built with `-DOMEGA_ONLY=Five`). `Five.h` is the engine
 (a line-for-line port of `five/engine.js`), `FiveSeq.h` / `FiveSysex.h` / `FiveCart.h` the sequencer, SysEx and cartridge (ports of
 `seq.js`, `rxsysex.js`, `rxcart.js`), `FivePlugin` / `FiveEditor` the processor and the faceplate (the menus of `five/app.js`). The
 factory kit (`five/kit/*.wav` and the library table in `kit.json`) is compiled in. Tests: `five_test` + `node five/tools/compare.mjs`

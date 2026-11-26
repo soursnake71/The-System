@@ -1,4 +1,4 @@
-/* Omega Five: the AudioWorkletProcessor. Runs engine.js (voices, 12-bit path, effects) and the seq.js Player
+/* RX5: the AudioWorkletProcessor. Runs engine.js (voices, 12-bit path, effects) and the seq.js Player
    sample-accurately inside the audio thread. The main thread owns the state and posts changes; this posts back the
    play position, the pads that fired, meters (about 30 times a second) and MIDI out events with their frame times.
    Also used by the WAV export (OfflineAudioContext + processorOptions.render). */

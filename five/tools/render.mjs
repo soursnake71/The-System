@@ -1,4 +1,4 @@
-// Omega Five reference render: node five/tools/render.mjs <out> [scenario] [--wav]
+// RX5 reference render: node five/tools/render.mjs <out> [scenario] [--wav]
 //   Every engine first loads the factory kit (five/kit/FACTORY_MAP[v], 25 kHz 16-bit WAVs) with setUserSample(v, data, 25000, {rec:true}).
 //   scenario 'kit' (default): Engine at 48 kHz, default state, every voice 0..23 once, 0.25 s apart, mixed velocities and
 //     accents, REV program HALL1 on a few channels, TC delay on; 7 s. Output: raw float32 interleaved L/R (or WAV).

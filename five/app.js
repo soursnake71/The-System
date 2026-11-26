@@ -1,4 +1,4 @@
-/* Omega Five: faceplate, LCD menus, AudioWorklet host, MIDI, files. ES module. */
+/* RX5: faceplate, LCD menus, AudioWorklet host, MIDI, files. ES module. */
 const $ = s => document.querySelector(s);
 const P = () => $('#p');
 function el(tag, cls, css, html){ const e = document.createElement(tag); if (cls) e.className = cls; if (css) Object.assign(e.style, css); if (html != null) e.innerHTML = html; return e; }
@@ -344,7 +344,7 @@ async function cont(){ await audio(); post({t:'transport', cmd:'cont', ...playTa
 function damp(){ post({t:'damp'}); U.dampT = performance.now(); paintLeds(); setTimeout(paintLeds, 260); }
 
 /* ================= LCD ================= */
-let lcdText = [L16('OMEGA FIVE'), L16('')], lcdCur = -1, flashT = 0, flashTx = null;
+let lcdText = [L16('RX5'), L16('')], lcdCur = -1, flashT = 0, flashTx = null;
 function setLcd(a, b, cur = -1){
   a = L16(a); b = L16(b); lcdText = [a, b]; lcdCur = cur;
   for (const r of [0, 1]){ const cells = $('#lcd' + r).children, s = r ? b : a; for (let i = 0; i < 16; i++){ const c = cells[i]; if (c.textContent !== s[i]) c.textContent = s[i]; c.classList.toggle('cur', r === 1 && i === cur); } }
@@ -820,7 +820,7 @@ async function slotLoad(i){
   if (protectedMsg()) return;
   S = await SQ.loadCart(r.bytes); allChanged(); flash('LOADED', 'SLOT ' + (i + 1));
 }
-async function saveCartFile(){ flash('SAVING', 'cartridge'); await saveFile(await SQ.saveCart(S), 'omega-five-' + stamp() + '.o5cart', 'application/octet-stream'); }
+async function saveCartFile(){ flash('SAVING', 'cartridge'); await saveFile(await SQ.saveCart(S), 'rx5-' + stamp() + '.o5cart', 'application/octet-stream'); }
 async function loadCartFile(f){ if (protectedMsg()) return; S = await SQ.loadCart(await f.arrayBuffer()); allChanged(); flash('CART LOADED', f.name.slice(0, 16)); }
 async function decodeAudio(buf){
   const c = ctx || new OfflineAudioContext(1, 1, 44100);
@@ -839,7 +839,7 @@ async function voiceBank(save){
   try {
     if (save){
       const fn = RXC.buildBank || RXC.build || RXC.exportBank;
-      const bytes = await fn(S); await saveFile(bytes, 'omega-five-voices.bin', 'application/octet-stream');
+      const bytes = await fn(S); await saveFile(bytes, 'rx5-voices.bin', 'application/octet-stream');
     } else pickFile('.bin,.rx5,application/octet-stream', async f => {
       const fn = RXC.loadBank || RXC.parseBank || RXC.parse || RXC.importBank;
       const r = await fn(new Uint8Array(await f.arrayBuffer()), S, {voice:U.voice});
@@ -867,7 +867,7 @@ const expName = () => U.exp ? 'SONG ' + songL(U.song) : 'PTN ' + p2(U.ptn);
 async function exportMidi(){
   const what = U.exp ? 'song' : 'pattern', n = U.exp ? U.song : U.ptn;
   const bytes = SQ.exportSMF(S, {what, n});
-  await saveFile(bytes, 'omega-five-' + (U.exp ? 'song-' + songL(n) : 'ptn' + p2(n)) + '.mid', 'audio/midi');
+  await saveFile(bytes, 'rx5-' + (U.exp ? 'song-' + songL(n) : 'ptn' + p2(n)) + '.mid', 'audio/midi');
 }
 function renderState(){
   // a copy to render offline; a pattern is rendered as a one-step song so it plays once
@@ -906,7 +906,7 @@ async function exportWav(){
   try {
     flash('RENDERING', expName() + '...', 60000);
     const buf = await renderOffline();
-    await saveFile(encodeWav(buf), 'omega-five-' + (U.exp ? 'song-' + songL(U.song) : 'ptn' + p2(U.ptn)) + '.wav', 'audio/wav');
+    await saveFile(encodeWav(buf), 'rx5-' + (U.exp ? 'song-' + songL(U.song) : 'ptn' + p2(U.ptn)) + '.wav', 'audio/wav');
   } catch (e) { console.error(e); flash('RENDER ERROR', String(e.message || e).slice(0, 16)); }
 }
 window.__five.renderOffline = renderOffline;
@@ -1023,7 +1023,7 @@ function onMidi(d, ts){
     if (type === 0xB0){ if (d[1] === 7){ sset('volume', d[2] / 127); setSlider('VOLUME', S.volume); } else if (d[1] === 120 || d[1] === 123) damp(); }
   }
 }
-/* SysEx: Omega Five dumps and parameter changes, Yamaha-format bulk dumps kept byte-identical (rxsysex.js) */
+/* SysEx: RX5 dumps and parameter changes, Yamaha-format bulk dumps kept byte-identical (rxsysex.js) */
 const BULKS = ['ALL', 'PATTERN', 'SONG', 'VOICES', 'FX', 'RX5 DUMP'];
 const bulkName = () => [BULKS[0], 'PATTERN ' + p2(U.ptn), 'SONG ' + songL(U.song), 'VOICES', 'FX', 'RX5 DUMP'][U.bulk % BULKS.length];
 function bulkMessages(){
@@ -1046,7 +1046,7 @@ function transmitBulk(){
 async function saveSyx(){
   const msgs = bulkMessages(); if (!msgs.length) return flash('NO RX5 DUMP', 'receive one first');
   const out = RXS && RXS.writeSyx ? RXS.writeSyx(msgs) : msgs[0];
-  await saveFile(out, 'omega-five-' + ['all', 'ptn' + p2(U.ptn), 'song-' + songL(U.song), 'voices', 'fx', 'rx5'][U.bulk % BULKS.length] + '.syx', 'application/octet-stream');
+  await saveFile(out, 'rx5-' + ['all', 'ptn' + p2(U.ptn), 'song-' + songL(U.song), 'voices', 'fx', 'rx5'][U.bulk % BULKS.length] + '.syx', 'application/octet-stream');
 }
 async function loadSyx(f){
   const u8 = new Uint8Array(await f.arrayBuffer());

@@ -1,4 +1,4 @@
-// Omega Five plugin: the processor (see FivePlugin.h).
+// RX5 plugin: the processor (see FivePlugin.h).
 #include "FivePlugin.h"
 #include "FiveEditor.h"
 #include <BinaryData.h>
@@ -568,7 +568,7 @@ juce::String FiveProcessor::loadSyxFile(const juce::File& f) {
     juce::MemoryBlock mb; if (!f.loadFileAsData(mb)) return "can't read file";
     auto s = copyState(); const auto r = loadSyx(*s, (const uint8_t*) mb.getData(), mb.getSize());
     if (!r.errors.empty()) return juce::String(r.errors.front());
-    if (!r.omega && !r.yamaha) return "no Omega Five or RX5 data";
+    if (!r.omega && !r.yamaha) return "no RX5 or RX5 data";
     replaceState(std::move(s));
     return {};
 }

@@ -1,9 +1,11 @@
-# Omega Five — build spec (shared contract for every part)
+# RX5 — build spec (shared contract for every part)
 
 A 12-bit PCM digital rhythm programmer in the style of the late-80s Yamaha RX5 (the faceplate photo in the
 session is the layout reference). Web app in `five/`, Android APK flavor `five`, VST3/AU/Standalone plugin in
-`plugins/five/`. Product name **Omega Five** everywhere (no third-party logos; model names like "RX5", "REV7",
-"TC 2290" may appear only as "-style" descriptions in docs/presets). **Drums are never synthesized.** Every
+`plugins/five/`. Product name **RX5** everywhere (the owner's choice, replacing "Omega Five"; no third-party logos; other model
+names like "REV7", "TC 2290" appear only as "-style" descriptions in docs/presets). Internal identifiers keep the
+old name so saved data still loads: the cartridge format tag `omega-five-cart`, the app's IndexedDB / cache / worklet
+names, the SysEx identity string, and the plugin and Android IDs. **Drums are never synthesized.** Every
 voice is a sample: the factory kit is recordings of a real 1986 RX5 (`five/kit/`, 25 kHz, the hardware's native
 rate), played through a model of the RX5's 12-bit 25 kHz playback path and DAC. Users may load their own
 WAV/AIFF/kits into any voice ("voice cartridge"), converted to 25 kHz unless they choose to keep the rate.
@@ -22,8 +24,8 @@ WAV/AIFF/kits into any voice ("voice cartridge"), converted to 25 kHz unless the
 | `five/tools/render.mjs` | Renders reference WAV/float32 output from engine.js for the C++ comparison. |
 | `plugins/five/*` | JUCE plugin: `Five.h` (line-for-line C++ port of engine.js), `FiveSeq.h` / `FiveSysex.h` / `FiveCart.h` (ports of seq.js, rxsysex.js, rxcart.js), `FivePlugin.*` (processor), `FiveEditor.*` (the faceplate and app.js's menus), `test.cpp` (renders the same as render.mjs: `tools/compare.mjs`), `seqtest.cpp` (`tools/interop.mjs`), `proctest.cpp` (processor and panel). The factory kit (`kit/*.wav`, `kit.json` with the library table written by `tools/kit-json.mjs`) is compiled in. |
 | `five/tools/compare.mjs` | Runs `build/five_test` and render.mjs and checks max abs diff < 1e-4. |
-| `android/app/src/five/**` | `FiveActivity.java` (copy of TwelveActivity pattern: bundled assets, AndroidMidi bridge, save to Downloads/Omega Five), manifest, strings, icons. |
-| `.github/workflows/five-release.yml` | Windows/Mac/Linux plugins + installers, APK, release `omega-five`. |
+| `android/app/src/five/**` | `FiveActivity.java` (copy of TwelveActivity pattern: bundled assets, AndroidMidi bridge, save to Downloads/RX5), manifest, strings, icons. |
+| `.github/workflows/five-release.yml` | Windows/Mac/Linux plugins + installers, APK, release `rx5`. |
 
 Nobody commits; the coordinator commits.
 
@@ -139,7 +141,7 @@ faithful **librarian**, not a decoder:
   `F0 43 2n … F7` request), saved/loaded as `.syx` (`rxBulkToSyx`, `loadSyx`), kept in `.o5cart` and the full Omega dump.
   `yamahaChecksum`, `verifyYamahaChecksum(msg) → 'ok'|'bad'|'unknown-layout'` (layout `F0 43 0n ff bh bl data cs F7`);
   'bad' is shown as "checksum error!". `dumpRequest(deviceNo, formatByte)` = `F0 43 2n ff F7`, `ff` unverified for the RX5.
-- Omega Five messages `F0 7D 4F 35 <cmd> … cs F7` (cs = Yamaha checksum of cmd..data): 01 full cart, 02 pattern, 03 song,
+- RX5 messages `F0 7D 4F 35 <cmd> … cs F7` (cs = Yamaha checksum of cmd..data): 01 full cart, 02 pattern, 03 song,
   04 voice+channel params, 05 fx, 06 single parameter change, 07 dump request, 08 identity. The legacy seq.js
   `sysexDump` form (no cmd byte, packed JSON starts `00 7B`) is still emitted by `sysexDump` and accepted as cmd 01.
   Byte layouts are in the header comment of rxsysex.js.

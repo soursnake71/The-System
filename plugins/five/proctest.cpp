@@ -1,4 +1,4 @@
-// Drives the Omega Five processor and editor directly (linked with the plugin's code): the built-in factory kit, pads,
+// Drives the RX5 processor and editor directly (linked with the plugin's code): the built-in factory kit, pads,
 // MIDI in / out, the sequencer free running and following a host transport, SysEx replies, individual outputs, automation,
 // every file job (cartridge, MIDI, WAV, SysEx, RX5 bank, kit folder), the plugin state round trip, and the panel
 // (keys, menus, LCD) with a picture of it.

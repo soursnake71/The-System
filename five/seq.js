@@ -1,4 +1,4 @@
-// Omega Five — sequencer / data model (pure JS, no DOM). ES module.
+// RX5 — sequencer / data model (pure JS, no DOM). ES module.
 // Patterns, songs, chains, quantize/swing, step & real-time write, the sample-accurate Player,
 // randomize, cartridge files, SysEx bulk dump, SMF import/export.
 //
@@ -805,7 +805,7 @@ export function cartToJSON(state) {
 }
 /** Migrate older cart objects to CART_VERSION (stub: v0 = bare state object). */
 export function migrateCart(obj) {
-  if (!obj || typeof obj !== 'object') throw new Error('not an Omega Five cartridge');
+  if (!obj || typeof obj !== 'object') throw new Error('not an RX5 cartridge');
   if (obj.format !== 'omega-five-cart') obj = { format: 'omega-five-cart', version: 0, state: obj, samples: obj.samples || [] };
   if (obj.version > CART_VERSION) throw new Error('cartridge version ' + obj.version + ' is newer than this app');
   // future: if (obj.version < 2) { ...upgrade... }
@@ -927,7 +927,7 @@ export function sysexDump(state) {
  */
 export function parseSysex(bytes) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  for (let i = 0; i < SYSEX_HEADER.length; i++) if (u8[i] !== SYSEX_HEADER[i]) throw new Error('not an Omega Five SysEx dump');
+  for (let i = 0; i < SYSEX_HEADER.length; i++) if (u8[i] !== SYSEX_HEADER[i]) throw new Error('not an RX5 SysEx dump');
   if (u8[u8.length - 1] !== 0xF7) throw new Error('SysEx dump truncated (no F7)');
   const h = SYSEX_HEADER.length;
   if (u8[h] === 0x00 && u8[h + 1] === 0x7B) return cartFromJSON(JSON.parse(utf8decode(unpack7(u8.subarray(h, u8.length - 1)))));
@@ -937,7 +937,7 @@ export function parseSysex(bytes) {
     if (sum & 0x7F) throw new Error('checksum error!');
     return cartFromJSON(JSON.parse(utf8decode(unpack7(u8.subarray(h + 1, u8.length - 2)))));
   }
-  throw new Error('not an Omega Five full-memory dump (command ' + u8[h] + ')');
+  throw new Error('not an RX5 full-memory dump (command ' + u8[h] + ')');
 }
 
 // ---------------------------------------------------------------- SMF

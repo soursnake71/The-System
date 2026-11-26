@@ -1,4 +1,4 @@
-/* Omega Five sound engine: 24 sample voices (no drum synthesis: the factory voices are recordings of a real RX5, five/kit/,
+/* RX5 sound engine: 24 sample voices (no drum synthesis: the factory voices are recordings of a real RX5, five/kit/,
    loaded with setUserSample), the RX5-style 8/12-bit PCM playback path (EG, DAC, reconstruction filter, output stage),
    a 12-channel mixer, a REV7-style reverb and a TC 2290-style delay.
    Pure JS with no DOM, an ES module used by worklet.js, by Node tests (tools/test.mjs) and by tools/render.mjs, which

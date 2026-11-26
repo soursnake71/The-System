@@ -1,4 +1,4 @@
-// Omega Five sequencer / data model: a C++17 port of the parts of five/seq.js the plugin needs: the memory (patterns,
+// RX5 sequencer / data model: a C++17 port of the parts of five/seq.js the plugin needs: the memory (patterns,
 // songs, chains, key-assign set-ups, note map, MIDI settings, transport settings), editing (real-time / step write,
 // clear, copy, time signature, song and chain steps), the sample-accurate Player (same tick -> sample formula, plus a
 // host-transport follower), randomize (same xorshift32 draws as seq.js), SMF import / export and the MIDI helpers.

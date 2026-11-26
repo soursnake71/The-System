@@ -29,12 +29,12 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
-## Omega Five (`/five/`): 12-bit digital rhythm programmer
+## RX5 (`/five/`): 12-bit digital rhythm programmer
 An RX5-style drum machine. The voices are recordings of a real Yamaha RX5 (`five/kit/`, 25 kHz) played through a model of its 8/12-bit PCM playback path (EG, DAC, reconstruction filter, output stage), with a 12-channel mixer, a REV7-style reverb and a TC 2290-style delay. No drum is synthesized.
 - The faceplate with its LCD menus: 100 patterns, 20 songs, 3 chains, real-time and step write, swing, time signatures, key assign set-ups (per-key voice, pitch, level, accents, output channel), multi voice.
 - Your own sounds: a WAV per voice, a kit (folder, .zip, Bitwig Drum Machine preset) or an RX5 voice bank image; EDIT VOICE WAVEFORM picks any waveform of the library for a voice. All of it is saved in the cartridge file (.o5cart).
 - MIDI in and out (notes, clock, song position, SysEx bulk dumps, RX5 hardware dumps kept verbatim), MIDI file import / export, WAV export.
-- VST3 (and AU on Mac) plus a standalone app, Windows / Mac / Linux installers and the Android app: the `omega-five` release (`.github/workflows/five-release.yml`). The plugin follows the host transport (HOST SYNC), has 12 optional individual outputs and the same faceplate. Its engine (`plugins/five/Five.h`) renders the same samples as `five/engine.js` (`five/tools/compare.mjs`); its sequencer, SysEx and cartridge code match `seq.js`, `rxsysex.js` and `rxcart.js` (`five/tools/interop.mjs`).
+- VST3 (and AU on Mac) plus a standalone app, Windows / Mac / Linux installers and the Android app: the `rx5` release (`.github/workflows/five-release.yml`). The plugin follows the host transport (HOST SYNC), has 12 optional individual outputs and the same faceplate. Its engine (`plugins/five/Five.h`) renders the same samples as `five/engine.js` (`five/tools/compare.mjs`); its sequencer, SysEx and cartridge code match `seq.js`, `rxsysex.js` and `rxcart.js` (`five/tools/interop.mjs`).
 
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.

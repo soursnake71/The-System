@@ -1,4 +1,4 @@
-// Omega Five plugin editor: the faceplate of five/index.html drawn at its own size (1300 x 973) and scaled to the
+// RX5 plugin editor: the faceplate of five/index.html drawn at its own size (1300 x 973) and scaled to the
 // window (fixed aspect, resizable). Faders, the LCD with the same menus and pages as five/app.js (ACCENT 1 / 2 taps or
 // the LCD halves step through items, -1/NO and +1/YES change values or confirm, DATA sets them, the keypad types
 // numbers and quantize values, the printed legend opens a menu at that job), function keys, pads (velocity from

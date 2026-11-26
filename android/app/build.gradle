@@ -10,7 +10,7 @@ android {
     versionName '25.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator) and Omega Five (12-bit drum machine)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator) and RX5 (12-bit drum machine)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -63,7 +63,7 @@ tasks.register('copyTwelveWeb', Copy) {
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
 
-// Omega Five (drum machine) is bundled the same way: ../five without its tools into assets/five
+// RX5 (drum machine) is bundled the same way: ../five without its tools into assets/five
 def fiveAssets = layout.buildDirectory.dir('fiveAssets')
 tasks.register('copyFiveWeb', Copy) {
   from('../../five') { exclude 'tools/**', '*.md' }

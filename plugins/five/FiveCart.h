@@ -1,4 +1,4 @@
-// Omega Five cartridge files (*.o5cart) and the full-memory SysEx wrapper: the seq.js JSON layout
+// RX5 cartridge files (*.o5cart) and the full-memory SysEx wrapper: the seq.js JSON layout
 // {format:'omega-five-cart', version, state:{...}, samples:[null | {name, sr, length, pcm16 (base64 16-bit LE)}]},
 // plain or gzip, so the plugin reads what the web app writes and vice versa. Uses juce_core (JSON, gzip).
 #pragma once
@@ -283,7 +283,7 @@ inline juce::var cartToVar(const State& s) {
 }
 // throws std::runtime_error on a bad cart
 inline State cartFromVar(juce::var o) {
-    if (!o.isObject()) throw std::runtime_error("not an Omega Five cartridge");
+    if (!o.isObject()) throw std::runtime_error("not an RX5 cartridge");
     if (o["format"].toString() != "omega-five-cart") { auto w = obj(); put(w, "format", "omega-five-cart"); put(w, "version", 0); put(w, "state", o); put(w, "samples", o["samples"]); o = w; }
     if (getD(o, "version", 0) > CART_VERSION) throw std::runtime_error("cartridge version is newer than this plugin");
     State s = stateFromVar(o["state"]); samplesFromVar(o["samples"], s); libraryFromVar(o["library"], s);

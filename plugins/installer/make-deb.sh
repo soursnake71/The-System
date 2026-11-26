@@ -1,9 +1,10 @@
 #!/bin/bash
 # Omega Twelve (or another Omega app) package for Debian / Ubuntu: VST3s in /usr/lib/vst3, the standalone app in /usr/bin with a menu entry.
-# usage: make-deb.sh <folder with the built .vst3 bundles and the "<name>" binary> <version> <icon.png> <output.deb> [name] [summary] [description]
+# usage: make-deb.sh <folder with the built .vst3 bundles and the "<name>" binary> <version> <icon.png> <output.deb> [name] [summary] [description] [replaces]
+#   replaces: an older package name this one takes over (e.g. after a rename)
 #   name defaults to "Omega Twelve"; the package, binary and icon are named after it in lower case ("omega-twelve")
 set -euo pipefail
-src="$1"; ver="$2"; icon="$3"; out="$4"; name="${5:-Omega Twelve}"
+src="$1"; ver="$2"; icon="$3"; out="$4"; name="${5:-Omega Twelve}"; replaces="${8:-}"
 if [ "$name" = "Omega Twelve" ]; then
   summary="${6:-12-bit sampler emulator (SP-1200 circuit model)}"
   desc="${7:-VST3 effect and instrument plus a standalone app: the E-mu SP-1200 / SP-12 audio path
@@ -36,6 +37,7 @@ Depends: libasound2 | libasound2t64, libfreetype6, libfontconfig1, libx11-6, lib
 Description: $name $summary
  $desc
 CTRL
+if [ -n "$replaces" ]; then printf 'Replaces: %s\nConflicts: %s\nProvides: %s\n' "$replaces" "$replaces" "$replaces" >> "$root/DEBIAN/control"; fi
 find "$root" -type d -exec chmod 755 {} +
 dpkg-deb --root-owner-group --build "$root" "$out"
 echo "made $out"

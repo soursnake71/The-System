@@ -1,7 +1,7 @@
-# Omega Five (12-bit drum machine): installers for Windows (setup .exe), macOS (.pkg) and Linux (.deb), and the
-# Android APK, all attached to the "omega-five" release. Runs on main and on claude/* and ccr-* branches so builds
+# RX5 (12-bit drum machine): installers for Windows (setup .exe), macOS (.pkg) and Linux (.deb), and the
+# Android APK, all attached to the "rx5" release. Runs on main and on claude/* and ccr-* branches so builds
 # can be tried before merging.
-name: Omega Five release
+name: RX5 release
 on:
   push:
     branches: [main, 'claude/**', 'ccr-**']
@@ -48,33 +48,33 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          find build -path '*Release/VST3/*.vst3' -prune -name 'Omega Five.vst3' -exec cp -R {} out/ \;
-          find build -path '*Release/Standalone/*' -prune \( -name 'Omega Five' -o -name 'Omega Five.exe' -o -name 'Omega Five.app' \) -exec cp -R {} out/ \;
-          if [ "$RUNNER_OS" = macOS ]; then find build -path '*Release/AU/*.component' -prune -name 'Omega Five.component' -exec cp -R {} out/ \; ; fi
+          find build -path '*Release/VST3/*.vst3' -prune -name 'RX5.vst3' -exec cp -R {} out/ \;
+          find build -path '*Release/Standalone/*' -prune \( -name 'RX5' -o -name 'RX5.exe' -o -name 'RX5.app' \) -exec cp -R {} out/ \;
+          if [ "$RUNNER_OS" = macOS ]; then find build -path '*Release/AU/*.component' -prune -name 'RX5.component' -exec cp -R {} out/ \; ; fi
           ls -la out
       - name: Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBuildDir=$PWD\out" "/DAppVer=$env:VERSION" /O"$PWD" plugins\installer\five.iss
-          Get-ChildItem Omega-Five-Setup-Windows.exe
+          Get-ChildItem RX5-Setup-Windows.exe
       - name: Mac installer
         if: runner.os == 'macOS'
-        run: bash plugins/installer/make-pkg-mac.sh out "$VERSION" Omega-Five-Mac.pkg "Omega Five"
+        run: bash plugins/installer/make-pkg-mac.sh out "$VERSION" RX5-Mac.pkg "RX5"
       - name: Linux package
         if: runner.os == 'Linux'
         run: |
-          bash plugins/installer/make-deb.sh out "$VERSION" five/icon-512.png omega-five_amd64.deb "Omega Five" \
+          bash plugins/installer/make-deb.sh out "$VERSION" five/icon-512.png rx5_amd64.deb "RX5" \
             "12-bit digital rhythm programmer (drum machine)" \
-            "VST3 plugin plus a standalone app: an RX5-style 12-bit drum machine playing recordings of a real RX5 through a modelled 12-bit playback path, REV7-style reverb, 2290-style delay, patterns, songs, MIDI files and SysEx."
-          sudo dpkg -i omega-five_amd64.deb && ls /usr/lib/vst3
+            "VST3 plugin plus a standalone app: an RX5-style 12-bit drum machine playing recordings of a real RX5 through a modelled 12-bit playback path, REV7-style reverb, 2290-style delay, patterns, songs, MIDI files and SysEx." omega-five
+          sudo dpkg -i rx5_amd64.deb && ls /usr/lib/vst3
       - uses: actions/upload-artifact@v4
         with:
           name: five-${{ matrix.name }}
           path: |
-            Omega-Five-Setup-Windows.exe
-            Omega-Five-Mac.pkg
-            omega-five_amd64.deb
+            RX5-Setup-Windows.exe
+            RX5-Mac.pkg
+            rx5_amd64.deb
           if-no-files-found: error
   apk:
     runs-on: ubuntu-latest
@@ -89,9 +89,9 @@ jobs:
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           gradle -p android assembleFiveDebug --no-daemon
-          cp android/app/build/outputs/apk/five/debug/app-five-debug.apk omega-five.apk
+          cp android/app/build/outputs/apk/five/debug/app-five-debug.apk rx5.apk
       - uses: actions/upload-artifact@v4
-        with: {name: five-Android, path: omega-five.apk, if-no-files-found: error}
+        with: {name: five-Android, path: rx5.apk, if-no-files-found: error}
   publish:
     needs: [plugins, apk]
     # publish whatever built: a Mac runner that never starts shouldn't hold back the Windows, Linux and Android files
@@ -104,12 +104,12 @@ jobs:
         env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
         run: |
           ls -la dl
-          notes="Omega Five $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}).
+          notes="RX5 $VERSION (from ${GITHUB_REF_NAME}, ${GITHUB_SHA::7}).
 
-          - Windows: Omega-Five-Setup-Windows.exe installs the VST3 plugin into C:\\Program Files\\Common Files\\VST3 and the standalone app. Windows may warn about an unknown publisher: More info > Run anyway.
-          - Mac: Omega-Five-Mac.pkg installs VST3, Audio Unit and the app. It isn't notarized: right-click the .pkg > Open, or allow it in System Settings > Privacy & Security.
-          - Linux: sudo apt install ./omega-five_amd64.deb (VST3 in /usr/lib/vst3, app in the menu).
-          - Android: open omega-five.apk on the phone and allow installing from your browser or files app. Works offline, full screen in landscape; USB / Bluetooth MIDI in and out."
-          gh release view omega-five >/dev/null 2>&1 || gh release create omega-five --title "Omega Five (latest)" --notes "$notes" --target "$GITHUB_SHA"
-          gh release edit omega-five --notes "$notes"
-          gh release upload omega-five dl/* --clobber
+          - Windows: RX5-Setup-Windows.exe installs the VST3 plugin into C:\\Program Files\\Common Files\\VST3 and the standalone app. Windows may warn about an unknown publisher: More info > Run anyway.
+          - Mac: RX5-Mac.pkg installs VST3, Audio Unit and the app. It isn't notarized: right-click the .pkg > Open, or allow it in System Settings > Privacy & Security. It used to be called Omega Five: delete Omega Five.vst3 / .component / .app if you installed those.
+          - Linux: sudo apt install ./rx5_amd64.deb (VST3 in /usr/lib/vst3, app in the menu).
+          - Android: open rx5.apk on the phone and allow installing from your browser or files app. Works offline, full screen in landscape; USB / Bluetooth MIDI in and out."
+          gh release view rx5 >/dev/null 2>&1 || gh release create rx5 --title "RX5 (latest)" --notes "$notes" --target "$GITHUB_SHA"
+          gh release edit rx5 --notes "$notes"
+          gh release upload rx5 dl/* --clobber

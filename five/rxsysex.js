@@ -1,11 +1,11 @@
-// Omega Five — SysEx (pure JS, no DOM). ES module. Ported to plugins/five/FiveSysex.h.
+// RX5 — SysEx (pure JS, no DOM). ES module. Ported to plugins/five/FiveSysex.h.
 //
 // 1. Generic framing: SysexAssembler (incremental F0..F7 assembly from split MIDI packets), .syx parse/write.
 // 2. RX5 hardware bulk dumps (Yamaha F0 43 ...): the RX5's byte layout is NOT public (see RX5-MIDI-NOTES.md §0),
 //    so this is a faithful *librarian*: dumps from a real RX5 (MIDI Job #10) are stored verbatim in
 //    state.rxBulk and retransmitted byte-identical (TRANSMIT BULK), loaded/saved as .syx. Yamaha's usual checksum
 //    is checked where the message follows a common Yamaha layout ("checksum error!" like the hardware).
-// 3. Omega Five's own messages, F0 7D 4F 35 <cmd> ... (7D = non-commercial/educational ID):
+// 3. RX5's own messages, F0 7D 4F 35 <cmd> ... (7D = non-commercial/educational ID):
 //      (no cmd: legacy)  F0 7D 4F 35 <pack7 JSON cart> F7  = seq.sysexDump() — still accepted, same as cmd 01
 //      01 full cart      F0 7D 4F 35 01 <pack7 JSON cart> cs F7
 //      02 one pattern    F0 7D 4F 35 02 nn <pack7 JSON pattern> cs F7          nn = 0..99
@@ -244,7 +244,7 @@ export function omegaParam(p, value) {
  */
 export function parseOmega(msg) {
   const m = toU8(msg), h = SYSEX_HEADER.length;
-  if (!isOmega(m) || !isSysex(m)) return { cmd: 0, ok: false, error: 'not an Omega Five message' };
+  if (!isOmega(m) || !isSysex(m)) return { cmd: 0, ok: false, error: 'not an RX5 message' };
   try {
     if (m[h] === 0x00 && m[h + 1] === 0x7B) return { cmd: OMEGA.FULL, ok: true, legacy: true, data: fromJsonPayload(m.subarray(h, m.length - 1)) };
     const cmd = m[h];

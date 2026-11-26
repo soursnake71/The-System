@@ -1,4 +1,4 @@
-// Omega Five SysEx: a C++ port of five/rxsysex.js (assembler, .syx files, the Yamaha bulk-dump librarian, Omega Five's
+// RX5 SysEx: a C++ port of five/rxsysex.js (assembler, .syx files, the Yamaha bulk-dump librarian, RX5's
 // own F0 7D 4F 35 messages, universal identity reply, the dispatcher) and of five/rxcart.js's bank image reader/writer.
 #pragma once
 #include "FiveCart.h"
@@ -108,7 +108,7 @@ inline bool isIdentityRequest(const Bytes& m) { return m.size() == 6 && m[0] == 
 struct OmegaParsed { int cmd = 0; bool ok = false; std::string error; int n = 0; juce::var data; int target = 0, index = 0; std::string name; double value = 0; int what = 0; std::string identity; };
 inline OmegaParsed parseOmega(const Bytes& m) {
     OmegaParsed r; const size_t h = 4;
-    if (!isOmega(m) || !isSysex(m) || m.size() < 6) { r.error = "not an Omega Five message"; return r; }
+    if (!isOmega(m) || !isSysex(m) || m.size() < 6) { r.error = "not an RX5 message"; return r; }
     if (m[h] == 0x00 && m[h + 1] == 0x7B) { r.cmd = O_FULL; r.ok = true; r.data = fromJsonPayload(m.data() + h, m.size() - 1 - h); return r; }
     r.cmd = m[h];
     if (yamahaChecksum(m.data(), h, m.size() - 1) != 0) { r.error = "checksum error!"; return r; }

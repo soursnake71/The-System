@@ -1,4 +1,4 @@
-// Omega Five sound engine: a line-for-line C++17 port of five/engine.js (24 sample voices through the RX5-style
+// RX5 sound engine: a line-for-line C++17 port of five/engine.js (24 sample voices through the RX5-style
 // 8/12-bit PCM playback path, a 12-channel mixer, a REV7-style reverb and a TC 2290-style delay).
 // Header only, no JUCE. Every DSP state is a double, outputs are float; the same operations in the same order as the
 // JS, so tools/compare.mjs can check this against engine.js sample by sample (build with -ffp-contract=off).

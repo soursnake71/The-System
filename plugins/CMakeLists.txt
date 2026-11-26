@@ -141,7 +141,7 @@ if(TARGET OmegaTwelve)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 
-# Omega Five: the 12-bit digital rhythm programmer (five/ in the app). An instrument with MIDI in and out (sequencer
+# RX5: the 12-bit digital rhythm programmer (five/ in the app). An instrument with MIDI in and out (sequencer
 # notes, clock, SysEx), 12 optional individual outputs, plus a standalone app. The factory kit (five/kit/*.wav) is built in.
 set(FIVE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../five)
 set(FIVE_DEFS JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1 JUCE_USE_MP3AUDIOFORMAT=1)
@@ -151,7 +151,7 @@ if(NOT OMEGA_ONLY OR "Five" IN_LIST OMEGA_ONLY)
   juce_add_binary_data(FiveKit NAMESPACE FiveKitData SOURCES ${FIVE_KIT_FILES})
   set_target_properties(FiveKit PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
   juce_add_plugin(OmegaFive
-    PRODUCT_NAME "Omega Five"
+    PRODUCT_NAME "RX5"
     COMPANY_NAME "The Omega System"
     BUNDLE_ID "com.thesnakedevice.omega.Five"
     PLUGIN_MANUFACTURER_CODE Omga
@@ -172,7 +172,7 @@ if(NOT OMEGA_ONLY OR "Five" IN_LIST OMEGA_ONLY)
   # drives the processor and editor headless: <build>/five_proc_test <dir> (writes five/tools/shots/plugin.png when given that dir)
   juce_add_console_app(five_proc_test PRODUCT_NAME "five_proc_test")
   target_sources(five_proc_test PRIVATE five/proctest.cpp five/FivePlugin.cpp five/FiveEditor.cpp)
-  target_compile_definitions(five_proc_test PRIVATE ${FIVE_DEFS} JUCE_MODAL_LOOPS_PERMITTED=1 JucePlugin_Name="Omega Five" JucePlugin_IsSynth=1
+  target_compile_definitions(five_proc_test PRIVATE ${FIVE_DEFS} JUCE_MODAL_LOOPS_PERMITTED=1 JucePlugin_Name="RX5" JucePlugin_IsSynth=1
     JucePlugin_ProducesMidiOutput=1 JucePlugin_WantsMidiInput=1)
   target_compile_options(five_proc_test PRIVATE ${FIVE_FPFLAGS})
   target_link_libraries(five_proc_test PRIVATE FiveKit juce::juce_audio_utils juce::juce_recommended_config_flags)

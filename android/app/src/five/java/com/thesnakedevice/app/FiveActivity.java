@@ -41,11 +41,11 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Omega Five (drum machine) with the web app bundled inside (assets/five), so it works offline and needs no website.
+/** RX5 (drum machine) with the web app bundled inside (assets/five), so it works offline and needs no website.
  *  Android's WebView has no Web MIDI or file downloads, so this activity supplies them natively:
  *  - AndroidMidi: USB / Bluetooth MIDI devices through android.media.midi, shaped like Web MIDI by the shim in app.js
  *    (messages arrive as __o5Midi(id, [bytes]), device changes as __o5MidiChanged()),
- *  - AndroidFive.save: exports (cartridges, MIDI files, WAVs) go to Downloads/Omega Five.
+ *  - AndroidFive.save: exports (cartridges, MIDI files, WAVs) go to Downloads/RX5.
  *  The panel is wide, so it runs full screen (system bars hidden, swipe from an edge to show them) and prefers landscape. */
 public class FiveActivity extends Activity {
   static final String HOME = "https://appassets.androidplatform.net/assets/five/index.html";
@@ -133,12 +133,12 @@ public class FiveActivity extends Activity {
           ContentValues v = new ContentValues();
           v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
           v.put(MediaStore.Downloads.MIME_TYPE, mime);
-          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Omega Five");
+          v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/RX5");
           Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
           try (OutputStream o = getContentResolver().openOutputStream(u)) { o.write(data); }
-          return "Download/Omega Five/" + safe;
+          return "Download/RX5/" + safe;
         }
-        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Omega Five");
+        File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "RX5");
         dir.mkdirs();
         File f = new File(dir, safe);
         try (FileOutputStream o = new FileOutputStream(f)) { o.write(data); }

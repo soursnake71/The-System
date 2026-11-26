@@ -1,4 +1,4 @@
-// Headless check of Omega Five: load the .vst3 like a DAW, play its voices from MIDI (RX5 note map, channel 10), run the
+// Headless check of RX5: load the .vst3 like a DAW, play its voices from MIDI (RX5 note map, channel 10), run the
 // sequencer from a host transport (after a random pattern is sent in as an Omega SysEx dump), check the individual
 // outputs, round-trip its state and open its window. The processor itself is tested by plugins/five/proctest.cpp.
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -10,7 +10,7 @@ struct Head : juce::AudioPlayHead {
     juce::Optional<PositionInfo> getPosition() const override { PositionInfo p; p.setIsPlaying(playing); p.setPpqPosition(ppq); p.setBpm(bpm); return p; }
 };
 
-// usage: five_host_test <Omega Five.vst3>
+// usage: five_host_test <RX5.vst3>
 int main(int argc, char** argv) {
     juce::ScopedJuceInitialiser_GUI gui;
     if (argc < 2) return 2;

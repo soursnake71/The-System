@@ -1,4 +1,4 @@
-// Omega Five — RX5-style Waveform Data Cartridge bank I/O (pure JS, no DOM). ES module.
+// RX5 — RX5-style Waveform Data Cartridge bank I/O (pure JS, no DOM). ES module.
 //
 // Reads/writes the 128 KB (131072-byte) bank images of RX5 waveform cartridges, as dumped from a WRC ROM the user
 // owns or as used by RX5USB-style flash cartridges. Layout per RX5-MIDI-NOTES.md §6 (from gligli's RX5USB

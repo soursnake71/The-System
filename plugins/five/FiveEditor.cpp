@@ -1,4 +1,4 @@
-// Omega Five plugin editor (see FiveEditor.h). The menus and pages follow five/app.js item for item.
+// RX5 plugin editor (see FiveEditor.h). The menus and pages follow five/app.js item for item.
 #include "FiveEditor.h"
 
 namespace five {
@@ -234,7 +234,7 @@ void FivePanel::buildMenus() {
             chItem(10, "PAN", cPan, -1, 1, 1.0 / 7, fmtPan), chItem(11, "REV SEND", cSendRev, 0, 1, .01, pct), chItem(12, "DLY SEND", cSendDly, 0, 1, .01, pct), pv };
     }
     {
-        auto saveF = actItem(21, "SAVE FILE", [this] { pickFile("Save the cartridge", "*.o5cart", [this](const juce::File& f) { report("SAVED", proc.saveCartFile(f.withFileExtension("o5cart"))); }, true, "omega-five.o5cart"); },
+        auto saveF = actItem(21, "SAVE FILE", [this] { pickFile("Save the cartridge", "*.o5cart", [this](const juce::File& f) { report("SAVED", proc.saveCartFile(f.withFileExtension("o5cart"))); }, true, "rx5.o5cart"); },
                              [] { return juce::String("YES: .o5cart"); });
         auto loadF = actItem(22, "LOAD FILE", [this] { pickFile("Load a cartridge", "*.o5cart;*.json", [this](const juce::File& f) { report("LOADED", proc.loadCartFile(f)); }); }, [] { return juce::String("YES: pick a file"); });
         auto wav = actItem(23, "LOAD WAV", [this] { const int v = U.voice; pickFile("Load a sample into " + vname(v), "*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3", [this, v](const juce::File& f) { report("LOADED " + vname(v), proc.loadWavIntoVoice(f, v)); }); },
@@ -243,7 +243,7 @@ void FivePanel::buildMenus() {
         Item bank; bank.no = 24; bank.name = "VOICE BANK"; bank.l2 = [this] { return juce::String(U.n["bankDir"] ? "SAVE .bin" : "LOAD .bin") + " YES"; };
         bank.noFn = [this] { U.n["bankDir"] = U.n["bankDir"] ? 0 : 1; };
         bank.yes = [this] {
-            if (U.n["bankDir"]) pickFile("Save the voices as an RX5 bank", "*.bin", [this](const juce::File& f) { report("BANK SAVED", proc.saveBankFile(f.withFileExtension("bin"))); }, true, "omega-five-bank.bin");
+            if (U.n["bankDir"]) pickFile("Save the voices as an RX5 bank", "*.bin", [this](const juce::File& f) { report("BANK SAVED", proc.saveBankFile(f.withFileExtension("bin"))); }, true, "rx5-bank.bin");
             else pickFile("Load an RX5 voice bank", "*.bin;*.rom", [this](const juce::File& f) { report("BANK LOADED", proc.loadBankFile(f)); });
         };
         Item kit; kit.no = 25; kit.name = "LOAD KIT"; kit.l2 = [this] { return juce::String(U.n["kitZip"] ? "ZIP/WAV" : "FOLDER ") + " YES NO:<>"; };
@@ -279,7 +279,7 @@ void FivePanel::buildMenus() {
         syx.yes = [this] {
             const int w = U.n["syx"] % 5;
             if (!w) pickFile("Load a SysEx file", "*.syx", [this](const juce::File& f) { report("SYX LOADED", proc.loadSyxFile(f)); });
-            else pickFile("Save a SysEx file", "*.syx", [this, w](const juce::File& f) { report("SYX SAVED", proc.saveSyxFile(f.withFileExtension("syx"), w - 1)); }, true, "omega-five.syx");
+            else pickFile("Save a SysEx file", "*.syx", [this, w](const juce::File& f) { report("SYX SAVED", proc.saveSyxFile(f.withFileExtension("syx"), w - 1)); }, true, "rx5.syx");
         };
         auto mb = [this](bool MidiSettings::*f) { return [this, f] { return S().midi.*f ? 1 : 0; }; };
         auto ms = [this](bool MidiSettings::*f) { return [this, f](int x) { edit([&](State& s) { s.midi.*f = x != 0; }); }; };
@@ -302,9 +302,9 @@ void FivePanel::buildMenus() {
         imp.yes = [=] { const int at = impStart(), sn = U.song; pickFile("Import a MIDI file", "*.mid;*.midi;*.smf", [this, at, sn](const juce::File& f) { report("MIDI IMPORTED", proc.importMidiFile(f, at, sn)); }); };
         auto expName = [this] { return U.n["exp"] ? "SONG " + songL(U.song) : "PTN " + p2(U.ptn); };
         Item em; em.no = 2; em.name = "EXPORT MIDI"; em.l2 = [=] { return expName() + " YES"; }; em.noFn = [this] { U.n["exp"] = U.n["exp"] ? 0 : 1; };
-        em.yes = [this] { const bool sg = U.n["exp"] != 0; pickFile("Export a MIDI file", "*.mid", [this, sg](const juce::File& f) { report("MIDI EXPORTED", proc.exportMidiFile(f.withFileExtension("mid"), sg)); }, true, sg ? "omega-five-song.mid" : "omega-five-pattern.mid"); };
+        em.yes = [this] { const bool sg = U.n["exp"] != 0; pickFile("Export a MIDI file", "*.mid", [this, sg](const juce::File& f) { report("MIDI EXPORTED", proc.exportMidiFile(f.withFileExtension("mid"), sg)); }, true, sg ? "rx5-song.mid" : "rx5-pattern.mid"); };
         Item ew; ew.no = 3; ew.name = "EXPORT WAV"; ew.l2 = em.l2; ew.noFn = em.noFn;
-        ew.yes = [this] { const bool sg = U.n["exp"] != 0; pickFile("Export a WAV file", "*.wav", [this, sg](const juce::File& f) { report("WAV EXPORTED", proc.exportWav(f.withFileExtension("wav"), sg)); }, true, sg ? "omega-five-song.wav" : "omega-five-pattern.wav"); };
+        ew.yes = [this] { const bool sg = U.n["exp"] != 0; pickFile("Export a WAV file", "*.wav", [this, sg](const juce::File& f) { report("WAV EXPORTED", proc.exportWav(f.withFileExtension("wav"), sg)); }, true, sg ? "rx5-song.wav" : "rx5-pattern.wav"); };
         Item rnd; rnd.no = 4; rnd.name = "RANDOMIZE"; rnd.l2 = [this] { const int r = U.n["rnd"] % 4; return (r == 0 ? juce::String("ALL") : r == 1 ? "PATTERN " + p2(U.ptn) : r == 2 ? juce::String("VOICES") : juce::String("FX")) + " YES"; };
         rnd.noFn = [this] { U.n["rnd"] = (U.n["rnd"] + 1) % 4; }; rnd.yes = [this] { doRandom(); };
         menus["job"] = { imp, em, ew, rnd, actItem(5, "INIT ALL", [this] { if (protectedMsg()) return; proc.stop(); proc.initAll(); U.ptn = 0; U.song = 0; flash("MEMORY", "INITIALIZED"); }) };
@@ -793,7 +793,7 @@ static juce::Font font(float size, bool bold = false) { return juce::Font(juce::
 void FivePanel::paintLcdLines(juce::String& a, juce::String& b, int& cur) {
     cur = -1;
     if (U.flashUntil > nowMs()) { a = U.flash1; b = U.flash2; return; }
-    const auto r = page().lcd ? page().lcd() : juce::StringArray { "OMEGA FIVE", "" };
+    const auto r = page().lcd ? page().lcd() : juce::StringArray { "RX5", "" };
     a = r[0]; b = r[1]; if (r.size() > 2) cur = r[2].getIntValue();
 }
 juce::String FivePanel::lcdText() const {
@@ -883,7 +883,7 @@ void FivePanel::paint(juce::Graphics& g) {
             float y = 460;
             for (const auto& gr : col.second) {
                 g.setColour(C(0xffe9e9e6)); g.setFont(font(7.6f, true)); g.drawText(gr.head, (int) col.first, (int) y, 90, 9, juce::Justification::left);
-                if (juce::String(gr.head).trim().isNotEmpty()) { g.setColour(C(0xffd8d8d8)); g.fillRect(col.first, y + 9, 70.f, .8f); }
+                if (juce::String(gr.head).trim().isNotEmpty()) { g.setColour(C(0xffd8d8d8)); g.fillRect(col.first, y + 9, juce::jmin(70.f, 1040.f - col.first), .8f); }
                 y += 9; g.setFont(font(7));
                 for (const auto& l : gr.lines) {
                     const bool on = U.page == "menu" && U.menu == juce::String(gr.menu) && std::fabs(curItem().no - l.no) < 1e-6;
@@ -893,9 +893,8 @@ void FivePanel::paint(juce::Graphics& g) {
                 }
             }
         }
-        g.setColour(C(0xfff4f4f2)); g.setFont(juce::Font(juce::FontOptions(21, juce::Font::bold))); g.drawText("OMEGA", 1040, 462, 180, 22, juce::Justification::left);
-        g.setFont(font(6.9f)); g.drawText("DIGITAL RHYTHM PROGRAMMER", 1040, 486, 180, 8, juce::Justification::left);
-        juce::Path five; juce::GlyphArrangement ga; ga.addLineOfText(juce::Font(juce::FontOptions(34, juce::Font::bold | juce::Font::italic)), "FIVE", 1040, 524); ga.createPath(five);
+        g.setColour(C(0xfff4f4f2)); g.setFont(font(6.9f)); g.drawText("DIGITAL RHYTHM PROGRAMMER", 1046, 466, 180, 8, juce::Justification::left);
+        juce::Path five; juce::GlyphArrangement ga; ga.addLineOfText(juce::Font(juce::FontOptions(46, juce::Font::bold | juce::Font::italic)), "RX5", 1040, 516); ga.createPath(five);
         g.strokePath(five, juce::PathStrokeType(1.3f));
         // dice
         g.setGradientFill(juce::ColourGradient::vertical(C(0xffdcdcd8), 498, C(0xffb4a8a5), 518)); g.fillRoundedRectangle(1168, 498, 20, 20, 3);

@@ -1,4 +1,4 @@
-// Omega Five Node tests: node five/tools/test.mjs
+// RX5 Node tests: node five/tools/test.mjs
 // engineTests() (engine.js) and seqTests() (seq.js) live in this file; main() runs whichever exist.
 
 async function main() {

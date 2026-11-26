@@ -1,4 +1,4 @@
-// Omega Five: sample kits and the RX5-style waveform library (pure JS, no DOM). ES module for the browser and Node 22.
+// RX5: sample kits and the RX5-style waveform library (pure JS, no DOM). ES module for the browser and Node 22.
 //
 // What it does:
 //  * reads ZIP archives (also with data prepended, as in Bitwig .bwpreset files), WAV and AIFF/AIFC files;
