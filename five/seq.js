@@ -67,13 +67,14 @@ export function newChain(i = 0) {
 /**
  * Key-assign set-up ("key data", RX5 Key Assign jobs #01-#08). One entry per key A..X (0..23):
  * voice = voice index sounding at that key (hardware: Int/Cp/Crt voice), pitch = cents offset (-3600..+2400),
- * level = -31..31, attack/decay = -63..63 offsets, acc1/acc2 = accent boost in dB (engine default +3 / +6),
+ * level = -31..31, attack/decay = -63..63 offsets, acc1/acc2 = Accent 1/2 level offsets -31..31 in 1.5 dB voice-level
+ * steps (Key Assign #05; engine.js voice params acc1/acc2, default 2/4 = +3/+6 dB),
  * out = output channel 0..11. Plain data; the app/engine decide how to apply it.
  */
 export function newSetup(i = 0) {
   return {
     name: 'SETUP ' + (i + 1),
-    keys: Array.from({ length: NUM_VOICES }, (_, k) => ({ voice: k, pitch: 0, level: 0, attack: 0, decay: 0, acc1: 3, acc2: 6, out: k % NUM_CHANNELS })),
+    keys: Array.from({ length: NUM_VOICES }, (_, k) => ({ voice: k, pitch: 0, level: 0, attack: 0, decay: 0, acc1: 2, acc2: 4, out: k % NUM_CHANNELS })),
   };
 }
 function cleanSetup(src, i) {
@@ -85,7 +86,7 @@ function cleanSetup(src, i) {
     if (!o || typeof o !== 'object') return k;
     return { ...o, voice: clampInt(o.voice, 0, NUM_VOICES - 1, k.voice), pitch: clampInt(o.pitch, -3600, 2400, 0),
       level: clampInt(o.level, -31, 31, 0), attack: clampInt(o.attack, -63, 63, 0), decay: clampInt(o.decay, -63, 63, 0),
-      acc1: Number.isFinite(+o.acc1) ? +o.acc1 : 3, acc2: Number.isFinite(+o.acc2) ? +o.acc2 : 6, out: clampInt(o.out, 0, NUM_CHANNELS - 1, k.out) };
+      acc1: clampInt(o.acc1, -31, 31, 2), acc2: clampInt(o.acc2, -31, 31, 4), out: clampInt(o.out, 0, NUM_CHANNELS - 1, k.out) };
   });
   return d;
 }
@@ -586,13 +587,15 @@ function genPattern(R, g, name, { fill = false, crash = false, ride = false, swi
   return p;
 }
 
+// Bounds follow the RX5 Edit Voice ranges (= engine.js RANGES.voice): pitch -3600..2400 cents, level 0..31,
+// ar/rr 1..99, d1r/d2r 0..99, d1l 0..60 (60 = no drop), gate 0 (off) or 100..6500 ms, bendRate 0..60, bendRange +-6000.
 function randomVoice(R, v) {
   const metal = [7, 8, 9, 19, 20, 21].includes(v);
   return {
     pitch: Math.round(R.p(0.6) ? R.r(-150, 150) : R.r(-500, 500)),
-    level: R.i(22, 31), ar: R.i(90, 99), d1r: R.i(0, 70), d1l: R.i(60, 99), d2r: R.i(metal ? 20 : 30, 80), rr: R.i(30, 90),
-    gate: Math.round(R.r(50, metal ? 2000 : 800)), // ms
-    bendRate: R.p(0.25) ? R.i(10, 80) : 0, bendRange: R.p(0.25) ? Math.round(R.r(-1200, 600)) : 0,
+    level: R.i(22, 31), ar: R.i(90, 99), d1r: R.i(0, 70), d1l: R.i(36, 60), d2r: R.i(metal ? 20 : 30, 80), rr: R.i(30, 90),
+    gate: R.p(0.5) ? 0 : Math.round(R.r(100, metal ? 2000 : 800)), // ms; 0 = off (sound plays out)
+    bendRate: R.p(0.25) ? R.i(10, 60) : 0, bendRange: R.p(0.25) ? Math.round(R.r(-1200, 600)) : 0,
     reverse: R.p(0.06) ? 1 : 0, loop: R.p(0.04) ? 1 : 0,
   };
 }
