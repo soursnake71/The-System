@@ -153,6 +153,13 @@ if(NOT OMEGA_ONLY OR "Eight" IN_LIST OMEGA_ONLY)
   target_compile_definitions(OmegaEight PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(OmegaEight PRIVATE OmegaEightData juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+  # the editor headless (ZOOM loupe, the board): <build>/eight_ui_test <dir>
+  juce_add_console_app(eight_ui_test PRODUCT_NAME "eight_ui_test")
+  target_sources(eight_ui_test PRIVATE eight/uitest.cpp eight/EightPlugin.cpp eight/EightEditor.cpp)
+  target_compile_definitions(eight_ui_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=1 JucePlugin_Name="Omega 808" JucePlugin_IsSynth=1
+    JucePlugin_ProducesMidiOutput=1 JucePlugin_WantsMidiInput=1 JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
+  target_link_libraries(eight_ui_test PRIVATE OmegaEightData juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(eight_ui_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 
 # Omega 808's C++ engine (eight/Engine.h, Fx.h, Seq.h) against the app's JS: node eight/tools/compare.mjs <build>/eight_test <dir>

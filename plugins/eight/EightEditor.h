@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "EightPlugin.h"
+#include "../common/Loupe.h"
 
 namespace eight {
 
@@ -42,13 +43,14 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void refresh();
+    void zoomLit(bool on) { zoom.setToggleState(on, juce::dontSendNotification); zoom.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffe2581c)); }
 private:
     EightEditor& ed;
     juce::Image photo;
     juce::OwnedArray<PhotoKnob> knobs;
     juce::OwnedArray<HotSpot> spots;
     std::vector<juce::Rectangle<int>> knobRects, spotRects;   // in photo pixels (2000 x 1190)
-    juce::TextButton circuit {"CIRCUIT"}, sync {"SYNC HOST"}, pads {"PADS"};
+    juce::TextButton circuit {"CIRCUIT"}, sync {"SYNC HOST"}, pads {"PADS"}, zoom {"ZOOM"};
     juce::ComboBox presets;
     bool padMode = false;
     PhotoKnob* addKnob(int x, int y, int r);
@@ -62,11 +64,12 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void showPage(const juce::String& id);
+    void zoomLit(bool on) { zoom.setToggleState(on, juce::dontSendNotification); zoom.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffe2581c)); }
 private:
     EightEditor& ed;
     juce::String page = "BD";
     juce::OwnedArray<juce::TextButton> nav;
-    juce::TextButton stock {"STOCK ALL MODS"}, close {"CLOSE"};
+    juce::TextButton stock {"STOCK ALL MODS"}, close {"CLOSE"}, zoom {"ZOOM"};
     juce::OwnedArray<juce::Component> ctl;      // the open page's controls
     juce::OwnedArray<juce::Label> labels;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sAtt;
@@ -93,6 +96,7 @@ public:
     void resized() override;
     void paint(juce::Graphics&) override;
     void showBoard(bool on);
+    omega::Loupe loupe;                          // ZOOM: magnify any part of the window and use it there
     EightProcessor& proc;
 private:
     void timerCallback() override;

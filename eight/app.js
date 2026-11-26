@@ -299,10 +299,12 @@ function buildFace(){
   el('div', '', ctl).id = 'lcd';
   const fb = el('div', 'fbtns', ctl);
   for (const [lab, fn, id] of [['PRESETS', openPresets], ['PADS', () => { S.pads = !S.pads; renderAll(); }, 'bpads'], ['MIDI', () => window.EightMidi && EightMidi.openSettings ? EightMidi.openSettings() : toast('MIDI is not available here')],
-    ['EXPORT', () => $('#export').showModal()], ['CIRCUIT ▲', () => fold(true)]]){
+    ['EXPORT', () => $('#export').showModal()], ['CIRCUIT ▲', () => fold(true)], ['🔍 ZOOM', () => {}, 'bzoom']]){
     const b = el('button', 'fb', fb, lab); if (id) b.id = id;
     b.addEventListener('pointerdown', e => e.stopPropagation()); b.addEventListener('click', fn);
   }
+  // ZOOM (loupe.js): magnify any part of the panel (face or board) and use it there
+  if (window.OmegaLoupe) OmegaLoupe.attach({root:$('#panel'), button:$('#bzoom')});
   const hg = el('button', 'hinge', ctl, 'OPEN ▲'); hg.addEventListener('click', () => fold(true));
   swipe(hg, -1, () => fold(true));
   tileFace();

@@ -127,8 +127,9 @@ FaceView::FaceView(EightEditor& e) : ed(e) {
         };
     }
     // buttons in the blank space under the sound strips, as in the app
-    for (auto* b : {&circuit, &sync, &pads}) { addAndMakeVisible(b); b->setColour(juce::TextButton::buttonColourId, kCream); b->setColour(juce::TextButton::textColourOffId, juce::Colours::black); }
+    for (auto* b : {&circuit, &sync, &pads, &zoom}) { addAndMakeVisible(b); b->setColour(juce::TextButton::buttonColourId, kCream); b->setColour(juce::TextButton::textColourOffId, juce::Colours::black); }
     circuit.onClick = [this] { ed.showBoard(true); };
+    zoom.onClick = [this] { ed.loupe.toggle(); };
     sync.setClickingTogglesState(false);
     sync.onClick = [&P] { P.setParam("syncHost", P.getParam("syncHost") > 0.5f ? 0.f : 1.f); };
     pads.onClick = [this] { padMode = !padMode; pads.setToggleState(padMode, juce::dontSendNotification); repaint(); };
@@ -156,6 +157,7 @@ void FaceView::resized() {
     const int y = 628, h = 64;   // under the instrument strips, left of "Rhythm Composer"
     circuit.setBounds(toScreen({516, y, 120, h})); sync.setBounds(toScreen({644, y, 120, h})); pads.setBounds(toScreen({772, y, 90, h}));
     presets.setBounds(toScreen({870, y, 140, h}));
+    zoom.setBounds(toScreen({516, y + h + 8, 120, h}));
 }
 
 void FaceView::refresh() { for (auto* k : knobs) k->repaint(); for (auto* s : spots) s->repaint(); repaint(toScreen({300, 80, 680, 122})); }
@@ -198,8 +200,9 @@ BoardView::BoardView(EightEditor& e) : ed(e) {
         b->setColour(juce::TextButton::textColourOffId, kSilk); b->setColour(juce::TextButton::textColourOnId, juce::Colours::black);
         i++;
     }
-    for (auto* b : {&stock, &close}) { addAndMakeVisible(b); b->setColour(juce::TextButton::buttonColourId, kCream); b->setColour(juce::TextButton::textColourOffId, juce::Colours::black); }
+    for (auto* b : {&stock, &close, &zoom}) { addAndMakeVisible(b); b->setColour(juce::TextButton::buttonColourId, kCream); b->setColour(juce::TextButton::textColourOffId, juce::Colours::black); }
     close.onClick = [this] { ed.showBoard(false); };
+    zoom.onClick = [this] { ed.loupe.toggle(); };
     stock.onClick = [this] { for (auto& p : params()) if (juce::String(p.key).startsWith("mod.")) ed.proc.setParam(p.key, (float) p.def); };
     showPage("BD");
 }
@@ -273,7 +276,7 @@ void BoardView::showPage(const juce::String& id) {
 
 void BoardView::resized() {
     const int H = getHeight(), W = getWidth(), head = H / 12, nw = juce::jmax(60, W / 10), gap = 6;
-    close.setBounds(W - 130 - 10, 8, 130, head - 14); stock.setBounds(W - 300 - 20, 8, 170, head - 14);
+    close.setBounds(W - 130 - 10, 8, 130, head - 14); stock.setBounds(W - 300 - 20, 8, 170, head - 14); zoom.setBounds(W - 420 - 30, 8, 120, head - 14);
     const int half = 7, bh = (H - head - 16 - gap * (half - 1)) / half;
     for (int i = 0; i < nav.size(); i++) {
         const bool left = i < half; const int r = left ? i : i - half;
@@ -327,6 +330,9 @@ EightEditor::EightEditor(EightProcessor& p) : AudioProcessorEditor(p), proc(p), 
     lnf.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff0b1f12));
     setLookAndFeel(&lnf);
     addAndMakeVisible(face); addChildComponent(board);
+    addAndMakeVisible(loupe);
+    loupe.target = [this]() -> juce::Component* { return board.isVisible() ? (juce::Component*) &board : (juce::Component*) &face; };
+    loupe.onChange = [this](bool on) { face.zoomLit(on); board.zoomLit(on); };
     setResizable(true, true);
     setResizeLimits(600, 357, 2400, 1428);
     if (auto* c = getConstrainer()) c->setFixedAspectRatio((double) PW / PH);
@@ -335,8 +341,8 @@ EightEditor::EightEditor(EightProcessor& p) : AudioProcessorEditor(p), proc(p), 
 }
 EightEditor::~EightEditor() { setLookAndFeel(nullptr); }
 void EightEditor::paint(juce::Graphics& g) { g.fillAll(juce::Colours::black); }
-void EightEditor::resized() { face.setBounds(getLocalBounds()); board.setBounds(getLocalBounds()); }
-void EightEditor::showBoard(bool on) { board.setVisible(on); face.setVisible(!on); }
+void EightEditor::resized() { face.setBounds(getLocalBounds()); board.setBounds(getLocalBounds()); loupe.setBounds(getLocalBounds()); }
+void EightEditor::showBoard(bool on) { board.setVisible(on); face.setVisible(!on); loupe.setActive(loupe.isActive()); }
 void EightEditor::timerCallback() { if (face.isVisible()) face.refresh(); }
 
 }  // namespace eight
