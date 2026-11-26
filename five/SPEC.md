@@ -103,6 +103,13 @@ Default voice params: pitch 0, level 31, ar 99, d1r 0... (sensible per voice, de
 - Transport: play pattern / play song, tempo 40–250 BPM, start/stop/continue, int / MIDI / tape(=ext clock off) / ext sync flags.
 - `Seq.tick(fromTick, toTick) → events` and a `Player` class with `advance(nSamples, sr, bpm) → [{offset, v, vel, acc}]` +
   song position; this is what worklet.js and the C++ port use.
+  Details (seq.js is the reference): bar = `beats * 96/unit` ticks; swing delays odd grid steps by
+  `round(g * (2*swing/100 - 1))` ticks (applied at record time, stored in the event tick); pattern `volume[ch]` 0..31
+  and song `vol` steps scale vel (`round(vel*level/31)`, 0 = mute); `rep {from, count}` = steps `[from, rep)` play
+  `count` times in total; tick k fires at sample `ceil(k * sr*60/(bpm*24))` from start; clicks are
+  `{offset, v:-1, click:2 (downbeat)|1}`; SPP unit = 6 ticks. SMF export uses division 96 (ticks*4), note length 1/16;
+  import snaps any division to 24 PPQN. Accents round-trip via a sequencer-specific meta `FF 7F 06 7D 4F 35 note acc vel`
+  before the accented note-on (note-on velocity = `min(127, round(vel * [1, 1.413, 1.995][acc]))`).
 - **Randomize** (`randomize(state, seed, scope)`): scope `'all'` randomizes every voice param (musically bounded),
   fx programs/params, channel mix, and generates new patterns (genre-weighted kick/snare/hat probabilities, fills on
   last bar) and a song from them. Also `'pattern'`, `'voices'`, `'fx'`. Deterministic for a seed.
