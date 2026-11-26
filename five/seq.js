@@ -7,8 +7,12 @@
 export const PPQN = 24;
 export const NUM_PATTERNS = 100;
 export const NUM_SONGS = 20;
-export const NUM_CHAINS = 4;
-export const CHAIN_MAX = 99;
+export const NUM_CHAINS = 3;     // hardware: 3 chains (0-2) [OM p.30]
+// Chain length: the RX5 manual's overview says "up to 90 Steps" per chain but its spec page says
+// "3 CHAINS (MAX. LENGTH: 999 STEPS)" [OM p.30 vs p.70]. We allow the larger figure (999).
+export const CHAIN_MAX = 999;
+export const SONG_MAX = 999;     // parts per song (pattern/repeat/tempo/volume/mark) [OM p.20, p.70]
+export const NUM_SETUPS = 3;     // key-assign set-ups ("key data") [OM p.45, p.70]
 export const NUM_VOICES = 24;
 export const NUM_CHANNELS = 12;
 export const CART_VERSION = 1;
@@ -28,13 +32,23 @@ export const QUANTIZE = [
 export const QUANTIZE_KEYPAD = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 10 };
 export const Q_1_16 = 5;
 
-// Default note per voice (noteMap). GM-based; voices without a GM drum get a free GM percussion note.
+// Default note per voice (noteMap) = the RX5's MIDI Job #05 "Initialize Note" table [OM p.65], mapped to our
+// 24 voices (A set = the "1st" internal voices, B set = BD 2/SD 2/RIM 2/E.TOM 1-4/HH OPEN/...).
+// Our TOM 1B..4B are the hardware's E.TOM 1..4; our RIDE = the hardware's RIDE (EDGE), RIDE CP = RIDE (CUP).
+export const RX5_NOTES = [
+  45, 52, 51, 53, 50, 48, 47, 57, 63, 60, 58, 56, //  BD1 SD1 RIM1 TOM1A TOM2A TOM3A TOM4A HHCLS RIDE CRASH TAMB SHAKER
+  44, 49, 46, 43, 42, 41, 40, 59, 62, 61, 54, 55, //  BD2 SD2 RIM2 TOM1B TOM2B TOM3B TOM4B HHOPN RIDECP CHINA CLAPS COWBELL
+];
+// Alternative preset: GM-based; voices without a GM drum get a free GM percussion note. SMF export default.
 export const MIDI_GM_NOTES = [
   35, 38, 37, 50, 48, 45, 41, 42, 51, 49, 54, 70, //  BD1 SD1 RIM1 TOM1A TOM2A TOM3A TOM4A HHCLS RIDE CRASH TAMB SHAKER
   36, 40, 75, 65, 66, 47, 43, 46, 53, 52, 39, 56, //  BD2 SD2 RIM2 TOM1B TOM2B TOM3B TOM4B HHOPN RIDECP CHINA CLAPS COWBELL
 ];
-// Extra GM notes accepted on import / MIDI in (note -> voice) in addition to the inverted noteMap.
+export const NOTE_PRESETS = { rx5: RX5_NOTES, gm: MIDI_GM_NOTES };
+// Extra GM notes accepted (note -> voice) in addition to the inverted GM map (only when the GM map is in use).
 export const GM_EXTRA = { 44: 7, 57: 9, 82: 11 };
+// Tunable Note mode ("Note# asgn: PITCH"): notes 36..96 play one voice chromatically, 60 = original pitch [OM-CHART *1].
+export const TUNABLE_LO = 36, TUNABLE_HI = 96, TUNABLE_CENTER = 60;
 
 const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
 const clampInt = (x, lo, hi, d) => (Number.isFinite(+x) ? clamp(Math.round(+x), lo, hi) : d);
@@ -50,6 +64,48 @@ export function newSong(i = 0) {
 export function newChain(i = 0) {
   return { name: 'CHAIN ' + (i + 1), songs: [] };
 }
+/**
+ * Key-assign set-up ("key data", RX5 Key Assign jobs #01-#08). One entry per key A..X (0..23):
+ * voice = voice index sounding at that key (hardware: Int/Cp/Crt voice), pitch = cents offset (-3600..+2400),
+ * level = -31..31, attack/decay = -63..63 offsets, acc1/acc2 = accent boost in dB (engine default +3 / +6),
+ * out = output channel 0..11. Plain data; the app/engine decide how to apply it.
+ */
+export function newSetup(i = 0) {
+  return {
+    name: 'SETUP ' + (i + 1),
+    keys: Array.from({ length: NUM_VOICES }, (_, k) => ({ voice: k, pitch: 0, level: 0, attack: 0, decay: 0, acc1: 3, acc2: 6, out: k % NUM_CHANNELS })),
+  };
+}
+function cleanSetup(src, i) {
+  const d = newSetup(i);
+  if (!src || typeof src !== 'object') return d;
+  if (src.name !== undefined) d.name = String(src.name).slice(0, 16);
+  if (Array.isArray(src.keys)) d.keys = d.keys.map((k, j) => {
+    const o = src.keys[j];
+    if (!o || typeof o !== 'object') return k;
+    return { ...o, voice: clampInt(o.voice, 0, NUM_VOICES - 1, k.voice), pitch: clampInt(o.pitch, -3600, 2400, 0),
+      level: clampInt(o.level, -31, 31, 0), attack: clampInt(o.attack, -63, 63, 0), decay: clampInt(o.decay, -63, 63, 0),
+      acc1: Number.isFinite(+o.acc1) ? +o.acc1 : 3, acc2: Number.isFinite(+o.acc2) ? +o.acc2 : 6, out: clampInt(o.out, 0, NUM_CHANNELS - 1, k.out) };
+  });
+  return d;
+}
+
+/** MIDI settings defaults (hardware MIDI jobs #01-#10). */
+export function newMidi() {
+  return {
+    rxCh: 10, txCh: 10,           // 1..16 (Job #02 / #03)
+    voiceTxCh: new Array(NUM_VOICES).fill(0), // per-voice transmit channel (Job #03), 0 = use txCh
+    channelMsg: true,             // Job #01: note transmit/receive on/off
+    clockIn: false, clockOut: false, notesOut: false,
+    deviceNo: 1,                  // Job #08: 0 = OFF, 1..16 (SysEx device number)
+    tunable: false,               // Job #04: false = "VOICE" (note map), true = "PITCH" (Tunable Note)
+    tunableVoice: 0,              // voice played in Tunable Note mode (program change selects it)
+    egVel: 0,                     // Job #06: E.G. velocity sensitivity, 0 = OFF, 1..4
+    gateMs: 10,                   // Job #07: transmitted note length 10..1000 ms (factory default not legible; 10 ms assumed)
+    activeSense: true,            // Active Sensing in/out (FE) per the implementation chart
+    songSelect: true,             // Song Select (F3) in/out, 0..19
+  };
+}
 
 /** Fresh memory. voice/channel/fx hold opaque engine params (Engine.getState() pieces). */
 export function newState() {
@@ -58,8 +114,11 @@ export function newState() {
     patterns: Array.from({ length: NUM_PATTERNS }, (_, i) => newPattern(i)),
     songs: Array.from({ length: NUM_SONGS }, (_, i) => newSong(i)),
     chains: Array.from({ length: NUM_CHAINS }, (_, i) => newChain(i)),
-    noteMap: MIDI_GM_NOTES.slice(),
-    midi: { rxCh: 10, txCh: 10, clockIn: false, clockOut: false, notesOut: false, deviceNo: 1 },
+    noteMap: RX5_NOTES.slice(),
+    midi: newMidi(),
+    setups: Array.from({ length: NUM_SETUPS }, (_, i) => newSetup(i)),
+    setup: 0,               // current key-assign set-up 0..2
+    rxBulk: null,           // RX5 hardware bulk dump kept verbatim (rxsysex.js librarian): {received, messages:[base64], status}
     sync: 'int',            // 'int' | 'midi' | 'tape' | 'ext'
     tempo: 120,             // 40..250
     quantize: Q_1_16,       // index into QUANTIZE
@@ -188,9 +247,11 @@ function cleanStep(s) {
 /** Insert a step before index idx (idx >= length appends). 'rep' steps after idx have their `from` shifted. */
 export function songInsertStep(state, sn, idx, step) {
   const steps = state.songs[sn].steps;
+  if (steps.length >= SONG_MAX) return false;
   idx = clamp(idx | 0, 0, steps.length);
   for (let i = idx; i < steps.length; i++) if (steps[i].type === 'rep' && steps[i].from >= idx) steps[i].from++;
   steps.splice(idx, 0, cleanStep(step));
+  return true;
 }
 export function songDeleteStep(state, sn, idx) {
   const steps = state.songs[sn].steps;
@@ -201,7 +262,7 @@ export function songDeleteStep(state, sn, idx) {
 export function songSetStep(state, sn, idx, step) { state.songs[sn].steps[idx] = cleanStep(step); }
 export function setSongTempo(state, sn, bpm) { state.songs[sn].tempo = clamp(+bpm || 120, 40, 250); }
 
-/** Replace a chain's song list (max 99 entries). */
+/** Replace a chain's song list (max CHAIN_MAX entries). */
 export function chainSet(state, cn, songs) {
   state.chains[cn].songs = songs.slice(0, CHAIN_MAX).map((s) => clampInt(s, 0, NUM_SONGS - 1, 0));
 }
@@ -711,7 +772,7 @@ export function normalizeState(src = {}) {
     if (!g) return;
     const d = s.songs[i];
     d.name = String(g.name ?? d.name); d.tempo = clamp(+g.tempo || 120, 40, 250);
-    d.steps = (g.steps || []).flatMap((st) => { try { return [cleanStep(st)]; } catch { return []; } });
+    d.steps = (g.steps || []).slice(0, SONG_MAX).flatMap((st) => { try { return [cleanStep(st)]; } catch { return []; } });
   });
   (src.chains || []).slice(0, NUM_CHAINS).forEach((c, i) => {
     if (!c) return;
@@ -719,7 +780,18 @@ export function normalizeState(src = {}) {
     chainSet(s, i, c.songs || []);
   });
   if (Array.isArray(src.noteMap)) s.noteMap = s.noteMap.map((d, v) => clampInt(src.noteMap[v], 0, 127, d));
-  if (src.midi) Object.assign(s.midi, src.midi);
+  if (src.midi) {
+    Object.assign(s.midi, src.midi);
+    const m = s.midi;
+    m.deviceNo = clampInt(m.deviceNo, 0, 16, 1); m.rxCh = clampInt(m.rxCh, 1, 16, 10); m.txCh = clampInt(m.txCh, 1, 16, 10);
+    m.tunableVoice = clampInt(m.tunableVoice, 0, NUM_VOICES - 1, 0);
+    m.voiceTxCh = Array.from({ length: NUM_VOICES }, (_, v) => clampInt(Array.isArray(m.voiceTxCh) ? m.voiceTxCh[v] : 0, 0, 16, 0));
+  }
+  if (Array.isArray(src.setups)) s.setups = s.setups.map((d, i) => cleanSetup(src.setups[i], i));
+  if (src.setup !== undefined) s.setup = clampInt(src.setup, 0, NUM_SETUPS - 1, 0);
+  if (src.rxBulk && Array.isArray(src.rxBulk.messages)) {
+    s.rxBulk = { ...src.rxBulk, received: String(src.rxBulk.received || ''), messages: src.rxBulk.messages.map(String) };
+  }
   if (['int', 'midi', 'tape', 'ext'].includes(src.sync)) s.sync = src.sync;
   if (src.tempo) s.tempo = clamp(+src.tempo, 40, 250);
   if (src.quantize !== undefined) s.quantize = clampInt(src.quantize, 0, QUANTIZE.length - 1, Q_1_16);
@@ -778,11 +850,23 @@ export function sysexDump(state) {
   out.set(SYSEX_HEADER, 0); out.set(packed, SYSEX_HEADER.length); out[out.length - 1] = 0xF7;
   return out;
 }
+/**
+ * Parse a full-memory dump. Accepts the legacy form emitted by sysexDump (F0 7D 4F 35 <packed JSON> F7; the
+ * first packed bytes are 00 7B = MSB byte + '{') and the rxsysex.js command form F0 7D 4F 35 01 <packed JSON> cs F7.
+ */
 export function parseSysex(bytes) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   for (let i = 0; i < SYSEX_HEADER.length; i++) if (u8[i] !== SYSEX_HEADER[i]) throw new Error('not an Omega Five SysEx dump');
   if (u8[u8.length - 1] !== 0xF7) throw new Error('SysEx dump truncated (no F7)');
-  return cartFromJSON(JSON.parse(utf8decode(unpack7(u8.subarray(SYSEX_HEADER.length, u8.length - 1)))));
+  const h = SYSEX_HEADER.length;
+  if (u8[h] === 0x00 && u8[h + 1] === 0x7B) return cartFromJSON(JSON.parse(utf8decode(unpack7(u8.subarray(h, u8.length - 1)))));
+  if (u8[h] === 0x01) {
+    let sum = 0;
+    for (let i = h; i < u8.length - 1; i++) sum += u8[i];
+    if (sum & 0x7F) throw new Error('checksum error!');
+    return cartFromJSON(JSON.parse(utf8decode(unpack7(u8.subarray(h + 1, u8.length - 2)))));
+  }
+  throw new Error('not an Omega Five full-memory dump (command ' + u8[h] + ')');
 }
 
 // ---------------------------------------------------------------- SMF
@@ -791,11 +875,143 @@ const SMF_DIV = 96; // export division (DAW friendly); internal ticks * 4
 const ACC_GAIN = [1, 1.413, 1.995]; // +0 / +3 / +6 dB
 export const accentVel = (vel, acc) => Math.min(127, Math.round(vel * ACC_GAIN[acc | 0]));
 
-/** note -> voice map for import / MIDI in: inverted noteMap plus GM_EXTRA. */
-export function noteToVoiceMap(state) {
-  const m = new Map(Object.entries(GM_EXTRA).map(([n, v]) => [+n, v]));
-  for (let v = NUM_VOICES - 1; v >= 0; v--) m.set(state.noteMap[v], v); // noteMap wins; lowest voice wins on duplicates
+const sameMap = (a, b) => Array.isArray(a) && a.length === b.length && a.every((x, i) => x === b[i]);
+/** The note table for `which`: 'state' (state.noteMap) | 'rx5' | 'gm'. */
+export function noteMapFor(state, which = 'state') {
+  return which === 'rx5' ? RX5_NOTES : which === 'gm' ? MIDI_GM_NOTES : state.noteMap;
+}
+/**
+ * note -> voice map for import / MIDI in: inverted note table (lowest voice wins on duplicates), plus GM_EXTRA when
+ * the table is the GM preset. which: 'state' (default) | 'rx5' | 'gm'.
+ */
+export function noteToVoiceMap(state, which = 'state') {
+  const nm = noteMapFor(state, which);
+  const m = sameMap(nm, MIDI_GM_NOTES) ? new Map(Object.entries(GM_EXTRA).map(([n, v]) => [+n, v])) : new Map();
+  for (let v = NUM_VOICES - 1; v >= 0; v--) m.set(nm[v], v);
   return m;
+}
+
+// ---------------------------------------------------------------- MIDI in / out (shared by app and plugin)
+
+/** Note off as the RX5 sends it: 8n, velocity 64. ch = 1..16. */
+export const noteOffBytes = (ch, note) => [0x80 | ((ch - 1) & 15), note & 0x7F, 0x40];
+export const noteOnBytes = (ch, note, vel) => [0x90 | ((ch - 1) & 15), note & 0x7F, clamp(vel | 0, 1, 127)];
+export const songSelectBytes = (n) => [0xF3, clampInt(n, 0, NUM_SONGS - 1, 0)];
+export const ACTIVE_SENSE = 0xFE;
+export const ACTIVE_SENSE_MS = 300; // receiver timeout per the MIDI spec (send at least every 300 ms)
+
+/** Transmit channel (1..16) of voice v. */
+export function txChannel(state, v) {
+  const m = state.midi, c = m.voiceTxCh && m.voiceTxCh[v];
+  return c >= 1 && c <= 16 ? c : m.txCh;
+}
+
+/**
+ * MIDI bytes for one Player event (sequencer notes out). Returns [] for clicks, when notesOut/channelMsg is off.
+ * Otherwise [{bytes:[9n note vel], delayMs:0}, {bytes:[8n note 64], delayMs: midi.gateMs}]
+ * (vel includes the accent like SMF export). opts.force ignores notesOut.
+ */
+export function midiOutForEvent(state, ev, opts = {}) {
+  const m = state.midi;
+  if (!ev || ev.v < 0 || ev.v >= NUM_VOICES || ev.click) return [];
+  if ((!m.notesOut && !opts.force) || m.channelMsg === false) return [];
+  const ch = txChannel(state, ev.v), note = state.noteMap[ev.v];
+  return [
+    { bytes: noteOnBytes(ch, note, accentVel(ev.vel, ev.acc)), delayMs: 0 },
+    { bytes: noteOffBytes(ch, note), delayMs: clamp(+m.gateMs || 10, 10, 1000) },
+  ];
+}
+
+/** True if a SysEx message passes the device-number filter (Yamaha F0 43 sn and universal F0 7E/7F dd forms). */
+export function sysexDeviceOk(msg, deviceNo) {
+  if (!deviceNo) return true; // 0 = OFF: no filtering (see rxsysex.js for what is accepted)
+  if (msg[1] === 0x43) return (msg[2] & 0x0F) === ((deviceNo - 1) & 0x0F);
+  if (msg[1] === 0x7E || msg[1] === 0x7F) return msg[2] === 0x7F || msg[2] === ((deviceNo - 1) & 0x7F);
+  return true;
+}
+
+const DATA_LEN = { 0x80: 2, 0x90: 2, 0xA0: 2, 0xB0: 2, 0xC0: 1, 0xD0: 1, 0xE0: 2 };
+/**
+ * Decode incoming MIDI bytes (one or more complete messages; running status ok) into actions:
+ *  {type:'note', v, vel, pitch?}  (pitch = cents, Tunable Note mode only)   {type:'off', v}  (note off / vel 0)
+ *  {type:'start'|'stop'|'cont'|'clock'}  {type:'spp', n (MIDI beats = 16ths)}  {type:'song', n}  {type:'program', n}
+ *  {type:'sysex', bytes}  {type:'sense'}
+ * Notes: rxCh only, channelMsg on; VOICE mode = every voice whose noteMap entry equals the note (several voices
+ * may share a note, like the hardware); PITCH (tunable) mode = notes 36..96 play midi.tunableVoice at
+ * (note-60)*100 cents. Program change is recognized only in Tunable Note mode (app: tunableVoice = n % 24).
+ * Clock/start/stop/continue/SPP only when synced to MIDI (state.sync === 'midi', midi.clockIn, or player.ext).
+ * SysEx is returned only if it passes the device-number filter. `player` (optional) is only read, never changed.
+ */
+export function midiIn(state, player, bytes) {
+  const m = state.midi, out = [];
+  const u8 = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes || []);
+  const synced = state.sync === 'midi' || !!m.clockIn || !!(player && player.ext);
+  const realtime = (c) => {
+    const t = { 0xF8: 'clock', 0xFA: 'start', 0xFB: 'cont', 0xFC: 'stop' }[c];
+    if (t) { if (synced) out.push({ type: t }); } else if (c === 0xFE && m.activeSense !== false) out.push({ type: 'sense' });
+  };
+  let i = 0, status = 0;
+  while (i < u8.length) {
+    const b = u8[i];
+    if (b >= 0xF8) { realtime(b); i++; continue; } // realtime may appear anywhere
+    if (b === 0xF0) {
+      const msg = [0xF0];
+      let j = i + 1, done = false;
+      for (; j < u8.length; j++) {
+        const c = u8[j];
+        if (c >= 0xF8) { realtime(c); continue; }
+        if (c === 0xF7) { msg.push(c); done = true; j++; break; }
+        if (c & 0x80) break; // any other status byte aborts the SysEx
+        msg.push(c);
+      }
+      i = j; status = 0;
+      if (done && sysexDeviceOk(msg, m.deviceNo)) out.push({ type: 'sysex', bytes: Uint8Array.from(msg) });
+      continue;
+    }
+    if (b === 0xF2) { if (synced && i + 2 < u8.length) out.push({ type: 'spp', n: (u8[i + 1] & 0x7F) | ((u8[i + 2] & 0x7F) << 7) }); i += 3; status = 0; continue; }
+    if (b === 0xF3) { const n = u8[i + 1]; if (m.songSelect !== false && n < NUM_SONGS) out.push({ type: 'song', n }); i += 2; status = 0; continue; }
+    if (b >= 0xF1) { i += b === 0xF1 ? 2 : 1; status = 0; continue; } // F1 MTC qf, F4/F5/F6/F7: skip
+    if (b & 0x80) { status = b; i++; } else if (!status) { i++; continue; } // stray data byte
+    const hi = status & 0xF0, n = DATA_LEN[hi], d1 = u8[i], d2 = n === 2 ? u8[i + 1] : 0;
+    i += n;
+    if (d1 === undefined || (n === 2 && d2 === undefined)) break;
+    const ch = (status & 15) + 1;
+    if (ch !== m.rxCh || m.channelMsg === false) continue;
+    if (hi === 0xC0) { if (m.tunable) out.push({ type: 'program', n: d1 }); continue; }
+    if (hi !== 0x90 && hi !== 0x80) continue;
+    const on = hi === 0x90 && d2 > 0;
+    if (m.tunable) {
+      if (d1 < TUNABLE_LO || d1 > TUNABLE_HI) continue;
+      const v = clampInt(m.tunableVoice, 0, NUM_VOICES - 1, 0);
+      out.push(on ? { type: 'note', v, vel: d2, pitch: (d1 - TUNABLE_CENTER) * 100 } : { type: 'off', v });
+      continue;
+    }
+    let hit = false;
+    for (let v = 0; v < NUM_VOICES; v++) if (state.noteMap[v] === d1) { hit = true; out.push(on ? { type: 'note', v, vel: d2 } : { type: 'off', v }); }
+    if (!hit && sameMap(state.noteMap, MIDI_GM_NOTES) && GM_EXTRA[d1] !== undefined) {
+      const v = GM_EXTRA[d1];
+      out.push(on ? { type: 'note', v, vel: d2 } : { type: 'off', v });
+    }
+  }
+  return out;
+}
+
+/**
+ * Apply transport actions from midiIn to a Player (worklet/plugin side). Returns the sequencer events fired by
+ * 'clock' actions ({offset, v, vel, acc} like Player.advance). Song select switches the player to that song
+ * when it is in song mode.
+ */
+export function applyMidiActions(player, actions, offset = 0) {
+  const out = [];
+  for (const a of actions) {
+    if (a.type === 'clock') out.push(...player.clock24(offset));
+    else if (a.type === 'start') player.start();
+    else if (a.type === 'stop') player.stop();
+    else if (a.type === 'cont') player.cont();
+    else if (a.type === 'spp') player.spp(a.n);
+    else if (a.type === 'song' && player.mode === 'song') player.setMode('song', a.n);
+  }
+  return out;
 }
 
 function vlq(n, out) {
@@ -816,11 +1032,13 @@ function trackBytes(evs) { // evs: [{t, b:[bytes]}] sorted
 }
 
 /**
- * SMF export, format 1, division 96: track 0 = name/tempo/time signature, track 1 = drums on ch 10 (GM notes from noteMap).
+ * SMF export, format 1, division 96: track 0 = name/tempo/time signature, track 1 = drums on ch 10.
+ * opts.map: 'gm' (default, for DAWs) | 'rx5' (hardware Initialize Note table) | 'state' (current noteMap).
  * Note-on velocity includes the accent; a sequencer-specific meta FF 7F [7D 4F 35 note acc vel] before each
  * accented note keeps the raw vel/accent lossless for re-import.
  */
-export function exportSMF(state, { what = 'pattern', n = 0 } = {}) {
+export function exportSMF(state, { what = 'pattern', n = 0, map = 'gm' } = {}) {
+  const nm = noteMapFor(state, map);
   let flat;
   if (what === 'song') flat = flattenSong(state, n);
   else {
@@ -838,7 +1056,7 @@ export function exportSMF(state, { what = 'pattern', n = 0 } = {}) {
   const notes = [], seen = new Set();
   const evs = flat.events.slice().sort((a, b) => a.t - b.t || a.v - b.v);
   for (const e of evs) {
-    const note = state.noteMap[e.v], key = e.t + ':' + note;
+    const note = nm[e.v], key = e.t + ':' + note;
     if (seen.has(key)) continue;
     seen.add(key);
     notes.push({ t: e.t, note, e });
@@ -906,7 +1124,8 @@ export function parseSMF(buf) {
 
 /**
  * Import an SMF into state. opts: {channel: 'auto'|'any'|1..16 (auto = 10 if it has notes, else any),
- * startPattern = 0, songSlot = 0, quantize: QUANTIZE index (default none)}.
+ * startPattern = 0, songSlot = 0, quantize: QUANTIZE index (default none),
+ * map: 'auto' (default: whichever of GM / RX5 / current noteMap matches more notes; ties -> GM) | 'gm' | 'rx5' | 'state'}.
  * Splits into 1-bar patterns (identical bars share a pattern), builds a song with repeats, tempo steps, time signature.
  * Returns {patterns:[indices], song, tempo, report}.
  */
@@ -931,7 +1150,18 @@ export function importSMF(buf, opts = {}, maybeOpts) {
   }
   let chSel = opts.channel ?? 'auto';
   if (chSel === 'auto') chSel = notes.some((n) => n.ch === 10) ? 10 : 'any';
-  const map = noteToVoiceMap(state);
+  let mapName = opts.map || 'auto';
+  if (mapName === 'auto') {
+    const sel = notes.filter((x) => chSel === 'any' || x.ch === +chSel);
+    const cands = ['gm', 'rx5'];
+    if (!sameMap(state.noteMap, MIDI_GM_NOTES) && !sameMap(state.noteMap, RX5_NOTES)) cands.push('state');
+    let best = -1;
+    for (const c of cands) {
+      const mp = noteToVoiceMap(state, c), hits = sel.reduce((k, x) => k + (mp.has(x.note) ? 1 : 0), 0);
+      if (hits > best) { best = hits; mapName = c; }
+    }
+  }
+  const map = noteToVoiceMap(state, mapName);
   let otherCh = 0, unmapped = 0;
   const q = opts.quantize !== undefined && opts.quantize !== null ? opts.quantize : null;
   const evs = [];
@@ -1004,9 +1234,9 @@ export function importSMF(buf, opts = {}, maybeOpts) {
   state.songs[songSlot] = { name: (trackName || 'MIDI IMP').slice(0, 8), tempo: Math.round(tempo0 * 100) / 100, steps };
   const s0 = sigs[0] ? `${sigs[0].num}/${sigs[0].den}` : '4/4';
   const report = `SMF format ${smf.format}, ${smf.tracks.length} track(s), ${smf.division} tpq; ` +
-    `${evs.length} notes imported (channel ${chSel}), ${unmapped} unmapped, ${otherCh} on other channels; ` +
+    `${evs.length} notes imported (channel ${chSel}, ${mapName.toUpperCase()} map), ${unmapped} unmapped, ${otherCh} on other channels; ` +
     `${bars.length} bars -> ${used.length} patterns (${String(start).padStart(2, '0')}..), song ${songSlot}; ` +
     `tempo ${tempo0.toFixed(1)}${tempos.length > 1 ? ` (+${tempos.length - 1} changes)` : ''}, time sig ${s0}` +
     (dropped ? `; ${dropped} bars dropped (out of pattern memory)` : '');
-  return { patterns: used, song: songSlot, tempo: tempo0, report };
+  return { patterns: used, song: songSlot, tempo: tempo0, map: mapName, report };
 }
