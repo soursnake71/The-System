@@ -17,6 +17,7 @@
 //                        5 key of the current set-up (ii 0..23), 6 midi (state.midi[name]);
 //                        value = round(x*1000) as 35-bit two's complement, 7 bits per byte, MSB first
 //      07 dump request   F0 7D 4F 35 07 ww nn cs F7    ww = 01 full, 02 pattern nn, 03 song nn, 04 voices, 05 fx, 08 identity
+//    Omega messages and hardware dumps are refused over MIDI while the device number is OFF (0), like the RX5.
 //      08 identity       F0 7D 4F 35 08 00 01 00 00 <ASCII "OMEGA FIVE"> cs F7   (reply to 07 08)
 //    cs = Yamaha-style checksum (two's complement of the 7-bit sum) of every byte from <cmd> up to cs.
 // 4. Universal identity: F0 7E <dev|7F> 06 01 F7 -> F0 7E <dev> 06 02 7D 4F 35 00 05 00 01 00 00 F7.
@@ -111,8 +112,10 @@ export function yamahaChecksum(data, from = 0, to = data.length) {
   return (-s) & 0x7F;
 }
 export const isYamaha = (m) => !!m && m[0] === 0xF0 && m[1] === 0x43;
-/** Device-number filter for F0 43 sn (n = deviceNo-1); deviceNo 0 (OFF) accepts all. */
-export const yamahaDeviceOk = (m, deviceNo) => !deviceNo || (m[2] & 0x0F) === ((deviceNo - 1) & 0x0F);
+/** Device-number filter for F0 43 sn (n = deviceNo-1). deviceNo 0 (OFF) refuses everything, like the RX5. */
+export const yamahaDeviceOk = (m, deviceNo) => !!deviceNo && (m[2] & 0x0F) === ((deviceNo - 1) & 0x0F);
+/** Bulk I/O (receive, transmit, answering requests) is enabled only with a device number set (MIDI Job #08). */
+export const bulkEnabled = (state) => !!(state.midi && state.midi.deviceNo);
 
 /**
  * Inspect a Yamaha message: {device 1..16, subStatus (0 bulk, 1 param change, 2 dump request, ...), format,
@@ -353,6 +356,7 @@ export function handleSysex(state, msg, ctx = {}) {
     return { kind: 'identity', reply: [identityReply(deviceNo)], message: '' };
   }
   if (isOmega(m)) {
+    if (!deviceNo) return { kind: 'ignored', reply: [], message: 'device no. OFF' };
     const r = parseOmega(m);
     if (!r.ok) return { kind: 'omega', cmd: r.cmd, reply: [], error: r.error, message: r.error };
     if (r.cmd === OMEGA.REQUEST) return { kind: 'omega', cmd: r.cmd, reply: omegaReply(state, r.request), message: 'dump request' };
@@ -363,7 +367,7 @@ export function handleSysex(state, msg, ctx = {}) {
     } catch (e) { return { kind: 'omega', cmd: r.cmd, reply: [], error: e.message, message: e.message }; }
   }
   if (isYamaha(m)) {
-    if (!yamahaDeviceOk(m, deviceNo)) return { kind: 'ignored', reply: [], message: '' };
+    if (!yamahaDeviceOk(m, deviceNo)) return { kind: 'ignored', reply: [], message: deviceNo ? '' : 'device no. OFF' };
     if ((m[2] >> 4) === 2) {
       const reply = transmitBulk(state);
       return { kind: 'yamaha-request', reply, message: reply.length ? 'transmit bulk' : 'no bulk data' };
@@ -375,7 +379,7 @@ export function handleSysex(state, msg, ctx = {}) {
 }
 
 /**
- * Load a .syx file into state: Yamaha messages become the stored hardware dump (replacing state.rxBulk), Omega
+ * Load a .syx file into state (a file, not MIDI I/O: works with device number OFF): Yamaha messages become the stored hardware dump (replacing state.rxBulk), Omega
  * messages are applied in order. Returns {yamaha, omega, other, status, errors: []}.
  */
 export function loadSyx(state, bytes) {

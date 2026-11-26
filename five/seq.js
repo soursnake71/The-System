@@ -124,7 +124,9 @@ export function newMidi() {
     clockIn: false, clockOut: false, notesOut: false,
     deviceNo: 1,                  // Job #08: 0 = OFF, 1..16 (SysEx device number)
     tunable: false,               // Job #04: false = "VOICE" (note map), true = "PITCH" (Tunable Note)
-    tunableVoice: 0,              // voice played in Tunable Note mode (program change selects it)
+    tunableCh: Array.from({ length: 16 }, (_, c) => c === 0), // Job #02 in Tunable mode: each MIDI channel on/off
+    tunableVoices: new Array(16).fill(0), // Job #04 PITCH: one voice per receive channel (program change selects it)
+    tunableVoice: 0,              // legacy single-voice setting (used for channels missing from tunableVoices)
     egVel: 0,                     // Job #06: E.G. velocity sensitivity, 0 = OFF, 1..4
     gateMs: 10,                   // Job #07: transmitted note length 10..1000 ms (factory default not legible; 10 ms assumed)
     activeSense: true,            // Active Sensing in/out (FE) per the implementation chart
@@ -829,6 +831,9 @@ export function normalizeState(src = {}) {
     const m = s.midi;
     m.deviceNo = clampInt(m.deviceNo, 0, 16, 1); m.rxCh = clampInt(m.rxCh, 1, 16, 10); m.txCh = clampInt(m.txCh, 1, 16, 10);
     m.tunableVoice = clampInt(m.tunableVoice, 0, NUM_VOICES - 1, 0);
+    const tc = Array.isArray(src.midi.tunableCh) ? src.midi.tunableCh : null, tv = Array.isArray(src.midi.tunableVoices) ? src.midi.tunableVoices : null;
+    m.tunableCh = Array.from({ length: 16 }, (_, c) => (tc ? !!tc[c] : c === m.rxCh - 1));
+    m.tunableVoices = Array.from({ length: 16 }, (_, c) => clampInt(tv ? tv[c] : m.tunableVoice, 0, NUM_VOICES - 1, m.tunableVoice));
     m.voiceTxCh = Array.from({ length: NUM_VOICES }, (_, v) => clampInt(Array.isArray(m.voiceTxCh) ? m.voiceTxCh[v] : 0, 0, 16, 0));
   }
   if (Array.isArray(src.setups)) s.setups = s.setups.map((d, i) => cleanSetup(src.setups[i], i));
@@ -968,7 +973,9 @@ export function midiOutForEvent(state, ev, opts = {}) {
 
 /** True if a SysEx message passes the device-number filter (Yamaha F0 43 sn and universal F0 7E/7F dd forms). */
 export function sysexDeviceOk(msg, deviceNo) {
-  if (!deviceNo) return true; // 0 = OFF: no filtering (see rxsysex.js for what is accepted)
+  // 0 = OFF: like the RX5 (Job #08 "MUST be turned on prior to receiving or transmitting bulk data"), Yamaha
+  // bulk I/O is refused; universal messages only for the 7F broadcast ID; others (Omega) pass to rxsysex.js.
+  if (!deviceNo) return msg[1] === 0x43 ? false : msg[1] === 0x7E || msg[1] === 0x7F ? msg[2] === 0x7F : true;
   if (msg[1] === 0x43) return (msg[2] & 0x0F) === ((deviceNo - 1) & 0x0F);
   if (msg[1] === 0x7E || msg[1] === 0x7F) return msg[2] === 0x7F || msg[2] === ((deviceNo - 1) & 0x7F);
   return true;
@@ -982,7 +989,8 @@ const DATA_LEN = { 0x80: 2, 0x90: 2, 0xA0: 2, 0xB0: 2, 0xC0: 1, 0xD0: 1, 0xE0: 2
  *  {type:'sysex', bytes}  {type:'sense'}
  * Notes: rxCh only, channelMsg on; VOICE mode = every voice whose noteMap entry equals the note (several voices
  * may share a note, like the hardware); PITCH (tunable) mode = notes 36..96 play midi.tunableVoice at
- * (note-60)*100 cents. Program change is recognized only in Tunable Note mode (app: tunableVoice = n % 24).
+ * (note-60)*100 cents. Tunable mode listens on every channel switched on in midi.tunableCh, each playing
+ * midi.tunableVoices[ch-1] (actions carry ch). Program change only in Tunable mode (app: tunableVoices[ch-1] = n % 24).
  * Clock/start/stop/continue/SPP only when synced to MIDI (state.sync === 'midi', midi.clockIn, or player.ext).
  * SysEx is returned only if it passes the device-number filter. `player` (optional) is only read, never changed.
  */
@@ -1020,16 +1028,21 @@ export function midiIn(state, player, bytes) {
     i += n;
     if (d1 === undefined || (n === 2 && d2 === undefined)) break;
     const ch = (status & 15) + 1;
-    if (ch !== m.rxCh || m.channelMsg === false) continue;
-    if (hi === 0xC0) { if (m.tunable) out.push({ type: 'program', n: d1 }); continue; }
-    if (hi !== 0x90 && hi !== 0x80) continue;
-    const on = hi === 0x90 && d2 > 0;
+    if (m.channelMsg === false) continue;
     if (m.tunable) {
+      // Tunable Note mode: any channel switched on in tunableCh; each channel plays its own voice
+      if (!(m.tunableCh ? m.tunableCh[ch - 1] : ch === m.rxCh)) continue;
+      if (hi === 0xC0) { out.push({ type: 'program', n: d1, ch }); continue; }
+      if (hi !== 0x90 && hi !== 0x80) continue;
       if (d1 < TUNABLE_LO || d1 > TUNABLE_HI) continue;
-      const v = clampInt(m.tunableVoice, 0, NUM_VOICES - 1, 0);
-      out.push(on ? { type: 'note', v, vel: d2, pitch: (d1 - TUNABLE_CENTER) * 100 } : { type: 'off', v });
+      const on = hi === 0x90 && d2 > 0;
+      const v = clampInt(m.tunableVoices ? m.tunableVoices[ch - 1] : m.tunableVoice, 0, NUM_VOICES - 1, 0);
+      out.push(on ? { type: 'note', v, vel: d2, pitch: (d1 - TUNABLE_CENTER) * 100, ch } : { type: 'off', v, ch });
       continue;
     }
+    if (ch !== m.rxCh || hi === 0xC0) continue; // program change is recognized only in Tunable Note mode
+    if (hi !== 0x90 && hi !== 0x80) continue;
+    const on = hi === 0x90 && d2 > 0;
     let hit = false;
     for (let v = 0; v < NUM_VOICES; v++) if (state.noteMap[v] === d1) { hit = true; out.push(on ? { type: 'note', v, vel: d2 } : { type: 'off', v }); }
     if (!hit && sameMap(state.noteMap, MIDI_GM_NOTES) && GM_EXTRA[d1] !== undefined) {
