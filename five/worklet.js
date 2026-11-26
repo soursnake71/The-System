@@ -62,11 +62,10 @@ class FiveProcessor extends AudioWorkletProcessor {
       case 'fx': (s.fx[m.kind] = s.fx[m.kind] || {})[m.k] = m.val; e.setFx(m.kind, m.k, m.val); break;
       case 'sample': s.samples[m.v] = m.s; this.sample(m.v, m.s); break;
       case 'hit': {
-        // multi voice / tunable notes: the pitch is set for this note only
-        if (m.pitch != null) e.setVoiceParam(m.v, 'pitch', m.pitch);
+        // key offsets / multi voice / tunable notes: parameters set for this note only. The engine reads a voice's
+        // parameters when the note starts (inside the next process()), so they are restored after it.
+        if (m.over) for (const k in m.over){ const base = e.voices ? e.voices[m.v][k] : undefined; if (base === undefined) continue; this.restore.push([m.v, k, base]); e.setVoiceParam(m.v, k, m.over[k]); }
         e.trigger(m.v, m.vel, m.acc, 0);
-        // the engine reads the voice's parameters when the note starts (inside the next process), so restore after it
-        if (m.pitch != null && m.basePitch != null) this.restore.push([m.v, m.basePitch]);
         this.fired.push(m.v);
         if (m.rec && p && p.running){
           const ev = p.record(m.v, m.vel, m.acc);
@@ -126,7 +125,7 @@ class FiveProcessor extends AudioWorkletProcessor {
     if (p && p.bpm !== this.lastBpm && this.e.setTempo){ this.lastBpm = p.bpm; this.e.setTempo(p.bpm); }
     const L = this.L, R = this.R;
     this.e.process(L, R, n);
-    if (this.restore.length){ for (const [v, pt] of this.restore) this.e.setVoiceParam(v, 'pitch', pt); this.restore.length = 0; }
+    if (this.restore.length){ for (let i = this.restore.length - 1; i >= 0; i--){ const [v, k, x] = this.restore[i]; this.e.setVoiceParam(v, k, x); } this.restore.length = 0; }
     let pl = this.peak[0], pr = this.peak[1];
     for (let i = 0; i < n; i++){ const a = Math.abs(L[i]), b = Math.abs(R[i]); if (a > pl) pl = a; if (b > pr) pr = b; }
     this.peak[0] = pl; this.peak[1] = pr;

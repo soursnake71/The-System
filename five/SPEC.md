@@ -12,6 +12,8 @@ companded playback path. Users may load their own WAV/AIFF into any voice ("voic
 |---|---|
 | `five/engine.js` | DSP: voice models, 12-bit playback path, EG, mixer, REV7-style reverb, TC-style delay. Pure JS, no DOM. UMD-ish: `export` ES module. |
 | `five/seq.js` | Data model: patterns, songs, chains, quantize/swing, step/real-time write, randomize, cartridge (bank) files, SMF import/export. Pure JS, no DOM. ES module. |
+| `five/rxsysex.js` | SysEx: framing/assembler, .syx files, RX5 bulk-dump librarian (Yamaha F0 43), Omega F0 7D messages, identity. Pure JS. |
+| `five/rxcart.js` | RX5 Waveform Data Cartridge bank images (128 KB / 256 KB `.bin`): parse to voices, build from voices. Pure JS. |
 | `five/app.js`, `five/index.html` | Faceplate UI, LCD menus, AudioWorklet host, Web MIDI (+ Android shim), file I/O. |
 | `five/worklet.js` | AudioWorkletProcessor that imports `engine.js` and runs the sequencer clock sample-accurately. |
 | `five/sw.js`, `five/manifest.webmanifest`, icons | PWA. |
@@ -99,7 +101,9 @@ Default voice params: pitch 0, level 31, ar 99, d1r 0... (sensible per voice, de
 - 100 patterns (00–99), each: `{name, beats /*numerator 1..32*/, unit /*denominator 4|8|16*/, bars 1..99, swing 50..75 %,
   events:[{t /*tick*/, v /*voice 0..23*/, vel, acc /*0|1|2*/}], volume:[12 channel levels]}`.
 - 20 songs (A–T style index 0..19): `{name, tempo, steps:[{type:'pat', n} | {type:'rep', from, count} | {type:'tempo', bpm} | {type:'vol', ch, level} | {type:'mark'}]}`.
-- Chains: 4 chains of up to 99 songs.
+- Chains: 3 chains (`NUM_CHAINS`) of up to 999 songs (`CHAIN_MAX`); songs up to 999 parts (`SONG_MAX`).
+- Key-assign set-ups: `state.setups[3]` (`newSetup`), current `state.setup`; each `{name, keys:[24 × {voice, pitch (cents),
+  level ±31, attack ±63, decay ±63, acc1, acc2 (level offsets ±31, default 2/4 = +3/+6 dB), out 0..11}]}`.
 - Transport: play pattern / play song, tempo 40–250 BPM, start/stop/continue, int / MIDI / tape(=ext clock off) / ext sync flags.
 - `Seq.tick(fromTick, toTick) → events` and a `Player` class with `advance(nSamples, sr, bpm) → [{offset, v, vel, acc}]` +
   song position; this is what worklet.js and the C++ port use.
@@ -120,19 +124,62 @@ Default voice params: pitch 0, level 31, ar 99, d1r 0... (sensible per voice, de
   or any channel, option) to voices (GM map: 35/36→BD1/BD2, 38/40→SD1/SD2, 37→RIM1, 39→CLAPS, 41/43→TOM4A/B, 45/47→TOM3, 48/50→TOM2/1,
   42/44→HH CLS, 46→HH OPN, 51→RIDE, 53→RIDE CP, 49/57→CRASH, 52→CHINA, 54→TAMB, 70/82→SHAKER, 56→COWBELL), splits
   into bar-length patterns (dedupe identical bars → same pattern number), builds a song with repeats, takes tempo
-  and time signature. `exportSMF(state, {what:'pattern'|'song', n}) → Uint8Array` (format 1: tempo track + drum
-  track on ch 10, GM notes, velocity incl. accents).
-- **MIDI in/out** (app and plugin): notes → voices by the note map (`noteMap[v]`, default GM above; editable in MIDI menu),
-  receive/transmit channel, clock in (24 ppq → tempo, start/stop/continue/SPP), clock out, notes out of the
-  sequencer, program change → pattern select, SysEx bulk dump = cartridge JSON wrapped in `F0 7D 4F 35 ... F7`
-  (7-bit packed). Velocity → level, CC7 master volume.
+  and time signature. `exportSMF(state, {what:'pattern'|'song', n, map}) → Uint8Array` (format 1: tempo track + drum
+  track on ch 10, GM notes by default, velocity incl. accents).
+- **MIDI in/out** (app and plugin): notes → voices by the note map (`noteMap[v]`, default **`RX5_NOTES`** = the hardware's
+  Job #05 Initialize Note table; `NOTE_PRESETS = {rx5, gm}`; editable in MIDI menu). Shared logic in seq.js:
+  `midiIn(state, player, bytes) → actions`, `applyMidiActions(player, actions, offset)`, `midiOutForEvent(state, ev)`,
+  `noteOffBytes` (8n v=64), `songSelectBytes`; settings `state.midi` (`newMidi()`): rxCh, txCh, voiceTxCh[24], channelMsg,
+  clockIn/Out, notesOut, deviceNo (0 = OFF, 1..16), tunable + tunableVoice (Tunable Note mode: notes 36..96, 60 = original
+  pitch; program change only here), egVel, gateMs, activeSense, songSelect. SMF import `map:'auto'|'rx5'|'gm'|'state'`,
+  export `map:'gm'` (default) `|'rx5'|'state'`. Clock in (24 ppq → tempo, start/stop/continue/SPP) only when synced
+  to MIDI, clock out, notes out of the sequencer, Song Select in/out. Velocity → level. No control changes, pitch bend
+  or aftertouch (the RX5 chart has none). SysEx: see below.
 
 ## SysEx (five/rxsysex.js, ported to plugins/five/FiveSysex.h)
-Hardware-format Yamaha bulk dumps (layout per `five/RX5-MIDI-NOTES.md`): transmit/receive all data, patterns,
-songs, chains, voice parameters; dump requests; checksums; split/merged packets; device number filter. Unknown
-or partial details are marked UNCERTAIN in the notes and handled by best-known layout. The full-memory
-`F0 7D 4F 35 … F7` wrapper (seq.js) carries everything the hardware format can't (user samples, FX).
-.syx files load/save in the app and the plugin; the plugin also sends/receives SysEx through the host's MIDI.
+The RX5's own bulk-dump byte layout is **not public** (RX5-MIDI-NOTES.md §0), so hardware dumps are handled by a
+faithful **librarian**, not a decoder:
+- `SysexAssembler` (`push(bytes) → [F0..F7 messages]`, split packets, realtime F8–FF passed to `onRealtime`/`.realtime`,
+  new F0 or other status aborts a partial message), `parseSyx` / `writeSyx` for `.syx` files.
+- Yamaha `F0 43 sn …`: device filter (n = deviceNo−1; deviceNo 0 = OFF accepts all), stored verbatim in
+  `state.rxBulk = {received, messages:[base64], status, bytes, count}` via one long-lived `BulkReceiver` (gap > 2 s =
+  new dump), retransmitted byte-identical by `transmitBulk(state)` (TRANSMIT BULK, and as the answer to an
+  `F0 43 2n … F7` request), saved/loaded as `.syx` (`rxBulkToSyx`, `loadSyx`), kept in `.o5cart` and the full Omega dump.
+  `yamahaChecksum`, `verifyYamahaChecksum(msg) → 'ok'|'bad'|'unknown-layout'` (layout `F0 43 0n ff bh bl data cs F7`);
+  'bad' is shown as "checksum error!". `dumpRequest(deviceNo, formatByte)` = `F0 43 2n ff F7`, `ff` unverified for the RX5.
+- Omega Five messages `F0 7D 4F 35 <cmd> … cs F7` (cs = Yamaha checksum of cmd..data): 01 full cart, 02 pattern, 03 song,
+  04 voice+channel params, 05 fx, 06 single parameter change, 07 dump request, 08 identity. The legacy seq.js
+  `sysexDump` form (no cmd byte, packed JSON starts `00 7B`) is still emitted by `sysexDump` and accepted as cmd 01.
+  Byte layouts are in the header comment of rxsysex.js.
+- Universal identity: `F0 7E 7F 06 01 F7` → `F0 7E dev 06 02 7D 4F 35 00 05 00 01 00 00 F7`.
+- One dispatcher: `handleSysex(state, msg, {receiver, now}) → {kind, reply:[messages], message, …}`.
+
+## Waveform cartridge banks (five/rxcart.js)
+`parseBank(u8)` reads 128 KB RX5 bank images (also 256/512 KB multi-bank images): header, 32-byte voice entries,
+big-endian 16-bit byte-sum checksum at 0x3FE, 8-bit or 12-bit (RX5USB packing, 1 latency byte) PCM at 25 kHz, entry
+fields mapped to engine voice params. `buildBank(voices, {bankId, fill})` writes one bank (max 30 voices, 256-byte
+aligned PCM). parse → build reproduces real bank images byte-for-byte (checked on the RX5USB bank files).
+
+## Hardware fidelity
+Matches the RX5 (sources in RX5-MIDI-NOTES.md):
+- 24 PPQN (96 clocks per 4/4 bar), the quantize set, 100 patterns × up to 99 bars, 20 songs × up to 999 parts,
+  3 chains, 3 key-assign set-ups, tempo 40–250, 12 output channels with key-pair choke, 24 voices.
+- Default MIDI notes = Job #05 Initialize Note; note on 9n v 1–127, note off 8n v 64 after the Job #07 gate time;
+  Song Select 0–19 in/out; Song Position in; clock + start/stop/continue in/out; Active Sensing in/out; program change
+  only in Tunable Note mode; Tunable Note mode over notes 36–96; device number OFF/1–16; voice ranges (pitch +24/−36 st,
+  D1L 0–60, gate 0.1–6.5 s, bend rate 0–60, bend range ±60 st, level 0–31, accent offsets ±31) as engine `RANGES`.
+- Waveform cartridge bank format and checksum (reverse engineered by RX5USB, verified on factory banks).
+Unknown / emulated:
+- The RX5 bulk-dump and dump-request bytes: librarian only (store/retransmit verbatim, generic Yamaha checksum check).
+  With device number OFF we accept every Yamaha dump (the hardware refuses bulk I/O when OFF).
+- No parameter-change SysEx exists on the RX5; Omega messages (F0 7D) are our own. RAM4 and cassette formats unknown.
+- Chain length: the manual says both 90 and 999 steps; we allow 999. Swing: the RX5 offers five settings 54–71 % at
+  1/8 and 1/16 only; we allow 50–75 % at any grid. Time signature: we support x/4, x/8, x/16 with numerator 1–32
+  (hardware: 1–99 and more denominators). Program change meaning in Tunable mode is a guess (selects the voice).
+- Cart entry bytes 16/18 (RR vs D1L), 19 (gate code; 92 taken as "off"), 20–22 and 24, and pitch byte mapping are
+  RX5USB's interpretations; unknown bytes are preserved on rebuild. Sample companding is treated as linear PCM.
+- Sounds are synthesized models (no factory samples); EG curves, 12-bit path and DAC filter are models.
+- Set-up data is stored but per-voice MIDI notes/tx channels are global (`noteMap`, `midi.voiceTxCh`), not per set-up.
 
 ## Panel (index.html) — must fit any screen with **no scrolling** (fixed stage scaled to fit, like twelve/index.html)
 Top: angled black heat-sink ribs; left sliders VOLUME, CLICK, TEMPO, DATA; right 12 channel faders
