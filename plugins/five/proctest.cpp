@@ -168,6 +168,8 @@ int main(int argc, char** argv) {
             check(cuica == 35, "a WRC-01 name keeps its cartridge slot (Cuica -> " + juce::String(cuica) + ")");
         } else check(false, "five/kit not found from " + juce::File::getCurrentWorkingDirectory().getFullPathName());
         proc->setWave(3, 33); pump(); check(proc->waveName(3) == "AgoHI", "EDIT VOICE WAVEFORM: voice 3 plays " + proc->waveName(3));
+        // randomize may have left that channel quiet: a known level for the check
+        proc->setChannelParam(3, cFader, 1); proc->setChannelParam(3, cMute, 0); proc->setVoiceParam(3, vLevel, 28); proc->setVoiceParam(3, vPitch, 0); proc->setVolume(1); run(.05);
         proc->playVoice(3, 120, 0); auto r = run(.3); check(r.rms > 1e-3, "and sounds: rms " + juce::String(r.rms, 4));
     }
 
@@ -194,22 +196,52 @@ int main(int argc, char** argv) {
         P.key("JOB"); P.key("N0"); P.key("N4"); check(P.lcdText().startsWith("04 RANDOMIZE"), "JOB 04: " + P.lcdText().replace("\n", " | "));
         P.key("START"); run(.5); check(proc->running(), "START from the panel"); P.key("STOP"); run(.05); check(!proc->running(), "STOP from the panel");
         // the tiny legend: a tap magnifies the column (EDIT VOICE), a tap on a magnified line opens that job, the next tap closes
-        P.key("M:PTN"); P.pressAt({ 230, 497 }); P.releaseAt();
+        P.key("M:PTN"); P.pressAt(P.facePoint(230, 497)); P.releaseAt();
         check(P.magnified() && P.lcdText().startsWith("PLAY PTN"), "a tap on the tiny legend magnifies it (the menu stays closed)");
-        { for (int k = 0; k < 4; k++) { ed->setSize(1300, 973); pump(30); }
+        { for (int k = 0; k < 4; k++) { ed->setSize(1450, 973); pump(30); }
           auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f); const auto f = (shots.isDirectory() ? shots : dir).getChildFile("plugin-magnifier.png"); f.deleteFile();
           juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo); }
         bool opened = false;
-        for (float y = 300; y < 700 && !opened; y += 4) { P.pressAt({ 230, y }); P.releaseAt(); if (P.lcdText().startsWith("02 PITCH")) opened = true; else if (!P.magnified()) { P.pressAt({ 230, 497 }); P.releaseAt(); } }
+        for (float y = 300; y < 700 && !opened; y += 4) { P.pressAt(P.facePoint(230, y)); P.releaseAt(); if (P.lcdText().startsWith("02 PITCH")) opened = true; else if (!P.magnified()) { P.pressAt(P.facePoint(230, 497)); P.releaseAt(); } }
         check(opened && !P.magnified(), "a tap on the magnified 02 PITCH opens EDIT VOICE 02: " + P.lcdText().replace("\n", " | "));
-        P.pressAt({ 230, 497 }); P.releaseAt(); P.pressAt({ 650, 900 }); P.releaseAt(); check(!P.magnified(), "a tap outside closes the magnifier");
+        P.pressAt(P.facePoint(230, 497)); P.releaseAt(); P.pressAt(P.facePoint(650, 900)); P.releaseAt(); check(!P.magnified(), "a tap outside closes the magnifier");
+        // the rail (like Omega 110): every view lays out its rows on pages; a key on a page row acts; FOLD / EXPAND; the loupe
+        {
+            auto shot = [&](const char* name) { pump(60); auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
+                const auto f = (shots.isDirectory() ? shots : dir).getChildFile(name); f.deleteFile(); juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo); };
+            for (int k = 0; k < 3; k++) { ed->setSize(1450, 973); pump(30); }
+            check(!P.isFolded() && ed->getWidth() == 1450, "the rail is beside the faceplate: " + juce::String(ed->getWidth()) + "x" + juce::String(ed->getHeight()));
+            juce::String all;
+            for (auto v : { "VOICE", "KEYS", "PATTERN", "SONG", "MIXER", "FX", "MIDI", "FILES" }) {
+                P.pressRail(v); const auto rows = P.visibleRows();
+                all << v << " " << rows.size() << " rows x " << P.viewPages() << " pages, ";
+                check(rows.size() >= 4 && P.viewPages() >= 1, juce::String(v) + " page: " + rows.joinIntoString(" | ").substring(0, 110));
+            }
+            std::printf("     %s\n", all.toRawUTF8());
+            P.pressRail("VOICE"); const double p0 = proc->state().voice[(size_t) proc->ui.voice][vPitch];
+            check(P.pressRowKey("PITCH", "+") && std::abs(proc->state().voice[(size_t) proc->ui.voice][vPitch] - p0 - 100) < 1e-9, "VOICE page: PITCH + adds 100 cent");
+            shot("plugin-page.png");
+            P.pressRail("MIXER"); check(P.pressRowKey("1 BD", "M") && proc->state().channel[0].mute, "MIXER page: M mutes BD"); P.pressRowKey("1 BD", "M");
+            P.pressRail("FOLD"); pump(60);
+            check(P.isFolded() && std::abs(ed->getWidth() * 973.0 / ed->getHeight() - 1300) < 4, "FOLD: the bare faceplate, the window narrows to " + juce::String(ed->getWidth()) + "x" + juce::String(ed->getHeight()));
+            shot("plugin-folded.png");
+            P.pressRail("EXPAND"); pump(60); check(!P.isFolded() && std::abs(ed->getWidth() * 973.0 / ed->getHeight() - 1450) < 4, "EXPAND brings the rail back");
+            P.pressRail("MACHINE"); P.key("M:PTN"); P.pressRail("ZOOM"); P.pressAt(P.facePoint(243, 421)); P.releaseAt();
+            check(P.loupeOpen() && proc->ui.page == "ptn", "ZOOM: a tap on EDIT VOICE opens the loupe (and does not press it)");
+            shot("plugin-loupe.png");
+            // press the key inside the loupe: the loupe shows (243, 421) at its centre
+            juce::Rectangle<float> L; { const float lw = 560, lh = 330, sx = 243 + 150.f; float x = juce::jlimit(158.f, 150.f + 1300 - lw - 8, sx - lw / 2), y = 421 - lh - 40; if (y < 8) y = juce::jlimit(8.f, 973 - lh - 8, 421 + 40.f); L = { x, y, lw, lh }; }
+            P.pressAt(L.getCentre()); P.releaseAt();
+            check(proc->ui.page == "menu" && proc->ui.menu == "voice", "pressing EDIT VOICE inside the loupe works: " + P.lcdText().replace("\n", " | "));
+            P.pressRail("ZOOM"); P.pressRail("MACHINE");
+        }
         P.key("M:PTN"); pump(100);
-        for (int k = 0; k < 4; k++) { ed->setSize(1300, 973); pump(30); }
+        for (int k = 0; k < 4; k++) { ed->setSize(1450, 973); pump(30); }
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);
         const auto f = (shots.isDirectory() ? shots : dir).getChildFile("plugin.png"); f.deleteFile();
         { juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo); }
-        check(img.getWidth() == 1300 && f.getSize() > 10000, "editor picture " + f.getFullPathName());
-        ed->setSize(650, 487); check(std::abs(ed->getHeight() * 1300.0 / 973 - ed->getWidth()) < 3, "fixed aspect when resized: " + juce::String(ed->getWidth()) + "x" + juce::String(ed->getHeight()));
+        check(img.getWidth() == 1450 && f.getSize() > 10000, "editor picture " + f.getFullPathName());
+        ed->setSize(725, 487); check(std::abs(ed->getHeight() * 1450.0 / 973 - ed->getWidth()) < 3, "fixed aspect when resized: " + juce::String(ed->getWidth()) + "x" + juce::String(ed->getHeight()));
         delete ed;
     } else check(false, "editor");
     proc.reset();

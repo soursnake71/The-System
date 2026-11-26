@@ -15,7 +15,9 @@ namespace five {
 
 class FivePanel : public juce::Component, public juce::FileDragAndDropTarget {
 public:
-    static constexpr int W = 1300, H = 973;
+    static constexpr int W = 1300, H = 973, RAIL = 150;   // the faceplate; the rail of page keys at its left (not when folded)
+    int totalWidth() const { return folded ? W : W + RAIL; }
+    std::function<void()> onLayout;                       // the editor resizes when FOLD / EXPAND changes the width
     explicit FivePanel(FiveProcessor&);
     ~FivePanel() override;
 
@@ -33,8 +35,19 @@ public:
     // for tests: press a key / pad by name ("START", "N5", "YES", "EDIT VOICE", "PAD3" ...), read the LCD
     void key(const juce::String& k);
     juce::String lcdText() const;
-    void pressAt(juce::Point<float> p);           // a tap at panel coordinates (the mouse, tests)
+    void pressAt(juce::Point<float> p);           // a tap at component coordinates (rail, pages, loupe, faceplate)
     void releaseAt();
+    juce::Point<float> facePoint(float x, float y) const { return { x + ox(), y }; }   // faceplate -> component (tests)
+    void showView(const juce::String& v) { view = v; magCol = -1; loupeOn = false; repaint(); }
+    void setFolded(bool f);
+    void setZoom(bool z) { zoom = z; loupeOn = false; repaint(); }
+    bool isFolded() const { return folded; }
+    juce::String currentView() const { return view; }
+    int viewPages();                              // pages of the open view
+    juce::StringArray visibleRows();              // the rows on the open page (name: value)
+    bool loupeOpen() const { return loupeOn; }
+    bool pressRowKey(const juce::String& row, const juce::String& key);   // tests: a key on the open page's row
+    bool pressRail(const juce::String& label);
     bool magnified() const { return magCol >= 0; }
 
     struct Item {
@@ -42,6 +55,7 @@ public:
         std::function<juce::String()> ctx, l2;
         std::function<void(int, bool)> inc; std::function<void(double)> data; std::function<void()> yes, noFn;
         std::function<void(int, int)> pad; std::function<void(int)> digit, move;
+        juce::String yesLabel;                    // the YES key's name on a page (e.g. M for mute)
     };
     struct Page {
         std::function<juce::StringArray()> lcd;   // line 1, line 2, optional cursor column
@@ -122,6 +136,21 @@ private:
     struct MagLine { juce::Rectangle<float> r; juce::String text; bool head; juce::String menu; double no; };
     std::vector<MagLine> magLayout(juce::Rectangle<float>& box) const;
     void paintMag(juce::Graphics&);
+    // the rail, the pages (every LCD command folded open, big) and the loupe (ZOOM): like Omega 110 and the app
+    bool folded = false, zoom = false, loupeOn = false; juce::String view = "machine";
+    juce::Point<float> loupeC; static constexpr float LOUPE = 3; juce::Rectangle<float> loupeRect() const;
+    float ox() const { return folded ? 0.f : (float) RAIL; }
+    struct Btn { juce::Rectangle<float> r; juce::String label; int style; std::function<void()> fn; bool on = false; };
+    struct RowDraw { juce::Rectangle<float> r; juce::String name, value; bool head; };
+    std::map<juce::String, std::vector<Item>> viewItems; std::map<juce::String, int> viewPage;
+    void buildViews();
+    std::vector<std::vector<int>> paginateView(const juce::String& v);
+    void railLayout(std::vector<Btn>&);
+    void pageLayout(std::vector<Btn>&, std::vector<RowDraw>&);
+    void paintFace(juce::Graphics&);
+    void paintBtn(juce::Graphics&, const Btn&);
+    void facePress(juce::Point<float>);
+    bool dragFromLoupe = false;
 };
 
 class FiveEditor : public juce::AudioProcessorEditor, private juce::Timer {

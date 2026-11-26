@@ -53,8 +53,9 @@ static const std::vector<std::pair<float, std::vector<LegendGroup>>> LEGEND = {
 
 /* ================================================================================================ construction */
 FivePanel::FivePanel(FiveProcessor& p) : proc(p), U(p.ui) {
-    setSize(W, H); setWantsKeyboardFocus(true);
-    build(); buildMenus();
+    setSize(W + RAIL, H); setWantsKeyboardFocus(true);
+    build(); buildMenus(); buildViews();
+    folded = U.n["folded"] != 0; setSize(totalWidth(), H);
     proc.onFlash = [this](const juce::String& a, const juce::String& b) { flash(a, b, 1600); };
 }
 FivePanel::~FivePanel() { proc.onFlash = nullptr; }
@@ -711,7 +712,26 @@ void FivePanel::setFader(const juce::String& id, double v) {
     else proc.setChannelParam(id.substring(2).getIntValue(), cFader, v);
 }
 void FivePanel::mouseDown(const juce::MouseEvent& e) { grabKeyboardFocus(); pressAt(e.position); }
-void FivePanel::pressAt(juce::Point<float> p) {
+juce::Rectangle<float> FivePanel::loupeRect() const {
+    const float lw = 560, lh = 330, sx = loupeC.x + ox();
+    float x = juce::jlimit(ox() + 8, ox() + W - lw - 8, sx - lw / 2), y = loupeC.y - lh - 40; if (y < 8) y = juce::jlimit(8.f, (float) H - lh - 8, loupeC.y + 40);
+    return { x, y, lw, lh };
+}
+void FivePanel::pressAt(juce::Point<float> s) {
+    dragFromLoupe = false;
+    std::vector<Btn> btns; railLayout(btns);
+    if (view != "machine" && !folded) { std::vector<RowDraw> rows; pageLayout(btns, rows); }
+    for (const auto& b : btns) if (b.r.contains(s)) { if (b.fn) b.fn(); repaint(); return; }
+    if (s.x < ox()) return;
+    if (view != "machine") return;
+    if (zoom) {
+        const auto L = loupeRect();
+        if (loupeOn && L.contains(s)) { dragFromLoupe = true; facePress(loupeC + (s - L.getCentre()) / LOUPE); repaint(); return; }
+        loupeC = s - juce::Point<float>(ox(), 0); loupeOn = true; repaint(); return;
+    }
+    facePress(s - juce::Point<float>(ox(), 0));
+}
+void FivePanel::facePress(juce::Point<float> p) {
     if (magCol >= 0) {   // the magnifier is open: a line opens its job; any tap closes it
         juce::Rectangle<float> box; const auto lines = magLayout(box);
         for (const auto& l : lines) if (l.r.contains(p) && l.menu.isNotEmpty()) {
@@ -733,7 +753,9 @@ void FivePanel::pressAt(juce::Point<float> p) {
 }
 void FivePanel::mouseDrag(const juce::MouseEvent& e) {
     if (drag.id.isEmpty()) return;
-    setFader(drag.id, drag.v0 - (e.position.y - drag.y0) / (138 - 40));
+    // drag.y0 is in faceplate units; from the loupe a move of LOUPE pixels is one faceplate unit
+    const float fy = dragFromLoupe ? drag.y0 + (e.position.y - e.mouseDownPosition.y) / LOUPE : e.position.y;
+    setFader(drag.id, drag.v0 - (fy - drag.y0) / (138 - 40));
     repaint();
 }
 void FivePanel::mouseUp(const juce::MouseEvent&) { releaseAt(); }
@@ -743,7 +765,9 @@ void FivePanel::releaseAt() {
     repaint();
 }
 void FivePanel::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) {
-    const Region* r = hit(e.position); const int d = w.deltaY > 0 ? 1 : w.deltaY < 0 ? -1 : 0; if (!d || !r) return;
+    const int d = w.deltaY > 0 ? 1 : w.deltaY < 0 ? -1 : 0; if (!d) return;
+    if (view != "machine" && !folded) { auto& pg = viewPage[view]; pg = juce::jlimit(0, juce::jmax(0, viewPages() - 1), pg - d); repaint(); return; }
+    const Region* r = hit(e.position - juce::Point<float>(ox(), 0)); if (!r) return;
     if (r->kind == kLcd) { auto& pg = page(); if (pg.pm) pg.pm(d, e.mods.isShiftDown()); }
     else if (r->kind == kFader) setFader(r->id, faderValue(r->id) + d * .02);
     repaint();
@@ -763,7 +787,7 @@ bool FivePanel::keyPressed(const juce::KeyPress& k) {
 }
 void FivePanel::filesDropped(const juce::StringArray& files, int x, int y) {
     if (files.isEmpty()) return;
-    const juce::File f(files[0]); const Region* r = hit({ (float) x, (float) y });
+    const juce::File f(files[0]); const Region* r = hit({ (float) x - ox(), (float) y });
     const auto ext = f.getFileExtension().toLowerCase();
     if (r && r->kind == kPad && (ext == ".wav" || ext == ".aif" || ext == ".aiff" || ext == ".flac" || ext == ".ogg" || ext == ".mp3")) {
         const int v = padVoice(r->id.substring(3).getIntValue()); report("LOADED " + vname(v), proc.loadWavIntoVoice(f, v)); return;
@@ -793,8 +817,10 @@ void FivePanel::tick() {
     }
     meter = juce::jmax(proc.meterL.exchange(0), proc.meterR.exchange(0));
     if (U.flashUntil > 0 && nowMs() > U.flashUntil) U.flashUntil = 0;
-    repaint(juce::Rectangle<int>(560, 390, 210, 70)); repaint(juce::Rectangle<int>(90, 400, 1140, 40)); repaint(juce::Rectangle<int>(90, 715, 1140, 145));
-    repaint(juce::Rectangle<int>(60, 150, 1200, 160));
+    if (view != "machine" || loupeOn) { repaint(); return; }
+    const int dx = (int) ox();
+    repaint(juce::Rectangle<int>(560 + dx, 390, 210, 70)); repaint(juce::Rectangle<int>(90 + dx, 400, 1140, 40)); repaint(juce::Rectangle<int>(90 + dx, 715, 1140, 145));
+    repaint(juce::Rectangle<int>(60 + dx, 150, 1200, 160));
 }
 
 /* ================================================================================================ painting */
@@ -808,7 +834,7 @@ void FivePanel::paintLcdLines(juce::String& a, juce::String& b, int& cur) {
 juce::String FivePanel::lcdText() const {
     auto* self = const_cast<FivePanel*>(this); juce::String a, b; int c; self->paintLcdLines(a, b, c); return L16(a) + "\n" + L16(b);
 }
-void FivePanel::paint(juce::Graphics& g) {
+void FivePanel::paintFace(juce::Graphics& g) {
     using C = juce::Colour;
     // body, ribs, lip, front
     g.fillAll(C(0xff2e2e2c));
@@ -994,17 +1020,247 @@ void FivePanel::paintMag(juce::Graphics& g) {
     }
 }
 
+
+/* ================================================================================================ rail, pages, loupe
+   Like Omega 110 and the app (five/app.js): a rail of page keys at the left; MACHINE is the faceplate; the other keys
+   open a page with every command of a group, big, from the same items as the LCD menus; pages instead of scrolling.
+   FOLD: the bare faceplate (the window gets narrower), EXPAND in its corner. ZOOM: a tap shows that part of the
+   faceplate at 3x in a loupe; what you press in the loupe is pressed on the faceplate. */
+static const char* const VIEWS[10][2] = { {"machine", "MACHINE"}, {"voice", "VOICE"}, {"keys", "KEYS"}, {"pattern", "PATTERN"}, {"song", "SONG"},
+    {"mixer", "MIXER"}, {"fx", "FX"}, {"midi", "MIDI"}, {"files", "FILES"}, {nullptr, nullptr} };
+void FivePanel::buildViews() {
+    auto head = [](const juce::String& t) { Item h; h.no = -1; h.name = t; return h; };
+    auto add = [&](const juce::String& v, const juce::String& h, const std::vector<Item>& list) { auto& L = viewItems[v]; L.push_back(head(h)); for (const auto& it : list) if (!(it.no == 0 && it.name == "EDIT SONG")) L.push_back(it); };
+    auto wrap = [this](const juce::String& name, const juce::String& pg) {
+        Item it; it.name = name;
+        it.l2 = [this, pg] { const auto r = pages[pg].lcd(); return r[1].trim().isNotEmpty() ? r[1].trim() : r[0].trim(); };
+        it.inc = [this, pg](int d, bool sh) { if (pages[pg].pm) pages[pg].pm(d, sh); };
+        return it;
+    };
+    add("voice", "EDIT VOICE", menus["voice"]);
+    add("keys", "KEY ASSIGN", menus["key"]);
+    {
+        Item ps; ps.name = "PATTERN"; ps.l2 = [this] { return p2(U.ptn) + " " + juce::String(S().patterns[(size_t) U.ptn].name); }; ps.inc = [this](int d, bool) { selectPattern(U.ptn + d); };
+        std::vector<Item> l { ps }; for (const auto& it : menus["eptn"]) l.push_back(it);
+        add("pattern", "PATTERN", l);
+        Item clr; clr.name = "CLEAR PATTERN"; clr.l2 = [this] { return "PTN" + p2(U.ptn) + " sure?"; };
+        clr.yes = [this] { if (protectedMsg()) return; edit([&](State& s) { clearPattern(s, U.ptn); }); flash("PTN" + p2(U.ptn), "CLEARED"); };
+        Item cp; cp.name = "COPY PATTERN"; cp.l2 = [this] { return "to PTN" + p2(U.n["copyDst"]); };
+        cp.inc = [this](int d, bool) { U.n["copyDst"] = (U.n["copyDst"] + d + NUM_PATTERNS) % NUM_PATTERNS; };
+        cp.yes = [this] { if (protectedMsg()) return; const int d = U.n["copyDst"]; edit([&](State& s) { copyPattern(s, U.ptn, d); }); flash("COPIED", "PTN" + p2(U.ptn) + ">" + p2(d)); };
+        add("pattern", "WRITE", { wrap("QUANTIZE", "quant"), wrap("SWING", "swing"), wrap("CLICK", "click"), wrap("TEMPO", "tempo"), wrap("SYNC", "sync"), clr, cp });
+    }
+    {
+        Item ss; ss.name = "SONG"; ss.l2 = [this] { return songL(U.song) + " " + juce::String(S().songs[(size_t) U.song].name); }; ss.inc = [this](int d, bool) { selectSong(U.song + d); };
+        Item ed; ed.name = "EDIT SONG"; ed.no = .01;
+        ed.l2 = [this] { const auto& st = S().songs[(size_t) U.song].steps; U.songStep = juce::jlimit(0, (int) st.size(), U.songStep);
+            return "s" + p3(U.songStep + 1) + " " + (U.songStep < (int) st.size() ? stepDesc(&st[(size_t) U.songStep]) : juce::String("-- END --")); };
+        ed.move = [this](int d) { songEditMove(d); }; ed.inc = [this](int d, bool sh) { songEditInc(d, sh); };
+        Item ins; ins.name = "INSERT"; ins.l2 = [this] { return "at s" + p3(U.songStep + 1); }; ins.yes = [this] { U.mode = 1; openMenu("esong", 0); songInsert("pat"); };
+        Item del; del.name = "DELETE"; del.l2 = [this] { return "step s" + p3(U.songStep + 1); }; del.yes = [this] { U.mode = 1; openMenu("esong", 0); songDelete(); };
+        std::vector<Item> l { ss, ed, ins, del }; for (const auto& it : menus["esong"]) if (it.no > 0) l.push_back(it); for (const auto& it : menus["song"]) l.push_back(it);
+        viewItems["song"].push_back(head("SONG")); for (auto& it : l) viewItems["song"].push_back(it);
+        add("song", "CHAIN", menus["chain"]);
+    }
+    {
+        auto& L = viewItems["mixer"]; L.push_back(head("CHANNEL"));
+        auto ch = [this](int k) { const auto& c = S().channel[(size_t) U.ch]; return k == cFader ? c.fader : k == cPan ? c.pan : k == cSendRev ? c.sendRev : c.sendDly; };
+        auto num = [&](const juce::String& n, int k, double step, double lo, double hi, std::function<juce::String(double)> fmt) {
+            Item it; it.name = n; it.l2 = [=] { return fmt(ch(k)); }; it.inc = [=](int d, bool) { proc.setChannelParam(U.ch, k, clampd(ch(k) + d * step, lo, hi)); }; L.push_back(it); };
+        num("LEVEL", cFader, .02, 0, 1, pct); num("PAN", cPan, 1.0 / 7, -1, 1, fmtPan); num("REV SEND", cSendRev, .05, 0, 1, pct); num("DLY SEND", cSendDly, .05, 0, 1, pct);
+        Item m; m.name = "MUTE"; m.l2 = [this] { return S().channel[(size_t) U.ch].mute ? juce::String("MUTED") : juce::String("on"); };
+        m.yes = [this] { proc.setChannelParam(U.ch, cMute, S().channel[(size_t) U.ch].mute ? 0 : 1); }; L.push_back(m);
+        L.push_back(head("ALL CHANNELS"));
+        for (int c = 0; c < NCH; c++) {
+            Item it; it.name = juce::String(c + 1) + " " + juce::String(CHANNEL_NAMES[c]);
+            it.l2 = [this, c] { const auto& x = S().channel[(size_t) c]; return (x.mute ? juce::String("MUTE ") : juce::String()) + pct(x.fader); };
+            it.inc = [this, c](int d, bool) { proc.setChannelParam(c, cFader, clampd(S().channel[(size_t) c].fader + d * .02, 0, 1)); };
+            it.yes = [this, c] { proc.setChannelParam(c, cMute, S().channel[(size_t) c].mute ? 0 : 1); }; it.yesLabel = "M";
+            L.push_back(it);
+        }
+    }
+    add("fx", "REV 7", menus["rev"]); add("fx", "TC 2290 DELAY", menus["dly"]);
+    add("midi", "MIDI", menus["midi"]);
+    add("files", "CASSETTE / CARTRIDGE", menus["cart"]); add("files", "JOB", menus["job"]); add("files", "UTILITY", menus["util"]);
+}
+static constexpr float PG_TOP = 112, PG_ROW = 70, PG_GAP = 8, PG_HEAD = 50, PG_BOTTOM = 950;
+std::vector<std::vector<int>> FivePanel::paginateView(const juce::String& v) {
+    std::vector<std::vector<int>> out { {} }; float y = PG_TOP; const auto& L = viewItems[v];
+    for (int i = 0; i < (int) L.size(); i++) {
+        const float h = (L[(size_t) i].no < 0 ? PG_HEAD : PG_ROW) + PG_GAP;
+        if (y + h > PG_BOTTOM && !out.back().empty()) {
+            // a heading never ends a page
+            if (L[(size_t) out.back().back()].no < 0) { const int hd = out.back().back(); out.back().pop_back(); out.push_back({ hd }); y = PG_TOP + PG_HEAD + PG_GAP; }
+            else { out.push_back({}); y = PG_TOP; }
+        }
+        out.back().push_back(i); y += h;
+    }
+    return out;
+}
+int FivePanel::viewPages() { return view == "machine" ? 1 : (int) paginateView(view).size(); }
+juce::StringArray FivePanel::visibleRows() {
+    std::vector<Btn> b; std::vector<RowDraw> rows; pageLayout(b, rows); juce::StringArray out;
+    for (const auto& r : rows) if (!r.head) out.add(r.name + ": " + r.value);
+    return out;
+}
+bool FivePanel::pressRowKey(const juce::String& row, const juce::String& key) {
+    std::vector<Btn> btns; std::vector<RowDraw> rows; pageLayout(btns, rows);
+    for (const auto& r : rows) if (!r.head && r.name.contains(row))
+        for (const auto& b : btns) if (b.label == key && b.r.getCentreY() > r.r.getY() && b.r.getCentreY() < r.r.getBottom()) { b.fn(); repaint(); return true; }
+    return false;
+}
+bool FivePanel::pressRail(const juce::String& label) {
+    std::vector<Btn> btns; railLayout(btns);
+    for (const auto& b : btns) if (b.label == label) { b.fn(); repaint(); return true; }
+    return false;
+}
+void FivePanel::setFolded(bool f) {
+    folded = f; U.n["folded"] = f ? 1 : 0; loupeOn = false; if (f) zoom = false;
+    setSize(totalWidth(), H); if (onLayout) onLayout(); repaint();
+}
+void FivePanel::railLayout(std::vector<Btn>& out) {
+    if (folded) { out.push_back({ { 8, 8, 128, 48 }, "EXPAND", 1, [this] { setFolded(false); } }); return; }
+    const float x = 10, w = RAIL - 20, gap = 10, h = (H - 20 - gap * 10) / 11.f; float y = 10;
+    out.push_back({ { x, y, w, h }, "FOLD", 1, [this] { setFolded(true); } }); y += h + gap;
+    for (int i = 0; VIEWS[i][0]; i++) { const juce::String v = VIEWS[i][0]; out.push_back({ { x, y, w, h }, VIEWS[i][1], 0, [this, v] { showView(v); }, view == v }); y += h + gap; }
+    out.push_back({ { x, y, w, h }, "ZOOM", 2, [this] { zoom = !zoom; loupeOn = false; if (zoom) view = "machine"; }, zoom });
+}
+void FivePanel::pageLayout(std::vector<Btn>& btns, std::vector<RowDraw>& rows) {
+    if (view == "machine") return;
+    const float x0 = ox();
+    auto pagesV = paginateView(view); auto& pg = viewPage[view]; pg = juce::jlimit(0, (int) pagesV.size() - 1, pg);
+    // the header: what the rows act on, with < >
+    struct Ctx { const char* label; std::function<juce::String()> get; std::function<void(int)> step; };
+    std::map<juce::String, Ctx> ctx = {
+        { "voice", { "VOICE", [this] { return vname(U.voice); }, [this](int d) { U.voice = (U.voice + d + NV) % NV; } } },
+        { "keys", { "KEY", [this] { return juce::String::charToString((juce::juce_wchar) ('A' + U.pad)) + " " + vname(S().setups[(size_t) clampInt(S().setup, 0, NUM_SETUPS - 1, 0)].keys[(size_t) U.pad].voice); }, [this](int d) { U.pad = (U.pad + d + NV) % NV; } } },
+        { "pattern", { "PTN", [this] { return p2(U.ptn); }, [this](int d) { selectPattern(U.ptn + d); } } },
+        { "song", { "SONG", [this] { return songL(U.song); }, [this](int d) { selectSong(U.song + d); } } },
+        { "mixer", { "CH", [this] { return juce::String(U.ch + 1) + " " + STEP_CH[U.ch]; }, [this](int d) { U.ch = (U.ch + d + NCH) % NCH; } } },
+        { "fx", { "CH", [this] { return juce::String(STEP_CH[U.ch]); }, [this](int d) { U.ch = (U.ch + d + NCH) % NCH; } } },
+        { "midi", { "VOICE", [this] { return vname(U.voice); }, [this](int d) { U.voice = (U.voice + d + NV) % NV; } } } };
+    juce::String title; for (int i = 0; VIEWS[i][0]; i++) if (view == VIEWS[i][0]) title = VIEWS[i][1];
+    rows.push_back({ { x0 + 40, 26, 260, 60 }, title, {}, true });
+    if (ctx.count(view)) {
+        auto c = ctx[view];
+        rows.push_back({ { x0 + 290, 26, 110, 60 }, c.label, {}, true });
+        btns.push_back({ { x0 + 410, 28, 70, 56 }, "<", 0, [c] { c.step(-1); } });
+        rows.push_back({ { x0 + 488, 28, 190, 56 }, {}, c.get(), false });
+        btns.push_back({ { x0 + 686, 28, 70, 56 }, ">", 0, [c] { c.step(1); } });
+    }
+    const int n = (int) pagesV.size();
+    if (n > 1) {
+        float bx = x0 + W - 40 - (n + 2) * 62.f;
+        btns.push_back({ { bx, 30, 56, 52 }, "<", 0, [this] { auto& p = viewPage[view]; p = juce::jmax(0, p - 1); } }); bx += 62;
+        for (int i = 0; i < n; i++) { btns.push_back({ { bx, 30, 56, 52 }, juce::String(i + 1), 3, [this, i] { viewPage[view] = i; }, i == pg }); bx += 62; }
+        btns.push_back({ { bx, 30, 56, 52 }, ">", 0, [this, n] { auto& p = viewPage[view]; p = juce::jmin(n - 1, p + 1); } });
+    }
+    auto& L = viewItems[view]; float y = PG_TOP;
+    for (int i : pagesV[(size_t) pg]) {
+        Item& it = L[(size_t) i];
+        if (it.no < 0) { rows.push_back({ { x0 + 30, y, (float) W - 60, PG_HEAD }, it.name, {}, true }); y += PG_HEAD + PG_GAP; continue; }
+        const int whole = (int) std::floor(it.no + 1e-9), sub = (int) jsround((it.no - whole) * 10);
+        const juce::String num = it.no >= 1 ? (whole >= 10 ? juce::String(whole) : p2(whole)) + (sub ? "-" + juce::String(sub) : "") + " " : juce::String();
+        juce::String val; if (it.l2) val = it.l2();
+        rows.push_back({ { x0 + 30, y, (float) W - 60, PG_ROW }, num + it.name, val, false });
+        // keys at the right: < > (steps inside the job), - + (the value), NO / YES (actions)
+        std::vector<std::pair<juce::String, std::function<void()>>> keys; Item* ip = &it;
+        if (it.move) { keys.push_back({ "<", [ip] { ip->move(-1); } }); keys.push_back({ ">", [ip] { ip->move(1); } }); }
+        if (it.inc) { keys.push_back({ "-", [ip] { ip->inc(-1, false); } }); keys.push_back({ "+", [ip] { ip->inc(1, false); } }); }
+        if (it.yes) { if (it.noFn) keys.push_back({ "NO", [ip] { ip->noFn(); } }); keys.push_back({ it.yesLabel.isNotEmpty() ? it.yesLabel : juce::String("YES"), [ip] { ip->yes(); } }); }
+        else if (it.noFn && !it.inc) keys.push_back({ "NEXT", [ip] { ip->noFn(); } });
+        float kx = x0 + W - 40 - keys.size() * 92.f;
+        for (auto& k : keys) { const bool red = k.first == "YES" || k.first == "NO" || k.first == "M" || k.first == "NEXT"; btns.push_back({ { kx, y + 7, 84, PG_ROW - 14 }, k.first, red ? 2 : 0, k.second }); kx += 92; }
+        y += PG_ROW + PG_GAP;
+    }
+}
+void FivePanel::paintBtn(juce::Graphics& g, const Btn& b) {
+    using C = juce::Colour; const auto r = b.r;
+    // styles: 0 cream key, 1 grey key, 2 red key, 3 page number; rail keys are black (drawn by the caller's style 0 when x < RAIL)
+    const bool rail = r.getRight() <= RAIL + 1 && !folded;
+    C top, bot, ink;
+    if (rail && b.style == 0) { top = b.on ? C(0xffff8a92) : C(0xff4a4a47); bot = b.on ? C(0xffd23d4a) : C(0xff1c1c1b); ink = b.on ? C(0xff1a0a0c) : C(0xffececec); }
+    else if (b.style == 1) { top = C(0xffdcdcd8); bot = C(0xffa9a9a6); ink = C(0xff222222); }
+    else if (b.style == 2) { top = b.on ? C(0xffa0a3ef) : C(0xfff6826a); bot = b.on ? C(0xff8580bd) : C(0xffe06a44); ink = b.on ? juce::Colours::white : C(0xff5a1a0d); }
+    else if (b.style == 3 && b.on) { top = C(0xffff8a92); bot = C(0xffd23d4a); ink = C(0xff1a0a0c); }
+    else { top = C(0xfffbe9cf); bot = C(0xffe4c898); ink = C(0xff5a4a36); }
+    g.setColour(C(0xaa000000)); g.fillRoundedRectangle(r.translated(0, 3), 4);
+    g.setGradientFill(juce::ColourGradient::vertical(top, r.getY(), bot, r.getBottom())); g.fillRoundedRectangle(r, 4);
+    g.setColour(rail ? C(0xff9a9a97) : C(0xff8b7457)); g.drawRoundedRectangle(r, 4, 1.2f);
+    g.setColour(ink); g.setFont(juce::Font(juce::FontOptions(rail ? 17.f : 24.f, juce::Font::bold)));
+    juce::String t = b.label; if (t == "<") t = juce::String::fromUTF8("\xe2\x97\x80"); else if (t == ">") t = juce::String::fromUTF8("\xe2\x96\xb6"); else if (t == "-") t = juce::String::fromUTF8("\xe2\x88\x92");
+    g.drawFittedText(t, r.toNearestInt(), juce::Justification::centred, 2);
+}
+void FivePanel::paint(juce::Graphics& g) {
+    using C = juce::Colour;
+    g.fillAll(C(0xff0c0c0c));
+    if (!folded) {   // the rail: a wooden strip
+        juce::ColourGradient wood(C(0xff3a2614), 0, 0, C(0xff2e1d0e), (float) RAIL, 0, false); wood.addColour(.3, C(0xff5a3a1e)); wood.addColour(.7, C(0xff4a2f17));
+        g.setGradientFill(wood); g.fillRect(0, 0, RAIL, H);
+    }
+    if (view == "machine" || folded) {
+        { juce::Graphics::ScopedSaveState ss(g); g.addTransform(juce::AffineTransform::translation(ox(), 0)); paintFace(g); }
+        if (zoom && loupeOn) {
+            const auto L = loupeRect();
+            g.setColour(C(0xcc000000)); g.fillRoundedRectangle(L.translated(0, 12).expanded(8), 16);
+            {
+                juce::Graphics::ScopedSaveState ss(g); juce::Path clip; clip.addRoundedRectangle(L, 14); g.reduceClipRegion(clip);
+                g.fillAll(C(0xff2e2e2c));
+                g.addTransform(juce::AffineTransform::translation(-loupeC.x, -loupeC.y).scaled(LOUPE).translated(L.getCentreX(), L.getCentreY()));
+                paintFace(g);
+            }
+            g.setColour(C(0xffe9e9e6)); g.drawRoundedRectangle(L, 14, 3);
+        }
+    } else {
+        // a page: a brushed metal plate with screws and engraved rows
+        const juce::Rectangle<float> P(ox() + 4, 4, (float) W - 8, (float) H - 8);
+        g.setGradientFill(juce::ColourGradient::vertical(C(0xff575754), P.getY(), C(0xff3c3c3a), P.getBottom())); g.fillRoundedRectangle(P, 8);
+        g.setColour(C(0x08ffffff)); for (float x = P.getX(); x < P.getRight(); x += 3) g.fillRect(x, P.getY(), 1.f, P.getHeight());
+        g.setColour(C(0xff000000)); g.drawRoundedRectangle(P, 8, 1.5f);
+        for (auto pt : { P.getTopLeft() + juce::Point<float>(14, 14), P.getTopRight() + juce::Point<float>(-14, 14), P.getBottomLeft() + juce::Point<float>(14, -14), P.getBottomRight() + juce::Point<float>(-14, -14) }) {
+            g.setGradientFill(juce::ColourGradient(C(0xffdddddd), pt.x - 3, pt.y - 3, C(0xff333333), pt.x + 5, pt.y + 5, true)); g.fillEllipse(pt.x - 6, pt.y - 6, 12, 12);
+            g.setColour(C(0xff222222)); g.drawLine(pt.x - 4, pt.y, pt.x + 4, pt.y, 1.5f);
+        }
+        std::vector<Btn> btns; std::vector<RowDraw> rows; pageLayout(btns, rows);
+        g.setColour(C(0x55d8d8d8)); g.fillRect(ox() + 30, 98.f, (float) W - 60, 1.5f);
+        for (size_t i = 0; i < rows.size(); i++) {
+            const auto& r = rows[i];
+            if (r.head) {
+                g.setColour(C(0xffe9e9e6)); const bool big = r.r.getY() < 100; g.setFont(juce::Font(juce::FontOptions(big ? 30.f : 24.f, juce::Font::bold)));
+                g.drawText(r.name, r.r, juce::Justification::centredLeft, false);
+                if (!big) { g.setColour(C(0xaad8d8d8)); g.fillRect(r.r.getX(), r.r.getBottom() - 4, r.r.getWidth(), 1.5f); }
+                continue;
+            }
+            const bool ctxBox = r.name.isEmpty();
+            if (!ctxBox) {
+                g.setColour(C(0x26000000)); g.fillRoundedRectangle(r.r, 4); g.setColour(C(0x66000000)); g.drawLine(r.r.getX(), r.r.getY(), r.r.getRight(), r.r.getY(), 1.5f);
+                g.setColour(C(0xffe9e9e6)); g.setFont(juce::Font(juce::FontOptions(24.f, juce::Font::bold))); g.drawText(r.name, r.r.withTrimmedLeft(12).withWidth(400), juce::Justification::centredLeft, true);
+            }
+            const juce::Rectangle<float> vb = ctxBox ? r.r : juce::Rectangle<float>(r.r.getX() + 420, r.r.getY() + 8, 470, r.r.getHeight() - 16);
+            g.setColour(C(0xff1b1d10)); g.fillRoundedRectangle(vb, 3); g.setColour(C(0xff000000)); g.drawRoundedRectangle(vb, 3, 1.5f);
+            g.setColour(C(0xffd6e41e)); g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 27.f, juce::Font::plain)));
+            g.drawText(r.value, vb.reduced(10, 0), ctxBox ? juce::Justification::centred : juce::Justification::centredLeft, true);
+        }
+        for (const auto& b : btns) paintBtn(g, b);
+    }
+    std::vector<Btn> rail; railLayout(rail); for (const auto& b : rail) paintBtn(g, b);
+}
+
 /* ================================================================================================ editor */
 FiveEditor::FiveEditor(FiveProcessor& p) : AudioProcessorEditor(p), proc(p), content(p) {
     addAndMakeVisible(content);
     setResizable(true, true);
-    setResizeLimits(520, 389, 2600, 1946);
-    if (auto* c = getConstrainer()) c->setFixedAspectRatio((double) FivePanel::W / FivePanel::H);
-    setSize(1040, 778);
+    setResizeLimits(400, 300, 3200, 1946);
+    auto fitWidth = [this] {
+        const double tw = content.totalWidth(); if (auto* c = getConstrainer()) c->setFixedAspectRatio(tw / FivePanel::H);
+        const int h = getHeight() > 0 ? getHeight() : 778; content.setSize((int) tw, FivePanel::H); setSize((int) std::round(tw * h / FivePanel::H), h);
+    };
+    content.onLayout = fitWidth;
+    setSize(10, 778); fitWidth();
     startTimerHz(30);
 }
 FiveEditor::~FiveEditor() { stopTimer(); }
 void FiveEditor::paint(juce::Graphics& g) { g.fillAll(juce::Colour(0xff0c0c0c)); }
-void FiveEditor::resized() { content.setTransform(juce::AffineTransform::scale((float) getWidth() / FivePanel::W)); }
+void FiveEditor::resized() { content.setTransform(juce::AffineTransform::scale((float) getHeight() / FivePanel::H)); }
 
 }  // namespace five

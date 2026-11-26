@@ -15,6 +15,11 @@ Done (this file used to be the handoff list):
    seq.js `outChannel`); LOAD KIT can pick a folder (CART 25, NO toggles files / folder); Bitwig pad GAIN is applied to the
    pad's sample (`loadKit(.., {padGain:false})` to skip).
 
+5. Screens like Omega 110 (and its CLAUDE.md screen rules): a rail of page keys (FOLD / EXPAND, MACHINE, VOICE, KEYS,
+   PATTERN, SONG, MIXER, FX, MIDI, FILES, ZOOM) beside the machine; each page shows that group's LCD commands big, on pages
+   instead of scrolling; ZOOM is a loupe over the whole faceplate (tap inside it to use what it shows). App and plugin.
+   The app is checked at the S23 sizes in both orientations (no overflow, every page, fold, the loupe).
+
 Known differences between the plugin and the app:
 - The plugin's LOAD KIT reads a folder, .zip or WAV/AIFF files, not .bwpreset.
 - Key assign LEVEL / ATTACK / DECAY offsets and MULTI STEP level/attack/decay apply in the app only; the plugin applies the
