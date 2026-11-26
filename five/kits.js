@@ -452,7 +452,7 @@ export async function loadKit(input, opts = {}){
       pan: it.pad.params.PANORAMA, transpose: it.pad.params.TRANSPOSE};
     const libIndex = waveforms.push(wf) - 1;
     if (it.v >= 0) assignments.push({v: it.v, libIndex, id: it.id});
-    rows.push({file: it.file, id: it.id, kind, name, v: it.v, how: it.how, native, srIn: it.audio.sr, sr: it.sr, bits: it.audio.bits, channels: it.audio.channels,
+    rows.push({file: it.file, id: it.id, kind, name, v: it.v, how: it.v < 0 ? 'lib' : it.how, native, srIn: it.audio.sr, sr: it.sr, bits: it.audio.bits, channels: it.audio.channels,
       secs: +(it.data.length / it.sr).toFixed(3), leadMs: +(it.lead * 1000 / it.audio.sr).toFixed(2), note: it.pad ? it.pad.note : null,
       gain: it.pad ? it.pad.params.GAIN : null});
   }

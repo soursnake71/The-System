@@ -3,7 +3,7 @@
 
 async function main() {
   let failed = false;
-  for (const name of ['engineTests', 'seqTests', 'rxTests']) {
+  for (const name of ['engineTests', 'seqTests', 'rxTests', 'kitTests']) {
     let fn;
     try { fn = eval(name); } catch { continue; } // not defined (yet)
     if (typeof fn !== 'function') continue;
@@ -25,9 +25,13 @@ async function engineTests() {
   const peak = (a, i0 = 0, i1 = a.length) => { let p = 0; for (let i = i0; i < i1; i++) { const x = Math.abs(a[i]); if (x > p) p = x; } return p; };
   const rms = (a, i0, i1) => { let s = 0; for (let i = i0; i < i1; i++) s += a[i] * a[i]; return Math.sqrt(s / (i1 - i0)); };
   const finite = (a) => a.every(Number.isFinite);
+  // the factory kit (five/kit, 25 kHz recordings of a real RX5), decoded once
+  const W = await import('./wav.mjs'), path = await import('node:path');
+  const kitWav = E.FACTORY_MAP.map((f) => W.readWav(path.join(W.KIT_DIR, f)));
+  const KIT = () => { const e = new E.Engine(sr); kitWav.forEach((w, v) => e.setUserSample(v, w.data, w.sr, { rec: true })); return e; };
 
   await t('exports and tables', () => {
-    for (const k of ['Engine', 'VOICE_NAMES', 'CHANNEL_NAMES', 'VOICE_DEFAULTS', 'REV_PROGRAMS', 'ROM_SR', 'makeVoiceSample', 'rng', 'REV_DEFAULTS', 'DLY_DEFAULTS']) assert.ok(k in E, k);
+    for (const k of ['Engine', 'VOICE_NAMES', 'CHANNEL_NAMES', 'VOICE_DEFAULTS', 'REV_PROGRAMS', 'ROM_SR', 'FACTORY_MAP', 'rng', 'REV_DEFAULTS', 'DLY_DEFAULTS']) assert.ok(k in E, k);
     assert.equal(E.VOICE_NAMES.length, 24); assert.ok(E.VOICE_NAMES.every((s) => s.length <= 8));
     assert.equal(E.CHANNEL_NAMES.length, 12); assert.equal(E.VOICE_DEFAULTS.length, 24); assert.equal(E.ROM_SR, 25000);
     assert.deepEqual(E.REV_PROGRAMS.map((p) => p.name), ['HALL1', 'HALL2', 'ROOM1', 'ROOM2', 'VOCAL', 'PLATE1', 'PLATE2', 'ER1', 'ER2', 'GATE', 'REV GATE']);
@@ -38,25 +42,26 @@ async function engineTests() {
     for (let i = 0; i < 1000; i++) { s ^= (s << 13n) & M; s ^= s >> 17n; s ^= (s << 5n) & M; assert.equal(r(), Number(s) / 4294967296); }
   });
 
-  await t('voice ROMs: deterministic, finite, no DC, end in silence', () => {
+  await t('factory kit: 24 recordings at 25 kHz, loaded as rec; an engine without them is silent', () => {
+    assert.equal(E.FACTORY_MAP.length, 24);
+    const e = KIT();
     for (let v = 0; v < 24; v++) {
-      const a = E.makeVoiceSample(v), b = E.makeVoiceSample(v);
-      assert.deepEqual(a, b); assert.ok(finite(a), E.VOICE_NAMES[v]);
-      const p = peak(a); let m = 0; for (const x of a) m += x; m /= a.length;
-      assert.ok(p > .5 && p <= 1, `${E.VOICE_NAMES[v]} peak ${p}`);
-      assert.ok(Math.abs(m) < .01 * p, `${E.VOICE_NAMES[v]} DC ${m}`);
-      assert.ok(peak(a, a.length - Math.ceil(a.length * .01)) < 1e-3, `${E.VOICE_NAMES[v]} tail`);
+      const u = e.userSample(v); assert.ok(u && u.length > 1000 && finite(u), E.VOICE_NAMES[v]);
+      assert.equal(e.voices[v].path, 'rec'); assert.equal(e.roms[v].length, u.length);
+      assert.ok(peak(u) > .2 && peak(u) <= 1, `${E.VOICE_NAMES[v]} peak ${peak(u)}`);
     }
+    const z = new E.Engine(sr); for (let v = 0; v < 24; v++) z.trigger(v); assert.equal(peak(run(z, .5).L), 0);
   });
 
-  await t('every voice through the engine: peak -12..-1 dBFS, finite, decays to silence', () => {
-    const e = new E.Engine(sr);
+  await t('every voice through the engine: peak -20..-1 dBFS, finite, decays to silence', () => {
+    // -20: the factory recordings keep the real machine's level differences (RIDE CP sits about 11 dB under the kick)
+    const e = KIT();
     for (let v = 0; v < 24; v++) {
       for (const acc of [0, 1, 2]) {
-        e.trigger(v, 127, acc); const { L, R } = run(e, 3);
+        e.trigger(v, 127, acc); const { L, R } = run(e, 3.5);
         assert.ok(finite(L) && finite(R));
         const p = dB(Math.max(peak(L), peak(R)));
-        assert.ok(p >= -12 && p <= -1, `${E.VOICE_NAMES[v]} acc${acc} peak ${p.toFixed(1)} dBFS`);
+        assert.ok(p >= -20 && p <= -1, `${E.VOICE_NAMES[v]} acc${acc} peak ${p.toFixed(1)} dBFS`);
         assert.ok(peak(L, L.length - 4800) < 1e-4 && peak(R, R.length - 4800) < 1e-4, `${E.VOICE_NAMES[v]} tail`);
         let m = 0; for (const x of L) m += x; assert.ok(Math.abs(m / L.length) < 1e-3, 'DC');
       }
@@ -64,42 +69,36 @@ async function engineTests() {
   });
 
   await t('accent and velocity scale the level', () => {
-    const lvl = (vel, acc) => { const e = new E.Engine(sr); e.trigger(1, vel, acc); return peak(run(e, .3).L); };
+    const lvl = (vel, acc) => { const e = KIT(); e.trigger(1, vel, acc); return peak(run(e, .3).L); };
     const a0 = lvl(127, 0), a1 = lvl(127, 1), a2 = lvl(127, 2), v64 = lvl(64, 0);
     assert.ok(a1 > a0 * 1.2 && a2 > a1 * 1.2, `${a0} ${a1} ${a2}`); assert.ok(v64 < a0 * .65);
   });
 
   await t('deterministic, sample-accurate trigger offset', () => {
-    const go = () => { const e = new E.Engine(sr); e.setChannel(1, { sendRev: .5, sendDly: .5 }); e.trigger(1, 100, 1, 77); e.trigger(7, 90, 0, 300); return run(e, 1); };
+    const go = () => { const e = KIT(); e.setChannel(1, { sendRev: .5, sendDly: .5 }); e.trigger(1, 100, 1, 77); e.trigger(7, 90, 0, 300); return run(e, 1); };
     const a = go(), b = go(); assert.deepEqual(a.L, b.L); assert.deepEqual(a.R, b.R);
     const i = a.L.findIndex((x) => x !== 0); assert.ok(i >= 77 && i < 90, 'first sample ' + i);
-    const e = new E.Engine(sr); e.trigger(0, 127, 0, 200); const o = run(e, .01); assert.ok(o.L.findIndex((x) => x !== 0) >= 200, 'offset carries across blocks');
+    const e = KIT(); e.trigger(0, 127, 0, 200); const o = run(e, .01); assert.ok(o.L.findIndex((x) => x !== 0) >= 200, 'offset carries across blocks');
   });
 
-  await t("raw path: native-rate sample, no 12-bit / DAC path, EG + level still apply, state keeps path", () => {
-    const zc = (a, i0, i1) => { let c = 0; for (let i = i0 + 1; i < i1; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) c++; return c; };
-    const n = 48000, x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = .5 * Math.sin(2 * Math.PI * 1000 * i / 48000 + .3) * (i < n - 480 ? 1 : (n - i) / 480);
+  await t("rec path: no 12-bit word, no output saturation, REC_EQ undoes the playback droop; path is a saved voice param", () => {
+    const tone = (f, n = 25000) => { const x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = .5 * Math.sin(2 * Math.PI * f * i / 25000); return x; };
+    const amp = (rec, f) => { const e = new E.Engine(sr); e.setUserSample(2, tone(f), 25000, { rec }); e.setChannel(2, { pan: 0 }); e.trigger(2); return rms(run(e, .6).L, 4800, 24000); };
+    const g1 = amp(true, 1000);
+    for (const f of [3000, 6000, 8000, 10000]) { const d = dB(amp(true, f) / g1); assert.ok(Math.abs(d) < .5, `rec response ${f} Hz ${d.toFixed(2)} dB`); }
+    assert.ok(dB(amp(false, 10000) / amp(false, 1000)) < -4, 'rx path (no REC_EQ) droops at 10 kHz');
     const e = new E.Engine(sr); assert.equal(e.voices[2].path, 'rx');
-    e.setUserSample(2, x, 48000, { raw: true }); assert.equal(e.voices[2].path, 'raw'); assert.equal(e.rawSample(2).sr, 48000);
-    e.trigger(2, 127, 0, 0); const a = run(e, .5).L;
-    // unity level: DAC_HEAD * levelGain(25) * pan law (centre-ish), and sample-exact: the output is the sample times one gain
-    const g = a[1000] / x[1000]; let err = 0; for (let i = 100; i < 20000; i++) err = Math.max(err, Math.abs(a[i] - g * x[i]));
-    assert.ok(err < 1e-6 && g > .2, `raw is a pure gain, no DAC filter / requantize: err ${err} g ${g}`);
-    assert.ok(Math.abs(zc(a, 0, 24000) / 2 / .5 - 1000) < 3, 'native rate');
-    e.setVoiceParam(2, 'pitch', 1200); e.trigger(2); const b = run(e, .3).L; assert.ok(Math.abs(zc(b, 0, 9600) / 2 / .2 - 2000) < 6, 'pitch ratio');
-    e.setVoiceParam(2, 'pitch', 0); e.setVoiceParam(2, 'gate', 100); e.setVoiceParam(2, 'rr', 90); e.trigger(2); const c = run(e, .5).L;
-    assert.ok(peak(c, 14400) < 1e-3 && peak(c, 0, 4000) > .2 * .5, 'EG gate + release');
-    e.setVoiceParam(2, 'gate', 0);
-    const s = e.getState(); assert.equal(s.voices[2].path, 'raw');
-    e.setVoiceParam(2, 'path', 'rx'); e.trigger(2); const d = run(e, .3).L; let de = 0; for (let i = 100; i < 9000; i++) de = Math.max(de, Math.abs(d[i] - g * x[i]));
-    assert.ok(de > 1e-4 && rms(d, 2000, 9000) > .05, 'rx path plays the resampled 12-bit ROM through the DAC model');
-    const f = new E.Engine(sr); f.setUserSample(2, x, 48000, { raw: true }); f.setState(s); assert.equal(f.voices[2].path, 'raw');
-    f.setUserSample(2, null); assert.equal(f.voices[2].path, 'rx'); assert.equal(f.rawSample(2), null);
+    e.setUserSample(2, tone(1000), 25000, { rec: true }); assert.equal(e.voices[2].path, 'rec');
+    assert.ok(!e.roms[2].every((x) => Math.round(x * 2048) === x * 2048), 'no 12-bit word');
+    const s = e.getState(); assert.equal(s.voices[2].path, 'rec');
+    e.setVoiceParam(2, 'path', 'rx'); assert.ok(e.roms[2].every((x) => Math.round(x * 2048) === x * 2048), 'rx: 12-bit word');
+    const f = new E.Engine(sr); f.setUserSample(2, tone(1000), 25000, { rec: true }); f.setVoiceParam(2, 'path', 'rx'); f.setState(s); assert.equal(f.voices[2].path, 'rec');
+    f.setUserSample(2, null); assert.equal(f.voices[2].path, 'rx'); assert.equal(f.userSample(2), null); assert.equal(f.roms[2].length, 0);
   });
 
   await t('hi-hat choke: closed cuts open (same channel)', () => {
-    const e1 = new E.Engine(sr); e1.trigger(19); const open = run(e1, .6).L;
-    const e2 = new E.Engine(sr); e2.trigger(19); e2.trigger(7, 127, 0, 4800); const ch = run(e2, .6).L;
+    const e1 = KIT(); e1.trigger(19); const open = run(e1, .6).L;
+    const e2 = KIT(); e2.trigger(19); e2.trigger(7, 127, 0, 4800); const ch = run(e2, .6).L;
     assert.ok(rms(ch, 19200, 28800) < rms(open, 19200, 28800) * .05);
   });
 
@@ -115,56 +114,56 @@ async function engineTests() {
     e.setVoiceParam(2, 'loop', 0); e.setVoiceParam(2, 'gate', 0); e.setVoiceParam(2, 'bendRate', 55); e.setVoiceParam(2, 'bendRange', 1200); e.trigger(2);
     const bd = run(e, .6).L; const fb = zc(bd, 6000, 9600) / 2 / .075; assert.ok(fb > 840 && fb < 900, 'bend up an octave ' + fb);
     e.setUserSample(2, null); assert.equal(e.userSample(2), null);
-    const r = new E.Engine(sr); r.setVoiceParam(0, 'reverse', 1); r.trigger(0); const rv = run(r, .8).L;
-    let im = 0; for (let i = 0; i < rv.length; i++) if (Math.abs(rv[i]) > Math.abs(rv[im])) im = i; assert.ok(im > sr * .45, 'reverse peaks late ' + im);
-    const q = new E.Engine(sr); q.setVoiceParam(0, 'bits', 8); assert.equal(q.getState().voices[0].bits, 8);
+    const r = KIT(); r.setVoiceParam(0, 'reverse', 1); r.trigger(0); const rv = run(r, .4).L, bl = r.roms[0].length * sr / 25000;
+    let im = 0; for (let i = 0; i < rv.length; i++) if (Math.abs(rv[i]) > Math.abs(rv[im])) im = i; assert.ok(im > bl * .8, 'reverse peaks late ' + im);
+    const q = KIT(); q.setVoiceParam(0, 'path', 'rx'); q.setVoiceParam(0, 'bits', 8); assert.equal(q.getState().voices[0].bits, 8);
     const rom = q.roms[0]; assert.ok(rom.every((x) => Math.round(x * 128) === x * 128));
     q.setDac('float'); assert.equal(q.getState().dac, 'float'); q.trigger(0); assert.ok(finite(run(q, .5).L));
     q.setVoiceParam(3, 'gate', 50); assert.equal(q.voices[3].gate, 100); q.setVoiceParam(3, 'pitch', 9999); assert.equal(q.voices[3].pitch, 2400);
   });
 
   await t('state round-trips through JSON', () => {
-    const e = new E.Engine(sr);
+    const e = KIT();
     e.setVoiceParam(5, 'pitch', -300); e.setVoiceParam(9, 'd2r', 40); e.setChannel(3, { fader: .5, pan: -.3, sendRev: .2, mute: true });
     e.setFx('rev', 'program', 'PLATE2'); e.setFx('rev', 'time', 1.7); e.setFx('dly', 'sync', '1/8.'); e.setFx('dly', 'feedback', 80); e.setMaster({ volume: .7, click: .3 }); e.setDac('float');
     const s = JSON.parse(JSON.stringify(e.getState()));
     assert.equal(s.rev.program, 6); assert.equal(s.dly.sync, 3); assert.equal(s.channels[3].mute, true);
-    const f = new E.Engine(sr); f.setState(s); assert.deepEqual(f.getState(), e.getState());
+    const f = KIT(); f.setState(s); assert.deepEqual(f.getState(), e.getState());
     f.setState(JSON.parse(JSON.stringify(new E.Engine(sr).getState()))); assert.deepEqual(f.getState(), new E.Engine(sr).getState());
   });
 
   await t('reverb: every program rings, stays bounded and dies away', () => {
     for (let p = 0; p < E.REV_PROGRAMS.length; p++) {
-      const e = new E.Engine(sr); e.setFx('rev', 'program', p); e.setChannel(1, { fader: 1, sendRev: 1 }); e.trigger(1);
+      const e = KIT(); e.setFx('rev', 'program', p); e.setChannel(1, { fader: 1, sendRev: 1 }); e.trigger(1);
       const { L, R } = run(e, 12); const name = E.REV_PROGRAMS[p].name;
       assert.ok(finite(L) && finite(R) && peak(L) < 1, name);
       assert.ok(rms(L, sr * .5, sr * .6) > 1e-4, `${name} has a tail`);
       assert.ok(peak(L, sr * 11) < 1e-3, `${name} decays (${peak(L, sr * 11)})`);
     }
-    const e = new E.Engine(sr); e.setFx('rev', 'time', 30); e.setFx('rev', 'hiRatio', 1); e.setChannel(0, { sendRev: 1 });
+    const e = KIT(); e.setFx('rev', 'time', 30); e.setFx('rev', 'hiRatio', 1); e.setChannel(0, { sendRev: 1 });
     for (let k = 0; k < 20; k++) e.trigger(0, 127, 2, k * 50);
     const o = run(e, 20); assert.ok(finite(o.L) && peak(o.L) < 4, 'RT60 30 s stable ' + peak(o.L));
   });
 
   await t('TC delay: echo at the set time, 120 % feedback limited, sync to tempo', () => {
-    const e = new E.Engine(sr); e.setFx('dly', 'timeL', 300); e.setFx('dly', 'timeR', 300); e.setFx('dly', 'modDepth', 0); e.setChannel(2, { pan: 0, sendDly: 1 }); e.trigger(2);
+    const e = KIT(); e.setFx('dly', 'timeL', 300); e.setFx('dly', 'timeR', 300); e.setFx('dly', 'modDepth', 0); e.setChannel(2, { pan: 0, sendDly: 1 }); e.trigger(2);
     const { L } = run(e, 1); let im = 4800; for (let i = 4800; i < 24000; i++) if (Math.abs(L[i]) > Math.abs(L[im])) im = i;
     assert.ok(Math.abs(im - .3 * sr) < 240, 'echo at ' + im);
-    const f = new E.Engine(sr); f.setFx('dly', 'feedback', 120); f.setFx('dly', 'pingpong', 1); f.setChannel(0, { sendDly: 1 }); f.trigger(0, 127, 2);
+    const f = KIT(); f.setFx('dly', 'feedback', 120); f.setFx('dly', 'pingpong', 1); f.setChannel(0, { sendDly: 1 }); f.trigger(0, 127, 2);
     const o = run(f, 15); assert.ok(finite(o.L) && peak(o.L) < 2 && rms(o.L, sr * 14, sr * 15) > 1e-3, 'self-oscillates, bounded');
     const g = new E.Engine(sr); g.setTempo(100); g.setFx('dly', 'sync', 1); assert.ok(Math.abs(g.dlyFx.tL - .6 * sr) < 1);
-    const d = new E.Engine(sr); d.setFx('dly', 'on', 0); d.setChannel(0, { sendDly: 1 }); d.trigger(0); const off = run(d, 1).L; assert.ok(peak(off, sr * .8) < 1e-4, 'off = no echoes');
+    const d = KIT(); d.setFx('dly', 'on', 0); d.setChannel(0, { sendDly: 1 }); d.trigger(0); const off = run(d, 1).L; assert.ok(peak(off, sr * .8) < 1e-4, 'off = no echoes');
   });
 
   await t('meters, voiceActive, click', () => {
-    const e = new E.Engine(sr); e.trigger(0); run(e, .05);
+    const e = KIT(); e.trigger(0); run(e, .05);
     assert.ok(e.voiceActive(0) > .3 && e.voiceActive(5) === 0); const m = e.meters(); assert.ok(m.l > .05 && m.r > .05); assert.equal(e.meters().l, 0);
     run(e, 2); assert.ok(e.voiceActive(0) < .01);
     e.clickTick(true); const c = run(e, .1).L; assert.ok(peak(c) > .05 && peak(c, sr * .05) === 0);
   });
 
   await t('real-time budget (dense kit, all FX)', () => {
-    const e = new E.Engine(sr); for (let ch = 0; ch < 12; ch++) e.setChannel(ch, { sendRev: .3, sendDly: .2 });
+    const e = KIT(); for (let ch = 0; ch < 12; ch++) e.setChannel(ch, { sendRev: .3, sendDly: .2 });
     const L = new Float32Array(128), R = new Float32Array(128), blocks = Math.round(10 * sr / 128), t0 = performance.now();
     for (let b = 0; b < blocks; b++) { if (b % 47 === 0) for (let v = 0; v < 24; v += 2) e.trigger((v + b) % 24, 110, b % 3); e.process(L, R, 128); }
     const ms = performance.now() - t0; console.log(`    10 s rendered in ${ms.toFixed(0)} ms (${(10000 / ms).toFixed(1)}x real time)`);
@@ -612,5 +611,115 @@ async function rxTests() {
   console.log(`rx: ${n} tests passed`);
 }
 // ---- end rx tests ----
+
+// ---- kit tests ----
+async function kitTests() {
+  const K = await import('../kits.js');
+  const fs = await import('node:fs');
+  const assert = (await import('node:assert/strict')).default;
+  let n = 0;
+  const t = async (name, fn) => { await fn(); n++; console.log('  ok kit:', name); };
+  // WAV writer for synthetic inputs (test signals only)
+  const wav = (x, sr, bits, opts = {}) => {
+    const ch = opts.ch || 1, fl = opts.float, ext = opts.ext, bps = bits / 8, fmtLen = ext ? 40 : 16, dl = x.length * ch * bps;
+    const b = Buffer.alloc(12 + 8 + fmtLen + 8 + dl + (dl & 1));
+    b.write('RIFF', 0); b.writeUInt32LE(b.length - 8, 4); b.write('WAVE', 8); b.write('fmt ', 12); b.writeUInt32LE(fmtLen, 16);
+    b.writeUInt16LE(ext ? 0xFFFE : fl ? 3 : 1, 20); b.writeUInt16LE(ch, 22); b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * ch * bps, 28);
+    b.writeUInt16LE(ch * bps, 32); b.writeUInt16LE(bits, 34);
+    if (ext) { b.writeUInt16LE(22, 36); b.writeUInt16LE(bits, 38); b.writeUInt16LE(fl ? 3 : 1, 44); }
+    let p = 20 + fmtLen; b.write('data', p); b.writeUInt32LE(dl, p + 4); p += 8;
+    for (const v of x) for (let c = 0; c < ch; c++, p += bps) {
+      if (fl) b.writeFloatLE(v, p);
+      else if (bits === 8) b[p] = Math.round(v * 127) + 128;
+      else if (bits === 16) b.writeInt16LE(Math.round(v * 32767), p);
+      else if (bits === 24) b.writeIntLE(Math.round(v * 8388607), p, 3);
+      else b.writeInt32LE(Math.round(v * 2147483647), p);
+    }
+    return new Uint8Array(b);
+  };
+  const tone = (len, f, sr) => Float32Array.from({ length: len }, (_, i) => 0.5 * Math.sin(2 * Math.PI * f * i / sr) * (1 - i / len));
+
+  await t('wav formats', () => {
+    const x = tone(300, 440, 48000);
+    for (const [bits, o, tol] of [[8, {}, 1e-2], [16, {}, 1e-4], [24, {}, 1e-6], [32, {}, 1e-8], [32, { float: true }, 1e-7], [24, { ext: true }, 1e-6], [16, { ch: 2 }, 1e-4]]) {
+      const a = K.parseWav(wav(x, 48000, bits, o));
+      assert.equal(a.sr, 48000); assert.equal(a.frames, 300);
+      for (let i = 0; i < 300; i++) assert.ok(Math.abs(a.data[i] - x[i]) < tol, `${bits} ${JSON.stringify(o)} @${i}`);
+    }
+  });
+
+  await t('names', () => {
+    assert.equal(K.rx5Waveform('BDrum1-RX5.wav').v, 0); assert.equal(K.rx5Waveform('OHat-RX5.wav').v, 19);
+    assert.equal(K.rx5Waveform('RideBell-RX5.wav').v, 20); assert.equal(K.rx5Waveform('Clap-RX5.wav').v, 22);
+    assert.equal(K.rx5Waveform('BDrum3-RX5.wav').id, 25); assert.equal(K.rx5Waveform('DXmrrmb-RX5.wav').name, 'DXmrmb');
+    assert.equal(K.rx5Waveform('FMPrc2-RX5.wav').name, 'FMprc2'); assert.equal(K.rx5Waveform('kick'), null);
+    assert.deepEqual(K.aliasVoices('Kick 01.wav'), [0, 12]); assert.deepEqual(K.aliasVoices('Open Hat.wav'), [19, 7]);
+    assert.deepEqual(K.aliasVoices('hihat_closed.wav'), [7, 19]); assert.deepEqual(K.aliasVoices('Tom Floor.wav'), [6, 18]);
+    assert.deepEqual(K.aliasVoices('snare2.wav'), [13, 1]); assert.equal(K.aliasVoices('pad.wav'), null);
+  });
+
+  await t('zip (stored + deflate, prepended data) -> kit at 25 kHz', async () => {
+    const files = [{ name: 'k/Kick.wav', bytes: wav(tone(4800, 60, 48000), 48000, 24) }, { name: 'k/Snare.wav', bytes: wav(tone(2000, 200, 44100), 44100, 16) },
+      { name: 'k/Cuica-RX5.wav', bytes: wav(tone(1000, 500, 25000), 25000, 16) }, { name: 'k/weird.wav', bytes: wav(tone(500, 900, 32000), 32000, 32, { float: true }) }];
+    for (const deflate of [false, true]) {
+      const z = await K.makeZip(files, { deflate });
+      const pre = new Uint8Array(z.length + 777); pre.set(z, 777); pre.fill(0x42, 0, 777);
+      const back = await K.readZip(pre);
+      assert.deepEqual(back.map((f) => f.name), files.map((f) => f.name));
+      back.forEach((f, i) => assert.deepEqual(f.bytes, files[i].bytes));
+      const kit = await K.loadKit(pre);
+      assert.deepEqual(kit.assignments.map((a) => a.v), [0, 1]);
+      const cu = kit.waveforms.find((w) => w.name === 'Cuica');
+      assert.equal(cu.id, 35); assert.equal(cu.kind, 'crt');
+      assert.equal(kit.waveforms.find((w) => w.file === 'weird.wav').id, 24);
+      for (const w of kit.waveforms) { assert.equal(w.sr, 25000); assert.ok(w.native); }
+      const kick = kit.waveforms[kit.assignments[0].libIndex];
+      assert.ok(Math.abs(kick.data.length - 2500) < 30, `${kick.data.length}`);
+      const hifi = await K.loadKit(pre, { keepRate: true });
+      assert.equal(hifi.waveforms[0].sr, 48000);
+    }
+  });
+
+  await t('resample keeps a tone and removes aliases', () => {
+    const sr = 48000, x = Float32Array.from({ length: 9600 }, (_, i) => 0.5 * Math.sin(2 * Math.PI * 1000 * i / sr) + 0.5 * Math.sin(2 * Math.PI * 20000 * i / sr));
+    const y = K.resample(x, sr, 25000);
+    const amp = (f) => { let c = 0, s = 0; for (let i = 1000; i < 4000; i++) { c += y[i] * Math.cos(2 * Math.PI * f * i / 25000); s += y[i] * Math.sin(2 * Math.PI * f * i / 25000); } return 2 * Math.hypot(c, s) / 3000; };
+    assert.ok(Math.abs(amp(1000) - 0.5) < 0.01, `1k ${amp(1000)}`);
+    assert.ok(amp(5000) < 0.001, `alias ${amp(5000)}`);              // 20 kHz would fold to 5 kHz
+  });
+
+  await t('applyKit', async () => {
+    const kit = await K.loadKit([{ name: 'BD.wav', bytes: wav(tone(2000, 60, 25000), 25000, 16) }, { name: 'Gun-RX5.wav', bytes: wav(tone(200, 60, 25000), 25000, 16) }]);
+    const calls = [], eng = { setUserSample: (v, d, sr) => calls.push([v, d && d.length, sr]) }, st = { samples: new Array(24).fill(null) };
+    K.applyKit(eng, st, kit, { mode: 'library' });
+    assert.equal(calls.length, 0); assert.equal(st.library.length, 2);
+    K.applyKit(eng, st, kit);
+    assert.deepEqual(calls.map((c) => c[0]), [0]); assert.equal(st.samples[0].sr, 25000); assert.equal(st.samples[0].lib, 0);
+    K.assignWaveform(eng, st, 0, null); assert.equal(st.samples[0], null);
+  });
+
+  const kitDir = new URL('../kit/', import.meta.url);
+  if (fs.existsSync(new URL('kit.json', kitDir))) await t('factory kit', async () => {
+    const kit = await K.loadFactoryKit();
+    assert.equal(kit.assignments.length, 24); assert.equal(kit.waveforms.length, 51);
+    assert.equal(kit.waveforms.filter((w) => w.kind === 'crt').length, 27);
+    for (const w of kit.waveforms) { assert.equal(w.sr, 25000); assert.ok(w.native); }
+    const E = await import('../engine.js');
+    if (E.FACTORY_MAP) for (const a of kit.assignments) assert.equal(kit.waveforms[a.libIndex].file.toLowerCase(), String(E.FACTORY_MAP[a.v]).split('/').pop().toLowerCase());
+  });
+  else console.log('  skip kit: factory kit (five/kit/ absent)');
+
+  const bw = '/tmp/claude-0/-home-user-The-System/e745d8bf-4798-5de7-902d-58dd7b7809d9/scratchpad/drive/full.bwpreset';
+  if (fs.existsSync(bw)) await t('Bitwig full.bwpreset', async () => {
+    const d = fs.readFileSync(bw), p = K.parseBitwigPreset(d);
+    assert.equal(p.pads.length, 51); assert.equal(p.pads[0].note, 36); assert.equal(p.pads[0].sample, 'BDrum1-RX5.wav');
+    assert.equal(p.pads[0].params.GAIN, 1.11);
+    const kit = await K.loadKit([{ name: 'full.bwpreset', bytes: d }]);
+    assert.equal(kit.assignments.length, 24); assert.equal(kit.waveforms.length, 51);
+  });
+  else console.log('  skip kit: Bitwig presets (scratchpad files absent)');
+  console.log(`kit: ${n} tests passed`);
+}
+// ---- end kit tests ----
 
 main();
