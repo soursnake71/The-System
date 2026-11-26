@@ -346,9 +346,250 @@ async function seqTests() {
     assert.ok(pl.ended);
   });
 
+  await t('randomized values inside engine RANGES (hardware ranges)', async () => {
+    const E = await import('../engine.js');
+    for (let seed = 1; seed <= 40; seed++) {
+      const a = S.newState(); S.randomize(a, seed, 'all');
+      const inR = (grp, o) => { for (const [k, x] of Object.entries(o)) { const r = E.RANGES[grp][k]; if (r && typeof x === 'number') assert.ok(x >= r[0] && x <= r[1], `${grp}.${k}=${x} seed ${seed}`); } };
+      a.voice.forEach((o) => { inR('voice', o); assert.ok(o.gate === 0 || (o.gate >= 100 && o.gate <= 6500)); });
+      a.channel.forEach((o) => inR('channel', o)); inR('rev', a.fx.rev); inR('dly', a.fx.dly);
+    }
+  });
+
   console.log(`seq: ${n} tests passed`);
 }
 
 // ---- end seq tests ----
+
+// ---- rx tests (rxsysex.js, rxcart.js, seq.js MIDI helpers) ----
+async function rxTests() {
+  const S = await import('../seq.js');
+  const X = await import('../rxsysex.js');
+  const C = await import('../rxcart.js');
+  const assert = (await import('node:assert/strict')).default;
+  let n = 0;
+  const t = async (name, fn) => { await fn(); n++; console.log('  ok rx:', name); };
+  const arr = (u) => Array.from(u);
+  // DX7-style single-voice-like message: F0 43 0n 00 bh bl data cs F7
+  const dx = (dev, data) => { const cs = X.yamahaChecksum(data); return Uint8Array.from([0xF0, 0x43, dev - 1, 0x00, data.length >> 7, data.length & 127, ...data, cs, 0xF7]); };
+
+  await t('assembler: split packets, interleaved realtime, abort on new F0', () => {
+    const rt = [];
+    const A = new X.SysexAssembler({ onRealtime: (b) => rt.push(b) });
+    const m1 = [0xF0, 0x43, 0x00, 0x01, 0x02, 0x03, 0xF7], m2 = [0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7];
+    assert.deepEqual(A.push([0x90, 36, 100, 0xF0, 0x43]), []);
+    assert.equal(A.pending, 2);
+    assert.deepEqual(A.push([0x00, 0xF8, 0x01]), []); // clock inside a SysEx
+    assert.deepEqual(A.realtime, [0xF8]);
+    const got = A.push([0x02, 0xFE, 0x03, 0xF7, ...m2.slice(0, 3)]);
+    assert.deepEqual(got.map(arr), [m1]);
+    assert.deepEqual(A.push(m2.slice(3)).map(arr), [m2]);
+    assert.deepEqual(rt, [0xF8, 0xFE]);
+    // a new F0 aborts the partial message; another status byte aborts too
+    assert.deepEqual(A.push([0xF0, 1, 2, 0xF0, 5, 0xF7, 0xF0, 9, 0x80, 0xF7]).map(arr), [[0xF0, 5, 0xF7]]);
+    assert.equal(A.aborted, 2);
+    // .syx parse/write
+    const syx = X.writeSyx([m1, m2]);
+    assert.equal(syx.length, m1.length + m2.length);
+    assert.deepEqual(X.parseSyx(syx).map(arr), [m1, m2]);
+  });
+
+  await t('Yamaha checksum helper on a DX7-style message', () => {
+    // DX7 VCED-style: F0 43 00 00 01 1B <155 bytes> cs F7 (count 0x011B = 155)
+    const data = Array.from({ length: 155 }, (_, i) => (i * 13 + 7) & 127);
+    const m = dx(1, data);
+    assert.equal(m[4], 0x01); assert.equal(m[5], 0x1B);
+    let sum = 0; for (const d of data) sum += d;
+    assert.equal((sum + m[m.length - 2]) & 127, 0);
+    assert.equal(X.yamahaChecksum([0x01, 0x02, 0x7F]), (128 - ((1 + 2 + 127) & 127)) & 127);
+    assert.equal(X.verifyYamahaChecksum(m), 'ok');
+    const bad = m.slice(); bad[10] ^= 1;
+    assert.equal(X.verifyYamahaChecksum(bad), 'bad');
+    assert.equal(X.verifyYamahaChecksum(Uint8Array.from([0xF0, 0x43, 0x00, 0x7F, 1, 2, 3, 0xF7])), 'unknown-layout');
+    assert.equal(X.verifyBulk([m, m]), 'ok'); assert.equal(X.verifyBulk([m, bad]), 'bad');
+    assert.equal(X.yamahaInfo(m).device, 1);
+    assert.deepEqual(arr(X.dumpRequest(3, 0x09)), [0xF0, 0x43, 0x22, 0x09, 0xF7]);
+  });
+
+  await t('librarian: receive, device filter, byte-identical retransmit, .syx, cart round trip', async () => {
+    const s = S.newState(); s.midi.deviceNo = 2;
+    const a = dx(2, Array.from({ length: 300 }, (_, i) => i & 127)), b = dx(2, [1, 2, 3]), other = dx(5, [9]);
+    const rcv = new X.BulkReceiver({ gapMs: 1000 });
+    assert.equal(X.handleSysex(s, other, { receiver: rcv, now: 0 }).kind, 'ignored');
+    let r = X.handleSysex(s, a, { receiver: rcv, now: 0 });
+    assert.equal(r.kind, 'yamaha-bulk'); assert.equal(r.checksum, 'ok');
+    r = X.handleSysex(s, b, { receiver: rcv, now: 500 });
+    assert.equal(r.count, 2); assert.equal(s.rxBulk.status, 'ok'); assert.match(s.rxBulk.received, /^\d{4}-/);
+    assert.deepEqual(X.transmitBulk(s).map(arr), [arr(a), arr(b)]);
+    assert.deepEqual(arr(X.rxBulkToSyx(s)), [...a, ...b]);
+    // dump request from the other side -> stored dump, verbatim
+    const req = X.handleSysex(s, X.dumpRequest(2, 0), {});
+    assert.equal(req.kind, 'yamaha-request'); assert.deepEqual(req.reply.map(arr), [arr(a), arr(b)]);
+    // device renumbering on transmit only touches byte 2 (checksum still ok)
+    const re = X.transmitBulk(s, { deviceNo: 7 });
+    assert.equal(re[0][2], 6); assert.equal(X.verifyYamahaChecksum(re[0]), 'ok');
+    assert.deepEqual(X.transmitBulk(s).map(arr), [arr(a), arr(b)]); // stored copy unchanged
+    // a long gap starts a new dump; a corrupted message is reported
+    const bad = b.slice(); bad[6] ^= 1;
+    r = X.handleSysex(s, bad, { receiver: rcv, now: 5000 });
+    assert.equal(r.count, 1); assert.equal(r.message, 'checksum error!'); assert.equal(s.rxBulk.status, 'bad');
+    // deviceNo 0 (OFF) accepts any device
+    const s0 = S.newState(); s0.midi.deviceNo = 0;
+    assert.equal(X.handleSysex(s0, other).kind, 'yamaha-bulk');
+    // .syx load + survives the cartridge file and the full Omega dump
+    const d = S.newState();
+    const lr = X.loadSyx(d, X.writeSyx([a, b, X.omegaPattern(s, 0)]));
+    assert.equal(lr.yamaha, 2); assert.equal(lr.omega, 1); assert.equal(lr.status, 'ok');
+    const back = await S.loadCart(await S.saveCart(d, { gzip: false }));
+    assert.deepEqual(X.transmitBulk(back).map(arr), [arr(a), arr(b)]);
+    const viaSx = S.parseSysex(X.omegaFull(d));
+    assert.deepEqual(X.transmitBulk(viaSx).map(arr), [arr(a), arr(b)]);
+  });
+
+  await t('identity request / reply', () => {
+    const s = S.newState(); s.midi.deviceNo = 0;
+    const r = X.handleSysex(s, X.IDENTITY_REQUEST);
+    assert.equal(r.kind, 'identity');
+    assert.deepEqual(arr(r.reply[0]), [0xF0, 0x7E, 0x7F, 0x06, 0x02, 0x7D, 0x4F, 0x35, 0x00, 0x05, 0x00, 0x01, 0x00, 0x00, 0xF7]);
+    s.midi.deviceNo = 3;
+    assert.equal(X.handleSysex(s, [0xF0, 0x7E, 0x02, 0x06, 0x01, 0xF7]).reply[0][2], 0x02);
+    assert.equal(X.handleSysex(s, [0xF0, 0x7E, 0x05, 0x06, 0x01, 0xF7]).kind, 'ignored');
+    const id = X.handleSysex(s, X.omegaRequest(X.OMEGA.IDENTITY)).reply[0];
+    assert.equal(X.parseOmega(id).identity.name, 'OMEGA FIVE');
+  });
+
+  await t('Omega partial dumps, param change, requests, legacy full dump', () => {
+    const s = S.newState(); S.randomize(s, 99, 'all');
+    s.voice[5].pitch = -1234; s.fx.rev.time = 3.3;
+    const d = S.newState();
+    for (const m of [X.omegaPattern(s, 1), X.omegaSong(s, 0), X.omegaVoices(s), X.omegaFx(s)]) {
+      assert.ok(m.slice(1, -1).every((x) => x < 0x80));
+      const r = X.handleSysex(d, m);
+      assert.equal(r.kind, 'omega'); assert.ok(!r.error, r.error);
+    }
+    assert.deepEqual(d.patterns[1], s.patterns[1]); assert.deepEqual(d.songs[0], s.songs[0]);
+    assert.deepEqual(d.voice, s.voice); assert.deepEqual(d.channel, s.channel); assert.deepEqual(d.fx, s.fx);
+    // checksum error
+    const bad = X.omegaPattern(s, 2); bad[8] ^= 1;
+    assert.equal(X.handleSysex(d, bad).error, 'checksum error!');
+    // param change
+    for (const [p, v] of [[{ target: 'voice', index: 3, name: 'pitch' }, -3600], [{ target: 'channel', index: 11, name: 'pan' }, -0.571],
+      [{ target: 'rev', index: 0, name: 'time' }, 12.5], [{ target: 'global', index: 0, name: 'tempo' }, 133], [{ target: 'key', index: 4, name: 'pitch' }, 250],
+      [{ target: 'midi', index: 0, name: 'tunable' }, true]]) {
+      const r = X.handleSysex(d, X.omegaParam(p, v));
+      assert.ok(!r.error, r.error); assert.equal(r.param.target, p.target); assert.equal(r.param.value, +v);
+    }
+    assert.equal(d.voice[3].pitch, -3600); assert.equal(d.channel[11].pan, -0.571); assert.equal(d.fx.rev.time, 12.5);
+    assert.equal(d.tempo, 133); assert.equal(d.setups[0].keys[4].pitch, 250); assert.equal(d.midi.tunable, true);
+    assert.ok(X.handleSysex(d, X.omegaParam({ target: 'global', name: '__proto__' }, 1)).error);
+    // requests
+    assert.deepEqual(arr(X.handleSysex(s, X.omegaRequest(X.OMEGA.PATTERN, 1)).reply[0]), arr(X.omegaPattern(s, 1)));
+    assert.equal(X.handleSysex(s, X.omegaRequest(X.OMEGA.FULL)).reply[0][4], 1);
+    // full dump: new (cmd 01) and legacy seq.sysexDump forms both load
+    const strip = (x) => JSON.parse(JSON.stringify({ ...x, samples: null }));
+    const f1 = S.newState(); X.handleSysex(f1, X.omegaFull(s)); assert.deepEqual(strip(f1), strip(s));
+    const f2 = S.newState(); const r2 = X.handleSysex(f2, S.sysexDump(s)); assert.equal(r2.what, 'all data'); assert.deepEqual(strip(f2), strip(s));
+    assert.deepEqual(strip(S.parseSysex(X.omegaFull(s))), strip(s));
+  });
+
+  await t('cart bank build -> parse round trip (12-bit + 8-bit, checksum, 256 KB)', () => {
+    const N = 3001, sine = new Float32Array(N), saw = new Float32Array(2000);
+    for (let i = 0; i < N; i++) sine[i] = Math.sin(i * 0.05) * 0.9 * Math.exp(-i / 2000);
+    for (let i = 0; i < saw.length; i++) saw[i] = ((i % 50) / 25 - 1) * 0.7;
+    const voices = [
+      { name: 'SINE12', bits: 12, pcm: sine, params: { pitch: -1230, level: 25, ar: 99, d1r: 30, d1l: 50, d2r: 40, rr: 55, gate: 0, bendRate: 10, bendRange: -1200, loop: 1 }, out: 3 },
+      { name: 'SAW8', bits: 8, pcm: saw, params: { pitch: 2400, level: 31, ar: 80, d1r: 0, d1l: 60, d2r: 0, rr: 20, gate: 0, loop: 0 } },
+      { name: 'HALF', bits: 12, pcm: saw, sr: 50000, params: {} },
+    ];
+    const bank = C.buildBank(voices);
+    assert.equal(bank.length, 131072);
+    assert.deepEqual(arr(bank.subarray(0, 4)), [0, 0, 0, 0]); assert.equal(bank[5], 3);
+    let sum = 0; for (let i = 0; i < 0x3FE; i++) sum += bank[i];
+    assert.equal((bank[0x3FE] << 8) | bank[0x3FF], sum & 0xFFFF);
+    const r = C.parseBank(bank);
+    assert.ok(r.checksumOk); assert.equal(r.voices.length, 3);
+    const [a, b, c] = r.voices;
+    assert.equal(a.name, 'SINE12'); assert.equal(a.bits, 12); assert.equal(a.sr, 25000); assert.equal(a.pcm.length, N + 1); // padded to a pair
+    for (let i = 0; i < N; i++) assert.ok(Math.abs(a.pcm[i] - sine[i]) <= 1 / 2048, '12-bit sample ' + i);
+    assert.equal(a.pcm[N], 0);
+    assert.equal(b.bits, 8); assert.equal(b.pcm.length, saw.length);
+    for (let i = 0; i < saw.length; i++) assert.ok(Math.abs(b.pcm[i] - saw[i]) <= 1 / 128);
+    assert.deepEqual({ ...a.params }, { pitch: -1230, level: 25, ar: 99, d1r: 30, d1l: 50, d2r: 40, rr: 55, gate: 0, bendRate: 10, bendRange: -1200, reverse: 0, loop: 1, bits: 12 });
+    assert.equal(a.out, 3); assert.equal(b.params.pitch, 2400); assert.equal(b.params.loop, 0);
+    assert.equal(a.loopStart, Math.floor(N * 0.7) & ~1); assert.equal(a.loopEnd, N + 1);
+    assert.equal(c.pcm.length, 1000); // 50 kHz resampled to 25 kHz
+    assert.equal(C.gateFromCode(C.codeFromGate(3000)) > 2900, true);
+    // parse -> build is byte-identical (raw kept), also with a corrupted checksum detected
+    assert.deepEqual(arr(C.buildBank(r.voices, { bankId: r.id, fill: r.banks[0].image })), arr(bank));
+    const broken = bank.slice(); broken[0x3FF] ^= 1;
+    assert.equal(C.parseBank(broken).checksumOk, false);
+    // 2-bank (256 KB) image
+    const two = new Uint8Array(262144); two.set(bank, 0); two.set(C.buildBank([voices[1]], { bankId: 0x11 }), 131072);
+    const r2 = C.parseBank(two);
+    assert.equal(r2.banks.length, 2); assert.equal(r2.voices.length, 4); assert.equal(r2.banks[1].id, 0x11); assert.ok(r2.checksumOk);
+    assert.throws(() => C.parseBank(new Uint8Array(1000)), /bank/);
+    assert.throws(() => C.buildBank([{ name: 'BIG', bits: 8, pcm: new Float32Array(140000) }]), /bank holds/);
+  });
+
+  await t('midiIn actions: notes, tunable, song select, SPP, transport, device filter; midiOutForEvent', () => {
+    const s = S.newState(); s.midi.rxCh = 10;
+    const ty = (a) => a.map((x) => x.type);
+    // VOICE mode with RX5 notes; running status; vel 0 = off; other channel ignored
+    let a = S.midiIn(s, null, [0x99, 45, 100, 59, 90, 45, 0, 0x90, 45, 100]);
+    assert.deepEqual(a, [{ type: 'note', v: 0, vel: 100 }, { type: 'note', v: 19, vel: 90 }, { type: 'off', v: 0 }]);
+    s.noteMap[12] = 45; // two voices on one note, like the hardware allows
+    assert.deepEqual(S.midiIn(s, null, [0x99, 45, 64]).map((x) => x.v), [0, 12]);
+    s.noteMap = S.NOTE_PRESETS.gm.slice();
+    assert.deepEqual(S.midiIn(s, null, [0x99, 82, 64]), [{ type: 'note', v: 11, vel: 64 }]); // GM extra
+    // program change only in tunable mode; tunable notes 36..96 pitched around 60
+    assert.deepEqual(S.midiIn(s, null, [0xC9, 5]), []);
+    s.midi.tunable = true; s.midi.tunableVoice = 4;
+    a = S.midiIn(s, null, [0xC9, 5, 0x99, 60, 100, 72, 80, 35, 80, 96, 10, 0x89, 72, 64]);
+    assert.deepEqual(a, [{ type: 'program', n: 5 }, { type: 'note', v: 4, vel: 100, pitch: 0 }, { type: 'note', v: 4, vel: 80, pitch: 1200 },
+      { type: 'note', v: 4, vel: 10, pitch: 3600 }, { type: 'off', v: 4 }]);
+    // song select 0..19 (always), SPP + transport + clock only when synced to MIDI
+    assert.deepEqual(S.midiIn(s, null, [0xF3, 7, 0xF3, 20, 0xF2, 0x10, 0x01, 0xFA, 0xF8]), [{ type: 'song', n: 7 }]);
+    s.sync = 'midi';
+    assert.deepEqual(S.midiIn(s, null, [0xF2, 0x10, 0x01, 0xFA, 0xF8, 0xFC, 0xFB, 0xFE]),
+      [{ type: 'spp', n: 144 }, { type: 'start' }, { type: 'clock' }, { type: 'stop' }, { type: 'cont' }, { type: 'sense' }]);
+    // SysEx with device-number filter (realtime inside is still delivered)
+    s.midi.deviceNo = 2;
+    a = S.midiIn(s, null, [0xF0, 0x43, 0x01, 0x7F, 0xF8, 0x01, 0xF7, 0xF0, 0x43, 0x04, 0x7F, 0xF7, 0xF0, 0x7D, 0x4F, 0x35, 7, 8, 0, 0x71, 0xF7]);
+    assert.deepEqual(ty(a), ['clock', 'sysex', 'sysex']);
+    assert.deepEqual(arr(a[1].bytes), [0xF0, 0x43, 0x01, 0x7F, 0x01, 0xF7]);
+    s.midi.deviceNo = 0;
+    assert.equal(S.midiIn(s, null, [0xF0, 0x43, 0x04, 0x7F, 0xF7]).length, 1);
+    // applyMidiActions drives a Player
+    const p = S.newState(); S.stepInsert(p, 0, 6, 0, 100);
+    const pl = new S.Player(p); pl.setMode('pattern', 0); pl.setExternal(true);
+    const evs = S.applyMidiActions(pl, [{ type: 'spp', n: 1 }, { type: 'start' }]);
+    assert.equal(evs.length, 0); assert.ok(pl.running);
+    assert.equal(S.applyMidiActions(pl, [{ type: 'spp', n: 1 }, { type: 'clock' }]).length, 1);
+    // out: note on with accent, note off 8n v=64 after the gate time
+    const o = S.newState(); o.midi.notesOut = true; o.midi.txCh = 10; o.midi.voiceTxCh[1] = 2; o.midi.gateMs = 50;
+    assert.deepEqual(S.midiOutForEvent(o, { offset: 0, v: 1, vel: 100, acc: 2 }), [{ bytes: [0x91, 52, 127], delayMs: 0 }, { bytes: [0x81, 52, 64], delayMs: 50 }]);
+    assert.deepEqual(S.midiOutForEvent(o, { offset: 0, v: -1, vel: 0, acc: 0, click: 1 }), []);
+    assert.deepEqual(S.noteOffBytes(10, 45), [0x89, 45, 64]); assert.deepEqual(S.songSelectBytes(19), [0xF3, 19]);
+  });
+
+  await t('SMF map option: auto picks RX5 vs GM; export map', () => {
+    const s = S.newState();
+    S.stepInsert(s, 0, 0, 0, 100); S.stepInsert(s, 0, 24, 13, 100); S.stepInsert(s, 0, 48, 19, 100);
+    for (const map of ['rx5', 'gm']) {
+      const bytes = S.exportSMF(s, { what: 'pattern', n: 0, map });
+      const d = S.newState();
+      const r = S.importSMF(bytes, { state: d });
+      assert.equal(r.map, map);
+      assert.deepEqual(d.patterns[r.patterns[0]].events.map((e) => e.v), [0, 13, 19]);
+    }
+    const gmBytes = S.exportSMF(s, { what: 'pattern', n: 0 });
+    assert.ok(Array.from(gmBytes).join(',').includes([0x99, 35].join(','))); // default export = GM (BD 1 = 35)
+    const d = S.newState(); const r = S.importSMF(gmBytes, { state: d, map: 'rx5' });
+    assert.equal(r.map, 'rx5'); assert.match(r.report, /RX5 map/);
+  });
+
+  console.log(`rx: ${n} tests passed`);
+}
+// ---- end rx tests ----
 
 main();
