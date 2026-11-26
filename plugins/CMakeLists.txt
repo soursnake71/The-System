@@ -140,3 +140,50 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega Five: the 12-bit digital rhythm programmer (five/ in the app). An instrument with MIDI in and out (sequencer
+# notes, clock, SysEx), 12 optional individual outputs, plus a standalone app. The factory kit (five/kit/*.wav) is built in.
+set(FIVE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../five)
+set(FIVE_DEFS JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1 JUCE_USE_MP3AUDIOFORMAT=1)
+set(FIVE_FPFLAGS $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-ffp-contract=off>)
+if(NOT OMEGA_ONLY OR "Five" IN_LIST OMEGA_ONLY)
+  file(GLOB FIVE_KIT_FILES ${FIVE_ROOT}/kit/*.wav ${FIVE_ROOT}/kit/kit.json)
+  juce_add_binary_data(FiveKit NAMESPACE FiveKitData SOURCES ${FIVE_KIT_FILES})
+  set_target_properties(FiveKit PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+  juce_add_plugin(OmegaFive
+    PRODUCT_NAME "Omega Five"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Five"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Ofv5
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Drum
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaFive PRIVATE five/FivePlugin.cpp five/FiveEditor.cpp)
+  target_compile_definitions(OmegaFive PUBLIC ${FIVE_DEFS})
+  target_compile_options(OmegaFive PRIVATE ${FIVE_FPFLAGS})
+  target_link_libraries(OmegaFive PRIVATE FiveKit juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+
+  # drives the processor and editor headless: <build>/five_proc_test <dir> (writes five/tools/shots/plugin.png when given that dir)
+  juce_add_console_app(five_proc_test PRODUCT_NAME "five_proc_test")
+  target_sources(five_proc_test PRIVATE five/proctest.cpp five/FivePlugin.cpp five/FiveEditor.cpp)
+  target_compile_definitions(five_proc_test PRIVATE ${FIVE_DEFS} JUCE_MODAL_LOOPS_PERMITTED=1 JucePlugin_Name="Omega Five" JucePlugin_IsSynth=1
+    JucePlugin_ProducesMidiOutput=1 JucePlugin_WantsMidiInput=1)
+  target_compile_options(five_proc_test PRIVATE ${FIVE_FPFLAGS})
+  target_link_libraries(five_proc_test PRIVATE FiveKit juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(five_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
+
+# Five.h against engine.js: node five/tools/compare.mjs <build>/five_test <dir>
+add_executable(five_test five/test.cpp)
+target_compile_options(five_test PRIVATE ${FIVE_FPFLAGS})
+# FiveSeq.h / FiveSysex.h / FiveCart.h against seq.js, rxsysex.js, rxcart.js: node five/tools/interop.mjs <build>/five_seq_test <dir>
+juce_add_console_app(five_seq_test PRODUCT_NAME "five_seq_test")
+target_sources(five_seq_test PRIVATE five/seqtest.cpp)
+target_compile_definitions(five_seq_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(five_seq_test PRIVATE juce::juce_core juce::juce_recommended_config_flags)

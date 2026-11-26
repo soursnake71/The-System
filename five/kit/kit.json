@@ -53,5 +53,8 @@
   "Tom4-RX5.wav",
   "Wao-RX5.wav",
   "Whstl-RX5.wav"
- ]
+ ],
+ "sampleRate": 25000,
+ "bits": 16,
+ "note": "Resampled from 48 kHz recordings to the RX5 native 25 kHz (five/tools/kit-25k.mjs)."
 }

@@ -76,6 +76,27 @@ async function engineTests() {
     const e = new E.Engine(sr); e.trigger(0, 127, 0, 200); const o = run(e, .01); assert.ok(o.L.findIndex((x) => x !== 0) >= 200, 'offset carries across blocks');
   });
 
+  await t("raw path: native-rate sample, no 12-bit / DAC path, EG + level still apply, state keeps path", () => {
+    const zc = (a, i0, i1) => { let c = 0; for (let i = i0 + 1; i < i1; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) c++; return c; };
+    const n = 48000, x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = .5 * Math.sin(2 * Math.PI * 1000 * i / 48000 + .3) * (i < n - 480 ? 1 : (n - i) / 480);
+    const e = new E.Engine(sr); assert.equal(e.voices[2].path, 'rx');
+    e.setUserSample(2, x, 48000, { raw: true }); assert.equal(e.voices[2].path, 'raw'); assert.equal(e.rawSample(2).sr, 48000);
+    e.trigger(2, 127, 0, 0); const a = run(e, .5).L;
+    // unity level: DAC_HEAD * levelGain(25) * pan law (centre-ish), and sample-exact: the output is the sample times one gain
+    const g = a[1000] / x[1000]; let err = 0; for (let i = 100; i < 20000; i++) err = Math.max(err, Math.abs(a[i] - g * x[i]));
+    assert.ok(err < 1e-6 && g > .2, `raw is a pure gain, no DAC filter / requantize: err ${err} g ${g}`);
+    assert.ok(Math.abs(zc(a, 0, 24000) / 2 / .5 - 1000) < 3, 'native rate');
+    e.setVoiceParam(2, 'pitch', 1200); e.trigger(2); const b = run(e, .3).L; assert.ok(Math.abs(zc(b, 0, 9600) / 2 / .2 - 2000) < 6, 'pitch ratio');
+    e.setVoiceParam(2, 'pitch', 0); e.setVoiceParam(2, 'gate', 100); e.setVoiceParam(2, 'rr', 90); e.trigger(2); const c = run(e, .5).L;
+    assert.ok(peak(c, 14400) < 1e-3 && peak(c, 0, 4000) > .2 * .5, 'EG gate + release');
+    e.setVoiceParam(2, 'gate', 0);
+    const s = e.getState(); assert.equal(s.voices[2].path, 'raw');
+    e.setVoiceParam(2, 'path', 'rx'); e.trigger(2); const d = run(e, .3).L; let de = 0; for (let i = 100; i < 9000; i++) de = Math.max(de, Math.abs(d[i] - g * x[i]));
+    assert.ok(de > 1e-4 && rms(d, 2000, 9000) > .05, 'rx path plays the resampled 12-bit ROM through the DAC model');
+    const f = new E.Engine(sr); f.setUserSample(2, x, 48000, { raw: true }); f.setState(s); assert.equal(f.voices[2].path, 'raw');
+    f.setUserSample(2, null); assert.equal(f.voices[2].path, 'rx'); assert.equal(f.rawSample(2), null);
+  });
+
   await t('hi-hat choke: closed cuts open (same channel)', () => {
     const e1 = new E.Engine(sr); e1.trigger(19); const open = run(e1, .6).L;
     const e2 = new E.Engine(sr); e2.trigger(19); e2.trigger(7, 127, 0, 4800); const ch = run(e2, .6).L;

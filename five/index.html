@@ -12,7 +12,7 @@
 <style>
 :root{
   --body:#2e2e2c; --face:#575754; --face2:#3c3c3a; --print:#e9e9e6; --dim:#9a9a96;
-  --lcd:#d2dc1e; --lcd2:#bfcb10; --lcdInk:#4a5200; --lcdOff:#c5cf18;
+  --lcd:#d6e41e; --lcd2:#c4d212; --lcdInk:#6f8200; --lcdOff:#c5cf18;
   --key:#b4a8a5; --keyLit:#ed6a7c; --green:#98e0aa; --green2:#78c48e; --cream:#f7e0b3; --cream2:#e4c898;
   --red:#f68a66; --red2:#e06a44; --blue:#a29dd4; --blue2:#8580bd;
   --cond:"Arial Narrow", "Roboto Condensed", "sans-serif-condensed", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -56,14 +56,14 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .lcd{left:576px; top:400px; width:180px; height:46px; border-radius:2px; background:radial-gradient(120% 140% at 50% 40%, var(--lcd), var(--lcd2)); box-shadow:0 0 0 2px #2a3300, 0 0 14px #b8e02a55, inset 0 0 6px #6d8a0060;
   padding:4px 3px 0 4px; cursor:pointer}
 .lcd .row{position:relative; display:flex; height:19px; margin-bottom:1px}
-.lcd .row i{position:relative; display:block; width:10.8px; height:19px; margin-right:.25px; font:700 16.5px/19px var(--mono); color:var(--lcdInk); text-align:center; font-style:normal; background:#9fbb1622;
-  text-shadow:0 0 .6px #3d5200}
+.lcd .row i{position:relative; display:block; width:10.8px; height:19px; margin-right:.25px; font:400 17.5px/19px var(--mono); color:var(--lcdInk); text-align:center; font-style:normal; background:#a8bd0c14;
+  text-shadow:0 0 .4px var(--lcdInk), .3px 0 0 var(--lcdInk)}
 .lcd .row i.cur{animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{background:var(--lcdInk); color:var(--lcd)}}
 /* dot matrix: a 5 x 8 dot screen over each character cell */
 .lcd .row i::after{content:""; position:absolute; inset:0; background:
   repeating-linear-gradient(90deg, #0000 0 1.75px, var(--lcd) 1.75px 2.16px),
-  repeating-linear-gradient(180deg, #0000 0 2px, var(--lcd) 2px 2.375px); opacity:.85; pointer-events:none}
+  repeating-linear-gradient(180deg, #0000 0 2px, var(--lcd) 2px 2.375px); opacity:.55; pointer-events:none}
 .lcdhit{top:400px; width:90px; height:46px; cursor:pointer}
 .legend{color:var(--print); font:400 7px/1.16 Arial, Helvetica, sans-serif; white-space:nowrap}
 .legend b{display:block; font-weight:700; font-size:7.6px; line-height:1; letter-spacing:.1px}

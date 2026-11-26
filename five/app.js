@@ -1005,10 +1005,10 @@ function playVoice(v, vel, acc, pitch, fromMidi, over){
   if (!fromMidi && S.midi.notesOut && S.midi.channelMsg !== false) sendEventMidi({v, vel, acc}, performance.now());
 }
 // key data of the current set-up (S.setups); the key offsets apply to the note played from that key
-const keyOf = i => (S.setups && S.setups[S.setup | 0] ? S.setups[S.setup | 0].keys[i] : null) || {voice:i, pitch:0, level:0, attack:0, decay:0, acc1:2, acc2:4, out:i % 12};
+function keyOf(i){ return (S.setups && S.setups[S.setup | 0] ? S.setups[S.setup | 0].keys[i] : null) || {voice:i, pitch:0, level:0, attack:0, decay:0, acc1:2, acc2:4, out:i % 12}; }
 function keySet(i, k, val){ const su = S.setups && S.setups[S.setup | 0]; if (!su) return; su.keys[i] = Object.assign({}, su.keys[i], {[k]:val}); dirty(); }
 function keyItem(no, name, k, min, max, opts = {}){ return numItem(no, name, () => keyOf(U.pad)[k], x => keySet(U.pad, k, x), min, max, Object.assign({ctx:() => 'key' + String.fromCharCode(65 + U.pad), pad:i => { U.pad = i; }}, opts)); }
-const sgn = x => (x > 0 ? '+' : '') + x;
+function sgn(x){ return (x > 0 ? '+' : '') + x; }
 const multiStep = () => { const k = ['pitch', 'level', 'attack', 'decay'][U.multi.param | 0]; const d = {pitch:100, level:-1, attack:-3, decay:-3}[k]; return U.multi[k + 'Step'] != null ? U.multi[k + 'Step'] : d; };
 function keyOver(v, key, multiIdx){
   const o = {}, base = k => vget(v, k);
