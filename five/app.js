@@ -127,15 +127,42 @@ function makeSlider(id, left, top, h){
 }
 function setSlider(id, v){ const s = sliders[id]; if (!s) return; s.v = Math.max(0, Math.min(1, v)); s.cap.style.top = (22 + (s.h - 40) * (1 - s.v)) + 'px'; }
 
-/* ================= fit to the screen ================= */
-let scale = 1;
+/* ================= fit to the screen =================
+   Like Omega 110 (and the screen rules in CLAUDE.md): nothing ever scrolls. Landscape: a rail of page keys on the left,
+   then the machine or one page; portrait: the machine on top, the page keys under it, then the page (MACHINE shows a
+   big LCD with its keys there). FOLD: the bare machine, with EXPAND in the corner. The page code is further down. */
+let scale = 1, panelBox = {x:0, y:0, w:W, h:H};
+function fitPanel(x, y, w, h, align){
+  // short landscape areas: the plain ribs above the sliders and the strip under the pad names are cropped
+  const crop = w / h > 1.5 && h < 800, top = crop ? 135 : 0, bot = crop ? 70 : 0, ph = H - top - bot;
+  scale = Math.min(w / W, h / ph);
+  const px = x + (w - W * scale) / 2, py = (align === 'top' ? y : y + (h - ph * scale) / 2) - top * scale;
+  P().style.transform = `translate(${Math.round(px)}px, ${Math.round(py)}px) scale(${scale})`;
+  panelBox = {x:px, y:py + top * scale, w:W * scale, h:ph * scale};
+  return panelBox;
+}
 function fit(){
-  // short landscape screens (phones): the plain ribs above the sliders and the empty strip under the pad names are
-  // cropped so the controls get bigger; the panel is otherwise always shown whole, scaled and centred
-  const vw = innerWidth, vh = innerHeight, crop = vw / vh > 1.5 && vh < 800, top = crop ? 135 : 0, bot = crop ? 70 : 0, h = H - top - bot;
-  scale = Math.min(vw / W, vh / h);
-  P().style.transform = `translate(${Math.round((vw - W * scale) / 2)}px, ${Math.round((vh - h * scale) / 2 - top * scale)}px) scale(${scale})`;
-  $('#hint').style.display = vh > vw * 1.2 ? 'block' : 'none';
+  const vw = innerWidth, vh = innerHeight, land = vw >= vh, folded = document.body.classList.contains('folded');
+  const rail = $('#rail'), pv = $('#pageView'), place = (e, x, y, w, h) => Object.assign(e.style, {left:x + 'px', top:y + 'px', width:w + 'px', height:h + 'px'});
+  $('#hint').style.display = 'none';
+  document.body.classList.toggle('land', land); document.body.classList.toggle('port', !land);
+  if (folded){ rail.classList.add('mini'); place(rail, 6, 6, 86, 34); pv.style.display = 'none'; $('#stage').style.display = ''; fitPanel(0, 0, vw, vh); hideLoupe(); return; }
+  rail.classList.remove('mini');
+  if (land){
+    // 11 keys: one column on tall screens, two on short ones (a phone on its side) so each key stays tappable
+    const two = vh / 11 < 38, rw = Math.round(two ? Math.max(120, Math.min(170, vw * .17)) : Math.max(78, Math.min(118, vw * .11)));
+    rail.style.gridTemplateColumns = two ? '1fr 1fr' : '1fr';
+    place(rail, 0, 0, rw, vh);
+    if (view === 'machine'){ $('#stage').style.display = ''; pv.style.display = 'none'; fitPanel(rw + 2, 0, vw - rw - 2, vh); }
+    else { $('#stage').style.display = 'none'; hideLoupe(); showView(rw + 4, 0, vw - rw - 4, vh); }
+  } else {
+    rail.style.gridTemplateColumns = '';
+    $('#stage').style.display = '';
+    const b = fitPanel(0, 0, vw, Math.min(vh * .5, vw * H / W), 'top');
+    const ry = Math.round(b.y + b.h + 4), rh = Math.round(Math.min(96, Math.max(70, vh * .11)));
+    place(rail, 0, ry, vw, rh);
+    showView(0, ry + rh + 4, vw, vh - ry - rh - 4);
+  }
 }
 
 /* ================= modules ================= */
@@ -1233,7 +1260,7 @@ function paintSliders(){
   setSlider('VOLUME', S.volume); setSlider('CLICK', S.click.level); setSlider('TEMPO', (S.tempo - 40) / 210);
   for (let c = 0; c < 12; c++) setSlider('CH' + c, cget(c, 'fader'));
 }
-function paintAll(){ paintLcd(); paintLeds(); }
+function paintAll(){ paintLcd(); paintLeds(); if (typeof refreshView === 'function' && document.getElementById('pgBody')){ refreshView(); refreshBigLcd(); } if (loupeAt) paintLoupe(); }
 
 /* ================= wiring ================= */
 const KB_PADS = 'qwertyuiop[]asdfghjkl;\'\\';
@@ -1242,17 +1269,18 @@ function wire(){
   document.querySelectorAll('.pad').forEach(e => padEls[+e.dataset.pad] = e);
   // pads: multitouch, velocity from where the pad is struck (top = loudest)
   p.addEventListener('pointerdown', e => {
+    if (zoom && !e.__loupe){ e.preventDefault(); showLoupe(e.clientX, e.clientY); return; }
     const pad = e.target.closest('.pad');
     if (pad){
-      e.preventDefault(); pad.setPointerCapture && pad.setPointerCapture(e.pointerId);
+      e.preventDefault(); cap(pad, e);
       const r = pad.getBoundingClientRect(), y = clamp((e.clientY - r.top) / r.height, 0, 1);
       pad.classList.add('hit'); hitPad(+pad.dataset.pad, Math.round(clamp(127 - y * 96, 16, 127)));
       return;
     }
     const sl = e.target.closest('.slider');
-    if (sl){ e.preventDefault(); sl.setPointerCapture(e.pointerId); const s = sliders[sl.dataset.s]; s.drag = {y:e.clientY, v:s.v, id:e.pointerId}; return; }
+    if (sl){ e.preventDefault(); cap(sl, e); const s = sliders[sl.dataset.s]; s.drag = {y:e.clientY, v:s.v, id:e.pointerId}; return; }
     const key = e.target.closest('[data-k]');
-    if (key){ e.preventDefault(); key.setPointerCapture && key.setPointerCapture(e.pointerId); key.classList.add('dn'); key._pid = e.pointerId; keyDown(key.dataset.k, key.classList.contains('fk') ? 'fn' : false); return; }
+    if (key){ e.preventDefault(); cap(key, e); key.classList.add('dn'); key._pid = e.pointerId; keyDown(key.dataset.k, key.classList.contains('fk') ? 'fn' : false); return; }
     // the printed legend is tiny: a tap on it shows that column magnified; a tap on a line there opens that job, anywhere else closes it
     const mg = $('#mag');
     if (mg.style.display === 'block'){
@@ -1331,9 +1359,200 @@ function sliderSet(id, v){
   else cset(+id.slice(2), 'fader', v);
 }
 
+/* ================= the rail and its pages =================
+   Every LCD command, folded open at a size you can read and tap: a page per group, built from the same MENUS / PAGES
+   the LCD uses (nothing is duplicated). A row: job number and name, the value, a slider where the job has one, and keys:
+   ◀ ▶ (steps inside the job), − + (the value), NO / YES (actions). What doesn't fit goes on the next page (◀ 1 2 ▶). */
+const elp = (tag, cls, parent, html) => { const e = el(tag, cls, null, html); if (parent) parent.appendChild(e); return e; };
+const cap = (el, e) => { try { if (el.setPointerCapture && !e.__loupe) el.setPointerCapture(e.pointerId); } catch (err) {} };
+let view = 'machine', zoom = false;
+const VIEWS = [['machine', 'MACHINE'], ['voice', 'VOICE'], ['keys', 'KEYS'], ['pattern', 'PATTERN'], ['song', 'SONG'], ['mixer', 'MIXER'],
+  ['fx', 'FX'], ['midi', 'MIDI'], ['files', 'FILES']];
+const wrapPage = (no, name, pg, extra = {}) => Object.assign({no, name, l2:() => pg.lcd()[1].trim() || pg.lcd()[0].trim(), inc:pg.pm ? (d, sh) => pg.pm(d, sh) : null,
+  data:pg.data || null}, extra);
+function viewItems(v){
+  const M = MENUS, I = [];
+  const add = (head, list) => { I.push({head}); for (const it of list) if (!it.hidden) I.push(it); };
+  if (v === 'voice') add('EDIT VOICE', M.voice);
+  else if (v === 'keys') add('KEY ASSIGN', M.key);
+  else if (v === 'pattern'){
+    add('PATTERN', [{no:0, name:'PATTERN', l2:() => p2(U.ptn) + ' ' + pat().name, inc:d => selectPattern(U.ptn + d), data:x => selectPattern(Math.round(x * 99))}, ...M.eptn]);
+    add('WRITE', [wrapPage(0, 'QUANTIZE', PAGES.quant), wrapPage(0, 'SWING', PAGES.swing), wrapPage(0, 'CLICK', PAGES.click), wrapPage(0, 'TEMPO', PAGES.tempo),
+      wrapPage(0, 'SYNC', PAGES.sync), {no:0, name:'CLEAR PATTERN', l2:() => 'PTN' + p2(U.ptn) + ' sure?', yes:() => { if (protectedMsg()) return; SQ.clearPattern(S, U.ptn); patChanged(); flash('PTN' + p2(U.ptn), 'CLEARED'); }},
+      {no:0, name:'COPY PATTERN', l2:() => 'to PTN' + p2(U.copyDst | 0), noFn:() => { U.copyDst = ((U.copyDst | 0) + 1) % 100; }, inc:d => { U.copyDst = ((U.copyDst | 0) + d + 100) % 100; },
+        yes:() => { if (protectedMsg()) return; SQ.copyPattern(S, U.ptn, U.copyDst | 0); patChanged(U.copyDst | 0); flash('COPIED', 'PTN' + p2(U.ptn) + '>' + p2(U.copyDst | 0)); }}]);
+  } else if (v === 'song'){
+    add('SONG', [{no:0, name:'SONG', l2:() => songL(U.song) + ' ' + song().name, inc:d => selectSong(U.song + d), data:x => selectSong(Math.round(x * 19))},
+      {no:0, name:'EDIT SONG', l2:() => songEditLcd().join('  '), move:d => songEditMove(d), inc:(d, sh) => songEditInc(d, sh), data:x => songEditData(x)},
+      {no:0, name:'INSERT', l2:() => 'at s' + p3(U.songStep + 1), yes:() => { U.mode = 'song'; openMenu('esong', 0); songInsert('pat'); }},
+      {no:0, name:'DELETE', l2:() => 'step s' + p3(U.songStep + 1), yes:() => { U.mode = 'song'; openMenu('esong', 0); songDelete(); }},
+      ...M.esong, ...M.song]);
+    add('CHAIN', M.chain);
+  } else if (v === 'mixer'){
+    // the channel picked in the header in full, then every channel's level and mute (a console strip per row)
+    const c = () => U.ch, nm = ch => CH_LBL[ch].replace('<br>', '/');
+    I.push({head:'CHANNEL'});
+    I.push({no:0, name:'LEVEL', l2:() => pct(cget(c(), 'fader')), inc:d => { cset(c(), 'fader', clamp(cget(c(), 'fader') + d * .02, 0, 1)); paintSliders(); }, data:x => { cset(c(), 'fader', x); paintSliders(); }},
+      {no:0, name:'PAN', l2:() => fmtPan(cget(c(), 'pan')), inc:d => cset(c(), 'pan', clamp(Math.round((cget(c(), 'pan') + d / 7) * 7) / 7, -1, 1)), data:x => cset(c(), 'pan', x * 2 - 1)},
+      {no:0, name:'REV SEND', l2:() => pct(cget(c(), 'sendRev')), inc:d => cset(c(), 'sendRev', clamp(cget(c(), 'sendRev') + d * .05, 0, 1)), data:x => cset(c(), 'sendRev', x)},
+      {no:0, name:'DLY SEND', l2:() => pct(cget(c(), 'sendDly')), inc:d => cset(c(), 'sendDly', clamp(cget(c(), 'sendDly') + d * .05, 0, 1)), data:x => cset(c(), 'sendDly', x)},
+      {no:0, name:'MUTE', l2:() => cget(c(), 'mute') ? 'MUTED' : 'on', yes:() => cset(c(), 'mute', !cget(c(), 'mute'))});
+    I.push({head:'ALL CHANNELS'});
+    for (let ch = 0; ch < 12; ch++) I.push({no:0, name:(ch + 1) + ' ' + nm(ch), l2:() => (cget(ch, 'mute') ? 'MUTE ' : '') + pct(cget(ch, 'fader')),
+      data:x => { cset(ch, 'fader', x); paintSliders(); }, sv:() => cget(ch, 'fader'), yes:() => cset(ch, 'mute', !cget(ch, 'mute')), yesLabel:'M'});
+  } else if (v === 'fx'){ add('REV 7', M.rev); add('TC 2290 DELAY', M.dly); }
+  else if (v === 'midi') add('MIDI', M.midi);
+  else if (v === 'files'){ add('CASSETTE / CARTRIDGE', M.cart); add('JOB', M.job); add('UTILITY', M.util); }
+  return I;
+}
+const fmtNo = no => { if (!no) return ''; const w = Math.floor(no + 1e-9), sub = Math.round((no - w) * 10); return p2(w) + (sub ? '-' + sub : ''); };
+// the page header: what the rows act on (voice, key, channel...), with ◀ ▶
+const VIEW_CTX = {voice:['VOICE', () => vname(U.voice), d => { U.voice = (U.voice + d + 24) % 24; }], keys:['KEY', () => String.fromCharCode(65 + U.pad) + ' ' + vname(keyOf(U.pad).voice), d => { U.pad = (U.pad + d + 24) % 24; }],
+  pattern:['PTN', () => p2(U.ptn), d => selectPattern(U.ptn + d)], song:['SONG', () => songL(U.song), d => selectSong(U.song + d)],
+  fx:['CH', () => STEP_CH[U.ch], d => { U.ch = (U.ch + d + 12) % 12; }], mixer:['CH', () => (U.ch + 1) + ' ' + STEP_CH[U.ch], d => { U.ch = (U.ch + d + 12) % 12; }], midi:['VOICE', () => vname(U.voice), d => { U.voice = (U.voice + d + 24) % 24; }]};
+const pageState = {};
+function rowEl(it){
+  if (it.head) return elp('div', 'pgHead' + (it.small ? ' small' : ''), null, it.head);
+  const r = elp('div', 'pgRow');
+  r.appendChild(elp('div', 'pgName', null, (fmtNo(it.no) ? '<i>' + fmtNo(it.no) + '</i> ' : '') + it.name));
+  const val = elp('div', 'pgVal'); r.appendChild(val); r._val = val; r._it = it;
+  const ctl = elp('div', 'pgCtl'); r.appendChild(ctl);
+  const k = (t, f, cls) => { const b = elp('button', 'pk' + (cls ? ' ' + cls : ''), null, t); b.onclick = () => { audio(); f(); afterAction(); }; ctl.appendChild(b); };
+  // a slider only where it can show where the value is (sv); elsewhere − + set it exactly
+  if (it.data && it.sv){ const sl = elp('input', 'pgSl'); sl.type = 'range'; sl.min = 0; sl.max = 1000; sl.oninput = () => { it.data(sl.value / 1000); afterAction(); }; ctl.appendChild(sl); r._sl = sl; }
+  if (it.move) k('◀', () => it.move(-1)), k('▶', () => it.move(1));
+  if (it.inc) k('−', () => it.inc(-1)), k('+', () => it.inc(1));
+  if (it.yes){ if (it.noFn) k('NO', it.noFn, 'red'); k(it.yesLabel || 'YES', it.yes, 'red'); }
+  else if (it.noFn && !it.inc) k('NEXT', it.noFn);
+  return r;
+}
+function afterAction(){ refreshView(); paintAll(); paintSliders(); }
+function refreshView(){
+  for (const r of document.querySelectorAll('#pgBody .pgRow')){ try { const t = r._it.l2 ? r._it.l2() : ''; if (r._val.textContent !== t) r._val.textContent = t; if (r._sl && document.activeElement !== r._sl) r._sl.value = Math.round(r._it.sv() * 1000); } catch (e) { r._val.textContent = ''; } }
+  const c = VIEW_CTX[curView()]; if (c) $('#pgCtx b').textContent = c[1]();
+  for (const b of document.querySelectorAll('#rail [data-v]')) b.classList.toggle('on', b.dataset.v === view);
+  $('#zoomBtn').classList.toggle('on', zoom);
+}
+const curView = () => innerWidth < innerHeight && view === 'machine' ? 'lcd' : view;
+function showView(x, y, w, h){
+  const pv = $('#pageView'), v = curView();
+  Object.assign(pv.style, {display:'flex', left:x + 'px', top:y + 'px', width:w + 'px', height:h + 'px'});
+  pv.innerHTML = '';
+  const head = elp('div', 'pgTop', pv), body = elp('div', 'pgBodyWrap', pv); body.id = 'pgBody';
+  if (v === 'lcd'){ buildLcdView(head, body); return; }
+  head.appendChild(elp('b', 'pgTitle', null, (VIEWS.find(q => q[0] === v) || [, ''])[1]));
+  const c = VIEW_CTX[v];
+  if (c){ const cx = elp('span', 'pgCtx', head); cx.id = 'pgCtx'; cx.appendChild(elp('i', null, null, c[0]));
+    const kb = (t, d) => { const b = elp('button', 'pk', null, t); b.onclick = () => { c[2](d); afterAction(); }; cx.appendChild(b); };
+    kb('◀', -1); cx.appendChild(elp('b')); kb('▶', 1); }
+  const pg = elp('span', 'pgBtns', head);
+  // lay the rows out page by page: a new page whenever the next row doesn't fit. The page keys in the header can make
+  // it taller, so once they are in, lay out again in what is left (as Omega 110's paginate does)
+  const rows = viewItems(v).map(rowEl); let pages;
+  rows.forEach(r => body.appendChild(r));
+  const fits = () => { if (body.scrollHeight > body.clientHeight) return false; const vis = rows.filter(r => r.style.display !== 'none'); const last = vis[vis.length - 1];
+    return !last || last.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom - .5; };
+  const paginate = () => {
+    pages = [[]]; rows.forEach(r => r.style.display = 'none');
+    for (const r of rows){
+      r.style.display = ''; pages[pages.length - 1].push(r);
+      if (!fits() && pages[pages.length - 1].length > 1){ const cur = pages[pages.length - 1]; cur.pop(); cur.forEach(o => o.style.display = 'none');
+        // a heading never ends a page
+        if (cur.length && cur[cur.length - 1].classList.contains('pgHead')){ const h = cur.pop(); h.style.display = ''; pages.push([h, r]); } else pages.push([r]); }
+    }
+  };
+  paginate();
+  const st = pageState[v] = pageState[v] || {page:0}; st.page = Math.min(st.page, pages.length - 1);
+  const show = () => {
+    rows.forEach(r => r.style.display = 'none'); pages[st.page].forEach(r => r.style.display = '');
+    pg.innerHTML = '';
+    if (pages.length > 1){
+      const b = (t, f, on) => { const k = elp('button', 'pk pg' + (on ? ' on' : ''), pg, t); k.onclick = f; };
+      b('◀', () => { st.page = Math.max(0, st.page - 1); show(); });
+      pages.forEach((_, i) => b(String(i + 1), () => { st.page = i; show(); }, i === st.page));
+      b('▶', () => { st.page = Math.min(pages.length - 1, st.page + 1); show(); });
+    }
+    refreshView();
+  };
+  for (let k = 0; k < 3; k++){ const h0 = body.clientHeight; show(); if (body.clientHeight === h0 && fits()) break; paginate(); st.page = Math.min(st.page, pages.length - 1); }
+  show();
+  let x0 = null;   // swipe to turn the page
+  body.onpointerdown = e => { x0 = e.target.closest('button,input') ? null : e.clientX; };
+  body.onpointerup = e => { if (x0 === null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 50){ st.page = clamp(st.page + (dx < 0 ? 1 : -1), 0, pages.length - 1); show(); } };
+}
+// portrait MACHINE: the LCD and its keys at a size you can use, under the machine
+function buildLcdView(head, body){
+  head.appendChild(elp('b', 'pgTitle', null, 'LCD'));
+  const big = elp('div', 'bigLcd', body); big.id = 'bigLcd';
+  const keys = elp('div', 'bigKeys', body);
+  for (const [t, k, cls] of [['◀ ITEM', 'ACC1'], ['ITEM ▶', 'ACC2'], ['−1 NO', 'NO', 'red'], ['+1 YES', 'YES', 'red'], ['STOP/CONT', 'STOP', 'blue'], ['START', 'START', 'start']]){
+    const b = elp('button', 'pk ' + (cls || ''), keys, t);
+    b.onpointerdown = e => { e.preventDefault(); audio(); keyDown(k); }; b.onpointerup = () => { keyUp(k); afterAction(); };
+  }
+  refreshBigLcd();
+}
+function refreshBigLcd(){ const b = $('#bigLcd'); if (b){ const t = lcdText.join('\n'); if (b.textContent !== t) b.textContent = t; } }
+function buildRail(){
+  const r = $('#rail'); r.innerHTML = '';
+  const fb = elp('button', 'rk fold', r, 'FOLD'); fb.id = 'foldBtn'; fb.onclick = () => setFold(!document.body.classList.contains('folded'));
+  for (const [v, t] of VIEWS){ const b = elp('button', 'rk', r, t); b.dataset.v = v; b.onclick = () => { view = v; hideLoupe(); fit(); refreshView(); }; }
+  const z = elp('button', 'rk zoom', r, '🔍 ZOOM'); z.id = 'zoomBtn'; z.title = 'Magnifier: tap the panel to see it bigger, then use it there';
+  z.onclick = () => { zoom = !zoom; if (!zoom) hideLoupe(); else { if (view !== 'machine'){ view = 'machine'; fit(); } toast('Tap any part of the panel to magnify it', 2500); } refreshView(); };
+}
+function setFold(f){
+  document.body.classList.toggle('folded', f); $('#foldBtn').textContent = f ? 'EXPAND' : 'FOLD';
+  try { localStorage.setItem('rx5-folded', f ? '1' : '0'); } catch (e) {}
+  fit();
+}
+
+/* ================= the loupe (🔍 ZOOM): any part of the panel at 3x; what you tap in it is pressed on the panel ================= */
+const LOUPE = 3;
+let loupeAt = null;
+function showLoupe(cx, cy){
+  const L = $('#loupe'), vw = innerWidth, vh = innerHeight;
+  const lw = Math.round(Math.min(vw - 16, 460)), lh = Math.round(Math.min(vh * .62, 300)), z = scale * LOUPE;
+  const px = (cx - panelBox.x) / scale, py = (cy - panelBox.y) / scale + (H - panelBox.h / scale > 1 ? 135 : 0);   // panel coordinates
+  const r = P().getBoundingClientRect(); loupeAt = {px:(cx - r.left) / scale, py:(cy - r.top) / scale, z, lw, lh};
+  Object.assign(L.style, {display:'block', width:lw + 'px', height:lh + 'px',
+    left:Math.round(clamp(cx - lw / 2, 8, vw - lw - 8)) + 'px', top:Math.round(clamp(cy - lh - 24, 8, vh - lh - 8)) + 'px'});
+  if (cy - lh - 24 < 8) L.style.top = Math.round(clamp(cy + 24, 8, vh - lh - 8)) + 'px';
+  void px; void py;
+  paintLoupe();
+}
+function paintLoupe(){
+  if (!loupeAt) return;
+  const inn = $('#loupeIn'); inn.innerHTML = '';
+  const c = P().cloneNode(true); c.removeAttribute('id'); c.classList.add('pclone');
+  c.style.transform = `translate(${loupeAt.lw / 2 - loupeAt.px * loupeAt.z}px, ${loupeAt.lh / 2 - loupeAt.py * loupeAt.z}px) scale(${loupeAt.z})`;
+  inn.appendChild(c);
+}
+function hideLoupe(){ const L = $('#loupe'); if (L) L.style.display = 'none'; loupeAt = null; }
+// a tap inside the loupe: the same pointer events on the real panel, at the point under it
+function loupeEvent(e, type){
+  const L = $('#loupe'), lr = L.getBoundingClientRect(), r = P().getBoundingClientRect();
+  const px = loupeAt.px + (e.clientX - lr.left - loupeAt.lw / 2) / loupeAt.z, py = loupeAt.py + (e.clientY - lr.top - loupeAt.lh / 2) / loupeAt.z;
+  const x = r.left + px * scale, y = r.top + py * scale;
+  L.style.pointerEvents = 'none'; const t = document.elementFromPoint(x, y); L.style.pointerEvents = '';
+  if (!t || !t.closest('#p')) return;
+  const ev = new PointerEvent(type, {bubbles:true, cancelable:true, clientX:x, clientY:y, pointerId:e.pointerId}); ev.__loupe = true;
+  Object.defineProperty(ev, '__loupe', {value:true});
+  t.dispatchEvent(ev);
+  if (type === 'pointerup') setTimeout(paintLoupe, 30);
+}
+function wireRail(){
+  buildRail();
+  const L = $('#loupe');
+  L.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); loupeEvent(e, 'pointerdown'); });
+  L.addEventListener('pointerup', e => { e.stopPropagation(); loupeEvent(e, 'pointerup'); });
+  // with the loupe open, a tap anywhere else (outside the panel) closes it
+  addEventListener('pointerdown', e => { if (loupeAt && !e.target.closest('#loupe') && !e.target.closest('#p') && !e.target.closest('#rail')) hideLoupe(); }, true);
+  let f = false; try { f = localStorage.getItem('rx5-folded') === '1'; } catch (e) {}
+  setFold(f);
+}
+
 /* ================= go ================= */
 await loadSaved();
-buildPanel(); wire(); fit(); paintSliders(); setSlider('DATA', 0.5);
+buildPanel(); wire(); wireRail(); fit(); paintSliders(); setSlider('DATA', 0.5);
 if (!kitLoaded){ flash('LOADING KIT', 'RX5 waveforms', 60000); kitReady.then(roms => { unflash(); paintAll(); if (roms.some(r => !r)) toast('Some kit waveforms failed to load'); }); } else paintAll();
 loadSlotInfo(); midiInit();
 setTimeout(fit, 300);

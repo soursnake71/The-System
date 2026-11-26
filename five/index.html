@@ -71,6 +71,58 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
 .legend u{display:block; text-decoration:none; cursor:pointer; border-radius:1px; padding:0 1px}
 .legend u:hover, .legend u.on{background:#ffffff2e}
 .legend em{font-style:normal; display:block; padding-left:6px}
+/* ---- the rail (page keys), the pages and the loupe: hardware keys on a dark plate ---- */
+#rail{position:fixed; z-index:15; display:grid; gap:5px; padding:6px; box-sizing:border-box; background:linear-gradient(90deg, #3a2614, #5a3a1e 30%, #4a2f17 70%, #2e1d0e);
+  box-shadow:inset 0 0 0 1px #000, inset 0 0 12px #0008}
+body.land #rail{grid-auto-rows:1fr; grid-template-columns:1fr; align-content:stretch}
+body.land #rail .fold{grid-column:1 / -1}
+body.port #rail{grid-template-columns:repeat(6, 1fr); grid-template-rows:1fr 1fr; background:linear-gradient(180deg, #2c2b29, #1d1c1a); border-radius:6px}
+#rail.mini{display:block; background:none; box-shadow:none; padding:0}
+#rail.mini > *:not(.fold){display:none}
+#rail.mini .fold{width:100%; height:100%}
+.rk{border-radius:3px; background:linear-gradient(180deg, #4a4a47, #2c2c2a 55%, #1c1c1b); color:#ececec; font:700 10px/1.05 Arial, sans-serif; letter-spacing:.2px;
+  box-shadow:0 0 0 1.5px #9a9a97, 0 0 0 2.5px #0a0a0a, 0 3px 3px #000a, inset 0 1px 0 #444; min-height:28px; padding:2px}
+.rk:active{transform:translateY(1px)}
+.rk.on{background:linear-gradient(180deg, #ff8a92, #ed6a7c 60%, #d23d4a); color:#1a0a0c; box-shadow:0 0 10px #ff304a99, 0 0 0 1.5px #9a9a97, 0 0 0 2.5px #0a0a0a}
+.rk.fold{background:linear-gradient(180deg, #dcdcd8, #b4a8a5 60%, #a9a9a6); color:#222}
+.rk.zoom.on{background:linear-gradient(180deg, #a0a3ef, #a29dd4 45%, #8580bd); color:#fff}
+#pageView{position:fixed; z-index:10; display:none; flex-direction:column; overflow:hidden; box-sizing:border-box; padding:8px 10px; border-radius:6px; color:#e9e9e6;
+  background:repeating-linear-gradient(90deg, #ffffff05 0 1px, #0000 1px 3px), linear-gradient(180deg, #575754, #474744 40%, #3c3c3a); box-shadow:inset 0 0 0 1px #000, inset 0 1px 0 #ffffff22}
+#pageView::before, #pageView::after{content:""; position:absolute; top:6px; width:8px; height:8px; border-radius:50%; background:radial-gradient(circle at 35% 35%, #ddd, #666 60%, #222)}
+#pageView::before{left:6px}#pageView::after{right:6px}
+.pgTop{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 12px 6px; border-bottom:1px solid #d8d8d855; margin-bottom:6px}
+.pgTitle{font:700 15px/1 Arial, sans-serif; letter-spacing:.8px}
+.pgCtx{display:flex; align-items:center; gap:4px; font:700 12px Arial, sans-serif}.pgCtx i{font-style:normal; opacity:.75}.pgCtx b{min-width:62px; text-align:center; font-family:var(--mono); color:#d6e41e}
+.pgBtns{display:flex; gap:4px; margin-left:auto}
+.pgTop{flex:none}
+.pgBodyWrap > *{flex:none}
+.pgBodyWrap{position:relative; flex:1 1 0; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:4px}
+.pgHead{font:700 12px/1.2 Arial, sans-serif; letter-spacing:.6px; color:#fff; border-bottom:1px solid #d8d8d8aa; padding:4px 2px 2px; margin-top:2px}
+.pgHead.small{font-size:11px; color:#f7e0b3}
+.pgRow{display:grid; grid-template-columns:minmax(110px, 1.1fr) minmax(90px, 1fr) auto; align-items:center; gap:6px; min-height:38px; padding:2px 6px;
+  border-radius:3px; background:#00000026; box-shadow:inset 0 1px 0 #0006, inset 0 -1px 0 #ffffff14}
+.pgName{font:700 12px/1.15 Arial, sans-serif}.pgName i{font-style:normal; opacity:.7; font-family:var(--mono)}
+.pgVal{font:400 15px/1.1 var(--mono); color:#d6e41e; background:#1b1d10; border-radius:2px; padding:4px 6px; box-shadow:inset 0 0 0 1px #000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pgCtl{display:flex; align-items:center; gap:5px}
+.pgSl{width:90px; accent-color:#d6e41e}
+@media (max-width:480px){ .pgRow{grid-template-columns:minmax(78px, .9fr) minmax(70px, 1fr) auto; gap:4px; padding:2px 4px} .pgSl{width:70px} .pgName{font-size:11px} .pgVal{font-size:13px; padding:4px} .pk{min-width:34px} }
+.pk{min-width:38px; height:34px; border-radius:3px; background:linear-gradient(180deg, #fbe9cf, #f7e0b3 50%, #e4c898); color:#5a4a36; font:700 14px Arial, sans-serif;
+  box-shadow:0 0 0 1px #8b7457, 0 3px 3px #000a, inset 0 1px 0 #fff6; padding:0 6px}
+.pk:active{transform:translateY(1px); filter:brightness(.92)}
+.pk.red{background:linear-gradient(180deg, #f6826a, #f68a66 50%, #e06a44); color:#5a1a0d}
+.pk.blue{background:linear-gradient(180deg, #a0a3ef, #a29dd4 45%, #8580bd); color:#fff}
+.pk.start{background:linear-gradient(180deg, #f88b6e, #f68a66 45%, #e06a44); color:#fff}
+.pk.pg{min-width:32px; height:30px; font-size:12px}.pk.pg.on{background:linear-gradient(180deg, #ff8a92, #ed6a7c 60%, #d23d4a); color:#1a0a0c}
+.bigLcd{white-space:pre; font:400 clamp(18px, 7.2vw, 34px)/1.15 var(--mono); color:#6f8200; background:radial-gradient(120% 140% at 50% 40%, #d6e41e, #c4d212); border-radius:3px;
+  padding:6px 8px; box-shadow:0 0 0 2px #2a3300, 0 0 14px #b8e02a55; text-align:left; overflow:hidden}
+.bigKeys{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; flex:1}
+.bigKeys .pk{height:auto; min-height:44px; font-size:15px}
+#loupe{position:fixed; z-index:30; display:none; overflow:hidden; border-radius:12px; background:#2e2e2c; box-shadow:0 0 0 2px #e9e9e6, 0 0 0 4px #000, 0 16px 40px #000d; touch-action:none}
+#loupeIn{position:absolute; inset:0}
+#loupeIn .pclone{position:absolute; left:0; top:0; transform-origin:0 0; width:1300px; height:973px; overflow:hidden; border-radius:10px; background:var(--body)}
+#loupeIn .pclone > *, #loupeIn .pclone > div > *{position:absolute}
+#loupeIn .pclone .lcd .row{position:relative}
+#loupeIn .pclone .slider .cap, #loupeIn .pclone .pad b, #loupeIn .pclone .pad .fl, #loupeIn .pclone .acc small, #loupeIn .pclone .lcd .row i::after{position:absolute}
 /* the magnified legend column */
 #mag{display:none; z-index:20; padding:10px 16px 12px; border-radius:8px; background:linear-gradient(180deg, #2a2927, #1c1b19); box-shadow:0 0 0 1px #000, 0 0 0 2px #77776f, 0 14px 40px #000d}
 #mag .legend{position:relative; left:auto; top:auto; cursor:default}
@@ -138,6 +190,10 @@ button{font:inherit; color:inherit; padding:0; margin:0; border:0; background:no
   <div id="keys"></div>
   <div id="pads"></div>
 </div></div>
+<!-- like Omega 110 (CLAUDE.md screen rules): page keys on the side; a page shows every command of a group, big; nothing scrolls -->
+<nav id="rail"></nav>
+<div id="pageView"></div>
+<div id="loupe" title="Tap what you want to use; tap outside to close"><div id="loupeIn"></div></div>
 <div id="hint"><svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="3" width="13" height="12" rx="2" fill="none" stroke="#8a8a86" stroke-width="1.5"/><path d="M15 2a6 6 0 0 1 5 6" fill="none" stroke="#8a8a86" stroke-width="1.5"/><path d="M18 8h3l-1.5 2z" fill="#8a8a86"/></svg>Turn the phone sideways for a bigger panel</div>
 <div class="toast" id="toast"></div>
 <input type="file" id="fileIn" hidden>
