@@ -516,7 +516,7 @@ async function rxTests() {
     for (let i = 0; i < saw.length; i++) assert.ok(Math.abs(b.pcm[i] - saw[i]) <= 1 / 128);
     assert.deepEqual({ ...a.params }, { pitch: -1230, level: 25, ar: 99, d1r: 30, d1l: 50, d2r: 40, rr: 55, gate: 0, bendRate: 10, bendRange: -1200, reverse: 0, loop: 1, bits: 12 });
     assert.equal(a.out, 3); assert.equal(b.params.pitch, 2400); assert.equal(b.params.loop, 0);
-    assert.equal(a.loopStart, Math.floor(N * 0.7) & ~1); assert.equal(a.loopEnd, N + 1);
+    assert.equal(a.loopStart, Math.floor(N * 0.7) & ~1); assert.equal(a.loopEnd, N);
     assert.equal(c.pcm.length, 1000); // 50 kHz resampled to 25 kHz
     assert.equal(C.gateFromCode(C.codeFromGate(3000)) > 2900, true);
     // parse -> build is byte-identical (raw kept), also with a corrupted checksum detected

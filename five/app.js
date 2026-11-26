@@ -28,8 +28,8 @@ const LEGEND = [
   [292, [[' ', 'voice', [['05 VOICE LEVEL', 5], ['06 LOOP', 6], ['07 STORE VOICE', 7], ['08 INITIALIZE VOICE', 8], ['09 RECALL EDIT', 9], ['10 REVERSE', 10], ['11 LOAD WAV', 11], ['12 BITS', 12]]]]],
   [372, [['CHAIN', 'chain', [['01 PLAY', 1], ['02 EDIT', 2], ['03 CHAIN NAME', 3], ['04 CLEAR', 4]]]]],
   [430, [['UTILITY', 'util', [['01 REMAINING PATTERN', 1], ['02 REMAINING SONG', 2], ['03 MEMORY PROTECT', 3], ['04 CHANGE VOICE', 4], ['05 CLEAR ALL PATTERNS', 5], ['06 CLEAR ALL SONGS', 6]]]]],
-  [521, [['KEY ASSIGN', 'key', [['01 VOICE ASSIGN', 1], ['02 PAN', 2], ['03 MULTI VOICE', 3], ['04 MULTI STEP', 4], ['05 ACCENT LEVEL', 5.1], ['06 OUTPUT CH ASSIGN', 6]]]]],
-  [604, [[' ', 'key', [['07 SAVE KEY DATA', 7], ['08 LOAD KEY DATA', 8], ['09 COPY VOICE', 9], ['10 REV SEND', 10], ['11 DLY SEND', 11], ['12 PAD VELOCITY', 12]]]]],
+  [521, [['KEY ASSIGN', 'key', [['01 VOICE ASSIGN', 1], ['02 PARAMETER ASSIGN(*)', 2.1], ['03 MULTI VOICE', 3], ['04 MULTI STEP(*)', 4], ['05 ACCENT LEVEL', 5.1], ['06 OUTPUT CH ASSIGN', 6]]]]],
+  [612, [[' ', 'key', [['07 SAVE KEY DATA', 7], ['08 LOAD KEY DATA', 8], ['09 COPY VOICE', 9], [[['*1 PITCH', 2.1], [' 2 LEVEL', 2.2]]], [[['  3 ATTACK', 2.3], [' 4 DECAY', 2.4]]], ['10 PAN', 10], ['11 REV  12 DLY SEND', 11], ['13 PAD VELOCITY', 13]]]]],
   [688, [['CASSETTE/CARTRIDGE', 'cart', [['01-04 SAVE SLOT', 1], ['11-14 LOAD SLOT', 11], ['21 SAVE FILE', 21], ['22 LOAD FILE', 22], ['23 LOAD WAV VOICE', 23], ['24 VOICE BANK', 24], ['30 FORMAT SLOT', 30]]]]],
   [790, [['MIDI', 'midi', [['01 CH MESSAGE', 1], ['02 RECEIVE CH', 2], ['03 TRANSMIT CH', 3], ['04 NOTE NUMBER ASSIGN', 4.1], ['05 INITIALIZE NOTE', 5], ['06 EG VELOCITY', 6], ['07 GATE TIME', 7]]]]],
   [893, [[' ', 'midi', [['08 DEVICE NUMBER', 8], ['09 RECEIVE BULK', 9], ['10 TRANSMIT BULK', 10], ['11 CLOCK OUT', 11], ['12 NOTES OUT', 12], ['13 IN PORT', 13], ['14 OUT PORT', 14], ['15 SYX FILE', 15]]]]],
@@ -175,8 +175,8 @@ const NOTE_PRESETS = SQ.NOTE_PRESETS || {gm:SQ.MIDI_GM_NOTES, ...(RX5_NOTES ? {r
 let S = SQ.newState();
 // panel settings that are not part of the cartridge
 const U = {mode:'pattern', ptn:0, song:0, chain:0, voice:0, ch:0, pad:0, page:'ptn', menu:null, item:{}, songStep:0, chainStep:0, stepPos:0, stepVoice:0,
-  padMap:Array.from({length:24}, (_, i) => i), multi:{on:false, v:0, step:100}, padVel:0, protect:false, stored:{},
-  midiIn:'all', midiOut:'', chMsg:true, egVel:true, gate:100, bulk:0, syx:0, rnd:0, exp:0, impAt:-1, slot:0, tunable:false};
+  multi:{on:false, v:0, param:0}, padVel:0, protect:false, stored:{},
+  midiIn:'all', midiOut:'', bulk:0, syx:0, rnd:0, exp:0, impAt:-1, slot:0, tunable:false};
 const IDB = (() => {
   let db = null;
   const open = () => db || (db = new Promise((res, rej) => { const r = indexedDB.open('omega-five', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
@@ -344,21 +344,24 @@ const MENUS = {
     actItem(6, 'CLR ALL SONGS', () => { if (protectedMsg()) return; for (let i = 0; i < 20; i++) S.songs[i] = SQ.newSong(i); allChanged(); flash('ALL SONGS', 'CLEARED'); }),
   ],
   key:[
-    {no:1, name:'VOICE ASSIGN', ctx:() => 'key' + String.fromCharCode(65 + U.pad), l2:() => ':' + (S.samples[U.padMap[U.pad]] ? 'Usr-' : 'Int-') + vname(U.padMap[U.pad]), pad:i => { U.pad = i; },
-      inc:d => { U.padMap[U.pad] = (U.padMap[U.pad] + d + 24) % 24; dirty(); }, data:x => { U.padMap[U.pad] = Math.round(x * 23); dirty(); }},
-    numItem(2, 'PAN', () => cget(U.ch, 'pan'), x => cset(U.ch, 'pan', x), -1, 1, {step:1 / 7, fmt:fmtPan, ctx:cctx, pad:padSelCh}),
+    {no:1, name:'VOICE ASSIGN', ctx:() => 'key' + String.fromCharCode(65 + U.pad), l2:() => ':' + (S.samples[keyOf(U.pad).voice] ? 'Usr-' : 'Int-') + vname(keyOf(U.pad).voice), pad:i => { U.pad = i; },
+      inc:d => keySet(U.pad, 'voice', (keyOf(U.pad).voice + d + 24) % 24), data:x => keySet(U.pad, 'voice', Math.round(x * 23))},
+    keyItem(2.1, 'KEY PITCH', 'pitch', -3600, 2400, {step:100, fine:10, fmt:fmtCents}),
+    keyItem(2.2, 'KEY LEVEL', 'level', -31, 31, {fmt:sgn}), keyItem(2.3, 'KEY ATTACK', 'attack', -63, 63, {fmt:sgn}), keyItem(2.4, 'KEY DECAY', 'decay', -63, 63, {fmt:sgn}),
     {no:3, name:'MULTI VOICE', l2:() => U.multi.on ? vname(U.multi.v) + ' A-X' : 'OFF', inc:d => { const k = (U.multi.on ? U.multi.v + 1 : 0) + d; U.multi.on = k > 0 && k <= 24; if (U.multi.on) U.multi.v = (k - 1 + 24) % 24; dirty(); paintLeds(); },
-      pad:(i, v) => { if (U.multi.on) return; }},
-    numItem(4, 'MULTI STEP', () => U.multi.step, x => { U.multi.step = x; dirty(); }, 10, 1200, {step:10, fmt:x => x + ' cent'}),
-    vItem(5.1, 'ACCENT 1', 'acc1', -31, 31, {fmt:x => (x >= 0 ? '+' : '') + x + ' level'}), vItem(5.2, 'ACCENT 2', 'acc2', -31, 31, {fmt:x => (x >= 0 ? '+' : '') + x + ' level'}),
-    listItem(6, 'OUTPUT CH', () => cget(U.ch, 'mute') ? 1 : 0, x => cset(U.ch, 'mute', !!x), ['ON', 'MUTE'], {ctx:cctx, pad:padSelCh}),
-    {no:7, name:'SAVE KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + '  YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 3) % 3; }, yes:() => { try { localStorage.setItem('o5key' + U.slot % 3, JSON.stringify({padMap:U.padMap, multi:U.multi})); flash('KEY DATA SAVED', 'set ' + (U.slot % 3 + 1)); } catch (e) {} }},
-    {no:8, name:'LOAD KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + '  YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 3) % 3; }, yes:() => { try { const k = JSON.parse(localStorage.getItem('o5key' + U.slot % 3)); if (!k) throw 0; U.padMap = k.padMap; U.multi = k.multi; dirty(); paintLeds(); flash('KEY DATA LOADED', 'set ' + (U.slot % 3 + 1)); } catch (e) { flash('NO KEY DATA', 'set ' + (U.slot % 3 + 1)); } }},
-    {no:9, name:'COPY VOICE', ctx:vctx, pad:padSelVoice, l2:() => '>' + vname(U.copyTo || 0) + ' YES', noFn:() => { const d = 1; U.copyTo = ((U.copyTo || 0) + d + 24) % 24; },
+      pad:(i, v) => { if (!U.multi.on){ U.multi.v = v; } }},
+    {no:4, name:'MULTI STEP', l2:() => ['PITCH', 'LEVEL', 'ATTACK', 'DECAY'][U.multi.param | 0] + ' ' + sgn(multiStep()), inc:(d, sh) => { const k = ['pitch', 'level', 'attack', 'decay'][U.multi.param | 0]; U.multi[k + 'Step'] = clamp(multiStep() + d * (k === 'pitch' ? (sh ? 10 : 100) : 1), k === 'pitch' ? -1200 : -10, k === 'pitch' ? 1200 : 10); dirty(); },
+      noFn:() => { U.multi.param = ((U.multi.param | 0) + 1) % 4; dirty(); }, data:x => { U.multi.param = Math.min(3, Math.floor(x * 4)); dirty(); }},
+    keyItem(5.1, 'ACCENT 1', 'acc1', -31, 31, {fmt:x => sgn(x) + ' level'}), keyItem(5.2, 'ACCENT 2', 'acc2', -31, 31, {fmt:x => sgn(x) + ' level'}),
+    keyItem(6, 'OUTPUT CH', 'out', 0, 11, {fmt:x => 'ch ' + p2(x + 1) + ' ' + STEP_CH[x]}),
+    {no:7, name:'SAVE KEY DATA', l2:() => 'to set ' + (U.slot % 3 + 1) + '    YES', noFn:() => { U.slot = (U.slot + 1) % 3; }, yes:() => { const to = U.slot % 3; if (to !== (S.setup | 0)) S.setups[to] = JSON.parse(JSON.stringify(S.setups[S.setup | 0])); S.setup = to; dirty(); flash('KEY DATA SAVED', 'set ' + (to + 1)); }},
+    {no:8, name:'LOAD KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + (U.slot % 3 === (S.setup | 0) ? '*' : ' ') + '     YES', noFn:() => { U.slot = (U.slot + 1) % 3; }, yes:() => { S.setup = U.slot % 3; dirty(); flash('KEY DATA LOADED', 'set ' + (S.setup + 1)); }},
+    {no:9, name:'COPY VOICE', ctx:vctx, pad:padSelVoice, l2:() => '>' + vname(U.copyTo || 0) + '  YES', noFn:() => { U.copyTo = ((U.copyTo || 0) + 1) % 24; },
       yes:() => { const to = U.copyTo || 0; S.voice[to] = Object.assign(voiceDefault(U.voice), S.voice[U.voice]); post({t:'voiceAll', v:to, p:S.voice[to]}); dirty(); flash('COPIED', vname(U.voice) + '>' + vname(to)); }},
-    numItem(10, 'REV SEND', () => cget(U.ch, 'sendRev'), x => cset(U.ch, 'sendRev', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
-    numItem(11, 'DLY SEND', () => cget(U.ch, 'sendDly'), x => cset(U.ch, 'sendDly', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
-    numItem(12, 'PAD VELOCITY', () => U.padVel, x => { U.padVel = x; dirty(); }, 0, 127, {fmt:x => x ? 'fixed ' + x : 'TOUCH (pad pos)'}),
+    numItem(10, 'PAN', () => cget(U.ch, 'pan'), x => cset(U.ch, 'pan', x), -1, 1, {step:1 / 7, fmt:fmtPan, ctx:cctx, pad:padSelCh}),
+    numItem(11, 'REV SEND', () => cget(U.ch, 'sendRev'), x => cset(U.ch, 'sendRev', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
+    numItem(12, 'DLY SEND', () => cget(U.ch, 'sendDly'), x => cset(U.ch, 'sendDly', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
+    numItem(13, 'PAD VELOCITY', () => U.padVel, x => { U.padVel = x; dirty(); }, 0, 127, {fmt:x => x ? 'fixed ' + x : 'TOUCH (pad pos)'}),
   ],
   cart:[
     ...[0, 1, 2, 3].map(i => ({no:1 + i, name:'SAVE SLOT ' + (i + 1), l2:() => slotInfo(i, 'SAVE'), yes:() => slotSave(i)})),
@@ -370,25 +373,26 @@ const MENUS = {
     {no:30, name:'FORMAT SLOT', l2:() => 'slot ' + (U.slot % 4 + 1) + ' NO/YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 4) % 4; }, yes:async () => { await IDB.del('cart' + U.slot % 4); slotCache[U.slot % 4] = null; flash('SLOT ' + (U.slot % 4 + 1), 'FORMATTED'); }},
   ],
   midi:[
-    listItem(1, 'CH MESSAGE', () => U.chMsg ? 1 : 0, x => { U.chMsg = !!x; dirty(); }, onoff),
-    {no:2, name:'RECEIVE CH', l2:() => U.tunable ? 'TUNABLE ' + (S.midi.rxCh || 1) : S.midi.rxCh ? 'ch ' + p2(S.midi.rxCh) : 'OMNI', inc:d => { S.midi.rxCh = clamp((S.midi.rxCh | 0) + d, 0, 16); dirty(); }, data:x => { S.midi.rxCh = Math.round(x * 16); dirty(); }},
-    {no:3, name:'TRANSMIT CH', l2:() => 'ch ' + p2(S.midi.txCh || 10), inc:d => { S.midi.txCh = clamp((S.midi.txCh || 10) + d, 1, 16); dirty(); }, data:x => { S.midi.txCh = 1 + Math.round(x * 15); dirty(); }},
-    {no:4.1, name:'NOTE VOICE', ctx:vctx, pad:padSelVoice, l2:() => 'note ' + noteName(S.noteMap[U.voice]) + ' ' + p3(S.noteMap[U.voice]) + ' lrn',
+    listItem(1, 'CH MESSAGE', () => S.midi.channelMsg !== false ? 1 : 0, x => { S.midi.channelMsg = !!x; dirty(); }, onoff),
+    numItem(2, 'RECEIVE CH', () => S.midi.rxCh || 10, x => { S.midi.rxCh = x; dirty(); }, 1, 16, {fmt:x => 'ch ' + p2(x)}),
+    numItem(3, 'TRANSMIT CH', () => S.midi.txCh || 10, x => { S.midi.txCh = x; dirty(); }, 1, 16, {fmt:x => 'ch ' + p2(x)}),
+    {no:4.1, name:'NOTE VOICE', ctx:vctx, pad:padSelVoice, l2:() => noteName(S.noteMap[U.voice]) + ' ' + p3(S.noteMap[U.voice]) + ' (learn)',
       inc:(d, sh) => { S.noteMap[U.voice] = clamp(S.noteMap[U.voice] + d * (sh ? 12 : 1), 0, 127); dirty(); }, data:x => { S.noteMap[U.voice] = Math.round(x * 127); dirty(); }},
-    {no:4.2, name:'NOTE PITCH', l2:() => U.tunable ? 'ON ' + vname(U.tuneV | 0) + ' 36-96' : 'OFF (voice mode)', inc:d => { U.tunable = d > 0; dirty(); }, ctx:null,
-      pad:(i, v) => { U.tuneV = v; dirty(); }},
-    {no:5, name:'INIT NOTE', l2:() => 'preset ' + (U.notePreset ? 'GM' : 'RX5') + ' YES', noFn:() => { U.notePreset = U.notePreset ? 0 : 1; },
+    {no:4.2, name:'NOTE PITCH', l2:() => S.midi.tunable ? vname(S.midi.tunableVoice | 0) + ' C1-C6' : 'OFF (VOICE mode)', inc:d => { S.midi.tunable = d > 0; dirty(); },
+      pad:(i, v) => { S.midi.tunableVoice = v; dirty(); }},
+    {no:5, name:'INIT NOTE', l2:() => (U.notePreset ? 'GM' : 'RX5') + ' table   YES', noFn:() => { U.notePreset = U.notePreset ? 0 : 1; },
       yes:() => { const src = U.notePreset ? NOTE_PRESETS.gm : (NOTE_PRESETS.rx5 || NOTE_PRESETS.gm); S.noteMap = src.slice(); dirty(); flash('NOTES INITIALIZED', U.notePreset ? 'GM' : 'RX5'); }},
-    numItem(6, 'EG VELOCITY', () => U.egVel | 0, x => { U.egVel = x; dirty(); }, 0, 4, {fmt:x => x ? p2(x) : 'OFF'}),
-    numItem(7, 'GATE TIME', () => U.gate, x => { U.gate = x; dirty(); }, 10, 1000, {step:10, fmt:x => (x / 1000).toFixed(2) + ' s'}),
+    numItem(6, 'EG VELOCITY', () => S.midi.egVel | 0, x => { S.midi.egVel = x; dirty(); }, 0, 4, {fmt:x => x ? p2(x) : 'OFF'}),
+    numItem(7, 'GATE TIME', () => S.midi.gateMs || 10, x => { S.midi.gateMs = x; dirty(); }, 10, 1000, {step:10, fmt:x => (x / 1000).toFixed(2) + ' s'}),
     numItem(8, 'DEVICE NUMBER', () => S.midi.deviceNo | 0, x => { S.midi.deviceNo = x; dirty(); }, 0, 16, {fmt:x => x ? p2(x) : 'OFF'}),
-    {no:9, name:'RECEIVE BULK', l2:() => U.bulkWait ? 'waiting...  NO' : 'YES: wait', yes:() => { U.bulkWait = true; flash('RECEIVE BULK', 'waiting for data'); }, noFn:() => { U.bulkWait = false; }},
-    {no:10, name:'TRANSMIT BULK', l2:() => bulkName() + ' YES', noFn:() => { const d = 1; U.bulk = (U.bulk + d + 4) % 4; }, yes:() => transmitBulk()},
+    {no:9, name:'RECEIVE BULK', l2:() => U.bulkWait ? 'waiting...   NO' : 'YES wait NO req', yes:() => { U.bulkWait = true; if (RXS && RXS.BulkReceiver) M.rx = new RXS.BulkReceiver(); flash('RECEIVE BULK', 'waiting for data', 1800); },
+      noFn:() => { if (U.bulkWait){ U.bulkWait = false; return; } if (RXS && RXS.dumpRequest && midiOutPort()){ U.bulkWait = true; midiSend(RXS.dumpRequest(S.midi.deviceNo || 1)); flash('DUMP REQUEST', 'sent, waiting'); } else flash('NO MIDI OUT', 'MIDI 14: port'); }},
+    {no:10, name:'TRANSMIT BULK', l2:() => bulkName() + ' YES', noFn:() => { U.bulk = (U.bulk + 1) % BULKS.length; }, data:x => { U.bulk = Math.round(x * (BULKS.length - 1)); }, yes:() => transmitBulk()},
     listItem(11, 'CLOCK OUT', () => S.midi.clockOut ? 1 : 0, x => { S.midi.clockOut = !!x; post({t:'midiOut', clock:!!S.midi.clockOut, notes:!!S.midi.notesOut}); dirty(); }, onoff),
     listItem(12, 'NOTES OUT', () => S.midi.notesOut ? 1 : 0, x => { S.midi.notesOut = !!x; post({t:'midiOut', clock:!!S.midi.clockOut, notes:!!S.midi.notesOut}); dirty(); }, onoff),
     {no:13, name:'INPUT PORT', l2:() => portLabel(0), inc:d => portInc(0, d)},
     {no:14, name:'OUTPUT PORT', l2:() => portLabel(1), inc:d => portInc(1, d)},
-    {no:15, name:'SYX FILE', l2:() => (U.syx ? 'SAVE ' + bulkName() : 'LOAD .syx') + ' YES', noFn:() => { U.syx = U.syx ? 0 : 1; if (U.syx) U.bulk = (U.bulk + 1) % 4; }, yes:() => U.syx ? saveSyx() : pickFile('.syx,application/octet-stream', loadSyx)},
+    {no:15, name:'SYX FILE', l2:() => (U.syx ? 'SAVE ' + bulkName() : 'LOAD .syx') + ' YES', noFn:() => { if (!U.syx) { U.syx = 1; U.bulk = 0; } else if (++U.bulk >= BULKS.length){ U.syx = 0; U.bulk = 0; } }, yes:() => U.syx ? saveSyx() : pickFile('.syx,application/octet-stream', loadSyx)},
   ],
   job:[
     {no:1, name:'IMPORT MIDI', l2:() => 'to ' + p2(impStart()) + ' SONG ' + songL(U.song), noFn:() => { const d = 1; U.impAt = clamp(impStart() + d, 0, 99); }, yes:() => pickFile('.mid,.midi,.smf,audio/midi,audio/x-midi', importMidi)},
@@ -883,100 +887,100 @@ function frameTs(f){
   const o = ctx.getOutputTimestamp(); if (!o || !o.performanceTime) return performance.now();
   return Math.max(performance.now(), o.performanceTime + (f / ctx.sampleRate - o.contextTime) * 1000);
 }
+function sendEventMidi(ev, ts){
+  // note on now, note off (8n v=64) after the gate time; the channel and accent velocity as seq.js decides
+  const out = SQ.midiOutForEvent ? SQ.midiOutForEvent(S, ev, {force:true}) : [{bytes:[0x90 | (((S.midi.txCh || 10) - 1) & 15), S.noteMap[ev.v], ev.vel], delayMs:0}, {bytes:[0x80 | (((S.midi.txCh || 10) - 1) & 15), S.noteMap[ev.v], 64], delayMs:S.midi.gateMs || 10}];
+  for (const o of out) midiSend(o.bytes, ts + o.delayMs);
+}
 function midiFromWorklet(evs){
   if (!midiOutPort()) return;
-  const ch = ((S.midi.txCh || 10) - 1) & 15;
   for (const e of evs){
     const ts = frameTs(e.f);
     if (e.clk){ midiSend([0xF8], ts); continue; }
-    if (!U.chMsg) continue;
-    const note = S.noteMap[e.v], vel = SQ.accentVel ? SQ.accentVel(e.vel, e.acc) : e.vel;
-    midiSend([0x90 | ch, note, clamp(vel, 1, 127)], ts); midiSend([0x80 | ch, note, 64], ts + U.gate);
+    if (S.midi.notesOut && S.midi.channelMsg !== false) sendEventMidi(e, ts);
   }
 }
 function noteName(n){ return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n % 12] + (Math.floor(n / 12) - 2); }
 function onMidi(d, ts){
   if (!d || !d.length) return;
   const st = d[0];
-  if (st === 0xF0) return onSysex(d);
+  if (st === 0xF8){ const t = ts || performance.now(); M.clocks.push(t); if (M.clocks.length > 49) M.clocks.shift(); if (M.clocks.length > 24){ const per = (M.clocks[M.clocks.length - 1] - M.clocks[0]) / (M.clocks.length - 1); M.bpm = 60000 / (per * 24); } }
+  // MIDI learn on EDIT NOTE VOICE: the next note on goes to the selected voice
+  const it = U.page === 'menu' && U.menu === 'midi' && curItem();
+  if (it && it.no === 4.1 && (st & 0xF0) === 0x90 && d[2] > 0){ S.noteMap[U.voice] = d[1]; dirty(); paintLcd(); }
   const ext = S.sync === 'midi' || S.sync === 'ext';
-  if (st === 0xF8){
-    const t = ts || performance.now(); M.clocks.push(t); if (M.clocks.length > 49) M.clocks.shift();
-    if (M.clocks.length > 24){ const per = (M.clocks[M.clocks.length - 1] - M.clocks[0]) / (M.clocks.length - 1); M.bpm = 60000 / (per * 24); }
-    if (ext) post({t:'clock', n:1});
-    return;
+  const acts = SQ.midiIn ? SQ.midiIn(S, {ext}, d) : [];
+  for (const a of acts){
+    switch (a.type){
+      case 'note': playVoice(a.v, a.vel, 0, a.pitch != null ? a.pitch : null, true); break;
+      case 'off': if (vget(a.v, 'loop')) post({t:'release', v:a.v}); break;
+      case 'clock': post({t:'clock', n:1}); break;
+      case 'start': audio().then(() => post({t:'transport', cmd:'start', ...playTarget()})); pos = Object.assign({}, pos || {}, {running:true}); break;
+      case 'cont': audio().then(() => post({t:'transport', cmd:'cont', ...playTarget()})); break;
+      case 'stop': post({t:'transport', cmd:'stop'}); break;
+      case 'spp': post({t:'spp', n:a.n}); break;
+      case 'song': selectSong(a.n); paintLcd(); break;
+      case 'program': S.midi.tunableVoice = a.n % 24; dirty(); break;
+      case 'sysex': onSysex(a.bytes); break;
+    }
   }
-  if (st === 0xFA){ if (ext){ audio().then(() => post({t:'transport', cmd:'start', ...playTarget()})); pos = Object.assign({}, pos || {}, {running:true}); } return; }
-  if (st === 0xFB){ if (ext) audio().then(() => post({t:'transport', cmd:'cont', ...playTarget()})); return; }
-  if (st === 0xFC){ if (ext) post({t:'transport', cmd:'stop'}); return; }
-  if (st === 0xF2){ if (ext) post({t:'spp', n:d[1] | (d[2] << 7)}); return; }
-  if (st === 0xF3){ selectSong(clamp(d[1], 0, 19)); paintLcd(); return; }
-  if (st >= 0xF0) return;
+  // not covered by midiIn: program change selects the pattern / song in VOICE mode, CC7 volume, all notes off
   const type = st & 0xF0, ch = (st & 15) + 1;
-  if (S.midi.rxCh && ch !== S.midi.rxCh && !(U.tunable && type === 0xC0)) return;
-  if (type === 0x90 && d[2] > 0){
-    if (!U.chMsg) return;
-    const note = d[1], vel = U.egVel ? d[2] : 100;
-    const it = U.page === 'menu' && U.menu === 'midi' && curItem();
-    if (it && it.no === 4.1){ S.noteMap[U.voice] = note; dirty(); paintLcd(); }
-    if (U.tunable){ if (note >= 36 && note <= 96) playVoice(U.tuneV | 0, vel, 0, (note - 60) * 100, true); return; }
-    const v = SQ.noteToVoiceMap(S).get(note);
-    if (v !== undefined) playVoice(v, vel, 0, null, true);
-    return;
-  }
-  if (type === 0x80 || type === 0x90){ const v = SQ.noteToVoiceMap(S).get(d[1]); if (v !== undefined && vget(v, 'loop')) post({t:'release', v}); return; }
-  if (type === 0xC0){
-    if (U.tunable){ U.tuneV = d[1] % 24; return; }
-    if (U.mode === 'song') selectSong(d[1] % 20); else selectPattern(d[1] % 100);
-    paintLcd(); return;
-  }
-  if (type === 0xB0){
-    if (d[1] === 7){ sset('volume', d[2] / 127); setSlider('VOLUME', S.volume); }
-    else if (d[1] === 120 || d[1] === 123) damp();
+  if (st < 0xF0 && ch === (S.midi.rxCh || 10)){
+    if (type === 0xC0 && !S.midi.tunable){ if (U.mode === 'song') selectSong(d[1] % 20); else selectPattern(d[1] % 100); paintLcd(); }
+    if (type === 0xB0){ if (d[1] === 7){ sset('volume', d[2] / 127); setSlider('VOLUME', S.volume); } else if (d[1] === 120 || d[1] === 123) damp(); }
   }
 }
-/* SysEx: Omega Five full dumps (seq.js) and, when rxsysex.js is present, Yamaha-format bulk dumps */
-const bulkName = () => ['ALL', 'PATTERN ' + p2(U.ptn), 'SONG ' + songL(U.song), 'VOICES'][U.bulk];
-function bulkBytes(){
-  if (RXS){
-    const kinds = ['all', 'pattern', 'song', 'voice'], k = kinds[U.bulk], n = U.bulk === 1 ? U.ptn : U.bulk === 2 ? U.song : 0;
-    const fn = RXS.dump || RXS.buildDump || RXS.transmit || RXS.bulkDump;
-    if (fn){ const r = fn(S, k, n, {deviceNo:S.midi.deviceNo}); if (r) return r; }
+/* SysEx: Omega Five dumps and parameter changes, Yamaha-format bulk dumps kept byte-identical (rxsysex.js) */
+const BULKS = ['ALL', 'PATTERN', 'SONG', 'VOICES', 'FX', 'RX5 DUMP'];
+const bulkName = () => [BULKS[0], 'PATTERN ' + p2(U.ptn), 'SONG ' + songL(U.song), 'VOICES', 'FX', 'RX5 DUMP'][U.bulk % BULKS.length];
+function bulkMessages(){
+  if (!RXS) return [SQ.sysexDump(S)];
+  switch (U.bulk % BULKS.length){
+    case 1: return [RXS.omegaPattern(S, U.ptn)];
+    case 2: return [RXS.omegaSong(S, U.song)];
+    case 3: return [RXS.omegaVoices(S)];
+    case 4: return [RXS.omegaFx(S)];
+    case 5: return RXS.transmitBulk(S, {deviceNo:S.midi.deviceNo});
   }
-  return SQ.sysexDump(S);
+  return [RXS.omegaFull(S)];
 }
 function transmitBulk(){
   if (!midiOutPort()) return flash('NO MIDI OUT', 'MIDI 14: port');
-  const b = bulkBytes(), msgs = Array.isArray(b) ? b : [b];
+  const msgs = bulkMessages(); if (!msgs.length) return flash('NO RX5 DUMP', 'receive one first');
   let t = performance.now(); for (const m of msgs){ midiSend(m, t); t += m.length / 3.125 + 5; }
-  flash('TRANSMIT BULK', bulkName() + ' ' + Math.round(msgs.reduce((a, m) => a + m.length, 0) / 1024) + 'K', 2000);
+  flash('TRANSMIT BULK', bulkName().slice(0, 10) + ' ' + Math.max(1, Math.round(msgs.reduce((a, m) => a + m.length, 0) / 1024)) + 'K', 2000);
 }
 async function saveSyx(){
-  const b = bulkBytes(), msgs = Array.isArray(b) ? b : [b], n = msgs.reduce((a, m) => a + m.length, 0), out = new Uint8Array(n);
-  let o = 0; for (const m of msgs){ out.set(m, o); o += m.length; }
-  await saveFile(out, 'omega-five-' + ['all', 'ptn' + p2(U.ptn), 'song-' + songL(U.song), 'voices'][U.bulk] + '.syx', 'application/octet-stream');
+  const msgs = bulkMessages(); if (!msgs.length) return flash('NO RX5 DUMP', 'receive one first');
+  const out = RXS && RXS.writeSyx ? RXS.writeSyx(msgs) : msgs[0];
+  await saveFile(out, 'omega-five-' + ['all', 'ptn' + p2(U.ptn), 'song-' + songL(U.song), 'voices', 'fx', 'rx5'][U.bulk % BULKS.length] + '.syx', 'application/octet-stream');
 }
 async function loadSyx(f){
   const u8 = new Uint8Array(await f.arrayBuffer());
-  if (RXS && (RXS.readSyx || RXS.splitSyx)){ for (const m of (RXS.readSyx || RXS.splitSyx)(u8)) onSysex(m, true); return; }
-  let s = -1; for (let i = 0; i < u8.length; i++){ if (u8[i] === 0xF0) s = i; else if (u8[i] === 0xF7 && s >= 0){ onSysex(u8.subarray(s, i + 1), true); s = -1; } }
+  if (protectedMsg()) return;
+  if (RXS && RXS.loadSyx){
+    const r = RXS.loadSyx(S, u8); allChanged();
+    flash('SYX ' + (r.omega ? r.omega + ' OMEGA ' : '') + (r.yamaha ? r.yamaha + ' RX5' : ''), r.errors.length ? r.errors[0].slice(0, 16) : r.status ? 'dump ' + r.status : 'loaded', 2600);
+    return;
+  }
+  S = SQ.parseSysex(u8); allChanged(); flash('SYX LOADED', f.name.slice(0, 16));
 }
 function onSysex(bytes, forced){
   const u8 = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
   try {
-    if (RXS){
-      const fn = RXS.receive || RXS.parse || RXS.handle;
-      if (fn){
-        const r = fn(S, u8, {deviceNo:S.midi.deviceNo, accept:forced || U.bulkWait});
-        if (r){
-          if (r.reply && midiOutPort()) midiSend(r.reply);
-          if (r.state) S = r.state;
-          if (r.changed || r.state){ allChanged(); }
-          if (r.lcd || r.message) flash('BULK', String(r.lcd || r.message).slice(0, 16), 2200);
-          if (r.error) flash(String(r.error).slice(0, 16), '', 2600);
-          if (r.handled !== false) return;
-        }
-      }
+    if (RXS && RXS.handleSysex){
+      // dumps change memory, so they are taken only while RECEIVE BULK waits; requests, identity and parameter changes always
+      const dump = (RXS.isYamaha(u8) && (u8[2] >> 4) !== 2) || (RXS.isOmega(u8) && [RXS.OMEGA.FULL, RXS.OMEGA.PATTERN, RXS.OMEGA.SONG, RXS.OMEGA.VOICES, RXS.OMEGA.FX].includes(u8[4]));
+      if (dump && !forced && !U.bulkWait) return flash('BULK IGNORED', 'MIDI 09 first');
+      if (dump && U.protect) return protectedMsg();
+      const r = RXS.handleSysex(S, u8, {deviceNo:S.midi.deviceNo, receiver:M.rx || (M.rx = new RXS.BulkReceiver())});
+      for (const m of r.reply || []) midiSend(m);
+      if (r.kind === 'omega' && !r.error && r.what){ allChanged(); if (r.cmd !== RXS.OMEGA.PARAM) U.bulkWait = false; }
+      if (r.error) flash(String(r.error).slice(0, 16), '', 2600);
+      else if (r.message) flash(r.kind === 'yamaha-bulk' ? 'RX5 BULK' : 'BULK', String(r.message).slice(0, 16), 2200);
+      if (r.kind === 'yamaha-bulk') dirty();
+      return;
     }
     if (u8[1] === 0x7D){
       if (!forced && !U.bulkWait) return flash('BULK IGNORED', 'MIDI 09 first');
@@ -988,32 +992,51 @@ function onSysex(bytes, forced){
 /* ================= playing voices ================= */
 const held = new Set();
 let kbShift = false;
-function playVoice(v, vel, acc, pitch, fromMidi){
+function playVoice(v, vel, acc, pitch, fromMidi, over){
   audio();
   const rec = U.page === 'rtw' && U.mode === 'pattern' && !U.protect && running();
   if (held.has('CLEAR') && U.page === 'rtw' && running()){
     if (protectedMsg()) return;
     SQ.deleteEvents(S, U.ptn, 0, SQ.patLen(pat()), v); patChanged(); flash('ERASE', vname(v), 700); return;
   }
-  post({t:'hit', v, vel, acc, rec, pitch, basePitch:pitch != null ? vget(v, 'pitch') : null});
+  over = Object.assign({}, over || {}); if (pitch != null) over.pitch = pitch;
+  post({t:'hit', v, vel, acc, rec, over});
   flashPad(v);
-  if (!fromMidi && S.midi.notesOut && U.chMsg){ const ch = ((S.midi.txCh || 10) - 1) & 15, n = S.noteMap[v]; midiSend([0x90 | ch, n, vel]); midiSend([0x80 | ch, n, 64], performance.now() + U.gate); }
+  if (!fromMidi && S.midi.notesOut && S.midi.channelMsg !== false) sendEventMidi({v, vel, acc}, performance.now());
 }
+// key data of the current set-up (S.setups); the key offsets apply to the note played from that key
+const keyOf = i => (S.setups && S.setups[S.setup | 0] ? S.setups[S.setup | 0].keys[i] : null) || {voice:i, pitch:0, level:0, attack:0, decay:0, acc1:2, acc2:4, out:i % 12};
+function keySet(i, k, val){ const su = S.setups && S.setups[S.setup | 0]; if (!su) return; su.keys[i] = Object.assign({}, su.keys[i], {[k]:val}); dirty(); }
+function keyItem(no, name, k, min, max, opts = {}){ return numItem(no, name, () => keyOf(U.pad)[k], x => keySet(U.pad, k, x), min, max, Object.assign({ctx:() => 'key' + String.fromCharCode(65 + U.pad), pad:i => { U.pad = i; }}, opts)); }
+const sgn = x => (x > 0 ? '+' : '') + x;
+const multiStep = () => { const k = ['pitch', 'level', 'attack', 'decay'][U.multi.param | 0]; const d = {pitch:100, level:-1, attack:-3, decay:-3}[k]; return U.multi[k + 'Step'] != null ? U.multi[k + 'Step'] : d; };
+function keyOver(v, key, multiIdx){
+  const o = {}, base = k => vget(v, k);
+  let dp = key.pitch || 0, dl = key.level || 0, da = key.attack || 0, dd = key.decay || 0;
+  if (multiIdx != null){ const n = multiIdx - 12, st = multiStep(); [() => dp += n * st, () => dl += n * st, () => da += n * st, () => dd += n * st][U.multi.param | 0](); }
+  if (dp) o.pitch = clamp(base('pitch') + dp, -3600, 2400);
+  if (dl) o.level = clamp(base('level') + dl, 0, 31);
+  if (da) o.ar = clamp(base('ar') + da, 1, 99);
+  if (dd){ o.d1r = clamp(base('d1r') + dd, 0, 99); o.d2r = clamp(base('d2r') + dd, 0, 99); }
+  if (key.acc1 != null && key.acc1 !== base('acc1')) o.acc1 = key.acc1;
+  if (key.acc2 != null && key.acc2 !== base('acc2')) o.acc2 = key.acc2;
+  return o;
+}
+function padVoice(i){ return U.multi.on ? U.multi.v : keyOf(i).voice; }
 function hitPad(i, vel){
   const pg = page();
   if (pg.padOnly){ pg.pad(i); paintLcd(); return; }
-  let v = U.padMap[i], pitch = null;
-  if (U.multi.on){ v = U.multi.v; pitch = clamp(vget(v, 'pitch') + (i - 12) * U.multi.step, -3600, 2400); }
+  const key = keyOf(i), v = padVoice(i), over = keyOver(v, key, U.multi.on ? i : null);
   const acc = held.has('ACC2') ? 2 : held.has('ACC1') ? 1 : 0; if (acc) U.accUsed = true;
   if (U.padVel) vel = U.padVel;
   U.pad = i; U.voice = v; U.ch = v % 12;
-  if (!pg.silentToggle || !running()) playVoice(v, vel, acc, pitch);
+  if (!pg.silentToggle || !running()) playVoice(v, vel, acc, null, false, over);
   if (pg.pad) pg.pad(i, v, vel, acc);
   paintLcd();
 }
 const padEls = [];
 function flashPad(v){
-  for (let i = 0; i < 24; i++) if ((U.multi.on ? U.multi.v : U.padMap[i]) === v || (!U.multi.on && i === v && U.padMap[i] === v)){
+  for (let i = 0; i < 24; i++) if (padVoice(i) === v){
     const e = padEls[i]; if (!e) continue; e.classList.add('lit'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('lit'), 90);
     if (!U.multi.on) break;
   }
