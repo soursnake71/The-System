@@ -256,14 +256,18 @@ const kitReady = (async () => {
     const map = factoryMap();
     await Promise.all(map.map(async (f, v) => { try { const r = await fetch('kit/' + f); if (!r.ok) throw new Error(r.status); roms[v] = parseWav(await r.arrayBuffer()); FACTORY.push({id:v, name:f.replace(/-RX5\.wav$/, ''), ...roms[v], file:f}); } catch (err) { console.warn('kit', f, err.message); } }));
   }
-  // a voice can be given another factory waveform (EDIT VOICE 01 / KEY ASSIGN): U.wave[v] = library id
-  for (let v = 0; v < 24; v++){ const id = U.wave && U.wave[v]; const w = id != null && FACTORY.find(x => x.id === id); if (w) roms[v] = {data:w.data, sr:w.sr}; }
   kitLoaded = true; return roms;
 })();
+// the waveform each voice plays: its factory one, or another factory waveform picked in EDIT VOICE (U.wave[v] = id)
+async function romsNow(){
+  const roms = (await kitReady).slice();
+  for (let v = 0; v < 24; v++){ const id = U.wave && U.wave[v]; const w = id != null && FACTORY.find(x => x.id === id); if (w) roms[v] = {data:w.data, sr:w.sr}; }
+  return roms;
+}
 function setWave(v, id){
   const w = FACTORY.find(x => x.id === id); if (!w) return;
   (U.wave = U.wave || {})[v] = id; dirty();
-  kitReady.then(roms => { roms[v] = {data:w.data, sr:w.sr}; post({t:'roms', roms}); });
+  romsNow().then(roms => post({t:'roms', roms}));
 }
 const waveName = v => { if (S.samples[v]) return 'USR ' + (S.samples[v].name || '').slice(0, 6); const id = U.wave && U.wave[v]; const w = id != null ? FACTORY.find(x => x.id === id) : null; return (w ? w.name : 'INT ' + vname(v)).slice(0, 10); };
 async function loadKitFiles(files){
@@ -289,7 +293,7 @@ function audio(){
   audioReady = (async () => {
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
     await ctx.audioWorklet.addModule('worklet.js');
-    const roms = await kitReady;   // voices are silent until the factory kit is in
+    const roms = await romsNow();   // voices are silent until the factory kit is in
     node = new AudioWorkletNode(ctx, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:S, roms}});
     node.connect(ctx.destination);
     node.port.onmessage = ev => fromWorklet(ev.data);
@@ -875,7 +879,7 @@ async function renderOffline(seconds){
   const len = Math.ceil(Math.min(secs + 3, 900) * sr);
   const oc = new OfflineAudioContext(2, len, sr);
   await oc.audioWorklet.addModule('worklet.js');
-  const nd = new AudioWorkletNode(oc, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:st, roms:await kitReady, render:{mode:'song', n}}});
+  const nd = new AudioWorkletNode(oc, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:st, roms:await romsNow(), render:{mode:'song', n}}});
   nd.connect(oc.destination);
   return await oc.startRendering();
 }
