@@ -16,7 +16,7 @@ class FiveProcessor extends AudioWorkletProcessor {
     this.cue = -1; this.ext = false; this.clockOut = false; this.notesOut = false;
     this.L = new Float32Array(128); this.R = new Float32Array(128);
     this.peak = [0, 0]; this.chPeak = new Float32Array(NUM_CHANNELS); this.fired = []; this.midi = []; this.since = 0;
-    this.pendingClocks = 0; this.wasRunning = false; this.render = o.render || null;
+    this.pendingClocks = 0; this.restore = []; this.lastBpm = 0; this.wasRunning = false; this.render = o.render || null;
     this.port.onmessage = ev => this.msg(ev.data);
     if (o.state) this.setState(o.state);
     if (this.render && this.player){ this.player.setMode(this.render.mode, this.render.n); this.player.start(); }
@@ -32,7 +32,8 @@ class FiveProcessor extends AudioWorkletProcessor {
       this.sample(v, smp);
     }
     for (let ch = 0; ch < NUM_CHANNELS; ch++) if (s.channel[ch]) e.setChannel(ch, s.channel[ch]);
-    for (const kind of ['rev', 'dly']) { const f = (s.fx && s.fx[kind]) || {}; for (const k in f) e.setFx(kind, k, f[k]); }
+    // the reverb program first: it loads that program's parameters, which the saved values then override
+    for (const kind of ['rev', 'dly']) { const f = (s.fx && s.fx[kind]) || {}; if ('program' in f) e.setFx(kind, 'program', f.program); for (const k in f) if (k !== 'program') e.setFx(kind, k, f[k]); }
     e.setMaster({volume:s.volume, click:s.click ? s.click.level : 0.5});
     const old = this.player;
     this.player = new Player(s);
@@ -61,8 +62,11 @@ class FiveProcessor extends AudioWorkletProcessor {
       case 'fx': (s.fx[m.kind] = s.fx[m.kind] || {})[m.k] = m.val; e.setFx(m.kind, m.k, m.val); break;
       case 'sample': s.samples[m.v] = m.s; this.sample(m.v, m.s); break;
       case 'hit': {
+        // multi voice / tunable notes: the pitch is set for this note only
         if (m.pitch != null) e.setVoiceParam(m.v, 'pitch', m.pitch);
         e.trigger(m.v, m.vel, m.acc, 0);
+        // the engine reads the voice's parameters when the note starts (inside the next process), so restore after it
+        if (m.pitch != null && m.basePitch != null) this.restore.push([m.v, m.basePitch]);
         this.fired.push(m.v);
         if (m.rec && p && p.running){
           const ev = p.record(m.v, m.vel, m.acc);
@@ -72,7 +76,7 @@ class FiveProcessor extends AudioWorkletProcessor {
       }
       case 'release': e.release(m.v); break;
       case 'damp':
-        if (e.damp) e.damp(); else if (e.allOff) e.allOff(); else for (let v = 0; v < NUM_VOICES; v++) e.release(v);
+        if (e.damp) e.damp(); else if (e.cut) for (let v = 0; v < NUM_VOICES; v++) e.cut(v); else for (let v = 0; v < NUM_VOICES; v++) e.release(v);
         break;
       case 'transport':
         if (!p) break;
@@ -118,13 +122,16 @@ class FiveProcessor extends AudioWorkletProcessor {
       if (this.wasRunning && !p.running && p.ended) this.port.postMessage({t:'ended', mode:p.mode, n:p.n});
       this.wasRunning = p.running;
     }
+    // the delay's tempo sync follows the sequencer
+    if (p && p.bpm !== this.lastBpm && this.e.setTempo){ this.lastBpm = p.bpm; this.e.setTempo(p.bpm); }
     const L = this.L, R = this.R;
     this.e.process(L, R, n);
+    if (this.restore.length){ for (const [v, pt] of this.restore) this.e.setVoiceParam(v, 'pitch', pt); this.restore.length = 0; }
     let pl = this.peak[0], pr = this.peak[1];
     for (let i = 0; i < n; i++){ const a = Math.abs(L[i]), b = Math.abs(R[i]); if (a > pl) pl = a; if (b > pr) pr = b; }
     this.peak[0] = pl; this.peak[1] = pr;
     o[0].set(L); if (o[1]) o[1].set(R);
-    if (this.e.channelPeaks){ const cp = this.e.channelPeaks(); for (let c = 0; c < NUM_CHANNELS; c++) if (cp[c] > this.chPeak[c]) this.chPeak[c] = cp[c]; }
+    const cp = this.e.peak; if (cp) for (let c = 0; c < NUM_CHANNELS; c++) if (cp[c] > this.chPeak[c]) this.chPeak[c] = cp[c];
     if (this.render) return true;
     this.since += n;
     if (this.since >= sr / 30 || this.midi.length){

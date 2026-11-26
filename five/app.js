@@ -25,11 +25,11 @@ const PAD_LBL = ['BD', 'SD', 'RIM', 'TOM 1', 'TOM 2', 'TOM 3', 'TOM 4', 'HI HAT'
 const LEGEND = [
   [128, [['SONG', 'song', [['01 SEARCH MARK', 1]]], ['EDIT SONG', 'esong', [['01 SEARCH MARK', 1], ['02 SET MARK', 2], ['03 SONG NAME', 3], ['04 INITIAL TEMPO', 4]]]]],
   [200, [['EDIT VOICE', 'voice', [['01 SELECT VOICE', 1], ['02 PITCH', 2], ['03 EG', 3.1], [[['( 1 AR', 3.1], [' 2 D1R', 3.2], [' 3 D1L', 3.3]]], [[['  4 D2R', 3.4], [' 5 RR', 3.5], [' 6 GT)', 3.6]]], ['04 BEND', 4.1], [[['( 1 RATE', 4.1], [' 2 RANGE)', 4.2]]]]]]],
-  [292, [[' ', 'voice', [['05 VOICE LEVEL', 5], ['06 LOOP', 6], ['07 STORE VOICE', 7], ['08 INITIALIZE VOICE', 8], ['09 RECALL EDIT', 9], ['10 REVERSE', 10], ['11 LOAD WAV', 11]]]]],
+  [292, [[' ', 'voice', [['05 VOICE LEVEL', 5], ['06 LOOP', 6], ['07 STORE VOICE', 7], ['08 INITIALIZE VOICE', 8], ['09 RECALL EDIT', 9], ['10 REVERSE', 10], ['11 LOAD WAV', 11], ['12 BITS', 12]]]]],
   [372, [['CHAIN', 'chain', [['01 PLAY', 1], ['02 EDIT', 2], ['03 CHAIN NAME', 3], ['04 CLEAR', 4]]]]],
   [430, [['UTILITY', 'util', [['01 REMAINING PATTERN', 1], ['02 REMAINING SONG', 2], ['03 MEMORY PROTECT', 3], ['04 CHANGE VOICE', 4], ['05 CLEAR ALL PATTERNS', 5], ['06 CLEAR ALL SONGS', 6]]]]],
-  [521, [['KEY ASSIGN', 'key', [['01 VOICE ASSIGN', 1], ['02 PAN', 2], ['03 MULTI VOICE', 3], ['04 MULTI STEP', 4], ['05 ACCENT LEVEL', 5], ['06 OUTPUT CH ASSIGN', 6]]]]],
-  [604, [[' ', 'key', [['07 SAVE KEY DATA', 7], ['08 LOAD KEY DATA', 8], ['09 COPY VOICE', 9], ['10 REV SEND', 10], ['11 DLY SEND', 11]]]]],
+  [521, [['KEY ASSIGN', 'key', [['01 VOICE ASSIGN', 1], ['02 PAN', 2], ['03 MULTI VOICE', 3], ['04 MULTI STEP', 4], ['05 ACCENT LEVEL', 5.1], ['06 OUTPUT CH ASSIGN', 6]]]]],
+  [604, [[' ', 'key', [['07 SAVE KEY DATA', 7], ['08 LOAD KEY DATA', 8], ['09 COPY VOICE', 9], ['10 REV SEND', 10], ['11 DLY SEND', 11], ['12 PAD VELOCITY', 12]]]]],
   [688, [['CASSETTE/CARTRIDGE', 'cart', [['01-04 SAVE SLOT', 1], ['11-14 LOAD SLOT', 11], ['21 SAVE FILE', 21], ['22 LOAD FILE', 22], ['23 LOAD WAV VOICE', 23], ['24 VOICE BANK', 24], ['30 FORMAT SLOT', 30]]]]],
   [790, [['MIDI', 'midi', [['01 CH MESSAGE', 1], ['02 RECEIVE CH', 2], ['03 TRANSMIT CH', 3], ['04 NOTE NUMBER ASSIGN', 4.1], ['05 INITIALIZE NOTE', 5], ['06 EG VELOCITY', 6], ['07 GATE TIME', 7]]]]],
   [893, [[' ', 'midi', [['08 DEVICE NUMBER', 8], ['09 RECEIVE BULK', 9], ['10 TRANSMIT BULK', 10], ['11 CLOCK OUT', 11], ['12 NOTES OUT', 12], ['13 IN PORT', 13], ['14 OUT PORT', 14], ['15 SYX FILE', 15]]]]],
@@ -143,7 +143,7 @@ const QT = i => (SQ.QUANTIZE ? SQ.QUANTIZE[i].ticks : QUANT[i][1]);
 function toast(msg, ms = 2600){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms); }
 
 /* ================= defaults the engine owns (adapters: engine.js may name these differently) ================= */
-const FALLBACK_VOICE = {pitch:0, level:31, ar:99, d1r:40, d1l:60, d2r:40, rr:60, gate:400, bendRate:0, bendRange:0, reverse:0, loop:0};
+const FALLBACK_VOICE = {pitch:0, level:25, ar:99, d1r:0, d1l:60, d2r:0, rr:45, gate:0, bendRate:0, bendRange:0, reverse:0, loop:0, acc1:2, acc2:4, bits:12};
 function voiceDefault(v){
   const D = ENG.VOICE_DEFAULTS;
   const d = D ? (Array.isArray(D) ? D[v] : typeof D === 'function' ? D(v) : D[v] || D) : null;
@@ -153,13 +153,20 @@ const STEREO = [8, 9, 9, 12, 10, 6, 4, 13, 3, 11, 5, 8]; // hardware stereo posi
 function chanDefault(ch){
   const D = ENG.CHANNEL_DEFAULTS;
   const d = D ? (Array.isArray(D) ? D[ch] : D) : null;
-  return Object.assign({fader:0.8, pan:(8 - STEREO[ch]) / 7, sendRev:0.12, sendDly:0, mute:false}, d || {});
+  return Object.assign({fader:1, pan:(8 - STEREO[ch]) / 7, sendRev:0.12, sendDly:0, mute:false}, d || {});
 }
 const FX_FALLBACK = {
   rev:{program:0, time:2.2, hiRatio:0.6, delay:20, diffusion:7, density:80, erLevel:0.6, revLevel:0.8, hpf:60, lpf:9000, gateTime:250},
   dly:{timeL:375, timeR:375, sync:0, feedback:35, pingpong:0, hiCut:8000, loCut:120, modRate:0.5, modDepth:0.1, duckThresh:-24, duckRelease:200, spread:0.8, mix:0.3}};
-function fxDefault(kind){ const D = ENG.FX_DEFAULTS && ENG.FX_DEFAULTS[kind]; return Object.assign({}, FX_FALLBACK[kind], D || {}); }
-const REV_PROGRAMS = ENG.REV_PROGRAMS || ['HALL1', 'HALL2', 'ROOM1', 'ROOM2', 'VOCAL', 'PLATE1', 'PLATE2', 'ER1', 'ER2', 'GATE', 'REVERSE GATE'];
+function fxDefault(kind){ const D = kind === 'rev' ? ENG.REV_DEFAULTS : ENG.DLY_DEFAULTS; return Object.assign({}, FX_FALLBACK[kind], D || {}); }
+const REV_PROGRAMS = (ENG.REV_PROGRAMS || ['HALL1', 'HALL2', 'ROOM1', 'ROOM2', 'VOCAL', 'PLATE1', 'PLATE2', 'ER1', 'ER2', 'GATE', 'REV GATE']).map(p => typeof p === 'string' ? p : p.name);
+const RG = (grp, k, d) => (ENG.RANGES && ENG.RANGES[grp] && ENG.RANGES[grp][k]) || d;
+// a reverb program loads its own parameters (as the engine does), keeping the return level
+function setRevProgram(i){
+  const pr = ENG.REV_PROGRAMS && ENG.REV_PROGRAMS[i], o = {program:i, level:fget('rev', 'level')};
+  if (pr && typeof pr === 'object') for (const k of ['time', 'hiRatio', 'delay', 'diffusion', 'density', 'erLevel', 'revLevel', 'hpf', 'lpf', 'gateTime']) o[k] = pr[k];
+  S.fx = S.fx || {}; S.fx.rev = o; post({t:'fx', kind:'rev', k:'program', val:i}); for (const k in o) if (k !== 'program') post({t:'fx', kind:'rev', k, val:o[k]}); dirty();
+}
 const DLY_SYNC = SQ.DLY_SYNC || ['off', '1/4', '1/8', '1/8.', '1/16', '1/4T'];
 const RX5_NOTES = SQ.RX5_NOTES || (SQ.NOTE_PRESETS && SQ.NOTE_PRESETS.rx5) || null;
 const NOTE_PRESETS = SQ.NOTE_PRESETS || {gm:SQ.MIDI_GM_NOTES, ...(RX5_NOTES ? {rx5:RX5_NOTES} : {})};
@@ -213,7 +220,7 @@ function audio(){
     node = new AudioWorkletNode(ctx, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:S}});
     node.connect(ctx.destination);
     node.port.onmessage = ev => fromWorklet(ev.data);
-    queue.length = 0;
+    for (const m of queue.splice(0)) if (m.t === 'hit') node.port.postMessage(m);
     post({t:'ext', on:S.sync === 'midi' || S.sync === 'ext'}); post({t:'midiOut', clock:!!S.midi.clockOut, notes:!!S.midi.notesOut});
     if (ctx.state !== 'running') await ctx.resume().catch(() => {});
   })().catch(e => { console.error(e); flash('AUDIO ERROR', String(e.message || e).slice(0, 16)); audioReady = null; });
@@ -309,15 +316,17 @@ const MENUS = {
   ],
   voice:[
     {no:1, name:'SELECT VOICE', ctx:vctx, l2:() => vname(U.voice) + (S.samples[U.voice] ? ' (USER)' : ' (INT)'), inc:d => { U.voice = (U.voice + d + 24) % 24; }, data:x => { U.voice = Math.round(x * 23); }, pad:padSelVoice},
-    vItem(2, 'PITCH', 'pitch', -3600, 2400, {step:100, fine:10, fmt:fmtCents}),
-    vItem(3.1, 'EG AR', 'ar', 0, 99), vItem(3.2, 'EG D1R', 'd1r', 0, 99), vItem(3.3, 'EG D1L', 'd1l', 0, 99), vItem(3.4, 'EG D2R', 'd2r', 0, 99), vItem(3.5, 'EG RR', 'rr', 0, 99),
-    vItem(3.6, 'EG GATE', 'gate', 10, 6500, {step:10, fine:1, fmt:x => p3(Math.round(x)).padStart(4, '0') + ' ms', curve:2}),
-    vItem(4.1, 'BEND RATE', 'bendRate', 0, 99), vItem(4.2, 'BEND RANGE', 'bendRange', -6000, 6000, {step:100, fine:10, fmt:fmtCents}),
+    vItem(2, 'PITCH', 'pitch', ...RG('voice', 'pitch', [-3600, 2400]), {step:100, fine:10, fmt:fmtCents}),
+    vItem(3.1, 'EG AR', 'ar', ...RG('voice', 'ar', [1, 99])), vItem(3.2, 'EG D1R', 'd1r', ...RG('voice', 'd1r', [0, 99])), vItem(3.3, 'EG D1L', 'd1l', ...RG('voice', 'd1l', [0, 60])),
+    vItem(3.4, 'EG D2R', 'd2r', ...RG('voice', 'd2r', [0, 99])), vItem(3.5, 'EG RR', 'rr', ...RG('voice', 'rr', [1, 99])),
+    vItem(3.6, 'EG GATE', 'gate', 0, 6500, {step:100, fine:10, fmt:x => x < 100 ? 'OFF (plays out)' : String(Math.round(x)).padStart(4, '0') + ' ms'}),
+    vItem(4.1, 'BEND RATE', 'bendRate', ...RG('voice', 'bendRate', [0, 60])), vItem(4.2, 'BEND RANGE', 'bendRange', ...RG('voice', 'bendRange', [-6000, 6000]), {step:100, fine:10, fmt:fmtCents}),
     vItem(5, 'VOICE LEVEL', 'level', 0, 31), vBool(6, 'LOOP', 'loop'),
     actItem(7, 'STORE VOICE', () => { U.stored[U.voice] = Object.assign(voiceDefault(U.voice), S.voice[U.voice]); dirty(); flash('STORED', vname(U.voice)); }, {ctx:vctx, pad:padSelVoice}),
     actItem(8, 'INIT VOICE', () => { S.voice[U.voice] = voiceDefault(U.voice); post({t:'voiceAll', v:U.voice, p:S.voice[U.voice]}); dirty(); flash('INITIALIZED', vname(U.voice)); }, {ctx:vctx, pad:padSelVoice}),
     actItem(9, 'RECALL EDIT', () => { const s = U.stored[U.voice]; if (!s){ flash('NOTHING STORED', vname(U.voice)); return; } S.voice[U.voice] = Object.assign({}, s); post({t:'voiceAll', v:U.voice, p:S.voice[U.voice]}); dirty(); flash('RECALLED', vname(U.voice)); }, {ctx:vctx, pad:padSelVoice}),
     vBool(10, 'REVERSE', 'reverse'),
+    listItem(12, 'BITS', () => vget(U.voice, 'bits') < 10 ? 0 : 1, x => vset(U.voice, 'bits', x ? 12 : 8), ['8 BIT', '12 BIT'], {ctx:vctx, pad:padSelVoice}),
     actItem(11, 'LOAD WAV', () => pickFile('audio/*,.wav,.aif,.aiff', loadWav), {ctx:vctx, pad:padSelVoice, l2:() => 'YES: pick a file'}),
   ],
   chain:[
@@ -341,7 +350,7 @@ const MENUS = {
     {no:3, name:'MULTI VOICE', l2:() => U.multi.on ? vname(U.multi.v) + ' A-X' : 'OFF', inc:d => { const k = (U.multi.on ? U.multi.v + 1 : 0) + d; U.multi.on = k > 0 && k <= 24; if (U.multi.on) U.multi.v = (k - 1 + 24) % 24; dirty(); paintLeds(); },
       pad:(i, v) => { if (U.multi.on) return; }},
     numItem(4, 'MULTI STEP', () => U.multi.step, x => { U.multi.step = x; dirty(); }, 10, 1200, {step:10, fmt:x => x + ' cent'}),
-    numItem(5, 'ACCENT LEVEL', () => U.padVel, x => { U.padVel = x; dirty(); }, 0, 127, {fmt:x => x ? 'pad vel ' + x : 'pad vel: TOUCH'}),
+    vItem(5.1, 'ACCENT 1', 'acc1', -31, 31, {fmt:x => (x >= 0 ? '+' : '') + x + ' level'}), vItem(5.2, 'ACCENT 2', 'acc2', -31, 31, {fmt:x => (x >= 0 ? '+' : '') + x + ' level'}),
     listItem(6, 'OUTPUT CH', () => cget(U.ch, 'mute') ? 1 : 0, x => cset(U.ch, 'mute', !!x), ['ON', 'MUTE'], {ctx:cctx, pad:padSelCh}),
     {no:7, name:'SAVE KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + '  YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 3) % 3; }, yes:() => { try { localStorage.setItem('o5key' + U.slot % 3, JSON.stringify({padMap:U.padMap, multi:U.multi})); flash('KEY DATA SAVED', 'set ' + (U.slot % 3 + 1)); } catch (e) {} }},
     {no:8, name:'LOAD KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + '  YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 3) % 3; }, yes:() => { try { const k = JSON.parse(localStorage.getItem('o5key' + U.slot % 3)); if (!k) throw 0; U.padMap = k.padMap; U.multi = k.multi; dirty(); paintLeds(); flash('KEY DATA LOADED', 'set ' + (U.slot % 3 + 1)); } catch (e) { flash('NO KEY DATA', 'set ' + (U.slot % 3 + 1)); } }},
@@ -349,6 +358,7 @@ const MENUS = {
       yes:() => { const to = U.copyTo || 0; S.voice[to] = Object.assign(voiceDefault(U.voice), S.voice[U.voice]); post({t:'voiceAll', v:to, p:S.voice[to]}); dirty(); flash('COPIED', vname(U.voice) + '>' + vname(to)); }},
     numItem(10, 'REV SEND', () => cget(U.ch, 'sendRev'), x => cset(U.ch, 'sendRev', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
     numItem(11, 'DLY SEND', () => cget(U.ch, 'sendDly'), x => cset(U.ch, 'sendDly', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
+    numItem(12, 'PAD VELOCITY', () => U.padVel, x => { U.padVel = x; dirty(); }, 0, 127, {fmt:x => x ? 'fixed ' + x : 'TOUCH (pad pos)'}),
   ],
   cart:[
     ...[0, 1, 2, 3].map(i => ({no:1 + i, name:'SAVE SLOT ' + (i + 1), l2:() => slotInfo(i, 'SAVE'), yes:() => slotSave(i)})),
@@ -395,7 +405,7 @@ const MENUS = {
     numItem(5, 'VOLUME', () => pat().volume[U.ch], x => { pat().volume[U.ch] = x; patChanged(); }, 0, 31, {ctx:cctx, pad:padSelCh}),
   ],
   rev:[
-    listItem(1, 'PROGRAM', () => fget('rev', 'program'), x => fset('rev', 'program', x), REV_PROGRAMS),
+    listItem(1, 'PROGRAM', () => fget('rev', 'program'), x => setRevProgram(x), REV_PROGRAMS),
     numItem(2, 'REV TIME', () => fget('rev', 'time'), x => fset('rev', 'time', x), 0.3, 30, {step:0.1, fmt:x => x.toFixed(1) + ' s', curve:2}),
     numItem(3, 'HIGH RATIO', () => fget('rev', 'hiRatio'), x => fset('rev', 'hiRatio', x), 0.1, 1, {step:0.1, fmt:x => x.toFixed(1)}),
     numItem(4, 'DELAY', () => fget('rev', 'delay'), x => fset('rev', 'delay', x), 0, 200, {fmt:x => x.toFixed(0) + ' ms'}),
@@ -404,22 +414,25 @@ const MENUS = {
     numItem(7, 'ER LEVEL', () => fget('rev', 'erLevel'), x => fset('rev', 'erLevel', x), 0, 1, {step:0.01, fmt:pct}),
     numItem(8, 'REV LEVEL', () => fget('rev', 'revLevel'), x => fset('rev', 'revLevel', x), 0, 1, {step:0.01, fmt:pct}),
     numItem(9, 'HPF', () => fget('rev', 'hpf'), x => fset('rev', 'hpf', x), 20, 1000, {step:10, fmt:x => x < 25 ? 'THRU' : x + ' Hz', curve:2}),
-    numItem(10, 'LPF', () => fget('rev', 'lpf'), x => fset('rev', 'lpf', x), 1000, 18000, {step:500, fmt:x => x >= 18000 ? 'THRU' : (x / 1000).toFixed(1) + ' kHz', curve:2}),
+    numItem(10, 'LPF', () => fget('rev', 'lpf'), x => fset('rev', 'lpf', x), 1000, 16000, {step:500, fmt:x => x >= 16000 ? 'THRU' : (x / 1000).toFixed(1) + ' kHz', curve:2}),
     numItem(11, 'GATE TIME', () => fget('rev', 'gateTime'), x => fset('rev', 'gateTime', x), 10, 500, {step:10, fmt:x => x + ' ms'}),
-    numItem(12, 'REV SEND', () => cget(U.ch, 'sendRev'), x => cset(U.ch, 'sendRev', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
+    numItem(12, 'RETURN LEVEL', () => fget('rev', 'level'), x => fset('rev', 'level', x), 0, 1, {step:0.01, fmt:pct}),
+    numItem(13, 'REV SEND', () => cget(U.ch, 'sendRev'), x => cset(U.ch, 'sendRev', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
   ],
   dly:[
+    listItem(0, 'DELAY', () => fget('dly', 'on') ? 1 : 0, x => fset('dly', 'on', x), onoff),
     numItem(1, 'TIME L', () => fget('dly', 'timeL'), x => fset('dly', 'timeL', x), 1, 2000, {step:1, fmt:x => x + ' ms', curve:2}),
     numItem(2, 'TIME R', () => fget('dly', 'timeR'), x => fset('dly', 'timeR', x), 1, 2000, {step:1, fmt:x => x + ' ms', curve:2}),
     listItem(3, 'TEMPO SYNC', () => fget('dly', 'sync'), x => fset('dly', 'sync', x), DLY_SYNC.map(s => s === 'off' ? 'OFF' : s)),
     numItem(4, 'FEEDBACK', () => fget('dly', 'feedback'), x => fset('dly', 'feedback', x), 0, 120, {fmt:x => x + ' %'}),
     listItem(5, 'PING PONG', () => fget('dly', 'pingpong') ? 1 : 0, x => fset('dly', 'pingpong', x), onoff),
     numItem(6, 'HI CUT', () => fget('dly', 'hiCut'), x => fset('dly', 'hiCut', x), 1000, 20000, {step:500, fmt:x => (x / 1000).toFixed(1) + ' kHz', curve:2}),
-    numItem(7, 'LO CUT', () => fget('dly', 'loCut'), x => fset('dly', 'loCut', x), 20, 2000, {step:10, fmt:x => x + ' Hz', curve:2}),
-    numItem(8, 'MOD RATE', () => fget('dly', 'modRate'), x => fset('dly', 'modRate', x), 0, 10, {step:0.05, fmt:x => x.toFixed(2) + ' Hz'}),
+    numItem(7, 'LO CUT', () => fget('dly', 'loCut'), x => fset('dly', 'loCut', x), 20, 1000, {step:10, fmt:x => x + ' Hz', curve:2}),
+    numItem(8, 'MOD RATE', () => fget('dly', 'modRate'), x => fset('dly', 'modRate', x), 0.05, 10, {step:0.05, fmt:x => x.toFixed(2) + ' Hz'}),
     numItem(9, 'MOD DEPTH', () => fget('dly', 'modDepth'), x => fset('dly', 'modDepth', x), 0, 1, {step:0.01, fmt:pct}),
     numItem(10, 'DUCK THRESH', () => fget('dly', 'duckThresh'), x => fset('dly', 'duckThresh', x), -60, 0, {fmt:x => x <= -60 ? 'OFF' : x + ' dB'}),
     numItem(11, 'DUCK RELEASE', () => fget('dly', 'duckRelease'), x => fset('dly', 'duckRelease', x), 10, 2000, {step:10, fmt:x => x + ' ms', curve:2}),
+    numItem(11.1, 'DUCK DEPTH', () => fget('dly', 'duckDepth'), x => fset('dly', 'duckDepth', x), 0, 40, {fmt:x => x + ' dB'}),
     numItem(12, 'SPREAD', () => fget('dly', 'spread'), x => fset('dly', 'spread', x), 0, 1, {step:0.01, fmt:pct}),
     numItem(13, 'MIX', () => fget('dly', 'mix'), x => fset('dly', 'mix', x), 0, 1, {step:0.01, fmt:pct}),
     numItem(14, 'DLY SEND', () => cget(U.ch, 'sendDly'), x => cset(U.ch, 'sendDly', x), 0, 1, {step:0.01, fmt:pct, ctx:cctx, pad:padSelCh}),
@@ -466,3 +479,722 @@ const menuPage = {
   pad(i, v){ const it = curItem(); if (U.menu === 'esong' && it.no === 0) return songEditPad(i, v); if (it.pad) it.pad(i, v); },
   data(x){ const it = curItem(); if (U.menu === 'esong' && it.no === 0) return songEditData(x); if (it.data) it.data(x); },
 };
+
+/* ---------- song editor (EDIT SONG) ---------- */
+const STEP_CH = ['BD', 'SD', 'RIM', 'TOM1', 'TOM2', 'TOM3', 'TOM4', 'HH', 'RIDE', 'CRSH', 'TB/C', 'SH/C'];
+function stepDesc(st){
+  if (!st) return '-- END --';
+  switch (st.type){
+    case 'pat': return 'PTN ' + p2(st.n) + ' ' + S.patterns[st.n].name.slice(0, 8);
+    case 'rep': return 'REPEAT s' + p3(st.from + 1) + ' x' + st.count;
+    case 'tempo': return 'TEMPO ' + st.bpm.toFixed(1);
+    case 'vol': return 'VOL ' + STEP_CH[st.ch] + ' ' + st.level;
+    case 'mark': return '=== MARK ===';
+  }
+  return '?';
+}
+function songEditLcd(){
+  const steps = song().steps; U.songStep = clamp(U.songStep, 0, steps.length);
+  const st = steps[U.songStep];
+  return ['SONG ' + songL(U.song) + ' s' + p3(U.songStep + 1) + '/' + p3(steps.length), st ? stepDesc(st) : '-- END -- +P' + p2(digits ? +digits : U.ptn)];
+}
+function songEditInc(d, sh){
+  if (protectedMsg()) return;
+  const steps = song().steps, st = steps[U.songStep];
+  if (!st){ if (d > 0){ const n = digits ? clamp(+digits, 0, 99) : U.ptn; digits = ''; if (steps.length >= 999) return flash('SONG FULL', '999 parts'); SQ.songInsertStep(S, U.song, steps.length, {type:'pat', n}); U.songStep = steps.length; songChanged(); } return; }
+  const x = Object.assign({}, st);
+  if (x.type === 'pat') x.n = (x.n + d + 100) % 100;
+  else if (x.type === 'rep') x.count = clamp(x.count + d, 1, 99);
+  else if (x.type === 'tempo') x.bpm = clamp(+(x.bpm + d * (sh ? 0.1 : 1)).toFixed(1), 40, 250);
+  else if (x.type === 'vol') x.level = clamp(x.level + d, 0, 31);
+  SQ.songSetStep(S, U.song, U.songStep, x); songChanged();
+}
+function songEditData(x){
+  const st = song().steps[U.songStep]; if (!st || U.protect) return;
+  const y = Object.assign({}, st);
+  if (y.type === 'pat') y.n = Math.round(x * 99); else if (y.type === 'rep') y.count = 1 + Math.round(x * 98);
+  else if (y.type === 'tempo') y.bpm = Math.round(40 + 210 * x); else if (y.type === 'vol') y.level = Math.round(x * 31); else return;
+  SQ.songSetStep(S, U.song, U.songStep, y); songChanged();
+}
+function songEditDigit(d){
+  const st = song().steps[U.songStep], s = typed(d, st && st.type === 'rep' ? 3 : 2);
+  if (!st || U.protect) return;
+  const y = Object.assign({}, st);
+  if (y.type === 'pat') y.n = clamp(+s, 0, 99); else if (y.type === 'rep') y.from = clamp(+s - 1, 0, U.songStep); else if (y.type === 'vol') y.level = clamp(+s, 0, 31); else return;
+  SQ.songSetStep(S, U.song, U.songStep, y); songChanged();
+}
+function songEditMove(d){ U.songStep = clamp(U.songStep + d, 0, song().steps.length); digits = ''; }
+function songEditPad(i, v){ const st = song().steps[U.songStep]; if (st && st.type === 'vol'){ SQ.songSetStep(S, U.song, U.songStep, Object.assign({}, st, {ch:v % 12})); songChanged(); } }
+function songEditYes(){ songEditInc(1); }
+function songEditNo(){ songEditInc(-1); }
+function inSongEdit(){ return U.page === 'menu' && U.menu === 'esong' && curItem().no === 0; }
+function inChainEdit(){ return U.page === 'menu' && U.menu === 'chain' && curItem().no === 2; }
+function songInsert(type){
+  if (inChainEdit()){ if (type === 'pat'){ SQ.chainInsert(S, U.chain, U.chainStep, U.song); chainChanged(); } return; }
+  if (!inSongEdit()){ U.mode = 'song'; openMenu('esong', 0); return; }
+  if (protectedMsg()) return;
+  const steps = song().steps, i = U.songStep;
+  if (steps.length >= 999) return flash('SONG FULL', '999 parts');
+  let st;
+  if (type === 'pat') st = {type:'pat', n:U.ptn};
+  else if (type === 'rep'){ let from = 0; for (let k = i - 1; k >= 0; k--) if (steps[k].type === 'mark'){ from = k + 1; break; } st = {type:'rep', from, count:2}; }
+  else if (type === 'tempo') st = {type:'tempo', bpm:S.tempo};
+  else st = {type:'vol', ch:U.ch, level:31};
+  SQ.songInsertStep(S, U.song, i, st); songChanged();
+  flash(type === 'pat' ? 'INSERT' : type === 'rep' ? 'REPEAT' : type === 'tempo' ? 'TEMPO CHANGE' : 'VOLUME CHANGE', 'at s' + p3(i + 1), 900);
+}
+function songDelete(){
+  if (inChainEdit()) return chainDel();
+  if (!inSongEdit()){ U.mode = 'song'; openMenu('esong', 0); return; }
+  if (protectedMsg()) return;
+  if (U.songStep < song().steps.length){ SQ.songDeleteStep(S, U.song, U.songStep); songChanged(); flash('DELETE', 'at s' + p3(U.songStep + 1), 900); }
+}
+function songTickAt(sn, stepIdx){
+  const c = new SQ.SongCursor(S, sn); let abs = 0, n;
+  while ((n = c.next()) !== null){ if (c.at >= stepIdx) return abs; abs += SQ.patLen(S.patterns[n]); }
+  return null;
+}
+function searchMark(play){
+  const steps = song().steps, from = play ? (pos && pos.song === U.song && pos.step >= 0 ? pos.step : -1) : U.songStep;
+  let m = steps.findIndex((s, k) => k > from && s.type === 'mark');
+  if (m < 0) m = steps.findIndex(s => s.type === 'mark');
+  if (m < 0) return flash('NO MARK', 'SONG ' + songL(U.song));
+  if (!play){ U.songStep = m; openMenu('esong', 0); return; }
+  const t = songTickAt(U.song, m + 1);
+  if (t == null) return flash('MARK AT END', '');
+  audio().then(() => { post({t:'transport', cmd:'start', mode:'song', n:U.song}); post({t:'locate', tick:t}); if (!running()) post({t:'transport', cmd:'stop'}); });
+  flash('MARK s' + p3(m + 1), running() ? 'playing from it' : 'CONTINUE plays');
+}
+
+/* ---------- chain edit ---------- */
+function chainL2(){ const c = S.chains[U.chain].songs; U.chainStep = clamp(U.chainStep, 0, c.length); const n = c[U.chainStep]; return n == null ? '-- END -- +' + songL(U.song) : 'SONG ' + songL(n) + ' ' + S.songs[n].name.slice(0, 8); }
+function chainInc(d){
+  if (protectedMsg()) return;
+  const c = S.chains[U.chain].songs;
+  if (U.chainStep >= c.length){ if (d > 0){ if (c.length >= (SQ.CHAIN_MAX || 99)) return flash('CHAIN FULL', ''); SQ.chainInsert(S, U.chain, c.length, U.song); U.chainStep = c.length; chainChanged(); } return; }
+  c[U.chainStep] = (c[U.chainStep] + d + 20) % 20; chainChanged();
+}
+function chainSetSong(n){ const c = S.chains[U.chain].songs; if (U.chainStep < c.length){ c[U.chainStep] = n; chainChanged(); } else U.song = n; }
+function chainMove(d){ U.chainStep = clamp(U.chainStep + d, 0, S.chains[U.chain].songs.length); }
+function chainDel(){ if (protectedMsg()) return; if (U.chainStep < S.chains[U.chain].songs.length){ SQ.chainDelete(S, U.chain, U.chainStep); chainChanged(); } }
+
+/* ---------- the other pages ---------- */
+function selectPattern(n){
+  n = (n + 100) % 100;
+  if (running() && pos.mode === 'pattern'){ U.cue = n; post({t:'cue', n}); }
+  else { U.ptn = n; U.cue = -1; post({t:'cue', n}); }
+}
+function selectSong(n){ U.song = (n + 20) % 20; U.tempoTouched = false; U.chainPlay = false; if (S.midi.clockOut) midiSend([0xF3, U.song]); }
+function setTempo(bpm){
+  bpm = clamp(Math.round(bpm * 10) / 10, 40, 250); S.tempo = bpm; post({t:'set', k:'tempo', v:bpm});
+  if (U.mode === 'song'){ U.tempoTouched = true; post({t:'tempo', bpm}); }
+  dirty(); setSlider('TEMPO', (bpm - 40) / 210);
+}
+const curTempo = () => running() && pos.bpm ? pos.bpm : U.mode === 'song' && !U.tempoTouched ? song().tempo : S.tempo;
+function qSet(i){ S.quantize = clamp(i, 0, (SQ.QUANTIZE || QUANT).length - 1); post({t:'set', k:'quantize', v:S.quantize}); dirty(); }
+function qDigit(d){ const m = SQ.QUANTIZE_KEYPAD || KEY_Q; qSet(m[d]); const g = QT(S.quantize); U.stepPos = Math.floor(U.stepPos / g) * g; }
+const SYNCS = ['int', 'midi', 'tape', 'ext'];
+function setSync(s){ S.sync = s; post({t:'set', k:'sync', v:s}); post({t:'ext', on:s === 'midi' || s === 'ext'}); dirty(); paintLeds(); }
+function playLine(){
+  const p = running() && pos.mode === 'pattern' ? S.patterns[pos.pattern] : pat();
+  const bar = running() ? pos.bar : 1;
+  return ' ' + p2(p.beats) + ' /' + String(p.unit).padStart(2) + ' :bar' + p2(bar);
+}
+let nameState = null;
+function openName(get, set){ nameState = {back:{page:U.page, menu:U.menu}, buf:(get() || '').padEnd(16).slice(0, 16).split(''), cur:0, set}; U.page = 'name'; paintAll(); }
+function nameDone(){ const n = nameState.buf.join('').trimEnd(); nameState.set(n); U.page = nameState.back.page; U.menu = nameState.back.menu; flash('NAME', n || '(blank)', 900); }
+function nameType(ch){ const s = nameState; s.buf[s.cur] = ch; s.cur = Math.min(15, s.cur + 1); }
+
+const PAGES = {
+  ptn:{
+    lcd:() => {
+      const now = running() && pos.mode === 'pattern' ? pos.pattern : U.ptn, cue = U.cue >= 0 && running() ? U.cue : -1;
+      const nx = digits.length === 1 ? digits + '*' : cue >= 0 ? p2(cue) : '**';
+      return ['PLAY PTN' + p2(now) + ':nxt' + nx, playLine()];
+    },
+    digit:d => { const s = typed(d); if (s.length === 2){ selectPattern(+s); digits = ''; } },
+    pm:d => selectPattern((U.cue >= 0 && running() ? U.cue : U.ptn) + d),
+    data:x => selectPattern(Math.round(x * 99)),
+  },
+  songplay:{
+    lcd:() => {
+      const sn = running() && pos.song >= 0 ? pos.song : U.song, s = S.songs[sn];
+      const l1 = (U.chainPlay ? 'CHAIN' + (U.chain + 1) + ' SONG ' : 'PLAY SONG ') + songL(sn) + ':' + s.name;
+      if (running() && pos.mode !== 'pattern') return [l1, 's' + p3(pos.step + 1) + ' P' + p2(pos.pattern) + ' b' + p2(pos.bar) + ' ' + Math.round(pos.bpm)];
+      return [l1, digits.length === 1 ? 'song ' + digits + '*' : p3(s.steps.length) + ' steps ' + curTempo().toFixed(1)];
+    },
+    digit:d => { const s = typed(d); if (s.length === 2){ const n = +s - 1; if (n >= 0 && n < 20) selectSong(n); digits = ''; } },
+    pm:d => selectSong(U.song + d),
+    data:x => selectSong(Math.round(x * 19)),
+  },
+  rtw:{
+    lcd:() => ['RTW PTN' + p2(U.ptn) + ' Q' + QN(S.quantize), running() ? playLine() + ' ' + pos.beat : U.protect ? 'MEMORY PROTECTED' : ' START to record'],
+    digit:qDigit, pm:d => qSet(S.quantize + d), data:x => qSet(Math.round(x * 10)),
+  },
+  step:{
+    lcd:() => {
+      const p = pat(), g = QT(S.quantize), len = SQ.patLen(p), bt = SQ.barTicks(p);
+      U.stepPos = clamp(U.stepPos, 0, len - 1);
+      const idx = Math.floor(U.stepPos / g), w0 = Math.floor(idx / 16) * 16, sv = U.stepVoice;
+      const bar = Math.floor(U.stepPos / bt) + 1, sib = Math.floor((U.stepPos % bt) / g) + 1;
+      let l2 = '';
+      for (let k = 0; k < 16; k++){
+        const t = (w0 + k) * g;
+        if (t >= len){ l2 += ' '; continue; }
+        const e = p.events.find(x => x.t === t && x.v === sv);
+        l2 += e ? (e.acc === 2 ? '#' : e.acc === 1 ? 'O' : 'o') : (t % SQ.ticksPerBeat(p) === 0 ? ':' : '.');
+      }
+      return [vname(sv).slice(0, 6).padEnd(6) + p2(bar) + ':' + p2(sib) + ' ' + QN(S.quantize), l2, idx - w0];
+    },
+    pm:d => { const p = pat(), g = QT(S.quantize), len = SQ.patLen(p); U.stepPos = ((Math.floor(U.stepPos / g) + d) * g % len + len) % len; },
+    move:d => PAGES.step.pm(d),
+    digit:qDigit,
+    data:x => { const p = pat(), g = QT(S.quantize), n = Math.ceil(SQ.patLen(p) / g); U.stepPos = Math.min(n - 1, Math.floor(x * n)) * g; },
+    pad:(i, v, vel, acc) => {
+      if (protectedMsg()) return;
+      U.stepVoice = v;
+      const p = pat(), had = p.events.some(e => e.t === U.stepPos && e.v === v);
+      if (had && !acc) SQ.stepDelete(S, U.ptn, U.stepPos, v); else SQ.stepInsert(S, U.ptn, U.stepPos, v, U.padVel || vel, acc);
+      patChanged();
+    },
+    silentToggle:true,
+  },
+  quant:{lcd:() => ['QUANTIZE', '      ' + QN(S.quantize)], digit:qDigit, pm:d => qSet(S.quantize + d), data:x => qSet(Math.round(x * 10))},
+  swing:{lcd:() => ['SWING   PTN' + p2(U.ptn), '      ' + pat().swing + ' %'], pm:d => { SQ.setSwing(S, U.ptn, pat().swing + d); patChanged(); },
+    digit:d => { const s = typed(d); if (s.length === 2){ SQ.setSwing(S, U.ptn, +s); patChanged(); } }, data:x => { SQ.setSwing(S, U.ptn, Math.round(50 + 25 * x)); patChanged(); }},
+  click:{lcd:() => ['CLICK', (S.click.on ? 'ON ' : 'OFF') + '  level ' + Math.round(S.click.level * 100) + '%'], pm:d => { S.click.on = d > 0; post({t:'set', k:'click', v:S.click}); dirty(); }},
+  tempo:{lcd:() => ['TEMPO' + (U.mode === 'song' ? '  SONG ' + songL(U.song) : ''), '    ' + curTempo().toFixed(1) + ' BPM'],
+    pm:(d, sh) => setTempo(curTempo() + d * (sh ? 0.1 : 1)), digit:d => { const s = typed(d, 3); if (s.length === 3 || +s >= 40) setTempo(+s); }, data:x => setTempo(40 + 210 * x)},
+  clear:{lcd:() => [U.mode === 'song' ? 'CLEAR SONG ' + songL(U.song) : 'CLEAR PTN' + p2(U.ptn), ' sure? NO / YES'],
+    pm:d => {
+      if (d < 0){ backToPlay(); return; }
+      if (protectedMsg()) return;
+      if (U.mode === 'song'){ S.songs[U.song] = SQ.newSong(U.song); songChanged(); flash('SONG ' + songL(U.song), 'CLEARED'); }
+      else { SQ.clearPattern(S, U.ptn); patChanged(); flash('PTN' + p2(U.ptn), 'CLEARED'); }
+      backToPlay();
+    }},
+  copy:{lcd:() => U.mode === 'song' ? ['COPY SONG ' + songL(U.song) + ' TO', '   SONG ' + songL(U.copyDst | 0) + '  YES'] : ['COPY PTN' + p2(U.ptn) + ' TO', '   PTN' + p2(U.copyDst | 0) + '  YES'],
+    digit:d => { const s = typed(d); if (s.length === 2) U.copyDst = U.mode === 'song' ? clamp(+s - 1, 0, 19) : +s; },
+    data:x => { U.copyDst = Math.round(x * (U.mode === 'song' ? 19 : 99)); },
+    pm:d => {
+      if (d < 0){ U.copyDst = ((U.copyDst | 0) + 1) % (U.mode === 'song' ? 20 : 100); return; }
+      if (protectedMsg()) return;
+      const dst = U.copyDst | 0;
+      if (U.mode === 'song'){ S.songs[dst] = JSON.parse(JSON.stringify(song())); songChanged(dst); flash('COPIED', 'SONG ' + songL(U.song) + '>' + songL(dst)); }
+      else { SQ.copyPattern(S, U.ptn, dst); patChanged(dst); flash('COPIED', 'PTN' + p2(U.ptn) + '>' + p2(dst)); }
+    }},
+  sync:{lcd:() => ['SYNC MODE', '  ' + ['INT', 'MIDI', 'TAPE (= INT)', 'EXT (MIDI CLK)'][SYNCS.indexOf(S.sync)]], pm:d => setSync(SYNCS[(SYNCS.indexOf(S.sync) + d + 4) % 4]), data:x => setSync(SYNCS[Math.round(x * 3)])},
+  reverse:{lcd:() => ['REVERSE  ' + vname(U.voice), vget(U.voice, 'reverse') ? '  ON  (pad: flip)' : '  OFF (pad: flip)'],
+    pm:d => vset(U.voice, 'reverse', d > 0 ? 1 : 0), pad:(i, v) => { vset(v, 'reverse', vget(v, 'reverse') ? 0 : 1); }},
+  name:{lcd:() => ['NAME  YES = done', nameState.buf.join(''), nameState.cur],
+    pad:i => nameType(String.fromCharCode(65 + i)), digit:d => nameType(String(d)), move:d => { nameState.cur = clamp(nameState.cur + d, 0, 15); },
+    pm:d => { if (d > 0) nameDone(); else { const s = nameState; s.cur = Math.max(0, s.cur - 1); s.buf[s.cur] = ' '; } }, padOnly:true},
+};
+function page(){ return U.page === 'menu' ? menuPage : PAGES[U.page] || PAGES.ptn; }
+function backToPlay(){ U.page = U.mode === 'song' ? 'songplay' : 'ptn'; U.menu = null; }
+function doRandom(){
+  if (protectedMsg()) return;
+  const seed = (Date.now() ^ Math.floor(Math.random() * 4294967295)) >>> 0, scope = ['all', 'pattern', 'voices', 'fx'][U.rnd];
+  const r = SQ.randomize(S, seed, scope, {pattern:U.ptn, start:Math.min(U.ptn, 96), song:U.song});
+  if (scope === 'all'){ U.ptn = Math.min(U.ptn, 96); }
+  allChanged(); flash('RANDOM ' + scope.toUpperCase(), (r && r.genre ? r.genre.toUpperCase() : '') + (scope === 'all' ? ' ' + Math.round(S.tempo) + 'BPM' : ''), 1800);
+}
+
+/* ================= files ================= */
+function pickFile(accept, fn){ const i = $('#fileIn'); i.accept = accept; i.onchange = () => { const f = i.files[0]; i.value = ''; if (f) fn(f).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); toast(String(e.message || e), 5000); }); }; i.click(); }
+const stamp = () => { const d = new Date(); return d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()); };
+async function saveFile(bytes, name, mime){
+  const blob = bytes instanceof Blob ? bytes : new Blob([bytes], {type:mime});
+  if (window.AndroidFive){
+    const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(blob); });
+    const where = AndroidFive.save(b64, name, mime);
+    if (String(where).startsWith('error')) throw new Error(String(where).slice(6));
+    flash('SAVED', name, 1600); toast('Saved to ' + where); return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  flash('SAVED', name, 1600);
+}
+const slotCache = [null, null, null, null];
+async function loadSlotInfo(){ for (let i = 0; i < 4; i++) try { const r = await IDB.get('cart' + i); slotCache[i] = r ? {date:r.date} : null; } catch (e) {} }
+function slotInfo(i, verb){ const c = slotCache[i]; if (!c) return verb === 'LOAD' ? '(empty)' : 'empty  YES'; const d = new Date(c.date); return p2(d.getMonth() + 1) + '/' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + '  YES'; }
+async function slotSave(i){ flash('SAVING', 'SLOT ' + (i + 1)); const bytes = await SQ.saveCart(S); await IDB.set('cart' + i, {date:Date.now(), bytes}); slotCache[i] = {date:Date.now()}; flash('SAVED', 'SLOT ' + (i + 1)); }
+async function slotLoad(i){
+  const r = await IDB.get('cart' + i); if (!r) return flash('SLOT ' + (i + 1), 'is empty');
+  if (protectedMsg()) return;
+  S = await SQ.loadCart(r.bytes); allChanged(); flash('LOADED', 'SLOT ' + (i + 1));
+}
+async function saveCartFile(){ flash('SAVING', 'cartridge'); await saveFile(await SQ.saveCart(S), 'omega-five-' + stamp() + '.o5cart', 'application/octet-stream'); }
+async function loadCartFile(f){ if (protectedMsg()) return; S = await SQ.loadCart(await f.arrayBuffer()); allChanged(); flash('CART LOADED', f.name.slice(0, 16)); }
+async function decodeAudio(buf){
+  const c = ctx || new OfflineAudioContext(1, 1, 44100);
+  return await new Promise((res, rej) => { const p = c.decodeAudioData(buf, res, rej); if (p && p.then) p.then(res, rej); });
+}
+async function loadWav(f){
+  const ab = await decodeAudio(await f.arrayBuffer());
+  const n = Math.min(ab.length, Math.round(ab.sampleRate * 12)), data = new Float32Array(n);
+  for (let c = 0; c < ab.numberOfChannels; c++){ const d = ab.getChannelData(c); for (let i = 0; i < n; i++) data[i] += d[i] / ab.numberOfChannels; }
+  S.samples[U.voice] = {name:f.name.replace(/\.[^.]+$/, '').slice(0, 16), sr:ab.sampleRate, data};
+  post({t:'sample', v:U.voice, s:S.samples[U.voice]}); dirty();
+  flash('WAV > ' + vname(U.voice), (n / ab.sampleRate).toFixed(2) + ' s ' + S.samples[U.voice].name);
+}
+async function voiceBank(save){
+  if (!RXC) return flash('VOICE BANK', 'not available');
+  try {
+    if (save){
+      const fn = RXC.buildBank || RXC.build || RXC.exportBank;
+      const bytes = await fn(S); await saveFile(bytes, 'omega-five-voices.bin', 'application/octet-stream');
+    } else pickFile('.bin,.rx5,application/octet-stream', async f => {
+      const fn = RXC.loadBank || RXC.parseBank || RXC.parse || RXC.importBank;
+      const r = await fn(new Uint8Array(await f.arrayBuffer()), S, {voice:U.voice});
+      if (r && r.state) S = r.state;
+      allChanged(); flash('BANK LOADED', r && r.report ? String(r.report).slice(0, 16) : f.name.slice(0, 16)); if (r && r.report) toast(String(r.report), 6000);
+    });
+  } catch (e) { flash('BANK ERROR', String(e.message || e).slice(0, 16)); }
+}
+function impStart(){
+  if (U.impAt >= 0) return U.impAt;
+  for (let i = 0; i < 100; i++) if (S.patterns.slice(i).every(p => !p.events.length)) return i;
+  return 0;
+}
+async function importMidi(f){
+  if (protectedMsg()) return;
+  const r = SQ.importSMF(await f.arrayBuffer(), {state:S, startPattern:impStart(), songSlot:U.song});
+  allChanged();
+  U.mode = 'song'; if (r.patterns.length) U.ptn = r.patterns[0]; U.tempoTouched = false;
+  const st = S.songs[r.song].steps.length;
+  U.lastImport = r.report; console.log('IMPORT MIDI:', r.report);
+  flash(r.patterns.length + ' PTN ' + (r.patterns.length ? p2(r.patterns[0]) + '-' + p2(r.patterns[r.patterns.length - 1]) : ''), 'SONG ' + songL(r.song) + ' ' + st + 'st ' + Math.round(r.tempo), 4000);
+  toast(r.report, 9000);
+}
+const expName = () => U.exp ? 'SONG ' + songL(U.song) : 'PTN ' + p2(U.ptn);
+async function exportMidi(){
+  const what = U.exp ? 'song' : 'pattern', n = U.exp ? U.song : U.ptn;
+  const bytes = SQ.exportSMF(S, {what, n});
+  await saveFile(bytes, 'omega-five-' + (U.exp ? 'song-' + songL(n) : 'ptn' + p2(n)) + '.mid', 'audio/midi');
+}
+function renderState(){
+  // a copy to render offline; a pattern is rendered as a one-step song so it plays once
+  const st = Object.assign({}, S, {songs:S.songs.slice()});
+  let n = U.song;
+  if (!U.exp){ n = 0; st.songs[0] = {name:'RENDER', tempo:S.tempo, steps:[{type:'pat', n:U.ptn}]}; }
+  return {st, n};
+}
+function songSeconds(st, n){
+  const f = SQ.flattenSong(st, n); if (!f.length) return 0;
+  let secs = 0; const tp = f.tempos.length ? f.tempos : [{t:0, bpm:st.songs[n].tempo}];
+  for (let i = 0; i < tp.length; i++){ const t1 = i + 1 < tp.length ? tp[i + 1].t : f.length; secs += (t1 - tp[i].t) * 60 / (tp[i].bpm * SQ.PPQN); }
+  return secs;
+}
+async function renderOffline(seconds){
+  const {st, n} = renderState(), sr = 44100;
+  const secs = seconds || songSeconds(st, n);
+  if (!secs) throw new Error('nothing to render');
+  const len = Math.ceil(Math.min(secs + 3, 900) * sr);
+  const oc = new OfflineAudioContext(2, len, sr);
+  await oc.audioWorklet.addModule('worklet.js');
+  const nd = new AudioWorkletNode(oc, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:st, render:{mode:'song', n}}});
+  nd.connect(oc.destination);
+  return await oc.startRendering();
+}
+function encodeWav(buf){
+  const nch = buf.numberOfChannels, n = buf.length, sr = buf.sampleRate, out = new DataView(new ArrayBuffer(44 + n * nch * 2));
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) out.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); out.setUint32(4, 36 + n * nch * 2, true); w(8, 'WAVEfmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, nch, true);
+  out.setUint32(24, sr, true); out.setUint32(28, sr * nch * 2, true); out.setUint16(32, nch * 2, true); out.setUint16(34, 16, true); w(36, 'data'); out.setUint32(40, n * nch * 2, true);
+  const ch = []; for (let c = 0; c < nch; c++) ch.push(buf.getChannelData(c));
+  let o = 44; for (let i = 0; i < n; i++) for (let c = 0; c < nch; c++){ const x = Math.max(-1, Math.min(1, ch[c][i])); out.setInt16(o, x < 0 ? x * 32768 : x * 32767, true); o += 2; }
+  return new Uint8Array(out.buffer);
+}
+async function exportWav(){
+  try {
+    flash('RENDERING', expName() + '...', 60000);
+    const buf = await renderOffline();
+    await saveFile(encodeWav(buf), 'omega-five-' + (U.exp ? 'song-' + songL(U.song) : 'ptn' + p2(U.ptn)) + '.wav', 'audio/wav');
+  } catch (e) { console.error(e); flash('RENDER ERROR', String(e.message || e).slice(0, 16)); }
+}
+window.__five.renderOffline = renderOffline;
+
+/* ================= MIDI ================= */
+const M = {access:null, clocks:[], bpm:0, sx:null};
+// the Android app: native MIDI shaped like Web MIDI (byte stream split into messages, SysEx buffered until F7)
+if (window.AndroidMidi && AndroidMidi.available && AndroidMidi.available()){
+  const access = {inputs:new Map(), outputs:new Map(), onstatechange:null, sysexEnabled:true};
+  const scan = () => {
+    const seen = new Set();
+    for (const d of JSON.parse(AndroidMidi.list())){
+      seen.add(d.id);
+      if (d.kind === 'input' && !access.inputs.has(d.id)){
+        const port = {id:d.id, name:d.name, type:'input', _h:null, _sx:null, _rs:0, _buf:[]};
+        Object.defineProperty(port, 'onmidimessage', {get(){ return this._h; }, set(h){ this._h = h; if (h) AndroidMidi.listen(d.id); }});
+        access.inputs.set(d.id, port);
+      } else if (d.kind === 'output' && !access.outputs.has(d.id)) access.outputs.set(d.id, {id:d.id, name:d.name, type:'output', send(bytes, ts){
+        const go = () => AndroidMidi.send(d.id, Array.from(bytes).join(','));
+        const dt = ts ? ts - performance.now() : 0; if (dt > 2) setTimeout(go, dt); else go(); }});
+    }
+    for (const m of [access.inputs, access.outputs]) for (const id of [...m.keys()]) if (!seen.has(id)) m.delete(id);
+  };
+  const LEN = s => { const h = s & 0xF0; if (h === 0xC0 || h === 0xD0) return 2; if (h < 0xF0) return 3; return s === 0xF2 ? 3 : s === 0xF1 || s === 0xF3 ? 2 : 1; };
+  window.__o5Midi = (id, bytes) => {
+    const p = access.inputs.get(id); if (!p || !p._h) return;
+    const emit = a => p._h({data:Uint8Array.from(a), timeStamp:performance.now(), target:p});
+    for (const b of bytes){
+      if (b >= 0xF8){ emit([b]); continue; }                       // realtime, may sit inside anything
+      if (p._sx){ p._sx.push(b); if (b === 0xF7){ emit(p._sx); p._sx = null; } else if (b & 0x80){ p._sx = null; } else continue; if (!(b & 0x80) || b === 0xF7) continue; }
+      if (b === 0xF0){ p._sx = [b]; continue; }
+      if (b & 0x80){ p._rs = b < 0xF0 ? b : 0; p._buf = [b]; if (LEN(b) === 1){ emit(p._buf); p._buf = []; } }
+      else { if (!p._buf.length && p._rs) p._buf = [p._rs]; if (!p._buf.length) continue; p._buf.push(b); }
+      if (p._buf.length && p._buf.length >= LEN(p._buf[0])){ emit(p._buf); p._buf = []; }
+    }
+  };
+  window.__o5MidiChanged = () => { scan(); if (access.onstatechange) access.onstatechange({}); };
+  scan();
+  navigator.requestMIDIAccess = () => Promise.resolve(access);
+}
+async function midiInit(){
+  if (!navigator.requestMIDIAccess) return;
+  try { M.access = await navigator.requestMIDIAccess({sysex:true}); }
+  catch (e) { try { M.access = await navigator.requestMIDIAccess(); } catch (e2) { return; } }
+  M.access.onstatechange = bindMidi; bindMidi();
+}
+function bindMidi(){
+  if (!M.access) return;
+  for (const i of M.access.inputs.values()) i.onmidimessage = U.midiIn === 'all' || U.midiIn === i.id ? ev => onMidi(ev.data, ev.timeStamp) : null;
+}
+function ports(kind){ if (!M.access) return []; return [...(kind ? M.access.outputs : M.access.inputs).values()]; }
+function portLabel(kind){
+  const list = ports(kind), cur = kind ? U.midiOut : U.midiIn;
+  if (!M.access) return 'NO MIDI';
+  if (!kind && cur === 'all') return 'ALL (' + list.length + ')';
+  if (kind && !cur) return 'NONE (' + list.length + ')';
+  const p = list.find(x => x.id === cur); return p ? p.name.slice(0, 16) : 'gone: ' + cur;
+}
+function portInc(kind, d){
+  const ids = (kind ? [''] : ['all']).concat(ports(kind).map(p => p.id));
+  const cur = kind ? U.midiOut : U.midiIn, i = Math.max(0, ids.indexOf(cur));
+  const nx = ids[(i + d + ids.length) % ids.length];
+  if (kind) U.midiOut = nx; else { U.midiIn = nx; bindMidi(); }
+  dirty();
+}
+function midiOutPort(){ if (!M.access || !U.midiOut) return null; return M.access.outputs.get(U.midiOut) || null; }
+function midiSend(bytes, ts){ const o = midiOutPort(); if (!o) return; try { if (ts) o.send(bytes, ts); else o.send(bytes); } catch (e) { try { o.send(bytes); } catch (e2) {} } }
+function frameTs(f){
+  if (!ctx || !ctx.getOutputTimestamp) return performance.now();
+  const o = ctx.getOutputTimestamp(); if (!o || !o.performanceTime) return performance.now();
+  return Math.max(performance.now(), o.performanceTime + (f / ctx.sampleRate - o.contextTime) * 1000);
+}
+function midiFromWorklet(evs){
+  if (!midiOutPort()) return;
+  const ch = ((S.midi.txCh || 10) - 1) & 15;
+  for (const e of evs){
+    const ts = frameTs(e.f);
+    if (e.clk){ midiSend([0xF8], ts); continue; }
+    if (!U.chMsg) continue;
+    const note = S.noteMap[e.v], vel = SQ.accentVel ? SQ.accentVel(e.vel, e.acc) : e.vel;
+    midiSend([0x90 | ch, note, clamp(vel, 1, 127)], ts); midiSend([0x80 | ch, note, 64], ts + U.gate);
+  }
+}
+function noteName(n){ return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n % 12] + (Math.floor(n / 12) - 2); }
+function onMidi(d, ts){
+  if (!d || !d.length) return;
+  const st = d[0];
+  if (st === 0xF0) return onSysex(d);
+  const ext = S.sync === 'midi' || S.sync === 'ext';
+  if (st === 0xF8){
+    const t = ts || performance.now(); M.clocks.push(t); if (M.clocks.length > 49) M.clocks.shift();
+    if (M.clocks.length > 24){ const per = (M.clocks[M.clocks.length - 1] - M.clocks[0]) / (M.clocks.length - 1); M.bpm = 60000 / (per * 24); }
+    if (ext) post({t:'clock', n:1});
+    return;
+  }
+  if (st === 0xFA){ if (ext){ audio().then(() => post({t:'transport', cmd:'start', ...playTarget()})); pos = Object.assign({}, pos || {}, {running:true}); } return; }
+  if (st === 0xFB){ if (ext) audio().then(() => post({t:'transport', cmd:'cont', ...playTarget()})); return; }
+  if (st === 0xFC){ if (ext) post({t:'transport', cmd:'stop'}); return; }
+  if (st === 0xF2){ if (ext) post({t:'spp', n:d[1] | (d[2] << 7)}); return; }
+  if (st === 0xF3){ selectSong(clamp(d[1], 0, 19)); paintLcd(); return; }
+  if (st >= 0xF0) return;
+  const type = st & 0xF0, ch = (st & 15) + 1;
+  if (S.midi.rxCh && ch !== S.midi.rxCh && !(U.tunable && type === 0xC0)) return;
+  if (type === 0x90 && d[2] > 0){
+    if (!U.chMsg) return;
+    const note = d[1], vel = U.egVel ? d[2] : 100;
+    const it = U.page === 'menu' && U.menu === 'midi' && curItem();
+    if (it && it.no === 4.1){ S.noteMap[U.voice] = note; dirty(); paintLcd(); }
+    if (U.tunable){ if (note >= 36 && note <= 96) playVoice(U.tuneV | 0, vel, 0, (note - 60) * 100, true); return; }
+    const v = SQ.noteToVoiceMap(S).get(note);
+    if (v !== undefined) playVoice(v, vel, 0, null, true);
+    return;
+  }
+  if (type === 0x80 || type === 0x90){ const v = SQ.noteToVoiceMap(S).get(d[1]); if (v !== undefined && vget(v, 'loop')) post({t:'release', v}); return; }
+  if (type === 0xC0){
+    if (U.tunable){ U.tuneV = d[1] % 24; return; }
+    if (U.mode === 'song') selectSong(d[1] % 20); else selectPattern(d[1] % 100);
+    paintLcd(); return;
+  }
+  if (type === 0xB0){
+    if (d[1] === 7){ sset('volume', d[2] / 127); setSlider('VOLUME', S.volume); }
+    else if (d[1] === 120 || d[1] === 123) damp();
+  }
+}
+/* SysEx: Omega Five full dumps (seq.js) and, when rxsysex.js is present, Yamaha-format bulk dumps */
+const bulkName = () => ['ALL', 'PATTERN ' + p2(U.ptn), 'SONG ' + songL(U.song), 'VOICES'][U.bulk];
+function bulkBytes(){
+  if (RXS){
+    const kinds = ['all', 'pattern', 'song', 'voice'], k = kinds[U.bulk], n = U.bulk === 1 ? U.ptn : U.bulk === 2 ? U.song : 0;
+    const fn = RXS.dump || RXS.buildDump || RXS.transmit || RXS.bulkDump;
+    if (fn){ const r = fn(S, k, n, {deviceNo:S.midi.deviceNo}); if (r) return r; }
+  }
+  return SQ.sysexDump(S);
+}
+function transmitBulk(){
+  if (!midiOutPort()) return flash('NO MIDI OUT', 'MIDI 14: port');
+  const b = bulkBytes(), msgs = Array.isArray(b) ? b : [b];
+  let t = performance.now(); for (const m of msgs){ midiSend(m, t); t += m.length / 3.125 + 5; }
+  flash('TRANSMIT BULK', bulkName() + ' ' + Math.round(msgs.reduce((a, m) => a + m.length, 0) / 1024) + 'K', 2000);
+}
+async function saveSyx(){
+  const b = bulkBytes(), msgs = Array.isArray(b) ? b : [b], n = msgs.reduce((a, m) => a + m.length, 0), out = new Uint8Array(n);
+  let o = 0; for (const m of msgs){ out.set(m, o); o += m.length; }
+  await saveFile(out, 'omega-five-' + ['all', 'ptn' + p2(U.ptn), 'song-' + songL(U.song), 'voices'][U.bulk] + '.syx', 'application/octet-stream');
+}
+async function loadSyx(f){
+  const u8 = new Uint8Array(await f.arrayBuffer());
+  if (RXS && (RXS.readSyx || RXS.splitSyx)){ for (const m of (RXS.readSyx || RXS.splitSyx)(u8)) onSysex(m, true); return; }
+  let s = -1; for (let i = 0; i < u8.length; i++){ if (u8[i] === 0xF0) s = i; else if (u8[i] === 0xF7 && s >= 0){ onSysex(u8.subarray(s, i + 1), true); s = -1; } }
+}
+function onSysex(bytes, forced){
+  const u8 = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
+  try {
+    if (RXS){
+      const fn = RXS.receive || RXS.parse || RXS.handle;
+      if (fn){
+        const r = fn(S, u8, {deviceNo:S.midi.deviceNo, accept:forced || U.bulkWait});
+        if (r){
+          if (r.reply && midiOutPort()) midiSend(r.reply);
+          if (r.state) S = r.state;
+          if (r.changed || r.state){ allChanged(); }
+          if (r.lcd || r.message) flash('BULK', String(r.lcd || r.message).slice(0, 16), 2200);
+          if (r.error) flash(String(r.error).slice(0, 16), '', 2600);
+          if (r.handled !== false) return;
+        }
+      }
+    }
+    if (u8[1] === 0x7D){
+      if (!forced && !U.bulkWait) return flash('BULK IGNORED', 'MIDI 09 first');
+      S = SQ.parseSysex(u8); U.bulkWait = false; allChanged(); flash('BULK RECEIVED', Math.round(u8.length / 1024) + 'K', 2000);
+    }
+  } catch (e) { console.warn(e); flash(/checksum/i.test(e.message) ? 'checksum error!' : 'BULK ERROR', String(e.message || '').slice(0, 16), 2600); }
+}
+
+/* ================= playing voices ================= */
+const held = new Set();
+let kbShift = false;
+function playVoice(v, vel, acc, pitch, fromMidi){
+  audio();
+  const rec = U.page === 'rtw' && U.mode === 'pattern' && !U.protect && running();
+  if (held.has('CLEAR') && U.page === 'rtw' && running()){
+    if (protectedMsg()) return;
+    SQ.deleteEvents(S, U.ptn, 0, SQ.patLen(pat()), v); patChanged(); flash('ERASE', vname(v), 700); return;
+  }
+  post({t:'hit', v, vel, acc, rec, pitch, basePitch:pitch != null ? vget(v, 'pitch') : null});
+  flashPad(v);
+  if (!fromMidi && S.midi.notesOut && U.chMsg){ const ch = ((S.midi.txCh || 10) - 1) & 15, n = S.noteMap[v]; midiSend([0x90 | ch, n, vel]); midiSend([0x80 | ch, n, 64], performance.now() + U.gate); }
+}
+function hitPad(i, vel){
+  const pg = page();
+  if (pg.padOnly){ pg.pad(i); paintLcd(); return; }
+  let v = U.padMap[i], pitch = null;
+  if (U.multi.on){ v = U.multi.v; pitch = clamp(vget(v, 'pitch') + (i - 12) * U.multi.step, -3600, 2400); }
+  const acc = held.has('ACC2') ? 2 : held.has('ACC1') ? 1 : 0; if (acc) U.accUsed = true;
+  if (U.padVel) vel = U.padVel;
+  U.pad = i; U.voice = v; U.ch = v % 12;
+  if (!pg.silentToggle || !running()) playVoice(v, vel, acc, pitch);
+  if (pg.pad) pg.pad(i, v, vel, acc);
+  paintLcd();
+}
+const padEls = [];
+function flashPad(v){
+  for (let i = 0; i < 24; i++) if ((U.multi.on ? U.multi.v : U.padMap[i]) === v || (!U.multi.on && i === v && U.padMap[i] === v)){
+    const e = padEls[i]; if (!e) continue; e.classList.add('lit'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('lit'), 90);
+    if (!U.multi.on) break;
+  }
+}
+
+/* ================= keys ================= */
+function fnKey(k, sh){
+  const songish = U.mode === 'song' || sh;
+  switch (k){
+    case 'PATTERN': if (sh){ U.mode = 'song'; U.page = 'songplay'; } else { U.mode = U.mode === 'song' ? 'pattern' : 'song'; backToPlay(); } U.menu = null; U.chainPlay = false; break;
+    case 'REAL TIME WRITE': if (songish){ U.mode = 'song'; openMenu('esong', 0); } else U.page = 'rtw'; break;
+    case 'STEP WRITE': if (songish) songInsert('pat'); else { U.page = 'step'; U.stepVoice = U.voice; } break;
+    case 'EDIT VOICE': openMenu('voice'); break;
+    case 'KEY ASSIGN': openMenu('key'); break;
+    case 'QUANTIZE': if (songish) songDelete(); else U.page = 'quant'; break;
+    case 'SWING': if (songish) songInsert('rep'); else U.page = 'swing'; break;
+    case 'CLICK': if (songish) songInsert('tempo'); else U.page = 'click'; break;
+    case 'CHAIN': openMenu('chain'); break;
+    case 'CASSETTE': openMenu('cart'); break;
+    case 'EDIT PATTERN': if (songish) songInsert('vol'); else openMenu('eptn'); break;
+    case 'CLEAR': if (U.page !== 'rtw') U.page = 'clear'; break;
+    case 'COPY': U.page = 'copy'; U.copyDst = U.mode === 'song' ? (U.song + 1) % 20 : (U.ptn + 1) % 100; break;
+    case 'SYNC': U.page = 'sync'; break;
+    case 'MIDI': openMenu('midi'); break;
+    case 'REVERSE': U.page = 'reverse'; vset(U.voice, 'reverse', vget(U.voice, 'reverse') ? 0 : 1); break;
+    case 'DAMP': damp(); flash('DAMP', 'all voices off', 700); break;
+    case 'TEMPO': U.page = 'tempo'; break;
+    case 'UTILITY': openMenu('util'); break;
+    case 'JOB': openMenu('job'); break;
+  }
+}
+function modeKey(k){
+  switch (k){
+    case 'PTN': U.mode = 'pattern'; backToPlay(); U.chainPlay = false; break;
+    case 'SONG': U.mode = 'song'; backToPlay(); break;
+    case 'EDIT VOICE': openMenu('voice'); break;
+    case 'CAS': openMenu('cart', 21); break;
+    case 'CART': openMenu('cart', 1); break;
+    case 'MIDI': openMenu('midi'); break;
+    case 'REV': openMenu('rev'); break;
+    case 'DLY': openMenu('dly'); break;
+    case 'DAMP': damp(); break;
+    case 'MULTI': openMenu('key', 3); break;
+    case 'INT SYNC': setSync('int'); break; case 'MIDI SYNC': setSync('midi'); break; case 'TAPE SYNC': setSync('tape'); break; case 'EXT SYNC': setSync('ext'); break;
+    case 'RUN': running() ? stop() : start(); break;
+  }
+}
+const MODE_NAMES = new Set(MODE_KEYS.map(m => m[0].replace('\n', ' ')));
+function keyDown(k, fromKbd){
+  audio();
+  if (k === 'STOP'){ held.add(k); U.stopWasRun = running(); U.shiftUsed = false; if (U.stopWasRun) stop(); paintAll(); return; }
+  const sh = held.has('STOP') || kbShift; if (held.has('STOP')) U.shiftUsed = true;
+  held.add(k);
+  const pg = page();
+  if (k === 'START'){ if (U.page === 'name') nameDone(); else start(); }
+  else if (k === 'YES' || k === 'NO'){ const d = k === 'YES' ? 1 : -1; if (pg.pm) pg.pm(d, sh); }
+  else if (k[0] === 'N' && k.length === 2){ if (pg.digit) pg.digit(+k[1]); }
+  else if (k === 'ACC1' || k === 'ACC2'){ U.accUsed = false; if (U.page === 'name'){ nameType(k === 'ACC1' ? 'Y' : 'Z'); U.accUsed = true; } }
+  else if (k === 'RANDOM'){ if (U.page === 'menu' && U.menu === 'job' && curItem().no === 4) doRandom(); else { U.rnd = 0; openMenu('job', 4); } }
+  else if (MODE_NAMES.has(k) && fromKbd !== 'fn') modeKey(k);
+  else fnKey(k, sh);
+  paintAll();
+}
+function keyUp(k){
+  if (!held.has(k)) return;
+  held.delete(k);
+  if (k === 'STOP' && !U.stopWasRun && !U.shiftUsed) cont();
+  if ((k === 'ACC1' || k === 'ACC2') && !U.accUsed){ const pg = page(); if (pg.move) pg.move(k === 'ACC1' ? -1 : 1); }
+  paintAll();
+}
+
+/* ================= painting ================= */
+function paintLeds(){
+  const on = (k, v) => { const b = document.querySelector(`.mk[data-k="${k}"]`); if (b) b.classList.toggle('on', !!v); };
+  const it = U.page === 'menu' ? curItem() : null;
+  on('PTN', U.mode === 'pattern'); on('SONG', U.mode === 'song');
+  on('EDIT VOICE', U.menu === 'voice' && U.page === 'menu');
+  on('CAS', U.page === 'menu' && U.menu === 'cart' && it && it.no >= 21); on('CART', U.page === 'menu' && U.menu === 'cart' && it && it.no < 21);
+  on('MIDI', U.page === 'menu' && U.menu === 'midi'); on('REV', U.page === 'menu' && U.menu === 'rev'); on('DLY', U.page === 'menu' && U.menu === 'dly');
+  on('DAMP', U.dampT && performance.now() - U.dampT < 250); on('MULTI', U.multi.on);
+  on('INT SYNC', S.sync === 'int'); on('MIDI SYNC', S.sync === 'midi'); on('TAPE SYNC', S.sync === 'tape'); on('EXT SYNC', S.sync === 'ext');
+  on('RUN', running() && !(pos.tick < 4 && pos.beat === 1));
+  for (const k of ['ACC1', 'ACC2']) { const b = document.querySelector(`[data-k="${k}"]`); if (b) b.classList.toggle('dn', held.has(k)); }
+}
+function paintSliders(){
+  setSlider('VOLUME', S.volume); setSlider('CLICK', S.click.level); setSlider('TEMPO', (S.tempo - 40) / 210);
+  for (let c = 0; c < 12; c++) setSlider('CH' + c, cget(c, 'fader'));
+}
+function paintAll(){ paintLcd(); paintLeds(); }
+
+/* ================= wiring ================= */
+const KB_PADS = 'qwertyuiop[]asdfghjkl;\'\\';
+function wire(){
+  const p = P();
+  document.querySelectorAll('.pad').forEach(e => padEls[+e.dataset.pad] = e);
+  // pads: multitouch, velocity from where the pad is struck (top = loudest)
+  p.addEventListener('pointerdown', e => {
+    const pad = e.target.closest('.pad');
+    if (pad){
+      e.preventDefault(); pad.setPointerCapture && pad.setPointerCapture(e.pointerId);
+      const r = pad.getBoundingClientRect(), y = clamp((e.clientY - r.top) / r.height, 0, 1);
+      pad.classList.add('hit'); hitPad(+pad.dataset.pad, Math.round(clamp(127 - y * 96, 16, 127)));
+      return;
+    }
+    const sl = e.target.closest('.slider');
+    if (sl){ e.preventDefault(); sl.setPointerCapture(e.pointerId); const s = sliders[sl.dataset.s]; s.drag = {y:e.clientY, v:s.v, id:e.pointerId}; return; }
+    const key = e.target.closest('[data-k]');
+    if (key){ e.preventDefault(); key.setPointerCapture && key.setPointerCapture(e.pointerId); key.classList.add('dn'); key._pid = e.pointerId; keyDown(key.dataset.k, key.classList.contains('fk') ? 'fn' : false); return; }
+    const lg = e.target.closest('.legend u, .legend b');
+    if (lg && lg.dataset.m){ const m = lg.dataset.m, no = lg.dataset.i != null ? +lg.dataset.i : null; if (m === 'song' || m === 'esong') U.mode = 'song'; openMenu(m, no); return; }
+    if (e.target.closest('#lcd')){ const r = $('#lcd').getBoundingClientRect(), d = e.clientX < r.left + r.width / 2 ? -1 : 1; const pg = page(); if (pg.move) pg.move(d); paintAll(); return; }
+  });
+  const up = e => {
+    const pad = e.target.closest && e.target.closest('.pad'); if (pad) pad.classList.remove('hit');
+    const key = e.target.closest && e.target.closest('[data-k]');
+    if (key && key._pid === e.pointerId){ key.classList.remove('dn'); key._pid = null; keyUp(key.dataset.k); }
+    for (const id in sliders){ const s = sliders[id]; if (s.drag && s.drag.id === e.pointerId) s.drag = null; }
+  };
+  p.addEventListener('pointerup', up); p.addEventListener('pointercancel', up);
+  p.addEventListener('pointermove', e => {
+    for (const id in sliders){
+      const s = sliders[id]; if (!s.drag || s.drag.id !== e.pointerId) continue;
+      sliderSet(id, s.drag.v - (e.clientY - s.drag.y) / (scale * (s.h - 40)));
+    }
+  });
+  p.addEventListener('wheel', e => { const sl = e.target.closest('.slider'); if (!sl) return; e.preventDefault(); sliderSet(sl.dataset.s, sliders[sl.dataset.s].v - e.deltaY * 0.0012); }, {passive:false});
+  p.addEventListener('dblclick', e => { const sl = e.target.closest('.slider'); if (!sl) return; const id = sl.dataset.s; sliderSet(id, id === 'TEMPO' ? (120 - 40) / 210 : id === 'VOLUME' ? 0.8 : id === 'CLICK' ? 0.5 : id === 'DATA' ? sliders[id].v : chanDefault(+id.slice(2)).fader); });
+  $('#kRandom').dataset.k = 'RANDOM';
+  // desktop keys: pads q..] and a..\, keypad digits, - / = for NO / YES, space start / stop, Esc stop, z x accents, arrows
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    kbShift = e.shiftKey;
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (e.repeat && k !== 'ArrowUp' && k !== 'ArrowDown') return;
+    const pi = KB_PADS.indexOf(k);
+    let used = true;
+    if (pi >= 0 && k !== '') hitPad(pi, e.shiftKey ? 127 : 100);
+    else if (/^[0-9]$/.test(k)) keyDown('N' + k);
+    else if (k === '-' || k === '_') keyDown('NO');
+    else if (k === '=' || k === '+') keyDown('YES');
+    else if (k === ' ') running() ? stop() : start();
+    else if (k === 'Enter') keyDown('START');
+    else if (k === 'Escape'){ stop(); backToPlay(); }
+    else if (k === 'z') keyDown('ACC1'); else if (k === 'x') keyDown('ACC2');
+    else if (k === 'ArrowLeft' || k === 'ArrowRight'){ const pg = page(); if (pg.move) pg.move(k === 'ArrowLeft' ? -1 : 1); }
+    else if (k === 'ArrowUp' || k === 'ArrowDown'){ const d = k === 'ArrowUp' ? 1 : -1, pg = page(); if (U.page === 'menu'){ const it = curItem(); if (inSongEdit()) songEditInc(d, e.shiftKey); else if (it.inc) it.inc(d, e.shiftKey); else if (it.noFn) it.noFn(); } else if (pg.pm) pg.pm(d, e.shiftKey); }
+    else used = false;
+    if (used){ e.preventDefault(); paintAll(); }
+  });
+  addEventListener('keyup', e => {
+    kbShift = e.shiftKey;
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (k === 'z') keyUp('ACC1'); else if (k === 'x') keyUp('ACC2');
+    else if (/^[0-9]$/.test(k)) held.delete('N' + k); else if (k === '-' || k === '_') held.delete('NO'); else if (k === '=' || k === '+') held.delete('YES'); else if (k === 'Enter') held.delete('START');
+  });
+  addEventListener('pointerdown', () => audio(), {once:true, capture:true});
+  addEventListener('keydown', () => audio(), {once:true, capture:true});
+  addEventListener('resize', fit);
+  document.addEventListener('touchstart', e => { if (e.target.closest && e.target.closest('#p')) e.preventDefault(); }, {capture:true, passive:false});
+  document.addEventListener('contextmenu', e => e.preventDefault(), {capture:true});
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  addEventListener('pagehide', saveNow);
+  addEventListener('dragover', e => e.preventDefault());
+  addEventListener('drop', e => {
+    e.preventDefault(); const f = e.dataTransfer.files[0]; if (!f) return;
+    const n = f.name.toLowerCase(), run = fn => fn(f).catch(err => flash('LOAD ERROR', String(err.message).slice(0, 16)));
+    if (/\.(mid|midi|smf)$/.test(n)) run(importMidi); else if (/\.o5cart$|\.json$/.test(n)) run(loadCartFile); else if (/\.syx$/.test(n)) run(loadSyx); else run(loadWav);
+  });
+}
+function sliderSet(id, v){
+  v = clamp(v, 0, 1); setSlider(id, v);
+  if (id === 'VOLUME') sset('volume', v);
+  else if (id === 'CLICK'){ S.click.level = v; post({t:'set', k:'click', v:S.click}); dirty(); if (U.page === 'click') paintLcd(); }
+  else if (id === 'TEMPO'){ setTempo(40 + 210 * v); if (U.page === 'tempo' || U.page === 'ptn' || U.page === 'songplay') paintLcd(); }
+  else if (id === 'DATA'){ const pg = page(); if (pg.data){ pg.data(v); paintLcd(); } }
+  else cset(+id.slice(2), 'fader', v);
+}
+
+/* ================= go ================= */
+await loadSaved();
+buildPanel(); wire(); fit(); paintSliders(); setSlider('DATA', 0.5); paintAll();
+loadSlotInfo(); midiInit();
+setTimeout(fit, 300);
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidFive) navigator.serviceWorker.register('sw.js').catch(() => {});
