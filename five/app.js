@@ -263,6 +263,7 @@ function setLcd(a, b, cur = -1){
   a = L16(a); b = L16(b); lcdText = [a, b]; lcdCur = cur;
   for (const r of [0, 1]){ const cells = $('#lcd' + r).children, s = r ? b : a; for (let i = 0; i < 16; i++){ const c = cells[i]; if (c.textContent !== s[i]) c.textContent = s[i]; c.classList.toggle('cur', r === 1 && i === cur); } }
 }
+function unflash(){ if (flashTx){ flashTx = null; clearTimeout(flashT); } }
 function flash(a, b, ms = 1400){ flashTx = [a, b]; clearTimeout(flashT); flashT = setTimeout(() => { flashTx = null; paintLcd(); }, ms); setLcd(a, b); }
 function paintLcd(){
   if (flashTx){ setLcd(flashTx[0], flashTx[1]); return; }
@@ -1024,6 +1025,7 @@ function keyOver(v, key, multiIdx){
 }
 function padVoice(i){ return U.multi.on ? U.multi.v : keyOf(i).voice; }
 function hitPad(i, vel){
+  if (U.page !== 'ptn' && U.page !== 'songplay') unflash();
   const pg = page();
   if (pg.padOnly){ pg.pad(i); paintLcd(); return; }
   const key = keyOf(i), v = padVoice(i), over = keyOver(v, key, U.multi.on ? i : null);
@@ -1086,7 +1088,7 @@ function modeKey(k){
 }
 const MODE_NAMES = new Set(MODE_KEYS.map(m => m[0].replace('\n', ' ')));
 function keyDown(k, fromKbd){
-  audio();
+  audio(); unflash();
   if (k === 'STOP'){ held.add(k); U.stopWasRun = running(); U.shiftUsed = false; if (U.stopWasRun) stop(); paintAll(); return; }
   const sh = held.has('STOP') || kbShift; if (held.has('STOP')) U.shiftUsed = true;
   held.add(k);
@@ -1146,7 +1148,7 @@ function wire(){
     const key = e.target.closest('[data-k]');
     if (key){ e.preventDefault(); key.setPointerCapture && key.setPointerCapture(e.pointerId); key.classList.add('dn'); key._pid = e.pointerId; keyDown(key.dataset.k, key.classList.contains('fk') ? 'fn' : false); return; }
     const lg = e.target.closest('.legend u, .legend b');
-    if (lg && lg.dataset.m){ const m = lg.dataset.m, no = lg.dataset.i != null ? +lg.dataset.i : null; if (m === 'song' || m === 'esong') U.mode = 'song'; openMenu(m, no); return; }
+    if (lg && lg.dataset.m){ unflash(); const m = lg.dataset.m, no = lg.dataset.i != null ? +lg.dataset.i : null; if (m === 'song' || m === 'esong') U.mode = 'song'; openMenu(m, no); return; }
     if (e.target.closest('#lcd')){ const r = $('#lcd').getBoundingClientRect(), d = e.clientX < r.left + r.width / 2 ? -1 : 1; const pg = page(); if (pg.move) pg.move(d); paintAll(); return; }
   });
   const up = e => {
