@@ -18,6 +18,7 @@ class FiveProcessor extends AudioWorkletProcessor {
     this.peak = [0, 0]; this.chPeak = new Float32Array(NUM_CHANNELS); this.fired = []; this.midi = []; this.since = 0;
     this.pendingClocks = 0; this.restore = []; this.lastBpm = 0; this.wasRunning = false; this.render = o.render || null;
     this.port.onmessage = ev => this.msg(ev.data);
+    this.roms = o.roms || null;   // the factory kit: [{data, sr}] per voice (the RX5 recordings, 25 kHz)
     if (o.state) this.setState(o.state);
     if (this.render && this.player){ this.player.setMode(this.render.mode, this.render.n); this.player.start(); }
     this.port.postMessage({t:'ready'});
@@ -40,18 +41,19 @@ class FiveProcessor extends AudioWorkletProcessor {
     if (old && old.running && !this.render){ this.player.setMode(old.mode, old.n); this.player.locate(Math.max(0, old.cur + 1)); this.player.running = true; }
     this.player.setExternal(this.ext);
   }
+  // a voice plays the user's sample when it has one, else its factory kit waveform
   sample(v, smp){
     const e = this.e;
-    if (smp && smp.data) e.setUserSample(v, smp.data, smp.sr);
-    else if (this.hadUser && this.hadUser[v]){
-      if (e.clearUserSample) e.clearUserSample(v); else e.setUserSample(v, null, 0);
-    }
-    (this.hadUser = this.hadUser || [])[v] = !!(smp && smp.data);
+    if (smp && smp.data && smp.data.length > 1){ e.setUserSample(v, smp.data, smp.sr); return; }
+    const r = this.roms && this.roms[v];
+    if (!r || !r.data) return;
+    if (e.loadRom) e.loadRom(v, r.data, r.sr); else e.setUserSample(v, r.data, r.sr, {rec:true});
   }
   msg(m){
     const s = this.state, e = this.e, p = this.player;
     switch (m.t){
       case 'state': this.setState(m.state); break;
+      case 'roms': this.roms = m.roms; for (let v = 0; v < NUM_VOICES; v++) this.sample(v, this.state && this.state.samples && this.state.samples[v]); break;
       case 'pat': s.patterns[m.n] = m.p; break;
       case 'song': s.songs[m.n] = m.s; break;
       case 'chain': s.chains[m.n] = m.c; break;

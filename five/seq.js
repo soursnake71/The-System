@@ -1093,7 +1093,17 @@ export function exportSMF(state, { what = 'pattern', n = 0, map = 'gm' } = {}) {
   const K = SMF_DIV / PPQN, end = flat.length * K;
   const t0 = [{ t: 0, b: [0xFF, 0x03, ...vlqLen(utf8encode(name))] }];
   for (const tp of flat.tempos) { const us = Math.round(60e6 / tp.bpm); t0.push({ t: tp.t * K, b: [0xFF, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255] }); }
-  for (const sg of flat.sigs) t0.push({ t: sg.t * K, b: [0xFF, 0x58, 4, sg.beats, Math.log2(sg.unit), 24, 8] });
+  for (const sg of flat.sigs) {
+    // SMF denominators are powers of two; 1/6, 1/12, 1/24 bars are written as x/32 (exact when the bar is a
+    // multiple of 3 ticks, else nearest) plus a sequencer-specific meta FF 7F 07 7D 4F 35 00 54 beats unit
+    // that restores the exact RX5 signature on re-import.
+    if (Number.isInteger(Math.log2(sg.unit))) t0.push({ t: sg.t * K, b: [0xFF, 0x58, 4, sg.beats, Math.log2(sg.unit), 24, 8] });
+    else {
+      const T = (sg.beats * PPQN * 4) / sg.unit;
+      t0.push({ t: sg.t * K, b: [0xFF, 0x58, 4, clamp(Math.round(T / 3), 1, 255), 5, 24, 8] });
+      t0.push({ t: sg.t * K, b: [0xFF, 0x7F, 7, 0x7D, 0x4F, 0x35, 0x00, 0x54, sg.beats, sg.unit] });
+    }
+  }
   t0.sort((a, b) => a.t - b.t);
   t0.push({ t: end, b: [0xFF, 0x2F, 0] });
 
@@ -1187,7 +1197,9 @@ export function importSMF(buf, opts = {}, maybeOpts) {
       else if (e.meta === 0x51 && e.data.length >= 3) tempos.push({ t: R(e.t), bpm: 60e6 / ((e.data[0] << 16) | (e.data[1] << 8) | e.data[2]) });
       else if (e.meta === 0x58 && e.data.length >= 2) sigs.push({ t: R(e.t), num: e.data[0], den: 2 ** e.data[1] });
       else if (e.meta === 0x03 && !trackName) trackName = utf8decode(e.data).trim();
-      else if (e.meta === 0x7F && e.data.length >= 6 && e.data[0] === 0x7D && e.data[1] === 0x4F && e.data[2] === 0x35)
+      else if (e.meta === 0x7F && e.data.length === 7 && e.data[0] === 0x7D && e.data[1] === 0x4F && e.data[2] === 0x35 && e.data[3] === 0 && e.data[4] === 0x54)
+        sigs.push({ t: R(e.t), num: e.data[5], den: e.data[6], exact: true });
+      else if (e.meta === 0x7F && e.data.length === 6 && e.data[0] === 0x7D && e.data[1] === 0x4F && e.data[2] === 0x35)
         markers.set(e.t + ':' + e.data[3], { acc: e.data[4], vel: e.data[5] });
       else if (e.type === 0x90 && e.d2 > 0) notes.push({ raw: e.t, ch: e.ch, note: e.d1, vel: e.d2 });
     }
@@ -1218,14 +1230,15 @@ export function importSMF(buf, opts = {}, maybeOpts) {
     if (q !== null) t = Math.max(0, quantizeTick(t, q, 50));
     evs.push({ t, v, vel: mk ? mk.vel : n.vel, acc: mk ? mk.acc : 0 });
   }
-  tempos.sort((a, b) => a.t - b.t); sigs.sort((a, b) => a.t - b.t);
+  tempos.sort((a, b) => a.t - b.t); sigs.sort((a, b) => a.t - b.t || (a.exact ? 1 : 0) - (b.exact ? 1 : 0));
   const lastT = Math.max(eot - 1, evs.reduce((m, e) => Math.max(m, e.t), -1));
   // bar grid following time signature changes
   const sigAt = (t) => { let s = { num: 4, den: 4 }; for (const x of sigs) if (x.t <= t) s = x; return s; };
   const toPU = (s) => {
-    let beats = s.num, unit = s.den;
-    if (unit < 4) { beats = (beats * 4) / unit; unit = 4; } else if (unit > 16) { beats = Math.max(1, Math.round((beats * 16) / unit)); unit = 16; }
-    return { beats: clamp(Math.round(beats), 1, 32), unit };
+    if (TS_UNITS.includes(s.den) && s.num >= 1 && s.num <= BEATS_MAX) return { beats: s.num, unit: s.den };
+    const T = (s.num * PPQN * 4) / s.den; // bar length in ticks
+    for (const u of TS_UNITS) { const b = (T * u) / (PPQN * 4); if (Number.isInteger(b) && b >= 1 && b <= BEATS_MAX) return { beats: b, unit: u }; }
+    return { beats: clamp(Math.round(T / 3), 1, BEATS_MAX), unit: 32 };
   };
   const bars = [];
   for (let t = 0; t <= lastT || bars.length === 0;) {
@@ -1251,7 +1264,7 @@ export function importSMF(buf, opts = {}, maybeOpts) {
     const key = b.beats + '/' + b.unit + '|' + b.ev.map((e) => `${e.t},${e.v},${e.vel},${e.acc}`).join(';');
     if (!sigMap.has(key)) {
       if (start + used.length >= NUM_PATTERNS) { b.pn = -1; dropped++; continue; }
-      const pn = start + used.length, p = newPattern(pn);
+      const pn = start + used.length, p = newPattern(pn);  // one bar each, always <= BARS_MAX
       p.name = 'MID ' + String(used.length + 1).padStart(3, '0');
       p.beats = b.beats; p.unit = b.unit; p.events = b.ev;
       state.patterns[pn] = p; sigMap.set(key, pn); used.push(pn);

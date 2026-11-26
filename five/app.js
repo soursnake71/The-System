@@ -211,6 +211,45 @@ function chainChanged(n = U.chain){ post({t:'chain', n, c:S.chains[n]}); dirty()
 function allChanged(){ post({t:'state', state:S}); dirty(); paintSliders(); }
 function protectedMsg(){ if (U.protect){ flash('MEMORY PROTECTED', 'UTILITY 03: OFF'); return true; } return false; }
 
+/* ================= the factory kit (RX5 recordings in kit/, 25 kHz) ================= */
+// voice -> file; engine.js exports FACTORY_MAP (array or {v:file}); this list is the fallback
+const KIT_FALLBACK = ['BDrum1', 'SDrum1', 'Rim1', 'Tom1', 'Tom2', 'Tom3', 'Tom4', 'CHat', 'RideEdge', 'Crash', 'Tamb', 'Shaker',
+  'BDrum2', 'SDrum2', 'Rim2', 'ETom1', 'ETom2', 'ETom3', 'ETom4', 'OHat', 'RideBell', 'China', 'Clap', 'Cowbell'].map(n => n + '-RX5.wav');
+function factoryMap(){
+  const F = ENG.FACTORY_MAP;
+  const get = v => { const x = F && (Array.isArray(F) ? F[v] : F[v] ?? F[String(v)]); return x ? (typeof x === 'string' ? x : x.file || x.name) : KIT_FALLBACK[v]; };
+  return Array.from({length:24}, (_, v) => get(v));
+}
+// WAV (PCM 8/16/24/32, float 32) -> mono Float32Array
+function parseWav(buf){
+  const dv = new DataView(buf), str = (o, n) => String.fromCharCode(...new Uint8Array(buf, o, n));
+  if (str(0, 4) !== 'RIFF' || str(8, 4) !== 'WAVE') throw new Error('not a WAV file');
+  let o = 12, fmt = null, data = null;
+  while (o + 8 <= buf.byteLength){
+    const id = str(o, 4), len = dv.getUint32(o + 4, true), b = o + 8;
+    if (id === 'fmt ') fmt = {tag:dv.getUint16(b, true), ch:dv.getUint16(b + 2, true), sr:dv.getUint32(b + 4, true), bits:dv.getUint16(b + 14, true)};
+    else if (id === 'data') data = [b, Math.min(len, buf.byteLength - b)];
+    o = b + len + (len & 1);
+  }
+  if (!fmt || !data) throw new Error('WAV without fmt/data');
+  const bps = fmt.bits / 8, n = Math.floor(data[1] / (bps * fmt.ch)), out = new Float32Array(n), fl = fmt.tag === 3 || (fmt.tag === 0xFFFE && fmt.bits === 32 && false);
+  for (let i = 0; i < n; i++){
+    let acc = 0;
+    for (let c = 0; c < fmt.ch; c++){
+      const p = data[0] + (i * fmt.ch + c) * bps;
+      acc += fl ? dv.getFloat32(p, true) : bps === 2 ? dv.getInt16(p, true) / 32768 : bps === 1 ? (dv.getUint8(p) - 128) / 128 : bps === 3 ? ((dv.getUint8(p) | dv.getUint8(p + 1) << 8 | dv.getInt8(p + 2) << 16) / 8388608) : dv.getInt32(p, true) / 2147483648;
+    }
+    out[i] = acc / fmt.ch;
+  }
+  return {data:out, sr:fmt.sr};
+}
+let kitLoaded = false;
+const kitReady = (async () => {
+  const map = factoryMap();
+  const roms = await Promise.all(map.map(async f => { try { const r = await fetch('kit/' + f); if (!r.ok) throw new Error(r.status); return parseWav(await r.arrayBuffer()); } catch (e) { console.warn('kit', f, e.message); return null; } }));
+  kitLoaded = true; return roms;
+})();
+
 /* ================= audio: the worklet ================= */
 let ctx = null, node = null, audioReady = null, pos = null, meter = {peak:[0, 0], ch:[], max:0};
 const queue = [];
@@ -220,7 +259,8 @@ function audio(){
   audioReady = (async () => {
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
     await ctx.audioWorklet.addModule('worklet.js');
-    node = new AudioWorkletNode(ctx, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:S}});
+    const roms = await kitReady;   // voices are silent until the factory kit is in
+    node = new AudioWorkletNode(ctx, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:S, roms}});
     node.connect(ctx.destination);
     node.port.onmessage = ev => fromWorklet(ev.data);
     for (const m of queue.splice(0)) if (m.t === 'hit') node.port.postMessage(m);
@@ -250,6 +290,7 @@ function playTarget(){
   return {mode:'pattern', n:U.ptn};
 }
 async function start(){
+  if (!kitLoaded){ flash('LOADING KIT', 'please wait', 900); return; }
   await audio();
   const t = playTarget();
   if (S.sync === 'midi' || S.sync === 'ext'){ flash('WAITING FOR', 'MIDI START'); return; }
@@ -801,7 +842,7 @@ async function renderOffline(seconds){
   const len = Math.ceil(Math.min(secs + 3, 900) * sr);
   const oc = new OfflineAudioContext(2, len, sr);
   await oc.audioWorklet.addModule('worklet.js');
-  const nd = new AudioWorkletNode(oc, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:st, render:{mode:'song', n}}});
+  const nd = new AudioWorkletNode(oc, 'omega-five', {numberOfInputs:0, outputChannelCount:[2], processorOptions:{state:st, roms:await kitReady, render:{mode:'song', n}}});
   nd.connect(oc.destination);
   return await oc.startRendering();
 }
@@ -1222,7 +1263,8 @@ function sliderSet(id, v){
 
 /* ================= go ================= */
 await loadSaved();
-buildPanel(); wire(); fit(); paintSliders(); setSlider('DATA', 0.5); paintAll();
+buildPanel(); wire(); fit(); paintSliders(); setSlider('DATA', 0.5);
+if (!kitLoaded){ flash('LOADING KIT', 'RX5 waveforms', 60000); kitReady.then(roms => { unflash(); paintAll(); if (roms.some(r => !r)) toast('Some kit waveforms failed to load'); }); } else paintAll();
 loadSlotInfo(); midiInit();
 setTimeout(fit, 300);
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidFive) navigator.serviceWorker.register('sw.js').catch(() => {});
