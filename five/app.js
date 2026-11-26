@@ -108,6 +108,17 @@ function buildPanel(){
   }
   PAD_X.forEach((x, i) => pd.appendChild(el('div', 'pl', {left:x + 'px', top:'867px'}, `${PAD_LBL[i]}<br>${i + 1}`)));
 }
+// the magnifier: a copy of one legend column at 3x, near where it was tapped, kept inside the panel
+const MAG = 3;
+function magnify(col){
+  const mg = $('#mag'), inner = mg.firstElementChild;
+  inner.innerHTML = col.innerHTML; inner.style.zoom = MAG;
+  if (U.page === 'menu'){ const it = curItem(); if (it) inner.querySelectorAll(`u[data-m="${U.menu}"]`).forEach(u => u.classList.toggle('on', +u.dataset.i === it.no)); }
+  mg.style.display = 'block';
+  const w = mg.offsetWidth, h = mg.offsetHeight, x = parseFloat(col.style.left), cx = x + col.offsetWidth / 2;
+  mg.style.left = Math.round(Math.max(12, Math.min(W - w - 12, cx - w / 2))) + 'px';
+  mg.style.top = Math.round(Math.max(12, Math.min(H - h - 12, 470 - h / 2))) + 'px';
+}
 function makeSlider(id, left, top, h){
   const s = el('div', 'slider', {left:left + 'px', top:top + 'px', height:h + 'px'});
   const cap = el('div', 'cap'); s.appendChild(cap);
@@ -1242,8 +1253,16 @@ function wire(){
     if (sl){ e.preventDefault(); sl.setPointerCapture(e.pointerId); const s = sliders[sl.dataset.s]; s.drag = {y:e.clientY, v:s.v, id:e.pointerId}; return; }
     const key = e.target.closest('[data-k]');
     if (key){ e.preventDefault(); key.setPointerCapture && key.setPointerCapture(e.pointerId); key.classList.add('dn'); key._pid = e.pointerId; keyDown(key.dataset.k, key.classList.contains('fk') ? 'fn' : false); return; }
-    const lg = e.target.closest('.legend u, .legend b');
-    if (lg && lg.dataset.m){ unflash(); const m = lg.dataset.m, no = lg.dataset.i != null ? +lg.dataset.i : null; if (m === 'song' || m === 'esong') U.mode = 'song'; openMenu(m, no); return; }
+    // the printed legend is tiny: a tap on it shows that column magnified; a tap on a line there opens that job, anywhere else closes it
+    const mg = $('#mag');
+    if (mg.style.display === 'block'){
+      const it = e.target.closest('#mag u, #mag b');
+      if (it && it.dataset.m){ unflash(); const m = it.dataset.m, no = it.dataset.i != null ? +it.dataset.i : null; if (m === 'song' || m === 'esong') U.mode = 'song'; openMenu(m, no); paintAll(); }
+      if (!e.target.closest('#mag') || (it && it.dataset.m)) mg.style.display = 'none';
+      e.preventDefault(); return;
+    }
+    const col = e.target.closest('.legend');
+    if (col){ e.preventDefault(); magnify(col); return; }
     if (e.target.closest('#lcd')){ const r = $('#lcd').getBoundingClientRect(), d = e.clientX < r.left + r.width / 2 ? -1 : 1; const pg = page(); if (pg.move) pg.move(d); paintAll(); return; }
   });
   const up = e => {

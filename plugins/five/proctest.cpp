@@ -193,6 +193,16 @@ int main(int argc, char** argv) {
         check(proc->state().patterns[12].events.size() == 2, "STEP WRITE: two steps entered (" + juce::String((int) proc->state().patterns[12].events.size()) + ")");
         P.key("JOB"); P.key("N0"); P.key("N4"); check(P.lcdText().startsWith("04 RANDOMIZE"), "JOB 04: " + P.lcdText().replace("\n", " | "));
         P.key("START"); run(.5); check(proc->running(), "START from the panel"); P.key("STOP"); run(.05); check(!proc->running(), "STOP from the panel");
+        // the tiny legend: a tap magnifies the column (EDIT VOICE), a tap on a magnified line opens that job, the next tap closes
+        P.key("M:PTN"); P.pressAt({ 230, 497 }); P.releaseAt();
+        check(P.magnified() && P.lcdText().startsWith("PLAY PTN"), "a tap on the tiny legend magnifies it (the menu stays closed)");
+        { for (int k = 0; k < 4; k++) { ed->setSize(1300, 973); pump(30); }
+          auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f); const auto f = (shots.isDirectory() ? shots : dir).getChildFile("plugin-magnifier.png"); f.deleteFile();
+          juce::FileOutputStream fo(f); juce::PNGImageFormat().writeImageToStream(img, fo); }
+        bool opened = false;
+        for (float y = 300; y < 700 && !opened; y += 4) { P.pressAt({ 230, y }); P.releaseAt(); if (P.lcdText().startsWith("02 PITCH")) opened = true; else if (!P.magnified()) { P.pressAt({ 230, 497 }); P.releaseAt(); } }
+        check(opened && !P.magnified(), "a tap on the magnified 02 PITCH opens EDIT VOICE 02: " + P.lcdText().replace("\n", " | "));
+        P.pressAt({ 230, 497 }); P.releaseAt(); P.pressAt({ 650, 900 }); P.releaseAt(); check(!P.magnified(), "a tap outside closes the magnifier");
         P.key("M:PTN"); pump(100);
         for (int k = 0; k < 4; k++) { ed->setSize(1300, 973); pump(30); }
         auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, 1.0f);

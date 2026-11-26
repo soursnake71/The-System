@@ -23,6 +23,7 @@ public:
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
+    void mouseMove(const juce::MouseEvent&) override { if (magCol >= 0) repaint(); }
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed(const juce::KeyPress&) override;
     bool isInterestedInFileDrag(const juce::StringArray&) override { return true; }
@@ -32,6 +33,9 @@ public:
     // for tests: press a key / pad by name ("START", "N5", "YES", "EDIT VOICE", "PAD3" ...), read the LCD
     void key(const juce::String& k);
     juce::String lcdText() const;
+    void pressAt(juce::Point<float> p);           // a tap at panel coordinates (the mouse, tests)
+    void releaseAt();
+    bool magnified() const { return magCol >= 0; }
 
     struct Item {
         double no = 0; juce::String name;
@@ -52,7 +56,7 @@ private:
 
     // regions
     enum Kind { kFader, kMode, kFn, kPad, kKeypad, kBig, kLcd, kLegend, kDice };
-    struct Region { juce::Rectangle<float> r; Kind kind; juce::String id; double no = 0; };
+    struct Region { juce::Rectangle<float> r; Kind kind; juce::String id; double no = 0; int col = -1; };
     std::vector<Region> regions;
     const Region* hit(juce::Point<float>) const;
     void build();
@@ -112,6 +116,12 @@ private:
     double faderValue(const juce::String& id);
     void setFader(const juce::String& id, double v);
     float meter = 0;
+    // the magnifier: a tap on the tiny printed legend shows that column at MAG x; a tap on a line there opens that job
+    static constexpr float MAG = 3;
+    int magCol = -1;
+    struct MagLine { juce::Rectangle<float> r; juce::String text; bool head; juce::String menu; double no; };
+    std::vector<MagLine> magLayout(juce::Rectangle<float>& box) const;
+    void paintMag(juce::Graphics&);
 };
 
 class FiveEditor : public juce::AudioProcessorEditor, private juce::Timer {

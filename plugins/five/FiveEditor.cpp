@@ -72,11 +72,11 @@ void FivePanel::build() {
     add(95, 563, 82, 56, kBig, "ACC1"); add(95, 634, 82, 56, kBig, "ACC2"); add(1140, 562, 82, 56, kBig, "STOP"); add(1140, 634, 82, 56, kBig, "START");
     for (int i = 0; i < NV; i++) add(PAD_X[i % 12] - 40, i < 12 ? 721.f : 794.f, 80, 58, kPad, "PAD" + juce::String(i));
     add(1160, 498, 36, 28, kDice, "RANDOM");
-    for (const auto& col : LEGEND) {
-        float y = 460;
+    for (size_t c = 0; c < LEGEND.size(); c++) {
+        const auto& col = LEGEND[c]; float y = 460;
         for (const auto& g : col.second) {
-            add(col.first, y, 88, 9, kLegend, g.menu, -1); y += 9;
-            for (const auto& l : g.lines) { add(col.first, y, 88, 7.7f, kLegend, g.menu, l.no); y += 7.7f; }
+            add(col.first, y, 88, 9, kLegend, g.menu, -1); regions.back().col = (int) c; y += 9;
+            for (const auto& l : g.lines) { add(col.first, y, 88, 7.7f, kLegend, g.menu, l.no); regions.back().col = (int) c; y += 7.7f; }
         }
     }
 }
@@ -710,16 +710,24 @@ void FivePanel::setFader(const juce::String& id, double v) {
     else if (id == "DATA") { U.n["dataV"] = (int) jsround(v * 1000); auto& pg = page(); if (pg.data) pg.data(v); }
     else proc.setChannelParam(id.substring(2).getIntValue(), cFader, v);
 }
-void FivePanel::mouseDown(const juce::MouseEvent& e) {
-    grabKeyboardFocus();
-    const auto p = e.position; const Region* r = hit(p); if (!r) return;
+void FivePanel::mouseDown(const juce::MouseEvent& e) { grabKeyboardFocus(); pressAt(e.position); }
+void FivePanel::pressAt(juce::Point<float> p) {
+    if (magCol >= 0) {   // the magnifier is open: a line opens its job; any tap closes it
+        juce::Rectangle<float> box; const auto lines = magLayout(box);
+        for (const auto& l : lines) if (l.r.contains(p) && l.menu.isNotEmpty()) {
+            if (l.menu == "song" || l.menu == "esong") U.mode = 1;
+            openMenu(l.menu, l.head ? -1 : l.no); break;
+        }
+        magCol = -1; repaint(); return;
+    }
+    const Region* r = hit(p); if (!r) return;
     switch (r->kind) {
         case kFader: drag = { r->id, p.y, faderValue(r->id) }; break;
         case kPad: { const float y = (p.y - r->r.getY()) / r->r.getHeight(); pressedPad = r->id.substring(3).getIntValue(); hitPad(pressedPad, (int) jsround(clampd(127 - y * 96, 16, 127))); break; }
         case kMode: pressedKey = r->id; keyDown("M:" + r->id); break;
         case kFn: case kKeypad: case kBig: case kDice: pressedKey = r->id; keyDown(r->id); break;
         case kLcd: { auto& pg = page(); if (pg.move) pg.move(p.x < r->r.getCentreX() ? -1 : 1); break; }
-        case kLegend: { if (r->id == "song" || r->id == "esong") U.mode = 1; openMenu(r->id, r->no); break; }
+        case kLegend: magCol = r->col; break;
     }
     repaint();
 }
@@ -728,7 +736,8 @@ void FivePanel::mouseDrag(const juce::MouseEvent& e) {
     setFader(drag.id, drag.v0 - (e.position.y - drag.y0) / (138 - 40));
     repaint();
 }
-void FivePanel::mouseUp(const juce::MouseEvent&) {
+void FivePanel::mouseUp(const juce::MouseEvent&) { releaseAt(); }
+void FivePanel::releaseAt() {
     drag = {}; pressedPad = -1;
     if (pressedKey.isNotEmpty()) { const auto k = pressedKey; pressedKey.clear(); keyUp(held.count("M:" + k) ? "M:" + k : k); }
     repaint();
@@ -949,6 +958,40 @@ void FivePanel::paint(juce::Graphics& g) {
     }
     g.setColour(C(0xffe9e9e6)); g.setFont(font(9, true));
     for (int i = 0; i < 12; i++) g.drawFittedText(juce::String(PAD_LBL[i]) + "\n" + juce::String(i + 1), (int) PAD_X[i] - 50, 867, 100, 32, juce::Justification::centredTop, 3);
+    if (magCol >= 0) paintMag(g);
+}
+std::vector<FivePanel::MagLine> FivePanel::magLayout(juce::Rectangle<float>& box) const {
+    std::vector<MagLine> out; if (magCol < 0 || magCol >= (int) LEGEND.size()) return out;
+    const auto& col = LEGEND[(size_t) magCol];
+    const float lh = 7.7f * MAG, hh = 9 * MAG, pad = 14; float w = 0, h = 0;
+    juce::GlyphArrangement ga;
+    for (const auto& g : col.second) {
+        if (juce::String(g.head).trim().isNotEmpty()) { ga.clear(); ga.addLineOfText(font(7.6f * MAG, true), g.head, 0, 0); w = juce::jmax(w, ga.getBoundingBox(0, -1, true).getWidth()); h += hh; }
+        for (const auto& l : g.lines) { ga.clear(); ga.addLineOfText(font(7 * MAG), l.text, 0, 0); w = juce::jmax(w, ga.getBoundingBox(0, -1, true).getWidth()); h += lh; }
+    }
+    w += 2 * pad + 8; h += 2 * pad;
+    const float cx = col.first + 45, x = juce::jlimit(12.f, (float) W - w - 12, cx - w / 2), y = juce::jlimit(12.f, (float) H - h - 12, 470 - h / 2);
+    box = { x, y, w, h };
+    float yy = y + pad;
+    for (const auto& g : col.second) {
+        if (juce::String(g.head).trim().isNotEmpty()) { out.push_back({ { x + pad, yy, w - 2 * pad, hh }, g.head, true, g.menu, -1 }); yy += hh; }
+        for (const auto& l : g.lines) { out.push_back({ { x + pad, yy, w - 2 * pad, lh }, l.text, false, g.menu, l.no }); yy += lh; }
+    }
+    return out;
+}
+void FivePanel::paintMag(juce::Graphics& g) {
+    using C = juce::Colour; juce::Rectangle<float> box; const auto lines = magLayout(box); if (lines.empty()) return;
+    g.setColour(C(0xcc000000)); g.fillRoundedRectangle(box.translated(0, 10).expanded(6), 10);
+    g.setGradientFill(juce::ColourGradient::vertical(C(0xff2a2927), box.getY(), C(0xff1c1b19), box.getBottom())); g.fillRoundedRectangle(box, 8);
+    g.setColour(C(0xff77776f)); g.drawRoundedRectangle(box.expanded(1.5f), 9, 1.5f);
+    const auto mouse = getMouseXYRelative().toFloat();
+    for (const auto& l : lines) {
+        const bool on = !l.head && U.page == "menu" && U.menu == l.menu && std::fabs(curItem().no - l.no) < 1e-6;
+        if (on || (!l.head && l.r.contains(mouse))) { g.setColour(C(on ? 0x3affffff : 0x22ffffff)); g.fillRoundedRectangle(l.r.expanded(3, 0), 3); }
+        g.setColour(C(0xffe9e9e6)); g.setFont(l.head ? font(7.6f * MAG, true) : font(7 * MAG));
+        g.drawText(l.text, l.r, juce::Justification::centredLeft, false);
+        if (l.head) g.fillRect(l.r.getX(), l.r.getBottom() + 1, l.r.getWidth(), 2.f);
+    }
 }
 
 /* ================================================================================================ editor */
