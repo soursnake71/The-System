@@ -13,7 +13,7 @@ let fail = 0;
 for (const sc of ['voices', 'kit']){
   const js = path.join(dir, `five-${sc}-js.f32`), cc = path.join(dir, `five-${sc}-cpp.f32`);
   execFileSync(process.execPath, [path.join(here, 'render.mjs'), js, sc], {stdio:'inherit'});
-  execFileSync(bin, [cc, sc], {stdio:'inherit'});
+  execFileSync(bin, [cc, sc, path.join(here, '..', 'kit')], {stdio:'inherit'});
   const rd = f => { const b = readFileSync(f); return new Float32Array(b.buffer, b.byteOffset, b.length >> 2); };
   const a = rd(js), b = rd(cc);
   let max = 0, at = -1, first = -1, pk = 0;

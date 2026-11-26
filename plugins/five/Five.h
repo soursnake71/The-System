@@ -72,8 +72,22 @@ struct SVF {
 // No drum is synthesized (repo rule): every voice is a sample (the factory kit of real RX5 recordings, or the user's own)
 // loaded with setUserSample(); a voice without one is silent.
 
-// REC_EQ placeholder: engine.js's recEq() (undoes the playback droop for 'rec' voices) is mirrored here once it lands.
-inline std::vector<float> recEq(const std::vector<float>& x) { return x; }
+// the factory kit: voice v plays five/kit/FACTORY_MAP[v] (25 kHz 16-bit mono recordings of a real RX5), loaded as 'rec'
+static const char* const FACTORY_MAP[NV] = { "BDrum1-RX5.wav", "SDrum1-RX5.wav", "Rim1-RX5.wav", "Tom1-RX5.wav", "Tom2-RX5.wav", "Tom3-RX5.wav", "Tom4-RX5.wav",
+    "CHat-RX5.wav", "RideEdge-RX5.wav", "Crash-RX5.wav", "Tamb-RX5.wav", "Shaker-RX5.wav", "BDrum2-RX5.wav", "SDrum2-RX5.wav", "Rim2-RX5.wav",
+    "ETom1-RX5.wav", "ETom2-RX5.wav", "ETom3-RX5.wav", "ETom4-RX5.wav", "OHat-RX5.wav", "RideBell-RX5.wav", "China-RX5.wav", "Clap-RX5.wav", "Cowbell-RX5.wav" };
+
+// recording pre-emphasis: a 7-tap linear-phase FIR at 25 kHz that undoes this path's playback droop (applied once to a 'rec' ROM)
+static const double REC_EQ[7] = { -.0426, .1175, -.2817, 1.4136, -.2817, .1175, -.0426 };
+inline std::vector<float> recEq(const std::vector<float>& x) {
+    const long n = (long) x.size(), h = 3; std::vector<float> y((size_t) n);
+    for (long i = 0; i < n; i++) {
+        double s = 0;
+        for (long k = 0; k < 7; k++) { const long j = i + k - h; if (j >= 0 && j < n) s += REC_EQ[k] * x[(size_t) j]; }
+        y[(size_t) i] = (float) s;
+    }
+    return y;
+}
 
 /* ---------------- the ROM word ---------------- */
 inline void quantizeRom(const std::vector<float>& x, int bits, bool floatMode, std::vector<float>& out) {
@@ -136,11 +150,12 @@ struct Slot {
     double pitch = 0, bend = 0, bendT = 0, bendC = 0; bool rev = false, loop = false; double ll = 0;
     int stage = 0; double lvl = 0, atk = 0, L1 = 1, c1 = 1, c2 = 1, cr = 1; double gateN = 0, n = 0;
     double gain = 0, fade = 1; bool rec = false;
-    void start(int v_, const std::vector<float>& r, const VoiceParams& p, int vel, int acc, bool rec_) {
+    void start(int v_, const std::vector<float>& r, const VoiceParams& p, int vel, int acc, bool rec_, double pitchOff = 0) {
         v = v_; rom = r.data(); len = (int) r.size(); pos = 0; rec = rec_;
         rev = p[vReverse] >= .5; loop = p[vLoop] >= .5; ll = (len - 1) - std::floor(len * .7);
-        baseInc = (double) ROM_SR / DAC_SR * std::pow(2.0, p[vPitch] / 1200); inc = baseInc;
-        pitch = p[vPitch]; bend = 0; bendT = p[vBendRange];
+        const double pc = pitchOff != 0 ? clampd(p[vPitch] + pitchOff, -3600, 2400) : p[vPitch];
+        baseInc = (double) ROM_SR / DAC_SR * std::pow(2.0, pc / 1200); inc = baseInc;
+        pitch = pc; bend = 0; bendT = p[vBendRange];
         bendC = p[vBendRate] > 0 && p[vBendRange] != 0 ? 25 * std::pow(2.0, p[vBendRate] / 6) / DAC_SR : 0;
         stage = p[vAr] >= 99 ? 1 : 0; lvl = stage ? 1 : 0; atk = p[vAr] >= 99 ? 1 : 1 / (atkTime(p[vAr]) * DAC_SR);
         L1 = egLevel(p[vD1l]); c1 = decCoef(p[vD1r]); c2 = decCoef(p[vD2r]); cr = relCoef(p[vRr]);
@@ -391,7 +406,7 @@ public:
     double held[NCH] = {}; uint8_t on[NCH] = {}; double peak[NCH] = {};
     double gC[NCH] = {}, pL[NCH] = {}, pR[NCH] = {}, sRev[NCH] = {}, sDly[NCH] = {};
     double pkDec;
-    int qT[QMAX], qType[QMAX], qV[QMAX], qVel[QMAX], qAcc[QMAX]; int qN = 0;
+    int qT[QMAX], qType[QMAX], qV[QMAX], qVel[QMAX], qAcc[QMAX]; double qPitch[QMAX]; int qN = 0;
     Rev7 revFx; TcDelay dlyFx;
     double ckN = 0, ckPh = 0, ckW = 0, ckEnv = 0, ckDec, ckA = 1;
     double mL = 0, mR = 0;
@@ -419,14 +434,15 @@ public:
     void mixMaster() { volG = volume * volume; clkG = click * click * .5; }
 
     /* ---------------- control ---------------- */
-    void push(int type, int v, int vel, int acc, double time) {
+    void push(int type, int v, int vel, int acc, double time, double pitchOff = 0) {
         if (qN >= QMAX) return;
         const int k = qN++;
-        qType[k] = type; qV[k] = v; qVel[k] = vel; qAcc[k] = acc; qT[k] = (int) std::max(0.0, std::floor(time));
+        qPitch[k] = pitchOff; qType[k] = type; qV[k] = v; qVel[k] = vel; qAcc[k] = acc; qT[k] = (int) std::max(0.0, std::floor(time));
     }
-    void trigger(int v, double vel = 127, int accent = 0, double time = 0) {
+    // pitchOff (cents, not in engine.js): Tunable Note mode and key-assign set-ups
+    void trigger(int v, double vel = 127, int accent = 0, double time = 0, double pitchOff = 0) {
         if (v < 0 || v >= NV || !(vel > 0)) return;
-        push(0, v, (int) clampd(jsround(vel), 1, 127), (int) clampd(accent, 0, 2), time);
+        push(0, v, (int) clampd(jsround(vel), 1, 127), (int) clampd(accent, 0, 2), time, pitchOff);
     }
     void release(int v, double time = 0) { if (v >= 0 && v < NV) push(1, v, 0, 0, time); }
     void clickTick(bool accented, double time = 0) { push(2, 0, 0, accented ? 1 : 0, time); }
@@ -435,7 +451,7 @@ public:
         if (type == 0) {
             const int ch = v % NCH; Slot& a = cur[ch]; Slot& b = old[ch];
             if (a.active) { b = a; b.fade = 1; }
-            a.start(v, roms[v], voices[v], qVel[k], qAcc[k], isRec(v));
+            a.start(v, roms[v], voices[v], qVel[k], qAcc[k], isRec(v), qPitch[k]);
             on[ch] = 1;
         } else if (type == 1) {
             Slot& a = cur[v % NCH];
@@ -537,7 +553,7 @@ public:
         if (qN) {
             int m = 0;
             for (int k = 0; k < qN; k++) if (qT[k] >= n) {
-                qT[m] = qT[k] - n; qType[m] = qType[k]; qV[m] = qV[k]; qVel[m] = qVel[k]; qAcc[m] = qAcc[k]; m++;
+                qT[m] = qT[k] - n; qPitch[m] = qPitch[k]; qType[m] = qType[k]; qV[m] = qV[k]; qVel[m] = qVel[k]; qAcc[m] = qAcc[k]; m++;
             }
             qN = m;
         }

@@ -453,9 +453,9 @@ async function rxTests() {
     const bad = b.slice(); bad[6] ^= 1;
     r = X.handleSysex(s, bad, { receiver: rcv, now: 5000 });
     assert.equal(r.count, 1); assert.equal(r.message, 'checksum error!'); assert.equal(s.rxBulk.status, 'bad');
-    // deviceNo 0 (OFF) accepts any device
+    // deviceNo 0 (OFF) refuses bulk data, like the hardware
     const s0 = S.newState(); s0.midi.deviceNo = 0;
-    assert.equal(X.handleSysex(s0, other).kind, 'yamaha-bulk');
+    assert.equal(X.handleSysex(s0, other).kind, 'ignored');
     // .syx load + survives the cartridge file and the full Omega dump
     const d = S.newState();
     const lr = X.loadSyx(d, X.writeSyx([a, b, X.omegaPattern(s, 0)]));
@@ -563,8 +563,9 @@ async function rxTests() {
     assert.deepEqual(S.midiIn(s, null, [0x99, 82, 64]), [{ type: 'note', v: 11, vel: 64 }]); // GM extra
     // program change only in tunable mode; tunable notes 36..96 pitched around 60
     assert.deepEqual(S.midiIn(s, null, [0xC9, 5]), []);
-    s.midi.tunable = true; s.midi.tunableVoice = 4;
+    s.midi.tunable = true; s.midi.tunableVoice = 4; s.midi.tunableCh[9] = true; s.midi.tunableVoices[9] = 4;
     a = S.midiIn(s, null, [0xC9, 5, 0x99, 60, 100, 72, 80, 35, 80, 96, 10, 0x89, 72, 64]);
+    a = a.map(({ ch, ...r }) => r); // tunable actions carry their channel
     assert.deepEqual(a, [{ type: 'program', n: 5 }, { type: 'note', v: 4, vel: 100, pitch: 0 }, { type: 'note', v: 4, vel: 80, pitch: 1200 },
       { type: 'note', v: 4, vel: 10, pitch: 3600 }, { type: 'off', v: 4 }]);
     // song select 0..19 (always), SPP + transport + clock only when synced to MIDI
@@ -578,7 +579,7 @@ async function rxTests() {
     assert.deepEqual(ty(a), ['clock', 'sysex', 'sysex']);
     assert.deepEqual(arr(a[1].bytes), [0xF0, 0x43, 0x01, 0x7F, 0x01, 0xF7]);
     s.midi.deviceNo = 0;
-    assert.equal(S.midiIn(s, null, [0xF0, 0x43, 0x04, 0x7F, 0xF7]).length, 1);
+    assert.equal(S.midiIn(s, null, [0xF0, 0x43, 0x04, 0x7F, 0xF7]).length, 0); // OFF refuses Yamaha bulk, like the hardware
     // applyMidiActions drives a Player
     const p = S.newState(); S.stepInsert(p, 0, 6, 0, 100);
     const pl = new S.Player(p); pl.setMode('pattern', 0); pl.setExternal(true);

@@ -241,7 +241,7 @@ inline Flat flattenSong(const State& st, int sn) {
 }
 
 /* ---------------- Player ---------------- */
-struct PlayEvent { int offset, v, vel, acc, click; };   // v = -1: metronome click (click 2 = bar downbeat, 1 = beat)
+struct PlayEvent { int offset, v, vel, acc, click; };   // v = -1: metronome click (click 2 = bar downbeat, 1 = beat); v = -2: a tick
 
 class Player {
 public:
@@ -253,6 +253,7 @@ public:
     struct Skip { int pat, t, v, pass; }; std::array<Skip, 64> skip {}; int nSkip = 0;
     // host transport follower
     bool hostLocked = false; long long hostNext = 0;
+    bool clockTicks = false;   // also emit {v:-2} on every tick
 
     explicit Player(State* s = nullptr) : st(s) { if (s) tempo = s->tempo; }
     void setState(State* s) { st = s; hasCursor = false; mode = PatternMode; n = 0; running = false; rewind(); }
@@ -336,6 +337,7 @@ public:
             }
         }
         const int t = tick; const auto& ev = p->events;
+        if (clockTicks) emit(PlayEvent { off, -2, 0, 0, 0 });   // one per tick (MIDI clock out)
         if (st->clickOn && t % ticksPerBeat(*p) == 0) emit(PlayEvent { off, -1, 0, 0, t % barTicks(*p) == 0 ? 2 : 1 });
         for (size_t i = lowerBound(ev, t); i < ev.size() && ev[i].t == t; i++) {
             const Event& e = ev[i];

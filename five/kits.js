@@ -500,7 +500,7 @@ async function defaultFetch(p){
 /** Puts one waveform on voice v (null = no waveform: the voice is silent). */
 export function assignWaveform(engine, state, v, wf){
   if (v < 0 || v >= LIB_INTERNAL) return;
-  if (engine){ engine.setUserSample(v, wf ? wf.data : null, wf ? wf.sr : 0); }
+  if (engine){ engine.setUserSample(v, wf ? wf.data : null, wf ? wf.sr : 0, wf && wf.kind !== 'user' ? {rec: true} : undefined); } // RX5 recordings: path 'rec'
   if (state){
     if (!state.samples) state.samples = new Array(LIB_INTERNAL).fill(null);
     state.samples[v] = wf ? {name: wf.name, sr: wf.sr, data: wf.data, native: !!wf.native, lib: wf.id} : null;
