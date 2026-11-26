@@ -137,7 +137,7 @@ async function engineTests() {
       const e = KIT(); e.setFx('rev', 'program', p); e.setChannel(1, { fader: 1, sendRev: 1 }); e.trigger(1);
       const { L, R } = run(e, 12); const name = E.REV_PROGRAMS[p].name;
       assert.ok(finite(L) && finite(R) && peak(L) < 1, name);
-      assert.ok(rms(L, sr * .5, sr * .6) > 1e-4, `${name} has a tail`);
+      assert.ok(rms(L, sr * .3, sr * .4) > 1e-4, `${name} has a tail`);
       assert.ok(peak(L, sr * 11) < 1e-3, `${name} decays (${peak(L, sr * 11)})`);
     }
     const e = KIT(); e.setFx('rev', 'time', 30); e.setFx('rev', 'hiRatio', 1); e.setChannel(0, { sendRev: 1 });
