@@ -119,8 +119,11 @@ function setSlider(id, v){ const s = sliders[id]; if (!s) return; s.v = Math.max
 /* ================= fit to the screen ================= */
 let scale = 1;
 function fit(){
-  const vw = innerWidth, vh = innerHeight; scale = Math.min(vw / W, vh / H);
-  P().style.transform = `translate(${Math.round((vw - W * scale) / 2)}px, ${Math.round((vh - H * scale) / 2)}px) scale(${scale})`;
+  // short landscape screens (phones): the plain ribs above the sliders and the empty strip under the pad names are
+  // cropped so the controls get bigger; the panel is otherwise always shown whole, scaled and centred
+  const vw = innerWidth, vh = innerHeight, crop = vw / vh > 1.5 && vh < 800, top = crop ? 135 : 0, bot = crop ? 70 : 0, h = H - top - bot;
+  scale = Math.min(vw / W, vh / h);
+  P().style.transform = `translate(${Math.round((vw - W * scale) / 2)}px, ${Math.round((vh - h * scale) / 2 - top * scale)}px) scale(${scale})`;
   $('#hint').style.display = vh > vw * 1.2 ? 'block' : 'none';
 }
 

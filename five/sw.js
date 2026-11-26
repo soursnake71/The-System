@@ -1,0 +1,11 @@
+// Omega Five service worker: everything (code, factory kit) is cached so the app works offline.
+const CACHE = 'omega-five-v1';
+const CORE = ["./", "index.html", "app.js", "worklet.js", "engine.js", "seq.js", "rxsysex.js", "rxcart.js", "kits.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "kit/kit.json", "kit/AgoHI-RX5.wav", "kit/AgoLO-RX5.wav", "kit/BDrum1-RX5.wav", "kit/BDrum2-RX5.wav", "kit/BDrum3-RX5.wav", "kit/BgoHI-RX5.wav", "kit/BgoLO-RX5.wav", "kit/CGaHMT-RX5.wav", "kit/CGaHOP-RX5.wav", "kit/CGaLO-RX5.wav", "kit/CHat-RX5.wav", "kit/China-RX5.wav", "kit/Clap-RX5.wav", "kit/Cowbell-RX5.wav", "kit/Crash-RX5.wav", "kit/Cstnt-RX5.wav", "kit/Cuica-RX5.wav", "kit/DXmrmb-RX5.wav", "kit/DXorch-RX5.wav", "kit/EBassL-RX5.wav", "kit/ETom1-RX5.wav", "kit/ETom2-RX5.wav", "kit/ETom3-RX5.wav", "kit/ETom4-RX5.wav", "kit/EbassH-RX5.wav", "kit/FMPrc2-RX5.wav", "kit/FMprc1-RX5.wav", "kit/FMprc3-RX5.wav", "kit/GlsCsh-RX5.wav", "kit/Gun-RX5.wav", "kit/Hey-RX5.wav", "kit/OHat-RX5.wav", "kit/Ooo-RX5.wav", "kit/RideBell-RX5.wav", "kit/RideEdge-RX5.wav", "kit/Rim1-RX5.wav", "kit/Rim2-RX5.wav", "kit/SDrum1-RX5.wav", "kit/SDrum2-RX5.wav", "kit/SDrum3-RX5.wav", "kit/Shaker-RX5.wav", "kit/Tamb-RX5.wav", "kit/TimblH-RX5.wav", "kit/TimblL-RX5.wav", "kit/Timpn-RX5.wav", "kit/Tom1-RX5.wav", "kit/Tom2-RX5.wav", "kit/Tom3-RX5.wav", "kit/Tom4-RX5.wav", "kit/Wao-RX5.wav", "kit/Whstl-RX5.wav"];
+// optional modules are cached one by one, so a missing one does not break the install
+self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => Promise.all(CORE.map(f => c.add(f).catch(() => {})))).then(() => self.skipWaiting())); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k.startsWith('omega-five')).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+// network first so updates arrive; the cache keeps it working offline
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
+  e.respondWith(fetch(e.request).then(r => { if (r.ok){ const c = r.clone(); caches.open(CACHE).then(k => k.put(e.request, c)); } return r; }).catch(() => caches.match(e.request, {ignoreSearch:true})));
+});

@@ -3,14 +3,15 @@
 A 12-bit PCM digital rhythm programmer in the style of the late-80s Yamaha RX5 (the faceplate photo in the
 session is the layout reference). Web app in `five/`, Android APK flavor `five`, VST3/AU/Standalone plugin in
 `plugins/five/`. Product name **Omega Five** everywhere (no third-party logos; model names like "RX5", "REV7",
-"TC 2290" may appear only as "-style" descriptions in docs/presets). **No factory samples are shipped**: every
-voice is synthesized by circuit/physical models, then run through a model of the RX5-style 12-bit
-companded playback path. Users may load their own WAV/AIFF into any voice ("voice cartridge").
+"TC 2290" may appear only as "-style" descriptions in docs/presets). **Drums are never synthesized.** Every
+voice is a sample: the factory kit is recordings of a real 1986 RX5 (`five/kit/`, 25 kHz, the hardware's native
+rate), played through a model of the RX5's 12-bit 25 kHz playback path and DAC. Users may load their own
+WAV/AIFF/kits into any voice ("voice cartridge"), converted to 25 kHz unless they choose to keep the rate.
 
 ## Files and owners
 | file | what |
 |---|---|
-| `five/engine.js` | DSP: voice models, 12-bit playback path, EG, mixer, REV7-style reverb, TC-style delay. Pure JS, no DOM. UMD-ish: `export` ES module. |
+| `five/engine.js` | DSP: sample ROM (no synthesis), 12-bit playback path, EG, mixer, REV7-style reverb, TC-style delay. Pure JS, no DOM. UMD-ish: `export` ES module. |
 | `five/seq.js` | Data model: patterns, songs, chains, quantize/swing, step/real-time write, randomize, cartridge (bank) files, SMF import/export. Pure JS, no DOM. ES module. |
 | `five/rxsysex.js` | SysEx: framing/assembler, .syx files, RX5 bulk-dump librarian (Yamaha F0 43), Omega F0 7D messages, identity. Pure JS. |
 | `five/rxcart.js` | RX5 Waveform Data Cartridge bank images (128 KB / 256 KB `.bin`): parse to voices, build from voices. Pure JS. |
@@ -36,21 +37,12 @@ Channel names (fader labels, as on the panel): `BD SD RIM TOM1 TOM2 TOM3 TOM4 HI
 Hi-hat choke: voice 7 (closed) chokes 19 (open) — they share channel 7 (one channel = one voice playing at a time,
 like the hardware: retrigger on the same channel cuts the previous note with a 2 ms fade).
 
-### Voice generation (engine.js)
-`engine.makeVoiceSample(v, sr)` returns a `Float32Array` (the "ROM": rendered once at 25 kHz-ish native rate
-`ROM_SR = 25000`, then played back by the playback path). Each voice is a small circuit-style model with a fixed
-seed (deterministic; use a 32-bit xorshift PRNG `rng(seed)` in both JS and C++ — never Math.random in DSP):
-- BD: bridged-T / damped resonator with pitch-swept sine (exp sweep), click transient, soft clip (tanh).
-- SD: two damped modes (~180/330 Hz) + band-passed noise snares (2-pole SVF), separate envelopes.
-- RIM: high-Q bandpass ping (~1.7 kHz) + short noise click.
-- TOMs: damped sine with downward pitch bend, 4 pitches per set; B set darker/longer.
-- HH: 6 square oscillators at the 808-style metallic ratios → 2 bandpass + highpass, closed short/open long.
-- RIDE/CRASH/CHINA/RIDE CP: metallic square bank (ring-mod pairs) + noise, long exp decays, different BP centres.
-- TAMB/SHAKER: filtered noise bursts with jingle (comb) / grains.
-- CLAPS: 3–4 noise bursts 10 ms apart + reverb tail through BP 1 kHz.
-- COWBELL: two squares 540/800 Hz through BP, fast decay.
-Exact numbers are up to engine.js; C++ must match engine.js sample-for-sample (same float ops order; use
-`Math.fround`-free double math in JS and `double` in C++; output stored as float32).
+### Voice ROM (engine.js) — samples only, no synthesis
+Voices start empty (silent). `engine.loadRom(v, Float32Array, sr = 25000, {bits, rec})` / `setUserSample` fill a
+voice's ROM; the factory kit is loaded at startup from `five/kit/` using `FACTORY_MAP` (voice → file). `rec:true`
+marks recordings that already passed through a real RX5 DAC + mixer: they skip the 12-bit requantize and the
+output-stage saturation but keep the 25 kHz read / ZOH / reconstruction filter, so repitching behaves like the
+hardware. The 27 other factory recordings (cartridge voices) form the waveform library for KEY ASSIGN.
 
 A voice can be replaced by a user sample (`engine.setUserSample(v, Float32Array, sr)`), resampled to ROM_SR.
 
@@ -178,7 +170,7 @@ Unknown / emulated:
   (hardware: 1–99 and more denominators). Program change meaning in Tunable mode is a guess (selects the voice).
 - Cart entry bytes 16/18 (RR vs D1L), 19 (gate code; 92 taken as "off"), 20–22 and 24, and pitch byte mapping are
   RX5USB's interpretations; unknown bytes are preserved on rebuild. Sample companding is treated as linear PCM.
-- Sounds are synthesized models (no factory samples); EG curves, 12-bit path and DAC filter are models.
+- Sounds are recordings of a real RX5 at its native 25 kHz; the EG curves, 12-bit path and DAC filter are models.
 - Set-up data is stored but per-voice MIDI notes/tx channels are global (`noteMap`, `midi.voiceTxCh`), not per set-up.
 
 ## Panel (index.html) — must fit any screen with **no scrolling** (fixed stage scaled to fit, like twelve/index.html)

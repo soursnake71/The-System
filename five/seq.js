@@ -31,6 +31,30 @@ export const QUANTIZE = [
 // keypad digit -> QUANTIZE index
 export const QUANTIZE_KEYPAD = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 10 };
 export const Q_1_16 = 5;
+export const Q_1_8 = 3;
+
+// Swing (owner's manual p.15): OFF or five settings, "taking a quarter-note as 100%" — the off-beat moves from
+// 50% to 54/58/63/67/71% (67% = triplet shuffle). "It can ONLY be used with a Quantize rate of 1/8 or 1/16."
+// At 24 PPQN and 1/8 the off-beat delay is round(12*(2s/100-1)) = 1, 2, 3, 4, 5 ticks (13/24 .. 17/24 = 54.2 ..
+// 70.8 %), i.e. exactly the five settings. At 1/16 the same percentage applies to the 16th pair (12 ticks):
+// 0, 1, 2, 2, 3 ticks — how the hardware rounds at 1/16 is UNCERTAIN. 50 = OFF.
+export const SWING_VALUES = [50, 54, 58, 63, 67, 71];
+export const SWING_LABELS = ['OFF', '54%', '58%', '63%', '67%', '71%'];
+/** Snap any percentage (old carts used 50..75) to the nearest hardware swing setting. */
+export function snapSwing(x) {
+  const v = +x;
+  if (!Number.isFinite(v) || v <= 52) return 50;
+  return SWING_VALUES.reduce((best, s) => (Math.abs(s - v) < Math.abs(best - v) ? s : best), 50);
+}
+/** Swing only acts at quantize 1/8 or 1/16. */
+export const swingApplies = (qIndex) => qIndex === Q_1_8 || qIndex === Q_1_16;
+
+// Time signature (owner's manual p.10): numerator 01-99, denominator 1/2, 1/4, 1/6, 1/8, 1/12, 1/16, 1/24, 1/32
+// (not 1/48). Bar = beats * 96/unit ticks (96 ticks per whole note), e.g. 6/8 = 72, 5/6 = 80, 7/24 = 28 ticks.
+export const TS_UNITS = [2, 4, 6, 8, 12, 16, 24, 32];
+export const BEATS_MAX = 99;
+export const BARS_MAX = 99; // "MAX. LENGTH: 99 MEASURES" [OM p.70]; append refuses anything longer
+const cleanUnit = (u, d = 4) => (TS_UNITS.includes(+u) ? +u : d);
 
 // Default note per voice (noteMap) = the RX5's MIDI Job #05 "Initialize Note" table [OM p.65], mapped to our
 // 24 voices (A set = the "1st" internal voices, B set = BD 2/SD 2/RIM 2/E.TOM 1-4/HH OPEN/...).
@@ -161,7 +185,8 @@ export function quantizeTick(raw, qIndex, swing = 50) {
   if (g <= 1) return Math.round(raw);
   const step = Math.round(raw / g);
   let t = step * g;
-  if (swing > 50 && (step & 1)) t += Math.round(g * (2 * swing / 100 - 1));
+  swing = snapSwing(swing);
+  if (swing > 50 && (step & 1) && swingApplies(qIndex)) t += Math.round(g * (2 * swing / 100 - 1));
   return t;
 }
 
@@ -220,18 +245,34 @@ function clonePattern(p) {
 /** Time signature. Events beyond the new length are dropped. */
 export function setBeats(state, pn, beats, unit = state.patterns[pn].unit) {
   const p = state.patterns[pn];
-  p.beats = clampInt(beats, 1, 32, 4);
-  p.unit = [4, 8, 16].includes(+unit) ? +unit : 4;
+  p.beats = clampInt(beats, 1, BEATS_MAX, 4);
+  p.unit = cleanUnit(unit, p.unit);
   trimPattern(p);
 }
 export function setBars(state, pn, bars) {
   const p = state.patterns[pn];
-  p.bars = clampInt(bars, 1, 99, 1);
+  p.bars = clampInt(bars, 1, BARS_MAX, 1);
   trimPattern(p);
 }
 function trimPattern(p) { const len = patLen(p); p.events = p.events.filter((e) => e.t < len); }
 
-export function setSwing(state, pn, swing) { state.patterns[pn].swing = clampInt(swing, 50, 75, 50); }
+export function setSwing(state, pn, swing) { state.patterns[pn].swing = snapSwing(swing); }
+
+/**
+ * Pattern Append (Pattern Job): join src onto the end of dst. Like the hardware, both must have the same time
+ * signature and the result may not exceed BARS_MAX bars. Returns '' on success or the LCD error text.
+ */
+export function appendPattern(state, src, dst) {
+  const a = state.patterns[dst], b = state.patterns[src];
+  if (!a || !b) return 'not found';
+  if (a.beats !== b.beats || a.unit !== b.unit) return 'time sig. differ';
+  if (a.bars + b.bars > BARS_MAX) return 'too large';
+  const off = patLen(a), add = b.events.map((e) => ({ ...e, t: e.t + off }));
+  a.bars += b.bars;
+  a.events = a.events.concat(add);
+  sortEvents(a);
+  return '';
+}
 export function renamePattern(state, pn, name) { state.patterns[pn].name = String(name).slice(0, 16); }
 export function renameSong(state, sn, name) { state.songs[sn].name = String(name).slice(0, 16); }
 
@@ -635,7 +676,7 @@ export function randomize(state, seed, scope = 'all', opts = {}) {
   const R = rng(seed);
   const genre = GENRES[opts.genre] ? opts.genre : GENRE_NAMES[R.i(0, GENRE_NAMES.length - 1)];
   const g = GENRES[genre];
-  const swing = Math.round(R.r(g.swing[0], g.swing[1]));
+  const swing = snapSwing(R.r(g.swing[0], g.swing[1]));
   if (scope === 'voices' || scope === 'all') {
     for (let v = 0; v < NUM_VOICES; v++) state.voice[v] = Object.assign({}, state.voice[v], randomVoice(R, v));
   }
@@ -763,8 +804,8 @@ export function normalizeState(src = {}) {
   (src.patterns || []).slice(0, NUM_PATTERNS).forEach((p, i) => {
     if (!p) return;
     const q = s.patterns[i];
-    q.name = String(p.name ?? q.name); q.beats = clampInt(p.beats, 1, 32, 4); q.unit = [4, 8, 16].includes(+p.unit) ? +p.unit : 4;
-    q.bars = clampInt(p.bars, 1, 99, 1); q.swing = clampInt(p.swing, 50, 75, 50);
+    q.name = String(p.name ?? q.name); q.beats = clampInt(p.beats, 1, BEATS_MAX, 4); q.unit = cleanUnit(p.unit);
+    q.bars = clampInt(p.bars, 1, BARS_MAX, 1); q.swing = snapSwing(p.swing ?? 50);
     if (Array.isArray(p.volume)) q.volume = q.volume.map((d, ch) => clampInt(p.volume[ch], 0, 31, d));
     const len = patLen(q);
     q.events = (p.events || []).filter((e) => e && e.t >= 0 && e.t < len && e.v >= 0 && e.v < NUM_VOICES)
@@ -798,7 +839,7 @@ export function normalizeState(src = {}) {
   if (['int', 'midi', 'tape', 'ext'].includes(src.sync)) s.sync = src.sync;
   if (src.tempo) s.tempo = clamp(+src.tempo, 40, 250);
   if (src.quantize !== undefined) s.quantize = clampInt(src.quantize, 0, QUANTIZE.length - 1, Q_1_16);
-  if (src.swing !== undefined) s.swing = clampInt(src.swing, 50, 75, 50);
+  if (src.swing !== undefined) s.swing = snapSwing(src.swing);
   if (src.click) Object.assign(s.click, src.click);
   if (src.volume !== undefined) s.volume = clamp(+src.volume || 0, 0, 1);
   if (Array.isArray(src.voice)) src.voice.slice(0, NUM_VOICES).forEach((o, v) => { if (o) s.voice[v] = o; });

@@ -286,7 +286,7 @@ export const RANGES = {
   master:{volume:[0, 1], click:[0, 1]}
 };
 // gate is in ms (0 = no gate: the sound plays out); rates 0..99 (0 = hold for d1r/d2r, slowest for rr)
-// path: 'rx' plays the voice's ROM through the 12-bit / 50 kHz DAC path; 'raw' plays a raw user sample (setUserSample opts.raw)
+// path: 'rx' = the ROM word + whole playback path; 'rec' = a recording of a real RX5 (setUserSample opts.rec): no 12-bit word, no output saturation
 const VD = (o) => Object.assign({pitch:0, level:25, ar:99, d1r:0, d1l:60, d2r:0, rr:45, gate:0, bendRate:0, bendRange:0, reverse:0, loop:0,
   acc1:2, acc2:4, bits:12, path:'rx'}, o);
 export const VOICE_DEFAULTS = VOICE_NAMES.map((_, v) => VD(v === 19 ? {rr:70} : {}));
@@ -302,9 +302,8 @@ export const MASTER_DEFAULTS = {volume:1, click:.5};
 const EG_FLOOR = 1e-4, FADE_STEP = 1 / (.002 * DAC_SR), DAC_HEAD = 1.45, OUT_K = 2;
 const atkTime = r => 2 * Math.pow(2, -r / 8);                            // s, 0..1 linear ramp
 const t60 = r => 12 * Math.pow(2, -r / 8.5);                             // s to -60 dB
-// per-tick coefficients at tick rate fs (DAC_SR for the RX path, the host rate for 'raw' slots)
-const decCoef = (r, fs) => r <= 0 ? 1 : Math.exp(-3 * LN10 / (t60(r) * fs));
-const relCoef = (r, fs) => Math.exp(-3 * LN10 / (t60(r) * fs));
+const decCoef = r => r <= 0 ? 1 : Math.exp(-3 * LN10 / (t60(r) * DAC_SR));
+const relCoef = r => Math.exp(-3 * LN10 / (t60(r) * DAC_SR));
 const egLevel = l => l >= 60 ? 1 : l <= 0 ? 0 : Math.pow(10, -(60 - l) * 1.2 / 20);   // 1.2 dB per step
 const levelGain = l => l <= 0 ? 0 : Math.pow(10, (l - 31) * 1.5 / 20);
 
@@ -313,20 +312,20 @@ class Slot {
     this.active = false; this.v = -1; this.rom = null; this.len = 0; this.pos = 0; this.inc = 0; this.baseInc = 0;
     this.pitch = 0; this.bend = 0; this.bendT = 0; this.bendC = 0; this.rev = false; this.loop = false; this.ll = 0;
     this.stage = 0; this.lvl = 0; this.atk = 0; this.L1 = 1; this.c1 = 1; this.c2 = 1; this.cr = 1; this.gateN = 0; this.n = 0;
-    this.gain = 0; this.fade = 1; this.raw = false; this.incK = 0; this.fadeStep = FADE_STEP;
+    this.gain = 0; this.fade = 1; this.rec = false;
   }
   copyFrom(o){ for (const k in o) this[k] = o[k]; }
-  // romSr: the data's sample rate; fs: the tick rate (DAC_SR on the RX path; the host rate for a 'raw' slot, raw = true)
-  start(v, rom, romSr, fs, raw, p, vel, acc){
-    this.v = v; this.rom = rom; this.len = rom.length; this.pos = 0; this.raw = raw; this.incK = romSr / fs; this.fadeStep = 1 / (.002 * fs);
+  // rec: the ROM is a recording of a real RX5 (path 'rec'): the channel then skips the output-stage saturation
+  start(v, rom, p, vel, acc, rec){
+    this.v = v; this.rom = rom; this.len = rom.length; this.pos = 0; this.rec = rec;
     this.rev = p.reverse >= .5; this.loop = p.loop >= .5; this.ll = (this.len - 1) - Math.floor(this.len * .7);
-    this.baseInc = this.incK * Math.pow(2, p.pitch / 1200); this.inc = this.baseInc;
+    this.baseInc = ROM_SR / DAC_SR * Math.pow(2, p.pitch / 1200); this.inc = this.baseInc;
     // bend: linear sweep from the pitch toward pitch + range at 25 * 2^(rate/6) cents per second, held inside +24/-36 st
     this.pitch = p.pitch; this.bend = 0; this.bendT = p.bendRange;
-    this.bendC = p.bendRate > 0 && p.bendRange !== 0 ? 25 * Math.pow(2, p.bendRate / 6) / fs : 0;
-    this.stage = p.ar >= 99 ? 1 : 0; this.lvl = this.stage ? 1 : 0; this.atk = p.ar >= 99 ? 1 : 1 / (atkTime(p.ar) * fs);
-    this.L1 = egLevel(p.d1l); this.c1 = decCoef(p.d1r, fs); this.c2 = decCoef(p.d2r, fs); this.cr = relCoef(p.rr, fs);
-    this.gateN = p.gate > 0 ? Math.round(p.gate * fs / 1000) : 0; this.n = 0;
+    this.bendC = p.bendRate > 0 && p.bendRange !== 0 ? 25 * Math.pow(2, p.bendRate / 6) / DAC_SR : 0;
+    this.stage = p.ar >= 99 ? 1 : 0; this.lvl = this.stage ? 1 : 0; this.atk = p.ar >= 99 ? 1 : 1 / (atkTime(p.ar) * DAC_SR);
+    this.L1 = egLevel(p.d1l); this.c1 = decCoef(p.d1r); this.c2 = decCoef(p.d2r); this.cr = relCoef(p.rr);
+    this.gateN = p.gate > 0 ? Math.round(p.gate * DAC_SR / 1000) : 0; this.n = 0;
     const lv = clamp(p.level + (acc === 1 ? p.acc1 : acc === 2 ? p.acc2 : 0), 0, 31);
     this.gain = DAC_HEAD * levelGain(lv) * (vel / 127);
     this.fade = 1; this.active = this.len >= 2;
@@ -348,7 +347,7 @@ class Slot {
     if (this.bendC > 0){
       if (this.bendT > this.bend){ this.bend += this.bendC; if (this.bend >= this.bendT){ this.bend = this.bendT; this.bendC = 0; } }
       else { this.bend -= this.bendC; if (this.bend <= this.bendT){ this.bend = this.bendT; this.bendC = 0; } }
-      this.inc = this.incK * Math.pow(2, clamp(this.pitch + this.bend, -3600, 2400) / 1200);
+      this.inc = ROM_SR / DAC_SR * Math.pow(2, clamp(this.pitch + this.bend, -3600, 2400) / 1200);
     }
     this.pos += this.inc;
     if (this.pos >= L - 1){
@@ -566,7 +565,7 @@ export class Engine {
     this.K = Math.max(1, Math.round(192000 / sr)); this.dacInc = DAC_SR / (sr * this.K); this.dacPh = 0; this.tk = new Uint8Array(this.K);
     // src: the voice at full resolution (synthesized or user); roms: its quantized ROM words, requantized in place
     this.src = []; this.roms = []; this.user = new Array(NV).fill(null);
-    this.raw = new Array(NV).fill(null); this.rawSr = new Float64Array(NV);     // 'raw' path samples at their own rate
+    this.recData = new Uint8Array(NV);                                      // 1: the user sample is a recording of a real RX5 (opts.rec)
     for (let v = 0; v < NV; v++){ this.src.push(makeVoiceSample(v, ROM_SR)); this.roms.push(new Float32Array(this.src[v].length)); }
     this.cur = []; this.old = []; this.lp1 = []; this.lp2 = []; this.hp = [];
     const fo = sr * this.K, fc = Math.min(12000, .45 * fo);
@@ -612,8 +611,7 @@ export class Engine {
     if (type === 0){
       const ch = v % NCH, a = this.cur[ch], b = this.old[ch];
       if (a.active){ b.copyFrom(a); b.fade = 1; }
-      if (this.voices[v].path === 'raw' && this.raw[v]) a.start(v, this.raw[v], this.rawSr[v], this.sr, true, this.voices[v], this.qVel[k], this.qAcc[k]);
-      else a.start(v, this.roms[v], ROM_SR, DAC_SR, false, this.voices[v], this.qVel[k], this.qAcc[k]);
+      a.start(v, this.roms[v], this.voices[v], this.qVel[k], this.qAcc[k], this.isRec(v));
       this.on[ch] = 1;
     } else if (type === 1){
       const a = this.cur[v % NCH];
@@ -623,10 +621,16 @@ export class Engine {
       this.ckN = Math.round(.03 * this.sr); this.ckPh = 0; this.ckW = TWO_PI * f / this.sr; this.ckEnv = 1; this.ckA = this.qAcc[k] ? 1 : .6;
     }
   }
-  requant(v){ quantizeRom(this.src[v], this.voices[v].bits, this.dac, this.roms[v]); }
+  // path 'rec' on a recording: no 12-bit word (the recording already carries the real converter's); otherwise the ROM word
+  isRec(v){ return this.voices[v].path === 'rec' && this.recData[v] === 1; }
+  requant(v){ if (this.isRec(v)) this.roms[v].set(this.src[v]); else quantizeRom(this.src[v], this.voices[v].bits, this.dac, this.roms[v]); }
   cut(v){ const ch = v % NCH; if (this.cur[ch].v === v) this.cur[ch].active = false; if (this.old[ch].v === v) this.old[ch].active = false; }
   setVoiceParam(v, name, value){
-    if (name === 'path' && v >= 0 && v < NV){ if (this.voices[v].path !== (value === 'raw' ? 'raw' : 'rx')) this.cut(v); this.voices[v].path = value === 'raw' ? 'raw' : 'rx'; return; }
+    if (name === 'path' && v >= 0 && v < NV){
+      const x = value === 'rec' ? 'rec' : 'rx';
+      if (x !== this.voices[v].path){ this.voices[v].path = x; this.cut(v); this.requant(v); }
+      return;
+    }
     const r = RANGES.voice[name];
     if (!r || v < 0 || v >= NV || !Number.isFinite(+value)) return;
     let x = clamp(+value, r[0], r[1]);
@@ -652,15 +656,15 @@ export class Engine {
     this.mixMaster();
   }
   // user sample: linear resample to ROM_SR, quantized like the factory ROM (voice bits, DAC mode); null restores the synthesized voice.
-  // opts.raw: also keep the data as is at its own rate and set the voice's path to 'raw' (a recording that already went through a
-  // real RX5's DAC: played at sr / host rate * pitch ratio straight to the channel, past the ZOH, DAC filter and output stage).
-  // Without opts.raw the voice's raw data is dropped and its path set back to 'rx'.
+  // opts.rec: the data is a recording of a real RX5 (already through its DAC, filter and output stage, ideally at 25 kHz): the voice's
+  // path is set to 'rec' (no 12-bit requantize, no output-stage saturation; still the 50 kHz ZOH + reconstruction filter), and the
+  // ROM copy gets REC_EQ, which undoes this engine's playback droop (linear interpolation 25 -> 50 kHz, ZOH, 12 kHz filter) so the
+  // recording comes out with its own response at pitch 0. userSample(v) returns the data before REC_EQ. Without opts.rec: path 'rx'.
   setUserSample(v, data, sr, opts){
     if (v < 0 || v >= NV) return;
     this.cut(v);
-    const raw = !!(opts && opts.raw) && !!data && data.length >= 2 && sr > 0;
-    this.raw[v] = raw ? Float32Array.from(data, x => clamp(x, -1, 1)) : null; this.rawSr[v] = raw ? sr : 0;
-    this.voices[v].path = raw ? 'raw' : 'rx';
+    const rec = !!(opts && opts.rec) && !!data && data.length >= 2;
+    this.recData[v] = rec ? 1 : 0; this.voices[v].path = rec ? 'rec' : 'rx';
     if (!data || data.length < 2){ this.user[v] = null; this.src[v] = makeVoiceSample(v, ROM_SR); }
     else {
       const n = Math.max(2, Math.floor((data.length - 1) * ROM_SR / sr) + 1), out = new Float32Array(n), step = sr / ROM_SR;
@@ -668,12 +672,11 @@ export class Engine {
         const x = k * step, i = Math.floor(x), f = x - i, a = data[i], b = i + 1 < data.length ? data[i + 1] : a;
         out[k] = clamp(a + (b - a) * f, -1, 1);
       }
-      this.user[v] = out; this.src[v] = out;
+      this.user[v] = out; this.src[v] = rec ? recEq(out) : out;
     }
     this.roms[v] = new Float32Array(this.src[v].length); this.requant(v);
   }
   userSample(v){ return this.user[v] || null; }
-  rawSample(v){ return this.raw[v] ? {data:this.raw[v], sr:this.rawSr[v]} : null; }
   voiceActive(ch){ return Math.min(1, this.peak[ch] * 2.5); }
   meters(){ this.mtr.l = this.mL; this.mtr.r = this.mR; this.mL = 0; this.mR = 0; return this.mtr; }
   getState(){
@@ -694,29 +697,27 @@ export class Engine {
   // per channel: K oversampled DAC sub-steps (S&H update on DAC ticks, 3-pole LP), then HPF and the output stage
   channel(ch){
     const a = this.cur[ch], b = this.old[ch], f1 = this.lp1[ch], f2 = this.lp2[ch], tk = this.tk;
-    let h = this.held[ch], y = 0, d = 0;
+    let h = this.held[ch], y = 0;
     for (let k = 0; k < this.K; k++){
       if (tk[k]){
         h = 0;
-        if (a.active && !a.raw) h += a.tick();
-        if (b.active && !b.raw){ h += b.tick() * b.fade; b.fade -= b.fadeStep; if (b.fade <= 0) b.active = false; }
+        if (a.active) h += a.tick();
+        if (b.active){ h += b.tick() * b.fade; b.fade -= FADE_STEP; if (b.fade <= 0) b.active = false; }
       }
       y = f2.run(f1.run(h));
     }
     this.held[ch] = h;
-    // 'raw' slots: one tick per host sample, straight to the channel (the recording already passed a real DAC and output stage)
-    if (a.active && a.raw) d += a.tick();
-    if (b.active && b.raw){ d += b.tick() * b.fade; b.fade -= b.fadeStep; if (b.fade <= 0) b.active = false; }
     // op-amp output stage, rails at +-OUT_K:  o = OUT_K * u / (1 + |u|^2.5)^0.4,  u = x / OUT_K
+    // (a 'rec' voice already went through a real output stage: the latest note's slot decides, a.rec)
     const u = this.hp[ch].run(y) / OUT_K, au = Math.abs(u);
-    const o = OUT_K * u / Math.pow(1 + au * au * Math.sqrt(au), .4);
+    const o = a.rec ? OUT_K * u : OUT_K * u / Math.pow(1 + au * au * Math.sqrt(au), .4);
     if (!a.active && !b.active && h === 0){
       const hp = this.hp[ch];
       if (Math.abs(f1.x1) + Math.abs(f1.y1) + Math.abs(f2.z1) + Math.abs(f2.z2) + Math.abs(hp.x1) + Math.abs(hp.y1) < 1e-9){
         f1.reset(); f2.reset(); hp.reset(); this.on[ch] = 0;
       }
     }
-    return o + d;
+    return o;
   }
   process(outL, outR, n){
     const rv = this.revFx, dl = this.dlyFx, K = this.K;
