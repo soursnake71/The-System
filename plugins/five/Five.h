@@ -57,17 +57,6 @@ struct Biquad {
     double run(double x) { const double y = b0 * x + z1; z1 = b1 * x - a1 * y + z2; z2 = b2 * x - a2 * y; return y; }
     void reset() { z1 = 0; z2 = 0; }
 };
-struct SVF {
-    double sr, c1 = 0, c2 = 0, lp = 0, bp = 0, hp = 0, k = 1, a1 = 0, a2 = 0, a3 = 0;
-    SVF(double sr_, double f, double q) : sr(sr_) { set(f, q); }
-    void set(double f, double q) { const double g = std::tan(PI * clampd(f, 1, sr * .49) / sr); k = 1 / q; a1 = 1 / (1 + g * (g + k)); a2 = g * a1; a3 = g * a2; }
-    double run(double x) {
-        const double v3 = x - c2, v1 = a1 * c1 + a2 * v3, v2 = c2 + a2 * c1 + a3 * v3;
-        c1 = 2 * v1 - c1; c2 = 2 * v2 - c2;
-        lp = v2; bp = k * v1; hp = x - k * v1 - v2;
-        return bp;
-    }
-};
 
 // No drum is synthesized (repo rule): every voice is a sample (the factory kit of real RX5 recordings, or the user's own)
 // loaded with setUserSample(); a voice without one is silent.
@@ -406,13 +395,13 @@ public:
     double held[NCH] = {}; uint8_t on[NCH] = {}; double peak[NCH] = {};
     double gC[NCH] = {}, pL[NCH] = {}, pR[NCH] = {}, sRev[NCH] = {}, sDly[NCH] = {};
     double pkDec;
-    int qT[QMAX], qType[QMAX], qV[QMAX], qVel[QMAX], qAcc[QMAX]; double qPitch[QMAX]; int qN = 0;
+    int qT[QMAX], qType[QMAX], qV[QMAX], qVel[QMAX], qAcc[QMAX], qCh[QMAX]; double qPitch[QMAX]; int qN = 0;
     Rev7 revFx; TcDelay dlyFx;
     double ckN = 0, ckPh = 0, ckW = 0, ckEnv = 0, ckDec, ckA = 1;
     double mL = 0, mR = 0;
     VoiceParams voices[NV]; ChannelParams channels[NCH]; double volume = 1, click = .5;
     double volG = 1, clkG = 0;
-    float chOut[NCH] = {};   // the last sample of each channel after its fader (individual outputs; not in engine.js)
+    uint8_t direct[NCH] = {};   // 1: the channel goes only to its individual output (not in engine.js; sends still apply)
 
     explicit Engine(double sr_, bool floatDac = false) : sr(sr_ > 0 ? sr_ : 48000), dacFloat(floatDac), revFx(sr), dlyFx(sr) {
         K = (int) std::max(1.0, jsround(192000 / sr)); dacInc = DAC_SR / (sr * K); tk.assign((size_t) K, 0);
@@ -434,28 +423,28 @@ public:
     void mixMaster() { volG = volume * volume; clkG = click * click * .5; }
 
     /* ---------------- control ---------------- */
-    void push(int type, int v, int vel, int acc, double time, double pitchOff = 0) {
+    void push(int type, int v, int vel, int acc, double time, double pitchOff = 0, int ch = -1) {
         if (qN >= QMAX) return;
         const int k = qN++;
-        qPitch[k] = pitchOff; qType[k] = type; qV[k] = v; qVel[k] = vel; qAcc[k] = acc; qT[k] = (int) std::max(0.0, std::floor(time));
+        qPitch[k] = pitchOff; qCh[k] = ch; qType[k] = type; qV[k] = v; qVel[k] = vel; qAcc[k] = acc; qT[k] = (int) std::max(0.0, std::floor(time));
     }
-    // pitchOff (cents, not in engine.js): Tunable Note mode and key-assign set-ups
-    void trigger(int v, double vel = 127, int accent = 0, double time = 0, double pitchOff = 0) {
+    // pitchOff (cents, not in engine.js): Tunable Note mode and key-assign set-ups; ch: the output channel 0..11
+    // (key assign OUTPUT CH), default the voice's own, v % 12
+    void trigger(int v, double vel = 127, int accent = 0, double time = 0, double pitchOff = 0, int ch = -1) {
         if (v < 0 || v >= NV || !(vel > 0)) return;
-        push(0, v, (int) clampd(jsround(vel), 1, 127), (int) clampd(accent, 0, 2), time, pitchOff);
+        push(0, v, (int) clampd(jsround(vel), 1, 127), (int) clampd(accent, 0, 2), time, pitchOff, ch >= 0 && ch < NCH ? ch : -1);
     }
     void release(int v, double time = 0) { if (v >= 0 && v < NV) push(1, v, 0, 0, time); }
     void clickTick(bool accented, double time = 0) { push(2, 0, 0, accented ? 1 : 0, time); }
     void fire(int k) {
         const int type = qType[k], v = qV[k];
         if (type == 0) {
-            const int ch = v % NCH; Slot& a = cur[ch]; Slot& b = old[ch];
+            const int ch = qCh[k] >= 0 ? qCh[k] : v % NCH; Slot& a = cur[ch]; Slot& b = old[ch];
             if (a.active) { b = a; b.fade = 1; }
             a.start(v, roms[v], voices[v], qVel[k], qAcc[k], isRec(v), qPitch[k]);
             on[ch] = 1;
         } else if (type == 1) {
-            Slot& a = cur[v % NCH];
-            if (a.active && a.v == v) a.stage = 3;
+            for (int ch = 0; ch < NCH; ch++) { Slot& a = cur[ch]; if (a.active && a.v == v) a.stage = 3; }
         } else {
             const double f = qAcc[k] ? 2000 : 1000;
             ckN = jsround(.03 * sr); ckPh = 0; ckW = TWO_PI * f / sr; ckEnv = 1; ckA = qAcc[k] ? 1 : .6;
@@ -464,7 +453,7 @@ public:
     bool isRec(int v) const { return voices[v].rec && recData[v] == 1; }
     void requant(int v) { if (isRec(v)) roms[v] = src[v]; else quantizeRom(src[v], (int) voices[v][vBits], dacFloat, roms[v]); }
     void setPath(int v, bool rec) { if (v < 0 || v >= NV) return; if (rec != voices[v].rec) { voices[v].rec = rec; cut(v); requant(v); } }
-    void cut(int v) { const int ch = v % NCH; if (cur[ch].v == v) cur[ch].active = false; if (old[ch].v == v) old[ch].active = false; }
+    void cut(int v) { for (int ch = 0; ch < NCH; ch++) { if (cur[ch].v == v) cur[ch].active = false; if (old[ch].v == v) old[ch].active = false; } }
     void setVoiceParam(int v, int k, double value) {
         if (k < 0 || k >= vCount || v < 0 || v >= NV || !std::isfinite(value)) return;
         double x = clampd(value, VOICE_RANGES[k][0], VOICE_RANGES[k][1]);
@@ -500,6 +489,30 @@ public:
             user[v] = out; hasUser[v] = true; src[v] = rec ? recEq(out) : out;
         }
         roms[v].assign(src[v].size(), 0.f); requant(v);
+    }
+    // the same as setUserSample, in two steps for the plugin: prepare() resamples (allocates, any thread, no engine
+    // state touched), install() swaps the buffers in (no allocation; the old ones come back in `p` to be freed later)
+    struct Prepared { std::vector<float> user, src, rom; bool rec = false, ok = false; };
+    static Prepared prepare(const float* data, size_t length, double ssr, bool rec, int bits, bool floatDac) {
+        Prepared p; p.rec = rec && data && length >= 2; p.ok = data && length >= 2;
+        if (p.ok) {
+            const size_t n = (size_t) std::max(2.0, std::floor((length - 1) * (double) ROM_SR / ssr) + 1); p.user.resize(n); const double step = ssr / ROM_SR;
+            for (size_t k = 0; k < n; k++) {
+                const double x = k * step, fi = std::floor(x); const size_t i = (size_t) fi; const double f = x - fi, a = data[i], b = i + 1 < length ? data[i + 1] : a;
+                p.user[k] = (float) clampd(a + (b - a) * f, -1, 1);
+            }
+            p.src = p.rec ? recEq(p.user) : p.user;
+        }
+        if (p.rec) p.rom = p.src; else quantizeRom(p.src, bits, floatDac, p.rom);
+        return p;
+    }
+    void install(int v, Prepared& p) {
+        if (v < 0 || v >= NV) return;
+        cut(v);
+        recData[v] = p.rec ? 1 : 0; voices[v].rec = p.rec; hasUser[v] = p.ok;
+        std::swap(user[v], p.user); std::swap(src[v], p.src); std::swap(roms[v], p.rom);
+        // prepared with other bits / DAC settings than the voice has now: requantize in place (same length, no allocation)
+        if (!isRec(v) && roms[v].size() == src[v].size()) quantizeRom(src[v], (int) voices[v][vBits], dacFloat, roms[v]);
     }
     double voiceActive(int ch) const { return std::min(1.0, peak[ch] * 2.5); }
 
@@ -538,7 +551,8 @@ public:
                 if (on[ch]) {
                     o = channel(ch) * gC[ch];
                     const double l = o * pL[ch], r = o * pR[ch];
-                    dLs += l; dRs += r; sRv += o * sRev[ch]; sDL += l * sDly[ch]; sDR += r * sDly[ch];
+                    if (!direct[ch]) { dLs += l; dRs += r; }
+                    sRv += o * sRev[ch]; sDL += l * sDly[ch]; sDR += r * sDly[ch];
                 }
                 const double ao = std::fabs(o); peak[ch] = ao > peak[ch] ? ao : peak[ch] * pkDec;
                 if (aux && aux[ch]) aux[ch][i] = (float) o;
@@ -553,7 +567,7 @@ public:
         if (qN) {
             int m = 0;
             for (int k = 0; k < qN; k++) if (qT[k] >= n) {
-                qT[m] = qT[k] - n; qPitch[m] = qPitch[k]; qType[m] = qType[k]; qV[m] = qV[k]; qVel[m] = qVel[k]; qAcc[m] = qAcc[k]; m++;
+                qT[m] = qT[k] - n; qPitch[m] = qPitch[k]; qCh[m] = qCh[k]; qType[m] = qType[k]; qV[m] = qV[k]; qVel[m] = qVel[k]; qAcc[m] = qAcc[k]; m++;
             }
             qN = m;
         }

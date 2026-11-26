@@ -67,9 +67,9 @@ inline juce::var patternToVar(const Pattern& p) {
 inline Pattern patternFromVar(const juce::var& p, int i) {
     Pattern q = newPattern(i);
     if (!p.isObject()) return q;
-    q.name = getS(p, "name", q.name).toStdString(); q.beats = clampInt(getD(p, "beats", 4), 1, 32, 4);
-    const int u = (int) getD(p, "unit", 4); q.unit = u == 4 || u == 8 || u == 16 ? u : 4;
-    q.bars = clampInt(getD(p, "bars", 1), 1, 99, 1); q.swing = clampInt(getD(p, "swing", 50), 50, 75, 50);
+    q.name = getS(p, "name", q.name).toStdString(); q.beats = clampInt(getD(p, "beats", 4), 1, BEATS_MAX, 4);
+    q.unit = cleanUnit(getD(p, "unit", 4));
+    q.bars = clampInt(getD(p, "bars", 1), 1, BARS_MAX, 1); q.swing = snapSwing(getD(p, "swing", 50));
     if (auto* a = p["volume"].getArray()) for (int c = 0; c < NCH && c < a->size(); c++) q.volume[(size_t) c] = clampInt((double) (*a)[c], 0, 31, 31);
     const int len = patLen(q);
     if (auto* a = p["events"].getArray()) for (const auto& e : *a) {
@@ -165,6 +165,7 @@ inline juce::var stateToVar(const State& s) {
     for (const auto& v : s.voice) voice.add(voiceToVar(v));
     for (const auto& c : s.channel) channel.add(channelToVar(c));
     put(o, "voice", voice); put(o, "channel", channel);
+    { juce::Array<juce::var> w; for (int id : s.wave) w.add(id >= 0 ? juce::var(id) : juce::var()); put(o, "wave", w); }
     { auto fx = obj(), r = obj(), d = obj(); for (int k = 0; k < rCount; k++) put(r, REV_PARAM_NAMES[k], num(s.rev[(size_t) k])); for (int k = 0; k < dCount; k++) put(d, DLY_PARAM_NAMES[k], num(s.dly[(size_t) k])); put(fx, "rev", r); put(fx, "dly", d); put(o, "fx", fx); }
     return o;
 }
@@ -209,11 +210,12 @@ inline State stateFromVar(const juce::var& src) {
     { const auto sy = getS(src, "sync", "int"); if (sy == "int" || sy == "midi" || sy == "tape" || sy == "ext") s.sync = sy.toStdString(); }
     if (has(src, "tempo") && getD(src, "tempo", 0) != 0) s.tempo = clampd(getD(src, "tempo", 120), 40, 250);
     if (has(src, "quantize")) s.quantize = clampInt(getD(src, "quantize", Q_1_16), 0, NUM_QUANTIZE - 1, Q_1_16);
-    if (has(src, "swing")) s.swing = clampInt(getD(src, "swing", 50), 50, 75, 50);
+    if (has(src, "swing")) s.swing = snapSwing(getD(src, "swing", 50));
     if (src["click"].isObject()) { s.clickOn = has(src["click"], "on") && (bool) src["click"]["on"]; s.clickLevel = clampd(getD(src["click"], "level", .5), 0, 1); }
     if (has(src, "volume")) s.volume = clampd(getD(src, "volume", 0), 0, 1);
     if (auto* a = src["voice"].getArray()) for (int v = 0; v < NV && v < a->size(); v++) if ((*a)[v].isObject()) s.voice[(size_t) v] = voiceFromVar((*a)[v], v);
     if (auto* a = src["channel"].getArray()) for (int c = 0; c < NCH && c < a->size(); c++) if ((*a)[c].isObject()) s.channel[(size_t) c] = channelFromVar((*a)[c], c);
+    if (auto* a = src["wave"].getArray()) for (int v = 0; v < NV && v < a->size(); v++) { const auto& x = (*a)[v]; s.wave[(size_t) v] = x.isVoid() || x.isUndefined() ? -1 : (x.isInt() || x.isInt64() || x.isDouble()) ? clampInt((double) x, -1, 255, -1) : -1; }
     if (src["fx"].isObject()) {
         const auto& r = src["fx"]["rev"]; const auto& d = src["fx"]["dly"];
         if (r.isObject()) {
@@ -229,33 +231,62 @@ inline State stateFromVar(const juce::var& src) {
     return s;
 }
 
+inline juce::String pcm16(const std::vector<float>& d) {
+    std::vector<uint8_t> b(d.size() * 2);
+    for (size_t i = 0; i < d.size(); i++) { const int16_t v = (int16_t) jsround(clampd(d[i], -1, 1) * 32767); b[2 * i] = (uint8_t) (v & 255); b[2 * i + 1] = (uint8_t) ((v >> 8) & 255); }
+    return juce::String(b64encode(b.data(), b.size()));
+}
+inline std::vector<float> fromPcm16(const juce::var& x) {
+    const auto b = b64decode(x.toString().toStdString()); std::vector<float> d(b.size() / 2);
+    for (size_t i = 0; i < d.size(); i++) d[i] = (float) ((int16_t) (b[2 * i] | b[2 * i + 1] << 8) / 32767.0);
+    return d;
+}
 inline juce::var samplesToVar(const State& s) {
     juce::Array<juce::var> a;
     for (const auto& x : s.samples) {
         if (x.data.empty()) { a.add(juce::var()); continue; }
-        std::vector<uint8_t> b(x.data.size() * 2);
-        for (size_t i = 0; i < x.data.size(); i++) { const int16_t v = (int16_t) jsround(clampd(x.data[i], -1, 1) * 32767); b[2 * i] = (uint8_t) (v & 255); b[2 * i + 1] = (uint8_t) ((v >> 8) & 255); }
-        auto o = obj(); put(o, "name", juce::String(x.name)); put(o, "sr", num(x.sr)); put(o, "length", (int) x.data.size()); put(o, "pcm16", juce::String(b64encode(b.data(), b.size()))); a.add(o);
+        auto o = obj(); put(o, "name", juce::String(x.name)); put(o, "sr", num(x.sr)); put(o, "length", (int) x.data.size()); put(o, "pcm16", pcm16(x.data));
+        if (x.lib >= 0) put(o, "lib", x.lib);
+        a.add(o);
     }
     return a;
 }
 inline void samplesFromVar(const juce::var& list, State& s) {
     if (auto* a = list.getArray()) for (int v = 0; v < NV && v < a->size(); v++) {
         const auto& x = (*a)[v]; if (!x.isObject() || !has(x, "pcm16")) continue;
-        const auto b = b64decode(x["pcm16"].toString().toStdString()); auto& d = s.samples[(size_t) v];
+        auto& d = s.samples[(size_t) v];
         d.name = getS(x, "name", "").toStdString(); d.sr = getD(x, "sr", 44100); if (!(d.sr > 0)) d.sr = 44100;
-        d.data.resize(b.size() / 2); for (size_t i = 0; i < d.data.size(); i++) d.data[i] = (float) ((int16_t) (b[2 * i] | b[2 * i + 1] << 8) / 32767.0);
+        d.data = fromPcm16(x["pcm16"]); d.lib = has(x, "lib") ? (int) getD(x, "lib", -1) : -1;
+    }
+}
+// the cartridge library (a loaded kit): [{id, name, kind, sr, length, pcm16, file, source}]
+inline juce::var libraryToVar(const State& s) {
+    juce::Array<juce::var> a;
+    for (const auto& w : s.library) {
+        auto o = obj(); put(o, "id", w.id); put(o, "name", juce::String(w.name)); put(o, "kind", juce::String(w.kind)); put(o, "sr", num(w.sr));
+        put(o, "length", (int) w.data.size()); put(o, "pcm16", pcm16(w.data)); put(o, "file", juce::String(w.file)); put(o, "source", juce::String(w.source)); a.add(o);
+    }
+    return a;
+}
+inline void libraryFromVar(const juce::var& list, State& s) {
+    s.library.clear();
+    if (auto* a = list.getArray()) for (const auto& x : *a) {
+        if (!x.isObject() || !has(x, "pcm16")) continue;
+        LibWave w; w.id = (int) getD(x, "id", 0); w.name = getS(x, "name", "").toStdString(); w.kind = getS(x, "kind", "user").toStdString();
+        w.sr = getD(x, "sr", 25000); if (!(w.sr > 0)) w.sr = 25000; w.file = getS(x, "file", "").toStdString(); w.source = getS(x, "source", "").toStdString();
+        w.data = fromPcm16(x["pcm16"]); s.library.push_back(std::move(w));
     }
 }
 inline juce::var cartToVar(const State& s) {
-    auto o = obj(); put(o, "format", "omega-five-cart"); put(o, "version", CART_VERSION); put(o, "state", stateToVar(s)); put(o, "samples", samplesToVar(s)); return o;
+    auto o = obj(); put(o, "format", "omega-five-cart"); put(o, "version", CART_VERSION); put(o, "state", stateToVar(s)); put(o, "samples", samplesToVar(s));
+    put(o, "library", libraryToVar(s)); return o;
 }
 // throws std::runtime_error on a bad cart
 inline State cartFromVar(juce::var o) {
     if (!o.isObject()) throw std::runtime_error("not an Omega Five cartridge");
     if (o["format"].toString() != "omega-five-cart") { auto w = obj(); put(w, "format", "omega-five-cart"); put(w, "version", 0); put(w, "state", o); put(w, "samples", o["samples"]); o = w; }
     if (getD(o, "version", 0) > CART_VERSION) throw std::runtime_error("cartridge version is newer than this plugin");
-    State s = stateFromVar(o["state"]); samplesFromVar(o["samples"], s);
+    State s = stateFromVar(o["state"]); samplesFromVar(o["samples"], s); libraryFromVar(o["library"], s);
     return s;
 }
 inline juce::String cartJSON(const State& s) { return juce::JSON::toString(cartToVar(s), true); }

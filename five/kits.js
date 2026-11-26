@@ -17,8 +17,9 @@
 //
 // Bitwig Drum Machine presets (.bwpreset = a 'BtWg' binary object stream followed by a ZIP with samples/): the
 // per-pad data is decoded from the stream: pad key (PADnn / field 0x08e5), pad name, sample path, and every float
-// parameter (tag 0x07 + big-endian double): GAIN, OUTPUT, VOLUME, PANORAMA, TRANSPOSE, AMP_* etc. The units of
-// GAIN/OUTPUT (linear factor in the files seen, 1.0 = unity) are not documented, so they are reported, not applied.
+// parameter (tag 0x07 + big-endian double): GAIN, OUTPUT, VOLUME, PANORAMA, TRANSPOSE, AMP_* etc. The units are not
+// documented; GAIN is a linear factor in the files seen (1.0 = unity) and loadKit applies it to the pad's sample
+// (opts.padGain:false keeps the samples as they are); the others are reported, not applied.
 
 /* ======================================================================================================== bytes */
 const u8 = (b) => b instanceof Uint8Array ? b : ArrayBuffer.isView(b) ? new Uint8Array(b.buffer, b.byteOffset, b.byteLength) : new Uint8Array(b);
@@ -400,7 +401,7 @@ async function expandInputs(input, warnings){
 /**
  * Builds a kit from audio files or a ZIP / .bwpreset.
  * input: [{name, bytes}] (WAV, AIFF, ZIP or .bwpreset; zips are expanded) | zip bytes (Uint8Array/ArrayBuffer).
- * opts: {trim:true (cut leading/trailing silence), keepRate:false (true: keep the file's rate instead of 25 kHz),
+ * opts: {trim:true (cut leading/trailing silence), keepRate:false (true: keep the file's rate instead of 25 kHz), padGain:true (apply Bitwig pad GAIN),
  *        voiceFiles: [24 file names] (force the voice assignment, e.g. engine.js FACTORY_MAP), name, source}
  * -> {name, waveforms:[{id, name, kind:'int'|'crt'|'user', sr, data, native, source, file, v?, cart?, pad?}],
  *     assignments:[{v, libIndex, id}], pads, report:{rows:[...], warnings:[...]}}
@@ -445,7 +446,10 @@ export async function loadKit(input, opts = {}){
     const kind = it.v >= 0 ? 'int' : w ? 'crt' : 'user';
     const native = it.sr === NATIVE_SR;
     const name = w ? w.name : it.file.replace(/\.[a-z0-9]+$/i, '').replace(/[\s_\-.]*rx[\s_\-]*5$/i, '').slice(0, 6);
-    const wf = {id: it.id, name, kind, sr: it.sr, data: it.data, native, file: it.file, source: opts.source || presetName || ''};
+    // the pad's GAIN (linear) scales its sample; the engine clamps the result to +-1
+    const g = it.pad ? +it.pad.params.GAIN : NaN, gain = opts.padGain !== false && Number.isFinite(g) && g > 0 && g !== 1 ? Math.min(g, 8) : 1;
+    const data = gain === 1 ? it.data : Float32Array.from(it.data, (x) => x * gain);
+    const wf = {id: it.id, name, kind, sr: it.sr, data, native, file: it.file, source: opts.source || presetName || ''};
     if (it.v >= 0) wf.v = it.v;
     if (kind === 'crt') wf.cart = w.cart;
     if (it.pad) wf.pad = {note: it.pad.note, name: it.pad.name, gain: it.pad.params.GAIN, output: it.pad.params.OUTPUT, volume: it.pad.params.VOLUME,
@@ -454,7 +458,7 @@ export async function loadKit(input, opts = {}){
     if (it.v >= 0) assignments.push({v: it.v, libIndex, id: it.id});
     rows.push({file: it.file, id: it.id, kind, name, v: it.v, how: it.v < 0 ? 'lib' : it.how, native, srIn: it.audio.sr, sr: it.sr, bits: it.audio.bits, channels: it.audio.channels,
       secs: +(it.data.length / it.sr).toFixed(3), leadMs: +(it.lead * 1000 / it.audio.sr).toFixed(2), note: it.pad ? it.pad.note : null,
-      gain: it.pad ? it.pad.params.GAIN : null});
+      gain: it.pad ? it.pad.params.GAIN : null, gainApplied: gain});
   }
   assignments.sort((a, b) => a.v - b.v);
   const missing = [];

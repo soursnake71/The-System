@@ -1,14 +1,22 @@
-# Omega Five: what's left (handoff for the next session)
+# Omega Five: status
 
-Work directly, no agent swarm (usage).
+Done (this file used to be the handoff list):
 
-1. Check `node five/tools/test.mjs` is green (one rx test was edited at the end: device OFF refuses Yamaha bulk).
-2. VST3/AU/Standalone plugin (`plugins/five/`): `Five.h` and `FiveSeq.h` are partial C++ ports written before the
-   engine went samples-only. Remove `makeVoiceSample` from `Five.h`/`test.cpp` and mirror engine.js
-   (empty voices, `FACTORY_MAP`, `path 'rx'|'rec'`, `REC_EQ`, `isRec`, slot `rec` flag, output stage).
-   Then write FivePlugin/FiveEditor (faceplate like five/index.html, fixed aspect, resizable), embed five/kit/*.wav
-   with juce_add_binary_data, add the OmegaFive block + `five_test` to plugins/CMakeLists.txt, and
-   `five/tools/compare.mjs` (five_test vs render.mjs, loading five/kit). JUCE: fetch 8.0.4 (CMake does it).
-3. `.github/workflows/five-release.yml` expects target OmegaFive and `five_test`; it fails until step 2 is done.
-4. Small gaps: the cart file doesn't save `state.library`; per-voice waveform picks aren't in the cart;
-   key-assign output channel only affects live pads; no folder picker for LOAD KIT; Bitwig pad GAIN not applied.
+1. `node five/tools/test.mjs` is green (engine, seq, rx, kit; the kit test also checks `kit/kit.json`'s library table).
+2. Plugin (`plugins/five/`): `Five.h` mirrors engine.js (samples only, `FACTORY_MAP`, `rec` path, `REC_EQ`, output stage) and
+   renders bit-identical output (`node five/tools/compare.mjs <build>/five_test <dir>`). `FivePlugin` / `FiveEditor` are the
+   processor and the faceplate (fixed aspect, resizable) with the app's menus; the factory kit is compiled in
+   (`juce_add_binary_data`). `FiveSeq.h` / `FiveSysex.h` / `FiveCart.h` match the JS (`node five/tools/interop.mjs
+   <build>/five_seq_test_artefacts/Release/five_seq_test <dir>`), and `five_proc_test` drives the processor and panel.
+   `plugins/tools/hosttest/five.cpp` loads the built .vst3 like a DAW.
+3. `.github/workflows/five-release.yml` builds OmegaFive and runs the three test programs on Linux.
+4. Small gaps closed: the cartridge saves the kit library (`library`, PCM like `samples`) and the per-voice waveform picks
+   (`state.wave`, was UI-only `U.wave`); key assign OUTPUT CH applies to sequenced and MIDI notes too (engine `trigger(.., ch)`,
+   seq.js `outChannel`); LOAD KIT can pick a folder (CART 25, NO toggles files / folder); Bitwig pad GAIN is applied to the
+   pad's sample (`loadKit(.., {padGain:false})` to skip).
+
+Known differences between the plugin and the app:
+- The plugin's LOAD KIT reads a folder, .zip or WAV/AIFF files, not .bwpreset.
+- Key assign LEVEL / ATTACK / DECAY offsets and MULTI STEP level/attack/decay apply in the app only; the plugin applies the
+  key's voice, pitch and output channel (MULTI STEP pitch too).
+- EG VELOCITY (MIDI 06) is stored but not applied in either.

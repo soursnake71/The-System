@@ -31,6 +31,16 @@ static const int GM_EXTRA_NOTE[3] = { 44, 57, 82 }, GM_EXTRA_VOICE[3] = { 7, 9, 
 constexpr int TUNABLE_LO = 36, TUNABLE_HI = 96, TUNABLE_CENTER = 60;
 
 inline int clampInt(double x, int lo, int hi, int d) { return std::isfinite(x) ? (int) clampd(jsround(x), lo, hi) : d; }
+// swing: OFF (50) or the five hardware settings; anything else snaps to the nearest (seq.js snapSwing)
+static const int SWING_VALUES[6] = { 50, 54, 58, 63, 67, 71 };
+inline int snapSwing(double v) {
+    if (!std::isfinite(v) || v <= 52) return 50;
+    int best = 50; for (int s : SWING_VALUES) if (std::fabs(s - v) < std::fabs(best - v)) best = s; return best;
+}
+// time signature: numerator 1..99, denominator one of TS_UNITS (seq.js)
+static const int TS_UNITS[8] = { 2, 4, 6, 8, 12, 16, 24, 32 };
+constexpr int BEATS_MAX = 99, BARS_MAX = 99;
+inline int cleanUnit(double u, int d = 4) { for (int x : TS_UNITS) if (u == x) return x; return d; }
 inline std::string pad2(int n) { std::string s = std::to_string(n); return s.size() < 2 ? "0" + s : s; }
 
 /* ---------------- memory ---------------- */
@@ -72,7 +82,9 @@ struct MidiSettings {
     int deviceNo = 1; bool tunable = false; int tunableVoice = 0, egVel = 0, gateMs = 10; bool activeSense = true, songSelect = true;
 };
 struct RxBulk { bool present = false; std::string received, status; std::vector<std::string> messages; long long bytes = 0; int count = 0; };
-struct UserSample { std::string name; double sr = 44100; std::vector<float> data; };
+struct UserSample { std::string name; double sr = 44100; std::vector<float> data; int lib = -1; };   // lib: the library waveform it came from
+// a waveform in the cartridge library (a loaded kit; the factory recordings are built in and not stored)
+struct LibWave { int id = 0; std::string name, kind = "user", file, source; double sr = 25000; std::vector<float> data; };
 
 struct State {
     int version = CART_VERSION;
@@ -82,7 +94,9 @@ struct State {
     bool clickOn = false; double clickLevel = .5; double volume = 1;
     // engine parameters (seq.js keeps these as opaque engine-state pieces: state.voice[v], state.channel[ch], state.fx)
     std::array<VoiceParams, NV> voice; std::array<ChannelParams, NCH> channel; std::array<double, rCount> rev; std::array<double, dCount> dly;
-    std::array<UserSample, NV> samples;   // empty data = the internal voice
+    std::array<UserSample, NV> samples;   // empty data = the voice plays its library waveform (wave[v]) or its factory one
+    std::array<int, NV> wave;             // EDIT VOICE WAVEFORM: the factory/library waveform id each voice plays, -1 = its own
+    std::vector<LibWave> library;         // the waveforms of the last loaded kit (state.library in the app)
     State() {
         for (int i = 0; i < NUM_PATTERNS; i++) patterns[(size_t) i] = newPattern(i);
         for (int i = 0; i < NUM_SONGS; i++) songs[(size_t) i] = newSong(i);
@@ -92,6 +106,7 @@ struct State {
         for (int v = 0; v < NV; v++) voice[(size_t) v] = voiceDefault(v);
         for (int c = 0; c < NCH; c++) channel[(size_t) c] = channelDefault(c);
         std::copy(REV_DEFAULTS, REV_DEFAULTS + rCount, rev.begin()); std::copy(DLY_DEFAULTS, DLY_DEFAULTS + dCount, dly.begin());
+        wave.fill(-1);
     }
 };
 
@@ -142,9 +157,9 @@ inline int stepDelete(State& st, int pn, int t, int v = -1) { return deleteEvent
 inline void clearPattern(State& st, int pn) { Pattern& p = st.patterns[(size_t) pn]; const std::string name = p.name; p = newPattern(pn); p.name = name; p.swing = st.swing; }
 inline void copyPattern(State& st, int src, int dst) { if (src != dst) st.patterns[(size_t) dst] = st.patterns[(size_t) src]; }
 inline void trimPattern(Pattern& p) { const int len = patLen(p); p.events.erase(std::remove_if(p.events.begin(), p.events.end(), [&](const Event& e) { return e.t >= len; }), p.events.end()); }
-inline void setBeats(State& st, int pn, int beats, int unit) { Pattern& p = st.patterns[(size_t) pn]; p.beats = clampInt(beats, 1, 32, 4); p.unit = unit == 4 || unit == 8 || unit == 16 ? unit : 4; trimPattern(p); }
-inline void setBars(State& st, int pn, int bars) { Pattern& p = st.patterns[(size_t) pn]; p.bars = clampInt(bars, 1, 99, 1); trimPattern(p); }
-inline void setSwing(State& st, int pn, int swing) { st.patterns[(size_t) pn].swing = clampInt(swing, 50, 75, 50); }
+inline void setBeats(State& st, int pn, int beats, int unit) { Pattern& p = st.patterns[(size_t) pn]; p.beats = clampInt(beats, 1, BEATS_MAX, 4); p.unit = cleanUnit(unit, p.unit); trimPattern(p); }
+inline void setBars(State& st, int pn, int bars) { Pattern& p = st.patterns[(size_t) pn]; p.bars = clampInt(bars, 1, BARS_MAX, 1); trimPattern(p); }
+inline void setSwing(State& st, int pn, int swing) { st.patterns[(size_t) pn].swing = snapSwing(swing); }
 inline bool songInsertStep(State& st, int sn, int idx, const SongStep& step) {
     auto& steps = st.songs[(size_t) sn].steps;
     if ((int) steps.size() >= SONG_MAX) return false;
@@ -254,13 +269,14 @@ public:
     // host transport follower
     bool hostLocked = false; long long hostNext = 0;
     bool clockTicks = false;   // also emit {v:-2} on every tick
+    int cue = -1;              // pattern mode: the pattern that takes over at the end of the playing one (plugin; the app's worklet does this itself)
 
     explicit Player(State* s = nullptr) : st(s) { if (s) tempo = s->tempo; }
     void setState(State* s) { st = s; hasCursor = false; mode = PatternMode; n = 0; running = false; rewind(); }
     void setMode(Mode m, int num = 0) { mode = m; n = num; rewind(); }
     void setExternal(bool on) { ext = on; }
     bool rewind() {
-        tick = 0; cur = -1; pass = 0; wait = 0; ended = false; nSkip = 0;
+        tick = 0; cur = -1; pass = 0; wait = 0; ended = false; nSkip = 0; cue = -1;
         if (mode == PatternMode) { hasCursor = false; pat = clampInt(n, 0, NUM_PATTERNS - 1, 0); tempo = st->tempo; return true; }
         cursor.init(*st, mode == ChainMode, n); hasCursor = true;
         const int first = cursor.next();
@@ -329,6 +345,7 @@ public:
         Pattern* p = &st->patterns[(size_t) pat];
         if (tick >= patLen(*p)) {
             pass++; tick = 0;
+            if (!hasCursor && cue >= 0) { pat = n = clampInt(cue, 0, NUM_PATTERNS - 1, 0); cue = -1; p = &st->patterns[(size_t) pat]; }
             if (hasCursor) {
                 const int r = cursor.next();
                 if (r < 0) { running = false; ended = true; return; }
@@ -501,7 +518,7 @@ inline std::string randomize(State& st, uint32_t seed, const std::string& scope 
     int gi = -1; for (size_t k = 0; k < G.size(); k++) if (forceGenre == G[k].name) gi = (int) k;
     if (gi < 0) gi = R.i(0, (int) G.size() - 1);
     const Genre& g = G[(size_t) gi]; const std::string genre = g.name;
-    const int swing = (int) jsround(R.r(g.swing[0], g.swing[1]));
+    const int swing = snapSwing(R.r(g.swing[0], g.swing[1]));
     if (scope == "voices" || scope == "all") for (int v = 0; v < NV; v++) randomVoice(R, v, st.voice[(size_t) v]);
     if (scope == "fx" || scope == "all") { randomRev(R, st.rev); randomDly(R, st.dly); }
     if (scope == "all") for (int ch = 0; ch < NCH; ch++) randomChannel(R, ch, st.channel[(size_t) ch]);
@@ -553,8 +570,10 @@ inline int noteVoices(const State& st, int note, int* out, double* pitch) {
     if (!n && isGmMap(st.noteMap)) for (int k = 0; k < 3; k++) if (GM_EXTRA_NOTE[k] == note) { out[0] = GM_EXTRA_VOICE[k]; pitch[0] = 0; n = 1; }
     return n;
 }
+// device number 0 = OFF: Yamaha bulk refused, universal messages only for the 7F broadcast ID (seq.js sysexDeviceOk)
 inline bool sysexDeviceOk(const uint8_t* msg, size_t len, int deviceNo) {
-    if (!deviceNo || len < 3) return true;
+    if (len < 3) return true;
+    if (!deviceNo) return msg[1] == 0x43 ? false : (msg[1] == 0x7E || msg[1] == 0x7F) ? msg[2] == 0x7F : true;
     if (msg[1] == 0x43) return (msg[2] & 0x0F) == ((deviceNo - 1) & 0x0F);
     if (msg[1] == 0x7E || msg[1] == 0x7F) return msg[2] == 0x7F || msg[2] == ((deviceNo - 1) & 0x7F);
     return true;

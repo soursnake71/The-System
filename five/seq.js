@@ -155,7 +155,9 @@ export function newState() {
     voice: Array.from({ length: NUM_VOICES }, () => ({})),
     channel: Array.from({ length: NUM_CHANNELS }, () => ({})),
     fx: { rev: {}, dly: {} },
-    samples: new Array(NUM_VOICES).fill(null), // null | {name, sr, data: Float32Array}
+    samples: new Array(NUM_VOICES).fill(null), // null | {name, sr, data: Float32Array, lib?: library id it came from}
+    wave: new Array(NUM_VOICES).fill(null),    // EDIT VOICE WAVEFORM: the library/factory waveform id each voice plays (null = its own)
+    library: [],            // the last loaded kit's waveforms (kits.js applyKit): [{id, name, kind, sr, data: Float32Array, native, source, file}]
   };
 }
 
@@ -759,30 +761,47 @@ async function pipeBytes(u8, ts) {
 
 // ---------------------------------------------------------------- cartridge
 
+function toPcm16(data) {
+  const pcm = new Int16Array(data.length);
+  for (let i = 0; i < pcm.length; i++) pcm[i] = Math.round(clamp(data[i], -1, 1) * 32767);
+  return b64encode(new Uint8Array(pcm.buffer));
+}
+function fromPcm16(s) {
+  const b = b64decode(s), n = b.length >> 1, dv = new DataView(b.buffer, b.byteOffset, b.length), data = new Float32Array(n);
+  for (let i = 0; i < n; i++) data[i] = dv.getInt16(i * 2, true) / 32767;
+  return data;
+}
 function samplesToCart(samples) {
   return (samples || []).map((s) => {
     if (!s || !s.data) return null;
-    const pcm = new Int16Array(s.data.length);
-    for (let i = 0; i < pcm.length; i++) pcm[i] = Math.round(clamp(s.data[i], -1, 1) * 32767);
-    return { name: s.name || '', sr: s.sr, length: pcm.length, pcm16: b64encode(new Uint8Array(pcm.buffer)) };
+    const o = { name: s.name || '', sr: s.sr, length: s.data.length, pcm16: toPcm16(s.data) };
+    if (Number.isInteger(s.lib) && s.lib >= 0) o.lib = s.lib;
+    return o;
   });
 }
 function samplesFromCart(list) {
   const out = new Array(NUM_VOICES).fill(null);
   (list || []).forEach((s, v) => {
     if (!s || !s.pcm16 || v >= NUM_VOICES) return;
-    const b = b64decode(s.pcm16), n = b.length >> 1, dv = new DataView(b.buffer, b.byteOffset, b.length);
-    const data = new Float32Array(n);
-    for (let i = 0; i < n; i++) data[i] = dv.getInt16(i * 2, true) / 32767;
-    out[v] = { name: s.name || '', sr: +s.sr || 44100, data };
+    out[v] = { name: s.name || '', sr: +s.sr || 44100, data: fromPcm16(s.pcm16) };
+    if (Number.isInteger(s.lib) && s.lib >= 0) out[v].lib = s.lib;
   });
   return out;
 }
+// the kit library (state.library) the same way: [{id, name, kind, sr, length, pcm16, file, source}]
+function libraryToCart(lib) {
+  return (lib || []).filter((w) => w && w.data).map((w) => ({ id: w.id | 0, name: w.name || '', kind: w.kind || 'user', sr: w.sr, length: w.data.length,
+    pcm16: toPcm16(w.data), file: w.file || '', source: w.source || '' }));
+}
+function libraryFromCart(list) {
+  return (Array.isArray(list) ? list : []).filter((w) => w && w.pcm16).map((w) => ({ id: w.id | 0, name: String(w.name || ''), kind: w.kind || 'user',
+    sr: +w.sr || 25000, data: fromPcm16(w.pcm16), native: (+w.sr || 25000) === 25000, file: String(w.file || ''), source: String(w.source || '') }));
+}
 
-/** Plain JSON object of the cartridge (samples as 16-bit LE PCM base64). */
+/** Plain JSON object of the cartridge (samples and the kit library as 16-bit LE PCM base64). */
 export function cartToJSON(state) {
-  const { samples, ...rest } = state;
-  return { format: 'omega-five-cart', version: CART_VERSION, state: { ...rest, version: CART_VERSION }, samples: samplesToCart(samples) };
+  const { samples, library, ...rest } = state;
+  return { format: 'omega-five-cart', version: CART_VERSION, state: { ...rest, version: CART_VERSION }, samples: samplesToCart(samples), library: libraryToCart(library) };
 }
 /** Migrate older cart objects to CART_VERSION (stub: v0 = bare state object). */
 export function migrateCart(obj) {
@@ -797,6 +816,7 @@ export function cartFromJSON(obj) {
   obj = migrateCart(obj);
   const s = normalizeState(obj.state);
   s.samples = samplesFromCart(obj.samples);
+  s.library = libraryFromCart(obj.library);
   return s;
 }
 
@@ -851,6 +871,8 @@ export function normalizeState(src = {}) {
   if (Array.isArray(src.channel)) src.channel.slice(0, NUM_CHANNELS).forEach((o, c) => { if (o) s.channel[c] = o; });
   if (src.fx && typeof src.fx === 'object') s.fx = src.fx;
   if (Array.isArray(src.samples)) src.samples.forEach((x, v) => { if (x && x.data instanceof Float32Array && v < NUM_VOICES) s.samples[v] = x; });
+  if (Array.isArray(src.wave)) s.wave = s.wave.map((d, v) => (src.wave[v] == null ? null : clampInt(src.wave[v], 0, 255, null)));
+  if (Array.isArray(src.library)) s.library = src.library.filter((w) => w && w.data instanceof Float32Array);
   return s;
 }
 
@@ -943,6 +965,13 @@ export function noteToVoiceMap(state, which = 'state') {
 // ---------------------------------------------------------------- MIDI in / out (shared by app and plugin)
 
 /** Note off as the RX5 sends it: 8n, velocity 64. ch = 1..16. */
+/** Key assign OUTPUT CH for a voice: the out channel of the first key of the current set-up that plays it (default v % 12).
+    Pads use their own key's channel; sequenced and MIDI notes (which carry only the voice) use this. */
+export function outChannel(state, v) {
+  const su = state.setups && state.setups[state.setup | 0];
+  const k = su && su.keys ? su.keys.find((x) => x && x.voice === v) : null;
+  return k && Number.isInteger(k.out) && k.out >= 0 && k.out < NUM_CHANNELS ? k.out : v % NUM_CHANNELS;
+}
 export const noteOffBytes = (ch, note) => [0x80 | ((ch - 1) & 15), note & 0x7F, 0x40];
 export const noteOnBytes = (ch, note, vel) => [0x90 | ((ch - 1) & 15), note & 0x7F, clamp(vel | 0, 1, 127)];
 export const songSelectBytes = (n) => [0xF3, clampInt(n, 0, NUM_SONGS - 1, 0)];

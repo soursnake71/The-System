@@ -3,7 +3,7 @@
    play position, the pads that fired, meters (about 30 times a second) and MIDI out events with their frame times.
    Also used by the WAV export (OfflineAudioContext + processorOptions.render). */
 import { Engine } from './engine.js';
-import { Player, patLen, NUM_VOICES, NUM_CHANNELS } from './seq.js';
+import { Player, patLen, outChannel, NUM_VOICES, NUM_CHANNELS } from './seq.js';
 
 const sr = sampleRate;
 
@@ -25,6 +25,7 @@ class FiveProcessor extends AudioWorkletProcessor {
   }
   setState(s){
     this.state = s;
+    this.keys();
     const e = this.e;
     for (let v = 0; v < NUM_VOICES; v++){
       const vp = s.voice[v] || {};
@@ -41,6 +42,8 @@ class FiveProcessor extends AudioWorkletProcessor {
     if (old && old.running && !this.render){ this.player.setMode(old.mode, old.n); this.player.locate(Math.max(0, old.cur + 1)); this.player.running = true; }
     this.player.setExternal(this.ext);
   }
+  // key assign OUTPUT CH per voice for the sequencer and MIDI notes (pads send their key's channel with the hit)
+  keys(){ this.outCh = Array.from({length: NUM_VOICES}, (_, v) => outChannel(this.state, v)); }
   // a voice plays the user's sample when it has one, else its factory kit waveform
   sample(v, smp){
     const e = this.e;
@@ -54,6 +57,7 @@ class FiveProcessor extends AudioWorkletProcessor {
     switch (m.t){
       case 'state': this.setState(m.state); break;
       case 'roms': this.roms = m.roms; for (let v = 0; v < NUM_VOICES; v++) this.sample(v, this.state && this.state.samples && this.state.samples[v]); break;
+      case 'keys': s.setups = m.setups; s.setup = m.setup; this.keys(); break;
       case 'pat': s.patterns[m.n] = m.p; break;
       case 'song': s.songs[m.n] = m.s; break;
       case 'chain': s.chains[m.n] = m.c; break;
@@ -67,7 +71,7 @@ class FiveProcessor extends AudioWorkletProcessor {
         // key offsets / multi voice / tunable notes: parameters set for this note only. The engine reads a voice's
         // parameters when the note starts (inside the next process()), so they are restored after it.
         if (m.over) for (const k in m.over){ const base = e.voices ? e.voices[m.v][k] : undefined; if (base === undefined) continue; this.restore.push([m.v, k, base]); e.setVoiceParam(m.v, k, m.over[k]); }
-        e.trigger(m.v, m.vel, m.acc, 0);
+        e.trigger(m.v, m.vel, m.acc, 0, Number.isInteger(m.ch) ? m.ch : this.outCh[m.v]);
         this.fired.push(m.v);
         if (m.rec && p && p.running){
           const ev = p.record(m.v, m.vel, m.acc);
@@ -98,7 +102,7 @@ class FiveProcessor extends AudioWorkletProcessor {
     // apply sequencer events to the engine; collect pads to flash and MIDI out
     for (const ev of out){
       if (ev.v < 0){ this.e.clickTick(ev.click === 2, ev.offset + off0); continue; }
-      this.e.trigger(ev.v, ev.vel, ev.acc, ev.offset + off0);
+      this.e.trigger(ev.v, ev.vel, ev.acc, ev.offset + off0, this.outCh[ev.v]);
       this.fired.push(ev.v);
       if (this.notesOut) this.midi.push({f:currentFrame + ev.offset + off0, v:ev.v, vel:ev.vel, acc:ev.acc});
     }

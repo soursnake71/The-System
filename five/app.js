@@ -177,7 +177,7 @@ const NOTE_PRESETS = SQ.NOTE_PRESETS || {gm:SQ.MIDI_GM_NOTES, ...(RX5_NOTES ? {r
 /* ================= state ================= */
 let S = SQ.newState();
 // panel settings that are not part of the cartridge
-const U = {wave:{}, mode:'pattern', ptn:0, song:0, chain:0, voice:0, ch:0, pad:0, page:'ptn', menu:null, item:{}, songStep:0, chainStep:0, stepPos:0, stepVoice:0,
+const U = {mode:'pattern', ptn:0, song:0, chain:0, voice:0, ch:0, pad:0, page:'ptn', menu:null, item:{}, songStep:0, chainStep:0, stepPos:0, stepVoice:0,
   multi:{on:false, v:0, param:0}, padVel:0, protect:false, stored:{},
   midiIn:'all', midiOut:'', bulk:0, syx:0, rnd:0, exp:0, impAt:-1, slot:0, tunable:false};
 const IDB = (() => {
@@ -194,6 +194,9 @@ async function loadSaved(){
     const r = await IDB.get('state');
     if (r && r.state){ S = SQ.normalizeState(r.state); }
     if (r && r.ui){ const keep = {page:'ptn', menu:null}; Object.assign(U, r.ui, keep); }
+    // older versions kept the WAVEFORM picks in the UI state (U.wave): move them into the cartridge (S.wave)
+    if (U.wave && Object.keys(U.wave).length && !(S.wave || []).some(x => x != null)){ S.wave = new Array(24).fill(null); for (const k in U.wave) if (+k >= 0 && +k < 24) S.wave[+k] = U.wave[k]; }
+    delete U.wave;
   } catch (e) { console.warn('restore', e); }
   U.mode = U.mode === 'song' ? 'song' : 'pattern'; U.page = U.mode === 'song' ? 'songplay' : 'ptn';
 }
@@ -208,7 +211,7 @@ const pat = () => S.patterns[U.ptn], song = () => S.songs[U.song];
 function patChanged(n = U.ptn){ post({t:'pat', n, p:S.patterns[n]}); dirty(); }
 function songChanged(n = U.song){ post({t:'song', n, s:S.songs[n]}); dirty(); }
 function chainChanged(n = U.chain){ post({t:'chain', n, c:S.chains[n]}); dirty(); }
-function allChanged(){ post({t:'state', state:S}); dirty(); paintSliders(); }
+function allChanged(){ post({t:'state', state:S}); if (kitLoaded) romsNow().then(roms => post({t:'roms', roms})); dirty(); paintSliders(); }
 function protectedMsg(){ if (U.protect){ flash('MEMORY PROTECTED', 'UTILITY 03: OFF'); return true; } return false; }
 
 /* ================= the factory kit (RX5 recordings in kit/, 25 kHz) ================= */
@@ -258,18 +261,23 @@ const kitReady = (async () => {
   }
   kitLoaded = true; return roms;
 })();
-// the waveform each voice plays: its factory one, or another factory waveform picked in EDIT VOICE (U.wave[v] = id)
+// the waveform library: the loaded kit's waveforms (S.library, saved in the cartridge) first, then the factory ones
+// whose ids it doesn't use. A voice plays its user sample, else the waveform picked in EDIT VOICE (S.wave[v] = id,
+// saved in the cartridge; the plugin reads the same ids), else its factory one.
+function waveLib(){ const L = (S.library || []).filter(w => w && w.data), ids = new Set(L.map(w => w.id)); return L.concat(FACTORY.filter(w => !ids.has(w.id))); }
+const findWave = id => id == null ? null : waveLib().find(x => x.id === id) || null;
 async function romsNow(){
   const roms = (await kitReady).slice();
-  for (let v = 0; v < 24; v++){ const id = U.wave && U.wave[v]; const w = id != null && FACTORY.find(x => x.id === id); if (w) roms[v] = {data:w.data, sr:w.sr}; }
+  for (let v = 0; v < 24; v++){ const w = findWave(S.wave && S.wave[v]); if (w) roms[v] = {data:w.data, sr:w.sr}; }
   return roms;
 }
 function setWave(v, id){
-  const w = FACTORY.find(x => x.id === id); if (!w) return;
-  (U.wave = U.wave || {})[v] = id; dirty();
+  if (!findWave(id)) return;
+  if (!Array.isArray(S.wave)) S.wave = new Array(24).fill(null);
+  S.wave[v] = id; dirty();
   romsNow().then(roms => post({t:'roms', roms}));
 }
-const waveName = v => { if (S.samples[v]) return 'USR ' + (S.samples[v].name || '').slice(0, 6); const id = U.wave && U.wave[v]; const w = id != null ? FACTORY.find(x => x.id === id) : null; return (w ? w.name : 'INT ' + vname(v)).slice(0, 10); };
+const waveName = v => { if (S.samples[v]) return 'USR ' + (S.samples[v].name || '').slice(0, 6); const w = findWave(S.wave && S.wave[v]); return (w ? w.name : 'INT ' + vname(v)).slice(0, 10); };
 async function loadKitFiles(files){
   if (!KITS) return flash('LOAD KIT', 'not available');
   if (protectedMsg()) return;
@@ -372,7 +380,7 @@ function listItem(no, name, get, set, list, opts = {}){
   return {no, name, ctx:opts.ctx, l2:() => list[clamp(get(), 0, list.length - 1)], inc:d => set(clamp(get() + d, 0, list.length - 1)), data:x => set(Math.round(x * (list.length - 1))), pad:opts.pad};
 }
 function actItem(no, name, run, opts = {}){
-  return {no, name, ctx:opts.ctx, l2:opts.l2 || (() => ' sure? NO / YES'), yes:run, inc:opts.inc, data:opts.data, pad:opts.pad};
+  return {no, name, ctx:opts.ctx, l2:opts.l2 || (() => ' sure? NO / YES'), yes:run, inc:opts.inc, data:opts.data, pad:opts.pad, noFn:opts.noFn};
 }
 const onoff = ['OFF', 'ON'];
 const padSelVoice = (i, v) => { U.voice = v; };
@@ -395,8 +403,8 @@ const MENUS = {
   ],
   voice:[
     {no:1, name:'SELECT VOICE', ctx:vctx, l2:() => vname(U.voice) + (S.samples[U.voice] ? ' (USER)' : ' (INT)'), inc:d => { U.voice = (U.voice + d + 24) % 24; }, data:x => { U.voice = Math.round(x * 23); }, pad:padSelVoice},
-    {no:1.1, name:'WAVEFORM', ctx:vctx, pad:padSelVoice, l2:() => waveName(U.voice), inc:d => { if (!FACTORY.length) return; const cur = U.wave && U.wave[U.voice] != null ? U.wave[U.voice] : U.voice;
-      const i = FACTORY.findIndex(x => x.id === cur); setWave(U.voice, FACTORY[(Math.max(0, i) + d + FACTORY.length) % FACTORY.length].id); }},
+    {no:1.1, name:'WAVEFORM', ctx:vctx, pad:padSelVoice, l2:() => waveName(U.voice), inc:d => { const L = waveLib(); if (!L.length) return; const cur = S.wave && S.wave[U.voice] != null ? S.wave[U.voice] : U.voice;
+      const i = L.findIndex(x => x.id === cur); setWave(U.voice, L[(Math.max(0, i) + d + L.length) % L.length].id); }},
     vItem(2, 'PITCH', 'pitch', ...RG('voice', 'pitch', [-3600, 2400]), {step:100, fine:10, fmt:fmtCents}),
     vItem(3.1, 'EG AR', 'ar', ...RG('voice', 'ar', [1, 99])), vItem(3.2, 'EG D1R', 'd1r', ...RG('voice', 'd1r', [0, 99])), vItem(3.3, 'EG D1L', 'd1l', ...RG('voice', 'd1l', [0, 60])),
     vItem(3.4, 'EG D2R', 'd2r', ...RG('voice', 'd2r', [0, 99])), vItem(3.5, 'EG RR', 'rr', ...RG('voice', 'rr', [1, 99])),
@@ -435,8 +443,8 @@ const MENUS = {
       noFn:() => { U.multi.param = ((U.multi.param | 0) + 1) % 4; dirty(); }, data:x => { U.multi.param = Math.min(3, Math.floor(x * 4)); dirty(); }},
     keyItem(5.1, 'ACCENT 1', 'acc1', -31, 31, {fmt:x => sgn(x) + ' level'}), keyItem(5.2, 'ACCENT 2', 'acc2', -31, 31, {fmt:x => sgn(x) + ' level'}),
     keyItem(6, 'OUTPUT CH', 'out', 0, 11, {fmt:x => 'ch ' + p2(x + 1) + ' ' + STEP_CH[x]}),
-    {no:7, name:'SAVE KEY DATA', l2:() => 'to set ' + (U.slot % 3 + 1) + '    YES', noFn:() => { U.slot = (U.slot + 1) % 3; }, yes:() => { const to = U.slot % 3; if (to !== (S.setup | 0)) S.setups[to] = JSON.parse(JSON.stringify(S.setups[S.setup | 0])); S.setup = to; dirty(); flash('KEY DATA SAVED', 'set ' + (to + 1)); }},
-    {no:8, name:'LOAD KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + (U.slot % 3 === (S.setup | 0) ? '*' : ' ') + '     YES', noFn:() => { U.slot = (U.slot + 1) % 3; }, yes:() => { S.setup = U.slot % 3; dirty(); flash('KEY DATA LOADED', 'set ' + (S.setup + 1)); }},
+    {no:7, name:'SAVE KEY DATA', l2:() => 'to set ' + (U.slot % 3 + 1) + '    YES', noFn:() => { U.slot = (U.slot + 1) % 3; }, yes:() => { const to = U.slot % 3; if (to !== (S.setup | 0)) S.setups[to] = JSON.parse(JSON.stringify(S.setups[S.setup | 0])); S.setup = to; keysChanged(); flash('KEY DATA SAVED', 'set ' + (to + 1)); }},
+    {no:8, name:'LOAD KEY DATA', l2:() => 'set ' + (U.slot % 3 + 1) + (U.slot % 3 === (S.setup | 0) ? '*' : ' ') + '     YES', noFn:() => { U.slot = (U.slot + 1) % 3; }, yes:() => { S.setup = U.slot % 3; keysChanged(); flash('KEY DATA LOADED', 'set ' + (S.setup + 1)); }},
     {no:9, name:'COPY VOICE', ctx:vctx, pad:padSelVoice, l2:() => '>' + vname(U.copyTo || 0) + '  YES', noFn:() => { U.copyTo = ((U.copyTo || 0) + 1) % 24; },
       yes:() => { const to = U.copyTo || 0; S.voice[to] = Object.assign(voiceDefault(U.voice), S.voice[U.voice]); post({t:'voiceAll', v:to, p:S.voice[to]}); dirty(); flash('COPIED', vname(U.voice) + '>' + vname(to)); }},
     numItem(10, 'PAN', () => cget(U.ch, 'pan'), x => cset(U.ch, 'pan', x), -1, 1, {step:1 / 7, fmt:fmtPan, ctx:cctx, pad:padSelCh}),
@@ -450,7 +458,8 @@ const MENUS = {
     actItem(21, 'SAVE FILE', () => saveCartFile(), {l2:() => 'YES: .o5cart'}),
     actItem(22, 'LOAD FILE', () => pickFile('.o5cart,.json,application/json,application/gzip', loadCartFile), {l2:() => 'YES: pick a file'}),
     actItem(23, 'LOAD WAV', () => pickFile('audio/*,.wav,.aif,.aiff', loadWav), {ctx:vctx, pad:padSelVoice, l2:() => 'YES: into voice'}),
-    actItem(25, 'LOAD KIT', () => pickFile('.zip,.bwpreset,.wav,.wave,.aif,.aiff,audio/*', null, loadKitFiles), {l2:() => 'YES: zip/wavs'}),
+    actItem(25, 'LOAD KIT', () => pickFile('.zip,.bwpreset,.wav,.wave,.aif,.aiff,audio/*', null, loadKitFiles, U.kitDir), {l2:() => (U.kitDir ? 'FOLDER' : 'FILES ') + ' YES NO:<>',
+      noFn:() => { U.kitDir = !U.kitDir; }}),
     {no:24, name:'VOICE BANK', l2:() => ['LOAD .bin', 'SAVE .bin'][U.bankDir | 0] + ' YES', noFn:() => { const d = 1; U.bankDir = (U.bankDir | 0) ? 0 : 1; }, yes:() => voiceBank(U.bankDir | 0)},
     {no:30, name:'FORMAT SLOT', l2:() => 'slot ' + (U.slot % 4 + 1) + ' NO/YES', noFn:() => { const d = 1; U.slot = (U.slot + d + 4) % 4; }, yes:async () => { await IDB.del('cart' + U.slot % 4); slotCache[U.slot % 4] = null; flash('SLOT ' + (U.slot % 4 + 1), 'FORMATTED'); }},
   ],
@@ -787,7 +796,8 @@ function doRandom(){
 }
 
 /* ================= files ================= */
-function pickFile(accept, fn, multi){ const i = $('#fileIn'); i.accept = accept; i.multiple = !!multi; i.onchange = () => { const all = [...i.files], f = all[0]; i.value = ''; if (multi && all.length) return multi(all).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); }); if (f) fn(f).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); toast(String(e.message || e), 5000); }); }; i.click(); }
+// dir: pick a folder (every file in it and its subfolders; webkitdirectory, where the browser has it)
+function pickFile(accept, fn, multi, dir){ const i = $('#fileIn'); i.accept = dir ? '' : accept; i.multiple = !!multi; i.webkitdirectory = !!dir; i.onchange = () => { const all = [...i.files], f = all[0]; i.value = ''; if (multi && all.length) return multi(all).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); }); if (f) fn(f).catch(e => { console.error(e); flash('LOAD ERROR', String(e.message || e).slice(0, 16)); toast(String(e.message || e), 5000); }); }; i.click(); }
 const stamp = () => { const d = new Date(); return d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()); };
 async function saveFile(bytes, name, mime){
   const blob = bytes instanceof Blob ? bytes : new Blob([bytes], {type:mime});
@@ -1082,13 +1092,16 @@ function playVoice(v, vel, acc, pitch, fromMidi, over){
     SQ.deleteEvents(S, U.ptn, 0, SQ.patLen(pat()), v); patChanged(); flash('ERASE', vname(v), 700); return;
   }
   over = Object.assign({}, over || {}); if (pitch != null) over.pitch = pitch;
-  post({t:'hit', v, vel, acc, rec, over});
+  const ch = over.ch; delete over.ch;
+  post({t:'hit', v, vel, acc, rec, over, ch});
   flashPad(v);
   if (!fromMidi && S.midi.notesOut && S.midi.channelMsg !== false) sendEventMidi({v, vel, acc}, performance.now());
 }
 // key data of the current set-up (S.setups); the key offsets apply to the note played from that key
 function keyOf(i){ return (S.setups && S.setups[S.setup | 0] ? S.setups[S.setup | 0].keys[i] : null) || {voice:i, pitch:0, level:0, attack:0, decay:0, acc1:2, acc2:4, out:i % 12}; }
-function keySet(i, k, val){ const su = S.setups && S.setups[S.setup | 0]; if (!su) return; su.keys[i] = Object.assign({}, su.keys[i], {[k]:val}); dirty(); }
+function keySet(i, k, val){ const su = S.setups && S.setups[S.setup | 0]; if (!su) return; su.keys[i] = Object.assign({}, su.keys[i], {[k]:val}); keysChanged(); }
+// the worklet needs the set-ups for the OUTPUT CH of sequenced and MIDI notes
+function keysChanged(){ post({t:'keys', setups:S.setups, setup:S.setup | 0}); dirty(); }
 function keyItem(no, name, k, min, max, opts = {}){ return numItem(no, name, () => keyOf(U.pad)[k], x => keySet(U.pad, k, x), min, max, Object.assign({ctx:() => 'key' + String.fromCharCode(65 + U.pad), pad:i => { U.pad = i; }}, opts)); }
 function sgn(x){ return (x > 0 ? '+' : '') + x; }
 const multiStep = () => { const k = ['pitch', 'level', 'attack', 'decay'][U.multi.param | 0]; const d = {pitch:100, level:-1, attack:-3, decay:-3}[k]; return U.multi[k + 'Step'] != null ? U.multi[k + 'Step'] : d; };
@@ -1102,6 +1115,7 @@ function keyOver(v, key, multiIdx){
   if (dd){ o.d1r = clamp(base('d1r') + dd, 0, 99); o.d2r = clamp(base('d2r') + dd, 0, 99); }
   if (key.acc1 != null && key.acc1 !== base('acc1')) o.acc1 = key.acc1;
   if (key.acc2 != null && key.acc2 !== base('acc2')) o.acc2 = key.acc2;
+  if (Number.isInteger(key.out)) o.ch = key.out;   // OUTPUT CH (not a voice parameter: playVoice sends it with the hit)
   return o;
 }
 function padVoice(i){ return U.multi.on ? U.multi.v : keyOf(i).voice; }

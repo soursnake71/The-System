@@ -399,7 +399,7 @@ export class Engine {
     this.held = new Float64Array(NCH); this.on = new Uint8Array(NCH); this.peak = new Float64Array(NCH);
     this.gC = new Float64Array(NCH); this.pL = new Float64Array(NCH); this.pR = new Float64Array(NCH); this.sRev = new Float64Array(NCH); this.sDly = new Float64Array(NCH);
     this.pkDec = Math.exp(-1 / (.15 * sr));
-    this.qT = new Int32Array(QMAX); this.qType = new Int32Array(QMAX); this.qV = new Int32Array(QMAX); this.qVel = new Int32Array(QMAX); this.qAcc = new Int32Array(QMAX); this.qN = 0;
+    this.qT = new Int32Array(QMAX); this.qType = new Int32Array(QMAX); this.qV = new Int32Array(QMAX); this.qVel = new Int32Array(QMAX); this.qAcc = new Int32Array(QMAX); this.qCh = new Int32Array(QMAX); this.qN = 0;
     this.revFx = new Rev7(sr); this.dlyFx = new TcDelay(sr);
     this.ckN = 0; this.ckPh = 0; this.ckW = 0; this.ckEnv = 0; this.ckDec = Math.exp(-1 / (.008 * sr)); this.ckA = 1;
     this.mL = 0; this.mR = 0; this.mtr = {l:0, r:0};
@@ -418,27 +418,28 @@ export class Engine {
   mixMaster(){ this.volG = this.master.volume * this.master.volume; this.clkG = this.master.click * this.master.click * .5; }
 
   /* ---------------- control ---------------- */
-  push(type, v, vel, acc, time){
+  push(type, v, vel, acc, time, ch = -1){
     if (this.qN >= QMAX) return;
     const k = this.qN++;
-    this.qType[k] = type; this.qV[k] = v; this.qVel[k] = vel; this.qAcc[k] = acc; this.qT[k] = Math.max(0, Math.floor(time || 0));
+    this.qType[k] = type; this.qV[k] = v; this.qVel[k] = vel; this.qAcc[k] = acc; this.qCh[k] = ch; this.qT[k] = Math.max(0, Math.floor(time || 0));
   }
-  trigger(v, vel = 127, accent = 0, time = 0){
+  // ch: the output channel 0..11 (key assign OUTPUT CH); default the voice's own, v % 12
+  trigger(v, vel = 127, accent = 0, time = 0, ch = -1){
     v |= 0; if (v < 0 || v >= NV || !(vel > 0)) return;
-    this.push(0, v, clamp(Math.round(vel), 1, 127), clamp(accent | 0, 0, 2), time);
+    ch = Number.isInteger(ch) && ch >= 0 && ch < NCH ? ch : -1;
+    this.push(0, v, clamp(Math.round(vel), 1, 127), clamp(accent | 0, 0, 2), time, ch);
   }
   release(v, time = 0){ v |= 0; if (v >= 0 && v < NV) this.push(1, v, 0, 0, time); }
   clickTick(accented, time = 0){ this.push(2, 0, 0, accented ? 1 : 0, time); }
   fire(k){
     const type = this.qType[k], v = this.qV[k];
     if (type === 0){
-      const ch = v % NCH, a = this.cur[ch], b = this.old[ch];
+      const ch = this.qCh[k] >= 0 ? this.qCh[k] : v % NCH, a = this.cur[ch], b = this.old[ch];
       if (a.active){ b.copyFrom(a); b.fade = 1; }
       a.start(v, this.roms[v], this.voices[v], this.qVel[k], this.qAcc[k], this.isRec(v));
       this.on[ch] = 1;
     } else if (type === 1){
-      const a = this.cur[v % NCH];
-      if (a.active && a.v === v) a.stage = 3;
+      for (let ch = 0; ch < NCH; ch++){ const a = this.cur[ch]; if (a.active && a.v === v) a.stage = 3; }
     } else {
       const f = this.qAcc[k] ? 2000 : 1000;
       this.ckN = Math.round(.03 * this.sr); this.ckPh = 0; this.ckW = TWO_PI * f / this.sr; this.ckEnv = 1; this.ckA = this.qAcc[k] ? 1 : .6;
@@ -447,7 +448,7 @@ export class Engine {
   // path 'rec' on a recording: no 12-bit word (the recording already carries the real converter's); otherwise the ROM word
   isRec(v){ return this.voices[v].path === 'rec' && this.recData[v] === 1; }
   requant(v){ if (this.isRec(v)) this.roms[v].set(this.src[v]); else quantizeRom(this.src[v], this.voices[v].bits, this.dac, this.roms[v]); }
-  cut(v){ const ch = v % NCH; if (this.cur[ch].v === v) this.cur[ch].active = false; if (this.old[ch].v === v) this.old[ch].active = false; }
+  cut(v){ for (let ch = 0; ch < NCH; ch++){ if (this.cur[ch].v === v) this.cur[ch].active = false; if (this.old[ch].v === v) this.old[ch].active = false; } }
   setVoiceParam(v, name, value){
     if (name === 'path' && v >= 0 && v < NV){
       const x = value === 'rec' ? 'rec' : 'rx';
@@ -574,7 +575,7 @@ export class Engine {
     if (this.qN){
       let m = 0;
       for (let k = 0; k < this.qN; k++) if (this.qT[k] >= n){
-        this.qT[m] = this.qT[k] - n; this.qType[m] = this.qType[k]; this.qV[m] = this.qV[k]; this.qVel[m] = this.qVel[k]; this.qAcc[m] = this.qAcc[k]; m++;
+        this.qT[m] = this.qT[k] - n; this.qType[m] = this.qType[k]; this.qV[m] = this.qV[k]; this.qVel[m] = this.qVel[k]; this.qAcc[m] = this.qAcc[k]; this.qCh[m] = this.qCh[k]; m++;
       }
       this.qN = m;
     }

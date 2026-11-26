@@ -1,29 +1,36 @@
 // Omega Five as a plugin: the RX5-style drum machine (Five.h engine, FiveSeq.h sequencer) as an instrument with MIDI
 // in and out. MIDI in plays the voices through the note map (or Tunable Note mode), records in REAL TIME WRITE, takes
 // SysEx (bulk receive, Omega messages, identity) and, when synced to MIDI, clock / start / stop / SPP. MIDI out carries
-// the sequencer's notes (note off velocity 64 after the gate time), clock, start/stop and SysEx. The sequencer follows
-// the host transport when HOST SYNC is on, else it runs free from START / STOP. Main stereo out plus 12 optional
-// individual mono outs (disabled by default). The whole memory is the plugin state (the .o5cart JSON).
+// the sequencer's and pads' notes (note off after the gate time), clock, start/stop and SysEx replies. With HOST SYNC
+// on the sequencer follows the host transport while it plays; otherwise it runs free from START / STOP. Main stereo out
+// plus 12 optional individual mono outs (disabled by default; an enabled one takes its channel out of the main mix).
+// The whole memory is the plugin state (the .o5cart JSON, gzipped, plus a "plugin" object for the panel).
+//
+// Threads: `lock` guards *st, the Player and the Engine. The audio thread takes it every block; the message thread
+// holds it only for short edits. Anything slow (JSON, randomize, SysEx dumps, resampling) works on a copy outside the
+// lock and is swapped in with replaceState() / installSample().
 #pragma once
+#include "FiveSysex.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
-#include <juce_gui_basics/juce_gui_basics.h>
+#include <array>
 #include <atomic>
+#include <map>
 #include <memory>
-#include "FiveSysex.h"
 
 namespace five {
 
-// a waveform in the library: the 51 factory recordings, cartridge bank voices, kit files
-struct Wave { std::string name; std::vector<float> data; double sr = 25000; bool rec = false; VoiceParams params; bool hasParams = false; };
+// a waveform the voices can play: the factory recordings (built in) and the cartridge library (state.library)
+struct Wave { int id = 0; std::string name, kind, file; double sr = 25000; std::vector<float> data; };
 
-// panel state that is not part of the cartridge (kept by the processor so it survives closing the editor)
+// panel state kept by the processor so it survives closing the editor (the editor's menus read and write it)
 struct Ui {
-    enum Mode { Pattern, Song } mode = Pattern;
-    int ptn = 0, song = 0, chain = 0, voice = 0, ch = 0;
-    juce::String page = "ptn", menu; std::map<juce::String, int> item;
-    bool rtw = false, step = false; int stepPos = 0; int acc = 0; bool chainPlay = false;
-    int rnd = 0, exp = 0, impAt = -1, bankDir = 0, syx = 0, notePreset = 0, copyTo = 0;
+    int mode = 0;                        // 0 pattern, 1 song
+    int ptn = 0, song = 0, chain = 0, voice = 0, ch = 0, pad = 0;
+    bool chainPlay = false, rtw = false, protect = false;
+    juce::String page = "ptn", menu;     // page "menu": the LCD shows MENUS[menu][item[menu]]
+    std::map<juce::String, int> item, n; // per-menu item index; misc counters (copy target, slots, export choices...)
+    int stepPos = 0, songStep = 0, chainStep = 0;
     juce::String flash1, flash2; double flashUntil = 0;
 };
 
@@ -55,98 +62,120 @@ public:
     // ---------------- message thread API (editor, tests) ----------------
     juce::AudioProcessorValueTreeState apvts;
     Ui ui;
-    juce::SpinLock lock;                 // guards *st, player and engine (the audio thread takes it every block)
-    State& state() { return *st; }       // read on the message thread; write under `lock` (ScopedEdit)
-    struct ScopedEdit { FiveProcessor& p; juce::SpinLock::ScopedLockType l; explicit ScopedEdit(FiveProcessor& q) : p(q), l(q.lock) {} };
+    juce::SpinLock lock;
+    using Edit = juce::SpinLock::ScopedLockType;          // hold while changing (or reading) the state
+    State& state() { return *st; }
+    const State& state() const { return *st; }
 
-    // engine parameters: automatable ones go through the APVTS, the rest straight into the state
-    double voiceParam(int v, int k) const;
+    // engine parameters: the automatable ones go through their APVTS parameter (and the state), the rest only to the state
     void setVoiceParam(int v, int k, double x);
-    double channelParam(int ch, int k) const;
     void setChannelParam(int ch, int k, double x);
-    double revParam(int k) const;
-    void setRevParam(int k, double x);
-    double dlyParam(int k) const;
+    void setRevParam(int k, double x);                    // rProgram loads that program's values
     void setDlyParam(int k, double x);
-    double tempo() const;
     void setTempo(double bpm);
-    double volume() const;
     void setVolume(double x);
-    double clickLevel() const;
     void setClickLevel(double x);
     bool hostSync() const;
     void setHostSync(bool on);
+    void setSync(const std::string& s);                   // "int" | "midi"
 
     // transport
-    void start();          // START (pattern or song/chain per ui)
+    void start();                                         // START: pattern, song or chain per ui
     void stop();
+    void selectPattern(int n);                            // while a pattern plays: cued, it starts at the end of the current one
     void cont();
     bool running() const { return isRunning.load(); }
-    Player::Pos position() const { const juce::SpinLock::ScopedLockType l(lock); return player.pos(); }
-    void hitPad(int v, int vel, int acc);       // a pad: plays (and records in REAL TIME WRITE)
+    Player::Pos position() const { const Edit l(lock); return player.pos(); }
+    void hitPad(int pad, int vel, int acc);               // a pad (key A..X through the current set-up; records in RTW)
+    void playVoice(int v, int vel, int acc, double pitchOff = 0, int ch = -1);
+    void releaseVoice(int v);
     void damp();
-    std::atomic<float> chLevel[NCH];             // per-channel activity for the pad lights
+    void setRtw(bool on);                                 // REAL TIME WRITE (reserves room so recording never allocates)
+    std::atomic<float> chLevel[NCH];                      // per-channel activity for the pad lights
     std::atomic<float> meterL { 0 }, meterR { 0 };
+    std::atomic<int> firedMask { 0 };                     // voices fired since the editor last looked (bits 0..23)
 
-    // whole-memory operations (message thread)
-    void replaceState(std::unique_ptr<State> s, bool applySamples = true);
-    void stateChanged();                         // after an edit that touched engine params / samples in the state
-    void applyVoiceSample(int v);                // (re)load one voice's waveform into the engine
-    juce::String randomizeAll(int scope = 0);    // 0 all, 1 pattern, 2 voices, 3 fx
+    // whole-memory operations (message thread); they return a message for the LCD ("" = ok)
+    void replaceState(std::unique_ptr<State> s);          // swap in a new memory (samples and parameters follow)
+    std::unique_ptr<State> copyState() const;
+    void applyVoiceSample(int v);                         // (re)load one voice's waveform into the engine
+    void applyAllSamples();
+    juce::String randomizeAll(const std::string& scope = "all");
+    void initAll();
     juce::String loadCartFile(const juce::File&);
     juce::String saveCartFile(const juce::File&);
     juce::String importMidiFile(const juce::File&, int startPattern, int songSlot);
-    juce::String exportMidiFile(const juce::File&, bool song);
-    juce::File writePatternMidiTemp();           // for drag-out to the host
+    juce::String exportMidiFile(const juce::File&, bool song, const std::string& map = "gm");
     juce::String loadWavIntoVoice(const juce::File&, int v);
     juce::String loadSyxFile(const juce::File&);
     juce::String saveSyxFile(const juce::File&, int what);   // 0 all (Omega), 1 hardware bulk, 2 pattern, 3 song
-    juce::String loadBankFile(const juce::File&);
-    juce::String saveBankFile(const juce::File&);
-    juce::String loadKit(const juce::File&);     // a .zip, .bwpreset or folder of WAV/AIFF files
-    juce::String transmitBulk(int what);         // over MIDI out
-    void initAll();
+    juce::String loadBankFile(const juce::File&);            // RX5 voice bank image -> the library
+    juce::String saveBankFile(const juce::File&);            // the voices' waveforms as an RX5 bank image
+    juce::String loadKit(const juce::File&);                 // a folder or .zip of WAV/AIFF files
+    juce::String exportWav(const juce::File&, bool song, double sampleRate = 44100);
+    juce::String transmitBulk(int what);                     // over MIDI out: 0 Omega all, 1 hardware bulk
+    void sendSysex(const Bytes& m) { if (m.size() >= 2) queueOut(juce::MidiMessage::createSysExMessage(m.data() + 1, (int) m.size() - 2)); }
 
-    std::vector<Wave> library;                   // factory recordings first (index = kit.json order), then loaded waves
-    std::array<juce::String, NV> waveName;       // the library wave each voice plays ("" = its user sample / silent)
-    int findWave(const juce::String& name) const;
-    void assignWave(int v, int libIndex);
-    juce::String voiceSourceName(int v) const;
+    // the waveform library: state.library first, then the factory recordings whose ids it doesn't use
+    struct WaveRef { int id; juce::String name; bool lib; };
+    std::vector<WaveRef> waveLib() const;
+    const Wave* findWave(int id) const;                  // a factory waveform (unless state.library has that id)
+    juce::String waveName(int v) const;
+    void setWave(int v, int id);                          // EDIT VOICE WAVEFORM
+    const std::vector<Wave>& factory() const { return factoryWaves; }
+    int outChannel(int v) const;                          // key assign OUTPUT CH of the current set-up
 
-    // MIDI learnt by the editor: SysEx messages received/sent (for the LCD)
     juce::String lastMidiMessage() const { const juce::ScopedLock l(msgLock); return midiMsg; }
-    std::atomic<bool> bulkWait { false };
+    void setMessage(const juce::String& s) { const juce::ScopedLock l(msgLock); midiMsg = s; }
+    std::function<void(const juce::String&, const juce::String&)> onFlash;   // the editor shows SysEx results etc.
+
+    static juce::String chooseKitName(const juce::String& file);
 
 private:
     void timerCallback() override;
-    void syncEngine();                           // audio thread, under lock: state + APVTS -> engine
-    void handleEvent(const PlayEvent& e, int n);
-    void sendMidi(const juce::MidiMessage& m, int offset);
-    void queueOut(const juce::MidiMessage& m);   // from the message thread
+    void syncEngine();                                    // audio thread, under lock: state + automation -> engine
+    void buildEngine(double sampleRate);
+    void emit(const PlayEvent& e, int n);
+    void addOut(const juce::MidiMessage& m, int offset);
+    void queueOut(const juce::MidiMessage& m);            // from the message thread
     void loadFactory();
-    void pushParamsFromState();                  // state -> APVTS (message thread)
+    void pushParamsFromState();                           // state -> APVTS (message thread)
+    void createParams(juce::AudioProcessorValueTreeState::ParameterLayout&);
+    static BusesProperties buses() {
+        auto b = BusesProperties().withOutput("Main", juce::AudioChannelSet::stereo(), true);
+        for (int c = 0; c < NCH; c++) b = b.withOutput(juce::String(c + 1) + " " + juce::String(CHANNEL_NAMES[c]), juce::AudioChannelSet::mono(), false);
+        return b;
+    }
+    void rebindPlayer(State* s);
 
-    std::unique_ptr<State> st; Player player; std::unique_ptr<Engine> engine; double sr = 48000;
-    std::vector<std::unique_ptr<State>> trash;   // states replaced on the message thread (freed there)
-    struct Auto { int target, index, key; juce::RangedAudioParameter* p = nullptr; std::atomic<float>* raw = nullptr; };
-    std::vector<Auto> autos; std::atomic<float>* tempoRaw = nullptr; std::atomic<float>* volRaw = nullptr; std::atomic<float>* clickRaw = nullptr; std::atomic<float>* syncRaw = nullptr;
-    Auto* findAuto(int target, int index, int key) const;
-    double sampleOf(int v) const;
+    std::unique_ptr<State> st; Player player; std::unique_ptr<Engine> engine; double sr = 48000; int maxBlock = 512;
+    std::vector<Wave> factoryWaves;
+    std::array<int, NV> outCh {};
+    // automation: target 0 voice, 1 channel, 2 rev, 3 dly, 4 master (index: 0 volume, 1 click, 2 tempo)
+    struct Auto { int target, index, key; juce::RangedAudioParameter* p = nullptr; std::atomic<float>* raw = nullptr; float last = 0; };
+    std::vector<Auto> autos; std::atomic<float>* syncRaw = nullptr;
+    Auto* findAuto(int target, int index, int key);
+    void setAuto(int target, int index, int key, double x);
+    // what the engine was last given (so a state edit reaches it once)
+    struct Applied { std::array<VoiceParams, NV> voice; std::array<ChannelParams, NCH> channel; std::array<double, rCount> rev; std::array<double, dCount> dly;
+        double volume = -1, click = -1, tempo = -1; bool valid = false; } applied;
     std::atomic<bool> isRunning { false };
-    std::atomic<int> startReq { 0 };             // 1 start, 2 stop, 3 continue
-    std::atomic<bool> dampReq { false };
-    struct PadHit { int v, vel, acc; }; std::array<PadHit, 64> padQ {}; std::atomic<int> padW { 0 }; int padR = 0;
-    bool wasHostPlaying = false;
-    // MIDI out: pending note offs (samples left), the block's output, and messages from the message thread
+    std::atomic<int> transportReq { 0 }, reqMode { 0 }, reqN { 0 };   // 1 start, 2 stop, 3 continue
+    std::atomic<bool> dampReq { false }; std::atomic<int> reqCue { -1 };
+    struct Hit { int v, vel, acc, ch, rel; double pitch; };
+    std::array<Hit, 128> hitQ {}; std::atomic<int> hitW { 0 }, hitR { 0 };
+    bool wasHostPlaying = false, wasRunning = false;
+    // MIDI out: pending note offs (samples left) and the block's output buffer
     struct Off { int ch, note; double left; }; std::array<Off, 256> offs {}; int nOffs = 0;
-    juce::MidiBuffer* outBuf = nullptr;
+    juce::MidiBuffer* out = nullptr; int blockN = 0;
     juce::SpinLock outLock; juce::MidiBuffer outQueue;
-    // incoming SysEx: assembled on the audio thread, handled on the message thread
+    // incoming SysEx: collected on the audio thread, handled on the message thread
     juce::SpinLock inLock; std::vector<Bytes> sysexIn;
     BulkReceiver receiver;
     mutable juce::CriticalSection msgLock; juce::String midiMsg;
-    std::vector<float> scratch;
-    int lastSpp = 0;
+    std::vector<std::unique_ptr<State>> trash;            // old states, freed on the message thread
+    std::vector<Engine::Prepared> trashSamples;
+    std::atomic<bool> needUi { false };
 };
 
 }  // namespace five

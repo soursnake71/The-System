@@ -102,6 +102,17 @@ async function engineTests() {
     assert.ok(rms(ch, 19200, 28800) < rms(open, 19200, 28800) * .05);
   });
 
+  await t('output channel (key assign OUTPUT CH): a voice can play through another channel; release and cut find it', async () => {
+    const e = KIT(); e.setChannel(5, {pan: 1}); e.setChannel(0, {pan: -1});
+    e.trigger(0, 127, 0, 0, 5); const r = run(e, .3);
+    assert.ok(e.cur[5].v === 0 && !e.cur[0].active, 'voice 0 on channel 5');
+    assert.ok(rms(r.R, 0, 4800) > 10 * rms(r.L, 0, 4800), 'through channel 5 (panned right)');
+    const SQ = await import('../seq.js'); const s = SQ.newState(); assert.equal(SQ.outChannel(s, 13), 1); s.setups[0].keys[13].out = 9; assert.equal(SQ.outChannel(s, 13), 9);
+    s.setups[0].keys[2].voice = 13; s.setups[0].keys[2].out = 4; assert.equal(SQ.outChannel(s, 13), 4, 'first key that plays the voice');
+    const g = KIT(); g.setVoiceParam(19, 'loop', 1); g.trigger(19, 127, 0, 0, 3); run(g, .1); g.release(19); run(g, .01); assert.equal(g.cur[3].stage, 3);
+    g.trigger(19, 127, 0, 0, 3); run(g, .05); g.cut(19); assert.ok(!g.cur[3].active);
+  });
+
   await t('voice params: pitch, reverse, gate, loop, bend, bits, float DAC', () => {
     const zc = (a, i0, i1) => { let c = 0; for (let i = i0 + 1; i < i1; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) c++; return c; };
     const sine = new Float32Array(22050); for (let i = 0; i < sine.length; i++) sine[i] = .5 * Math.sin(2 * Math.PI * 440 * i / 44100);
@@ -707,6 +718,10 @@ async function kitTests() {
     for (const w of kit.waveforms) { assert.equal(w.sr, 25000); assert.ok(w.native); }
     const E = await import('../engine.js');
     if (E.FACTORY_MAP) for (const a of kit.assignments) assert.equal(kit.waveforms[a.libIndex].file.toLowerCase(), String(E.FACTORY_MAP[a.v]).split('/').pop().toLowerCase());
+    // kit.json's library table (read by the plugin) is what loadFactoryKit gives: node five/tools/kit-json.mjs rewrites it
+    const meta = JSON.parse(fs.readFileSync(new URL('kit.json', kitDir), 'utf8'));
+    const {factoryLibrary} = await import('./kit-json.mjs');
+    assert.deepEqual(meta.library, await factoryLibrary(), 'kit.json library is stale: run node five/tools/kit-json.mjs');
   });
   else console.log('  skip kit: factory kit (five/kit/ absent)');
 

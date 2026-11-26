@@ -20,7 +20,7 @@ WAV/AIFF/kits into any voice ("voice cartridge"), converted to 25 kHz unless the
 | `five/sw.js`, `five/manifest.webmanifest`, icons | PWA. |
 | `five/tools/test.mjs` | Node tests for engine + seq (`node five/tools/test.mjs`). |
 | `five/tools/render.mjs` | Renders reference WAV/float32 output from engine.js for the C++ comparison. |
-| `plugins/five/*` | JUCE plugin: `Five.h` (line-for-line C++ port of engine.js), `FiveSeq.h` (port of the seq.js playback/data needed in the plugin), `FivePlugin.*`, `FiveEditor.*`, `test.cpp` (renders the same as render.mjs). |
+| `plugins/five/*` | JUCE plugin: `Five.h` (line-for-line C++ port of engine.js), `FiveSeq.h` / `FiveSysex.h` / `FiveCart.h` (ports of seq.js, rxsysex.js, rxcart.js), `FivePlugin.*` (processor), `FiveEditor.*` (the faceplate and app.js's menus), `test.cpp` (renders the same as render.mjs: `tools/compare.mjs`), `seqtest.cpp` (`tools/interop.mjs`), `proctest.cpp` (processor and panel). The factory kit (`kit/*.wav`, `kit.json` with the library table written by `tools/kit-json.mjs`) is compiled in. |
 | `five/tools/compare.mjs` | Runs `build/five_test` and render.mjs and checks max abs diff < 1e-4. |
 | `android/app/src/five/**` | `FiveActivity.java` (copy of TwelveActivity pattern: bundled assets, AndroidMidi bridge, save to Downloads/Omega Five), manifest, strings, icons. |
 | `.github/workflows/five-release.yml` | Windows/Mac/Linux plugins + installers, APK, release `omega-five`. |

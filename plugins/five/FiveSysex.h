@@ -35,7 +35,8 @@ inline bool isSysex(const Bytes& m) { return m.size() >= 2 && m[0] == 0xF0 && m.
 /* ---------------- Yamaha ---------------- */
 inline int yamahaChecksum(const uint8_t* d, size_t from, size_t to) { int s = 0; for (size_t i = from; i < to; i++) s += d[i]; return (-s) & 0x7F; }
 inline bool isYamaha(const Bytes& m) { return m.size() >= 3 && m[0] == 0xF0 && m[1] == 0x43; }
-inline bool yamahaDeviceOk(const Bytes& m, int deviceNo) { return !deviceNo || (m[2] & 0x0F) == ((deviceNo - 1) & 0x0F); }
+// device number 0 = OFF refuses Yamaha bulk I/O (RX5 Job #08)
+inline bool yamahaDeviceOk(const Bytes& m, int deviceNo) { return deviceNo && (m[2] & 0x0F) == ((deviceNo - 1) & 0x0F); }
 // 'ok' | 'bad' | 'unknown-layout'
 inline std::string verifyYamahaChecksum(const Bytes& m) {
     if (!isYamaha(m) || !isSysex(m)) return "unknown-layout";
@@ -193,6 +194,7 @@ inline SysexResult handleSysex(State& st, const Bytes& m, BulkReceiver& receiver
         res.kind = "identity"; res.reply.push_back(identityReply(deviceNo)); return res;
     }
     if (isOmega(m)) {
+        if (!deviceNo) { res.kind = "ignored"; res.message = "device no. OFF"; return res; }
         res.kind = "omega"; const auto r = parseOmega(m);
         if (!r.ok) { res.error = res.message = r.error; return res; }
         if (r.cmd == O_REQUEST) { res.reply = omegaReply(st, r.what, r.n); res.message = "dump request"; return res; }
@@ -224,7 +226,7 @@ inline SyxLoad loadSyx(State& st, const uint8_t* bytes, size_t n) {
    RX5 waveform cartridge bank images (rxcart.js): parse, and build (new layout; raw bytes of unchanged voices reused)
    ===================================================================================================================== */
 constexpr int BANK_SIZE = 131072, BANK_HEADER = 1024, BANK_ENTRY = 32, BANK_MAX_VOICES = 30, BANK_BASE_PITCH = 360;
-struct BankVoice { std::string name; int bits = 12; VoiceParams params; std::vector<float> pcm; int out = 0, bank = 0, slot = 0; int loopStart = 0, loopEnd = 0; };
+struct BankVoice { std::string name; int bits = 12; VoiceParams params; std::vector<float> pcm; int out = 0, bank = 0, slot = 0; int loopStart = -1, loopEnd = -1; };   // loop -1: default (last 30 %)
 struct BankParse { bool ok = false; std::string error; std::vector<BankVoice> voices; bool checksumOk = true; int id = 0; };
 inline int bankChecksum(const uint8_t* b) { int s = 0; for (int i = 0; i < BANK_HEADER - 2; i++) s += b[i]; return s & 0xFFFF; }
 inline int gateFromCode(int c) { return c >= 92 ? 0 : (int) jsround(clampd(100 + (c * 6400.0) / 91, 100, 6500)); }
@@ -292,7 +294,9 @@ inline Bytes buildBank(const std::vector<BankVoice>& voices, int bankId = -1) {
         std::string nm = (v.name.empty() ? std::string("VOICE") : v.name).substr(0, 6); nm.resize(6, ' '); for (int k = 0; k < 6; k++) e[26 + k] = (uint8_t) (nm[(size_t) k] & 0x7F);
         const int n = (int) pcm.size(), end = at + (int) data.size(); const bool loop = p[vLoop] >= .5;
         auto s2b = [&](int k) { return bits == 8 ? k : 1 + (k / 2) * 3 + (k & 1 ? 2 : 0); };
-        const int ls = loop ? at + s2b((int) std::floor(n * .7)) : at, le = loop ? at + s2b(n) : at;
+        int lsS = v.loopStart, leS = v.loopEnd;
+        if (lsS < 0 || leS < 0) { lsS = loop ? (int) std::floor(n * .7) : 0; leS = n; }
+        const int ls = (int) clampd(at + s2b((int) clampd(lsS, 0, n)), at, end), le = (int) clampd(at + s2b((int) clampd(leS, 0, n)), at, end);
         auto put17 = [&](int o, int a) { e[o] = (uint8_t) ((a >> 16) & 1); e[o + 1] = (uint8_t) ((a >> 8) & 255); e[o + 2] = (uint8_t) (a & 255); };
         e[3] = (uint8_t) ((loop ? 0 : 0x40) | ((at >> 16) & 1)); e[4] = (uint8_t) ((at >> 8) & 255);
         put17(5, std::min(ls, end)); put17(8, std::min(le, end)); put17(11, end);
