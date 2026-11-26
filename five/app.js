@@ -144,10 +144,18 @@ function setSlider(id, v){ const s = sliders[id]; if (!s) return; s.v = Math.max
    then the machine or one page; portrait: the machine on top, the page keys under it, then the page (MACHINE shows a
    big LCD with its keys there). FOLD: the bare machine, with EXPAND in the corner. The page code is further down. */
 let scale = 1, panelBox = {x:0, y:0, w:W, h:H};
-function fitPanel(x, y, w, h, align){
-  // short landscape areas: the plain ribs above the sliders and the strip under the pad names are cropped
-  // (down to just above the fader caps, so the machine reaches the top edge of the screen)
-  const crop = w / h > 1.4 && h < 800, top = crop ? 148 : 0, bot = crop ? 70 : 0, ph = H - top - bot;
+// compact (phones, both orientations): the faders get a shorter travel and the whole front part (display, keys,
+// pads) moves up into the empty band under the fader names, so less of the screen goes to the top of the machine
+const FRONT_UP = 44, SL_TOP = 160, SL_H = 138, SLC_TOP = 194, SLC_H = 104;
+function setCompact(on){
+  const p = P(); if (p.classList.contains('compact') === on) return;
+  p.classList.toggle('compact', on);
+  for (const id in sliders){ const s = sliders[id]; s.h = on ? SLC_H : SL_H; Object.assign(s.el.style, {top:(on ? SLC_TOP : SL_TOP) + 'px', height:s.h + 'px'}); setSlider(id, s.v); }
+}
+function fitPanel(x, y, w, h, align, phone){
+  // phones: the ribs above the fader caps and the strip under the pad names are cropped, the front moved up
+  const compact = phone || (w / h > 1.4 && h < 800); setCompact(compact);
+  const top = compact ? SLC_TOP - 14 : 0, bot = compact ? 70 + FRONT_UP : 0, ph = H - top - bot;
   scale = Math.min(w / W, h / ph);
   const px = x + (w - W * scale) / 2, py = (align === 'top' ? y : y + (h - ph * scale) / 2) - top * scale;
   P().style.transform = `translate(${Math.round(px)}px, ${Math.round(py)}px) scale(${scale})`;
@@ -159,7 +167,7 @@ function fit(){
   const rail = $('#rail'), pv = $('#pageView'), place = (e, x, y, w, h) => Object.assign(e.style, {left:x + 'px', top:y + 'px', width:w + 'px', height:h + 'px'});
   $('#hint').style.display = 'none';
   document.body.classList.toggle('land', land); document.body.classList.toggle('port', !land);
-  if (folded){ rail.classList.add('mini'); place(rail, 6, 6, 86, 34); pv.style.display = 'none'; $('#stage').style.display = ''; fitPanel(0, 0, vw, vh); hideLoupe(); return; }
+  if (folded){ rail.classList.add('mini'); place(rail, 6, 6, 86, 34); pv.style.display = 'none'; $('#stage').style.display = ''; fitPanel(0, 0, vw, vh, 'mid', !land && vw < 700); hideLoupe(); return; }
   rail.classList.remove('mini');
   if (land){
     // 11 keys: one column on tall screens, two on short ones (a phone on its side) so each key stays tappable
@@ -172,7 +180,7 @@ function fit(){
   } else {
     rail.style.gridTemplateColumns = '';
     $('#stage').style.display = '';
-    const b = fitPanel(0, 0, vw, Math.min(vh * .5, vw * H / W), 'top');
+    const b = fitPanel(0, 0, vw, Math.min(vh * .5, vw * (H - SLC_TOP + 14 - 70 - FRONT_UP) / W), 'top', vw < 700);
     const ry = Math.round(b.y + b.h + 4), rh = Math.round(Math.min(96, Math.max(70, vh * .11)));
     place(rail, 0, ry, vw, rh);
     showView(0, ry + rh + 4, vw, vh - ry - rh - 4);
@@ -366,6 +374,7 @@ function audio(){
 function fromWorklet(m){
   if (m.t === 'pos'){
     pos = m.pos; meter.peak = m.peak; meter.ch = m.ch; meter.max = Math.max(meter.max, m.peak[0], m.peak[1]);
+    if (viewUpdate && curView() === 'mixer') viewUpdate();
     for (const v of m.fired) flashPad(v);
     if (!pos || !pos.running) U.cueShown = -1;
     paintLeds(); if (U.page === 'ptn' || U.page === 'songplay' || U.page === 'rtw' || (U.page === 'menu' && U.menu === 'chain')) paintLcd();
@@ -376,7 +385,7 @@ function fromWorklet(m){
   else if (m.t === 'ended'){ paintLeds(); paintLcd(); midiSend([0xFC]); }
 }
 const running = () => !!(pos && pos.running);
-window.__five = {get meter(){ return meter; }, get pos(){ return pos; }, get state(){ return S; }, get ui(){ return U; }, audio, key:k => keyDown(k, true), keyUp:k => keyUp(k), lcd:() => lcdText.join('\n'), get ctx(){ return ctx; }};
+window.__five = {get loupe(){ return loupeAt && Object.assign({}, loupeAt); }, get meter(){ return meter; }, get pos(){ return pos; }, get state(){ return S; }, get ui(){ return U; }, audio, key:k => keyDown(k, true), keyUp:k => keyUp(k), lcd:() => lcdText.join('\n'), get ctx(){ return ctx; }};
 
 /* ================= transport ================= */
 function playTarget(){
@@ -1283,7 +1292,7 @@ function wire(){
   document.querySelectorAll('.pad').forEach(e => padEls[+e.dataset.pad] = e);
   // pads: multitouch, velocity from where the pad is struck (top = loudest)
   p.addEventListener('pointerdown', e => {
-    if (zoom && !e.__loupe){ e.preventDefault(); showLoupe(e.clientX, e.clientY); return; }
+    if (zoom && !e.__loupe){ e.preventDefault(); showLoupe(e.clientX, e.clientY); startFollow(e); return; }
     const pad = e.target.closest('.pad');
     if (pad){
       e.preventDefault(); cap(pad, e);
@@ -1423,7 +1432,7 @@ const fmtNo = no => { if (!no) return ''; const w = Math.floor(no + 1e-9), sub =
 // the page header: what the rows act on (voice, key, channel...), with ◀ ▶
 const VIEW_CTX = {voice:['VOICE', () => vname(U.voice), d => { U.voice = (U.voice + d + 24) % 24; }], keys:['KEY', () => String.fromCharCode(65 + U.pad) + ' ' + vname(keyOf(U.pad).voice), d => { U.pad = (U.pad + d + 24) % 24; }],
   pattern:['PTN', () => p2(U.ptn), d => selectPattern(U.ptn + d)], song:['SONG', () => songL(U.song), d => selectSong(U.song + d)],
-  fx:['CH', () => STEP_CH[U.ch], d => { U.ch = (U.ch + d + 12) % 12; }], mixer:['CH', () => (U.ch + 1) + ' ' + STEP_CH[U.ch], d => { U.ch = (U.ch + d + 12) % 12; }], midi:['VOICE', () => vname(U.voice), d => { U.voice = (U.voice + d + 24) % 24; }]};
+  fx:['CH', () => STEP_CH[U.ch], d => { U.ch = (U.ch + d + 12) % 12; }], midi:['VOICE', () => vname(U.voice), d => { U.voice = (U.voice + d + 24) % 24; }]};
 const pageState = {};
 function rowEl(it){
   if (it.head) return elp('div', 'pgHead' + (it.small ? ' small' : ''), null, it.head);
@@ -1443,7 +1452,8 @@ function rowEl(it){
 function afterAction(){ refreshView(); paintAll(); paintSliders(); }
 function refreshView(){
   for (const r of document.querySelectorAll('#pgBody .pgRow')){ try { const t = r._it.l2 ? r._it.l2() : ''; if (r._val.textContent !== t) r._val.textContent = t; if (r._sl && document.activeElement !== r._sl) r._sl.value = Math.round(r._it.sv() * 1000); } catch (e) { r._val.textContent = ''; } }
-  const c = VIEW_CTX[curView()]; if (c) $('#pgCtx b').textContent = c[1]();
+  if (viewUpdate) viewUpdate();
+  const c = VIEW_CTX[curView()]; if (c && $('#pgCtx b')) $('#pgCtx b').textContent = c[1]();
   for (const b of document.querySelectorAll('#rail [data-v]')) b.classList.toggle('on', b.dataset.v === view);
   $('#zoomBtn').classList.toggle('on', zoom);
 }
@@ -1453,7 +1463,9 @@ function showView(x, y, w, h){
   Object.assign(pv.style, {display:'flex', left:x + 'px', top:y + 'px', width:w + 'px', height:h + 'px'});
   pv.innerHTML = '';
   const head = elp('div', 'pgTop', pv), body = elp('div', 'pgBodyWrap', pv); body.id = 'pgBody';
+  viewUpdate = null;
   if (v === 'lcd'){ buildLcdView(head, body); return; }
+  if (v === 'mixer'){ buildMixer(head, body); return; }
   head.appendChild(elp('b', 'pgTitle', null, (VIEWS.find(q => q[0] === v) || [, ''])[1]));
   const c = VIEW_CTX[v];
   if (c){ const cx = elp('span', 'pgCtx', head); cx.id = 'pgCtx'; cx.appendChild(elp('i', null, null, c[0]));
@@ -1494,6 +1506,73 @@ function showView(x, y, w, h){
   body.onpointerdown = e => { x0 = e.target.closest('button,input') ? null : e.clientX; };
   body.onpointerup = e => { if (x0 === null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 50){ st.page = clamp(st.page + (dx < 0 ? 1 : -1), 0, pages.length - 1); show(); } };
 }
+/* ---- the MIXER: a console, a strip per channel (name, mute, pan / rev / dly knobs, fader with its meter) and the
+   master strip; the strips that don't fit go on the next page ---- */
+let viewUpdate = null;
+function knobCtl(parent, label, get, set, def, fmt){
+  const w = elp('div', 'mxK', parent), k = elp('div', 'knob', w), v = elp('i', 'mxKv', w); elp('b', null, w, label);
+  const draw = () => { const x = get(); k.style.setProperty('--a', (-135 + 270 * x) + 'deg'); v.textContent = fmt(x); };
+  let d = null;
+  k.addEventListener('pointerdown', e => { e.preventDefault(); try { k.setPointerCapture(e.pointerId); } catch (err) {} d = {y:e.clientY, v:get(), t:performance.now()}; });
+  k.addEventListener('pointermove', e => { if (!d) return; set(clamp(d.v - (e.clientY - d.y) / 140, 0, 1)); draw(); });
+  k.addEventListener('pointerup', () => { if (d && performance.now() - d.t < 250 && k._last && performance.now() - k._last < 400){ set(def); draw(); } k._last = performance.now(); d = null; afterAction(); });
+  draw(); return draw;
+}
+function faderCtl(parent, get, set){
+  const f = elp('div', 'mxF', parent), tr = elp('div', 'mxTrack', f), capEl = elp('div', 'mxCap', f), mt = elp('div', 'mxMeter', f), lv = elp('i', 'mxMeterLv', mt);
+  const draw = () => { capEl.style.top = `calc(8px + (100% - 16px) * ${(1 - get()).toFixed(4)})`; };
+  const at = e => { const r = f.getBoundingClientRect(); set(clamp(1 - (e.clientY - r.top - 8) / (r.height - 16), 0, 1)); draw(); };
+  f.addEventListener('pointerdown', e => { e.preventDefault(); try { f.setPointerCapture(e.pointerId); } catch (err) {} f._d = true; at(e); });
+  f.addEventListener('pointermove', e => { if (f._d) at(e); });
+  f.addEventListener('pointerup', () => { f._d = false; afterAction(); });
+  void tr; draw(); return {draw, meter:x => { lv.style.height = Math.round(clamp(x, 0, 1) * 100) + '%'; }};
+}
+function buildMixer(head, body){
+  head.appendChild(elp('b', 'pgTitle', null, 'MIXER'));
+  const pg = elp('span', 'pgBtns', head);
+  const strips = [], draws = [];
+  const nm = ch => CH_LBL[ch].replace('<br>', '/');
+  for (let ch = 0; ch < 12; ch++){
+    const st = elp('div', 'mxS', body); strips.push(st);
+    elp('div', 'mxN', st, '<i>' + (ch + 1) + '</i>' + nm(ch));
+    const mu = elp('button', 'pk red mxM', st, 'M'); mu.onclick = () => { cset(ch, 'mute', !cget(ch, 'mute')); afterAction(); };
+    draws.push(() => mu.classList.toggle('on', !!cget(ch, 'mute')));
+    draws.push(knobCtl(st, 'PAN', () => (cget(ch, 'pan') + 1) / 2, x => cset(ch, 'pan', Math.round((x * 2 - 1) * 7) / 7), .5, x => { const n = Math.round((x * 2 - 1) * 7); return n ? (n < 0 ? 'L' + -n : 'R' + n) : 'C'; }));
+    draws.push(knobCtl(st, 'REV', () => cget(ch, 'sendRev'), x => cset(ch, 'sendRev', Math.round(x * 100) / 100), 0, x => Math.round(x * 100)));
+    draws.push(knobCtl(st, 'DLY', () => cget(ch, 'sendDly'), x => cset(ch, 'sendDly', Math.round(x * 100) / 100), 0, x => Math.round(x * 100)));
+    const fd = faderCtl(st, () => cget(ch, 'fader'), x => { cset(ch, 'fader', x); paintSliders(); });
+    const rd = elp('i', 'mxR', st);
+    draws.push(() => { fd.draw(); rd.textContent = cget(ch, 'mute') ? 'MUTE' : Math.round(cget(ch, 'fader') * 100); fd.meter(meter.ch && meter.ch[ch] ? meter.ch[ch] * 1.6 : 0); });
+  }
+  { // master
+    const st = elp('div', 'mxS master', body); strips.push(st);
+    elp('div', 'mxN', st, 'MASTER');
+    elp('div', 'mxSp', st);
+    draws.push(knobCtl(st, 'CLICK', () => S.click.level, x => { S.click.level = x; post({t:'set', k:'click', v:S.click}); dirty(); paintSliders(); }, .5, x => Math.round(x * 100)));
+    draws.push(knobCtl(st, 'REV RTN', () => fget('rev', 'level'), x => fset('rev', 'level', Math.round(x * 100) / 100), 1, x => Math.round(x * 100)));
+    draws.push(knobCtl(st, 'DLY MIX', () => fget('dly', 'mix'), x => fset('dly', 'mix', Math.round(x * 100) / 100), .6, x => Math.round(x * 100)));
+    const fd = faderCtl(st, () => S.volume, x => { sset('volume', x); paintSliders(); });
+    const rd = elp('i', 'mxR', st);
+    draws.push(() => { fd.draw(); rd.textContent = Math.round(S.volume * 100); fd.meter(Math.max(meter.peak[0] || 0, meter.peak[1] || 0)); });
+  }
+  // as many strips as fit side by side (at least 54 px each); the rest on the next pages
+  const per = Math.max(3, Math.floor(body.clientWidth / 58)), pages = [];
+  for (let i = 0; i < strips.length; i += per) pages.push(strips.slice(i, i + per));
+  const st = pageState.mixer = pageState.mixer || {page:0}; st.page = Math.min(st.page, pages.length - 1);
+  const show = () => {
+    strips.forEach(s => s.style.display = 'none'); pages[st.page].forEach(s => s.style.display = '');
+    pg.innerHTML = '';
+    if (pages.length > 1){
+      const b = (t, f, on) => { const k = elp('button', 'pk pg' + (on ? ' on' : ''), pg, t); k.onclick = f; };
+      b('◀', () => { st.page = Math.max(0, st.page - 1); show(); });
+      pages.forEach((_, i) => b(String(i + 1), () => { st.page = i; show(); }, i === st.page));
+      b('▶', () => { st.page = Math.min(pages.length - 1, st.page + 1); show(); });
+    }
+  };
+  body.classList.add('mxBody'); show();
+  viewUpdate = () => draws.forEach(d => d());
+  viewUpdate();
+}
 // portrait MACHINE: the LCD and its keys at a size you can use, under the machine
 function buildLcdView(head, body){
   head.appendChild(elp('b', 'pgTitle', null, 'LCD'));
@@ -1520,44 +1599,74 @@ function setFold(f){
 }
 
 /* ================= the loupe (🔍 ZOOM): any part of the panel at 3x; what you tap in it is pressed on the panel ================= */
-const LOUPE = 3;
-let loupeAt = null;
-function showLoupe(cx, cy){
-  const L = $('#loupe'), vw = innerWidth, vh = innerHeight;
-  const lw = Math.round(Math.min(vw - 16, 460)), lh = Math.round(Math.min(vh * .62, 300)), z = scale * LOUPE;
-  const px = (cx - panelBox.x) / scale, py = (cy - panelBox.y) / scale + (H - panelBox.h / scale > 1 ? 135 : 0);   // panel coordinates
-  const r = P().getBoundingClientRect(); loupeAt = {px:(cx - r.left) / scale, py:(cy - r.top) / scale, z, lw, lh};
-  Object.assign(L.style, {display:'block', width:lw + 'px', height:lh + 'px',
-    left:Math.round(clamp(cx - lw / 2, 8, vw - lw - 8)) + 'px', top:Math.round(clamp(cy - lh - 24, 8, vh - lh - 8)) + 'px'});
-  if (cy - lh - 24 < 8) L.style.top = Math.round(clamp(cy + 24, 8, vh - lh - 8)) + 'px';
-  void px; void py;
-  paintLoupe();
+const LOUPE = 3, GRIP = 26;
+let loupeAt = null, loupeDrag = null;
+// the lens shows the panel point (px, py) at its centre; lx, ly = the lens's top-left on the screen
+function lensSize(){ const vw = innerWidth, vh = innerHeight; return {lw:Math.round(Math.min(vw - 16, 460)), lh:Math.round(Math.min(vh * .62, 300))}; }
+function placeLens(lx, ly){
+  const L = $('#loupe'), {lw, lh} = lensSize();
+  loupeAt.lw = lw; loupeAt.lh = lh;
+  lx = clamp(lx, 4, innerWidth - lw - 4); ly = clamp(ly, 4, innerHeight - lh - 4);
+  // keep clear of the rail (it stays on top so ZOOM can always be switched off): beside it in landscape, under it in portrait
+  const rr = $('#rail').getBoundingClientRect();
+  if (rr.width && lx < rr.right && lx + lw > rr.left && ly < rr.bottom && ly + lh > rr.top){
+    if (innerWidth >= innerHeight) lx = Math.min(innerWidth - lw - 4, rr.right + 4);
+    else ly = ly + lh / 2 < rr.top + rr.height / 2 && rr.top - lh - 4 >= 4 ? rr.top - lh - 4 : Math.min(innerHeight - lh - 4, rr.bottom + 4);
+  }
+  loupeAt.lx = lx; loupeAt.ly = ly;
+  Object.assign(L.style, {display:'block', width:lw + 'px', height:lh + 'px', left:Math.round(loupeAt.lx) + 'px', top:Math.round(loupeAt.ly) + 'px'});
 }
-function paintLoupe(){
+// a finger at (cx, cy): magnify what is under it, the lens above (or below) the finger so it stays visible
+function showLoupe(cx, cy, fresh = true){
+  const {lw, lh} = lensSize(), r = P().getBoundingClientRect();
+  loupeAt = Object.assign(loupeAt || {}, {px:(cx - r.left) / scale, py:(cy - r.top) / scale, z:scale * LOUPE});
+  let ly = cy - lh - 28; if (ly < 4) ly = cy + 28;
+  placeLens(cx - lw / 2, ly);
+  paintLoupe(fresh);
+}
+// the grip: the lens moves with the finger and magnifies what is under its own centre, like a real magnifying glass
+function gripLens(lx, ly){
+  placeLens(lx, ly);
+  const r = P().getBoundingClientRect(), mx = loupeAt.lx + loupeAt.lw / 2, my = loupeAt.ly + GRIP + (loupeAt.lh - GRIP) / 2;
+  loupeAt.px = (mx - r.left) / scale; loupeAt.py = (my - r.top) / scale;
+  paintLoupe(false);
+}
+function paintLoupe(fresh = true){
   if (!loupeAt) return;
-  const inn = $('#loupeIn'); inn.innerHTML = '';
-  const c = P().cloneNode(true); c.removeAttribute('id'); c.classList.add('pclone');
-  c.style.transform = `translate(${loupeAt.lw / 2 - loupeAt.px * loupeAt.z}px, ${loupeAt.lh / 2 - loupeAt.py * loupeAt.z}px) scale(${loupeAt.z})`;
-  inn.appendChild(c);
+  const inn = $('#loupeIn');
+  let c = inn.firstElementChild;
+  if (fresh || !c){ inn.innerHTML = ''; c = P().cloneNode(true); c.removeAttribute('id'); c.classList.add('pclone'); inn.appendChild(c); }
+  const ch = loupeAt.lh - GRIP;
+  c.style.transform = `translate(${loupeAt.lw / 2 - loupeAt.px * loupeAt.z}px, ${ch / 2 - loupeAt.py * loupeAt.z}px) scale(${loupeAt.z})`;
 }
-function hideLoupe(){ const L = $('#loupe'); if (L) L.style.display = 'none'; loupeAt = null; }
+function hideLoupe(){ const L = $('#loupe'); if (L) L.style.display = 'none'; loupeAt = null; loupeDrag = null; }
 // a tap inside the loupe: the same pointer events on the real panel, at the point under it
 function loupeEvent(e, type){
-  const L = $('#loupe'), lr = L.getBoundingClientRect(), r = P().getBoundingClientRect();
-  const px = loupeAt.px + (e.clientX - lr.left - loupeAt.lw / 2) / loupeAt.z, py = loupeAt.py + (e.clientY - lr.top - loupeAt.lh / 2) / loupeAt.z;
-  const x = r.left + px * scale, y = r.top + py * scale;
+  const inn = $('#loupeIn').getBoundingClientRect(), r = P().getBoundingClientRect();
+  const px = loupeAt.px + (e.clientX - inn.left - loupeAt.lw / 2) / loupeAt.z, py = loupeAt.py + (e.clientY - inn.top - (loupeAt.lh - GRIP) / 2) / loupeAt.z;
+  const x = r.left + px * scale, y = r.top + py * scale, L = $('#loupe');
   L.style.pointerEvents = 'none'; const t = document.elementFromPoint(x, y); L.style.pointerEvents = '';
   if (!t || !t.closest('#p')) return;
-  const ev = new PointerEvent(type, {bubbles:true, cancelable:true, clientX:x, clientY:y, pointerId:e.pointerId}); ev.__loupe = true;
+  const ev = new PointerEvent(type, {bubbles:true, cancelable:true, clientX:x, clientY:y, pointerId:e.pointerId});
   Object.defineProperty(ev, '__loupe', {value:true});
   t.dispatchEvent(ev);
-  if (type === 'pointerup') setTimeout(paintLoupe, 30);
+  if (type === 'pointerup') setTimeout(() => paintLoupe(true), 30);
 }
+// ZOOM on, finger on the panel: the lens follows the finger while it moves (see wire(): showLoupe + startFollow)
+function startFollow(e){ loupeDrag = {mode:'follow', id:e.pointerId}; }
 function wireRail(){
   buildRail();
-  const L = $('#loupe');
-  L.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); loupeEvent(e, 'pointerdown'); });
-  L.addEventListener('pointerup', e => { e.stopPropagation(); loupeEvent(e, 'pointerup'); });
+  const L = $('#loupe'), grip = $('#loupeGrip');
+  grip.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+    loupeDrag = {mode:'grip', id:e.pointerId, dx:e.clientX - loupeAt.lx, dy:e.clientY - loupeAt.ly}; });
+  L.addEventListener('pointerdown', e => { if (e.target.closest('#loupeGrip')) return; e.preventDefault(); e.stopPropagation(); loupeEvent(e, 'pointerdown'); });
+  L.addEventListener('pointerup', e => { if (e.target.closest('#loupeGrip')) return; e.stopPropagation(); loupeEvent(e, 'pointerup'); });
+  addEventListener('pointermove', e => {
+    if (!loupeDrag || !loupeAt || e.pointerId !== loupeDrag.id) return;
+    if (loupeDrag.mode === 'grip') gripLens(e.clientX - loupeDrag.dx, e.clientY - loupeDrag.dy); else showLoupe(e.clientX, e.clientY, false);
+  });
+  const end = e => { if (loupeDrag && e.pointerId === loupeDrag.id){ loupeDrag = null; paintLoupe(true); } };
+  addEventListener('pointerup', end); addEventListener('pointercancel', end);
   // with the loupe open, a tap anywhere else (outside the panel) closes it
   addEventListener('pointerdown', e => { if (loupeAt && !e.target.closest('#loupe') && !e.target.closest('#p') && !e.target.closest('#rail')) hideLoupe(); }, true);
   let f = false; try { f = localStorage.getItem('rx5-folded') === '1'; } catch (e) {}

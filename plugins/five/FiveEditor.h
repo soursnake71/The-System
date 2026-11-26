@@ -150,7 +150,7 @@ private:
     void paintFace(juce::Graphics&);
     void paintBtn(juce::Graphics&, const Btn&);
     void facePress(juce::Point<float>);
-    bool dragFromLoupe = false;
+    bool dragFromLoupe = false, loupeFollow = false;   // loupeFollow: the lens follows a finger dragging on the faceplate
 };
 
 class FiveEditor : public juce::AudioProcessorEditor, private juce::Timer {

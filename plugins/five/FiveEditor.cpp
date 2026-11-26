@@ -727,7 +727,7 @@ void FivePanel::pressAt(juce::Point<float> s) {
     if (zoom) {
         const auto L = loupeRect();
         if (loupeOn && L.contains(s)) { dragFromLoupe = true; facePress(loupeC + (s - L.getCentre()) / LOUPE); repaint(); return; }
-        loupeC = s - juce::Point<float>(ox(), 0); loupeOn = true; repaint(); return;
+        loupeC = s - juce::Point<float>(ox(), 0); loupeOn = true; loupeFollow = true; repaint(); return;
     }
     facePress(s - juce::Point<float>(ox(), 0));
 }
@@ -752,6 +752,7 @@ void FivePanel::facePress(juce::Point<float> p) {
     repaint();
 }
 void FivePanel::mouseDrag(const juce::MouseEvent& e) {
+    if (loupeFollow) { loupeC = { juce::jlimit(0.f, (float) W, e.position.x - ox()), juce::jlimit(0.f, (float) H, e.position.y) }; repaint(); return; }
     if (drag.id.isEmpty()) return;
     // drag.y0 is in faceplate units; from the loupe a move of LOUPE pixels is one faceplate unit
     const float fy = dragFromLoupe ? drag.y0 + (e.position.y - e.mouseDownPosition.y) / LOUPE : e.position.y;
@@ -760,6 +761,7 @@ void FivePanel::mouseDrag(const juce::MouseEvent& e) {
 }
 void FivePanel::mouseUp(const juce::MouseEvent&) { releaseAt(); }
 void FivePanel::releaseAt() {
+    loupeFollow = false;
     drag = {}; pressedPad = -1;
     if (pressedKey.isNotEmpty()) { const auto k = pressedKey; pressedKey.clear(); keyUp(held.count("M:" + k) ? "M:" + k : k); }
     repaint();
