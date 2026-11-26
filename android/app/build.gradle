@@ -6,11 +6,11 @@ android {
     applicationId 'com.thesnakedevice.app'
     minSdk 24
     targetSdk 35
-    versionCode 24
-    versionName '24.0'
+    versionCode 25
+    versionName '25.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator) and Omega Five (12-bit drum machine)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -30,6 +30,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    five {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.five'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/five/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/five/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +51,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  fiveImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +62,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// Omega Five (drum machine) is bundled the same way: ../five without its tools into assets/five
+def fiveAssets = layout.buildDirectory.dir('fiveAssets')
+tasks.register('copyFiveWeb', Copy) {
+  from('../../five') { exclude 'tools/**', '*.md' }
+  into fiveAssets.map { it.dir('five') }
+}
+android.sourceSets.five.assets.srcDirs += [fiveAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Five') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyFiveWeb' }

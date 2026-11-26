@@ -93,7 +93,8 @@ e.getState() / e.setState(obj)         // all voice/channel/fx params as plain J
 Default voice params: pitch 0, level 31, ar 99, d1r 0... (sensible per voice, defined in `VOICE_DEFAULTS`).
 
 ## Sequencer / data model (seq.js)
-- Resolution **96 PPQN** (the 1/96 quantize). Quantize values as on the panel: `1/2, 1/4, 1/6, 1/8, 1/12, 1/16, 1/24, 1/32, 1/48, 1/96, OFF`
+- Resolution **24 PPQN** = 1 tick per 1/96 note, exactly like the hardware and MIDI clock (1 tick per F8).
+  Quantize ticks: 1/2=48, 1/4=24, 1/6=16, 1/8=12, 1/12=8, 1/16=6, 1/24=4, 1/32=3, 1/48=2, 1/96=1, OFF=1. Quantize values as on the panel: `1/2, 1/4, 1/6, 1/8, 1/12, 1/16, 1/24, 1/32, 1/48, 1/96, OFF`
   (keypad: 7=1/32, 8=1/48, 9=OFF, 4=1/12, 5=1/16, 6=1/24, 1=1/4, 2=1/6, 3=1/8, 0=1/2).
 - 100 patterns (00–99), each: `{name, beats /*numerator 1..32*/, unit /*denominator 4|8|16*/, bars 1..99, swing 50..75 %,
   events:[{t /*tick*/, v /*voice 0..23*/, vel, acc /*0|1|2*/}], volume:[12 channel levels]}`.
@@ -118,6 +119,13 @@ Default voice params: pitch 0, level 31, ar 99, d1r 0... (sensible per voice, de
   receive/transmit channel, clock in (24 ppq → tempo, start/stop/continue/SPP), clock out, notes out of the
   sequencer, program change → pattern select, SysEx bulk dump = cartridge JSON wrapped in `F0 7D 4F 35 ... F7`
   (7-bit packed). Velocity → level, CC7 master volume.
+
+## SysEx (five/rxsysex.js, ported to plugins/five/FiveSysex.h)
+Hardware-format Yamaha bulk dumps (layout per `five/RX5-MIDI-NOTES.md`): transmit/receive all data, patterns,
+songs, chains, voice parameters; dump requests; checksums; split/merged packets; device number filter. Unknown
+or partial details are marked UNCERTAIN in the notes and handled by best-known layout. The full-memory
+`F0 7D 4F 35 … F7` wrapper (seq.js) carries everything the hardware format can't (user samples, FX).
+.syx files load/save in the app and the plugin; the plugin also sends/receives SysEx through the host's MIDI.
 
 ## Panel (index.html) — must fit any screen with **no scrolling** (fixed stage scaled to fit, like twelve/index.html)
 Top: angled black heat-sink ribs; left sliders VOLUME, CLICK, TEMPO, DATA; right 12 channel faders
