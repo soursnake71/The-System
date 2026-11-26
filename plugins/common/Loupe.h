@@ -1,7 +1,8 @@
 // ZOOM: a magnifier over a whole plugin window (the same in every Omega plugin; the apps have loupe.js).
 // Put one on top of the editor's content and switch it on with a ZOOM key. While it is on, a tap shows that part of
 // the window at 3x in a lens; whatever is pressed, dragged or clicked inside the lens happens to the control under it
-// (buttons click, knobs and faders drag, menus open). A tap outside the lens moves the lens there; ZOOM again closes it.
+// (buttons click, knobs and faders drag, menus open). A tap outside the lens moves the lens there, and dragging
+// there moves it with the finger; ZOOM again closes it.
 // Header only, JUCE gui_basics; no other dependency.
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -62,7 +63,7 @@ public:
         g.setColour(juce::Colour(0xffe9e9e6)); g.drawRoundedRectangle(L, 12, 2.5f);
     }
     void mouseDown(const juce::MouseEvent& e) override {
-        if (!open || !lens().contains(e.position)) { openAt(e.position); return; }
+        if (!open || !lens().contains(e.position)) { openAt(e.position); following = true; return; }
         auto* t = tgt(); if (!t) return;
         const auto p = toTarget(under(e.position));
         hit = t->getComponentAt(p.roundToInt()); if (hit == nullptr) return;
@@ -72,12 +73,14 @@ public:
         repaint();
     }
     void mouseDrag(const juce::MouseEvent& e) override {
+        if (following) { centre = e.position; repaint(); return; }   // the lens follows the finger
         if (!hit) return;
         dragged = true;
         if (dynamic_cast<juce::Button*>(hit) == nullptr) hit->mouseDrag(fwd(e, downAt + (e.position - downLens) / zoom, true));
         repaint();
     }
     void mouseUp(const juce::MouseEvent& e) override {
+        if (following) { following = false; return; }
         if (!hit) return;
         juce::Component::SafePointer<juce::Component> h(hit); hit = nullptr;
         if (auto* b = dynamic_cast<juce::Button*>(h.getComponent())) { if (!dragged) b->triggerClick(); }
@@ -91,7 +94,7 @@ public:
     }
 
 private:
-    bool active = false, open = false, dragged = false, painting = false;
+    bool active = false, open = false, dragged = false, painting = false, following = false;
     juce::Point<float> centre, downAt, downLens;
     juce::Component* hit = nullptr;
     juce::Component* tgt() const { if (target) return target(); return getParentComponent(); }
