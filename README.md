@@ -29,6 +29,17 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## Omega Solina (`/solina/`): the string ensemble, in your phone or your DAW
+The Eminent / ARP Solina String Ensemble modeled from its service schematics (Service Information 0476: schematic 015.0212, signal flow 015.0214).
+- Circuit model: top-octave generator and divider chain (octaves phase-locked, the chip's own detune), the sawtooth circuits, per-key sustain (15 uF through 820 R, released through 5k6 + SUSTAIN LENGTH), the gate output circuit's five key ranges per footage with their RC values (Viola 8', Violin 4'), the register circuit's couplings, the formant circuit (Trumpet, Horn), crescendo VCA, the bass circuit (lowest key, clipped and differentiated, 209 Hz low-pass, Cello 8' / Contra Bass 16'), the three TCA350Y bucket-brigade lines with the chorus and tremolo control circuit, and the High / Low (correction filter) outputs.
+- RX5-style mixer: a strip per section with level fader, pan, pitch, attack, decay, tone, ensemble on/off, echo and reverb sends, mute and solo. Effects: phaser (4-stage, Small Stone style), echo (tempo sync, ping-pong), reverb, 3-band EQ, drive, master.
+- 86 presets in 9 families, including 32 voiced after famous records with string-machine parts (Dream Weaver, Shine On, Oxygène, Welcome to the Machine, Heroes, Vienna, Atmosphere, Warszawa and more; interpretations, not the records' patches), a random sound generator, and your own presets.
+- Sequencer: 16 patterns of 1-4 bars, song chain, swing, real-time recording (quantized or not) with a click, a piano roll, random chord progressions; MIDI file import (into patterns, chained) and export.
+- Full MIDI: notes, velocity (amount adjustable), sustain pedal, pitch bend, mod wheel (ensemble depth, tremolo or phaser rate), expression (CC 11, the Solina's expression pedal input), aftertouch, program change, every control on a CC with MIDI learn, all notes off; MIDI out of the keys, the sequencer, controllers and clock; MIDI clock in (tempo, start, stop, continue, song position).
+- Fits the screen without scrolling (phone portrait and landscape, tablet, desktop).
+- Android app: `omega-solina.apk` in the `omega-solina` release (built by `.github/workflows/solina-release.yml`); it carries the app inside, works offline, with USB / Bluetooth MIDI in and out. Web: `https://<your-username>.github.io/<repo>/solina/`.
+- VST3 (AU on Mac, plus a standalone app): Omega Solina, an instrument with MIDI out, the sequencer following the host transport, in the same release. Its engine (`plugins/solina/Solina.h`) is a line-for-line port of `solina/engine.js`; `solina/tools/compare.mjs` checks they render the same samples, `solina_proc_test` drives the processor (sequencer, MIDI, learn, files, state).
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 

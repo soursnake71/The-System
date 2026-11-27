@@ -14,6 +14,7 @@ app's code in Node and the C++ in `tools/dsp_test.cpp` on the same signal, and t
 | Omega Bus Compressor, Resonance Tamer, Gate Stepper | effects |
 | Omega Twelve (12-bit sampler emulator, also a standalone app) | effect with MIDI in: live input through the sampler, samples played from MIDI |
 | Omega Twelve Instrument | instrument (same, for hosts that only send MIDI to instruments) |
+| Omega Solina (string ensemble, also a standalone app) | instrument with MIDI out: RX5-style mixer, effects, sequencer synced to the host, MIDI file import / export |
 
 Download: the `vst3-latest` release has a zip for Windows, Mac and Linux, built by `.github/workflows/vst3.yml`.
 
@@ -24,3 +25,6 @@ Omega Twelve lives in `twelve/` and doesn't use the shared Spec/Editor: it has i
 app by `node twelve/tools/gen.mjs`), master chain and file export. Tests: `twelve_test` + `node twelve/tools/compare.mjs`
 (C++ against the app's engine), `twelve_proc_test` (sampler, MIDI, exports, analysis, state), and `tools/hosttest` (`twelve_host_test`
 loads the built .vst3 like a DAW).
+
+Omega Solina lives in `solina/` (also its own app, `solina/` in the site). Its parameter and preset tables come from the app: `node solina/tools/gen.mjs`.
+Tests: `solina_test` + `node solina/tools/compare.mjs` (C++ against the app's engine), `solina_proc_test` (sequencer, MIDI, learn, files, state, window pictures).

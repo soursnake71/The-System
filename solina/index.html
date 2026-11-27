@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#151413">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Omega Solina</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#151413;--panel:#1e1c1a;--panel2:#262421;--line:#3a3632;--wood1:#7a4f2a;--wood2:#4a2e17;--org:#ff7a1a;--org2:#c95a0c;--cream:#efe6d2;--dim:#a39b8b;--lcd:#bfe08a;--lcdbg:#1b2414;
+  --rx:#2a2c30;--rx2:#33363b;--red:#e0453a;--yel:#f2c230;--blue:#5aa0e0;--key:#f4efe3;--keyd:#1a1918;--hl:#ff9a4a;
+  --fs:clamp(9px,1.55vh,13px);--fsS:clamp(8px,1.25vh,11px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font:500 var(--fs)/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
+body{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:0 .7em;min-height:2.2em;cursor:pointer;white-space:nowrap}
+button:active{filter:brightness(1.3)}
+button.on{background:var(--org);border-color:var(--org);color:#1a1000}
+select{background:var(--panel2);border:1px solid var(--line);border-radius:5px;min-height:2.2em;max-width:100%;padding:0 .3em}
+/* header */
+#top{display:flex;align-items:center;gap:.4em;padding:.35em .5em;background:linear-gradient(#232120,#1a1918);border-bottom:2px solid var(--wood2);flex:0 0 auto;flex-wrap:wrap}
+.logo{font:800 1.9em/1 Georgia,"Times New Roman",serif;letter-spacing:-.02em;color:var(--cream);border:2px solid var(--cream);border-radius:.25em;padding:0 .25em .08em;font-style:italic}
+.logo small{font:600 .38em/1 system-ui;letter-spacing:.18em;font-style:normal;margin-left:.4em;color:var(--dim);vertical-align:middle}
+#lcd{flex:1 1 9em;min-width:8em;background:var(--lcdbg);color:var(--lcd);font:600 1em/1.1 ui-monospace,Menlo,Consolas,monospace;border-radius:4px;padding:.35em .5em;
+  border:1px solid #31402a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 6px rgba(191,224,138,.35)}
+#presetBox{display:flex;gap:.25em;align-items:center;flex:2 1 14em;min-width:12em}
+#preset{flex:1;min-width:0}
+#tabs{display:flex;gap:.25em}
+#tabs button{font-weight:700;letter-spacing:.05em}
+#transport{display:flex;gap:.25em;align-items:center}
+#bpm{width:4.2em;text-align:center;background:var(--lcdbg);color:var(--lcd);border:1px solid #31402a;border-radius:4px;min-height:2.2em}
+#rec.on{background:var(--red);border-color:var(--red);color:#fff}
+#play.on{background:#4caf50;border-color:#4caf50;color:#041}
+/* pages */
+#main{flex:1 1 auto;min-height:0;position:relative}
+.page{position:absolute;inset:0;display:none;padding:.45em;gap:.45em;min-height:0}
+.page.show{display:grid}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:.35em;display:flex;flex-direction:column;min-height:0;min-width:0;gap:.25em}
+.box h3{margin:0;font:700 var(--fsS)/1 system-ui;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;display:flex;gap:.5em;align-items:center}
+.box h3 .sw{margin-left:auto}
+.row{display:flex;gap:.3em;min-height:0;min-width:0;flex:1}
+.knobs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:.2em;flex:1;min-height:0}
+.knob{display:flex;flex-direction:column;align-items:center;min-height:0;min-width:0;touch-action:none;cursor:ns-resize}
+.knob svg{flex:1 1 auto;min-height:0;width:100%;max-width:70px;overflow:visible}
+.knob .lb{font-size:var(--fsS);color:var(--dim);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.15}
+.knob .vl{font-size:var(--fsS);color:var(--cream);opacity:.85;line-height:1.1;white-space:nowrap}
+.knob.learn,.sw.learn,.tab.learn,.fader.learn{outline:2px dashed var(--yel);outline-offset:1px}
+.knob.mapped .lb::after,.sw.mapped::after{content:" •";color:var(--yel)}
+.sw{min-height:1.9em;font-size:var(--fsS);font-weight:700;letter-spacing:.06em;padding:0 .55em}
+/* panel page: the Solina front */
+#pgPanel{grid-template-columns:1.25fr 1fr;grid-template-rows:1fr 1fr}
+#pgPanel .front{grid-row:1/3;background:linear-gradient(180deg,#191817,#100f0e);border:3px solid var(--wood1);border-radius:8px;box-shadow:inset 0 0 0 2px #000,0 0 0 3px var(--wood2)}
+.tabsRow{display:grid;grid-template-columns:repeat(6,1fr);gap:.35em;flex:1.15;min-height:0}
+.tab{border-radius:4px 4px 9px 9px;border:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:.3em .1em;font-weight:800;font-size:var(--fsS);
+  letter-spacing:.05em;color:#3a2a1a;background:linear-gradient(#e9e2d1,#cfc6b0);box-shadow:0 4px 0 #8f8674,inset 0 -2px 0 rgba(0,0,0,.15);min-height:0;line-height:1.1;text-align:center;white-space:normal}
+.tab.orange{background:linear-gradient(#ffad5c,#f07a1c);color:#3a1800;box-shadow:0 4px 0 #9c4a0c}
+.tab.on,.tab.orange.on{transform:translateY(3px);background:linear-gradient(#e9e2d1,#cfc6b0);color:#3a2a1a;border:0;}
+.tab.orange.on{background:linear-gradient(#ffad5c,#f07a1c);color:#3a1800}
+.tab.on{box-shadow:0 1px 0 #8f8674,inset 0 3px 6px rgba(0,0,0,.35)}
+.tab.on::before{content:"";width:.6em;height:.6em;border-radius:50%;background:#ff3b1f;box-shadow:0 0 8px #ff3b1f;margin-bottom:auto;margin-top:.2em}
+.tab:not(.on)::before{content:"";width:.6em;height:.6em;border-radius:50%;background:#4a2a20;margin-bottom:auto;margin-top:.2em}
+.front .knob .lb{white-space:normal;line-height:1.05}
+.tabGroups{display:grid;grid-template-columns:4fr 2fr;gap:.35em;font-size:var(--fsS);color:var(--dim);letter-spacing:.2em;text-align:center}
+.brand{font:italic 800 2.2em/1 Georgia,serif;color:var(--cream);text-align:right;opacity:.9;padding-right:.2em}
+.brand span{font:600 .3em/1 system-ui;letter-spacing:.3em;display:block;color:var(--dim);font-style:normal}
+/* mixer page (RX5-style) */
+#pgMixer{grid-template-columns:repeat(6,1fr);grid-template-rows:1fr}
+.strip{background:linear-gradient(#2e3035,#222428);border:1px solid #3c3f45;border-radius:6px;padding:.3em;display:flex;flex-direction:column;gap:.2em;min-height:0;min-width:0}
+.strip .nm{font-weight:800;font-size:var(--fsS);letter-spacing:.08em;text-align:center;background:var(--lcdbg);color:var(--lcd);border-radius:3px;padding:.2em 0;white-space:nowrap;overflow:hidden}
+.strip .nm.off{color:#5d6b4a}
+.strip .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(1.6em,.55fr);gap:.2em;flex:1;min-height:0}
+.strip .kg{display:grid;grid-template-rows:repeat(8,minmax(0,1fr));gap:.1em;min-height:0}
+.strip .knob{flex-direction:row;gap:.25em;justify-content:flex-start;align-items:center}
+.strip .knob svg{flex:0 0 auto;height:100%;width:auto;max-height:34px;aspect-ratio:1}
+.strip .knob .tx{display:flex;flex-direction:column;min-width:0;align-items:flex-start}
+.strip .knob .lb,.strip .knob .vl{text-align:left}
+.strip .bt{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.2em}
+.strip .bt button{padding:0;min-height:1.9em;font-size:var(--fsS);font-weight:800}
+.strip .mute.on{background:var(--red);border-color:var(--red);color:#fff}
+.strip .solo.on{background:var(--yel);border-color:var(--yel);color:#221}
+.strip .ens.on{background:var(--blue);border-color:var(--blue);color:#012}
+.fader{min-height:0;position:relative;display:flex;justify-content:center;touch-action:none;cursor:ns-resize}
+.fader .slot{position:absolute;top:6%;bottom:6%;width:4px;background:#0c0c0d;border-radius:2px;box-shadow:inset 0 0 0 1px #000}
+.fader .cap{position:absolute;left:50%;width:min(70%,3.4em);height:1.5em;margin-left:calc(min(70%,3.4em) / -2);background:linear-gradient(#d8d8d8,#9c9c9c 45%,#e8e8e8 50%,#8e8e8e);border-radius:3px;box-shadow:0 2px 4px #000}
+.fader .cap::after{content:"";position:absolute;left:10%;right:10%;top:50%;height:2px;background:#222}
+.fader .ticks{position:absolute;top:6%;bottom:6%;right:8%;width:4px;background:repeating-linear-gradient(#555 0 1px,transparent 1px 10%)}
+/* fx page */
+#pgFx{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+/* seq page */
+#pgSeq{grid-template-columns:minmax(0,1fr) minmax(9em,15em);grid-template-rows:auto 1fr}
+#seqTop{grid-column:1/3;display:flex;gap:.3em;align-items:center;flex-wrap:wrap}
+#patBtns{display:grid;grid-template-columns:repeat(16,1fr);gap:.15em;flex:1 1 20em;min-width:0}
+#patBtns button{padding:0;min-height:2em;font-weight:700}
+#patBtns button.has{border-color:var(--org2)}
+#patBtns button.cur{background:var(--org);color:#1a1000}
+#patBtns button.playing{box-shadow:inset 0 -3px 0 #4caf50}
+#roll{position:relative;min-height:0;min-width:0;background:#0f0e0d;border:1px solid var(--line);border-radius:6px;overflow:hidden;touch-action:none}
+#roll canvas{position:absolute;inset:0;width:100%;height:100%}
+#seqSide{display:flex;flex-direction:column;gap:.3em;min-height:0;overflow:hidden}
+#seqSide .g2{display:grid;grid-template-columns:1fr 1fr;gap:.25em}
+#seqSide .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.25em}
+#seqSide button,#seqSide select{min-height:2em;padding:0 .3em;width:100%}
+#chain{background:var(--lcdbg);color:var(--lcd);border-radius:4px;padding:.3em;font:600 var(--fsS)/1.3 ui-monospace,monospace;min-height:2.4em;word-break:break-all;overflow:hidden;flex:0 1 auto;max-height:5.5em}
+#seqSide .knobs{flex:1;max-height:7em}
+/* midi page */
+#pgMidi{grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr}
+.form{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.3em .5em;align-items:center;overflow:hidden}
+.form label{color:var(--dim);font-size:var(--fsS);white-space:nowrap}
+#midiLog{flex:1;min-height:0;background:var(--lcdbg);color:var(--lcd);font:500 var(--fsS)/1.3 ui-monospace,monospace;border-radius:4px;padding:.3em;overflow:hidden;white-space:pre}
+#ccList{flex:1;min-height:0;overflow:hidden;font-size:var(--fsS);columns:2;column-gap:1em;color:var(--dim)}
+#ccList b{color:var(--cream);font-weight:600}
+/* keyboard */
+#kbWrap{flex:0 0 22%;min-height:70px;max-height:190px;display:flex;gap:.3em;padding:.3em .45em .45em;background:linear-gradient(#1c1a18,#0f0e0d);border-top:2px solid var(--wood2)}
+#wheels{display:flex;gap:.3em;flex:0 0 auto;align-items:stretch}
+.wheel{width:2.1em;background:linear-gradient(90deg,#0b0b0b,#2a2a2a 50%,#0b0b0b);border:1px solid #444;border-radius:5px;position:relative;touch-action:none}
+.wheel i{position:absolute;left:8%;right:8%;height:12%;background:linear-gradient(#ddd,#888);border-radius:3px;transform:translateY(-50%)}
+.wheel b{position:absolute;bottom:-1px;left:0;right:0;text-align:center;font-size:8px;color:var(--dim);font-weight:700}
+#oct{display:flex;flex-direction:column;gap:.25em;flex:0 0 auto}
+#oct button{flex:1;padding:0 .45em;min-height:0}
+#octLbl{font-size:var(--fsS);text-align:center;color:var(--dim)}
+#kb{flex:1;position:relative;touch-action:none;min-width:0}
+#kb div{position:absolute;top:0;border-radius:0 0 5px 5px}
+#kb .w{background:linear-gradient(#fffdf6,var(--key));border:1px solid #7d776b;height:100%;box-shadow:inset 0 -6px 0 #d9d1bf}
+#kb .b{background:linear-gradient(#2c2a28,var(--keyd));height:60%;z-index:2;border:1px solid #000;box-shadow:inset 0 -4px 0 #000}
+#kb .w.dn{background:linear-gradient(#ffd8b0,#ffb36b);box-shadow:none}
+#kb .b.dn{background:linear-gradient(#ff9a4a,#c2560a)}
+#kb .w.sq{box-shadow:inset 0 -6px 0 #d9d1bf,inset 0 0 0 3px #4caf50}
+#kb .b.sq{box-shadow:inset 0 0 0 3px #4caf50}
+#kb .w span{position:absolute;bottom:.4em;left:0;right:0;text-align:center;font-size:var(--fsS);color:#776f60}
+/* toast and start screen */
+#toast{position:fixed;left:50%;bottom:26%;transform:translateX(-50%);background:#000c;border:1px solid var(--org);padding:.5em 1em;border-radius:6px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+#start{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%,#2a1d12,#0b0a09 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1em;z-index:10;text-align:center;padding:1em}
+#start .logo{font-size:3.4em}
+#start button{font-size:1.25em;padding:.4em 1.6em;background:var(--org);color:#1a1000;border:0;font-weight:800}
+#start p{color:var(--dim);max-width:34em;margin:0}
+dialog{background:var(--panel);color:var(--cream);border:1px solid var(--org);border-radius:8px;max-width:min(30em,92vw)}
+dialog::backdrop{background:#000a}
+dialog .dbtn{display:flex;gap:.4em;justify-content:flex-end;margin-top:.8em;flex-wrap:wrap}
+dialog input[type=text]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:5px;min-height:2.2em;padding:0 .5em}
+@media (orientation:portrait){
+  #pgPanel{grid-template-columns:1fr;grid-template-rows:1.3fr 1fr 1fr}
+  #pgPanel .front{grid-row:auto}
+  #pgMixer{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
+  #pgFx{grid-template-columns:1fr;grid-template-rows:repeat(4,1fr)}
+  #pgSeq{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+  #seqTop{grid-column:auto}
+  #seqSide{display:grid;grid-template-columns:repeat(4,1fr);gap:.25em}
+  #seqSide .g2,#seqSide .g3{grid-column:span 2}
+  #seqSide .knobs{grid-column:span 4;max-height:4.5em}
+  #chain{grid-column:span 4;max-height:3em}
+  #pgMidi{grid-template-columns:1fr;grid-template-rows:auto 1fr 1fr}
+  #kbWrap{flex-basis:17%}
+  #tabs{order:5;flex:1 1 100%}
+  #tabs button{flex:1}
+}
+@media (max-height:430px) and (orientation:landscape){
+  #top{flex-wrap:nowrap;padding:.2em .4em}
+  .logo{font-size:1.4em}.logo small{display:none}
+  #lcd{display:none}
+  #kbWrap{flex-basis:26%;min-height:60px}
+  button,select{min-height:1.9em}
+}
+</style>
+</head>
+<body>
+<div id="start">
+  <div class="logo">solina<small>OMEGA</small></div>
+  <p>The Solina String Ensemble modeled from its service schematics, with an RX5-style mixer, effects, presets, a sequencer and full MIDI.</p>
+  <button id="go">Start</button>
+</div>
+<header id="top">
+  <div class="logo">solina<small>STRING ENSEMBLE</small></div>
+  <div id="presetBox">
+    <button id="prev" aria-label="Previous preset">◀</button>
+    <select id="preset" aria-label="Preset"></select>
+    <button id="next" aria-label="Next preset">▶</button>
+    <button id="rand" title="Random sound">🎲</button>
+    <button id="savePre" title="Save as user preset">Save</button>
+  </div>
+  <div id="lcd">OMEGA SOLINA</div>
+  <div id="transport">
+    <button id="play" aria-label="Play">▶</button>
+    <button id="stop" aria-label="Stop">■</button>
+    <button id="rec" aria-label="Record">●</button>
+    <input id="bpm" type="number" min="30" max="300" step="1" value="120" aria-label="Tempo">
+  </div>
+  <nav id="tabs">
+    <button data-pg="Panel" class="on">PANEL</button><button data-pg="Mixer">MIXER</button><button data-pg="Fx">FX</button><button data-pg="Seq">SEQ</button><button data-pg="Midi">MIDI</button>
+  </nav>
+</header>
+<main id="main">
+  <section class="page show" id="pgPanel">
+    <div class="box front">
+      <div class="tabGroups"><span>STRINGS · BRASS</span><span>BASS</span></div>
+      <div class="tabsRow" id="tabRow"></div>
+      <div class="row" style="flex:1.2"><div class="knobs" id="kPanel"></div></div>
+      <div class="row" style="flex:0 0 auto;align-items:center">
+        <button class="sw" data-sw="sus">SUSTAIN</button><button class="sw" data-sw="ens">MODULATION</button><button class="sw" data-sw="outSel">LOW OUT</button>
+        <div class="brand" style="margin-left:auto">solina<span>STRING ENSEMBLE</span></div>
+      </div>
+    </div>
+    <div class="box"><h3>Ensemble (control circuit) <button class="sw" data-sw="wide">STEREO LINES</button></h3><div class="knobs" id="kEns"></div></div>
+    <div class="box"><h3>Playing</h3><div class="knobs" id="kPlay"></div></div>
+  </section>
+  <section class="page" id="pgMixer"></section>
+  <section class="page" id="pgFx">
+    <div class="box"><h3>Phaser <button class="sw" data-sw="phOn">ON</button></h3><div class="knobs" id="kPh"></div></div>
+    <div class="box"><h3>Echo <button class="sw" data-sw="dlPing">PING-PONG</button><button class="sw" data-sw="dlOn">ON</button></h3><div class="knobs" id="kDl"></div></div>
+    <div class="box"><h3>Reverb <button class="sw" data-sw="rvOn">ON</button></h3><div class="knobs" id="kRv"></div></div>
+    <div class="box"><h3>Master</h3><div class="knobs" id="kMs"></div></div>
+  </section>
+  <section class="page" id="pgSeq">
+    <div id="seqTop">
+      <div id="patBtns"></div>
+      <select id="bars" aria-label="Pattern length"><option value="1">1 bar</option><option value="2">2 bars</option><option value="3">3 bars</option><option value="4">4 bars</option></select>
+      <select id="barView" aria-label="Bar shown"></select>
+    </div>
+    <div id="roll"><canvas id="rollC"></canvas></div>
+    <div id="seqSide">
+      <div class="g2"><button id="songMode">PATTERN</button><button id="chainEd">CHAIN EDIT</button></div>
+      <div id="chain"></div>
+      <div class="g3"><button id="chainDel">⌫</button><button id="chainClr">CLR</button><button id="chainAdd">+CUR</button></div>
+      <div class="g2"><select id="noteLen" aria-label="Note length"><option value="24">1/16</option><option value="48">1/8</option><option value="96" selected>1/4</option><option value="192">1/2</option><option value="384">1 bar</option><option value="768">2 bars</option></select>
+        <select id="noteVel" aria-label="Velocity"><option value="127">vel 127</option><option value="100" selected>vel 100</option><option value="70">vel 70</option><option value="40">vel 40</option></select></div>
+      <div class="g2"><button id="upR">▲ PITCH</button><button id="dnR">▼ PITCH</button></div>
+      <div class="g3"><button id="quant" class="on">QUANT</button><button id="click">CLICK</button><button id="randPat">🎲 PAT</button></div>
+      <div class="g3"><button id="copyPat">COPY</button><button id="pastePat">PASTE</button><button id="clrPat">CLEAR</button></div>
+      <div class="g2"><button id="impMidi">IMPORT .MID</button><button id="expMidi">EXPORT .MID</button></div>
+      <div class="knobs" id="kSeq"></div>
+    </div>
+  </section>
+  <section class="page" id="pgMidi">
+    <div class="box"><h3>Ports</h3>
+      <div class="form">
+        <label for="midiIn">Input</label><select id="midiIn"></select>
+        <label for="midiInCh">In channel</label><select id="midiInCh"></select>
+        <label for="midiOut">Output</label><select id="midiOut"></select>
+        <label for="midiOutCh">Out channel</label><select id="midiOutCh"></select>
+        <label for="thru">Keys to out</label><button id="thru" class="sw">THRU</button>
+        <label for="clkOut">Clock out</label><button id="clkOut" class="sw">SEND CLOCK</button>
+        <label for="clkIn">Clock in</label><button id="clkIn" class="sw">FOLLOW CLOCK</button>
+        <label for="pcIn">Program change</label><button id="pcIn" class="sw">CHANGES PRESET</button>
+        <label for="pcOut">Preset to out</label><button id="pcOut" class="sw">SEND PROGRAM</button>
+      </div>
+      <div class="row" style="flex:0 0 auto"><button id="panic">ALL NOTES OFF</button><button id="learn">MIDI LEARN</button><button id="ccReset">DEFAULT CCs</button></div>
+    </div>
+    <div class="box"><h3>Controllers</h3><div id="ccList"></div></div>
+    <div class="box"><h3>Monitor</h3><div id="midiLog"></div></div>
+  </section>
+</main>
+<div id="kbWrap">
+  <div id="wheels"><div class="wheel" id="wBend"><i></i><b>BEND</b></div><div class="wheel" id="wMod"><i></i><b>MOD</b></div><div class="wheel" id="wExp"><i></i><b>EXPR</b></div></div>
+  <div id="oct"><button id="octUp">+</button><div id="octLbl">C2</div><button id="octDn">−</button></div>
+  <div id="kb"></div>
+</div>
+<div id="toast"></div>
+<dialog id="dlg"><div id="dlgBody"></div><div class="dbtn" id="dlgBtns"></div></dialog>
+<input type="file" id="file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+<script src="engine.js"></script>
+<script src="presets.js"></script>
+<script src="seq.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

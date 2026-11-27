@@ -140,3 +140,35 @@ if(TARGET OmegaTwelve)
   target_link_libraries(twelve_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
   set_target_properties(twelve_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
+
+# Omega Solina: the Solina String Ensemble (solina/ in the app) as an instrument with an RX5-style mixer, effects, a
+# sequencer synced to the host, MIDI in and out, and MIDI file import / export; also a standalone app.
+if(NOT OMEGA_ONLY OR "Solina" IN_LIST OMEGA_ONLY)
+  juce_add_plugin(OmegaSolina
+    PRODUCT_NAME "Omega Solina"
+    COMPANY_NAME "The Omega System"
+    BUNDLE_ID "com.thesnakedevice.omega.Solina"
+    PLUGIN_MANUFACTURER_CODE Omga
+    PLUGIN_CODE Osln
+    FORMATS ${OMEGA_FORMATS} Standalone
+    IS_SYNTH TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    IS_MIDI_EFFECT FALSE
+    VST3_CATEGORIES Instrument Synth
+    AU_MAIN_TYPE kAudioUnitType_MusicDevice
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+  target_sources(OmegaSolina PRIVATE solina/SolinaPlugin.cpp solina/SolinaEditor.cpp)
+  target_compile_definitions(OmegaSolina PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+  target_link_libraries(OmegaSolina PRIVATE juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
+endif()
+# Solina.h against engine.js: node solina/tools/compare.mjs <build>/solina_test <dir>
+add_executable(solina_test solina/test.cpp)
+# drives the Solina processor directly (sequencer, MIDI out, learn, files, state, window pictures): <build>/solina_proc_test <dir>
+if(TARGET OmegaSolina)
+  juce_add_console_app(solina_proc_test PRODUCT_NAME "solina_proc_test")
+  target_sources(solina_proc_test PRIVATE solina/proctest.cpp solina/SolinaPlugin.cpp solina/SolinaEditor.cpp)
+  target_compile_definitions(solina_proc_test PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega Solina")
+  target_link_libraries(solina_proc_test PRIVATE juce::juce_audio_utils juce::juce_recommended_config_flags)
+  set_target_properties(solina_proc_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()

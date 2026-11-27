@@ -10,7 +10,7 @@ android {
     versionName '24.0'
   }
   buildFeatures { buildConfig true }
-  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine) and Omega Twelve (12-bit sampler emulator)
+  // apps from one project: the full Omega System, Omega Vox (Prophet-5 + vocoder + talking machine), Omega Twelve (12-bit sampler emulator) and Omega Solina (string ensemble)
   flavorDimensions 'app'
   productFlavors {
     omega {
@@ -30,6 +30,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    solina {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.solina'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/solina/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/solina/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +51,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  solinaImplementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +62,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// Omega Solina carries its web app the same way: ../solina (not its tools) into its assets
+def solinaAssets = layout.buildDirectory.dir('solinaAssets')
+tasks.register('copySolinaWeb', Copy) {
+  from('../../solina') { exclude 'tools/**', '*.md' }
+  into solinaAssets.map { it.dir('solina') }
+}
+android.sourceSets.solina.assets.srcDirs += [solinaAssets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Solina') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copySolinaWeb' }

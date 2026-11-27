@@ -1,0 +1,2 @@
+{"name":"Omega Solina","short_name":"Solina","description":"Solina String Ensemble modeled from its schematics, with an RX5-style mixer, effects, presets, sequencer and full MIDI.","start_url":"./","scope":"./","display":"standalone","orientation":"any","background_color":"#151413","theme_color":"#151413",
+ "icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}
