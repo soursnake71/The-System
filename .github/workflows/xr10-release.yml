@@ -70,8 +70,8 @@ jobs:
         with: {gradle-version: '8.14.3'}
       - name: Engine to WebAssembly
         run: |
-          sudo apt-get update && sudo apt-get install -y clang lld
-          CLANG=clang sh xr10/tools/build-wasm.sh
+          sudo apt-get update && sudo apt-get install -y clang lld wasi-libc libc++-18-dev-wasm32 libc++abi-18-dev-wasm32 libclang-rt-18-dev-wasm32
+          CLANG=clang++ sh xr10/tools/build-wasm.sh
           g++ -O2 -std=c++17 xr10/tools/make-rom.cpp -o make-rom && ./make-rom xr10/samples xr10/rom.bin
       - name: Build
         run: |

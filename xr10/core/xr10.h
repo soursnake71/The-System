@@ -171,6 +171,9 @@ struct Machine {
   int os = 4;
   double machPhase = 1, dacL = 0, dacR = 0, dacE = 0, inductance = 0, dacVolts = 0.45;
   float mixL[64], mixR[64], mixE[64]; int mixPos = 64, mixLen = 64;
+  // the fold-out mixer: mute and solo per sound (applied in the digital mix) and a peak meter per sound
+  u8 mute[NSOUNDS], solo[NSOUNDS];
+  float meter[NSOUNDS], chanGain[NSOUNDS];
   u32 ageCounter = 0;
   Fx fx;
   int fxConfigured = -1;
@@ -296,13 +299,13 @@ struct Machine {
     buildPresets();
     for (int p = NPRESET; p < NPAT; p++) clearPattern(p);
     for (int s = 0; s < NSONG; s++) { Str(songs[s].name, 10).s("SONG ").i(s + 1, 2); songs[s].len = 0; songs[s].tempo = 0; }
-    for (int i = 0; i < NSOUNDS; i++) { defaultVoice(i); user[i].start = user[i].len = 0; }
+    for (int i = 0; i < NSOUNDS; i++) { defaultVoice(i); user[i].start = user[i].len = 0; mute[i] = solo[i] = 0; meter[i] = 0; chanGain[i] = 1; }
     userUsed = 0;
     defaultPads();
     for (int k = 0; k < NKEYS; k++) set[k] = 0;
     set[K_TEMPO] = 1200; set[K_TC] = 3; set[K_FXTYPE] = 0; set[K_FXTIME] = 50; set[K_FXLEVEL] = 60; set[K_POLY] = 8;
     set[K_MIDICH] = 0; set[K_MIDIMAP] = 0; set[K_SYNC] = 1; set[K_CLICK] = 1; set[K_CLICKLVL] = 60; set[K_COUNTIN] = 0;
-    set[K_PADVEL] = 0; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 0; set[K_FXLEVEL] = 45;
+    set[K_PADVEL] = 0; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 5; set[K_FXLEVEL] = 45;
     curPat = 0; curPart = 0; mainVar = 0;
     set[K_TEMPO] = pat[0].tempo * 10;
   }
@@ -408,8 +411,9 @@ struct Machine {
         else if (o.phase == 1) { if (o.holdLeft != 0xffffffffu && o.holdLeft-- == 0) o.phase = 2; }
         else o.env *= o.decayMul;
         if (o.fading) o.env *= o.fadeMul;
-        float y = x * o.env;
+        float y = x * o.env * chanGain[o.sound];
         L[i] += y * o.gL; R[i] += y * o.gR; E[i] += y * o.gE;
+        { float a = (y < 0 ? -y : y) * (o.gL > o.gR ? o.gL : o.gR); if (a > meter[o.sound]) meter[o.sound] = a; }
         if (o.sweepMul > 0) { o.sweepNow *= o.sweepMul; if ((i & 7) == 0) o.inc = o.baseInc * xm::pow2(o.sweepNow / 12.0); }
         if (o.rev) {
           o.pos -= o.inc;
@@ -675,6 +679,8 @@ struct Machine {
   void machineChunk() {
     const int n = 16;
     for (int i = 0; i < n; i++) mixL[i] = mixR[i] = mixE[i] = 0;
+    bool anySolo = false; for (int s = 0; s < NSOUNDS; s++) anySolo |= solo[s] != 0;
+    for (int s = 0; s < NSOUNDS; s++) { chanGain[s] = mute[s] || (anySolo && !solo[s]) ? 0.f : 1.f; meter[s] *= 0.9965f; }
     for (int i = 0; i < n; i++) seqSample();
     renderVoices(mixL, mixR, mixE, n);
     for (int i = 0; i < n; i++) {
@@ -781,7 +787,7 @@ struct Machine {
   struct Reader { const u8* p; u32 n, len; bool ok = true; void get(void* d, u32 l) { if (n + l > len) { ok = false; bytezero(d, l); return; } bytecopy(d, p + n, l); n += l; } };
   static const u32 MAGIC = 0x30315258;   // "XR10"
   template <class W> void save(W& w) {
-    u32 hdr[2] = {MAGIC, 3};   // 2: XR10 voice parameters, samples at the machine rate; 3: effect on by default
+    u32 hdr[2] = {MAGIC, 4};   // 2: XR10 voice parameters, samples at the machine rate; 3: effect on; 4: mixer, the rack
     w.put(hdr, 8);
     w.put(set, sizeof set);
     w.put(vp, sizeof vp);
@@ -795,6 +801,7 @@ struct Machine {
     }
     w.put(user, sizeof user); w.put(&userUsed, 4);
     w.put(userPool, userUsed * 2);
+    w.put(mute, sizeof mute); w.put(solo, sizeof solo);
   }
   bool load(const u8* data, u32 len) {
     Reader r{data, 0, len};
@@ -807,7 +814,7 @@ struct Machine {
       u8 skip[64 * 13 * 2]; r.get(skip, sizeof skip);
       for (int i = 0; i < NSOUNDS; i++) defaultVoice(i);
     } else { r.get(set, sizeof set); r.get(vp, sizeof vp); }
-    if (hdr[1] == 2 && set[K_FXTYPE] == 5) { set[K_FXTYPE] = 0; set[K_FXLEVEL] = 45; }   // builds 5-7 had the effect off
+    set[K_FXTYPE] = 5;   // the effect is the fold-out's rack now, fed from the EFFECT jack
     r.get(pads, sizeof pads); r.get(songs, sizeof songs);
     s32 cp[3]; r.get(cp, sizeof cp);
     for (int p = NPRESET; p < NPAT; p++) {
@@ -819,13 +826,17 @@ struct Machine {
     if (userUsed > (u32)USER_POOL) userUsed = 0;
     r.get(userPool, userUsed * 2);
     if (hdr[1] < 2) { for (int s = 0; s < NSOUNDS; s++) user[s].len = 0; userUsed = 0; }   // 44.1 kHz samples: load them again
+    if (hdr[1] >= 4) { r.get(mute, sizeof mute); r.get(solo, sizeof solo); if (!r.ok) { bytezero(mute, sizeof mute); bytezero(solo, sizeof solo); } }
+    else { bytezero(mute, sizeof mute); bytezero(solo, sizeof solo); }
     for (int s = 0; s < NSOUNDS; s++) if (user[s].start + user[s].len > userUsed) user[s].len = 0;
     for (int k = 0; k < NKEYS; k++) if (set[k] < -100000 || set[k] > 100000) set[k] = 0;
     curPat = xm::clampi(cp[0], 0, NPAT - 1); mainVar = xm::clampi(cp[2], 0, 2); curPart = mainVar;
     set[K_PLAYING] = 0; set[K_REC] = 0; recording = 0;
     partLenTicks = partTicks(curPat, curPart);
+    loadedBytes = r.n;   // anything after this (the rack's settings) belongs to the app or the plugin
     return true;
   }
+  u32 loadedBytes = 0;
 
   // ================= keys (shared by the LCD menus and the panels) =================
   s32 get(int k) {

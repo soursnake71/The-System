@@ -12,7 +12,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 48000 * 3 / 2 / 256; i++) p.processBlock(b, midi);
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     ed->setSize(1000, 1166);
-    const char* names[5] = {"SOUNDS", "STEP GRID", "SONG", "SETUP", "EFFECTS"};
+    const char* names[5] = {"SOUNDS", "STEP GRID", "SONG", "SETUP", "FOLD-OUT >"};
     for (int t = 0; t < 5; t++) {
         std::function<juce::TextButton*(juce::Component*)> find = [&](juce::Component* c) -> juce::TextButton* {
             for (auto* ch : c->getChildren()) {
@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
         juce::MessageManager::getInstance()->runDispatchLoopUntil(200);
         for (int i = 0; i < 20; i++) p.processBlock(b, midi);
         juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
+        if (t == 4) { juce::MessageManager::getInstance()->runDispatchLoopUntil(300); for (int i = 0; i < 40; i++) p.processBlock(b, midi); juce::MessageManager::getInstance()->runDispatchLoopUntil(200); }
         auto img = ed->createComponentSnapshot(ed->getLocalBounds());
         auto f = out.getChildFile("xr10-plugin-tab" + juce::String(t) + ".png");
         f.deleteFile();

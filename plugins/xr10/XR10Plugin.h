@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include "../../xr10/core/xr10.h"
+#include "../../xr10/rack/rack.h"
 
 namespace xr10 {
 
@@ -21,6 +22,11 @@ struct Snapshot {
     int steps = 16, songLen = 0, songTempo = 0;
     xr::SongStep song[xr::MAXSTEP] {};
     char patName[10] {};
+    // the fold-out
+    int padParams[xr::NPADS][3] {};   // LEVEL, PAN, FX SEND of each pad's sound
+    unsigned char mute[xr::NSOUNDS] {}, solo[xr::NSOUNDS] {};
+    float meter[xr::NSOUNDS] {}, outPeak[2] {}, rackIn = 0, rackOut = 0, rackRet = 0.8f, slotPeak[4] {};
+    int slotType[4] {}, slotFlags[4] {};
 };
 
 class Processor : public juce::AudioProcessor {
@@ -53,6 +59,10 @@ public:
 
     // ---- used by the editor (message thread); every call takes the engine lock briefly ----
     template <class F> void with(F f) { const juce::SpinLock::ScopedLockType l(lock); f(*m); }
+    template <class F> void withRack(F f) { const juce::SpinLock::ScopedLockType l(lock); f(rack); }   // the fold-out's effects rack
+    xrack::Rack rack;
+    float outPeak[2] {};
+    bool foldOpen = false;
     void snapshot(Snapshot& s, int gridBar);
     void patternNames(std::vector<juce::String>& out);
     juce::String loadSample(int sound, const juce::File& f);
@@ -71,6 +81,7 @@ private:
     std::unique_ptr<xr::Machine> m;
     juce::SpinLock lock;
     double rate = 44100;
+    std::vector<float> sendL, sendR, tmpR;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Processor)
 };
 

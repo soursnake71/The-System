@@ -16,6 +16,17 @@ the Android / web app, so the two sound and behave the same and share memory fil
 - MIDI: General MIDI drum notes (or note 36 = sound 1 / pad 1), program change picks the pattern, start / stop.
   The plugin follows the host's transport and tempo.
 
+## The fold-out: mixer and effects rack
+Under the panel in the app (the FOLD-OUT bar) and beside it in the plugin (FOLD-OUT >):
+- **Mixer**: a strip per pad of the bank (that sound's LEVEL fader, PAN, FX SEND, mute, solo, meter), then EFFECT SEND
+  (the rear-panel knob), FX RETURN and MAIN VOLUME.
+- **Effects rack** (`rack/rack.h`): four slots fed from the EFFECT jack, in series or each in parallel off the send, back
+  into the mix through FX RETURN. The units are the Omega System's own models (`plugins/dsp`): Lexicon 224 / AMS RMX16,
+  Alesis Microverb, Ensoniq DP4, gated drum room, Lexicon PrimeTime, Deltalab Effectron, Eventide H910, A/DA Flanger,
+  MXR 113, UREI 1176, bus compressor, each with its controls and presets. The rack is saved in the memory file.
+- The WebAssembly build needs the C++ library for these: `apt install clang lld wasi-libc libc++-18-dev-wasm32
+  libc++abi-18-dev-wasm32 libclang-rt-18-dev-wasm32`, then `xr10/tools/build-wasm.sh`.
+
 ## The circuit model
 Modelled from the Akai XR10 service manual (main schematic L400802M, block diagram L400851M, parts list, specifications),
 archive.org item `akai-xr-10-service-manual`:

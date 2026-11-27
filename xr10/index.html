@@ -52,6 +52,40 @@ section h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-trans
 #partpads { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
 #partpads button { min-height: 44px; font-size: 12px; padding: 4px; touch-action: none; }
 @media (max-width: 560px) { #partpads { grid-template-columns: repeat(3, 1fr); } .bigpad { height: 64px; font-size: 12px; } #padlcd { font-size: 15px; } }
+#foldbar { max-width: 1100px; margin: 0 auto; padding: 0 12px; }
+#foldbtn { width: 100%; margin-top: 4px; font-weight: 600; letter-spacing: .06em; background: linear-gradient(#e9e8ee, #cfcdd6); color: #26262c; border-color: #9c9aa6; }
+#foldbtn .chev { display: inline-block; transition: transform .25s; }
+#foldbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+#foldout { max-width: 1100px; margin: 0 auto; padding: 0 12px; overflow: hidden; max-height: 0; transition: max-height .35s ease; }
+#foldout.open { max-height: 4000px; }
+.foldin { padding-top: 8px; }
+#mixer { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+.strip { flex: 0 0 64px; background: var(--key); border: 1px solid var(--keyb); border-radius: 8px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.strip.master { background: var(--panel); border-color: var(--sub); }
+.strip .nm { font-size: 10.5px; font-weight: 600; text-align: center; height: 26px; overflow: hidden; line-height: 13px; }
+.strip .fz { display: flex; gap: 4px; height: 150px; }
+.fader { position: relative; width: 22px; height: 150px; touch-action: none; cursor: ns-resize; }
+.fader::before { content: ''; position: absolute; left: 9px; top: 4px; bottom: 4px; width: 4px; border-radius: 2px; background: var(--keyb); }
+.fader .cap { position: absolute; left: 0; width: 22px; height: 14px; margin-top: -7px; border-radius: 3px; background: linear-gradient(#f4f4f6, #a9a8b2); border: 1px solid #77767f; }
+.meter { width: 7px; height: 150px; background: #1b2024; border-radius: 3px; position: relative; overflow: hidden; }
+.meter i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #3fbf6a 0%, #3fbf6a 70%, #e8c547 85%, #e5484d 100%); background-size: 100% 150px; background-position: bottom; }
+.strip input[type=range] { width: 56px; }
+.strip .lbl { font-size: 9.5px; color: var(--sub); margin-bottom: -4px; }
+.strip .ms { display: flex; gap: 3px; }
+.strip .ms button { min-height: 24px; padding: 2px 7px; font-size: 11px; }
+.strip .ms button.on.m { background: #e0a020; border-color: #e0a020; color: #000; }
+.strip .ms button.on.s { background: #3fbf6a; border-color: #3fbf6a; color: #000; }
+.strip .val { font-size: 10px; font-variant-numeric: tabular-nums; }
+#rack { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+.unit { background: #23262b; color: #e9e9ee; border-radius: 8px; padding: 8px; border: 1px solid #3a3e45; }
+.unit .top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.unit select { background: #30343b; color: #e9e9ee; border-color: #4a4f57; max-width: 100%; }
+.unit .tg { font-size: 11.5px; color: #c9cbd2; }
+.unit .ctl { display: grid; grid-template-columns: 92px 1fr 54px; gap: 4px 6px; align-items: center; font-size: 11px; margin-top: 6px; }
+.unit .ctl span:last-child { text-align: right; font-variant-numeric: tabular-nums; color: #b9c9d6; }
+.unit .led { width: 9px; height: 9px; border-radius: 50%; background: #2c3a2f; display: inline-block; }
+.unit .led.on { background: #45e07a; box-shadow: 0 0 6px #45e07a; }
+.unit.byp { opacity: .55; }
 #inst { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
 #inst button { padding: 4px 2px; font-size: 10.5px; min-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #inst button.user { border-color: var(--accent); }
@@ -78,6 +112,19 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
 <body>
 <div id="start"><button id="go">Power on</button><small id="buildno" style="position:absolute;bottom:16px;color:#fff;opacity:.7"></small></div>
 <div id="face"><img id="plate" src="faceplate.jpg" alt="Drum machine front panel"><canvas id="lcd"></canvas></div>
+<div id="foldbar"><button id="foldbtn" aria-expanded="false"><span class="chev">▾</span> FOLD-OUT · MIXER · EFFECTS RACK</button></div>
+<div id="foldout">
+  <div class="foldin">
+    <section id="mixsec">
+      <h3>Mixer <span class="help">faders are each sound's LEVEL, PAN and FX SEND; M mutes, S solos</span></h3>
+      <div id="mixer"></div>
+    </section>
+    <section id="racksec">
+      <h3>Effects rack <span class="help">fed from the EFFECT send; slots in series, or parallel off the send</span></h3>
+      <div id="rack"></div>
+    </section>
+  </div>
+</div>
 <div id="panel">
   <div class="row" style="justify-content:space-between">
     <div class="row">
@@ -97,7 +144,6 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
     <button data-tab="voice">Sounds</button>
     <button data-tab="grid">Step grid</button>
     <button data-tab="song">Song</button>
-    <button data-tab="fx">Effects</button>
     <button data-tab="setup">Setup</button>
     <button data-tab="help">Help</button>
   </div>
@@ -161,20 +207,6 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
         <button id="songmidi">Export song as MIDI</button>
       </div>
       <div id="songlist"></div>
-    </section>
-  </div>
-  <div id="tab-fx" hidden>
-    <section>
-      <h3>Effects</h3>
-      <div class="row">
-        <label>Effect <select id="fxtype"></select></label>
-        <label>Time <input id="fxtime" type="range" min="0" max="99"></label>
-        <label>Level <input id="fxlevel" type="range" min="0" max="99"></label>
-      </div>
-      <div class="row">
-        <label>EFFECT send (the rear-panel knob) <input id="effectvr" type="range" min="0" max="100"></label>
-      </div>
-      <p class="help">Each sound goes to the effect by its own <b>FX SEND</b> amount (Sounds tab): snares, claps and toms have some to start with. The XR10 itself has no built-in effect, it sends to an outboard unit from its EFFECT jack; choose <b>External</b> to hear it that way (in the plugin, the FX Send output carries it).</p>
     </section>
   </div>
   <div id="tab-setup" hidden>

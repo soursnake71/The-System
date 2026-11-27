@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 8;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 9;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
@@ -182,6 +182,7 @@ function onMsg(m) {
   if (m.t === 'saved') { onSaved(m); return; }
   if (m.t === 'loaded') { info.patterns = m.patterns; fillPatterns(); if (m.why === 'file') alert(m.ok ? 'Loaded.' : 'That file is not an XR10 memory file.'); return; }
   if (m.t === 'wave') { drawWave(m.w); return; }
+  if (m.t === 'rackDescribed') { rackDesc[m.slot] = parseDesc(m.text); buildUnit(m.slot); return; }
   if (m.t === 'midiFile') { if (m.bytes) download(m.bytes, (m.song ? 'xr10-song-' + (S.song + 1) : 'xr10-' + String(S.pattern + 1).padStart(2, '0') + '-' + PART_CODES[S.part]) + '.mid', 'audio/midi'); return; }
   if (m.t === 'midiImported') {
     info.patterns = m.patterns; fillPatterns();
@@ -247,7 +248,7 @@ function download(bytes, name, mime) {
 const tabs = [...document.querySelectorAll('#tabs button')];
 tabs.forEach(b => b.addEventListener('click', () => {
   tabs.forEach(x => x.classList.toggle('on', x === b));
-  for (const t of ['pads', 'voice', 'grid', 'song', 'fx', 'setup', 'help']) $('tab-' + t).hidden = t !== b.dataset.tab;
+  for (const t of ['pads', 'voice', 'grid', 'song', 'setup', 'help']) $('tab-' + t).hidden = t !== b.dataset.tab;
 }));
 let gridBar = 0, waveFor = -1;
 function opt(sel, items) { sel.innerHTML = ''; items.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }); }
@@ -350,14 +351,14 @@ function buildPanel() {
   $('songadd').onclick = () => send({ t: 'songSet', song: S.song, step: 999, p: S.pattern, part: S.keys[K.MAINVAR], rep: 1 });
   $('songplay').onclick = () => { send({ t: 'set', k: K.MODE, v: 1 }); send({ t: 'set', k: K.PLAYING, v: S.playing ? 0 : 1 }); };
   // setup
-  opt($('fxtype'), ['Room', 'Hall', 'Plate', 'Gated reverb', 'Delay', 'External: EFFECT jack only (as the XR10)', 'Off'].map((n, i) => [i, n]));
   opt($('tc'), ['1/4', '1/8', '1/8 triplet', '1/16', '1/16 triplet', '1/32', 'Off'].map((n, i) => [i, n]));
   opt($('poly'), [4, 6, 8, 12, 16, 24, 32].map(v => [v, v + (v === 8 ? ' (XR10)' : '')]));
   opt($('midich'), [[0, 'Omni']].concat(Array.from({ length: 16 }, (_, i) => [i + 1, i + 1])));
   const bindSel = (id, k) => $(id).onchange = e => send({ t: 'set', k, v: +e.target.value });
-  bindSel('fxtype', K.FXTYPE); bindSel('tc', K.TC); bindSel('poly', K.POLY); bindSel('midich', K.MIDICH); bindSel('midimap', K.MIDIMAP); bindSel('click', K.CLICK);
+  bindSel('tc', K.TC); bindSel('poly', K.POLY); bindSel('midich', K.MIDICH); bindSel('midimap', K.MIDIMAP); bindSel('click', K.CLICK);
   const bindRange = (id, k) => $(id).oninput = e => send({ t: 'set', k, v: +e.target.value });
-  bindRange('effectvr', K.EFFECTVR); bindRange('fxtime', K.FXTIME); bindRange('fxlevel', K.FXLEVEL); bindRange('clicklvl', K.CLICKLVL);
+  bindRange('clicklvl', K.CLICKLVL);
+  buildFold();
   $('accvel').onchange = e => send({ t: 'set', k: K.ACCENTVEL, v: +e.target.value });
   $('padvel').onchange = e => send({ t: 'set', k: K.PADVEL, v: e.target.checked ? 1 : 0 });
   $('countin').onchange = e => send({ t: 'set', k: K.COUNTIN, v: e.target.checked ? 1 : 0 });
@@ -442,7 +443,7 @@ function update() {
   setVal($('songtempo'), S.songTempo || '');
   drawSong();
   // setup
-  setVal($('effectvr'), S.keys[K.EFFECTVR]); setVal($('fxtype'), S.keys[K.FXTYPE]); setVal($('fxtime'), S.keys[K.FXTIME]); setVal($('fxlevel'), S.keys[K.FXLEVEL]);
+  updateFold();
   setVal($('tc'), S.keys[K.TC]); setVal($('poly'), S.keys[K.POLY]); setVal($('midich'), S.keys[K.MIDICH]); setVal($('midimap'), S.keys[K.MIDIMAP]);
   setVal($('click'), S.keys[K.CLICK]); setVal($('clicklvl'), S.keys[K.CLICKLVL]); setVal($('accvel'), S.keys[K.ACCENTVEL]);
   $('padvel').checked = !!S.keys[K.PADVEL]; $('countin').checked = !!S.keys[K.COUNTIN];
@@ -510,6 +511,182 @@ function drawSong() {
     row.append(ps, pt, rp, ins, del);
     l.appendChild(row);
   });
+}
+
+// --------------------------------------------------- the fold-out: mixer and effects rack
+const rackDesc = [null, null, null, null];
+let foldOpen = false;
+try { foldOpen = localStorage.xr10fold === '1'; } catch (e) { }
+function setFold(open) {
+  foldOpen = open;
+  $('foldout').classList.toggle('open', open);
+  $('foldbtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+  try { localStorage.xr10fold = open ? '1' : '0'; } catch (e) { }
+}
+// a vertical fader: value lo..hi, drag or tap
+function fader(lo, hi, onChange) {
+  const el = document.createElement('div'); el.className = 'fader';
+  const cap = document.createElement('div'); cap.className = 'cap'; el.appendChild(cap);
+  el.value = lo; el.dragging = false;
+  el.show = v => { el.value = v; cap.style.top = (4 + (1 - (v - lo) / (hi - lo)) * (el.clientHeight - 8 || 142)) + 'px'; };
+  const at = e => { const r = el.getBoundingClientRect(); const f = 1 - Math.min(1, Math.max(0, (e.clientY - r.top - 4) / (r.height - 8))); return Math.round(lo + f * (hi - lo)); };
+  el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.dragging = true; const v = at(e); el.show(v); onChange(v); });
+  el.addEventListener('pointermove', e => { if (!el.dragging) return; const v = at(e); if (v !== el.value) { el.show(v); onChange(v); } });
+  const end = () => { el.dragging = false; };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  return el;
+}
+const dbBar = p => Math.max(0, Math.min(1, (20 * Math.log10(Math.max(p, 1e-5)) + 48) / 48));   // -48..0 dB
+const strips = [];
+function buildFold() {
+  $('foldbtn').onclick = () => setFold(!foldOpen);
+  setFold(foldOpen);
+  const mx = $('mixer');
+  mx.innerHTML = '';
+  strips.length = 0;
+  const P = n => info.pnames.indexOf(n);
+  const pLevel = P('LEVEL'), pPan = P('PAN'), pSend = P('FX SEND');
+  for (let i = 0; i < 15; i++) {
+    const st = document.createElement('div'); st.className = 'strip';
+    st.innerHTML = '<div class="nm"></div><div class="fz"><div class="meter"><i></i></div></div><div class="val"></div><div class="lbl">PAN</div><input type="range" class="pan" min="-15" max="15"><div class="lbl">FX SEND</div><input type="range" class="snd" min="0" max="31"><div class="ms"><button class="m">M</button><button class="s">S</button></div>';
+    const f = fader(0, 31, v => { send({ t: 'param', s: S.padSound[i], p: pLevel, v }); });
+    st.querySelector('.fz').prepend(f);
+    st.querySelector('.pan').oninput = e => send({ t: 'param', s: S.padSound[i], p: pPan, v: +e.target.value });
+    st.querySelector('.pan').ondblclick = e => { e.target.value = 0; send({ t: 'param', s: S.padSound[i], p: pPan, v: 0 }); };
+    st.querySelector('.snd').oninput = e => send({ t: 'param', s: S.padSound[i], p: pSend, v: +e.target.value });
+    st.querySelector('.m').onclick = () => send({ t: 'mute', s: S.padSound[i], on: S.mute[S.padSound[i]] ? 0 : 1 });
+    st.querySelector('.s').onclick = () => send({ t: 'solo', s: S.padSound[i], on: S.solo[S.padSound[i]] ? 0 : 1 });
+    st.querySelector('.nm').onclick = () => { send({ t: 'set', k: K.SOUND, v: S.padSound[i] }); send({ t: 'hit', s: S.padSound[i], v: 110 }); };
+    mx.appendChild(st);
+    strips.push({ el: st, f, kind: 'pad', i });
+  }
+  const master = (name, lo, hi, onChange, kind) => {
+    const st = document.createElement('div'); st.className = 'strip master';
+    st.innerHTML = `<div class="nm">${name}</div><div class="fz"><div class="meter"><i></i></div><div class="meter m2"><i></i></div></div><div class="val"></div>`;
+    const f = fader(lo, hi, onChange);
+    st.querySelector('.fz').prepend(f);
+    mx.appendChild(st);
+    strips.push({ el: st, f, kind });
+  };
+  master('EFFECT SEND', 0, 100, v => send({ t: 'set', k: K.EFFECTVR, v }), 'send');
+  master('FX RETURN', 0, 150, v => send({ t: 'rackReturn', v: v / 100 }), 'ret');
+  master('MAIN VOLUME', 0, 100, v => { knobState.vol = v; drawKnobs(); send({ t: 'set', k: K.VOLUME, v }); }, 'main');
+  // the rack
+  const rk = $('rack');
+  rk.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const u = document.createElement('div'); u.className = 'unit'; u.id = 'unit' + i;
+    rk.appendChild(u);
+    send({ t: 'rackDescribe', slot: i });
+  }
+}
+function parseDesc(text) {
+  const lines = text.split('\n').filter(l => l.length);
+  if (!lines.length || lines[0] === 'none') return null;
+  const d = { name: lines[0], params: [], presets: [] };
+  for (const l of lines.slice(1)) {
+    const f = l.split('|');
+    if (f[0] === 'presets') { d.presets = f.slice(1); continue; }
+    const p = { id: f[0], name: f[1], min: +f[2], max: +f[3], step: +f[4], value: +f[5], choices: [] };
+    if (f[6]) p.choices = f[6].split(';').map(c => { const k = c.lastIndexOf('='); return [c.slice(0, k), +c.slice(k + 1)]; });
+    d.params.push(p);
+  }
+  return d;
+}
+function fmtUnit(p, v) {
+  if (p.choices.length) { const c = p.choices.find(c => c[1] === v); return c ? c[0] : v; }
+  if (p.id === 'omix' || (p.max === 1 && p.min === 0)) return Math.round(v * 100) + '%';
+  return Math.abs(v) >= 100 ? Math.round(v) : +v.toFixed(2);
+}
+function buildUnit(i) {
+  const u = $('unit' + i); if (!u || !S) return;
+  const d = rackDesc[i], sl = S.rack ? S.rack.slots[i] : { type: -1, flags: 0 };
+  u.innerHTML = '';
+  const top = document.createElement('div'); top.className = 'top';
+  const led = document.createElement('span'); led.className = 'led';
+  const sel = document.createElement('select');
+  opt(sel, [[-1, `Slot ${i + 1}: empty`]].concat(info.rackUnits.map((n, k) => [k, n])));
+  sel.value = sl.type;
+  sel.onchange = () => send({ t: 'rackType', slot: i, type: +sel.value });
+  top.append(led, sel);
+  if (d) {
+    const pre = document.createElement('select');
+    opt(pre, [['', 'Preset…']].concat(d.presets.map((n, k) => [k, n])));
+    pre.onchange = () => { if (pre.value !== '') send({ t: 'rackPreset', slot: i, k: +pre.value }); };
+    if (d.presets.length) top.append(pre);
+    const by = document.createElement('label'); by.className = 'tg'; by.innerHTML = '<input type="checkbox"> bypass';
+    by.querySelector('input').checked = !!(sl.flags & 1);
+    by.querySelector('input').onchange = e => send({ t: 'rackBypass', slot: i, on: e.target.checked ? 1 : 0 });
+    const pa = document.createElement('label'); pa.className = 'tg'; pa.innerHTML = '<input type="checkbox"> parallel';
+    pa.querySelector('input').checked = !!(sl.flags & 2);
+    pa.querySelector('input').onchange = e => send({ t: 'rackParallel', slot: i, on: e.target.checked ? 1 : 0 });
+    top.append(by, pa);
+  }
+  u.appendChild(top);
+  if (d) {
+    const ctl = document.createElement('div'); ctl.className = 'ctl';
+    d.params.forEach((p, k) => {
+      const nm = document.createElement('span'); nm.textContent = p.name;
+      const val = document.createElement('span'); val.textContent = p.choices.length ? '' : fmtUnit(p, p.value);
+      let inp;
+      if (p.choices.length) {
+        inp = document.createElement('select');
+        opt(inp, p.choices.map(c => [c[1], c[0]]));
+        inp.value = p.value;
+        inp.onchange = () => { const v = +inp.value; p.value = v; send({ t: 'rackParam', slot: i, p: k, v }); };
+      } else {
+        inp = document.createElement('input'); inp.type = 'range';
+        inp.min = p.min; inp.max = p.max; inp.step = p.step > 0 ? p.step : (p.max - p.min) / 200; inp.value = p.value;
+        inp.oninput = () => { const v = +inp.value; p.value = v; val.textContent = fmtUnit(p, v); send({ t: 'rackParam', slot: i, p: k, v }); };
+      }
+      ctl.append(nm, inp, val);
+    });
+    u.appendChild(ctl);
+  }
+}
+function updateFold() {
+  if (!strips.length || !S.mute) return;
+  const P = n => info.pnames.indexOf(n);
+  const all = (S.params && S.allParams) || null;
+  for (const s of strips) {
+    const bar = s.el.querySelectorAll('.meter i');
+    if (s.kind === 'pad') {
+      const snd = S.padSound[s.i];
+      s.el.querySelector('.nm').textContent = (s.i + 1) + ' ' + info.names[snd];
+      const lv = S.padParams ? S.padParams[s.i] : null;
+      if (lv) {
+        if (!s.f.dragging) s.f.show(lv[0]);
+        s.el.querySelector('.val').textContent = lv[0];
+        const pan = s.el.querySelector('.pan'), sn = s.el.querySelector('.snd');
+        if (document.activeElement !== pan) pan.value = lv[1];
+        if (document.activeElement !== sn) sn.value = lv[2];
+      }
+      s.el.querySelector('.m').classList.toggle('on', !!S.mute[snd]);
+      s.el.querySelector('.s').classList.toggle('on', !!S.solo[snd]);
+      bar[0].style.height = (dbBar(S.meter[snd]) * 100) + '%';
+    } else if (s.kind === 'send') {
+      if (!s.f.dragging) s.f.show(S.keys[K.EFFECTVR]);
+      s.el.querySelector('.val').textContent = S.keys[K.EFFECTVR];
+      bar[0].style.height = bar[1].style.height = (dbBar(S.rack.peakIn) * 100) + '%';
+    } else if (s.kind === 'ret') {
+      if (!s.f.dragging) s.f.show(Math.round(S.rack.ret * 100));
+      s.el.querySelector('.val').textContent = Math.round(S.rack.ret * 100) + '%';
+      bar[0].style.height = bar[1].style.height = (dbBar(S.rack.peakOut) * 100) + '%';
+    } else {
+      if (!s.f.dragging) s.f.show(S.keys[K.VOLUME]);
+      s.el.querySelector('.val').textContent = S.keys[K.VOLUME];
+      bar[0].style.height = (dbBar(S.outPeak[0]) * 100) + '%'; bar[1].style.height = (dbBar(S.outPeak[1]) * 100) + '%';
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    const u = $('unit' + i), sl = S.rack.slots[i];
+    if (!u) continue;
+    const sel = u.querySelector('select');
+    if (!sel) { if (rackDesc[i] !== undefined || !u.dataset.asked) { u.dataset.asked = '1'; buildUnit(i); } }
+    else if (document.activeElement !== sel && +sel.value !== sl.type) send({ t: 'rackDescribe', slot: i });
+    u.classList.toggle('byp', !!(sl.flags & 1));
+    const led = u.querySelector('.led'); if (led) led.classList.toggle('on', sl.peak > 0.003);
+  }
 }
 
 // --------------------------------------------------- MIDI (Web MIDI, or Android's through AndroidMidi)

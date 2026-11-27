@@ -16,9 +16,13 @@ class XR10Processor extends AudioWorkletProcessor {
   }
   async start(m) {
     {
-      const { instance } = await WebAssembly.instantiate(m.bytes, {});
+      // the module only asks the system for a few things it never really uses here (it's built with the C++ library)
+      const mod = await WebAssembly.compile(m.bytes);
+      const imports = {};
+      for (const im of WebAssembly.Module.imports(mod)) (imports[im.module] ??= {})[im.name] = im.kind === 'function' ? () => 0 : undefined;
+      const instance = await WebAssembly.instantiate(mod, imports);
       const x = this.x = instance.exports;
-      x.__wasm_call_ctors();
+      if (x._initialize) x._initialize(); else if (x.__wasm_call_ctors) x.__wasm_call_ctors();
       if (m.rom && m.rom.byteLength > 8 && m.rom.byteLength <= x.xr_scratch_size()) {
         new Uint8Array(x.memory.buffer, x.xr_scratch(), m.rom.byteLength).set(new Uint8Array(m.rom));
         x.xr_init_pack(sampleRate, m.rom.byteLength);
@@ -28,7 +32,8 @@ class XR10Processor extends AudioWorkletProcessor {
       const nvp = x.xr_nvp(); this.nvp = nvp; this.nkeys = x.xr_nkeys();
       for (let i = 0; i < nvp; i++) { pnames.push(this.str(x.xr_param_name(i), 12)); plo.push(x.xr_param_lo(i)); phi.push(x.xr_param_hi(i)); }
       const packed = []; for (let i = 0; i < 64; i++) packed.push(x.xr_from_pack(i));
-      this.port.postMessage({ t: 'ready', names, pnames, plo, phi, packed, nvpXr10: x.xr_nvp_xr10(), patterns: this.patternNames() });
+      const rackUnits = []; for (let i = 0; i < x.xr_rack_units(); i++) rackUnits.push(this.str(x.xr_rack_unit_name(i), 120));
+      this.port.postMessage({ t: 'ready', names, pnames, plo, phi, packed, nvpXr10: x.xr_nvp_xr10(), rackUnits, patterns: this.patternNames() });
     }
   }
   handle(m) {
@@ -50,10 +55,19 @@ class XR10Processor extends AudioWorkletProcessor {
       case 'songInsert': x.xr_song_insert(m.song, m.step); break;
       case 'songDelete': x.xr_song_delete(m.song, m.step); break;
       case 'songTempo': x.xr_song_tempo(m.song, m.bpm); break;
-      case 'reset': x.xr_factory_reset(); this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
+      case 'reset': x.xr_factory_reset(); for (let i = 0; i < 4; i++) this.describe(i); this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
       case 'clearPart': x.xr_clear_part(); break;
       case 'randomBeat': x.xr_random_beat(m.seed); this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
       case 'randomSound': x.xr_random_sound(m.seed); break;
+      case 'mute': x.xr_mute(m.s, m.on); break;
+      case 'solo': x.xr_solo(m.s, m.on); break;
+      case 'rackType': x.xr_rack_set_type(m.slot, m.type); this.describe(m.slot); break;
+      case 'rackParam': x.xr_rack_set_param(m.slot, m.p, m.v); break;
+      case 'rackPreset': x.xr_rack_preset(m.slot, m.k); this.describe(m.slot); break;
+      case 'rackBypass': x.xr_rack_bypass(m.slot, m.on); break;
+      case 'rackParallel': x.xr_rack_parallel(m.slot, m.on); break;
+      case 'rackReturn': x.xr_rack_set_return(m.v); break;
+      case 'rackDescribe': this.describe(m.slot); break;
       case 'resetVoice': x.xr_default_voice(m.s); break;
       case 'clearSample': x.xr_clear_sample(m.s); break;
       case 'patterns': this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
@@ -69,6 +83,7 @@ class XR10Processor extends AudioWorkletProcessor {
         new Uint8Array(x.memory.buffer, x.xr_scratch(), b.length).set(b);
         const ok = x.xr_load(b.length);
         this.port.postMessage({ t: 'loaded', ok, why: m.why, patterns: this.patternNames() });
+        for (let i = 0; i < 4; i++) this.describe(i);
         break;
       }
       case 'sample': {
@@ -104,6 +119,10 @@ class XR10Processor extends AudioWorkletProcessor {
       }
     }
   }
+  describe(slot) {
+    const x = this.x, n = x.xr_rack_describe(slot);
+    this.port.postMessage({ t: 'rackDescribed', slot, text: this.str(x.xr_rack_text(), n) });
+  }
   str(p, n) { const m = new Uint8Array(this.x.memory.buffer); let s = ''; for (let i = 0; i < n && m[p + i]; i++) s += String.fromCharCode(m[p + i]); return s; }
   patternNames() { const a = []; for (let i = 0; i < 99; i++) a.push(this.str(this.x.xr_pattern_name(i), 10)); return a; }
   snapshot() {
@@ -126,6 +145,13 @@ class XR10Processor extends AudioWorkletProcessor {
     for (let i = 0; i < len; i++) s.songSteps.push([sb[14 + i * 4], sb[15 + i * 4], sb[16 + i * 4]]);
     s.patName = this.str(x.xr_pattern_name(s.pattern), 10);
     s.tick = this.tick;
+    // the fold-out
+    const mu = new Uint8Array(b, x.xr_mutes(), 64), so = new Uint8Array(b, x.xr_solos(), 64), me = new Float32Array(b, x.xr_meters(), 64);
+    s.padParams = s.padSound.map(snd => [x.xr_param(snd, 0), x.xr_param(snd, 1), x.xr_param(snd, 4)]);   // LEVEL, PAN, FX SEND
+    s.mute = Array.from(mu); s.solo = Array.from(so); s.meter = Array.from(me);
+    const op = new Float32Array(b, x.xr_out_peaks(), 2); s.outPeak = [op[0], op[1]];
+    s.rack = { ret: x.xr_rack_return(), peakIn: x.xr_rack_peak(0), peakOut: x.xr_rack_peak(1), slots: [] };
+    for (let i = 0; i < 4; i++) s.rack.slots.push({ type: x.xr_rack_type(i), flags: x.xr_rack_flags(i), peak: x.xr_rack_peak(2 + i) });
     return s;
   }
   process(_in, outputs) {

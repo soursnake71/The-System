@@ -82,8 +82,15 @@ check(await page.evaluate(() => S.pattern >= 50 && /^RAND/.test(S.patName)), 'ra
 const p0 = await page.evaluate(() => S.params.join(','));
 await page.click('#dicesound'); await page.waitForTimeout(300);
 check(await page.evaluate(p => S.params.join(',') !== p, p0), 'random sound changes the sound');
-await page.click('[data-tab=fx]'); await page.waitForTimeout(100);
-check(await page.evaluate(() => !$('tab-fx').hidden && S.keys[K.FXTYPE] <= 4), 'effects tab, an effect on by default');
+// the fold-out: mixer and rack
+await page.click('#foldbtn'); await page.waitForTimeout(500);
+check(await page.evaluate(() => $('foldout').classList.contains('open') && document.querySelectorAll('#mixer .strip').length === 18), 'fold-out opens with 15 + 3 strips');
+check(await page.evaluate(() => S.rack.slots[0].type === 0 && S.rack.slots[1].type === 4), 'rack starts with a reverb and a delay');
+await page.evaluate(() => document.querySelector('#mixer .strip .m').click()); await page.waitForTimeout(200);
+check(await page.evaluate(() => S.mute[S.padSound[0]] === 1), 'mute button mutes the sound');
+await page.evaluate(() => { const s = document.querySelector('#unit2 select'); s.value = 7; s.dispatchEvent(new Event('change')); }); await page.waitForTimeout(400);
+check(await page.evaluate(() => S.rack.slots[2].type === 7 && document.querySelectorAll('#unit2 .ctl > *').length > 6), 'rack slot 3: flanger with its controls');
+await page.screenshot({ path: shots + '/xr10-foldout.png', fullPage: true });
 // save state round trip through IndexedDB
 await page.evaluate(() => save('auto')); await page.waitForTimeout(400);
 check(await page.evaluate(async () => { const b = await dbGet(); return b && b.byteLength > 1000; }), 'state saved to IndexedDB');

@@ -1,5 +1,6 @@
 #pragma once
 #include "XR10Plugin.h"
+#include "XR10Fold.h"
 
 namespace xr10 {
 
@@ -71,6 +72,10 @@ private:
     } pages[5];   // sounds, grid, song, setup, effects
     juce::TextButton tabs[5], play {"START / STOP"}, rec {"RECORD"}, tap {"TAP"}, diceBeat {"RANDOM BEAT"}, diceSound {"RANDOM SOUND"};
     juce::Label fxHelp;
+    juce::TextButton foldBtn {"FOLD-OUT >"};
+    std::unique_ptr<FoldPanel> fold;
+    void setFold(bool open);
+    int baseW() const;
     juce::ComboBox patternBox;
     juce::Slider tempo;
     juce::Label tempoLabel {{}, "TEMPO"};

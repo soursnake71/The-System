@@ -6,7 +6,7 @@ using namespace xr;
 
 static const juce::Colour kPanel(0xffe4e3ea), kInk(0xff26262c), kSub(0xff5c5b66), kKey(0xfff4f3f7), kSel(0xff3c5f94), kOn(0xffd2335a),
     kLcd(0xff2f3b42), kLcdText(0xffb4c8c6), kGhost(0xff9cb0d0), kBg(0xffcfcdd6);
-static const int BASE_W = 1000, FACE_H = 686, PANEL_H = 480, BASE_H = FACE_H + PANEL_H;
+static const int BASE_W = 1000, FACE_H = 686, PANEL_H = 480, BASE_H = FACE_H + PANEL_H, FOLD_W = 660;
 static const char* const PART_LONG[NPARTS] = {"VAR A", "VAR B", "VAR C", "FILL A", "FILL B", "FILL C", "INTRO", "ENDING"};
 
 static juce::Font mono(float h) { return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), h, juce::Font::bold)); }
@@ -221,10 +221,17 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     face.volume = (float) snap.keys[K_VOLUME];
     const float startScale = juce::jlimit(0.4f, 2.0f, proc.editorScale);
     setResizable(true, true);
-    setResizeLimits(BASE_W * 4 / 10, BASE_H * 4 / 10, BASE_W * 2, BASE_H * 2);
-    getConstrainer()->setFixedAspectRatio((double) BASE_W / BASE_H);
-    setSize(juce::roundToInt(BASE_W * startScale), juce::roundToInt(BASE_H * startScale));
-    showTab(juce::jlimit(0, 4, proc.editorTab));
+    // the fold-out: a mixer and the effects rack, opening beside the machine
+    fold.reset(new FoldPanel(proc, snap));
+    fold->mixer.onMainVolume = [this](float v) { face.volume = v; face.repaint(); };
+    content.addChildComponent(*fold);
+    styleButton(foldBtn);
+    foldBtn.onClick = [this] { setFold(!proc.foldOpen); };
+    content.addAndMakeVisible(foldBtn);
+    setResizeLimits(baseW() * 4 / 10, BASE_H * 4 / 10, baseW() * 2, BASE_H * 2);
+    getConstrainer()->setFixedAspectRatio((double) baseW() / BASE_H);
+    setSize(juce::roundToInt(baseW() * startScale), juce::roundToInt(BASE_H * startScale));
+    showTab(juce::jlimit(0, 3, proc.editorTab));
     startTimerHz(30);
 }
 Editor::~Editor() { stopTimer(); }
@@ -232,9 +239,11 @@ Editor::~Editor() { stopTimer(); }
 void Editor::paint(juce::Graphics& g) { g.fillAll(kBg); }
 void Editor::resized() {
     if (getWidth() <= 0) return;
-    const float s = (float) getWidth() / BASE_W;
+    const float s = (float) getWidth() / baseW();
     proc.editorScale = s;
-    content.setBounds(0, 0, BASE_W, BASE_H);
+    content.setBounds(0, 0, baseW(), BASE_H);
+    fold->setVisible(proc.foldOpen);
+    fold->setBounds(BASE_W, 0, FOLD_W, BASE_H);
     content.setTransform(juce::AffineTransform::scale(s));
     face.setBounds(0, 0, BASE_W, FACE_H);
     int y = FACE_H + 8;
@@ -243,10 +252,12 @@ void Editor::resized() {
     tempoLabel.setBounds(304, y, 56, 30); tempo.setBounds(356, y, 120, 30);
     patternBox.setBounds(BASE_W - 304, y, 292, 30);
     y += 38;
-    {   // tab order on screen: sounds, grid, song, effects, setup
-        const int order[5] = {0, 1, 2, 4, 3};
-        for (int k = 0; k < 5; k++) tabs[order[k]].setBounds(12 + k * 196, y, 190, 28);
-    }
+    // the effects live in the fold-out now (the rack), so the old effects page has no tab
+    for (int k = 0; k < 4; k++) tabs[k].setBounds(12 + k * 200, y, 194, 28);
+    tabs[4].setVisible(false);
+    foldBtn.setBounds(12 + 4 * 200, y, 176, 28);
+    foldBtn.setButtonText(proc.foldOpen ? "< FOLD IN" : "FOLD-OUT >");
+    styleButton(foldBtn, proc.foldOpen);
     y += 34;
     for (auto& pg : pages) pg.setBounds(12, y, BASE_W - 24, BASE_H - y - 8);
     // voices page
@@ -704,9 +715,19 @@ void Editor::refresh() {
     countIn.setToggleState(snap.keys[K_COUNTIN] != 0, juce::dontSendNotification);
 }
 
+int Editor::baseW() const { return BASE_W + (proc.foldOpen ? FOLD_W : 0); }
+void Editor::setFold(bool open) {
+    const float s = (float) getWidth() / baseW();
+    proc.foldOpen = open;
+    setResizeLimits(baseW() * 4 / 10, BASE_H * 4 / 10, baseW() * 2, BASE_H * 2);
+    getConstrainer()->setFixedAspectRatio((double) baseW() / BASE_H);
+    setSize(juce::roundToInt(baseW() * s), juce::roundToInt(BASE_H * s));
+    resized();
+}
 void Editor::timerCallback() {
     proc.snapshot(snap, gridBar);
     refresh();
+    if (proc.foldOpen) fold->refresh();
     face.repaint();
     pages[tab].repaint();
 }

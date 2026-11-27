@@ -159,7 +159,7 @@ if(NOT OMEGA_ONLY OR "XR10" IN_LIST OMEGA_ONLY)
     VST3_CATEGORIES Instrument Drum
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
     COPY_PLUGIN_AFTER_BUILD FALSE)
-  target_sources(OmegaXR10 PRIVATE xr10/XR10Plugin.cpp xr10/XR10Editor.cpp)
+  target_sources(OmegaXR10 PRIVATE xr10/XR10Plugin.cpp xr10/XR10Editor.cpp xr10/XR10Fold.cpp)
   target_compile_definitions(OmegaXR10 PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(OmegaXR10 PRIVATE OmegaXR10Data juce::juce_audio_utils PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_lto_flags juce::juce_recommended_warning_flags)
@@ -171,7 +171,7 @@ add_executable(xr10_make_rom ../xr10/tools/make-rom.cpp)
 # pictures of the XR10 window: <build>/xr10_shot <dir>
 if(TARGET OmegaXR10)
   juce_add_console_app(xr10_shot PRODUCT_NAME "xr10_shot")
-  target_sources(xr10_shot PRIVATE xr10/shot.cpp xr10/XR10Plugin.cpp xr10/XR10Editor.cpp)
+  target_sources(xr10_shot PRIVATE xr10/shot.cpp xr10/XR10Plugin.cpp xr10/XR10Editor.cpp xr10/XR10Fold.cpp)
   target_compile_definitions(xr10_shot PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JucePlugin_Name="Omega XR10"
     JUCE_USE_MP3AUDIOFORMAT=1 JUCE_USE_FLAC=1 JUCE_USE_OGGVORBIS=1)
   target_link_libraries(xr10_shot PRIVATE OmegaXR10Data juce::juce_audio_utils juce::juce_recommended_config_flags)

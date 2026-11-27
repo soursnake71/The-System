@@ -11,6 +11,8 @@ Processor::Processor()
     m = std::make_unique<xr::Machine>();
     m->init(44100, (const u8*) BinaryData::rom_bin, (u32) BinaryData::rom_binSize);   // your XR-10 samples, when xr10/rom.bin has them
     formats.registerBasicFormats();
+    rack.prepare(44100, 2048);
+    rack.defaults();
 }
 
 bool Processor::isBusesLayoutSupported(const BusesLayout& l) const {
@@ -22,9 +24,12 @@ bool Processor::isBusesLayoutSupported(const BusesLayout& l) const {
     return l.inputBuses.isEmpty() || l.getMainInputChannelSet().isDisabled();
 }
 
-void Processor::prepareToPlay(double sampleRate, int) {
+void Processor::prepareToPlay(double sampleRate, int maxBlock) {
     rate = sampleRate;
     with([&](xr::Machine& mm) { mm.setRate(sampleRate); });
+    const int blk = juce::jmax(maxBlock, 512);
+    withRack([&](xrack::Rack& r) { r.prepare(sampleRate, blk); });
+    sendL.assign((size_t) juce::jmax(maxBlock, 8192), 0.f); sendR = sendL; tmpR = sendL;
 }
 
 void Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
@@ -43,23 +48,29 @@ void Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&
     auto main = getBusBuffer(buffer, false, 0);
     float* L = main.getWritePointer(0);
     float* R = main.getNumChannels() > 1 ? main.getWritePointer(1) : nullptr;
-    float* aL = nullptr; float* aR = nullptr;
-    if (getBusCount(false) > 1 && getBus(false, 1)->isEnabled()) {
-        auto aux = getBusBuffer(buffer, false, 1);
-        if (aux.getNumChannels() >= 2) { aL = aux.getWritePointer(0); aR = aux.getWritePointer(1); }
-    }
-    std::vector<float> tmpR;
-    if (!R) { tmpR.resize((size_t) n); R = tmpR.data(); }
+    if ((int) sendL.size() < n) { sendL.resize((size_t) n); sendR.resize((size_t) n); tmpR.resize((size_t) n); }
+    if (!R) R = tmpR.data();
+    float* aL = sendL.data(); float* aR = sendR.data();   // the EFFECT jack
     // MIDI with sample accuracy: render up to each event
     int at = 0;
     for (const auto meta : midi) {
         const int pos = juce::jlimit(0, n, meta.samplePosition);
-        if (pos > at) { m->process(L + at, R + at, aL ? aL + at : nullptr, aR ? aR + at : nullptr, pos - at); at = pos; }
+        if (pos > at) { m->process(L + at, R + at, aL + at, aR + at, pos - at); at = pos; }
         const auto msg = meta.getMessage();
         const auto* d = msg.getRawData();
         m->midi(d[0], msg.getRawDataSize() > 1 ? d[1] : 0, msg.getRawDataSize() > 2 ? d[2] : 0);
     }
-    if (n > at) m->process(L + at, R + at, aL ? aL + at : nullptr, aR ? aR + at : nullptr, n - at);
+    if (n > at) m->process(L + at, R + at, aL + at, aR + at, n - at);
+    // the fold-out's rack, fed from the EFFECT jack, returns into the main outputs
+    rack.bpm = m->set[xr::K_TEMPO] / 10.0;
+    rack.process(aL, L, R, n);
+    // the FX Send bus carries the EFFECT jack as it is
+    if (getBusCount(false) > 1 && getBus(false, 1)->isEnabled()) {
+        auto aux = getBusBuffer(buffer, false, 1);
+        for (int c = 0; c < aux.getNumChannels(); c++) aux.copyFrom(c, 0, c == 0 ? aL : aR, n);
+    }
+    for (auto& p : outPeak) p *= 0.9f;
+    for (int i = 0; i < n; i++) { outPeak[0] = juce::jmax(outPeak[0], std::abs(L[i])); outPeak[1] = juce::jmax(outPeak[1], std::abs(R[i])); }
     midi.clear();
 }
 
@@ -80,11 +91,16 @@ juce::MemoryBlock Processor::saveMemory() {
         xr::Machine::Writer w2 {(u8*) b.getData(), 0, w.n};
         mm.save(w2);
     });
+    // then the rack's settings, as in the app's memory file
+    std::string t; withRack([&](xrack::Rack& r) { t = r.save(); });
+    b.append(t.data(), t.size());
     return b;
 }
 bool Processor::loadMemory(const juce::MemoryBlock& b) {
     bool ok = false;
-    with([&](xr::Machine& mm) { ok = mm.load((const u8*) b.getData(), (u32) b.getSize()); });
+    u32 used = 0;
+    with([&](xr::Machine& mm) { ok = mm.load((const u8*) b.getData(), (u32) b.getSize()); used = mm.loadedBytes; });
+    if (ok) withRack([&](xrack::Rack& r) { if (used >= b.getSize() || !r.load((const char*) b.getData() + used, b.getSize() - used)) r.defaults(); });
     return ok;
 }
 void Processor::getStateInformation(juce::MemoryBlock& dest) {
@@ -94,7 +110,7 @@ void Processor::getStateInformation(juce::MemoryBlock& dest) {
     o.writeInt(0x58523130);   // "XR10"
     o.writeInt(1);
     o.writeFloat(editorScale);
-    o.writeInt(editorTab);
+    o.writeInt(editorTab | (foldOpen ? 0x100 : 0));
     o.writeInt((int) b.getSize());
     o.write(b.getData(), b.getSize());
 }
@@ -103,7 +119,7 @@ void Processor::setStateInformation(const void* data, int size) {
     if (in.readInt() != 0x58523130) return;
     in.readInt();
     editorScale = juce::jlimit(0.4f, 2.0f, in.readFloat());
-    editorTab = in.readInt();
+    { const int t = in.readInt(); editorTab = t & 0xff; foldOpen = (t & 0x100) != 0; }
     const int len = in.readInt();
     if (len <= 0 || len > size) return;
     juce::MemoryBlock b;
@@ -123,6 +139,12 @@ void Processor::snapshot(Snapshot& s, int gridBar) {
         s.songLen = sg.len; s.songTempo = sg.tempo;
         for (int i = 0; i < sg.len; i++) s.song[i] = sg.steps[i];
         std::memcpy(s.patName, mm.pat[mm.curPat].name, 10);
+        for (int i = 0; i < xr::NPADS; i++) { const int snd = mm.pads[mm.set[xr::K_BANK]][i]; s.padParams[i][0] = mm.vp[snd][xr::V_LEVEL]; s.padParams[i][1] = mm.vp[snd][xr::V_PAN]; s.padParams[i][2] = mm.vp[snd][xr::V_SEND]; }
+        std::memcpy(s.mute, mm.mute, sizeof s.mute); std::memcpy(s.solo, mm.solo, sizeof s.solo); std::memcpy(s.meter, mm.meter, sizeof s.meter);
+        // the rack shares the lock: read it here, not through withRack
+        s.outPeak[0] = outPeak[0]; s.outPeak[1] = outPeak[1];
+        s.rackIn = rack.peakIn; s.rackOut = rack.peakOut; s.rackRet = rack.ret;
+        for (int i = 0; i < 4; i++) { s.slotType[i] = rack.slot[i].type; s.slotFlags[i] = (rack.slot[i].bypass ? 1 : 0) | (rack.slot[i].parallel ? 2 : 0); s.slotPeak[i] = rack.slot[i].peak; }
     });
 }
 void Processor::patternNames(std::vector<juce::String>& out) {
