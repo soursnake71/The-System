@@ -27,7 +27,7 @@ const lcd = () => page.evaluate(() => lcdText.join(' | '));
 let fail = 0;
 const check = (c, m) => { if (!c) { console.log('FAIL', m); fail++; } else console.log('ok  ', m); };
 let t = await lcd(); check(t.includes('ROCK 1'), 'LCD shows pattern 1: ' + t);
-check(await page.evaluate(() => info.packed.every(p => p === 0)), 'sounds load from rom.bin');
+check(await page.evaluate(() => info.packed.filter(p => p === 1).length === 56), 'the XR-10 recordings load from rom.bin (56 sounds)');
 // keypad 0 7 picks pattern 7
 const hit = async (id) => page.evaluate(i => { send({ t: 'btn', b: i, d: 1 }); send({ t: 'btn', b: i, d: 0 }); }, id);
 const clickHot = async (x, y) => { const b = await page.locator('#plate').boundingBox(); await page.mouse.click(b.x + b.width * x / 800, b.y + b.height * y / 549); };

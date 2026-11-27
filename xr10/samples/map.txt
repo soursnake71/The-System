@@ -1,0 +1,64 @@
+# Which recording is which of the XR10's 64 sounds (number as on the panel list: 1 = KICK1 ... 64 = AGOGO H).
+# "source outputs": these were recorded from the XR10's audio outputs (44.1 kHz stereo, normalized), so make-rom takes
+# the machine's output circuit back out of them before storing them at the machine's rate (see tools/make-rom.cpp).
+source outputs
+1 Bassdrums/Bassdrum-01.wav
+2 Bassdrums/Bassdrum-02.wav
+3 Bassdrums/Bassdrum-03.wav
+4 Bassdrums/Bassdrum-04.wav
+5 Bassdrums/Bassdrum-05.wav
+6 Bassdrums/Bassdrum-06.wav
+7 Bassdrums/Bassdrum-07.wav
+8 Bassdrums/Bassdrum-08.wav
+9 Bassdrums/Bassdrum-09.wav
+10 Bassdrums/Bassdrum-10.wav
+11 Snaredrums/Snaredrum-01.wav
+12 Snaredrums/Snaredrum-02.wav
+13 Snaredrums/Snaredrum-03.wav
+14 Snaredrums/Snaredrum-04.wav
+15 Snaredrums/Snaredrum-05.wav
+16 Snaredrums/Snaredrum-06.wav
+17 Snaredrums/Snaredrum-07.wav
+18 Snaredrums/Snaredrum-08.wav
+19 Snaredrums/Snaredrum-09.wav
+20 Snaredrums/Snaredrum-10.wav
+21 Percussion/Rim Shot-01.wav
+22 Percussion/Rim Shot-02.wav
+23 Cymbals/Hat Closed.wav
+24 Cymbals/Hat Middle.wav
+25 Cymbals/Hat Open.wav
+26 Percussion/Tom L-01.wav
+27 Percussion/Tom M-01.wav
+28 Percussion/Toma H-01.wav
+29 Percussion/Tom L-02.wav
+30 Percussion/Tom M-02.wav
+31 Percussion/Tom H-02.wav
+# 32-37 (TOM3, TOM4): no recordings in the set, still synthesized
+38 Cymbals/Crash-01.wav
+39 Cymbals/Crash-02.wav
+40 Cymbals/Ride.wav
+41 Cymbals/Crash-03.wav
+42 Percussion/Clap.wav
+43 Percussion/Fingersanp.wav
+44 Percussion/Conga-01.wav
+45 Percussion/Conga-02.wav
+46 Percussion/Conga-03.wav
+47 Percussion/Conga-04.wav
+48 Percussion/Vibrator.wav
+49 Percussion/Guiro-01.wav
+50 Percussion/Guirro-02.wav
+51 Percussion/Cabasa.wav
+52 Percussion/Tambourine.wav
+53 Misc/Hit.wav
+# one triangle and one agogo recording: the L and H sounds share it (the H sounds are tuned up in their voice defaults)
+54 Percussion/Triangle.wav
+55 Percussion/Triangle.wav
+56 Percussion/Cowbell.wav
+57 Percussion/Claves.wav
+58 Percussion/Whistle.wav
+# 59-60 (SQUEAK L, SQUEAK H): no recordings in the set, still synthesized
+61 Percussion/Timbale L.wav
+62 Percussion/Timbale H.wav
+63 Percussion/Agogo.wav
+64 Percussion/Agogo.wav
+# not on the panel's list, so not used: Misc/Slap Bass.wav, Misc/Square Kick-01.wav, Misc/Square Kick-02.wav

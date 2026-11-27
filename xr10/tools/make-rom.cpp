@@ -2,6 +2,11 @@
 //   g++ -O2 -std=c++17 xr10/tools/make-rom.cpp -o make-rom
 //   ./make-rom xr10/samples xr10/rom.bin        a folder of WAV / AIFF files named after the sounds ("KICK1.wav", "07 KICK7.wav", "Hat CL.wav")
 //   ./make-rom my-memory.xr10 xr10/rom.bin      or the samples you loaded in the app, from its "Save all to a file"
+// A map.txt in the folder says which file is which sound ("N path", N = 1-64 as on the panel list); without one the
+// files are matched by name. "source outputs" in map.txt means the files were recorded from the XR10's audio outputs:
+// the machine's output circuit (DAC hold, 12 kHz LC filters, output amp, output network: core/analog.h) is then taken
+// back out (inverse filter, boost limited to MAX_BOOST_DB), the result band-limited to the machine's Nyquist, so that
+// playing it through the circuit model gives back the recording. Lead-in silence and the tail hiss are trimmed.
 // Sounds without a file stay synthesized. Files are mixed to mono, resampled to the machine's rate (33.33 kHz) and stored as 16-bit.
 #include "../core/xr10.h"
 #include <algorithm>
@@ -13,6 +18,8 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <complex>
+#include <sstream>
 namespace fs = std::filesystem;
 using namespace xr;
 
@@ -77,12 +84,78 @@ static std::vector<short> toRom(const std::vector<float>& in, double rate) {
     while (o.size() > 64 && std::abs(o.back()) < 8) o.pop_back();   // trailing silence
     return o;
 }
+// ---- taking the output circuit back out of a recording ----
+static const double MAX_BOOST_DB = 24;
+static void fft(std::vector<std::complex<double>>& a, bool inv) {
+    const size_t n = a.size();
+    for (size_t i = 1, j = 0; i < n; i++) { size_t bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) std::swap(a[i], a[j]); }
+    for (size_t len = 2; len <= n; len <<= 1) {
+        const double ang = 2 * M_PI / (double) len * (inv ? 1 : -1);
+        const std::complex<double> wl(std::cos(ang), std::sin(ang));
+        for (size_t i = 0; i < n; i += len) { std::complex<double> w(1); for (size_t k = 0; k < len / 2; k++) { auto u = a[i + k], v = a[i + k + len / 2] * w; a[i + k] = u + v; a[i + k + len / 2] = u - v; w *= wl; } }
+    }
+    if (inv) for (auto& x : a) x /= (double) n;
+}
+static std::vector<float> trimRecording(const std::vector<float>& in) {
+    float pk = 0; for (float v : in) pk = std::max(pk, std::fabs(v));
+    size_t a = 0; while (a < in.size() && std::fabs(in[a]) < pk * 0.01f) a++;   // onset: -40 dB
+    a = a > 24 ? a - 24 : 0;
+    size_t b = in.size(); while (b > a + 64 && std::fabs(in[b - 1]) < pk * 0.0005f) b--;   // the tail down to -66 dB
+    std::vector<float> o(in.begin() + (long) a, in.begin() + (long) b);
+    const size_t fade = std::min<size_t>(o.size() / 4, 220);   // 5 ms fade into the end
+    for (size_t i = 0; i < fade; i++) o[o.size() - 1 - i] *= (float) i / (float) fade;
+    return o;
+}
+static std::vector<float> removeCircuit(const std::vector<float>& x, double rate) {
+    const double L = LCLowpass::solveL(), nyq = MACHINE_RATE / 2 * 0.995, floorG = std::pow(10.0, -MAX_BOOST_DB / 20);
+    size_t n = 1; while (n < x.size() + 4096) n <<= 1;
+    std::vector<std::complex<double>> X(n);
+    for (size_t i = 0; i < x.size(); i++) X[i] = x[i];
+    fft(X, false);
+    const double g0 = std::abs(std::complex<double>(stageResponse(1000, MACHINE_RATE, L).r, stageResponse(1000, MACHINE_RATE, L).i));
+    for (size_t k = 0; k <= n / 2; k++) {
+        const double f = (double) k * rate / (double) n;
+        std::complex<double> inv = 0;
+        if (f > 5 && f < nyq) {
+            Cx h = stageResponse(f, MACHINE_RATE, L);
+            std::complex<double> H(h.r / g0, h.i / g0);   // relative to 1 kHz: the level is set by normalizing after
+            const double m = std::abs(H);
+            inv = std::conj(H) / std::max(m * m, floorG * floorG);   // limited boost where the circuit cuts hardest
+            if (f > nyq * 0.97) inv *= 0.5 * (1 + std::cos(M_PI * (f - nyq * 0.97) / (nyq * 0.03)));   // smooth edge
+        }
+        X[k] *= inv;
+        if (k > 0 && k < n / 2) X[n - k] = std::conj(X[k]);
+    }
+    fft(X, true);
+    std::vector<float> o(x.size());
+    for (size_t i = 0; i < o.size(); i++) o[i] = (float) X[i].real();
+    float pk = 0; for (float v : o) pk = std::max(pk, std::fabs(v));
+    if (pk > 0) for (float& v : o) v *= 0.95f / pk;   // ROM samples sit just under full scale
+    return o;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::puts("usage: make-rom <sample folder | memory.xr10> <rom.bin>"); return 2; }
     fs::path in = argv[1];
     std::map<int, std::vector<short>> got;
     std::map<int, std::string> from;
-    if (fs::is_directory(in)) {
+    if (fs::is_directory(in) && fs::exists(in / "map.txt")) {
+        std::ifstream mf(in / "map.txt");
+        std::string line;
+        bool outputs = false;
+        while (std::getline(mf, line)) {
+            if (line.empty() || line[0] == '#') continue;
+            if (line.rfind("source outputs", 0) == 0) { outputs = true; std::puts("recordings from the XR10's outputs: taking the output circuit back out"); continue; }
+            std::istringstream ls(line); int num = 0; ls >> num; std::string path; std::getline(ls, path);
+            while (!path.empty() && path[0] == ' ') path.erase(0, 1);
+            const int s = num - 1;
+            if (s < 0 || s >= NSOUNDS || path.empty()) continue;
+            std::vector<float> mono; double rate = 0;
+            if (!decode(readFile(in / path), mono, rate)) { std::printf("  can't read %s\n", path.c_str()); continue; }
+            if (outputs) mono = removeCircuit(trimRecording(mono), rate);
+            got[s] = toRom(mono, rate); from[s] = path;
+        }
+    } else if (fs::is_directory(in)) {
         std::vector<fs::path> files;
         for (auto& e : fs::recursive_directory_iterator(in)) if (e.is_regular_file()) files.push_back(e.path());
         std::sort(files.begin(), files.end());
@@ -119,7 +192,6 @@ int main(int argc, char** argv) {
         put((u32) s | (mine ? 0u : 0x10000u)); put((u32) d.size());
         for (short v : d) { o.push_back((unsigned char) (v & 0xff)); o.push_back((unsigned char) ((unsigned short) v >> 8)); }
         if (!mine) continue;
-        for (short v : d) { o.push_back((unsigned char) (v & 0xff)); o.push_back((unsigned char) ((unsigned short) v >> 8)); }
         total += d.size();
         std::printf("  %2d %-9s <- %s (%.2f s)\n", s + 1, SOUND_NAMES[s], from[s].c_str(), d.size() / (double) ROM_RATE);
     }

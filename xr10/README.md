@@ -50,7 +50,17 @@ archive.org item `akai-xr-10-service-manual`:
 - Extras that aren't on the XR10 are marked: attack, tone, loop and choke group per sound, and the internal reverb / delay
   (the hardware sends to an outboard effect from its EFFECT jack, which is the plugin's FX Send bus).
 
-## About the sounds
+## The sounds
+56 of the 64 come from recordings of a real XR10 (`samples/`, mapped to the panel's list in `samples/map.txt`). They were
+recorded from the machine's audio outputs at 44.1 kHz, so `tools/make-rom.cpp` takes the output circuit back out of them
+(the inverse of `stageResponse` in `core/analog.h`) and stores them at the machine's rate; `tools/check-samples.cpp`
+plays each one back through the whole circuit model and compares it with its recording (0.2 dB mean error over the
+bands). What the recordings showed: a sharp edge at 16.6 kHz in every file, too steep for the analog filters, so the
+sample data itself stops there: half of 33.2-33.3 kHz, which backs the 33.33 kHz machine rate (and rules out 31.25 kHz).
+Not in the set, still synthesized: TOM3 and TOM4 (L, M, H) and SQUEAK L / H. TRIANG H and AGOGO H share the L sounds'
+recordings, tuned up. The set's Slap Bass and Square Kicks aren't on the panel's list and aren't used.
+
+## About the synthesized sounds
 The sound ROM is `rom.bin`, built from the files in `samples/` (see `samples/README.md`) by `tools/make-rom.cpp`; the release
 workflow rebuilds it whenever samples are pushed. Any sound without a sample is synthesized (`core/sounds.h`) to match the
 character of its name, and stored like the hardware's ROM (mono, 44.1 kHz, 16-bit). The preset rhythms are original

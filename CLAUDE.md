@@ -11,8 +11,10 @@
   another machine. Extras that aren't on the XR10 are labelled "extra".
 - The faceplate is the owner's photo (`xr10/faceplate.jpg`): straightened, cropped to the machine, no white border. It
   must fit on a phone screen in landscape.
-- The owner's real XR-10 samples are on their phone (`samples/xr-10`); when they arrive they go in `xr10/samples/` and
-  are built into `xr10/rom.bin` by `xr10/tools/make-rom.cpp` (the release workflow does this).
+- The owner's XR-10 samples are in `xr10/samples/` (mapped in `map.txt`). They are recordings from the machine's
+  outputs, so make-rom takes the output circuit back out before building `xr10/rom.bin`; `tools/check-samples.cpp`
+  checks the circuit model gives the recordings back. Their 16.6 kHz edge backs the 33.33 kHz machine rate.
+  TOM3/TOM4 and SQUEAK L/H have no recordings yet.
 - MIDI files must import and export as drums.
 - Wanted features: a random beat and a random sound button; effects easy to find, on by default.
 - Each APK build bumps `BUILD` in `xr10/app.js` and the `xr10` flavor's versionCode in `android/app/build.gradle`, so the

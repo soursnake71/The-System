@@ -166,6 +166,25 @@ inline double stageGain(double inductance) {
   return lp * (rf / part::R3) * (part::R22 / (part::R21 + part::R22));
 }
 
+// the whole output stage as a frequency response, DAC to jack, VOLUME at max: the DAC's zero-order hold at the machine
+// rate fsm, the LC low-pass, the C69 coupling, the inverting amp (Rf = R4 || VR2, C11) and the output network.
+// (Used by tools/make-rom.cpp to take the circuit back out of recordings made from the XR10's outputs.)
+inline Cx stageResponse(double f, double fsm, double inductance) {
+  const double w = xm::TAU * f;
+  Cx s = {0, w};
+  Cx zoh = {1, 0};
+  if (f > 0) { double x = xm::PI * f / fsm, sinc = xm::sin(x) / x; zoh = Cx{sinc * xm::cos(-x), sinc * xm::sin(-x)}; }
+  Cx lc = LCLowpass::response(f, inductance);
+  Cx one = {1, 0};
+  Cx couple = f > 0 ? (s * Cx{part::C69 * part::R3, 0}) / (one + s * Cx{part::C69 * part::R3, 0}) : Cx{0, 0};
+  double rf = part::R4 * part::VR2 / (part::R4 + part::VR2);
+  Cx amp = Cx{-rf / part::R3, 0} / (one + s * Cx{rf * part::C11, 0});
+  double rt = part::R21 + part::R22, rp = part::R21 * part::R22 / rt;
+  Cx outHp = f > 0 ? (s * Cx{part::C21 * rt, 0}) / (one + s * Cx{part::C21 * rt, 0}) : Cx{0, 0};
+  Cx outLp = Cx{part::R22 / rt, 0} / (one + s * Cx{rp * part::C25, 0});
+  return zoh * lc * couple * amp * outHp * outLp;
+}
+
 // windowed-sinc decimator: the analog model runs at OS x the host rate
 struct Decimator {
   static const int TAPS = 96;

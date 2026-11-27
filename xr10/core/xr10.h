@@ -267,6 +267,9 @@ struct Machine {
     else if (i == CABASA || i == TAMB) { p[V_LEVEL] = 19; p[V_PAN] = -5; }
     else if (i == COWBELL || i == AGOGOL || i == AGOGOH) { p[V_LEVEL] = 20; p[V_PAN] = 5; }
     else if (i == WHISTLE) p[V_LEVEL] = 19;
+    // the sample set has one triangle and one agogo for both L and H: the H sounds are tuned up (my choice of interval)
+    if (i == TRIH) p[V_TUNE] = 5;
+    if (i == AGOGOH) p[V_TUNE] = 4;
   }
   void defaultPads() {
     static const u8 B[NBANK][NPADS] = {

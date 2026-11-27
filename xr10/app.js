@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 10;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 11;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
