@@ -28,6 +28,13 @@ private:
     float sy() const { return (float) getHeight() / 549.f; }
 };
 
+// no scrolling menus: every popup lays its items out in as many columns as it takes to fit on the screen
+struct NoScrollLook : juce::LookAndFeel_V4 {
+    juce::PopupMenu::Options getOptionsForComboBoxPopupMenu(juce::ComboBox& box, juce::Label& label) override {
+        return juce::LookAndFeel_V4::getOptionsForComboBoxPopupMenu(box, label).withMaximumNumColumns(12);
+    }
+};
+
 class Editor : public juce::AudioProcessorEditor, public juce::DragAndDropContainer, public juce::FileDragAndDropTarget, private juce::Timer {
 public:
     explicit Editor(Processor&);
@@ -60,6 +67,7 @@ private:
         void mouseDrag(const juce::MouseEvent& e) override { if (!fired && e.getDistanceFromDragStart() > 6 && onDragOut) { fired = true; onDragOut(); } }
     };
 
+    NoScrollLook look;
     Processor& proc;
     Snapshot snap;
     juce::Component content;

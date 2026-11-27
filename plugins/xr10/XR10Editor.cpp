@@ -169,6 +169,7 @@ static void styleSlider(juce::Slider& s, double lo, double hi) {
 }
 
 Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
+    setLookAndFeel(&look);
     face.snap = &snap;
     content.addAndMakeVisible(face);
     const char* tabNames[5] = {"SOUNDS", "STEP GRID", "SONG", "SETUP", "EFFECTS"};
@@ -234,7 +235,7 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     showTab(juce::jlimit(0, 3, proc.editorTab));
     startTimerHz(30);
 }
-Editor::~Editor() { stopTimer(); }
+Editor::~Editor() { stopTimer(); setLookAndFeel(nullptr); }
 
 void Editor::paint(juce::Graphics& g) { g.fillAll(kBg); }
 void Editor::resized() {
@@ -427,7 +428,7 @@ void Editor::buildGrid() {
             // pick another sound for this row: its notes move with it
             juce::PopupMenu menu;
             for (int s = 0; s < NSOUNDS; s++) menu.addItem(s + 1, juce::String(s + 1) + " " + SOUND_NAMES[s], true, snap.grid[Machine::GRID_ROWS * 32 + row] == s);
-            menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&pages[1]).withMousePosition(), [this, row](int r) {
+            menu.showMenuAsync(juce::PopupMenu::Options().withMaximumNumColumns(12).withTargetComponent(&pages[1]).withMousePosition(), [this, row](int r) {
                 if (r > 0) proc.with([&](Machine& m) { m.gridAssign(row, r - 1); });
                 refreshPatterns();
             });

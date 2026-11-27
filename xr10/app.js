@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 9;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 10;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
@@ -444,6 +444,7 @@ function update() {
   drawSong();
   // setup
   updateFold();
+  syncPickers();
   setVal($('tc'), S.keys[K.TC]); setVal($('poly'), S.keys[K.POLY]); setVal($('midich'), S.keys[K.MIDICH]); setVal($('midimap'), S.keys[K.MIDIMAP]);
   setVal($('click'), S.keys[K.CLICK]); setVal($('clicklvl'), S.keys[K.CLICKLVL]); setVal($('accvel'), S.keys[K.ACCENTVEL]);
   $('padvel').checked = !!S.keys[K.PADVEL]; $('countin').checked = !!S.keys[K.COUNTIN];
@@ -688,6 +689,78 @@ function updateFold() {
     const led = u.querySelector('.led'); if (led) led.classList.toggle('on', sl.peak > 0.003);
   }
 }
+
+// --------------------------------------------------- pickers: no scrolling menus, ever
+// Every <select> is shown as a button; tapping it opens all of its choices at once as a grid sized to the screen
+// (an S23 in portrait or landscape), with the text made small enough to fit, so nothing ever has to scroll.
+const pickerSet = new Set();
+function enhanceSelect(sel) {
+  if (sel._pick) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'pick';
+  b.addEventListener('click', e => { e.preventDefault(); openPicker(sel); });
+  sel.style.display = 'none';
+  sel.after(b);
+  sel._pick = b;
+  pickerSet.add(sel);
+  syncPicker(sel);
+}
+function syncPicker(sel) {
+  const b = sel._pick; if (!b) return;
+  const o = sel.options[sel.selectedIndex];
+  const t = o ? o.textContent : '';
+  if (b.textContent !== t) b.textContent = t;
+  if (b.disabled !== sel.disabled) b.disabled = sel.disabled;
+  if (sel.title && b.title !== sel.title) b.title = sel.title;
+}
+function syncPickers() { for (const s of pickerSet) { if (!s.isConnected) { pickerSet.delete(s); continue; } syncPicker(s); } }
+function pickerTitle(sel) {
+  const lab = sel.closest('label');
+  if (lab) { const t = [...lab.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ').trim(); if (t) return t; }
+  return sel.title || 'Choose';
+}
+function openPicker(sel) {
+  const dlg = $('picker'), grid = $('pgrid');
+  dlg._sel = sel;
+  const opts = [...sel.options];
+  $('ptitle').textContent = pickerTitle(sel);
+  grid.innerHTML = '';
+  const W = window.innerWidth - 12, Hh = window.innerHeight - 50, n = Math.max(1, opts.length);
+  const maxLen = Math.max(1, ...opts.map(o => o.textContent.length));
+  // the fewest columns that keep every cell tall enough to tap, then text sized to fit its cell
+  let cols = 1;
+  for (; cols < 12; cols++) {
+    const rows = Math.ceil(n / cols), ch = Hh / rows, cw = W / cols;
+    if (ch >= 40 || (ch >= 26 && cw < 70)) break;
+  }
+  const rows = Math.ceil(n / cols);
+  const ch = Math.min(64, (Hh - 3 * (rows - 1)) / rows), cw = (W - 3 * (cols - 1)) / cols;
+  const lines = ch >= 34 ? 2 : 1;
+  const font = Math.max(8, Math.min(16, ch / (lines * 1.35), cw / (0.56 * Math.ceil(maxLen / lines) + 0.5)));
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridAutoRows = ch + 'px';
+  opts.forEach((o, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = o.textContent;
+    b.style.fontSize = font + 'px';
+    if (i === sel.selectedIndex) b.classList.add('on');
+    if (o.disabled) b.disabled = true;
+    b.onclick = () => {
+      dlg.close();
+      if (sel.selectedIndex !== i) { sel.selectedIndex = i; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      syncPicker(sel);
+    };
+    grid.appendChild(b);
+  });
+  if (!dlg.open) dlg.showModal();
+}
+$('pclose').onclick = () => $('picker').close();
+$('picker').addEventListener('click', e => { if (e.target === $('picker')) $('picker').close(); });
+window.addEventListener('resize', () => { const d = $('picker'); if (d.open && d._sel) openPicker(d._sel); });
+document.querySelectorAll('select').forEach(enhanceSelect);
+new MutationObserver(ms => { for (const m of ms) for (const nd of m.addedNodes) { if (nd.nodeType !== 1) continue; if (nd.tagName === 'SELECT') enhanceSelect(nd); else nd.querySelectorAll && nd.querySelectorAll('select').forEach(enhanceSelect); } })
+  .observe(document.body, { childList: true, subtree: true });
 
 // --------------------------------------------------- MIDI (Web MIDI, or Android's through AndroidMidi)
 async function midiAccess() {

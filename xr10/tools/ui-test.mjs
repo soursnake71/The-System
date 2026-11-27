@@ -91,6 +91,23 @@ check(await page.evaluate(() => S.mute[S.padSound[0]] === 1), 'mute button mutes
 await page.evaluate(() => { const s = document.querySelector('#unit2 select'); s.value = 7; s.dispatchEvent(new Event('change')); }); await page.waitForTimeout(400);
 check(await page.evaluate(() => S.rack.slots[2].type === 7 && document.querySelectorAll('#unit2 .ctl > *').length > 6), 'rack slot 3: flanger with its controls');
 await page.screenshot({ path: shots + '/xr10-foldout.png', fullPage: true });
+// no scrolling menus: every menu opens as a grid that fits on an S23, portrait and landscape
+check(await page.evaluate(() => [...document.querySelectorAll('select')].every(s => getComputedStyle(s).display === 'none')), 'no native dropdowns');
+for (const [w, h] of [[360, 780], [780, 360]]) {
+  await page.setViewportSize({ width: w, height: h });
+  for (const id of ['patsel', 'tc']) {
+    await page.evaluate(i => openPicker($(i)), id); await page.waitForTimeout(120);
+    const fit = await page.evaluate(() => { const d = $('picker'), g = $('pgrid'); const r = g.getBoundingClientRect(); const cells = [...g.children]; const over = cells.filter(c => c.scrollHeight > c.clientHeight + 2 || c.scrollWidth > c.clientWidth + 2).length;
+      return { bottom: r.bottom, vh: innerHeight, scroll: d.scrollHeight - d.clientHeight, n: cells.length, minH: Math.min(...cells.map(c => c.getBoundingClientRect().height)), over }; });
+    check(fit.bottom <= fit.vh + 1 && fit.scroll <= 0 && fit.over === 0, `${id} picker fits ${w}x${h}: ${fit.n} choices, cells ${Math.round(fit.minH)} px tall, ${fit.over} cut off`);
+    if (id === 'patsel' && w === 360) await page.screenshot({ path: shots + '/xr10-picker-s23.png' });
+    await page.evaluate(() => $('picker').close());
+  }
+}
+await page.evaluate(() => openPicker($('patsel'))); await page.waitForTimeout(100);
+await page.evaluate(() => [...$('pgrid').children][9].click()); await page.waitForTimeout(250);
+check(await page.evaluate(() => S.pattern === 9 && $('patsel')._pick.textContent.startsWith('10 ')), 'picking pattern 10 from the grid');
+await page.setViewportSize({ width: 1000, height: 1400 });
 // save state round trip through IndexedDB
 await page.evaluate(() => save('auto')); await page.waitForTimeout(400);
 check(await page.evaluate(async () => { const b = await dbGet(); return b && b.byteLength > 1000; }), 'state saved to IndexedDB');
