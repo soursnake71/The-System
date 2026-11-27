@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 5;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 6;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
@@ -383,7 +383,7 @@ function drawWave(w) {
     g.moveTo(x + 0.5, ht / 2 - mx * ht / 2); g.lineTo(x + 0.5, ht / 2 - mn * ht / 2 + 1);
   }
   g.stroke();
-  g.fillStyle = '#b4c8c6'; g.font = '11px system-ui'; g.fillText((w.length / 31250).toFixed(2) + ' s, 16-bit, 31.25 kHz', 6, 13);
+  g.fillStyle = '#b4c8c6'; g.font = '11px system-ui'; g.fillText((w.length / 33333.33).toFixed(2) + ' s, 16-bit, 33.3 kHz', 6, 13);
 }
 
 // --------------------------------------------------- per-frame update from the engine's status

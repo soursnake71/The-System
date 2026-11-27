@@ -6,7 +6,9 @@
 
 namespace xr {
 static const int NSOUNDS = 64;
-static const int ROM_RATE = 31250;   // the machine's sample rate: see MACHINE_RATE in xr10.h
+// the machine's sample rate (12 MHz / 360 = 33.33 kHz, an estimate: see MACHINE_RATE in xr10.h); ROM_HZ is it rounded, for files
+static const double ROM_RATE = 12000000.0 / 360.0;
+static const int ROM_HZ = 33333;
 static const char* const SOUND_NAMES[NSOUNDS] = {
   "KICK1", "KICK2", "KICK3", "KICK4", "KICK5", "KICK6", "KICK7", "KICK8", "KICK9", "KICK10",
   "SNARE1", "SNARE2", "SNARE3", "SNARE4", "SNARE5", "SNARE6", "SNARE7", "SNARE8", "SNARE9", "SNARE10",
@@ -136,7 +138,7 @@ static const double CYM_FR[8] = {263.0, 400.0, 421.0, 474.0, 587.0, 845.0, 1093.
 // renders sound id into out (zeroed here); returns its length in samples
 inline int renderSound(int id, float* out, int maxLen) {
   Render r;
-  r.n = soundLengthMs(id) * ROM_RATE / 1000;
+  r.n = (int)(soundLengthMs(id) * ROM_RATE / 1000);
   if (r.n > maxLen) r.n = maxLen;
   r.o = out;
   r.rng.seed(1000 + id * 7919);

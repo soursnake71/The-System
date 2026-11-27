@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
   // a sample ROM pack replaces sounds
   {
     std::vector<u8> pk; auto put32 = [&](u32 v) { for (int i = 0; i < 4; i++) pk.push_back((u8)(v >> (8 * i))); };
-    put32(0x3250525a); put32(1); put32(ROM_RATE); put32(5); put32(1000); for (int i = 0; i < 1000; i++) { short v = (short)(i * 30); pk.push_back((u8)v); pk.push_back((u8)(v >> 8)); }
+    put32(0x3250525a); put32(1); put32(ROM_HZ); put32(5); put32(1000); for (int i = 0; i < 1000; i++) { short v = (short)(i * 30); pk.push_back((u8)v); pk.push_back((u8)(v >> 8)); }
     Machine* m4 = new Machine(); m4->init(sr, pk.data(), (u32)pk.size());
     CHECK(m4->fromPack[5] && m4->romRef[5].len == 1000 && m4->rom[m4->romRef[5].start + 10] == 300, "rom pack");
     CHECK(!m4->fromPack[4] && m4->romRef[4].len > 1000, "unpacked sounds stay synthesized");
@@ -183,6 +183,20 @@ int main(int argc, char** argv) {
     m6->vp[0][V_TUNE] = 0; m6->vp[0][V_FINE] = 7; m6->trigger(0, 127);
     vv = nullptr; for (auto& o : m6->v) if (o.active && !o.fading && o.sound == 0) vv = &o;
     CHECK(vv && std::fabs(1200 * std::log2(vv->baseInc) - 43.75) < 1e-6, "fine +7 = 43.75 cents");
+  }
+  // hardware behaviour from the 1990 review: 15 velocity levels, 8 notes a step when recording
+  {
+    Machine* m7 = new Machine(); m7->init(48000);
+    m7->trigger(0, 127); float g127 = 0; for (auto& o : m7->v) if (o.active) g127 = o.gL;
+    m7->trigger(0, 60); float g60 = 0; for (auto& o : m7->v) if (o.active && !o.fading) g60 = o.gL;
+    CHECK(std::fabs(g60 / g127 - 8.0 / 15.0) < 1e-6, "velocity 60 should be level 8 of 15 (%f)", g60 / g127);
+    m7->selectPattern(55); m7->put(K_REC, 1); m7->put(K_TC, 0); m7->put(K_SOUND, 0);
+    m7->button(B_START, 1);
+    for (int s = 0; s < 9; s++) { m7->hitSound(s, 100); }
+    int at0 = 0; for (int i = 0; i < m7->part().count; i++) at0 += m7->part().ev[i].tick == 0;
+    CHECK(at0 == 8, "nine notes on one step should leave 8 (got %d)", at0);
+    bool firstGone = true; for (int i = 0; i < m7->part().count; i++) if (m7->part().ev[i].tick == 0 && m7->part().ev[i].sound == 0) firstGone = false;
+    CHECK(firstGone, "the earliest note on the step should be the one erased");
   }
   // math
   CHECK(std::fabs(xm::sin(1.234) - std::sin(1.234)) < 1e-9, "sin"); CHECK(std::fabs(xm::exp(-3.3) - std::exp(-3.3)) < 1e-12, "exp");

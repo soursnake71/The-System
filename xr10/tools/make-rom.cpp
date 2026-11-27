@@ -2,7 +2,7 @@
 //   g++ -O2 -std=c++17 xr10/tools/make-rom.cpp -o make-rom
 //   ./make-rom xr10/samples xr10/rom.bin        a folder of WAV / AIFF files named after the sounds ("KICK1.wav", "07 KICK7.wav", "Hat CL.wav")
 //   ./make-rom my-memory.xr10 xr10/rom.bin      or the samples you loaded in the app, from its "Save all to a file"
-// Sounds without a file stay synthesized. Files are mixed to mono, resampled to the machine's rate (31.25 kHz) and stored as 16-bit.
+// Sounds without a file stay synthesized. Files are mixed to mono, resampled to the machine's rate (33.33 kHz) and stored as 16-bit.
 #include "../core/xr10.h"
 #include <algorithm>
 #include <cstdio>
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
         auto& v = synth[s];
         for (int k = 0; k < n; k++) { double x = buf[k] * 32767.0; v.push_back((short) (x > 32767 ? 32767 : (x < -32768 ? -32768 : (x < 0 ? x - 0.5 : x + 0.5)))); }
     }
-    o.clear(); put(0x3250525a); put(64); put((u32) ROM_RATE);   // "XRP2", count, rate
+    o.clear(); put(0x3250525a); put(64); put((u32) ROM_HZ);   // "XRP2", count, rate
     for (int s = 0; s < NSOUNDS; s++) {
         const bool mine = got.count(s) > 0;
         auto& d = mine ? got[s] : synth[s];

@@ -28,9 +28,14 @@ archive.org item `akai-xr-10-service-manual`:
   ×7) with VOLUME (VR2) across the feedback resistor and the EFFECT VR (VR1 100 k A) in series with it, op-amp clipping on
   the 12 V supply, and the 1.2 k / 4.7 n / 47 k output network. Run at 4× the host rate, then decimated. Calibrated so a
   full-scale tone gives the manual's 8.2 dBm at the outputs.
-- **Estimated** (not printed in the manual): the machine's sample rate (31.25 kHz = 12 MHz / 384, from the clock and the
-  12 kHz filters), the inductances inside the BL-30VF (solved for its printed 12 kHz), VR2's value and taper, the times
-  behind the 0–31 envelope and sweep steps, the mixer's headroom, and the pan law. Recordings of a real XR10 would pin these down.
+- From Music Technology's review (Simon Trask, June 1990): tune +25/−26, sweep decay 0–63, velocities kept as 15 levels,
+  the pads at a fixed medium velocity, velocity feel softening the attack, a ninth note on one step erasing the earliest,
+  and tuning down bringing aliasing and noise (the sign of playback with no interpolation).
+- **Estimated** (printed nowhere found so far): the machine's sample rate, 33.33 kHz = 12 MHz / 360 (one 12 MHz resonator
+  clocks the gate arrays and CPU; the 12 kHz output filters sit at 0.36 fs; the XE8 of 1989 is documented with 33 kHz and
+  44 kHz samples); the inductances inside the BL-30VF (solved for its printed 12 kHz); VR2's value and taper; the times
+  behind the envelope and sweep steps and how far the sweep goes; the velocity-feel attack; the mixer's headroom; the pan
+  law. Recordings of a real XR10, or a dump of its wave ROMs (two MB834200 mask ROMs), would settle these.
 - Extras that aren't on the XR10 are marked: attack, tone, loop and choke group per sound, and the internal reverb / delay
   (the hardware sends to an outboard effect from its EFFECT jack, which is the plugin's FX Send bus).
 

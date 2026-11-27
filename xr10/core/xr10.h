@@ -20,19 +20,21 @@ struct SongStep { u8 pattern, part, repeat, r0; };
 struct Song { char name[10]; u8 len, r0; u16 tempo; SongStep steps[MAXSTEP]; };
 
 // RX5-style voice parameters, per sound
-// The XR10's own sound parameters, with its ranges and steps (service manual, specifications): volume, tune +-25
-// (100 cents a step), fine -8..+7 (6.25 cents a step), pan L15..R15, effect send 0-31, decay and hold (the DCA) 0-31,
+// The XR10's own sound parameters, with its ranges and steps (service manual specifications, and Music Technology's
+// review, June 1990, which gives tune as +25/-26 and sweep decay as 0-63): volume 0-31, tune (100 cents a step), fine -8..+7 (6.25 cents a step), pan L15..R15, effect send 0-31, decay and hold (the DCA) 0-31,
 // sweep decay and depth 0-31, sweep polarity, reverse, velocity feel. Then the RX5-style extras the XR10 doesn't have.
 enum { V_LEVEL, V_PAN, V_TUNE, V_FINE, V_SEND, V_DECAY, V_HOLD, V_SWDECAY, V_SWDEPTH, V_SWPOL, V_REVERSE, V_VELFEEL,
        V_ATTACK, V_TONE, V_LOOP, V_GROUP, NVP, NVP_XR10 = V_ATTACK };
 struct ParamDef { const char* name; s16 lo, hi; };
 static const ParamDef VPARAMS[NVP] = {
-  {"LEVEL", 0, 31}, {"PAN", -15, 15}, {"TUNE", -25, 25}, {"FINE", -8, 7}, {"FX SEND", 0, 31}, {"DECAY", 0, 31}, {"HOLD", 0, 31},
-  {"SWEEP DCY", 0, 31}, {"SWEEP DPT", 0, 31}, {"SWEEP", 0, 1}, {"REVERSE", 0, 1}, {"VELOCITY", 0, 1},
+  {"LEVEL", 0, 31}, {"PAN", -15, 15}, {"TUNE", -26, 25}, {"FINE", -8, 7}, {"FX SEND", 0, 31}, {"DECAY", 0, 31}, {"HOLD", 0, 31},
+  {"SWEEP DCY", 0, 63}, {"SWEEP DPT", 0, 31}, {"SWEEP", 0, 1}, {"REVERSE", 0, 1}, {"VELOCITY", 0, 1},
   {"ATTACK*", 0, 99}, {"TONE*", 0, 99}, {"LOOP*", 0, 1}, {"CHOKE GRP*", 0, 8}};
-// the sample rate the voices, the digital mixer and the DAC run at. The manual doesn't print it: 12 MHz / 384, chosen
-// because the gate arrays run from the 12 MHz clock and the 12 kHz output filters suit a ~31 kHz DAC (0.38 fs).
-static const double MACHINE_RATE = 31250.0;
+// the sample rate the voices, the digital mixer and the DAC run at. Neither the service manual nor the 1990 reviews print
+// it. 12 MHz / 360 = 33.33 kHz is used because: the gate arrays and CPU run from one 12 MHz resonator (X1, CSA12.0MT);
+// the output filters are 12 kHz (0.36 fs, the usual margin under a 16.7 kHz Nyquist; a 44.1 kHz DAC would have had
+// ~20 kHz filters); and the XE8, Akai's drum module of the year before, is documented with 33 kHz (and 44 kHz) samples.
+static const double MACHINE_RATE = ROM_RATE;
 
 // settings the panels and the LCD both change (get / set by key)
 enum {
@@ -203,7 +205,7 @@ struct Machine {
     if (pack && packLen >= 8) {
       u32 hdr[2]; bytecopy(hdr, pack, 8);
       u32 rate = 0; if (packLen >= 12) bytecopy(&rate, pack + 8, 4);
-      if (hdr[0] == 0x3250525a && rate == (u32)ROM_RATE) {   // "XRP2" at the machine's rate
+      if (hdr[0] == 0x3250525a && rate == (u32)ROM_HZ) {   // "XRP2" at the machine's rate
         u32 at = 12;
         for (u32 k = 0; k < hdr[1] && at + 8 <= packLen; k++) {
           u32 e[2]; bytecopy(e, pack + at, 8); at += 8;
@@ -300,7 +302,7 @@ struct Machine {
     for (int k = 0; k < NKEYS; k++) set[k] = 0;
     set[K_TEMPO] = 1200; set[K_TC] = 3; set[K_FXTYPE] = 0; set[K_FXTIME] = 50; set[K_FXLEVEL] = 60; set[K_POLY] = 8;
     set[K_MIDICH] = 0; set[K_MIDIMAP] = 0; set[K_SYNC] = 1; set[K_CLICK] = 1; set[K_CLICKLVL] = 60; set[K_COUNTIN] = 0;
-    set[K_PADVEL] = 1; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 5;
+    set[K_PADVEL] = 0; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 5;
     curPat = 0; curPart = 0; mainVar = 0;
     set[K_TEMPO] = pat[0].tempo * 10;
   }
@@ -342,7 +344,7 @@ struct Machine {
   // Times for the 0-31 steps are not in the manual and are estimates.
   static double holdSeconds(int h) { return 0.008 * xm::pow(1.18, h); }       // 8 ms .. ~1.4 s (31 = hold to the end)
   static double decaySeconds(int d) { return 0.004 * xm::pow(1.22, d); }      // 4 ms .. ~1.9 s (31 = no decay)
-  static double sweepSeconds(int d) { return 0.002 * xm::pow(1.25, d); }      // 2 ms .. ~2 s
+  static double sweepSeconds(int d) { return 0.002 * xm::pow(1.12, d); }      // 2 ms .. ~2.5 s over 0-63
   void trigger(int s, int vel, bool fromSeq = false) {
     if (s < 0 || s >= NSOUNDS) return;
     (void)fromSeq;
@@ -372,15 +374,17 @@ struct Machine {
     o.sweepNow = p[V_SWPOL] ? depth : -depth;   // UP starts below and rises to the note, DOWN starts above and falls
     o.sweepMul = depth > 0 ? xm::exp(-1.0 / (sweepSeconds(p[V_SWDECAY]) * mr)) : 0;
     o.inc = o.baseInc * (depth > 0 ? xm::pow2(o.sweepNow / 12.0) : 1.0);
-    // 5-bit digital controls
-    double g = p[V_LEVEL] / 31.0;
-    if (p[V_VELFEEL]) g *= vel / 127.0; else g *= vel >= 120 ? 1.0 : 100.0 / 127.0;   // without velocity feel only accent counts
+    // velocity: the XR10 keeps 15 levels (MIDI velocities are quantized to them). Velocity feel makes the attack less
+    // percussive at lower velocities (the review's description); how much is an estimate: up to 6 ms of ramp.
+    int vq = (vel * 15 + 126) / 127; if (vq < 1) vq = 1; if (vq > 15) vq = 15;
+    double g = p[V_LEVEL] / 31.0 * vq / 15.0;
     int pan = p[V_PAN];
     o.gL = (float)(g * (pan <= 0 ? 1.0 : (15 - pan) / 15.0));
     o.gR = (float)(g * (pan >= 0 ? 1.0 : (15 + pan) / 15.0));
     o.gE = (float)(g * p[V_SEND] / 31.0);
     // envelope (the DCA): attack (extra), hold, decay
     double atk = p[V_ATTACK] / 99.0 * 0.25;
+    if (p[V_VELFEEL]) atk += 0.006 * (15 - vq) / 14.0;
     o.attackInc = atk <= 0.0005 ? 1.f : (float)(1.0 / (atk * mr));
     o.env = atk <= 0.0005 ? 1.f : 0.f; o.phase = atk <= 0.0005 ? 1 : 0;
     o.holdLeft = p[V_HOLD] >= 31 ? 0xffffffffu : (u32)(holdSeconds(p[V_HOLD]) * mr);
@@ -537,6 +541,9 @@ struct Machine {
     fireUpTo(tick);
   }
 
+  // the order notes were recorded in, for the 8-notes-a-step rule (only for the part being recorded)
+  u32 recOrder[MAXEV], recCounter = 0; int recPat = -1, recPartIdx = -1, recSeen = -1;
+  void removeEventTracked(Part& p, int i) { for (int k = i; k < p.count - 1; k++) recOrder[k] = recOrder[k + 1]; removeEvent(p, i); }
   // record a hit at the playhead
   void recordHit(int s, int vel) {
     if (!playing || !recording || tick < 0 || paused) return;
@@ -546,8 +553,16 @@ struct Machine {
     int t = (int)(q <= 1 ? tick : xm::floor(tick / q + 0.5) * q);
     if (t >= partLenTicks) t -= partLenTicks;
     for (int i = 0; i < p.count; i++) if (p.ev[i].tick == t && p.ev[i].sound == s) { p.ev[i].vel = (u8)vel; return; }
+    // 8 notes at most on one step: a ninth erases the earliest one recorded there (as the review describes)
+    if (recPat != curPat || recPartIdx != curPart || recSeen != p.count) { for (int i = 0; i < p.count; i++) recOrder[i] = 0; recPat = curPat; recPartIdx = curPart; }
+    { int same = 0, first = -1; u32 oldest = 0xffffffffu;
+      for (int i = 0; i < p.count; i++) if (p.ev[i].tick == t) { same++; if (recOrder[i] < oldest) { oldest = recOrder[i]; first = i; } }
+      if (same >= 8 && first >= 0) { removeEventTracked(p, first); if (first < evIdx) evIdx--; } }
     int idx = insertEvent(p, t, s, vel);
     if (idx < 0) { message("PART FULL", ""); return; }
+    for (int i = p.count - 1; i > idx; i--) recOrder[i] = recOrder[i - 1];
+    recOrder[idx] = ++recCounter;
+    recSeen = p.count;
     if (idx < evIdx) evIdx++;
     else if (nSkip < 16) { skipT[nSkip] = t; skipS[nSkip] = s; nSkip++; }   // ahead of the playhead: don't play it twice
   }
@@ -555,7 +570,7 @@ struct Machine {
   // ================= pads, MIDI =================
   int padVelocity(int touch) {
     if (set[K_ACCENT]) return set[K_ACCENTVEL];
-    return set[K_PADVEL] && touch > 0 ? touch : 100;
+    return set[K_PADVEL] && touch > 0 ? touch : 64;   // the XR10's pads aren't dynamic: a fixed mid velocity
   }
   void hitSound(int s, int vel) {
     if (held[B_ERASE] && playing && recording) {
@@ -730,7 +745,7 @@ struct Machine {
   bool loadSample(int s, const float* data, int len, double srcRate) {
     if (s < 0 || s >= NSOUNDS || len <= 0) return false;
     double ratio = srcRate / ROM_RATE;
-    int outLen = (int)(len / ratio); if (outLen > ROM_RATE * 10) outLen = ROM_RATE * 10;
+    int outLen = (int)(len / ratio); if (outLen > (int)(ROM_RATE * 10)) outLen = (int)(ROM_RATE * 10);
     if (userUsed + outLen > (u32)USER_POOL) compactUser(s);
     if (userUsed + outLen > (u32)USER_POOL) { message("SAMPLE MEMORY", "FULL"); return false; }
     double cut = ratio > 1 ? 0.96 / ratio : 1.0;
