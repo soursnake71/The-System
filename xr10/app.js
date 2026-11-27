@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 6;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 7;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
@@ -295,7 +295,7 @@ function buildPanel() {
   // voice params
   const pr = $('params');
   info.pnames.forEach((n, p) => {
-    if (p === info.nvpXr10) { const h = document.createElement('div'); h.className = 'help'; h.style.gridColumn = '1 / -1'; h.textContent = 'RX5-style extras (not on the XR10):'; pr.appendChild(h); }
+    if (p === info.nvpXr10) { const h = document.createElement('div'); h.className = 'help'; h.style.gridColumn = '1 / -1'; h.textContent = 'Extras (not on the XR10):'; pr.appendChild(h); }
     const row = document.createElement('div'); row.className = 'param';
     const toggle = info.plo[p] === 0 && info.phi[p] === 1;
     row.innerHTML = `<span>${n.replace('*', '')}</span>` + (toggle ? `<input type="checkbox" data-p="${p}" style="justify-self:start">` : `<input type="range" data-p="${p}" min="${info.plo[p]}" max="${info.phi[p]}">`) + `<span id="pv${p}"></span>`;
@@ -349,7 +349,7 @@ function buildPanel() {
   // setup
   opt($('fxtype'), ['Room (extra)', 'Hall (extra)', 'Plate (extra)', 'Gated (extra)', 'Delay (extra)', 'External: EFFECT jack only (the XR10)', 'Off'].map((n, i) => [i, n]));
   opt($('tc'), ['1/4', '1/8', '1/8 triplet', '1/16', '1/16 triplet', '1/32', 'Off'].map((n, i) => [i, n]));
-  opt($('poly'), [4, 6, 8, 12, 16, 24, 32].map(v => [v, v + (v === 8 ? ' (XR10)' : v === 12 ? ' (RX5)' : '')]));
+  opt($('poly'), [4, 6, 8, 12, 16, 24, 32].map(v => [v, v + (v === 8 ? ' (XR10)' : '')]));
   opt($('midich'), [[0, 'Omni']].concat(Array.from({ length: 16 }, (_, i) => [i + 1, i + 1])));
   const bindSel = (id, k) => $(id).onchange = e => send({ t: 'set', k, v: +e.target.value });
   bindSel('fxtype', K.FXTYPE); bindSel('tc', K.TC); bindSel('poly', K.POLY); bindSel('midich', K.MIDICH); bindSel('midimap', K.MIDIMAP); bindSel('click', K.CLICK);

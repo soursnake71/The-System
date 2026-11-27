@@ -171,7 +171,7 @@ static void styleSlider(juce::Slider& s, double lo, double hi) {
 Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     face.snap = &snap;
     content.addAndMakeVisible(face);
-    const char* tabNames[4] = {"VOICES (RX5)", "STEP GRID", "SONG", "SETUP"};
+    const char* tabNames[4] = {"SOUNDS", "STEP GRID", "SONG", "SETUP"};
     for (int i = 0; i < 4; i++) {
         tabs[i].setButtonText(tabNames[i]);
         tabs[i].onClick = [this, i] { showTab(i); };
@@ -540,7 +540,7 @@ void Editor::buildSetup() {
     for (int i = 0; i < 7; i++) fxType.addItem(fx[i], i + 1);
     const char* tc[7] = {"Quantize 1/4", "Quantize 1/8", "Quantize 1/8 triplet", "Quantize 1/16", "Quantize 1/16 triplet", "Quantize 1/32", "Quantize off"};
     for (int i = 0; i < 7; i++) tcBox.addItem(tc[i], i + 1);
-    for (int v : {4, 6, 8, 12, 16, 24, 32}) polyBox.addItem(juce::String(v) + " voices" + (v == 8 ? " (XR10)" : v == 12 ? " (RX5)" : ""), v);
+    for (int v : {4, 6, 8, 12, 16, 24, 32}) polyBox.addItem(juce::String(v) + " voices" + (v == 8 ? " (XR10)" : ""), v);
     midiCh.addItem("MIDI channel: omni", 1);
     for (int i = 1; i <= 16; i++) midiCh.addItem("MIDI channel " + juce::String(i), i + 1);
     midiMap.addItem("Notes: General MIDI drums", 1); midiMap.addItem("Notes: 36 = sound 1 ... 99 = sound 64", 2); midiMap.addItem("Notes: 36 = pad 1 of the bank", 3);
