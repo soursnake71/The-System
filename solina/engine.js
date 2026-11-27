@@ -220,7 +220,7 @@ class SolinaEngine{
     // tuning and bend: the master oscillator's frequency
     this.fMul = Math.pow(2, (p.tune / 100 + this.bendSt) / 12);
     // reverb lengths and decay
-    const rk = p.rvSize.toFixed(4) + ':' + p.rvDecay.toFixed(4) + ':' + p.rvDamp.toFixed(4);
+    const rk = p.rvSize + ':' + p.rvDecay + ':' + p.rvDamp;
     if (rk !== this.rvCfg){ this.rvCfg = rk; const sc = fs / 44100 * (.5 + 1.5 * p.rvSize);
       this.rvLen = RV_LEN.map((l, i) => Math.min(this.rvMax[i] - 1, Math.max(8, Math.round(l * sc))));
       this.rvG = this.rvLen.map(l => Math.pow(10, -3 * l / (p.rvDecay * fs)));
