@@ -8,6 +8,9 @@
 
 namespace solina {
 
+// MSVC has no kPi / kSqrt2; the same doubles as Math.PI and Math.SQRT2
+static constexpr double kPi = 3.141592653589793, kSqrt2 = 1.4142135623730951;
+
 struct ParamInfo { const char* id; const char* name; double min, max, def, step; const char* unit; const char* group; int cc; std::vector<const char*> choices; };
 #include "Params.inc"
 
@@ -40,14 +43,14 @@ public:
         hpVaLo = hp1(22000, 180e-9); hpVaHi = hp1(22000, 270e-9); hpVn = hp1(22000, 47e-9);
         shVnLo = shelf(10000, 4.7e-9, 1580); shVnHi = shelf(18000, 1e-9, 1580);
         fTr = bp(1350, 1.3); fHo = bp(680, 1.1);
-        lpPre = lp2(1 / (2 * M_PI * std::sqrt(22000.0 * 23000 * 1.5e-9 * 220e-12)), 1.305);
-        bassF = lp2(1 / (2 * M_PI * std::sqrt(47000.0 * 47000 * 47e-9 * 5.6e-9)), 1.45);
+        lpPre = lp2(1 / (2 * kPi * std::sqrt(22000.0 * 23000 * 1.5e-9 * 220e-12)), 1.305);
+        bassF = lp2(1 / (2 * kPi * std::sqrt(47000.0 * 47000 * 47e-9 * 5.6e-9)), 1.45);
         bufL.assign(16384, 0); bufR.assign(16384, 0);
-        post1 = lp2(11400, .707); post2 = lp2(1 / (2 * M_PI * std::sqrt(22000.0 * 23000 * 2.7e-9 * 560e-12)), 1.1);
+        post1 = lp2(11400, .707); post2 = lp2(1 / (2 * kPi * std::sqrt(22000.0 * 23000 * 2.7e-9 * 560e-12)), 1.1);
         static const double LF[7] = {1.33, .234, 2.84, 4.18, 1.30, 41.8, .482};
-        for (int i = 0; i < 7; i++) lfk[i] = 1 - std::exp(-2 * M_PI * LF[i] / fs);
-        corr1 = lp2(1 / (2 * M_PI * std::sqrt(22000.0 * 23000 * 27e-9 * 1.5e-9)), 2.12);
-        corr2 = lp2(1 / (2 * M_PI * std::sqrt(22000.0 * 23000 * 12e-9 * 6.8e-9)), .664);
+        for (int i = 0; i < 7; i++) lfk[i] = 1 - std::exp(-2 * kPi * LF[i] / fs);
+        corr1 = lp2(1 / (2 * kPi * std::sqrt(22000.0 * 23000 * 27e-9 * 1.5e-9)), 2.12);
+        corr2 = lp2(1 / (2 * kPi * std::sqrt(22000.0 * 23000 * 12e-9 * 6.8e-9)), .664);
         smk = 1 - std::exp(-1 / (.01 * fs));
         dlN = 1 << (int) std::ceil(std::log2(1.6 * fs)); dlL.assign((size_t) dlN, 0); dlR.assign((size_t) dlN, 0);
         const double sc = fs / 44100;
@@ -77,8 +80,8 @@ public:
             const bool o = P(CH_TAB[c]) != 0 && p[b + oMut] == 0 && (!solo || p[b + oSol] != 0);
             on[c] = o ? 1 : 0;
             const double l = p[b + oLvl] / .8; gain[c] = o ? l * l * CAL[c] : 0;
-            const double th = (p[b + oPan] + 1) * M_PI / 4; panL[c] = std::cos(th) * M_SQRT2; panR[c] = std::sin(th) * M_SQRT2;
-            const double fc = 150 * std::pow(2.0, p[b + oTon] * 7.1); tk[c] = p[b + oTon] >= 1 ? 1 : 1 - std::exp(-2 * M_PI * fc / fs);
+            const double th = (p[b + oPan] + 1) * kPi / 4; panL[c] = std::cos(th) * kSqrt2; panR[c] = std::sin(th) * kSqrt2;
+            const double fc = 150 * std::pow(2.0, p[b + oTon] * 7.1); tk[c] = p[b + oTon] >= 1 ? 1 : 1 - std::exp(-2 * kPi * fc / fs);
         }
         bassVolG = P(pid::bassVol) * 1.6;
         fMul = std::pow(2.0, (P(pid::tune) / 100 + bendSt) / 12);
@@ -89,14 +92,14 @@ public:
                 rvLen[i] = std::min(rvMax[i] - 1, std::max(8, (int) std::floor(RV_LEN[i] * sc + .5)));
                 rvG[i] = std::pow(10.0, -3 * rvLen[i] / (P(pid::rvDecay) * fs));
             }
-            rvDk = 1 - std::exp(-2 * M_PI * (18000 * std::pow(.06, P(pid::rvDamp))) / fs);
+            rvDk = 1 - std::exp(-2 * kPi * (18000 * std::pow(.06, P(pid::rvDamp))) / fs);
         }
         if (P(pid::eqLow) != eqCfg[0] || P(pid::eqMid) != eqCfg[1] || P(pid::eqHigh) != eqCfg[2]) {
             eqCfg = {P(pid::eqLow), P(pid::eqMid), P(pid::eqHigh)};
             eq[0] = peq(0, 150, P(pid::eqLow), .7); eq[1] = peq(1, 1000, P(pid::eqMid), .7); eq[2] = peq(2, 6000, P(pid::eqHigh), .7);
             eqFlat = P(pid::eqLow) == 0 && P(pid::eqMid) == 0 && P(pid::eqHigh) == 0;
         }
-        dlK = 1 - std::exp(-2 * M_PI * (600 * std::pow(25.0, P(pid::dlTone))) / fs);
+        dlK = 1 - std::exp(-2 * kPi * (600 * std::pow(25.0, P(pid::dlTone))) / fs);
         driveK = 1 + 9 * P(pid::drive);
         const double ml = P(pid::master) / .8, vl = P(pid::volume) / .8; outG = ml * ml * vl * vl;
     }
@@ -254,7 +257,7 @@ public:
                 const double pd = P(pid::phDepth), pfb = P(pid::phFb), pmix = P(pid::phMix);
                 for (int s = 0; s < 2; s++) {
                     double t = std::fmod(phPh + s * .25, 1.0); t = t < .5 ? t * 2 : 2 - t * 2;
-                    const double f = 180 * std::pow(4500.0 / 180, t * pd + (1 - pd) * .3), tn = std::tan(M_PI * std::min(f, fs * .45) / fs), a = (tn - 1) / (tn + 1);
+                    const double f = 180 * std::pow(4500.0 / 180, t * pd + (1 - pd) * .3), tn = std::tan(kPi * std::min(f, fs * .45) / fs), a = (tn - 1) / (tn + 1);
                     const double xin = s ? oR : oL; double x = xin + phLast[s] * pfb;
                     for (int st = 0; st < 4; st++) { const int zi = s * 4 + st; const double y = a * x + phz[zi]; phz[zi] = x - a * y; x = y; }
                     phLast[s] = x;
@@ -300,13 +303,13 @@ private:
     static constexpr double RV_LEN[8] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
     static int groupOf(int n) { return n >= 75 ? 0 : n >= 65 ? 1 : n >= 54 ? 2 : n >= 42 ? 3 : 4; }
     double P(int id) const { return p[(size_t) id]; }
-    Bq lp2(double f, double Q) const { const double w0 = 2 * M_PI * std::min(f, fs * .45), K = w0 / std::tan(w0 / (2 * fs)), d = K * K + w0 / Q * K + w0 * w0;
+    Bq lp2(double f, double Q) const { const double w0 = 2 * kPi * std::min(f, fs * .45), K = w0 / std::tan(w0 / (2 * fs)), d = K * K + w0 / Q * K + w0 * w0;
         return {w0 * w0 / d, 2 * w0 * w0 / d, w0 * w0 / d, (2 * w0 * w0 - 2 * K * K) / d, (K * K - w0 / Q * K + w0 * w0) / d}; }
-    Bq bp(double f, double Q) const { const double w0 = 2 * M_PI * f / fs, al = std::sin(w0) / (2 * Q), a0 = 1 + al; return {al / a0, 0, -al / a0, -2 * std::cos(w0) / a0, (1 - al) / a0}; }
+    Bq bp(double f, double Q) const { const double w0 = 2 * kPi * f / fs, al = std::sin(w0) / (2 * Q), a0 = 1 + al; return {al / a0, 0, -al / a0, -2 * std::cos(w0) / a0, (1 - al) / a0}; }
     std::array<double, 3> shelf(double R, double C, double Rl) const { const double K = 2 * fs, t = R * C, b0 = Rl + Rl * t * K, b1 = Rl - Rl * t * K, a0 = R + Rl + t * Rl * K, a1 = R + Rl - t * Rl * K;
         return {b0 / a0, b1 / a0, a1 / a0}; }
     Bq peq(int type, double f, double gdb, double Q) const {
-        const double A = std::pow(10.0, gdb / 40), w0 = 2 * M_PI * f / fs, c = std::cos(w0), s = std::sin(w0);
+        const double A = std::pow(10.0, gdb / 40), w0 = 2 * kPi * f / fs, c = std::cos(w0), s = std::sin(w0);
         double b0, b1, b2, a0, a1, a2;
         if (type == 0) { const double al = s / 2 * std::sqrt(2.0), sa = 2 * std::sqrt(A) * al;
             b0 = A * ((A + 1) - (A - 1) * c + sa); b1 = 2 * A * ((A - 1) - (A + 1) * c); b2 = A * ((A + 1) - (A - 1) * c - sa);
