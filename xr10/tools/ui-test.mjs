@@ -75,6 +75,15 @@ check(await page.evaluate(() => /Imported 2 bars into pattern 71/.test(__alert))
 // sample names go to the right sounds
 const matched = await page.evaluate(() => matchNames(['KICK10.wav', 'Hat OP.wav', '07 KICK7.wav', 'tom3 h.wav', 'xyz.wav']));
 check(JSON.stringify(matched) === JSON.stringify([9, 24, 6, 33, -1]), 'sample names ' + JSON.stringify(matched));
+// dice: a random beat lands in a free user pattern and plays; a random sound changes the sound
+const before = await page.evaluate(() => S.pattern);
+await page.click('#dicebeat'); await page.waitForTimeout(300);
+check(await page.evaluate(() => S.pattern >= 50 && /^RAND/.test(S.patName)), 'random beat: ' + await page.evaluate(() => S.pattern + 1 + ' ' + S.patName));
+const p0 = await page.evaluate(() => S.params.join(','));
+await page.click('#dicesound'); await page.waitForTimeout(300);
+check(await page.evaluate(p => S.params.join(',') !== p, p0), 'random sound changes the sound');
+await page.click('[data-tab=fx]'); await page.waitForTimeout(100);
+check(await page.evaluate(() => !$('tab-fx').hidden && S.keys[K.FXTYPE] <= 4), 'effects tab, an effect on by default');
 // save state round trip through IndexedDB
 await page.evaluate(() => save('auto')); await page.waitForTimeout(400);
 check(await page.evaluate(async () => { const b = await dbGet(); return b && b.byteLength > 1000; }), 'state saved to IndexedDB');

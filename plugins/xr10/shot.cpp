@@ -12,8 +12,8 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 48000 * 3 / 2 / 256; i++) p.processBlock(b, midi);
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
     ed->setSize(1000, 1166);
-    const char* names[4] = {"SOUNDS", "STEP GRID", "SONG", "SETUP"};
-    for (int t = 0; t < 4; t++) {
+    const char* names[5] = {"SOUNDS", "STEP GRID", "SONG", "SETUP", "EFFECTS"};
+    for (int t = 0; t < 5; t++) {
         std::function<juce::TextButton*(juce::Component*)> find = [&](juce::Component* c) -> juce::TextButton* {
             for (auto* ch : c->getChildren()) {
                 if (auto* tb = dynamic_cast<juce::TextButton*>(ch)) if (tb->getButtonText() == names[t]) return tb;

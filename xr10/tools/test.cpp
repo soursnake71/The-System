@@ -198,6 +198,19 @@ int main(int argc, char** argv) {
     bool firstGone = true; for (int i = 0; i < m7->part().count; i++) if (m7->part().ev[i].tick == 0 && m7->part().ev[i].sound == 0) firstGone = false;
     CHECK(firstGone, "the earliest note on the step should be the one erased");
   }
+  // dice
+  {
+    Machine* m8 = new Machine(); m8->init(48000);
+    CHECK(m8->randomBeat(1234) && m8->curPat == 50 && m8->pat[50].parts[0].count > 8 && m8->pat[50].parts[3].count > 4, "random beat");
+    CHECK(m8->randomBeat(99) && m8->curPat == 51, "second random beat goes to the next free pattern");
+    m8->put(K_SOUND, 10); int before = m8->vp[10][V_FINE] * 100 + m8->vp[10][V_PAN];
+    m8->randomSound(5); m8->randomSound(6);
+    CHECK(m8->vp[10][V_DECAY] >= 0 && m8->vp[10][V_DECAY] <= 31 && m8->vp[10][V_TUNE] >= -26 && m8->vp[10][V_TUNE] <= 25, "random sound in range");
+    (void)before;
+    m8->start(); std::vector<float> l(48000 * 2), r(l.size()); m8->process(l.data(), r.data(), nullptr, nullptr, (int)l.size());
+    float pk = 0; for (float x : l) pk = std::max(pk, std::fabs(x));
+    CHECK(pk > 0.05f, "random beat plays");
+  }
   // math
   CHECK(std::fabs(xm::sin(1.234) - std::sin(1.234)) < 1e-9, "sin"); CHECK(std::fabs(xm::exp(-3.3) - std::exp(-3.3)) < 1e-12, "exp");
   CHECK(std::fabs(xm::log(123.4) - std::log(123.4)) < 1e-9, "log"); CHECK(std::fabs(xm::pow(2.5, 1.7) - std::pow(2.5, 1.7)) < 1e-9, "pow");

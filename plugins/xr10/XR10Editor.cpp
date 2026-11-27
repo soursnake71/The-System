@@ -171,14 +171,18 @@ static void styleSlider(juce::Slider& s, double lo, double hi) {
 Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     face.snap = &snap;
     content.addAndMakeVisible(face);
-    const char* tabNames[4] = {"SOUNDS", "STEP GRID", "SONG", "SETUP"};
-    for (int i = 0; i < 4; i++) {
+    const char* tabNames[5] = {"SOUNDS", "STEP GRID", "SONG", "SETUP", "EFFECTS"};
+    for (int i = 0; i < 5; i++) {
         tabs[i].setButtonText(tabNames[i]);
         tabs[i].onClick = [this, i] { showTab(i); };
         content.addAndMakeVisible(tabs[i]);
         content.addChildComponent(pages[i]);
     }
-    for (auto* b : {&play, &rec, &tap}) { styleButton(*b); content.addAndMakeVisible(*b); }
+    for (auto* b : {&play, &rec, &tap, &diceBeat, &diceSound}) { styleButton(*b); content.addAndMakeVisible(*b); }
+    diceBeat.setTooltip("Make a new beat in a free user pattern");
+    diceSound.setTooltip("A new take on the selected sound");
+    diceBeat.onClick = [this] { const auto seed = (u32) juce::Random::getSystemRandom().nextInt(); proc.with([&](Machine& m) { m.randomBeat(seed); }); refreshPatterns(); };
+    diceSound.onClick = [this] { const auto seed = (u32) juce::Random::getSystemRandom().nextInt(); proc.with([&](Machine& m) { m.randomSound(seed); }); waveFor = -1; };
     play.onClick = [this] { proc.with([](Machine& m) { m.put(K_PLAYING, !m.playing); }); };
     rec.onClick = [this] { proc.with([](Machine& m) { m.put(K_REC, !m.recording); }); refreshPatterns(); };
     tap.onClick = [this] {
@@ -200,6 +204,17 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     patternBox.onChange = [this] { if (!updating && patternBox.getSelectedId() > 0) proc.with([&](Machine& m) { m.selectPattern(patternBox.getSelectedId() - 1); }); };
     content.addAndMakeVisible(patternBox);
     buildVoice(); buildGrid(); buildSong(); buildSetup();
+    // the effects page: the effect controls (built with the setup page) and a note on how the sends work
+    pages[4].painter = [](juce::Graphics& g) { g.fillAll(kPanel); };
+    for (juce::Component* c : {(juce::Component*) &fxType, (juce::Component*) &fxTime, (juce::Component*) &fxLevel, (juce::Component*) &effectVr,
+                               (juce::Component*) &setupLabels[0], (juce::Component*) &setupLabels[1], (juce::Component*) &setupLabels[2], (juce::Component*) &setupLabels[3]})
+        pages[4].addAndMakeVisible(c);
+    fxHelp.setText("Each sound goes to the effect by its own FX SEND amount (SOUNDS page); snares, claps and toms have some to start with. "
+                   "The XR10 itself has no built-in effect: it sends to an outboard unit from its EFFECT jack. Choose External to work that way: "
+                   "the plugin's FX Send output carries the send.", juce::dontSendNotification);
+    fxHelp.setColour(juce::Label::textColourId, kSub);
+    fxHelp.setJustificationType(juce::Justification::topLeft);
+    pages[4].addAndMakeVisible(fxHelp);
     addAndMakeVisible(content);
     refreshPatterns();
     proc.snapshot(snap, 0);
@@ -209,7 +224,7 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     setResizeLimits(BASE_W * 4 / 10, BASE_H * 4 / 10, BASE_W * 2, BASE_H * 2);
     getConstrainer()->setFixedAspectRatio((double) BASE_W / BASE_H);
     setSize(juce::roundToInt(BASE_W * startScale), juce::roundToInt(BASE_H * startScale));
-    showTab(juce::jlimit(0, 3, proc.editorTab));
+    showTab(juce::jlimit(0, 4, proc.editorTab));
     startTimerHz(30);
 }
 Editor::~Editor() { stopTimer(); }
@@ -223,11 +238,15 @@ void Editor::resized() {
     content.setTransform(juce::AffineTransform::scale(s));
     face.setBounds(0, 0, BASE_W, FACE_H);
     int y = FACE_H + 8;
-    play.setBounds(12, y, 120, 30); rec.setBounds(138, y, 90, 30); tap.setBounds(234, y, 60, 30);
+    play.setBounds(12, y, 120, 30); rec.setBounds(138, y, 90, 30); tap.setBounds(234, y, 50, 30);
+    diceBeat.setBounds(476, y, 100, 30); diceSound.setBounds(580, y, 104, 30);
     tempoLabel.setBounds(304, y, 56, 30); tempo.setBounds(356, y, 120, 30);
-    patternBox.setBounds(BASE_W - 312, y, 300, 30);
+    patternBox.setBounds(BASE_W - 304, y, 292, 30);
     y += 38;
-    for (int i = 0; i < 4; i++) tabs[i].setBounds(12 + i * 244, y, 238, 28);
+    {   // tab order on screen: sounds, grid, song, effects, setup
+        const int order[5] = {0, 1, 2, 4, 3};
+        for (int k = 0; k < 5; k++) tabs[order[k]].setBounds(12 + k * 196, y, 190, 28);
+    }
     y += 34;
     for (auto& pg : pages) pg.setBounds(12, y, BASE_W - 24, BASE_H - y - 8);
     // voices page
@@ -266,6 +285,7 @@ void Editor::resized() {
         songMidi.setBounds(594, 6, 130, 26); songDrag.setBounds(730, 6, 200, 26);
         songArea = {8, 72, pages[2].getWidth() - 16, pages[2].getHeight() - 78};
     }
+    fxHelp.setBounds(8, 76, pages[4].getWidth() - 16, 80);
     // setup page
     {
         juce::Component* rows[5][4] = {{&fxType, &fxTime, &fxLevel, &effectVr}, {&tcBox, &polyBox, &accVel, &padVel}, {&clickBox, &clickLvl, &countIn, nullptr},
@@ -274,7 +294,8 @@ void Editor::resized() {
         for (int r = 0; r < 5; r++)
             for (int c = 0; c < 4; c++)
                 if (rows[r][c]) {
-                    const int x = 8 + c * 236, yy = 10 + r * 58;
+                    // the first row (the effect) lives on the effects page
+                    const int x = 8 + c * 236, yy = 10 + (r == 0 ? 0 : r - 1) * 58;
                     if (li < 12 && setupLabels[li].getText().isNotEmpty()) setupLabels[li].setBounds(x, yy, 226, 18);
                     rows[r][c]->setBounds(x, yy + 20, 226, 26);
                     li++;
@@ -284,7 +305,7 @@ void Editor::resized() {
 
 void Editor::showTab(int t) {
     tab = t; proc.editorTab = t;
-    for (int i = 0; i < 4; i++) { pages[i].setVisible(i == t); styleButton(tabs[i], i == t); }
+    for (int i = 0; i < 5; i++) { pages[i].setVisible(i == t); styleButton(tabs[i], i == t); }
 }
 
 void Editor::buildVoice() {
@@ -534,9 +555,9 @@ void Editor::paintSong(juce::Graphics& g, juce::Rectangle<int> r) {
 void Editor::buildSetup() {
     auto& pg = pages[3];
     pg.painter = [](juce::Graphics& g) { g.fillAll(kPanel); };
-    const char* labels[12] = {"Internal effect (an extra)", "Effect time", "Effect level", "EFFECT VR (rear panel)", "Timing correct", "Voices", "Accent velocity", nullptr, "Click", "Click level", nullptr, nullptr};
+    const char* labels[12] = {"Effect", "Effect time", "Effect level", "EFFECT send (rear-panel knob)", "Timing correct", "Voices", "Accent velocity", nullptr, "Click", "Click level", nullptr, nullptr};
     for (int i = 0; i < 12; i++) if (labels[i]) { setupLabels[i].setText(labels[i], juce::dontSendNotification); setupLabels[i].setColour(juce::Label::textColourId, kSub); pg.addAndMakeVisible(setupLabels[i]); }
-    const char* fx[7] = {"Room (extra)", "Hall (extra)", "Plate (extra)", "Gated (extra)", "Delay (extra)", "External: EFFECT jack (FX Send bus)", "Off"};
+    const char* fx[7] = {"Room", "Hall", "Plate", "Gated reverb", "Delay", "External: FX Send bus only (as the XR10)", "Off"};
     for (int i = 0; i < 7; i++) fxType.addItem(fx[i], i + 1);
     const char* tc[7] = {"Quantize 1/4", "Quantize 1/8", "Quantize 1/8 triplet", "Quantize 1/16", "Quantize 1/16 triplet", "Quantize 1/32", "Quantize off"};
     for (int i = 0; i < 7; i++) tcBox.addItem(tc[i], i + 1);

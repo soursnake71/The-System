@@ -33,8 +33,8 @@ android {
     xr10 {
       dimension 'app'
       applicationId 'com.thesnakedevice.xr10'
-      versionCode 7
-      versionName '1.0 build 7'
+      versionCode 8
+      versionName '1.0 build 8'
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/xr10/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/xr10/"'
     }

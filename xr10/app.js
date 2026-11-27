@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 7;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 8;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
@@ -247,7 +247,7 @@ function download(bytes, name, mime) {
 const tabs = [...document.querySelectorAll('#tabs button')];
 tabs.forEach(b => b.addEventListener('click', () => {
   tabs.forEach(x => x.classList.toggle('on', x === b));
-  for (const t of ['pads', 'voice', 'grid', 'song', 'setup', 'help']) $('tab-' + t).hidden = t !== b.dataset.tab;
+  for (const t of ['pads', 'voice', 'grid', 'song', 'fx', 'setup', 'help']) $('tab-' + t).hidden = t !== b.dataset.tab;
 }));
 let gridBar = 0, waveFor = -1;
 function opt(sel, items) { sel.innerHTML = ''; items.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }); }
@@ -262,6 +262,9 @@ function buildPanel() {
   $('recbtn').onclick = () => { send({ t: 'set', k: K.REC, v: S && S.recording ? 0 : 1 }); setTimeout(() => send({ t: 'patterns' }), 100); };
   $('tempo').onchange = e => send({ t: 'set', k: K.TEMPO, v: Math.round(+e.target.value * 10) });
   let taps = [];
+  const seed = () => (Math.random() * 2147483647) | 0;
+  $('dicebeat').onclick = () => send({ t: 'randomBeat', seed: seed() });
+  $('dicesound').onclick = () => { send({ t: 'randomSound', seed: seed() }); setTimeout(() => send({ t: 'wave', s: S.sound }), 80); };
   $('tap').onclick = () => {
     const now = performance.now(); taps = taps.filter(t => now - t < 2500); taps.push(now);
     if (taps.length >= 2) { const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); send({ t: 'set', k: K.TEMPO, v: Math.round(600000 / iv) }); }
@@ -347,7 +350,7 @@ function buildPanel() {
   $('songadd').onclick = () => send({ t: 'songSet', song: S.song, step: 999, p: S.pattern, part: S.keys[K.MAINVAR], rep: 1 });
   $('songplay').onclick = () => { send({ t: 'set', k: K.MODE, v: 1 }); send({ t: 'set', k: K.PLAYING, v: S.playing ? 0 : 1 }); };
   // setup
-  opt($('fxtype'), ['Room (extra)', 'Hall (extra)', 'Plate (extra)', 'Gated (extra)', 'Delay (extra)', 'External: EFFECT jack only (the XR10)', 'Off'].map((n, i) => [i, n]));
+  opt($('fxtype'), ['Room', 'Hall', 'Plate', 'Gated reverb', 'Delay', 'External: EFFECT jack only (as the XR10)', 'Off'].map((n, i) => [i, n]));
   opt($('tc'), ['1/4', '1/8', '1/8 triplet', '1/16', '1/16 triplet', '1/32', 'Off'].map((n, i) => [i, n]));
   opt($('poly'), [4, 6, 8, 12, 16, 24, 32].map(v => [v, v + (v === 8 ? ' (XR10)' : '')]));
   opt($('midich'), [[0, 'Omni']].concat(Array.from({ length: 16 }, (_, i) => [i + 1, i + 1])));

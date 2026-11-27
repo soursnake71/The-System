@@ -118,8 +118,7 @@ inline void parseGroove(const StyleDef& st, Grid& g, int offset) {
 
 // writes the part to events through add(tick, sound, vel); returns bars
 template <class Add>
-inline int buildStylePart(int styleIdx, int part, Add add) {
-  const StyleDef& st = STYLES[styleIdx];
+inline int buildStylePart(const StyleDef& st, int part, Add add) {
   const int bar = st.beats * st.sub, sub = st.sub;
   Grid g;
   g.ni = 0;
@@ -218,4 +217,62 @@ inline int buildStylePart(int styleIdx, int part, Add add) {
       if (g.vel[i][s]) add(s * tps, g.sound[i], g.vel[i][s]);
   return bars;
 }
+template <class Add>
+inline int buildStylePart(int styleIdx, int part, Add add) { return buildStylePart(STYLES[styleIdx], part, add); }
+
+// a new groove for the dice button: a kit, a feel, and lines for kick, snare, hats and up to two percussion parts,
+// then the same variations, fills, intro and ending as the presets
+struct RandomStyle {
+  StyleDef def;
+  char name[10], lines[400];
+  void make(u32 seed, int number) {
+    xm::Rng r; r.seed(seed * 2654435761u + 12345);
+    for (int i = 0; i < 4; i++) r.next();
+    bool trip = r.uni() < 0.15;
+    int sub = trip ? 3 : 4, steps = 4 * sub;
+    char* o = lines; int n = 0;
+    auto put = [&](char c) { if (n < 398) o[n++] = c; };
+    auto line = [&](char ins, const char* pat) { if (n) put(' '); put(ins); put(':'); for (int i = 0; pat[i]; i++) put(pat[i]); };
+    char k[17], s[17], h[17], p[17];
+    for (int i = 0; i < 16; i++) k[i] = s[i] = h[i] = p[i] = '.';
+    k[steps] = s[steps] = h[steps] = p[steps] = 0;
+    // kick: the downbeat, then likelier on strong positions
+    for (int i = 0; i < steps; i++) {
+      double pr = i == 0 ? 1 : (i % (2 * sub) == 0 ? 0.55 : (i % sub == 0 ? 0.3 : (trip ? 0.18 : (i % 2 == 0 ? 0.22 : 0.1))));
+      if (r.uni() < pr) k[i] = 'x';
+    }
+    // snare: the backbeats, sometimes ghosts
+    for (int i = 0; i < steps; i++) {
+      if (i == sub || i == 3 * sub) s[i] = 'X';
+      else if (r.uni() < 0.1 && k[i] == '.') s[i] = 'o';
+    }
+    // hats or ride
+    int hatMode = (int)(r.uni() * 4);
+    char hatIns = 'H';
+    for (int i = 0; i < steps; i++) {
+      if (hatMode == 0) h[i] = (trip ? i % 3 != 1 : i % 2 == 0) ? 'x' : '.';
+      else if (hatMode == 1) h[i] = i % sub == 0 ? 'x' : 'o';
+      else if (hatMode == 2) h[i] = i % sub == sub / 2 ? 'x' : '.';
+      else { hatIns = 'R'; h[i] = (i % 2 == 0) ? 'x' : '.'; }
+    }
+    if (hatMode == 2) hatIns = 'O';
+    line('K', k); line('S', s); line(hatIns, h);
+    if (hatMode == 2) { char c[17]; for (int i = 0; i < steps; i++) c[i] = i % sub == 0 ? 'x' : '.'; c[steps] = 0; line('H', c); }
+    // up to two percussion parts
+    static const char perc[] = "BNZPchVrAa";
+    int np = (int)(r.uni() * 3);
+    for (int q = 0; q < np; q++) {
+      char ins = perc[(int)(r.uni() * 10)];
+      for (int i = 0; i < steps; i++) p[i] = r.uni() < (ins == 'Z' || ins == 'N' ? 0.5 : 0.25) ? 'x' : '.';
+      if (ins == 'P') for (int i = 0; i < steps; i++) p[i] = (i == sub || i == 3 * sub) ? 'x' : '.';
+      line(ins, p);
+    }
+    o[n] = 0;
+    name[0] = 'R'; name[1] = 'A'; name[2] = 'N'; name[3] = 'D'; name[4] = ' ';
+    name[5] = (char)('0' + (number / 10) % 10); name[6] = (char)('0' + number % 10); name[7] = 0;
+    def.name = name; def.beats = 4; def.sub = (u8)sub; def.swing = (u8)(trip ? 50 : 50 + (int)(r.uni() * 3) * 4);
+    def.tempo = (u8)(84 + (int)(r.uni() * 52)); def.kick = (u8)(r.uni() * 10); def.snare = (u8)(r.uni() * 10);
+    def.tomset = (u8)(r.uni() * 4); def.latin = 0; def.lines = lines;
+  }
+};
 }  // namespace xr

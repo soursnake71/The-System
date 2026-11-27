@@ -49,6 +49,8 @@ EXPORT const char* xr_pattern_name(int p) { return M.pat[p < 0 ? 0 : (p > 98 ? 9
 EXPORT const char* xr_param_name(int p) { return xr::VPARAMS[p].name; }
 EXPORT int xr_param_lo(int p) { return xr::VPARAMS[p].lo; }
 EXPORT int xr_param_hi(int p) { return xr::VPARAMS[p].hi; }
+EXPORT int xr_random_beat(int seed) { return M.randomBeat((u32)seed) ? 1 : 0; }
+EXPORT void xr_random_sound(int seed) { M.randomSound((u32)seed); }
 EXPORT int xr_nvp() { return xr::NVP; }
 EXPORT int xr_nvp_xr10() { return xr::NVP_XR10; }
 EXPORT int xr_nkeys() { return xr::NKEYS; }

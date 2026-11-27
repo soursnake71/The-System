@@ -302,7 +302,7 @@ struct Machine {
     for (int k = 0; k < NKEYS; k++) set[k] = 0;
     set[K_TEMPO] = 1200; set[K_TC] = 3; set[K_FXTYPE] = 0; set[K_FXTIME] = 50; set[K_FXLEVEL] = 60; set[K_POLY] = 8;
     set[K_MIDICH] = 0; set[K_MIDIMAP] = 0; set[K_SYNC] = 1; set[K_CLICK] = 1; set[K_CLICKLVL] = 60; set[K_COUNTIN] = 0;
-    set[K_PADVEL] = 0; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 5;
+    set[K_PADVEL] = 0; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 0; set[K_FXLEVEL] = 45;
     curPat = 0; curPart = 0; mainVar = 0;
     set[K_TEMPO] = pat[0].tempo * 10;
   }
@@ -781,7 +781,7 @@ struct Machine {
   struct Reader { const u8* p; u32 n, len; bool ok = true; void get(void* d, u32 l) { if (n + l > len) { ok = false; bytezero(d, l); return; } bytecopy(d, p + n, l); n += l; } };
   static const u32 MAGIC = 0x30315258;   // "XR10"
   template <class W> void save(W& w) {
-    u32 hdr[2] = {MAGIC, 2};   // 2: XR10 voice parameters, samples at the machine rate
+    u32 hdr[2] = {MAGIC, 3};   // 2: XR10 voice parameters, samples at the machine rate; 3: effect on by default
     w.put(hdr, 8);
     w.put(set, sizeof set);
     w.put(vp, sizeof vp);
@@ -807,6 +807,7 @@ struct Machine {
       u8 skip[64 * 13 * 2]; r.get(skip, sizeof skip);
       for (int i = 0; i < NSOUNDS; i++) defaultVoice(i);
     } else { r.get(set, sizeof set); r.get(vp, sizeof vp); }
+    if (hdr[1] == 2 && set[K_FXTYPE] == 5) { set[K_FXTYPE] = 0; set[K_FXLEVEL] = 45; }   // builds 5-7 had the effect off
     r.get(pads, sizeof pads); r.get(songs, sizeof songs);
     s32 cp[3]; r.get(cp, sizeof cp);
     for (int p = NPRESET; p < NPAT; p++) {
@@ -1135,6 +1136,43 @@ struct Machine {
       if (v >= 1 && v <= NSOUNDS) best = v - 1;
     }
     return best;
+  }
+
+  // ================= dice =================
+  // a new beat in the first empty user pattern (or over the current user pattern when none is empty)
+  int randomCount = 0;
+  bool randomBeat(u32 seed) {
+    int d = firstEmptyUser();
+    if (d < 0) { if (curPat >= NPRESET) d = curPat; else { message("NO EMPTY USER", "PATTERN"); return false; } }
+    RandomStyle rs; rs.make(seed, ++randomCount % 100);
+    Pattern& P = pat[d];
+    copyName(P.name, rs.name, 10);
+    P.beats = rs.def.beats; P.sub = rs.def.sub; P.swing = rs.def.swing; P.tempo = rs.def.tempo;
+    for (int k = 0; k < NPARTS; k++) { Part& pt = P.parts[k]; pt.count = 0; pt.bars = (u8)buildStylePart(rs.def, k, [&](int t, int s, int vel) { insertEvent(pt, t, s, vel); }); }
+    if (playing && !paused) queuedPat = d;
+    else { curPat = d; curPart = mainVar; partLenTicks = partTicks(curPat, curPart); if (!hostPlaying) set[K_TEMPO] = P.tempo * 10; }
+    char l[17]; Str(l, 17).s("RANDOM BEAT P").i(d + 1, 2);
+    message(l, P.name);
+    return true;
+  }
+  // a new take on the current sound, within the XR10's own parameter ranges
+  void randomSound(u32 seed) {
+    int s = set[K_SOUND];
+    xm::Rng r; r.seed(seed * 2246822519u + 7);
+    for (int i = 0; i < 4; i++) r.next();
+    auto ri = [&](int lo, int hi) { return lo + (int)(r.uni() * (hi - lo + 1)); };
+    s16* p = vp[s];
+    p[V_TUNE] = (s16)(r.uni() < 0.35 ? 0 : ri(-7, 7));
+    p[V_FINE] = (s16)ri(-8, 7);
+    p[V_PAN] = (s16)ri(-8, 8);
+    p[V_DECAY] = (s16)(r.uni() < 0.4 ? 31 : ri(12, 30));
+    p[V_HOLD] = (s16)(r.uni() < 0.4 ? 31 : ri(6, 30));
+    bool sweep = r.uni() < 0.4;
+    p[V_SWDEPTH] = (s16)(sweep ? ri(3, 18) : 0); p[V_SWDECAY] = (s16)ri(8, 45); p[V_SWPOL] = (s16)ri(0, 1);
+    p[V_REVERSE] = (s16)(r.uni() < 0.1);
+    p[V_SEND] = (s16)ri(0, 14);
+    trigger(s, 110);
+    message("RANDOM SOUND", SOUND_NAMES[s]);
   }
 
   // ================= front panel =================

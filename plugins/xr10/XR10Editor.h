@@ -68,8 +68,9 @@ private:
         std::function<void(const juce::MouseEvent&)> click;
         void paint(juce::Graphics& g) override { if (painter) painter(g); }
         void mouseDown(const juce::MouseEvent& e) override { if (click) click(e); }
-    } pages[4];
-    juce::TextButton tabs[4], play {"START / STOP"}, rec {"RECORD"}, tap {"TAP"};
+    } pages[5];   // sounds, grid, song, setup, effects
+    juce::TextButton tabs[5], play {"START / STOP"}, rec {"RECORD"}, tap {"TAP"}, diceBeat {"RANDOM BEAT"}, diceSound {"RANDOM SOUND"};
+    juce::Label fxHelp;
     juce::ComboBox patternBox;
     juce::Slider tempo;
     juce::Label tempoLabel {{}, "TEMPO"};

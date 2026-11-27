@@ -52,6 +52,8 @@ class XR10Processor extends AudioWorkletProcessor {
       case 'songTempo': x.xr_song_tempo(m.song, m.bpm); break;
       case 'reset': x.xr_factory_reset(); this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
       case 'clearPart': x.xr_clear_part(); break;
+      case 'randomBeat': x.xr_random_beat(m.seed); this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
+      case 'randomSound': x.xr_random_sound(m.seed); break;
       case 'resetVoice': x.xr_default_voice(m.s); break;
       case 'clearSample': x.xr_clear_sample(m.s); break;
       case 'patterns': this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
