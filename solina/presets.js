@@ -73,6 +73,23 @@ const SOLINA_PRESETS = [
   P('Mixer · Octave Choir', T('violin', 'viola', 'horn'), {vnPit:-12, hnPit:12, hnLvl:.5, hnTon:.6}, rv(.75, 4, .45), sends(0, .4)),
   P('Mixer · Slow Bass Swell', T('viola', 'cello', 'contra'), {ceAtk:.6, cbAtk:.7, ceDec:.8, cbDec:.8}, rv(.6, 3, .4), sends(0, .3)),
   P('Mixer · Pizzicato', T('violin', 'viola', 'cello'), {sus:1, susLen:0, vnDec:.15, vaDec:.15, ceDec:.15, cresc:0, depth:.25}, dl(4, .3, .4), rv(.45, 1.8, .4), sends(.15, .3)),
+  // songs: settings voiced after records known for the Solina / ARP String Ensemble (interpretations, not the records' own patches)
+  P('Songs · Dream Weaver', T('violin', 'viola', 'cello'), {cresc:.75, susLen:.9, depth:.55, trem:.3, wide:1, vnAtk:.35, vaAtk:.3, eqHigh:1}, ph(.07, .8, .35, .4), dl(1, .35, .35, .45), rv(.85, 5.5, .5, .5, 40), sends(.2, .45), {master:0.95}),
+  P('Songs · Shine On', T('violin', 'viola', 'cello', 'contra'), {cresc:1, susLen:1, depth:.6, trem:.35, wide:1, vnAtk:.55, vaAtk:.5, ceAtk:.4, eqHigh:-2}, rv(.9, 7, .55, .55, 50), sends(.1, .5), {dlOn:1, dlSync:3, dlFb:.3, dlRet:.3, dlTone:.4}, {master:0.67}),
+  P('Songs · Oxygene', T('violin', 'viola'), {cresc:.55, susLen:.95, depth:.5, wide:1, vaPit:-12, vaLvl:.6}, ph(.06, 1, .65, .5), dl(5, .55, .5, .45), rv(.85, 6, .5, .5, 30), sends(.35, .45), {master:1.00}),
+  P('Songs · Equinoxe', T('viola', 'horn', 'cello'), {cresc:.6, susLen:.9, depth:.55, wide:1, hnLvl:.55}, ph(.12, .9, .55, .5), dl(2, .5, .45, .5), rv(.8, 5, .45), sends(.3, .4), {master:0.93}),
+  P('Songs · Someone Saved My Life', T('violin', 'viola', 'cello'), {cresc:.35, susLen:.6, depth:.4, trem:.2, eqMid:1}, rv(.55, 2.4, .35, .5, 15), sends(0, .3), {master:0.68}),
+  P('Songs · Funeral for a Friend', T('violin', 'viola', 'horn', 'cello', 'contra'), {cresc:.8, susLen:1, depth:.45, hnLvl:.5, vnAtk:.4, vaAtk:.4}, rv(.95, 8, .55, .5, 60), sends(0, .55), {master:0.55}),
+  P('Songs · All Cats Are Grey', T('viola', 'cello'), {cresc:.5, susLen:.85, depth:.65, trem:.4, chorusHz:.9, outSel:1, volume:.9, vaTon:.7, eqHigh:-3}, rv(.85, 6, .55, .65, 40), sends(.15, .55), {dlOn:1, dlSync:1, dlFb:.35, dlRet:.3, dlTone:.35}, {master:0.58}),
+  P('Songs · Faith', T('viola'), {cresc:.9, susLen:1, depth:.7, trem:.45, vaTon:.55, vaAtk:.6, eqLow:2, eqHigh:-5}, rv(1, 9, .6, .7, 70), sends(0, .65), {master:1.00}),
+  P('Songs · Atmosphere', T('viola', 'cello', 'contra'), {cresc:.7, susLen:.9, depth:.5, trem:.25, outSel:1, volume:.95, eqHigh:-4, drive:.1}, rv(1, 8, .6, .7, 50), sends(0, .6), {master:0.47}),
+  P('Songs · Decades', T('violin', 'viola'), {cresc:.6, susLen:.85, depth:.55, wide:1, vnTon:.65, vaTon:.65, eqHigh:-3}, dl(3, .4, .35, .35), rv(.9, 6, .55, .6, 40), sends(.2, .5), {master:0.89}),
+  P('Songs · Warszawa', T('viola', 'horn', 'cello', 'contra'), {cresc:.85, susLen:1, depth:.35, trem:.15, hnLvl:.7, vaLvl:.6, hnTon:.6, outSel:1, volume:.95, eqHigh:-4}, rv(.9, 7, .5, .7, 60), sends(0, .5), {master:0.44}),
+  P('Songs · La Femme d\'Argent', T('violin', 'viola'), {cresc:.4, susLen:.75, depth:.6, trem:.3, wide:1, drive:.15, eqHigh:-2}, ph(.15, .7, .3, .35), dl(0, .45, .4, .35, 0), {dlTime:330}, rv(.6, 3, .4), sends(.3, .35), {master:0.93}),
+  P('Songs · Butterfly', T('violin', 'viola', 'cello'), {cresc:.5, susLen:.8, depth:.5, trem:.3, chorusHz:.6, eqMid:-2}, ph(.1, .7, .3, .4), rv(.7, 3.5, .45), sends(.1, .35), {master:0.92}),
+  P('Songs · Fool\'s Overture', T('violin', 'viola', 'trumpet', 'cello'), {cresc:.7, susLen:.9, depth:.45, tpLvl:.5, tpTon:.7}, rv(.85, 5, .5, .5, 40), sends(.1, .45), {dlOn:1, dlSync:1, dlFb:.3, dlRet:.3}, {master:0.69}),
+  P('Songs · Soft Disco Strings', T('violin', 'viola'), {cresc:.05, susLen:.3, depth:.45, wide:1, vnPit:12, vnLvl:.6, eqHigh:3}, ph(.35, .5, .2, .3), rv(.5, 1.8, .35), sends(.15, .25), {dlOn:1, dlSync:2, dlFb:.25, dlRet:.25}, {master:1.00}),
+  P('Songs · Berlin School Drone', T('viola', 'horn', 'cello', 'contra'), {cresc:1, susLen:1, depth:.7, trem:.5, chorusHz:.4, tremHz:4.5, wide:1}, ph(.03, 1, .6, .5), dl(5, .65, .5, .4), rv(1, 10, .6, .6, 80), sends(.4, .6), {master:0.67}),
 ];
 
 G.SOLINA_PRESETS = SOLINA_PRESETS;
