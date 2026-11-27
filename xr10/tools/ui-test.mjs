@@ -29,19 +29,19 @@ const check = (c, m) => { if (!c) { console.log('FAIL', m); fail++; } else conso
 let t = await lcd(); check(t.includes('ROCK 1'), 'LCD shows pattern 1: ' + t);
 // keypad 0 7 picks pattern 7
 const hit = async (id) => page.evaluate(i => { send({ t: 'btn', b: i, d: 1 }); send({ t: 'btn', b: i, d: 0 }); }, id);
-const clickHot = async (x, y) => { const b = await page.locator('#plate').boundingBox(); await page.mouse.click(b.x + b.width * x / 800, b.y + b.height * y / 572); };
-await clickHot(418, 336); await clickHot(519, 364); await page.waitForTimeout(200);
+const clickHot = async (x, y) => { const b = await page.locator('#plate').boundingBox(); await page.mouse.click(b.x + b.width * x / 800, b.y + b.height * y / 549); };
+await clickHot(427, 328); await clickHot(532, 357); await page.waitForTimeout(200);
 t = await lcd(); check(t.includes('DANCE 2'), 'keypad 0 7 selects DANCE 2: ' + t);
-await clickHot(690, 504); await page.waitForTimeout(900);   // START/STOP
+await clickHot(707, 503); await page.waitForTimeout(900);   // START/STOP
 t = await lcd(); check(t.includes('BAR'), 'playing shows bar: ' + t);
 check(await page.evaluate(() => S.playing === 1), 'engine is playing');
-await clickHot(604, 410); await page.waitForTimeout(150);   // FILL A
+await clickHot(619, 405); await page.waitForTimeout(150);   // FILL A
 check(await page.evaluate(() => S.part === 3), 'fill A plays');
 await page.screenshot({ path: shots + '/xr10-playing.png' });
-await clickHot(690, 504); await page.waitForTimeout(200);
+await clickHot(707, 503); await page.waitForTimeout(200);
 check(await page.evaluate(() => S.playing === 0), 'stopped');
 // mode: tap the SOUND light, then the knob
-await clickHot(486, 243); await page.waitForTimeout(150);
+await clickHot(497, 231); await page.waitForTimeout(150);
 t = await lcd(); check(t.startsWith('SND'), 'sound mode: ' + t);
 // panel: instruments and voice sliders
 await page.locator('#inst button').nth(24).dispatchEvent('pointerdown');
@@ -61,6 +61,19 @@ await page.screenshot({ path: shots + '/xr10-grid.png', fullPage: true });
 await page.click('[data-tab=song]');
 await page.click('#songadd'); await page.click('#songadd'); await page.waitForTimeout(200);
 check(await page.evaluate(() => S.songLen === 2), 'song has 2 steps');
+// MIDI: export the part, import it into the next user pattern
+await page.evaluate(() => { window.__mid = null; const d = download; window.download = (b, n) => { window.__mid = { b, n }; }; send({ t: 'exportMidi', song: 0 }); });
+await page.waitForFunction(() => window.__mid, null, { timeout: 5000 });
+const mid = await page.evaluate(() => ({ n: __mid.n, len: __mid.b.length, head: String.fromCharCode(...__mid.b.slice(0, 4)) }));
+check(mid.head === 'MThd' && mid.len > 40, 'MIDI export ' + mid.n + ' ' + mid.len + ' bytes');
+await page.evaluate(() => { window.alert = m => { window.__alert = m; }; send({ t: 'set', k: K.PATTERN, v: 70 }); });
+await page.waitForTimeout(150);
+await page.evaluate(() => send({ t: 'importMidi', bytes: __mid.b.slice().buffer }));
+await page.waitForFunction(() => window.__alert, null, { timeout: 5000 });
+check(await page.evaluate(() => /Imported 2 bars into pattern 71/.test(__alert)), 'MIDI import: ' + await page.evaluate(() => __alert));
+// sample names go to the right sounds
+const matched = await page.evaluate(() => matchNames(['KICK10.wav', 'Hat OP.wav', '07 KICK7.wav', 'tom3 h.wav', 'xyz.wav']));
+check(JSON.stringify(matched) === JSON.stringify([9, 24, 6, 33, -1]), 'sample names ' + JSON.stringify(matched));
 // save state round trip through IndexedDB
 await page.evaluate(() => save('auto')); await page.waitForTimeout(400);
 check(await page.evaluate(async () => { const b = await dbGet(); return b && b.byteLength > 1000; }), 'state saved to IndexedDB');

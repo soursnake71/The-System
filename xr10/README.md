@@ -17,10 +17,18 @@ the Android / web app, so the two sound and behave the same and share memory fil
   The plugin follows the host's transport and tempo.
 
 ## About the sounds
-No Akai ROM data is used or included. The 64 sounds are synthesized (`core/sounds.h`) to match the character of the names
-on the XR10's panel, then stored like the hardware's ROM (mono, 44.1 kHz, 16-bit). The preset rhythms are original
+The sound ROM is `rom.bin`, built from the files in `samples/` (see `samples/README.md`) by `tools/make-rom.cpp`; the release
+workflow rebuilds it whenever samples are pushed. Any sound without a sample is synthesized (`core/sounds.h`) to match the
+character of its name, and stored like the hardware's ROM (mono, 44.1 kHz, 16-bit). The preset rhythms are original
 grooves in the named styles (`core/styles.h`), not transcriptions of the factory patterns. Load your own samples to
 replace any sound.
+
+## MIDI files
+Import a drum MIDI file (type 0 or 1, General MIDI drum notes, channel 10 if the file uses it) into the current part, up to
+8 bars, with its tempo and time signature; export the part or the whole song as type-0 MIDI on channel 10. The notes follow
+the MIDI note map in Setup; with General MIDI, the sounds that have no GM note of their own use 24–33 (kicks), 88–95
+(snares 3–10), 96–104 (toms 2–4) and 105 (hits), so every sound comes back as itself. In the plugin you can also drag the
+part or song straight onto a DAW track, and drop .mid files on the window.
 
 ## Files
 - `core/xr10.h` the machine (voices, effects, sequencer, LCD menus), `core/sounds.h` the sounds, `core/styles.h` the

@@ -98,6 +98,47 @@ int main(int argc, char** argv) {
   CHECK(m2->playing && m2->playingSong, "song didn't start");
   { std::vector<float> l(sr * 12), r(l.size()); m2->process(l.data(), r.data(), nullptr, nullptr, (int)l.size()); }
   CHECK(!m2->playing, "song didn't end");
+  // MIDI files: export a part, import it into another, the hits match
+  {
+    Machine* m3 = new Machine(); m3->init(sr);
+    m3->selectPattern(10);
+    std::vector<u8> mid(1 << 20);
+    u32 n = m3->exportMidi(mid.data(), (u32)mid.size(), 0);
+    CHECK(n > 30 && mid[0] == 'M' && mid[1] == 'T', "midi export");
+    FILE* f = fopen((out + "/funk1.mid").c_str(), "wb"); fwrite(mid.data(), 1, n, f); fclose(f);
+    int want = m3->pat[10].parts[0].count;
+    m3->selectPattern(60);
+    int bars = m3->importMidi(mid.data(), n);
+    CHECK(bars == 2, "midi import bars %d", bars);
+    CHECK(m3->pat[60].parts[0].count == want, "midi import events %d want %d", m3->pat[60].parts[0].count, want);
+    bool same = true;
+    for (int i = 0; i < want && i < m3->pat[60].parts[0].count; i++) { auto& a = m3->pat[10].parts[0].ev[i]; auto& b = m3->pat[60].parts[0].ev[i]; int ta = a.tick; if (ta % 48 == 24) ta = ta - 24 + m3->pat[10].swing * 48 / 100; same &= a.sound == b.sound && ta == b.tick && a.vel == b.vel; }
+    CHECK(same, "midi round trip differs");
+    // every sound survives the GM note map
+    bool all = true; for (int s = 0; s < NSOUNDS; s++) { int nt = m3->soundToNote(s); if (m3->midiToSound(nt) != s) { all = false; printf("  sound %s -> note %d -> %d\n", SOUND_NAMES[s], nt, m3->midiToSound(nt)); } }
+    CHECK(all, "GM note map loses sounds");
+    // song export
+    m3->songSet(0, 0, 0, P_INTRO, 1); m3->songSet(0, 1, 0, P_VARA, 2); m3->songSet(0, 2, 0, P_END, 1); m3->set[K_SONG] = 0;
+    n = m3->exportMidi(mid.data(), (u32)mid.size(), 1);
+    CHECK(n > 100, "song midi export");
+    f = fopen((out + "/song.mid").c_str(), "wb"); fwrite(mid.data(), 1, n, f); fclose(f);
+    CHECK(m3->importMidi((const u8*)"nope", 4) == -1, "non-midi refused");
+  }
+  // sample names
+  {
+    struct { const char* f; int s; } names[] = {{"KICK1.wav", 0}, {"kick10.WAV", 9}, {"07 KICK7.wav", 6}, {"Snare 10.wav", 19}, {"SNARE1.wav", 10}, {"Hat CL.wav", HATCL},
+      {"HAT OP.wav", HATOP}, {"tom2 m.aif", TOM2M}, {"TOM4 H.wav", TOM4H}, {"Triangle H.wav", TRIH}, {"tambourine.wav", TAMB}, {"Timbales L.wav", TIMBL},
+      {"VIBRASLAP.wav", VIBRA}, {"23.wav", 22}, {"Agogo H.wav", AGOGOH}, {"RIMSHOT2.wav", RIM2}, {"CRASH1.wav", CRASH1}, {"readme.txt", -1}};
+    for (auto& t : names) CHECK(Machine::matchSoundName(t.f) == t.s, "name %s -> %d, want %d", t.f, Machine::matchSoundName(t.f), t.s);
+  }
+  // a sample ROM pack replaces sounds
+  {
+    std::vector<u8> pk; auto put32 = [&](u32 v) { for (int i = 0; i < 4; i++) pk.push_back((u8)(v >> (8 * i))); };
+    put32(0x4b505258); put32(1); put32(5); put32(1000); for (int i = 0; i < 1000; i++) { short v = (short)(i * 30); pk.push_back((u8)v); pk.push_back((u8)(v >> 8)); }
+    Machine* m4 = new Machine(); m4->init(sr, pk.data(), (u32)pk.size());
+    CHECK(m4->fromPack[5] && m4->romRef[5].len == 1000 && m4->rom[m4->romRef[5].start + 10] == 300, "rom pack");
+    CHECK(!m4->fromPack[4] && m4->romRef[4].len > 1000, "unpacked sounds stay synthesized");
+  }
   // math
   CHECK(std::fabs(xm::sin(1.234) - std::sin(1.234)) < 1e-9, "sin"); CHECK(std::fabs(xm::exp(-3.3) - std::exp(-3.3)) < 1e-12, "exp");
   CHECK(std::fabs(xm::log(123.4) - std::log(123.4)) < 1e-9, "log"); CHECK(std::fabs(xm::pow(2.5, 1.7) - std::pow(2.5, 1.7)) < 1e-9, "pow");

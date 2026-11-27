@@ -12,11 +12,15 @@ class XR10Processor extends AudioWorkletProcessor {
       const { instance } = await WebAssembly.instantiate(m.bytes, {});
       const x = this.x = instance.exports;
       x.__wasm_call_ctors();
-      x.xr_init(sampleRate);
+      if (m.rom && m.rom.byteLength > 8 && m.rom.byteLength <= x.xr_scratch_size()) {
+        new Uint8Array(x.memory.buffer, x.xr_scratch(), m.rom.byteLength).set(new Uint8Array(m.rom));
+        x.xr_init_pack(sampleRate, m.rom.byteLength);
+      } else x.xr_init(sampleRate);
       const names = [], pnames = [], plo = [], phi = [];
       for (let i = 0; i < 64; i++) names.push(this.str(x.xr_sound_name(i), 12));
       for (let i = 0; i < 13; i++) { pnames.push(this.str(x.xr_param_name(i), 12)); plo.push(x.xr_param_lo(i)); phi.push(x.xr_param_hi(i)); }
-      this.port.postMessage({ t: 'ready', names, pnames, plo, phi, patterns: this.patternNames() });
+      const packed = []; for (let i = 0; i < 64; i++) packed.push(x.xr_from_pack(i));
+      this.port.postMessage({ t: 'ready', names, pnames, plo, phi, packed, patterns: this.patternNames() });
       return;
     }
     const x = this.x;
@@ -60,6 +64,24 @@ class XR10Processor extends AudioWorkletProcessor {
         const n = Math.min(d.length, max);
         new Float32Array(x.memory.buffer, x.xr_scratch(), n).set(d.subarray(0, n));
         x.xr_load_sample(m.s, n, m.rate);
+        break;
+      }
+      case 'exportMidi': {
+        const n = x.xr_export_midi(m.song ? 1 : 0);
+        const bytes = n > 0 ? new Uint8Array(x.memory.buffer, x.xr_scratch(), n).slice() : null;
+        this.port.postMessage({ t: 'midiFile', bytes, song: m.song }, bytes ? [bytes.buffer] : []);
+        break;
+      }
+      case 'importMidi': {
+        const b = new Uint8Array(m.bytes);
+        let r = -1;
+        if (b.length <= x.xr_scratch_size()) { new Uint8Array(x.memory.buffer, x.xr_scratch(), b.length).set(b); r = x.xr_import_midi(b.length); }
+        this.port.postMessage({ t: 'midiImported', r, patterns: this.patternNames() });
+        break;
+      }
+      case 'matchNames': {
+        const out = m.names.map(nm => { const e = Uint8Array.from(nm.slice(0, 200), ch => ch.charCodeAt(0) & 0xff); new Uint8Array(x.memory.buffer, x.xr_scratch(), e.length).set(e); return x.xr_match_name(e.length); });
+        this.port.postMessage({ t: 'matched', id: m.id, out });
         break;
       }
       case 'wave': {

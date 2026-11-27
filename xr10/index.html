@@ -115,6 +115,8 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
       <canvas id="wave" width="800" height="60"></canvas>
       <div class="row" style="margin-top:8px">
         <button id="loadsmp">Load your own sample…</button>
+        <button id="loadset">Load a sample set (many files)…</button>
+        <input type="file" id="setfile" accept="audio/*,.wav,.aif,.aiff" multiple hidden>
         <button id="romsmp">Back to ROM sound</button>
         <button id="resetv">Reset voice</button>
         <label>Put on pad <select id="assignpad"></select></label>
@@ -137,6 +139,9 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
       <div id="grid"></div>
       <div class="row" style="margin-top:8px">
         <button id="clearpart">Clear this part</button>
+        <button id="midiimp">Import MIDI file…</button>
+        <button id="midiexp">Export part as MIDI</button>
+        <input type="file" id="midifile" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
         <span class="help">Tap a step: normal → accent → off. Editing a preset copies it to a free user pattern (51–99).</span>
       </div>
     </section>
@@ -149,6 +154,7 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
         <label>Tempo <input id="songtempo" type="number" min="0" max="300" style="width:80px" placeholder="pattern"></label>
         <button id="songadd">Add current pattern</button>
         <button id="songplay">Play song</button>
+        <button id="songmidi">Export song as MIDI</button>
       </div>
       <div id="songlist"></div>
     </section>
@@ -201,6 +207,10 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
       <p><b>VARIATION A/B/C</b> (pads 12, 11, 10) switch the groove at the bar line. <b>FILL IN A/B/C</b> (pads 15, 14, 13) play a fill now and lead into the matching variation. <b>INTRO/END</b> starts with an intro when stopped and plays the ending when playing. <b>BREAK/CONTINUE</b> stops at the bar line and carries on when pressed again.</p>
       <p><b>Recording:</b> press <b>EDIT</b>, then <b>+/Y</b> (RECORD ON), <b>EDIT</b> again to leave the menu, and <b>START</b>. Hit the pads; <b>TIMING CORRECT</b> sets the quantize and <b>ACCENT</b> records at full strength. Hold <b>ERASE</b> and hit a pad to remove that sound. Press ERASE while stopped to clear the part. In the EDIT menu, ▲ ▼ go through length, time signature, swing, click, count-in, copy, name and clear.</p>
       <p><b>MODE</b> (or tap a mode light) goes Pattern → Song → Sound → Utility. In <b>Sound</b> mode, hit a pad and turn DATA to change the sound on it; ▲ ▼ go through level, pan, tune, fine, bend, attack, decay, tone, reverse, loop, FX send, group and velocity sensitivity. In <b>Song</b> mode, ◄ ► pick step / pattern / part / repeat, DATA or −/+ change it, ENTER adds a step, ERASE deletes it. <b>PAD BANK</b> switches between four sets of 15 sounds.</p>
+      <h3>MIDI files</h3>
+      <p>Under <b>Step grid</b>, <b>Import MIDI file</b> reads a drum MIDI file (General MIDI drum notes, channel 10 if the file uses it) into the part you're on, up to 8 bars, with its tempo and time signature. Importing onto a preset copies it to a free user pattern first. <b>Export part as MIDI</b> writes the part, and <b>Export song as MIDI</b> on the Song page writes the whole song, as drums on channel 10. The note layout follows Setup → MIDI → Note map. You can also drop a .mid file onto the page.</p>
+      <h3>Samples</h3>
+      <p><b>Load a sample set</b> (Voices) takes many files at once and puts each on the sound its name says: <i>KICK1.wav</i>, <i>07 KICK7.wav</i>, <i>Hat CL.wav</i>, <i>TOM2 M.wav</i>… Pick all the files in your XR-10 folder.</p>
       <h3>RX5-style extras</h3>
       <p>Every sound has its own pitch, bend, envelope, tone, reverse, loop, pan, effect send and choke group, all on sliders under <b>Voices</b>, with the waveform shown. You can load your own samples onto any of the 64 sounds. The <b>Step grid</b> shows the part you're playing, one bar at a time, for the 15 pads of the bank. The <b>Song</b> page lists the chain step by step.</p>
     </section>

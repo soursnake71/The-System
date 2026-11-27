@@ -16,6 +16,11 @@ static u8 gridBuf[xr::Machine::GRID_ROWS * 33];
 
 #define EXPORT extern "C" __attribute__((visibility("default")))
 EXPORT void xr_init(double sr) { M.init(sr); }
+EXPORT void xr_init_pack(double sr, int len) { M.init(sr, scratch, (u32)len); }   // the sample ROM (rom.bin) in scratch
+EXPORT int xr_from_pack(int s) { return M.fromPack[s & 63] ? 1 : 0; }
+EXPORT int xr_export_midi(int song) { u32 n = M.exportMidi(scratch, sizeof scratch, song); return n <= sizeof scratch ? (int)n : -1; }
+EXPORT int xr_import_midi(int len) { return M.importMidi(scratch, (u32)len); }
+EXPORT int xr_match_name(int len) { if (len > 200) len = 200; char n[201]; for (int i = 0; i < len; i++) n[i] = (char)scratch[i]; n[len] = 0; return xr::Machine::matchSoundName(n); }
 EXPORT float* xr_out_l() { return outL; }
 EXPORT float* xr_out_r() { return outR; }
 EXPORT void xr_process(int n) { if (n > 4096) n = 4096; M.process(outL, outR, 0, 0, n); }

@@ -24,10 +24,10 @@ private:
     float lastX = 0, lastY = 0, acc = 0;
     juce::Rectangle<float> photo(float x, float y, float w, float h) const;
     float sx() const { return (float) getWidth() / 800.f; }
-    float sy() const { return (float) getHeight() / 572.f; }
+    float sy() const { return (float) getHeight() / 549.f; }
 };
 
-class Editor : public juce::AudioProcessorEditor, private juce::Timer {
+class Editor : public juce::AudioProcessorEditor, public juce::DragAndDropContainer, public juce::FileDragAndDropTarget, private juce::Timer {
 public:
     explicit Editor(Processor&);
     ~Editor() override;
@@ -47,6 +47,17 @@ private:
     void paintWave(juce::Graphics&, juce::Rectangle<int>);
     void mouseDown(const juce::MouseEvent&) override;
     void refreshPatterns();
+    bool isInterestedInFileDrag(const juce::StringArray&) override { return true; }
+    void filesDropped(const juce::StringArray& files, int, int) override;
+    void importMidiFile(const juce::File& f);
+    juce::File writeMidiTemp(bool song);
+    // a button you drag into the DAW: it hands over a .mid file
+    struct DragOut : juce::TextButton {
+        std::function<void()> onDragOut;
+        bool fired = false;
+        void mouseDown(const juce::MouseEvent& e) override { fired = false; juce::TextButton::mouseDown(e); }
+        void mouseDrag(const juce::MouseEvent& e) override { if (!fired && e.getDistanceFromDragStart() > 6 && onDragOut) { fired = true; onDragOut(); } }
+    };
 
     Processor& proc;
     Snapshot snap;
@@ -66,19 +77,21 @@ private:
     juce::TextButton inst[xr::NSOUNDS];
     juce::Slider params[xr::NVP];
     juce::Label paramLabels[xr::NVP], voiceTitle;
-    juce::TextButton loadSmp {"Load sample..."}, romSmp {"ROM sound"}, resetVoice {"Reset voice"};
+    juce::TextButton loadSmp {"Load sample..."}, loadSet {"Load sample folder..."}, romSmp {"ROM sound"}, resetVoice {"Reset voice"};
     juce::ComboBox assignPad;
     juce::Rectangle<int> waveArea;
     std::vector<short> wave;
     int waveFor = -1, waveUser = -1;
     // grid
-    juce::TextButton partBtn[xr::NPARTS], barBtn[8], clearPart {"Clear part"};
+    juce::TextButton partBtn[xr::NPARTS], barBtn[8], clearPart {"Clear part"}, midiImp {"Import MIDI..."}, midiExp {"Export MIDI..."};
+    DragOut midiDrag, songDrag;
     juce::ComboBox lenBox, beatsBox, subBox, bankBox, swingBox;
     juce::Rectangle<int> gridArea;
     int gridBar = 0;
     // song
     juce::ComboBox songBox, stepPattern, stepPart;
     juce::Slider stepRepeat, songTempo;
+    juce::TextButton songMidi {"Export song MIDI..."};
     juce::TextButton songAdd {"Add current pattern"}, songDup {"Duplicate step"}, songDel {"Delete step"}, songPlay {"Play song"};
     juce::Rectangle<int> songArea;
     int songSel = 0, songFirst = 0;

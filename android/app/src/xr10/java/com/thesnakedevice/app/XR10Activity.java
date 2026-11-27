@@ -63,8 +63,9 @@ public class XR10Activity extends Activity {
       @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
         if (pending != null) pending.onReceiveValue(null);
         pending = cb;
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
-          .putExtra(Intent.EXTRA_MIME_TYPES, new String[] {"audio/*", "video/*", "application/octet-stream", "*/*"});
+        // any file: samples, MIDI files and memory files all come through here; a sample set picks many at once
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+        if (p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         try { startActivityForResult(i, PICK); }
         catch (ActivityNotFoundException e) { pending = null; cb.onReceiveValue(null); toast("No file picker on this device"); }
         return true;
@@ -218,7 +219,13 @@ public class XR10Activity extends Activity {
   @Override protected void onActivityResult(int req, int res, Intent data) {
     if (req != PICK || pending == null) { super.onActivityResult(req, res, data); return; }
     Uri[] out = null;
-    if (res == RESULT_OK && data != null && data.getData() != null) out = new Uri[] { data.getData() };
+    if (res == RESULT_OK && data != null) {
+      if (data.getClipData() != null) {
+        android.content.ClipData c = data.getClipData();
+        out = new Uri[c.getItemCount()];
+        for (int k = 0; k < c.getItemCount(); k++) out[k] = c.getItemAt(k).getUri();
+      } else if (data.getData() != null) out = new Uri[] { data.getData() };
+    }
     pending.onReceiveValue(out); pending = null;
   }
 

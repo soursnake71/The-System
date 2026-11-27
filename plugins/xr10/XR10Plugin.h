@@ -16,6 +16,7 @@ struct Snapshot {
     int keys[xr::NKEYS] {};
     int params[xr::NVP] {};
     bool user[xr::NSOUNDS] {};
+    bool packed[xr::NSOUNDS] {};
     unsigned char grid[xr::Machine::GRID_ROWS * 33] {};
     int steps = 16, songLen = 0, songTempo = 0;
     xr::SongStep song[xr::MAXSTEP] {};
@@ -57,6 +58,9 @@ public:
     juce::String loadSample(int sound, const juce::File& f);
     void sampleWave(int sound, std::vector<short>& out);
     juce::MemoryBlock saveMemory();
+    juce::MemoryBlock exportMidi(bool song);        // a Standard MIDI File of the current part, or the whole song
+    int importMidi(const juce::MemoryBlock& b);      // into the current part: bars read, 0 nothing usable, -1 not MIDI
+    juce::String loadSampleSet(const juce::Array<juce::File>& files);   // each file onto the sound its name says
     bool loadMemory(const juce::MemoryBlock& b);
 
     juce::AudioFormatManager formats;

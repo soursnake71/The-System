@@ -27,6 +27,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev xvfb
       - name: Configure
         run: cmake -S plugins -B build -DCMAKE_BUILD_TYPE=Release -DOMEGA_ONLY=XR10
+      - name: Build the sample ROM from xr10/samples
+        shell: bash
+        run: |
+          cmake --build build --config Release --target xr10_make_rom
+          if ls xr10/samples | grep -qiE '\.(wav|aif|aiff)$'; then
+            t=$(find build -name 'xr10_make_rom' -o -name 'xr10_make_rom.exe' | grep -v '\.dir' | head -1)
+            "$t" xr10/samples xr10/rom.bin
+          fi
       - name: Build
         run: cmake --build build --config Release --parallel 4 --target OmegaXR10_All xr10_test
       - name: Test the engine
@@ -66,6 +74,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y clang lld
           CLANG=clang sh xr10/tools/build-wasm.sh
+          if ls xr10/samples | grep -qiE '\.(wav|aif|aiff)$'; then g++ -O2 -std=c++17 xr10/tools/make-rom.cpp -o make-rom && ./make-rom xr10/samples xr10/rom.bin; fi
       - name: Build
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"

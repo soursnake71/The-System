@@ -1,5 +1,6 @@
 #include "XR10Plugin.h"
 #include "XR10Editor.h"
+#include "BinaryData.h"
 
 namespace xr10 {
 
@@ -8,7 +9,7 @@ Processor::Processor()
                          .withOutput("Main", juce::AudioChannelSet::stereo(), true)
                          .withOutput("FX Send", juce::AudioChannelSet::stereo(), false)) {
     m = std::make_unique<xr::Machine>();
-    m->init(44100);
+    m->init(44100, (const u8*) BinaryData::rom_bin, (u32) BinaryData::rom_binSize);   // your XR-10 samples, when xr10/rom.bin has them
     formats.registerBasicFormats();
 }
 
@@ -115,7 +116,7 @@ void Processor::snapshot(Snapshot& s, int gridBar) {
         s.st = mm.status();
         for (int k = 0; k < xr::NKEYS; k++) s.keys[k] = mm.get(k);
         for (int p = 0; p < xr::NVP; p++) s.params[p] = mm.vp[s.st.sound][p];
-        for (int i = 0; i < xr::NSOUNDS; i++) s.user[i] = mm.user[i].len > 0;
+        for (int i = 0; i < xr::NSOUNDS; i++) { s.user[i] = mm.user[i].len > 0; s.packed[i] = mm.fromPack[i]; }
         mm.grid(gridBar, s.grid);
         s.steps = mm.gridSteps();
         const auto& sg = mm.songs[s.st.song];
@@ -147,6 +148,31 @@ juce::String Processor::loadSample(int sound, const juce::File& f) {
     bool ok = false;
     with([&](xr::Machine& mm) { ok = mm.loadSample(sound, mono.data() + s0, n - s0, r->sampleRate); });
     return ok ? juce::String() : juce::String("Sample memory is full");
+}
+
+juce::MemoryBlock Processor::exportMidi(bool song) {
+    juce::MemoryBlock b;
+    with([&](xr::Machine& mm) {
+        u32 n = mm.exportMidi(nullptr, 0, song ? 1 : 0);
+        b.setSize(n);
+        mm.exportMidi((u8*) b.getData(), n, song ? 1 : 0);
+    });
+    return b;
+}
+int Processor::importMidi(const juce::MemoryBlock& b) {
+    int r = -1;
+    with([&](xr::Machine& mm) { r = mm.importMidi((const u8*) b.getData(), (u32) b.getSize()); });
+    return r;
+}
+juce::String Processor::loadSampleSet(const juce::Array<juce::File>& files) {
+    juce::StringArray done, skipped;
+    for (auto& f : files) {
+        const int s = xr::Machine::matchSoundName(f.getFileName().toRawUTF8());
+        if (s < 0 || loadSample(s, f).isNotEmpty()) { skipped.add(f.getFileName()); continue; }
+        done.add(xr::SOUND_NAMES[s]);
+    }
+    return "Loaded " + juce::String(done.size()) + " sounds" + (done.isEmpty() ? juce::String() : ": " + done.joinIntoString(", "))
+        + (skipped.isEmpty() ? juce::String() : "\n\nNot used (no matching sound name, or unreadable): " + skipped.joinIntoString(", "));
 }
 
 juce::AudioProcessorEditor* Processor::createEditor() { return new Editor(*this); }

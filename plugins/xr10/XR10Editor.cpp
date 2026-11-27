@@ -6,7 +6,7 @@ using namespace xr;
 
 static const juce::Colour kPanel(0xffe4e3ea), kInk(0xff26262c), kSub(0xff5c5b66), kKey(0xfff4f3f7), kSel(0xff3c5f94), kOn(0xffd2335a),
     kLcd(0xff2f3b42), kLcdText(0xffb4c8c6), kGhost(0xff9cb0d0), kBg(0xffcfcdd6);
-static const int BASE_W = 1000, FACE_H = 715, PANEL_H = 410, BASE_H = FACE_H + PANEL_H;
+static const int BASE_W = 1000, FACE_H = 686, PANEL_H = 410, BASE_H = FACE_H + PANEL_H;
 static const char* const PART_LONG[NPARTS] = {"VAR A", "VAR B", "VAR C", "FILL A", "FILL B", "FILL C", "INTRO", "ENDING"};
 
 static juce::Font mono(float h) { return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), h, juce::Font::bold)); }
@@ -16,17 +16,17 @@ static juce::Font sans(float h, bool bold = false) { return juce::Font(juce::Fon
 Face::Face(Processor& p) : proc(p) {
     plate = juce::ImageCache::getFromMemory(BinaryData::faceplate_jpg, BinaryData::faceplate_jpgSize);
     auto add = [&](int id, float x, float y, float w, float h, bool pad = false) { hots.push_back({id, x, y, w, h, pad}); };
-    const int cur[6][2] = {{B_LEFT, 468}, {B_RIGHT, 519}, {B_UP, 570}, {B_DOWN, 620}, {B_MINUS, 670}, {B_PLUS, 709}};
-    for (auto& c : cur) add(c[0], (float) c[1], 302, c[1] > 650 ? 32.f : 40.f, 16);
-    const int kx[5] = {418, 468, 519, 570, 620};
-    for (int d = 0; d < 10; d++) add(B_D0 + d, (float) kx[d % 5], d < 5 ? 336.f : 364.f, 40, 16);
-    add(B_ENTER, 690, 336, 70, 16);
-    const float colX[8] = {98, 180, 263, 348, 433, 519, 604, 690}, rowY[3] = {410, 457, 504};
+    const int cur[6][2] = {{B_LEFT, 479}, {B_RIGHT, 532}, {B_UP, 584}, {B_DOWN, 636}, {B_MINUS, 687}, {B_PLUS, 727}};
+    for (auto& c : cur) add(c[0], (float) c[1], 292, c[1] > 670 ? 34.f : 42.f, 17);
+    const int kx[5] = {427, 479, 532, 584, 636};
+    for (int d = 0; d < 10; d++) add(B_D0 + d, (float) kx[d % 5], d < 5 ? 328.f : 357.f, 42, 17);
+    add(B_ENTER, 707, 327, 73, 17);
+    const float colX[8] = {90, 177, 265, 354, 442, 532, 619, 707}, rowY[3] = {405, 454, 503};
     const int layout[8][3] = {{B_MODE, B_EDIT, B_PADBANK}, {B_ERASE, B_ACCENT, B_TC},
         {B_PAD1 + 2, B_PAD1 + 1, B_PAD1}, {B_PAD1 + 5, B_PAD1 + 4, B_PAD1 + 3}, {B_PAD1 + 8, B_PAD1 + 7, B_PAD1 + 6},
         {B_PAD1 + 11, B_PAD1 + 10, B_PAD1 + 9}, {B_PAD1 + 14, B_PAD1 + 13, B_PAD1 + 12}, {B_INTRO, B_BREAK, B_START}};
-    for (int c = 0; c < 8; c++) for (int r = 0; r < 3; r++) add(layout[c][r], colX[c], rowY[r], 70, 36, layout[c][r] >= B_PAD1 && layout[c][r] <= B_PAD15);
-    add(B_MODE_PATTERN, 486, 223, 34, 14); add(B_MODE_SONG, 520, 223, 34, 14); add(B_MODE_SOUND, 486, 243, 34, 14); add(B_MODE_UTILITY, 520, 243, 34, 14);
+    for (int c = 0; c < 8; c++) for (int r = 0; r < 3; r++) add(layout[c][r], colX[c], rowY[r], 73, 37, layout[c][r] >= B_PAD1 && layout[c][r] <= B_PAD15);
+    add(B_MODE_PATTERN, 497, 210, 35, 15); add(B_MODE_SONG, 532, 210, 35, 15); add(B_MODE_SOUND, 497, 231, 35, 15); add(B_MODE_UTILITY, 532, 231, 35, 15);
 }
 juce::Rectangle<float> Face::photo(float x, float y, float w, float h) const { return {(x - w / 2) * sx(), (y - h / 2) * sy(), w * sx(), h * sy()}; }
 
@@ -35,7 +35,7 @@ void Face::paint(juce::Graphics& g) {
     if (!snap) return;
     const auto& st = snap->st;
     // LCD
-    auto lcd = juce::Rectangle<float>(567 * sx(), 218 * sy(), 132 * sx(), 31 * sy());
+    auto lcd = juce::Rectangle<float>(581 * sx(), 205 * sy(), 136 * sx(), 33 * sy());
     g.setColour(kLcd);
     g.fillRect(lcd);
     const float cw = lcd.getWidth() / 16.4f, ch = lcd.getHeight() / 2.15f;
@@ -49,16 +49,16 @@ void Face::paint(juce::Graphics& g) {
             g.drawText(juce::String::charToString((juce::juce_wchar) (unsigned char) st.lcd[row][i]), juce::Rectangle<float>(x, y, cw, ch), juce::Justification::centred, false);
         }
     // mode lights
-    const float led[4][2] = {{486, 223}, {520, 223}, {486, 243}, {520, 243}};
+    const float led[4][2] = {{497, 210}, {532, 210}, {497, 231}, {532, 231}};
     for (int i = 0; i < 4; i++) {
-        auto r = photo(led[i][0], led[i][1], 22, 5);
+        auto r = photo(led[i][0], led[i][1], 23, 5);
         if (st.mode == i) { g.setColour(juce::Colour(0x66ff3d6e)); g.fillRoundedRectangle(r.expanded(3), 3); g.setColour(juce::Colour(0xffff3d6e)); }
         else g.setColour(juce::Colour(0xff4d5159));
         g.fillRoundedRectangle(r, 1.5f);
     }
     // knob caps with pointers
     auto knob = [&](float cx, float cy, float angle) {
-        const float r = 32 * sx();
+        const float r = 33.5f * sx();
         juce::Point<float> c(cx * sx(), cy * sy());
         juce::ColourGradient gr(juce::Colour(0xffffffff), c.x - r * 0.3f, c.y - r * 0.4f, juce::Colour(0xffbfc2d0), c.x + r, c.y + r, true);
         g.setGradientFill(gr);
@@ -68,8 +68,8 @@ void Face::paint(juce::Graphics& g) {
         g.setColour(juce::Colour(0xff24427a));
         g.fillPath(p, juce::AffineTransform::rotation(angle).translated(c));
     };
-    knob(130, 230, juce::degreesToRadians(-135.f + volume * 2.7f));
-    knob(252, 230, juce::degreesToRadians(dataAngle));
+    knob(123, 217, juce::degreesToRadians(-135.f + volume * 2.7f));
+    knob(252, 217, juce::degreesToRadians(dataAngle));
     // lit keys and the key being pressed
     auto lit = [&](int id) {
         const int part = st.part;
@@ -97,8 +97,8 @@ void Face::paint(juce::Graphics& g) {
 void Face::mouseDown(const juce::MouseEvent& e) {
     const float x = e.position.x / sx(), y = e.position.y / sy();
     lastX = e.position.x; lastY = e.position.y; acc = 0;
-    if (juce::Point<float>(x - 130, y - 230).getDistanceFromOrigin() < 42) { dragKnob = 0; return; }
-    if (juce::Point<float>(x - 252, y - 230).getDistanceFromOrigin() < 42) { dragKnob = 1; return; }
+    if (juce::Point<float>(x - 123, y - 217).getDistanceFromOrigin() < 42) { dragKnob = 0; return; }
+    if (juce::Point<float>(x - 252, y - 217).getDistanceFromOrigin() < 42) { dragKnob = 1; return; }
     for (auto& h : hots)
         if (std::abs(x - h.x) <= h.w / 2 + 2 && std::abs(y - h.y) <= h.h / 2 + 2) {
             pressed = h.id;
@@ -139,8 +139,8 @@ void Face::mouseUp(const juce::MouseEvent&) {
 void Face::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) {
     const float x = e.position.x / sx(), y = e.position.y / sy();
     const int s = w.deltaY > 0 ? 1 : -1;
-    if (juce::Point<float>(x - 130, y - 230).getDistanceFromOrigin() < 42) { volume = juce::jlimit(0.f, 100.f, volume + s * 3.f); proc.with([&](Machine& m) { m.put(K_VOLUME, juce::roundToInt(volume)); }); }
-    else if (juce::Point<float>(x - 252, y - 230).getDistanceFromOrigin() < 42) { dataAngle += (float) s * 12; proc.with([&](Machine& m) { m.knob(s); }); }
+    if (juce::Point<float>(x - 123, y - 217).getDistanceFromOrigin() < 42) { volume = juce::jlimit(0.f, 100.f, volume + s * 3.f); proc.with([&](Machine& m) { m.put(K_VOLUME, juce::roundToInt(volume)); }); }
+    else if (juce::Point<float>(x - 252, y - 217).getDistanceFromOrigin() < 42) { dataAngle += (float) s * 12; proc.with([&](Machine& m) { m.knob(s); }); }
     repaint();
 }
 
@@ -244,12 +244,15 @@ void Editor::resized() {
         }
         waveArea = {x0, 30 + 7 * 26 + 4, w, 56};
         const int by = waveArea.getBottom() + 6;
-        loadSmp.setBounds(x0, by, 120, 26); romSmp.setBounds(x0 + 126, by, 90, 26); resetVoice.setBounds(x0 + 222, by, 90, 26); assignPad.setBounds(x0 + 318, by, w - 318, 26);
+        loadSmp.setBounds(x0, by, 110, 26); loadSet.setBounds(x0 + 114, by, 140, 26); romSmp.setBounds(x0 + 258, by, 84, 26); resetVoice.setBounds(x0 + 346, by, 90, 26);
+        assignPad.setBounds(x0, by + 30, 200, 26);
     }
     // grid page
     {
         for (int i = 0; i < NPARTS; i++) partBtn[i].setBounds(8 + i * 72, 6, 68, 24);
-        clearPart.setBounds(8 + 8 * 72 + 10, 6, 100, 24);
+        clearPart.setBounds(8 + 8 * 72 + 6, 6, 86, 24);
+        midiImp.setBounds(8 + 8 * 72 + 96, 6, 92, 24); midiExp.setBounds(8 + 8 * 72 + 192, 6, 92, 24);
+        midiDrag.setBounds(pages[1].getWidth() - 160, 34, 152, 24);
         int x = 8;
         for (int i = 0; i < 8; i++) barBtn[i].setBounds(x + i * 30, 34, 28, 24);
         x = 8 + 8 * 30 + 10;
@@ -260,6 +263,7 @@ void Editor::resized() {
     {
         songBox.setBounds(8, 6, 110, 26); songTempo.setBounds(124, 6, 200, 26); songAdd.setBounds(332, 6, 150, 26); songPlay.setBounds(488, 6, 100, 26);
         stepPattern.setBounds(8, 38, 190, 26); stepPart.setBounds(204, 38, 100, 26); stepRepeat.setBounds(310, 38, 160, 26); songDup.setBounds(476, 38, 110, 26); songDel.setBounds(592, 38, 100, 26);
+        songMidi.setBounds(594, 6, 130, 26); songDrag.setBounds(730, 6, 200, 26);
         songArea = {8, 72, pages[2].getWidth() - 16, pages[2].getHeight() - 78};
     }
     // setup page
@@ -331,6 +335,21 @@ void Editor::buildVoice() {
             proc.with([&](Machine& m) { m.trigger(s, 110); });
         });
     };
+    styleButton(loadSet); pg.addAndMakeVisible(loadSet);
+    loadSet.onClick = [this] {
+        chooser = std::make_unique<juce::FileChooser>("Pick your XR-10 sample folder (files named KICK1, HAT CL, TOM2 M...)", juce::File());
+        chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+            [this](const juce::FileChooser& fc) {
+                juce::Array<juce::File> files;
+                for (auto& f : fc.getResults()) {
+                    if (f.isDirectory()) files.addArray(f.findChildFiles(juce::File::findFiles, true));
+                    else if (f.existsAsFile()) files.add(f);
+                }
+                if (files.isEmpty()) return;
+                juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Omega XR10", proc.loadSampleSet(files));
+                waveFor = -1;
+            });
+    };
     romSmp.onClick = [this] { proc.with([&](Machine& m) { m.clearSample(snap.st.sound); }); waveFor = -1; };
     resetVoice.onClick = [this] { proc.with([&](Machine& m) { m.defaultVoice(snap.st.sound); m.trigger(snap.st.sound, 110); }); };
     styleBox(assignPad);
@@ -393,6 +412,22 @@ void Editor::buildGrid() {
     styleButton(clearPart);
     clearPart.onClick = [this] { proc.with([](Machine& m) { m.clearPart(); }); refreshPatterns(); };
     pg.addAndMakeVisible(clearPart);
+    for (auto* b : {&midiImp, &midiExp}) { styleButton(*b); pg.addAndMakeVisible(*b); }
+    styleButton(midiDrag); midiDrag.setButtonText("Drag part to DAW (MIDI)"); pg.addAndMakeVisible(midiDrag);
+    midiDrag.setTooltip("Drag this onto a track in your DAW: the part comes as a drum MIDI clip");
+    midiDrag.onDragOut = [this] { auto f = writeMidiTemp(false); if (f.existsAsFile()) performExternalDragDropOfFiles({f.getFullPathName()}, false, this); };
+    midiImp.onClick = [this] {
+        chooser = std::make_unique<juce::FileChooser>("Import a drum MIDI file into this part", juce::File(), "*.mid;*.midi");
+        chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) { importMidiFile(fc.getResult()); });
+    };
+    midiExp.onClick = [this] {
+        const juce::String name = "xr10-" + juce::String(snap.st.pattern + 1).paddedLeft('0', 2) + "-" + PART_LONG[snap.st.part % NPARTS] + ".mid";
+        chooser = std::make_unique<juce::FileChooser>("Export this part as MIDI", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(name.replace(" ", "")), "*.mid");
+        chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting, [this](const juce::FileChooser& fc) {
+            auto f = fc.getResult(); if (f == juce::File()) return;
+            auto b = proc.exportMidi(false); f.withFileExtension("mid").replaceWithData(b.getData(), b.getSize());
+        });
+    };
     for (int i = 1; i <= 8; i++) lenBox.addItem(juce::String(i) + (i > 1 ? " bars" : " bar"), i);
     for (int i = 2; i <= 8; i++) beatsBox.addItem(juce::String(i) + "/4", i);
     subBox.addItem("16ths", 4); subBox.addItem("Triplets", 3);
@@ -460,6 +495,17 @@ void Editor::buildSong() {
     songAdd.onClick = [this] { proc.with([&](Machine& m) { m.songSet(m.set[K_SONG], 999, m.curPat, m.mainVar, 1); songSel = m.songs[m.set[K_SONG]].len - 1; }); };
     songDup.onClick = [this] { proc.with([&](Machine& m) { m.songInsert(m.set[K_SONG], songSel); }); };
     songDel.onClick = [this] { proc.with([&](Machine& m) { m.songDelete(m.set[K_SONG], songSel); }); songSel = juce::jmax(0, songSel - 1); };
+    styleButton(songMidi); styleButton(songDrag); songDrag.setButtonText("Drag song to DAW (MIDI)");
+    songMidi.onClick = [this] {
+        if (snap.songLen == 0) return;
+        chooser = std::make_unique<juce::FileChooser>("Export the song as MIDI", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("xr10-song-" + juce::String(snap.st.song + 1) + ".mid"), "*.mid");
+        chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting, [this](const juce::FileChooser& fc) {
+            auto f = fc.getResult(); if (f == juce::File()) return;
+            auto b = proc.exportMidi(true); f.withFileExtension("mid").replaceWithData(b.getData(), b.getSize());
+        });
+    };
+    songDrag.onDragOut = [this] { if (snap.songLen == 0) return; auto f = writeMidiTemp(true); if (f.existsAsFile()) performExternalDragDropOfFiles({f.getFullPathName()}, false, this); };
+    pg.addAndMakeVisible(songMidi); pg.addAndMakeVisible(songDrag);
     songPlay.onClick = [this] { proc.with([](Machine& m) { if (m.playing) m.stop(); else { m.setMode(M_SONG); m.start(); } }); };
     for (juce::Component* c : {(juce::Component*) &songBox, (juce::Component*) &songTempo, (juce::Component*) &songAdd, (juce::Component*) &songPlay, (juce::Component*) &stepPattern,
                                (juce::Component*) &stepPart, (juce::Component*) &stepRepeat, (juce::Component*) &songDup, (juce::Component*) &songDel})
@@ -542,6 +588,33 @@ void Editor::buildSetup() {
 
 void Editor::mouseDown(const juce::MouseEvent&) {}
 
+juce::File Editor::writeMidiTemp(bool song) {
+    auto b = proc.exportMidi(song);
+    const juce::String name = song ? "XR10 song " + juce::String(snap.st.song + 1) : "XR10 " + juce::String(snap.st.pattern + 1).paddedLeft('0', 2) + " " + juce::String(snap.patName).trim() + " " + PART_LONG[snap.st.part % NPARTS];
+    auto f = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("Omega XR10").getChildFile(juce::File::createLegalFileName(name) + ".mid");
+    f.getParentDirectory().createDirectory();
+    f.replaceWithData(b.getData(), b.getSize());
+    return f;
+}
+void Editor::importMidiFile(const juce::File& f) {
+    juce::MemoryBlock b;
+    if (!f.existsAsFile() || !f.loadFileAsData(b)) return;
+    const int r = proc.importMidi(b);
+    refreshPatterns();
+    if (r <= 0) juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon, "Omega XR10", r < 0 ? "That isn't a MIDI file." : "No drum notes in that file.");
+}
+// drop a .mid onto the window to import it, a .xr10 memory file to load it, or samples (or a folder of them) to put them on their sounds
+void Editor::filesDropped(const juce::StringArray& paths, int, int) {
+    juce::Array<juce::File> audio;
+    for (auto& p : paths) {
+        juce::File f(p);
+        if (f.hasFileExtension("mid;midi")) { importMidiFile(f); return; }
+        if (f.hasFileExtension("xr10")) { juce::MemoryBlock b; if (f.loadFileAsData(b)) proc.loadMemory(b); refreshPatterns(); waveFor = -1; return; }
+        if (f.isDirectory()) audio.addArray(f.findChildFiles(juce::File::findFiles, true)); else audio.add(f);
+    }
+    if (!audio.isEmpty()) { juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "Omega XR10", proc.loadSampleSet(audio)); waveFor = -1; }
+}
+
 void Editor::refreshPatterns() { patNamesAge = 0; }
 
 void Editor::refresh() {
@@ -568,7 +641,7 @@ void Editor::refresh() {
         styleButton(inst[i], i == st.sound);
         if (snap.user[i] && i != st.sound) inst[i].setColour(juce::TextButton::buttonColourId, juce::Colour(0xfff6dbe3));
     }
-    voiceTitle.setText("Voice " + juce::String(st.sound + 1) + ": " + SOUND_NAMES[st.sound] + (snap.user[st.sound] ? "  (your sample)" : ""), juce::dontSendNotification);
+    voiceTitle.setText("Voice " + juce::String(st.sound + 1) + ": " + SOUND_NAMES[st.sound] + (snap.user[st.sound] ? "  (your sample)" : snap.packed[st.sound] ? "  (XR-10 sample)" : "  (synthesized)"), juce::dontSendNotification);
     for (int p = 0; p < NVP; p++) if (!params[p].isMouseButtonDown()) params[p].setValue(snap.params[p], juce::dontSendNotification);
     const int userFlag = snap.user[st.sound] ? 1 : 0;
     if (waveFor != st.sound || waveUser != userFlag) { waveFor = st.sound; waveUser = userFlag; proc.sampleWave(st.sound, wave); pages[0].repaint(waveArea); }

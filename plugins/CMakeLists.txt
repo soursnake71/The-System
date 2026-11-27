@@ -144,7 +144,7 @@ endif()
 # Omega XR10: the drum machine (xr10/ in the app; its engine xr10/core is shared with the Android app's WebAssembly).
 # An instrument with MIDI in, an optional "FX Send" stereo out, and a standalone app.
 if(NOT OMEGA_ONLY OR "XR10" IN_LIST OMEGA_ONLY)
-  juce_add_binary_data(OmegaXR10Data SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../xr10/faceplate.jpg)
+  juce_add_binary_data(OmegaXR10Data SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../xr10/faceplate.jpg ${CMAKE_CURRENT_SOURCE_DIR}/../xr10/rom.bin)
   juce_add_plugin(OmegaXR10
     PRODUCT_NAME "Omega XR10"
     COMPANY_NAME "The Omega System"
@@ -166,6 +166,8 @@ if(NOT OMEGA_ONLY OR "XR10" IN_LIST OMEGA_ONLY)
 endif()
 # the XR10 engine on its own: <build>/xr10_test <dir> renders the sounds and presets and checks the sequencer
 add_executable(xr10_test ../xr10/tools/test.cpp)
+# builds xr10/rom.bin from xr10/samples: <build>/xr10_make_rom ../xr10/samples ../xr10/rom.bin
+add_executable(xr10_make_rom ../xr10/tools/make-rom.cpp)
 # pictures of the XR10 window: <build>/xr10_shot <dir>
 if(TARGET OmegaXR10)
   juce_add_console_app(xr10_shot PRODUCT_NAME "xr10_shot")

@@ -66,7 +66,7 @@ tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it
 // Omega XR10 carries its app inside the APK too: ../xr10 without the engine sources and tools
 def xr10Assets = layout.buildDirectory.dir('xr10Assets')
 tasks.register('copyXR10Web', Copy) {
-  from('../../xr10') { exclude 'tools/**', 'core/**', '*.md' }
+  from('../../xr10') { exclude 'tools/**', 'core/**', 'samples/**', '*.md' }
   into xr10Assets.map { it.dir('xr10') }
 }
 android.sourceSets.xr10.assets.srcDirs += [xr10Assets]

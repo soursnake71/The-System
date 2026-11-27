@@ -9,7 +9,7 @@
 namespace xr {
 static const int PPQ = 96, NPAT = 99, NPRESET = 50, MAXEV = 1024, NSONG = 20, MAXSTEP = 99, NBANK = 4, NPADS = 15;
 static const int MAXV = 48;                      // voice slots (polyphony limit + slots for fading voices)
-static const int ROM_POOL = 2700000;             // 16-bit samples for the 64 sounds (~61 s)
+static const int ROM_POOL = 4200000;             // 16-bit samples for the 64 sounds (~95 s)
 static const int USER_POOL = 4 * 1024 * 1024;    // 16-bit samples for your own sounds (~95 s)
 
 struct Event { u16 tick; u8 sound; u8 vel; };
@@ -175,11 +175,34 @@ struct Machine {
   int hostPlaying = 0;
 
   // ================= setup =================
-  void init(double rate) {
+  // pack: optional sample ROM ("XRPK": count, then per sound: u32 sound, u32 length, s16 data[length] at 44.1 kHz).
+  // Sounds in the pack are your recordings; the rest are synthesized.
+  bool fromPack[NSOUNDS];
+  void init(double rate, const u8* pack = 0, u32 packLen = 0) {
     sr = rate > 8000 ? rate : 44100;
-    // render the ROM
+    const u8* entry[NSOUNDS];
+    u32 entryLen[NSOUNDS];
+    for (int i = 0; i < NSOUNDS; i++) { entry[i] = 0; entryLen[i] = 0; fromPack[i] = false; }
+    if (pack && packLen >= 8) {
+      u32 hdr[2]; bytecopy(hdr, pack, 8);
+      if (hdr[0] == 0x4b505258) {   // "XRPK"
+        u32 at = 8;
+        for (u32 k = 0; k < hdr[1] && at + 8 <= packLen; k++) {
+          u32 e[2]; bytecopy(e, pack + at, 8); at += 8;
+          if (e[0] < (u32)NSOUNDS && at + e[1] * 2 <= packLen) { entry[e[0]] = pack + at; entryLen[e[0]] = e[1]; }
+          at += e[1] * 2;
+        }
+      }
+    }
     u32 at = 0;
     for (int i = 0; i < NSOUNDS; i++) {
+      if (entry[i] && entryLen[i] > 1) {
+        u32 n = entryLen[i];
+        if (at + n > (u32)ROM_POOL) n = ROM_POOL - at;
+        bytecopy(rom + at, entry[i], n * 2);
+        romRef[i].start = at; romRef[i].len = n; at += n; fromPack[i] = true;
+        continue;
+      }
       int n = renderSound(i, renderBuf, 44100 * 3);
       if (at + n > (u32)ROM_POOL) n = ROM_POOL - at;
       romRef[i].start = at; romRef[i].len = n;
@@ -558,7 +581,9 @@ struct Machine {
       case 80: return TRIH; case 81: return TRIL; case 82: return CABASA; case 83: return TAMB; case 84: return FINGER;
       case 85: return RIM1; case 86: return CONGA4; case 87: return CONGA4;
     }
-    if (note >= 88 && note < 88 + 10) return SNARE1 + 2 + (note - 88) % 8;
+    if (note >= 88 && note < 96) return SNARE1 + 2 + (note - 88);
+    if (note >= 96 && note < 105) return TOM2L + (note - 96);   // toms 2-4 and the orchestra hit have no GM note of their own
+    if (note == 105) return HITS;
     if (note >= 24 && note < 34) return KICK1 + (note - 24);
     return -1;
   }
@@ -844,6 +869,188 @@ struct Machine {
     if (step < 0 || step >= sg.len) return;
     for (int i = step; i < sg.len - 1; i++) sg.steps[i] = sg.steps[i + 1];
     sg.len--;
+  }
+
+  // ================= MIDI files =================
+  // the note a sound is written as (the inverse of the note map in use)
+  int soundToNote(int s) {
+    if (set[K_MIDIMAP] == 1) return 36 + s;
+    if (set[K_MIDIMAP] == 2) { for (int p = 0; p < NPADS; p++) if (pads[set[K_BANK]][p] == s) return 36 + p; }
+    int saved = set[K_MIDIMAP]; set[K_MIDIMAP] = 0;
+    int found = -1;
+    for (int n = 35; n <= 87 && found < 0; n++) if (midiToSound(n) == s) found = n;
+    for (int n = 0; n < 128 && found < 0; n++) if (midiToSound(n) == s) found = n;
+    set[K_MIDIMAP] = saved;
+    return found < 0 ? 38 : found;
+  }
+  struct Bytes {
+    u8* p; u32 n, cap;
+    void b(u32 v) { if (n < cap) p[n] = (u8)v; n++; }
+    void be32(u32 v) { b(v >> 24); b(v >> 16); b(v >> 8); b(v); }
+    void vlq(u32 v) { u8 t[5]; int k = 0; t[k++] = v & 0x7f; while (v >>= 7) t[k++] = (u8)(0x80 | (v & 0x7f)); while (k) b(t[--k]); }
+  };
+  // a Standard MIDI File (type 0, 96 PPQ, drums on channel 10) of the current part (song = 0) or the whole song (song = 1).
+  // Returns the length (which may be more than cap: call again with a bigger buffer).
+  u32 exportMidi(u8* out, u32 cap, int wholeSong) {
+    Bytes w{out, 0, cap};
+    w.be32(0x4d546864); w.be32(6); w.b(0); w.b(0); w.b(0); w.b(1); w.b(0); w.b(PPQ);
+    w.be32(0x4d54726b); u32 lenAt = w.n; w.be32(0);
+    u32 last = 0;
+    auto delta = [&](u32 t) { w.vlq(t > last ? t - last : 0); if (t > last) last = t; };
+    Song& sg = songs[set[K_SONG]];
+    int firstPat = wholeSong && sg.len ? sg.steps[0].pattern : curPat;
+    int bpm = wholeSong && sg.tempo ? sg.tempo : set[K_TEMPO] / 10;
+    u32 uspq = (u32)(60000000.0 / (bpm > 0 ? bpm : 120));
+    delta(0); w.b(0xff); w.b(0x51); w.b(3); w.b(uspq >> 16); w.b(uspq >> 8); w.b(uspq);
+    delta(0); w.b(0xff); w.b(0x58); w.b(4); w.b(pat[firstPat].beats); w.b(2); w.b(24); w.b(8);
+    // note offs follow each hit by a 32nd note; both streams are in time order, so merge them
+    static const int OFFLEN = 12;
+    u32 offT[256]; u8 offN[256]; int oh = 0, ot = 0;
+    auto flushTo = [&](u32 t) { while (oh != ot && offT[oh] <= t) { delta(offT[oh]); w.b(0x89); w.b(offN[oh]); w.b(0); oh = (oh + 1) & 255; } };
+    u32 base = 0;
+    auto emitPart = [&](int p, int prt) {
+      Part& pt = pat[p].parts[prt];
+      int sw = pat[p].swing;
+      for (int i = 0; i < pt.count; i++) {
+        int t0 = pt.ev[i].tick;
+        if (sw > 50 && t0 % 48 == 24) t0 = t0 - 24 + sw * 48 / 100;
+        u32 t = base + t0;
+        flushTo(t);
+        int note = soundToNote(pt.ev[i].sound);
+        delta(t); w.b(0x99); w.b(note); w.b(pt.ev[i].vel ? pt.ev[i].vel : 1);
+        if (((ot + 1) & 255) == oh) { delta(t); w.b(0x89); w.b(offN[oh]); w.b(0); oh = (oh + 1) & 255; }
+        offT[ot] = t + OFFLEN; offN[ot] = (u8)note; ot = (ot + 1) & 255;
+      }
+      base += pt.bars * pat[p].beats * PPQ;
+    };
+    if (wholeSong && sg.len) { for (int i = 0; i < sg.len; i++) for (int r = 0; r < (sg.steps[i].repeat ? sg.steps[i].repeat : 1); r++) emitPart(sg.steps[i].pattern, sg.steps[i].part); }
+    else emitPart(curPat, curPart);
+    flushTo(0xffffffff);
+    delta(base); w.b(0xff); w.b(0x2f); w.b(0);
+    u32 trackLen = w.n - lenAt - 4;
+    if (lenAt + 4 <= cap) { out[lenAt] = (u8)(trackLen >> 24); out[lenAt + 1] = (u8)(trackLen >> 16); out[lenAt + 2] = (u8)(trackLen >> 8); out[lenAt + 3] = (u8)trackLen; }
+    return w.n;
+  }
+  // reads a Standard MIDI File (type 0 or 1) into the current part, copying a preset to a user pattern first.
+  // Returns the bars read, 0 when nothing could be used, -1 when it isn't a MIDI file.
+  int importMidi(const u8* d, u32 len) {
+    auto be = [&](u32 at, int nb) { u32 v = 0; for (int i = 0; i < nb; i++) v = (v << 8) | (at + i < len ? d[at + i] : 0); return v; };
+    if (len < 14 || be(0, 4) != 0x4d546864) return -1;
+    int ntrk = (int)be(10, 2), div = (int)be(12, 2);
+    if (div <= 0 || (div & 0x8000)) return -1;
+    // pass 1 counts channel-10 notes (if there are any, only they are used); pass 2 reads
+    int tempoBpm = 0, num = 0, den = 0, usedBars = 0;
+    u32 maxTick = 0;
+    bool any10 = false;
+    Part tmp; tmp.count = 0;
+    int beatsWanted = 4;
+    for (int pass = 0; pass < 3; pass++) {
+      u32 at = 14;
+      for (int t = 0; t < ntrk && at + 8 <= len; t++) {
+        u32 id = be(at, 4), clen = be(at + 4, 4); at += 8;
+        u32 end = at + clen > len ? len : at + clen;
+        if (id != 0x4d54726b) { at = end; t--; continue; }
+        u32 p = at, tick = 0; int run = 0;
+        while (p < end) {
+          u32 dv = 0; for (int k = 0; k < 4 && p < end; k++) { u8 c = d[p++]; dv = (dv << 7) | (c & 0x7f); if (!(c & 0x80)) break; }
+          tick += dv;
+          if (p >= end) break;
+          int st = d[p];
+          if (st == 0xff) {
+            int ty = p + 1 < end ? d[p + 1] : 0; p += 2;
+            u32 ml = 0; for (int k = 0; k < 4 && p < end; k++) { u8 c = d[p++]; ml = (ml << 7) | (c & 0x7f); if (!(c & 0x80)) break; }
+            if (pass == 0 && ty == 0x51 && ml >= 3 && !tempoBpm) tempoBpm = (int)(60000000.0 / (double)be(p, 3) + 0.5);
+            if (pass == 0 && ty == 0x58 && ml >= 2 && !num) { num = d[p]; den = 1 << d[p + 1]; }
+            p += ml; continue;
+          }
+          if (st == 0xf0 || st == 0xf7) { p++; u32 ml = 0; for (int k = 0; k < 4 && p < end; k++) { u8 c = d[p++]; ml = (ml << 7) | (c & 0x7f); if (!(c & 0x80)) break; } p += ml; continue; }
+          if (st & 0x80) { run = st; p++; } else if (!run) break;
+          int type = run & 0xf0, ch = run & 15;
+          int nd = (type == 0xc0 || type == 0xd0) ? 1 : 2;
+          int a = p < end ? d[p] : 0, b = nd > 1 && p + 1 < end ? d[p + 1] : 0;
+          p += nd;
+          if (type == 0x90 && b > 0) {
+            if (pass == 0) { if (ch == 9) any10 = true; }
+            else if (!any10 || ch == 9) {
+              u32 t96 = (u32)((double)tick * PPQ / div + 0.5);
+              if (pass == 1) { if (t96 > maxTick) maxTick = t96; }
+              else {
+                int s = midiToSound(a);
+                if (s < 0) s = midiToSoundGM(a);
+                int lim = usedBars * beatsWanted * PPQ;
+                if (s >= 0 && (int)t96 < lim) insertEvent(tmp, (int)t96, s, b);
+              }
+            }
+          }
+        }
+        at = end;
+      }
+      if (pass == 1) {
+        if (num && den) { beatsWanted = num * 4 / den; if (num * 4 % den) beatsWanted = num; }
+        beatsWanted = xm::clampi(beatsWanted, 2, 8);
+        int bt = beatsWanted * PPQ;
+        usedBars = xm::clampi((int)((maxTick + bt - PPQ / 8) / bt), 1, 8);
+      }
+    }
+    if (!tmp.count) return 0;
+    if (!ensureUser()) return 0;
+    Pattern& P = pat[curPat];
+    if (P.beats != beatsWanted) { P.beats = (u8)beatsWanted; for (int i = 0; i < NPARTS; i++) { Part& q = P.parts[i]; int lim = q.bars * P.beats * PPQ; while (q.count && q.ev[q.count - 1].tick >= lim) q.count--; } }
+    tmp.bars = (u8)usedBars;
+    bytecopy(&P.parts[curPart], &tmp, 4 + tmp.count * sizeof(Event));
+    if (tempoBpm >= 30 && tempoBpm <= 300) { P.tempo = (u8)(tempoBpm > 255 ? 255 : tempoBpm); if (!hostPlaying) set[K_TEMPO] = tempoBpm * 10; }
+    partLenTicks = partTicks(curPat, curPart);
+    if (playing) setPart(curPart, 0);
+    char l[17]; Str(l, 17).s("MIDI ").i(usedBars).s(usedBars > 1 ? " BARS" : " BAR").s(maxTick >= (u32)(8 * beatsWanted * PPQ) ? " (CUT)" : "");
+    message(l, PART_NAMES[curPart]);
+    return usedBars;
+  }
+  int midiToSoundGM(int note) { int m = set[K_MIDIMAP]; set[K_MIDIMAP] = 0; int s = midiToSound(note); set[K_MIDIMAP] = m; return s; }
+
+  // ================= sample names =================
+  // which of the 64 sounds a file name means ("07 KICK7.wav", "Hat CL.wav", "tom2 m.aif", "23.wav"); -1 if none
+  static int matchSoundName(const char* name) {
+    char n[64]; int k = 0;
+    for (int i = 0; name[i] && k < 63; i++) {
+      char c = name[i];
+      if (c == '.' && k > 0) { bool ext = true; for (int j = i + 1; name[j]; j++) if (name[j] == '.') ext = false; if (ext) break; }
+      if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+      if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) n[k++] = c;
+    }
+    n[k] = 0;
+    static const char* const alias[][2] = {
+      {"TRIANGLEL", "TRIANGL"}, {"TRIANGLEH", "TRIANGH"}, {"TAMBOURINE", "TAMBRINE"}, {"TAMB", "TAMBRINE"}, {"VIBRASLAP", "VIBRASLP"},
+      {"TIMBALESL", "TIMBALL"}, {"TIMBALESH", "TIMBALH"}, {"TIMBALEL", "TIMBALL"}, {"TIMBALEH", "TIMBALH"}, {"HATCLOSED", "HATCL"},
+      {"CLOSEDHAT", "HATCL"}, {"HATOPEN", "HATOP"}, {"OPENHAT", "HATOP"}, {"HATMID", "HATMD"}, {"HATPEDAL", "HATMD"}, {"RIMSHOT", "RIMSHOT1"},
+      {"CLAP", "CLAPS"}, {"FINGERSNAP", "FINGER"}, {"SNAP", "FINGER"}, {"COWBEL", "COWBELL"}, {"CLAVE", "CLAVES"}};
+    char sn[16];
+    int best = -1, bestLen = 0;
+    // length of nd if it's in hay (KICK1 doesn't count inside KICK10: a name ending in a digit can't be followed by one)
+    auto contains = [&](const char* hay, const char* nd) {
+      int l = 0; while (nd[l]) l++;
+      bool endsDigit = l && nd[l - 1] >= '0' && nd[l - 1] <= '9';
+      for (int i = 0; hay[i]; i++) {
+        int j = 0; while (j < l && hay[i + j] == nd[j]) j++;
+        if (j == l && !(endsDigit && hay[i + l] >= '0' && hay[i + l] <= '9')) return l;
+      }
+      return 0;
+    };
+    for (int s = 0; s < NSOUNDS; s++) {
+      int m = 0; const char* src = SOUND_NAMES[s];
+      for (int i = 0; src[i] && m < 15; i++) if (src[i] != ' ') sn[m++] = src[i];
+      sn[m] = 0;
+      int l = contains(n, sn);
+      if (l > bestLen) { bestLen = l; best = s; }
+    }
+    for (auto& a : alias) {
+      int l = contains(n, a[0]);
+      if (l > bestLen) { for (int s = 0; s < NSOUNDS; s++) { int m = 0; const char* src = SOUND_NAMES[s]; for (int i = 0; src[i] && m < 15; i++) if (src[i] != ' ') sn[m++] = src[i]; sn[m] = 0; bool eq = true; for (int i = 0; eq && (sn[i] || a[1][i]); i++) eq = sn[i] == a[1][i]; if (eq) { best = s; bestLen = l; } } }
+    }
+    if (best < 0 && n[0] >= '0' && n[0] <= '9') {   // just a number
+      int v = 0, i = 0; while (n[i] >= '0' && n[i] <= '9' && i < 3) v = v * 10 + (n[i++] - '0');
+      if (v >= 1 && v <= NSOUNDS) best = v - 1;
+    }
+    return best;
   }
 
   // ================= front panel =================

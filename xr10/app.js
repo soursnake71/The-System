@@ -2,7 +2,7 @@
 // All the machine's logic is in the C++ engine (xr10.wasm), run by worklet.js.
 'use strict';
 const $ = id => document.getElementById(id);
-const W = 800, H = 572;   // faceplate photo size: every position below is in its pixels
+const W = 800, H = 549;   // faceplate photo size: every position below is in its pixels
 
 // button ids (same order as the engine's enum)
 const B = { MODE: 0, ERASE: 1, EDIT: 2, ACCENT: 3, PADBANK: 4, TC: 5, INTRO: 6, BREAK: 7, START: 8, LEFT: 9, RIGHT: 10, UP: 11, DOWN: 12,
@@ -17,26 +17,26 @@ const PART_CODES = ['A', 'B', 'C', 'FA', 'FB', 'FC', 'IN', 'EN'];
 const hot = [];
 const addHot = (id, x, y, w, h, kind = 'btn') => hot.push({ id, x, y, w, h, kind });
 // cursor row and keypad
-[[B.LEFT, 468], [B.RIGHT, 519], [B.UP, 570], [B.DOWN, 620], [B.MINUS, 670], [B.PLUS, 709]].forEach(([id, x]) => addHot(id, x, 302, x > 650 ? 32 : 40, 16));
-for (let d = 0; d < 10; d++) addHot(B.D0 + d, [418, 468, 519, 570, 620][d % 5], d < 5 ? 336 : 364, 40, 16);
-addHot(B.ENTER, 690, 336, 70, 16);
+[[B.LEFT, 479], [B.RIGHT, 532], [B.UP, 584], [B.DOWN, 636], [B.MINUS, 687], [B.PLUS, 727]].forEach(([id, x]) => addHot(id, x, 292, x > 670 ? 34 : 42, 17));
+for (let d = 0; d < 10; d++) addHot(B.D0 + d, [427, 479, 532, 584, 636][d % 5], d < 5 ? 328 : 357, 42, 17);
+addHot(B.ENTER, 707, 327, 73, 17);
 // big keys: columns left to right, rows top to bottom
-const colX = [98, 180, 263, 348, 433, 519, 604, 690], rowY = [410, 457, 504];
+const colX = [90, 177, 265, 354, 442, 532, 619, 707], rowY = [405, 454, 503];
 const layout = [
   [B.MODE, B.EDIT, B.PADBANK], [B.ERASE, B.ACCENT, B.TC],
   [B.PAD1 + 2, B.PAD1 + 1, B.PAD1], [B.PAD1 + 5, B.PAD1 + 4, B.PAD1 + 3], [B.PAD1 + 8, B.PAD1 + 7, B.PAD1 + 6],
   [B.PAD1 + 11, B.PAD1 + 10, B.PAD1 + 9], [B.PAD1 + 14, B.PAD1 + 13, B.PAD1 + 12], [B.INTRO, B.BREAK, B.START]];
-layout.forEach((col, c) => col.forEach((id, r) => addHot(id, colX[c], rowY[r], 70, 36, id >= B.PAD1 && id < B.PAD1 + 15 ? 'pad' : 'btn')));
+layout.forEach((col, c) => col.forEach((id, r) => addHot(id, colX[c], rowY[r], 73, 37, id >= B.PAD1 && id < B.PAD1 + 15 ? 'pad' : 'btn')));
 // the mode lights double as buttons
-addHot(B.M_PATTERN, 486, 223, 34, 14); addHot(B.M_SONG, 520, 223, 34, 14); addHot(B.M_SOUND, 486, 243, 34, 14); addHot(B.M_UTILITY, 520, 243, 34, 14);
-const LEDS = [[486, 223], [520, 223], [486, 243], [520, 243]];
-const LCD = { x: 567, y: 218, w: 132, h: 31 };
-const KNOBS = [{ id: 'vol', x: 130, y: 230, r: 37 }, { id: 'data', x: 252, y: 230, r: 37 }];
+addHot(B.M_PATTERN, 497, 210, 35, 15); addHot(B.M_SONG, 532, 210, 35, 15); addHot(B.M_SOUND, 497, 231, 35, 15); addHot(B.M_UTILITY, 532, 231, 35, 15);
+const LEDS = [[497, 210], [532, 210], [497, 231], [532, 231]];
+const LCD = { x: 581, y: 205, w: 136, h: 33 };
+const KNOBS = [{ id: 'vol', x: 123, y: 217, r: 38.5 }, { id: 'data', x: 252, y: 217, r: 38.5 }];
 
 const face = $('face');
 const pct = (v, of) => (v / of * 100) + '%';
 function place(el, x, y, w, h) { el.style.left = pct(x - w / 2, W); el.style.top = pct(y - h / 2, H); el.style.width = pct(w, W); el.style.height = pct(h, H); }
-const ledEls = LEDS.map(([x, y]) => { const d = document.createElement('div'); d.className = 'led off'; place(d, x, y, 22, 5); face.appendChild(d); return d; });
+const ledEls = LEDS.map(([x, y]) => { const d = document.createElement('div'); d.className = 'led off'; place(d, x, y, 23, 5); face.appendChild(d); return d; });
 const hotEls = {};
 for (const h of hot) {
   const d = document.createElement('div');
@@ -148,7 +148,9 @@ async function power() {
   node.connect(ctx.destination);
   node.port.onmessage = e => onMsg(e.data);
   const bytes = await (await fetch('xr10.wasm')).arrayBuffer();
-  node.port.postMessage({ t: 'wasm', bytes }, [bytes]);
+  let rom = null;
+  try { const r = await fetch('rom.bin'); if (r.ok) rom = await r.arrayBuffer(); } catch (e) { }
+  node.port.postMessage({ t: 'wasm', bytes, rom }, rom ? [bytes, rom] : [bytes]);
   if (ctx.state !== 'running') await ctx.resume();
 }
 $('go').addEventListener('click', power);
@@ -161,6 +163,13 @@ function onMsg(m) {
   if (m.t === 'saved') { onSaved(m); return; }
   if (m.t === 'loaded') { info.patterns = m.patterns; fillPatterns(); if (m.why === 'file') alert(m.ok ? 'Loaded.' : 'That file is not an XR10 memory file.'); return; }
   if (m.t === 'wave') { drawWave(m.w); return; }
+  if (m.t === 'midiFile') { if (m.bytes) download(m.bytes, (m.song ? 'xr10-song-' + (S.song + 1) : 'xr10-' + String(S.pattern + 1).padStart(2, '0') + '-' + PART_CODES[S.part]) + '.mid', 'audio/midi'); return; }
+  if (m.t === 'midiImported') {
+    info.patterns = m.patterns; fillPatterns();
+    alert(m.r > 0 ? `Imported ${m.r} bar${m.r > 1 ? 's' : ''} into pattern ${S.pattern + 1}, ${PARTS[S.part]}.` : m.r < 0 ? 'That is not a MIDI file.' : 'No drum notes found in that file.');
+    return;
+  }
+  if (m.t === 'matched') { const cb = pendingMatch[m.id]; delete pendingMatch[m.id]; if (cb) cb(m.out); return; }
 }
 
 // --------------------------------------------------- memory: kept on the device (IndexedDB), and files
@@ -181,10 +190,32 @@ async function restore() {
   if (b && b.byteLength) send({ t: 'load', bytes: b, why: 'restore' });
   setInterval(() => save('auto'), 5000);
 }
-function download(bytes, name) {
+const pendingMatch = {};
+let matchId = 0;
+function matchNames(names) { return new Promise(ok => { const id = ++matchId; pendingMatch[id] = ok; send({ t: 'matchNames', id, names }); }); }
+// a whole folder of samples (the XR-10 set): each file goes to the sound its name says
+async function loadSampleSet(files) {
+  files = [...files];
+  const idx = await matchNames(files.map(f => f.name));
+  const done = [], skipped = [];
+  for (let i = 0; i < files.length; i++) {
+    if (idx[i] < 0) { skipped.push(files[i].name); continue; }
+    try {
+      const ab = await ctx.decodeAudioData(await files[i].arrayBuffer());
+      const n = Math.min(ab.length, Math.round(ab.sampleRate * 10)), mono = new Float32Array(n);
+      for (let c = 0; c < ab.numberOfChannels; c++) { const d = ab.getChannelData(c); for (let k = 0; k < n; k++) mono[k] += d[k] / ab.numberOfChannels; }
+      send({ t: 'sample', s: idx[i], data: mono, rate: ab.sampleRate });
+      done.push(info.names[idx[i]]);
+    } catch (e) { skipped.push(files[i].name); }
+  }
+  setTimeout(() => { save('auto'); send({ t: 'wave', s: S.sound }); }, 300);
+  alert(`Loaded ${done.length} sound${done.length === 1 ? '' : 's'}` + (done.length ? ': ' + done.join(', ') : '') + (skipped.length ? `\n\nNot used (name doesn't match a sound, or unreadable): ${skipped.join(', ')}` : '') +
+    '\n\nThey are kept on this device. "Save all to a file" in Setup gives a file that can be built into the app.');
+}
+function download(bytes, name, mime) {
   if (window.AndroidXR10) {
     let bin = ''; for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-    const where = AndroidXR10.save(btoa(bin), name, 'application/octet-stream');
+    const where = AndroidXR10.save(btoa(bin), name, mime || 'application/octet-stream');
     alert('Saved to ' + where);
     return;
   }
@@ -270,6 +301,8 @@ function buildPanel() {
       setTimeout(() => { send({ t: 'wave', s: S.sound }); send({ t: 'hit', s: S.sound, v: 110 }); }, 150);
     } catch (err) { alert('Could not read that file: ' + err.message); }
   };
+  $('loadset').onclick = () => $('setfile').click();
+  $('setfile').onchange = e => { const f = e.target.files; if (f && f.length) loadSampleSet(f); e.target.value = ''; };
   $('romsmp').onclick = () => { send({ t: 'clearSample', s: S.sound }); setTimeout(() => send({ t: 'wave', s: S.sound }), 100); };
   $('resetv').onclick = () => { const d = defaults(S.sound); d.forEach((v, p) => send({ t: 'param', s: S.sound, p, v })); };
   // grid
@@ -283,7 +316,11 @@ function buildPanel() {
   $('swing').onchange = e => { send({ t: 'set', k: K.SWING, v: +e.target.value }); later(); };
   $('bank').onchange = e => send({ t: 'set', k: K.BANK, v: +e.target.value });
   $('clearpart').onclick = () => { if (confirm('Clear ' + PARTS[S.part] + ' of this pattern?')) { send({ t: 'clearPart' }); later(); } };
+  $('midiexp').onclick = () => send({ t: 'exportMidi', song: 0 });
+  $('midiimp').onclick = () => $('midifile').click();
+  $('midifile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) send({ t: 'importMidi', bytes: await f.arrayBuffer() }); };
   // song
+  $('songmidi').onclick = () => { if (!S.songLen) { alert('The song is empty.'); return; } send({ t: 'exportMidi', song: 1 }); };
   opt($('songsel'), Array.from({ length: 20 }, (_, i) => [i, 'Song ' + (i + 1)]));
   $('songsel').onchange = e => send({ t: 'set', k: K.SONG, v: +e.target.value });
   $('songtempo').onchange = e => send({ t: 'songTempo', song: S.song, bpm: Math.max(0, Math.min(300, +e.target.value || 0)) });
@@ -376,7 +413,7 @@ function update() {
   const ib = $('inst').children;
   for (let i = 0; i < 64; i++) { ib[i].classList.toggle('on', i === S.sound); ib[i].classList.toggle('user', !!S.user[i]); }
   if (S.sound !== lastSound) { lastSound = S.sound; send({ t: 'wave', s: S.sound }); }
-  $('vtitle').textContent = `Voice ${S.sound + 1}: ${info.names[S.sound]}${S.user[S.sound] ? ' (your sample)' : ''}`;
+  $('vtitle').textContent = `Voice ${S.sound + 1}: ${info.names[S.sound]}${S.user[S.sound] ? ' (your sample)' : info.packed && info.packed[S.sound] ? ' (XR-10 sample)' : ' (synthesized)'}`;
   document.querySelectorAll('#params input').forEach(inp => {
     const p = +inp.dataset.p, v = S.params[p];
     if (inp.type === 'checkbox') inp.checked = !!v; else setVal(inp, v);
@@ -504,5 +541,16 @@ async function midiOn() {
     $('midion').classList.add('on');
   } catch (e) { $('midistat').textContent = e.message; }
 }
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  if (!node || !S) return;
+  const files = [...e.dataTransfer.files];
+  const mid = files.find(f => /\.midi?$/i.test(f.name));
+  if (mid) { send({ t: 'importMidi', bytes: await mid.arrayBuffer() }); return; }
+  const mem = files.find(f => /\.xr10$/i.test(f.name));
+  if (mem) { send({ t: 'load', bytes: await mem.arrayBuffer(), why: 'file' }); return; }
+  if (files.length) loadSampleSet(files);
+});
 try { if (localStorage.xr10theme) document.documentElement.dataset.theme = localStorage.xr10theme; } catch (e) { }
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.AndroidXR10) navigator.serviceWorker.register('sw.js').catch(() => { });
