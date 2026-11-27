@@ -105,8 +105,21 @@ int main(int argc, char** argv) {
     auto put = [&](u32 v) { for (int i = 0; i < 4; i++) o.push_back((unsigned char) (v >> (8 * i))); };
     put(0x4b505258); put((u32) got.size());
     size_t total = 0;
-    for (auto& [s, d] : got) {
-        put((u32) s); put((u32) d.size());
+    // the sounds without a sample go in pre-rendered (flagged), so the app doesn't spend seconds synthesizing them at start
+    std::map<int, std::vector<short>> synth;
+    static float buf[44100 * 3];
+    for (int s = 0; s < NSOUNDS; s++) if (!got.count(s)) {
+        int n = renderSound(s, buf, 44100 * 3);
+        auto& v = synth[s];
+        for (int k = 0; k < n; k++) { double x = buf[k] * 32767.0; v.push_back((short) (x > 32767 ? 32767 : (x < -32768 ? -32768 : (x < 0 ? x - 0.5 : x + 0.5)))); }
+    }
+    o.clear(); put(0x4b505258); put(64);
+    for (int s = 0; s < NSOUNDS; s++) {
+        const bool mine = got.count(s) > 0;
+        auto& d = mine ? got[s] : synth[s];
+        put((u32) s | (mine ? 0u : 0x10000u)); put((u32) d.size());
+        for (short v : d) { o.push_back((unsigned char) (v & 0xff)); o.push_back((unsigned char) ((unsigned short) v >> 8)); }
+        if (!mine) continue;
         for (short v : d) { o.push_back((unsigned char) (v & 0xff)); o.push_back((unsigned char) ((unsigned short) v >> 8)); }
         total += d.size();
         std::printf("  %2d %-9s <- %s (%.2f s)\n", s + 1, SOUND_NAMES[s], from[s].c_str(), d.size() / 44100.0);

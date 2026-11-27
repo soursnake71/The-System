@@ -12,4 +12,4 @@ plugin. To do it yourself:
 
     g++ -O2 -std=c++17 xr10/tools/make-rom.cpp -o make-rom && ./make-rom xr10/samples xr10/rom.bin
 
-It lists which file went to which sound. Sounds with no file stay synthesized.
+It lists which file went to which sound. Sounds with no file stay synthesized (pre-rendered into rom.bin, so the app starts at once).

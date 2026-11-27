@@ -139,6 +139,19 @@ int main(int argc, char** argv) {
     CHECK(m4->fromPack[5] && m4->romRef[5].len == 1000 && m4->rom[m4->romRef[5].start + 10] == 300, "rom pack");
     CHECK(!m4->fromPack[4] && m4->romRef[4].len > 1000, "unpacked sounds stay synthesized");
   }
+  // the committed rom.bin: loads, and its synthesized sounds match the synthesizer
+  {
+    FILE* f = fopen("xr10/rom.bin", "rb");
+    if (f) {
+      std::vector<u8> rb; int c; while ((c = fgetc(f)) != EOF) rb.push_back((u8)c); fclose(f);
+      Machine* m5 = new Machine(); m5->init(sr, rb.data(), (u32)rb.size());
+      bool same = true;
+      for (int s = 0; s < NSOUNDS; s++) if (!m5->fromPack[s]) { same &= m5->romRef[s].len == m->romRef[s].len; for (u32 k = 0; same && k < m5->romRef[s].len; k += 97) same &= m5->rom[m5->romRef[s].start + k] == m->rom[m->romRef[s].start + k]; }
+      int mine = 0; for (int s = 0; s < NSOUNDS; s++) mine += m5->fromPack[s];
+      CHECK(same, "rom.bin is stale: rebuild it with tools/make-rom");
+      printf("rom.bin: %d sounds from samples, %d synthesized\n", mine, 64 - mine);
+    }
+  }
   // math
   CHECK(std::fabs(xm::sin(1.234) - std::sin(1.234)) < 1e-9, "sin"); CHECK(std::fabs(xm::exp(-3.3) - std::exp(-3.3)) < 1e-12, "exp");
   CHECK(std::fabs(xm::log(123.4) - std::log(123.4)) < 1e-9, "log"); CHECK(std::fabs(xm::pow(2.5, 1.7) - std::pow(2.5, 1.7)) < 1e-9, "pow");

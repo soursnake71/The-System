@@ -182,14 +182,17 @@ struct Machine {
     sr = rate > 8000 ? rate : 44100;
     const u8* entry[NSOUNDS];
     u32 entryLen[NSOUNDS];
-    for (int i = 0; i < NSOUNDS; i++) { entry[i] = 0; entryLen[i] = 0; fromPack[i] = false; }
+    bool synthInPack[NSOUNDS];
+    for (int i = 0; i < NSOUNDS; i++) { entry[i] = 0; entryLen[i] = 0; fromPack[i] = false; synthInPack[i] = false; }
     if (pack && packLen >= 8) {
       u32 hdr[2]; bytecopy(hdr, pack, 8);
       if (hdr[0] == 0x4b505258) {   // "XRPK"
         u32 at = 8;
         for (u32 k = 0; k < hdr[1] && at + 8 <= packLen; k++) {
           u32 e[2]; bytecopy(e, pack + at, 8); at += 8;
-          if (e[0] < (u32)NSOUNDS && at + e[1] * 2 <= packLen) { entry[e[0]] = pack + at; entryLen[e[0]] = e[1]; }
+          // bit 16 marks a sound the pack holds pre-rendered from the synthesizer (so the app starts fast)
+          u32 snd = e[0] & 0xffff;
+          if (snd < (u32)NSOUNDS && at + e[1] * 2 <= packLen) { entry[snd] = pack + at; entryLen[snd] = e[1]; synthInPack[snd] = (e[0] >> 16) & 1; }
           at += e[1] * 2;
         }
       }
@@ -200,7 +203,7 @@ struct Machine {
         u32 n = entryLen[i];
         if (at + n > (u32)ROM_POOL) n = ROM_POOL - at;
         bytecopy(rom + at, entry[i], n * 2);
-        romRef[i].start = at; romRef[i].len = n; at += n; fromPack[i] = true;
+        romRef[i].start = at; romRef[i].len = n; at += n; fromPack[i] = !synthInPack[i];
         continue;
       }
       int n = renderSound(i, renderBuf, 44100 * 3);

@@ -27,6 +27,7 @@ const lcd = () => page.evaluate(() => lcdText.join(' | '));
 let fail = 0;
 const check = (c, m) => { if (!c) { console.log('FAIL', m); fail++; } else console.log('ok  ', m); };
 let t = await lcd(); check(t.includes('ROCK 1'), 'LCD shows pattern 1: ' + t);
+check(await page.evaluate(() => info.packed.every(p => p === 0)), 'sounds load from rom.bin');
 // keypad 0 7 picks pattern 7
 const hit = async (id) => page.evaluate(i => { send({ t: 'btn', b: i, d: 1 }); send({ t: 'btn', b: i, d: 0 }); }, id);
 const clickHot = async (x, y) => { const b = await page.locator('#plate').boundingBox(); await page.mouse.click(b.x + b.width * x / 800, b.y + b.height * y / 549); };
@@ -77,6 +78,13 @@ check(JSON.stringify(matched) === JSON.stringify([9, 24, 6, 33, -1]), 'sample na
 // save state round trip through IndexedDB
 await page.evaluate(() => save('auto')); await page.waitForTimeout(400);
 check(await page.evaluate(async () => { const b = await dbGet(); return b && b.byteLength > 1000; }), 'state saved to IndexedDB');
+// a phone on its side: the whole panel fits on the screen
+await page.setViewportSize({ width: 915, height: 412 });
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.waitForTimeout(300);
+const fb = await page.locator('#face').boundingBox();
+check(fb.height <= 412 && fb.y >= 0, `landscape panel fits: ${Math.round(fb.width)}x${Math.round(fb.height)} in 915x412`);
+await page.screenshot({ path: shots + '/xr10-landscape.png' });
 await page.setViewportSize({ width: 412, height: 900 });
 await page.click('[data-tab=voice]');
 await page.waitForTimeout(300);

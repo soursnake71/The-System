@@ -21,7 +21,8 @@ html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.3
 body { padding: 0 0 40px; overscroll-behavior: none; }
 #start { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(20, 20, 26, .55); }
 #start button { font-size: 20px; padding: 18px 30px; border-radius: 12px; border: 0; background: var(--accent); color: #fff; font-weight: 600; }
-#face { position: relative; width: 100%; max-width: 1100px; margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* the whole panel fits on the screen: in landscape on a phone it's as tall as the screen, not as wide */
+#face { position: relative; width: 100%; max-width: min(1100px, calc((100vh - 4px) * 800 / 549)); max-width: min(1100px, calc((100dvh - 4px) * 800 / 549)); margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
 #face img { display: block; width: 100%; height: auto; pointer-events: none; }
 .hot { position: absolute; border-radius: 4px; cursor: pointer; }
 .hot.down { background: rgba(40, 40, 60, .28); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .35); }

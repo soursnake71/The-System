@@ -142,6 +142,11 @@ const send = m => { if (node) node.port.postMessage(m); };
 let ready = false;
 async function power() {
   $('start').remove();
+  lcdText = ['  OMEGA  XR10', '  LOADING...']; drawLcd();
+  try { await powerOn(); }
+  catch (e) { lcdText = ['ERROR:', String(e && e.message || e).toUpperCase().slice(0, 16)]; drawLcd(); alert('Omega XR10 could not start its sound engine: ' + (e && e.message || e)); }
+}
+async function powerOn() {
   ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
   await ctx.audioWorklet.addModule('worklet.js');
   node = new AudioWorkletNode(ctx, 'xr10', { numberOfInputs: 0, outputChannelCount: [2] });
@@ -158,6 +163,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 
 function onMsg(m) {
   if (m.t === 'ready') { info = m; buildPanel(); restore(); return; }
+  if (m.t === 'error') { lcdText = ['ENGINE ERROR', String(m.msg).toUpperCase().slice(0, 16)]; drawLcd(); alert('Omega XR10 sound engine: ' + m.msg); return; }
   if (m.t === 'status') { S = m; update(); return; }
   if (m.t === 'patterns') { info.patterns = m.patterns; fillPatterns(); return; }
   if (m.t === 'saved') { onSaved(m); return; }

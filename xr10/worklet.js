@@ -9,6 +9,13 @@ class XR10Processor extends AudioWorkletProcessor {
   }
   async msg(m) {
     if (m.t === 'wasm') {
+      try { await this.start(m); } catch (e) { this.x = null; this.port.postMessage({ t: 'error', msg: String(e && e.message || e) }); }
+      return;
+    }
+    this.handle(m);
+  }
+  async start(m) {
+    {
       const { instance } = await WebAssembly.instantiate(m.bytes, {});
       const x = this.x = instance.exports;
       x.__wasm_call_ctors();
@@ -21,8 +28,9 @@ class XR10Processor extends AudioWorkletProcessor {
       for (let i = 0; i < 13; i++) { pnames.push(this.str(x.xr_param_name(i), 12)); plo.push(x.xr_param_lo(i)); phi.push(x.xr_param_hi(i)); }
       const packed = []; for (let i = 0; i < 64; i++) packed.push(x.xr_from_pack(i));
       this.port.postMessage({ t: 'ready', names, pnames, plo, phi, packed, patterns: this.patternNames() });
-      return;
     }
+  }
+  handle(m) {
     const x = this.x;
     if (!x) return;
     switch (m.t) {
