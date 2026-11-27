@@ -33,7 +33,9 @@ document.addEventListener('pointerdown', () => { if (ctx && ctx.state !== 'runni
 
 let pos = {playing:false, pat:0, pos:0, tick:0};
 function fromWorklet(d){
-  if (d.type === 'pos'){ pos = d; $('#play').classList.toggle('on', d.playing); if (S.page === 'Seq') drawRoll(); markPlayingPattern(); }
+  if (d.type === 'pos'){ pos = d; $('#play').classList.toggle('on', d.playing);
+    if (S.page === 'Seq'){ if (d.playing && d.pat === S.song.cur){ const b = Math.floor(d.tick / SQ.BAR); if (b !== S.view && b < S.song.pats[S.song.cur].bars){ S.view = b; $('#barView').value = b; } } drawRoll(); }
+    markPlayingPattern(); }
   else if (d.type === 'midi'){
     const st = d.d[0];
     if (st === 0x90 || st === 0x80){ if (d.seq) seqKey(d.d[1], st === 0x90); midiSend([st | S.midi.outCh, d.d[1], d.d[2]]); }
@@ -295,7 +297,7 @@ function renderSeq(){
   $('#chain').textContent = 'CHAIN: ' + (S.song.chain.length ? S.song.chain.map(x => x + 1).join(' ') : '(empty)');
   $('#quant').classList.toggle('on', S.quant); $('#click').classList.toggle('on', S.click);
   $('#noteLen').value = S.len; $('#noteVel').value = S.vel;
-  drawRoll();
+  fitRoll(false); drawRoll();
 }
 $('#bars').addEventListener('change', e => { S.song.pats[S.song.cur].bars = +e.target.value; sendSong(); save(); renderSeq(); });
 $('#barView').addEventListener('change', e => { S.view = +e.target.value; drawRoll(); });
@@ -322,6 +324,13 @@ ctrls.swing.unshift(() => { if (S.song.swing !== S.p.swing){ S.song.swing = S.p.
 const fmt0 = fmt; fmt = (id, v) => id === 'swing' ? Math.round(50 + v * 25) + '%' : fmt0(id, v);
 
 const roll = $('#rollC');
+// show the pattern's notes: shift the pitch window so they fit (when they are out of view)
+function fitRoll(force){
+  const ns = S.song.pats[S.song.cur].notes; if (!ns.length) return;
+  const g = rollGeom(); let lo = 127, hi = 0; for (const x of ns){ lo = Math.min(lo, x.n); hi = Math.max(hi, x.n); }
+  if (!force && lo >= S.low && hi < S.low + g.rows) return;
+  S.low = Math.max(0, Math.min(lo - 1, Math.round((lo + hi) / 2 - g.rows / 2))); save();
+}
 function rollGeom(){
   const r = roll.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   if (roll.width !== Math.round(r.width * dpr) || roll.height !== Math.round(r.height * dpr)){ roll.width = Math.round(r.width * dpr); roll.height = Math.round(r.height * dpr); }
@@ -388,7 +397,7 @@ $('#file').addEventListener('change', async e => {
       [['Cancel'], ['Import', () => { const r = SQ.importToSong(m, {quantize:$('#impQ').checked, skipDrums:$('#impD').checked, channel:+$('#impCh').value});
         if (!r.count) return toast('No notes to import');
         S.song = r.song; S.p.swing = 0; (ctrls.swing || []).forEach(f => f()); $('#bpm').value = S.song.bpm; post({type:'bpm', v:S.song.bpm}); sendSong(); save(); S.view = 0;
-        const lo = Math.min(...S.song.pats[0].notes.map(x => x.n).concat([60])); S.low = Math.max(12, lo - 2); renderSeq(); showPage('Seq');
+        showPage('Seq'); fitRoll(true); drawRoll();
         toast(`Imported ${r.count} notes, ${r.bars} bars, song mode`); }]]);
   } catch (err) { toast('Could not read the file: ' + err.message); }
 });
