@@ -5,6 +5,7 @@
 // No libc: the same source runs in the VST3 and, compiled to WebAssembly, in the Android / web app.
 #pragma once
 #include "styles.h"
+#include "analog.h"
 
 namespace xr {
 static const int PPQ = 96, NPAT = 99, NPRESET = 50, MAXEV = 1024, NSONG = 20, MAXSTEP = 99, NBANK = 4, NPADS = 15;
@@ -19,17 +20,25 @@ struct SongStep { u8 pattern, part, repeat, r0; };
 struct Song { char name[10]; u8 len, r0; u16 tempo; SongStep steps[MAXSTEP]; };
 
 // RX5-style voice parameters, per sound
-enum { V_LEVEL, V_PAN, V_TUNE, V_FINE, V_BEND, V_ATTACK, V_DECAY, V_TONE, V_REVERSE, V_LOOP, V_SEND, V_GROUP, V_VELSENS, NVP };
+// The XR10's own sound parameters, with its ranges and steps (service manual, specifications): volume, tune +-25
+// (100 cents a step), fine -8..+7 (6.25 cents a step), pan L15..R15, effect send 0-31, decay and hold (the DCA) 0-31,
+// sweep decay and depth 0-31, sweep polarity, reverse, velocity feel. Then the RX5-style extras the XR10 doesn't have.
+enum { V_LEVEL, V_PAN, V_TUNE, V_FINE, V_SEND, V_DECAY, V_HOLD, V_SWDECAY, V_SWDEPTH, V_SWPOL, V_REVERSE, V_VELFEEL,
+       V_ATTACK, V_TONE, V_LOOP, V_GROUP, NVP, NVP_XR10 = V_ATTACK };
 struct ParamDef { const char* name; s16 lo, hi; };
 static const ParamDef VPARAMS[NVP] = {
-  {"LEVEL", 0, 99}, {"PAN", -50, 50}, {"TUNE", -24, 24}, {"FINE", -50, 50}, {"BEND", -99, 99}, {"ATTACK", 0, 99},
-  {"DECAY", 0, 99}, {"TONE", 0, 99}, {"REVERSE", 0, 1}, {"LOOP", 0, 1}, {"FX SEND", 0, 99}, {"GROUP", 0, 8}, {"VEL SENS", 0, 99}};
+  {"LEVEL", 0, 31}, {"PAN", -15, 15}, {"TUNE", -25, 25}, {"FINE", -8, 7}, {"FX SEND", 0, 31}, {"DECAY", 0, 31}, {"HOLD", 0, 31},
+  {"SWEEP DCY", 0, 31}, {"SWEEP DPT", 0, 31}, {"SWEEP", 0, 1}, {"REVERSE", 0, 1}, {"VELOCITY", 0, 1},
+  {"ATTACK*", 0, 99}, {"TONE*", 0, 99}, {"LOOP*", 0, 1}, {"CHOKE GRP*", 0, 8}};
+// the sample rate the voices, the digital mixer and the DAC run at. The manual doesn't print it: 12 MHz / 384, chosen
+// because the gate arrays run from the 12 MHz clock and the 12 kHz output filters suit a ~31 kHz DAC (0.38 fs).
+static const double MACHINE_RATE = 31250.0;
 
 // settings the panels and the LCD both change (get / set by key)
 enum {
   K_TEMPO, K_PATTERN, K_PART, K_REC, K_LEN, K_BEATS, K_SWING, K_CLICK, K_COUNTIN, K_TC, K_ACCENT, K_BANK, K_FXTYPE,
   K_FXTIME, K_FXLEVEL, K_POLY, K_MIDICH, K_MIDIMAP, K_SYNC, K_SONG, K_SOUND, K_PLAYING, K_VOLUME, K_MODE, K_SUB,
-  K_CLICKLVL, K_SONGSTEP, K_PADVEL, K_ACCENTVEL, K_USERSAMPLE, K_MAINVAR, K_BAR, NKEYS
+  K_CLICKLVL, K_SONGSTEP, K_PADVEL, K_ACCENTVEL, K_USERSAMPLE, K_MAINVAR, K_BAR, K_EFFECTVR, NKEYS
 };
 enum { M_PATTERN, M_SONG, M_SOUND, M_UTILITY };
 // panel buttons
@@ -42,7 +51,7 @@ static const char* const PART_CODES[NPARTS] = {"A", "B", "C", "FA", "FB", "FC", 
 static const char* const PART_NAMES[NPARTS] = {"VAR A", "VAR B", "VAR C", "FILL A", "FILL B", "FILL C", "INTRO", "ENDING"};
 static const char* const TC_NAMES[7] = {"1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32", "OFF"};
 static const int TC_TICKS[7] = {96, 48, 32, 24, 16, 12, 1};
-static const char* const FX_NAMES[7] = {"ROOM", "HALL", "PLATE", "GATED", "DELAY", "EXT", "OFF"};
+static const char* const FX_NAMES[7] = {"ROOM*", "HALL*", "PLATE*", "GATED*", "DELAY*", "EXT JACK", "OFF"};
 
 struct Status {   // what the screens show, read by the UI
   char lcd[2][17];
@@ -129,9 +138,9 @@ struct Fx {
 struct Voice {
   int active = 0, sound = -1, fading = 0, rev = 0, loop = 0, group = 0;
   const s16* data = 0; int len = 0, loopStart = 0;
-  double pos = 0, inc = 1, bendTarget = 0, bendNow = 0, bendCoef = 0, baseInc = 1;
-  float gL = 0, gR = 0, env = 0, attackInc = 1, decayMul = 1, fadeMul = 1, lp = 0, lp2 = 0, lpCoef = 1, send = 0;
-  u32 age = 0; int phase = 0;   // 0 attack, 1 decay
+  double pos = 0, inc = 1, baseInc = 1, sweepNow = 0, sweepMul = 1;
+  float gL = 0, gR = 0, gE = 0, env = 0, attackInc = 1, decayMul = 1, fadeMul = 1, lp = 0, lp2 = 0, lpCoef = 1;
+  u32 age = 0, holdLeft = 0; int phase = 0;   // 0 attack, 1 hold, 2 decay
 };
 
 struct SampleRef { u32 start, len; };
@@ -151,8 +160,15 @@ struct Machine {
   SampleRef romRef[NSOUNDS];
   float renderBuf[44100 * 3];
   // ---------- runtime ----------
-  double sr = 44100;
+  double sr = 44100;                 // the host's rate
+  double mr = MACHINE_RATE;          // the machine's own rate
   Voice v[MAXV];
+  // output stage
+  OutputChannel outL, outR, outE;
+  Decimator decL, decR, decE;
+  int os = 4;
+  double machPhase = 1, dacL = 0, dacR = 0, dacE = 0, inductance = 0, dacVolts = 0.45;
+  float mixL[64], mixR[64], mixE[64]; int mixPos = 64, mixLen = 64;
   u32 ageCounter = 0;
   Fx fx;
   int fxConfigured = -1;
@@ -186,8 +202,9 @@ struct Machine {
     for (int i = 0; i < NSOUNDS; i++) { entry[i] = 0; entryLen[i] = 0; fromPack[i] = false; synthInPack[i] = false; }
     if (pack && packLen >= 8) {
       u32 hdr[2]; bytecopy(hdr, pack, 8);
-      if (hdr[0] == 0x4b505258) {   // "XRPK"
-        u32 at = 8;
+      u32 rate = 0; if (packLen >= 12) bytecopy(&rate, pack + 8, 4);
+      if (hdr[0] == 0x3250525a && rate == (u32)ROM_RATE) {   // "XRP2" at the machine's rate
+        u32 at = 12;
         for (u32 k = 0; k < hdr[1] && at + 8 <= packLen; k++) {
           u32 e[2]; bytecopy(e, pack + at, 8); at += 8;
           // bit 16 marks a sound the pack holds pre-rendered from the synthesizer (so the app starts fast)
@@ -207,33 +224,44 @@ struct Machine {
         continue;
       }
       int n = renderSound(i, renderBuf, 44100 * 3);
-      if (at + n > (u32)ROM_POOL) n = ROM_POOL - at;
+      if (at + (u32)n > (u32)ROM_POOL) n = ROM_POOL - at;
       romRef[i].start = at; romRef[i].len = n;
       for (int k = 0; k < n; k++) { double x = renderBuf[k] * 32767.0; rom[at + k] = (s16)(x > 32767 ? 32767 : (x < -32768 ? -32768 : (x < 0 ? x - 0.5 : x + 0.5))); }
       at += n;
     }
     factoryReset();
     fx.clear();
+    setRate(sr);
   }
-  void setRate(double rate) { if (rate > 8000) { sr = rate; fxConfigured = -1; } }
+  void setRate(double rate) {
+    if (rate <= 8000) return;
+    sr = rate; fxConfigured = -1;
+    // the analog stage runs at about 176-192 kHz, then comes down to the host's rate
+    os = (int)(192000.0 / sr + 0.5); if (os < 1) os = 1; if (os > 8) os = 8;
+    if (inductance <= 0) inductance = LCLowpass::solveL();
+    outL.design(sr * os, inductance, false); outR.design(sr * os, inductance, false); outE.design(sr * os, inductance, true);
+    decL.design(os); decR.design(os); decE.design(os);
+    // DAC full scale, calibrated so a full-scale sine reads the manual's output level with VOLUME at max
+    dacVolts = part::OUT_FS_PEAK / stageGain(inductance);
+  }
   void defaultVoice(int i) {
     s16* p = vp[i];
     bytezero(p, sizeof(s16) * NVP);
-    p[V_LEVEL] = 85; p[V_DECAY] = 99; p[V_TONE] = 99; p[V_SEND] = 10; p[V_VELSENS] = 60;
-    if (i < 10) { p[V_LEVEL] = 92; p[V_SEND] = 4; }
-    else if (i < 20) { p[V_LEVEL] = 85; p[V_SEND] = 25; }
-    else if (i >= HATCL && i <= HATOP) { p[V_LEVEL] = 66; p[V_PAN] = 12; p[V_GROUP] = 1; p[V_SEND] = 6; }
-    else if (i >= TOM1L && i <= TOM4H) { int k = (i - TOM1L) % 3; p[V_PAN] = (s16)(20 - 20 * k); p[V_LEVEL] = 82; p[V_SEND] = 20; }
-    else if (i == CRASH1 || i == CRASH2 || i == CHOKE) { p[V_LEVEL] = 66; p[V_PAN] = i == CRASH2 ? 25 : -25; p[V_GROUP] = 5; p[V_SEND] = 12; }
-    else if (i == RIDE) { p[V_LEVEL] = 62; p[V_PAN] = 30; p[V_SEND] = 8; }
-    else if (i == CLAPS) { p[V_SEND] = 25; p[V_LEVEL] = 80; }
-    else if (i == GUIRO1 || i == GUIRO2) { p[V_GROUP] = 2; p[V_LEVEL] = 66; p[V_PAN] = -20; }
+    p[V_LEVEL] = 26; p[V_DECAY] = 31; p[V_HOLD] = 31; p[V_SEND] = 3; p[V_VELFEEL] = 1; p[V_TONE] = 99;
+    if (i < 10) { p[V_LEVEL] = 29; p[V_SEND] = 1; }
+    else if (i < 20) { p[V_LEVEL] = 26; p[V_SEND] = 8; }
+    else if (i >= HATCL && i <= HATOP) { p[V_LEVEL] = 20; p[V_PAN] = 4; p[V_GROUP] = 1; p[V_SEND] = 2; }
+    else if (i >= TOM1L && i <= TOM4H) { int k = (i - TOM1L) % 3; p[V_PAN] = (s16)(6 - 6 * k); p[V_LEVEL] = 25; p[V_SEND] = 6; }
+    else if (i == CRASH1 || i == CRASH2 || i == CHOKE) { p[V_LEVEL] = 20; p[V_PAN] = i == CRASH2 ? 8 : -8; p[V_GROUP] = 5; p[V_SEND] = 4; }
+    else if (i == RIDE) { p[V_LEVEL] = 19; p[V_PAN] = 9; p[V_SEND] = 2; }
+    else if (i == CLAPS) { p[V_SEND] = 8; p[V_LEVEL] = 25; }
+    else if (i == GUIRO1 || i == GUIRO2) { p[V_GROUP] = 2; p[V_LEVEL] = 20; p[V_PAN] = -6; }
     else if (i == SQKL || i == SQKH) p[V_GROUP] = 3;
-    else if (i == TRIL || i == TRIH) { p[V_GROUP] = 4; p[V_LEVEL] = 62; p[V_PAN] = 30; }
-    else if (i >= CONGA1 && i <= CONGA4) { p[V_PAN] = (s16)(-30 + 20 * (i - CONGA1)); p[V_LEVEL] = 80; }
-    else if (i == CABASA || i == TAMB) { p[V_LEVEL] = 62; p[V_PAN] = -15; }
-    else if (i == COWBELL || i == AGOGOL || i == AGOGOH) { p[V_LEVEL] = 66; p[V_PAN] = 15; }
-    else if (i == WHISTLE) p[V_LEVEL] = 62;
+    else if (i == TRIL || i == TRIH) { p[V_GROUP] = 4; p[V_LEVEL] = 19; p[V_PAN] = 9; }
+    else if (i >= CONGA1 && i <= CONGA4) { p[V_PAN] = (s16)(-9 + 6 * (i - CONGA1)); p[V_LEVEL] = 25; }
+    else if (i == CABASA || i == TAMB) { p[V_LEVEL] = 19; p[V_PAN] = -5; }
+    else if (i == COWBELL || i == AGOGOL || i == AGOGOH) { p[V_LEVEL] = 20; p[V_PAN] = 5; }
+    else if (i == WHISTLE) p[V_LEVEL] = 19;
   }
   void defaultPads() {
     static const u8 B[NBANK][NPADS] = {
@@ -272,7 +300,7 @@ struct Machine {
     for (int k = 0; k < NKEYS; k++) set[k] = 0;
     set[K_TEMPO] = 1200; set[K_TC] = 3; set[K_FXTYPE] = 0; set[K_FXTIME] = 50; set[K_FXLEVEL] = 60; set[K_POLY] = 8;
     set[K_MIDICH] = 0; set[K_MIDIMAP] = 0; set[K_SYNC] = 1; set[K_CLICK] = 1; set[K_CLICKLVL] = 60; set[K_COUNTIN] = 0;
-    set[K_PADVEL] = 1; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80;
+    set[K_PADVEL] = 1; set[K_ACCENTVEL] = 127; set[K_VOLUME] = 80; set[K_EFFECTVR] = 70; set[K_FXTYPE] = 5;
     curPat = 0; curPart = 0; mainVar = 0;
     set[K_TEMPO] = pat[0].tempo * 10;
   }
@@ -308,20 +336,25 @@ struct Machine {
     if (user[s].len) { len = user[s].len; return userPool + user[s].start; }
     len = romRef[s].len; return rom + romRef[s].start;
   }
+  // a voice as the XR10's gate arrays play it: the DMA steps through the 16-bit ROM at the machine rate (no
+  // interpolation between samples), the TMW4008 applies the digital envelope (hold, then decay), the 5-bit digital
+  // level, pan and effect-send controls, and mixes the 8 voices for the DAC.
+  // Times for the 0-31 steps are not in the manual and are estimates.
+  static double holdSeconds(int h) { return 0.008 * xm::pow(1.18, h); }       // 8 ms .. ~1.4 s (31 = hold to the end)
+  static double decaySeconds(int d) { return 0.004 * xm::pow(1.22, d); }      // 4 ms .. ~1.9 s (31 = no decay)
+  static double sweepSeconds(int d) { return 0.002 * xm::pow(1.25, d); }      // 2 ms .. ~2 s
   void trigger(int s, int vel, bool fromSeq = false) {
     if (s < 0 || s >= NSOUNDS) return;
     (void)fromSeq;
     const s16* p = vp[s];
     int grp = p[V_GROUP];
-    // retrigger and group choke: fade out voices of the same sound / group
     for (int i = 0; i < MAXV; i++) if (v[i].active && !v[i].fading && (v[i].sound == s || (grp && v[i].group == grp))) startFade(v[i]);
-    // polyphony: steal the oldest when over the limit
     int poly = set[K_POLY] < 1 ? 8 : set[K_POLY], live = 0, oldest = -1; u32 oa = 0xffffffff;
     for (int i = 0; i < MAXV; i++) if (v[i].active && !v[i].fading) { live++; if (v[i].age < oa) { oa = v[i].age; oldest = i; } }
     if (live >= poly && oldest >= 0) startFade(v[oldest]);
     int slot = -1;
     for (int i = 0; i < MAXV; i++) if (!v[i].active) { slot = i; break; }
-    if (slot < 0) {   // all busy: take the quietest fading one
+    if (slot < 0) {
       float q = 1e9f;
       for (int i = 0; i < MAXV; i++) if (v[i].fading && v[i].env < q) { q = v[i].env; slot = i; }
       if (slot < 0) slot = 0;
@@ -333,57 +366,55 @@ struct Machine {
     o.rev = p[V_REVERSE]; o.loop = p[V_LOOP];
     o.loopStart = o.len / 2;
     o.pos = o.rev ? o.len - 1 : 0;
-    double semis = p[V_TUNE] + p[V_FINE] / 100.0;
-    o.baseInc = xm::pow2(semis / 12.0) * ROM_RATE / sr;
-    o.bendTarget = p[V_BEND] / 99.0 * 24.0; o.bendNow = 0;
-    o.bendCoef = 1.0 - xm::exp(-1.0 / (0.15 * sr));
-    o.inc = o.baseInc;
-    // level: RX5-style velocity sensitivity
-    double vs = p[V_VELSENS] / 99.0, vn = vel / 127.0;
-    double g = (p[V_LEVEL] / 99.0) * (1 - vs + vs * vn * vn) * 1.0;
-    double pan = (p[V_PAN] + 50) / 100.0;
-    o.gL = (float)(g * xm::cos(pan * xm::PI / 2)); o.gR = (float)(g * xm::sin(pan * xm::PI / 2));
-    o.send = (float)(p[V_SEND] / 99.0);
-    // envelope
+    // pitch: whole semitones and 1/16 semitone fine steps
+    o.baseInc = xm::pow2((p[V_TUNE] + p[V_FINE] * 0.0625) / 12.0) * ROM_RATE / mr;
+    double depth = p[V_SWDEPTH];
+    o.sweepNow = p[V_SWPOL] ? depth : -depth;   // UP starts below and rises to the note, DOWN starts above and falls
+    o.sweepMul = depth > 0 ? xm::exp(-1.0 / (sweepSeconds(p[V_SWDECAY]) * mr)) : 0;
+    o.inc = o.baseInc * (depth > 0 ? xm::pow2(o.sweepNow / 12.0) : 1.0);
+    // 5-bit digital controls
+    double g = p[V_LEVEL] / 31.0;
+    if (p[V_VELFEEL]) g *= vel / 127.0; else g *= vel >= 120 ? 1.0 : 100.0 / 127.0;   // without velocity feel only accent counts
+    int pan = p[V_PAN];
+    o.gL = (float)(g * (pan <= 0 ? 1.0 : (15 - pan) / 15.0));
+    o.gR = (float)(g * (pan >= 0 ? 1.0 : (15 + pan) / 15.0));
+    o.gE = (float)(g * p[V_SEND] / 31.0);
+    // envelope (the DCA): attack (extra), hold, decay
     double atk = p[V_ATTACK] / 99.0 * 0.25;
-    o.attackInc = atk <= 0.0005 ? 1.f : (float)(1.0 / (atk * sr));
+    o.attackInc = atk <= 0.0005 ? 1.f : (float)(1.0 / (atk * mr));
     o.env = atk <= 0.0005 ? 1.f : 0.f; o.phase = atk <= 0.0005 ? 1 : 0;
-    int d = p[V_DECAY];
-    double dt = d >= 99 ? (o.loop ? 1.5 : 1e9) : 0.01 * xm::pow(300.0, d / 98.0);
-    o.decayMul = (float)(d >= 99 && !o.loop ? 1.0 : xm::exp(-1.0 / (dt * sr)));
+    o.holdLeft = p[V_HOLD] >= 31 ? 0xffffffffu : (u32)(holdSeconds(p[V_HOLD]) * mr);
+    o.decayMul = p[V_DECAY] >= 31 ? 1.f : (float)xm::exp(-1.0 / (decaySeconds(p[V_DECAY]) * mr));
+    if (o.loop && o.holdLeft == 0xffffffffu) o.holdLeft = (u32)(1.5 * mr);
     int tone = p[V_TONE];
     double fc = tone >= 99 ? 0 : 150.0 * xm::pow(120.0, tone / 98.0);
-    o.lpCoef = fc <= 0 ? 1.f : (float)(1.0 - xm::exp(-xm::TAU * fc / sr));
+    o.lpCoef = fc <= 0 ? 1.f : (float)(1.0 - xm::exp(-xm::TAU * fc / mr));
     o.lp = o.lp2 = 0;
   }
-  void startFade(Voice& o) { if (!o.fading) { o.fading = 1; o.fadeMul = (float)xm::exp(-1.0 / (0.004 * sr)); } }
-  void renderVoices(float* L, float* R, float* sL, float* sR, int n) {
+  void startFade(Voice& o) { if (!o.fading) { o.fading = 1; o.fadeMul = (float)xm::exp(-1.0 / (0.002 * mr)); } }
+  void renderVoices(float* L, float* R, float* E, int n) {
     for (int k = 0; k < MAXV; k++) {
       Voice& o = v[k];
       if (!o.active) continue;
       for (int i = 0; i < n; i++) {
         int ip = (int)o.pos;
-        double fr = o.pos - ip;
-        float a = ip < o.len ? o.data[ip] : 0, b = ip + 1 < o.len ? o.data[ip + 1] : 0;
-        float x = (float)((a + (b - a) * fr) * (1.0 / 32768.0));
+        float x = (ip >= 0 && ip < o.len ? o.data[ip] : 0) * (1.0f / 32768.0f);
         if (o.lpCoef < 1) { o.lp += o.lpCoef * (x - o.lp); o.lp2 += o.lpCoef * (o.lp - o.lp2); x = o.lp2; }
-        // envelope
         if (o.phase == 0) { o.env += o.attackInc; if (o.env >= 1) { o.env = 1; o.phase = 1; } }
+        else if (o.phase == 1) { if (o.holdLeft != 0xffffffffu && o.holdLeft-- == 0) o.phase = 2; }
         else o.env *= o.decayMul;
         if (o.fading) o.env *= o.fadeMul;
         float y = x * o.env;
-        L[i] += y * o.gL; R[i] += y * o.gR;
-        if (o.send > 0) { sL[i] += y * o.gL * o.send; sR[i] += y * o.gR * o.send; }
-        // pitch bend glide
-        if (o.bendTarget != 0) { o.bendNow += (o.bendTarget - o.bendNow) * o.bendCoef; if ((i & 15) == 0) o.inc = o.baseInc * xm::pow2(o.bendNow / 12.0); }
+        L[i] += y * o.gL; R[i] += y * o.gR; E[i] += y * o.gE;
+        if (o.sweepMul > 0) { o.sweepNow *= o.sweepMul; if ((i & 7) == 0) o.inc = o.baseInc * xm::pow2(o.sweepNow / 12.0); }
         if (o.rev) {
           o.pos -= o.inc;
           if (o.pos < 0) { if (o.loop) o.pos += o.len - o.loopStart; else { o.active = 0; break; } }
         } else {
           o.pos += o.inc;
-          if (o.pos >= o.len - 1) { if (o.loop) o.pos -= (o.len - 1 - o.loopStart); else { o.active = 0; break; } }
+          if (o.pos >= o.len) { if (o.loop) o.pos -= (o.len - o.loopStart); else { o.active = 0; break; } }
         }
-        if (o.env < 0.00003f && (o.phase == 1 || o.fading)) { o.active = 0; break; }
+        if (o.env < 0.00003f && (o.phase == 2 || o.fading)) { o.active = 0; break; }
       }
     }
   }
@@ -482,7 +513,7 @@ struct Machine {
   void fireUpTo(double t) { Part& p = part(); while (evIdx < p.count && effTick(p.ev[evIdx].tick) < t) { fireEvent(p.ev[evIdx]); evIdx++; } }
   void seqSample() {
     if (!playing || paused) return;
-    double dt = set[K_TEMPO] / 10.0 * PPQ / (60.0 * sr);
+    double dt = set[K_TEMPO] / 10.0 * PPQ / (60.0 * mr);
     double prev = tick;
     tick += dt;
     if (tick < 0) {   // count-in clicks
@@ -624,7 +655,26 @@ struct Machine {
   }
 
   // ================= audio =================
-  float sendL[4096], sendR[4096];
+  // the machine side, at the machine rate: sequencer, voices, the digital mixer (8 voices summed with one bit of
+  // headroom and saturated to 16 bits, an estimate) and the metronome, into the three DAC channels
+  void machineChunk() {
+    const int n = 16;
+    for (int i = 0; i < n; i++) mixL[i] = mixR[i] = mixE[i] = 0;
+    for (int i = 0; i < n; i++) seqSample();
+    renderVoices(mixL, mixR, mixE, n);
+    for (int i = 0; i < n; i++) {
+      float c = 0;
+      if (clickEnv > 0.0001f) { clickPhase += clickFreq / mr; c = (float)(xm::sin(xm::TAU * clickPhase) * clickEnv); clickEnv *= 0.9977f; }
+      mixL[i] = dac16((mixL[i] + c) * 0.5f); mixR[i] = dac16((mixR[i] + c) * 0.5f); mixE[i] = dac16(mixE[i] * 0.5f);
+    }
+    mixPos = 0; mixLen = n;
+  }
+  static float dac16(float x) {
+    float q = xm::floor(x * 32768.f + 0.5f);
+    if (q > 32767.f) q = 32767.f; if (q < -32768.f) q = -32768.f;
+    return q * (1.f / 32768.f);
+  }
+  float extL[4096], extR[4096];
   void process(float* L, float* R, float* auxL, float* auxR, int n) {
     while (n > 0) {
       int c = n > 1024 ? 1024 : n;
@@ -633,55 +683,63 @@ struct Machine {
       n -= c;
     }
   }
+  // the analog side: the DAC holds each value until the next one (zero-order hold); the output stage runs at os x the
+  // host rate and is brought down to the host rate. Output: 1.0 = 3.16 V (+12 dBu) at the jack.
   void block(float* L, float* R, float* auxL, float* auxR, int n) {
     int ft = set[K_FXTYPE]; float ftm = set[K_FXTIME] / 99.f;
-    if (ft != fxConfigured || ftm != fxTimeConfigured) { if (ft != fxConfigured) fx.clear(); fx.setup(sr, ft, ftm); fxConfigured = ft; fxTimeConfigured = ftm; }
-    for (int i = 0; i < n; i++) { L[i] = R[i] = 0; sendL[i] = sendR[i] = 0; }
-    // the sequencer is run in small slices so hits land within 16 samples
-    int pos = 0;
-    while (pos < n) {
-      int c = n - pos > 16 ? 16 : n - pos;
-      for (int k = 0; k < c; k++) seqSample();
-      renderVoices(L + pos, R + pos, sendL + pos, sendR + pos, c);
-      pos += c;
-    }
-    float fxLevel = set[K_FXLEVEL] / 99.f * 1.4f;
-    volume = set[K_VOLUME] / 100.f;
+    if (ft <= 4 && (ft != fxConfigured || ftm != fxTimeConfigured)) { if (ft != fxConfigured) fx.clear(); fx.setup(sr, ft, ftm); fxConfigured = ft; fxTimeConfigured = ftm; }
+    outL.setKnob(set[K_VOLUME] / 100.0); outR.setKnob(set[K_VOLUME] / 100.0); outE.setKnob(set[K_EFFECTVR] / 100.0);
+    const double step = mr / (sr * os), toHost = 1.0 / 3.16;
     for (int i = 0; i < n; i++) {
-      float l = L[i], r = R[i];
-      if (ft <= 4) { float fl, fr; fx.run(sendL[i], sendR[i], fl, fr); l += fl * fxLevel; r += fr * fxLevel; }
-      if (clickEnv > 0.0001f) {
-        clickPhase += clickFreq / sr; float c = (float)(xm::sin(xm::TAU * clickPhase) * clickEnv); clickEnv *= 0.9985f; l += c; r += c;
+      for (int k = 0; k < os; k++) {
+        machPhase += step;
+        if (machPhase >= 1) {
+          machPhase -= 1;
+          if (mixPos >= mixLen) machineChunk();
+          dacL = mixL[mixPos] * dacVolts; dacR = mixR[mixPos] * dacVolts; dacE = mixE[mixPos] * dacVolts; mixPos++;
+        }
+        decL.push(outL.run(dacL)); decR.push(outR.run(dacR)); decE.push(outE.run(dacE));
       }
-      volSmooth += (volume * volume - volSmooth) * 0.002f;
-      l *= volSmooth; r *= volSmooth;
-      L[i] = softClip(l); R[i] = softClip(r);
-      if (auxL) { auxL[i] = sendL[i] * volSmooth; auxR[i] = sendR[i] * volSmooth; }
+      float l = (float)(decL.out() * toHost), r = (float)(decR.out() * toHost), e = (float)(decE.out() * toHost);
+      if (ft <= 4) {   // the internal effect is an extra (the XR10 sends to an outboard unit): fed from the EFFECT jack
+        float fl, fr; fx.run(e, e, fl, fr);
+        float lv = set[K_FXLEVEL] / 99.f * 1.4f; l += fl * lv; r += fr * lv;
+      }
+      L[i] = l; R[i] = r;
+      if (auxL) { auxL[i] = e; auxR[i] = e; }
     }
     samplesRun += n;
     if (msgTimer > 0) msgTimer -= n;
   }
-  static float softClip(float x) {
-    float a = x < 0 ? -x : x;
-    if (a <= 0.9f) return x;
-    float y = 0.9f + 0.1f * xm::fastTanh((a - 0.9f) * 10.f);
-    return x < 0 ? -y : y;
-  }
 
   // ================= user samples =================
   // loads mono float audio at rate srcRate into sound s (resampled to 44.1 kHz, 16-bit, max 10 s)
+  // loads mono float audio at srcRate into sound s: band-limited resampling to the machine rate, 16-bit, max 10 s
+  static double resampleAt(const float* d, int len, double t, double cut) {   // windowed sinc around position t
+    const int R = 16;
+    int c = (int)xm::floor(t);
+    double acc = 0;
+    for (int k = c - R + 1; k <= c + R; k++) {
+      if (k < 0 || k >= len) continue;
+      double x = t - k, w = 0.5 + 0.5 * xm::cos(xm::PI * x / R);
+      double si = x == 0 ? 1 : xm::sin(xm::PI * cut * x) / (xm::PI * cut * x);
+      acc += d[k] * cut * si * w;
+    }
+    return acc;
+  }
   bool loadSample(int s, const float* data, int len, double srcRate) {
     if (s < 0 || s >= NSOUNDS || len <= 0) return false;
     double ratio = srcRate / ROM_RATE;
     int outLen = (int)(len / ratio); if (outLen > ROM_RATE * 10) outLen = ROM_RATE * 10;
     if (userUsed + outLen > (u32)USER_POOL) compactUser(s);
     if (userUsed + outLen > (u32)USER_POOL) { message("SAMPLE MEMORY", "FULL"); return false; }
-    double peak = 0; for (int i = 0; i < len; i++) { double a = xm::fabs(data[i]); if (a > peak) peak = a; }
+    double cut = ratio > 1 ? 0.96 / ratio : 1.0;
+    double peak = 0;
+    for (int i = 0; i < outLen; i++) { double y = resampleAt(data, len, i * ratio, cut); double a = xm::fabs(y); if (a > peak) peak = a; }
     double g = peak > 0 ? 0.98 / peak : 1;
     for (int i = 0; i < outLen; i++) {
-      double x = i * ratio; int a = (int)x; double f = x - a;
-      double y = (a < len ? data[a] : 0) * (1 - f) + (a + 1 < len ? data[a + 1] : 0) * f;
-      y *= g * 32767; userPool[userUsed + i] = (s16)(y > 32767 ? 32767 : (y < -32768 ? -32768 : y));
+      double y = resampleAt(data, len, i * ratio, cut) * g * 32767;
+      userPool[userUsed + i] = (s16)(y > 32767 ? 32767 : (y < -32768 ? -32768 : (y < 0 ? y - 0.5 : y + 0.5)));
     }
     for (auto& o : v) if (o.active && o.sound == s) o.active = 0;
     user[s].start = userUsed; user[s].len = outLen; userUsed += outLen;
@@ -708,7 +766,7 @@ struct Machine {
   struct Reader { const u8* p; u32 n, len; bool ok = true; void get(void* d, u32 l) { if (n + l > len) { ok = false; bytezero(d, l); return; } bytecopy(d, p + n, l); n += l; } };
   static const u32 MAGIC = 0x30315258;   // "XR10"
   template <class W> void save(W& w) {
-    u32 hdr[2] = {MAGIC, 1};
+    u32 hdr[2] = {MAGIC, 2};   // 2: XR10 voice parameters, samples at the machine rate
     w.put(hdr, 8);
     w.put(set, sizeof set);
     w.put(vp, sizeof vp);
@@ -728,7 +786,13 @@ struct Machine {
     u32 hdr[2]; r.get(hdr, 8);
     if (!r.ok || hdr[0] != MAGIC) return false;
     stop(); for (auto& o : v) o.active = 0;
-    r.get(set, sizeof set); r.get(vp, sizeof vp); r.get(pads, sizeof pads); r.get(songs, sizeof songs);
+    if (hdr[1] < 2) {   // older files: different voice parameters and sample rate, keep the patterns and songs
+      s32 oldSet[32]; r.get(oldSet, sizeof oldSet); for (int k = 0; k < 32; k++) set[k] = oldSet[k];
+      set[K_EFFECTVR] = 70; set[K_FXTYPE] = 5;
+      u8 skip[64 * 13 * 2]; r.get(skip, sizeof skip);
+      for (int i = 0; i < NSOUNDS; i++) defaultVoice(i);
+    } else { r.get(set, sizeof set); r.get(vp, sizeof vp); }
+    r.get(pads, sizeof pads); r.get(songs, sizeof songs);
     s32 cp[3]; r.get(cp, sizeof cp);
     for (int p = NPRESET; p < NPAT; p++) {
       Pattern& P = pat[p];
@@ -738,6 +802,7 @@ struct Machine {
     r.get(user, sizeof user); r.get(&userUsed, 4);
     if (userUsed > (u32)USER_POOL) userUsed = 0;
     r.get(userPool, userUsed * 2);
+    if (hdr[1] < 2) { for (int s = 0; s < NSOUNDS; s++) user[s].len = 0; userUsed = 0; }   // 44.1 kHz samples: load them again
     for (int s = 0; s < NSOUNDS; s++) if (user[s].start + user[s].len > userUsed) user[s].len = 0;
     for (int k = 0; k < NKEYS; k++) if (set[k] < -100000 || set[k] > 100000) set[k] = 0;
     curPat = xm::clampi(cp[0], 0, NPAT - 1); mainVar = xm::clampi(cp[2], 0, 2); curPart = mainVar;
@@ -765,12 +830,12 @@ struct Machine {
   }
   void put(int k, s32 val) {
     switch (k) {
-      case K_TEMPO: set[k] = xm::clampi(val, 300, 3000); return;
+      case K_TEMPO: set[k] = xm::clampi(val, 400, 2960); return;   // 40-296, as the XR10
       case K_PATTERN: selectPattern(val); return;
       case K_PART: selectPart(xm::clampi(val, 0, NPARTS - 1)); return;
       case K_REC: recording = val ? 1 : 0; if (recording) ensureUser(); return;
       case K_PLAYING: if (val && !playing) start(); else if (!val && playing) stop(); return;
-      case K_LEN: if (ensureUser()) { Part& p = part(); int nb = xm::clampi(val, 1, 8); p.bars = (u8)nb; int lim = nb * barTicks(curPat); while (p.count && p.ev[p.count - 1].tick >= lim) p.count--; partLenTicks = partTicks(curPat, curPart); if (tick >= partLenTicks) setPart(curPart, 0); } return;
+      case K_LEN: if (ensureUser()) { Part& p = part(); int nb = xm::clampi(val, 1, 4); p.bars = (u8)nb; int lim = nb * barTicks(curPat); while (p.count && p.ev[p.count - 1].tick >= lim) p.count--; partLenTicks = partTicks(curPat, curPart); if (tick >= partLenTicks) setPart(curPart, 0); } return;
       case K_BEATS: if (ensureUser()) { Pattern& P = pat[curPat]; P.beats = (u8)xm::clampi(val, 2, 8); for (int i = 0; i < NPARTS; i++) { Part& p = P.parts[i]; int lim = p.bars * P.beats * PPQ; while (p.count && p.ev[p.count - 1].tick >= lim) p.count--; } partLenTicks = partTicks(curPat, curPart); if (tick >= partLenTicks) setPart(curPart, 0); } return;
       case K_SWING: if (ensureUser()) pat[curPat].swing = (u8)xm::clampi(val, 50, 75); return;
       case K_SUB: if (ensureUser()) pat[curPat].sub = (u8)(val == 3 ? 3 : 4); return;
@@ -784,6 +849,7 @@ struct Machine {
       case K_SOUND: set[k] = xm::clampi(val, 0, NSOUNDS - 1); return;
       case K_MODE: setMode(xm::clampi(val, 0, 3)); return;
       case K_VOLUME: set[k] = xm::clampi(val, 0, 100); return;
+      case K_EFFECTVR: set[k] = xm::clampi(val, 0, 100); return;
       case K_CLICK: set[k] = xm::clampi(val, 0, 2); return;
       case K_SYNC: set[k] = xm::clampi(val, 0, 1); return;
     }
@@ -992,7 +1058,7 @@ struct Machine {
         if (num && den) { beatsWanted = num * 4 / den; if (num * 4 % den) beatsWanted = num; }
         beatsWanted = xm::clampi(beatsWanted, 2, 8);
         int bt = beatsWanted * PPQ;
-        usedBars = xm::clampi((int)((maxTick + bt - PPQ / 8) / bt), 1, 8);
+        usedBars = xm::clampi((int)((maxTick + bt - PPQ / 8) / bt), 1, 4);   // the XR10's patterns are up to 4 bars
       }
     }
     if (!tmp.count) return 0;
@@ -1004,7 +1070,7 @@ struct Machine {
     if (tempoBpm >= 30 && tempoBpm <= 300) { P.tempo = (u8)(tempoBpm > 255 ? 255 : tempoBpm); if (!hostPlaying) set[K_TEMPO] = tempoBpm * 10; }
     partLenTicks = partTicks(curPat, curPart);
     if (playing) setPart(curPart, 0);
-    char l[17]; Str(l, 17).s("MIDI ").i(usedBars).s(usedBars > 1 ? " BARS" : " BAR").s(maxTick >= (u32)(8 * beatsWanted * PPQ) ? " (CUT)" : "");
+    char l[17]; Str(l, 17).s("MIDI ").i(usedBars).s(usedBars > 1 ? " BARS" : " BAR").s(maxTick >= (u32)(4 * beatsWanted * PPQ) ? " (CUT)" : "");
     message(l, PART_NAMES[curPart]);
     return usedBars;
   }
@@ -1317,11 +1383,11 @@ struct Machine {
         int p = menuPage - 1, val = vp[s][p];
         l2.s(VPARAMS[p].name);
         char tmp[8]; Str t(tmp, 8);
-        if (p == V_REVERSE || p == V_LOOP) t.s(val ? "ON" : "OFF");
-        else if (p == V_PAN) { if (val == 0) t.s("C"); else if (val < 0) t.s("L").i(-val); else t.s("R").i(val); }
-        else if (p == V_TUNE || p == V_FINE || p == V_BEND) t.sgn(val);
+        if (p == V_REVERSE || p == V_LOOP || p == V_VELFEEL) t.s(val ? "ON" : "OFF");
+        else if (p == V_SWPOL) t.s(val ? "DOWN" : "UP");
+        else if (p == V_PAN) { if (val == 0) t.s("CENTER"); else if (val < 0) t.s("L").i(-val); else t.s("R").i(val); }
+        else if (p == V_TUNE || p == V_FINE) t.sgn(val);
         else if (p == V_GROUP) { if (val) t.i(val); else t.s("OFF"); }
-        else if (p == V_DECAY && val >= 99) t.s("FULL");
         else if (p == V_TONE && val >= 99) t.s("OPEN");
         else t.i(val);
         l2.right(tmp, 16);

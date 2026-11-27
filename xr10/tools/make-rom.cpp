@@ -2,7 +2,7 @@
 //   g++ -O2 -std=c++17 xr10/tools/make-rom.cpp -o make-rom
 //   ./make-rom xr10/samples xr10/rom.bin        a folder of WAV / AIFF files named after the sounds ("KICK1.wav", "07 KICK7.wav", "Hat CL.wav")
 //   ./make-rom my-memory.xr10 xr10/rom.bin      or the samples you loaded in the app, from its "Save all to a file"
-// Sounds without a file stay synthesized. Files are mixed to mono, resampled to 44.1 kHz and stored as 16-bit, unchanged otherwise.
+// Sounds without a file stay synthesized. Files are mixed to mono, resampled to the machine's rate (31.25 kHz) and stored as 16-bit.
 #include "../core/xr10.h"
 #include <algorithm>
 #include <cstdio>
@@ -65,13 +65,13 @@ static bool decode(const std::vector<unsigned char>& d, std::vector<float>& out,
     }
     return true;
 }
-static std::vector<short> to16at44k(const std::vector<float>& in, double rate) {
-    const double ratio = rate / ROM_RATE;
+// band-limited resampling to the machine's rate (the same resampler the app uses), 16-bit, samples kept as they are
+static std::vector<short> toRom(const std::vector<float>& in, double rate) {
+    const double ratio = rate / ROM_RATE, cut = ratio > 1 ? 0.96 / ratio : 1.0;
     size_t n = (size_t) (in.size() / ratio);
     std::vector<short> o(n);
     for (size_t i = 0; i < n; i++) {
-        double x = i * ratio; size_t a = (size_t) x; double f = x - a;
-        double y = (a < in.size() ? in[a] : 0) * (1 - f) + (a + 1 < in.size() ? in[a + 1] : 0) * f;
+        double y = Machine::resampleAt(in.data(), (int) in.size(), i * ratio, cut);
         o[i] = (short) std::lrint(std::max(-1.0, std::min(1.0, y)) * 32767);
     }
     while (o.size() > 64 && std::abs(o.back()) < 8) o.pop_back();   // trailing silence
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
             if (s < 0) { std::printf("  skipped %s (not a sound name)\n", name.c_str()); continue; }
             if (!decode(readFile(p), mono, rate)) { std::printf("  skipped %s (only WAV and AIFF are read: convert it first)\n", name.c_str()); continue; }
             if (got.count(s)) std::printf("  note: %s replaces %s for %s\n", name.c_str(), from[s].c_str(), SOUND_NAMES[s]);
-            got[s] = to16at44k(mono, rate); from[s] = name;
+            got[s] = toRom(mono, rate); from[s] = name;
         }
     } else {
         auto mem = readFile(in);
@@ -103,7 +103,6 @@ int main(int argc, char** argv) {
     }
     std::vector<unsigned char> o;
     auto put = [&](u32 v) { for (int i = 0; i < 4; i++) o.push_back((unsigned char) (v >> (8 * i))); };
-    put(0x4b505258); put((u32) got.size());
     size_t total = 0;
     // the sounds without a sample go in pre-rendered (flagged), so the app doesn't spend seconds synthesizing them at start
     std::map<int, std::vector<short>> synth;
@@ -113,7 +112,7 @@ int main(int argc, char** argv) {
         auto& v = synth[s];
         for (int k = 0; k < n; k++) { double x = buf[k] * 32767.0; v.push_back((short) (x > 32767 ? 32767 : (x < -32768 ? -32768 : (x < 0 ? x - 0.5 : x + 0.5)))); }
     }
-    o.clear(); put(0x4b505258); put(64);
+    o.clear(); put(0x3250525a); put(64); put((u32) ROM_RATE);   // "XRP2", count, rate
     for (int s = 0; s < NSOUNDS; s++) {
         const bool mine = got.count(s) > 0;
         auto& d = mine ? got[s] : synth[s];
@@ -122,9 +121,9 @@ int main(int argc, char** argv) {
         if (!mine) continue;
         for (short v : d) { o.push_back((unsigned char) (v & 0xff)); o.push_back((unsigned char) ((unsigned short) v >> 8)); }
         total += d.size();
-        std::printf("  %2d %-9s <- %s (%.2f s)\n", s + 1, SOUND_NAMES[s], from[s].c_str(), d.size() / 44100.0);
+        std::printf("  %2d %-9s <- %s (%.2f s)\n", s + 1, SOUND_NAMES[s], from[s].c_str(), d.size() / (double) ROM_RATE);
     }
-    if (total > (size_t) ROM_POOL) std::printf("warning: %.1f s of samples, the ROM holds %.1f s: the last ones will be cut\n", total / 44100.0, ROM_POOL / 44100.0);
+    if (total > (size_t) ROM_POOL) std::printf("warning: %.1f s of samples, the ROM holds %.1f s: the last ones will be cut\n", total / (double) ROM_RATE, ROM_POOL / (double) ROM_RATE);
     std::ofstream(argv[2], std::ios::binary).write((const char*) o.data(), (std::streamsize) o.size());
     std::printf("%d of 64 sounds from your samples, %d synthesized. Wrote %s (%zu bytes)\n", (int) got.size(), 64 - (int) got.size(), argv[2], o.size());
     for (int s = 0; s < NSOUNDS; s++) if (!got.count(s)) std::printf("  still synthesized: %s\n", SOUND_NAMES[s]);

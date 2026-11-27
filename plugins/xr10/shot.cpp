@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
     juce::AudioBuffer<float> b(2, 256); juce::MidiBuffer midi;
     for (int i = 0; i < 48000 * 3 / 2 / 256; i++) p.processBlock(b, midi);
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-    ed->setSize(1000, 1096);
+    ed->setSize(1000, 1166);
     const char* names[4] = {"VOICES (RX5)", "STEP GRID", "SONG", "SETUP"};
     for (int t = 0; t < 4; t++) {
         std::function<juce::TextButton*(juce::Component*)> find = [&](juce::Component* c) -> juce::TextButton* {

@@ -49,6 +49,10 @@ EXPORT const char* xr_pattern_name(int p) { return M.pat[p < 0 ? 0 : (p > 98 ? 9
 EXPORT const char* xr_param_name(int p) { return xr::VPARAMS[p].name; }
 EXPORT int xr_param_lo(int p) { return xr::VPARAMS[p].lo; }
 EXPORT int xr_param_hi(int p) { return xr::VPARAMS[p].hi; }
+EXPORT int xr_nvp() { return xr::NVP; }
+EXPORT int xr_nvp_xr10() { return xr::NVP_XR10; }
+EXPORT int xr_nkeys() { return xr::NKEYS; }
+EXPORT void xr_default_voice(int s) { M.defaultVoice(s & 63); }
 EXPORT xr::Song* xr_song(int i) { return &M.songs[i < 0 ? 0 : (i >= xr::NSONG ? xr::NSONG - 1 : i)]; }
 EXPORT void xr_song_set(int song, int step, int p, int part, int rep) { M.songSet(song, step, p, part, rep); }
 EXPORT void xr_song_insert(int song, int step) { M.songInsert(song, step); }

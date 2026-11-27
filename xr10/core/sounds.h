@@ -6,7 +6,7 @@
 
 namespace xr {
 static const int NSOUNDS = 64;
-static const int ROM_RATE = 44100;
+static const int ROM_RATE = 31250;   // the machine's sample rate: see MACHINE_RATE in xr10.h
 static const char* const SOUND_NAMES[NSOUNDS] = {
   "KICK1", "KICK2", "KICK3", "KICK4", "KICK5", "KICK6", "KICK7", "KICK8", "KICK9", "KICK10",
   "SNARE1", "SNARE2", "SNARE3", "SNARE4", "SNARE5", "SNARE6", "SNARE7", "SNARE8", "SNARE9", "SNARE10",

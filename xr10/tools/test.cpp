@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
   // a sample ROM pack replaces sounds
   {
     std::vector<u8> pk; auto put32 = [&](u32 v) { for (int i = 0; i < 4; i++) pk.push_back((u8)(v >> (8 * i))); };
-    put32(0x4b505258); put32(1); put32(5); put32(1000); for (int i = 0; i < 1000; i++) { short v = (short)(i * 30); pk.push_back((u8)v); pk.push_back((u8)(v >> 8)); }
+    put32(0x3250525a); put32(1); put32(ROM_RATE); put32(5); put32(1000); for (int i = 0; i < 1000; i++) { short v = (short)(i * 30); pk.push_back((u8)v); pk.push_back((u8)(v >> 8)); }
     Machine* m4 = new Machine(); m4->init(sr, pk.data(), (u32)pk.size());
     CHECK(m4->fromPack[5] && m4->romRef[5].len == 1000 && m4->rom[m4->romRef[5].start + 10] == 300, "rom pack");
     CHECK(!m4->fromPack[4] && m4->romRef[4].len > 1000, "unpacked sounds stay synthesized");
@@ -151,6 +151,38 @@ int main(int argc, char** argv) {
       CHECK(same, "rom.bin is stale: rebuild it with tools/make-rom");
       printf("rom.bin: %d sounds from samples, %d synthesized\n", mine, 64 - mine);
     }
+  }
+  // the output stage against the schematic
+  {
+    double L = LCLowpass::solveL();
+    double dc = LCLowpass::response(0, L).mag();
+    printf("BL-30VF inductors (solved for fc 12 kHz): %.1f mH each\n", L * 1000);
+    CHECK(std::fabs(20 * std::log10(LCLowpass::response(12000, L).mag() / dc) + 3.0103) < 0.05, "LC low-pass not -3 dB at 12 kHz");
+    // drive one channel with sines through the time-domain model and measure
+    auto measure = [&](double f, double vol) {
+      OutputChannel ch; const double fa = 192000; ch.design(fa, L, false); ch.setKnob(vol);
+      double pk = 0; int n = (int)(fa * 0.3);
+      for (int i = 0; i < n; i++) { double y = ch.run(std::sin(2 * M_PI * f * i / fa) * 0.1); if (i > n / 2) pk = std::max(pk, std::fabs(y)); }
+      return pk / 0.1;
+    };
+    double g1k = measure(1000, 1.0);
+    printf("output stage gain at 1 kHz, VOLUME max: %.2f (%.1f dB)\n", g1k, 20 * std::log10(g1k));
+    for (double f : {100.0, 5000.0, 10000.0, 12000.0, 15000.0, 20000.0, 30000.0}) printf("  %6.0f Hz %+6.1f dB\n", f, 20 * std::log10(measure(f, 1.0) / g1k));
+    // the whole chain: a full-scale 1 kHz sine from the DAC reads the manual's 8.2 dBm (2.81 V peak = 0.89 here)
+    Machine* m6 = new Machine(); m6->init(48000);
+    double vpk = 0;
+    m6->outL.setKnob(1.0);
+    const double fa = 48000.0 * m6->os;
+    for (int j = 0; j < (int)fa; j++) { double y = m6->outL.run(std::sin(2 * M_PI * 1000 * j / fa) * m6->dacVolts); if (j > fa / 2) vpk = std::max(vpk, std::fabs(y)); }
+    printf("full-scale sine at the jack: %.2f V peak (manual: 8.2 dBm = 2.81 V), DAC full scale %.3f V\n", vpk, m6->dacVolts);
+    CHECK(std::fabs(vpk - 2.81) < 0.1, "output level calibration");
+    // tuning steps: 100 cents and 6.25 cents
+    m6->vp[0][V_TUNE] = 12; m6->trigger(0, 127);
+    Voice* vv = nullptr; for (auto& o : m6->v) if (o.active && o.sound == 0) vv = &o;
+    CHECK(vv && std::fabs(vv->baseInc - 2.0) < 1e-9, "tune +12 = an octave");
+    m6->vp[0][V_TUNE] = 0; m6->vp[0][V_FINE] = 7; m6->trigger(0, 127);
+    vv = nullptr; for (auto& o : m6->v) if (o.active && !o.fading && o.sound == 0) vv = &o;
+    CHECK(vv && std::fabs(1200 * std::log2(vv->baseInc) - 43.75) < 1e-6, "fine +7 = 43.75 cents");
   }
   // math
   CHECK(std::fabs(xm::sin(1.234) - std::sin(1.234)) < 1e-9, "sin"); CHECK(std::fabs(xm::exp(-3.3) - std::exp(-3.3)) < 1e-12, "exp");

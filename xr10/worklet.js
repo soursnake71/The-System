@@ -25,9 +25,10 @@ class XR10Processor extends AudioWorkletProcessor {
       } else x.xr_init(sampleRate);
       const names = [], pnames = [], plo = [], phi = [];
       for (let i = 0; i < 64; i++) names.push(this.str(x.xr_sound_name(i), 12));
-      for (let i = 0; i < 13; i++) { pnames.push(this.str(x.xr_param_name(i), 12)); plo.push(x.xr_param_lo(i)); phi.push(x.xr_param_hi(i)); }
+      const nvp = x.xr_nvp(); this.nvp = nvp; this.nkeys = x.xr_nkeys();
+      for (let i = 0; i < nvp; i++) { pnames.push(this.str(x.xr_param_name(i), 12)); plo.push(x.xr_param_lo(i)); phi.push(x.xr_param_hi(i)); }
       const packed = []; for (let i = 0; i < 64; i++) packed.push(x.xr_from_pack(i));
-      this.port.postMessage({ t: 'ready', names, pnames, plo, phi, packed, patterns: this.patternNames() });
+      this.port.postMessage({ t: 'ready', names, pnames, plo, phi, packed, nvpXr10: x.xr_nvp_xr10(), patterns: this.patternNames() });
     }
   }
   handle(m) {
@@ -51,6 +52,7 @@ class XR10Processor extends AudioWorkletProcessor {
       case 'songTempo': x.xr_song_tempo(m.song, m.bpm); break;
       case 'reset': x.xr_factory_reset(); this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
       case 'clearPart': x.xr_clear_part(); break;
+      case 'resetVoice': x.xr_default_voice(m.s); break;
       case 'clearSample': x.xr_clear_sample(m.s); break;
       case 'patterns': this.port.postMessage({ t: 'patterns', patterns: this.patternNames() }); break;
       case 'save': {
@@ -112,8 +114,8 @@ class XR10Processor extends AudioWorkletProcessor {
     const g = ['erase', 'editing', 'fxType', 'tc', 'song', 'songStep', 'cursor', 'blink', 'version', 'beats', 'sub', 'bars'];
     g.forEach((k, i) => s[k] = i32[26 + i]);
     s.padSound = Array.from(i32.subarray(38, 53));
-    s.keys = []; for (let k = 0; k < 32; k++) s.keys.push(x.xr_get(k));
-    s.params = []; for (let q = 0; q < 13; q++) s.params.push(x.xr_param(s.sound, q));
+    s.keys = []; for (let k = 0; k < this.nkeys; k++) s.keys.push(x.xr_get(k));
+    s.params = []; for (let q = 0; q < this.nvp; q++) s.params.push(x.xr_param(s.sound, q));
     s.user = []; for (let i = 0; i < 64; i++) s.user.push(x.xr_has_user(i));
     s.steps = x.xr_grid_steps();
     s.grid = new Uint8Array(b, x.xr_grid(this.gridBar), 16 * 33).slice();

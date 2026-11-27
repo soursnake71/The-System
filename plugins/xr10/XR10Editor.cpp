@@ -6,7 +6,7 @@ using namespace xr;
 
 static const juce::Colour kPanel(0xffe4e3ea), kInk(0xff26262c), kSub(0xff5c5b66), kKey(0xfff4f3f7), kSel(0xff3c5f94), kOn(0xffd2335a),
     kLcd(0xff2f3b42), kLcdText(0xffb4c8c6), kGhost(0xff9cb0d0), kBg(0xffcfcdd6);
-static const int BASE_W = 1000, FACE_H = 686, PANEL_H = 410, BASE_H = FACE_H + PANEL_H;
+static const int BASE_W = 1000, FACE_H = 686, PANEL_H = 480, BASE_H = FACE_H + PANEL_H;
 static const char* const PART_LONG[NPARTS] = {"VAR A", "VAR B", "VAR C", "FILL A", "FILL B", "FILL C", "INTRO", "ENDING"};
 
 static juce::Font mono(float h) { return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), h, juce::Font::bold)); }
@@ -188,7 +188,7 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
         taps.add(now);
         if (taps.size() >= 2) { const double iv = (taps.getLast() - taps[0]) / (taps.size() - 1); proc.with([&](Machine& m) { m.put(K_TEMPO, juce::roundToInt(600000.0 / iv)); }); }
     };
-    styleSlider(tempo, 30, 300);
+    styleSlider(tempo, 40, 296);
     tempo.setSliderStyle(juce::Slider::IncDecButtons);
     tempo.setTextBoxStyle(juce::Slider::TextBoxLeft, false, 52, 24);
     tempo.setColour(juce::Slider::textBoxBackgroundColourId, kKey);
@@ -238,11 +238,11 @@ void Editor::resized() {
         const int x0 = 8 + 8 * (iw + 3) + 12, w = pg.getWidth() - x0 - 8;
         voiceTitle.setBounds(x0, 4, w, 22);
         for (int p = 0; p < NVP; p++) {
-            const int col = p % 2, row = p / 2, cx = x0 + col * (w / 2), cy = 30 + row * 26;
+            const int col = p % 2, row = p / 2, cx = x0 + col * (w / 2), cy = 30 + row * 25 + (p >= NVP_XR10 ? 6 : 0);
             paramLabels[p].setBounds(cx, cy, 70, 22);
             params[p].setBounds(cx + 70, cy, w / 2 - 78, 22);
         }
-        waveArea = {x0, 30 + 7 * 26 + 4, w, 56};
+        waveArea = {x0, 30 + 8 * 25 + 10, w, 50};
         const int by = waveArea.getBottom() + 6;
         loadSmp.setBounds(x0, by, 110, 26); loadSet.setBounds(x0 + 114, by, 140, 26); romSmp.setBounds(x0 + 258, by, 84, 26); resetVoice.setBounds(x0 + 346, by, 90, 26);
         assignPad.setBounds(x0, by + 30, 200, 26);
@@ -268,14 +268,14 @@ void Editor::resized() {
     }
     // setup page
     {
-        juce::Component* rows[5][4] = {{&fxType, &fxTime, &fxLevel, nullptr}, {&tcBox, &polyBox, &accVel, &padVel}, {&clickBox, &clickLvl, &countIn, nullptr},
+        juce::Component* rows[5][4] = {{&fxType, &fxTime, &fxLevel, &effectVr}, {&tcBox, &polyBox, &accVel, &padVel}, {&clickBox, &clickLvl, &countIn, nullptr},
                                        {&midiCh, &midiMap, &syncBox, nullptr}, {&exportBtn, &importBtn, &initBtn, nullptr}};
         int li = 0;
         for (int r = 0; r < 5; r++)
             for (int c = 0; c < 4; c++)
                 if (rows[r][c]) {
                     const int x = 8 + c * 236, yy = 10 + r * 58;
-                    if (li < 10 && setupLabels[li].getText().isNotEmpty()) setupLabels[li].setBounds(x, yy, 226, 18);
+                    if (li < 12 && setupLabels[li].getText().isNotEmpty()) setupLabels[li].setBounds(x, yy, 226, 18);
                     rows[r][c]->setBounds(x, yy + 20, 226, 26);
                     li++;
                 }
@@ -304,19 +304,20 @@ void Editor::buildVoice() {
     voiceTitle.setFont(sans(15, true)); voiceTitle.setColour(juce::Label::textColourId, kInk);
     pg.addAndMakeVisible(voiceTitle);
     for (int p = 0; p < NVP; p++) {
-        paramLabels[p].setText(VPARAMS[p].name, juce::dontSendNotification);
+        paramLabels[p].setText(juce::String(VPARAMS[p].name).replace("*", p >= NVP_XR10 ? " (extra)" : ""), juce::dontSendNotification);
         paramLabels[p].setFont(sans(12)); paramLabels[p].setColour(juce::Label::textColourId, kSub);
         styleSlider(params[p], VPARAMS[p].lo, VPARAMS[p].hi);
         params[p].onValueChange = [this, p] { if (!updating) proc.with([&](Machine& m) { m.setParam(snap.st.sound, p, (int) params[p].getValue()); }); };
         params[p].onDragEnd = [this] { proc.with([&](Machine& m) { m.trigger(snap.st.sound, 110); }); };
         params[p].textFromValueFunction = [p](double v) {
             const int i = (int) v;
-            if (p == V_PAN) return i == 0 ? juce::String("C") : (i < 0 ? "L" + juce::String(-i) : "R" + juce::String(i));
-            if (p == V_REVERSE || p == V_LOOP) return juce::String(i ? "on" : "off");
-            if (p == V_DECAY && i >= 99) return juce::String("full");
+            if (p == V_PAN) return i == 0 ? juce::String("center") : (i < 0 ? "L" + juce::String(-i) : "R" + juce::String(i));
+            if (p == V_SWPOL) return juce::String(i ? "down" : "up");
+            if (p == V_REVERSE || p == V_LOOP || p == V_VELFEEL) return juce::String(i ? "on" : "off");
             if (p == V_TONE && i >= 99) return juce::String("open");
             if (p == V_GROUP && !i) return juce::String("off");
-            if ((p == V_TUNE || p == V_FINE || p == V_BEND) && i > 0) return "+" + juce::String(i);
+            if (p == V_TUNE) return (i > 0 ? "+" : "") + juce::String(i) + " st";
+            if (p == V_FINE) return (i > 0 ? "+" : "") + juce::String(i * 6.25, 2) + "c";
             return juce::String(i);
         };
         params[p].updateText();
@@ -377,7 +378,7 @@ void Editor::paintWave(juce::Graphics& g, juce::Rectangle<int> r) {
         g.drawVerticalLine(r.getX() + x, mid - mx * half, mid - mn * half + 1);
     }
     g.setFont(sans(11));
-    g.drawText(juce::String(wave.size() / 44100.0, 2) + " s, 16-bit" + (snap.user[snap.st.sound] ? ", your sample" : ""), r.reduced(6, 2), juce::Justification::topLeft);
+    g.drawText(juce::String(wave.size() / (double) xr::ROM_RATE, 2) + " s, 16-bit" + (snap.user[snap.st.sound] ? ", your sample" : ""), r.reduced(6, 2), juce::Justification::topLeft);
 }
 
 void Editor::buildGrid() {
@@ -428,7 +429,7 @@ void Editor::buildGrid() {
             auto b = proc.exportMidi(false); f.withFileExtension("mid").replaceWithData(b.getData(), b.getSize());
         });
     };
-    for (int i = 1; i <= 8; i++) lenBox.addItem(juce::String(i) + (i > 1 ? " bars" : " bar"), i);
+    for (int i = 1; i <= 4; i++) lenBox.addItem(juce::String(i) + (i > 1 ? " bars" : " bar"), i);
     for (int i = 2; i <= 8; i++) beatsBox.addItem(juce::String(i) + "/4", i);
     subBox.addItem("16ths", 4); subBox.addItem("Triplets", 3);
     for (int i = 50; i <= 75; i++) swingBox.addItem("Swing " + juce::String(i) + "%", i);
@@ -533,9 +534,9 @@ void Editor::paintSong(juce::Graphics& g, juce::Rectangle<int> r) {
 void Editor::buildSetup() {
     auto& pg = pages[3];
     pg.painter = [](juce::Graphics& g) { g.fillAll(kPanel); };
-    const char* labels[10] = {"Effect", "Effect time", "Effect level", "Timing correct", "Voices", "Accent velocity", nullptr, "Click", "Click level", nullptr};
-    for (int i = 0; i < 10; i++) if (labels[i]) { setupLabels[i].setText(labels[i], juce::dontSendNotification); setupLabels[i].setColour(juce::Label::textColourId, kSub); pg.addAndMakeVisible(setupLabels[i]); }
-    const char* fx[7] = {"Room", "Hall", "Plate", "Gated", "Delay", "External: FX Send bus only", "Off"};
+    const char* labels[12] = {"Internal effect (an extra)", "Effect time", "Effect level", "EFFECT VR (rear panel)", "Timing correct", "Voices", "Accent velocity", nullptr, "Click", "Click level", nullptr, nullptr};
+    for (int i = 0; i < 12; i++) if (labels[i]) { setupLabels[i].setText(labels[i], juce::dontSendNotification); setupLabels[i].setColour(juce::Label::textColourId, kSub); pg.addAndMakeVisible(setupLabels[i]); }
+    const char* fx[7] = {"Room (extra)", "Hall (extra)", "Plate (extra)", "Gated (extra)", "Delay (extra)", "External: EFFECT jack (FX Send bus)", "Off"};
     for (int i = 0; i < 7; i++) fxType.addItem(fx[i], i + 1);
     const char* tc[7] = {"Quantize 1/4", "Quantize 1/8", "Quantize 1/8 triplet", "Quantize 1/16", "Quantize 1/16 triplet", "Quantize 1/32", "Quantize off"};
     for (int i = 0; i < 7; i++) tcBox.addItem(tc[i], i + 1);
@@ -556,7 +557,7 @@ void Editor::buildSetup() {
         s.onValueChange = [this, &s, key] { if (!updating) proc.with([&](Machine& m) { m.put(key, (int) s.getValue()); }); };
         pg.addAndMakeVisible(s);
     };
-    bindS(fxTime, K_FXTIME, 0, 99); bindS(fxLevel, K_FXLEVEL, 0, 99); bindS(clickLvl, K_CLICKLVL, 0, 99); bindS(accVel, K_ACCENTVEL, 1, 127);
+    bindS(effectVr, K_EFFECTVR, 0, 100); bindS(fxTime, K_FXTIME, 0, 99); bindS(fxLevel, K_FXLEVEL, 0, 99); bindS(clickLvl, K_CLICKLVL, 0, 99); bindS(accVel, K_ACCENTVEL, 1, 127);
     for (auto* t : {&padVel, &countIn}) { t->setColour(juce::ToggleButton::textColourId, kInk); t->setColour(juce::ToggleButton::tickColourId, kSel); t->setColour(juce::ToggleButton::tickDisabledColourId, kSub); pg.addAndMakeVisible(*t); }
     padVel.onClick = [this] { proc.with([&](Machine& m) { m.put(K_PADVEL, padVel.getToggleState()); }); };
     countIn.onClick = [this] { proc.with([&](Machine& m) { m.put(K_COUNTIN, countIn.getToggleState()); }); };
@@ -673,6 +674,7 @@ void Editor::refresh() {
     midiMap.setSelectedId(snap.keys[K_MIDIMAP] + 1, juce::dontSendNotification);
     syncBox.setSelectedId(snap.keys[K_SYNC] + 1, juce::dontSendNotification);
     clickBox.setSelectedId(snap.keys[K_CLICK] + 1, juce::dontSendNotification);
+    if (!effectVr.isMouseButtonDown()) effectVr.setValue(snap.keys[K_EFFECTVR], juce::dontSendNotification);
     if (!fxTime.isMouseButtonDown()) fxTime.setValue(snap.keys[K_FXTIME], juce::dontSendNotification);
     if (!fxLevel.isMouseButtonDown()) fxLevel.setValue(snap.keys[K_FXLEVEL], juce::dontSendNotification);
     if (!clickLvl.isMouseButtonDown()) clickLvl.setValue(snap.keys[K_CLICKLVL], juce::dontSendNotification);

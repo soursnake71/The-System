@@ -9,7 +9,7 @@ const B = { MODE: 0, ERASE: 1, EDIT: 2, ACCENT: 3, PADBANK: 4, TC: 5, INTRO: 6, 
   MINUS: 13, PLUS: 14, ENTER: 15, D0: 16, PAD1: 26, M_PATTERN: 41, M_SONG: 42, M_SOUND: 43, M_UTILITY: 44 };
 const K = { TEMPO: 0, PATTERN: 1, PART: 2, REC: 3, LEN: 4, BEATS: 5, SWING: 6, CLICK: 7, COUNTIN: 8, TC: 9, ACCENT: 10, BANK: 11, FXTYPE: 12,
   FXTIME: 13, FXLEVEL: 14, POLY: 15, MIDICH: 16, MIDIMAP: 17, SYNC: 18, SONG: 19, SOUND: 20, PLAYING: 21, VOLUME: 22, MODE: 23, SUB: 24,
-  CLICKLVL: 25, SONGSTEP: 26, PADVEL: 27, ACCENTVEL: 28, USERSAMPLE: 29, MAINVAR: 30, BAR: 31 };
+  CLICKLVL: 25, SONGSTEP: 26, PADVEL: 27, ACCENTVEL: 28, USERSAMPLE: 29, MAINVAR: 30, BAR: 31, EFFECTVR: 32 };
 const PARTS = ['VAR A', 'VAR B', 'VAR C', 'FILL A', 'FILL B', 'FILL C', 'INTRO', 'ENDING'];
 const PART_CODES = ['A', 'B', 'C', 'FA', 'FB', 'FC', 'IN', 'EN'];
 
@@ -134,7 +134,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 4;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 5;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() {
   const avail = Math.max(200, window.innerHeight - 4);
@@ -295,9 +295,10 @@ function buildPanel() {
   // voice params
   const pr = $('params');
   info.pnames.forEach((n, p) => {
+    if (p === info.nvpXr10) { const h = document.createElement('div'); h.className = 'help'; h.style.gridColumn = '1 / -1'; h.textContent = 'RX5-style extras (not on the XR10):'; pr.appendChild(h); }
     const row = document.createElement('div'); row.className = 'param';
-    const toggle = p === 8 || p === 9;
-    row.innerHTML = `<span>${n}</span>` + (toggle ? `<input type="checkbox" data-p="${p}" style="justify-self:start">` : `<input type="range" data-p="${p}" min="${info.plo[p]}" max="${info.phi[p]}">`) + `<span id="pv${p}"></span>`;
+    const toggle = info.plo[p] === 0 && info.phi[p] === 1;
+    row.innerHTML = `<span>${n.replace('*', '')}</span>` + (toggle ? `<input type="checkbox" data-p="${p}" style="justify-self:start">` : `<input type="range" data-p="${p}" min="${info.plo[p]}" max="${info.phi[p]}">`) + `<span id="pv${p}"></span>`;
     pr.appendChild(row);
     const inp = row.querySelector('input');
     inp.addEventListener('input', () => { send({ t: 'param', s: S.sound, p, v: toggle ? (inp.checked ? 1 : 0) : +inp.value }); if (toggle) setTimeout(() => send({ t: 'wave', s: S.sound }), 60); });
@@ -323,11 +324,11 @@ function buildPanel() {
   $('loadset').onclick = () => $('setfile').click();
   $('setfile').onchange = e => { const f = e.target.files; if (f && f.length) loadSampleSet(f); e.target.value = ''; };
   $('romsmp').onclick = () => { send({ t: 'clearSample', s: S.sound }); setTimeout(() => send({ t: 'wave', s: S.sound }), 100); };
-  $('resetv').onclick = () => { const d = defaults(S.sound); d.forEach((v, p) => send({ t: 'param', s: S.sound, p, v })); };
+  $('resetv').onclick = () => { send({ t: 'resetVoice', s: S.sound }); send({ t: 'hit', s: S.sound, v: 110 }); };
   // grid
   const pb = $('partbtns');
   PARTS.forEach((n, i) => { const b = document.createElement('button'); b.textContent = n; b.dataset.part = i; b.onclick = () => send({ t: 'set', k: K.PART, v: i }); pb.appendChild(b); });
-  opt($('len'), Array.from({ length: 8 }, (_, i) => [i + 1, (i + 1) + (i ? ' bars' : ' bar')]));
+  opt($('len'), Array.from({ length: 4 }, (_, i) => [i + 1, (i + 1) + (i ? ' bars' : ' bar')]));
   opt($('beats'), Array.from({ length: 7 }, (_, i) => [i + 2, (i + 2) + '/4']));
   $('len').onchange = e => { send({ t: 'set', k: K.LEN, v: +e.target.value }); later(); };
   $('beats').onchange = e => { send({ t: 'set', k: K.BEATS, v: +e.target.value }); later(); };
@@ -346,14 +347,14 @@ function buildPanel() {
   $('songadd').onclick = () => send({ t: 'songSet', song: S.song, step: 999, p: S.pattern, part: S.keys[K.MAINVAR], rep: 1 });
   $('songplay').onclick = () => { send({ t: 'set', k: K.MODE, v: 1 }); send({ t: 'set', k: K.PLAYING, v: S.playing ? 0 : 1 }); };
   // setup
-  opt($('fxtype'), ['Room', 'Hall', 'Plate', 'Gated', 'Delay', 'External (plugin send out)', 'Off'].map((n, i) => [i, n]));
+  opt($('fxtype'), ['Room (extra)', 'Hall (extra)', 'Plate (extra)', 'Gated (extra)', 'Delay (extra)', 'External: EFFECT jack only (the XR10)', 'Off'].map((n, i) => [i, n]));
   opt($('tc'), ['1/4', '1/8', '1/8 triplet', '1/16', '1/16 triplet', '1/32', 'Off'].map((n, i) => [i, n]));
   opt($('poly'), [4, 6, 8, 12, 16, 24, 32].map(v => [v, v + (v === 8 ? ' (XR10)' : v === 12 ? ' (RX5)' : '')]));
   opt($('midich'), [[0, 'Omni']].concat(Array.from({ length: 16 }, (_, i) => [i + 1, i + 1])));
   const bindSel = (id, k) => $(id).onchange = e => send({ t: 'set', k, v: +e.target.value });
   bindSel('fxtype', K.FXTYPE); bindSel('tc', K.TC); bindSel('poly', K.POLY); bindSel('midich', K.MIDICH); bindSel('midimap', K.MIDIMAP); bindSel('click', K.CLICK);
   const bindRange = (id, k) => $(id).oninput = e => send({ t: 'set', k, v: +e.target.value });
-  bindRange('fxtime', K.FXTIME); bindRange('fxlevel', K.FXLEVEL); bindRange('clicklvl', K.CLICKLVL);
+  bindRange('effectvr', K.EFFECTVR); bindRange('fxtime', K.FXTIME); bindRange('fxlevel', K.FXLEVEL); bindRange('clicklvl', K.CLICKLVL);
   $('accvel').onchange = e => send({ t: 'set', k: K.ACCENTVEL, v: +e.target.value });
   $('padvel').onchange = e => send({ t: 'set', k: K.PADVEL, v: e.target.checked ? 1 : 0 });
   $('countin').onchange = e => send({ t: 'set', k: K.COUNTIN, v: e.target.checked ? 1 : 0 });
@@ -371,23 +372,6 @@ function buildPanel() {
   });
 }
 function later() { setTimeout(() => send({ t: 'patterns' }), 120); }
-function defaults(s) {   // mirrors Machine::defaultVoice
-  const p = [85, 0, 0, 0, 0, 0, 99, 99, 0, 0, 10, 0, 60];
-  if (s < 10) { p[0] = 92; p[10] = 4; } else if (s < 20) { p[10] = 25; }
-  else if (s >= 22 && s <= 24) { p[0] = 66; p[1] = 12; p[11] = 1; p[10] = 6; }
-  else if (s >= 25 && s <= 36) { p[1] = 20 - 20 * ((s - 25) % 3); p[0] = 82; p[10] = 20; }
-  else if (s === 37 || s === 38 || s === 40) { p[0] = 66; p[1] = s === 38 ? 25 : -25; p[11] = 5; p[10] = 12; }
-  else if (s === 39) { p[0] = 62; p[1] = 30; p[10] = 8; }
-  else if (s === 41) { p[10] = 25; p[0] = 80; }
-  else if (s === 48 || s === 49) { p[11] = 2; p[0] = 66; p[1] = -20; }
-  else if (s === 58 || s === 59) p[11] = 3;
-  else if (s === 53 || s === 54) { p[11] = 4; p[0] = 62; p[1] = 30; }
-  else if (s >= 43 && s <= 46) { p[1] = -30 + 20 * (s - 43); p[0] = 80; }
-  else if (s === 50 || s === 51) { p[0] = 62; p[1] = -15; }
-  else if (s === 55 || s === 62 || s === 63) { p[0] = 66; p[1] = 15; }
-  else if (s === 57) p[0] = 62;
-  return p;
-}
 function drawWave(w) {
   const c = $('wave'), g = c.getContext('2d'), wd = c.width, ht = c.height;
   g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--lcd'); g.fillRect(0, 0, wd, ht);
@@ -399,7 +383,7 @@ function drawWave(w) {
     g.moveTo(x + 0.5, ht / 2 - mx * ht / 2); g.lineTo(x + 0.5, ht / 2 - mn * ht / 2 + 1);
   }
   g.stroke();
-  g.fillStyle = '#b4c8c6'; g.font = '11px system-ui'; g.fillText((w.length / 44100).toFixed(2) + ' s, 16-bit', 6, 13);
+  g.fillStyle = '#b4c8c6'; g.font = '11px system-ui'; g.fillText((w.length / 31250).toFixed(2) + ' s, 16-bit, 31.25 kHz', 6, 13);
 }
 
 // --------------------------------------------------- per-frame update from the engine's status
@@ -455,18 +439,20 @@ function update() {
   setVal($('songtempo'), S.songTempo || '');
   drawSong();
   // setup
-  setVal($('fxtype'), S.keys[K.FXTYPE]); setVal($('fxtime'), S.keys[K.FXTIME]); setVal($('fxlevel'), S.keys[K.FXLEVEL]);
+  setVal($('effectvr'), S.keys[K.EFFECTVR]); setVal($('fxtype'), S.keys[K.FXTYPE]); setVal($('fxtime'), S.keys[K.FXTIME]); setVal($('fxlevel'), S.keys[K.FXLEVEL]);
   setVal($('tc'), S.keys[K.TC]); setVal($('poly'), S.keys[K.POLY]); setVal($('midich'), S.keys[K.MIDICH]); setVal($('midimap'), S.keys[K.MIDIMAP]);
   setVal($('click'), S.keys[K.CLICK]); setVal($('clicklvl'), S.keys[K.CLICKLVL]); setVal($('accvel'), S.keys[K.ACCENTVEL]);
   $('padvel').checked = !!S.keys[K.PADVEL]; $('countin').checked = !!S.keys[K.COUNTIN];
 }
 function fmtParam(p, v) {
-  if (p === 1) return v === 0 ? 'C' : (v < 0 ? 'L' + -v : 'R' + v);
-  if (p === 2 || p === 3 || p === 4) return (v > 0 ? '+' : '') + v;
-  if (p === 6 && v >= 99) return 'full';
-  if (p === 7 && v >= 99) return 'open';
-  if (p === 8 || p === 9) return v ? 'on' : 'off';
-  if (p === 11) return v ? v : 'off';
+  const n = info.pnames[p];
+  if (n === 'PAN') return v === 0 ? 'center' : (v < 0 ? 'L' + -v : 'R' + v);
+  if (n === 'TUNE') return (v > 0 ? '+' : '') + v + ' st';
+  if (n === 'FINE') return (v > 0 ? '+' : '') + (v * 6.25).toFixed(2).replace(/\.?0+$/, '') + 'c';
+  if (n === 'SWEEP') return v ? 'down' : 'up';
+  if (n === 'TONE*' && v >= 99) return 'open';
+  if (n === 'CHOKE GRP*') return v ? v : 'off';
+  if (info.plo[p] === 0 && info.phi[p] === 1) return v ? 'on' : 'off';
   return v;
 }
 function drawGrid() {

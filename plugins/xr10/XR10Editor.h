@@ -97,10 +97,10 @@ private:
     int songSel = 0, songFirst = 0;
     // setup
     juce::ComboBox fxType, tcBox, polyBox, midiCh, midiMap, syncBox, clickBox;
-    juce::Slider fxTime, fxLevel, clickLvl, accVel;
+    juce::Slider effectVr, fxTime, fxLevel, clickLvl, accVel;
     juce::ToggleButton padVel {"Touch velocity on pads"}, countIn {"Count-in bar"};
     juce::TextButton exportBtn {"Save memory to a file..."}, importBtn {"Load memory file..."}, initBtn {"Initialize all"};
-    juce::Label setupLabels[10];
+    juce::Label setupLabels[12];
     std::unique_ptr<juce::FileChooser> chooser;
     std::vector<juce::String> patNames;
     int patNamesAge = 0, tab = 0;

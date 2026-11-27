@@ -16,6 +16,24 @@ the Android / web app, so the two sound and behave the same and share memory fil
 - MIDI: General MIDI drum notes (or note 36 = sound 1 / pad 1), program change picks the pattern, start / stop.
   The plugin follows the host's transport and tempo.
 
+## The circuit model
+Modelled from the Akai XR10 service manual (main schematic L400802M, block diagram L400851M, parts list, specifications),
+archive.org item `akai-xr-10-service-manual`:
+- **Voices and digital mixer** (`core/xr10.h`): 8 voices fetched by DMA from 16-bit ROM at the machine rate with no
+  interpolation; the TMW4008 gate array's digital envelope (hold, decay), 5-bit level / pan (L15–R15) / effect send,
+  pitch in 100-cent steps (±25) and 6.25-cent fine steps (−8..+7), sweep (pitch envelope: decay, depth, up/down), reverse,
+  velocity feel; the mixed L, R and EFFECT signals quantized to 16 bits for the DACs.
+- **Output stage** (`core/analog.h`): LC7881 16-bit DACs as a zero-order hold, M5223L followers, the 4.7 k / 680 p /
+  BL-30VF / 2.7 n / 2.7 n LC low-pass (fc 12 kHz), the C69 / R3 coupling, the M5216L inverting amps (330 k ∥ 47 p over 47 k,
+  ×7) with VOLUME (VR2) across the feedback resistor and the EFFECT VR (VR1 100 k A) in series with it, op-amp clipping on
+  the 12 V supply, and the 1.2 k / 4.7 n / 47 k output network. Run at 4× the host rate, then decimated. Calibrated so a
+  full-scale tone gives the manual's 8.2 dBm at the outputs.
+- **Estimated** (not printed in the manual): the machine's sample rate (31.25 kHz = 12 MHz / 384, from the clock and the
+  12 kHz filters), the inductances inside the BL-30VF (solved for its printed 12 kHz), VR2's value and taper, the times
+  behind the 0–31 envelope and sweep steps, the mixer's headroom, and the pan law. Recordings of a real XR10 would pin these down.
+- Extras that aren't on the XR10 are marked: attack, tone, loop and choke group per sound, and the internal reverb / delay
+  (the hardware sends to an outboard effect from its EFFECT jack, which is the plugin's FX Send bus).
+
 ## About the sounds
 The sound ROM is `rom.bin`, built from the files in `samples/` (see `samples/README.md`) by `tools/make-rom.cpp`; the release
 workflow rebuilds it whenever samples are pushed. Any sound without a sample is synthesized (`core/sounds.h`) to match the
