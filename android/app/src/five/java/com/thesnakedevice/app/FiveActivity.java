@@ -46,7 +46,7 @@ import org.json.JSONObject;
  *  - AndroidMidi: USB / Bluetooth MIDI devices through android.media.midi, shaped like Web MIDI by the shim in app.js
  *    (messages arrive as __o5Midi(id, [bytes]), device changes as __o5MidiChanged()),
  *  - AndroidFive.save: exports (cartridges, MIDI files, WAVs) go to Downloads/RX5.
- *  The panel is wide, so it runs full screen (system bars hidden, swipe from an edge to show them) and prefers landscape. */
+ *  It runs full screen (system bars hidden, swipe from an edge to show them) and turns with the phone, portrait or landscape. */
 public class FiveActivity extends Activity {
   static final String HOME = "https://appassets.androidplatform.net/assets/five/index.html";
   static final int PICK = 7;

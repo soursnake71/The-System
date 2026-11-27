@@ -109,7 +109,7 @@ jobs:
           - Windows: RX5-Setup-Windows.exe installs the VST3 plugin into C:\\Program Files\\Common Files\\VST3 and the standalone app. Windows may warn about an unknown publisher: More info > Run anyway.
           - Mac: RX5-Mac.pkg installs VST3, Audio Unit and the app. It isn't notarized: right-click the .pkg > Open, or allow it in System Settings > Privacy & Security. It used to be called Omega Five: delete Omega Five.vst3 / .component / .app if you installed those.
           - Linux: sudo apt install ./rx5_amd64.deb (VST3 in /usr/lib/vst3, app in the menu).
-          - Android: open rx5.apk on the phone and allow installing from your browser or files app. Works offline, full screen in landscape; USB / Bluetooth MIDI in and out."
+          - Android: open rx5.apk on the phone and allow installing from your browser or files app. Works offline, full screen, portrait or landscape; USB / Bluetooth MIDI in and out."
           gh release view rx5 >/dev/null 2>&1 || gh release create rx5 --title "RX5 (latest)" --notes "$notes" --target "$GITHUB_SHA"
           gh release edit rx5 --notes "$notes"
           gh release upload rx5 dl/* --clobber
