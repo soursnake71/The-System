@@ -29,6 +29,14 @@ A vintage sampler in your phone or your DAW. Import any audio or video file, pic
 - Android app: the `twelve-latest` release (`omega-twelve.apk`, built by `.github/workflows/twelve-apk.yml`). Web: `https://<your-username>.github.io/<repo>/twelve/`.
 - VST3 (and AU on Mac, plus a standalone app): Omega Twelve (effect: live input through the sampler, and samples from MIDI) and Omega Twelve Instrument, in the `vst3-latest` release. The plugin's engine (`plugins/twelve/Twelve.h`) is a line-for-line port of `twelve/engine.js`; `twelve/tools/compare.mjs` checks they render the same samples.
 
+## Omega XR10 (`/xr10/`): drum machine
+An Akai XR10-style 16-bit drum machine with your photo of the panel as the instrument (every key, knob, light and the LCD work),
+plus Yamaha RX5-style voice editing: per-sound pitch, bend, attack, decay, tone, reverse, loop, pan, level, effect send and choke group,
+instrument keys for all 64 sounds, a step grid, a song list and your own samples. 50 preset rhythms with variations, fills, intro and ending.
+- Android app: the `omega-xr10` release (`omega-xr10.apk`, built by `.github/workflows/xr10-release.yml`). Web: `https://<your-username>.github.io/<repo>/xr10/`.
+- VST3 (AU on Mac, plus a standalone app): Omega XR10 in the same release (and in `vst3-latest`). Follows the host's transport, MIDI notes play the sounds.
+- One C++ engine (`xr10/core`) runs the plugin and, as WebAssembly, the app; memory files move between them. See `xr10/README.md`.
+
 ## Using a USB-C interface
 Plug it in, open the Audio tab and tap Enable input. When Chrome asks, allow the microphone. Pick the interface under Setup, then Device if it isn't the default.
 

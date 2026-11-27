@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#d9d8e0">
+<title>Omega XR10</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root {
+  --bg: #cfcdd6; --panel: #e4e3ea; --ink: #26262c; --sub: #5c5b66; --line: #b3b1bd; --key: #f4f3f7; --keyb: #9c9aa6;
+  --accent: #d2335a; --blue: #5a7fb0; --lcd: #2f3b42; --lcdt: #b4c8c6; --sel: #3c5f94; --on: #e0446a; --ghost: #9cb0d0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #1d1d22; --panel: #2a2a31; --ink: #ececf2; --sub: #a3a2ad; --line: #44434e; --key: #36353e; --keyb: #55545f; --sel: #6d95d4; --ghost: #556a8c; }
+}
+:root[data-theme="dark"] { --bg: #1d1d22; --panel: #2a2a31; --ink: #ececf2; --sub: #a3a2ad; --line: #44434e; --key: #36353e; --keyb: #55545f; --sel: #6d95d4; --ghost: #556a8c; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { padding: 0 0 40px; overscroll-behavior: none; }
+#start { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(20, 20, 26, .55); }
+#start button { font-size: 20px; padding: 18px 30px; border-radius: 12px; border: 0; background: var(--accent); color: #fff; font-weight: 600; }
+#face { position: relative; width: 100%; max-width: 1100px; margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+#face img { display: block; width: 100%; height: auto; pointer-events: none; }
+.hot { position: absolute; border-radius: 4px; cursor: pointer; }
+.hot.down { background: rgba(40, 40, 60, .28); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .35); }
+.hot.lit { box-shadow: 0 0 0 2px var(--accent) inset; }
+.led { position: absolute; border-radius: 2px; pointer-events: none; }
+.led.on { background: #ff3d6e; box-shadow: 0 0 6px 2px rgba(255, 60, 110, .8); }
+.led.off { background: #4d5159; }
+#lcd { position: absolute; background: var(--lcd); border-radius: 2px; pointer-events: none; }
+.knobcap { position: absolute; border-radius: 50%; pointer-events: none; }
+.knobcap i { position: absolute; left: 50%; top: 8%; width: 6%; height: 30%; margin-left: -3%; background: #24427a; border-radius: 3px; }
+.knob { position: absolute; border-radius: 50%; cursor: grab; touch-action: none; }
+#panel { max-width: 1100px; margin: 0 auto; padding: 8px 12px 0; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 8px; }
+.tabs button { flex: 1 1 auto; min-width: 70px; }
+button, select, input[type=number] { font: inherit; color: var(--ink); background: var(--key); border: 1px solid var(--keyb); border-radius: 6px; padding: 7px 10px; min-height: 36px; }
+button.on, .tabs button.on { background: var(--sel); color: #fff; border-color: var(--sel); }
+button.rec.on { background: var(--accent); border-color: var(--accent); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+section h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--sub); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.row label { color: var(--sub); font-size: 12px; }
+#padlcd { margin: 0 0 8px; padding: 8px 12px; background: var(--lcd); color: #b4c8c6; border-radius: 6px; font: bold 18px/1.25 "Courier New", ui-monospace, monospace; white-space: pre; overflow: hidden; }
+#bigpads { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.bigpad { height: 74px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; font-weight: 600; touch-action: none; background: linear-gradient(#f3f2f6, #d7d5de); color: #26262c; }
+.bigpad small { font-weight: 400; font-size: 10px; color: #6b6a75; }
+.bigpad.down { background: #b9b7c4; }
+#partpads { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+#partpads button { min-height: 44px; font-size: 12px; padding: 4px; touch-action: none; }
+@media (max-width: 560px) { #partpads { grid-template-columns: repeat(3, 1fr); } .bigpad { height: 64px; font-size: 12px; } #padlcd { font-size: 15px; } }
+#inst { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+#inst button { padding: 4px 2px; font-size: 10.5px; min-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#inst button.user { border-color: var(--accent); }
+@media (max-width: 560px) { #inst { grid-template-columns: repeat(4, 1fr); } }
+.params { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; }
+.param { display: grid; grid-template-columns: 70px 1fr 40px; align-items: center; gap: 6px; font-size: 12px; }
+.param span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.param input { width: 100%; }
+canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd); border-radius: 6px; margin-top: 8px; }
+#grid { display: grid; gap: 2px; overflow-x: auto; }
+#grid .name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
+#grid select { font-size: 11px; padding: 2px; min-height: 26px; width: 100%; }
+#grid .cell { min-width: 16px; height: 28px; border-radius: 4px; background: var(--key); border: 1px solid var(--keyb); cursor: pointer; }
+#grid .cell.beat { border-color: var(--sub); }
+#grid .cell.v1 { background: var(--ghost); } #grid .cell.v2 { background: var(--sel); } #grid .cell.v3 { background: var(--on); }
+#grid .cell.now { outline: 2px solid #f6c445; }
+#songlist { display: grid; gap: 4px; }
+#songlist .srow { display: grid; grid-template-columns: 34px 1fr 1fr 70px 36px 36px; gap: 4px; align-items: center; }
+#songlist .srow.now { outline: 2px solid #f6c445; border-radius: 6px; }
+.help { color: var(--sub); font-size: 12.5px; }
+.help b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div id="start"><button id="go">Power on</button></div>
+<div id="face"><img id="plate" src="faceplate.jpg" alt="Drum machine front panel"><canvas id="lcd"></canvas></div>
+<div id="panel">
+  <div class="row" style="justify-content:space-between">
+    <div class="row">
+      <button id="play">▶ Start / Stop</button>
+      <button id="recbtn" class="rec">● Record</button>
+      <button id="tap">Tap tempo</button>
+      <label>Tempo <input id="tempo" type="number" min="30" max="300" step="1" style="width:80px"></label>
+    </div>
+    <div class="row">
+      <label>Pattern <select id="patsel"></select></label>
+    </div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-tab="pads" class="on">Pads</button>
+    <button data-tab="voice">Voices (RX5)</button>
+    <button data-tab="grid">Step grid</button>
+    <button data-tab="song">Song</button>
+    <button data-tab="setup">Setup</button>
+    <button data-tab="help">Help</button>
+  </div>
+  <div id="tab-pads">
+    <section>
+      <pre id="padlcd"></pre>
+      <div id="bigpads"></div>
+      <div id="partpads"></div>
+    </section>
+  </div>
+  <div id="tab-voice" hidden>
+    <section>
+      <h3>Instruments: tap to play and edit</h3>
+      <div id="inst"></div>
+    </section>
+    <section>
+      <h3 id="vtitle">Voice</h3>
+      <div class="params" id="params"></div>
+      <canvas id="wave" width="800" height="60"></canvas>
+      <div class="row" style="margin-top:8px">
+        <button id="loadsmp">Load your own sample…</button>
+        <button id="romsmp">Back to ROM sound</button>
+        <button id="resetv">Reset voice</button>
+        <label>Put on pad <select id="assignpad"></select></label>
+        <input type="file" id="smpfile" accept="audio/*,video/*" hidden>
+      </div>
+    </section>
+  </div>
+  <div id="tab-grid" hidden>
+    <section>
+      <h3 id="gtitle">Step grid</h3>
+      <div class="row" id="partbtns"></div>
+      <div class="row">
+        <label>Bar</label><span id="barbtns" class="row" style="margin:0"></span>
+        <label>Length <select id="len"></select></label>
+        <label>Beats <select id="beats"></select></label>
+        <label>Grid <select id="sub"><option value="4">16ths</option><option value="3">Triplets</option></select></label>
+        <label>Swing <input id="swing" type="number" min="50" max="75" style="width:64px"></label>
+        <label>Bank <select id="bank"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></label>
+      </div>
+      <div id="grid"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="clearpart">Clear this part</button>
+        <span class="help">Tap a step: normal → accent → off. Editing a preset copies it to a free user pattern (51–99).</span>
+      </div>
+    </section>
+  </div>
+  <div id="tab-song" hidden>
+    <section>
+      <h3>Song (pattern chain)</h3>
+      <div class="row">
+        <label>Song <select id="songsel"></select></label>
+        <label>Tempo <input id="songtempo" type="number" min="0" max="300" style="width:80px" placeholder="pattern"></label>
+        <button id="songadd">Add current pattern</button>
+        <button id="songplay">Play song</button>
+      </div>
+      <div id="songlist"></div>
+    </section>
+  </div>
+  <div id="tab-setup" hidden>
+    <section>
+      <h3>Effects and feel</h3>
+      <div class="row">
+        <label>FX <select id="fxtype"></select></label>
+        <label>Time <input id="fxtime" type="range" min="0" max="99"></label>
+        <label>Level <input id="fxlevel" type="range" min="0" max="99"></label>
+      </div>
+      <div class="row">
+        <label>Timing correct <select id="tc"></select></label>
+        <label>Voices <select id="poly"></select></label>
+        <label>Accent velocity <input id="accvel" type="number" min="1" max="127" style="width:70px"></label>
+        <label><input type="checkbox" id="padvel"> Touch velocity on pads</label>
+      </div>
+      <div class="row">
+        <label>Click <select id="click"><option value="0">Off</option><option value="1">When recording</option><option value="2">Always</option></select></label>
+        <label>Click level <input id="clicklvl" type="range" min="0" max="99"></label>
+        <label><input type="checkbox" id="countin"> Count-in bar</label>
+      </div>
+    </section>
+    <section>
+      <h3>MIDI</h3>
+      <div class="row">
+        <button id="midion">Connect MIDI</button>
+        <label>Channel <select id="midich"></select></label>
+        <label>Note map <select id="midimap"><option value="0">General MIDI drums</option><option value="1">Note 36 = sound 1 … 99 = sound 64</option><option value="2">Note 36 = pad 1 (current bank)</option></select></label>
+        <span id="midistat" class="help"></span>
+      </div>
+    </section>
+    <section>
+      <h3>Memory</h3>
+      <div class="row">
+        <button id="export">Save all to a file</button>
+        <button id="import">Load from a file</button>
+        <input type="file" id="importfile" accept=".xr10,application/octet-stream" hidden>
+        <button id="init">Initialize all</button>
+        <button id="theme">Light / dark</button>
+      </div>
+      <p class="help">Your patterns, songs, voice edits and samples are kept on this device automatically. The same file loads into the Omega XR10 VST3 plugin, and back.</p>
+    </section>
+  </div>
+  <div id="tab-help" hidden>
+    <section class="help">
+      <h3>Using the front panel</h3>
+      <p><b>START/STOP</b> plays the pattern shown on the screen. Type a number on the keypad (two digits, e.g. <b>0 7</b>) to pick a pattern; while playing it changes at the end of the bar. <b>◄ ►</b> step through patterns, <b>▲ ▼</b> change the tempo, and the <b>TEMPO/DATA</b> knob turns either way (drag it).</p>
+      <p><b>VARIATION A/B/C</b> (pads 12, 11, 10) switch the groove at the bar line. <b>FILL IN A/B/C</b> (pads 15, 14, 13) play a fill now and lead into the matching variation. <b>INTRO/END</b> starts with an intro when stopped and plays the ending when playing. <b>BREAK/CONTINUE</b> stops at the bar line and carries on when pressed again.</p>
+      <p><b>Recording:</b> press <b>EDIT</b>, then <b>+/Y</b> (RECORD ON), <b>EDIT</b> again to leave the menu, and <b>START</b>. Hit the pads; <b>TIMING CORRECT</b> sets the quantize and <b>ACCENT</b> records at full strength. Hold <b>ERASE</b> and hit a pad to remove that sound. Press ERASE while stopped to clear the part. In the EDIT menu, ▲ ▼ go through length, time signature, swing, click, count-in, copy, name and clear.</p>
+      <p><b>MODE</b> (or tap a mode light) goes Pattern → Song → Sound → Utility. In <b>Sound</b> mode, hit a pad and turn DATA to change the sound on it; ▲ ▼ go through level, pan, tune, fine, bend, attack, decay, tone, reverse, loop, FX send, group and velocity sensitivity. In <b>Song</b> mode, ◄ ► pick step / pattern / part / repeat, DATA or −/+ change it, ENTER adds a step, ERASE deletes it. <b>PAD BANK</b> switches between four sets of 15 sounds.</p>
+      <h3>RX5-style extras</h3>
+      <p>Every sound has its own pitch, bend, envelope, tone, reverse, loop, pan, effect send and choke group, all on sliders under <b>Voices</b>, with the waveform shown. You can load your own samples onto any of the 64 sounds. The <b>Step grid</b> shows the part you're playing, one bar at a time, for the 15 pads of the bank. The <b>Song</b> page lists the chain step by step.</p>
+    </section>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

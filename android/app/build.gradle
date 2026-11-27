@@ -30,6 +30,12 @@ android {
       manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/twelve/']
       buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/twelve/"'
     }
+    xr10 {
+      dimension 'app'
+      applicationId 'com.thesnakedevice.xr10'
+      manifestPlaceholders = [startUrl:'https://soursnake71.github.io/The-System/xr10/']
+      buildConfigField 'String', 'START_URL', '"https://soursnake71.github.io/The-System/xr10/"'
+    }
   }
   signingConfigs {
     release {
@@ -45,6 +51,7 @@ android {
 dependencies {
   implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
   twelveImplementation 'androidx.webkit:webkit:1.12.1'
+  xr10Implementation 'androidx.webkit:webkit:1.12.1'
 }
 
 // Omega Twelve carries the web app inside the APK: copy ../twelve (the app's files, not its tools) into its assets
@@ -55,3 +62,12 @@ tasks.register('copyTwelveWeb', Copy) {
 }
 android.sourceSets.twelve.assets.srcDirs += [twelveAssets]
 tasks.matching { it.name.startsWith('merge') && it.name.contains('Twelve') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyTwelveWeb' }
+
+// Omega XR10 carries its app inside the APK too: ../xr10 without the engine sources and tools
+def xr10Assets = layout.buildDirectory.dir('xr10Assets')
+tasks.register('copyXR10Web', Copy) {
+  from('../../xr10') { exclude 'tools/**', 'core/**', '*.md' }
+  into xr10Assets.map { it.dir('xr10') }
+}
+android.sourceSets.xr10.assets.srcDirs += [xr10Assets]
+tasks.matching { it.name.startsWith('merge') && it.name.contains('Xr10') && it.name.endsWith('Assets') }.configureEach { dependsOn 'copyXR10Web' }
