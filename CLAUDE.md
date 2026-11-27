@@ -18,6 +18,13 @@
 - Each APK build bumps `BUILD` in `xr10/app.js` and the `xr10` flavor's versionCode in `android/app/build.gradle`, so the
   owner can see which build they have. Send the APK with every change.
 
+## UI rules (all apps and plugins)
+- **No scrolling menus, ever.** Every menu, dropdown or picker shows all of its choices at once (a grid of buttons,
+  several columns if needed), never a list you have to scroll. In web apps don't use native `<select>` popups for
+  long lists; in JUCE give popup menus enough columns to fit.
+- The owner's phone is a **Samsung Galaxy S23** (about 360×780 CSS px in portrait, 780×360 in landscape). Everything
+  must fit and be tappable on it.
+
 ## General
 - The owner writes short messages from a phone. Act on them; ask only when it's truly ambiguous.
 - Plugins are JUCE VST3 (AU on Mac) built by GitHub Actions; Android apps are WebView wrappers in `android/`.
