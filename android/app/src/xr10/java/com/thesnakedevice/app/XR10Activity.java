@@ -83,6 +83,7 @@ public class XR10Activity extends Activity {
       return ins;
     });
     setContentView(root);
+    web.clearCache(true);
     if (b != null) web.restoreState(b); else web.loadUrl(HOME);
   }
 
@@ -97,6 +98,7 @@ public class XR10Activity extends Activity {
     s.setMediaPlaybackRequiresUserGesture(false);
     s.setAllowFileAccess(false);
     s.setAllowContentAccess(false);
+    s.setCacheMode(WebSettings.LOAD_NO_CACHE);   // the app is in the APK: never show files cached from an older install
     w.setWebViewClient(new WebViewClient() {
       @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) { return assets.shouldInterceptRequest(r.getUrl()); }
       @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {

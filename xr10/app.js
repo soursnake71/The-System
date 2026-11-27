@@ -134,7 +134,20 @@ function drawLcd() {
     }
   }
 }
-window.addEventListener('resize', drawLcd);
+const BUILD = 4;   // shown on the panel at start, so you can tell which version is running
+// the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
+function fitFace() {
+  const avail = Math.max(200, window.innerHeight - 4);
+  const w = Math.min(face.parentElement.clientWidth, 1100, avail * W / H);
+  face.style.width = Math.floor(w) + 'px';
+  face.style.maxWidth = 'none';
+  drawLcd();
+}
+window.addEventListener('resize', fitFace);
+window.addEventListener('orientationchange', () => setTimeout(fitFace, 250));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitFace);
+fitFace();
+try { $('buildno').textContent = 'Omega XR10, build ' + BUILD; } catch (e) { }
 
 // --------------------------------------------------- audio and engine
 let ctx = null, node = null, info = null, S = null;
@@ -142,7 +155,7 @@ const send = m => { if (node) node.port.postMessage(m); };
 let ready = false;
 async function power() {
   $('start').remove();
-  lcdText = ['  OMEGA  XR10', '  LOADING...']; drawLcd();
+  lcdText = ['  OMEGA  XR10', ' BUILD ' + BUILD + ' LOADING']; drawLcd();
   try { await powerOn(); }
   catch (e) { lcdText = ['ERROR:', String(e && e.message || e).toUpperCase().slice(0, 16)]; drawLcd(); alert('Omega XR10 could not start its sound engine: ' + (e && e.message || e)); }
 }
