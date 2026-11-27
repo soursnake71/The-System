@@ -135,6 +135,7 @@ void EightProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
         if (upTo <= pos) return;
         const int base = pos;
         m->process(L + pos, R + pos, upTo - pos, [&](int off, const StepInfo& s) {
+            { const long long t = clock.load() + base + off, prev = stepAt.load(); if (prev > 0 && t > prev && t - prev < (long long) (sr * 2)) stepLen = t - prev; stepAt = t; }
             runStep = s.step; runRhythm = basic.load();
             const int at = juce::jlimit(0, n - 1, base + off), len = (int) (sr * 0.05);
             for (auto& h : s.hits) {
@@ -161,6 +162,7 @@ void EightProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffe
         }
     }
     render(n);
+    clock += n;
     // note-offs due in this block (positions are relative to the block start; later ones carry over)
     for (auto& o : offs) if (o.left < n) out.addEvent(juce::MidiMessage::noteOff(kOutCh, o.note), o.left);
     offs.erase(std::remove_if(offs.begin(), offs.end(), [n](const Off& o) { return o.left < n; }), offs.end());
@@ -213,12 +215,41 @@ void EightProcessor::hit(const juce::String& v, bool acc) {
     const juce::ScopedLock l(getCallbackLock());
     if (m) m->eng.trigger(v.toStdString(), acc ? 1 : 0, acc ? 1.0 : 0.8);
 }
+juce::String EightProcessor::recHit(const juce::String& voice, bool acc) {
+    const juce::String v = voice.toUpperCase();
+    juce::String tr = v == "TRIG" ? juce::String("TRIG") : juce::String();
+    static const char* const ALTS[][2] = {{"LT", "LC"}, {"MT", "MC"}, {"HT", "HC"}, {"RS", "CL"}, {"CP", "MA"}};
+    if (tr.isEmpty()) { for (int i = 1; i < 12; i++) if (v == TRACKS[i]) tr = TRACKS[i]; for (auto& a : ALTS) if (v == a[1]) { tr = a[0]; if (getParam(juce::String(a[0]) + ".sel") < 0.5f) setParam(juce::String(a[0]) + ".sel", 1); } }
+    for (auto& a : ALTS) if (v == a[0] && getParam(juce::String(a[0]) + ".sel") > 0.5f) setParam(juce::String(a[0]) + ".sel", 0);
+    if (tr.isEmpty()) return {};
+    const bool play = running.load() && runStep.load() >= 0;
+    juce::String msg;
+    if (tr == "TRIG" && (int) std::round(getParam("mod.TRIG.src")) != 3) {
+        setParam("mod.TRIG.src", 3); if (getParam("mod.TRIG.level") < 0.05f) setParam("mod.TRIG.level", 0.6f); msg = "TRIG OUT: its own track";
+    }
+    const juce::ScopedLock l(getCallbackLock());
+    if (!play) { if (m) m->eng.trigger(v.toStdString(), acc ? 1 : 0, acc ? 1.0 : 0.8); return msg; }
+    auto& p = editPat(bank, runRhythm.load(), (int) pVar->load());
+    const int total = juce::jmax(1, p.len * p.parts);
+    const long long len = juce::jmax(1LL, stepLen.load() > 0 ? stepLen.load() : (long long) (sr * 15 / juce::jmax(40.0, tempoShown.load())));
+    const bool early = clock.load() - stepAt.load() > len / 2;
+    int idx = runStep.load() % total; if (early) idx = (idx + 1) % total;
+    else if (m) m->eng.trigger(v.toStdString(), acc ? 1 : 0, acc ? 1.0 : 0.8);
+    auto put = [&](const juce::String& t) {
+        auto& str = p.steps[t.toStdString()]; if ((int) str.size() < total) str.resize((size_t) total, '.');
+        if (str[(size_t) idx] == 'x') return; str[(size_t) idx] = 'x';
+        if (m) m->seq.edit(false, runRhythm.load(), (int) pVar->load() == 2 ? 'B' : 'A', t.toStdString(), idx, true);
+    };
+    put(tr); if (acc) put("AC");
+    return msg.isNotEmpty() ? msg : "REC " + v + " step " + juce::String(idx + 1);
+}
 juce::String EightProcessor::lcdText() const {
     static const char* M[] = {"WRITE 1ST", "WRITE 2ND", "", "PLAY"};
     const int md = mode.load();
     juce::String s = juce::String(M[juce::jlimit(0, 3, md)]) + "  R" + juce::String(basic.load() + 1).paddedLeft('0', 2)
         + juce::String(" ABB").substring((int) pVar->load() + 1, (int) pVar->load() + 2);
-    if (md <= 1) s << "  " << TRACKS[track.load()];
+    if (rec.load()) s = juce::String(running.load() ? "* REC R" : "REC: START to record R") + juce::String(runRhythm.load() + 1).paddedLeft('0', 2);
+    else if (md <= 1) s << "  " << TRACKS[track.load()];
     s << "\n" << juce::String(tempoShown.load(), 1) << " BPM  " << (running ? "RUN" : "STOP") << (pSync->load() > 0.5f ? "  HOST" : "");
     return s;
 }

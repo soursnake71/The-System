@@ -31,7 +31,9 @@ private:
 class HotSpot : public juce::Component {
 public:
     std::function<void()> onPress;
-    std::function<int()> led;                    // 0 off, 1 dim, 2 lit
+    std::function<int()> led;                    // 0 off, 1 dim, 2 lit, 3 the running light
+    std::function<juce::String()> label;         // drawn on the key (PADS / REC: what it plays)
+    bool ring = false;                           // a step key: the whole key glows when lit (easy to see), white when running
     juce::Point<float> ledAt {0.5f, 0.2f};       // relative position of the LED
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override { if (onPress) onPress(); }
@@ -44,13 +46,14 @@ public:
     void resized() override;
     void refresh();
     void zoomLit(bool on) { zoom.setToggleState(on, juce::dontSendNotification); zoom.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffe2581c)); }
-private:
+public:   // (the UI test drives the keys)
     EightEditor& ed;
     juce::Image photo;
     juce::OwnedArray<PhotoKnob> knobs;
     juce::OwnedArray<HotSpot> spots;
     std::vector<juce::Rectangle<int>> knobRects, spotRects;   // in photo pixels (2000 x 1190)
-    juce::TextButton circuit {"CIRCUIT"}, sync {"SYNC HOST"}, pads {"PADS"}, zoom {"ZOOM"};
+    juce::TextButton circuit {"CIRCUIT"}, sync {"SYNC HOST"}, pads {"PADS"}, zoom {"ZOOM"}, recB {"REC"}, trigPad {"TRIG OUT"};
+    juce::String padVoice(int i) const;
     juce::ComboBox presets;
     bool padMode = false;
     PhotoKnob* addKnob(int x, int y, int r);
@@ -96,6 +99,7 @@ public:
     void resized() override;
     void paint(juce::Graphics&) override;
     void showBoard(bool on);
+    FaceView& faceView() { return face; }       // for the UI test
     omega::Loupe loupe;                          // ZOOM: magnify any part of the window and use it there
     EightProcessor& proc;
 private:

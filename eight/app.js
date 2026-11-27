@@ -103,6 +103,8 @@ function onMsg(e){
     let st = m.step, part = m.part;
     if (part == null) part = st >= 16 ? 1 : 0;
     S.run = st % 16; S.curPart = part; if (m.var) S.curVar = m.var;
+    const now = performance.now(); if (S.lastStep && now - S.lastStep.at < 2000) S.stepMs = now - S.lastStep.at;
+    S.lastStep = {at:now, idx:part * 16 + st % 16, which:m.which || S.which, n:m.which === 'fill' ? S.fill : (m.rhythm != null ? m.rhythm : S.basic), var:m.var || editVar()};
     if (m.which === 'basic' && m.rhythm != null) S.playingBasic = m.rhythm;
     chainStep(m);
     renderLeds();
@@ -139,7 +141,8 @@ function renderLcd(){
   const lcd = $('#lcd'); if (!lcd) return;
   const tr = S.trigWrite ? 'TRIG' : trackVoice(S.track);
   let l1;
-  if (S.pads) l1 = 'PADS  tap the step keys';
+  if (S.rec) l1 = (S.playing ? '● REC ' : 'REC: START to record ') + (S.lastStep && S.playing ? (S.lastStep.which === 'fill' ? 'I/F' + (S.lastStep.n + 1) : 'R' + String(S.lastStep.n + 1).padStart(2, '0')) + S.lastStep.var : '');
+  else if (S.pads) l1 = 'PADS  tap the step keys';
   else if (S.mode <= 1) l1 = `WRITE ${S.mode ? '2ND' : '1ST'} ${S.which === 'basic' ? 'R' + String(S.basic + 1).padStart(2, '0') : 'I/F' + (S.fill + 1)}${editVar()} ${tr}`;
   else if (S.mode === 4) l1 = 'COMPOSE ' + (S.chain.length ? S.chain.map(n => n + 1).join('-') : '(tap 1-12)');
   else l1 = `${S.mode === 2 ? 'MANUAL' : 'PLAY'} R${String(S.basic + 1).padStart(2, '0')} ${S.variation}  I/F${S.fill + 1}${S.ifVar}`;
@@ -237,7 +240,8 @@ function lever(slot, lw, lh, positions, get, horizontal){
   const l = el('div', 'lever', $('#ctl')); l.style.width = lw + 'px'; l.style.height = lh + 'px';
   return {render(){ const p = positions[get()]; if (horizontal){ l.style.left = p - lw / 2 + 'px'; l.style.top = slot[1] + (slot[3] - lh) / 2 + 'px'; } else { l.style.top = p - lh / 2 + 'px'; l.style.left = slot[0] + (slot[2] - lw) / 2 + 'px'; } }};
 }
-const leds = [], vLeds = [], pLeds = [];
+const leds = [], vLeds = [], pLeds = [], padLbls = [];
+let trigPad = null;
 let presses = [];
 function buildFace(){
   const ctl = $('#ctl'); ctl.innerHTML = '';
@@ -294,12 +298,16 @@ function buildFace(){
     leds[i] = at('led', x, 948);
     const pr = el('div', 'press', ctl); Object.assign(pr.style, {left:x - 30 + 'px', top:932 + 'px', width:'60px', height:'98px'}); presses[i] = pr;
     button(x - 34, 928, 68, 106, (e, down, b) => stepKey(i, down, e, b));
+    padLbls[i] = at('padlbl', x, 992);
   });
+  // REC: a big trigger-out pad in the blank space beside the buttons
+  trigPad = el('button', 'trigpad', ctl, 'TRIG OUT<small>tap to record the click</small>');
+  trigPad.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Eight.start(); S.lastTrig = performance.now(); recHit('TRIG', 1); renderLeds(); setTimeout(renderLeds, 140); });
   // readout and buttons in the blank space
   el('div', '', ctl).id = 'lcd';
   const fb = el('div', 'fbtns', ctl);
   for (const [lab, fn, id] of [['PRESETS', openPresets], ['PADS', () => { S.pads = !S.pads; renderAll(); }, 'bpads'], ['MIDI', () => window.EightMidi && EightMidi.openSettings ? EightMidi.openSettings() : toast('MIDI is not available here')],
-    ['EXPORT', () => $('#export').showModal()], ['CIRCUIT ▲', () => fold(true)], ['🔍 ZOOM', () => {}, 'bzoom']]){
+    ['EXPORT', () => $('#export').showModal()], ['CIRCUIT ▲', () => fold(true)], ['● REC', () => setRec(!S.rec), 'brec'], ['🔍 ZOOM', () => {}, 'bzoom']]){
     const b = el('button', 'fb', fb, lab); if (id) b.id = id;
     b.addEventListener('pointerdown', e => e.stopPropagation()); b.addEventListener('click', fn);
   }
@@ -331,10 +339,10 @@ function stepKey(i, down, e, b){
   presses[i].classList.toggle('on', down);
   if (!down) return;
   Eight.start();
-  if (S.pads){
+  if (S.pads || S.rec){
     const r = b.getBoundingClientRect(), vel = Math.max(0.3, Math.min(1, 1 - (e.clientY - r.top) / r.height + 0.3));
-    const v = i === 0 ? null : i < 12 ? trackVoice(i) : ['MA','CL','HC','TRIG'][i - 12];
-    if (v) Eight.hit(v, S.padAcc ? 1 : 0, vel); else { S.padAcc = !S.padAcc; flash('ACCENT ' + (S.padAcc ? 'ON' : 'OFF')); }
+    const v = padVoice(i);
+    if (v){ if (S.rec) recHit(v, vel); else Eight.hit(v, S.padAcc ? 1 : 0, vel); } else { S.padAcc = !S.padAcc; flash('ACCENT ' + (S.padAcc ? 'ON' : 'OFF')); renderLeds(); }
     return;
   }
   if (S.clearHeld && S.mode <= 1){ const p = curPat(); p.len = i + 1; padSteps(p); Eight.post({t:'bank', bank:S.bank}); flash('LAST STEP ' + (i + 1)); save(); renderLeds(); return; }
@@ -343,14 +351,51 @@ function stepKey(i, down, e, b){
   if (i < 12){ S.basic = i; S.which = 'basic'; } else { S.fill = i - 12; S.which = 'fill'; }
   sendSelect(); renderAll(); save();
 }
+// pads (PADS and REC): key 1 = ACCENT, 2-12 the instrument tracks, 13-16 maracas, claves, hi conga, trigger out
+const padVoice = i => i === 0 ? null : i < 12 ? trackVoice(i) : ['MA','CL','HC','TRIG'][i - 12];
+const trackOf = v => { if (v === 'TRIG') return 'TRIG'; for (let i = 1; i < 12; i++) if (trackVoice(i) === v || TRACKS[i] === v || ALT[TRACKS[i]] === v) return TRACKS[i]; return null; };
+/* real-time recording: while the rhythm plays, a hit lands on the nearest step of the playing pattern (with the
+   accent when ACCENT is on). Early hits wait for that step (the sequencer plays them on time, so nothing flams);
+   late ones sound now. The trigger out has its own track: recording into it points the trigger out at it. */
+function recHit(v, vel){
+  const acc = S.padAcc ? 1 : 0;
+  if (!S.playing || !S.lastStep){ Eight.hit(v, acc, vel); return; }
+  const L = S.lastStep, r = L.which === 'fill' ? S.bank.fill[L.n] : S.bank.basic[L.n], p = r[L.var] || r.A;
+  const dur = S.stepMs || 15000 / bpm(), early = performance.now() - L.at > dur / 2;
+  let idx = L.idx;
+  if (early){ const st = idx % 16, part = idx >= 16 ? 1 : 0; idx = st + 1 < p.len ? idx + 1 : part + 1 < p.parts ? 16 : 0; }
+  else Eight.hit(v, acc, vel);
+  const tr = trackOf(v); if (!tr) return;
+  if (tr !== 'TRIG' && ALT[tr] && v !== tr && !S.params[tr + '.sel']) Eight.set(tr + '.sel', 1, true);
+  padSteps(p);
+  const put = (t) => { let s = (p.steps[t] || '').padEnd(p.len * p.parts, '.'); if (s[idx] === 'x') return; p.steps[t] = s.slice(0, idx) + 'x' + s.slice(idx + 1);
+    Eight.post({t:'edit', which:L.which, n:L.n, var:r[L.var] ? L.var : 'A', track:t, step:idx, on:true}); };
+  put(tr); if (acc) put('AC');
+  if (tr === 'TRIG' && Math.round(S.params['mod.TRIG.src'] || 0) !== 3){
+    Eight.set('mod.TRIG.src', 3, true); if (!(S.params['mod.TRIG.level'] > 0.05)) Eight.set('mod.TRIG.level', 0.6, true);
+    flash('TRIG OUT: its own track');
+  } else flash('REC ' + v + ' step ' + ((idx % 16) + 1) + (idx >= 16 ? ' (2nd)' : ''));
+  save();
+}
+function setRec(on){
+  S.rec = on; if (on){ S.pads = false; Eight.start(); }
+  document.body.classList.toggle('rec', on); renderAll();
+}
 function renderLeds(){
   if (!leds.length) return;
   const lit = new Array(16).fill(false);
-  if (S.pads){}
+  if (S.pads || S.rec){ lit[0] = !!S.padAcc; }
   else if (S.mode <= 1){ const p = curPat(), tr = S.trigWrite ? 'TRIG' : TRACKS[S.track], off = S.mode === 1 ? 16 : 0; for (let i = 0; i < 16; i++) lit[i] = stepOn(p, tr, off + i); }
   else if (S.mode === 4){ for (const n of S.chain) lit[n] = true; }
   else { lit[S.basic] = true; lit[12 + S.fill] = true; }
-  for (let i = 0; i < 16; i++){ const run = S.playing && S.run === i; leds[i].classList.toggle('on', run ? !lit[i] || S.mode > 1 : lit[i]); leds[i].classList.toggle('run', run); }
+  for (let i = 0; i < 16; i++){
+    const run = S.playing && S.run === i;
+    leds[i].classList.toggle('on', run ? !lit[i] || S.mode > 1 : lit[i]); leds[i].classList.toggle('run', run);
+    // the key itself glows when it is lit, so it is easy to see which keys are on
+    presses[i].classList.toggle('lit', lit[i]); presses[i].classList.toggle('now', run);
+    if (padLbls[i]){ const v = S.pads || S.rec ? (i === 0 ? 'ACC' : padVoice(i)) : ''; if (padLbls[i].textContent !== v) padLbls[i].textContent = v; }
+  }
+  if (trigPad) trigPad.classList.toggle('hot', S.lastTrig && performance.now() - S.lastTrig < 120);
   const v = S.playing ? S.curVar : S.variation;
   vLeds[0].classList.toggle('on', v === 'A' || v === 'AB'); vLeds[1].classList.toggle('on', v === 'B' || v === 'AB');
   const part = S.mode <= 1 && !S.playing ? S.mode : S.curPart;
@@ -359,6 +404,7 @@ function renderLeds(){
 function renderAll(){
   for (const k in controls) controls[k].render();
   const pb = $('#bpads'); if (pb) pb.classList.toggle('on', S.pads);
+  const rb = $('#brec'); if (rb) rb.classList.toggle('on', !!S.rec);
   renderLeds(); renderLcd(); renderBoard();
 }
 

@@ -71,6 +71,9 @@ public:
     void clearSample(const juce::String& voice);
     juce::String sampleName(const juce::String& voice) const;
     void hit(const juce::String& voice, bool accent);            // play a voice from the editor
+    // REC: play a voice and record it on the nearest step of the playing rhythm (an early hit waits for its step, so it
+    // never flams); TRIG records the trigger-out click and points the trigger out at its own track. Returns a message.
+    juce::String recHit(const juce::String& voice, bool accent);
     void selectRhythm(int basic);
     juce::String lcdText() const;
     double currentTempo() const { return tempoShown.load(); }
@@ -82,6 +85,8 @@ public:
     std::atomic<int> runStep {-1};    // the running light (audio thread writes it)
     std::atomic<int> runRhythm {0};
     std::atomic<bool> running {false};
+    std::atomic<bool> rec {false};                // REC on (the editor's real-time recording mode)
+    std::atomic<bool> padAccent {false};
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout layout();
@@ -101,6 +106,7 @@ private:
     std::atomic<float>* pVar = nullptr; std::atomic<float>* pIfVar = nullptr;
     int lastVar = -1, lastIfVar = -1, lastBasic = -1;
     bool hostWasPlaying = false; double lastPpq = -1, lastBpm = 0;
+    std::atomic<long long> clock {0}, stepAt {0}, stepLen {0};   // samples: now (block start), the last step, the step before it
     std::atomic<double> tempoShown {120};
     int program = 0;
 

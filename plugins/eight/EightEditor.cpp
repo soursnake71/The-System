@@ -30,11 +30,26 @@ void PhotoKnob::mouseDrag(const juce::MouseEvent& e) {
 /* ---------------- hot spot ---------------- */
 void HotSpot::paint(juce::Graphics& g) {
     if (!led) return;
-    const int s = led(); if (!s) return;
-    const float d = juce::jmax(6.f, getWidth() * 0.22f), x = getWidth() * ledAt.x, y = getHeight() * ledAt.y;
-    g.setColour(s == 2 ? kLed : kLed.withAlpha(0.45f));
-    g.fillEllipse(x - d / 2, y - d / 2, d, d);
-    if (s == 2) { g.setColour(kLed.withAlpha(0.35f)); g.fillEllipse(x - d, y - d, d * 2, d * 2); }
+    const int s = led();
+    if (label) { const auto t = label(); if (t.isNotEmpty()) {   // PADS / REC: what the key plays, on a dark tag
+        const auto r = getLocalBounds().toFloat().withTrimmedTop(getHeight() * 0.55f).reduced(getWidth() * 0.1f, getHeight() * 0.06f);
+        g.setColour(juce::Colours::black.withAlpha(0.72f)); g.fillRoundedRectangle(r, 4);
+        g.setFont(juce::Font(juce::FontOptions(r.getHeight() * 0.7f, juce::Font::bold))); g.setColour(juce::Colours::white);
+        g.drawFittedText(t, r.toNearestInt(), juce::Justification::centred, 1); } }
+    if (!s) return;
+    const float d = juce::jmax(6.f, getWidth() * 0.26f), x = getWidth() * ledAt.x, y = getHeight() * ledAt.y;
+    if (ring && s >= 2) {   // the whole key glows: red when lit, white for the running light
+        const auto b = getLocalBounds().toFloat().reduced(2.f); const juce::Colour c = s == 3 ? juce::Colour(0xfffff4c8) : juce::Colour(0xffff3a14);
+        for (int k = 3; k >= 1; k--) { g.setColour(c.withAlpha(0.18f * k)); g.drawRoundedRectangle(b.reduced(k * 1.5f), 6, 3.f + k * 2); }
+        g.setColour(juce::Colours::black); g.drawRoundedRectangle(b.reduced(1.f), 6, 2.5f);           // dark edge: the ring shows on any key colour
+        g.setColour(c); g.drawRoundedRectangle(b.reduced(4.f), 5, 4.f);
+        g.setColour(juce::Colours::black.withAlpha(0.8f)); g.drawRoundedRectangle(b.reduced(7.f), 4, 1.5f);
+    }
+    const juce::Colour lc = s == 3 ? juce::Colour(0xfffff4c8) : kLed;
+    // a wide glow, then the LED itself with a hot centre
+    if (s >= 2) { for (int k = 3; k >= 1; k--) { g.setColour(lc.withAlpha(0.16f * k)); const float e = d * (1 + k * 0.6f); g.fillEllipse(x - e / 2, y - e / 2, e, e); } }
+    g.setColour(s >= 2 ? lc : kLed.withAlpha(0.5f)); g.fillEllipse(x - d / 2, y - d / 2, d, d);
+    if (s >= 2) { g.setColour(juce::Colours::white.withAlpha(0.8f)); g.fillEllipse(x - d * 0.2f, y - d * 0.2f, d * 0.4f, d * 0.4f); }
 }
 
 /* ---------------- faceplate ---------------- */
@@ -113,21 +128,34 @@ FaceView::FaceView(EightEditor& e) : ed(e) {
     // the 16 step keys: write steps, pick rhythms in PLAY, or play the voices in PADS mode
     for (int i = 0; i < 16; i++) {
         auto* s = addSpot(STEPX[i] - 34, 928, 68, 106);
-        s->ledAt = {0.5f, 20.f / 106.f};
+        s->ledAt = {0.5f, 20.f / 106.f}; s->ring = true;
+        s->label = [this, &P, i] { return padMode || P.rec.load() ? (i == 0 ? juce::String("ACC") : padVoice(i)) : juce::String(); };
         s->onPress = [this, &P, i] {
-            if (padMode) { static const char* V[] = {"BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH", "LC", "MC", "HC", "CL", "MA"}; P.hit(V[i], false); return; }
+            // PADS and REC: key 1 = ACCENT, 2-12 the instrument tracks, 13-16 maracas, claves, hi conga, trigger out
+            if (padMode || P.rec.load()) {
+                if (i == 0) { P.padAccent = !P.padAccent.load(); repaint(); return; }
+                if (P.rec.load()) { const auto msg = P.recHit(padVoice(i), P.padAccent.load()); (void) msg; } else P.hit(padVoice(i), P.padAccent.load());
+                return;
+            }
             if (P.mode.load() <= 1) P.toggleStep(P.track.load(), i);
             else if (i < 12) P.selectRhythm(i);
         };
         s->led = [this, &P, i] {
-            if (padMode) return 0;
-            if (P.running.load() && P.runStep.load() % 16 == i) return 2;
+            if (padMode || P.rec.load()) return i == 0 && P.padAccent.load() ? 2 : (P.running.load() && P.runStep.load() % 16 == i ? 3 : 0);
+            if (P.running.load() && P.runStep.load() % 16 == i) return 3;
             if (P.mode.load() <= 1) return P.getStep(P.track.load(), i) ? 2 : 0;
             return i == P.basic.load() ? 1 : 0;
         };
     }
     // buttons in the blank space under the sound strips, as in the app
-    for (auto* b : {&circuit, &sync, &pads, &zoom}) { addAndMakeVisible(b); b->setColour(juce::TextButton::buttonColourId, kCream); b->setColour(juce::TextButton::textColourOffId, juce::Colours::black); }
+    // REC: the step keys become pads that record into the playing rhythm; the big TRIG OUT pad records the trigger click
+    recB.onClick = [this, &P] { P.rec = !P.rec.load(); if (P.rec.load()) padMode = false; pads.setToggleState(padMode, juce::dontSendNotification);
+        recB.setToggleState(P.rec.load(), juce::dontSendNotification); trigPad.setVisible(P.rec.load()); repaint(); };
+    recB.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffc8102e)); recB.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+    trigPad.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffe2581c)); trigPad.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    trigPad.onClick = [this, &P] { P.recHit("TRIG", P.padAccent.load()); repaint(); };
+    addChildComponent(trigPad); trigPad.setVisible(P.rec.load()); recB.setToggleState(P.rec.load(), juce::dontSendNotification);
+    for (auto* b : {&circuit, &sync, &pads, &zoom, &recB}) { addAndMakeVisible(b); b->setColour(juce::TextButton::buttonColourId, kCream); b->setColour(juce::TextButton::textColourOffId, juce::Colours::black); }
     circuit.onClick = [this] { ed.showBoard(true); };
     zoom.onClick = [this] { ed.loupe.toggle(); };
     sync.setClickingTogglesState(false);
@@ -157,9 +185,18 @@ void FaceView::resized() {
     const int y = 628, h = 64;   // under the instrument strips, left of "Rhythm Composer"
     circuit.setBounds(toScreen({516, y, 120, h})); sync.setBounds(toScreen({644, y, 120, h})); pads.setBounds(toScreen({772, y, 90, h}));
     presets.setBounds(toScreen({870, y, 140, h}));
-    zoom.setBounds(toScreen({516, y + h + 8, 120, h}));
+    zoom.setBounds(toScreen({516, y + h + 8, 120, h})); recB.setBounds(toScreen({644, y + h + 8, 120, h}));
+    trigPad.setBounds(toScreen({1090, y, 250, 128}));
 }
 
+juce::String FaceView::padVoice(int i) const {
+    auto& P = ed.proc; static const char* const T[] = {"AC", "BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH"};
+    static const char* const ALT[][2] = {{"LT", "LC"}, {"MT", "MC"}, {"HT", "HC"}, {"RS", "CL"}, {"CP", "MA"}};
+    if (i <= 0) return {};
+    if (i >= 12) { static const char* const X[] = {"MA", "CL", "HC", "TRIG"}; return X[juce::jlimit(0, 3, i - 12)]; }
+    for (auto& a : ALT) if (juce::String(T[i]) == a[0] && P.getParam(juce::String(a[0]) + ".sel") > 0.5f) return a[1];
+    return T[i];
+}
 void FaceView::refresh() { for (auto* k : knobs) k->repaint(); for (auto* s : spots) s->repaint(); repaint(toScreen({300, 80, 680, 122})); }
 
 /* ---------------- circuit board ---------------- */

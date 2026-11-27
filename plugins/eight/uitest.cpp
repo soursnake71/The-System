@@ -37,6 +37,26 @@ int main(int argc, char** argv) {
     check(boardOn, "CIRCUIT pressed inside the lens opens the circuit board");
     L->setActive(false); shot("eight-board.png");
     check(!L->isActive() && !L->isOpen(), "ZOOM off closes the lens");
+    // REC: the step keys become pads; taps while it plays land on steps; the TRIG OUT pad records the trigger click
+    ed->showBoard(false); pump(30);
+    auto& F = ed->faceView(); auto& P = *proc;
+    juce::AudioBuffer<float> buf(2, 256); juce::MidiBuffer mb;
+    auto render = [&](int blocks) { for (int k = 0; k < blocks; k++) { buf.clear(); mb.clear(); P.processBlock(buf, mb); } };
+    F.recB.triggerClick(); pump(30);
+    check(P.rec.load() && F.trigPad.isVisible(), "REC on shows the TRIG OUT pad");
+    auto count = [&](int track) { int c = 0; for (int i = 0; i < P.editLength(); i++) c += P.getStep(track, i) ? 1 : 0; return c; };
+    P.mode = 3; const int sd0 = count(2);
+    P.setParam("run", 1); render(20);
+    std::vector<eight::HotSpot*> keys; for (auto* h : F.spots) if (h->ring) keys.push_back(h);
+    check(keys.size() == 16 && keys[2]->label && keys[2]->label() == "SD" && keys[0]->label() == "ACC", "in REC the 16 step keys are pads labelled ACC BD SD ...");
+    for (int k = 0; k < 4; k++) { keys[2]->onPress(); render(70); }
+    check(count(2) > sd0, "live SD taps in REC are written into the playing rhythm (" + juce::String(sd0) + " -> " + juce::String(count(2)) + " steps)");
+    F.trigPad.triggerClick(); pump(30);
+    check((int) std::round(P.getParam("mod.TRIG.src")) == 3 && P.getParam("mod.TRIG.level") > 0.05f, "TRIG OUT pad points the trigger out at its own track");
+    ed->repaint(); render(30); shot("eight-rec.png");
+    F.recB.triggerClick(); pump(30); P.setParam("run", 0); render(4);
+    check(!P.rec.load() && !F.trigPad.isVisible(), "REC off hides the TRIG OUT pad");
+    P.mode = 0; P.track = 1; ed->repaint(); shot("eight-lit.png");   // 1ST PART write: the BD steps glow
     delete ed; proc.reset();
     std::puts(ok ? "PASS" : "FAIL");
     return ok ? 0 : 1;
