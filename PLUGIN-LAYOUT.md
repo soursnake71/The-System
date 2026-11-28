@@ -46,7 +46,9 @@ This is the owner's standing design for **all** Omega plugins and their phone ap
   The lens has a **grip bar** on top ("drag to move · tap to use"): dragging it moves the lens like a real
   magnifying glass (it shows what is under its own centre).
 - What is pressed, dragged or turned **inside** the lens is the real control (keys, pads, faders, knobs, menus).
-  A tap outside closes it; ZOOM again switches it off.
+  A touch **outside** the lens moves the lens there and it follows the finger (it never just closes: the owner moves
+  it with a finger); ZOOM again switches it off. While the lens is open the rest of the screen stays visible (a still
+  copy of it), so you can see where you are. Test it with real touch input (CDP touch events), not only the mouse.
 - The printed legend also has its own column magnifier: a tap on it shows that column big, a tap on a line opens
   that job.
 - Shared code: apps `loupe.js` (`OmegaLoupe.attach({root, button, avoid})`), plugins `plugins/common/Loupe.h`

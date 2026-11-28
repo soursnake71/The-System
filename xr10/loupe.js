@@ -3,8 +3,8 @@
    magnifies that part of it 3x in a lens: the real panel is scaled around the tap and clipped to the lens, so
    whatever is under your finger in the lens is the real control (keys press, knobs and faders drag, menus open).
    Drag on the panel and the lens follows the finger; drag the bar on top of the lens to move it like a magnifying
-   glass (it shows what is under its own centre). A tap outside the lens closes it (the next tap opens it somewhere
-   else). attach({avoid}): an element the lens keeps clear of (a rail of keys). attach({pick: e => element}): magnify
+   glass (it shows what is under its own centre). A touch outside the lens moves the lens there and it follows the
+   finger; ZOOM again closes it. While the lens is open the rest of the screen stays as it was (a still copy). attach({avoid}): an element the lens keeps clear of (a rail of keys). attach({pick: e => element}): magnify
    whichever part of the screen the tap is on (the machine, or the open page). Works with any layout and transform. */
 (function(){
   const S = {root:null, button:null, zoom:3, active:false, open:false, saved:null, lens:null, frame:null};
@@ -27,7 +27,7 @@
   // magnify the point (cx, cy) of the screen in the lens L (default: a lens placed near the point)
   function openAt(cx, cy, L0){
     const r = S.cur || S.root, cs = getComputedStyle(r);
-    if (!S.saved) S.saved = {transform:r.style.transform, origin:r.style.transformOrigin, clip:r.style.clipPath, z:r.style.zIndex, pos:r.style.position, transition:r.style.transition};
+    if (!S.saved){ S.saved = {transform:r.style.transform, origin:r.style.transformOrigin, clip:r.style.clipPath, z:r.style.zIndex, pos:r.style.position, transition:r.style.transition}; ghost(r); }
     else { r.style.transform = S.saved.transform; r.style.transformOrigin = S.saved.origin; r.style.clipPath = S.saved.clip; }
     r.style.transition = 'none';                      // an animated transform would put the lens in the wrong place
     // the root's current mapping: screen = box + o + M (p - o); rebuild it with origin 0 and the lens on top
@@ -61,21 +61,35 @@
       border:'3px solid #e9e9e6', boxShadow:'0 0 0 2px #000, 0 14px 40px #000d', display:'block'});
     S.lens = L; S.open = true;
   }
+  // a still copy of the part being magnified, left in its place so the rest of the screen doesn't go blank
+  function ghost(r){
+    if (S.ghost) S.ghost.remove();
+    const g = r.cloneNode(true), cs = getComputedStyle(r);
+    // ids stay (the page's styles hang on them); the copy goes after the real one, so lookups by id still find the real one
+    const src = r.querySelectorAll('canvas'), dst = g.querySelectorAll('canvas');
+    src.forEach((c, i) => { try { dst[i].width = c.width; dst[i].height = c.height; dst[i].getContext('2d').drawImage(c, 0, 0); } catch (e) {} });
+    g.style.pointerEvents = 'none'; g.setAttribute('aria-hidden', 'true');
+    if (cs.position !== 'absolute' && cs.position !== 'fixed') Object.assign(g.style, {position:'absolute', left:r.offsetLeft + 'px', top:r.offsetTop + 'px', width:r.offsetWidth + 'px', height:r.offsetHeight + 'px', margin:'0'});
+    g.style.zIndex = '0'; r.parentNode.insertBefore(g, r.nextSibling); S.ghost = g;
+  }
   function close(){
     if (!S.open) return;
     const r = S.cur || S.root; r.style.transform = S.saved.transform; r.style.transformOrigin = S.saved.origin; r.style.clipPath = S.saved.clip; r.style.zIndex = S.saved.z; r.style.position = S.saved.pos;
     void r.offsetWidth; r.style.transition = S.saved.transition;
     S.saved = null; S.open = false; S.lens = null; if (S.frame) S.frame.style.display = 'none';
+    if (S.ghost){ S.ghost.remove(); S.ghost = null; }
     dispatchEvent(new Event('resize'));          // let the app lay itself out again
   }
   const inLens = e => S.lens && e.clientX >= S.lens.x && e.clientX <= S.lens.x + S.lens.w && e.clientY >= S.lens.y && e.clientY <= S.lens.y + S.lens.h;
   function setActive(on){
     S.active = on; if (!on) close();
+    document.documentElement.classList.toggle('omega-zooming', on);   // no panning or scrolling under the finger while ZOOM is on
     if (S.button){ S.button.classList.toggle('on', on); S.button.setAttribute('aria-pressed', String(on)); }
     if (S.onChange) S.onChange(on);
   }
   function attach(o){
     Object.assign(S, {zoom:3}, o);
+    const st = document.createElement('style'); st.textContent = '.omega-zooming, .omega-zooming * { touch-action: none !important; }'; document.head.appendChild(st);
     if (S.button) S.button.addEventListener('click', e => { e.preventDefault(); setActive(!S.active); });
     // capture phase: decide before the app's own handlers see the tap
     let swallow = false;
@@ -84,8 +98,14 @@
       swallow = S.active && !(S.open && inLens(e)) && !(S.button && S.button.contains(e.target));
       if (!S.active || (S.button && S.button.contains(e.target))) return;
       if (S.open && inLens(e)) return;                                   // the real control under the lens gets it
-      if (S.open){ close(); e.preventDefault(); e.stopPropagation(); return; }
-      const R = S.pick ? S.pick(e) : S.root;                            // attach({pick}): which part of the screen to magnify
+      let R = S.pick ? S.pick(e) : S.root;                              // attach({pick}): which part of the screen to magnify
+      if (S.open){
+        // a touch outside the lens: the lens jumps there and follows the finger (on the same part of the screen)
+        const g = S.ghost && S.ghost.getBoundingClientRect(), onCur = g && e.clientX >= g.left && e.clientX <= g.right && e.clientY >= g.top && e.clientY <= g.bottom;
+        const t = onCur && !(S.avoid && S.avoid.contains(e.target)) && !(S.button && S.button.contains(e.target)) ? S.cur : R;
+        if (t !== S.cur) close(); else { e.preventDefault(); e.stopPropagation(); openAt(e.clientX, e.clientY); S.drag = {mode:'follow', id:e.pointerId}; return; }
+        R = t;
+      }
       if (!R || !R.contains(e.target)) return;
       S.cur = R;
       e.preventDefault(); e.stopPropagation(); openAt(e.clientX, e.clientY);

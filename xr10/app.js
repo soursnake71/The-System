@@ -135,7 +135,7 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 12;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 13;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
 function fitFace() { if (window.Lay) Lay.layout(); else drawLcd(); }
 try { $('buildno').textContent = 'Omega XR10, build ' + BUILD; } catch (e) { }
