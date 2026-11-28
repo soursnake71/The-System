@@ -55,6 +55,7 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     void refresh();
+    int mode = 0;                 // 0 both, 1 the mixer only (MIXER page), 2 the rack only (FX page)
     MixerView mixer;
     std::unique_ptr<SlotView> slots[4];
 private:

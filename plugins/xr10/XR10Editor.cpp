@@ -6,7 +6,9 @@ using namespace xr;
 
 static const juce::Colour kPanel(0xffe4e3ea), kInk(0xff26262c), kSub(0xff5c5b66), kKey(0xfff4f3f7), kSel(0xff3c5f94), kOn(0xffd2335a),
     kLcd(0xff2f3b42), kLcdText(0xffb4c8c6), kGhost(0xff9cb0d0), kBg(0xffcfcdd6);
-static const int BASE_W = 1000, FACE_H = 686, PANEL_H = 480, BASE_H = FACE_H + PANEL_H, FOLD_W = 660;
+// the machine (or the open page) is 1000 x 686, the photo's own shape; the rail of page keys sits to its left
+static const int BASE_W = 1000, FACE_H = 686, BASE_H = FACE_H, RAIL_W = 112;
+enum { V_MACHINE, V_SOUNDS, V_STEPS, V_SONG, V_MIXER, V_FX, V_SETUP, NVIEWS };
 static const char* const PART_LONG[NPARTS] = {"VAR A", "VAR B", "VAR C", "FILL A", "FILL B", "FILL C", "INTRO", "ENDING"};
 
 static juce::Font mono(float h) { return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), h, juce::Font::bold)); }
@@ -171,15 +173,15 @@ static void styleSlider(juce::Slider& s, double lo, double hi) {
 Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     setLookAndFeel(&look);
     face.snap = &snap;
-    content.addAndMakeVisible(face);
+    view.addAndMakeVisible(face);
     const char* tabNames[5] = {"SOUNDS", "STEP GRID", "SONG", "SETUP", "EFFECTS"};
     for (int i = 0; i < 5; i++) {
         tabs[i].setButtonText(tabNames[i]);
         tabs[i].onClick = [this, i] { showTab(i); };
-        content.addAndMakeVisible(tabs[i]);
-        content.addChildComponent(pages[i]);
+        view.addAndMakeVisible(tabs[i]);
+        view.addChildComponent(pages[i]);
     }
-    for (auto* b : {&play, &rec, &tap, &diceBeat, &diceSound}) { styleButton(*b); content.addAndMakeVisible(*b); }
+    for (auto* b : {&play, &rec, &tap, &diceBeat, &diceSound}) { styleButton(*b); view.addAndMakeVisible(*b); }
     diceBeat.setTooltip("Make a new beat in a free user pattern");
     diceSound.setTooltip("A new take on the selected sound");
     diceBeat.onClick = [this] { const auto seed = (u32) juce::Random::getSystemRandom().nextInt(); proc.with([&](Machine& m) { m.randomBeat(seed); }); refreshPatterns(); };
@@ -200,10 +202,10 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     tempo.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff9c9aa6));
     tempo.onValueChange = [this] { if (!updating) proc.with([&](Machine& m) { m.put(K_TEMPO, (int) tempo.getValue() * 10); }); };
     tempoLabel.setColour(juce::Label::textColourId, kSub);
-    content.addAndMakeVisible(tempo); content.addAndMakeVisible(tempoLabel);
+    view.addAndMakeVisible(tempo); view.addAndMakeVisible(tempoLabel);
     styleBox(patternBox);
     patternBox.onChange = [this] { if (!updating && patternBox.getSelectedId() > 0) proc.with([&](Machine& m) { m.selectPattern(patternBox.getSelectedId() - 1); }); };
-    content.addAndMakeVisible(patternBox);
+    view.addAndMakeVisible(patternBox);
     buildVoice(); buildGrid(); buildSong(); buildSetup();
     // the effects page: the effect controls (built with the setup page) and a note on how the sends work
     pages[4].painter = [](juce::Graphics& g) { g.fillAll(kPanel); };
@@ -216,6 +218,7 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     fxHelp.setColour(juce::Label::textColourId, kSub);
     fxHelp.setJustificationType(juce::Justification::topLeft);
     pages[4].addAndMakeVisible(fxHelp);
+    content.addAndMakeVisible(view);
     addAndMakeVisible(content);
     refreshPatterns();
     proc.snapshot(snap, 0);
@@ -225,14 +228,24 @@ Editor::Editor(Processor& p) : AudioProcessorEditor(p), proc(p), face(p) {
     // the fold-out: a mixer and the effects rack, opening beside the machine
     fold.reset(new FoldPanel(proc, snap));
     fold->mixer.onMainVolume = [this](float v) { face.volume = v; face.repaint(); };
-    content.addChildComponent(*fold);
-    styleButton(foldBtn);
-    foldBtn.onClick = [this] { setFold(!proc.foldOpen); };
-    content.addAndMakeVisible(foldBtn);
+    view.addChildComponent(*fold);
+    // the rail: FOLD, MACHINE, a key per page, ZOOM (PLUGIN-LAYOUT.md)
+    const char* keys[9] = {"FOLD", "MACHINE", "SOUNDS", "STEPS", "SONG", "MIXER", "FX", "SETUP", "ZOOM"};
+    for (int k = 0; k < 9; k++) {
+        railKeys[k].setButtonText(keys[k]); styleButton(railKeys[k]);
+        railKeys[k].onClick = [this, k] { if (k == 0) setFold(true); else if (k == 8) loupe.toggle(); else showTab(k - 1); };
+        content.addAndMakeVisible(railKeys[k]);
+    }
+    styleButton(expandBtn);
+    expandBtn.onClick = [this] { setFold(false); };
+    content.addChildComponent(expandBtn);
+    content.addAndMakeVisible(loupe);
+    loupe.target = [this]() -> juce::Component* { return &view; };
+    loupe.onChange = [this](bool on) { styleButton(railKeys[8], on); };
     setResizeLimits(baseW() * 4 / 10, BASE_H * 4 / 10, baseW() * 2, BASE_H * 2);
     getConstrainer()->setFixedAspectRatio((double) baseW() / BASE_H);
     setSize(juce::roundToInt(baseW() * startScale), juce::roundToInt(BASE_H * startScale));
-    showTab(juce::jlimit(0, 3, proc.editorTab));
+    showTab(juce::jlimit(0, NVIEWS - 1, proc.editorTab));
     startTimerHz(30);
 }
 Editor::~Editor() { stopTimer(); setLookAndFeel(nullptr); }
@@ -242,25 +255,37 @@ void Editor::resized() {
     if (getWidth() <= 0) return;
     const float s = (float) getWidth() / baseW();
     proc.editorScale = s;
+    const bool folded = proc.foldOpen, machine = folded || tab == V_MACHINE;
+    const int rx = folded ? 0 : RAIL_W;
     content.setBounds(0, 0, baseW(), BASE_H);
-    fold->setVisible(proc.foldOpen);
-    fold->setBounds(BASE_W, 0, FOLD_W, BASE_H);
     content.setTransform(juce::AffineTransform::scale(s));
+    // the rail
+    {
+        const int gap = 6, kh = (BASE_H - 2 * gap - 8 * gap) / 9;
+        for (int k = 0; k < 9; k++) { railKeys[k].setVisible(!folded); railKeys[k].setBounds(gap, gap + k * (kh + gap), RAIL_W - 2 * gap, kh); }
+    }
+    expandBtn.setVisible(folded); expandBtn.setBounds(BASE_W - 112, BASE_H - 44, 104, 36); expandBtn.toFront(false);
+    view.setBounds(rx, 0, BASE_W, BASE_H);
+    loupe.setBounds(view.getBounds()); loupe.toFront(false);
+    face.setVisible(machine);
     face.setBounds(0, 0, BASE_W, FACE_H);
-    int y = FACE_H + 8;
+    for (juce::Component* c : {(juce::Component*) &play, (juce::Component*) &rec, (juce::Component*) &tap, (juce::Component*) &diceBeat, (juce::Component*) &diceSound,
+                               (juce::Component*) &tempoLabel, (juce::Component*) &tempo, (juce::Component*) &patternBox}) c->setVisible(!machine);
+    for (auto& t : tabs) t.setVisible(false);
+    foldBtn.setVisible(false);
+    int y = 8;
     play.setBounds(12, y, 120, 30); rec.setBounds(138, y, 90, 30); tap.setBounds(234, y, 50, 30);
     diceBeat.setBounds(476, y, 100, 30); diceSound.setBounds(580, y, 104, 30);
     tempoLabel.setBounds(304, y, 56, 30); tempo.setBounds(356, y, 120, 30);
     patternBox.setBounds(BASE_W - 304, y, 292, 30);
     y += 38;
-    // the effects live in the fold-out now (the rack), so the old effects page has no tab
-    for (int k = 0; k < 4; k++) tabs[k].setBounds(12 + k * 200, y, 194, 28);
-    tabs[4].setVisible(false);
-    foldBtn.setBounds(12 + 4 * 200, y, 176, 28);
-    foldBtn.setButtonText(proc.foldOpen ? "< FOLD IN" : "FOLD-OUT >");
-    styleButton(foldBtn, proc.foldOpen);
-    y += 34;
     for (auto& pg : pages) pg.setBounds(12, y, BASE_W - 24, BASE_H - y - 8);
+    pages[4].setBounds(12, y, BASE_W - 24, 170);
+    fold->mode = tab == V_MIXER ? 1 : 2;
+    if (tab == V_MIXER) fold->setBounds(12, y, BASE_W - 24, BASE_H - y - 8);
+    else fold->setBounds(12, y + 176, BASE_W - 24, BASE_H - y - 184);
+    fold->setVisible(!machine && (tab == V_MIXER || tab == V_FX));
+    fold->resized(); fold->repaint();
     // voices page
     {
         auto& pg = pages[0];
@@ -297,7 +322,7 @@ void Editor::resized() {
         songMidi.setBounds(594, 6, 130, 26); songDrag.setBounds(730, 6, 200, 26);
         songArea = {8, 72, pages[2].getWidth() - 16, pages[2].getHeight() - 78};
     }
-    fxHelp.setBounds(8, 76, pages[4].getWidth() - 16, 80);
+    fxHelp.setBounds(8, 76, pages[4].getWidth() - 16, 86);
     // setup page
     {
         juce::Component* rows[5][4] = {{&fxType, &fxTime, &fxLevel, &effectVr}, {&tcBox, &polyBox, &accVel, &padVel}, {&clickBox, &clickLvl, &countIn, nullptr},
@@ -317,7 +342,11 @@ void Editor::resized() {
 
 void Editor::showTab(int t) {
     tab = t; proc.editorTab = t;
-    for (int i = 0; i < 5; i++) { pages[i].setVisible(i == t); styleButton(tabs[i], i == t); }
+    static const int page[NVIEWS] = {-1, 0, 1, 2, -1, 4, 3};
+    for (int i = 0; i < 5; i++) pages[i].setVisible(page[t] == i && !proc.foldOpen);
+    for (int k = 1; k <= 7; k++) styleButton(railKeys[k], k - 1 == t && !proc.foldOpen);
+    loupe.setActive(false);
+    resized();
 }
 
 void Editor::buildVoice() {
@@ -716,21 +745,21 @@ void Editor::refresh() {
     countIn.setToggleState(snap.keys[K_COUNTIN] != 0, juce::dontSendNotification);
 }
 
-int Editor::baseW() const { return BASE_W + (proc.foldOpen ? FOLD_W : 0); }
+int Editor::baseW() const { return BASE_W + (proc.foldOpen ? 0 : RAIL_W); }   // folded: the bare machine, a narrower window
 void Editor::setFold(bool open) {
     const float s = (float) getWidth() / baseW();
     proc.foldOpen = open;
     setResizeLimits(baseW() * 4 / 10, BASE_H * 4 / 10, baseW() * 2, BASE_H * 2);
     getConstrainer()->setFixedAspectRatio((double) baseW() / BASE_H);
     setSize(juce::roundToInt(baseW() * s), juce::roundToInt(BASE_H * s));
-    resized();
+    showTab(tab);
 }
 void Editor::timerCallback() {
     proc.snapshot(snap, gridBar);
     refresh();
-    if (proc.foldOpen) fold->refresh();
-    face.repaint();
-    pages[tab].repaint();
+    if (fold->isVisible()) fold->refresh();
+    if (face.isVisible()) face.repaint();
+    for (auto& pg : pages) if (pg.isVisible()) pg.repaint();
 }
 
 }  // namespace xr10

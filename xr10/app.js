@@ -1,4 +1,5 @@
-// Omega XR10 page: the faceplate photo with live controls on top, and the RX5-style panel underneath.
+// Omega XR10 page: the faceplate photo with live controls on top, a rail of page keys, and the pages (layout.js lays
+// them out the owner's way: PLUGIN-LAYOUT.md).
 // All the machine's logic is in the C++ engine (xr10.wasm), run by worklet.js.
 'use strict';
 const $ = id => document.getElementById(id);
@@ -134,19 +135,9 @@ function drawLcd() {
     }
   }
 }
-const BUILD = 11;   // shown on the panel at start, so you can tell which version is running
+const BUILD = 12;   // shown on the panel at start, so you can tell which version is running
 // the whole panel stays on screen: as wide as the page, but never taller than the window (a phone on its side)
-function fitFace() {
-  const avail = Math.max(200, window.innerHeight - 4);
-  const w = Math.min(face.parentElement.clientWidth, 1100, avail * W / H);
-  face.style.width = Math.floor(w) + 'px';
-  face.style.maxWidth = 'none';
-  drawLcd();
-}
-window.addEventListener('resize', fitFace);
-window.addEventListener('orientationchange', () => setTimeout(fitFace, 250));
-if (window.visualViewport) window.visualViewport.addEventListener('resize', fitFace);
-fitFace();
+function fitFace() { if (window.Lay) Lay.layout(); else drawLcd(); }
 try { $('buildno').textContent = 'Omega XR10, build ' + BUILD; } catch (e) { }
 
 // --------------------------------------------------- audio and engine
@@ -245,16 +236,11 @@ function download(bytes, name, mime) {
 }
 
 // --------------------------------------------------- RX5 panel
-const tabs = [...document.querySelectorAll('#tabs button')];
-tabs.forEach(b => b.addEventListener('click', () => {
-  tabs.forEach(x => x.classList.toggle('on', x === b));
-  for (const t of ['pads', 'voice', 'grid', 'song', 'setup', 'help']) $('tab-' + t).hidden = t !== b.dataset.tab;
-}));
 let gridBar = 0, waveFor = -1;
 function opt(sel, items) { sel.innerHTML = ''; items.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }); }
 function fillPatterns() {
   opt($('patsel'), info.patterns.map((n, i) => [i, String(i + 1).padStart(2, '0') + ' ' + n + (i >= 50 ? ' (user)' : '')]));
-  document.querySelectorAll('#songlist select.pp').forEach(s => { const v = s.value; opt(s, info.patterns.map((n, i) => [i, String(i + 1).padStart(2, '0') + ' ' + n])); s.value = v; });
+  document.querySelectorAll('.srow select.pp').forEach(s => { const v = s.value; opt(s, info.patterns.map((n, i) => [i, String(i + 1).padStart(2, '0') + ' ' + n])); s.value = v; });
 }
 function buildPanel() {
   fillPatterns();
@@ -284,6 +270,7 @@ function buildPanel() {
   [['VAR A', B.PAD1 + 11], ['VAR B', B.PAD1 + 10], ['VAR C', B.PAD1 + 9], ['FILL A', B.PAD1 + 14], ['FILL B', B.PAD1 + 13], ['FILL C', B.PAD1 + 12],
    ['INTRO / END', B.INTRO], ['BREAK', B.BREAK], ['START / STOP', B.START], ['ACCENT', B.ACCENT], ['PAD BANK', B.PADBANK], ['TIMING', B.TC]].forEach(([n, id]) => {
     const b = document.createElement('button'); b.textContent = n; b.dataset.b = id;
+    if (n === 'START / STOP' || n === 'BREAK') b.style.fontWeight = '700';
     b.addEventListener('pointerdown', e => { e.preventDefault(); if (id >= B.PAD1 && id < B.PAD1 + 15) send({ t: 'pad', i: id - B.PAD1, d: 1 }); else send({ t: 'btn', b: id, d: 1 }); });
     b.addEventListener('pointerup', () => { if (id >= B.PAD1 && id < B.PAD1 + 15) send({ t: 'pad', i: id - B.PAD1, d: 0 }); else send({ t: 'btn', b: id, d: 0 }); });
     pf.appendChild(b);
@@ -292,14 +279,14 @@ function buildPanel() {
   const inst = $('inst');
   info.names.forEach((n, i) => {
     const b = document.createElement('button');
-    b.textContent = n; b.title = (i + 1) + ' ' + n;
+    b.textContent = n; b.title = (i + 1) + ' ' + n; b.className = 'instb';
     b.addEventListener('pointerdown', e => { e.preventDefault(); send({ t: 'set', k: K.SOUND, v: i }); send({ t: 'hit', s: i, v: 110 }); });
     inst.appendChild(b);
   });
   // voice params
   const pr = $('params');
   info.pnames.forEach((n, p) => {
-    if (p === info.nvpXr10) { const h = document.createElement('div'); h.className = 'help'; h.style.gridColumn = '1 / -1'; h.textContent = 'Extras (not on the XR10):'; pr.appendChild(h); }
+    if (p === info.nvpXr10) { const h = document.createElement('div'); h.className = 'help'; h.textContent = 'Extras (not on the XR10):'; pr.appendChild(h); }
     const row = document.createElement('div'); row.className = 'param';
     const toggle = info.plo[p] === 0 && info.phi[p] === 1;
     row.innerHTML = `<span>${n.replace('*', '')}</span>` + (toggle ? `<input type="checkbox" data-p="${p}" style="justify-self:start">` : `<input type="range" data-p="${p}" min="${info.plo[p]}" max="${info.phi[p]}">`) + `<span id="pv${p}"></span>`;
@@ -410,24 +397,24 @@ function update() {
   setVal($('tempo'), (S.tempo10 / 10).toFixed(S.tempo10 % 10 ? 1 : 0));
   setVal($('patsel'), S.pattern);
   // big pads
-  document.querySelectorAll('#bigpads .bigpad').forEach((b, i) => { b.querySelector('span').textContent = (i >= 9 && !S.recording && S.mode < 2) ? ['VAR C', 'VAR B', 'VAR A', 'FILL C', 'FILL B', 'FILL A'][i - 9] : info.names[S.padSound[i]]; });
+  document.querySelectorAll('#bigpads .bigpad').forEach((b, i) => { const v = i >= 9 && !S.recording && S.mode < 2; b.querySelector('span').textContent = v ? ['VAR C', 'VAR B', 'VAR A', 'FILL C', 'FILL B', 'FILL A'][i - 9] : info.names[S.padSound[i]]; b.classList.toggle('var', v); });
   document.querySelectorAll('#partpads button').forEach(b => {
     const id = +b.dataset.b, idx = [B.PAD1 + 11, B.PAD1 + 10, B.PAD1 + 9, B.PAD1 + 14, B.PAD1 + 13, B.PAD1 + 12].indexOf(id);
     b.classList.toggle('on', (idx >= 0 && S.part === idx) || (id === B.START && !!S.playing) || (id === B.ACCENT && !!S.accent) || (id === B.INTRO && S.part >= 6));
   });
   $('padlcd').textContent = S.l1 + '\n' + S.l2;
   // instruments and voice
-  const ib = $('inst').children;
+  const ib = document.querySelectorAll('.instb');
   for (let i = 0; i < 64; i++) { ib[i].classList.toggle('on', i === S.sound); ib[i].classList.toggle('user', !!S.user[i]); }
   if (S.sound !== lastSound) { lastSound = S.sound; send({ t: 'wave', s: S.sound }); }
   $('vtitle').textContent = `Voice ${S.sound + 1}: ${info.names[S.sound]}${S.user[S.sound] ? ' (your sample)' : info.packed && info.packed[S.sound] ? ' (XR-10 sample)' : ' (synthesized)'}`;
-  document.querySelectorAll('#params input').forEach(inp => {
+  document.querySelectorAll('.param input').forEach(inp => {
     const p = +inp.dataset.p, v = S.params[p];
     if (inp.type === 'checkbox') inp.checked = !!v; else setVal(inp, v);
     $('pv' + p).textContent = fmtParam(p, v);
   });
   // grid
-  $('gtitle').textContent = `Step grid: pattern ${S.pattern + 1} ${S.patName}, ${PARTS[S.part]}` + (S.pattern < 50 ? ' (preset: editing makes a user copy)' : '');
+  $('gtitle').textContent = `Pattern ${S.pattern + 1} ${S.patName} · ${PARTS[S.part]}` + (S.pattern < 50 ? ' · preset (edits go to a copy)' : '');
   document.querySelectorAll('#partbtns button').forEach(b => b.classList.toggle('on', +b.dataset.part === S.part));
   if (gridBar >= S.bars) { gridBar = 0; send({ t: 'gridBar', bar: 0 }); }
   const bb = $('barbtns');
@@ -466,8 +453,9 @@ function drawGrid() {
   const key = [steps, S.sub, rows.join(',')].join('|');
   if (key !== lastGridKey) {
     lastGridKey = key;
+    if (window.Lay) Lay.soon('steps');
     g.innerHTML = '';
-    g.style.gridTemplateColumns = `minmax(84px, 110px) repeat(${steps}, minmax(16px, 1fr))`;
+    g.style.gridTemplateColumns = `minmax(54px, 110px) repeat(${steps}, minmax(0, 1fr))`;
     rows.forEach((snd, r) => {
       const sel = document.createElement('select');
       opt(sel, info.names.map((n, i) => [i, (i + 1) + ' ' + n]));
@@ -496,8 +484,10 @@ function drawSong() {
   const key = JSON.stringify([S.song, S.songSteps, S.songStep, S.playing, info.patterns.length]);
   if (key === lastSongKey) return;
   lastSongKey = key;
+  if (window.Lay) Lay.unflow('song');
   const l = $('songlist');
   l.innerHTML = '';
+  if (window.Lay) Lay.soon('song');
   if (!S.songSteps.length) { l.innerHTML = '<p class="help">Empty. Pick a pattern above and press "Add current pattern", or use SONG mode on the panel.</p>'; return; }
   S.songSteps.forEach(([p, part, rep], i) => {
     const row = document.createElement('div'); row.className = 'srow' + (i === S.songStep && S.playing ? ' now' : '');
@@ -516,14 +506,27 @@ function drawSong() {
 
 // --------------------------------------------------- the fold-out: mixer and effects rack
 const rackDesc = [null, null, null, null];
-let foldOpen = false;
-try { foldOpen = localStorage.xr10fold === '1'; } catch (e) { }
-function setFold(open) {
-  foldOpen = open;
-  $('foldout').classList.toggle('open', open);
-  $('foldbtn').setAttribute('aria-expanded', open ? 'true' : 'false');
-  try { localStorage.xr10fold = open ? '1' : '0'; } catch (e) { }
+// a mixer knob: drag up / down, double-tap resets; shows its value under it
+function mknob(lo, hi, def, fmt, onChange) {
+  const w = document.createElement('div'); w.style.cssText = 'display:flex;flex-direction:column;align-items:center';
+  const el = document.createElement('div'); el.className = 'mknob'; el.innerHTML = '<i></i>';
+  const val = document.createElement('div'); val.className = 'val';
+  w.append(el, val);
+  w.value = def; w.dragging = false;
+  w.show = v => { w.value = v; el.firstChild.style.transform = `rotate(${-135 + 270 * (v - lo) / (hi - lo)}deg)`; val.textContent = fmt(v); };
+  let y0 = 0, v0 = 0, lastTap = 0;
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); el.setPointerCapture(e.pointerId); w.dragging = true; y0 = e.clientY; v0 = w.value;
+    const now = performance.now(); if (now - lastTap < 320) { w.show(def); onChange(def); } lastTap = now;
+  });
+  el.addEventListener('pointermove', e => { if (!w.dragging) return; const v = Math.max(lo, Math.min(hi, Math.round(v0 + (y0 - e.clientY) * (hi - lo) / 120))); if (v !== w.value) { w.show(v); onChange(v); } });
+  const end = () => { w.dragging = false; };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('dblclick', () => { w.show(def); onChange(def); });
+  w.show(def);
+  return w;
 }
+const setBar = (el, v) => { el.style.height = ((1 - v) * 100) + '%'; };   // the dark cover over the meter's colours
 // a vertical fader: value lo..hi, drag or tap
 function fader(lo, hi, onChange) {
   const el = document.createElement('div'); el.className = 'fader';
@@ -540,8 +543,6 @@ function fader(lo, hi, onChange) {
 const dbBar = p => Math.max(0, Math.min(1, (20 * Math.log10(Math.max(p, 1e-5)) + 48) / 48));   // -48..0 dB
 const strips = [];
 function buildFold() {
-  $('foldbtn').onclick = () => setFold(!foldOpen);
-  setFold(foldOpen);
   const mx = $('mixer');
   mx.innerHTML = '';
   strips.length = 0;
@@ -549,12 +550,13 @@ function buildFold() {
   const pLevel = P('LEVEL'), pPan = P('PAN'), pSend = P('FX SEND');
   for (let i = 0; i < 15; i++) {
     const st = document.createElement('div'); st.className = 'strip';
-    st.innerHTML = '<div class="nm"></div><div class="fz"><div class="meter"><i></i></div></div><div class="val"></div><div class="lbl">PAN</div><input type="range" class="pan" min="-15" max="15"><div class="lbl">FX SEND</div><input type="range" class="snd" min="0" max="31"><div class="ms"><button class="m">M</button><button class="s">S</button></div>';
+    st.innerHTML = '<div class="nm"></div><div class="ms"><button class="m">M</button><button class="s">S</button></div><div class="lbl">PAN</div><span class="kp"></span><div class="lbl">FX</div><span class="ks"></span><div class="fz"><div class="meter"><i></i></div></div><div class="val lv"></div>';
     const f = fader(0, 31, v => { send({ t: 'param', s: S.padSound[i], p: pLevel, v }); });
     st.querySelector('.fz').prepend(f);
-    st.querySelector('.pan').oninput = e => send({ t: 'param', s: S.padSound[i], p: pPan, v: +e.target.value });
-    st.querySelector('.pan').ondblclick = e => { e.target.value = 0; send({ t: 'param', s: S.padSound[i], p: pPan, v: 0 }); };
-    st.querySelector('.snd').oninput = e => send({ t: 'param', s: S.padSound[i], p: pSend, v: +e.target.value });
+    const kp = mknob(-15, 15, 0, v => v === 0 ? 'C' : (v < 0 ? 'L' + -v : 'R' + v), v => send({ t: 'param', s: S.padSound[i], p: pPan, v }));
+    const ks = mknob(0, 31, 0, v => String(v), v => send({ t: 'param', s: S.padSound[i], p: pSend, v }));
+    st.querySelector('.kp').replaceWith(kp); st.querySelector('.ks').replaceWith(ks);
+    st._kp = kp; st._ks = ks;
     st.querySelector('.m').onclick = () => send({ t: 'mute', s: S.padSound[i], on: S.mute[S.padSound[i]] ? 0 : 1 });
     st.querySelector('.s').onclick = () => send({ t: 'solo', s: S.padSound[i], on: S.solo[S.padSound[i]] ? 0 : 1 });
     st.querySelector('.nm').onclick = () => { send({ t: 'set', k: K.SOUND, v: S.padSound[i] }); send({ t: 'hit', s: S.padSound[i], v: 110 }); };
@@ -563,15 +565,15 @@ function buildFold() {
   }
   const master = (name, lo, hi, onChange, kind) => {
     const st = document.createElement('div'); st.className = 'strip master';
-    st.innerHTML = `<div class="nm">${name}</div><div class="fz"><div class="meter"><i></i></div><div class="meter m2"><i></i></div></div><div class="val"></div>`;
+    st.innerHTML = `<div class="nm">${name}</div><div class="fz"><div class="meter"><i></i></div><div class="meter m2"><i></i></div></div><div class="val lv"></div>`;
     const f = fader(lo, hi, onChange);
     st.querySelector('.fz').prepend(f);
     mx.appendChild(st);
     strips.push({ el: st, f, kind });
   };
-  master('EFFECT SEND', 0, 100, v => send({ t: 'set', k: K.EFFECTVR, v }), 'send');
-  master('FX RETURN', 0, 150, v => send({ t: 'rackReturn', v: v / 100 }), 'ret');
-  master('MAIN VOLUME', 0, 100, v => { knobState.vol = v; drawKnobs(); send({ t: 'set', k: K.VOLUME, v }); }, 'main');
+  master('EFFECT<br>SEND', 0, 100, v => send({ t: 'set', k: K.EFFECTVR, v }), 'send');
+  master('FX<br>RETURN', 0, 150, v => send({ t: 'rackReturn', v: v / 100 }), 'ret');
+  master('MAIN<br>VOLUME', 0, 100, v => { knobState.vol = v; drawKnobs(); send({ t: 'set', k: K.VOLUME, v }); }, 'main');
   // the rack
   const rk = $('rack');
   rk.innerHTML = '';
@@ -601,6 +603,7 @@ function fmtUnit(p, v) {
 }
 function buildUnit(i) {
   const u = $('unit' + i); if (!u || !S) return;
+  if (window.Lay) Lay.soon('fx');
   const d = rackDesc[i], sl = S.rack ? S.rack.slots[i] : { type: -1, flags: 0 };
   u.innerHTML = '';
   const top = document.createElement('div'); top.className = 'top';
@@ -657,26 +660,25 @@ function updateFold() {
       const lv = S.padParams ? S.padParams[s.i] : null;
       if (lv) {
         if (!s.f.dragging) s.f.show(lv[0]);
-        s.el.querySelector('.val').textContent = lv[0];
-        const pan = s.el.querySelector('.pan'), sn = s.el.querySelector('.snd');
-        if (document.activeElement !== pan) pan.value = lv[1];
-        if (document.activeElement !== sn) sn.value = lv[2];
+        s.el.querySelector('.lv').textContent = lv[0];
+        if (!s.el._kp.dragging && s.el._kp.value !== lv[1]) s.el._kp.show(lv[1]);
+        if (!s.el._ks.dragging && s.el._ks.value !== lv[2]) s.el._ks.show(lv[2]);
       }
       s.el.querySelector('.m').classList.toggle('on', !!S.mute[snd]);
       s.el.querySelector('.s').classList.toggle('on', !!S.solo[snd]);
-      bar[0].style.height = (dbBar(S.meter[snd]) * 100) + '%';
+      setBar(bar[0], dbBar(S.meter[snd]));
     } else if (s.kind === 'send') {
       if (!s.f.dragging) s.f.show(S.keys[K.EFFECTVR]);
-      s.el.querySelector('.val').textContent = S.keys[K.EFFECTVR];
-      bar[0].style.height = bar[1].style.height = (dbBar(S.rack.peakIn) * 100) + '%';
+      s.el.querySelector('.lv').textContent = S.keys[K.EFFECTVR];
+      setBar(bar[0], dbBar(S.rack.peakIn)); setBar(bar[1], dbBar(S.rack.peakIn));
     } else if (s.kind === 'ret') {
       if (!s.f.dragging) s.f.show(Math.round(S.rack.ret * 100));
-      s.el.querySelector('.val').textContent = Math.round(S.rack.ret * 100) + '%';
-      bar[0].style.height = bar[1].style.height = (dbBar(S.rack.peakOut) * 100) + '%';
+      s.el.querySelector('.lv').textContent = Math.round(S.rack.ret * 100) + '%';
+      setBar(bar[0], dbBar(S.rack.peakOut)); setBar(bar[1], dbBar(S.rack.peakOut));
     } else {
       if (!s.f.dragging) s.f.show(S.keys[K.VOLUME]);
-      s.el.querySelector('.val').textContent = S.keys[K.VOLUME];
-      bar[0].style.height = (dbBar(S.outPeak[0]) * 100) + '%'; bar[1].style.height = (dbBar(S.outPeak[1]) * 100) + '%';
+      s.el.querySelector('.lv').textContent = S.keys[K.VOLUME];
+      setBar(bar[0], dbBar(S.outPeak[0])); setBar(bar[1], dbBar(S.outPeak[1]));
     }
   }
   for (let i = 0; i < 4; i++) {

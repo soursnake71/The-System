@@ -20,6 +20,16 @@
 - Each APK build bumps `BUILD` in `xr10/app.js` and the `xr10` flavor's versionCode in `android/app/build.gradle`, so the
   owner can see which build they have. Send the APK with every change.
 
+## Standing rule: how every plugin and app is laid out (the owner's design)
+- Every Omega plugin and phone app follows `PLUGIN-LAYOUT.md` (pictures in `docs/layout/`): the machine as hardware
+  filling the screen with its main part moved up, a slim rail of page keys on the side (FOLD, MACHINE, a key per
+  command group, ZOOM), every command folded open on big pages that never scroll (numbered pages instead), a real
+  mixer console (a strip per channel: mute, pan / rev / dly knobs, fader with meter; a master strip), and ZOOM: a 3x
+  lens that follows the finger, has a grip bar, and lets you use what it shows. Portrait and landscape (the Android
+  app turns with the sensor). Check at the owner's phone sizes before shipping.
+- XR10: `xr10/layout.js` does this for the app (rail, pages poured into numbered sheets, FOLD), `xr10/loupe.js` is ZOOM;
+  the plugin's rail and views are in `plugins/xr10/XR10Editor.cpp` (`xr10_shot` checks them and writes pictures).
+
 ## UI rules (all apps and plugins)
 - **No scrolling menus, ever.** Every menu, dropdown or picker shows all of its choices at once (a grid of buttons,
   several columns if needed), never a list you have to scroll. In web apps don't use native `<select>` popups for

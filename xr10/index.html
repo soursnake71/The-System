@@ -17,16 +17,36 @@
 }
 :root[data-theme="dark"] { --bg: #1d1d22; --panel: #2a2a31; --ink: #ececf2; --sub: #a3a2ad; --line: #44434e; --key: #36353e; --keyb: #55545f; --sel: #6d95d4; --ghost: #556a8c; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-body { padding: 0 0 40px; overscroll-behavior: none; }
-#start { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(20, 20, 26, .55); }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font: 13px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overscroll-behavior: none; }
+#start { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(20, 20, 26, .55); }
 #start button { font-size: 20px; padding: 18px 30px; border-radius: 12px; border: 0; background: var(--accent); color: #fff; font-weight: 600; }
-/* the whole panel fits on the screen: in landscape on a phone it's as tall as the screen, not as wide */
-#face { position: relative; width: 100%; max-width: min(1100px, calc((100vh - 4px) * 800 / 549)); max-width: min(1100px, calc((100dvh - 4px) * 800 / 549)); margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
-#face img { display: block; width: 100%; height: auto; pointer-events: none; }
+/* the screen: the machine, a rail of page keys, the open page (PLUGIN-LAYOUT.md) */
+#app { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+#face { position: absolute; touch-action: none; user-select: none; -webkit-user-select: none; background: #d8d7de; }
+#face img { display: block; width: 100%; height: 100%; pointer-events: none; }
+#rail { position: absolute; z-index: 45; display: grid; gap: 4px; padding: 4px; background: linear-gradient(90deg, #3a3a42, #2a2a30); }
+#rail button { min-height: 0; padding: 0 2px; font: 700 10.5px/1 system-ui, sans-serif; letter-spacing: .04em; color: #222; border-radius: 5px; border: 1px solid #77767f;
+  background: linear-gradient(#f6f5f9, #cfcdd6); box-shadow: 0 2px 0 #1c1c20, inset 0 1px 0 #fff; white-space: nowrap; overflow: hidden; }
+#rail button.on { background: linear-gradient(#5d82b8, #3c5f94); color: #fff; border-color: #2c4870; }
+#rail button.zoom.on { background: linear-gradient(#ffd75e, #e8a920); color: #111; }
+#rail button:active { transform: translateY(1px); box-shadow: 0 1px 0 #1c1c20; }
+#pages { position: absolute; overflow: hidden; }
+.page { position: absolute; inset: 0; display: none; flex-direction: column; }
+.page.show { display: flex; }
+.page > .ph { flex: 0 0 34px; display: flex; align-items: center; gap: 6px; padding: 0 6px; font-weight: 700; letter-spacing: .06em; border-bottom: 1px solid var(--line); background: var(--panel); }
+.page > .ph .tt { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.page > .ph button { min-height: 28px; padding: 0 9px; }
+.page > .src { display: none; }
+.page > .sheets { position: relative; flex: 1; overflow: hidden; }
+.sheet { position: absolute; inset: 0; overflow: hidden; padding: 6px; }
+.sheet.hide { visibility: hidden; }
+.page.fit > .sheets > .sheet { display: flex; flex-direction: column; gap: 5px; }
+#expand { position: fixed; right: 6px; bottom: 6px; z-index: 46; display: none; min-height: 30px; font-weight: 700; font-size: 11px; opacity: .85; }
+body.folded #expand { display: block; }
+body.folded #rail, body.folded #pages { display: none; }
 .hot { position: absolute; border-radius: 4px; cursor: pointer; }
 .hot.down { background: rgba(40, 40, 60, .28); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .35); }
-.hot.lit { box-shadow: 0 0 0 2px var(--accent) inset; }
+.hot.lit { box-shadow: 0 0 0 2px var(--accent) inset, 0 0 8px 2px rgba(210, 51, 90, .7); }
 .led { position: absolute; border-radius: 2px; pointer-events: none; }
 .led.on { background: #ff3d6e; box-shadow: 0 0 6px 2px rgba(255, 60, 110, .8); }
 .led.off { background: #4d5159; }
@@ -34,56 +54,59 @@ body { padding: 0 0 40px; overscroll-behavior: none; }
 .knobcap { position: absolute; border-radius: 50%; pointer-events: none; }
 .knobcap i { position: absolute; left: 50%; top: 8%; width: 6%; height: 30%; margin-left: -3%; background: #24427a; border-radius: 3px; }
 .knob { position: absolute; border-radius: 50%; cursor: grab; touch-action: none; }
-#panel { max-width: 1100px; margin: 0 auto; padding: 8px 12px 0; }
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 8px; }
-.tabs button { flex: 1 1 auto; min-width: 70px; }
-button, select, input[type=number] { font: inherit; color: var(--ink); background: var(--key); border: 1px solid var(--keyb); border-radius: 6px; padding: 7px 10px; min-height: 36px; }
-button.on, .tabs button.on { background: var(--sel); color: #fff; border-color: var(--sel); }
+button, select, input[type=number] { font: inherit; color: var(--ink); background: var(--key); border: 1px solid var(--keyb); border-radius: 6px; padding: 5px 9px; min-height: 34px; }
+button.on { background: var(--sel); color: #fff; border-color: var(--sel); }
 button.rec.on { background: var(--accent); border-color: var(--accent); }
-section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
-section h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--sub); }
-.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
-.row label { color: var(--sub); font-size: 12px; }
-#padlcd { margin: 0 0 8px; padding: 8px 12px; background: var(--lcd); color: #b4c8c6; border-radius: 6px; font: bold 18px/1.25 "Courier New", ui-monospace, monospace; white-space: pre; overflow: hidden; }
-#bigpads { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.bigpad { height: 74px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; font-weight: 600; touch-action: none; background: linear-gradient(#f3f2f6, #d7d5de); color: #26262c; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
+section h3 { margin: 0 0 5px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--sub); }
+.row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; margin-bottom: 5px; }
+.row label { color: var(--sub); font-size: 11.5px; }
+#transport { margin: 0; flex: 0 0 auto; }
+#transport button, #transport input, #transport .pick { min-height: 32px; padding: 3px 8px; font-size: 12px; }
+#padlcd { flex: 0 0 auto; margin: 0; padding: 4px 10px; background: var(--lcd); color: #b4c8c6; border-radius: 6px; font: bold 15px/1.2 "Courier New", ui-monospace, monospace; white-space: pre; overflow: hidden; }
+#bigpads { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(3, 1fr); gap: 5px; }
+.bigpad { min-height: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; font-weight: 600; touch-action: none; background: linear-gradient(#f3f2f6, #d7d5de); color: #26262c; overflow: hidden; }
 .bigpad small { font-weight: 400; font-size: 10px; color: #6b6a75; }
 .bigpad.down { background: #b9b7c4; }
-#partpads { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
-#partpads button { min-height: 44px; font-size: 12px; padding: 4px; touch-action: none; }
-@media (max-width: 560px) { #partpads { grid-template-columns: repeat(3, 1fr); } .bigpad { height: 64px; font-size: 12px; } #padlcd { font-size: 15px; } }
-#foldbar { max-width: 1100px; margin: 0 auto; padding: 0 12px; }
-#foldbtn { width: 100%; margin-top: 4px; font-weight: 600; letter-spacing: .06em; background: linear-gradient(#e9e8ee, #cfcdd6); color: #26262c; border-color: #9c9aa6; }
-#foldbtn .chev { display: inline-block; transition: transform .25s; }
-#foldbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
-#foldout { max-width: 1100px; margin: 0 auto; padding: 0 12px; overflow: hidden; max-height: 0; transition: max-height .35s ease; }
-#foldout.open { max-height: 4000px; }
-.foldin { padding-top: 8px; }
-#mixer { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
-.strip { flex: 0 0 64px; background: var(--key); border: 1px solid var(--keyb); border-radius: 8px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.strip.master { background: var(--panel); border-color: var(--sub); }
-.strip .nm { font-size: 10.5px; font-weight: 600; text-align: center; height: 26px; overflow: hidden; line-height: 13px; }
-.strip .fz { display: flex; gap: 4px; height: 150px; }
-.fader { position: relative; width: 22px; height: 150px; touch-action: none; cursor: ns-resize; }
-.fader::before { content: ''; position: absolute; left: 9px; top: 4px; bottom: 4px; width: 4px; border-radius: 2px; background: var(--keyb); }
+.bigpad.var { background: linear-gradient(#e7eefa, #c4d0e6); }
+.partpads { flex: 0 0 auto; display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.partpads button { min-height: 34px; font-size: 11px; padding: 2px; touch-action: none; line-height: 1.05; }
+body.port .partpads { grid-template-columns: repeat(6, 1fr); }
+body.port .bigpad { font-size: 11.5px; justify-content: center; align-items: center; text-align: center; padding: 2px; }
+body.port .bigpad small, body.port #padlcd { display: none; }
+body.port #transport button, body.port #transport input, body.port #transport .pick { min-height: 30px; padding: 2px 6px; font-size: 11px; }
+body.port #transport label { font-size: 10px; }
+body.port .inst button { font-size: 8.5px; letter-spacing: -.3px; padding: 0 1px; text-overflow: clip; }
+body.port #partbtns button, body.port #barbtns button { min-height: 26px; padding: 1px 5px; font-size: 10px; }
+/* mixer console: a strip per pad, master strips at the end */
+.mixer { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; height: 100%; }
+.strip { flex: 0 0 56px; height: 100%; background: linear-gradient(#efeef3, #d6d4dd); border: 1px solid var(--keyb); border-radius: 7px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #26262c; }
+.strip.master { background: linear-gradient(#d9dde6, #b9bfcc); border-color: #6a6f7c; }
+.strip .nm { font-size: 9.5px; font-weight: 700; text-align: center; height: 24px; overflow: hidden; line-height: 12px; cursor: pointer; width: 100%; }
+.strip .fz { flex: 1 1 0; min-height: 30px; display: flex; gap: 3px; }
+.fader { position: relative; width: 22px; height: 100%; touch-action: none; cursor: ns-resize; }
+.fader::before { content: ''; position: absolute; left: 9px; top: 4px; bottom: 4px; width: 4px; border-radius: 2px; background: #555; }
 .fader .cap { position: absolute; left: 0; width: 22px; height: 14px; margin-top: -7px; border-radius: 3px; background: linear-gradient(#f4f4f6, #a9a8b2); border: 1px solid #77767f; }
-.meter { width: 7px; height: 150px; background: #1b2024; border-radius: 3px; position: relative; overflow: hidden; }
-.meter i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #3fbf6a 0%, #3fbf6a 70%, #e8c547 85%, #e5484d 100%); background-size: 100% 150px; background-position: bottom; }
-.strip input[type=range] { width: 56px; }
-.strip .lbl { font-size: 9.5px; color: var(--sub); margin-bottom: -4px; }
-.strip .ms { display: flex; gap: 3px; }
-.strip .ms button { min-height: 24px; padding: 2px 7px; font-size: 11px; }
+.meter { width: 7px; height: 100%; border-radius: 3px; position: relative; overflow: hidden; background: linear-gradient(to top, #3fbf6a 0%, #3fbf6a 70%, #e8c547 85%, #e5484d 100%); }
+.meter i { position: absolute; left: 0; right: 0; top: 0; height: 100%; background: #1b2024; }
+.strip .lbl { font-size: 8.5px; color: #5c5b66; font-weight: 700; line-height: 1; }
+.strip .ms { display: flex; gap: 2px; }
+.strip .ms button { min-height: 22px; padding: 1px 6px; font-size: 10.5px; font-weight: 700; color: #26262c; background: #f4f3f7; }
 .strip .ms button.on.m { background: #e0a020; border-color: #e0a020; color: #000; }
 .strip .ms button.on.s { background: #3fbf6a; border-color: #3fbf6a; color: #000; }
-.strip .val { font-size: 10px; font-variant-numeric: tabular-nums; }
-#rack { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
-.unit { background: #23262b; color: #e9e9ee; border-radius: 8px; padding: 8px; border: 1px solid #3a3e45; }
-.unit .top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.strip .val { font-size: 9.5px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.mknob { width: 28px; height: 28px; border-radius: 50%; position: relative; touch-action: none; cursor: ns-resize;
+  background: radial-gradient(circle at 40% 35%, #fff 0%, #e4e5ec 50%, #a9abb8 100%); box-shadow: 0 1px 2px #0008, inset 0 0 0 1px #8889; }
+.mknob i { position: absolute; left: 50%; top: 2px; width: 3px; height: 10px; margin-left: -1.5px; background: #24427a; border-radius: 2px; transform-origin: 50% 12px; }
+.rack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+body:not(.port) .unit .ctl { grid-template-columns: 84px minmax(0, 1fr) 46px 84px minmax(0, 1fr) 46px; }
+.unit { min-width: 0; background: #23262b; color: #e9e9ee; border-radius: 8px; padding: 6px 8px; border: 1px solid #3a3e45; }
+.unit .top { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 .unit select { background: #30343b; color: #e9e9ee; border-color: #4a4f57; max-width: 100%; }
-.unit .tg { font-size: 11.5px; color: #c9cbd2; }
-.unit .ctl { display: grid; grid-template-columns: 92px 1fr 54px; gap: 4px 6px; align-items: center; font-size: 11px; margin-top: 6px; }
+.unit .tg { font-size: 11px; color: #c9cbd2; }
+.unit .ctl { display: grid; grid-template-columns: 84px minmax(0, 1fr) 46px; gap: 2px 6px; align-items: center; font-size: 11px; margin-top: 4px; }
 .unit .ctl span:last-child { text-align: right; font-variant-numeric: tabular-nums; color: #b9c9d6; }
-.unit .led { width: 9px; height: 9px; border-radius: 50%; background: #2c3a2f; display: inline-block; }
+.unit .led { position: static; width: 9px; height: 9px; border-radius: 50%; background: #2c3a2f; display: inline-block; }
 .unit .led.on { background: #45e07a; box-shadow: 0 0 6px #45e07a; }
 .unit.byp { opacity: .55; }
 /* pickers: every menu opens as a grid with all of its choices on screen, never a scrolling list */
@@ -97,87 +120,62 @@ dialog#picker::backdrop { background: rgba(0, 0, 0, .4); }
 #picker .pg { display: grid; gap: 3px; padding: 0 6px 6px; }
 #picker .pg button { min-height: 0; padding: 2px 3px; line-height: 1.15; overflow: hidden; word-break: break-word; border-radius: 5px; }
 #picker .pg button.on { background: var(--sel); color: #fff; border-color: var(--sel); }
-#mixer { flex-wrap: wrap; overflow-x: visible; }
-#inst { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
-#inst button { padding: 4px 2px; font-size: 10.5px; min-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#inst button.user { border-color: var(--accent); }
-@media (max-width: 560px) { #inst { grid-template-columns: repeat(4, 1fr); } }
-.params { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; }
-.param { display: grid; grid-template-columns: 70px 1fr 40px; align-items: center; gap: 6px; font-size: 12px; }
+.inst { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.inst button { padding: 2px; font-size: 10.5px; min-height: 32px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inst button.user { border-color: var(--accent); }
+.params { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 14px; }
+.param { display: grid; grid-template-columns: 74px 1fr 46px; align-items: center; gap: 6px; font-size: 11.5px; min-height: 28px; }
 .param span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .param input { width: 100%; }
-canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd); border-radius: 6px; margin-top: 8px; }
-#grid { display: grid; gap: 2px; overflow-x: auto; }
-#grid .name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
-#grid select { font-size: 11px; padding: 2px; min-height: 26px; width: 100%; }
-#grid .cell { min-width: 16px; height: 28px; border-radius: 4px; background: var(--key); border: 1px solid var(--keyb); cursor: pointer; }
+.params .help { grid-column: 1 / -1; }
+canvas#wave { width: 100%; height: 44px; display: block; background: var(--lcd); border-radius: 6px; margin-bottom: 5px; }
+#grid { display: grid; gap: 2px; margin-bottom: 5px; }
+#grid .name { display: flex; align-items: center; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 3px; }
+#grid .name .pick { width: 100%; min-height: 0; height: var(--rowh, 22px); font-size: 10px; padding: 0 16px 0 4px; }
+#grid .cell { min-width: 0; height: var(--rowh, 22px); border-radius: 3px; background: var(--key); border: 1px solid var(--keyb); cursor: pointer; }
 #grid .cell.beat { border-color: var(--sub); }
-#grid .cell.v1 { background: var(--ghost); } #grid .cell.v2 { background: var(--sel); } #grid .cell.v3 { background: var(--on); }
+#grid .cell.v1 { background: var(--ghost); } #grid .cell.v2 { background: var(--sel); } #grid .cell.v3 { background: var(--on); box-shadow: 0 0 5px var(--on); }
 #grid .cell.now { outline: 2px solid #f6c445; }
-#songlist { display: grid; gap: 4px; }
-#songlist .srow { display: grid; grid-template-columns: 34px 1fr 1fr 70px 36px 36px; gap: 4px; align-items: center; }
-#songlist .srow.now { outline: 2px solid #f6c445; border-radius: 6px; }
-.help { color: var(--sub); font-size: 12.5px; }
+#partbtns button, #barbtns button { min-height: 30px; padding: 2px 7px; font-size: 11px; }
+.songlist { display: grid; gap: 4px; }
+.srow { display: grid; grid-template-columns: 26px 1fr 1fr 56px 34px 34px; gap: 4px; align-items: center; }
+.srow.now { outline: 2px solid #f6c445; border-radius: 6px; }
+.help { color: var(--sub); font-size: 12px; margin: 0 0 6px; }
 .help b { color: var(--ink); }
 </style>
 </head>
 <body>
 <div id="start"><button id="go">Power on</button><small id="buildno" style="position:absolute;bottom:16px;color:#fff;opacity:.7"></small></div>
+<div id="app">
 <div id="face"><img id="plate" src="faceplate.jpg" alt="Drum machine front panel"><canvas id="lcd"></canvas></div>
-<div id="foldbar"><button id="foldbtn" aria-expanded="false"><span class="chev">▾</span> FOLD-OUT · MIXER · EFFECTS RACK</button></div>
-<div id="foldout">
-  <div class="foldin">
-    <section id="mixsec">
-      <h3>Mixer <span class="help">faders are each sound's LEVEL, PAN and FX SEND; M mutes, S solos</span></h3>
-      <div id="mixer"></div>
-    </section>
-    <section id="racksec">
-      <h3>Effects rack <span class="help">fed from the EFFECT send; slots in series, or parallel off the send</span></h3>
-      <div id="rack"></div>
-    </section>
-  </div>
-</div>
-<div id="panel">
-  <div class="row" style="justify-content:space-between">
-    <div class="row">
-      <button id="play">▶ Start / Stop</button>
-      <button id="recbtn" class="rec">● Record</button>
-      <button id="tap">Tap tempo</button>
-      <button id="dicebeat" title="Make a new beat in a free user pattern">🎲 Random beat</button>
-      <button id="dicesound" title="A new take on the selected sound">🎲 Random sound</button>
-      <label>Tempo <input id="tempo" type="number" min="40" max="296" step="1" style="width:80px"></label>
+<nav id="rail"></nav>
+<div id="pages">
+  <div class="page fit" id="pg-pads" data-title="PADS">
+    <div class="row" id="transport">
+      <button id="play">▶ START / STOP</button>
+      <button id="recbtn" class="rec">● REC</button>
+      <button id="tap">TAP TEMPO</button>
+      <label>TEMPO <input id="tempo" type="number" min="40" max="296" step="1" style="width:68px"></label>
+      <label>PATTERN <select id="patsel"></select></label>
+      <button id="dicebeat" title="Make a new beat in a free user pattern">🎲 BEAT</button>
+      <button id="dicesound" title="A new take on the selected sound">🎲 SOUND</button>
     </div>
-    <div class="row">
-      <label>Pattern <select id="patsel"></select></label>
-    </div>
+    <pre id="padlcd"></pre>
+    <div id="bigpads"></div>
+    <div id="partpads" class="partpads"></div>
   </div>
-  <div class="tabs" id="tabs">
-    <button data-tab="pads" class="on">Pads</button>
-    <button data-tab="voice">Sounds</button>
-    <button data-tab="grid">Step grid</button>
-    <button data-tab="song">Song</button>
-    <button data-tab="setup">Setup</button>
-    <button data-tab="help">Help</button>
-  </div>
-  <div id="tab-pads">
-    <section>
-      <pre id="padlcd"></pre>
-      <div id="bigpads"></div>
-      <div id="partpads"></div>
-    </section>
-  </div>
-  <div id="tab-voice" hidden>
+  <div class="page" id="pg-sounds" data-title="SOUNDS">
     <section>
       <h3>Instruments: tap to play and edit</h3>
-      <div id="inst"></div>
+      <div id="inst" class="inst" data-split></div>
     </section>
     <section>
       <h3 id="vtitle">Voice</h3>
-      <div class="params" id="params"></div>
       <canvas id="wave" width="800" height="60"></canvas>
-      <div class="row" style="margin-top:8px">
+      <div class="params" id="params" data-split></div>
+      <div class="row">
         <button id="loadsmp">Load your own sample…</button>
-        <button id="loadset">Load a sample set (many files)…</button>
+        <button id="loadset">Load a sample set…</button>
         <input type="file" id="setfile" accept="audio/*,.wav,.aif,.aiff" multiple hidden>
         <button id="romsmp">Back to ROM sound</button>
         <button id="resetv">Reset voice</button>
@@ -186,42 +184,46 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
       </div>
     </section>
   </div>
-  <div id="tab-grid" hidden>
+  <div class="page" id="pg-steps" data-title="STEPS">
     <section>
       <h3 id="gtitle">Step grid</h3>
-      <div class="row" id="partbtns"></div>
+      <div class="row"><span class="row" id="partbtns" style="margin:0"></span><label>BAR</label><span id="barbtns" class="row" style="margin:0"></span></div>
+      <div id="grid" data-break-after></div>
       <div class="row">
-        <label>Bar</label><span id="barbtns" class="row" style="margin:0"></span>
         <label>Length <select id="len"></select></label>
         <label>Beats <select id="beats"></select></label>
         <label>Grid <select id="sub"><option value="4">16ths</option><option value="3">Triplets</option></select></label>
         <label>Swing <input id="swing" type="number" min="50" max="75" style="width:64px"></label>
         <label>Bank <select id="bank"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></label>
       </div>
-      <div id="grid"></div>
-      <div class="row" style="margin-top:8px">
+      <div class="row">
         <button id="clearpart">Clear this part</button>
         <button id="midiimp">Import MIDI file…</button>
         <button id="midiexp">Export part as MIDI</button>
         <input type="file" id="midifile" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
-        <span class="help">Tap a step: normal → accent → off. Editing a preset copies it to a free user pattern (51–99).</span>
       </div>
+      <p class="help">Tap a step: normal → accent → off. Editing a preset copies it to a free user pattern (51–99).</p>
     </section>
   </div>
-  <div id="tab-song" hidden>
+  <div class="page" id="pg-song" data-title="SONG">
     <section>
-      <h3>Song (pattern chain)</h3>
       <div class="row">
         <label>Song <select id="songsel"></select></label>
-        <label>Tempo <input id="songtempo" type="number" min="0" max="300" style="width:80px" placeholder="pattern"></label>
+        <label>Tempo <input id="songtempo" type="number" min="0" max="300" style="width:70px" placeholder="pattern"></label>
         <button id="songadd">Add current pattern</button>
         <button id="songplay">Play song</button>
         <button id="songmidi">Export song as MIDI</button>
       </div>
-      <div id="songlist"></div>
+      <div id="songlist" class="songlist" data-split></div>
     </section>
   </div>
-  <div id="tab-setup" hidden>
+  <div class="page" id="pg-mixer" data-title="MIXER">
+    <div id="mixer" class="mixer" data-split></div>
+  </div>
+  <div class="page" id="pg-fx" data-title="EFFECTS RACK · fed from the EFFECT send">
+    <div id="rack" class="rack" data-split></div>
+  </div>
+  <div class="page" id="pg-setup" data-title="SETUP">
     <section>
       <h3>Feel</h3>
       <div class="row">
@@ -257,12 +259,12 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
       <p class="help">Your patterns, songs, voice edits and samples are kept on this device automatically. The same file loads into the Omega XR10 VST3 plugin, and back.</p>
     </section>
   </div>
-  <div id="tab-help" hidden>
+  <div class="page" id="pg-help" data-title="HELP">
     <section class="help">
       <h3>Using the front panel</h3>
       <p><b>START/STOP</b> plays the pattern shown on the screen. Type a number on the keypad (two digits, e.g. <b>0 7</b>) to pick a pattern; while playing it changes at the end of the bar. <b>◄ ►</b> step through patterns, <b>▲ ▼</b> change the tempo, and the <b>TEMPO/DATA</b> knob turns either way (drag it).</p>
       <p><b>VARIATION A/B/C</b> (pads 12, 11, 10) switch the groove at the bar line. <b>FILL IN A/B/C</b> (pads 15, 14, 13) play a fill now and lead into the matching variation. <b>INTRO/END</b> starts with an intro when stopped and plays the ending when playing. <b>BREAK/CONTINUE</b> stops at the bar line and carries on when pressed again.</p>
-      <p><b>Recording:</b> press <b>EDIT</b>, then <b>+/Y</b> (RECORD ON), <b>EDIT</b> again to leave the menu, and <b>START</b>. Hit the pads; <b>TIMING CORRECT</b> sets the quantize and <b>ACCENT</b> records at full strength. Hold <b>ERASE</b> and hit a pad to remove that sound. Press ERASE while stopped to clear the part. In the EDIT menu, ▲ ▼ go through length, time signature, swing, click, count-in, copy, name and clear.</p>
+      <p><b>Recording:</b> the easy way: <b>● REC</b> on the PADS page, START, hit the pads. On the panel: press <b>EDIT</b>, then <b>+/Y</b> (RECORD ON), <b>EDIT</b> again to leave the menu, and <b>START</b>. Hit the pads; <b>TIMING CORRECT</b> sets the quantize and <b>ACCENT</b> records at full strength. Hold <b>ERASE</b> and hit a pad to remove that sound. Press ERASE while stopped to clear the part. In the EDIT menu, ▲ ▼ go through length, time signature, swing, click, count-in, copy, name and clear.</p>
       <p><b>MODE</b> (or tap a mode light) goes Pattern → Song → Sound → Utility. In <b>Sound</b> mode, hit a pad and turn DATA to change the sound on it; ▲ ▼ go through level, pan, tune, fine, bend, attack, decay, tone, reverse, loop, FX send, group and velocity sensitivity. In <b>Song</b> mode, ◄ ► pick step / pattern / part / repeat, DATA or −/+ change it, ENTER adds a step, ERASE deletes it. <b>PAD BANK</b> switches between four sets of 15 sounds.</p>
       <h3>MIDI files</h3>
       <p>Under <b>Step grid</b>, <b>Import MIDI file</b> reads a drum MIDI file (General MIDI drum notes, channel 10 if the file uses it) into the part you're on, up to 8 bars, with its tempo and time signature. Importing onto a preset copies it to a free user pattern first. <b>Export part as MIDI</b> writes the part, and <b>Export song as MIDI</b> on the Song page writes the whole song, as drums on channel 10. The note layout follows Setup → MIDI → Note map. You can also drop a .mid file onto the page.</p>
@@ -275,7 +277,11 @@ canvas#wave { width: 100%; height: 60px; display: block; background: var(--lcd);
     </section>
   </div>
 </div>
+<button id="expand">EXPAND</button>
+</div>
 <dialog id="picker"><div class="ph"><span id="ptitle"></span><button id="pclose" type="button">✕</button></div><div class="pg" id="pgrid"></div></dialog>
+<script src="loupe.js"></script>
 <script src="app.js"></script>
+<script src="layout.js"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 #pragma once
 #include "XR10Plugin.h"
 #include "XR10Fold.h"
+#include "../common/Loupe.h"
 
 namespace xr10 {
 
@@ -70,7 +71,10 @@ private:
     NoScrollLook look;
     Processor& proc;
     Snapshot snap;
-    juce::Component content;
+    juce::Component content;     // everything, drawn at the base size and scaled to the window
+    juce::Component view;        // beside the rail: the machine, or the open page (what ZOOM magnifies)
+    omega::Loupe loupe;
+    juce::TextButton railKeys[9], expandBtn {"EXPAND"};
     Face face;
     struct Page : juce::Component {
         std::function<void(juce::Graphics&)> painter;

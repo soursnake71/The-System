@@ -249,9 +249,16 @@ FoldPanel::FoldPanel(Processor& p, const Snapshot& s) : mixer(p, s), proc(p), sn
 void FoldPanel::paint(juce::Graphics& g) {
     g.fillAll(fBg);
     g.setColour(fInk); g.setFont(sansF(13, true));
+    if (mode == 2) {
+        g.setColour(fInk); g.setFont(sansF(13, true)); g.drawText("EFFECTS RACK", 12, 4, 200, 18, juce::Justification::centredLeft);
+        g.setColour(fSub); g.setFont(sansF(10.5f));
+        g.drawText("fed from the EFFECT send; slots in series, or parallel off the send; back in through FX RETURN", 120, 4, getWidth() - 130, 18, juce::Justification::centredLeft);
+        return;
+    }
     g.drawText("MIXER", 12, 4, 200, 18, juce::Justification::centredLeft);
     g.setColour(fSub); g.setFont(sansF(10.5f));
     g.drawText("each pad's LEVEL, PAN and FX SEND; M mutes, S solos; tap a name to play it", 70, 4, getWidth() - 80, 18, juce::Justification::centredLeft);
+    if (mode == 1) return;
     const int ry = mixer.getBottom() + 6;
     g.setColour(fInk); g.setFont(sansF(13, true));
     g.drawText("EFFECTS RACK", 12, ry, 200, 18, juce::Justification::centredLeft);
@@ -259,7 +266,11 @@ void FoldPanel::paint(juce::Graphics& g) {
     g.drawText("fed from the EFFECT send; slots in series, or parallel off the send; back in through FX RETURN", 120, ry, getWidth() - 130, 18, juce::Justification::centredLeft);
 }
 void FoldPanel::resized() {
-    mixer.setBounds(8, 24, getWidth() - 16, 300);
+    mixer.setVisible(mode != 2);
+    for (auto& s : slots) s->setVisible(mode != 1);
+    if (mode == 1) { mixer.setBounds(8, 24, getWidth() - 16, getHeight() - 32); return; }
+    if (mode == 2) mixer.setBounds(8, -2, getWidth() - 16, 0);
+    else mixer.setBounds(8, 24, getWidth() - 16, 300);
     int y = mixer.getBottom() + 26;
     const int h = (getHeight() - y - 8) / 4;
     for (auto& s : slots) { s->setBounds(8, y, getWidth() - 16, h - 6); y += h; }
