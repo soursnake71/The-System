@@ -8,6 +8,7 @@
 // back out (inverse filter, boost limited to MAX_BOOST_DB), the result band-limited to the machine's Nyquist, so that
 // playing it through the circuit model gives back the recording. Lead-in silence and the tail hiss are trimmed.
 // Sounds without a file stay synthesized. Files are mixed to mono, resampled to the machine's rate (33.33 kHz) and stored as 16-bit.
+#define _USE_MATH_DEFINES   // M_PI on Windows
 #include "../core/xr10.h"
 #include <algorithm>
 #include <cstdio>

@@ -168,6 +168,10 @@ endif()
 add_executable(xr10_test ../xr10/tools/test.cpp)
 # builds xr10/rom.bin from xr10/samples: <build>/xr10_make_rom ../xr10/samples ../xr10/rom.bin
 add_executable(xr10_make_rom ../xr10/tools/make-rom.cpp)
+if(APPLE)   # std::filesystem needs macOS 10.15
+  target_compile_options(xr10_make_rom PRIVATE -mmacosx-version-min=10.15)
+  target_link_options(xr10_make_rom PRIVATE -mmacosx-version-min=10.15)
+endif()
 # pictures of the XR10 window: <build>/xr10_shot <dir>
 if(TARGET OmegaXR10)
   juce_add_console_app(xr10_shot PRODUCT_NAME "xr10_shot")

@@ -1,5 +1,6 @@
 // Native check of the XR10 engine: renders presets, sounds and a recorded user pattern to WAV and checks the basics.
 // Build: g++ -O2 -std=c++17 xr10/tools/test.cpp -o xr10_test && ./xr10_test outdir
+#define _USE_MATH_DEFINES   // M_PI on Windows
 #include "../core/xr10.h"
 #include <cstdio>
 #include <cstdlib>
